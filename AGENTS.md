@@ -55,7 +55,8 @@ Input Formats          Semantic Layer           Output/Actions
 HL7v2    ──┐          ┌─────────────┐          ┌─> FHIR API
 Flatfile ──┼──────────┤ Canonical   ├──────────┼─> REST Webhook
 EDI X12  ──┤          │ Event Model │          ├─> Database
-FHIR     ──┘          └─────────────┘          └─> Message Queue
+CDA/CCDA ──┤          └─────────────┘          └─> Message Queue
+FHIR     ──┘
 ```
 
 ### Key Directories
@@ -64,16 +65,21 @@ FHIR     ──┘          └─────────────┘       
 |------|---------|
 | `cmd/fi-fhir/` | CLI entry point |
 | `internal/parser/hl7v2/` | HL7v2 message parsing |
-| `internal/semantic/` | Event transformation (planned) |
+| `internal/parser/csv/` | CSV/flatfile parsing |
+| `internal/parser/edi/` | EDI X12 (837/835) parsing |
+| `internal/parser/cda/` | CDA/CCDA clinical document parsing |
+| `internal/fhir/subscription/` | FHIR R4 Subscriptions (bidirectional) |
 | `internal/workflow/` | Workflow engine with CEL conditions |
 | `pkg/events/` | **Public** semantic event types - the canonical model |
 | `pkg/config/` | Configuration types |
-| `testdata/` | Sample HL7v2 messages for testing |
+| `testdata/` | Sample messages for testing |
 
 ### Critical Files
 
 - `pkg/events/events.go` - **THE** canonical event model. All format adapters map TO these types.
-- `internal/parser/hl7v2/parser.go` - HL7v2 parsing logic, reference implementation for other adapters
+- `internal/parser/hl7v2/parser.go` - HL7v2 parsing logic, reference implementation
+- `internal/parser/cda/parser.go` - CDA/CCDA XML parsing with namespace handling
+- `internal/parser/cda/mapper.go` - CDA to canonical event mapping
 
 ## Build & Test
 
@@ -189,7 +195,7 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 - Identifier validation (SSN, NPI, MBI)
 - Z-segment extraction
 - HL7v2 escape sequence handling
-- CLI with parse, validate, and workflow commands
+- CLI with parse, validate, workflow, and config commands
 - CSV adapter with schema inference (patient, lab result parsing)
 - Workflow DSL engine (routing, log/webhook/fhir actions, dry-run)
 - CEL condition evaluation in workflow filters
@@ -202,9 +208,59 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 - Database action in workflow (PostgreSQL, MySQL, SQLite; insert/upsert; field mapping)
 - Queue action in workflow (driver registry pattern; topic templates; message keys)
 
-**Next Steps**:
-1. EDI X12 276/277 claim status transactions
-2. Retry/error handling with exponential backoff
+**Completed**:
+- EDI X12 276/277 claim status transactions (see `Map276ToEvents()`, `Map277ToEvents()`)
+- Retry/error handling with exponential backoff (`internal/workflow/retry.go`)
+- OAuth2 token refresh with 401 handling (`internal/workflow/oauth.go`)
+- Circuit breaker pattern for failing external services (`internal/workflow/circuit_breaker.go`)
+- Dead letter queue for failed events (`internal/workflow/dlq.go`)
+- Rate limiting for high-volume event streams (`internal/workflow/ratelimit.go`)
+- Metrics/observability instrumentation (`internal/workflow/metrics.go`)
+- Prometheus metrics adapter (`internal/workflow/metrics_prometheus.go`)
+- Distributed tracing with OpenTelemetry (`internal/workflow/tracing.go`, `tracing_otel.go`)
+- Grafana dashboard templates (`dashboards/grafana/`)
+- Log correlation with trace IDs (`internal/workflow/logging.go`, `logging_test.go`)
+- Alerting rule templates (`dashboards/alerting/workflow-alerts.yaml`, `workflow-alerts-k8s.yaml`)
+- Health check endpoints (`internal/workflow/health.go`)
+- Configuration validation (`internal/workflow/validate.go`)
+- Event replay/simulation tooling (`internal/workflow/replay.go`, `simulation.go`)
+- Performance benchmarking (`internal/workflow/benchmark_test.go`, `benchmark_util.go`)
+- Load testing utilities (`internal/workflow/loadtest.go`, `loadtest_test.go`)
+
+**Phase 6 (Testing Infrastructure) Complete!**:
+- ~~Workflow testing framework (CLI integration)~~ ✓
+- ~~Performance benchmarking~~ ✓
+- ~~Load testing utilities~~ ✓
+
+**Phase 7 (Production Readiness) - Complete!**:
+- ~~Configuration management~~ ✓ (`pkg/config/`, CLI `config` command)
+- ~~Deployment examples~~ ✓ (Dockerfile, docker-compose, Kubernetes manifests)
+- ~~Helm chart~~ ✓ (`deploy/helm/fi-fhir/` with full templating)
+- ~~CI/CD pipelines~~ ✓ (GitLab CI primary, GitHub Actions mirror)
+- ~~Production documentation~~ ✓ (`docs/operations/` - hardening guide, runbook)
+- Production monitoring dashboards (Grafana dashboards exist in `dashboards/grafana/`)
+
+**All Phases Complete!** 🎉
+
+**Post-v1.0 Additions**:
+- ~~API documentation~~ ✓ (`api/openapi.yaml` - OpenAPI 3.1 spec)
+- ~~End-to-end tests~~ ✓ (`test/e2e/` - CLI tests, integration tests with Docker)
+- ~~Example workflows~~ ✓ (`examples/workflows/` - ADT, labs, claims, appointments)
+- ~~CHANGELOG~~ ✓ (`CHANGELOG.md` - release history)
+
+**Bidirectional FHIR Subscriptions - Complete!** 🎉
+- FHIR R4 Subscription client for managing subscriptions on FHIR servers
+- Notification receiver (webhook server) for incoming notifications
+- FHIR-to-canonical event mapper (Patient, Encounter, Observation, Appointment)
+- Workflow integration for routing received events
+- CLI commands: `subscription list|status|create|delete|pause|resume|serve|validate|test`
+- Design document: `docs/planning/FHIR-SUBSCRIPTIONS.md`
+
+**Future Enhancements**:
+  1. ~~Bidirectional FHIR subscriptions~~ ✓
+  2. Additional format adapters (CDA, CCDA)
+  3. GraphQL API layer
+  4. Event sourcing / CQRS patterns
 
 ## Testing Strategy
 
@@ -333,9 +389,59 @@ classifiedType := p.profile.GetEventClassification(msgType, patientClass)
 | `internal/workflow/oauth.go` | OAuth2 client credentials token manager with caching |
 | `internal/workflow/database.go` | Database action with connection pooling and field mapping |
 | `internal/workflow/queue.go` | Queue action with driver registry and topic templates |
+| `internal/workflow/retry.go` | Retry with exponential backoff for HTTP actions |
+| `internal/workflow/circuit_breaker.go` | Circuit breaker pattern for failing services |
+| `internal/workflow/dlq.go` | Dead letter queue for failed events |
+| `internal/workflow/ratelimit.go` | Token bucket rate limiter for high-volume streams |
+| `internal/workflow/metrics.go` | Pluggable metrics interface with InMemory implementation |
+| `internal/workflow/metrics_prometheus.go` | Prometheus adapter for metrics export |
+| `internal/workflow/tracing.go` | Pluggable tracer interface with NoOp implementation |
+| `internal/workflow/tracing_otel.go` | OpenTelemetry adapter for distributed tracing |
+| `internal/workflow/logging.go` | Structured logger with trace correlation (trace_id, span_id) |
+| `dashboards/grafana/workflow-overview.json` | Grafana dashboard for workflow monitoring |
+| `dashboards/alerting/workflow-alerts.yaml` | Prometheus alerting rules (standalone) |
+| `dashboards/alerting/workflow-alerts-k8s.yaml` | PrometheusRule CRD for Kubernetes |
+| `internal/workflow/health.go` | Health check endpoints (/health, /ready) for Kubernetes |
+| `internal/workflow/validate.go` | Workflow configuration validator with CEL/action validation |
+| `internal/workflow/replay.go` | Event recording and replay for testing workflow changes |
+| `internal/workflow/simulation.go` | SimulationEngine with mock actions for isolated testing |
+| `internal/workflow/benchmark_test.go` | Performance benchmarks for workflow engine |
+| `internal/workflow/benchmark_util.go` | Benchmark comparison and threshold validation utilities |
+| `internal/workflow/loadtest.go` | Load testing runner with event generators |
+| `internal/workflow/loadtest_test.go` | Load testing tests |
+| `pkg/config/config.go` | Application configuration with layered loading (defaults → file → env) |
+| `pkg/config/secrets.go` | Secret provider interface (env, file, vault, aws-ssm, k8s) |
+| `Dockerfile` | Multi-stage Docker build with distroless base |
+| `docker-compose.yaml` | Local development environment with Postgres, Kafka, FHIR server |
+| `deploy/kubernetes/base/` | Kubernetes manifests (Kustomize base) |
+| `deploy/kubernetes/overlays/production/` | Production Kustomize overlay |
+| `deploy/helm/fi-fhir/Chart.yaml` | Helm chart metadata |
+| `deploy/helm/fi-fhir/values.yaml` | Helm chart default values (config, secrets, resources) |
+| `deploy/helm/fi-fhir/templates/` | Helm templates (deployment, service, ingress, hpa, pdb, servicemonitor) |
+| `.gitlab-ci.yml` | GitLab CI/CD pipeline (lint, test, security, build, release) |
+| `.github/workflows/ci.yaml` | GitHub Actions CI workflow (lint, test, security, docker) |
+| `.github/workflows/release.yaml` | GitHub Actions release workflow (binaries, docker, helm) |
+| `.golangci.yml` | golangci-lint configuration |
+| `docs/operations/PRODUCTION-HARDENING.md` | Security hardening guide (HIPAA, network policies, secrets) |
+| `docs/operations/RUNBOOK.md` | Operations runbook (troubleshooting, incident response) |
+| `api/openapi.yaml` | OpenAPI 3.1 specification for REST API |
+| `test/e2e/e2e_test.go` | E2E tests for parsing and workflow (no external deps) |
+| `test/e2e/integration_test.go` | Integration tests with database, FHIR, Kafka |
+| `test/e2e/docker-compose.yaml` | Docker services for integration testing |
+| `examples/workflows/adt-to-fhir.yaml` | Example: ADT events to FHIR server |
+| `examples/workflows/lab-results-routing.yaml` | Example: Multi-destination lab routing with alerts |
+| `examples/workflows/claims-processing.yaml` | Example: EDI 837/835 claims pipeline |
+| `examples/workflows/appointment-sync.yaml` | Example: Scheduling sync across systems |
+| `CHANGELOG.md` | Release history and version notes |
 | `docs/planning/SOURCE-PROFILES.md` | Source Profile specification |
 | `docs/planning/IDENTIFIERS.md` | Patient/provider ID systems reference |
 | `docs/planning/HL7V2-QUIRKS.md` | Version differences and vendor variations |
+| `docs/planning/FHIR-SUBSCRIPTIONS.md` | FHIR R4 Subscriptions design document |
+| `internal/fhir/subscription/client.go` | FHIR Subscription CRUD client |
+| `internal/fhir/subscription/receiver.go` | Webhook notification receiver |
+| `internal/fhir/subscription/mapper.go` | FHIR resource to canonical event mapper |
+| `internal/fhir/subscription/router.go` | Event routing to workflow engine |
+| `internal/fhir/subscription/config.go` | Subscription configuration types |
 
 ---
 
