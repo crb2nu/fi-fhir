@@ -455,6 +455,147 @@ type AppointmentEvent struct {
 	RawPayload  json.RawMessage `json:"raw_payload,omitempty"`
 }
 
+// Claim represents a healthcare claim.
+type Claim struct {
+	// ID is the claim identifier
+	ID string `json:"id"`
+
+	// ControlNumber is the submitter's claim control number
+	ControlNumber string `json:"control_number,omitempty"`
+
+	// TotalAmount is the total claim charge
+	TotalAmount float64 `json:"total_amount"`
+
+	// PlaceOfService is the place of service code
+	PlaceOfService string `json:"place_of_service,omitempty"`
+
+	// ServiceDate is the date of service
+	ServiceDate time.Time `json:"service_date,omitempty"`
+
+	// ServiceLines are the individual service line items
+	ServiceLines []ServiceLine `json:"service_lines,omitempty"`
+
+	// DiagnosisCodes is the list of diagnosis codes
+	DiagnosisCodes []string `json:"diagnosis_codes,omitempty"`
+
+	// PayerClaimID is the payer's control number (from 835)
+	PayerClaimID string `json:"payer_claim_id,omitempty"`
+
+	// Extensions holds source-specific data
+	Extensions map[string]interface{} `json:"extensions,omitempty"`
+}
+
+// ServiceLine represents a single service line item on a claim.
+type ServiceLine struct {
+	// LineNumber is the sequence number
+	LineNumber int `json:"line_number"`
+
+	// ProcedureCode is the CPT/HCPCS code
+	ProcedureCode string `json:"procedure_code"`
+
+	// Modifiers are the procedure modifiers
+	Modifiers []string `json:"modifiers,omitempty"`
+
+	// ChargeAmount is the amount charged
+	ChargeAmount float64 `json:"charge_amount"`
+
+	// Units is the number of units
+	Units float64 `json:"units"`
+
+	// UnitType is the unit basis code (UN=Unit, etc.)
+	UnitType string `json:"unit_type,omitempty"`
+
+	// ServiceDate is the date of this specific service
+	ServiceDate time.Time `json:"service_date,omitempty"`
+
+	// DiagnosisPointers link to claim-level diagnosis codes
+	DiagnosisPointers []int `json:"diagnosis_pointers,omitempty"`
+}
+
+// ClaimAdjustment represents an adjustment to a claim payment.
+type ClaimAdjustment struct {
+	// Group is the adjustment group code (CO, PR, OA, PI, CR)
+	Group string `json:"group"`
+
+	// ReasonCode is the CARC (Claim Adjustment Reason Code)
+	ReasonCode string `json:"reason_code"`
+
+	// Amount is the adjustment amount
+	Amount float64 `json:"amount"`
+
+	// Quantity is the adjustment quantity
+	Quantity int `json:"quantity,omitempty"`
+}
+
+// ClaimPayment holds payment information for a claim.
+type ClaimPayment struct {
+	// ClaimID is the original claim identifier
+	ClaimID string `json:"claim_id"`
+
+	// PayerClaimID is the payer's control number
+	PayerClaimID string `json:"payer_claim_id,omitempty"`
+
+	// Status is the claim status (Processed, Denied, etc.)
+	Status string `json:"status"`
+
+	// ChargedAmount is the original charge amount
+	ChargedAmount float64 `json:"charged_amount"`
+
+	// PaidAmount is the amount paid
+	PaidAmount float64 `json:"paid_amount"`
+
+	// PatientResponsibility is the patient responsibility amount
+	PatientResponsibility float64 `json:"patient_responsibility,omitempty"`
+
+	// Adjustments are the claim-level adjustments
+	Adjustments []ClaimAdjustment `json:"adjustments,omitempty"`
+
+	// ServiceLinePayments are the line-level payments
+	ServiceLinePayments []ServiceLinePayment `json:"service_line_payments,omitempty"`
+}
+
+// ServiceLinePayment holds payment information for a service line.
+type ServiceLinePayment struct {
+	// ProcedureCode is the service code
+	ProcedureCode string `json:"procedure_code"`
+
+	// ChargedAmount is the charged amount
+	ChargedAmount float64 `json:"charged_amount"`
+
+	// PaidAmount is the paid amount
+	PaidAmount float64 `json:"paid_amount"`
+
+	// Units is the number of units paid
+	Units float64 `json:"units,omitempty"`
+
+	// Adjustments are line-level adjustments
+	Adjustments []ClaimAdjustment `json:"adjustments,omitempty"`
+}
+
+// ClaimSubmittedEvent is emitted when a claim is submitted.
+type ClaimSubmittedEvent struct {
+	EventMeta
+	Patient           Patient         `json:"patient"`
+	BillingProvider   Provider        `json:"billing_provider"`
+	RenderingProvider *Provider       `json:"rendering_provider,omitempty"`
+	Payer             Provider        `json:"payer"`
+	Subscriber        Patient         `json:"subscriber"`
+	Claim             Claim           `json:"claim"`
+	RawPayload        json.RawMessage `json:"raw_payload,omitempty"`
+}
+
+// ClaimAdjudicatedEvent is emitted when a claim is adjudicated (835 remittance).
+type ClaimAdjudicatedEvent struct {
+	EventMeta
+	Payer       Provider        `json:"payer"`
+	Payee       Provider        `json:"payee"`
+	CheckNumber string          `json:"check_number,omitempty"`
+	CheckDate   time.Time       `json:"check_date,omitempty"`
+	TotalPaid   float64         `json:"total_paid"`
+	Payment     ClaimPayment    `json:"payment"`
+	RawPayload  json.RawMessage `json:"raw_payload,omitempty"`
+}
+
 // Event is a generic container that can hold any event type.
 type Event struct {
 	EventMeta

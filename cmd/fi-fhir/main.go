@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/cblevins/fi-fhir/internal/parser/csv"
+	"github.com/cblevins/fi-fhir/internal/parser/edi"
 	"github.com/cblevins/fi-fhir/internal/parser/hl7v2"
 	"github.com/cblevins/fi-fhir/internal/workflow"
 	"github.com/cblevins/fi-fhir/pkg/events"
@@ -258,8 +259,56 @@ func runParse(args []string) error {
 		}
 		warnings = result.Warnings
 
-	case "edi", "x12":
-		return fmt.Errorf("EDI parser not yet implemented")
+	case "edi", "x12", "837", "835":
+		parser := edi.NewParser()
+		result, err := parser.Parse(string(data))
+		if err != nil {
+			return fmt.Errorf("parse error: %w", err)
+		}
+
+		// Convert parse warnings to events warnings
+		for _, w := range result.Warnings {
+			warnings = append(warnings, events.ParseWarning{
+				Phase:   w.Phase,
+				Code:    w.Code,
+				Message: w.Message,
+			})
+		}
+
+		// Map transactions to events
+		var allEvents []interface{}
+		for _, fg := range result.Interchange.FunctionalGroups {
+			for _, tx := range fg.Transactions {
+				txType := edi.GetTransactionType(tx)
+				switch txType {
+				case edi.Transaction837P, edi.Transaction837I, edi.Transaction837D:
+					claims, err := edi.Map837ToEvents(tx, source)
+					if err != nil {
+						return fmt.Errorf("failed to map 837: %w", err)
+					}
+					for _, c := range claims {
+						allEvents = append(allEvents, c)
+					}
+				case edi.Transaction835:
+					remittances, err := edi.Map835ToEvents(tx, source)
+					if err != nil {
+						return fmt.Errorf("failed to map 835: %w", err)
+					}
+					for _, r := range remittances {
+						allEvents = append(allEvents, r)
+					}
+				default:
+					// Unknown transaction type - output raw transaction info
+					allEvents = append(allEvents, map[string]interface{}{
+						"type":           "unknown_transaction",
+						"set_identifier": tx.SetIdentifier,
+						"control_number": tx.ControlNumber,
+						"segment_count":  len(tx.Segments),
+					})
+				}
+			}
+		}
+		outputData = allEvents
 	case "fhir":
 		return fmt.Errorf("FHIR parser not yet implemented")
 	default:
@@ -332,6 +381,12 @@ Examples:
 
   # Analyze CSV schema without specifying event type
   fi-fhir parse -f csv --infer-schema --pretty data.csv
+
+  # Parse EDI X12 837 claim
+  fi-fhir parse -f edi --source "clearinghouse" claim.edi
+
+  # Parse EDI X12 835 remittance
+  fi-fhir parse -f 835 --pretty remittance.edi
 
   # Parse from stdin
   cat message.hl7 | fi-fhir parse -f hl7v2 -`)
