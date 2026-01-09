@@ -71,6 +71,7 @@ FHIR     ──┘
 | `internal/fhir/subscription/` | FHIR R4 Subscriptions (bidirectional) |
 | `internal/workflow/` | Workflow engine with CEL conditions |
 | `pkg/events/` | **Public** semantic event types - the canonical model |
+| `pkg/eventsourcing/` | Event store, projections, snapshots for CQRS |
 | `pkg/config/` | Configuration types |
 | `testdata/` | Sample messages for testing |
 
@@ -256,11 +257,26 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 - CLI commands: `subscription list|status|create|delete|pause|resume|serve|validate|test`
 - Design document: `docs/planning/FHIR-SUBSCRIPTIONS.md`
 
+**Event Sourcing / CQRS - Complete!** 🎉
+- Event store interface with append-only semantics (`pkg/eventsourcing/store.go`)
+- In-memory store for testing (`pkg/eventsourcing/memory_store.go`)
+- PostgreSQL store for production (`pkg/eventsourcing/postgres_store.go`)
+- Projection framework with checkpointing (`pkg/eventsourcing/projection.go`)
+- Snapshot support for large projections (`pkg/eventsourcing/snapshot.go`)
+- Healthcare projections (patient timeline, event statistics, active encounters)
+- CLI commands: `eventstore init|stats|streams|read|append` and `projection list|status|run|rebuild`
+- Design document: `docs/planning/EVENT-SOURCING.md`
+
 **Future Enhancements**:
   1. ~~Bidirectional FHIR subscriptions~~ ✓
-  2. Additional format adapters (CDA, CCDA)
-  3. GraphQL API layer
-  4. Event sourcing / CQRS patterns
+  2. ~~Additional format adapters (CDA, CCDA)~~ ✓
+  3. ~~GraphQL API layer~~ ✓
+  4. ~~Event sourcing / CQRS patterns~~ ✓
+  5. ~~Workflow action for event store integration~~ ✓
+  6. ~~GraphQL queries for projections~~ ✓
+  7. Wire projection resolvers to actual projection stores
+  8. PostgreSQL-backed snapshot store
+  9. Event replay tooling for projection rebuilds
 
 ## Testing Strategy
 
@@ -442,6 +458,17 @@ classifiedType := p.profile.GetEventClassification(msgType, patientClass)
 | `internal/fhir/subscription/mapper.go` | FHIR resource to canonical event mapper |
 | `internal/fhir/subscription/router.go` | Event routing to workflow engine |
 | `internal/fhir/subscription/config.go` | Subscription configuration types |
+| `internal/api/graphql/schema.graphql` | GraphQL schema with queries, mutations, subscriptions |
+| `internal/api/graphql/server.go` | GraphQL HTTP server with WebSocket support |
+| `internal/api/graphql/resolvers/` | Query, mutation, subscription resolvers |
+| `internal/api/graphql/store/store.go` | EventStore interface with MemoryStore implementation |
+| `internal/api/graphql/model/` | GraphQL model types (Event interface, concrete types) |
+| `docs/planning/GRAPHQL-API.md` | GraphQL API design document |
+| `docs/planning/EVENT-SOURCING.md` | Event sourcing / CQRS design document |
+| `pkg/eventsourcing/store.go` | EventStore interface with append-only semantics |
+| `pkg/eventsourcing/memory_store.go` | In-memory event store for testing |
+| `pkg/eventsourcing/projection.go` | Projection framework with checkpointing |
+| `pkg/eventsourcing/projections/` | Healthcare projections (timeline, stats, encounters) |
 
 ---
 

@@ -1,0 +1,603 @@
+# fi-fhir GraphQL Schema
+# Healthcare event query interface
+
+# Custom scalar types
+scalar DateTime
+scalar JSON
+
+# =============================================================================
+# Enums
+# =============================================================================
+
+enum EventType {
+  PATIENT_ADMIT
+  PATIENT_DISCHARGE
+  PATIENT_TRANSFER
+  PATIENT_UPDATE
+  LAB_RESULT
+  LAB_ORDERED
+  APPOINTMENT_SCHEDULED
+  APPOINTMENT_CANCELLED
+  APPOINTMENT_NOSHOW
+  CLAIM_SUBMITTED
+  CLAIM_ADJUDICATED
+  VITAL_SIGN
+  CONDITION
+  PROCEDURE
+  IMMUNIZATION
+  DOCUMENT
+}
+
+enum SourceFormat {
+  HL7V2
+  FHIR
+  CSV
+  EDI_837
+  EDI_835
+  CDA
+}
+
+enum EventOrderField {
+  TIMESTAMP
+  TYPE
+  SOURCE
+}
+
+enum OrderDirection {
+  ASC
+  DESC
+}
+
+# =============================================================================
+# Core Types
+# =============================================================================
+
+# Event interface - all events implement this
+interface Event {
+  id: ID!
+  type: EventType!
+  timestamp: DateTime!
+  source: String!
+  sourceFormat: SourceFormat
+  correlationId: String
+}
+
+type Patient {
+  mrn: ID!
+  identifiers: [Identifier!]!
+  familyName: String!
+  givenName: String!
+  middleName: String
+  dateOfBirth: DateTime
+  gender: String
+  address: Address
+  phone: String
+  email: String
+}
+
+type Identifier {
+  value: String!
+  type: String!
+  system: String
+  assigner: String
+}
+
+type Address {
+  line1: String
+  line2: String
+  city: String
+  state: String
+  postalCode: String
+  country: String
+}
+
+type Provider {
+  npi: String
+  id: String
+  familyName: String!
+  givenName: String!
+  specialty: String
+  organizationName: String
+}
+
+type Location {
+  facility: String
+  unit: String
+  room: String
+  bed: String
+}
+
+type Encounter {
+  id: ID!
+  class: String!
+  status: String
+  admitDateTime: DateTime
+  dischargeDateTime: DateTime
+  location: Location
+  attendingProvider: Provider
+}
+
+# =============================================================================
+# Event Types
+# =============================================================================
+
+type PatientAdmitEvent implements Event {
+  id: ID!
+  type: EventType!
+  timestamp: DateTime!
+  source: String!
+  sourceFormat: SourceFormat
+  correlationId: String
+  patient: Patient!
+  encounter: Encounter!
+}
+
+type PatientDischargeEvent implements Event {
+  id: ID!
+  type: EventType!
+  timestamp: DateTime!
+  source: String!
+  sourceFormat: SourceFormat
+  correlationId: String
+  patient: Patient!
+  encounter: Encounter!
+}
+
+type LabTest {
+  loincCode: String
+  localCode: String
+  description: String!
+  category: String
+}
+
+type LabResult {
+  value: String!
+  unit: String
+  referenceRange: String
+  interpretation: String
+  status: String
+}
+
+type LabResultEvent implements Event {
+  id: ID!
+  type: EventType!
+  timestamp: DateTime!
+  source: String!
+  sourceFormat: SourceFormat
+  correlationId: String
+  patient: Patient!
+  test: LabTest!
+  result: LabResult!
+  isCritical: Boolean!
+  orderingProvider: Provider
+}
+
+type VitalSign {
+  name: String!
+  loincCode: String
+  value: String!
+  unit: String
+  interpretation: String
+}
+
+type VitalSignEvent implements Event {
+  id: ID!
+  type: EventType!
+  timestamp: DateTime!
+  source: String!
+  sourceFormat: SourceFormat
+  correlationId: String
+  patient: Patient!
+  vitalSign: VitalSign!
+}
+
+type Condition {
+  name: String!
+  code: String
+  codeSystem: String
+  category: String
+}
+
+type ConditionEvent implements Event {
+  id: ID!
+  type: EventType!
+  timestamp: DateTime!
+  source: String!
+  sourceFormat: SourceFormat
+  correlationId: String
+  patient: Patient!
+  condition: Condition!
+  clinicalStatus: String
+  onsetDate: String
+}
+
+type Procedure {
+  name: String!
+  code: String
+  codeSystem: String
+  status: String
+}
+
+type ProcedureEvent implements Event {
+  id: ID!
+  type: EventType!
+  timestamp: DateTime!
+  source: String!
+  sourceFormat: SourceFormat
+  correlationId: String
+  patient: Patient!
+  procedure: Procedure!
+  performedDate: String
+}
+
+type Immunization {
+  vaccineName: String!
+  vaccineCode: String
+  status: String
+}
+
+type ImmunizationEvent implements Event {
+  id: ID!
+  type: EventType!
+  timestamp: DateTime!
+  source: String!
+  sourceFormat: SourceFormat
+  correlationId: String
+  patient: Patient!
+  immunization: Immunization!
+  administeredDate: String
+}
+
+type Appointment {
+  id: ID!
+  status: String!
+  startTime: DateTime!
+  endTime: DateTime
+  location: Location
+  provider: Provider
+  reason: String
+}
+
+type AppointmentEvent implements Event {
+  id: ID!
+  type: EventType!
+  timestamp: DateTime!
+  source: String!
+  sourceFormat: SourceFormat
+  correlationId: String
+  patient: Patient!
+  appointment: Appointment!
+}
+
+type DocumentEvent implements Event {
+  id: ID!
+  type: EventType!
+  timestamp: DateTime!
+  source: String!
+  sourceFormat: SourceFormat
+  correlationId: String
+  patient: Patient
+  documentType: String!
+  title: String
+}
+
+# =============================================================================
+# Pagination Types
+# =============================================================================
+
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+type EventEdge {
+  cursor: String!
+  node: Event!
+}
+
+type EventConnection {
+  edges: [EventEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type PatientEdge {
+  cursor: String!
+  node: Patient!
+}
+
+type PatientConnection {
+  edges: [PatientEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+# =============================================================================
+# Query Types
+# =============================================================================
+
+input EventFilter {
+  types: [EventType!]
+  sources: [String!]
+  patientMrn: String
+  fromTimestamp: DateTime
+  toTimestamp: DateTime
+  correlationId: String
+}
+
+input EventOrderBy {
+  field: EventOrderField!
+  direction: OrderDirection!
+}
+
+input PatientFilter {
+  mrn: String
+  familyName: String
+  givenName: String
+  dateOfBirth: DateTime
+}
+
+type WorkflowStatus {
+  name: String!
+  enabled: Boolean!
+  routeCount: Int!
+  eventsProcessed: Int!
+  lastEventTime: DateTime
+  errors: Int!
+}
+
+type ComponentHealth {
+  name: String!
+  status: String!
+  message: String
+}
+
+type HealthStatus {
+  status: String!
+  version: String!
+  uptime: Int!
+  components: [ComponentHealth!]!
+}
+
+type ParseWarning {
+  phase: String!
+  code: String!
+  message: String!
+  path: String
+}
+
+type ParseResult {
+  success: Boolean!
+  events: [Event!]!
+  warnings: [ParseWarning!]!
+  errors: [String!]!
+}
+
+type Query {
+  # Get a single event by ID
+  event(id: ID!): Event
+
+  # Query events with filters
+  events(
+    filter: EventFilter
+    first: Int = 100
+    after: String
+    orderBy: EventOrderBy
+  ): EventConnection!
+
+  # Get patient by MRN
+  patient(mrn: ID!): Patient
+
+  # Get patients with filter
+  patients(
+    filter: PatientFilter
+    first: Int = 100
+    after: String
+  ): PatientConnection!
+
+  # Get workflow status
+  workflow(name: String!): WorkflowStatus
+
+  # List all workflows
+  workflows: [WorkflowStatus!]!
+
+  # Health check
+  health: HealthStatus!
+
+  # Get parse result without persisting
+  parsePreview(
+    format: SourceFormat!
+    data: String!
+    source: String
+  ): ParseResult!
+}
+
+# =============================================================================
+# Mutation Types
+# =============================================================================
+
+input SubmitMessageInput {
+  format: SourceFormat!
+  data: String!
+  source: String!
+  correlationId: String
+}
+
+input SubmitEventInput {
+  type: EventType!
+  data: JSON!
+  source: String!
+  correlationId: String
+}
+
+type WorkflowResult {
+  workflowName: String!
+  routesMatched: Int!
+  actionsExecuted: Int!
+  errors: [String!]!
+  duration: Int!
+}
+
+type SubmitResult {
+  success: Boolean!
+  eventId: ID
+  warnings: [ParseWarning!]!
+  errors: [String!]!
+  workflowResults: [WorkflowResult!]!
+}
+
+input CreateSubscriptionInput {
+  name: String!
+  server: String!
+  criteria: String!
+  endpoint: String!
+}
+
+type FhirSubscription {
+  id: ID!
+  name: String!
+  status: String!
+  criteria: String!
+  server: String!
+  endpoint: String!
+  createdAt: DateTime!
+}
+
+type Mutation {
+  # Submit a raw message for parsing and processing
+  submitMessage(input: SubmitMessageInput!): SubmitResult!
+
+  # Submit a pre-parsed event directly
+  submitEvent(input: SubmitEventInput!): SubmitResult!
+
+  # Trigger a workflow manually
+  triggerWorkflow(
+    name: String!
+    event: JSON!
+  ): WorkflowResult!
+
+  # FHIR subscription management
+  createFhirSubscription(input: CreateSubscriptionInput!): FhirSubscription!
+  deleteFhirSubscription(id: ID!): Boolean!
+  pauseFhirSubscription(id: ID!): FhirSubscription!
+  resumeFhirSubscription(id: ID!): FhirSubscription!
+}
+
+# =============================================================================
+# Subscription Types (Real-time)
+# =============================================================================
+
+type WorkflowEventNotification {
+  event: Event!
+  workflow: String!
+  routesMatched: [String!]!
+  actionsExecuted: [String!]!
+  duration: Int!
+}
+
+type Subscription {
+  # Stream all events
+  eventStream(filter: EventFilter): Event!
+
+  # Stream events for a specific workflow
+  workflowEvents(workflowName: String!): WorkflowEventNotification!
+
+  # Stream events for a specific patient
+  patientEvents(mrn: ID!): Event!
+}
+
+# =============================================================================
+# Event Sourcing / Projection Types
+# =============================================================================
+
+# Timeline event in a patient's history
+type TimelineEvent {
+  position: Int!
+  timestamp: DateTime!
+  eventType: String!
+  summary: String!
+  streamId: String!
+  source: String
+}
+
+# Patient timeline projection (chronological event history)
+type PatientTimeline {
+  mrn: ID!
+  events: [TimelineEvent!]!
+  lastUpdated: DateTime!
+  eventCount: Int!
+}
+
+# Event count by category
+type EventTypeCount {
+  eventType: String!
+  count: Int!
+}
+
+type SourceCount {
+  source: String!
+  count: Int!
+}
+
+# Event statistics projection (aggregate counts)
+type EventStatistics {
+  totalEvents: Int!
+  byType: [EventTypeCount!]!
+  bySource: [SourceCount!]!
+}
+
+# Active encounter (currently admitted patient)
+type ActiveEncounter {
+  id: ID!
+  patientMrn: ID!
+  patientName: String
+  class: String!
+  location: String
+  unit: String
+  room: String
+  bed: String
+  admitTime: DateTime!
+  provider: String
+  lastUpdated: DateTime!
+}
+
+# Projection status information
+type ProjectionStatus {
+  name: String!
+  checkpoint: Int!
+  lastPosition: Int!
+  behind: Int!
+  status: String!
+}
+
+# Extend Query with projection queries
+extend type Query {
+  # Get a patient's event timeline
+  patientTimeline(
+    mrn: ID!
+    fromTimestamp: DateTime
+    toTimestamp: DateTime
+    limit: Int = 100
+  ): PatientTimeline
+
+  # Get event statistics
+  eventStatistics: EventStatistics!
+
+  # Get active encounters (current census)
+  activeEncounters(
+    location: String
+    unit: String
+    class: String
+  ): [ActiveEncounter!]!
+
+  # Get a specific active encounter
+  activeEncounter(id: ID!): ActiveEncounter
+
+  # Get active encounter by patient
+  activeEncounterByPatient(mrn: ID!): ActiveEncounter
+
+  # Get projection status
+  projectionStatus: [ProjectionStatus!]!
+}

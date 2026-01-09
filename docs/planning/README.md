@@ -7,13 +7,17 @@ This directory contains detailed planning and specification documents for the fi
 | Document | Purpose | Status |
 |----------|---------|--------|
 | [SOURCE-PROFILES.md](SOURCE-PROFILES.md) | Source Profile configuration system - the unit of scalability | Core complete |
-| [WORKFLOW-DSL.md](WORKFLOW-DSL.md) | Workflow routing, transforms, and actions | All actions complete |
+| [WORKFLOW-DSL.md](WORKFLOW-DSL.md) | Workflow routing, transforms, and actions | Complete with metrics |
 | [FHIR-PROFILES.md](FHIR-PROFILES.md) | FHIR R4 output with US Core mapping | US Core mapper complete |
 | [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) | HL7 v2.x version differences and parsing edge cases | Core parsing complete |
-| [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) | X12 EDI parsing (837P, 835, 270/271) | 837P/835/270/271 complete |
+| [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) | X12 EDI parsing (837P, 835, 270/271, 276/277) | All transactions complete |
 | [IDENTIFIERS.md](IDENTIFIERS.md) | Patient/provider identifier systems and validation | Validators complete |
 | [TERMINOLOGY.md](TERMINOLOGY.md) | Healthcare code systems and mapping (LOINC, SNOMED) | Mapper engine complete |
 | [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md) | TypeScript/JavaScript SDK | SDK complete |
+| [CDA-CCDA.md](CDA-CCDA.md) | CDA/CCDA clinical document parsing | Parser complete |
+| [FHIR-SUBSCRIPTIONS.md](FHIR-SUBSCRIPTIONS.md) | FHIR R4 Subscriptions (bidirectional) | Complete |
+| [GRAPHQL-API.md](GRAPHQL-API.md) | GraphQL API layer for events | Complete |
+| [EVENT-SOURCING.md](EVENT-SOURCING.md) | Event sourcing / CQRS patterns | Core complete |
 
 ## Architecture Overview
 
@@ -85,9 +89,24 @@ See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and curren
 - Database action (PostgreSQL, MySQL, SQLite)
 - Queue action (Kafka, RabbitMQ, NATS, SQS)
 - EDI 270/271 eligibility transactions
+- EDI 276/277 claim status transactions
+- Retry/error handling with exponential backoff
+- OAuth2 token refresh with 401 handling
+- Circuit breaker pattern for failing external services
+- Dead letter queue for failed events
+- Rate limiting for high-volume event streams
+- Metrics/observability instrumentation
+- Prometheus metrics adapter (reference implementation)
+- Distributed tracing with OpenTelemetry
+- Grafana dashboard templates (`dashboards/grafana/`)
+- Event sourcing / CQRS patterns (store, projections, CLI)
+- Workflow action for event store integration
+- GraphQL queries for projections
 
-### In Progress
-- EDI 276/277 claim status
+### Next Up
+- Implement projection resolver logic (wire GraphQL to actual projections)
+- Add PostgreSQL-backed snapshot store
+- Event replay tooling for projection rebuilds
 
 ## Contributing
 

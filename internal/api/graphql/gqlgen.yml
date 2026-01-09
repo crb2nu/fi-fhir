@@ -1,0 +1,221 @@
+# gqlgen configuration for fi-fhir GraphQL API
+
+# Schema files to load
+schema:
+  - schema.graphql
+
+# Where to write the generated code
+exec:
+  filename: generated.go
+  package: graphql
+
+# Where to write the model types (only types not defined in our models.go)
+model:
+  filename: model/models_gen.go
+  package: model
+
+# Where to write the resolver interface
+resolver:
+  layout: follow-schema
+  dir: resolvers
+  package: resolvers
+  filename_template: "{name}.resolvers.go"
+  omit_template_comment: false
+
+# Automatically bind to existing types
+autobind:
+  - "github.com/cblevins/fi-fhir/internal/api/graphql/model"
+
+# Custom type mappings
+models:
+  # Scalars
+  DateTime:
+    model:
+      - github.com/99designs/gqlgen/graphql.Time
+  JSON:
+    model:
+      - github.com/99designs/gqlgen/graphql.Map
+  ID:
+    model:
+      - github.com/99designs/gqlgen/graphql.ID
+      - github.com/99designs/gqlgen/graphql.IntID
+
+  # Use interface for Event type
+  Event:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.Event
+
+  # Enum types
+  EventType:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.EventType
+  SourceFormat:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.SourceFormat
+  EventOrderField:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.EventOrderField
+  OrderDirection:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.OrderDirection
+
+  # Concrete event types
+  PatientAdmitEvent:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.PatientAdmitEvent
+  PatientDischargeEvent:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.PatientDischargeEvent
+  LabResultEvent:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.LabResultEvent
+  VitalSignEvent:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.VitalSignEvent
+  ConditionEvent:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.ConditionEvent
+  ProcedureEvent:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.ProcedureEvent
+  ImmunizationEvent:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.ImmunizationEvent
+  AppointmentEvent:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.AppointmentEvent
+  DocumentEvent:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.DocumentEvent
+
+  # Other complex types
+  Patient:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.Patient
+  Identifier:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.Identifier
+  Address:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.Address
+  Provider:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.Provider
+  Location:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.Location
+  Encounter:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.Encounter
+  LabTest:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.LabTest
+  LabResult:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.LabResult
+  VitalSign:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.VitalSign
+  Condition:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.Condition
+  Procedure:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.Procedure
+  Immunization:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.Immunization
+  Appointment:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.Appointment
+  PageInfo:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.PageInfo
+  EventEdge:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.EventEdge
+  EventConnection:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.EventConnection
+  PatientEdge:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.PatientEdge
+  PatientConnection:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.PatientConnection
+  WorkflowStatus:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.WorkflowStatus
+  ComponentHealth:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.ComponentHealth
+  HealthStatus:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.HealthStatus
+  ParseWarning:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.ParseWarning
+  ParseResult:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.ParseResult
+  WorkflowResult:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.WorkflowResult
+  SubmitResult:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.SubmitResult
+  FhirSubscription:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.FhirSubscription
+  WorkflowEventNotification:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.WorkflowEventNotification
+
+  # Event Sourcing / Projection types
+  TimelineEvent:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.TimelineEvent
+  PatientTimeline:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.PatientTimeline
+  EventTypeCount:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.EventTypeCount
+  SourceCount:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.SourceCount
+  EventStatistics:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.EventStatistics
+  ActiveEncounter:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.ActiveEncounter
+  ProjectionStatus:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.ProjectionStatus
+
+  # Input types
+  EventFilter:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.EventFilter
+  EventOrderBy:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.EventOrderBy
+  PatientFilter:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.PatientFilter
+  SubmitMessageInput:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.SubmitMessageInput
+  SubmitEventInput:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.SubmitEventInput
+  CreateSubscriptionInput:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.CreateSubscriptionInput
+
+# gqlgen features
+omit_slice_element_pointers: true
+omit_complexity: false
+skip_validation: false
+skip_mod_tidy: false
