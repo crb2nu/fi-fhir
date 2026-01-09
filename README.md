@@ -1,71 +1,113 @@
 # fi-fhir
 
-A format-agnostic healthcare integration library that transforms legacy formats (HL7v2, flatfiles, EDI) into semantic events.
+A format-agnostic healthcare integration platform that transforms legacy formats (HL7v2, CSV, EDI X12) into semantic events and routes them through configurable workflows.
+
+[![CI](https://github.com/cblevins/fi-fhir/actions/workflows/ci.yaml/badge.svg)](https://github.com/cblevins/fi-fhir/actions/workflows/ci.yaml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/cblevins/fi-fhir)](https://goreportcard.com/report/github.com/cblevins/fi-fhir)
 
 ## Overview
 
 fi-fhir addresses a core problem in healthcare integration: **users think in workflow terms, but tools require format-specific knowledge**.
 
-Instead of writing code that references `PID.3.1` or `OBX.5`, you work with semantic events like `patient_admit` and `lab_result`. The library handles format parsing, field mapping, and validation automatically.
+Instead of writing code that references `PID.3.1` or `OBX.5`, you work with semantic events like `patient_admit` and `lab_result`. The library handles format parsing, field mapping, validation, and routing automatically.
 
 ```
-HL7v2 ADT^A01  ──┐
-CSV patient file ──┼──► Semantic Event ──► Workflow Actions
-FHIR Bundle    ──┘     (patient_admit)
+Input Formats          Semantic Layer           Workflow Engine         Output/Actions
+─────────────         ────────────────         ───────────────         ──────────────
+HL7v2    ──┐          ┌─────────────┐          ┌─────────────┐          ┌─> FHIR API
+CSV      ──┼──────────┤ Canonical   ├──────────┤  Workflow   ├──────────┼─> REST Webhook
+EDI X12  ──┘          │ Event Model │          │  Execution  │          ├─> Database
+                      └─────────────┘          └─────────────┘          └─> Message Queue
 ```
+
+## Features
+
+- **Multi-format parsing**: HL7v2, CSV/flatfiles, EDI X12 (837, 835, 270/271, 276/277)
+- **Workflow DSL**: YAML-based routing with CEL expression filters
+- **FHIR R4 output**: US Core profile mapper with Patient, Encounter, Observation, DiagnosticReport
+- **Multiple actions**: FHIR, webhook, database (PostgreSQL/MySQL/SQLite), message queue (Kafka)
+- **Reliability**: Retry with backoff, circuit breaker, dead letter queue, rate limiting
+- **Observability**: Prometheus metrics, OpenTelemetry tracing, structured logging
+- **Production-ready**: Helm chart, CI/CD pipelines, security hardening guide
 
 ## Installation
 
+### CLI
+
 ```bash
-# CLI tool
+# From source
 go install github.com/cblevins/fi-fhir/cmd/fi-fhir@latest
 
-# As a library
-go get github.com/cblevins/fi-fhir
+# Or build locally
+git clone https://github.com/cblevins/fi-fhir.git
+cd fi-fhir
+make build
+```
+
+### Docker
+
+```bash
+docker pull ghcr.io/cblevins/fi-fhir:latest
+docker run -p 8080:8080 ghcr.io/cblevins/fi-fhir:latest
+```
+
+### Helm
+
+```bash
+helm install fi-fhir deploy/helm/fi-fhir/ \
+  --set config.fhir.endpoint=https://fhir.example.com
 ```
 
 ## Quick Start
 
-### CLI Usage
+### 1. Parse a Message
 
 ```bash
-# Parse an HL7v2 message to semantic event JSON
-fi-fhir parse --format hl7v2 --source "lab_system" message.hl7
+# Parse HL7v2 ADT message
+fi-fhir parse --format hl7v2 --pretty message.hl7
 
-# Pretty-print output
-fi-fhir parse --pretty message.hl7
+# Parse CSV patient file
+fi-fhir parse --format csv --pretty patients.csv
 
-# Pipe from stdin
-cat message.hl7 | fi-fhir parse -f hl7v2 -
+# Parse EDI 837P claim
+fi-fhir parse --format edi --pretty claim.edi
 ```
 
-### Library Usage
+### 2. Run a Workflow
 
-```go
-package main
+```bash
+# Create workflow configuration
+cat > workflow.yaml << 'EOF'
+workflow:
+  name: adt_routing
+  version: "1.0"
+  routes:
+    - name: admits_to_fhir
+      filter:
+        event_type: patient_admit
+      actions:
+        - type: fhir
+          endpoint: http://localhost:8090/fhir
+          resource: Patient
+        - type: log
+          level: info
+          message: "Patient admitted: {{.Patient.Name.Family}}"
+EOF
 
-import (
-    "fmt"
-    "github.com/cblevins/fi-fhir/internal/parser/hl7v2"
-    "github.com/cblevins/fi-fhir/pkg/events"
-)
+# Process events through workflow
+fi-fhir parse --format hl7v2 message.hl7 | \
+  fi-fhir workflow run --config workflow.yaml
 
-func main() {
-    parser := hl7v2.NewParser("hospital_adt", hl7v2.ParserConfig{})
+# Dry-run mode (no side effects)
+fi-fhir workflow run --dry-run --config workflow.yaml event.json
+```
 
-    msg := `MSH|^~\&|APP|FAC|APP|FAC|20240115||ADT^A01|123|P|2.5
-PID|1||MRN123||DOE^JOHN||19800315|M`
+### 3. Validate Configuration
 
-    result, err := parser.Parse(msg)
-    if err != nil {
-        panic(err)
-    }
-
-    event := result.(*events.PatientAdmitEvent)
-    fmt.Printf("Patient %s %s admitted\n",
-        event.Patient.GivenName,
-        event.Patient.FamilyName)
-}
+```bash
+fi-fhir workflow validate workflow.yaml
+fi-fhir config validate
+fi-fhir config show
 ```
 
 ## Supported Formats
@@ -80,80 +122,249 @@ PID|1||MRN123||DOE^JOHN||19800315|M`
 | ADT^A04 | Register (outpatient) | `patient_admit` |
 | ADT^A08 | Update patient info | `patient_update` |
 | ORU^R01 | Lab result | `lab_result` |
-| SIU^S12 | New appointment | `appointment_scheduled` |
+| SIU^S12-S15, S26 | Scheduling | `appointment_booked`, `appointment_cancelled` |
 
-### Coming Soon
-- CSV/Flatfile with schema inference
-- EDI X12 (835, 837)
-- FHIR R4
+### EDI X12
 
-## Semantic Event Model
+| Transaction | Description | Semantic Event |
+|-------------|-------------|----------------|
+| 837P | Professional claim | `claim_submitted` |
+| 837I | Institutional claim | `claim_submitted` |
+| 835 | Remittance advice | `claim_response` |
+| 270 | Eligibility inquiry | `eligibility_inquiry` |
+| 271 | Eligibility response | `eligibility_response` |
+| 276 | Claim status inquiry | `claim_status_inquiry` |
+| 277 | Claim status response | `claim_status_response` |
 
-Events are format-agnostic representations of healthcare data:
+### CSV/Flatfiles
 
-```go
-// All events have common metadata
-type EventMeta struct {
-    ID            string       `json:"id"`
-    Type          EventType    `json:"type"`
-    Timestamp     time.Time    `json:"timestamp"`
-    Source        string       `json:"source"`
-    SourceFormat  SourceFormat `json:"source_format"`
-}
+- Automatic schema inference
+- Patient demographics
+- Lab results
+- Custom record types
 
-// Patient data is normalized regardless of source
-type Patient struct {
-    MRN        string    `json:"mrn"`
-    FamilyName string    `json:"family_name"`
-    GivenName  string    `json:"given_name"`
-    // ... other fields
-}
+## Workflow DSL
+
+### Filters
+
+```yaml
+filter:
+  # Match by event type
+  event_type: patient_admit
+  event_type: [patient_admit, patient_transfer]
+
+  # Match by source system
+  source: epic_adt
+  source: [epic_adt, cerner_adt]
+
+  # CEL expressions for complex conditions
+  condition: event.patient.age >= 65
+  condition: event.observation.interpretation in ["critical", "HH"]
 ```
 
-## Project Structure
+### Transforms
 
+```yaml
+transform:
+  - set_field: patient.status = "active"
+  - map_terminology: patient.race
+  - redact: patient.ssn
 ```
-fi-fhir/
-├── cmd/fi-fhir/          # CLI entry point
-├── internal/
-│   ├── parser/
-│   │   └── hl7v2/        # HL7v2 parser implementation
-│   ├── semantic/         # Event processing
-│   └── workflow/         # Workflow engine (planned)
-├── pkg/
-│   ├── events/           # Public semantic event types
-│   └── config/           # Configuration types
-└── testdata/             # Sample messages
+
+### Actions
+
+```yaml
+actions:
+  # FHIR server
+  - type: fhir
+    endpoint: https://fhir.example.com/r4
+    resource: Patient
+    auth:
+      type: oauth2
+      tokenUrl: https://auth.example.com/token
+      clientId: ${CLIENT_ID}
+      clientSecret: ${CLIENT_SECRET}
+
+  # Webhook
+  - type: webhook
+    url: https://api.example.com/events
+    method: POST
+    headers:
+      Authorization: Bearer ${API_KEY}
+
+  # Database
+  - type: database
+    driver: postgres
+    dsn: ${DATABASE_URL}
+    operation: upsert
+    table: events
+    fields:
+      patient_mrn: "{{.Patient.MRN}}"
+      event_type: "{{.Type}}"
+
+  # Message queue
+  - type: queue
+    driver: kafka
+    brokers: ${KAFKA_BROKERS}
+    topic: healthcare-events
+    key: "{{.Patient.MRN}}"
+
+  # Logging
+  - type: log
+    level: info
+    message: "Processed: {{.Type}} for {{.Patient.MRN}}"
 ```
+
+## TypeScript SDK
+
+```bash
+npm install @cblevins/fi-fhir
+```
+
+```typescript
+import { FiFhir, PatientAdmitEvent } from '@cblevins/fi-fhir';
+
+const fiFhir = new FiFhir({ binaryPath: './fi-fhir' });
+
+// Parse message
+const result = await fiFhir.parse({
+  format: 'hl7v2',
+  data: hl7Message
+});
+
+// Run workflow
+const output = await fiFhir.workflow.run({
+  configPath: './workflow.yaml',
+  events: result.events
+});
+```
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [AGENTS.md](AGENTS.md) | AI assistant guidance and architecture |
+| [CHANGELOG.md](CHANGELOG.md) | Release history |
+| [API Reference](api/openapi.yaml) | OpenAPI 3.1 specification |
+| [Workflow DSL](docs/planning/WORKFLOW-DSL.md) | Complete workflow reference |
+| [Production Hardening](docs/operations/PRODUCTION-HARDENING.md) | Security hardening guide |
+| [Operations Runbook](docs/operations/RUNBOOK.md) | Troubleshooting and operations |
+| [Example Workflows](examples/README.md) | Ready-to-use workflow templates |
 
 ## Development
 
 ```bash
 # Build
 make build
-# or
-go build -o bin/fi-fhir ./cmd/fi-fhir
 
 # Test
-make test
-# or
-go test ./...
+make test              # Unit tests
+make test-e2e          # E2E tests
+make test-integration  # Integration tests (requires Docker)
 
-# Run
-./bin/fi-fhir parse testdata/adt_a01_sample.hl7
+# Lint
+make lint
+
+# Run benchmarks
+make bench
+
+# Docker
+make docker-build
 ```
 
-## Roadmap
+### Local Development Stack
 
-- [x] HL7v2 ADT parsing (A01, A02, A03, A04, A08)
-- [x] HL7v2 ORU (lab results) parsing
-- [ ] HL7v2 SIU (scheduling) parsing
-- [ ] CSV/flatfile adapter with schema inference
-- [ ] EDI 835/837 adapter
-- [ ] YAML-based workflow DSL
-- [ ] Workflow engine execution
-- [ ] TypeScript SDK (npm package)
+```bash
+# Start dependencies (PostgreSQL, Kafka, FHIR server, Jaeger)
+docker-compose up -d
+
+# Run with local config
+./bin/fi-fhir workflow run --config examples/workflows/adt-to-fhir.yaml
+```
+
+## Deployment
+
+### Docker Compose
+
+```bash
+docker-compose up -d
+# API: http://localhost:8080
+# Metrics: http://localhost:9090/metrics
+```
+
+### Kubernetes
+
+```bash
+kubectl apply -k deploy/kubernetes/base/
+# Or with production overlay
+kubectl apply -k deploy/kubernetes/overlays/production/
+```
+
+### Helm
+
+```bash
+helm install fi-fhir deploy/helm/fi-fhir/ \
+  --set replicaCount=3 \
+  --set config.database.enabled=true \
+  --set ingress.enabled=true \
+  --set ingress.hosts[0].host=fi-fhir.example.com
+```
+
+## Observability
+
+### Metrics (Prometheus)
+
+```
+workflow_events_processed_total
+workflow_action_duration_seconds
+workflow_action_errors_total
+workflow_dlq_size
+workflow_circuit_breaker_state
+```
+
+### Tracing (OpenTelemetry)
+
+Configure via environment:
+
+```bash
+export FI_FHIR_TRACING_ENABLED=true
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+```
+
+### Health Checks
+
+- `/health` - Liveness probe
+- `/ready` - Readiness probe (checks dependencies)
+- `/metrics` - Prometheus metrics
+
+## Project Structure
+
+```
+fi-fhir/
+├── cmd/fi-fhir/           # CLI entry point
+├── internal/
+│   ├── parser/            # Format parsers (hl7v2, csv, edi)
+│   ├── semantic/          # Event transformation
+│   └── workflow/          # Workflow engine
+├── pkg/
+│   ├── events/            # Public semantic event types
+│   ├── config/            # Configuration management
+│   ├── profile/           # Source profiles
+│   └── validate/          # Identifier validators (NPI, MBI, SSN)
+├── api/                   # OpenAPI specification
+├── deploy/
+│   ├── helm/              # Helm chart
+│   └── kubernetes/        # Kustomize manifests
+├── dashboards/            # Grafana dashboards & alerting rules
+├── examples/              # Example workflows
+├── sdk/typescript/        # TypeScript SDK
+└── test/e2e/              # End-to-end tests
+```
+
+## Contributing
+
+See [AGENTS.md](AGENTS.md) for architecture guidance and coding conventions.
 
 ## License
 
-Apache 2.0
+MIT License - see [LICENSE](LICENSE)

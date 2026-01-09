@@ -1,0 +1,923 @@
+openapi: 3.1.0
+info:
+  title: fi-fhir API
+  description: |
+    Healthcare integration API for transforming HL7v2, CSV, and EDI X12 messages
+    into FHIR-compatible semantic events.
+
+    ## Overview
+
+    fi-fhir provides a format-agnostic approach to healthcare data integration:
+
+    1. **Parse** - Convert raw messages (HL7v2, CSV, EDI) into canonical events
+    2. **Transform** - Apply workflow rules to enrich and modify events
+    3. **Route** - Send events to destinations (FHIR servers, webhooks, databases, queues)
+
+    ## Authentication
+
+    API endpoints support multiple authentication methods:
+    - **API Key**: `X-API-Key` header
+    - **Bearer Token**: `Authorization: Bearer <token>` header
+    - **mTLS**: Client certificate authentication (recommended for production)
+
+    ## Rate Limiting
+
+    Default limits (configurable):
+    - 1000 requests/minute per API key
+    - 100 concurrent connections
+
+    Rate limit headers:
+    - `X-RateLimit-Limit`: Maximum requests per window
+    - `X-RateLimit-Remaining`: Remaining requests in window
+    - `X-RateLimit-Reset`: Unix timestamp when window resets
+
+  version: 1.0.0
+  contact:
+    name: fi-fhir Support
+    url: https://github.com/cblevins/fi-fhir
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+  - url: https://fi-fhir.example.com
+    description: Production
+
+tags:
+  - name: Parse
+    description: Message parsing endpoints
+  - name: Workflow
+    description: Workflow processing endpoints
+  - name: Health
+    description: Health and readiness checks
+  - name: Config
+    description: Configuration endpoints
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Liveness check
+      description: |
+        Returns 200 if the service is alive. Used by Kubernetes liveness probes.
+        Does not check dependencies.
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: ok
+                timestamp: "2024-01-15T10:30:00Z"
+
+  /ready:
+    get:
+      tags:
+        - Health
+      summary: Readiness check
+      description: |
+        Returns 200 if the service is ready to accept traffic.
+        Checks all configured dependencies (database, queue, FHIR server).
+      operationId: readinessCheck
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessResponse'
+              example:
+                status: ready
+                checks:
+                  database: ok
+                  queue: ok
+                  fhir: ok
+                timestamp: "2024-01-15T10:30:00Z"
+        '503':
+          description: Service is not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessResponse'
+              example:
+                status: not_ready
+                checks:
+                  database: ok
+                  queue: error
+                  fhir: ok
+                timestamp: "2024-01-15T10:30:00Z"
+
+  /metrics:
+    get:
+      tags:
+        - Health
+      summary: Prometheus metrics
+      description: |
+        Returns Prometheus-formatted metrics for monitoring.
+        Includes workflow processing metrics, action latencies, error rates, etc.
+      operationId: getMetrics
+      responses:
+        '200':
+          description: Prometheus metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: |
+                # HELP workflow_events_processed_total Total events processed
+                # TYPE workflow_events_processed_total counter
+                workflow_events_processed_total{event_type="patient_admit"} 1234
+
+  /api/v1/parse:
+    post:
+      tags:
+        - Parse
+      summary: Parse a healthcare message
+      description: |
+        Parses a raw healthcare message and returns canonical semantic events.
+
+        Supported formats:
+        - `hl7v2` - HL7 v2.x messages (ADT, ORU, SIU, etc.)
+        - `csv` - Delimited files with header row
+        - `edi` - EDI X12 transactions (837, 835, 270, 271, 276, 277)
+
+        The response includes:
+        - Parsed events in canonical format
+        - Parse warnings (non-fatal issues)
+        - Raw payload preserved for audit
+      operationId: parseMessage
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParseRequest'
+            examples:
+              hl7v2:
+                summary: HL7v2 ADT message
+                value:
+                  format: hl7v2
+                  source: epic_adt
+                  data: "MSH|^~\\&|EPIC|HOSPITAL|FI-FHIR|DEST|20240115103000||ADT^A01|MSG001|P|2.5\rPID|1||MRN123^^^HOSP^MR||DOE^JOHN||19800101|M"
+              csv:
+                summary: CSV patient data
+                value:
+                  format: csv
+                  source: patient_export
+                  data: "mrn,first_name,last_name,dob,gender\nMRN123,John,Doe,1980-01-01,M"
+              edi:
+                summary: EDI 837P claim
+                value:
+                  format: edi
+                  source: claims_clearinghouse
+                  data: "ISA*00*          *00*          *ZZ*SENDER         *ZZ*RECEIVER       *240115*1030*^*00501*000000001*0*P*:~GS*HC*SENDER*RECEIVER*20240115*1030*1*X*005010X222A1~..."
+      responses:
+        '200':
+          description: Successfully parsed message
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParseResponse'
+        '400':
+          description: Invalid request or parse error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: parse_error
+                message: "Invalid HL7v2 message: missing MSH segment"
+                details:
+                  line: 1
+                  position: 0
+        '415':
+          description: Unsupported format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: unsupported_format
+                message: "Format 'xml' is not supported"
+        '429':
+          description: Rate limit exceeded
+          headers:
+            X-RateLimit-Limit:
+              schema:
+                type: integer
+            X-RateLimit-Remaining:
+              schema:
+                type: integer
+            X-RateLimit-Reset:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/parse/validate:
+    post:
+      tags:
+        - Parse
+      summary: Validate a healthcare message
+      description: |
+        Validates a message without fully parsing it.
+        Returns validation status and any warnings/errors found.
+      operationId: validateMessage
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParseRequest'
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationResponse'
+
+  /api/v1/workflow:
+    post:
+      tags:
+        - Workflow
+      summary: Process event through workflow
+      description: |
+        Processes a semantic event through the configured workflow.
+
+        The workflow engine:
+        1. Matches event against route filters
+        2. Applies transforms (set_field, map_terminology, redact)
+        3. Executes actions (fhir, webhook, database, queue, log)
+
+        Supports dry-run mode for testing without side effects.
+      operationId: processWorkflow
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      parameters:
+        - name: X-Dry-Run
+          in: header
+          description: If true, simulate workflow without executing actions
+          schema:
+            type: boolean
+            default: false
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowRequest'
+            example:
+              event:
+                type: patient_admit
+                source: epic_adt
+                timestamp: "2024-01-15T10:30:00Z"
+                patient:
+                  mrn: MRN123
+                  name:
+                    given: John
+                    family: Doe
+                  birthDate: "1980-01-01"
+                  gender: male
+                encounter:
+                  class: inpatient
+                  status: in-progress
+      responses:
+        '200':
+          description: Workflow processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowResponse'
+        '400':
+          description: Invalid event data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Workflow processing failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowErrorResponse'
+
+  /api/v1/workflow/replay:
+    post:
+      tags:
+        - Workflow
+      summary: Replay events from recording or DLQ
+      description: |
+        Replays previously recorded events or dead letter queue entries.
+        Useful for testing workflow changes or recovering from failures.
+      operationId: replayEvents
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplayRequest'
+      responses:
+        '200':
+          description: Replay completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplayResponse'
+
+  /api/v1/config:
+    get:
+      tags:
+        - Config
+      summary: Get current configuration
+      description: |
+        Returns the current runtime configuration (with secrets redacted).
+      operationId: getConfig
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigResponse'
+
+  /api/v1/config/validate:
+    post:
+      tags:
+        - Config
+      summary: Validate workflow configuration
+      description: |
+        Validates a workflow configuration without applying it.
+        Checks YAML syntax, CEL expressions, and action configurations.
+      operationId: validateConfig
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/yaml:
+            schema:
+              type: string
+            example: |
+              workflow:
+                name: test
+                version: "1.0"
+                routes:
+                  - name: all_events
+                    filter: {}
+                    actions:
+                      - type: log
+                        level: info
+      responses:
+        '200':
+          description: Configuration is valid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigValidationResponse'
+        '400':
+          description: Configuration is invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigValidationResponse'
+
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for authentication
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authentication
+
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
+          example: "1.0.0"
+
+    ReadinessResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [ready, not_ready]
+        checks:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [ok, error, disabled]
+        timestamp:
+          type: string
+          format: date-time
+
+    ParseRequest:
+      type: object
+      required:
+        - format
+        - data
+      properties:
+        format:
+          type: string
+          enum: [hl7v2, csv, edi]
+          description: Message format
+        source:
+          type: string
+          description: Source system identifier (maps to source profile)
+          example: epic_adt
+        data:
+          type: string
+          description: Raw message data
+        options:
+          type: object
+          properties:
+            profile:
+              type: string
+              description: Override source profile
+            encoding:
+              type: string
+              enum: [utf-8, iso-8859-1, cp1252]
+              default: utf-8
+            delimiter:
+              type: string
+              description: CSV delimiter (default comma)
+
+    ParseResponse:
+      type: object
+      required:
+        - events
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/Event'
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParseWarning'
+        metadata:
+          type: object
+          properties:
+            format:
+              type: string
+            source:
+              type: string
+            parseTimeMs:
+              type: integer
+            rawSize:
+              type: integer
+
+    ValidationResponse:
+      type: object
+      required:
+        - valid
+      properties:
+        valid:
+          type: boolean
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParseWarning'
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParseWarning'
+
+    Event:
+      type: object
+      required:
+        - id
+        - type
+        - timestamp
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique event identifier (UUID v4)
+        type:
+          type: string
+          description: Event type
+          enum:
+            - patient_admit
+            - patient_discharge
+            - patient_transfer
+            - patient_update
+            - lab_result
+            - appointment_booked
+            - appointment_cancelled
+            - claim_submitted
+            - claim_response
+            - eligibility_inquiry
+            - eligibility_response
+        source:
+          type: string
+          description: Source system identifier
+        timestamp:
+          type: string
+          format: date-time
+        sourceMessageId:
+          type: string
+          description: Original message control ID
+        patient:
+          $ref: '#/components/schemas/Patient'
+        encounter:
+          $ref: '#/components/schemas/Encounter'
+        observation:
+          $ref: '#/components/schemas/Observation'
+        appointment:
+          $ref: '#/components/schemas/Appointment'
+        rawPayload:
+          type: string
+          description: Original message (base64 encoded)
+
+    Patient:
+      type: object
+      properties:
+        mrn:
+          type: string
+        identifiers:
+          type: array
+          items:
+            $ref: '#/components/schemas/Identifier'
+        name:
+          $ref: '#/components/schemas/HumanName'
+        birthDate:
+          type: string
+          format: date
+        gender:
+          type: string
+          enum: [male, female, other, unknown]
+        address:
+          $ref: '#/components/schemas/Address'
+        phone:
+          type: string
+        email:
+          type: string
+          format: email
+
+    Identifier:
+      type: object
+      required:
+        - value
+      properties:
+        type:
+          type: string
+          enum: [mrn, ssn, npi, mbi, dea]
+        value:
+          type: string
+        system:
+          type: string
+          format: uri
+        assigningAuthority:
+          type: string
+
+    HumanName:
+      type: object
+      properties:
+        given:
+          type: string
+        family:
+          type: string
+        prefix:
+          type: string
+        suffix:
+          type: string
+
+    Address:
+      type: object
+      properties:
+        line1:
+          type: string
+        line2:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        postalCode:
+          type: string
+        country:
+          type: string
+
+    Encounter:
+      type: object
+      properties:
+        id:
+          type: string
+        class:
+          type: string
+          enum: [inpatient, outpatient, emergency, observation]
+        status:
+          type: string
+          enum: [planned, in-progress, finished, cancelled]
+        type:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        location:
+          type: string
+        attendingProvider:
+          $ref: '#/components/schemas/Provider'
+
+    Provider:
+      type: object
+      properties:
+        npi:
+          type: string
+        name:
+          $ref: '#/components/schemas/HumanName'
+        specialty:
+          type: string
+
+    Observation:
+      type: object
+      properties:
+        code:
+          type: string
+        codeSystem:
+          type: string
+        display:
+          type: string
+        value:
+          type: string
+        unit:
+          type: string
+        referenceRange:
+          type: string
+        interpretation:
+          type: string
+          enum: [normal, low, high, critical]
+        effectiveTime:
+          type: string
+          format: date-time
+
+    Appointment:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [booked, pending, cancelled, noshow]
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        type:
+          type: string
+        location:
+          type: string
+        provider:
+          $ref: '#/components/schemas/Provider'
+
+    ParseWarning:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          example: MISSING_FIELD
+        message:
+          type: string
+        path:
+          type: string
+          description: Location in message (e.g., "PID.5")
+        severity:
+          type: string
+          enum: [info, warning, error]
+
+    WorkflowRequest:
+      type: object
+      required:
+        - event
+      properties:
+        event:
+          $ref: '#/components/schemas/Event'
+        context:
+          type: object
+          description: Additional context for CEL expressions
+          additionalProperties: true
+
+    WorkflowResponse:
+      type: object
+      required:
+        - success
+        - routesMatched
+      properties:
+        success:
+          type: boolean
+        routesMatched:
+          type: array
+          items:
+            type: string
+        actionsExecuted:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActionResult'
+        transformedEvent:
+          $ref: '#/components/schemas/Event'
+        dryRun:
+          type: boolean
+        processingTimeMs:
+          type: integer
+
+    ActionResult:
+      type: object
+      required:
+        - action
+        - success
+      properties:
+        action:
+          type: string
+          enum: [fhir, webhook, database, queue, log]
+        success:
+          type: boolean
+        durationMs:
+          type: integer
+        response:
+          type: object
+          description: Action-specific response data
+        error:
+          type: string
+
+    WorkflowErrorResponse:
+      type: object
+      required:
+        - error
+        - failedActions
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        failedActions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActionResult'
+        dlqId:
+          type: string
+          description: Dead letter queue entry ID if event was queued
+
+    ReplayRequest:
+      type: object
+      properties:
+        source:
+          type: string
+          enum: [recording, dlq]
+          default: dlq
+        since:
+          type: string
+          format: date-time
+          description: Replay events after this timestamp
+        until:
+          type: string
+          format: date-time
+          description: Replay events before this timestamp
+        eventTypes:
+          type: array
+          items:
+            type: string
+          description: Filter by event types
+        limit:
+          type: integer
+          default: 100
+          maximum: 1000
+        dryRun:
+          type: boolean
+          default: true
+
+    ReplayResponse:
+      type: object
+      required:
+        - replayed
+        - succeeded
+        - failed
+      properties:
+        replayed:
+          type: integer
+        succeeded:
+          type: integer
+        failed:
+          type: integer
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              eventId:
+                type: string
+              error:
+                type: string
+
+    ConfigResponse:
+      type: object
+      properties:
+        server:
+          type: object
+        workflow:
+          type: object
+        observability:
+          type: object
+        database:
+          type: object
+          description: Credentials redacted
+        queue:
+          type: object
+          description: Credentials redacted
+
+    ConfigValidationResponse:
+      type: object
+      required:
+        - valid
+      properties:
+        valid:
+          type: boolean
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              path:
+                type: string
+              message:
+                type: string
+        warnings:
+          type: array
+          items:
+            type: object
+            properties:
+              path:
+                type: string
+              message:
+                type: string
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Additional error details
+        requestId:
+          type: string
+          description: Request ID for support
+        timestamp:
+          type: string
+          format: date-time

@@ -1,0 +1,101 @@
+# ADT to FHIR Workflow
+#
+# This workflow routes ADT (Admit/Discharge/Transfer) events from HL7v2
+# to a FHIR server, creating/updating Patient and Encounter resources.
+#
+# Usage:
+#   fi-fhir workflow run --config examples/workflows/adt-to-fhir.yaml event.json
+
+workflow:
+  name: adt_to_fhir
+  version: "1.0"
+  description: Route ADT events to FHIR server
+
+  routes:
+    # Route 1: Patient admissions
+    - name: patient_admits
+      filter:
+        event_type: patient_admit
+      transform:
+        # Ensure patient status is set
+        - set_field: patient.active = true
+        # Map local race codes to OMB categories
+        - map_terminology: patient.race
+      actions:
+        # Create/update Patient resource
+        - type: fhir
+          endpoint: ${FHIR_SERVER_URL}
+          resource: Patient
+          auth:
+            type: oauth2
+            tokenUrl: ${FHIR_TOKEN_URL}
+            clientId: ${FHIR_CLIENT_ID}
+            clientSecret: ${FHIR_CLIENT_SECRET}
+        # Create Encounter resource
+        - type: fhir
+          endpoint: ${FHIR_SERVER_URL}
+          resource: Encounter
+          auth:
+            type: oauth2
+            tokenUrl: ${FHIR_TOKEN_URL}
+            clientId: ${FHIR_CLIENT_ID}
+            clientSecret: ${FHIR_CLIENT_SECRET}
+        # Log admission
+        - type: log
+          level: info
+          message: "Patient admitted: {{.Patient.Name.Family}}, {{.Patient.Name.Given}} (MRN: {{.Patient.MRN}})"
+
+    # Route 2: Patient discharges
+    - name: patient_discharges
+      filter:
+        event_type: patient_discharge
+      transform:
+        - set_field: encounter.status = "finished"
+      actions:
+        # Update Encounter to finished
+        - type: fhir
+          endpoint: ${FHIR_SERVER_URL}
+          resource: Encounter
+          operation: update
+          auth:
+            type: oauth2
+            tokenUrl: ${FHIR_TOKEN_URL}
+            clientId: ${FHIR_CLIENT_ID}
+            clientSecret: ${FHIR_CLIENT_SECRET}
+        - type: log
+          level: info
+          message: "Patient discharged: {{.Patient.MRN}}"
+
+    # Route 3: Patient transfers
+    - name: patient_transfers
+      filter:
+        event_type: patient_transfer
+      actions:
+        # Update Encounter location
+        - type: fhir
+          endpoint: ${FHIR_SERVER_URL}
+          resource: Encounter
+          operation: update
+          auth:
+            type: oauth2
+            tokenUrl: ${FHIR_TOKEN_URL}
+            clientId: ${FHIR_CLIENT_ID}
+            clientSecret: ${FHIR_CLIENT_SECRET}
+        - type: log
+          level: info
+          message: "Patient transferred: {{.Patient.MRN}} to {{.Encounter.Location}}"
+
+    # Route 4: Patient updates (demographics)
+    - name: patient_updates
+      filter:
+        event_type: patient_update
+      actions:
+        - type: fhir
+          endpoint: ${FHIR_SERVER_URL}
+          resource: Patient
+          operation: update
+          auth:
+            type: oauth2
+            tokenUrl: ${FHIR_TOKEN_URL}
+            clientId: ${FHIR_CLIENT_ID}
+            clientSecret: ${FHIR_CLIENT_SECRET}

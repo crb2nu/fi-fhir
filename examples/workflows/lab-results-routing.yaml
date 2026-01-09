@@ -1,0 +1,106 @@
+# Lab Results Routing Workflow
+#
+# This workflow routes lab results (ORU messages) to multiple destinations:
+# - All results to FHIR server
+# - Critical results to alerting webhook
+# - Results to data warehouse via database
+#
+# Usage:
+#   fi-fhir workflow run --config examples/workflows/lab-results-routing.yaml event.json
+
+workflow:
+  name: lab_results_routing
+  version: "1.0"
+  description: Route lab results to FHIR, alerts, and data warehouse
+
+  routes:
+    # Route 1: All lab results to FHIR
+    - name: all_results_to_fhir
+      filter:
+        event_type: lab_result
+      transform:
+        # Map local LOINC codes if needed
+        - map_terminology: observations.*.code
+      actions:
+        # Create DiagnosticReport with Observations
+        - type: fhir
+          endpoint: ${FHIR_SERVER_URL}
+          resource: DiagnosticReport
+          auth:
+            type: bearer
+            token: ${FHIR_BEARER_TOKEN}
+        - type: log
+          level: info
+          message: "Lab result posted to FHIR: {{.Observations | len}} observations"
+
+    # Route 2: Critical results to alerting system
+    - name: critical_alerts
+      filter:
+        event_type: lab_result
+        condition: >
+          event.observations.exists(o,
+            o.interpretation in ["critical", "HH", "LL", "AA"]
+          )
+      actions:
+        # Send to alerting webhook
+        - type: webhook
+          url: ${ALERT_WEBHOOK_URL}
+          method: POST
+          headers:
+            Content-Type: application/json
+            X-Alert-Priority: critical
+          retry:
+            maxAttempts: 3
+            initialDelay: 1s
+        # Also send to pager system
+        - type: webhook
+          url: ${PAGER_WEBHOOK_URL}
+          method: POST
+          headers:
+            Content-Type: application/json
+        - type: log
+          level: warn
+          message: "CRITICAL LAB: {{.Patient.MRN}} - {{.Observations[0].Display}}: {{.Observations[0].Value}}"
+
+    # Route 3: Store in data warehouse
+    - name: results_to_warehouse
+      filter:
+        event_type: lab_result
+      transform:
+        # Redact SSN before storing
+        - redact: patient.ssn
+      actions:
+        - type: database
+          driver: postgres
+          dsn: ${WAREHOUSE_DSN}
+          operation: insert
+          table: lab_results
+          fields:
+            patient_mrn: "{{.Patient.MRN}}"
+            order_id: "{{.OrderID}}"
+            test_code: "{{.Observations[0].Code}}"
+            test_name: "{{.Observations[0].Display}}"
+            result_value: "{{.Observations[0].Value}}"
+            result_unit: "{{.Observations[0].Unit}}"
+            interpretation: "{{.Observations[0].Interpretation}}"
+            result_time: "{{.Timestamp}}"
+            source_system: "{{.Source}}"
+
+    # Route 4: Abnormal results notification
+    - name: abnormal_notifications
+      filter:
+        event_type: lab_result
+        condition: >
+          event.observations.exists(o,
+            o.interpretation in ["H", "L", "A"]
+          )
+      actions:
+        # Queue for patient portal notification
+        - type: queue
+          driver: kafka
+          brokers: ${KAFKA_BROKERS}
+          topic: patient-notifications
+          key: "{{.Patient.MRN}}"
+        - type: log
+          level: info
+          message: "Abnormal result queued for notification: {{.Patient.MRN}}"

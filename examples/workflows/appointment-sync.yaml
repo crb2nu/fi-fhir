@@ -1,0 +1,185 @@
+# Appointment Sync Workflow
+#
+# This workflow synchronizes scheduling events (SIU messages) between
+# the EHR and external systems like patient portals and reminder services.
+#
+# Usage:
+#   fi-fhir workflow run --config examples/workflows/appointment-sync.yaml event.json
+
+workflow:
+  name: appointment_sync
+  version: "1.0"
+  description: Synchronize appointments across systems
+
+  routes:
+    # Route 1: New appointments
+    - name: new_appointments
+      filter:
+        event_type: appointment_booked
+      actions:
+        # Create FHIR Appointment
+        - type: fhir
+          endpoint: ${FHIR_SERVER_URL}
+          resource: Appointment
+          auth:
+            type: bearer
+            token: ${FHIR_BEARER_TOKEN}
+        # Store in scheduling database
+        - type: database
+          driver: postgres
+          dsn: ${SCHEDULING_DSN}
+          operation: insert
+          table: appointments
+          fields:
+            appointment_id: "{{.Appointment.ID}}"
+            patient_mrn: "{{.Patient.MRN}}"
+            provider_npi: "{{.Provider.NPI}}"
+            start_time: "{{.Appointment.StartTime}}"
+            end_time: "{{.Appointment.EndTime}}"
+            appointment_type: "{{.Appointment.Type}}"
+            location: "{{.Appointment.Location}}"
+            status: "booked"
+        # Send to patient portal
+        - type: webhook
+          url: ${PATIENT_PORTAL_URL}/appointments
+          method: POST
+          headers:
+            Content-Type: application/json
+            Authorization: Bearer ${PORTAL_API_KEY}
+        # Queue reminder notification
+        - type: queue
+          driver: kafka
+          brokers: ${KAFKA_BROKERS}
+          topic: appointment-reminders
+          key: "{{.Patient.MRN}}"
+        - type: log
+          level: info
+          message: "Appointment booked: {{.Patient.MRN}} with Dr. {{.Provider.Name.Family}} on {{.Appointment.StartTime}}"
+
+    # Route 2: Appointment cancellations
+    - name: cancelled_appointments
+      filter:
+        event_type: appointment_cancelled
+      actions:
+        # Update FHIR Appointment status
+        - type: fhir
+          endpoint: ${FHIR_SERVER_URL}
+          resource: Appointment
+          operation: update
+          auth:
+            type: bearer
+            token: ${FHIR_BEARER_TOKEN}
+        # Update database
+        - type: database
+          driver: postgres
+          dsn: ${SCHEDULING_DSN}
+          operation: upsert
+          table: appointments
+          keyFields: [appointment_id]
+          fields:
+            appointment_id: "{{.Appointment.ID}}"
+            status: "cancelled"
+            cancelled_at: "{{.Timestamp}}"
+            cancellation_reason: "{{.Appointment.CancellationReason}}"
+        # Notify patient portal
+        - type: webhook
+          url: ${PATIENT_PORTAL_URL}/appointments/{{.Appointment.ID}}/cancel
+          method: POST
+        # Cancel reminder
+        - type: queue
+          driver: kafka
+          brokers: ${KAFKA_BROKERS}
+          topic: appointment-reminder-cancellations
+          key: "{{.Appointment.ID}}"
+        - type: log
+          level: info
+          message: "Appointment cancelled: {{.Appointment.ID}} - {{.Appointment.CancellationReason}}"
+
+    # Route 3: Appointment rescheduled
+    - name: rescheduled_appointments
+      filter:
+        event_type: appointment_booked
+        condition: has(event.appointment.previousAppointmentId)
+      actions:
+        # Update old appointment
+        - type: database
+          driver: postgres
+          dsn: ${SCHEDULING_DSN}
+          operation: upsert
+          table: appointments
+          keyFields: [appointment_id]
+          fields:
+            appointment_id: "{{.Appointment.PreviousAppointmentID}}"
+            status: "rescheduled"
+            rescheduled_to: "{{.Appointment.ID}}"
+        # Create new appointment record
+        - type: database
+          driver: postgres
+          dsn: ${SCHEDULING_DSN}
+          operation: insert
+          table: appointments
+          fields:
+            appointment_id: "{{.Appointment.ID}}"
+            patient_mrn: "{{.Patient.MRN}}"
+            provider_npi: "{{.Provider.NPI}}"
+            start_time: "{{.Appointment.StartTime}}"
+            end_time: "{{.Appointment.EndTime}}"
+            status: "booked"
+            rescheduled_from: "{{.Appointment.PreviousAppointmentID}}"
+        # Notify patient
+        - type: webhook
+          url: ${PATIENT_PORTAL_URL}/appointments/reschedule
+          method: POST
+        - type: log
+          level: info
+          message: "Appointment rescheduled: {{.Appointment.PreviousAppointmentID}} -> {{.Appointment.ID}}"
+
+    # Route 4: Same-day appointments (urgent)
+    - name: same_day_urgent
+      filter:
+        event_type: appointment_booked
+        condition: >
+          timestamp(event.appointment.startTime).getDayOfYear() ==
+          timestamp(event.timestamp).getDayOfYear()
+      actions:
+        # Priority notification to front desk
+        - type: webhook
+          url: ${FRONT_DESK_WEBHOOK}
+          method: POST
+          headers:
+            X-Priority: urgent
+        - type: log
+          level: warn
+          message: "SAME-DAY appointment: {{.Patient.MRN}} at {{.Appointment.StartTime}}"
+
+    # Route 5: No-shows
+    - name: appointment_noshow
+      filter:
+        event_type: appointment_cancelled
+        condition: event.appointment.cancellationReason == "no-show"
+      actions:
+        # Update database
+        - type: database
+          driver: postgres
+          dsn: ${SCHEDULING_DSN}
+          operation: upsert
+          table: appointments
+          keyFields: [appointment_id]
+          fields:
+            appointment_id: "{{.Appointment.ID}}"
+            status: "noshow"
+            noshow_at: "{{.Timestamp}}"
+        # Track for analytics
+        - type: database
+          driver: postgres
+          dsn: ${SCHEDULING_DSN}
+          operation: insert
+          table: noshow_tracking
+          fields:
+            patient_mrn: "{{.Patient.MRN}}"
+            appointment_id: "{{.Appointment.ID}}"
+            appointment_time: "{{.Appointment.StartTime}}"
+            recorded_at: "{{.Timestamp}}"
+        - type: log
+          level: warn
+          message: "NO-SHOW: {{.Patient.MRN}} missed appointment {{.Appointment.ID}}"

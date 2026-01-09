@@ -1,0 +1,157 @@
+# Claims Processing Workflow
+#
+# This workflow processes EDI 837 claims and routes them for adjudication,
+# then handles 835 remittance advice responses.
+#
+# Usage:
+#   fi-fhir workflow run --config examples/workflows/claims-processing.yaml event.json
+
+workflow:
+  name: claims_processing
+  version: "1.0"
+  description: Process healthcare claims and remittance advice
+
+  routes:
+    # Route 1: Incoming professional claims (837P)
+    - name: professional_claims
+      filter:
+        event_type: claim_submitted
+        condition: event.claim.type == "professional"
+      transform:
+        # Validate required fields
+        - set_field: claim.status = "received"
+      actions:
+        # Store claim in database
+        - type: database
+          driver: postgres
+          dsn: ${CLAIMS_DSN}
+          operation: insert
+          table: claims
+          fields:
+            claim_id: "{{.Claim.ID}}"
+            patient_id: "{{.Patient.MRN}}"
+            provider_npi: "{{.Provider.NPI}}"
+            service_date: "{{.Claim.ServiceDate}}"
+            total_charge: "{{.Claim.TotalCharge}}"
+            claim_type: "professional"
+            status: "received"
+            raw_edi: "{{.RawPayload}}"
+        # Send to clearinghouse
+        - type: webhook
+          url: ${CLEARINGHOUSE_URL}/claims
+          method: POST
+          headers:
+            Content-Type: application/edi-x12
+            X-Sender-ID: ${SENDER_ID}
+        # Queue for adjudication
+        - type: queue
+          driver: kafka
+          brokers: ${KAFKA_BROKERS}
+          topic: claims-adjudication
+          key: "{{.Claim.ID}}"
+        - type: log
+          level: info
+          message: "Claim received: {{.Claim.ID}} for patient {{.Patient.MRN}}"
+
+    # Route 2: Institutional claims (837I)
+    - name: institutional_claims
+      filter:
+        event_type: claim_submitted
+        condition: event.claim.type == "institutional"
+      actions:
+        - type: database
+          driver: postgres
+          dsn: ${CLAIMS_DSN}
+          operation: insert
+          table: claims
+          fields:
+            claim_id: "{{.Claim.ID}}"
+            patient_id: "{{.Patient.MRN}}"
+            facility_npi: "{{.Facility.NPI}}"
+            admit_date: "{{.Claim.AdmitDate}}"
+            discharge_date: "{{.Claim.DischargeDate}}"
+            total_charge: "{{.Claim.TotalCharge}}"
+            drg_code: "{{.Claim.DRG}}"
+            claim_type: "institutional"
+            status: "received"
+        - type: webhook
+          url: ${CLEARINGHOUSE_URL}/claims
+          method: POST
+          headers:
+            Content-Type: application/edi-x12
+        - type: log
+          level: info
+          message: "Institutional claim: {{.Claim.ID}}, DRG: {{.Claim.DRG}}"
+
+    # Route 3: Remittance advice (835)
+    - name: remittance_processing
+      filter:
+        event_type: claim_response
+      transform:
+        # Calculate adjustment totals
+        - set_field: claim.netPayment = claim.payment - claim.adjustments
+      actions:
+        # Update claim status in database
+        - type: database
+          driver: postgres
+          dsn: ${CLAIMS_DSN}
+          operation: upsert
+          table: claim_payments
+          keyFields: [claim_id, payer_claim_id]
+          fields:
+            claim_id: "{{.Claim.ID}}"
+            payer_claim_id: "{{.Remittance.PayerClaimID}}"
+            payment_amount: "{{.Remittance.PaymentAmount}}"
+            adjustment_amount: "{{.Remittance.AdjustmentAmount}}"
+            patient_responsibility: "{{.Remittance.PatientResponsibility}}"
+            status: "{{.Remittance.Status}}"
+            denial_codes: "{{.Remittance.DenialCodes | join \",\"}}"
+            processed_date: "{{.Timestamp}}"
+        # Notify billing team of denials
+        - type: webhook
+          url: ${BILLING_WEBHOOK_URL}
+          method: POST
+          condition: event.remittance.status == "denied"
+        - type: log
+          level: info
+          message: "Remittance: {{.Claim.ID}} - {{.Remittance.Status}} - ${{.Remittance.PaymentAmount}}"
+
+    # Route 4: High-value claim alerts
+    - name: high_value_claims
+      filter:
+        event_type: claim_submitted
+        condition: float(event.claim.totalCharge) > 50000.0
+      actions:
+        - type: webhook
+          url: ${ALERT_WEBHOOK_URL}
+          method: POST
+          headers:
+            X-Alert-Type: high-value-claim
+        - type: log
+          level: warn
+          message: "High-value claim: {{.Claim.ID}} - ${{.Claim.TotalCharge}}"
+
+    # Route 5: Eligibility responses (271)
+    - name: eligibility_responses
+      filter:
+        event_type: eligibility_response
+      actions:
+        - type: database
+          driver: postgres
+          dsn: ${CLAIMS_DSN}
+          operation: upsert
+          table: eligibility_cache
+          keyFields: [patient_id, payer_id, service_date]
+          fields:
+            patient_id: "{{.Patient.MRN}}"
+            payer_id: "{{.Payer.ID}}"
+            service_date: "{{.Eligibility.ServiceDate}}"
+            is_eligible: "{{.Eligibility.IsEligible}}"
+            coverage_start: "{{.Eligibility.CoverageStart}}"
+            coverage_end: "{{.Eligibility.CoverageEnd}}"
+            copay_amount: "{{.Eligibility.Copay}}"
+            deductible_remaining: "{{.Eligibility.DeductibleRemaining}}"
+            response_raw: "{{.RawPayload}}"
+        - type: log
+          level: info
+          message: "Eligibility: {{.Patient.MRN}} - Eligible: {{.Eligibility.IsEligible}}"
