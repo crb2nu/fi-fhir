@@ -106,9 +106,9 @@ See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and curren
 - PostgreSQL-backed snapshot store for projection recovery
 - Event replay tooling (ProjectionRebuilder with progress, dry-run, snapshot-aware)
 - Batch event submission endpoint (submitBatch mutation with parallel/sequential modes)
+- PostgreSQL integration tests (testcontainers for EventStore, CheckpointStore, SnapshotStore)
 
 ### Next Up
-- PostgreSQL integration tests (testcontainers)
 - Projection rebuild from time range (not just position)
 
 ## Contributing

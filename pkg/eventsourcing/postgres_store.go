@@ -85,10 +85,20 @@ func (s *PostgresStore) Append(ctx context.Context, streamID string, expectedVer
 	}
 	defer tx.Rollback()
 
-	// Get current stream version
+	// Lock the stream by selecting its rows (FOR UPDATE can't be used with aggregates)
+	// First, try to lock any existing rows for this stream
+	_, err = tx.ExecContext(ctx, fmt.Sprintf(
+		"SELECT 1 FROM %s WHERE stream_id = $1 FOR UPDATE",
+		s.tableName,
+	), streamID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to lock stream: %w", err)
+	}
+
+	// Now get current stream version
 	var currentVersion int64 = -1
 	row := tx.QueryRowContext(ctx, fmt.Sprintf(
-		"SELECT COALESCE(MAX(stream_version), -1) FROM %s WHERE stream_id = $1 FOR UPDATE",
+		"SELECT COALESCE(MAX(stream_version), -1) FROM %s WHERE stream_id = $1",
 		s.tableName,
 	), streamID)
 	if err := row.Scan(&currentVersion); err != nil {
