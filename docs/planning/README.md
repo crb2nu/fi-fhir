@@ -111,9 +111,10 @@ See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and curren
 - Event archival and retention policies (HIPAA-aware retention, file archive, deletion)
 - Event stream compaction (aggregate snapshots, incremental compaction, bulk prefix compaction)
 - Saga orchestration (multi-step transactions with compensation, retry, timeout)
+- Outbox pattern for reliable event publishing (OutboxStore, OutboxRelay, OutboxEventStore)
 
 ### Next Up
-- Outbox pattern for reliable event publishing
+- (Roadmap complete for event sourcing)
 
 ## Contributing
 
