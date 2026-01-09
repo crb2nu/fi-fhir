@@ -535,3 +535,267 @@ func TestMapAAARejectReason(t *testing.T) {
 		})
 	}
 }
+
+func TestMap276ToEvents(t *testing.T) {
+	content, err := os.ReadFile("../../../testdata/edi/276_request.edi")
+	if err != nil {
+		t.Fatalf("failed to read test file: %v", err)
+	}
+
+	p := NewParser()
+	result, err := p.Parse(string(content))
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	tx := result.Interchange.FunctionalGroups[0].Transactions[0]
+	requests, err := Map276ToEvents(tx, "test_source")
+	if err != nil {
+		t.Fatalf("Map276ToEvents failed: %v", err)
+	}
+
+	if len(requests) != 1 {
+		t.Fatalf("expected 1 request event, got %d", len(requests))
+	}
+
+	req := requests[0]
+
+	// Verify event metadata
+	if req.Type != events.EventClaimStatusRequest {
+		t.Errorf("event type = %s, want claim_status_request", req.Type)
+	}
+	if req.Source != "test_source" {
+		t.Errorf("source = %s, want test_source", req.Source)
+	}
+	if req.SourceFormat != events.FormatEDI276 {
+		t.Errorf("source format = %s, want edi_276", req.SourceFormat)
+	}
+
+	// Verify payer (information source)
+	if req.Payer.OrganizationName != "ACME HEALTH INSURANCE" {
+		t.Errorf("payer name = %s, want ACME HEALTH INSURANCE", req.Payer.OrganizationName)
+	}
+
+	// Verify provider (information receiver)
+	if req.Provider.OrganizationName != "SMITH MEDICAL CLINIC" {
+		t.Errorf("provider name = %s, want SMITH MEDICAL CLINIC", req.Provider.OrganizationName)
+	}
+	if req.Provider.NPI != "1234567890" {
+		t.Errorf("provider NPI = %s, want 1234567890", req.Provider.NPI)
+	}
+
+	// Verify subscriber
+	if req.Subscriber.FamilyName != "DOE" {
+		t.Errorf("subscriber family name = %s, want DOE", req.Subscriber.FamilyName)
+	}
+	if req.Subscriber.GivenName != "JOHN" {
+		t.Errorf("subscriber given name = %s, want JOHN", req.Subscriber.GivenName)
+	}
+	if req.Subscriber.Gender != "male" {
+		t.Errorf("subscriber gender = %s, want male", req.Subscriber.Gender)
+	}
+
+	// Verify trace number
+	if req.TraceNumber != "TRACE276001" {
+		t.Errorf("trace number = %s, want TRACE276001", req.TraceNumber)
+	}
+
+	// Verify inquiry - REF*D9 is ClaimSubmitterID, REF*1K is PayerClaimID
+	if req.Inquiry.ClaimSubmitterID != "12345678" {
+		t.Errorf("claim submitter ID = %s, want 12345678", req.Inquiry.ClaimSubmitterID)
+	}
+	if req.Inquiry.PayerClaimID != "CLM123456" {
+		t.Errorf("payer claim ID = %s, want CLM123456", req.Inquiry.PayerClaimID)
+	}
+	if req.Inquiry.TotalClaimChargeAmount != 1500.00 {
+		t.Errorf("claim amount = %f, want 1500.00", req.Inquiry.TotalClaimChargeAmount)
+	}
+
+	// Verify no dependent (subscriber is patient)
+	if req.Dependent != nil {
+		t.Errorf("expected no dependent, got %v", req.Dependent)
+	}
+}
+
+func TestMap277ToEvents(t *testing.T) {
+	content, err := os.ReadFile("../../../testdata/edi/277_response.edi")
+	if err != nil {
+		t.Fatalf("failed to read test file: %v", err)
+	}
+
+	p := NewParser()
+	result, err := p.Parse(string(content))
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	tx := result.Interchange.FunctionalGroups[0].Transactions[0]
+	responses, err := Map277ToEvents(tx, "test_source")
+	if err != nil {
+		t.Fatalf("Map277ToEvents failed: %v", err)
+	}
+
+	if len(responses) != 1 {
+		t.Fatalf("expected 1 response event, got %d", len(responses))
+	}
+
+	resp := responses[0]
+
+	// Verify event metadata
+	if resp.Type != events.EventClaimStatusResponse {
+		t.Errorf("event type = %s, want claim_status_response", resp.Type)
+	}
+	if resp.SourceFormat != events.FormatEDI277 {
+		t.Errorf("source format = %s, want edi_277", resp.SourceFormat)
+	}
+
+	// Verify payer
+	if resp.Payer.OrganizationName != "ACME HEALTH INSURANCE" {
+		t.Errorf("payer name = %s, want ACME HEALTH INSURANCE", resp.Payer.OrganizationName)
+	}
+
+	// Verify provider
+	if resp.Provider.OrganizationName != "SMITH MEDICAL CLINIC" {
+		t.Errorf("provider name = %s, want SMITH MEDICAL CLINIC", resp.Provider.OrganizationName)
+	}
+
+	// Verify subscriber
+	if resp.Subscriber.FamilyName != "DOE" {
+		t.Errorf("subscriber family name = %s, want DOE", resp.Subscriber.FamilyName)
+	}
+
+	// Verify trace number
+	if resp.TraceNumber != "TRACE276001" {
+		t.Errorf("trace number = %s, want TRACE276001", resp.TraceNumber)
+	}
+
+	// Verify claim status - REF*D9 is ClaimSubmitterID, REF*1K is PayerClaimID
+	if resp.ClaimSubmitterID != "12345678" {
+		t.Errorf("claim submitter ID = %s, want 12345678", resp.ClaimSubmitterID)
+	}
+	if resp.PayerClaimID != "CLM123456" {
+		t.Errorf("payer claim ID = %s, want CLM123456", resp.PayerClaimID)
+	}
+
+	// Verify status info - should have at least one status
+	if len(resp.Statuses) < 1 {
+		t.Fatalf("expected at least 1 status, got %d", len(resp.Statuses))
+	}
+
+	// Check for finalized status (A2 = Finalized)
+	foundFinalized := false
+	for _, s := range resp.Statuses {
+		if s.StatusCategoryCode == events.ClaimStatusCategoryFinalized {
+			foundFinalized = true
+			if s.StatusCategoryDescription == "" {
+				t.Errorf("expected category description for finalized status")
+			}
+		}
+	}
+	if !foundFinalized {
+		t.Error("expected to find finalized status (A2)")
+	}
+
+	// Verify service line statuses
+	if len(resp.ServiceLines) < 1 {
+		t.Errorf("expected at least 1 service line status, got %d", len(resp.ServiceLines))
+	}
+}
+
+func TestMap277ToEventsDenied(t *testing.T) {
+	content, err := os.ReadFile("../../../testdata/edi/277_denied.edi")
+	if err != nil {
+		t.Fatalf("failed to read test file: %v", err)
+	}
+
+	p := NewParser()
+	result, err := p.Parse(string(content))
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	tx := result.Interchange.FunctionalGroups[0].Transactions[0]
+	responses, err := Map277ToEvents(tx, "test_source")
+	if err != nil {
+		t.Fatalf("Map277ToEvents failed: %v", err)
+	}
+
+	if len(responses) != 1 {
+		t.Fatalf("expected 1 response event, got %d", len(responses))
+	}
+
+	resp := responses[0]
+
+	// Verify subscriber (different patient)
+	if resp.Subscriber.FamilyName != "SMITH" {
+		t.Errorf("subscriber family name = %s, want SMITH", resp.Subscriber.FamilyName)
+	}
+	if resp.Subscriber.GivenName != "JANE" {
+		t.Errorf("subscriber given name = %s, want JANE", resp.Subscriber.GivenName)
+	}
+	if resp.Subscriber.Gender != "female" {
+		t.Errorf("subscriber gender = %s, want female", resp.Subscriber.Gender)
+	}
+
+	// Verify claim ID - REF*D9 is ClaimSubmitterID, REF*1K is PayerClaimID
+	if resp.ClaimSubmitterID != "87654321" {
+		t.Errorf("claim submitter ID = %s, want 87654321", resp.ClaimSubmitterID)
+	}
+	if resp.PayerClaimID != "CLM789012" {
+		t.Errorf("payer claim ID = %s, want CLM789012", resp.PayerClaimID)
+	}
+
+	// Verify denied status (A8 = Rejected/Denied)
+	foundDenied := false
+	for _, s := range resp.Statuses {
+		if s.StatusCategoryCode == events.ClaimStatusCategoryRejected {
+			foundDenied = true
+		}
+	}
+	if !foundDenied {
+		t.Error("expected to find rejected/denied status (A8)")
+	}
+}
+
+func TestMapStatusCategoryCode(t *testing.T) {
+	tests := []struct {
+		code string
+		want string
+	}{
+		{"A0", "Acknowledgement/Receipt - The claim/encounter has been received"},
+		{"A1", "Pending - The claim/encounter is pending further review"},
+		{"A2", "Finalized - The claim/encounter processing is complete"},
+		{"A8", "Rejected - The claim/encounter has been rejected"},
+		{"XX", "Status Category: XX"}, // Unknown category
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.code, func(t *testing.T) {
+			got := mapStatusCategoryCode(tt.code)
+			if got != tt.want {
+				t.Errorf("mapStatusCategoryCode(%s) = %s, want %s", tt.code, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMapStatusCode(t *testing.T) {
+	tests := []struct {
+		code string
+		want string
+	}{
+		{"20", "Entity accepts responsibility for claim/encounter"},
+		{"0", "Cannot provide further status electronically"},
+		{"1", "For more detailed information, see remittance advice"},
+		{"YY", "Status: YY"}, // Unknown code
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.code, func(t *testing.T) {
+			got := mapStatusCode(tt.code)
+			if got != tt.want {
+				t.Errorf("mapStatusCode(%s) = %s, want %s", tt.code, got, tt.want)
+			}
+		})
+	}
+}

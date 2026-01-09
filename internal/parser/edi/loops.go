@@ -1038,3 +1038,475 @@ func Parse835Loops(tx *Transaction) *Loop835Structure {
 
 	return result
 }
+
+// --- 276/277 Claim Status Loop Structures ---
+
+// Loop276Structure represents the parsed structure of a 276 claim status request
+type Loop276Structure struct {
+	BHT                *Segment
+	InformationSources []*Loop276Source // 2000A - Information Source (Payer)
+}
+
+// Loop276Source represents the Information Source (Payer) hierarchy
+type Loop276Source struct {
+	HL         *Segment
+	SourceInfo *Loop276Entity // 2100A - Source Name
+	Receivers  []*Loop276Receiver
+}
+
+// Loop276Receiver represents the Information Receiver (Provider) hierarchy
+type Loop276Receiver struct {
+	HL           *Segment
+	ReceiverInfo *Loop276Entity // 2100B - Receiver Name
+	Subscribers  []*Loop276Subscriber
+}
+
+// Loop276Subscriber represents the Subscriber hierarchy in a 276
+type Loop276Subscriber struct {
+	HL             *Segment
+	SBR            *Segment          // Subscriber Information
+	SubscriberInfo *Loop276Entity    // 2100C - Subscriber Name
+	ClaimInquiries []*Loop276Inquiry // 2200C - Claim inquiries
+	Dependents     []*Loop276Dependent
+}
+
+// Loop276Dependent represents a Dependent in 276
+type Loop276Dependent struct {
+	HL             *Segment
+	DependentInfo  *Loop276Entity    // 2100D - Dependent Name
+	ClaimInquiries []*Loop276Inquiry // 2200D - Claim inquiries
+}
+
+// Loop276Entity holds NM1-based entity information
+type Loop276Entity struct {
+	NM1 *Segment
+	N3  *Segment
+	N4  *Segment
+	PER []*Segment
+	REF []*Segment
+	DMG *Segment
+}
+
+// Loop276Inquiry represents a claim status inquiry (Loop 2200)
+type Loop276Inquiry struct {
+	TRN          *Segment // Trace Number (required)
+	REF          []*Segment
+	AMT          []*Segment
+	DTP          []*Segment
+	ServiceLines []*Loop276ServiceLine // 2210 - Service line details
+}
+
+// Loop276ServiceLine represents service line detail in inquiry (Loop 2210)
+type Loop276ServiceLine struct {
+	SVC *Segment // Service identification
+	REF []*Segment
+	DTP []*Segment
+}
+
+// Loop277Structure represents the parsed structure of a 277 claim status response
+type Loop277Structure struct {
+	BHT                *Segment
+	InformationSources []*Loop277Source // 2000A - Information Source (Payer)
+}
+
+// Loop277Source represents the Information Source (Payer) hierarchy
+type Loop277Source struct {
+	HL         *Segment
+	SourceInfo *Loop277Entity // 2100A - Source Name
+	Receivers  []*Loop277Receiver
+}
+
+// Loop277Receiver represents the Information Receiver (Provider) hierarchy
+type Loop277Receiver struct {
+	HL           *Segment
+	ReceiverInfo *Loop277Entity // 2100B - Receiver Name
+	Subscribers  []*Loop277Subscriber
+}
+
+// Loop277Subscriber represents the Subscriber hierarchy in a 277
+type Loop277Subscriber struct {
+	HL             *Segment
+	SBR            *Segment         // Subscriber Information
+	SubscriberInfo *Loop277Entity   // 2100C - Subscriber Name
+	ClaimStatuses  []*Loop277Status // 2200C - Claim status details
+	Dependents     []*Loop277Dependent
+}
+
+// Loop277Dependent represents a Dependent in 277
+type Loop277Dependent struct {
+	HL            *Segment
+	DependentInfo *Loop277Entity   // 2100D - Dependent Name
+	ClaimStatuses []*Loop277Status // 2200D - Claim status details
+}
+
+// Loop277Entity holds NM1-based entity information
+type Loop277Entity struct {
+	NM1 *Segment
+	N3  *Segment
+	N4  *Segment
+	PER []*Segment
+	REF []*Segment
+	DMG *Segment
+}
+
+// Loop277Status represents claim status information (Loop 2200)
+type Loop277Status struct {
+	TRN          *Segment   // Trace Number
+	STC          []*Segment // Status Information (can repeat)
+	REF          []*Segment // Reference Information
+	DTP          []*Segment // Date/Time Information
+	QTY          []*Segment // Quantity
+	AMT          []*Segment // Monetary Amounts
+	ServiceLines []*Loop277ServiceLineStatus // 2220 - Service line status
+}
+
+// Loop277ServiceLineStatus represents service line status (Loop 2220)
+type Loop277ServiceLineStatus struct {
+	SVC *Segment   // Service identification
+	STC []*Segment // Status Information for this line
+	REF []*Segment
+	DTP []*Segment
+}
+
+// Parse276Loops parses a 276 transaction into its loop structure
+func Parse276Loops(tx *Transaction) *Loop276Structure {
+	result := &Loop276Structure{}
+
+	nodes := AssignSegmentsToHL(tx)
+
+	var currentSource *Loop276Source
+	var currentReceiver *Loop276Receiver
+	var currentSubscriber *Loop276Subscriber
+	var currentDependent *Loop276Dependent
+	var currentEntity *Loop276Entity
+	var currentInquiry *Loop276Inquiry
+	var currentServiceLine *Loop276ServiceLine
+	state := "header"
+
+	for _, seg := range tx.Segments {
+		switch seg.ID {
+		case "BHT":
+			result.BHT = seg
+
+		case "HL":
+			hlID := seg.GetElement(1)
+			node := nodes[hlID]
+			if node == nil {
+				continue
+			}
+			switch node.LevelCode {
+			case "20": // Information Source (Payer)
+				currentSource = &Loop276Source{HL: seg}
+				result.InformationSources = append(result.InformationSources, currentSource)
+				state = "2000A"
+				currentReceiver = nil
+				currentSubscriber = nil
+				currentDependent = nil
+				currentEntity = nil
+				currentInquiry = nil
+
+			case "21": // Information Receiver (Provider)
+				currentReceiver = &Loop276Receiver{HL: seg}
+				if currentSource != nil {
+					currentSource.Receivers = append(currentSource.Receivers, currentReceiver)
+				}
+				state = "2000B"
+				currentSubscriber = nil
+				currentDependent = nil
+				currentEntity = nil
+				currentInquiry = nil
+
+			case "22": // Subscriber
+				currentSubscriber = &Loop276Subscriber{HL: seg}
+				if currentReceiver != nil {
+					currentReceiver.Subscribers = append(currentReceiver.Subscribers, currentSubscriber)
+				}
+				state = "2000C"
+				currentDependent = nil
+				currentEntity = nil
+				currentInquiry = nil
+
+			case "23": // Dependent
+				currentDependent = &Loop276Dependent{HL: seg}
+				if currentSubscriber != nil {
+					currentSubscriber.Dependents = append(currentSubscriber.Dependents, currentDependent)
+				}
+				state = "2000D"
+				currentEntity = nil
+				currentInquiry = nil
+			}
+
+		case "SBR":
+			if currentSubscriber != nil {
+				currentSubscriber.SBR = seg
+			}
+
+		case "NM1":
+			currentEntity = &Loop276Entity{NM1: seg}
+			switch state {
+			case "2000A":
+				if currentSource != nil {
+					currentSource.SourceInfo = currentEntity
+					state = "2100A"
+				}
+			case "2000B":
+				if currentReceiver != nil {
+					currentReceiver.ReceiverInfo = currentEntity
+					state = "2100B"
+				}
+			case "2000C":
+				if currentSubscriber != nil {
+					currentSubscriber.SubscriberInfo = currentEntity
+					state = "2100C"
+				}
+			case "2000D":
+				if currentDependent != nil {
+					currentDependent.DependentInfo = currentEntity
+					state = "2100D"
+				}
+			}
+
+		case "N3":
+			if currentEntity != nil {
+				currentEntity.N3 = seg
+			}
+
+		case "N4":
+			if currentEntity != nil {
+				currentEntity.N4 = seg
+			}
+
+		case "PER":
+			if currentEntity != nil {
+				currentEntity.PER = append(currentEntity.PER, seg)
+			}
+
+		case "DMG":
+			if currentEntity != nil {
+				currentEntity.DMG = seg
+			}
+
+		case "TRN":
+			// TRN starts a new claim inquiry (Loop 2200)
+			currentInquiry = &Loop276Inquiry{TRN: seg}
+			if state == "2100D" || state == "2200D" {
+				if currentDependent != nil {
+					currentDependent.ClaimInquiries = append(currentDependent.ClaimInquiries, currentInquiry)
+					state = "2200D"
+				}
+			} else if currentSubscriber != nil {
+				currentSubscriber.ClaimInquiries = append(currentSubscriber.ClaimInquiries, currentInquiry)
+				state = "2200C"
+			}
+			currentServiceLine = nil
+
+		case "REF":
+			if currentServiceLine != nil {
+				currentServiceLine.REF = append(currentServiceLine.REF, seg)
+			} else if currentInquiry != nil {
+				currentInquiry.REF = append(currentInquiry.REF, seg)
+			} else if currentEntity != nil {
+				currentEntity.REF = append(currentEntity.REF, seg)
+			}
+
+		case "AMT":
+			if currentInquiry != nil {
+				currentInquiry.AMT = append(currentInquiry.AMT, seg)
+			}
+
+		case "DTP":
+			if currentServiceLine != nil {
+				currentServiceLine.DTP = append(currentServiceLine.DTP, seg)
+			} else if currentInquiry != nil {
+				currentInquiry.DTP = append(currentInquiry.DTP, seg)
+			}
+
+		case "SVC":
+			// SVC starts a service line detail (Loop 2210)
+			currentServiceLine = &Loop276ServiceLine{SVC: seg}
+			if currentInquiry != nil {
+				currentInquiry.ServiceLines = append(currentInquiry.ServiceLines, currentServiceLine)
+			}
+		}
+	}
+
+	return result
+}
+
+// Parse277Loops parses a 277 transaction into its loop structure
+func Parse277Loops(tx *Transaction) *Loop277Structure {
+	result := &Loop277Structure{}
+
+	nodes := AssignSegmentsToHL(tx)
+
+	var currentSource *Loop277Source
+	var currentReceiver *Loop277Receiver
+	var currentSubscriber *Loop277Subscriber
+	var currentDependent *Loop277Dependent
+	var currentEntity *Loop277Entity
+	var currentStatus *Loop277Status
+	var currentServiceLine *Loop277ServiceLineStatus
+	state := "header"
+
+	for _, seg := range tx.Segments {
+		switch seg.ID {
+		case "BHT":
+			result.BHT = seg
+
+		case "HL":
+			hlID := seg.GetElement(1)
+			node := nodes[hlID]
+			if node == nil {
+				continue
+			}
+			switch node.LevelCode {
+			case "20": // Information Source (Payer)
+				currentSource = &Loop277Source{HL: seg}
+				result.InformationSources = append(result.InformationSources, currentSource)
+				state = "2000A"
+				currentReceiver = nil
+				currentSubscriber = nil
+				currentDependent = nil
+				currentEntity = nil
+				currentStatus = nil
+
+			case "21": // Information Receiver (Provider)
+				currentReceiver = &Loop277Receiver{HL: seg}
+				if currentSource != nil {
+					currentSource.Receivers = append(currentSource.Receivers, currentReceiver)
+				}
+				state = "2000B"
+				currentSubscriber = nil
+				currentDependent = nil
+				currentEntity = nil
+				currentStatus = nil
+
+			case "22": // Subscriber
+				currentSubscriber = &Loop277Subscriber{HL: seg}
+				if currentReceiver != nil {
+					currentReceiver.Subscribers = append(currentReceiver.Subscribers, currentSubscriber)
+				}
+				state = "2000C"
+				currentDependent = nil
+				currentEntity = nil
+				currentStatus = nil
+
+			case "23": // Dependent
+				currentDependent = &Loop277Dependent{HL: seg}
+				if currentSubscriber != nil {
+					currentSubscriber.Dependents = append(currentSubscriber.Dependents, currentDependent)
+				}
+				state = "2000D"
+				currentEntity = nil
+				currentStatus = nil
+			}
+
+		case "SBR":
+			if currentSubscriber != nil {
+				currentSubscriber.SBR = seg
+			}
+
+		case "NM1":
+			currentEntity = &Loop277Entity{NM1: seg}
+			switch state {
+			case "2000A":
+				if currentSource != nil {
+					currentSource.SourceInfo = currentEntity
+					state = "2100A"
+				}
+			case "2000B":
+				if currentReceiver != nil {
+					currentReceiver.ReceiverInfo = currentEntity
+					state = "2100B"
+				}
+			case "2000C":
+				if currentSubscriber != nil {
+					currentSubscriber.SubscriberInfo = currentEntity
+					state = "2100C"
+				}
+			case "2000D":
+				if currentDependent != nil {
+					currentDependent.DependentInfo = currentEntity
+					state = "2100D"
+				}
+			}
+
+		case "N3":
+			if currentEntity != nil {
+				currentEntity.N3 = seg
+			}
+
+		case "N4":
+			if currentEntity != nil {
+				currentEntity.N4 = seg
+			}
+
+		case "PER":
+			if currentEntity != nil {
+				currentEntity.PER = append(currentEntity.PER, seg)
+			}
+
+		case "DMG":
+			if currentEntity != nil {
+				currentEntity.DMG = seg
+			}
+
+		case "TRN":
+			// TRN starts a new claim status block (Loop 2200)
+			currentStatus = &Loop277Status{TRN: seg}
+			if state == "2100D" || state == "2200D" {
+				if currentDependent != nil {
+					currentDependent.ClaimStatuses = append(currentDependent.ClaimStatuses, currentStatus)
+					state = "2200D"
+				}
+			} else if currentSubscriber != nil {
+				currentSubscriber.ClaimStatuses = append(currentSubscriber.ClaimStatuses, currentStatus)
+				state = "2200C"
+			}
+			currentServiceLine = nil
+
+		case "STC":
+			// STC can appear at claim level or service line level
+			if currentServiceLine != nil {
+				currentServiceLine.STC = append(currentServiceLine.STC, seg)
+			} else if currentStatus != nil {
+				currentStatus.STC = append(currentStatus.STC, seg)
+			}
+
+		case "REF":
+			if currentServiceLine != nil {
+				currentServiceLine.REF = append(currentServiceLine.REF, seg)
+			} else if currentStatus != nil {
+				currentStatus.REF = append(currentStatus.REF, seg)
+			} else if currentEntity != nil {
+				currentEntity.REF = append(currentEntity.REF, seg)
+			}
+
+		case "DTP":
+			if currentServiceLine != nil {
+				currentServiceLine.DTP = append(currentServiceLine.DTP, seg)
+			} else if currentStatus != nil {
+				currentStatus.DTP = append(currentStatus.DTP, seg)
+			}
+
+		case "QTY":
+			if currentStatus != nil {
+				currentStatus.QTY = append(currentStatus.QTY, seg)
+			}
+
+		case "AMT":
+			if currentStatus != nil {
+				currentStatus.AMT = append(currentStatus.AMT, seg)
+			}
+
+		case "SVC":
+			// SVC starts a service line status block (Loop 2220)
+			currentServiceLine = &Loop277ServiceLineStatus{SVC: seg}
+			if currentStatus != nil {
+				currentStatus.ServiceLines = append(currentStatus.ServiceLines, currentServiceLine)
+			}
+		}
+	}
+
+	return result
+}

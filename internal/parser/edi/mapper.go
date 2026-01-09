@@ -1322,3 +1322,699 @@ func parseEDIDate(s string) time.Time {
 	}
 	return t
 }
+
+// --- 276/277 Claim Status Mappers ---
+
+// Map276ToEvents converts a parsed 276 transaction to ClaimStatusRequestEvents
+func Map276ToEvents(tx *Transaction, source string) ([]*events.ClaimStatusRequestEvent, error) {
+	loops := Parse276Loops(tx)
+	var results []*events.ClaimStatusRequestEvent
+
+	// Process each information source (payer)
+	for _, infoSource := range loops.InformationSources {
+		payer := mapEntity276ToProvider(infoSource.SourceInfo)
+
+		// Process each information receiver (provider)
+		for _, receiver := range infoSource.Receivers {
+			provider := mapEntity276ToProvider(receiver.ReceiverInfo)
+
+			// Process each subscriber
+			for _, sub := range receiver.Subscribers {
+				subscriber := mapEntity276ToPatient(sub.SubscriberInfo)
+
+				// Process each claim inquiry
+				for _, inquiry := range sub.ClaimInquiries {
+					// Get trace number
+					traceNumber := ""
+					if inquiry.TRN != nil {
+						traceNumber = inquiry.TRN.GetElement(2)
+					}
+
+					// Build inquiry details from REF segments
+					claimInquiry := buildClaimStatusInquiry(inquiry)
+
+					// Check if there are dependents
+					if len(sub.Dependents) > 0 {
+						for _, dep := range sub.Dependents {
+							dependent := mapEntity276ToPatient(dep.DependentInfo)
+
+							// Process dependent's claim inquiries
+							for _, depInq := range dep.ClaimInquiries {
+								depTrace := traceNumber
+								if depInq.TRN != nil {
+									depTrace = depInq.TRN.GetElement(2)
+								}
+
+								depClaimInquiry := buildClaimStatusInquiry(depInq)
+
+								event := &events.ClaimStatusRequestEvent{
+									EventMeta: events.NewEventMeta(
+										events.EventClaimStatusRequest,
+										source,
+										events.FormatEDI276,
+									),
+									Payer:       payer,
+									Provider:    provider,
+									Subscriber:  subscriber,
+									Dependent:   &dependent,
+									Inquiry:     depClaimInquiry,
+									TraceNumber: depTrace,
+								}
+								results = append(results, event)
+							}
+						}
+					} else {
+						// Subscriber is the patient
+						event := &events.ClaimStatusRequestEvent{
+							EventMeta: events.NewEventMeta(
+								events.EventClaimStatusRequest,
+								source,
+								events.FormatEDI276,
+							),
+							Payer:       payer,
+							Provider:    provider,
+							Subscriber:  subscriber,
+							Inquiry:     claimInquiry,
+							TraceNumber: traceNumber,
+						}
+						results = append(results, event)
+					}
+				}
+			}
+		}
+	}
+
+	return results, nil
+}
+
+// Map277ToEvents converts a parsed 277 transaction to ClaimStatusResponseEvents
+func Map277ToEvents(tx *Transaction, source string) ([]*events.ClaimStatusResponseEvent, error) {
+	loops := Parse277Loops(tx)
+	var results []*events.ClaimStatusResponseEvent
+
+	// Process each information source (payer)
+	for _, infoSource := range loops.InformationSources {
+		payer := mapEntity277ToProvider(infoSource.SourceInfo)
+
+		// Process each information receiver (provider)
+		for _, receiver := range infoSource.Receivers {
+			provider := mapEntity277ToProvider(receiver.ReceiverInfo)
+
+			// Process each subscriber
+			for _, sub := range receiver.Subscribers {
+				subscriber := mapEntity277ToPatient(sub.SubscriberInfo)
+
+				// Process each claim status
+				for _, status := range sub.ClaimStatuses {
+					// Get trace number
+					traceNumber := ""
+					if status.TRN != nil {
+						traceNumber = status.TRN.GetElement(2)
+					}
+
+					// Extract claim IDs from REF segments
+					claimSubmitterID, payerClaimID, patientControlNum := extractClaimIDs(status.REF)
+
+					// Map STC segments to statuses
+					statuses := mapSTCToStatuses(status.STC)
+
+					// Map service lines
+					serviceLines := mapServiceLineStatuses(status.ServiceLines)
+
+					// Get total charge from AMT if present
+					totalCharge := extractClaimAmount(status.AMT)
+
+					// Check if there are dependents
+					if len(sub.Dependents) > 0 {
+						for _, dep := range sub.Dependents {
+							dependent := mapEntity277ToPatient(dep.DependentInfo)
+
+							// Process dependent's claim statuses
+							for _, depStatus := range dep.ClaimStatuses {
+								depTrace := traceNumber
+								if depStatus.TRN != nil {
+									depTrace = depStatus.TRN.GetElement(2)
+								}
+
+								depSubmitterID, depPayerID, depPatientNum := extractClaimIDs(depStatus.REF)
+								depStatuses := mapSTCToStatuses(depStatus.STC)
+								depServiceLines := mapServiceLineStatuses(depStatus.ServiceLines)
+								depTotalCharge := extractClaimAmount(depStatus.AMT)
+
+								event := &events.ClaimStatusResponseEvent{
+									EventMeta: events.NewEventMeta(
+										events.EventClaimStatusResponse,
+										source,
+										events.FormatEDI277,
+									),
+									Payer:                  payer,
+									Provider:               provider,
+									Subscriber:             subscriber,
+									Dependent:              &dependent,
+									ClaimSubmitterID:       depSubmitterID,
+									PayerClaimID:           depPayerID,
+									PatientControlNumber:   depPatientNum,
+									Statuses:               depStatuses,
+									ServiceLines:           depServiceLines,
+									TraceNumber:            depTrace,
+									TotalClaimChargeAmount: depTotalCharge,
+								}
+								results = append(results, event)
+							}
+						}
+					} else {
+						// Subscriber is the patient
+						event := &events.ClaimStatusResponseEvent{
+							EventMeta: events.NewEventMeta(
+								events.EventClaimStatusResponse,
+								source,
+								events.FormatEDI277,
+							),
+							Payer:                  payer,
+							Provider:               provider,
+							Subscriber:             subscriber,
+							ClaimSubmitterID:       claimSubmitterID,
+							PayerClaimID:           payerClaimID,
+							PatientControlNumber:   patientControlNum,
+							Statuses:               statuses,
+							ServiceLines:           serviceLines,
+							TraceNumber:            traceNumber,
+							TotalClaimChargeAmount: totalCharge,
+						}
+						results = append(results, event)
+					}
+				}
+			}
+		}
+	}
+
+	return results, nil
+}
+
+// mapEntity276ToProvider converts a 276 Loop entity to a Provider
+func mapEntity276ToProvider(entity *Loop276Entity) events.Provider {
+	if entity == nil || entity.NM1 == nil {
+		return events.Provider{}
+	}
+
+	nm1 := entity.NM1
+	provider := events.Provider{}
+
+	// NM102: Entity Type Qualifier (1=Person, 2=Non-Person Entity)
+	entityType := nm1.GetElement(2)
+
+	if entityType == "2" {
+		provider.OrganizationName = nm1.GetElement(3)
+		provider.ProviderType = "organization"
+	} else {
+		provider.FamilyName = nm1.GetElement(3)
+		provider.GivenName = nm1.GetElement(4)
+		provider.MiddleName = nm1.GetElement(5)
+		provider.Prefix = nm1.GetElement(6)
+		provider.Suffix = nm1.GetElement(7)
+		provider.ProviderType = "individual"
+	}
+
+	// NM108/NM109: ID Code
+	idQual := nm1.GetElement(8)
+	idCode := nm1.GetElement(9)
+
+	if idCode != "" {
+		var idType string
+		switch idQual {
+		case "XX":
+			provider.NPI = idCode
+			idType = "NPI"
+		case "PI":
+			idType = "PI"
+		case "FI":
+			idType = "FI"
+		default:
+			idType = idQual
+		}
+
+		provider.Identifiers.Identifiers = append(provider.Identifiers.Identifiers, events.Identifier{
+			Type:  idType,
+			Value: idCode,
+		})
+	}
+
+	return provider
+}
+
+// mapEntity276ToPatient converts a 276 Loop entity to a Patient
+func mapEntity276ToPatient(entity *Loop276Entity) events.Patient {
+	if entity == nil || entity.NM1 == nil {
+		return events.Patient{}
+	}
+
+	nm1 := entity.NM1
+	patient := events.Patient{}
+
+	patient.FamilyName = nm1.GetElement(3)
+	patient.GivenName = nm1.GetElement(4)
+	patient.MiddleName = nm1.GetElement(5)
+	patient.Prefix = nm1.GetElement(6)
+	patient.Suffix = nm1.GetElement(7)
+
+	// NM108/NM109: ID Code
+	idQual := nm1.GetElement(8)
+	idCode := nm1.GetElement(9)
+
+	if idCode != "" {
+		var idType string
+		switch idQual {
+		case "MI":
+			idType = "MI"
+			patient.MRN = idCode
+		default:
+			idType = idQual
+		}
+
+		patient.Identifiers.Identifiers = append(patient.Identifiers.Identifiers, events.Identifier{
+			Type:  idType,
+			Value: idCode,
+		})
+	}
+
+	// Demographics from DMG
+	if entity.DMG != nil {
+		if dob := entity.DMG.GetElement(2); dob != "" {
+			patient.DateOfBirth = parseEDIDate(dob)
+		}
+		gender := entity.DMG.GetElement(3)
+		switch gender {
+		case "M":
+			patient.Gender = "male"
+		case "F":
+			patient.Gender = "female"
+		case "U":
+			patient.Gender = "unknown"
+		default:
+			patient.Gender = gender
+		}
+	}
+
+	return patient
+}
+
+// mapEntity277ToProvider converts a 277 Loop entity to a Provider
+func mapEntity277ToProvider(entity *Loop277Entity) events.Provider {
+	if entity == nil || entity.NM1 == nil {
+		return events.Provider{}
+	}
+
+	nm1 := entity.NM1
+	provider := events.Provider{}
+
+	// NM102: Entity Type Qualifier (1=Person, 2=Non-Person Entity)
+	entityType := nm1.GetElement(2)
+
+	if entityType == "2" {
+		provider.OrganizationName = nm1.GetElement(3)
+		provider.ProviderType = "organization"
+	} else {
+		provider.FamilyName = nm1.GetElement(3)
+		provider.GivenName = nm1.GetElement(4)
+		provider.MiddleName = nm1.GetElement(5)
+		provider.Prefix = nm1.GetElement(6)
+		provider.Suffix = nm1.GetElement(7)
+		provider.ProviderType = "individual"
+	}
+
+	// NM108/NM109: ID Code
+	idQual := nm1.GetElement(8)
+	idCode := nm1.GetElement(9)
+
+	if idCode != "" {
+		var idType string
+		switch idQual {
+		case "XX":
+			provider.NPI = idCode
+			idType = "NPI"
+		case "PI":
+			idType = "PI"
+		case "FI":
+			idType = "FI"
+		default:
+			idType = idQual
+		}
+
+		provider.Identifiers.Identifiers = append(provider.Identifiers.Identifiers, events.Identifier{
+			Type:  idType,
+			Value: idCode,
+		})
+	}
+
+	return provider
+}
+
+// mapEntity277ToPatient converts a 277 Loop entity to a Patient
+func mapEntity277ToPatient(entity *Loop277Entity) events.Patient {
+	if entity == nil || entity.NM1 == nil {
+		return events.Patient{}
+	}
+
+	nm1 := entity.NM1
+	patient := events.Patient{}
+
+	patient.FamilyName = nm1.GetElement(3)
+	patient.GivenName = nm1.GetElement(4)
+	patient.MiddleName = nm1.GetElement(5)
+	patient.Prefix = nm1.GetElement(6)
+	patient.Suffix = nm1.GetElement(7)
+
+	// NM108/NM109: ID Code
+	idQual := nm1.GetElement(8)
+	idCode := nm1.GetElement(9)
+
+	if idCode != "" {
+		var idType string
+		switch idQual {
+		case "MI":
+			idType = "MI"
+			patient.MRN = idCode
+		default:
+			idType = idQual
+		}
+
+		patient.Identifiers.Identifiers = append(patient.Identifiers.Identifiers, events.Identifier{
+			Type:  idType,
+			Value: idCode,
+		})
+	}
+
+	// Demographics from DMG
+	if entity.DMG != nil {
+		if dob := entity.DMG.GetElement(2); dob != "" {
+			patient.DateOfBirth = parseEDIDate(dob)
+		}
+		gender := entity.DMG.GetElement(3)
+		switch gender {
+		case "M":
+			patient.Gender = "male"
+		case "F":
+			patient.Gender = "female"
+		case "U":
+			patient.Gender = "unknown"
+		default:
+			patient.Gender = gender
+		}
+	}
+
+	return patient
+}
+
+// buildClaimStatusInquiry builds a ClaimStatusInquiry from a 276 inquiry loop
+func buildClaimStatusInquiry(inquiry *Loop276Inquiry) events.ClaimStatusInquiry {
+	result := events.ClaimStatusInquiry{}
+
+	if inquiry == nil {
+		return result
+	}
+
+	// Extract claim IDs from REF segments
+	for _, ref := range inquiry.REF {
+		qual := ref.GetElement(1)
+		value := ref.GetElement(2)
+		switch qual {
+		case "BLT": // Billing Type
+			// Not directly mapped
+		case "EJ": // Patient Control Number
+			result.PatientControlNumber = value
+		case "D9": // Claim Number
+			result.ClaimSubmitterID = value
+		case "1K": // Payer Claim Control Number
+			result.PayerClaimID = value
+		case "TJ": // Federal Taxpayer ID
+			// Not directly mapped
+		}
+	}
+
+	// Extract amount from AMT segment
+	for _, amt := range inquiry.AMT {
+		if amt.GetElement(1) == "T3" { // Total Claim Charge Amount
+			result.TotalClaimChargeAmount = parseFloat(amt.GetElement(2))
+		}
+	}
+
+	// Extract dates from DTP segments
+	for _, dtp := range inquiry.DTP {
+		qual := dtp.GetElement(1)
+		dateStr := dtp.GetElement(3)
+		switch qual {
+		case "472": // Service Date
+			// Could be range (RD8) or single date (D8)
+			format := dtp.GetElement(2)
+			if format == "RD8" && len(dateStr) >= 16 {
+				result.ServiceDateStart = parseEDIDate(dateStr[0:8])
+				result.ServiceDateEnd = parseEDIDate(dateStr[8:16])
+			} else {
+				result.ServiceDateStart = parseEDIDate(dateStr)
+				result.ServiceDateEnd = result.ServiceDateStart
+			}
+		}
+	}
+
+	return result
+}
+
+// extractClaimIDs extracts claim identifiers from REF segments
+func extractClaimIDs(refs []*Segment) (submitterID, payerID, patientControl string) {
+	for _, ref := range refs {
+		qual := ref.GetElement(1)
+		value := ref.GetElement(2)
+		switch qual {
+		case "D9", "BLT": // Claim Number
+			submitterID = value
+		case "1K": // Payer Claim Control Number
+			payerID = value
+		case "EJ": // Patient Control Number
+			patientControl = value
+		}
+	}
+	return
+}
+
+// mapSTCToStatuses converts STC segments to ClaimStatusInfo slice
+func mapSTCToStatuses(stcSegments []*Segment) []events.ClaimStatusInfo {
+	var statuses []events.ClaimStatusInfo
+
+	for _, stc := range stcSegments {
+		// STC01 is a composite: Category:StatusCode:EntityID:CodeListQualifier
+		composite := stc.GetElement(1)
+		parts := splitComposite(composite)
+
+		status := events.ClaimStatusInfo{}
+
+		// Category code (first component)
+		if len(parts) > 0 {
+			status.StatusCategoryCode = events.ClaimStatusCategoryCode(parts[0])
+			status.StatusCategoryDescription = mapStatusCategoryCode(parts[0])
+		}
+
+		// Status code (second component)
+		if len(parts) > 1 {
+			status.StatusCode = parts[1]
+			status.StatusCodeDescription = mapStatusCode(parts[1])
+		}
+
+		// Entity identifier (third component)
+		if len(parts) > 2 {
+			status.EntityIdentifier = parts[2]
+		}
+
+		// STC02: Status Date
+		if dateStr := stc.GetElement(2); dateStr != "" {
+			status.EffectiveDate = parseEDIDate(dateStr)
+		}
+
+		// STC03: Action Code
+		status.ActionCode = stc.GetElement(3)
+
+		// STC04: Monetary Amount (Total Claim Charge)
+		if amt := stc.GetElement(4); amt != "" {
+			status.TotalClaimChargeAmount = parseFloat(amt)
+		}
+
+		// STC05: Monetary Amount (Payment)
+		if amt := stc.GetElement(5); amt != "" {
+			status.PaymentAmount = parseFloat(amt)
+		}
+
+		// STC06: Payment Date
+		if dateStr := stc.GetElement(6); dateStr != "" {
+			status.PaymentDate = parseEDIDate(dateStr)
+		}
+
+		// STC09: Check Number
+		status.CheckNumber = stc.GetElement(9)
+
+		statuses = append(statuses, status)
+	}
+
+	return statuses
+}
+
+// mapServiceLineStatuses converts service line loops to ClaimServiceLineStatus slice
+func mapServiceLineStatuses(lines []*Loop277ServiceLineStatus) []events.ClaimServiceLineStatus {
+	var results []events.ClaimServiceLineStatus
+
+	for i, line := range lines {
+		if line.SVC == nil {
+			continue
+		}
+
+		svcLine := events.ClaimServiceLineStatus{
+			LineNumber: i + 1,
+		}
+
+		// SVC01 is composite: Qualifier:ProcedureCode:Modifiers
+		svcComposite := line.SVC.GetElement(1)
+		svcParts := splitComposite(svcComposite)
+
+		if len(svcParts) > 0 {
+			svcLine.ServiceIDQualifier = svcParts[0]
+		}
+		if len(svcParts) > 1 {
+			svcLine.ProcedureCode = svcParts[1]
+		}
+		// Modifiers are in positions 2-5 of composite
+		for j := 2; j < len(svcParts) && j < 6; j++ {
+			if svcParts[j] != "" {
+				svcLine.Modifiers = append(svcLine.Modifiers, svcParts[j])
+			}
+		}
+
+		// SVC02: Line Item Charge Amount
+		svcLine.ChargeAmount = parseFloat(line.SVC.GetElement(2))
+
+		// SVC03: Line Item Paid Amount
+		svcLine.PaidAmount = parseFloat(line.SVC.GetElement(3))
+
+		// SVC05: Units
+		svcLine.Units = parseFloat(line.SVC.GetElement(5))
+
+		// Extract service date from DTP
+		for _, dtp := range line.DTP {
+			if dtp.GetElement(1) == "472" { // Service Date
+				svcLine.ServiceDate = parseEDIDate(dtp.GetElement(3))
+				break
+			}
+		}
+
+		// Map STC segments for this service line
+		svcLine.Statuses = mapSTCToStatuses(line.STC)
+
+		results = append(results, svcLine)
+	}
+
+	return results
+}
+
+// extractClaimAmount extracts the total claim amount from AMT segments
+func extractClaimAmount(amts []*Segment) float64 {
+	for _, amt := range amts {
+		// T3 = Total Claim Charge Amount, T = Total Claim Payment Amount
+		qual := amt.GetElement(1)
+		if qual == "T3" || qual == "T" {
+			return parseFloat(amt.GetElement(2))
+		}
+	}
+	return 0
+}
+
+// splitComposite splits a composite element by the component separator (:)
+func splitComposite(composite string) []string {
+	if composite == "" {
+		return nil
+	}
+	return strings.Split(composite, ":")
+}
+
+// mapStatusCategoryCode maps STC01-01 category codes to descriptions
+func mapStatusCategoryCode(code string) string {
+	descriptions := map[string]string{
+		"A0": "Acknowledgement/Receipt - The claim/encounter has been received",
+		"A1": "Pending - The claim/encounter is pending further review",
+		"A2": "Finalized - The claim/encounter processing is complete",
+		"A3": "Request for additional information",
+		"A4": "Adjudicated - The claim/encounter has been adjudicated",
+		"A5": "Denied - The claim/encounter has been denied",
+		"A6": "Partial payment - Partial payment has been issued",
+		"A7": "Paid in full - Full payment has been issued",
+		"A8": "Rejected - The claim/encounter has been rejected",
+		"DR": "Data Reporting Acknowledgement",
+		"E0": "Response not possible - error on submitted request data",
+		"F0": "Recovery - Recoupment or recovery in progress",
+		"P0": "Prior Authorization/Referral",
+		"R0": "Requests for additional information",
+	}
+
+	if desc, ok := descriptions[code]; ok {
+		return desc
+	}
+	return "Status Category: " + code
+}
+
+// mapStatusCode maps common STC01-02 status codes to descriptions
+// Note: There are hundreds of status codes in Code Source 508
+func mapStatusCode(code string) string {
+	// Common status codes - not exhaustive
+	descriptions := map[string]string{
+		"0":   "Cannot provide further status electronically",
+		"1":   "For more detailed information, see remittance advice",
+		"2":   "More detailed information in letter",
+		"3":   "Claim has been adjudicated and is awaiting payment cycle",
+		"4":   "Claim has been paid",
+		"5":   "Claim has been denied",
+		"6":   "Claim is pending review",
+		"12":  "One or more service lines have been denied",
+		"15":  "Claim/Service lacks information needed for adjudication",
+		"16":  "Claim/service has been suspended",
+		"17":  "Claim has been forwarded to entity",
+		"18":  "Entity received claim/service but final status not available",
+		"19":  "Entity acknowledges receipt of claim/encounter",
+		"20":  "Entity accepts responsibility for claim/encounter",
+		"21":  "Entity cannot process - not authorized",
+		"22":  "Entity cannot process - health care provider not authorized",
+		"23":  "Entity cannot process - patient not eligible",
+		"24":  "Entity cannot process - service not covered",
+		"25":  "Entity cannot process - data validity problem",
+		"29":  "Charge/Units exceeded maximum allowed",
+		"33":  "Input errors",
+		"35":  "Out of network",
+		"36":  "Balance due from patient",
+		"37":  "Final payment on this claim/service",
+		"41":  "Authorization/Access Restrictions",
+		"42":  "Unable to respond at current time",
+		"65":  "Claim has been denied based on review criteria",
+		"100": "Claim is waiting for premium payment",
+		"101": "Claim/service pended - additional information needed",
+		"102": "Claim/service pended - missing information",
+		"103": "Claim is missing required documentation",
+		"200": "Duplicate claim/service",
+		"201": "Primary claim not received",
+		"202": "Payer/processor denied claim/service",
+		"203": "Patient ineligible on date of service",
+		"204": "Service not covered in plan",
+		"277": "Awaiting response from COB payer",
+		"278": "Prior authorization required",
+		"500": "Claim/service accepted",
+		"501": "Claim/service forwarded for review",
+	}
+
+	if desc, ok := descriptions[code]; ok {
+		return desc
+	}
+	return "Status: " + code
+}
+
+// parseFloat parses a string to float64, returning 0 on error
+func parseFloat(s string) float64 {
+	if s == "" {
+		return 0
+	}
+	f, _ := strconv.ParseFloat(s, 64)
+	return f
+}
