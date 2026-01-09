@@ -11,6 +11,7 @@ import (
 
 	"github.com/cblevins/fi-fhir/internal/parser/csv"
 	"github.com/cblevins/fi-fhir/internal/parser/hl7v2"
+	"github.com/cblevins/fi-fhir/internal/workflow"
 	"github.com/cblevins/fi-fhir/pkg/events"
 	"github.com/cblevins/fi-fhir/pkg/profile"
 )
@@ -31,6 +32,11 @@ func main() {
 		}
 	case "validate":
 		if err := runValidate(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+	case "workflow":
+		if err := runWorkflow(os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
@@ -56,6 +62,7 @@ Usage:
 Commands:
   parse     Parse a healthcare message and output semantic event JSON
   validate  Validate Source Profile YAML files or messages
+  workflow  Run events through workflow routing and actions
   version   Show version information
   help      Show this help message
 
@@ -71,6 +78,9 @@ Examples:
 
   # Validate a Source Profile
   fi-fhir validate --profile profiles/lab_interface.yaml
+
+  # Run workflow on events
+  fi-fhir workflow run --config workflow.yaml events.json
 
 For more information, visit: https://github.com/cblevins/fi-fhir`)
 }
@@ -605,4 +615,298 @@ Examples:
 
   # Validate a message against a profile
   fi-fhir validate --profile profiles/lab_interface.yaml --message message.hl7`)
+}
+
+func runWorkflow(args []string) error {
+	if len(args) == 0 {
+		printWorkflowUsage()
+		return nil
+	}
+
+	switch args[0] {
+	case "run":
+		return runWorkflowRun(args[1:])
+	case "validate":
+		return runWorkflowValidate(args[1:])
+	case "dry-run":
+		return runWorkflowDryRun(args[1:])
+	case "help", "--help", "-h":
+		printWorkflowUsage()
+		return nil
+	default:
+		return fmt.Errorf("unknown workflow subcommand: %s", args[0])
+	}
+}
+
+func runWorkflowRun(args []string) error {
+	var (
+		configPath = ""
+		input      = ""
+	)
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--config", "-c":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--config requires a value")
+			}
+			i++
+			configPath = args[i]
+		case "--help", "-h":
+			printWorkflowUsage()
+			return nil
+		default:
+			if args[i] == "-" {
+				input = args[i]
+			} else if len(args[i]) > 0 && args[i][0] == '-' {
+				return fmt.Errorf("unknown flag: %s", args[i])
+			} else {
+				input = args[i]
+			}
+		}
+	}
+
+	if configPath == "" {
+		return fmt.Errorf("--config is required")
+	}
+
+	// Load workflow
+	w, err := workflow.LoadWorkflow(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load workflow: %w", err)
+	}
+
+	// Validate workflow
+	if errors := w.Validate(); len(errors) > 0 {
+		fmt.Fprintf(os.Stderr, "Workflow validation errors:\n")
+		for _, e := range errors {
+			fmt.Fprintf(os.Stderr, "  - %v\n", e)
+		}
+		return fmt.Errorf("invalid workflow configuration")
+	}
+
+	// Read input events (JSON array or newline-delimited JSON)
+	var data []byte
+	if input == "" || input == "-" {
+		data, err = io.ReadAll(os.Stdin)
+	} else {
+		data, err = os.ReadFile(input)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to read input: %w", err)
+	}
+
+	// Parse events
+	evts, err := parseEventInput(data)
+	if err != nil {
+		return fmt.Errorf("failed to parse events: %w", err)
+	}
+
+	// Create engine and process
+	engine := workflow.NewEngine(w)
+
+	var totalMatched, totalErrors int
+	for i, evt := range evts {
+		result := engine.Process(evt)
+		for _, rr := range result.RouteResults {
+			if rr.Matched {
+				totalMatched++
+			}
+			totalErrors += len(rr.ActionErrors)
+			for _, e := range rr.ActionErrors {
+				fmt.Fprintf(os.Stderr, "Event %d, route %s: %v\n", i, rr.RouteName, e)
+			}
+		}
+	}
+
+	fmt.Printf("Processed %d events, %d route matches, %d errors\n",
+		len(evts), totalMatched, totalErrors)
+
+	if totalErrors > 0 {
+		return fmt.Errorf("workflow completed with %d errors", totalErrors)
+	}
+	return nil
+}
+
+func runWorkflowValidate(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("workflow file path required")
+	}
+
+	configPath := args[0]
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--help", "-h":
+			printWorkflowUsage()
+			return nil
+		default:
+			if len(args[i]) > 0 && args[i][0] != '-' {
+				configPath = args[i]
+			}
+		}
+	}
+
+	w, err := workflow.LoadWorkflow(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load workflow: %w", err)
+	}
+
+	errors := w.Validate()
+	if len(errors) > 0 {
+		fmt.Fprintf(os.Stderr, "Validation errors:\n")
+		for _, e := range errors {
+			fmt.Fprintf(os.Stderr, "  - %v\n", e)
+		}
+		return fmt.Errorf("workflow validation failed")
+	}
+
+	fmt.Printf("Workflow '%s' is valid.\n", w.Name)
+	fmt.Printf("  Version: %s\n", w.Version)
+	fmt.Printf("  Routes: %d\n", len(w.Routes))
+	for _, r := range w.Routes {
+		fmt.Printf("    - %s (%d actions)\n", r.Name, len(r.Actions))
+	}
+
+	return nil
+}
+
+func runWorkflowDryRun(args []string) error {
+	var (
+		configPath = ""
+		input      = ""
+	)
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--config", "-c":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--config requires a value")
+			}
+			i++
+			configPath = args[i]
+		case "--help", "-h":
+			printWorkflowUsage()
+			return nil
+		default:
+			if args[i] == "-" {
+				input = args[i]
+			} else if len(args[i]) > 0 && args[i][0] == '-' {
+				return fmt.Errorf("unknown flag: %s", args[i])
+			} else {
+				input = args[i]
+			}
+		}
+	}
+
+	if configPath == "" {
+		return fmt.Errorf("--config is required")
+	}
+
+	w, err := workflow.LoadWorkflow(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load workflow: %w", err)
+	}
+
+	var data []byte
+	if input == "" || input == "-" {
+		data, err = io.ReadAll(os.Stdin)
+	} else {
+		data, err = os.ReadFile(input)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to read input: %w", err)
+	}
+
+	evts, err := parseEventInput(data)
+	if err != nil {
+		return fmt.Errorf("failed to parse events: %w", err)
+	}
+
+	engine := workflow.NewEngine(w)
+
+	fmt.Println("Dry-run results:")
+	for i, evt := range evts {
+		result := engine.DryRun(evt)
+		fmt.Printf("\nEvent %d:\n", i)
+		for _, rr := range result.RouteResults {
+			status := "NO MATCH"
+			if rr.Matched {
+				status = fmt.Sprintf("MATCH - would run %d action(s)", rr.ActionsRun)
+			}
+			fmt.Printf("  Route '%s': %s\n", rr.RouteName, status)
+		}
+	}
+
+	return nil
+}
+
+// parseEventInput parses JSON input as either an array or newline-delimited objects.
+func parseEventInput(data []byte) ([]interface{}, error) {
+	data = []byte(strings.TrimSpace(string(data)))
+	if len(data) == 0 {
+		return nil, fmt.Errorf("empty input")
+	}
+
+	// Try parsing as array first
+	if data[0] == '[' {
+		var arr []map[string]interface{}
+		if err := json.Unmarshal(data, &arr); err != nil {
+			return nil, fmt.Errorf("failed to parse JSON array: %w", err)
+		}
+		result := make([]interface{}, len(arr))
+		for i, m := range arr {
+			result[i] = m
+		}
+		return result, nil
+	}
+
+	// Try newline-delimited JSON
+	lines := strings.Split(string(data), "\n")
+	var result []interface{}
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var m map[string]interface{}
+		if err := json.Unmarshal([]byte(line), &m); err != nil {
+			return nil, fmt.Errorf("failed to parse JSON line: %w", err)
+		}
+		result = append(result, m)
+	}
+
+	if len(result) == 0 {
+		return nil, fmt.Errorf("no events found in input")
+	}
+
+	return result, nil
+}
+
+func printWorkflowUsage() {
+	fmt.Println(`fi-fhir workflow - Event routing and action execution
+
+Usage:
+  fi-fhir workflow <subcommand> [options]
+
+Subcommands:
+  run       Process events through workflow routes
+  validate  Validate workflow configuration
+  dry-run   Simulate workflow without executing actions
+
+Options:
+  -c, --config <file>   Workflow YAML configuration file
+  -h, --help            Show this help message
+
+Examples:
+  # Run workflow on events file
+  fi-fhir workflow run --config workflow.yaml events.json
+
+  # Run workflow from piped parse output
+  fi-fhir parse -f csv -t patient patients.csv | fi-fhir workflow run -c workflow.yaml -
+
+  # Validate workflow configuration
+  fi-fhir workflow validate workflow.yaml
+
+  # Dry-run to see what would match
+  fi-fhir workflow dry-run --config workflow.yaml events.json`)
 }
