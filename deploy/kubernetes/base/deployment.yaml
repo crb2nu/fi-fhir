@@ -1,0 +1,164 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fi-fhir
+  namespace: fi-fhir
+  labels:
+    app.kubernetes.io/name: fi-fhir
+    app.kubernetes.io/component: server
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fi-fhir
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fi-fhir
+        app.kubernetes.io/component: server
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: fi-fhir
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+
+      containers:
+        - name: fi-fhir
+          image: fi-fhir:latest
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+
+          env:
+            # Server configuration
+            - name: FI_FHIR_SERVER_HOST
+              value: "0.0.0.0"
+            - name: FI_FHIR_SERVER_PORT
+              value: "8080"
+
+            # Config file paths
+            - name: FI_FHIR_WORKFLOW_CONFIG_PATH
+              value: "/app/config/workflow.yaml"
+
+            # Database configuration from secret
+            - name: FI_FHIR_DATABASE_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: fi-fhir-secrets
+                  key: DATABASE_HOST
+            - name: FI_FHIR_DATABASE_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: fi-fhir-secrets
+                  key: DATABASE_PORT
+            - name: FI_FHIR_DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: fi-fhir-secrets
+                  key: DATABASE_NAME
+            - name: FI_FHIR_DATABASE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: fi-fhir-secrets
+                  key: DATABASE_USERNAME
+            - name: FI_FHIR_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fi-fhir-secrets
+                  key: DATABASE_PASSWORD
+
+            # Queue configuration from secret
+            - name: FI_FHIR_QUEUE_BROKERS
+              valueFrom:
+                secretKeyRef:
+                  name: fi-fhir-secrets
+                  key: QUEUE_BROKERS
+
+            # Observability
+            - name: FI_FHIR_METRICS_ENABLED
+              value: "true"
+            - name: FI_FHIR_METRICS_PORT
+              value: "9090"
+            - name: FI_FHIR_LOG_LEVEL
+              value: "info"
+            - name: FI_FHIR_LOG_FORMAT
+              value: "json"
+            - name: FI_FHIR_TRACING_ENABLED
+              value: "true"
+
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+            - name: secrets
+              mountPath: /var/run/secrets/fi-fhir
+              readOnly: true
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+          livenessProbe:
+            exec:
+              command: ["/fi-fhir", "version"]
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            exec:
+              command: ["/fi-fhir", "version"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+      volumes:
+        - name: config
+          configMap:
+            name: fi-fhir-config
+        - name: secrets
+          secret:
+            secretName: fi-fhir-secrets
+
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: fi-fhir
+                topologyKey: kubernetes.io/hostname
+
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: fi-fhir

@@ -1,0 +1,190 @@
+# Default values for fi-fhir
+# This is a YAML-formatted file.
+
+# Replica count for the deployment
+replicaCount: 2
+
+image:
+  repository: fi-fhir
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use
+  name: ""
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9090"
+  prometheus.io/path: "/metrics"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# fi-fhir application configuration
+config:
+  # Server settings
+  server:
+    host: "0.0.0.0"
+    port: 8080
+    readTimeout: "30s"
+    writeTimeout: "30s"
+    shutdownTimeout: "10s"
+
+  # Workflow engine settings
+  workflow:
+    configPath: "/app/config/workflow.yaml"
+    dryRun: false
+    maxConcurrency: 10
+    actionTimeout: "30s"
+    retryMaxAttempts: 3
+    dlqEnabled: true
+
+  # Observability settings
+  observability:
+    metricsEnabled: true
+    metricsPort: 9090
+    logLevel: "info"
+    logFormat: "json"
+    tracingEnabled: false
+    tracingSampler: 0.1
+
+  # Database connection (if using database action)
+  database:
+    enabled: false
+    driver: "postgres"
+    sslMode: "require"
+    maxOpenConns: 25
+    maxIdleConns: 5
+
+  # Queue connection (if using queue action)
+  queue:
+    enabled: false
+    driver: "kafka"
+    tls: true
+
+# External secrets (values should be overridden or use external secrets operator)
+secrets:
+  # Database credentials
+  database:
+    host: ""
+    port: "5432"
+    name: ""
+    username: ""
+    password: ""
+
+  # Queue credentials
+  queue:
+    brokers: ""
+    username: ""
+    password: ""
+
+  # FHIR server credentials
+  fhir:
+    baseUrl: ""
+    authType: "none"  # none, basic, bearer, oauth2
+    username: ""
+    password: ""
+    bearerToken: ""
+    oauth2TokenUrl: ""
+    oauth2ClientId: ""
+    oauth2ClientSecret: ""
+
+# Workflow configuration (embedded in ConfigMap)
+workflowConfig: |
+  workflow:
+    name: default
+    version: "1.0"
+    routes:
+      - name: all_events
+        filter: {}
+        actions:
+          - type: log
+            level: info
+            message: "Processed event: {{.Type}}"
+
+service:
+  type: ClusterIP
+  port: 80
+  metricsPort: 9090
+
+ingress:
+  enabled: false
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: fi-fhir.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: fi-fhir-tls
+      hosts:
+        - fi-fhir.example.com
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: fi-fhir
+          topologyKey: kubernetes.io/hostname
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# ServiceMonitor for Prometheus Operator
+serviceMonitor:
+  enabled: false
+  interval: 15s
+  scrapeTimeout: 10s
+  labels: {}
+
+# PrometheusRule for alerting
+prometheusRule:
+  enabled: false
+  rules: []

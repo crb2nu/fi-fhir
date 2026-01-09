@@ -1,0 +1,176 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "fi-fhir.fullname" . }}
+  labels:
+    {{- include "fi-fhir.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "fi-fhir.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "fi-fhir.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "fi-fhir.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.config.server.port }}
+              protocol: TCP
+            - name: metrics
+              containerPort: {{ .Values.config.observability.metricsPort }}
+              protocol: TCP
+          env:
+            # Server configuration
+            - name: FI_FHIR_SERVER_HOST
+              value: {{ .Values.config.server.host | quote }}
+            - name: FI_FHIR_SERVER_PORT
+              value: {{ .Values.config.server.port | quote }}
+            - name: FI_FHIR_SERVER_READ_TIMEOUT
+              value: {{ .Values.config.server.readTimeout | quote }}
+            - name: FI_FHIR_SERVER_WRITE_TIMEOUT
+              value: {{ .Values.config.server.writeTimeout | quote }}
+            - name: FI_FHIR_SERVER_SHUTDOWN_TIMEOUT
+              value: {{ .Values.config.server.shutdownTimeout | quote }}
+
+            # Workflow configuration
+            - name: FI_FHIR_WORKFLOW_CONFIG_PATH
+              value: {{ .Values.config.workflow.configPath | quote }}
+            - name: FI_FHIR_WORKFLOW_DRY_RUN
+              value: {{ .Values.config.workflow.dryRun | quote }}
+            - name: FI_FHIR_WORKFLOW_MAX_CONCURRENCY
+              value: {{ .Values.config.workflow.maxConcurrency | quote }}
+            - name: FI_FHIR_WORKFLOW_ACTION_TIMEOUT
+              value: {{ .Values.config.workflow.actionTimeout | quote }}
+            - name: FI_FHIR_WORKFLOW_RETRY_MAX_ATTEMPTS
+              value: {{ .Values.config.workflow.retryMaxAttempts | quote }}
+            - name: FI_FHIR_WORKFLOW_DLQ_ENABLED
+              value: {{ .Values.config.workflow.dlqEnabled | quote }}
+
+            # Observability
+            - name: FI_FHIR_METRICS_ENABLED
+              value: {{ .Values.config.observability.metricsEnabled | quote }}
+            - name: FI_FHIR_METRICS_PORT
+              value: {{ .Values.config.observability.metricsPort | quote }}
+            - name: FI_FHIR_LOG_LEVEL
+              value: {{ .Values.config.observability.logLevel | quote }}
+            - name: FI_FHIR_LOG_FORMAT
+              value: {{ .Values.config.observability.logFormat | quote }}
+            - name: FI_FHIR_TRACING_ENABLED
+              value: {{ .Values.config.observability.tracingEnabled | quote }}
+            - name: FI_FHIR_TRACING_SAMPLER
+              value: {{ .Values.config.observability.tracingSampler | quote }}
+
+            {{- if .Values.config.database.enabled }}
+            # Database configuration
+            - name: FI_FHIR_DATABASE_DRIVER
+              value: {{ .Values.config.database.driver | quote }}
+            - name: FI_FHIR_DATABASE_SSL_MODE
+              value: {{ .Values.config.database.sslMode | quote }}
+            - name: FI_FHIR_DATABASE_MAX_OPEN_CONNS
+              value: {{ .Values.config.database.maxOpenConns | quote }}
+            - name: FI_FHIR_DATABASE_MAX_IDLE_CONNS
+              value: {{ .Values.config.database.maxIdleConns | quote }}
+            - name: FI_FHIR_DATABASE_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fi-fhir.fullname" . }}
+                  key: database-host
+            - name: FI_FHIR_DATABASE_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fi-fhir.fullname" . }}
+                  key: database-port
+            - name: FI_FHIR_DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fi-fhir.fullname" . }}
+                  key: database-name
+            - name: FI_FHIR_DATABASE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fi-fhir.fullname" . }}
+                  key: database-username
+            - name: FI_FHIR_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fi-fhir.fullname" . }}
+                  key: database-password
+            {{- end }}
+
+            {{- if .Values.config.queue.enabled }}
+            # Queue configuration
+            - name: FI_FHIR_QUEUE_DRIVER
+              value: {{ .Values.config.queue.driver | quote }}
+            - name: FI_FHIR_QUEUE_TLS
+              value: {{ .Values.config.queue.tls | quote }}
+            - name: FI_FHIR_QUEUE_BROKERS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fi-fhir.fullname" . }}
+                  key: queue-brokers
+            {{- end }}
+
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+
+          livenessProbe:
+            exec:
+              command: ["/fi-fhir", "version"]
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            exec:
+              command: ["/fi-fhir", "version"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "fi-fhir.fullname" . }}
+
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

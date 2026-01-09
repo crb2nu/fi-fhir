@@ -1,0 +1,46 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Build artifacts
+bin/
+dist/
+*.exe
+
+# Test files
+*_test.go
+testdata/
+coverage.out
+coverage.html
+
+# Documentation (not needed in image)
+docs/
+*.md
+!README.md
+
+# Development files
+.env
+.env.*
+*.local.yaml
+
+# TypeScript SDK (separate deployment)
+sdk/
+
+# Kubernetes/Helm (deployment configs)
+deploy/
+charts/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+Makefile
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,26 @@
+apiVersion: v2
+name: fi-fhir
+description: Healthcare integration platform for transforming HL7v2, CSV, and EDI into FHIR
+
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords:
+  - healthcare
+  - fhir
+  - hl7
+  - edi
+  - integration
+
+home: https://github.com/cblevins/fi-fhir
+sources:
+  - https://github.com/cblevins/fi-fhir
+
+maintainers:
+  - name: fi-fhir
+    url: https://github.com/cblevins/fi-fhir
+
+annotations:
+  category: Healthcare
+  licenses: MIT

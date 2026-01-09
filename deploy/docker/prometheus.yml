@@ -1,0 +1,44 @@
+# Prometheus configuration for fi-fhir development environment
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# Alerting (optional - configure alertmanager if needed)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#           - alertmanager:9093
+
+# Load rules once and periodically evaluate them
+rule_files:
+  # - "workflow-alerts.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # fi-fhir application metrics
+  - job_name: 'fi-fhir'
+    static_configs:
+      - targets: ['fi-fhir:9090']
+    metrics_path: /metrics
+    scrape_interval: 10s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'fi-fhir'
+
+  # PostgreSQL metrics (if using postgres_exporter)
+  # - job_name: 'postgres'
+  #   static_configs:
+  #     - targets: ['postgres-exporter:9187']
+
+  # Kafka metrics (if using kafka_exporter)
+  # - job_name: 'kafka'
+  #   static_configs:
+  #     - targets: ['kafka-exporter:9308']

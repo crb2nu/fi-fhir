@@ -1,0 +1,48 @@
+# Grafana datasource provisioning for fi-fhir
+
+apiVersion: 1
+
+datasources:
+  # Prometheus for metrics
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      httpMethod: POST
+      manageAlerts: true
+      prometheusType: Prometheus
+      prometheusVersion: "2.48.0"
+
+  # Jaeger for tracing
+  - name: Jaeger
+    type: jaeger
+    access: proxy
+    url: http://jaeger:16686
+    editable: false
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: 'loki'
+        spanStartTimeShift: '-1h'
+        spanEndTimeShift: '1h'
+        filterByTraceID: true
+        filterBySpanID: false
+      nodeGraph:
+        enabled: true
+
+  # PostgreSQL for direct querying (optional)
+  - name: PostgreSQL
+    type: postgres
+    url: postgres:5432
+    database: fi_fhir
+    user: fi_fhir
+    secureJsonData:
+      password: fi_fhir_dev
+    jsonData:
+      sslmode: disable
+      maxOpenConns: 5
+      maxIdleConns: 2
+      connMaxLifetime: 14400
+    editable: false

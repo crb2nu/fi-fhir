@@ -1,0 +1,190 @@
+# docker-compose.yaml
+# Local development environment for fi-fhir
+#
+# Usage:
+#   docker-compose up -d              # Start all services
+#   docker-compose up fi-fhir         # Start fi-fhir only
+#   docker-compose logs -f fi-fhir    # Follow logs
+#   docker-compose down               # Stop all services
+#   docker-compose down -v            # Stop and remove volumes
+
+version: "3.8"
+
+services:
+  # fi-fhir application
+  fi-fhir:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+    image: fi-fhir:${VERSION:-dev}
+    container_name: fi-fhir
+    ports:
+      - "8080:8080"   # HTTP API
+      - "9090:9090"   # Metrics
+    environment:
+      # Server
+      FI_FHIR_SERVER_HOST: "0.0.0.0"
+      FI_FHIR_SERVER_PORT: "8080"
+      # Workflow
+      FI_FHIR_WORKFLOW_CONFIG_PATH: "/app/config/workflow.yaml"
+      # Database
+      FI_FHIR_DATABASE_DRIVER: "postgres"
+      FI_FHIR_DATABASE_HOST: "postgres"
+      FI_FHIR_DATABASE_PORT: "5432"
+      FI_FHIR_DATABASE_NAME: "fi_fhir"
+      FI_FHIR_DATABASE_USERNAME: "fi_fhir"
+      FI_FHIR_DATABASE_PASSWORD: "fi_fhir_dev"
+      FI_FHIR_DATABASE_SSL_MODE: "disable"
+      # Queue
+      FI_FHIR_QUEUE_DRIVER: "kafka"
+      FI_FHIR_QUEUE_BROKERS: "kafka:9092"
+      # Observability
+      FI_FHIR_METRICS_ENABLED: "true"
+      FI_FHIR_METRICS_PORT: "9090"
+      FI_FHIR_LOG_LEVEL: "debug"
+      FI_FHIR_LOG_FORMAT: "json"
+      FI_FHIR_TRACING_ENABLED: "true"
+      FI_FHIR_TRACING_ENDPOINT: "http://jaeger:4317"
+    volumes:
+      - ./config:/app/config:ro
+      - ./testdata:/app/testdata:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["/fi-fhir", "version"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    networks:
+      - fi-fhir-net
+    restart: unless-stopped
+
+  # PostgreSQL database
+  postgres:
+    image: postgres:16-alpine
+    container_name: fi-fhir-postgres
+    environment:
+      POSTGRES_USER: fi_fhir
+      POSTGRES_PASSWORD: fi_fhir_dev
+      POSTGRES_DB: fi_fhir
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./deploy/docker/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fi_fhir -d fi_fhir"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fi-fhir-net
+    restart: unless-stopped
+
+  # Kafka for message queue
+  kafka:
+    image: bitnami/kafka:3.6
+    container_name: fi-fhir-kafka
+    environment:
+      KAFKA_CFG_NODE_ID: "0"
+      KAFKA_CFG_PROCESS_ROLES: "controller,broker"
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: "0@kafka:9093"
+      KAFKA_CFG_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+      KAFKA_CFG_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka-data:/bitnami/kafka
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - fi-fhir-net
+    restart: unless-stopped
+
+  # HAPI FHIR Server (for development/testing)
+  fhir-server:
+    image: hapiproject/hapi:latest
+    container_name: fi-fhir-hapi
+    environment:
+      HAPI_FHIR_VALIDATION_REQUESTS_ENABLED: "false"
+      HAPI_FHIR_NARRATIVE_ENABLED: "false"
+    ports:
+      - "8090:8080"
+    networks:
+      - fi-fhir-net
+    restart: unless-stopped
+
+  # Jaeger for distributed tracing
+  jaeger:
+    image: jaegertracing/all-in-one:1.52
+    container_name: fi-fhir-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "4317:4317"    # OTLP gRPC
+      - "4318:4318"    # OTLP HTTP
+    networks:
+      - fi-fhir-net
+    restart: unless-stopped
+
+  # Prometheus for metrics
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: fi-fhir-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./deploy/docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - fi-fhir-net
+    restart: unless-stopped
+
+  # Grafana for dashboards
+  grafana:
+    image: grafana/grafana:10.2.2
+    container_name: fi-fhir-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./dashboards/grafana:/etc/grafana/provisioning/dashboards:ro
+      - ./deploy/docker/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+    depends_on:
+      - prometheus
+      - jaeger
+    networks:
+      - fi-fhir-net
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  kafka-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  fi-fhir-net:
+    driver: bridge

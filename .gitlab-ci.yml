@@ -1,36 +1,54 @@
 stages:
   - lint
   - test
+  - security
   - build
+  - release
 
 variables:
-  GO_VERSION: "1.21"
+  GO_VERSION: "1.22"
+  CGO_ENABLED: "0"
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
 
-# Cache Go modules between jobs
-.go-cache:
+# Cache Go modules across jobs
+.go-cache: &go-cache
   cache:
-    key: ${CI_COMMIT_REF_SLUG}
+    key: ${CI_COMMIT_REF_SLUG}-go
     paths:
       - .go/pkg/mod/
     policy: pull-push
-  before_script:
-    - mkdir -p .go
-    - export GOPATH="$CI_PROJECT_DIR/.go"
-    - export PATH="$GOPATH/bin:$PATH"
 
-lint:
-  stage: lint
-  image: golangci/golangci-lint:v1.55-alpine
-  extends: .go-cache
-  script:
-    - golangci-lint run --timeout 5m ./...
-  allow_failure: true  # Until lint config is tuned
-
-fmt:
-  stage: lint
+# Default Go image
+.go-image: &go-image
   image: golang:${GO_VERSION}-alpine
-  extends: .go-cache
+  before_script:
+    - export GOPATH="${CI_PROJECT_DIR}/.go"
+    - export PATH="${GOPATH}/bin:${PATH}"
+    - mkdir -p "${GOPATH}/bin"
+
+# =============================================================================
+# Lint Stage
+# =============================================================================
+
+lint:go:
+  stage: lint
+  <<: *go-image
+  <<: *go-cache
   script:
+    - apk add --no-cache git
+    - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+    - golangci-lint run --timeout=5m ./...
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+lint:fmt:
+  stage: lint
+  <<: *go-image
+  <<: *go-cache
+  script:
+    - apk add --no-cache git
     - go fmt ./...
     - |
       if [ -n "$(git status --porcelain)" ]; then
@@ -38,22 +56,49 @@ fmt:
         git diff
         exit 1
       fi
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
-vet:
+lint:vet:
   stage: lint
-  image: golang:${GO_VERSION}-alpine
-  extends: .go-cache
+  <<: *go-image
+  <<: *go-cache
   script:
+    - apk add --no-cache git
     - go vet ./...
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
-test:
-  stage: test
-  image: golang:${GO_VERSION}-alpine
-  extends: .go-cache
+lint:helm:
+  stage: lint
+  image: alpine/helm:latest
   script:
-    - go test -race -coverprofile=coverage.out -covermode=atomic ./...
+    - helm lint deploy/helm/fi-fhir/
+    - helm template fi-fhir deploy/helm/fi-fhir/ > /dev/null
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - changes:
+        - deploy/helm/**/*
+
+# =============================================================================
+# Test Stage
+# =============================================================================
+
+test:unit:
+  stage: test
+  <<: *go-image
+  <<: *go-cache
+  parallel:
+    matrix:
+      - GO_VERSION: ["1.21", "1.22"]
+  script:
+    - apk add --no-cache git
+    - go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
     - go tool cover -func=coverage.out
-  coverage: '/total:\s+\(statements\)\s+(\d+.\d+)%/'
+  coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
   artifacts:
     reports:
       coverage_report:
@@ -62,53 +107,302 @@ test:
     paths:
       - coverage.out
     expire_in: 1 week
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 test:integration:
   stage: test
-  image: golang:${GO_VERSION}-alpine
-  extends: .go-cache
+  <<: *go-image
+  <<: *go-cache
   script:
+    - apk add --no-cache git
     - go test -tags=integration -race ./...
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - if: '$CI_COMMIT_BRANCH == "main"'
-  allow_failure: true  # Until integration tests exist
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  allow_failure: true
 
-build:
-  stage: build
-  image: golang:${GO_VERSION}-alpine
-  extends: .go-cache
+test:benchmark:
+  stage: test
+  <<: *go-image
+  <<: *go-cache
   script:
-    - CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/fi-fhir ./cmd/fi-fhir
+    - apk add --no-cache git
+    - go test -bench=. -benchmem -run=^$ ./internal/workflow/... | tee benchmark.txt
+  artifacts:
+    paths:
+      - benchmark.txt
+    expire_in: 1 month
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  allow_failure: true
+
+# =============================================================================
+# Security Stage
+# =============================================================================
+
+security:govulncheck:
+  stage: security
+  <<: *go-image
+  <<: *go-cache
+  script:
+    - apk add --no-cache git
+    - go install golang.org/x/vuln/cmd/govulncheck@latest
+    - govulncheck ./...
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  allow_failure: true
+
+security:gosec:
+  stage: security
+  <<: *go-image
+  <<: *go-cache
+  script:
+    - apk add --no-cache git
+    - go install github.com/securego/gosec/v2/cmd/gosec@latest
+    - gosec -fmt json -out gosec-report.json -exclude-generated ./... || true
+    - gosec -exclude-generated ./...
+  artifacts:
+    reports:
+      sast: gosec-report.json
+    when: always
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  allow_failure: true
+
+security:trivy:
+  stage: security
+  image:
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  script:
+    - trivy fs --exit-code 0 --severity HIGH,CRITICAL --format json -o trivy-report.json .
+    - trivy fs --exit-code 1 --severity CRITICAL .
+  artifacts:
+    reports:
+      container_scanning: trivy-report.json
+    when: always
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  allow_failure: true
+
+# =============================================================================
+# Build Stage
+# =============================================================================
+
+build:binary:
+  stage: build
+  <<: *go-image
+  <<: *go-cache
+  script:
+    - apk add --no-cache git
+    - |
+      VERSION="${CI_COMMIT_TAG:-${CI_COMMIT_SHORT_SHA}}"
+      go build -ldflags="-s -w -X main.version=${VERSION}" -o bin/fi-fhir ./cmd/fi-fhir
+    - ./bin/fi-fhir version
   artifacts:
     paths:
       - bin/fi-fhir
     expire_in: 1 week
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
 
-build:linux-amd64:
+build:docker:
   stage: build
-  image: golang:${GO_VERSION}-alpine
-  extends: .go-cache
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_VERIFY: 1
   script:
-    - GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/fi-fhir-linux-amd64 ./cmd/fi-fhir
+    - |
+      if [ -n "${CI_COMMIT_TAG}" ]; then
+        IMAGE_TAG="${CI_REGISTRY_IMAGE}:${CI_COMMIT_TAG}"
+      else
+        IMAGE_TAG="${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}"
+      fi
+    - docker build --build-arg VERSION="${CI_COMMIT_TAG:-${CI_COMMIT_SHORT_SHA}}" -t "${IMAGE_TAG}" .
+    - docker save "${IMAGE_TAG}" > docker-image.tar
   artifacts:
     paths:
-      - bin/fi-fhir-linux-amd64
-    expire_in: 1 week
+      - docker-image.tar
+    expire_in: 1 day
   rules:
-    - if: '$CI_COMMIT_TAG'
-    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
 
-build:darwin-arm64:
-  stage: build
-  image: golang:${GO_VERSION}-alpine
-  extends: .go-cache
+# =============================================================================
+# Release Stage
+# =============================================================================
+
+release:binaries:
+  stage: release
+  <<: *go-image
+  <<: *go-cache
   script:
-    - GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/fi-fhir-darwin-arm64 ./cmd/fi-fhir
+    - apk add --no-cache git
+    - mkdir -p dist
+    - |
+      VERSION="${CI_COMMIT_TAG}"
+
+      # Linux AMD64
+      GOOS=linux GOARCH=amd64 go build \
+        -ldflags="-s -w -X main.version=${VERSION}" \
+        -o dist/fi-fhir-linux-amd64 ./cmd/fi-fhir
+
+      # Linux ARM64
+      GOOS=linux GOARCH=arm64 go build \
+        -ldflags="-s -w -X main.version=${VERSION}" \
+        -o dist/fi-fhir-linux-arm64 ./cmd/fi-fhir
+
+      # Darwin AMD64
+      GOOS=darwin GOARCH=amd64 go build \
+        -ldflags="-s -w -X main.version=${VERSION}" \
+        -o dist/fi-fhir-darwin-amd64 ./cmd/fi-fhir
+
+      # Darwin ARM64
+      GOOS=darwin GOARCH=arm64 go build \
+        -ldflags="-s -w -X main.version=${VERSION}" \
+        -o dist/fi-fhir-darwin-arm64 ./cmd/fi-fhir
+
+      # Windows AMD64
+      GOOS=windows GOARCH=amd64 go build \
+        -ldflags="-s -w -X main.version=${VERSION}" \
+        -o dist/fi-fhir-windows-amd64.exe ./cmd/fi-fhir
+    - cd dist && sha256sum * > checksums.txt
   artifacts:
     paths:
-      - bin/fi-fhir-darwin-arm64
-    expire_in: 1 week
+      - dist/
+    expire_in: never
   rules:
-    - if: '$CI_COMMIT_TAG'
-    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: $CI_COMMIT_TAG
+
+release:docker:
+  stage: release
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_VERIFY: 1
+  before_script:
+    - docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+  script:
+    - |
+      VERSION="${CI_COMMIT_TAG#v}"
+      MAJOR="${VERSION%%.*}"
+      MINOR="${VERSION%.*}"
+
+      # Build image
+      docker build \
+        --build-arg VERSION="${CI_COMMIT_TAG}" \
+        -t "${CI_REGISTRY_IMAGE}:${CI_COMMIT_TAG}" \
+        -t "${CI_REGISTRY_IMAGE}:${VERSION}" \
+        -t "${CI_REGISTRY_IMAGE}:${MINOR}" \
+        -t "${CI_REGISTRY_IMAGE}:${MAJOR}" \
+        -t "${CI_REGISTRY_IMAGE}:latest" \
+        .
+
+      # Push all tags
+      docker push "${CI_REGISTRY_IMAGE}:${CI_COMMIT_TAG}"
+      docker push "${CI_REGISTRY_IMAGE}:${VERSION}"
+      docker push "${CI_REGISTRY_IMAGE}:${MINOR}"
+      docker push "${CI_REGISTRY_IMAGE}:${MAJOR}"
+      docker push "${CI_REGISTRY_IMAGE}:latest"
+  rules:
+    - if: $CI_COMMIT_TAG
+
+release:helm:
+  stage: release
+  image: alpine/helm:latest
+  script:
+    - |
+      VERSION="${CI_COMMIT_TAG#v}"
+      sed -i "s/^version:.*/version: ${VERSION}/" deploy/helm/fi-fhir/Chart.yaml
+      sed -i "s/^appVersion:.*/appVersion: \"${VERSION}\"/" deploy/helm/fi-fhir/Chart.yaml
+    - helm package deploy/helm/fi-fhir/ -d .helm-releases/
+    # Push to GitLab Package Registry (Helm)
+    - |
+      helm push .helm-releases/fi-fhir-*.tgz oci://${CI_REGISTRY}/helm || echo "Helm push to OCI registry (optional)"
+  artifacts:
+    paths:
+      - .helm-releases/
+    expire_in: never
+  rules:
+    - if: $CI_COMMIT_TAG
+
+# =============================================================================
+# GitLab Release
+# =============================================================================
+
+release:gitlab:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  needs:
+    - release:binaries
+    - release:helm
+  script:
+    - echo "Creating GitLab release for ${CI_COMMIT_TAG}"
+  release:
+    tag_name: $CI_COMMIT_TAG
+    name: "Release ${CI_COMMIT_TAG}"
+    description: |
+      ## fi-fhir ${CI_COMMIT_TAG}
+
+      Healthcare integration library release.
+
+      ### Binaries
+      - Linux AMD64: `fi-fhir-linux-amd64`
+      - Linux ARM64: `fi-fhir-linux-arm64`
+      - macOS AMD64: `fi-fhir-darwin-amd64`
+      - macOS ARM64: `fi-fhir-darwin-arm64`
+      - Windows AMD64: `fi-fhir-windows-amd64.exe`
+
+      ### Docker
+      ```bash
+      docker pull ${CI_REGISTRY_IMAGE}:${CI_COMMIT_TAG}
+      ```
+
+      ### Helm
+      ```bash
+      helm pull oci://${CI_REGISTRY}/helm/fi-fhir --version ${CI_COMMIT_TAG#v}
+      ```
+    assets:
+      links:
+        - name: "fi-fhir-linux-amd64"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/raw/dist/fi-fhir-linux-amd64?job=release:binaries"
+          filepath: "/binaries/fi-fhir-linux-amd64"
+          link_type: other
+        - name: "fi-fhir-linux-arm64"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/raw/dist/fi-fhir-linux-arm64?job=release:binaries"
+          filepath: "/binaries/fi-fhir-linux-arm64"
+          link_type: other
+        - name: "fi-fhir-darwin-amd64"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/raw/dist/fi-fhir-darwin-amd64?job=release:binaries"
+          filepath: "/binaries/fi-fhir-darwin-amd64"
+          link_type: other
+        - name: "fi-fhir-darwin-arm64"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/raw/dist/fi-fhir-darwin-arm64?job=release:binaries"
+          filepath: "/binaries/fi-fhir-darwin-arm64"
+          link_type: other
+        - name: "fi-fhir-windows-amd64.exe"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/raw/dist/fi-fhir-windows-amd64.exe?job=release:binaries"
+          filepath: "/binaries/fi-fhir-windows-amd64.exe"
+          link_type: other
+        - name: "checksums.txt"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/raw/dist/checksums.txt?job=release:binaries"
+          filepath: "/binaries/checksums.txt"
+          link_type: other
+        - name: "Helm Chart"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/browse/.helm-releases?job=release:helm"
+          link_type: package
+  rules:
+    - if: $CI_COMMIT_TAG
