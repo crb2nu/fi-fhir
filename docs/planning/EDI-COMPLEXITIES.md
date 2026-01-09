@@ -8,7 +8,8 @@ This document details X12 healthcare transaction sets, loop structures, situatio
 |-------------|--------|--------|----------------|
 | **837P** | ✅ | `ClaimSubmittedEvent` | `internal/parser/edi/mapper.go:Map837ToEvents()` |
 | **835** | ✅ | `ClaimAdjudicatedEvent` | `internal/parser/edi/mapper.go:Map835ToEvents()` |
-| **270/271** | 🔲 | `EligibilityCheckEvent` | Planned |
+| **270** | ✅ | `EligibilityInquiryEvent` | `internal/parser/edi/mapper.go:Map270ToEvents()` |
+| **271** | ✅ | `EligibilityResponseEvent` | `internal/parser/edi/mapper.go:Map271ToEvents()` |
 | **276/277** | 🔲 | `ClaimStatusEvent` | Planned |
 
 | Component | Implementation |
@@ -566,7 +567,8 @@ func map835ToAdjudication(tx *Transaction835) []*events.ClaimAdjudicatedEvent {
 ### Phase 3: Semantic Extraction
 - [x] 837P → ClaimSubmittedEvent - see `mapper.go:Map837ToEvents()`
 - [x] 835 → ClaimAdjudicatedEvent - see `mapper.go:Map835ToEvents()`
-- [ ] 270/271 → EligibilityCheck event
+- [x] 270 → EligibilityInquiryEvent - see `mapper.go:Map270ToEvents()`
+- [x] 271 → EligibilityResponseEvent - see `mapper.go:Map271ToEvents()`
 - [ ] 276/277 → ClaimStatus event
 - [x] Basic error handling with ParseError type
 
@@ -578,17 +580,18 @@ func map835ToAdjudication(tx *Transaction835) []*events.ClaimAdjudicatedEvent {
 
 ## Testing Strategy
 
-### Sample Files Needed
+### Sample Files
 
 ```
 testdata/edi/
-├── 837p_minimal.edi       # Single claim, single line
-├── 837p_multiple.edi      # Multiple claims per file
-├── 837p_cob.edi           # Coordination of benefits
-├── 835_single.edi         # Single remittance
-├── 835_multiple.edi       # Multiple claims in ERA
-├── 270_inquiry.edi        # Eligibility check
-├── 271_response.edi       # Eligibility response
+├── 837p_minimal.edi       # ✅ Single claim, single line
+├── 837p_multiple.edi      # 🔲 Multiple claims per file
+├── 837p_cob.edi           # 🔲 Coordination of benefits
+├── 835_single.edi         # 🔲 Single remittance (inline in tests)
+├── 835_multiple.edi       # 🔲 Multiple claims in ERA
+├── 270_inquiry.edi        # ✅ Eligibility inquiry
+├── 271_response.edi       # ✅ Eligibility response (active coverage)
+├── 271_rejected.edi       # ✅ Eligibility rejected (errors)
 └── invalid/
     ├── bad_envelope.edi
     ├── missing_hl.edi

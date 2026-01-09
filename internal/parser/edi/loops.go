@@ -444,6 +444,474 @@ type Loop835Service struct {
 	LQ  []*Segment
 }
 
+// Loop270Structure represents the parsed structure of a 270 eligibility inquiry
+type Loop270Structure struct {
+	BHT                 *Segment
+	InformationSources  []*Loop270Source // 2000A - Information Source (Payer)
+}
+
+// Loop270Source represents the Information Source (Payer) hierarchy
+type Loop270Source struct {
+	HL              *Segment
+	SourceInfo      *Loop270Entity // 2100A - Source Name
+	Receivers       []*Loop270Receiver
+}
+
+// Loop270Receiver represents the Information Receiver (Provider) hierarchy
+type Loop270Receiver struct {
+	HL           *Segment
+	ReceiverInfo *Loop270Entity // 2100B - Receiver Name
+	Subscribers  []*Loop270Subscriber
+}
+
+// Loop270Subscriber represents the Subscriber hierarchy
+type Loop270Subscriber struct {
+	HL             *Segment
+	TRN            []*Segment // Trace numbers
+	SubscriberInfo *Loop270Entity // 2100C - Subscriber Name
+	EligibilityReq []*Loop270Eligibility // 2110C - Eligibility inquiries
+	Dependents     []*Loop270Dependent
+}
+
+// Loop270Dependent represents a Dependent (if different from subscriber)
+type Loop270Dependent struct {
+	HL             *Segment
+	TRN            []*Segment
+	DependentInfo  *Loop270Entity // 2100D - Dependent Name
+	EligibilityReq []*Loop270Eligibility // 2110D - Eligibility inquiries
+}
+
+// Loop270Entity holds NM1-based entity information (used in 270/271)
+type Loop270Entity struct {
+	NM1 *Segment
+	REF []*Segment
+	N3  *Segment
+	N4  *Segment
+	PER []*Segment
+	DMG *Segment
+	INS *Segment
+	HI  []*Segment
+	DTP []*Segment
+}
+
+// Loop270Eligibility represents an eligibility/inquiry loop (2110C/2110D)
+type Loop270Eligibility struct {
+	EQ  *Segment // Eligibility or Benefit Inquiry
+	III []*Segment // Additional Information
+	REF []*Segment
+	DTP []*Segment
+}
+
+// Loop271Structure represents the parsed structure of a 271 eligibility response
+type Loop271Structure struct {
+	BHT                 *Segment
+	InformationSources  []*Loop271Source // 2000A - Information Source (Payer)
+}
+
+// Loop271Source represents the Information Source hierarchy in 271
+type Loop271Source struct {
+	HL              *Segment
+	AAA             []*Segment // Request validation
+	SourceInfo      *Loop271Entity // 2100A - Source Name
+	Receivers       []*Loop271Receiver
+}
+
+// Loop271Receiver represents the Information Receiver hierarchy in 271
+type Loop271Receiver struct {
+	HL           *Segment
+	ReceiverInfo *Loop271Entity // 2100B - Receiver Name
+	Subscribers  []*Loop271Subscriber
+}
+
+// Loop271Subscriber represents the Subscriber hierarchy in 271
+type Loop271Subscriber struct {
+	HL             *Segment
+	TRN            []*Segment
+	SubscriberInfo *Loop271Entity // 2100C - Subscriber Name
+	Benefits       []*Loop271Benefit // 2110C - Eligibility/Benefit Information
+	Dependents     []*Loop271Dependent
+}
+
+// Loop271Dependent represents a Dependent in 271
+type Loop271Dependent struct {
+	HL            *Segment
+	TRN           []*Segment
+	DependentInfo *Loop271Entity // 2100D - Dependent Name
+	Benefits      []*Loop271Benefit // 2110D - Eligibility/Benefit Information
+}
+
+// Loop271Entity holds NM1-based entity information (used in 271)
+type Loop271Entity struct {
+	NM1 *Segment
+	REF []*Segment
+	N3  *Segment
+	N4  *Segment
+	PER []*Segment
+	AAA []*Segment // Request validation at entity level
+	DMG *Segment
+	INS *Segment
+	HI  []*Segment
+	DTP []*Segment
+}
+
+// Loop271Benefit represents eligibility/benefit information (2110C/2110D)
+type Loop271Benefit struct {
+	EB  *Segment // Eligibility or Benefit Information
+	HSD []*Segment // Health Care Services Delivery
+	REF []*Segment
+	DTP []*Segment
+	AAA []*Segment // Request validation
+	MSG []*Segment // Message Text
+	III []*Segment // Additional Information
+	LS  *Segment // Loop Header
+	LE  *Segment // Loop Trailer
+}
+
+// Parse270Loops parses a 270 transaction into its loop structure
+func Parse270Loops(tx *Transaction) *Loop270Structure {
+	result := &Loop270Structure{}
+
+	// Build HL hierarchy
+	hlNodes := AssignSegmentsToHL(tx)
+
+	var currentSource *Loop270Source
+	var currentReceiver *Loop270Receiver
+	var currentSubscriber *Loop270Subscriber
+	var currentDependent *Loop270Dependent
+	var currentEntity *Loop270Entity
+	var currentEligibility *Loop270Eligibility
+	state := "header"
+
+	for _, seg := range tx.Segments {
+		switch seg.ID {
+		case "BHT":
+			result.BHT = seg
+			state = "bht"
+
+		case "HL":
+			hlCode := seg.GetElement(3)
+			hlID := seg.GetElement(1)
+			_ = hlNodes[hlID] // Reference to ensure HL is valid
+
+			switch hlCode {
+			case HLLevelInformationSource: // 20 - Information Source (Payer)
+				currentSource = &Loop270Source{HL: seg}
+				result.InformationSources = append(result.InformationSources, currentSource)
+				currentReceiver = nil
+				currentSubscriber = nil
+				currentDependent = nil
+				currentEntity = nil
+				currentEligibility = nil
+				state = "2000A"
+
+			case HLLevelInformationReceiver: // 21 - Information Receiver (Provider)
+				currentReceiver = &Loop270Receiver{HL: seg}
+				if currentSource != nil {
+					currentSource.Receivers = append(currentSource.Receivers, currentReceiver)
+				}
+				currentSubscriber = nil
+				currentDependent = nil
+				currentEntity = nil
+				currentEligibility = nil
+				state = "2000B"
+
+			case HLLevelSubscriber: // 22 - Subscriber
+				currentSubscriber = &Loop270Subscriber{HL: seg}
+				if currentReceiver != nil {
+					currentReceiver.Subscribers = append(currentReceiver.Subscribers, currentSubscriber)
+				}
+				currentDependent = nil
+				currentEntity = nil
+				currentEligibility = nil
+				state = "2000C"
+
+			case HLLevelDependent: // 23 - Dependent
+				currentDependent = &Loop270Dependent{HL: seg}
+				if currentSubscriber != nil {
+					currentSubscriber.Dependents = append(currentSubscriber.Dependents, currentDependent)
+				}
+				currentEntity = nil
+				currentEligibility = nil
+				state = "2000D"
+			}
+
+		case "TRN":
+			if currentDependent != nil {
+				currentDependent.TRN = append(currentDependent.TRN, seg)
+			} else if currentSubscriber != nil {
+				currentSubscriber.TRN = append(currentSubscriber.TRN, seg)
+			}
+
+		case "NM1":
+			currentEntity = &Loop270Entity{NM1: seg}
+			switch state {
+			case "2000A":
+				currentSource.SourceInfo = currentEntity
+				state = "2100A"
+			case "2000B":
+				currentReceiver.ReceiverInfo = currentEntity
+				state = "2100B"
+			case "2000C":
+				currentSubscriber.SubscriberInfo = currentEntity
+				state = "2100C"
+			case "2000D":
+				currentDependent.DependentInfo = currentEntity
+				state = "2100D"
+			}
+
+		case "REF":
+			if currentEligibility != nil {
+				currentEligibility.REF = append(currentEligibility.REF, seg)
+			} else if currentEntity != nil {
+				currentEntity.REF = append(currentEntity.REF, seg)
+			}
+
+		case "N3":
+			if currentEntity != nil {
+				currentEntity.N3 = seg
+			}
+
+		case "N4":
+			if currentEntity != nil {
+				currentEntity.N4 = seg
+			}
+
+		case "PER":
+			if currentEntity != nil {
+				currentEntity.PER = append(currentEntity.PER, seg)
+			}
+
+		case "DMG":
+			if currentEntity != nil {
+				currentEntity.DMG = seg
+			}
+
+		case "INS":
+			if currentEntity != nil {
+				currentEntity.INS = seg
+			}
+
+		case "HI":
+			if currentEntity != nil {
+				currentEntity.HI = append(currentEntity.HI, seg)
+			}
+
+		case "DTP":
+			if currentEligibility != nil {
+				currentEligibility.DTP = append(currentEligibility.DTP, seg)
+			} else if currentEntity != nil {
+				currentEntity.DTP = append(currentEntity.DTP, seg)
+			}
+
+		case "EQ":
+			currentEligibility = &Loop270Eligibility{EQ: seg}
+			if state == "2100D" && currentDependent != nil {
+				currentDependent.EligibilityReq = append(currentDependent.EligibilityReq, currentEligibility)
+			} else if currentSubscriber != nil {
+				currentSubscriber.EligibilityReq = append(currentSubscriber.EligibilityReq, currentEligibility)
+			}
+			if state == "2100C" {
+				state = "2110C"
+			} else if state == "2100D" {
+				state = "2110D"
+			}
+
+		case "III":
+			if currentEligibility != nil {
+				currentEligibility.III = append(currentEligibility.III, seg)
+			}
+		}
+	}
+
+	return result
+}
+
+// Parse271Loops parses a 271 transaction into its loop structure
+func Parse271Loops(tx *Transaction) *Loop271Structure {
+	result := &Loop271Structure{}
+
+	// Build HL hierarchy
+	hlNodes := AssignSegmentsToHL(tx)
+
+	var currentSource *Loop271Source
+	var currentReceiver *Loop271Receiver
+	var currentSubscriber *Loop271Subscriber
+	var currentDependent *Loop271Dependent
+	var currentEntity *Loop271Entity
+	var currentBenefit *Loop271Benefit
+	state := "header"
+
+	for _, seg := range tx.Segments {
+		switch seg.ID {
+		case "BHT":
+			result.BHT = seg
+			state = "bht"
+
+		case "HL":
+			hlCode := seg.GetElement(3)
+			hlID := seg.GetElement(1)
+			_ = hlNodes[hlID]
+
+			switch hlCode {
+			case HLLevelInformationSource: // 20 - Information Source (Payer)
+				currentSource = &Loop271Source{HL: seg}
+				result.InformationSources = append(result.InformationSources, currentSource)
+				currentReceiver = nil
+				currentSubscriber = nil
+				currentDependent = nil
+				currentEntity = nil
+				currentBenefit = nil
+				state = "2000A"
+
+			case HLLevelInformationReceiver: // 21 - Information Receiver (Provider)
+				currentReceiver = &Loop271Receiver{HL: seg}
+				if currentSource != nil {
+					currentSource.Receivers = append(currentSource.Receivers, currentReceiver)
+				}
+				currentSubscriber = nil
+				currentDependent = nil
+				currentEntity = nil
+				currentBenefit = nil
+				state = "2000B"
+
+			case HLLevelSubscriber: // 22 - Subscriber
+				currentSubscriber = &Loop271Subscriber{HL: seg}
+				if currentReceiver != nil {
+					currentReceiver.Subscribers = append(currentReceiver.Subscribers, currentSubscriber)
+				}
+				currentDependent = nil
+				currentEntity = nil
+				currentBenefit = nil
+				state = "2000C"
+
+			case HLLevelDependent: // 23 - Dependent
+				currentDependent = &Loop271Dependent{HL: seg}
+				if currentSubscriber != nil {
+					currentSubscriber.Dependents = append(currentSubscriber.Dependents, currentDependent)
+				}
+				currentEntity = nil
+				currentBenefit = nil
+				state = "2000D"
+			}
+
+		case "AAA":
+			if currentBenefit != nil {
+				currentBenefit.AAA = append(currentBenefit.AAA, seg)
+			} else if currentEntity != nil {
+				currentEntity.AAA = append(currentEntity.AAA, seg)
+			} else if currentSource != nil && state == "2000A" {
+				currentSource.AAA = append(currentSource.AAA, seg)
+			}
+
+		case "TRN":
+			if currentDependent != nil {
+				currentDependent.TRN = append(currentDependent.TRN, seg)
+			} else if currentSubscriber != nil {
+				currentSubscriber.TRN = append(currentSubscriber.TRN, seg)
+			}
+
+		case "NM1":
+			currentEntity = &Loop271Entity{NM1: seg}
+			currentBenefit = nil // Reset benefit when entering new entity
+			switch state {
+			case "2000A":
+				currentSource.SourceInfo = currentEntity
+				state = "2100A"
+			case "2000B":
+				currentReceiver.ReceiverInfo = currentEntity
+				state = "2100B"
+			case "2000C":
+				currentSubscriber.SubscriberInfo = currentEntity
+				state = "2100C"
+			case "2000D":
+				currentDependent.DependentInfo = currentEntity
+				state = "2100D"
+			}
+
+		case "REF":
+			if currentBenefit != nil {
+				currentBenefit.REF = append(currentBenefit.REF, seg)
+			} else if currentEntity != nil {
+				currentEntity.REF = append(currentEntity.REF, seg)
+			}
+
+		case "N3":
+			if currentEntity != nil {
+				currentEntity.N3 = seg
+			}
+
+		case "N4":
+			if currentEntity != nil {
+				currentEntity.N4 = seg
+			}
+
+		case "PER":
+			if currentEntity != nil {
+				currentEntity.PER = append(currentEntity.PER, seg)
+			}
+
+		case "DMG":
+			if currentEntity != nil {
+				currentEntity.DMG = seg
+			}
+
+		case "INS":
+			if currentEntity != nil {
+				currentEntity.INS = seg
+			}
+
+		case "HI":
+			if currentEntity != nil {
+				currentEntity.HI = append(currentEntity.HI, seg)
+			}
+
+		case "DTP":
+			if currentBenefit != nil {
+				currentBenefit.DTP = append(currentBenefit.DTP, seg)
+			} else if currentEntity != nil {
+				currentEntity.DTP = append(currentEntity.DTP, seg)
+			}
+
+		case "EB":
+			currentBenefit = &Loop271Benefit{EB: seg}
+			if state == "2100D" && currentDependent != nil {
+				currentDependent.Benefits = append(currentDependent.Benefits, currentBenefit)
+				state = "2110D"
+			} else if currentSubscriber != nil {
+				currentSubscriber.Benefits = append(currentSubscriber.Benefits, currentBenefit)
+				state = "2110C"
+			}
+
+		case "HSD":
+			if currentBenefit != nil {
+				currentBenefit.HSD = append(currentBenefit.HSD, seg)
+			}
+
+		case "MSG":
+			if currentBenefit != nil {
+				currentBenefit.MSG = append(currentBenefit.MSG, seg)
+			}
+
+		case "III":
+			if currentBenefit != nil {
+				currentBenefit.III = append(currentBenefit.III, seg)
+			}
+
+		case "LS":
+			if currentBenefit != nil {
+				currentBenefit.LS = seg
+			}
+
+		case "LE":
+			if currentBenefit != nil {
+				currentBenefit.LE = seg
+			}
+		}
+	}
+
+	return result
+}
+
 // Parse835Loops parses an 835 transaction into its loop structure
 func Parse835Loops(tx *Transaction) *Loop835Structure {
 	result := &Loop835Structure{}

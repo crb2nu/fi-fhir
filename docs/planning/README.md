@@ -10,7 +10,7 @@ This directory contains detailed planning and specification documents for the fi
 | [WORKFLOW-DSL.md](WORKFLOW-DSL.md) | Workflow routing, transforms, and actions | All actions complete |
 | [FHIR-PROFILES.md](FHIR-PROFILES.md) | FHIR R4 output with US Core mapping | US Core mapper complete |
 | [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) | HL7 v2.x version differences and parsing edge cases | Core parsing complete |
-| [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) | X12 EDI parsing (837P claims, 835 remittance) | 837P/835 complete |
+| [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) | X12 EDI parsing (837P, 835, 270/271) | 837P/835/270/271 complete |
 | [IDENTIFIERS.md](IDENTIFIERS.md) | Patient/provider identifier systems and validation | Validators complete |
 | [TERMINOLOGY.md](TERMINOLOGY.md) | Healthcare code systems and mapping (LOINC, SNOMED) | Mapper engine complete |
 | [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md) | TypeScript/JavaScript SDK | SDK complete |
@@ -84,9 +84,10 @@ See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and curren
 - OAuth2 client credentials for FHIR action
 - Database action (PostgreSQL, MySQL, SQLite)
 - Queue action (Kafka, RabbitMQ, NATS, SQS)
+- EDI 270/271 eligibility transactions
 
 ### In Progress
-- EDI 270/271 eligibility
+- EDI 276/277 claim status
 
 ## Contributing
 

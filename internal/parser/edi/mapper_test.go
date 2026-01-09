@@ -231,3 +231,307 @@ func TestMapClaimStatus(t *testing.T) {
 		})
 	}
 }
+
+func TestMap270ToEvents(t *testing.T) {
+	content, err := os.ReadFile("../../../testdata/edi/270_inquiry.edi")
+	if err != nil {
+		t.Fatalf("failed to read test file: %v", err)
+	}
+
+	p := NewParser()
+	result, err := p.Parse(string(content))
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	tx := result.Interchange.FunctionalGroups[0].Transactions[0]
+	inquiries, err := Map270ToEvents(tx, "test_source")
+	if err != nil {
+		t.Fatalf("Map270ToEvents failed: %v", err)
+	}
+
+	if len(inquiries) != 1 {
+		t.Fatalf("expected 1 inquiry event, got %d", len(inquiries))
+	}
+
+	inquiry := inquiries[0]
+
+	// Verify event metadata
+	if inquiry.Type != events.EventEligibilityInquiry {
+		t.Errorf("event type = %s, want eligibility_inquiry", inquiry.Type)
+	}
+	if inquiry.Source != "test_source" {
+		t.Errorf("source = %s, want test_source", inquiry.Source)
+	}
+	if inquiry.SourceFormat != events.FormatEDI270 {
+		t.Errorf("source format = %s, want edi_270", inquiry.SourceFormat)
+	}
+
+	// Verify information source (payer)
+	if inquiry.InformationSource.OrganizationName != "ACME HEALTH INSURANCE" {
+		t.Errorf("payer name = %s, want ACME HEALTH INSURANCE", inquiry.InformationSource.OrganizationName)
+	}
+
+	// Verify information receiver (provider)
+	if inquiry.InformationReceiver.OrganizationName != "SMITH MEDICAL CLINIC" {
+		t.Errorf("provider name = %s, want SMITH MEDICAL CLINIC", inquiry.InformationReceiver.OrganizationName)
+	}
+	if inquiry.InformationReceiver.NPI != "1234567890" {
+		t.Errorf("provider NPI = %s, want 1234567890", inquiry.InformationReceiver.NPI)
+	}
+
+	// Verify subscriber
+	if inquiry.Subscriber.FamilyName != "DOE" {
+		t.Errorf("subscriber family name = %s, want DOE", inquiry.Subscriber.FamilyName)
+	}
+	if inquiry.Subscriber.GivenName != "JOHN" {
+		t.Errorf("subscriber given name = %s, want JOHN", inquiry.Subscriber.GivenName)
+	}
+	if inquiry.Subscriber.Gender != "male" {
+		t.Errorf("subscriber gender = %s, want male", inquiry.Subscriber.Gender)
+	}
+
+	// Verify trace number
+	if inquiry.TraceNumber != "TRACE123456" {
+		t.Errorf("trace number = %s, want TRACE123456", inquiry.TraceNumber)
+	}
+
+	// Verify inquiry service types
+	if len(inquiry.Inquiry.ServiceTypes) != 1 {
+		t.Errorf("service types count = %d, want 1", len(inquiry.Inquiry.ServiceTypes))
+	} else if inquiry.Inquiry.ServiceTypes[0] != "30" {
+		t.Errorf("service type = %s, want 30", inquiry.Inquiry.ServiceTypes[0])
+	}
+
+	// Verify no dependent (subscriber is patient)
+	if inquiry.Dependent != nil {
+		t.Errorf("expected no dependent, got %v", inquiry.Dependent)
+	}
+}
+
+func TestMap271ToEvents(t *testing.T) {
+	content, err := os.ReadFile("../../../testdata/edi/271_response.edi")
+	if err != nil {
+		t.Fatalf("failed to read test file: %v", err)
+	}
+
+	p := NewParser()
+	result, err := p.Parse(string(content))
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	tx := result.Interchange.FunctionalGroups[0].Transactions[0]
+	responses, err := Map271ToEvents(tx, "test_source")
+	if err != nil {
+		t.Fatalf("Map271ToEvents failed: %v", err)
+	}
+
+	if len(responses) != 1 {
+		t.Fatalf("expected 1 response event, got %d", len(responses))
+	}
+
+	resp := responses[0]
+
+	// Verify event metadata
+	if resp.Type != events.EventEligibilityResponse {
+		t.Errorf("event type = %s, want eligibility_response", resp.Type)
+	}
+	if resp.SourceFormat != events.FormatEDI271 {
+		t.Errorf("source format = %s, want edi_271", resp.SourceFormat)
+	}
+
+	// Verify eligibility status
+	if resp.Status != events.EligibilityStatusActive {
+		t.Errorf("status = %s, want active", resp.Status)
+	}
+
+	// Verify payer
+	if resp.InformationSource.OrganizationName != "ACME HEALTH INSURANCE" {
+		t.Errorf("payer name = %s, want ACME HEALTH INSURANCE", resp.InformationSource.OrganizationName)
+	}
+
+	// Verify subscriber
+	if resp.Subscriber.FamilyName != "DOE" {
+		t.Errorf("subscriber family name = %s, want DOE", resp.Subscriber.FamilyName)
+	}
+
+	// Verify trace number
+	if resp.TraceNumber != "TRACE123456" {
+		t.Errorf("trace number = %s, want TRACE123456", resp.TraceNumber)
+	}
+
+	// Verify plan dates
+	if resp.PlanBeginDate.Year() != 2024 || resp.PlanBeginDate.Month() != 1 || resp.PlanBeginDate.Day() != 1 {
+		t.Errorf("plan begin date = %v, want 2024-01-01", resp.PlanBeginDate)
+	}
+	if resp.PlanEndDate.Year() != 2024 || resp.PlanEndDate.Month() != 12 || resp.PlanEndDate.Day() != 31 {
+		t.Errorf("plan end date = %v, want 2024-12-31", resp.PlanEndDate)
+	}
+
+	// Verify benefits
+	if len(resp.Benefits) < 3 {
+		t.Fatalf("expected at least 3 benefits, got %d", len(resp.Benefits))
+	}
+
+	// Check for active coverage benefit
+	foundActive := false
+	for _, b := range resp.Benefits {
+		if b.InformationCode == "1" {
+			foundActive = true
+			if b.InformationCodeDescription != "Active Coverage" {
+				t.Errorf("active coverage description = %s, want Active Coverage", b.InformationCodeDescription)
+			}
+		}
+	}
+	if !foundActive {
+		t.Error("expected to find active coverage benefit (EB01=1)")
+	}
+
+	// Check for deductible benefit
+	foundDeductible := false
+	for _, b := range resp.Benefits {
+		if b.InformationCode == "C" {
+			foundDeductible = true
+			if b.Amount != 500 {
+				t.Errorf("deductible amount = %f, want 500", b.Amount)
+			}
+			if b.InNetworkIndicator != "Y" {
+				t.Errorf("in-network indicator = %s, want Y", b.InNetworkIndicator)
+			}
+		}
+	}
+	if !foundDeductible {
+		t.Error("expected to find deductible benefit (EB01=C)")
+	}
+
+	// Check for coinsurance benefit
+	foundCoinsurance := false
+	for _, b := range resp.Benefits {
+		if b.InformationCode == "A" {
+			foundCoinsurance = true
+			if b.Percent != 20 {
+				t.Errorf("coinsurance percent = %f, want 20", b.Percent)
+			}
+		}
+	}
+	if !foundCoinsurance {
+		t.Error("expected to find coinsurance benefit (EB01=A)")
+	}
+
+	// Verify no errors
+	if len(resp.Errors) != 0 {
+		t.Errorf("expected no errors, got %d", len(resp.Errors))
+	}
+}
+
+func TestMap271ToEventsRejected(t *testing.T) {
+	content, err := os.ReadFile("../../../testdata/edi/271_rejected.edi")
+	if err != nil {
+		t.Fatalf("failed to read test file: %v", err)
+	}
+
+	p := NewParser()
+	result, err := p.Parse(string(content))
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	tx := result.Interchange.FunctionalGroups[0].Transactions[0]
+	responses, err := Map271ToEvents(tx, "test_source")
+	if err != nil {
+		t.Fatalf("Map271ToEvents failed: %v", err)
+	}
+
+	if len(responses) != 1 {
+		t.Fatalf("expected 1 response event, got %d", len(responses))
+	}
+
+	resp := responses[0]
+
+	// Verify rejected status
+	if resp.Status != events.EligibilityStatusRejected {
+		t.Errorf("status = %s, want rejected", resp.Status)
+	}
+
+	// Verify errors are captured
+	if len(resp.Errors) < 1 {
+		t.Fatalf("expected at least 1 error, got %d", len(resp.Errors))
+	}
+
+	// Check for subscriber not found error
+	foundError := false
+	for _, e := range resp.Errors {
+		if e.RejectReasonCode == "75" || e.RejectReasonCode == "67" {
+			foundError = true
+		}
+	}
+	if !foundError {
+		t.Error("expected to find subscriber/patient not found error (AAA03=75 or 67)")
+	}
+}
+
+func TestMapBenefitInfoCode(t *testing.T) {
+	tests := []struct {
+		code string
+		want string
+	}{
+		{"1", "Active Coverage"},
+		{"6", "Inactive"},
+		{"C", "Deductible"},
+		{"A", "Co-Insurance"},
+		{"B", "Co-Payment"},
+		{"99", "Unknown: 99"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.code, func(t *testing.T) {
+			got := mapBenefitInfoCode(tt.code)
+			if got != tt.want {
+				t.Errorf("mapBenefitInfoCode(%s) = %s, want %s", tt.code, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMapServiceTypeCode(t *testing.T) {
+	tests := []struct {
+		code string
+		want string
+	}{
+		{"30", "Health Benefit Plan Coverage"},
+		{"1", "Medical Care"},
+		{"MH", "Mental Health"},
+		{"99", ""}, // Unknown service type returns empty
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.code, func(t *testing.T) {
+			got := mapServiceTypeCode(tt.code)
+			if got != tt.want {
+				t.Errorf("mapServiceTypeCode(%s) = %s, want %s", tt.code, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMapAAARejectReason(t *testing.T) {
+	tests := []struct {
+		code string
+		want string
+	}{
+		{"67", "Patient Not Found"},
+		{"75", "Subscriber/Insured Not Found"},
+		{"72", "Invalid/Missing Subscriber/Insured ID"},
+		{"XX", "Reject Reason: XX"}, // Unknown reason
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.code, func(t *testing.T) {
+			got := mapAAARejectReason(tt.code)
+			if got != tt.want {
+				t.Errorf("mapAAARejectReason(%s) = %s, want %s", tt.code, got, tt.want)
+			}
+		})
+	}
+}

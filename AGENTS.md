@@ -196,14 +196,14 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 - Transform pipeline (set_field, map_terminology, redact)
 - UUID v4 generation for event IDs
 - TypeScript SDK with CLI wrapper (parse, workflow, type definitions)
-- EDI X12 parser (837P claims, 835 remittance, envelope/loop parsing)
+- EDI X12 parser (837P claims, 835 remittance, 270/271 eligibility, envelope/loop parsing)
 - FHIR action in workflow (POST Patient, Encounter, Observation, DiagnosticReport to FHIR servers)
 - OAuth2 client credentials flow for FHIR action (token caching, automatic refresh)
 - Database action in workflow (PostgreSQL, MySQL, SQLite; insert/upsert; field mapping)
 - Queue action in workflow (driver registry pattern; topic templates; message keys)
 
 **Next Steps**:
-1. EDI X12 270/271 eligibility transactions
+1. EDI X12 276/277 claim status transactions
 2. Retry/error handling with exponential backoff
 
 ## Testing Strategy

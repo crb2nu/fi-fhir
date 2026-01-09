@@ -39,6 +39,10 @@ const (
 	EventClaimAdjudicated  EventType = "claim_adjudicated"
 	EventPriorAuthRequest  EventType = "prior_auth_request"
 	EventPriorAuthResponse EventType = "prior_auth_response"
+
+	// Eligibility events
+	EventEligibilityInquiry  EventType = "eligibility_inquiry"
+	EventEligibilityResponse EventType = "eligibility_response"
 )
 
 // SourceFormat indicates the original format of the data.
@@ -50,6 +54,8 @@ const (
 	FormatCSV     SourceFormat = "csv"
 	FormatEDI835  SourceFormat = "edi_835"
 	FormatEDI837  SourceFormat = "edi_837"
+	FormatEDI270  SourceFormat = "edi_270"
+	FormatEDI271  SourceFormat = "edi_271"
 	FormatCDA     SourceFormat = "cda"
 	FormatUnknown SourceFormat = "unknown"
 )
@@ -602,6 +608,184 @@ type ClaimAdjudicatedEvent struct {
 type Event struct {
 	EventMeta
 	Data json.RawMessage `json:"data"`
+}
+
+// EligibilityServiceType indicates what type of coverage is being inquired about.
+type EligibilityServiceType string
+
+const (
+	EligibilityServiceHealth              EligibilityServiceType = "30" // Health Benefit Plan Coverage
+	EligibilityServiceMedicalCare         EligibilityServiceType = "1"  // Medical Care
+	EligibilityServiceSurgical            EligibilityServiceType = "2"  // Surgical
+	EligibilityServiceConsultation        EligibilityServiceType = "3"  // Consultation
+	EligibilityServiceDiagnosticXRay      EligibilityServiceType = "4"  // Diagnostic X-Ray
+	EligibilityServiceDiagnosticLab       EligibilityServiceType = "5"  // Diagnostic Lab
+	EligibilityServiceRadiation           EligibilityServiceType = "6"  // Radiation Therapy
+	EligibilityServiceAnesthesia          EligibilityServiceType = "7"  // Anesthesia
+	EligibilityServiceSurgicalAssistance  EligibilityServiceType = "8"  // Surgical Assistance
+	EligibilityServiceProfessionalPhys    EligibilityServiceType = "96" // Professional (Physician)
+	EligibilityServiceEmergencyServices   EligibilityServiceType = "88" // Emergency Services
+	EligibilityServicePharmacy            EligibilityServiceType = "89" // Pharmacy
+	EligibilityServiceDME                 EligibilityServiceType = "12" // DME (Durable Medical Equipment)
+	EligibilityServiceMentalHealth        EligibilityServiceType = "MH" // Mental Health
+	EligibilityServiceSubstanceAbuse      EligibilityServiceType = "AJ" // Substance Abuse
+	EligibilityServiceHospitalInpatient   EligibilityServiceType = "47" // Hospital - Inpatient
+	EligibilityServiceHospitalOutpatient  EligibilityServiceType = "48" // Hospital - Outpatient
+	EligibilityServiceUrgentCare          EligibilityServiceType = "UC" // Urgent Care
+	EligibilityServicePreventive          EligibilityServiceType = "A4" // Preventive Care
+	EligibilityServiceChiropractic        EligibilityServiceType = "CH" // Chiropractic
+)
+
+// EligibilityInquiry represents a request for eligibility information.
+type EligibilityInquiry struct {
+	// ServiceTypes are the benefit categories being inquired about
+	ServiceTypes []EligibilityServiceType `json:"service_types,omitempty"`
+
+	// ServiceDate is the date of service for eligibility check
+	ServiceDate time.Time `json:"service_date,omitempty"`
+
+	// DateRange for eligibility period
+	DateRangeStart time.Time `json:"date_range_start,omitempty"`
+	DateRangeEnd   time.Time `json:"date_range_end,omitempty"`
+}
+
+// EligibilityBenefit represents coverage/benefit information from a 271 response.
+type EligibilityBenefit struct {
+	// InformationCode is the EB01 code indicating the type of benefit info
+	// Common values: 1=Active Coverage, 6=Inactive, 8=Not Covered, C=Deductible
+	InformationCode string `json:"information_code"`
+
+	// InformationCodeDescription is human-readable description
+	InformationCodeDescription string `json:"information_code_description,omitempty"`
+
+	// CoverageLevel indicates individual, family, etc. (EB02)
+	CoverageLevel string `json:"coverage_level,omitempty"`
+
+	// ServiceType is the benefit category (EB03)
+	ServiceType string `json:"service_type,omitempty"`
+
+	// ServiceTypeDescription is human-readable service type
+	ServiceTypeDescription string `json:"service_type_description,omitempty"`
+
+	// InsuranceType indicates plan type (EB04): HM=HMO, PR=PPO, PS=POS, etc.
+	InsuranceType string `json:"insurance_type,omitempty"`
+
+	// PlanDescription is the plan/product name (EB05)
+	PlanDescription string `json:"plan_description,omitempty"`
+
+	// TimePeriodQualifier indicates unit of time (EB06): 7=Day, 13=Week, 21=Year, 22=Visit, 23=Visit, 24=Hour
+	TimePeriodQualifier string `json:"time_period_qualifier,omitempty"`
+
+	// Amount is the monetary amount (EB07): deductible, copay, coinsurance, etc.
+	Amount float64 `json:"amount,omitempty"`
+
+	// Percent is the percentage (EB08): coinsurance percentage
+	Percent float64 `json:"percent,omitempty"`
+
+	// QuantityQualifier (EB09): 99=Quantity, VS=Visit
+	QuantityQualifier string `json:"quantity_qualifier,omitempty"`
+
+	// Quantity is the numeric quantity (EB10): number of visits, days, etc.
+	Quantity float64 `json:"quantity,omitempty"`
+
+	// AuthorizationRequired indicates if prior auth is needed (EB11)
+	AuthorizationRequired bool `json:"authorization_required,omitempty"`
+
+	// InNetworkIndicator indicates in-network or out-of-network (EB12)
+	// Y = Yes (In-Network), N = No (Out-of-Network), W = Not Applicable
+	InNetworkIndicator string `json:"in_network_indicator,omitempty"`
+
+	// EffectiveDate is when this benefit becomes effective
+	EffectiveDate time.Time `json:"effective_date,omitempty"`
+
+	// TerminationDate is when this benefit ends
+	TerminationDate time.Time `json:"termination_date,omitempty"`
+
+	// Messages are additional benefit information (MSG segments)
+	Messages []string `json:"messages,omitempty"`
+}
+
+// EligibilityStatus represents the overall eligibility status.
+type EligibilityStatus string
+
+const (
+	EligibilityStatusActive   EligibilityStatus = "active"
+	EligibilityStatusInactive EligibilityStatus = "inactive"
+	EligibilityStatusRejected EligibilityStatus = "rejected"
+	EligibilityStatusUnknown  EligibilityStatus = "unknown"
+)
+
+// EligibilityValidationError represents an error/rejection from the payer.
+type EligibilityValidationError struct {
+	// Code is the AAA01 error code
+	Code string `json:"code"`
+
+	// RejectReasonCode is the AAA03 reject reason
+	RejectReasonCode string `json:"reject_reason_code"`
+
+	// FollowUpActionCode is the AAA04 follow-up action
+	FollowUpActionCode string `json:"follow_up_action_code,omitempty"`
+
+	// Message is human-readable error description
+	Message string `json:"message,omitempty"`
+}
+
+// EligibilityInquiryEvent is emitted when an eligibility inquiry is submitted (270).
+type EligibilityInquiryEvent struct {
+	EventMeta
+	// InformationSource is typically the payer being queried
+	InformationSource Provider `json:"information_source"`
+
+	// InformationReceiver is typically the provider making the inquiry
+	InformationReceiver Provider `json:"information_receiver"`
+
+	// Subscriber is the insurance subscriber
+	Subscriber Patient `json:"subscriber"`
+
+	// Dependent is the patient if different from subscriber
+	Dependent *Patient `json:"dependent,omitempty"`
+
+	// Inquiry contains the service types being asked about
+	Inquiry EligibilityInquiry `json:"inquiry"`
+
+	// TraceNumber is the submitter's trace/reference number
+	TraceNumber string `json:"trace_number,omitempty"`
+
+	RawPayload json.RawMessage `json:"raw_payload,omitempty"`
+}
+
+// EligibilityResponseEvent is emitted when an eligibility response is received (271).
+type EligibilityResponseEvent struct {
+	EventMeta
+	// InformationSource is the payer responding
+	InformationSource Provider `json:"information_source"`
+
+	// InformationReceiver is the provider receiving the response
+	InformationReceiver Provider `json:"information_receiver"`
+
+	// Subscriber is the insurance subscriber
+	Subscriber Patient `json:"subscriber"`
+
+	// Dependent is the patient if different from subscriber
+	Dependent *Patient `json:"dependent,omitempty"`
+
+	// Status is the overall eligibility status
+	Status EligibilityStatus `json:"status"`
+
+	// Benefits contains detailed coverage information
+	Benefits []EligibilityBenefit `json:"benefits,omitempty"`
+
+	// Errors contains validation errors/rejections
+	Errors []EligibilityValidationError `json:"errors,omitempty"`
+
+	// TraceNumber is the original trace/reference number from inquiry
+	TraceNumber string `json:"trace_number,omitempty"`
+
+	// PlanDates
+	PlanBeginDate time.Time `json:"plan_begin_date,omitempty"`
+	PlanEndDate   time.Time `json:"plan_end_date,omitempty"`
+
+	RawPayload json.RawMessage `json:"raw_payload,omitempty"`
 }
 
 // NewEventMeta creates a new EventMeta with default values.
