@@ -110,9 +110,10 @@ See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and curren
 - Projection rebuild from time range (TimeRangeEventStore interface, point-in-time recovery)
 - Event archival and retention policies (HIPAA-aware retention, file archive, deletion)
 - Event stream compaction (aggregate snapshots, incremental compaction, bulk prefix compaction)
+- Saga orchestration (multi-step transactions with compensation, retry, timeout)
 
 ### Next Up
-- Saga orchestration for multi-aggregate transactions
+- Outbox pattern for reliable event publishing
 
 ## Contributing
 
