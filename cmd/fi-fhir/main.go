@@ -7,8 +7,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
+	"github.com/cblevins/fi-fhir/internal/parser/csv"
 	"github.com/cblevins/fi-fhir/internal/parser/hl7v2"
+	"github.com/cblevins/fi-fhir/pkg/events"
 	"github.com/cblevins/fi-fhir/pkg/profile"
 )
 
@@ -80,6 +83,11 @@ func runParse(args []string) error {
 		input        = ""
 		pretty       = false
 		showWarnings = false
+		// CSV-specific options
+		csvHeader      = true
+		csvDelimiter   = ","
+		csvEventType   = ""
+		csvInferSchema = false
 	)
 
 	// Parse flags
@@ -107,14 +115,35 @@ func runParse(args []string) error {
 			pretty = true
 		case "--warnings", "-w":
 			showWarnings = true
+		case "--header":
+			csvHeader = true
+		case "--no-header":
+			csvHeader = false
+		case "--delimiter", "-d":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--delimiter requires a value")
+			}
+			i++
+			csvDelimiter = args[i]
+		case "--event-type", "-t":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--event-type requires a value")
+			}
+			i++
+			csvEventType = args[i]
+		case "--infer-schema":
+			csvInferSchema = true
 		case "--help", "-h":
 			printParseUsage()
 			return nil
 		default:
-			if len(args[i]) > 0 && args[i][0] == '-' {
+			if args[i] == "-" {
+				input = args[i] // stdin
+			} else if len(args[i]) > 0 && args[i][0] == '-' {
 				return fmt.Errorf("unknown flag: %s", args[i])
+			} else {
+				input = args[i]
 			}
-			input = args[i]
 		}
 	}
 
@@ -146,7 +175,8 @@ func runParse(args []string) error {
 	}
 
 	// Parse based on format
-	var result *hl7v2.ParseResult
+	var outputData interface{}
+	var warnings []events.ParseWarning
 
 	switch format {
 	case "hl7v2", "hl7":
@@ -154,9 +184,70 @@ func runParse(args []string) error {
 		if sourceProfile != nil {
 			parser.SetProfile(sourceProfile)
 		}
-		result, err = parser.ParseWithResult(string(data))
+		result, err := parser.ParseWithResult(string(data))
+		if err != nil {
+			return fmt.Errorf("parse error: %w", err)
+		}
+		outputData = result.Event
+		warnings = result.Warnings
+
 	case "csv", "flatfile":
-		return fmt.Errorf("CSV/flatfile parser not yet implemented")
+		// Parse delimiter (handle special cases like \t for tab)
+		delimiter := ','
+		if csvDelimiter != "" {
+			switch csvDelimiter {
+			case "\\t", "tab", "TAB":
+				delimiter = '\t'
+			case "\\s", "space":
+				delimiter = ' '
+			case "|", "pipe":
+				delimiter = '|'
+			case ";", "semicolon":
+				delimiter = ';'
+			default:
+				if len(csvDelimiter) == 1 {
+					delimiter = rune(csvDelimiter[0])
+				} else {
+					return fmt.Errorf("invalid delimiter: %s (use single character or \\t for tab)", csvDelimiter)
+				}
+			}
+		}
+
+		// Map event type string to EventType
+		var eventType events.EventType
+		switch strings.ToLower(csvEventType) {
+		case "patient", "patient_admit", "patient_update":
+			eventType = events.EventPatientUpdate
+		case "lab", "lab_result":
+			eventType = events.EventLabResult
+		case "":
+			// Default - will produce generic records
+		default:
+			return fmt.Errorf("unknown event type: %s (supported: patient, lab)", csvEventType)
+		}
+
+		parser := csv.NewParser(source, csv.ParserConfig{
+			HasHeader:   csvHeader,
+			Delimiter:   delimiter,
+			EventType:   eventType,
+			InferSchema: csvInferSchema,
+		})
+		if sourceProfile != nil {
+			parser.SetProfile(sourceProfile)
+		}
+		result, err := parser.ParseString(string(data))
+		if err != nil {
+			return fmt.Errorf("parse error: %w", err)
+		}
+
+		// For CSV, output all events as an array (or the full result with schema if inferring)
+		if csvInferSchema {
+			outputData = result
+		} else {
+			outputData = result.Events
+		}
+		warnings = result.Warnings
+
 	case "edi", "x12":
 		return fmt.Errorf("EDI parser not yet implemented")
 	case "fhir":
@@ -165,14 +256,10 @@ func runParse(args []string) error {
 		return fmt.Errorf("unknown format: %s (supported: hl7v2, csv, edi, fhir)", format)
 	}
 
-	if err != nil {
-		return fmt.Errorf("parse error: %w", err)
-	}
-
 	// Print warnings to stderr if requested
-	if showWarnings && len(result.Warnings) > 0 {
-		fmt.Fprintf(os.Stderr, "Warnings (%d):\n", len(result.Warnings))
-		for _, w := range result.Warnings {
+	if showWarnings && len(warnings) > 0 {
+		fmt.Fprintf(os.Stderr, "Warnings (%d):\n", len(warnings))
+		for _, w := range warnings {
 			fmt.Fprintf(os.Stderr, "  [%s] %s: %s", w.Phase, w.Code, w.Message)
 			if w.Path != "" {
 				fmt.Fprintf(os.Stderr, " (at %s)", w.Path)
@@ -184,9 +271,9 @@ func runParse(args []string) error {
 	// Output JSON
 	var output []byte
 	if pretty {
-		output, err = json.MarshalIndent(result.Event, "", "  ")
+		output, err = json.MarshalIndent(outputData, "", "  ")
 	} else {
-		output, err = json.Marshal(result.Event)
+		output, err = json.Marshal(outputData)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to marshal event: %w", err)
@@ -210,13 +297,33 @@ Options:
   -w, --warnings          Show parse warnings on stderr
   -h, --help              Show this help message
 
+CSV Options:
+      --header            First row contains column headers (default: true)
+      --no-header         First row is data, not headers
+  -d, --delimiter <char>  Field delimiter (default: comma)
+                          Special values: \t or tab, |, ;, space
+  -t, --event-type <type> Event type to produce: patient, lab (default: generic)
+      --infer-schema      Analyze columns and output inferred schema with events
+
 Arguments:
   <file>                  Input file path, or "-" for stdin
 
 Examples:
+  # Parse HL7v2 message
   fi-fhir parse message.hl7
   fi-fhir parse --format hl7v2 --source "lab_system" --pretty message.hl7
   fi-fhir parse --profile profiles/epic_adt.yaml message.hl7
+
+  # Parse CSV patient data
+  fi-fhir parse -f csv -t patient --pretty patients.csv
+
+  # Parse tab-separated lab results
+  fi-fhir parse -f csv -d tab -t lab lab_results.tsv
+
+  # Analyze CSV schema without specifying event type
+  fi-fhir parse -f csv --infer-schema --pretty data.csv
+
+  # Parse from stdin
   cat message.hl7 | fi-fhir parse -f hl7v2 -`)
 }
 
