@@ -177,7 +177,7 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 
 ## Roadmap Context
 
-**Current State**: HL7v2 parsing for ADT, ORU, and SIU messages works. FHIR R4 output with US Core mapper implemented.
+**Current State**: HL7v2 and CSV parsing operational. FHIR R4 output with US Core mapper implemented.
 
 **Completed**:
 - HL7v2 ADT messages (A01, A02, A03, A04, A08)
@@ -190,12 +190,12 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 - Z-segment extraction
 - HL7v2 escape sequence handling
 - CLI with parse and validate commands
+- CSV adapter with schema inference (patient, lab result parsing)
 
 **Next Steps**:
-1. CSV adapter with schema inference
-2. Workflow DSL and engine
-3. TypeScript SDK wrapper
-4. EDI X12 835/837 parser
+1. Workflow DSL and engine
+2. TypeScript SDK wrapper
+3. EDI X12 835/837 parser
 
 ## Testing Strategy
 
