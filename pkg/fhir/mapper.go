@@ -24,6 +24,12 @@ type Mapper interface {
 	// MapLabResult converts a full lab result event to FHIR resources.
 	// Returns a DiagnosticReport and associated Observations.
 	MapLabResult(event *events.LabResultEvent) (*DiagnosticReport, []*Observation)
+
+	// MapCondition converts a canonical ConditionEvent to a FHIR Condition.
+	MapCondition(event *events.ConditionEvent, patientRef string) *Condition
+
+	// MapCoverage converts a canonical EligibilityResponseEvent to a FHIR Coverage.
+	MapCoverage(event *events.EligibilityResponseEvent, beneficiaryRef string) *Coverage
 }
 
 // USCoreMapper implements Mapper for US Core 6.1.0 compliant resources.
@@ -771,6 +777,403 @@ func formatLocation(loc *events.Location) string {
 	}
 
 	return strings.Join(parts, ", ")
+}
+
+// MapCondition converts a canonical ConditionEvent to a US Core Condition.
+func (m *USCoreMapper) MapCondition(event *events.ConditionEvent, patientRef string) *Condition {
+	if event == nil {
+		return nil
+	}
+
+	condition := &Condition{
+		ResourceType: "Condition",
+		Meta: &Meta{
+			Profile: []string{USCoreConditionProfile},
+		},
+	}
+
+	// Set subject reference (required)
+	if patientRef != "" {
+		condition.Subject = &Reference{
+			Reference: patientRef,
+		}
+	} else if event.Patient != nil && event.Patient.MRN != "" {
+		condition.Subject = &Reference{
+			Reference: fmt.Sprintf("Patient/%s", event.Patient.MRN),
+		}
+	}
+
+	// Map clinical status (required for US Core)
+	condition.ClinicalStatus = m.mapConditionClinicalStatus(event.ClinicalStatus)
+
+	// Map verification status
+	condition.VerificationStatus = &CodeableConcept{
+		Coding: []Coding{
+			{
+				System:  SystemConditionVerificationStatus,
+				Code:    "confirmed",
+				Display: "Confirmed",
+			},
+		},
+	}
+
+	// Map category
+	condition.Category = m.mapConditionCategory(event.Condition.Category)
+
+	// Map condition code (SNOMED CT or ICD-10)
+	condition.Code = m.mapConditionCode(&event.Condition)
+
+	// Map onset date
+	if event.OnsetDate != "" {
+		condition.OnsetDateTime = event.OnsetDate
+	}
+
+	// Map abatement date (for resolved conditions)
+	if event.AbatementDate != "" {
+		condition.AbatementDateTime = event.AbatementDate
+	}
+
+	// Map encounter reference
+	if event.Encounter != nil && event.Encounter.ID != "" {
+		condition.Encounter = &Reference{
+			Reference: fmt.Sprintf("Encounter/%s", event.Encounter.ID),
+		}
+	}
+
+	// Set recorded date from event timestamp
+	if !event.Timestamp.IsZero() {
+		condition.RecordedDate = event.Timestamp.Format("2006-01-02")
+	}
+
+	return condition
+}
+
+// MapCoverage converts a canonical EligibilityResponseEvent to a US Core Coverage.
+func (m *USCoreMapper) MapCoverage(event *events.EligibilityResponseEvent, beneficiaryRef string) *Coverage {
+	if event == nil {
+		return nil
+	}
+
+	coverage := &Coverage{
+		ResourceType: "Coverage",
+		Meta: &Meta{
+			Profile: []string{USCoreCoverageProfile},
+		},
+	}
+
+	// Map status from eligibility status
+	coverage.Status = m.mapCoverageStatus(event.Status)
+
+	// Set beneficiary reference (required)
+	if beneficiaryRef != "" {
+		coverage.Beneficiary = &Reference{
+			Reference: beneficiaryRef,
+		}
+	} else if event.Dependent != nil && event.Dependent.MRN != "" {
+		coverage.Beneficiary = &Reference{
+			Reference: fmt.Sprintf("Patient/%s", event.Dependent.MRN),
+		}
+	} else if event.Subscriber.MRN != "" {
+		coverage.Beneficiary = &Reference{
+			Reference: fmt.Sprintf("Patient/%s", event.Subscriber.MRN),
+		}
+	}
+
+	// Set subscriber reference
+	if event.Subscriber.MRN != "" {
+		coverage.Subscriber = &Reference{
+			Reference: fmt.Sprintf("Patient/%s", event.Subscriber.MRN),
+		}
+	}
+
+	// Map subscriber ID from identifiers
+	if memberId := event.Subscriber.Identifiers.GetByType("MB"); memberId != nil {
+		coverage.SubscriberId = memberId.Value
+	} else if event.Subscriber.MRN != "" {
+		coverage.SubscriberId = event.Subscriber.MRN
+	}
+
+	// Set payor (required) from information source
+	coverage.Payor = []Reference{
+		{
+			Display: event.InformationSource.OrganizationName,
+		},
+	}
+	if event.InformationSource.NPI != "" {
+		coverage.Payor[0].Reference = fmt.Sprintf("Organization/%s", event.InformationSource.NPI)
+	}
+
+	// Map coverage period from plan dates
+	if !event.PlanBeginDate.IsZero() || !event.PlanEndDate.IsZero() {
+		coverage.Period = &Period{}
+		if !event.PlanBeginDate.IsZero() {
+			t := event.PlanBeginDate
+			coverage.Period.Start = &t
+		}
+		if !event.PlanEndDate.IsZero() {
+			t := event.PlanEndDate
+			coverage.Period.End = &t
+		}
+	}
+
+	// Map plan/group information from benefits
+	coverage.Class = m.extractCoverageClasses(event.Benefits)
+
+	// Map cost-to-beneficiary (deductibles, copays) from benefits
+	coverage.CostToBeneficiary = m.extractCostToBeneficiary(event.Benefits)
+
+	// Map insurance type from benefits
+	coverage.Type = m.extractCoverageType(event.Benefits)
+
+	return coverage
+}
+
+// Helper methods for Condition mapping
+
+func (m *USCoreMapper) mapConditionClinicalStatus(status string) *CodeableConcept {
+	var code, display string
+
+	switch strings.ToLower(status) {
+	case "active", "":
+		code, display = "active", "Active"
+	case "recurrence":
+		code, display = "recurrence", "Recurrence"
+	case "relapse":
+		code, display = "relapse", "Relapse"
+	case "inactive":
+		code, display = "inactive", "Inactive"
+	case "remission":
+		code, display = "remission", "Remission"
+	case "resolved":
+		code, display = "resolved", "Resolved"
+	default:
+		code, display = "active", "Active"
+	}
+
+	return &CodeableConcept{
+		Coding: []Coding{
+			{
+				System:  SystemConditionClinicalStatus,
+				Code:    code,
+				Display: display,
+			},
+		},
+	}
+}
+
+func (m *USCoreMapper) mapConditionCategory(category string) []CodeableConcept {
+	var code, display string
+
+	switch strings.ToLower(category) {
+	case "problem-list-item", "problem", "":
+		code, display = "problem-list-item", "Problem List Item"
+	case "encounter-diagnosis", "diagnosis":
+		code, display = "encounter-diagnosis", "Encounter Diagnosis"
+	case "health-concern", "concern":
+		code, display = "health-concern", "Health Concern"
+	default:
+		code, display = "problem-list-item", "Problem List Item"
+	}
+
+	return []CodeableConcept{
+		{
+			Coding: []Coding{
+				{
+					System:  SystemConditionCategory,
+					Code:    code,
+					Display: display,
+				},
+			},
+		},
+	}
+}
+
+func (m *USCoreMapper) mapConditionCode(cond *events.Condition) CodeableConcept {
+	result := CodeableConcept{
+		Text: cond.Name,
+	}
+
+	if cond.Code != "" {
+		coding := Coding{
+			Code:    cond.Code,
+			Display: cond.Name,
+		}
+
+		// Determine code system
+		if cond.CodeSystem != "" {
+			coding.System = cond.CodeSystem
+		} else {
+			// Try to infer from code format
+			coding.System = m.inferConditionCodeSystem(cond.Code)
+		}
+
+		result.Coding = []Coding{coding}
+	}
+
+	return result
+}
+
+func (m *USCoreMapper) inferConditionCodeSystem(code string) string {
+	// ICD-10-CM codes start with a letter followed by digits
+	if len(code) >= 3 {
+		firstChar := code[0]
+		if (firstChar >= 'A' && firstChar <= 'Z') || (firstChar >= 'a' && firstChar <= 'z') {
+			// Check for ICD-10-CM format (e.g., E11.9, J18.9)
+			if len(code) >= 3 && code[1] >= '0' && code[1] <= '9' && code[2] >= '0' && code[2] <= '9' {
+				return SystemICD10CM
+			}
+		}
+	}
+
+	// SNOMED CT codes are purely numeric and typically 6-18 digits
+	allDigits := true
+	for _, c := range code {
+		if c < '0' || c > '9' {
+			allDigits = false
+			break
+		}
+	}
+	if allDigits && len(code) >= 6 {
+		return SystemSNOMED
+	}
+
+	// Default to SNOMED CT as per US Core preference
+	return SystemSNOMED
+}
+
+// Helper methods for Coverage mapping
+
+func (m *USCoreMapper) mapCoverageStatus(status events.EligibilityStatus) string {
+	switch status {
+	case events.EligibilityStatusActive:
+		return "active"
+	case events.EligibilityStatusInactive:
+		return "cancelled"
+	case events.EligibilityStatusRejected:
+		return "entered-in-error"
+	default:
+		return "draft"
+	}
+}
+
+func (m *USCoreMapper) extractCoverageClasses(benefits []events.EligibilityBenefit) []CoverageClass {
+	var classes []CoverageClass
+	seenPlans := make(map[string]bool)
+
+	for _, benefit := range benefits {
+		// Extract plan information
+		if benefit.PlanDescription != "" && !seenPlans[benefit.PlanDescription] {
+			seenPlans[benefit.PlanDescription] = true
+			classes = append(classes, CoverageClass{
+				Type: CodeableConcept{
+					Coding: []Coding{
+						{System: SystemCoverageClass, Code: "plan", Display: "Plan"},
+					},
+				},
+				Value: benefit.PlanDescription,
+				Name:  benefit.PlanDescription,
+			})
+		}
+	}
+
+	return classes
+}
+
+func (m *USCoreMapper) extractCostToBeneficiary(benefits []events.EligibilityBenefit) []CostToBeneficiary {
+	var costs []CostToBeneficiary
+
+	for _, benefit := range benefits {
+		// Map deductibles (information code C = Deductible Amount)
+		if benefit.InformationCode == "C" && benefit.Amount > 0 {
+			costs = append(costs, CostToBeneficiary{
+				Type: &CodeableConcept{
+					Coding: []Coding{
+						{System: SystemCopayType, Code: "deductible", Display: "Deductible"},
+					},
+				},
+				ValueMoney: &Money{
+					Value:    benefit.Amount,
+					Currency: "USD",
+				},
+			})
+		}
+
+		// Map copays (information code B = Copay Amount)
+		if benefit.InformationCode == "B" && benefit.Amount > 0 {
+			costs = append(costs, CostToBeneficiary{
+				Type: &CodeableConcept{
+					Coding: []Coding{
+						{System: SystemCopayType, Code: "copay", Display: "CoPay"},
+					},
+				},
+				ValueMoney: &Money{
+					Value:    benefit.Amount,
+					Currency: "USD",
+				},
+			})
+		}
+
+		// Map coinsurance (information code A = Coinsurance)
+		if benefit.InformationCode == "A" && benefit.Percent > 0 {
+			costs = append(costs, CostToBeneficiary{
+				Type: &CodeableConcept{
+					Coding: []Coding{
+						{System: SystemCopayType, Code: "coinsurance", Display: "Coinsurance"},
+					},
+				},
+				ValueQuantity: &Quantity{
+					Value: benefit.Percent,
+					Unit:  "%",
+				},
+			})
+		}
+	}
+
+	return costs
+}
+
+func (m *USCoreMapper) extractCoverageType(benefits []events.EligibilityBenefit) *CodeableConcept {
+	for _, benefit := range benefits {
+		if benefit.InsuranceType != "" {
+			return m.mapInsuranceType(benefit.InsuranceType)
+		}
+	}
+	return nil
+}
+
+func (m *USCoreMapper) mapInsuranceType(insuranceType string) *CodeableConcept {
+	var code, display string
+
+	switch strings.ToUpper(insuranceType) {
+	case "HM":
+		code, display = "HMO", "health maintenance organization policy"
+	case "PR":
+		code, display = "PPO", "preferred provider organization policy"
+	case "PS":
+		code, display = "POS", "point of service policy"
+	case "EP":
+		code, display = "EPO", "exclusive provider organization policy"
+	case "MC":
+		code, display = "MCPOL", "managed care policy"
+	case "IN":
+		code, display = "PUBLICPOL", "public healthcare"
+	case "MA":
+		code, display = "MCPOL", "managed care policy"
+	case "MB":
+		code, display = "PUBLICPOL", "public healthcare" // Medicare Part B
+	default:
+		code, display = "EHCPOL", "extended healthcare"
+	}
+
+	return &CodeableConcept{
+		Coding: []Coding{
+			{
+				System:  SystemCoverageType,
+				Code:    code,
+				Display: display,
+			},
+		},
+	}
 }
 
 // CreateTransactionBundle creates a FHIR transaction bundle from resources.

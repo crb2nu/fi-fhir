@@ -10,9 +10,9 @@ This document details US Core, Da Vinci, and other FHIR profile requirements for
 | **Encounter** | us-core-encounter | ✅ | `pkg/fhir/mapper.go:MapEncounter()` |
 | **Observation** | us-core-observation-lab | ✅ | `pkg/fhir/mapper.go:MapLabObservation()` |
 | **DiagnosticReport** | us-core-diagnosticreport-lab | ✅ | `pkg/fhir/mapper.go:MapLabResult()` |
-| **Condition** | us-core-condition | 🔲 | Planned |
+| **Condition** | us-core-condition | ✅ | `pkg/fhir/mapper.go:MapCondition()` |
+| **Coverage** | us-core-coverage | ✅ | `pkg/fhir/mapper.go:MapCoverage()` |
 | **Claim** | (Da Vinci PAS) | 🔲 | Planned |
-| **Coverage** | us-core-coverage | 🔲 | Planned - for 271 responses |
 | **CoverageEligibilityResponse** | (base R4) | 🔲 | Planned - for 271 responses |
 
 | Feature | Status | Implementation |
@@ -452,7 +452,8 @@ profiles:
 - [x] Observation (lab results) - see `pkg/fhir/mapper.go:MapLabObservation()`
 - [x] Encounter (with participants, hospitalization, location) - see `pkg/fhir/mapper.go:MapEncounter()`
 - [x] DiagnosticReport (for lab panels) - see `pkg/fhir/mapper.go:MapLabResult()`
-- [ ] Condition (for problems/diagnoses)
+- [x] Condition (for problems/diagnoses) - see `pkg/fhir/mapper.go:MapCondition()`
+- [x] Coverage (from 271 eligibility responses) - see `pkg/fhir/mapper.go:MapCoverage()`
 
 ### Phase 3: Validation
 - [x] Profile metadata injection (Meta.Profile set on all resources)
@@ -464,7 +465,7 @@ profiles:
 ### Phase 4: Da Vinci Support
 - [ ] PAS Claim/ClaimResponse (for 837P → FHIR)
 - [ ] PDex ExplanationOfBenefit (for 835 → FHIR)
-- [ ] Coverage resource (from 271 eligibility responses)
+- [x] Coverage resource (from 271 eligibility responses) - see `pkg/fhir/mapper.go:MapCoverage()`
 - [ ] CoverageEligibilityRequest/Response (FHIR equivalent of 270/271)
 
 ### Phase 5: Bundle Operations ✅

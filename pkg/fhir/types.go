@@ -16,6 +16,7 @@ const (
 	USCoreObservationLabProfile = USCoreBaseURL + "us-core-observation-lab"
 	USCoreEncounterProfile      = USCoreBaseURL + "us-core-encounter"
 	USCoreConditionProfile      = USCoreBaseURL + "us-core-condition-problems-health-concerns"
+	USCoreCoverageProfile       = USCoreBaseURL + "us-core-coverage"
 
 	// Extension URIs
 	USCoreRaceExtension      = USCoreBaseURL + "us-core-race"
@@ -37,6 +38,17 @@ const (
 
 	// Race/ethnicity system (CDC Race & Ethnicity)
 	SystemCDCRaceEthnicity = "urn:oid:2.16.840.1.113883.6.238"
+
+	// Condition-related code systems
+	SystemConditionClinicalStatus     = "http://terminology.hl7.org/CodeSystem/condition-clinical"
+	SystemConditionVerificationStatus = "http://terminology.hl7.org/CodeSystem/condition-ver-status"
+	SystemConditionCategory           = "http://terminology.hl7.org/CodeSystem/condition-category"
+
+	// Coverage-related code systems
+	SystemCoverageType       = "http://terminology.hl7.org/CodeSystem/v3-ActCode"
+	SystemCoverageClass      = "http://terminology.hl7.org/CodeSystem/coverage-class"
+	SystemSubscriberRelation = "http://terminology.hl7.org/CodeSystem/subscriber-relationship"
+	SystemCopayType          = "http://terminology.hl7.org/CodeSystem/coverage-copay-type"
 )
 
 // Resource is the base interface for all FHIR resources.
@@ -398,4 +410,122 @@ type OperationOutcomeIssue struct {
 // GetResourceType returns "OperationOutcome".
 func (o *OperationOutcome) GetResourceType() string {
 	return "OperationOutcome"
+}
+
+// Condition represents a FHIR Condition resource for problems/diagnoses.
+// Follows US Core Condition (Problems and Health Concerns) profile.
+type Condition struct {
+	ResourceType   string            `json:"resourceType"`
+	ID             string            `json:"id,omitempty"`
+	Meta           *Meta             `json:"meta,omitempty"`
+	Identifier     []Identifier      `json:"identifier,omitempty"`
+	ClinicalStatus *CodeableConcept  `json:"clinicalStatus,omitempty"` // active | recurrence | relapse | inactive | remission | resolved
+	VerificationStatus *CodeableConcept `json:"verificationStatus,omitempty"` // unconfirmed | provisional | differential | confirmed | refuted | entered-in-error
+	Category       []CodeableConcept `json:"category,omitempty"`        // problem-list-item | encounter-diagnosis | health-concern
+	Severity       *CodeableConcept  `json:"severity,omitempty"`        // mild | moderate | severe
+	Code           CodeableConcept   `json:"code"`                      // SNOMED CT or ICD-10 code
+	BodySite       []CodeableConcept `json:"bodySite,omitempty"`
+	Subject        *Reference        `json:"subject"`                   // Reference to Patient (required)
+	Encounter      *Reference        `json:"encounter,omitempty"`       // Reference to Encounter
+	OnsetDateTime  string            `json:"onsetDateTime,omitempty"`
+	OnsetPeriod    *Period           `json:"onsetPeriod,omitempty"`
+	OnsetAge       *Age              `json:"onsetAge,omitempty"`
+	AbatementDateTime string         `json:"abatementDateTime,omitempty"`
+	AbatementPeriod *Period          `json:"abatementPeriod,omitempty"`
+	RecordedDate   string            `json:"recordedDate,omitempty"`
+	Recorder       *Reference        `json:"recorder,omitempty"`
+	Asserter       *Reference        `json:"asserter,omitempty"`
+	Note           []Annotation      `json:"note,omitempty"`
+}
+
+// Age represents an age value with unit.
+type Age struct {
+	Value  float64 `json:"value,omitempty"`
+	Unit   string  `json:"unit,omitempty"`
+	System string  `json:"system,omitempty"`
+	Code   string  `json:"code,omitempty"`
+}
+
+// GetResourceType returns "Condition".
+func (c *Condition) GetResourceType() string {
+	return "Condition"
+}
+
+// MarshalJSON ensures ResourceType is always set.
+func (c *Condition) MarshalJSON() ([]byte, error) {
+	type Alias Condition
+	return json.Marshal(&struct {
+		ResourceType string `json:"resourceType"`
+		*Alias
+	}{
+		ResourceType: "Condition",
+		Alias:        (*Alias)(c),
+	})
+}
+
+// Coverage represents a FHIR Coverage resource for insurance information.
+// Derived from 271 eligibility responses.
+type Coverage struct {
+	ResourceType   string            `json:"resourceType"`
+	ID             string            `json:"id,omitempty"`
+	Meta           *Meta             `json:"meta,omitempty"`
+	Identifier     []Identifier      `json:"identifier,omitempty"`
+	Status         string            `json:"status"`                    // active | cancelled | draft | entered-in-error
+	Type           *CodeableConcept  `json:"type,omitempty"`            // Insurance plan type
+	PolicyHolder   *Reference        `json:"policyHolder,omitempty"`    // Owner of the policy
+	Subscriber     *Reference        `json:"subscriber,omitempty"`      // Subscriber to the policy
+	SubscriberId   string            `json:"subscriberId,omitempty"`    // Member ID
+	Beneficiary    *Reference        `json:"beneficiary"`               // Plan beneficiary (required)
+	Dependent      string            `json:"dependent,omitempty"`       // Dependent number
+	Relationship   *CodeableConcept  `json:"relationship,omitempty"`    // Beneficiary relationship to subscriber
+	Period         *Period           `json:"period,omitempty"`          // Coverage start/end dates
+	Payor          []Reference       `json:"payor"`                     // Issuer of the policy (required)
+	Class          []CoverageClass   `json:"class,omitempty"`           // Classification (plan, group, etc.)
+	Order          int               `json:"order,omitempty"`           // Relative order of coverage
+	Network        string            `json:"network,omitempty"`         // Network name
+	CostToBeneficiary []CostToBeneficiary `json:"costToBeneficiary,omitempty"` // Deductible, copay, etc.
+}
+
+// CoverageClass represents classification groupings.
+type CoverageClass struct {
+	Type  CodeableConcept `json:"type"`            // plan | group | subplan | subgroup
+	Value string          `json:"value"`           // Class value (e.g., plan ID)
+	Name  string          `json:"name,omitempty"`  // Human readable name
+}
+
+// CostToBeneficiary represents patient responsibility amounts.
+type CostToBeneficiary struct {
+	Type      *CodeableConcept     `json:"type,omitempty"`      // deductible | copay | coinsurance
+	ValueQuantity *Quantity        `json:"valueQuantity,omitempty"`
+	ValueMoney    *Money           `json:"valueMoney,omitempty"`
+	Exception     []CostException  `json:"exception,omitempty"` // Exceptions to costs
+}
+
+// CostException represents exceptions to cost-to-beneficiary.
+type CostException struct {
+	Type   CodeableConcept `json:"type"`
+	Period *Period         `json:"period,omitempty"`
+}
+
+// Money represents a monetary amount.
+type Money struct {
+	Value    float64 `json:"value,omitempty"`
+	Currency string  `json:"currency,omitempty"` // ISO 4217 code (USD, etc.)
+}
+
+// GetResourceType returns "Coverage".
+func (c *Coverage) GetResourceType() string {
+	return "Coverage"
+}
+
+// MarshalJSON ensures ResourceType is always set.
+func (c *Coverage) MarshalJSON() ([]byte, error) {
+	type Alias Coverage
+	return json.Marshal(&struct {
+		ResourceType string `json:"resourceType"`
+		*Alias
+	}{
+		ResourceType: "Coverage",
+		Alias:        (*Alias)(c),
+	})
 }

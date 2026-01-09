@@ -114,10 +114,13 @@ See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and curren
 - Outbox pattern for reliable event publishing (OutboxStore, OutboxRelay, OutboxEventStore)
 - LOINC file loader with panel expansion (`pkg/terminology/loinc.go`)
 - Fuzzy terminology matching with confidence scoring (`pkg/terminology/fuzzy.go`)
+- FHIR Condition resource (US Core profile) - `pkg/fhir/mapper.go:MapCondition()`
+- FHIR Coverage resource (US Core profile) - `pkg/fhir/mapper.go:MapCoverage()`
 
 ### Next Up
 - UMLS API integration (optional)
-- Additional FHIR resource profiles (Condition, Coverage)
+- Da Vinci PAS Claim/ClaimResponse (for 837P → FHIR)
+- PDex ExplanationOfBenefit (for 835 → FHIR)
 
 ## Contributing
 
