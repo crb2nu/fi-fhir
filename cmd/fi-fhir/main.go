@@ -3,16 +3,25 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
+	"os/signal"
+	"strconv"
 	"strings"
+	"syscall"
+	"time"
 
+	"github.com/cblevins/fi-fhir/internal/fhir/subscription"
+	"github.com/cblevins/fi-fhir/internal/parser/cda"
 	"github.com/cblevins/fi-fhir/internal/parser/csv"
 	"github.com/cblevins/fi-fhir/internal/parser/edi"
 	"github.com/cblevins/fi-fhir/internal/parser/hl7v2"
 	"github.com/cblevins/fi-fhir/internal/workflow"
+	"github.com/cblevins/fi-fhir/pkg/config"
 	"github.com/cblevins/fi-fhir/pkg/events"
 	"github.com/cblevins/fi-fhir/pkg/profile"
 )
@@ -41,6 +50,16 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
+	case "config":
+		if err := runConfig(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+	case "subscription":
+		if err := runSubscription(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 	case "version", "--version", "-v":
 		fmt.Printf("fi-fhir version %s\n", version)
 	case "help", "--help", "-h":
@@ -61,11 +80,13 @@ Usage:
   fi-fhir <command> [arguments]
 
 Commands:
-  parse     Parse a healthcare message and output semantic event JSON
-  validate  Validate Source Profile YAML files or messages
-  workflow  Run events through workflow routing and actions
-  version   Show version information
-  help      Show this help message
+  parse        Parse a healthcare message and output semantic event JSON
+  validate     Validate Source Profile YAML files or messages
+  workflow     Run events through workflow routing and actions
+  config       Manage application configuration
+  subscription Manage FHIR subscriptions for bidirectional integration
+  version      Show version information
+  help         Show this help message
 
 Examples:
   # Parse an HL7v2 message file
@@ -309,10 +330,56 @@ func runParse(args []string) error {
 			}
 		}
 		outputData = allEvents
+	case "cda", "ccda":
+		parser := cda.NewParser(source, &cda.ParserConfig{
+			ExtractNarrative: true,
+		})
+		result, err := parser.ParseWithResult(data)
+		if err != nil {
+			return fmt.Errorf("parse error: %w", err)
+		}
+
+		// Convert parse warnings
+		for _, w := range result.Warnings {
+			warnings = append(warnings, events.ParseWarning{
+				Phase:    "cda",
+				Code:     w.Code,
+				Message:  w.Message,
+				Path:     w.Location,
+				Severity: "warning",
+			})
+		}
+
+		// Map to canonical events
+		mapper := cda.NewMapper(&cda.MapperConfig{
+			Source:             source,
+			EmitDocumentEvents: true,
+			EmitSectionEvents:  true,
+		})
+		mapResult, err := mapper.Map(result.Document)
+		if err != nil {
+			return fmt.Errorf("mapping error: %w", err)
+		}
+
+		// Add mapping warnings
+		for _, w := range mapResult.Warnings {
+			warnings = append(warnings, events.ParseWarning{
+				Phase:    "mapping",
+				Message:  w,
+				Severity: "warning",
+			})
+		}
+
+		outputData = map[string]interface{}{
+			"document": result.Document,
+			"patient":  mapResult.Patient,
+			"events":   mapResult.Events,
+		}
+
 	case "fhir":
 		return fmt.Errorf("FHIR parser not yet implemented")
 	default:
-		return fmt.Errorf("unknown format: %s (supported: hl7v2, csv, edi, fhir)", format)
+		return fmt.Errorf("unknown format: %s (supported: hl7v2, csv, edi, cda, fhir)", format)
 	}
 
 	// Print warnings to stderr if requested
@@ -349,7 +416,7 @@ Usage:
   fi-fhir parse [options] <file>
 
 Options:
-  -f, --format <format>   Input format: hl7v2, csv, edi, fhir (default: hl7v2)
+  -f, --format <format>   Input format: hl7v2, csv, edi, cda, fhir (default: hl7v2)
   -s, --source <name>     Source system identifier (default: unknown)
       --profile <file>    Source Profile YAML file for custom parsing rules
   -p, --pretty            Pretty-print JSON output
@@ -685,6 +752,14 @@ func runWorkflow(args []string) error {
 		return runWorkflowValidate(args[1:])
 	case "dry-run":
 		return runWorkflowDryRun(args[1:])
+	case "record":
+		return runWorkflowRecord(args[1:])
+	case "replay":
+		return runWorkflowReplay(args[1:])
+	case "simulate":
+		return runWorkflowSimulate(args[1:])
+	case "loadtest":
+		return runWorkflowLoadtest(args[1:])
 	case "help", "--help", "-h":
 		printWorkflowUsage()
 		return nil
@@ -901,6 +976,483 @@ func runWorkflowDryRun(args []string) error {
 	return nil
 }
 
+func runWorkflowRecord(args []string) error {
+	var (
+		configPath = ""
+		outputPath = ""
+		input      = ""
+	)
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--config", "-c":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--config requires a value")
+			}
+			i++
+			configPath = args[i]
+		case "--output", "-o":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--output requires a value")
+			}
+			i++
+			outputPath = args[i]
+		case "--help", "-h":
+			printWorkflowRecordUsage()
+			return nil
+		default:
+			if args[i] == "-" {
+				input = args[i]
+			} else if len(args[i]) > 0 && args[i][0] == '-' {
+				return fmt.Errorf("unknown flag: %s", args[i])
+			} else {
+				input = args[i]
+			}
+		}
+	}
+
+	if configPath == "" {
+		return fmt.Errorf("--config is required")
+	}
+	if outputPath == "" {
+		return fmt.Errorf("--output is required")
+	}
+
+	// Load workflow
+	w, err := workflow.LoadWorkflow(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load workflow: %w", err)
+	}
+
+	// Read input events
+	var data []byte
+	if input == "" || input == "-" {
+		data, err = io.ReadAll(os.Stdin)
+	} else {
+		data, err = os.ReadFile(input)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to read input: %w", err)
+	}
+
+	evts, err := parseEventInput(data)
+	if err != nil {
+		return fmt.Errorf("failed to parse events: %w", err)
+	}
+
+	// Create recording engine
+	recorder := workflow.NewMemoryRecorder()
+	engine, err := workflow.NewRecordingEngine(w, recorder)
+	if err != nil {
+		return fmt.Errorf("failed to create recording engine: %w", err)
+	}
+
+	// Process events
+	var totalMatched, totalErrors int
+	for i, evt := range evts {
+		result := engine.Process(evt)
+		for _, rr := range result.RouteResults {
+			if rr.Matched {
+				totalMatched++
+			}
+			totalErrors += len(rr.ActionErrors)
+			for _, e := range rr.ActionErrors {
+				fmt.Fprintf(os.Stderr, "Event %d, route %s: %v\n", i, rr.RouteName, e)
+			}
+		}
+	}
+
+	// Export recordings
+	if err := recorder.Export(outputPath); err != nil {
+		return fmt.Errorf("failed to export recordings: %w", err)
+	}
+
+	fmt.Printf("Processed %d events, %d route matches, %d errors\n",
+		len(evts), totalMatched, totalErrors)
+	fmt.Printf("Recorded %d events to %s\n", recorder.Len(), outputPath)
+
+	return nil
+}
+
+func runWorkflowReplay(args []string) error {
+	var (
+		configPath     = ""
+		recordingsPath = ""
+		eventTypes     []string
+		sources        []string
+		limit          = 0
+		showDiffs      = false
+		outputPath     = ""
+	)
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--config", "-c":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--config requires a value")
+			}
+			i++
+			configPath = args[i]
+		case "--recordings", "-r":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--recordings requires a value")
+			}
+			i++
+			recordingsPath = args[i]
+		case "--event-type", "-t":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--event-type requires a value")
+			}
+			i++
+			eventTypes = append(eventTypes, args[i])
+		case "--source", "-s":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--source requires a value")
+			}
+			i++
+			sources = append(sources, args[i])
+		case "--limit", "-l":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--limit requires a value")
+			}
+			i++
+			if _, err := fmt.Sscanf(args[i], "%d", &limit); err != nil {
+				return fmt.Errorf("invalid limit: %s", args[i])
+			}
+		case "--diffs", "-d":
+			showDiffs = true
+		case "--output", "-o":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--output requires a value")
+			}
+			i++
+			outputPath = args[i]
+		case "--help", "-h":
+			printWorkflowReplayUsage()
+			return nil
+		default:
+			if len(args[i]) > 0 && args[i][0] == '-' {
+				return fmt.Errorf("unknown flag: %s", args[i])
+			}
+			if recordingsPath == "" {
+				recordingsPath = args[i]
+			}
+		}
+	}
+
+	if configPath == "" {
+		return fmt.Errorf("--config is required")
+	}
+	if recordingsPath == "" {
+		return fmt.Errorf("recordings file path is required")
+	}
+
+	// Load workflow
+	w, err := workflow.LoadWorkflow(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load workflow: %w", err)
+	}
+
+	// Create engine
+	engine, err := workflow.NewEngine(w)
+	if err != nil {
+		return fmt.Errorf("failed to create engine: %w", err)
+	}
+
+	// Load recordings
+	recorder := workflow.NewMemoryRecorder()
+	if err := recorder.Import(recordingsPath); err != nil {
+		return fmt.Errorf("failed to load recordings: %w", err)
+	}
+
+	// Create replayer
+	replayer := workflow.NewEventReplayer(engine, recorder)
+
+	// Run replay
+	config := &workflow.ReplayConfig{
+		EventTypes: eventTypes,
+		Sources:    sources,
+		Limit:      limit,
+	}
+
+	summary, err := replayer.Replay(nil, config)
+	if err != nil {
+		return fmt.Errorf("replay failed: %w", err)
+	}
+
+	// Output summary
+	fmt.Printf("Replay Summary:\n")
+	fmt.Printf("  Total events: %d\n", summary.TotalEvents)
+	fmt.Printf("  Routing matches: %d\n", summary.MatchedRouting)
+	fmt.Printf("  Routing differences: %d\n", summary.DifferentRouting)
+	fmt.Printf("  Error state matches: %d\n", summary.MatchedErrors)
+	fmt.Printf("  Error state differences: %d\n", summary.DifferentErrors)
+	fmt.Printf("  Duration: %v\n", summary.TotalDuration)
+
+	// Show diffs if requested
+	if showDiffs && len(summary.Diffs) > 0 {
+		fmt.Printf("\nDifferences:\n")
+		for _, diff := range summary.Diffs {
+			fmt.Printf("  Event %s:\n", diff.EventID)
+			if !diff.RoutingMatch {
+				if len(diff.AddedRoutes) > 0 {
+					fmt.Printf("    Added routes: %v\n", diff.AddedRoutes)
+				}
+				if len(diff.RemovedRoutes) > 0 {
+					fmt.Printf("    Removed routes: %v\n", diff.RemovedRoutes)
+				}
+			}
+			if !diff.ErrorMatch {
+				if len(diff.OriginalErrors) > 0 {
+					fmt.Printf("    Original errors: %v\n", diff.OriginalErrors)
+				}
+				if len(diff.ReplayErrors) > 0 {
+					fmt.Printf("    Replay errors: %v\n", diff.ReplayErrors)
+				}
+			}
+		}
+	}
+
+	// Write output file if specified
+	if outputPath != "" {
+		outputData, err := json.MarshalIndent(summary, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal summary: %w", err)
+		}
+		if err := os.WriteFile(outputPath, outputData, 0644); err != nil {
+			return fmt.Errorf("failed to write output: %w", err)
+		}
+		fmt.Printf("\nSummary written to %s\n", outputPath)
+	}
+
+	// Exit with error if there are differences
+	if summary.DifferentRouting > 0 || summary.DifferentErrors > 0 {
+		return fmt.Errorf("replay detected %d routing and %d error differences",
+			summary.DifferentRouting, summary.DifferentErrors)
+	}
+
+	return nil
+}
+
+func runWorkflowSimulate(args []string) error {
+	var (
+		configPath = ""
+		input      = ""
+		outputPath = ""
+		verbose    = false
+	)
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--config", "-c":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--config requires a value")
+			}
+			i++
+			configPath = args[i]
+		case "--output", "-o":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--output requires a value")
+			}
+			i++
+			outputPath = args[i]
+		case "--verbose", "-v":
+			verbose = true
+		case "--help", "-h":
+			printWorkflowSimulateUsage()
+			return nil
+		default:
+			if args[i] == "-" {
+				input = args[i]
+			} else if len(args[i]) > 0 && args[i][0] == '-' {
+				return fmt.Errorf("unknown flag: %s", args[i])
+			} else {
+				input = args[i]
+			}
+		}
+	}
+
+	if configPath == "" {
+		return fmt.Errorf("--config is required")
+	}
+
+	// Load workflow
+	w, err := workflow.LoadWorkflow(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load workflow: %w", err)
+	}
+
+	// Read input events
+	var data []byte
+	if input == "" || input == "-" {
+		data, err = io.ReadAll(os.Stdin)
+	} else {
+		data, err = os.ReadFile(input)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to read input: %w", err)
+	}
+
+	evts, err := parseEventInput(data)
+	if err != nil {
+		return fmt.Errorf("failed to parse events: %w", err)
+	}
+
+	// Create simulation engine
+	sim, err := workflow.NewSimulationEngine(w)
+	if err != nil {
+		return fmt.Errorf("failed to create simulation engine: %w", err)
+	}
+
+	// Process events
+	for _, evt := range evts {
+		sim.Process(evt)
+	}
+
+	// Generate report
+	report := sim.Report()
+
+	// Output summary
+	fmt.Printf("Simulation Report:\n")
+	fmt.Printf("  Events processed: %d\n", len(evts))
+	fmt.Printf("  Total actions: %d\n", report.TotalActions)
+	fmt.Printf("  Actions by type:\n")
+	for actionType, count := range report.ActionsByType {
+		fmt.Printf("    %s: %d\n", actionType, count)
+	}
+
+	if len(report.Errors) > 0 {
+		fmt.Printf("  Errors: %d\n", len(report.Errors))
+		for _, e := range report.Errors {
+			fmt.Fprintf(os.Stderr, "    - %s\n", e)
+		}
+	}
+
+	// Show detailed invocations if verbose
+	if verbose {
+		fmt.Printf("\nAction Invocations:\n")
+		for i, inv := range report.Invocations {
+			fmt.Printf("  %d. %s\n", i+1, inv.ActionType)
+			if inv.Error != "" {
+				fmt.Printf("     Error: %s\n", inv.Error)
+			}
+		}
+	}
+
+	// Write output file if specified
+	if outputPath != "" {
+		outputData, err := json.MarshalIndent(report, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal report: %w", err)
+		}
+		if err := os.WriteFile(outputPath, outputData, 0644); err != nil {
+			return fmt.Errorf("failed to write output: %w", err)
+		}
+		fmt.Printf("\nReport written to %s\n", outputPath)
+	}
+
+	return nil
+}
+
+func printWorkflowRecordUsage() {
+	fmt.Println(`fi-fhir workflow record - Process events and record for replay
+
+Usage:
+  fi-fhir workflow record --config <workflow.yaml> --output <recordings.json> [events.json]
+
+Options:
+  -c, --config <file>   Workflow YAML configuration file (required)
+  -o, --output <file>   Output file for recorded events (required)
+  -h, --help            Show this help message
+
+Arguments:
+  [events.json]         Input events file, or "-" for stdin
+
+Description:
+  Processes events through the workflow and records each event along with
+  its processing result. The recordings can later be replayed to test
+  workflow changes.
+
+Examples:
+  # Record events from a file
+  fi-fhir workflow record -c workflow.yaml -o recordings.json events.json
+
+  # Record from piped input
+  fi-fhir parse -f hl7v2 message.hl7 | fi-fhir workflow record -c workflow.yaml -o recordings.json -`)
+}
+
+func printWorkflowReplayUsage() {
+	fmt.Println(`fi-fhir workflow replay - Replay recorded events and compare results
+
+Usage:
+  fi-fhir workflow replay --config <workflow.yaml> <recordings.json>
+
+Options:
+  -c, --config <file>     Workflow YAML configuration file (required)
+  -r, --recordings <file> Recordings file from 'workflow record' (or positional arg)
+  -t, --event-type <type> Filter by event type (can be repeated)
+  -s, --source <source>   Filter by source (can be repeated)
+  -l, --limit <n>         Maximum number of events to replay
+  -d, --diffs             Show detailed differences
+  -o, --output <file>     Write summary JSON to file
+  -h, --help              Show this help message
+
+Description:
+  Replays recorded events through a workflow and compares the results with
+  the original processing. This is useful for:
+  - Testing workflow changes don't break existing behavior
+  - Debugging production issues by replaying problematic events
+  - Regression testing after workflow modifications
+
+Exit Codes:
+  0  All events replayed with same results
+  1  Differences detected between original and replay
+
+Examples:
+  # Replay all events and show differences
+  fi-fhir workflow replay -c workflow.yaml -d recordings.json
+
+  # Replay only patient_admit events
+  fi-fhir workflow replay -c workflow.yaml -t patient_admit recordings.json
+
+  # Replay with JSON output for CI
+  fi-fhir workflow replay -c workflow.yaml -o results.json recordings.json`)
+}
+
+func printWorkflowSimulateUsage() {
+	fmt.Println(`fi-fhir workflow simulate - Process events with mock actions
+
+Usage:
+  fi-fhir workflow simulate --config <workflow.yaml> [events.json]
+
+Options:
+  -c, --config <file>   Workflow YAML configuration file (required)
+  -o, --output <file>   Write simulation report JSON to file
+  -v, --verbose         Show detailed action invocations
+  -h, --help            Show this help message
+
+Arguments:
+  [events.json]         Input events file, or "-" for stdin
+
+Description:
+  Processes events through the workflow with all actions replaced by mocks.
+  No real HTTP calls, database writes, or queue publishes occur. This is
+  useful for:
+  - Testing event routing without side effects
+  - Verifying which actions would be triggered
+  - Understanding workflow behavior in isolation
+
+Examples:
+  # Simulate processing and show report
+  fi-fhir workflow simulate -c workflow.yaml events.json
+
+  # Verbose output with all invocations
+  fi-fhir workflow simulate -c workflow.yaml -v events.json
+
+  # Save report to file
+  fi-fhir workflow simulate -c workflow.yaml -o report.json events.json`)
+}
+
 // parseEventInput parses JSON input as either an array or newline-delimited objects.
 func parseEventInput(data []byte) ([]interface{}, error) {
 	data = []byte(strings.TrimSpace(string(data)))
@@ -953,6 +1505,10 @@ Subcommands:
   run       Process events through workflow routes
   validate  Validate workflow configuration
   dry-run   Simulate workflow without executing actions
+  record    Process events and record for replay
+  replay    Replay recorded events and compare results
+  simulate  Process events with mock actions (no side effects)
+  loadtest  Run load tests against workflow configuration
 
 Options:
   -c, --config <file>   Workflow YAML configuration file
@@ -969,5 +1525,1704 @@ Examples:
   fi-fhir workflow validate workflow.yaml
 
   # Dry-run to see what would match
-  fi-fhir workflow dry-run --config workflow.yaml events.json`)
+  fi-fhir workflow dry-run --config workflow.yaml events.json
+
+  # Record events for regression testing
+  fi-fhir workflow record -c workflow.yaml -o recordings.json events.json
+
+  # Replay recordings after workflow changes
+  fi-fhir workflow replay -c workflow_v2.yaml -d recordings.json
+
+  # Simulate without side effects
+  fi-fhir workflow simulate -c workflow.yaml -v events.json
+
+  # Run load test with standard scenario
+  fi-fhir workflow loadtest -c workflow.yaml --scenario smoke`)
+}
+
+func runWorkflowLoadtest(args []string) error {
+	var (
+		configPath   = ""
+		scenarioName = ""
+		duration     = 30 * time.Second
+		rps          = 1000
+		workers      = 4
+		warmup       = 5 * time.Second
+		verbose      = false
+		jsonOutput   = false
+	)
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "-c", "--config":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--config requires a file path")
+			}
+			i++
+			configPath = args[i]
+		case "-s", "--scenario":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--scenario requires a name")
+			}
+			i++
+			scenarioName = args[i]
+		case "-d", "--duration":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--duration requires a value")
+			}
+			i++
+			d, err := time.ParseDuration(args[i])
+			if err != nil {
+				return fmt.Errorf("invalid duration: %v", err)
+			}
+			duration = d
+		case "-r", "--rps":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--rps requires a value")
+			}
+			i++
+			r, err := strconv.Atoi(args[i])
+			if err != nil {
+				return fmt.Errorf("invalid rps: %v", err)
+			}
+			rps = r
+		case "-w", "--workers":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--workers requires a value")
+			}
+			i++
+			w, err := strconv.Atoi(args[i])
+			if err != nil {
+				return fmt.Errorf("invalid workers: %v", err)
+			}
+			workers = w
+		case "--warmup":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--warmup requires a value")
+			}
+			i++
+			w, err := time.ParseDuration(args[i])
+			if err != nil {
+				return fmt.Errorf("invalid warmup: %v", err)
+			}
+			warmup = w
+		case "-v", "--verbose":
+			verbose = true
+		case "--json":
+			jsonOutput = true
+		case "-h", "--help":
+			printWorkflowLoadtestUsage()
+			return nil
+		case "--list-scenarios":
+			fmt.Println("Available load test scenarios:")
+			for _, s := range workflow.StandardScenarios() {
+				fmt.Printf("  %-12s %s\n", s.Name, s.Description)
+			}
+			return nil
+		default:
+			if strings.HasPrefix(args[i], "-") {
+				return fmt.Errorf("unknown flag: %s", args[i])
+			}
+		}
+	}
+
+	if configPath == "" {
+		return fmt.Errorf("--config is required")
+	}
+
+	// Load workflow
+	workflowData, err := os.ReadFile(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to read workflow: %w", err)
+	}
+
+	wf, err := workflow.ParseWorkflow(workflowData)
+	if err != nil {
+		return fmt.Errorf("failed to parse workflow: %w", err)
+	}
+
+	engine, err := workflow.NewEngine(wf)
+	if err != nil {
+		return fmt.Errorf("failed to create engine: %w", err)
+	}
+
+	// Build config
+	var config *workflow.LoadTestConfig
+	if scenarioName != "" {
+		scenario := workflow.GetScenario(scenarioName)
+		if scenario == nil {
+			return fmt.Errorf("unknown scenario: %s (use --list-scenarios to see available)", scenarioName)
+		}
+		config = scenario.Config
+		if verbose {
+			fmt.Printf("Using scenario: %s - %s\n", scenario.Name, scenario.Description)
+		}
+	} else {
+		config = &workflow.LoadTestConfig{
+			Duration:         duration,
+			TargetRPS:        rps,
+			Workers:          workers,
+			WarmupDuration:   warmup,
+			EventGenerator:   workflow.NewHealthcareEventGenerator(),
+			ProgressInterval: 5 * time.Second,
+		}
+	}
+
+	// Progress callback
+	if verbose && !jsonOutput {
+		config.OnProgress = func(stats workflow.LoadTestProgress) {
+			fmt.Printf("[%v] Events: %d, Rate: %.0f/s, P50: %v, P99: %v, Errors: %d\n",
+				stats.Elapsed.Round(time.Second),
+				stats.EventsTotal,
+				stats.EventsPerSec,
+				stats.P50Latency.Round(time.Microsecond),
+				stats.P99Latency.Round(time.Microsecond),
+				stats.ErrorCount)
+		}
+	}
+
+	if verbose && !jsonOutput {
+		fmt.Printf("Starting load test:\n")
+		fmt.Printf("  Duration:   %v\n", config.Duration)
+		fmt.Printf("  Target RPS: %d\n", config.TargetRPS)
+		fmt.Printf("  Workers:    %d\n", config.Workers)
+		fmt.Printf("  Warmup:     %v\n", config.WarmupDuration)
+		fmt.Println()
+	}
+
+	// Run load test
+	tester := workflow.NewLoadTester(engine)
+	result, err := tester.Run(context.Background(), config)
+	if err != nil {
+		return fmt.Errorf("load test failed: %w", err)
+	}
+
+	// Output results
+	if jsonOutput {
+		output, _ := json.MarshalIndent(result, "", "  ")
+		fmt.Println(string(output))
+	} else {
+		fmt.Println(result.Summary())
+	}
+
+	// Return error if load test failed thresholds
+	if !result.Passed(0.90, 0.01, 10*time.Millisecond) {
+		return fmt.Errorf("load test did not meet performance targets")
+	}
+
+	return nil
+}
+
+func printWorkflowLoadtestUsage() {
+	fmt.Println(`fi-fhir workflow loadtest - Run load tests against workflow
+
+Usage:
+  fi-fhir workflow loadtest [options]
+
+Options:
+  -c, --config <file>      Workflow YAML configuration file (required)
+  -s, --scenario <name>    Use a predefined scenario (smoke, standard, stress, burst, soak)
+  -d, --duration <dur>     Test duration (default: 30s)
+  -r, --rps <num>          Target requests per second (default: 1000, 0 for unlimited)
+  -w, --workers <num>      Number of concurrent workers (default: 4)
+  --warmup <dur>           Warmup duration (default: 5s)
+  -v, --verbose            Show progress during test
+  --json                   Output results as JSON
+  --list-scenarios         List available predefined scenarios
+  -h, --help               Show this help message
+
+Predefined Scenarios:
+  smoke     Quick smoke test (10s, 100 RPS)
+  standard  Standard load test (60s, 1000 RPS)
+  stress    Stress test (120s, 5000 RPS)
+  burst     Burst test (30s, max throughput)
+  soak      Soak test (5min, 500 RPS)
+
+Examples:
+  # Run a quick smoke test
+  fi-fhir workflow loadtest -c workflow.yaml -s smoke -v
+
+  # Custom load test
+  fi-fhir workflow loadtest -c workflow.yaml -d 60s -r 2000 -w 8 -v
+
+  # Stress test with JSON output
+  fi-fhir workflow loadtest -c workflow.yaml -s stress --json > results.json
+
+  # Burst test (maximum throughput)
+  fi-fhir workflow loadtest -c workflow.yaml -r 0 -d 10s -v`)
+}
+
+// runConfig handles the config command and its subcommands.
+func runConfig(args []string) error {
+	if len(args) == 0 {
+		printConfigUsage()
+		return nil
+	}
+
+	switch args[0] {
+	case "show":
+		return runConfigShow(args[1:])
+	case "validate":
+		return runConfigValidate(args[1:])
+	case "env":
+		return runConfigEnv(args[1:])
+	case "init":
+		return runConfigInit(args[1:])
+	case "help", "--help", "-h":
+		printConfigUsage()
+		return nil
+	default:
+		return fmt.Errorf("unknown config subcommand: %s", args[0])
+	}
+}
+
+func runConfigShow(args []string) error {
+	var (
+		configPath = ""
+		format     = "yaml"
+	)
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "-c", "--config":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--config requires a file path")
+			}
+			i++
+			configPath = args[i]
+		case "-f", "--format":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--format requires a value")
+			}
+			i++
+			format = args[i]
+		case "-h", "--help":
+			printConfigShowUsage()
+			return nil
+		default:
+			if strings.HasPrefix(args[i], "-") {
+				return fmt.Errorf("unknown flag: %s", args[i])
+			}
+			if configPath == "" {
+				configPath = args[i]
+			}
+		}
+	}
+
+	// Load config (or defaults if no path)
+	var cfg *config.Config
+	var err error
+	if configPath != "" {
+		cfg, err = config.LoadWithSecrets(configPath)
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+	} else {
+		cfg = config.Default()
+		cfg.ApplyEnv()
+	}
+
+	// Output in requested format
+	switch format {
+	case "yaml":
+		output, err := marshalYAML(cfg)
+		if err != nil {
+			return fmt.Errorf("failed to marshal config: %w", err)
+		}
+		fmt.Println(string(output))
+	case "json":
+		output, err := json.MarshalIndent(cfg, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal config: %w", err)
+		}
+		fmt.Println(string(output))
+	default:
+		return fmt.Errorf("unknown format: %s (use yaml or json)", format)
+	}
+
+	return nil
+}
+
+func runConfigValidate(args []string) error {
+	var configPath string
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "-h", "--help":
+			printConfigValidateUsage()
+			return nil
+		default:
+			if strings.HasPrefix(args[i], "-") {
+				return fmt.Errorf("unknown flag: %s", args[i])
+			}
+			configPath = args[i]
+		}
+	}
+
+	if configPath == "" {
+		return fmt.Errorf("config file path required")
+	}
+
+	cfg, err := config.LoadFromFile(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	errors := cfg.Validate()
+	if len(errors) > 0 {
+		fmt.Fprintf(os.Stderr, "Configuration validation failed:\n")
+		for _, e := range errors {
+			fmt.Fprintf(os.Stderr, "  - %v\n", e)
+		}
+		return fmt.Errorf("validation failed with %d error(s)", len(errors))
+	}
+
+	fmt.Printf("Configuration %s is valid.\n", configPath)
+	return nil
+}
+
+func runConfigEnv(args []string) error {
+	var (
+		format  = "list"
+		section = ""
+	)
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "-f", "--format":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--format requires a value")
+			}
+			i++
+			format = args[i]
+		case "-s", "--section":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--section requires a value")
+			}
+			i++
+			section = args[i]
+		case "-h", "--help":
+			printConfigEnvUsage()
+			return nil
+		default:
+			if strings.HasPrefix(args[i], "-") {
+				return fmt.Errorf("unknown flag: %s", args[i])
+			}
+		}
+	}
+
+	// Define all environment variables
+	envVars := []struct {
+		section     string
+		name        string
+		description string
+		defaultVal  string
+	}{
+		// Server
+		{"server", "FI_FHIR_SERVER_HOST", "HTTP server bind address", "0.0.0.0"},
+		{"server", "FI_FHIR_SERVER_PORT", "HTTP server port", "8080"},
+		{"server", "FI_FHIR_SERVER_READ_TIMEOUT", "HTTP read timeout", "30s"},
+		{"server", "FI_FHIR_SERVER_WRITE_TIMEOUT", "HTTP write timeout", "30s"},
+		{"server", "FI_FHIR_SERVER_SHUTDOWN_TIMEOUT", "Graceful shutdown timeout", "10s"},
+		{"server", "FI_FHIR_SERVER_TLS_CERT_FILE", "TLS certificate file path", ""},
+		{"server", "FI_FHIR_SERVER_TLS_KEY_FILE", "TLS key file path", ""},
+
+		// Workflow
+		{"workflow", "FI_FHIR_WORKFLOW_CONFIG_PATH", "Workflow configuration file path", ""},
+		{"workflow", "FI_FHIR_WORKFLOW_DRY_RUN", "Enable dry-run mode (no actions executed)", "false"},
+		{"workflow", "FI_FHIR_WORKFLOW_MAX_CONCURRENCY", "Maximum concurrent action executions", "10"},
+		{"workflow", "FI_FHIR_WORKFLOW_ACTION_TIMEOUT", "Timeout for individual actions", "30s"},
+		{"workflow", "FI_FHIR_WORKFLOW_RETRY_MAX_ATTEMPTS", "Maximum retry attempts for failed actions", "3"},
+		{"workflow", "FI_FHIR_WORKFLOW_RETRY_INITIAL_WAIT", "Initial wait between retries", "1s"},
+		{"workflow", "FI_FHIR_WORKFLOW_RETRY_MAX_WAIT", "Maximum wait between retries", "30s"},
+		{"workflow", "FI_FHIR_WORKFLOW_DLQ_ENABLED", "Enable dead letter queue for failed events", "true"},
+		{"workflow", "FI_FHIR_WORKFLOW_DLQ_MAX_SIZE", "Maximum DLQ size", "10000"},
+
+		// FHIR
+		{"fhir", "FI_FHIR_FHIR_BASE_URL", "FHIR server base URL", ""},
+		{"fhir", "FI_FHIR_FHIR_TIMEOUT", "FHIR request timeout", "30s"},
+		{"fhir", "FI_FHIR_FHIR_AUTH_TYPE", "Authentication type (none, basic, bearer, oauth2)", "none"},
+		{"fhir", "FI_FHIR_FHIR_USERNAME", "Basic auth username", ""},
+		{"fhir", "FI_FHIR_FHIR_PASSWORD", "Basic auth password (use ${secret:KEY} for secrets)", ""},
+		{"fhir", "FI_FHIR_FHIR_BEARER_TOKEN", "Bearer token (use ${secret:KEY} for secrets)", ""},
+		{"fhir", "FI_FHIR_FHIR_OAUTH2_TOKEN_URL", "OAuth2 token endpoint URL", ""},
+		{"fhir", "FI_FHIR_FHIR_OAUTH2_CLIENT_ID", "OAuth2 client ID", ""},
+		{"fhir", "FI_FHIR_FHIR_OAUTH2_CLIENT_SECRET", "OAuth2 client secret (use ${secret:KEY})", ""},
+
+		// Database
+		{"database", "FI_FHIR_DATABASE_DRIVER", "Database driver (postgres, mysql, sqlite)", "postgres"},
+		{"database", "FI_FHIR_DATABASE_HOST", "Database host", ""},
+		{"database", "FI_FHIR_DATABASE_PORT", "Database port", "5432"},
+		{"database", "FI_FHIR_DATABASE_NAME", "Database name", ""},
+		{"database", "FI_FHIR_DATABASE_USERNAME", "Database username", ""},
+		{"database", "FI_FHIR_DATABASE_PASSWORD", "Database password (use ${secret:KEY})", ""},
+		{"database", "FI_FHIR_DATABASE_SSL_MODE", "SSL mode (disable, require, verify-full)", "require"},
+		{"database", "FI_FHIR_DATABASE_MAX_OPEN_CONNS", "Maximum open connections", "25"},
+		{"database", "FI_FHIR_DATABASE_MAX_IDLE_CONNS", "Maximum idle connections", "5"},
+		{"database", "FI_FHIR_DATABASE_CONN_MAX_LIFETIME", "Connection maximum lifetime", "5m"},
+
+		// Queue
+		{"queue", "FI_FHIR_QUEUE_DRIVER", "Queue driver (kafka, rabbitmq, sqs)", "kafka"},
+		{"queue", "FI_FHIR_QUEUE_BROKERS", "Comma-separated broker addresses", ""},
+		{"queue", "FI_FHIR_QUEUE_USERNAME", "Queue auth username", ""},
+		{"queue", "FI_FHIR_QUEUE_PASSWORD", "Queue auth password (use ${secret:KEY})", ""},
+		{"queue", "FI_FHIR_QUEUE_TLS", "Enable TLS for queue connections", "false"},
+
+		// Observability
+		{"observability", "FI_FHIR_METRICS_ENABLED", "Enable Prometheus metrics endpoint", "true"},
+		{"observability", "FI_FHIR_METRICS_ENDPOINT", "Metrics endpoint path", "/metrics"},
+		{"observability", "FI_FHIR_METRICS_PORT", "Metrics server port", "9090"},
+		{"observability", "FI_FHIR_TRACING_ENABLED", "Enable OpenTelemetry tracing", "false"},
+		{"observability", "FI_FHIR_TRACING_ENDPOINT", "Tracing collector endpoint", ""},
+		{"observability", "FI_FHIR_TRACING_SAMPLER", "Trace sampling rate (0.0-1.0)", "0.1"},
+		{"observability", "FI_FHIR_LOG_LEVEL", "Log level (debug, info, warn, error)", "info"},
+		{"observability", "FI_FHIR_LOG_FORMAT", "Log format (json, text)", "json"},
+
+		// Secrets
+		{"secrets", "FI_FHIR_SECRETS_PROVIDER", "Secrets provider (env, file, vault, aws-ssm, k8s)", "env"},
+	}
+
+	// Filter by section if specified
+	if section != "" {
+		var filtered []struct {
+			section     string
+			name        string
+			description string
+			defaultVal  string
+		}
+		for _, v := range envVars {
+			if v.section == section {
+				filtered = append(filtered, v)
+			}
+		}
+		if len(filtered) == 0 {
+			return fmt.Errorf("unknown section: %s (available: server, workflow, fhir, database, queue, observability, secrets)", section)
+		}
+		envVars = filtered
+	}
+
+	// Output based on format
+	switch format {
+	case "list":
+		currentSection := ""
+		for _, v := range envVars {
+			if v.section != currentSection {
+				if currentSection != "" {
+					fmt.Println()
+				}
+				currentSection = v.section
+				fmt.Printf("# %s\n", strings.ToUpper(currentSection))
+			}
+			if v.defaultVal != "" {
+				fmt.Printf("%-45s # %s (default: %s)\n", v.name+"=", v.description, v.defaultVal)
+			} else {
+				fmt.Printf("%-45s # %s\n", v.name+"=", v.description)
+			}
+		}
+
+	case "export":
+		for _, v := range envVars {
+			if v.defaultVal != "" {
+				fmt.Printf("export %s=%q\n", v.name, v.defaultVal)
+			} else {
+				fmt.Printf("# export %s=\"\"\n", v.name)
+			}
+		}
+
+	case "markdown":
+		fmt.Println("| Variable | Description | Default |")
+		fmt.Println("|----------|-------------|---------|")
+		for _, v := range envVars {
+			def := v.defaultVal
+			if def == "" {
+				def = "-"
+			}
+			fmt.Printf("| `%s` | %s | `%s` |\n", v.name, v.description, def)
+		}
+
+	default:
+		return fmt.Errorf("unknown format: %s (use list, export, or markdown)", format)
+	}
+
+	return nil
+}
+
+func runConfigInit(args []string) error {
+	var (
+		outputPath = "config.yaml"
+		minimal    = false
+	)
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "-o", "--output":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--output requires a file path")
+			}
+			i++
+			outputPath = args[i]
+		case "-m", "--minimal":
+			minimal = true
+		case "-h", "--help":
+			printConfigInitUsage()
+			return nil
+		default:
+			if strings.HasPrefix(args[i], "-") {
+				return fmt.Errorf("unknown flag: %s", args[i])
+			}
+		}
+	}
+
+	// Check if file already exists
+	if _, err := os.Stat(outputPath); err == nil {
+		return fmt.Errorf("file %s already exists (use different path with -o)", outputPath)
+	}
+
+	var content string
+	if minimal {
+		content = `# fi-fhir minimal configuration
+# Full reference: fi-fhir config env
+
+server:
+  port: 8080
+
+workflow:
+  config_path: workflow.yaml
+
+observability:
+  log_level: info
+`
+	} else {
+		content = `# fi-fhir configuration
+# Generated by: fi-fhir config init
+# Full reference: fi-fhir config env
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+  shutdown_timeout: 10s
+  # tls_cert_file: /path/to/cert.pem
+  # tls_key_file: /path/to/key.pem
+
+workflow:
+  config_path: workflow.yaml
+  dry_run: false
+  max_concurrency: 10
+  action_timeout: 30s
+  retry_max_attempts: 3
+  retry_initial_wait: 1s
+  retry_max_wait: 30s
+  dlq_enabled: true
+  dlq_max_size: 10000
+
+fhir:
+  # base_url: https://fhir.example.com/r4
+  timeout: 30s
+  auth_type: none  # none, basic, bearer, oauth2
+  # For basic auth:
+  # username: user
+  # password: ${secret:FHIR_PASSWORD}
+  # For bearer:
+  # bearer_token: ${secret:FHIR_TOKEN}
+  # For OAuth2:
+  # oauth2:
+  #   token_url: https://auth.example.com/token
+  #   client_id: your-client-id
+  #   client_secret: ${secret:OAUTH_CLIENT_SECRET}
+  #   scopes:
+  #     - system/*.read
+  #     - system/*.write
+
+database:
+  driver: postgres  # postgres, mysql, sqlite
+  # host: localhost
+  # port: 5432
+  # database: fi_fhir
+  # username: app
+  # password: ${secret:DATABASE_PASSWORD}
+  ssl_mode: require
+  max_open_conns: 25
+  max_idle_conns: 5
+  conn_max_lifetime: 5m
+
+queue:
+  driver: kafka  # kafka, rabbitmq, sqs
+  # brokers:
+  #   - localhost:9092
+  # username: ""
+  # password: ${secret:QUEUE_PASSWORD}
+  tls: false
+  options: {}
+
+observability:
+  metrics_enabled: true
+  metrics_endpoint: /metrics
+  metrics_port: 9090
+  tracing_enabled: false
+  # tracing_endpoint: http://jaeger:4317
+  tracing_sampler: 0.1
+  log_level: info
+  log_format: json
+
+secrets:
+  provider: env  # env, file, vault, aws-ssm, k8s
+  options: {}
+  # For file provider:
+  # options:
+  #   path: /run/secrets
+  # For env provider with prefix:
+  # options:
+  #   prefix: APP_SECRET_
+`
+	}
+
+	if err := os.WriteFile(outputPath, []byte(content), 0644); err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+
+	fmt.Printf("Created %s\n", outputPath)
+	fmt.Println("\nNext steps:")
+	fmt.Println("  1. Edit the configuration file with your settings")
+	fmt.Println("  2. Validate: fi-fhir config validate " + outputPath)
+	fmt.Println("  3. View effective config: fi-fhir config show -c " + outputPath)
+
+	return nil
+}
+
+// marshalYAML marshals config to YAML format (simple implementation)
+func marshalYAML(cfg *config.Config) ([]byte, error) {
+	// Use JSON as intermediate since we already have JSON tags
+	jsonData, err := json.Marshal(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	var data map[string]interface{}
+	if err := json.Unmarshal(jsonData, &data); err != nil {
+		return nil, err
+	}
+
+	// Simple YAML output (for a full implementation, use yaml.Marshal)
+	return json.MarshalIndent(data, "", "  ")
+}
+
+func printConfigUsage() {
+	fmt.Println(`fi-fhir config - Configuration management
+
+Usage:
+  fi-fhir config <subcommand> [options]
+
+Subcommands:
+  show        Show effective configuration
+  validate    Validate configuration file
+  env         List available environment variables
+  init        Generate sample configuration file
+
+Examples:
+  # Show default configuration
+  fi-fhir config show
+
+  # Show configuration from file with env overrides
+  fi-fhir config show -c config.yaml
+
+  # Validate configuration file
+  fi-fhir config validate config.yaml
+
+  # List all environment variables
+  fi-fhir config env
+
+  # Generate environment variable export script
+  fi-fhir config env -f export > .env
+
+  # Generate sample config file
+  fi-fhir config init -o config.yaml`)
+}
+
+func printConfigShowUsage() {
+	fmt.Println(`fi-fhir config show - Show effective configuration
+
+Usage:
+  fi-fhir config show [options] [config-file]
+
+Options:
+  -c, --config <file>   Configuration file to load
+  -f, --format <fmt>    Output format: yaml, json (default: yaml)
+  -h, --help            Show this help message
+
+Description:
+  Shows the effective configuration after applying:
+  1. Default values
+  2. Config file settings (if provided)
+  3. Environment variable overrides
+  4. Secret resolution
+
+Examples:
+  # Show defaults with env overrides
+  fi-fhir config show
+
+  # Show config from file
+  fi-fhir config show -c config.yaml
+
+  # Output as JSON
+  fi-fhir config show -c config.yaml -f json`)
+}
+
+func printConfigValidateUsage() {
+	fmt.Println(`fi-fhir config validate - Validate configuration file
+
+Usage:
+  fi-fhir config validate <config-file>
+
+Options:
+  -h, --help            Show this help message
+
+Description:
+  Validates a configuration file for:
+  - YAML syntax
+  - Required fields
+  - Valid enum values (drivers, auth types, log levels)
+  - Value constraints (ports, timeouts, sampler rates)
+
+Examples:
+  fi-fhir config validate config.yaml`)
+}
+
+func printConfigEnvUsage() {
+	fmt.Println(`fi-fhir config env - List environment variables
+
+Usage:
+  fi-fhir config env [options]
+
+Options:
+  -f, --format <fmt>    Output format: list, export, markdown (default: list)
+  -s, --section <name>  Filter by section (server, workflow, fhir, database, queue, observability, secrets)
+  -h, --help            Show this help message
+
+Description:
+  Lists all environment variables that can be used to configure fi-fhir.
+  Environment variables override config file settings.
+
+Output Formats:
+  list      Human-readable list with comments (default)
+  export    Shell export statements for .env files
+  markdown  Markdown table for documentation
+
+Examples:
+  # List all variables
+  fi-fhir config env
+
+  # Show only database variables
+  fi-fhir config env -s database
+
+  # Generate .env template
+  fi-fhir config env -f export > .env.template
+
+  # Generate documentation
+  fi-fhir config env -f markdown >> docs/configuration.md`)
+}
+
+func printConfigInitUsage() {
+	fmt.Println(`fi-fhir config init - Generate sample configuration
+
+Usage:
+  fi-fhir config init [options]
+
+Options:
+  -o, --output <file>   Output file path (default: config.yaml)
+  -m, --minimal         Generate minimal config (defaults only)
+  -h, --help            Show this help message
+
+Description:
+  Generates a sample configuration file with all options documented.
+  The generated file includes comments explaining each setting.
+
+Examples:
+  # Generate full config with comments
+  fi-fhir config init
+
+  # Generate to specific path
+  fi-fhir config init -o /etc/fi-fhir/config.yaml
+
+  # Generate minimal config
+  fi-fhir config init -m -o minimal.yaml`)
+}
+
+// --- Subscription Commands ---
+
+func runSubscription(args []string) error {
+	if len(args) == 0 {
+		printSubscriptionUsage()
+		return nil
+	}
+
+	switch args[0] {
+	case "list":
+		return runSubscriptionList(args[1:])
+	case "status":
+		return runSubscriptionStatus(args[1:])
+	case "create":
+		return runSubscriptionCreate(args[1:])
+	case "delete":
+		return runSubscriptionDelete(args[1:])
+	case "pause":
+		return runSubscriptionPauseResume(args[1:], true)
+	case "resume":
+		return runSubscriptionPauseResume(args[1:], false)
+	case "serve":
+		return runSubscriptionServe(args[1:])
+	case "validate":
+		return runSubscriptionValidate(args[1:])
+	case "test":
+		return runSubscriptionTest(args[1:])
+	case "help", "--help", "-h":
+		printSubscriptionUsage()
+		return nil
+	default:
+		return fmt.Errorf("unknown subscription command: %s", args[0])
+	}
+}
+
+func printSubscriptionUsage() {
+	fmt.Println(`fi-fhir subscription - Manage FHIR R4 Subscriptions
+
+Bidirectional FHIR integration: receive events FROM FHIR servers via subscriptions.
+
+Usage:
+  fi-fhir subscription <command> [arguments]
+
+Commands:
+  list      List configured subscriptions
+  status    Show subscription status
+  create    Create a subscription on a FHIR server
+  delete    Delete a subscription from a FHIR server
+  pause     Pause a subscription (set status to off)
+  resume    Resume a paused subscription
+  serve     Start notification receiver server
+  validate  Validate subscription configuration
+  test      Test subscription endpoint with sample notification
+  help      Show this help message
+
+Examples:
+  # List configured subscriptions
+  fi-fhir subscription list --config subscriptions.yaml
+
+  # Create subscription on FHIR server
+  fi-fhir subscription create --config subscriptions.yaml --name patient_changes
+
+  # Start notification receiver with workflow
+  fi-fhir subscription serve --subscriptions subscriptions.yaml --workflow workflow.yaml
+
+  # Validate subscription configuration
+  fi-fhir subscription validate subscriptions.yaml
+
+For more information, see: docs/planning/FHIR-SUBSCRIPTIONS.md`)
+}
+
+func runSubscriptionList(args []string) error {
+	var configPath string
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--config", "-c":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--config requires a value")
+			}
+			i++
+			configPath = args[i]
+		case "--help", "-h":
+			printSubscriptionListUsage()
+			return nil
+		default:
+			if configPath == "" && !strings.HasPrefix(args[i], "-") {
+				configPath = args[i]
+			}
+		}
+	}
+
+	if configPath == "" {
+		return fmt.Errorf("configuration file required")
+	}
+
+	config, err := subscription.LoadConfig(configPath)
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
+	fmt.Printf("Configured Subscriptions (%d):\n\n", len(config.Subscriptions))
+	for _, sub := range config.Subscriptions {
+		fmt.Printf("  Name:        %s\n", sub.Name)
+		if sub.Description != "" {
+			fmt.Printf("  Description: %s\n", sub.Description)
+		}
+		fmt.Printf("  Server:      %s\n", sub.Server)
+		fmt.Printf("  Criteria:    %s\n", sub.Criteria)
+		fmt.Printf("  Endpoint:    %s\n", sub.Channel.Endpoint)
+		fmt.Println()
+	}
+
+	return nil
+}
+
+func printSubscriptionListUsage() {
+	fmt.Println(`fi-fhir subscription list - List configured subscriptions
+
+Usage:
+  fi-fhir subscription list [options] [config-file]
+
+Options:
+  -c, --config <file>   Subscriptions configuration file
+  -h, --help            Show this help message
+
+Examples:
+  fi-fhir subscription list subscriptions.yaml
+  fi-fhir subscription list --config /etc/fi-fhir/subscriptions.yaml`)
+}
+
+func runSubscriptionStatus(args []string) error {
+	var (
+		configPath string
+		name       string
+	)
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--config", "-c":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--config requires a value")
+			}
+			i++
+			configPath = args[i]
+		case "--name", "-n":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--name requires a value")
+			}
+			i++
+			name = args[i]
+		case "--help", "-h":
+			fmt.Println("Usage: fi-fhir subscription status --config <file> --name <subscription>")
+			return nil
+		default:
+			if name == "" && !strings.HasPrefix(args[i], "-") {
+				name = args[i]
+			}
+		}
+	}
+
+	if configPath == "" {
+		return fmt.Errorf("--config is required")
+	}
+	if name == "" {
+		return fmt.Errorf("subscription name is required")
+	}
+
+	config, err := subscription.LoadConfig(configPath)
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
+	// Find subscription
+	var subDef *subscription.SubscriptionDefinition
+	for i := range config.Subscriptions {
+		if config.Subscriptions[i].Name == name {
+			subDef = &config.Subscriptions[i]
+			break
+		}
+	}
+
+	if subDef == nil {
+		return fmt.Errorf("subscription %q not found", name)
+	}
+
+	// Create client and query status
+	var auth subscription.AuthProvider
+	if subDef.Auth.Token != "" {
+		auth = &subscription.StaticTokenAuth{Token: subDef.Auth.Token}
+	}
+
+	client, err := subscription.NewClient(&subscription.ClientConfig{
+		FHIREndpoint: subDef.Server,
+		AuthProvider: auth,
+	})
+	if err != nil {
+		return fmt.Errorf("create client: %w", err)
+	}
+
+	// List subscriptions on server
+	subs, err := client.List(context.Background())
+	if err != nil {
+		return fmt.Errorf("list subscriptions: %w", err)
+	}
+
+	fmt.Printf("Subscription: %s\n", name)
+	fmt.Printf("Server:       %s\n", subDef.Server)
+	fmt.Printf("Criteria:     %s\n", subDef.Criteria)
+	fmt.Printf("Endpoint:     %s\n", subDef.Channel.Endpoint)
+	fmt.Println()
+
+	// Find matching subscription on server
+	found := false
+	for _, sub := range subs {
+		if sub.Channel.Endpoint == subDef.Channel.Endpoint {
+			fmt.Printf("Server Status:\n")
+			fmt.Printf("  ID:     %s\n", sub.ID)
+			fmt.Printf("  Status: %s\n", sub.Status)
+			if sub.Error != "" {
+				fmt.Printf("  Error:  %s\n", sub.Error)
+			}
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		fmt.Println("Server Status: NOT REGISTERED")
+		fmt.Println("  Run 'fi-fhir subscription create' to register")
+	}
+
+	return nil
+}
+
+func runSubscriptionCreate(args []string) error {
+	var (
+		configPath string
+		name       string
+	)
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--config", "-c":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--config requires a value")
+			}
+			i++
+			configPath = args[i]
+		case "--name", "-n":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--name requires a value")
+			}
+			i++
+			name = args[i]
+		case "--help", "-h":
+			fmt.Println("Usage: fi-fhir subscription create --config <file> --name <subscription>")
+			return nil
+		default:
+			if name == "" && !strings.HasPrefix(args[i], "-") {
+				name = args[i]
+			}
+		}
+	}
+
+	if configPath == "" {
+		return fmt.Errorf("--config is required")
+	}
+	if name == "" {
+		return fmt.Errorf("subscription name is required")
+	}
+
+	config, err := subscription.LoadConfig(configPath)
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
+	// Find subscription
+	var subDef *subscription.SubscriptionDefinition
+	for i := range config.Subscriptions {
+		if config.Subscriptions[i].Name == name {
+			subDef = &config.Subscriptions[i]
+			break
+		}
+	}
+
+	if subDef == nil {
+		return fmt.Errorf("subscription %q not found in config", name)
+	}
+
+	// Create client
+	var auth subscription.AuthProvider
+	if subDef.Auth.Token != "" {
+		auth = &subscription.StaticTokenAuth{Token: subDef.Auth.Token}
+	}
+
+	client, err := subscription.NewClient(&subscription.ClientConfig{
+		FHIREndpoint: subDef.Server,
+		AuthProvider: auth,
+	})
+	if err != nil {
+		return fmt.Errorf("create client: %w", err)
+	}
+
+	// Create subscription
+	sub := &subscription.Subscription{
+		Status:   subscription.StatusRequested,
+		Reason:   subDef.Description,
+		Criteria: subDef.Criteria,
+		Channel: subscription.Channel{
+			Type:     subscription.ChannelRestHook,
+			Endpoint: subDef.Channel.Endpoint,
+			Payload:  subDef.Channel.Payload,
+			Header:   subDef.Channel.Headers,
+		},
+	}
+
+	created, err := client.Create(context.Background(), sub)
+	if err != nil {
+		return fmt.Errorf("create subscription: %w", err)
+	}
+
+	fmt.Printf("Subscription created successfully!\n")
+	fmt.Printf("  ID:       %s\n", created.ID)
+	fmt.Printf("  Status:   %s\n", created.Status)
+	fmt.Printf("  Criteria: %s\n", created.Criteria)
+	fmt.Printf("  Endpoint: %s\n", created.Channel.Endpoint)
+
+	return nil
+}
+
+func runSubscriptionDelete(args []string) error {
+	var (
+		configPath     string
+		name           string
+		subscriptionID string
+	)
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--config", "-c":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--config requires a value")
+			}
+			i++
+			configPath = args[i]
+		case "--name", "-n":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--name requires a value")
+			}
+			i++
+			name = args[i]
+		case "--id":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--id requires a value")
+			}
+			i++
+			subscriptionID = args[i]
+		case "--help", "-h":
+			fmt.Println("Usage: fi-fhir subscription delete --config <file> --name <subscription> --id <sub-id>")
+			return nil
+		}
+	}
+
+	if configPath == "" {
+		return fmt.Errorf("--config is required")
+	}
+	if name == "" {
+		return fmt.Errorf("--name is required")
+	}
+	if subscriptionID == "" {
+		return fmt.Errorf("--id is required")
+	}
+
+	config, err := subscription.LoadConfig(configPath)
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
+	// Find subscription
+	var subDef *subscription.SubscriptionDefinition
+	for i := range config.Subscriptions {
+		if config.Subscriptions[i].Name == name {
+			subDef = &config.Subscriptions[i]
+			break
+		}
+	}
+
+	if subDef == nil {
+		return fmt.Errorf("subscription %q not found in config", name)
+	}
+
+	// Create client
+	var auth subscription.AuthProvider
+	if subDef.Auth.Token != "" {
+		auth = &subscription.StaticTokenAuth{Token: subDef.Auth.Token}
+	}
+
+	client, err := subscription.NewClient(&subscription.ClientConfig{
+		FHIREndpoint: subDef.Server,
+		AuthProvider: auth,
+	})
+	if err != nil {
+		return fmt.Errorf("create client: %w", err)
+	}
+
+	if err := client.Delete(context.Background(), subscriptionID); err != nil {
+		return fmt.Errorf("delete subscription: %w", err)
+	}
+
+	fmt.Printf("Subscription %s deleted successfully\n", subscriptionID)
+	return nil
+}
+
+func runSubscriptionPauseResume(args []string, pause bool) error {
+	var (
+		configPath     string
+		name           string
+		subscriptionID string
+	)
+
+	action := "resume"
+	if pause {
+		action = "pause"
+	}
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--config", "-c":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--config requires a value")
+			}
+			i++
+			configPath = args[i]
+		case "--name", "-n":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--name requires a value")
+			}
+			i++
+			name = args[i]
+		case "--id":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--id requires a value")
+			}
+			i++
+			subscriptionID = args[i]
+		case "--help", "-h":
+			fmt.Printf("Usage: fi-fhir subscription %s --config <file> --name <subscription> --id <sub-id>\n", action)
+			return nil
+		}
+	}
+
+	if configPath == "" {
+		return fmt.Errorf("--config is required")
+	}
+	if name == "" {
+		return fmt.Errorf("--name is required")
+	}
+	if subscriptionID == "" {
+		return fmt.Errorf("--id is required")
+	}
+
+	config, err := subscription.LoadConfig(configPath)
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
+	// Find subscription
+	var subDef *subscription.SubscriptionDefinition
+	for i := range config.Subscriptions {
+		if config.Subscriptions[i].Name == name {
+			subDef = &config.Subscriptions[i]
+			break
+		}
+	}
+
+	if subDef == nil {
+		return fmt.Errorf("subscription %q not found in config", name)
+	}
+
+	// Create client
+	var auth subscription.AuthProvider
+	if subDef.Auth.Token != "" {
+		auth = &subscription.StaticTokenAuth{Token: subDef.Auth.Token}
+	}
+
+	client, err := subscription.NewClient(&subscription.ClientConfig{
+		FHIREndpoint: subDef.Server,
+		AuthProvider: auth,
+	})
+	if err != nil {
+		return fmt.Errorf("create client: %w", err)
+	}
+
+	if pause {
+		err = client.Pause(context.Background(), subscriptionID)
+	} else {
+		err = client.Resume(context.Background(), subscriptionID)
+	}
+
+	if err != nil {
+		return fmt.Errorf("%s subscription: %w", action, err)
+	}
+
+	fmt.Printf("Subscription %s %sd successfully\n", subscriptionID, action)
+	return nil
+}
+
+func runSubscriptionServe(args []string) error {
+	var (
+		subscriptionsPath string
+		workflowPath      string
+		configPath        string
+		host              string
+		port              int
+		certFile          string
+		keyFile           string
+	)
+
+	port = 8081 // default
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--subscriptions", "-s":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--subscriptions requires a value")
+			}
+			i++
+			subscriptionsPath = args[i]
+		case "--workflow", "-w":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--workflow requires a value")
+			}
+			i++
+			workflowPath = args[i]
+		case "--config", "-c":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--config requires a value")
+			}
+			i++
+			configPath = args[i]
+		case "--host":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--host requires a value")
+			}
+			i++
+			host = args[i]
+		case "--port", "-p":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--port requires a value")
+			}
+			i++
+			var err error
+			port, err = strconv.Atoi(args[i])
+			if err != nil {
+				return fmt.Errorf("invalid port: %s", args[i])
+			}
+		case "--cert":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--cert requires a value")
+			}
+			i++
+			certFile = args[i]
+		case "--key":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--key requires a value")
+			}
+			i++
+			keyFile = args[i]
+		case "--help", "-h":
+			printSubscriptionServeUsage()
+			return nil
+		}
+	}
+
+	if subscriptionsPath == "" {
+		return fmt.Errorf("--subscriptions is required")
+	}
+
+	// Load subscription config
+	subConfig, err := subscription.LoadConfig(subscriptionsPath)
+	if err != nil {
+		return fmt.Errorf("load subscriptions: %w", err)
+	}
+
+	// Create event router
+	var router subscription.EventRouter
+
+	if workflowPath != "" {
+		// Load workflow
+		wfConfig, err := workflow.LoadWorkflow(workflowPath)
+		if err != nil {
+			return fmt.Errorf("load workflow: %w", err)
+		}
+
+		engine, err := workflow.NewEngine(wfConfig)
+		if err != nil {
+			return fmt.Errorf("create workflow engine: %w", err)
+		}
+		router = subscription.NewWorkflowRouter(engine)
+		fmt.Printf("Loaded workflow: %s\n", wfConfig.Name)
+	} else {
+		// Use logging router
+		router = subscription.NewCallbackRouter(func(ctx context.Context, event interface{}) error {
+			data, _ := json.MarshalIndent(event, "", "  ")
+			fmt.Printf("Event received:\n%s\n", string(data))
+			return nil
+		})
+		fmt.Println("No workflow specified, using logging router")
+	}
+
+	// Create receiver
+	receiverOpts := &subscription.ReceiverOptions{
+		PathPrefix:    "/fhir/notify",
+		MaxBundleSize: 100,
+	}
+	if configPath != "" {
+		// TODO: Load receiver config from file
+	}
+
+	receiver := subscription.NewReceiver(router, receiverOpts)
+
+	// Register subscriptions
+	for _, sub := range subConfig.Subscriptions {
+		receiver.RegisterSubscription(&subscription.SubscriptionConfig{
+			Name:         sub.Name,
+			EventMapping: sub.Mapping,
+		})
+		fmt.Printf("Registered subscription: %s\n", sub.Name)
+	}
+
+	// Create server
+	if host == "" {
+		host = "0.0.0.0"
+	}
+
+	server := subscription.NewServer(receiver, &subscription.ServerConfig{
+		Host: host,
+		Port: port,
+	})
+
+	// Setup signal handling
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-sigChan
+		fmt.Println("\nShutting down...")
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		server.Shutdown(ctx)
+	}()
+
+	fmt.Printf("Starting subscription receiver on %s:%d\n", host, port)
+	fmt.Printf("Notification endpoint: http://%s:%d/fhir/notify/<subscription>\n", host, port)
+
+	var serveErr error
+	if certFile != "" && keyFile != "" {
+		fmt.Println("TLS enabled")
+		serveErr = server.Start(certFile, keyFile)
+	} else {
+		fmt.Println("WARNING: TLS not enabled. Use --cert and --key for production.")
+		serveErr = server.Start("", "")
+	}
+
+	if serveErr != nil && serveErr != http.ErrServerClosed {
+		return serveErr
+	}
+
+	return nil
+}
+
+func printSubscriptionServeUsage() {
+	fmt.Println(`fi-fhir subscription serve - Start notification receiver server
+
+Usage:
+  fi-fhir subscription serve [options]
+
+Options:
+  -s, --subscriptions <file>  Subscriptions configuration file (required)
+  -w, --workflow <file>       Workflow configuration for event routing
+  -c, --config <file>         Application configuration file
+      --host <host>           Bind address (default: 0.0.0.0)
+  -p, --port <port>           Listen port (default: 8081)
+      --cert <file>           TLS certificate file
+      --key <file>            TLS key file
+  -h, --help                  Show this help message
+
+Description:
+  Starts an HTTP server that receives FHIR subscription notifications.
+  Notifications are mapped to canonical events and routed through the
+  workflow engine for processing.
+
+Examples:
+  # Start with workflow routing
+  fi-fhir subscription serve \
+    --subscriptions subscriptions.yaml \
+    --workflow workflow.yaml
+
+  # Start with TLS
+  fi-fhir subscription serve \
+    --subscriptions subscriptions.yaml \
+    --workflow workflow.yaml \
+    --cert /etc/fi-fhir/tls/cert.pem \
+    --key /etc/fi-fhir/tls/key.pem
+
+  # Start on custom port
+  fi-fhir subscription serve \
+    --subscriptions subscriptions.yaml \
+    --port 9090`)
+}
+
+func runSubscriptionValidate(args []string) error {
+	var configPath string
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--help", "-h":
+			fmt.Println("Usage: fi-fhir subscription validate <config-file>")
+			return nil
+		default:
+			if configPath == "" && !strings.HasPrefix(args[i], "-") {
+				configPath = args[i]
+			}
+		}
+	}
+
+	if configPath == "" {
+		return fmt.Errorf("configuration file required")
+	}
+
+	config, err := subscription.LoadConfig(configPath)
+	if err != nil {
+		return fmt.Errorf("validation failed: %w", err)
+	}
+
+	fmt.Printf("✓ Configuration valid\n")
+	fmt.Printf("  File: %s\n", configPath)
+	fmt.Printf("  Subscriptions: %d\n", len(config.Subscriptions))
+
+	for _, sub := range config.Subscriptions {
+		fmt.Printf("    - %s (%s)\n", sub.Name, sub.Criteria)
+	}
+
+	return nil
+}
+
+func runSubscriptionTest(args []string) error {
+	var (
+		configPath   string
+		name         string
+		resourceFile string
+	)
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--config", "-c":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--config requires a value")
+			}
+			i++
+			configPath = args[i]
+		case "--name", "-n":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--name requires a value")
+			}
+			i++
+			name = args[i]
+		case "--resource", "-r":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--resource requires a value")
+			}
+			i++
+			resourceFile = args[i]
+		case "--help", "-h":
+			printSubscriptionTestUsage()
+			return nil
+		}
+	}
+
+	if configPath == "" {
+		return fmt.Errorf("--config is required")
+	}
+	if name == "" {
+		return fmt.Errorf("--name is required")
+	}
+	if resourceFile == "" {
+		return fmt.Errorf("--resource is required")
+	}
+
+	// Load subscription config
+	config, err := subscription.LoadConfig(configPath)
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
+	// Find subscription
+	var subDef *subscription.SubscriptionDefinition
+	for i := range config.Subscriptions {
+		if config.Subscriptions[i].Name == name {
+			subDef = &config.Subscriptions[i]
+			break
+		}
+	}
+
+	if subDef == nil {
+		return fmt.Errorf("subscription %q not found", name)
+	}
+
+	// Load resource
+	data, err := os.ReadFile(resourceFile)
+	if err != nil {
+		return fmt.Errorf("read resource: %w", err)
+	}
+
+	var resource map[string]interface{}
+	if err := json.Unmarshal(data, &resource); err != nil {
+		return fmt.Errorf("parse resource: %w", err)
+	}
+
+	// Create notification bundle
+	bundle := subscription.NotificationBundle{
+		ResourceType: "Bundle",
+		Type:         "history",
+		Entry: []subscription.NotificationEntry{
+			{
+				Resource: resource,
+				Request: &subscription.EntryRequest{
+					Method: "POST",
+					URL:    fmt.Sprintf("%s/%s", resource["resourceType"], resource["id"]),
+				},
+			},
+		},
+	}
+
+	// Map to canonical event
+	mapper := subscription.NewFHIRMapper()
+	events, err := mapper.MapBundle(&bundle, &subDef.Mapping)
+	if err != nil {
+		return fmt.Errorf("map resource: %w", err)
+	}
+
+	fmt.Printf("Test Results:\n")
+	fmt.Printf("  Subscription: %s\n", name)
+	fmt.Printf("  Resource: %s/%s\n", resource["resourceType"], resource["id"])
+	fmt.Printf("  Events generated: %d\n\n", len(events))
+
+	for i, event := range events {
+		data, _ := json.MarshalIndent(event, "  ", "  ")
+		fmt.Printf("Event %d:\n  %s\n", i+1, string(data))
+	}
+
+	return nil
+}
+
+func printSubscriptionTestUsage() {
+	fmt.Println(`fi-fhir subscription test - Test subscription with sample notification
+
+Usage:
+  fi-fhir subscription test [options]
+
+Options:
+  -c, --config <file>    Subscriptions configuration file (required)
+  -n, --name <name>      Subscription name to test (required)
+  -r, --resource <file>  FHIR resource JSON file (required)
+  -h, --help             Show this help message
+
+Description:
+  Simulates receiving a notification for the specified subscription.
+  Shows how the resource would be mapped to canonical events.
+
+Examples:
+  fi-fhir subscription test \
+    --config subscriptions.yaml \
+    --name patient_changes \
+    --resource testdata/patient.json`)
 }

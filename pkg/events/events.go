@@ -43,6 +43,17 @@ const (
 	// Eligibility events
 	EventEligibilityInquiry  EventType = "eligibility_inquiry"
 	EventEligibilityResponse EventType = "eligibility_response"
+
+	// Claim status events
+	EventClaimStatusRequest  EventType = "claim_status_request"
+	EventClaimStatusResponse EventType = "claim_status_response"
+
+	// Clinical document events
+	EventDocument     EventType = "document"
+	EventVitalSign    EventType = "vital_sign"
+	EventCondition    EventType = "condition"
+	EventProcedure    EventType = "procedure"
+	EventImmunization EventType = "immunization"
 )
 
 // SourceFormat indicates the original format of the data.
@@ -56,6 +67,8 @@ const (
 	FormatEDI837  SourceFormat = "edi_837"
 	FormatEDI270  SourceFormat = "edi_270"
 	FormatEDI271  SourceFormat = "edi_271"
+	FormatEDI276  SourceFormat = "edi_276"
+	FormatEDI277  SourceFormat = "edi_277"
 	FormatCDA     SourceFormat = "cda"
 	FormatUnknown SourceFormat = "unknown"
 )
@@ -787,6 +800,328 @@ type EligibilityResponseEvent struct {
 
 	RawPayload json.RawMessage `json:"raw_payload,omitempty"`
 }
+
+// --- Claim Status Types (276/277) ---
+
+// ClaimStatusCategoryCode represents the category of claim status (STC01-01).
+// Based on Code Source 507 - Health Care Claim Status Category Codes.
+type ClaimStatusCategoryCode string
+
+const (
+	ClaimStatusCategoryAcknowledgement ClaimStatusCategoryCode = "A0" // Acknowledgement
+	ClaimStatusCategoryPending         ClaimStatusCategoryCode = "A1" // Pending
+	ClaimStatusCategoryFinalized       ClaimStatusCategoryCode = "A2" // Finalized
+	ClaimStatusCategoryRequest         ClaimStatusCategoryCode = "A3" // Request for additional information
+	ClaimStatusCategoryAdjudicated     ClaimStatusCategoryCode = "A4" // Adjudicated
+	ClaimStatusCategoryDenied          ClaimStatusCategoryCode = "A5" // Denied
+	ClaimStatusCategoryPartialPay      ClaimStatusCategoryCode = "A6" // Partial payment
+	ClaimStatusCategoryPaid            ClaimStatusCategoryCode = "A7" // Paid in full
+	ClaimStatusCategoryRejected        ClaimStatusCategoryCode = "A8" // Rejected
+	ClaimStatusCategoryRecovery        ClaimStatusCategoryCode = "F0" // Recovery
+	ClaimStatusCategoryDataReporting   ClaimStatusCategoryCode = "DR" // Data Reporting
+	ClaimStatusCategoryError           ClaimStatusCategoryCode = "E0" // Error
+	ClaimStatusCategoryPriorAuth       ClaimStatusCategoryCode = "P0" // Prior Authorization
+	ClaimStatusCategoryReferral        ClaimStatusCategoryCode = "R0" // Referral
+)
+
+// ClaimStatusInquiry represents the claim identification for a status request (276).
+type ClaimStatusInquiry struct {
+	// ClaimSubmitterID is the original claim ID submitted by the provider
+	ClaimSubmitterID string `json:"claim_submitter_id,omitempty"`
+
+	// PayerClaimID is the payer's internal claim identifier
+	PayerClaimID string `json:"payer_claim_id,omitempty"`
+
+	// ClearinghouseTraceNumber is the clearinghouse trace number
+	ClearinghouseTraceNumber string `json:"clearinghouse_trace_number,omitempty"`
+
+	// PatientControlNumber is the patient account number
+	PatientControlNumber string `json:"patient_control_number,omitempty"`
+
+	// ServiceDateStart is the start of service date range
+	ServiceDateStart time.Time `json:"service_date_start,omitempty"`
+
+	// ServiceDateEnd is the end of service date range
+	ServiceDateEnd time.Time `json:"service_date_end,omitempty"`
+
+	// TotalClaimChargeAmount from the original claim
+	TotalClaimChargeAmount float64 `json:"total_claim_charge_amount,omitempty"`
+}
+
+// ClaimStatusInfo represents claim status information from a 277 response.
+type ClaimStatusInfo struct {
+	// StatusCategoryCode is the high-level status category (STC01-01, Code Source 507)
+	StatusCategoryCode ClaimStatusCategoryCode `json:"status_category_code"`
+
+	// StatusCategoryDescription is human-readable category
+	StatusCategoryDescription string `json:"status_category_description,omitempty"`
+
+	// StatusCode is the detailed status code (STC01-02, Code Source 508)
+	StatusCode string `json:"status_code"`
+
+	// StatusCodeDescription is human-readable status
+	StatusCodeDescription string `json:"status_code_description,omitempty"`
+
+	// EntityIdentifier indicates which entity the status relates to
+	EntityIdentifier string `json:"entity_identifier,omitempty"`
+
+	// EffectiveDate is when this status became effective
+	EffectiveDate time.Time `json:"effective_date,omitempty"`
+
+	// ActionCode indicates what action is required (if any)
+	ActionCode string `json:"action_code,omitempty"`
+
+	// TotalClaimChargeAmount is the claim amount
+	TotalClaimChargeAmount float64 `json:"total_claim_charge_amount,omitempty"`
+
+	// PaymentAmount is the paid amount (if applicable)
+	PaymentAmount float64 `json:"payment_amount,omitempty"`
+
+	// PaymentDate is when payment was issued
+	PaymentDate time.Time `json:"payment_date,omitempty"`
+
+	// CheckNumber is the payment check/EFT number
+	CheckNumber string `json:"check_number,omitempty"`
+}
+
+// ClaimServiceLineStatus represents status for a specific service line.
+type ClaimServiceLineStatus struct {
+	// LineNumber is the service line number
+	LineNumber int `json:"line_number,omitempty"`
+
+	// ServiceIDQualifier indicates the code type (HC=HCPCS, N4=NDC)
+	ServiceIDQualifier string `json:"service_id_qualifier,omitempty"`
+
+	// ProcedureCode is the CPT/HCPCS/NDC code
+	ProcedureCode string `json:"procedure_code,omitempty"`
+
+	// Modifiers are procedure modifiers
+	Modifiers []string `json:"modifiers,omitempty"`
+
+	// ChargeAmount is the line charge
+	ChargeAmount float64 `json:"charge_amount,omitempty"`
+
+	// PaidAmount is the line paid amount
+	PaidAmount float64 `json:"paid_amount,omitempty"`
+
+	// Units is the quantity
+	Units float64 `json:"units,omitempty"`
+
+	// ServiceDate is when service was rendered
+	ServiceDate time.Time `json:"service_date,omitempty"`
+
+	// Statuses are the status details for this line
+	Statuses []ClaimStatusInfo `json:"statuses,omitempty"`
+}
+
+// ClaimStatusRequestEvent is emitted when a claim status inquiry is submitted (276).
+type ClaimStatusRequestEvent struct {
+	EventMeta
+
+	// Payer is the payer being queried
+	Payer Provider `json:"payer"`
+
+	// Provider is the provider making the inquiry
+	Provider Provider `json:"provider"`
+
+	// Subscriber is the insurance subscriber
+	Subscriber Patient `json:"subscriber"`
+
+	// Dependent is the patient if different from subscriber
+	Dependent *Patient `json:"dependent,omitempty"`
+
+	// Inquiry contains the claim identification
+	Inquiry ClaimStatusInquiry `json:"inquiry"`
+
+	// TraceNumber is the submitter's trace/reference number
+	TraceNumber string `json:"trace_number,omitempty"`
+
+	RawPayload json.RawMessage `json:"raw_payload,omitempty"`
+}
+
+// ClaimStatusResponseEvent is emitted when a claim status response is received (277).
+type ClaimStatusResponseEvent struct {
+	EventMeta
+
+	// Payer is the payer responding
+	Payer Provider `json:"payer"`
+
+	// Provider is the provider receiving the response
+	Provider Provider `json:"provider"`
+
+	// Subscriber is the insurance subscriber
+	Subscriber Patient `json:"subscriber"`
+
+	// Dependent is the patient if different from subscriber
+	Dependent *Patient `json:"dependent,omitempty"`
+
+	// ClaimIdentification echoes back the claim identification
+	ClaimSubmitterID     string `json:"claim_submitter_id,omitempty"`
+	PayerClaimID         string `json:"payer_claim_id,omitempty"`
+	PatientControlNumber string `json:"patient_control_number,omitempty"`
+
+	// Statuses are the claim-level status details
+	Statuses []ClaimStatusInfo `json:"statuses,omitempty"`
+
+	// ServiceLines are the line-level status details (if returned)
+	ServiceLines []ClaimServiceLineStatus `json:"service_lines,omitempty"`
+
+	// TraceNumber is the original trace/reference number from request
+	TraceNumber string `json:"trace_number,omitempty"`
+
+	// TotalClaimChargeAmount from the original claim
+	TotalClaimChargeAmount float64 `json:"total_claim_charge_amount,omitempty"`
+
+	RawPayload json.RawMessage `json:"raw_payload,omitempty"`
+}
+
+// --- Clinical Document Events ---
+
+// VitalSign represents a vital sign measurement.
+type VitalSign struct {
+	// Name is the display name of the vital sign
+	Name string `json:"name"`
+
+	// LOINCCode is the LOINC code for this vital sign
+	LOINCCode string `json:"loinc_code,omitempty"`
+
+	// Value is the measured value
+	Value string `json:"value"`
+
+	// Unit is the unit of measure
+	Unit string `json:"unit,omitempty"`
+
+	// Interpretation is the clinical interpretation (normal, high, low, critical)
+	Interpretation string `json:"interpretation,omitempty"`
+}
+
+// VitalSignEvent is emitted for vital sign measurements.
+type VitalSignEvent struct {
+	EventMeta
+	Patient   *Patient        `json:"patient,omitempty"`
+	VitalSign VitalSign       `json:"vital_sign"`
+	Encounter *Encounter      `json:"encounter,omitempty"`
+	RawPayload json.RawMessage `json:"raw_payload,omitempty"`
+}
+
+// Condition represents a medical condition/diagnosis.
+type Condition struct {
+	// Name is the display name of the condition
+	Name string `json:"name"`
+
+	// Code is the condition code (SNOMED, ICD-10, etc.)
+	Code string `json:"code,omitempty"`
+
+	// CodeSystem is the code system URI
+	CodeSystem string `json:"code_system,omitempty"`
+
+	// Category is the condition category (problem-list-item, encounter-diagnosis, etc.)
+	Category string `json:"category,omitempty"`
+}
+
+// ConditionEvent is emitted for medical conditions/diagnoses.
+type ConditionEvent struct {
+	EventMeta
+	Patient        *Patient        `json:"patient,omitempty"`
+	Condition      Condition       `json:"condition"`
+	ClinicalStatus string          `json:"clinical_status,omitempty"` // active, resolved, inactive
+	OnsetDate      string          `json:"onset_date,omitempty"`
+	AbatementDate  string          `json:"abatement_date,omitempty"`
+	Encounter      *Encounter      `json:"encounter,omitempty"`
+	RawPayload     json.RawMessage `json:"raw_payload,omitempty"`
+}
+
+// Procedure represents a medical procedure.
+type Procedure struct {
+	// Name is the display name of the procedure
+	Name string `json:"name"`
+
+	// Code is the procedure code (CPT, SNOMED, etc.)
+	Code string `json:"code,omitempty"`
+
+	// CodeSystem is the code system URI
+	CodeSystem string `json:"code_system,omitempty"`
+
+	// Status is the procedure status
+	Status string `json:"status,omitempty"`
+}
+
+// ProcedureEvent is emitted for medical procedures.
+type ProcedureEvent struct {
+	EventMeta
+	Patient       *Patient        `json:"patient,omitempty"`
+	Procedure     Procedure       `json:"procedure"`
+	PerformedDate string          `json:"performed_date,omitempty"`
+	Performer     *Provider       `json:"performer,omitempty"`
+	Location      *Location       `json:"location,omitempty"`
+	Encounter     *Encounter      `json:"encounter,omitempty"`
+	RawPayload    json.RawMessage `json:"raw_payload,omitempty"`
+}
+
+// Immunization represents a vaccine administration.
+type Immunization struct {
+	// VaccineCode is the vaccine code (CVX, etc.)
+	VaccineCode string `json:"vaccine_code,omitempty"`
+
+	// VaccineName is the display name of the vaccine
+	VaccineName string `json:"vaccine_name,omitempty"`
+
+	// Status is the immunization status
+	Status string `json:"status,omitempty"`
+
+	// LotNumber is the vaccine lot number
+	LotNumber string `json:"lot_number,omitempty"`
+
+	// Site is the administration site
+	Site string `json:"site,omitempty"`
+
+	// Route is the administration route
+	Route string `json:"route,omitempty"`
+
+	// DoseQuantity is the dose administered
+	DoseQuantity string `json:"dose_quantity,omitempty"`
+}
+
+// ImmunizationEvent is emitted for immunization/vaccine administration.
+type ImmunizationEvent struct {
+	EventMeta
+	Patient          *Patient        `json:"patient,omitempty"`
+	Immunization     Immunization    `json:"immunization"`
+	AdministeredDate string          `json:"administered_date,omitempty"`
+	Performer        *Provider       `json:"performer,omitempty"`
+	Location         *Location       `json:"location,omitempty"`
+	Encounter        *Encounter      `json:"encounter,omitempty"`
+	RawPayload       json.RawMessage `json:"raw_payload,omitempty"`
+}
+
+// DocumentEvent is emitted for clinical document events.
+type DocumentEvent struct {
+	EventMeta
+	Patient      *Patient        `json:"patient,omitempty"`
+	DocumentType string          `json:"document_type"`
+	Title        string          `json:"title,omitempty"`
+	Author       *Provider       `json:"author,omitempty"`
+	Custodian    string          `json:"custodian,omitempty"`
+	Encounter    *Encounter      `json:"encounter,omitempty"`
+	RawPayload   json.RawMessage `json:"raw_payload,omitempty"`
+}
+
+// LabTest convenience fields
+func (t *LabTest) GetName() string {
+	if t.Description != "" {
+		return t.Description
+	}
+	if t.Code.Text != "" {
+		return t.Code.Text
+	}
+	if len(t.Code.Coding) > 0 && t.Code.Coding[0].Display != "" {
+		return t.Code.Coding[0].Display
+	}
+	return ""
+}
+
+// LabResult is an alias for LabValue for mapper compatibility
+type LabResult = LabValue
 
 // NewEventMeta creates a new EventMeta with default values.
 func NewEventMeta(eventType EventType, source string, format SourceFormat) EventMeta {
