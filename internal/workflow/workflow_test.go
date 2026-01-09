@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -337,7 +338,7 @@ func TestWebhookAction(t *testing.T) {
 		"method": "POST",
 	}
 
-	err := webhookAction(event, config)
+	err := webhookAction(context.Background(), event, config)
 	if err != nil {
 		t.Fatalf("webhookAction failed: %v", err)
 	}
@@ -365,7 +366,7 @@ func TestWebhookActionError(t *testing.T) {
 		"url": server.URL,
 	}
 
-	err := webhookAction(event, config)
+	err := webhookAction(context.Background(), event, config)
 	if err == nil {
 		t.Error("Expected error for 500 response")
 	}
@@ -527,7 +528,7 @@ func TestFHIRActionRequiresEndpoint(t *testing.T) {
 	// Missing endpoint should error
 	config := map[string]string{}
 
-	err := fhirAction(event, config)
+	err := fhirAction(context.Background(), event, config)
 	if err == nil {
 		t.Error("Expected error for missing endpoint")
 	}
@@ -576,7 +577,7 @@ func TestFHIRActionPatientAdmit(t *testing.T) {
 		"endpoint": server.URL,
 	}
 
-	err := fhirAction(event, config)
+	err := fhirAction(context.Background(), event, config)
 	if err != nil {
 		t.Fatalf("fhirAction failed: %v", err)
 	}
@@ -636,7 +637,7 @@ func TestFHIRActionLabResult(t *testing.T) {
 		"endpoint": server.URL,
 	}
 
-	err := fhirAction(event, config)
+	err := fhirAction(context.Background(), event, config)
 	if err != nil {
 		t.Fatalf("fhirAction failed: %v", err)
 	}
@@ -674,7 +675,7 @@ func TestFHIRActionServerError(t *testing.T) {
 		"endpoint": server.URL,
 	}
 
-	err := fhirAction(event, config)
+	err := fhirAction(context.Background(), event, config)
 	if err == nil {
 		t.Error("Expected error for 500 response")
 	}
@@ -701,7 +702,7 @@ func TestFHIRActionWithAuth(t *testing.T) {
 		"token":    "test-token-12345",
 	}
 
-	err := fhirAction(event, config)
+	err := fhirAction(context.Background(), event, config)
 	if err != nil {
 		t.Fatalf("fhirAction failed: %v", err)
 	}
@@ -741,7 +742,7 @@ func TestFHIRActionMapEvent(t *testing.T) {
 		"endpoint": server.URL,
 	}
 
-	err := fhirAction(event, config)
+	err := fhirAction(context.Background(), event, config)
 	if err != nil {
 		t.Fatalf("fhirAction with map event failed: %v", err)
 	}
@@ -763,7 +764,7 @@ func TestFHIRActionUnsupportedEvent(t *testing.T) {
 		"endpoint": "http://test.com",
 	}
 
-	err := fhirAction(event, config)
+	err := fhirAction(context.Background(), event, config)
 	if err == nil {
 		t.Error("Expected error for unsupported event type")
 	}
@@ -1730,7 +1731,7 @@ func TestFHIRActionWithOAuth(t *testing.T) {
 		"client_secret": "fhir_secret",
 	}
 
-	err := fhirAction(event, config)
+	err := fhirAction(context.Background(), event, config)
 	if err != nil {
 		t.Fatalf("fhirAction with OAuth failed: %v", err)
 	}
@@ -1776,6 +1777,201 @@ func TestOAuthClearCache(t *testing.T) {
 
 	if requestCount != 2 {
 		t.Errorf("Expected 2 requests after cache clear, got %d", requestCount)
+	}
+}
+
+func TestOAuthTokenFetchWithRetry(t *testing.T) {
+	requestCount := 0
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		// Fail first 2 requests with 503, then succeed
+		if requestCount < 3 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(TokenResponse{
+			AccessToken: "retry_token",
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		})
+	}))
+	defer tokenServer.Close()
+
+	manager := NewOAuthTokenManager()
+
+	config := OAuthConfig{
+		TokenURL:     tokenServer.URL,
+		ClientID:     "retry_client",
+		ClientSecret: "retry_secret",
+	}
+
+	token, err := manager.GetToken(config)
+	if err != nil {
+		t.Fatalf("GetToken failed after retries: %v", err)
+	}
+
+	if token != "retry_token" {
+		t.Errorf("Expected 'retry_token', got '%s'", token)
+	}
+
+	// Should have made 3 requests (2 failures + 1 success)
+	if requestCount != 3 {
+		t.Errorf("Expected 3 token requests (with retry), got %d", requestCount)
+	}
+}
+
+func TestOAuthInvalidateToken(t *testing.T) {
+	requestCount := 0
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(TokenResponse{
+			AccessToken: fmt.Sprintf("token_%d", requestCount),
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		})
+	}))
+	defer tokenServer.Close()
+
+	manager := NewOAuthTokenManager()
+
+	config := OAuthConfig{
+		TokenURL:     tokenServer.URL,
+		ClientID:     "invalidate_client",
+		ClientSecret: "invalidate_secret",
+	}
+
+	// First call - should fetch token
+	token1, _ := manager.GetToken(config)
+
+	// Invalidate the token (simulating 401 response)
+	manager.InvalidateToken(config)
+
+	// Second call - should fetch new token because cache was invalidated
+	token2, _ := manager.GetToken(config)
+
+	if token1 == token2 {
+		t.Errorf("Expected different tokens after invalidation, got same: %s", token1)
+	}
+
+	if requestCount != 2 {
+		t.Errorf("Expected 2 requests after invalidation, got %d", requestCount)
+	}
+}
+
+func TestFHIRActionRetryOn401WithOAuth(t *testing.T) {
+	fhirRequestCount := 0
+	tokenRequestCount := 0
+
+	// OAuth server - returns different tokens each time
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tokenRequestCount++
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(TokenResponse{
+			AccessToken: fmt.Sprintf("token_%d", tokenRequestCount),
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		})
+	}))
+	defer tokenServer.Close()
+
+	// FHIR server - returns 401 on first request, then 201
+	fhirServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fhirRequestCount++
+		auth := r.Header.Get("Authorization")
+
+		// First request with old token returns 401
+		if auth == "Bearer token_1" {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte(`{"error": "token expired"}`))
+			return
+		}
+
+		// Second request with new token succeeds
+		if auth == "Bearer token_2" {
+			w.WriteHeader(http.StatusCreated)
+			return
+		}
+
+		// Unexpected token
+		t.Errorf("Unexpected authorization header: %s", auth)
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer fhirServer.Close()
+
+	// Clear the global token cache
+	globalTokenManager.ClearCache()
+
+	event := &events.PatientAdmitEvent{
+		EventMeta: events.EventMeta{Type: events.EventPatientAdmit},
+		Patient:   events.Patient{MRN: "RETRY401"},
+	}
+
+	config := map[string]string{
+		"endpoint":      fhirServer.URL,
+		"token_url":     tokenServer.URL,
+		"client_id":     "fhir_client",
+		"client_secret": "fhir_secret",
+		"retry_max":     "0", // Disable normal retry to isolate 401 retry behavior
+	}
+
+	err := fhirAction(context.Background(), event, config)
+	if err != nil {
+		t.Fatalf("fhirAction with 401 retry failed: %v", err)
+	}
+
+	// Should have made 2 FHIR requests (first 401, second 201)
+	if fhirRequestCount != 2 {
+		t.Errorf("Expected 2 FHIR requests (401 retry), got %d", fhirRequestCount)
+	}
+
+	// Should have made 2 token requests (initial + refresh after 401)
+	if tokenRequestCount != 2 {
+		t.Errorf("Expected 2 token requests (initial + refresh), got %d", tokenRequestCount)
+	}
+}
+
+func TestWithOAuthRetryNoOAuth(t *testing.T) {
+	// Test that WithOAuthRetry works without OAuth (static token or no auth)
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		auth := r.Header.Get("Authorization")
+		if auth == "Bearer static_token" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	config := map[string]string{
+		"token": "static_token",
+	}
+
+	retryConfig := ParseRetryConfig(config)
+	client := &http.Client{}
+
+	resp, err := WithOAuthRetry(retryConfig, config,
+		func() (*http.Request, error) {
+			return http.NewRequest("GET", server.URL, nil)
+		},
+		client.Do,
+	)
+
+	if err != nil {
+		t.Fatalf("WithOAuthRetry failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected 200, got %d", resp.StatusCode)
+	}
+
+	// Should only make 1 request (no OAuth, so no 401 retry)
+	if requestCount != 1 {
+		t.Errorf("Expected 1 request without OAuth, got %d", requestCount)
 	}
 }
 

@@ -17,6 +17,7 @@ type OAuthTokenManager struct {
 	tokens       map[string]*cachedToken
 	client       *http.Client
 	tokenBuffer  time.Duration // Refresh token this much before expiry
+	retryConfig  RetryConfig   // Retry configuration for token fetch
 }
 
 // cachedToken stores a token with its expiration.
@@ -47,6 +48,14 @@ func NewOAuthTokenManager() *OAuthTokenManager {
 		tokens:      make(map[string]*cachedToken),
 		client:      &http.Client{Timeout: 30 * time.Second},
 		tokenBuffer: 60 * time.Second, // Refresh 60s before expiry
+		retryConfig: RetryConfig{
+			MaxRetries:           3,
+			InitialDelay:         500 * time.Millisecond,
+			MaxDelay:             5 * time.Second,
+			Multiplier:           2.0,
+			Jitter:               0.1,
+			RetryableStatusCodes: []int{408, 429, 500, 502, 503, 504},
+		},
 	}
 }
 
@@ -67,7 +76,7 @@ func (m *OAuthTokenManager) GetToken(config OAuthConfig) (string, error) {
 	return m.fetchToken(config, cacheKey)
 }
 
-// fetchToken fetches a new token using client credentials grant.
+// fetchToken fetches a new token using client credentials grant with retry support.
 func (m *OAuthTokenManager) fetchToken(config OAuthConfig, cacheKey string) (string, error) {
 	// Build form data
 	formData := url.Values{}
@@ -79,19 +88,23 @@ func (m *OAuthTokenManager) fetchToken(config OAuthConfig, cacheKey string) (str
 		formData.Set("scope", strings.Join(config.Scopes, " "))
 	}
 
-	// Create request
-	req, err := http.NewRequest("POST", config.TokenURL, strings.NewReader(formData.Encode()))
-	if err != nil {
-		return "", fmt.Errorf("failed to create token request: %w", err)
-	}
+	formBody := formData.Encode()
 
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Accept", "application/json")
+	// Execute request with retry
+	resp, err := WithRetry(nil, m.retryConfig, func() (*http.Response, error) {
+		req, err := http.NewRequest("POST", config.TokenURL, strings.NewReader(formBody))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create token request: %w", err)
+		}
 
-	// Execute request
-	resp, err := m.client.Do(req)
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("Accept", "application/json")
+
+		return m.client.Do(req)
+	})
+
 	if err != nil {
-		return "", fmt.Errorf("token request failed: %w", err)
+		return "", fmt.Errorf("token request failed after retries: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -133,6 +146,15 @@ func (m *OAuthTokenManager) fetchToken(config OAuthConfig, cacheKey string) (str
 	m.mu.Unlock()
 
 	return tokenResp.AccessToken, nil
+}
+
+// InvalidateToken removes a specific cached token, forcing refresh on next GetToken call.
+// This is useful when a 401 is received, indicating the token was revoked server-side.
+func (m *OAuthTokenManager) InvalidateToken(config OAuthConfig) {
+	cacheKey := m.cacheKey(config)
+	m.mu.Lock()
+	delete(m.tokens, cacheKey)
+	m.mu.Unlock()
 }
 
 // cacheKey generates a cache key from OAuth config.
@@ -201,4 +223,58 @@ func getAuthToken(config map[string]string) (string, error) {
 
 	// No authentication configured
 	return "", nil
+}
+
+// WithOAuthRetry executes an HTTP request with OAuth 401 handling.
+// If the request returns 401 and OAuth is configured, it invalidates the token
+// cache and retries once with a fresh token.
+// The requestFn is called to build the request (without auth), and authFn adds auth headers.
+func WithOAuthRetry(
+	retryConfig RetryConfig,
+	config map[string]string,
+	requestFn func() (*http.Request, error),
+	doFn func(*http.Request) (*http.Response, error),
+) (*http.Response, error) {
+	oauthConfig := parseOAuthConfig(config)
+
+	// Track if we've already retried due to 401
+	retriedOn401 := false
+
+	for {
+		// Execute request with retry
+		resp, err := WithRetry(nil, retryConfig, func() (*http.Response, error) {
+			req, err := requestFn()
+			if err != nil {
+				return nil, err
+			}
+
+			// Add authentication
+			if err := addAuth(req, config); err != nil {
+				return nil, fmt.Errorf("authentication failed: %w", err)
+			}
+
+			return doFn(req)
+		})
+
+		if err != nil {
+			return nil, err
+		}
+
+		// Check for 401 Unauthorized with OAuth
+		if resp.StatusCode == http.StatusUnauthorized && oauthConfig != nil && !retriedOn401 {
+			// Close the response body before retrying
+			resp.Body.Close()
+
+			// Invalidate the cached token
+			globalTokenManager.InvalidateToken(*oauthConfig)
+
+			// Mark that we've retried on 401 to prevent infinite loops
+			retriedOn401 = true
+
+			// Retry with fresh token
+			continue
+		}
+
+		return resp, nil
+	}
 }

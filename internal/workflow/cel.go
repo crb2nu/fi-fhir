@@ -69,6 +69,13 @@ func (e *CELEvaluator) Evaluate(condition string, event interface{}) (bool, erro
 	return isTruthy(out), nil
 }
 
+// Compile validates that a CEL expression is syntactically correct.
+// It returns an error if the expression cannot be compiled.
+func (e *CELEvaluator) Compile(condition string) error {
+	_, err := e.getProgram(condition)
+	return err
+}
+
 // getProgram returns a cached program or compiles a new one.
 func (e *CELEvaluator) getProgram(condition string) (cel.Program, error) {
 	e.mu.RLock()
