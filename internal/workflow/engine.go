@@ -82,6 +82,7 @@ func NewEngine(workflow *Workflow) (*Engine, error) {
 	e.RegisterAction("webhook", ActionHandlerFunc(webhookAction))
 	e.RegisterAction("fhir", ActionHandlerFunc(fhirAction))
 	e.RegisterAction("database", ActionHandlerFunc(databaseAction))
+	e.RegisterAction("queue", ActionHandlerFunc(queueAction))
 
 	return e, nil
 }

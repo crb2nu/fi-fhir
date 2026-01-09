@@ -2100,3 +2100,364 @@ func TestBuildColumnsAndValues(t *testing.T) {
 		}
 	}
 }
+
+// Queue Action Tests
+
+func TestQueueActionRegistered(t *testing.T) {
+	workflow := &Workflow{
+		Name:    "test",
+		Version: "1.0",
+		Routes: []Route{
+			{
+				Name:   "test_route",
+				Filter: Filter{EventType: StringOrSlice{"test"}},
+				Actions: []Action{
+					{Type: "queue", Config: map[string]string{}},
+				},
+			},
+		},
+	}
+
+	engine, err := NewEngine(workflow)
+	if err != nil {
+		t.Fatalf("NewEngine failed: %v", err)
+	}
+
+	// Verify queue action is registered
+	_, exists := engine.actions["queue"]
+	if !exists {
+		t.Error("queue action should be registered")
+	}
+}
+
+func TestQueueConfigParsing(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      map[string]string
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name: "valid config",
+			config: map[string]string{
+				"driver": "kafka",
+				"topic":  "events.test",
+				"key":    "patient.mrn",
+			},
+			expectError: false,
+		},
+		{
+			name: "missing driver",
+			config: map[string]string{
+				"topic": "events.test",
+			},
+			expectError: true,
+			errorMsg:    "driver",
+		},
+		{
+			name: "missing topic",
+			config: map[string]string{
+				"driver": "kafka",
+			},
+			expectError: true,
+			errorMsg:    "topic",
+		},
+		{
+			name: "with headers",
+			config: map[string]string{
+				"driver":        "kafka",
+				"topic":         "events.test",
+				"header_source": "fi-fhir",
+				"header_env":    "production",
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := parseQueueConfig(tt.config)
+
+			if tt.expectError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				} else if !strings.Contains(err.Error(), tt.errorMsg) {
+					t.Errorf("Expected error containing '%s', got: %v", tt.errorMsg, err)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if result.Driver != tt.config["driver"] {
+				t.Errorf("Expected driver '%s', got '%s'", tt.config["driver"], result.Driver)
+			}
+			if result.Topic != tt.config["topic"] {
+				t.Errorf("Expected topic '%s', got '%s'", tt.config["topic"], result.Topic)
+			}
+		})
+	}
+}
+
+func TestQueueHeaderParsing(t *testing.T) {
+	config := map[string]string{
+		"driver":        "kafka",
+		"topic":         "test",
+		"header_source": "fi-fhir",
+		"header_env":    "test",
+		"brokers":       "localhost:9092", // Driver config, not header
+	}
+
+	result, err := parseQueueConfig(config)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Check headers were parsed
+	if result.Headers["source"] != "fi-fhir" {
+		t.Errorf("Expected header 'source' = 'fi-fhir', got '%s'", result.Headers["source"])
+	}
+	if result.Headers["env"] != "test" {
+		t.Errorf("Expected header 'env' = 'test', got '%s'", result.Headers["env"])
+	}
+
+	// Check driver config was passed through
+	if result.Config["brokers"] != "localhost:9092" {
+		t.Errorf("Expected config 'brokers' = 'localhost:9092', got '%s'", result.Config["brokers"])
+	}
+}
+
+func TestQueueTopicTemplate(t *testing.T) {
+	tests := []struct {
+		template string
+		data     map[string]interface{}
+		expected string
+	}{
+		{
+			template: "events.test",
+			data:     map[string]interface{}{},
+			expected: "events.test",
+		},
+		{
+			template: "events.{{.type}}",
+			data:     map[string]interface{}{"type": "patient_admit"},
+			expected: "events.patient_admit",
+		},
+		{
+			template: "{{.source}}.events.{{.type}}",
+			data:     map[string]interface{}{"source": "epic", "type": "lab_result"},
+			expected: "epic.events.lab_result",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.template, func(t *testing.T) {
+			result, err := renderQueueTemplate(tt.template, tt.data)
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+			if result != tt.expected {
+				t.Errorf("Expected '%s', got '%s'", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestQueueRegistry(t *testing.T) {
+	registry := NewQueueRegistry()
+
+	// Create a mock publisher
+	mockPublisher := &mockQueuePublisher{messages: make([]mockMessage, 0)}
+
+	// Register a driver
+	registry.RegisterDriver("mock", func(config map[string]string) (QueuePublisher, error) {
+		return mockPublisher, nil
+	})
+
+	// Get publisher
+	publisher, err := registry.GetPublisher("mock", map[string]string{})
+	if err != nil {
+		t.Fatalf("GetPublisher failed: %v", err)
+	}
+
+	if publisher != mockPublisher {
+		t.Error("Expected mock publisher")
+	}
+
+	// Verify unregistered driver fails
+	_, err = registry.GetPublisher("unknown", map[string]string{})
+	if err == nil {
+		t.Error("Expected error for unknown driver")
+	}
+}
+
+func TestQueueLogDriver(t *testing.T) {
+	// The log driver is registered by default
+	registry := GetQueueRegistry()
+
+	publisher, err := registry.GetPublisher("log", map[string]string{"name": "test"})
+	if err != nil {
+		t.Fatalf("GetPublisher failed: %v", err)
+	}
+
+	// Should be able to publish without error
+	err = publisher.Publish("test.topic", []byte("key"), []byte(`{"test": true}`), map[string]string{"h": "v"})
+	if err != nil {
+		t.Errorf("Publish failed: %v", err)
+	}
+}
+
+func TestQueueActionWithLogDriver(t *testing.T) {
+	event := map[string]interface{}{
+		"type":   "patient_admit",
+		"source": "epic_adt",
+		"patient": map[string]interface{}{
+			"mrn": "MRN123",
+		},
+	}
+
+	config := map[string]string{
+		"driver":        "log",
+		"topic":         "events.{{.type}}",
+		"key":           "patient.mrn",
+		"header_source": "fi-fhir",
+	}
+
+	err := queueAction(event, config)
+	if err != nil {
+		t.Fatalf("queueAction failed: %v", err)
+	}
+}
+
+func TestQueueActionRequiresDriver(t *testing.T) {
+	event := map[string]interface{}{
+		"type": "test",
+	}
+
+	config := map[string]string{
+		"topic": "test.topic",
+	}
+
+	err := queueAction(event, config)
+	if err == nil {
+		t.Error("Expected error for missing driver")
+	}
+	if !strings.Contains(err.Error(), "driver") {
+		t.Errorf("Error should mention 'driver', got: %v", err)
+	}
+}
+
+func TestQueueActionRequiresTopic(t *testing.T) {
+	event := map[string]interface{}{
+		"type": "test",
+	}
+
+	config := map[string]string{
+		"driver": "log",
+	}
+
+	err := queueAction(event, config)
+	if err == nil {
+		t.Error("Expected error for missing topic")
+	}
+	if !strings.Contains(err.Error(), "topic") {
+		t.Errorf("Error should mention 'topic', got: %v", err)
+	}
+}
+
+func TestQueueActionUnknownDriver(t *testing.T) {
+	event := map[string]interface{}{
+		"type": "test",
+	}
+
+	config := map[string]string{
+		"driver": "nonexistent",
+		"topic":  "test.topic",
+	}
+
+	err := queueAction(event, config)
+	if err == nil {
+		t.Error("Expected error for unknown driver")
+	}
+	if !strings.Contains(err.Error(), "not registered") {
+		t.Errorf("Error should mention 'not registered', got: %v", err)
+	}
+}
+
+func TestQueueInWorkflow(t *testing.T) {
+	yaml := `
+workflow:
+  name: queue_test
+  version: "1.0"
+  routes:
+    - name: events_to_queue
+      filter:
+        event_type: patient_admit
+      actions:
+        - type: queue
+          driver: log
+          topic: "healthcare.events"
+          key: patient.mrn
+`
+
+	w, err := ParseWorkflow([]byte(yaml))
+	if err != nil {
+		t.Fatalf("ParseWorkflow failed: %v", err)
+	}
+
+	engine, err := NewEngine(w)
+	if err != nil {
+		t.Fatalf("NewEngine failed: %v", err)
+	}
+
+	event := map[string]interface{}{
+		"type":   "patient_admit",
+		"source": "test",
+		"patient": map[string]interface{}{
+			"mrn": "TEST123",
+		},
+	}
+
+	result := engine.Process(event)
+	if result.HasErrors() {
+		t.Errorf("Process returned errors: %v", result.AllErrors())
+	}
+
+	// Find the matching route
+	matched := false
+	for _, rr := range result.RouteResults {
+		if rr.RouteName == "events_to_queue" && rr.Matched {
+			matched = true
+			if rr.ActionsRun != 1 {
+				t.Errorf("Expected 1 action run, got %d", rr.ActionsRun)
+			}
+		}
+	}
+
+	if !matched {
+		t.Error("Expected route to match")
+	}
+}
+
+// Mock publisher for testing
+type mockMessage struct {
+	topic   string
+	key     []byte
+	value   []byte
+	headers map[string]string
+}
+
+type mockQueuePublisher struct {
+	messages []mockMessage
+}
+
+func (p *mockQueuePublisher) Publish(topic string, key []byte, value []byte, headers map[string]string) error {
+	p.messages = append(p.messages, mockMessage{topic, key, value, headers})
+	return nil
+}
+
+func (p *mockQueuePublisher) Close() error {
+	return nil
+}

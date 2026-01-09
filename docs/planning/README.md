@@ -83,9 +83,9 @@ See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and curren
 - TypeScript SDK
 - OAuth2 client credentials for FHIR action
 - Database action (PostgreSQL, MySQL, SQLite)
+- Queue action (Kafka, RabbitMQ, NATS, SQS)
 
 ### In Progress
-- Queue action for workflows
 - EDI 270/271 eligibility
 
 ## Contributing

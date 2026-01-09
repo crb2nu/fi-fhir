@@ -141,7 +141,7 @@ transform:
 | `webhook` | ✅ Implemented | POST to REST endpoints with auth |
 | `fhir` | ✅ Implemented | POST to FHIR R4 servers with US Core mapping |
 | `database` | ✅ Implemented | Insert/upsert to PostgreSQL/MySQL/SQLite |
-| `queue` | 🔲 Planned | Publish to Kafka/RabbitMQ/NATS |
+| `queue` | ✅ Implemented | Publish to Kafka/RabbitMQ/NATS/SQS |
 
 #### FHIR Action
 Send to FHIR server:
@@ -458,14 +458,19 @@ fi-fhir parse -f hl7v2 message.hl7 | fi-fhir workflow run --config workflow.yaml
 - [x] Bearer token authentication for FHIR
 - [x] OAuth2 client credentials flow (`internal/workflow/oauth.go`)
 
-### Phase 3: Advanced Actions
+### Phase 3: Advanced Actions ✅
 - [x] Database action (`internal/workflow/database.go`)
   - [x] PostgreSQL, MySQL, SQLite support via database/sql
   - [x] Insert and upsert operations
   - [x] Field mapping with dot notation
   - [x] `__raw__` special value for full JSON payload
   - [x] Connection pooling with caching
-- [ ] Queue action (Kafka, RabbitMQ, NATS)
+- [x] Queue action (`internal/workflow/queue.go`)
+  - [x] Driver registry pattern (bring your own Kafka/RabbitMQ/NATS/SQS)
+  - [x] Topic templates with Go text/template support
+  - [x] Message key for partitioning
+  - [x] Custom headers
+  - [x] Built-in log driver for testing/debugging
 - [ ] Retry/error handling with exponential backoff
 
 ### Phase 4: CLI & Tooling ✅
