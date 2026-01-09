@@ -481,32 +481,36 @@ func (r *queryResolver) ParsePreview(ctx context.Context, format model.SourceFor
 
 // PatientTimeline is the resolver for the patientTimeline field.
 func (r *queryResolver) PatientTimeline(ctx context.Context, mrn string, fromTimestamp *time.Time, toTimestamp *time.Time, limit *int) (*model.PatientTimeline, error) {
-	panic(fmt.Errorf("not implemented: PatientTimeline - patientTimeline"))
+	limitVal := 0
+	if limit != nil {
+		limitVal = *limit
+	}
+	return r.Projections.GetPatientTimeline(mrn, fromTimestamp, toTimestamp, limitVal)
 }
 
 // EventStatistics is the resolver for the eventStatistics field.
 func (r *queryResolver) EventStatistics(ctx context.Context) (*model.EventStatistics, error) {
-	panic(fmt.Errorf("not implemented: EventStatistics - eventStatistics"))
+	return r.Projections.GetEventStatistics()
 }
 
 // ActiveEncounters is the resolver for the activeEncounters field.
 func (r *queryResolver) ActiveEncounters(ctx context.Context, location *string, unit *string, class *string) ([]model.ActiveEncounter, error) {
-	panic(fmt.Errorf("not implemented: ActiveEncounters - activeEncounters"))
+	return r.Projections.GetActiveEncounters(location, unit, class)
 }
 
 // ActiveEncounter is the resolver for the activeEncounter field.
 func (r *queryResolver) ActiveEncounter(ctx context.Context, id string) (*model.ActiveEncounter, error) {
-	panic(fmt.Errorf("not implemented: ActiveEncounter - activeEncounter"))
+	return r.Projections.GetActiveEncounter(id)
 }
 
 // ActiveEncounterByPatient is the resolver for the activeEncounterByPatient field.
 func (r *queryResolver) ActiveEncounterByPatient(ctx context.Context, mrn string) (*model.ActiveEncounter, error) {
-	panic(fmt.Errorf("not implemented: ActiveEncounterByPatient - activeEncounterByPatient"))
+	return r.Projections.GetActiveEncounterByPatient(mrn)
 }
 
 // ProjectionStatus is the resolver for the projectionStatus field.
 func (r *queryResolver) ProjectionStatus(ctx context.Context) ([]model.ProjectionStatus, error) {
-	panic(fmt.Errorf("not implemented: ProjectionStatus - projectionStatus"))
+	return r.Projections.GetProjectionStatus()
 }
 
 // EventStream is the resolver for the eventStream field.

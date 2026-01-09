@@ -400,3 +400,129 @@ PV1|1|I|ICU^101`,
 		}
 	}
 }
+
+// =============================================================================
+// Projection Resolver Tests
+// =============================================================================
+
+func TestQueryResolver_PatientTimeline(t *testing.T) {
+	resolver := NewResolver()
+	queryResolver := &queryResolver{resolver}
+
+	ctx := context.Background()
+
+	// Query timeline for non-existent patient (should return nil, not error)
+	timeline, err := queryResolver.PatientTimeline(ctx, "MRN001", nil, nil, nil)
+	if err != nil {
+		t.Fatalf("PatientTimeline query failed: %v", err)
+	}
+	if timeline != nil {
+		t.Errorf("Expected nil timeline for non-existent patient, got %v", timeline)
+	}
+}
+
+func TestQueryResolver_EventStatistics(t *testing.T) {
+	resolver := NewResolver()
+	queryResolver := &queryResolver{resolver}
+
+	ctx := context.Background()
+
+	// Query statistics (should return empty stats for fresh projection)
+	stats, err := queryResolver.EventStatistics(ctx)
+	if err != nil {
+		t.Fatalf("EventStatistics query failed: %v", err)
+	}
+	if stats == nil {
+		t.Fatal("Expected non-nil statistics")
+	}
+	// Empty projection should have zero total events
+	if stats.TotalEvents != 0 {
+		t.Errorf("Expected 0 total events for fresh projection, got %d", stats.TotalEvents)
+	}
+}
+
+func TestQueryResolver_ActiveEncounters(t *testing.T) {
+	resolver := NewResolver()
+	queryResolver := &queryResolver{resolver}
+
+	ctx := context.Background()
+
+	// Query active encounters (should return empty list for fresh projection)
+	encounters, err := queryResolver.ActiveEncounters(ctx, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("ActiveEncounters query failed: %v", err)
+	}
+	if encounters == nil {
+		t.Fatal("Expected non-nil encounters list")
+	}
+	if len(encounters) != 0 {
+		t.Errorf("Expected 0 encounters for fresh projection, got %d", len(encounters))
+	}
+}
+
+func TestQueryResolver_ActiveEncounter(t *testing.T) {
+	resolver := NewResolver()
+	queryResolver := &queryResolver{resolver}
+
+	ctx := context.Background()
+
+	// Query specific encounter (should return nil for non-existent)
+	encounter, err := queryResolver.ActiveEncounter(ctx, "ENC-001")
+	if err != nil {
+		t.Fatalf("ActiveEncounter query failed: %v", err)
+	}
+	if encounter != nil {
+		t.Errorf("Expected nil encounter for non-existent ID, got %v", encounter)
+	}
+}
+
+func TestQueryResolver_ActiveEncounterByPatient(t *testing.T) {
+	resolver := NewResolver()
+	queryResolver := &queryResolver{resolver}
+
+	ctx := context.Background()
+
+	// Query encounter by patient (should return nil for non-existent)
+	encounter, err := queryResolver.ActiveEncounterByPatient(ctx, "MRN001")
+	if err != nil {
+		t.Fatalf("ActiveEncounterByPatient query failed: %v", err)
+	}
+	if encounter != nil {
+		t.Errorf("Expected nil encounter for non-existent patient, got %v", encounter)
+	}
+}
+
+func TestQueryResolver_ProjectionStatus(t *testing.T) {
+	resolver := NewResolver()
+	queryResolver := &queryResolver{resolver}
+
+	ctx := context.Background()
+
+	// Query projection status
+	statuses, err := queryResolver.ProjectionStatus(ctx)
+	if err != nil {
+		t.Fatalf("ProjectionStatus query failed: %v", err)
+	}
+	if statuses == nil {
+		t.Fatal("Expected non-nil projection statuses")
+	}
+	// Should have 3 projections: patient_timeline, event_statistics, active_encounters
+	if len(statuses) != 3 {
+		t.Errorf("Expected 3 projection statuses, got %d", len(statuses))
+	}
+
+	// Verify projection names
+	names := make(map[string]bool)
+	for _, s := range statuses {
+		names[s.Name] = true
+		if s.Status != "running" {
+			t.Errorf("Expected status 'running' for projection '%s', got '%s'", s.Name, s.Status)
+		}
+	}
+	expectedNames := []string{"patient_timeline", "event_statistics", "active_encounters"}
+	for _, name := range expectedNames {
+		if !names[name] {
+			t.Errorf("Expected projection '%s' not found in statuses", name)
+		}
+	}
+}

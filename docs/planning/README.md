@@ -102,11 +102,12 @@ See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and curren
 - Event sourcing / CQRS patterns (store, projections, CLI)
 - Workflow action for event store integration
 - GraphQL queries for projections
+- Projection resolver wiring (GraphQL → projection service layer)
 
 ### Next Up
-- Implement projection resolver logic (wire GraphQL to actual projections)
 - Add PostgreSQL-backed snapshot store
 - Event replay tooling for projection rebuilds
+- Batch event submission endpoint
 
 ## Contributing
 

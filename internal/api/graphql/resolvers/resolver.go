@@ -3,6 +3,7 @@ package resolvers
 import (
 	"time"
 
+	"github.com/cblevins/fi-fhir/internal/api/graphql/projections"
 	"github.com/cblevins/fi-fhir/internal/api/graphql/store"
 	"github.com/cblevins/fi-fhir/internal/workflow"
 )
@@ -21,6 +22,9 @@ type Resolver struct {
 	// WorkflowEngine executes workflow rules
 	WorkflowEngine *workflow.Engine
 
+	// Projections provides access to event sourcing projections
+	Projections *projections.Service
+
 	// Server metadata
 	Version   string
 	StartTime time.Time
@@ -29,9 +33,10 @@ type Resolver struct {
 // NewResolver creates a new resolver with all dependencies.
 func NewResolver(opts ...ResolverOption) *Resolver {
 	r := &Resolver{
-		Store:     store.NewMemoryStore(),
-		Version:   "0.1.0",
-		StartTime: time.Now(),
+		Store:       store.NewMemoryStore(),
+		Projections: projections.NewService(nil), // In-memory projections by default
+		Version:     "0.1.0",
+		StartTime:   time.Now(),
 	}
 
 	for _, opt := range opts {
@@ -62,5 +67,12 @@ func WithWorkflowEngine(e *workflow.Engine) ResolverOption {
 func WithVersion(v string) ResolverOption {
 	return func(r *Resolver) {
 		r.Version = v
+	}
+}
+
+// WithProjectionService sets the projection service.
+func WithProjectionService(p *projections.Service) ResolverOption {
+	return func(r *Resolver) {
+		r.Projections = p
 	}
 }
