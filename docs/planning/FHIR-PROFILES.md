@@ -12,6 +12,8 @@ This document details US Core, Da Vinci, and other FHIR profile requirements for
 | **DiagnosticReport** | us-core-diagnosticreport-lab | ✅ | `pkg/fhir/mapper.go:MapLabResult()` |
 | **Condition** | us-core-condition | 🔲 | Planned |
 | **Claim** | (Da Vinci PAS) | 🔲 | Planned |
+| **Coverage** | us-core-coverage | 🔲 | Planned - for 271 responses |
+| **CoverageEligibilityResponse** | (base R4) | 🔲 | Planned - for 271 responses |
 
 | Feature | Status | Implementation |
 |---------|--------|----------------|
@@ -460,9 +462,10 @@ profiles:
 - [ ] External FHIR Validator integration
 
 ### Phase 4: Da Vinci Support
-- [ ] PAS Claim/ClaimResponse
-- [ ] PDex ExplanationOfBenefit
-- [ ] Coverage resources
+- [ ] PAS Claim/ClaimResponse (for 837P → FHIR)
+- [ ] PDex ExplanationOfBenefit (for 835 → FHIR)
+- [ ] Coverage resource (from 271 eligibility responses)
+- [ ] CoverageEligibilityRequest/Response (FHIR equivalent of 270/271)
 
 ### Phase 5: Bundle Operations ✅
 - [x] Transaction bundles - see `pkg/fhir/mapper.go:CreateTransactionBundle()`

@@ -96,12 +96,40 @@ interface LabResultEvent extends EventMeta {
   isCritical: boolean;
 }
 
+interface EligibilityInquiryEvent extends EventMeta {
+  type: 'eligibility_inquiry';
+  informationSource: Provider;
+  informationReceiver: Provider;
+  subscriber: Patient;
+  dependent?: Patient;
+  inquiry: EligibilityInquiry;
+  traceNumber?: string;
+}
+
+interface EligibilityResponseEvent extends EventMeta {
+  type: 'eligibility_response';
+  informationSource: Provider;
+  informationReceiver: Provider;
+  subscriber: Patient;
+  dependent?: Patient;
+  status: EligibilityStatus;
+  benefits?: EligibilityBenefit[];
+  errors?: EligibilityValidationError[];
+  traceNumber?: string;
+  planBeginDate?: string;
+  planEndDate?: string;
+}
+
 type HealthcareEvent =
   | PatientAdmitEvent
   | PatientUpdateEvent
   | PatientDischargeEvent
   | LabResultEvent
-  | AppointmentEvent;
+  | AppointmentEvent
+  | ClaimSubmittedEvent
+  | ClaimAdjudicatedEvent
+  | EligibilityInquiryEvent
+  | EligibilityResponseEvent;
 ```
 
 ### Workflow
@@ -337,3 +365,4 @@ describe('parseCSV', () => {
 - [WORKFLOW-DSL.md](WORKFLOW-DSL.md) - Workflow YAML format processed by SDK Workflow class
 - [SOURCE-PROFILES.md](SOURCE-PROFILES.md) - Profile option passed to parse functions
 - [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) - HL7v2 parsing behavior exposed via parseHL7()
+- [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) - EDI X12 parsing (837, 835, 270, 271) for claims and eligibility
