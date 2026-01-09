@@ -1144,3 +1144,263 @@ func TestPostgres_Integration_EndToEnd(t *testing.T) {
 		t.Errorf("Expected 0 events after snapshot, got %d", len(newEvents))
 	}
 }
+
+// =============================================================================
+// Deletion Integration Tests (DeletableEventStore)
+// =============================================================================
+
+func TestPostgresStore_Integration_DeleteEventsByPosition(t *testing.T) {
+	tc := setupPostgresContainer(t)
+	if tc == nil {
+		return
+	}
+
+	ctx := context.Background()
+	store := NewPostgresStore(tc.DB, PostgresStoreConfig{
+		TableName: "test_events_delete",
+	})
+
+	tc.DB.ExecContext(ctx, "DROP TABLE IF EXISTS test_events_delete")
+	defer tc.DB.ExecContext(ctx, "DROP TABLE IF EXISTS test_events_delete")
+
+	if err := store.InitSchema(ctx); err != nil {
+		t.Fatalf("InitSchema failed: %v", err)
+	}
+
+	// Add events
+	for i := 0; i < 10; i++ {
+		store.Append(ctx, "stream-1", VersionAny, []EventData{
+			{EventType: "TestEvent", Data: json.RawMessage(`{}`)},
+		})
+	}
+
+	// Verify 10 events
+	events, _ := store.ReadAll(ctx, 0, 100)
+	if len(events) != 10 {
+		t.Fatalf("Expected 10 events, got %d", len(events))
+	}
+
+	// Delete specific positions (0, 2, 4)
+	positionsToDelete := []int64{
+		events[0].Position,
+		events[2].Position,
+		events[4].Position,
+	}
+	deleted, err := store.DeleteEventsByPosition(ctx, positionsToDelete)
+	if err != nil {
+		t.Fatalf("DeleteEventsByPosition failed: %v", err)
+	}
+	if deleted != 3 {
+		t.Errorf("Expected 3 events deleted, got %d", deleted)
+	}
+
+	// Verify 7 events remain
+	remaining, _ := store.ReadAll(ctx, 0, 100)
+	if len(remaining) != 7 {
+		t.Errorf("Expected 7 events remaining, got %d", len(remaining))
+	}
+}
+
+func TestPostgresStore_Integration_DeleteEventsBeforePosition(t *testing.T) {
+	tc := setupPostgresContainer(t)
+	if tc == nil {
+		return
+	}
+
+	ctx := context.Background()
+	store := NewPostgresStore(tc.DB, PostgresStoreConfig{
+		TableName: "test_events_delete_pos",
+	})
+
+	tc.DB.ExecContext(ctx, "DROP TABLE IF EXISTS test_events_delete_pos")
+	defer tc.DB.ExecContext(ctx, "DROP TABLE IF EXISTS test_events_delete_pos")
+
+	if err := store.InitSchema(ctx); err != nil {
+		t.Fatalf("InitSchema failed: %v", err)
+	}
+
+	// Add events
+	for i := 0; i < 10; i++ {
+		store.Append(ctx, "stream-1", VersionAny, []EventData{
+			{EventType: "TestEvent", Data: json.RawMessage(`{}`)},
+		})
+	}
+
+	events, _ := store.ReadAll(ctx, 0, 100)
+	if len(events) != 10 {
+		t.Fatalf("Expected 10 events, got %d", len(events))
+	}
+
+	// Delete events before position 5 (should delete positions 0-4)
+	cutoffPosition := events[5].Position
+	deleted, err := store.DeleteEventsBeforePosition(ctx, cutoffPosition)
+	if err != nil {
+		t.Fatalf("DeleteEventsBeforePosition failed: %v", err)
+	}
+	if deleted != 5 {
+		t.Errorf("Expected 5 events deleted, got %d", deleted)
+	}
+
+	// Verify 5 events remain
+	remaining, _ := store.ReadAll(ctx, 0, 100)
+	if len(remaining) != 5 {
+		t.Errorf("Expected 5 events remaining, got %d", len(remaining))
+	}
+
+	// All remaining events should have position >= cutoffPosition
+	for _, e := range remaining {
+		if e.Position < cutoffPosition {
+			t.Errorf("Event with position %d should have been deleted", e.Position)
+		}
+	}
+}
+
+func TestPostgresStore_Integration_DeleteEventsBeforeTime(t *testing.T) {
+	tc := setupPostgresContainer(t)
+	if tc == nil {
+		return
+	}
+
+	ctx := context.Background()
+	store := NewPostgresStore(tc.DB, PostgresStoreConfig{
+		TableName: "test_events_delete_time",
+	})
+
+	tc.DB.ExecContext(ctx, "DROP TABLE IF EXISTS test_events_delete_time")
+	defer tc.DB.ExecContext(ctx, "DROP TABLE IF EXISTS test_events_delete_time")
+
+	if err := store.InitSchema(ctx); err != nil {
+		t.Fatalf("InitSchema failed: %v", err)
+	}
+
+	// Add first batch
+	for i := 0; i < 5; i++ {
+		store.Append(ctx, "stream-1", VersionAny, []EventData{
+			{EventType: "TestEvent", Data: json.RawMessage(`{"batch": 1}`)},
+		})
+	}
+
+	// Record cutoff time
+	time.Sleep(100 * time.Millisecond)
+	cutoffTime := time.Now()
+	time.Sleep(100 * time.Millisecond)
+
+	// Add second batch
+	for i := 0; i < 5; i++ {
+		store.Append(ctx, "stream-1", VersionAny, []EventData{
+			{EventType: "TestEvent", Data: json.RawMessage(`{"batch": 2}`)},
+		})
+	}
+
+	// Verify 10 events
+	events, _ := store.ReadAll(ctx, 0, 100)
+	if len(events) != 10 {
+		t.Fatalf("Expected 10 events, got %d", len(events))
+	}
+
+	// Delete events before cutoff time
+	deleted, err := store.DeleteEventsBeforeTime(ctx, cutoffTime)
+	if err != nil {
+		t.Fatalf("DeleteEventsBeforeTime failed: %v", err)
+	}
+	if deleted != 5 {
+		t.Errorf("Expected 5 events deleted, got %d", deleted)
+	}
+
+	// Verify 5 events remain
+	remaining, _ := store.ReadAll(ctx, 0, 100)
+	if len(remaining) != 5 {
+		t.Errorf("Expected 5 events remaining, got %d", len(remaining))
+	}
+
+	// All remaining events should be from batch 2
+	for _, e := range remaining {
+		if e.Timestamp.Before(cutoffTime) {
+			t.Errorf("Event at %v should have been deleted (before cutoff %v)", e.Timestamp, cutoffTime)
+		}
+	}
+}
+
+// =============================================================================
+// Archiver Integration Test
+// =============================================================================
+
+func TestEventArchiver_Integration_ArchiveAndDelete(t *testing.T) {
+	tc := setupPostgresContainer(t)
+	if tc == nil {
+		return
+	}
+
+	ctx := context.Background()
+	store := NewPostgresStore(tc.DB, PostgresStoreConfig{
+		TableName: "test_events_archive",
+	})
+
+	tc.DB.ExecContext(ctx, "DROP TABLE IF EXISTS test_events_archive")
+	defer tc.DB.ExecContext(ctx, "DROP TABLE IF EXISTS test_events_archive")
+
+	if err := store.InitSchema(ctx); err != nil {
+		t.Fatalf("InitSchema failed: %v", err)
+	}
+
+	// Add events
+	for i := 0; i < 10; i++ {
+		store.Append(ctx, fmt.Sprintf("stream-%d", i%3), VersionAny, []EventData{
+			{EventType: "TestEvent", Data: json.RawMessage(fmt.Sprintf(`{"seq": %d}`, i))},
+		})
+	}
+
+	// Create archive file
+	tmpDir := t.TempDir()
+	archivePath := tmpDir + "/archive.jsonl"
+
+	archiveStore, err := NewFileArchiveStore(archivePath)
+	if err != nil {
+		t.Fatalf("NewFileArchiveStore failed: %v", err)
+	}
+
+	// Create archiver
+	archiver := NewEventArchiver(store)
+
+	// Very short retention for testing
+	policy := &RetentionPolicy{
+		DefaultRetention: 1 * time.Millisecond,
+		MinRetention:     1 * time.Nanosecond,
+	}
+
+	// Wait for events to become "old"
+	time.Sleep(10 * time.Millisecond)
+
+	// Archive with deletion
+	result, err := archiver.Archive(ctx, &ArchiveConfig{
+		Policy:             policy,
+		ArchiveStore:       archiveStore,
+		DeleteAfterArchive: true,
+		BatchSize:          3,
+	})
+	if err != nil {
+		t.Fatalf("Archive failed: %v", err)
+	}
+
+	if result.EventsArchived != 10 {
+		t.Errorf("EventsArchived = %d, want 10", result.EventsArchived)
+	}
+	if result.EventsDeleted != 10 {
+		t.Errorf("EventsDeleted = %d, want 10", result.EventsDeleted)
+	}
+
+	// Verify store is empty
+	remaining, _ := store.ReadAll(ctx, 0, 100)
+	if len(remaining) != 0 {
+		t.Errorf("Expected 0 events in store, got %d", len(remaining))
+	}
+
+	// Verify archive has all events
+	archived, err := ReadArchiveFile(archivePath)
+	if err != nil {
+		t.Fatalf("ReadArchiveFile failed: %v", err)
+	}
+	if len(archived) != 10 {
+		t.Errorf("Archive has %d events, want 10", len(archived))
+	}
+}

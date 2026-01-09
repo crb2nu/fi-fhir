@@ -108,9 +108,10 @@ See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and curren
 - Batch event submission endpoint (submitBatch mutation with parallel/sequential modes)
 - PostgreSQL integration tests (testcontainers for EventStore, CheckpointStore, SnapshotStore)
 - Projection rebuild from time range (TimeRangeEventStore interface, point-in-time recovery)
+- Event archival and retention policies (HIPAA-aware retention, file archive, deletion)
 
 ### Next Up
-- Event archival and retention policies
+- Event stream compaction (merge old events into snapshots)
 
 ## Contributing
 

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -644,4 +645,81 @@ func (s *PostgresSnapshotStore) ListSnapshots(ctx context.Context, projectionNam
 	}
 
 	return snapshots, rows.Err()
+}
+
+// =============================================================================
+// PostgreSQL Deletable Event Store (implements DeletableEventStore)
+// =============================================================================
+
+// DeleteEventsByPosition removes events at the specified positions.
+// This is a dangerous operation - use with extreme caution.
+// In production, prefer archiving events before deletion.
+func (s *PostgresStore) DeleteEventsByPosition(ctx context.Context, positions []int64) (int64, error) {
+	if len(positions) == 0 {
+		return 0, nil
+	}
+
+	// Build placeholders for IN clause
+	placeholders := make([]string, len(positions))
+	args := make([]interface{}, len(positions))
+	for i, pos := range positions {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = pos
+	}
+
+	query := fmt.Sprintf(
+		"DELETE FROM %s WHERE position IN (%s)",
+		s.tableName,
+		strings.Join(placeholders, ", "),
+	)
+
+	result, err := s.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete events by position: %w", err)
+	}
+
+	count, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return count, nil
+}
+
+// DeleteEventsBeforePosition removes all events before the given position.
+// This is a dangerous operation - use with extreme caution.
+func (s *PostgresStore) DeleteEventsBeforePosition(ctx context.Context, position int64) (int64, error) {
+	result, err := s.db.ExecContext(ctx, fmt.Sprintf(
+		"DELETE FROM %s WHERE position < $1",
+		s.tableName,
+	), position)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete events before position: %w", err)
+	}
+
+	count, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return count, nil
+}
+
+// DeleteEventsBeforeTime removes all events before the given timestamp.
+// This is a dangerous operation - use with extreme caution.
+func (s *PostgresStore) DeleteEventsBeforeTime(ctx context.Context, t time.Time) (int64, error) {
+	result, err := s.db.ExecContext(ctx, fmt.Sprintf(
+		"DELETE FROM %s WHERE timestamp < $1",
+		s.tableName,
+	), t)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete events before time: %w", err)
+	}
+
+	count, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return count, nil
 }
