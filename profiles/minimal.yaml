@@ -1,0 +1,23 @@
+# Minimal Source Profile
+# Use this as a starting point for creating new profiles.
+
+source_profile:
+  id: minimal
+  name: Minimal Profile
+  version: "1.0.0"
+
+  hl7v2:
+    default_version: "2.5.1"
+    timezone: "America/New_York"
+
+    tolerate:
+      missing_segments:
+        - "PV1"
+      extra_components: true
+      unknown_segments: true
+
+  identifiers:
+    validation:
+      npi:
+        enabled: true
+        on_invalid: "warn"

@@ -1,0 +1,99 @@
+# Laboratory Interface Profile
+# Configure this profile for laboratory systems sending ORU R01 messages.
+
+source_profile:
+  id: lab_interface
+  name: Laboratory Results Interface
+  version: "1.0.0"
+
+  hl7v2:
+    default_version: "2.5.1"
+    timezone: "UTC"
+
+    encoding:
+      charset_default: "UTF-8"
+      charset_detection: true
+      line_ending_mode: "tolerant"
+
+    tolerate:
+      missing_segments:
+        - "PV1"    # Visit info often not included in lab results
+        - "ORC"    # Order Control - not always present
+        - "NK1"    # Next of Kin
+      nte_anywhere: true
+      extra_components: true
+      unknown_segments: true
+
+    datatypes:
+      xcn_component_count: "flexible"
+      cx_component_count: "flexible"
+
+  # Lab-specific Z-segments
+  z_segments:
+    preserve_raw: true
+    mappings:
+      ZLR:
+        - field: 1
+          target: "lab_accession_number"
+          type: "string"
+        - field: 2
+          target: "specimen_source"
+          type: "string"
+        - field: 3
+          target: "collection_method"
+          type: "string"
+      ZNT:
+        - field: 1
+          target: "pathologist_comment"
+          type: "string"
+
+  identifiers:
+    assigning_authority_map:
+      "LAB_SYSTEM": "urn:oid:2.16.840.1.113883.3.555"
+      "HOSPITAL":   "urn:oid:2.16.840.1.113883.3.666"
+      "SSA":        "urn:oid:2.16.840.1.113883.4.1"
+
+    primary_id_preference:
+      - type: "MR"
+        assigner_contains: "HOSPITAL"
+      - type: "MR"
+
+    validation:
+      npi:
+        enabled: true
+        on_invalid: "warn"
+      ssn:
+        enabled: false  # Lab results often don't include SSN
+      mbi:
+        enabled: true
+        on_invalid: "pass"  # Don't warn if MBI invalid
+
+    normalization:
+      mrn:
+        strip_leading_zeros: true
+        uppercase: true
+
+  # Terminology mapping for lab codes
+  terminology:
+    strict_validation: false
+    unknown_code_behavior: "warn"
+    versions:
+      loinc: "2.76"
+      snomed: "US-2023-09"
+    mappings:
+      - source_system: "LOCAL_LAB"
+        target_system: "http://loinc.org"
+        file: "mappings/local_to_loinc.csv"
+
+  quality:
+    metrics:
+      - "missing_loinc_rate"
+      - "critical_result_count"
+      - "result_pending_rate"
+    alerts:
+      missing_loinc:
+        threshold: 0.10
+        severity: "medium"
+      critical_result_delay:
+        threshold: 0.01
+        severity: "high"

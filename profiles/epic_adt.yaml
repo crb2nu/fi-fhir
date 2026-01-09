@@ -1,0 +1,116 @@
+# Epic ADT Feed Profile
+# Configure this profile for Epic-based healthcare systems sending ADT messages.
+
+source_profile:
+  id: epic_adt
+  name: Epic ADT Feed
+  version: "1.0.0"
+
+  hl7v2:
+    default_version: "2.5.1"
+    timezone: "America/New_York"
+
+    encoding:
+      charset_default: "UTF-8"
+      charset_detection: true
+      line_ending_mode: "tolerant"  # Accept \r, \n, or \r\n
+
+    tolerate:
+      # Epic sometimes omits these segments
+      missing_segments:
+        - "PV1"   # Patient Visit - optional for some message types
+        - "PD1"   # Patient Additional Demographic
+        - "NK1"   # Next of Kin
+        - "GT1"   # Guarantor
+      nte_anywhere: true           # NTE segments can appear anywhere
+      extra_components: true       # Allow extra components in fields
+      unknown_segments: true       # Pass through unknown segments
+      non_standard_delimiters: false  # Epic uses standard delimiters
+
+    datatypes:
+      xcn_component_count: "flexible"  # Provider name field
+      cx_component_count: "flexible"   # Patient identifier field
+      xpn_component_count: "flexible"  # Patient name field
+
+    # Event classification based on PV1-2 (Patient Class)
+    event_classification:
+      adt_a01:
+        default: "patient_admit"
+        rules:
+          - condition: "PV1.2 == 'I'"
+            event: "inpatient_admit"
+          - condition: "PV1.2 == 'O'"
+            event: "outpatient_registration"
+          - condition: "PV1.2 == 'E'"
+            event: "emergency_registration"
+          - condition: "PV1.2 == 'P'"
+            event: "preadmit"
+      adt_a04:
+        default: "outpatient_registration"
+      adt_a08:
+        default: "patient_update"
+
+  # Epic Z-segments - extract custom fields
+  z_segments:
+    preserve_raw: true  # Keep raw Z-segment data for debugging
+    mappings:
+      ZPI:
+        - field: 1
+          target: "enterprise_id"
+          type: "string"
+        - field: 2
+          target: "confidentiality_code"
+          type: "string"
+        - field: 3
+          target: "vip_indicator"
+          type: "boolean"
+
+  # Patient identifier configuration
+  identifiers:
+    assigning_authority_map:
+      "EPIC":       "urn:oid:1.2.840.114350.1.13"
+      "SSA":        "urn:oid:2.16.840.1.113883.4.1"
+      "CMS":        "urn:oid:2.16.840.1.113883.4.336"
+      "HOSPITAL_A": "urn:oid:2.16.840.1.113883.3.666.1"
+
+    # Prefer MRN from EPIC assigning authority
+    primary_id_preference:
+      - type: "MR"
+        assigner_contains: "EPIC"
+      - type: "MR"
+
+    validation:
+      npi:
+        enabled: true
+        on_invalid: "warn"  # "error" = reject, "warn" = log, "pass" = ignore
+      mbi:
+        enabled: true
+        on_invalid: "warn"
+      ssn:
+        enabled: true
+        on_invalid: "warn"
+
+    normalization:
+      ssn:
+        strip_dashes: true
+        reject_patterns:
+          - "000000000"
+          - "123456789"
+          - "111111111"
+      phone:
+        strip_country_code: true
+        normalize_to_digits: true
+      mrn:
+        strip_leading_zeros: false
+        uppercase: true
+
+  # Quality metrics tracking
+  quality:
+    metrics:
+      - "missing_mrn_rate"
+      - "invalid_npi_rate"
+      - "missing_pv1_rate"
+    alerts:
+      missing_mrn:
+        threshold: 0.05  # Alert if >5% messages missing MRN
+        severity: "high"

@@ -1,0 +1,32 @@
+source_system,source_code,source_display,target_system,target_code,target_display,equivalence,comment
+LOCAL_LAB,GLU,Glucose,http://loinc.org,2345-7,Glucose [Mass/volume] in Serum or Plasma,equivalent,Fasting glucose
+LOCAL_LAB,GLUF,Glucose Fasting,http://loinc.org,1558-6,Fasting glucose [Mass/volume] in Serum or Plasma,equivalent,Specifically fasting
+LOCAL_LAB,WBC,White Blood Cell Count,http://loinc.org,6690-2,Leukocytes [#/volume] in Blood,equivalent,CBC component
+LOCAL_LAB,RBC,Red Blood Cell Count,http://loinc.org,789-8,Erythrocytes [#/volume] in Blood,equivalent,CBC component
+LOCAL_LAB,HGB,Hemoglobin,http://loinc.org,718-7,Hemoglobin [Mass/volume] in Blood,equivalent,CBC component
+LOCAL_LAB,HCT,Hematocrit,http://loinc.org,4544-3,Hematocrit [Volume Fraction] of Blood,equivalent,CBC component
+LOCAL_LAB,PLT,Platelet Count,http://loinc.org,777-3,Platelets [#/volume] in Blood,equivalent,CBC component
+LOCAL_LAB,MCV,Mean Corpuscular Volume,http://loinc.org,787-2,MCV [Entitic volume],equivalent,CBC component
+LOCAL_LAB,MCH,Mean Corpuscular Hemoglobin,http://loinc.org,785-6,MCH [Entitic mass],equivalent,CBC component
+LOCAL_LAB,MCHC,Mean Corpuscular Hemoglobin Concentration,http://loinc.org,786-4,MCHC [Mass/volume],equivalent,CBC component
+LOCAL_LAB,CREAT,Creatinine,http://loinc.org,2160-0,Creatinine [Mass/volume] in Serum or Plasma,equivalent,Kidney function
+LOCAL_LAB,BUN,Blood Urea Nitrogen,http://loinc.org,3094-0,Urea nitrogen [Mass/volume] in Serum or Plasma,equivalent,Kidney function
+LOCAL_LAB,NA,Sodium,http://loinc.org,2951-2,Sodium [Moles/volume] in Serum or Plasma,equivalent,Basic metabolic panel
+LOCAL_LAB,K,Potassium,http://loinc.org,2823-3,Potassium [Moles/volume] in Serum or Plasma,equivalent,Basic metabolic panel
+LOCAL_LAB,CL,Chloride,http://loinc.org,2075-0,Chloride [Moles/volume] in Serum or Plasma,equivalent,Basic metabolic panel
+LOCAL_LAB,CO2,Carbon Dioxide,http://loinc.org,2028-9,Carbon dioxide total [Moles/volume] in Serum or Plasma,equivalent,Basic metabolic panel
+LOCAL_LAB,CA,Calcium,http://loinc.org,17861-6,Calcium [Mass/volume] in Serum or Plasma,equivalent,Basic metabolic panel
+LOCAL_LAB,TSH,Thyroid Stimulating Hormone,http://loinc.org,3016-3,Thyrotropin [Units/volume] in Serum or Plasma,equivalent,Thyroid panel
+LOCAL_LAB,T4,Thyroxine,http://loinc.org,3026-2,Thyroxine (T4) [Mass/volume] in Serum or Plasma,equivalent,Thyroid panel
+LOCAL_LAB,T3,Triiodothyronine,http://loinc.org,3053-6,Triiodothyronine (T3) [Mass/volume] in Serum or Plasma,equivalent,Thyroid panel
+LOCAL_LAB,A1C,Hemoglobin A1c,http://loinc.org,4548-4,Hemoglobin A1c/Hemoglobin.total in Blood,equivalent,Diabetes monitoring
+LOCAL_LAB,CHOL,Cholesterol Total,http://loinc.org,2093-3,Cholesterol [Mass/volume] in Serum or Plasma,equivalent,Lipid panel
+LOCAL_LAB,TRIG,Triglycerides,http://loinc.org,2571-8,Triglyceride [Mass/volume] in Serum or Plasma,equivalent,Lipid panel
+LOCAL_LAB,HDL,HDL Cholesterol,http://loinc.org,2085-9,Cholesterol in HDL [Mass/volume] in Serum or Plasma,equivalent,Lipid panel
+LOCAL_LAB,LDL,LDL Cholesterol,http://loinc.org,2089-1,Cholesterol in LDL [Mass/volume] in Serum or Plasma,equivalent,Lipid panel
+LOCAL_LAB,ALT,Alanine Aminotransferase,http://loinc.org,1742-6,Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma,equivalent,Liver function
+LOCAL_LAB,AST,Aspartate Aminotransferase,http://loinc.org,1920-8,Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma,equivalent,Liver function
+LOCAL_LAB,ALP,Alkaline Phosphatase,http://loinc.org,6768-6,Alkaline phosphatase [Enzymatic activity/volume] in Serum or Plasma,equivalent,Liver function
+LOCAL_LAB,TBIL,Total Bilirubin,http://loinc.org,1975-2,Bilirubin.total [Mass/volume] in Serum or Plasma,equivalent,Liver function
+LOCAL_LAB,ALB,Albumin,http://loinc.org,1751-7,Albumin [Mass/volume] in Serum or Plasma,equivalent,Liver function
+LOCAL_LAB,TP,Total Protein,http://loinc.org,2885-2,Protein [Mass/volume] in Serum or Plasma,equivalent,Liver function
