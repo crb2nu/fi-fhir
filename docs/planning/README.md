@@ -113,10 +113,11 @@ See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and curren
 - Saga orchestration (multi-step transactions with compensation, retry, timeout)
 - Outbox pattern for reliable event publishing (OutboxStore, OutboxRelay, OutboxEventStore)
 - LOINC file loader with panel expansion (`pkg/terminology/loinc.go`)
+- Fuzzy terminology matching with confidence scoring (`pkg/terminology/fuzzy.go`)
 
 ### Next Up
-- Confidence scoring for fuzzy terminology matches
 - UMLS API integration (optional)
+- Additional FHIR resource profiles (Condition, Coverage)
 
 ## Contributing
 

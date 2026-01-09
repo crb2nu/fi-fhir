@@ -254,7 +254,7 @@ func GetICD10Version(serviceDate time.Time) string {
 - [x] Mapper with lookup (Map, MapToLOINC, MapToSNOMED) - see `pkg/terminology/mapper.go`
 - [x] Mapper Registry for managing multiple source→target pairs
 - [x] HasMapping() check for validation
-- [ ] Confidence scoring for fuzzy matches
+- [x] Confidence scoring for fuzzy matches - see `pkg/terminology/fuzzy.go:FuzzyMatcher`
 
 ### Phase 4: UMLS Integration (Optional)
 - [ ] UMLS API client
