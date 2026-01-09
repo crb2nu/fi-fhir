@@ -85,7 +85,6 @@ See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and curren
 ### In Progress
 - Database action for workflows
 - EDI 270/271 eligibility
-- OAuth2 for FHIR action
 
 ## Contributing
 

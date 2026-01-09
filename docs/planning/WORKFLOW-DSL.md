@@ -456,7 +456,7 @@ fi-fhir parse -f hl7v2 message.hl7 | fi-fhir workflow run --config workflow.yaml
 - [x] FHIR action with US Core mapping (Patient, Encounter, Observation, DiagnosticReport)
 - [x] FHIR transaction bundle support for multi-resource events
 - [x] Bearer token authentication for FHIR
-- [ ] OAuth2 client credentials flow (currently manual token required)
+- [x] OAuth2 client credentials flow (`internal/workflow/oauth.go`)
 
 ### Phase 3: Advanced Actions
 - [ ] Database action (PostgreSQL, MySQL)

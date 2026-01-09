@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/cblevins/fi-fhir/pkg/events"
 )
@@ -1354,3 +1355,429 @@ func getNestedValueForTest(m map[string]interface{}, path string) (interface{}, 
 	}
 	return current, nil
 }
+
+// OAuth2 Tests
+
+func TestOAuthTokenManager(t *testing.T) {
+	// Create a mock OAuth server
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Verify it's a POST request with form data
+		if r.Method != "POST" {
+			t.Errorf("Expected POST, got %s", r.Method)
+		}
+		if r.Header.Get("Content-Type") != "application/x-www-form-urlencoded" {
+			t.Errorf("Expected form content type, got %s", r.Header.Get("Content-Type"))
+		}
+
+		// Parse form data
+		r.ParseForm()
+		if r.Form.Get("grant_type") != "client_credentials" {
+			t.Errorf("Expected client_credentials grant, got %s", r.Form.Get("grant_type"))
+		}
+		if r.Form.Get("client_id") != "test_client" {
+			t.Errorf("Expected client_id test_client, got %s", r.Form.Get("client_id"))
+		}
+		if r.Form.Get("client_secret") != "test_secret" {
+			t.Errorf("Expected client_secret test_secret, got %s", r.Form.Get("client_secret"))
+		}
+
+		// Return a token
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(TokenResponse{
+			AccessToken: "oauth_access_token_123",
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		})
+	}))
+	defer tokenServer.Close()
+
+	manager := NewOAuthTokenManager()
+
+	config := OAuthConfig{
+		TokenURL:     tokenServer.URL,
+		ClientID:     "test_client",
+		ClientSecret: "test_secret",
+	}
+
+	token, err := manager.GetToken(config)
+	if err != nil {
+		t.Fatalf("GetToken failed: %v", err)
+	}
+
+	if token != "oauth_access_token_123" {
+		t.Errorf("Expected token 'oauth_access_token_123', got '%s'", token)
+	}
+}
+
+func TestOAuthTokenCaching(t *testing.T) {
+	requestCount := 0
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(TokenResponse{
+			AccessToken: fmt.Sprintf("token_%d", requestCount),
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		})
+	}))
+	defer tokenServer.Close()
+
+	manager := NewOAuthTokenManager()
+
+	config := OAuthConfig{
+		TokenURL:     tokenServer.URL,
+		ClientID:     "cache_client",
+		ClientSecret: "cache_secret",
+	}
+
+	// First call should fetch token
+	token1, err := manager.GetToken(config)
+	if err != nil {
+		t.Fatalf("First GetToken failed: %v", err)
+	}
+
+	// Second call should use cache
+	token2, err := manager.GetToken(config)
+	if err != nil {
+		t.Fatalf("Second GetToken failed: %v", err)
+	}
+
+	// Both should return same token (from cache)
+	if token1 != token2 {
+		t.Errorf("Expected cached token '%s', got '%s'", token1, token2)
+	}
+
+	// Should only have made one request
+	if requestCount != 1 {
+		t.Errorf("Expected 1 request (caching), got %d", requestCount)
+	}
+}
+
+func TestOAuthTokenExpiration(t *testing.T) {
+	requestCount := 0
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		w.Header().Set("Content-Type", "application/json")
+		// Return token that expires in 30 seconds (within buffer window)
+		json.NewEncoder(w).Encode(TokenResponse{
+			AccessToken: fmt.Sprintf("token_%d", requestCount),
+			TokenType:   "Bearer",
+			ExpiresIn:   30, // Less than the 60s buffer
+		})
+	}))
+	defer tokenServer.Close()
+
+	manager := NewOAuthTokenManager()
+
+	config := OAuthConfig{
+		TokenURL:     tokenServer.URL,
+		ClientID:     "expire_client",
+		ClientSecret: "expire_secret",
+	}
+
+	// First call should fetch token
+	_, err := manager.GetToken(config)
+	if err != nil {
+		t.Fatalf("First GetToken failed: %v", err)
+	}
+
+	// Second call should refetch because token expires within buffer
+	_, err = manager.GetToken(config)
+	if err != nil {
+		t.Fatalf("Second GetToken failed: %v", err)
+	}
+
+	// Should have made two requests (no caching due to expiration)
+	if requestCount != 2 {
+		t.Errorf("Expected 2 requests (token expired), got %d", requestCount)
+	}
+}
+
+func TestOAuthConfigParsing(t *testing.T) {
+	tests := []struct {
+		name      string
+		config    map[string]string
+		expectNil bool
+		scopes    []string
+	}{
+		{
+			name: "complete config",
+			config: map[string]string{
+				"token_url":     "https://auth.example.com/token",
+				"client_id":     "my_client",
+				"client_secret": "my_secret",
+				"scopes":        "read write",
+			},
+			expectNil: false,
+			scopes:    []string{"read", "write"},
+		},
+		{
+			name: "missing token_url",
+			config: map[string]string{
+				"client_id":     "my_client",
+				"client_secret": "my_secret",
+			},
+			expectNil: true,
+		},
+		{
+			name: "missing client_id",
+			config: map[string]string{
+				"token_url":     "https://auth.example.com/token",
+				"client_secret": "my_secret",
+			},
+			expectNil: true,
+		},
+		{
+			name: "missing client_secret",
+			config: map[string]string{
+				"token_url": "https://auth.example.com/token",
+				"client_id": "my_client",
+			},
+			expectNil: true,
+		},
+		{
+			name: "comma separated scopes",
+			config: map[string]string{
+				"token_url":     "https://auth.example.com/token",
+				"client_id":     "my_client",
+				"client_secret": "my_secret",
+				"scopes":        "read,write,delete",
+			},
+			expectNil: false,
+			scopes:    []string{"read", "write", "delete"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseOAuthConfig(tt.config)
+
+			if tt.expectNil {
+				if result != nil {
+					t.Errorf("Expected nil, got %+v", result)
+				}
+				return
+			}
+
+			if result == nil {
+				t.Fatal("Expected non-nil result")
+			}
+
+			if len(tt.scopes) > 0 {
+				if len(result.Scopes) != len(tt.scopes) {
+					t.Errorf("Expected %d scopes, got %d", len(tt.scopes), len(result.Scopes))
+				}
+				for i, scope := range tt.scopes {
+					if i < len(result.Scopes) && result.Scopes[i] != scope {
+						t.Errorf("Expected scope[%d] = '%s', got '%s'", i, scope, result.Scopes[i])
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestOAuthWithScopes(t *testing.T) {
+	var receivedScopes string
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.ParseForm()
+		receivedScopes = r.Form.Get("scope")
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(TokenResponse{
+			AccessToken: "scoped_token",
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		})
+	}))
+	defer tokenServer.Close()
+
+	manager := NewOAuthTokenManager()
+
+	config := OAuthConfig{
+		TokenURL:     tokenServer.URL,
+		ClientID:     "scoped_client",
+		ClientSecret: "scoped_secret",
+		Scopes:       []string{"patient/*.read", "system/*.write"},
+	}
+
+	_, err := manager.GetToken(config)
+	if err != nil {
+		t.Fatalf("GetToken failed: %v", err)
+	}
+
+	if receivedScopes != "patient/*.read system/*.write" {
+		t.Errorf("Expected scopes 'patient/*.read system/*.write', got '%s'", receivedScopes)
+	}
+}
+
+func TestOAuthTokenServerError(t *testing.T) {
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"error": "invalid_client"}`))
+	}))
+	defer tokenServer.Close()
+
+	manager := NewOAuthTokenManager()
+
+	config := OAuthConfig{
+		TokenURL:     tokenServer.URL,
+		ClientID:     "bad_client",
+		ClientSecret: "bad_secret",
+	}
+
+	_, err := manager.GetToken(config)
+	if err == nil {
+		t.Fatal("Expected error for 401 response")
+	}
+
+	if !strings.Contains(err.Error(), "401") {
+		t.Errorf("Expected error to mention 401, got: %v", err)
+	}
+}
+
+func TestGetAuthTokenPriority(t *testing.T) {
+	// Mock OAuth server
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(TokenResponse{
+			AccessToken: "oauth_token",
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		})
+	}))
+	defer tokenServer.Close()
+
+	tests := []struct {
+		name     string
+		config   map[string]string
+		expected string
+	}{
+		{
+			name: "static token only",
+			config: map[string]string{
+				"token": "static_token",
+			},
+			expected: "static_token",
+		},
+		{
+			name: "oauth takes priority over static",
+			config: map[string]string{
+				"token":         "static_token",
+				"token_url":     tokenServer.URL,
+				"client_id":     "test_client",
+				"client_secret": "test_secret",
+			},
+			expected: "oauth_token",
+		},
+		{
+			name:     "no auth configured",
+			config:   map[string]string{},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Clear the cache for each test
+			globalTokenManager.ClearCache()
+
+			token, err := getAuthToken(tt.config)
+			if err != nil {
+				t.Fatalf("getAuthToken failed: %v", err)
+			}
+
+			if token != tt.expected {
+				t.Errorf("Expected token '%s', got '%s'", tt.expected, token)
+			}
+		})
+	}
+}
+
+func TestFHIRActionWithOAuth(t *testing.T) {
+	var receivedAuth string
+
+	// FHIR server
+	fhirServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer fhirServer.Close()
+
+	// OAuth server
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(TokenResponse{
+			AccessToken: "fhir_oauth_token_456",
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		})
+	}))
+	defer tokenServer.Close()
+
+	// Clear the global token cache
+	globalTokenManager.ClearCache()
+
+	event := &events.PatientAdmitEvent{
+		EventMeta: events.EventMeta{Type: events.EventPatientAdmit},
+		Patient:   events.Patient{MRN: "OAUTH123"},
+	}
+
+	config := map[string]string{
+		"endpoint":      fhirServer.URL,
+		"token_url":     tokenServer.URL,
+		"client_id":     "fhir_client",
+		"client_secret": "fhir_secret",
+	}
+
+	err := fhirAction(event, config)
+	if err != nil {
+		t.Fatalf("fhirAction with OAuth failed: %v", err)
+	}
+
+	if receivedAuth != "Bearer fhir_oauth_token_456" {
+		t.Errorf("Expected Authorization 'Bearer fhir_oauth_token_456', got '%s'", receivedAuth)
+	}
+}
+
+func TestOAuthClearCache(t *testing.T) {
+	requestCount := 0
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(TokenResponse{
+			AccessToken: fmt.Sprintf("token_%d", requestCount),
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		})
+	}))
+	defer tokenServer.Close()
+
+	manager := NewOAuthTokenManager()
+
+	config := OAuthConfig{
+		TokenURL:     tokenServer.URL,
+		ClientID:     "clear_client",
+		ClientSecret: "clear_secret",
+	}
+
+	// First call
+	token1, _ := manager.GetToken(config)
+
+	// Clear cache
+	manager.ClearCache()
+
+	// Second call should refetch
+	token2, _ := manager.GetToken(config)
+
+	if token1 == token2 {
+		t.Errorf("Expected different tokens after cache clear, got same: %s", token1)
+	}
+
+	if requestCount != 2 {
+		t.Errorf("Expected 2 requests after cache clear, got %d", requestCount)
+	}
+}
+
+// Unused but needed to prevent compiler from complaining about time import
+var _ = time.Second

@@ -148,8 +148,12 @@ func renderTemplate(tmplStr string, data interface{}) string {
 //   - resource: Resource type to create (Patient, Encounter, Observation) - auto-detected if not specified
 //   - operation: create, update, or upsert (default: create)
 //   - profile: us-core or base (default: us-core)
-//   - token: Bearer token for authentication
+//   - token: Bearer token for authentication (static)
 //   - authorization: Custom Authorization header
+//   - token_url: OAuth2 token endpoint (enables OAuth2 client credentials)
+//   - client_id: OAuth2 client ID
+//   - client_secret: OAuth2 client secret
+//   - scopes: OAuth2 scopes (space or comma separated)
 //   - timeout: Request timeout duration (default: 30s)
 //   - bundle: "true" to send as transaction bundle
 func fhirAction(event interface{}, config map[string]string) error {
@@ -370,12 +374,9 @@ func sendFHIRResource(client *http.Client, endpoint string, resource fhir.Resour
 	req.Header.Set("Accept", "application/fhir+json")
 	req.Header.Set("User-Agent", "fi-fhir/1.0")
 
-	// Add authentication
-	if token := config["token"]; token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-	if authHeader := config["authorization"]; authHeader != "" {
-		req.Header.Set("Authorization", authHeader)
+	// Add authentication (OAuth2 or static token)
+	if err := addAuth(req, config); err != nil {
+		return fmt.Errorf("authentication failed: %w", err)
 	}
 
 	// Execute request
@@ -415,12 +416,9 @@ func sendFHIRBundle(client *http.Client, endpoint string, resources []fhir.Resou
 	req.Header.Set("Accept", "application/fhir+json")
 	req.Header.Set("User-Agent", "fi-fhir/1.0")
 
-	// Add authentication
-	if token := config["token"]; token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-	if authHeader := config["authorization"]; authHeader != "" {
-		req.Header.Set("Authorization", authHeader)
+	// Add authentication (OAuth2 or static token)
+	if err := addAuth(req, config); err != nil {
+		return fmt.Errorf("authentication failed: %w", err)
 	}
 
 	// Execute request
@@ -434,6 +432,27 @@ func sendFHIRBundle(client *http.Client, endpoint string, resources []fhir.Resou
 	if resp.StatusCode >= 400 {
 		respBody, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("FHIR server returned %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
+}
+
+// addAuth adds authentication to a request using OAuth2 or static token.
+func addAuth(req *http.Request, config map[string]string) error {
+	// Check for custom Authorization header first (highest priority)
+	if authHeader := config["authorization"]; authHeader != "" {
+		req.Header.Set("Authorization", authHeader)
+		return nil
+	}
+
+	// Get token (OAuth2 or static)
+	token, err := getAuthToken(config)
+	if err != nil {
+		return err
+	}
+
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
 	return nil
