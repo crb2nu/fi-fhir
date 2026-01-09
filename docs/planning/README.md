@@ -116,11 +116,12 @@ See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and curren
 - Fuzzy terminology matching with confidence scoring (`pkg/terminology/fuzzy.go`)
 - FHIR Condition resource (US Core profile) - `pkg/fhir/mapper.go:MapCondition()`
 - FHIR Coverage resource (US Core profile) - `pkg/fhir/mapper.go:MapCoverage()`
+- Da Vinci PAS Claim resource (for 837P → FHIR) - `pkg/fhir/mapper.go:MapClaim()`
+- PDex ExplanationOfBenefit resource (for 835 → FHIR) - `pkg/fhir/mapper.go:MapExplanationOfBenefit()`
 
 ### Next Up
 - UMLS API integration (optional)
-- Da Vinci PAS Claim/ClaimResponse (for 837P → FHIR)
-- PDex ExplanationOfBenefit (for 835 → FHIR)
+- CoverageEligibilityResponse (for 271 → FHIR)
 
 ## Contributing
 

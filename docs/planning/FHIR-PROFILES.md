@@ -12,7 +12,8 @@ This document details US Core, Da Vinci, and other FHIR profile requirements for
 | **DiagnosticReport** | us-core-diagnosticreport-lab | ✅ | `pkg/fhir/mapper.go:MapLabResult()` |
 | **Condition** | us-core-condition | ✅ | `pkg/fhir/mapper.go:MapCondition()` |
 | **Coverage** | us-core-coverage | ✅ | `pkg/fhir/mapper.go:MapCoverage()` |
-| **Claim** | (Da Vinci PAS) | 🔲 | Planned |
+| **Claim** | (Da Vinci PAS) | ✅ | `pkg/fhir/mapper.go:MapClaim()` |
+| **ExplanationOfBenefit** | (PDex) | ✅ | `pkg/fhir/mapper.go:MapExplanationOfBenefit()` |
 | **CoverageEligibilityResponse** | (base R4) | 🔲 | Planned - for 271 responses |
 
 | Feature | Status | Implementation |

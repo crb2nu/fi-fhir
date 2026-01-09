@@ -49,6 +49,36 @@ const (
 	SystemCoverageClass      = "http://terminology.hl7.org/CodeSystem/coverage-class"
 	SystemSubscriberRelation = "http://terminology.hl7.org/CodeSystem/subscriber-relationship"
 	SystemCopayType          = "http://terminology.hl7.org/CodeSystem/coverage-copay-type"
+
+	// Claim/EOB-related code systems and profiles
+	DaVinciPASBaseURL      = "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/"
+	DaVinciPASClaimProfile = DaVinciPASBaseURL + "profile-claim"
+
+	PDexBaseURL      = "http://hl7.org/fhir/us/davinci-pdex/StructureDefinition/"
+	PDexEOBProfile   = PDexBaseURL + "pdex-adjudication"
+
+	// Claim type code system
+	SystemClaimType = "http://terminology.hl7.org/CodeSystem/claim-type"
+
+	// Adjudication category code system
+	SystemAdjudicationCategory = "http://terminology.hl7.org/CodeSystem/adjudication"
+
+	// Payment type code system
+	SystemPaymentType = "http://terminology.hl7.org/CodeSystem/ex-paymenttype"
+
+	// Claim/remittance status code systems
+	SystemClaimStatus = "http://hl7.org/fhir/fm-status"
+	SystemEOBOutcome  = "http://hl7.org/fhir/remittance-outcome"
+
+	// HCPCS/CPT code system
+	SystemHCPCS = "http://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets"
+
+	// X12 CARC/RARC code systems
+	SystemCARC = "https://x12.org/codes/claim-adjustment-reason-codes"
+	SystemRARC = "https://x12.org/codes/remittance-advice-remark-codes"
+
+	// Place of service code system
+	SystemPlaceOfService = "https://www.cms.gov/Medicare/Coding/place-of-service-codes"
 )
 
 // Resource is the base interface for all FHIR resources.
@@ -527,5 +557,241 @@ func (c *Coverage) MarshalJSON() ([]byte, error) {
 	}{
 		ResourceType: "Coverage",
 		Alias:        (*Alias)(c),
+	})
+}
+
+// Claim represents a FHIR Claim resource for billing/prior authorization.
+// Supports both Da Vinci PAS (preauthorization) and standard claims.
+type Claim struct {
+	ResourceType string            `json:"resourceType"`
+	ID           string            `json:"id,omitempty"`
+	Meta         *Meta             `json:"meta,omitempty"`
+	Identifier   []Identifier      `json:"identifier,omitempty"`
+	Status       string            `json:"status"`                   // active | cancelled | draft | entered-in-error
+	Type         CodeableConcept   `json:"type"`                     // institutional | oral | pharmacy | professional | vision
+	Use          string            `json:"use"`                      // claim | preauthorization | predetermination
+	Patient      *Reference        `json:"patient"`                  // Required
+	Created      string            `json:"created,omitempty"`        // Creation date
+	Insurer      *Reference        `json:"insurer,omitempty"`        // Target payer
+	Provider     *Reference        `json:"provider"`                 // Required - billing provider
+	Priority     CodeableConcept   `json:"priority,omitempty"`       // normal | urgent | stat
+	Prescription *Reference        `json:"prescription,omitempty"`   // Prescription reference
+	Payee        *ClaimPayee       `json:"payee,omitempty"`          // Recipient of benefits
+	Facility     *Reference        `json:"facility,omitempty"`       // Facility
+	CareTeam     []ClaimCareTeam   `json:"careTeam,omitempty"`       // Care team members
+	Diagnosis    []ClaimDiagnosis  `json:"diagnosis,omitempty"`      // Diagnosis codes
+	Insurance    []ClaimInsurance  `json:"insurance"`                // Required - Insurance coverage
+	Item         []ClaimItem       `json:"item,omitempty"`           // Service line items
+	Total        *Money            `json:"total,omitempty"`          // Total claim cost
+}
+
+// ClaimPayee identifies the recipient of benefits payable.
+type ClaimPayee struct {
+	Type  CodeableConcept `json:"type,omitempty"`  // subscriber | provider | other
+	Party *Reference      `json:"party,omitempty"` // Reference to recipient
+}
+
+// ClaimCareTeam represents a member of the care team.
+type ClaimCareTeam struct {
+	Sequence int             `json:"sequence"`
+	Provider *Reference      `json:"provider"`
+	Role     *CodeableConcept `json:"role,omitempty"` // primary | assist | supervisor
+}
+
+// ClaimDiagnosis represents a diagnosis on a claim.
+type ClaimDiagnosis struct {
+	Sequence           int              `json:"sequence"`
+	DiagnosisCodeable  *CodeableConcept `json:"diagnosisCodeableConcept,omitempty"`
+	DiagnosisReference *Reference       `json:"diagnosisReference,omitempty"`
+	Type               []CodeableConcept `json:"type,omitempty"` // admitting | principal | discharge
+	OnAdmission        *CodeableConcept `json:"onAdmission,omitempty"`
+}
+
+// ClaimInsurance represents insurance coverage on a claim.
+type ClaimInsurance struct {
+	Sequence          int        `json:"sequence"`
+	Focal             bool       `json:"focal"`                       // Is this the primary insurance?
+	Identifier        *Identifier `json:"identifier,omitempty"`
+	Coverage          *Reference `json:"coverage"`                    // Reference to Coverage resource
+	BusinessArrangement string   `json:"businessArrangement,omitempty"`
+	PreAuthRef        []string   `json:"preAuthRef,omitempty"`        // Prior authorization references
+	ClaimResponse     *Reference `json:"claimResponse,omitempty"`
+}
+
+// ClaimItem represents a line item on a claim.
+type ClaimItem struct {
+	Sequence             int              `json:"sequence"`
+	CareTeamSequence     []int            `json:"careTeamSequence,omitempty"`
+	DiagnosisSequence    []int            `json:"diagnosisSequence,omitempty"`
+	ProcedureSequence    []int            `json:"procedureSequence,omitempty"`
+	InformationSequence  []int            `json:"informationSequence,omitempty"`
+	Revenue              *CodeableConcept `json:"revenue,omitempty"`        // Revenue center code
+	Category             *CodeableConcept `json:"category,omitempty"`       // Service category
+	ProductOrService     CodeableConcept  `json:"productOrService"`         // CPT/HCPCS code
+	Modifier             []CodeableConcept `json:"modifier,omitempty"`      // Service modifiers
+	ProgramCode          []CodeableConcept `json:"programCode,omitempty"`
+	ServicedDate         string           `json:"servicedDate,omitempty"`
+	ServicedPeriod       *Period          `json:"servicedPeriod,omitempty"`
+	LocationCodeable     *CodeableConcept `json:"locationCodeableConcept,omitempty"` // Place of service
+	LocationAddress      *Address         `json:"locationAddress,omitempty"`
+	LocationReference    *Reference       `json:"locationReference,omitempty"`
+	Quantity             *Quantity        `json:"quantity,omitempty"`
+	UnitPrice            *Money           `json:"unitPrice,omitempty"`
+	Factor               float64          `json:"factor,omitempty"`
+	Net                  *Money           `json:"net,omitempty"`            // Line item cost
+	BodySite             *CodeableConcept `json:"bodySite,omitempty"`
+	SubSite              []CodeableConcept `json:"subSite,omitempty"`
+	Detail               []ClaimItemDetail `json:"detail,omitempty"`
+}
+
+// ClaimItemDetail represents detail level items.
+type ClaimItemDetail struct {
+	Sequence         int               `json:"sequence"`
+	ProductOrService CodeableConcept   `json:"productOrService"`
+	Modifier         []CodeableConcept `json:"modifier,omitempty"`
+	Quantity         *Quantity         `json:"quantity,omitempty"`
+	UnitPrice        *Money            `json:"unitPrice,omitempty"`
+	Factor           float64           `json:"factor,omitempty"`
+	Net              *Money            `json:"net,omitempty"`
+}
+
+// GetResourceType returns "Claim".
+func (c *Claim) GetResourceType() string {
+	return "Claim"
+}
+
+// MarshalJSON ensures ResourceType is always set.
+func (c *Claim) MarshalJSON() ([]byte, error) {
+	type Alias Claim
+	return json.Marshal(&struct {
+		ResourceType string `json:"resourceType"`
+		*Alias
+	}{
+		ResourceType: "Claim",
+		Alias:        (*Alias)(c),
+	})
+}
+
+// ExplanationOfBenefit represents a FHIR ExplanationOfBenefit (EOB) resource.
+// Used for claim adjudication results (835 remittance advice).
+type ExplanationOfBenefit struct {
+	ResourceType      string               `json:"resourceType"`
+	ID                string               `json:"id,omitempty"`
+	Meta              *Meta                `json:"meta,omitempty"`
+	Identifier        []Identifier         `json:"identifier,omitempty"`
+	Status            string               `json:"status"`            // active | cancelled | draft | entered-in-error
+	Type              CodeableConcept      `json:"type"`              // institutional | oral | pharmacy | professional | vision
+	Use               string               `json:"use"`               // claim | preauthorization | predetermination
+	Patient           *Reference           `json:"patient"`           // Required
+	BillablePeriod    *Period              `json:"billablePeriod,omitempty"`
+	Created           string               `json:"created,omitempty"` // Creation date
+	Insurer           *Reference           `json:"insurer"`           // Required - payer
+	Provider          *Reference           `json:"provider"`          // Required - billing provider
+	Outcome           string               `json:"outcome"`           // queued | complete | error | partial
+	Disposition       string               `json:"disposition,omitempty"`
+	Claim             *Reference           `json:"claim,omitempty"`             // Original claim
+	ClaimResponse     *Reference           `json:"claimResponse,omitempty"`     // Claim response
+	PreAuthRef        []string             `json:"preAuthRef,omitempty"`
+	Payee             *EOBPayee            `json:"payee,omitempty"`
+	CareTeam          []EOBCareTeam        `json:"careTeam,omitempty"`
+	Diagnosis         []EOBDiagnosis       `json:"diagnosis,omitempty"`
+	Insurance         []EOBInsurance       `json:"insurance"`                   // Required
+	Item              []EOBItem            `json:"item,omitempty"`
+	Adjudication      []EOBAdjudication    `json:"adjudication,omitempty"`      // Header-level adjudication
+	Total             []EOBTotal           `json:"total,omitempty"`
+	Payment           *EOBPayment          `json:"payment,omitempty"`
+	ProcessNote       []EOBProcessNote     `json:"processNote,omitempty"`
+}
+
+// EOBPayee represents the recipient of payment.
+type EOBPayee struct {
+	Type  *CodeableConcept `json:"type,omitempty"`
+	Party *Reference       `json:"party,omitempty"`
+}
+
+// EOBCareTeam represents a care team member in EOB.
+type EOBCareTeam struct {
+	Sequence int              `json:"sequence"`
+	Provider *Reference       `json:"provider"`
+	Role     *CodeableConcept `json:"role,omitempty"`
+}
+
+// EOBDiagnosis represents a diagnosis in EOB.
+type EOBDiagnosis struct {
+	Sequence           int               `json:"sequence"`
+	DiagnosisCodeable  *CodeableConcept  `json:"diagnosisCodeableConcept,omitempty"`
+	DiagnosisReference *Reference        `json:"diagnosisReference,omitempty"`
+	Type               []CodeableConcept `json:"type,omitempty"`
+	OnAdmission        *CodeableConcept  `json:"onAdmission,omitempty"`
+}
+
+// EOBInsurance represents insurance information in EOB.
+type EOBInsurance struct {
+	Focal    bool       `json:"focal"`
+	Coverage *Reference `json:"coverage"`
+}
+
+// EOBItem represents a service line item in EOB.
+type EOBItem struct {
+	Sequence             int               `json:"sequence"`
+	CareTeamSequence     []int             `json:"careTeamSequence,omitempty"`
+	DiagnosisSequence    []int             `json:"diagnosisSequence,omitempty"`
+	ProductOrService     CodeableConcept   `json:"productOrService"`
+	Modifier             []CodeableConcept `json:"modifier,omitempty"`
+	ServicedDate         string            `json:"servicedDate,omitempty"`
+	ServicedPeriod       *Period           `json:"servicedPeriod,omitempty"`
+	LocationCodeable     *CodeableConcept  `json:"locationCodeableConcept,omitempty"`
+	Quantity             *Quantity         `json:"quantity,omitempty"`
+	UnitPrice            *Money            `json:"unitPrice,omitempty"`
+	Net                  *Money            `json:"net,omitempty"`
+	Adjudication         []EOBAdjudication `json:"adjudication,omitempty"`
+}
+
+// EOBAdjudication represents adjudication information.
+type EOBAdjudication struct {
+	Category CodeableConcept  `json:"category"`
+	Reason   *CodeableConcept `json:"reason,omitempty"`
+	Amount   *Money           `json:"amount,omitempty"`
+	Value    float64          `json:"value,omitempty"`
+}
+
+// EOBTotal represents totals for the EOB.
+type EOBTotal struct {
+	Category CodeableConcept `json:"category"`
+	Amount   Money           `json:"amount"`
+}
+
+// EOBPayment represents payment information.
+type EOBPayment struct {
+	Type           *CodeableConcept `json:"type,omitempty"`
+	Adjustment     *Money           `json:"adjustment,omitempty"`
+	AdjustmentReason *CodeableConcept `json:"adjustmentReason,omitempty"`
+	Date           string           `json:"date,omitempty"`
+	Amount         *Money           `json:"amount,omitempty"`
+	Identifier     *Identifier      `json:"identifier,omitempty"` // Check/EFT number
+}
+
+// EOBProcessNote represents processing notes.
+type EOBProcessNote struct {
+	Number   int    `json:"number,omitempty"`
+	Type     string `json:"type,omitempty"` // display | print | printoper
+	Text     string `json:"text,omitempty"`
+	Language *CodeableConcept `json:"language,omitempty"`
+}
+
+// GetResourceType returns "ExplanationOfBenefit".
+func (e *ExplanationOfBenefit) GetResourceType() string {
+	return "ExplanationOfBenefit"
+}
+
+// MarshalJSON ensures ResourceType is always set.
+func (e *ExplanationOfBenefit) MarshalJSON() ([]byte, error) {
+	type Alias ExplanationOfBenefit
+	return json.Marshal(&struct {
+		ResourceType string `json:"resourceType"`
+		*Alias
+	}{
+		ResourceType: "ExplanationOfBenefit",
+		Alias:        (*Alias)(e),
 	})
 }

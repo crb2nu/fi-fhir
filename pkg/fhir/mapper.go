@@ -30,6 +30,13 @@ type Mapper interface {
 
 	// MapCoverage converts a canonical EligibilityResponseEvent to a FHIR Coverage.
 	MapCoverage(event *events.EligibilityResponseEvent, beneficiaryRef string) *Coverage
+
+	// MapClaim converts a canonical ClaimSubmittedEvent to a FHIR Claim.
+	// Use "claim" for billing claims or "preauthorization" for prior auth requests.
+	MapClaim(event *events.ClaimSubmittedEvent, use string) *Claim
+
+	// MapExplanationOfBenefit converts a ClaimAdjudicatedEvent to a FHIR ExplanationOfBenefit.
+	MapExplanationOfBenefit(event *events.ClaimAdjudicatedEvent) *ExplanationOfBenefit
 }
 
 // USCoreMapper implements Mapper for US Core 6.1.0 compliant resources.
@@ -1218,4 +1225,644 @@ func CreateSearchsetBundle(resources []Resource, total int) *Bundle {
 	}
 
 	return bundle
+}
+
+// MapClaim converts a canonical ClaimSubmittedEvent to a FHIR Claim.
+// The use parameter controls whether this is a billing claim ("claim") or
+// prior authorization request ("preauthorization").
+func (m *USCoreMapper) MapClaim(event *events.ClaimSubmittedEvent, use string) *Claim {
+	if event == nil {
+		return nil
+	}
+
+	// Default to "claim" if not specified
+	if use == "" {
+		use = "claim"
+	}
+
+	// Select profile based on use
+	profile := ""
+	if use == "preauthorization" {
+		profile = DaVinciPASClaimProfile
+	}
+
+	claim := &Claim{
+		ResourceType: "Claim",
+		Status:       "active",
+		Use:          use,
+	}
+
+	if profile != "" {
+		claim.Meta = &Meta{
+			Profile: []string{profile},
+		}
+	}
+
+	// Set claim type (professional for 837P)
+	claim.Type = CodeableConcept{
+		Coding: []Coding{
+			{
+				System:  SystemClaimType,
+				Code:    "professional",
+				Display: "Professional",
+			},
+		},
+	}
+
+	// Set priority
+	claim.Priority = CodeableConcept{
+		Coding: []Coding{
+			{
+				System:  "http://terminology.hl7.org/CodeSystem/processpriority",
+				Code:    "normal",
+				Display: "Normal",
+			},
+		},
+	}
+
+	// Map patient reference
+	if event.Patient.MRN != "" {
+		claim.Patient = &Reference{
+			Reference: fmt.Sprintf("Patient/%s", event.Patient.MRN),
+			Display:   fmt.Sprintf("%s, %s", event.Patient.FamilyName, event.Patient.GivenName),
+		}
+	}
+
+	// Map billing provider
+	if event.BillingProvider.NPI != "" {
+		claim.Provider = &Reference{
+			Reference: fmt.Sprintf("Organization/%s", event.BillingProvider.NPI),
+			Display:   event.BillingProvider.OrganizationName,
+		}
+	}
+
+	// Map payer/insurer
+	if event.Payer.NPI != "" || event.Payer.OrganizationName != "" {
+		claim.Insurer = &Reference{
+			Display: event.Payer.OrganizationName,
+		}
+		if event.Payer.NPI != "" {
+			claim.Insurer.Reference = fmt.Sprintf("Organization/%s", event.Payer.NPI)
+		}
+	}
+
+	// Add claim identifier
+	if event.Claim.ControlNumber != "" {
+		claim.Identifier = []Identifier{
+			{
+				System: "urn:oid:2.16.840.1.113883.3.8901.2.1", // Sample submitter ID system
+				Value:  event.Claim.ControlNumber,
+			},
+		}
+	}
+
+	// Set created date
+	if !event.Claim.ServiceDate.IsZero() {
+		claim.Created = event.Claim.ServiceDate.Format("2006-01-02")
+	} else if !event.Timestamp.IsZero() {
+		claim.Created = event.Timestamp.Format("2006-01-02")
+	}
+
+	// Map diagnosis codes
+	claim.Diagnosis = m.mapClaimDiagnoses(event.Claim.DiagnosisCodes)
+
+	// Map care team (rendering provider)
+	claim.CareTeam = m.mapClaimCareTeam(event)
+
+	// Map insurance
+	claim.Insurance = m.mapClaimInsurance(event)
+
+	// Map service line items
+	claim.Item = m.mapClaimItems(event.Claim.ServiceLines, event.Claim.PlaceOfService)
+
+	// Set total
+	if event.Claim.TotalAmount > 0 {
+		claim.Total = &Money{
+			Value:    event.Claim.TotalAmount,
+			Currency: "USD",
+		}
+	}
+
+	return claim
+}
+
+func (m *USCoreMapper) mapClaimDiagnoses(codes []string) []ClaimDiagnosis {
+	var diagnoses []ClaimDiagnosis
+
+	for i, code := range codes {
+		if code == "" {
+			continue
+		}
+
+		diag := ClaimDiagnosis{
+			Sequence: i + 1,
+			DiagnosisCodeable: &CodeableConcept{
+				Coding: []Coding{
+					{
+						System: SystemICD10CM,
+						Code:   code,
+					},
+				},
+			},
+		}
+
+		// First diagnosis is principal
+		if i == 0 {
+			diag.Type = []CodeableConcept{
+				{
+					Coding: []Coding{
+						{
+							System:  "http://terminology.hl7.org/CodeSystem/ex-diagnosistype",
+							Code:    "principal",
+							Display: "Principal Diagnosis",
+						},
+					},
+				},
+			}
+		}
+
+		diagnoses = append(diagnoses, diag)
+	}
+
+	return diagnoses
+}
+
+func (m *USCoreMapper) mapClaimCareTeam(event *events.ClaimSubmittedEvent) []ClaimCareTeam {
+	var careTeam []ClaimCareTeam
+	seq := 1
+
+	// Add billing provider
+	if event.BillingProvider.NPI != "" {
+		providerDisplay := event.BillingProvider.OrganizationName
+		if providerDisplay == "" && event.BillingProvider.FamilyName != "" {
+			providerDisplay = fmt.Sprintf("%s, %s", event.BillingProvider.FamilyName, event.BillingProvider.GivenName)
+		}
+		careTeam = append(careTeam, ClaimCareTeam{
+			Sequence: seq,
+			Provider: &Reference{
+				Reference: fmt.Sprintf("Practitioner/%s", event.BillingProvider.NPI),
+				Display:   providerDisplay,
+			},
+			Role: &CodeableConcept{
+				Coding: []Coding{
+					{
+						System:  "http://terminology.hl7.org/CodeSystem/claimcareteamrole",
+						Code:    "primary",
+						Display: "Primary provider",
+					},
+				},
+			},
+		})
+		seq++
+	}
+
+	// Add rendering provider if different
+	if event.RenderingProvider != nil && event.RenderingProvider.NPI != "" {
+		renderingDisplay := event.RenderingProvider.OrganizationName
+		if renderingDisplay == "" && event.RenderingProvider.FamilyName != "" {
+			renderingDisplay = fmt.Sprintf("%s, %s", event.RenderingProvider.FamilyName, event.RenderingProvider.GivenName)
+		}
+		careTeam = append(careTeam, ClaimCareTeam{
+			Sequence: seq,
+			Provider: &Reference{
+				Reference: fmt.Sprintf("Practitioner/%s", event.RenderingProvider.NPI),
+				Display:   renderingDisplay,
+			},
+			Role: &CodeableConcept{
+				Coding: []Coding{
+					{
+						System:  "http://terminology.hl7.org/CodeSystem/claimcareteamrole",
+						Code:    "rendering",
+						Display: "Rendering provider",
+					},
+				},
+			},
+		})
+	}
+
+	return careTeam
+}
+
+func (m *USCoreMapper) mapClaimInsurance(event *events.ClaimSubmittedEvent) []ClaimInsurance {
+	insurance := ClaimInsurance{
+		Sequence: 1,
+		Focal:    true,
+	}
+
+	// Reference subscriber's coverage
+	subscriberID := ""
+	if mbID := event.Subscriber.Identifiers.GetByType("MB"); mbID != nil {
+		subscriberID = mbID.Value
+	} else if event.Subscriber.MRN != "" {
+		subscriberID = event.Subscriber.MRN
+	}
+
+	if subscriberID != "" {
+		insurance.Coverage = &Reference{
+			Reference: fmt.Sprintf("Coverage/%s", subscriberID),
+		}
+	}
+
+	return []ClaimInsurance{insurance}
+}
+
+func (m *USCoreMapper) mapClaimItems(lines []events.ServiceLine, placeOfService string) []ClaimItem {
+	var items []ClaimItem
+
+	for _, line := range lines {
+		item := ClaimItem{
+			Sequence: line.LineNumber,
+			ProductOrService: CodeableConcept{
+				Coding: []Coding{
+					{
+						System: SystemCPT,
+						Code:   line.ProcedureCode,
+					},
+				},
+			},
+		}
+
+		// Map modifiers
+		for _, mod := range line.Modifiers {
+			item.Modifier = append(item.Modifier, CodeableConcept{
+				Coding: []Coding{
+					{
+						System: SystemCPT,
+						Code:   mod,
+					},
+				},
+			})
+		}
+
+		// Map quantity/units
+		if line.Units > 0 {
+			item.Quantity = &Quantity{
+				Value: line.Units,
+				Unit:  line.UnitType,
+			}
+		}
+
+		// Map charge amount
+		if line.ChargeAmount > 0 {
+			item.UnitPrice = &Money{
+				Value:    line.ChargeAmount / max(line.Units, 1),
+				Currency: "USD",
+			}
+			item.Net = &Money{
+				Value:    line.ChargeAmount,
+				Currency: "USD",
+			}
+		}
+
+		// Map service date
+		if !line.ServiceDate.IsZero() {
+			item.ServicedDate = line.ServiceDate.Format("2006-01-02")
+		}
+
+		// Map place of service
+		if placeOfService != "" {
+			item.LocationCodeable = &CodeableConcept{
+				Coding: []Coding{
+					{
+						System: SystemPlaceOfService,
+						Code:   placeOfService,
+					},
+				},
+			}
+		}
+
+		// Map diagnosis pointers
+		item.DiagnosisSequence = line.DiagnosisPointers
+
+		items = append(items, item)
+	}
+
+	return items
+}
+
+// MapExplanationOfBenefit converts a ClaimAdjudicatedEvent to a FHIR ExplanationOfBenefit.
+func (m *USCoreMapper) MapExplanationOfBenefit(event *events.ClaimAdjudicatedEvent) *ExplanationOfBenefit {
+	if event == nil {
+		return nil
+	}
+
+	eob := &ExplanationOfBenefit{
+		ResourceType: "ExplanationOfBenefit",
+		Meta: &Meta{
+			Profile: []string{PDexEOBProfile},
+		},
+		Status: "active",
+		Use:    "claim",
+	}
+
+	// Set type (professional for 837P/835)
+	eob.Type = CodeableConcept{
+		Coding: []Coding{
+			{
+				System:  SystemClaimType,
+				Code:    "professional",
+				Display: "Professional",
+			},
+		},
+	}
+
+	// Map payer/insurer
+	if event.Payer.NPI != "" || event.Payer.OrganizationName != "" {
+		eob.Insurer = &Reference{
+			Display: event.Payer.OrganizationName,
+		}
+		if event.Payer.NPI != "" {
+			eob.Insurer.Reference = fmt.Sprintf("Organization/%s", event.Payer.NPI)
+		}
+	}
+
+	// Map provider from payee
+	if event.Payee.NPI != "" || event.Payee.OrganizationName != "" {
+		eob.Provider = &Reference{
+			Display: event.Payee.OrganizationName,
+		}
+		if event.Payee.NPI != "" {
+			eob.Provider.Reference = fmt.Sprintf("Organization/%s", event.Payee.NPI)
+		}
+	}
+
+	// Set outcome based on claim status
+	eob.Outcome = m.mapClaimOutcome(event.Payment.Status)
+
+	// Add identifiers
+	var identifiers []Identifier
+	if event.Payment.PayerClaimID != "" {
+		identifiers = append(identifiers, Identifier{
+			System: "urn:oid:2.16.840.1.113883.3.8901.2.2", // Sample payer ID system
+			Value:  event.Payment.PayerClaimID,
+		})
+	}
+	if event.Payment.ClaimID != "" {
+		identifiers = append(identifiers, Identifier{
+			System: "urn:oid:2.16.840.1.113883.3.8901.2.1", // Sample submitter ID system
+			Value:  event.Payment.ClaimID,
+		})
+	}
+	eob.Identifier = identifiers
+
+	// Map insurance
+	eob.Insurance = []EOBInsurance{
+		{
+			Focal: true,
+			Coverage: &Reference{
+				Display: event.Payer.OrganizationName,
+			},
+		},
+	}
+
+	// Set created date
+	if !event.Timestamp.IsZero() {
+		eob.Created = event.Timestamp.Format("2006-01-02T15:04:05Z")
+	}
+
+	// Map service line payments
+	eob.Item = m.mapEOBItems(event.Payment.ServiceLinePayments)
+
+	// Map header-level adjudication totals
+	eob.Total = m.mapEOBTotals(event)
+
+	// Map payment information
+	eob.Payment = m.mapEOBPayment(event)
+
+	return eob
+}
+
+func (m *USCoreMapper) mapClaimOutcome(status string) string {
+	switch strings.ToLower(status) {
+	case "processed", "paid", "complete":
+		return "complete"
+	case "denied":
+		return "error"
+	case "pending", "in process":
+		return "queued"
+	case "partial":
+		return "partial"
+	default:
+		return "complete"
+	}
+}
+
+func (m *USCoreMapper) mapEOBItems(lines []events.ServiceLinePayment) []EOBItem {
+	var items []EOBItem
+
+	for i, line := range lines {
+		item := EOBItem{
+			Sequence: i + 1,
+			ProductOrService: CodeableConcept{
+				Coding: []Coding{
+					{
+						System: SystemCPT,
+						Code:   line.ProcedureCode,
+					},
+				},
+			},
+		}
+
+		// Map adjudication amounts
+		item.Adjudication = m.mapLineAdjudication(line)
+
+		items = append(items, item)
+	}
+
+	return items
+}
+
+func (m *USCoreMapper) mapLineAdjudication(line events.ServiceLinePayment) []EOBAdjudication {
+	var adjudications []EOBAdjudication
+
+	// Submitted amount
+	if line.ChargedAmount > 0 {
+		adjudications = append(adjudications, EOBAdjudication{
+			Category: CodeableConcept{
+				Coding: []Coding{
+					{
+						System:  SystemAdjudicationCategory,
+						Code:    "submitted",
+						Display: "Submitted Amount",
+					},
+				},
+			},
+			Amount: &Money{
+				Value:    line.ChargedAmount,
+				Currency: "USD",
+			},
+		})
+	}
+
+	// Paid/benefit amount
+	adjudications = append(adjudications, EOBAdjudication{
+		Category: CodeableConcept{
+			Coding: []Coding{
+				{
+					System:  SystemAdjudicationCategory,
+					Code:    "benefit",
+					Display: "Benefit Amount",
+				},
+			},
+		},
+		Amount: &Money{
+			Value:    line.PaidAmount,
+			Currency: "USD",
+		},
+	})
+
+	// Map CARC adjustments
+	for _, adj := range line.Adjustments {
+		adjCategory := m.mapAdjustmentGroup(adj.Group)
+		adjudications = append(adjudications, EOBAdjudication{
+			Category: adjCategory,
+			Reason: &CodeableConcept{
+				Coding: []Coding{
+					{
+						System: SystemCARC,
+						Code:   adj.ReasonCode,
+					},
+				},
+			},
+			Amount: &Money{
+				Value:    adj.Amount,
+				Currency: "USD",
+			},
+		})
+	}
+
+	return adjudications
+}
+
+func (m *USCoreMapper) mapAdjustmentGroup(group string) CodeableConcept {
+	var code, display string
+
+	switch strings.ToUpper(group) {
+	case "CO":
+		code, display = "copay", "Patient Co-Payment"
+	case "PR":
+		code, display = "deductible", "Deductible"
+	case "OA":
+		code, display = "eligible", "Eligible Amount"
+	case "PI":
+		code, display = "paid", "Paid to Provider"
+	case "CR":
+		code, display = "prior", "Prior Payer Amount"
+	default:
+		code, display = "submitted", "Submitted Amount"
+	}
+
+	return CodeableConcept{
+		Coding: []Coding{
+			{
+				System:  SystemAdjudicationCategory,
+				Code:    code,
+				Display: display,
+			},
+		},
+		Text: fmt.Sprintf("Adjustment Group: %s", group),
+	}
+}
+
+func (m *USCoreMapper) mapEOBTotals(event *events.ClaimAdjudicatedEvent) []EOBTotal {
+	var totals []EOBTotal
+
+	// Total charged
+	if event.Payment.ChargedAmount > 0 {
+		totals = append(totals, EOBTotal{
+			Category: CodeableConcept{
+				Coding: []Coding{
+					{
+						System:  SystemAdjudicationCategory,
+						Code:    "submitted",
+						Display: "Submitted Amount",
+					},
+				},
+			},
+			Amount: Money{
+				Value:    event.Payment.ChargedAmount,
+				Currency: "USD",
+			},
+		})
+	}
+
+	// Total paid
+	totals = append(totals, EOBTotal{
+		Category: CodeableConcept{
+			Coding: []Coding{
+				{
+					System:  SystemAdjudicationCategory,
+					Code:    "benefit",
+					Display: "Benefit Amount",
+				},
+			},
+		},
+		Amount: Money{
+			Value:    event.Payment.PaidAmount,
+			Currency: "USD",
+		},
+	})
+
+	// Patient responsibility (sum of PR adjustments)
+	patientAmount := 0.0
+	for _, adj := range event.Payment.Adjustments {
+		if adj.Group == "PR" {
+			patientAmount += adj.Amount
+		}
+	}
+	if patientAmount > 0 {
+		totals = append(totals, EOBTotal{
+			Category: CodeableConcept{
+				Coding: []Coding{
+					{
+						System:  SystemAdjudicationCategory,
+						Code:    "deductible",
+						Display: "Patient Responsibility",
+					},
+				},
+			},
+			Amount: Money{
+				Value:    patientAmount,
+				Currency: "USD",
+			},
+		})
+	}
+
+	return totals
+}
+
+func (m *USCoreMapper) mapEOBPayment(event *events.ClaimAdjudicatedEvent) *EOBPayment {
+	payment := &EOBPayment{}
+
+	// Payment type
+	payment.Type = &CodeableConcept{
+		Coding: []Coding{
+			{
+				System:  SystemPaymentType,
+				Code:    "complete",
+				Display: "Complete",
+			},
+		},
+	}
+
+	// Payment date
+	if !event.CheckDate.IsZero() {
+		payment.Date = event.CheckDate.Format("2006-01-02")
+	}
+
+	// Payment amount
+	payment.Amount = &Money{
+		Value:    event.TotalPaid,
+		Currency: "USD",
+	}
+
+	// Check/EFT identifier
+	if event.CheckNumber != "" {
+		payment.Identifier = &Identifier{
+			System: "urn:oid:2.16.840.1.113883.3.8901.2.3", // Sample check number system
+			Value:  event.CheckNumber,
+		}
+	}
+
+	return payment
 }

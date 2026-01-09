@@ -1052,3 +1052,532 @@ func TestCoverageJSONSerialization(t *testing.T) {
 		t.Error("JSON missing deductible")
 	}
 }
+
+// --- Claim Tests ---
+
+func TestUSCoreMapperMapClaim(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	serviceDate := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	event := &events.ClaimSubmittedEvent{
+		EventMeta: events.EventMeta{
+			Type:      events.EventClaimSubmitted,
+			Timestamp: serviceDate,
+		},
+		Patient: events.Patient{
+			MRN:        "PAT123",
+			FamilyName: "Smith",
+			GivenName:  "Jane",
+		},
+		BillingProvider: events.Provider{
+			NPI:              "1234567890",
+			OrganizationName: "Acme Medical Group",
+		},
+		RenderingProvider: &events.Provider{
+			NPI:        "9876543210",
+			FamilyName: "Johnson",
+			GivenName:  "Robert",
+		},
+		Payer: events.Provider{
+			NPI:              "5555555555",
+			OrganizationName: "Blue Cross",
+		},
+		Subscriber: events.Patient{
+			MRN: "SUB456",
+			Identifiers: events.IdentifierSet{
+				Identifiers: []events.Identifier{
+					{Type: "MB", Value: "MEM789"},
+				},
+			},
+		},
+		Claim: events.Claim{
+			ControlNumber:  "CLM-001",
+			TotalAmount:    250.00,
+			PlaceOfService: "11",
+			ServiceDate:    serviceDate,
+			DiagnosisCodes: []string{"J06.9", "R05.9"},
+			ServiceLines: []events.ServiceLine{
+				{
+					LineNumber:        1,
+					ProcedureCode:     "99213",
+					Modifiers:         []string{"25"},
+					ChargeAmount:      150.00,
+					Units:             1,
+					UnitType:          "UN",
+					ServiceDate:       serviceDate,
+					DiagnosisPointers: []int{1, 2},
+				},
+				{
+					LineNumber:    2,
+					ProcedureCode: "87880",
+					ChargeAmount:  100.00,
+					Units:         1,
+					ServiceDate:   serviceDate,
+				},
+			},
+		},
+	}
+
+	claim := mapper.MapClaim(event, "claim")
+
+	// Verify resource type
+	if claim.ResourceType != "Claim" {
+		t.Errorf("ResourceType = %q, want 'Claim'", claim.ResourceType)
+	}
+
+	// Verify status
+	if claim.Status != "active" {
+		t.Errorf("Status = %q, want 'active'", claim.Status)
+	}
+
+	// Verify use
+	if claim.Use != "claim" {
+		t.Errorf("Use = %q, want 'claim'", claim.Use)
+	}
+
+	// Verify type (professional)
+	if len(claim.Type.Coding) == 0 || claim.Type.Coding[0].Code != "professional" {
+		t.Errorf("Type = %v, want 'professional'", claim.Type)
+	}
+
+	// Verify patient reference
+	if claim.Patient == nil || claim.Patient.Reference != "Patient/PAT123" {
+		t.Errorf("Patient = %v, want 'Patient/PAT123'", claim.Patient)
+	}
+
+	// Verify provider reference
+	if claim.Provider == nil || claim.Provider.Reference != "Organization/1234567890" {
+		t.Errorf("Provider = %v, want 'Organization/1234567890'", claim.Provider)
+	}
+
+	// Verify insurer reference
+	if claim.Insurer == nil || claim.Insurer.Reference != "Organization/5555555555" {
+		t.Errorf("Insurer = %v, want 'Organization/5555555555'", claim.Insurer)
+	}
+
+	// Verify identifier
+	if len(claim.Identifier) == 0 || claim.Identifier[0].Value != "CLM-001" {
+		t.Errorf("Identifier = %v, want 'CLM-001'", claim.Identifier)
+	}
+
+	// Verify total
+	if claim.Total == nil || claim.Total.Value != 250.00 {
+		t.Errorf("Total = %v, want 250.00", claim.Total)
+	}
+
+	// Verify diagnosis codes
+	if len(claim.Diagnosis) != 2 {
+		t.Fatalf("Diagnosis count = %d, want 2", len(claim.Diagnosis))
+	}
+	if claim.Diagnosis[0].DiagnosisCodeable.Coding[0].Code != "J06.9" {
+		t.Errorf("Diagnosis[0] = %v, want 'J06.9'", claim.Diagnosis[0])
+	}
+	// First diagnosis should be principal
+	if len(claim.Diagnosis[0].Type) == 0 || claim.Diagnosis[0].Type[0].Coding[0].Code != "principal" {
+		t.Error("First diagnosis should be marked as principal")
+	}
+
+	// Verify care team
+	if len(claim.CareTeam) != 2 {
+		t.Fatalf("CareTeam count = %d, want 2", len(claim.CareTeam))
+	}
+	if claim.CareTeam[0].Role.Coding[0].Code != "primary" {
+		t.Errorf("CareTeam[0].Role = %v, want 'primary'", claim.CareTeam[0].Role)
+	}
+	if claim.CareTeam[1].Role.Coding[0].Code != "rendering" {
+		t.Errorf("CareTeam[1].Role = %v, want 'rendering'", claim.CareTeam[1].Role)
+	}
+
+	// Verify service line items
+	if len(claim.Item) != 2 {
+		t.Fatalf("Item count = %d, want 2", len(claim.Item))
+	}
+	if claim.Item[0].ProductOrService.Coding[0].Code != "99213" {
+		t.Errorf("Item[0].ProductOrService = %v, want '99213'", claim.Item[0].ProductOrService)
+	}
+	if len(claim.Item[0].Modifier) != 1 || claim.Item[0].Modifier[0].Coding[0].Code != "25" {
+		t.Errorf("Item[0].Modifier = %v, want '25'", claim.Item[0].Modifier)
+	}
+	if claim.Item[0].Net.Value != 150.00 {
+		t.Errorf("Item[0].Net = %v, want 150.00", claim.Item[0].Net)
+	}
+
+	// Verify insurance
+	if len(claim.Insurance) == 0 || !claim.Insurance[0].Focal {
+		t.Error("Insurance should have focal=true")
+	}
+	if claim.Insurance[0].Coverage == nil || claim.Insurance[0].Coverage.Reference != "Coverage/MEM789" {
+		t.Errorf("Insurance.Coverage = %v, want 'Coverage/MEM789'", claim.Insurance[0].Coverage)
+	}
+}
+
+func TestUSCoreMapperMapClaimPreauthorization(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.ClaimSubmittedEvent{
+		Patient: events.Patient{MRN: "PAT123"},
+		BillingProvider: events.Provider{
+			NPI:              "1234567890",
+			OrganizationName: "Test Provider",
+		},
+		Subscriber: events.Patient{MRN: "SUB123"},
+		Claim: events.Claim{
+			TotalAmount: 1000.00,
+		},
+	}
+
+	claim := mapper.MapClaim(event, "preauthorization")
+
+	// Verify use is preauthorization
+	if claim.Use != "preauthorization" {
+		t.Errorf("Use = %q, want 'preauthorization'", claim.Use)
+	}
+
+	// Verify Da Vinci PAS profile
+	if claim.Meta == nil || len(claim.Meta.Profile) == 0 {
+		t.Fatal("Expected Da Vinci PAS profile")
+	}
+	if claim.Meta.Profile[0] != DaVinciPASClaimProfile {
+		t.Errorf("Profile = %v, want Da Vinci PAS profile", claim.Meta.Profile)
+	}
+}
+
+func TestUSCoreMapperMapClaimDefaultUse(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.ClaimSubmittedEvent{
+		Patient:         events.Patient{MRN: "PAT123"},
+		BillingProvider: events.Provider{NPI: "1234567890"},
+		Subscriber:      events.Patient{MRN: "SUB123"},
+	}
+
+	// Empty use should default to "claim"
+	claim := mapper.MapClaim(event, "")
+
+	if claim.Use != "claim" {
+		t.Errorf("Use = %q, want 'claim' as default", claim.Use)
+	}
+
+	// Standard claim should not have Da Vinci profile
+	if claim.Meta != nil && len(claim.Meta.Profile) > 0 {
+		t.Error("Standard claim should not have Da Vinci profile")
+	}
+}
+
+func TestUSCoreMapperMapClaimNil(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	claim := mapper.MapClaim(nil, "claim")
+	if claim != nil {
+		t.Error("MapClaim(nil) should return nil")
+	}
+}
+
+func TestClaimJSONSerialization(t *testing.T) {
+	claim := &Claim{
+		ResourceType: "Claim",
+		Status:       "active",
+		Use:          "claim",
+		Type: CodeableConcept{
+			Coding: []Coding{{System: SystemClaimType, Code: "professional"}},
+		},
+		Patient:  &Reference{Reference: "Patient/123"},
+		Provider: &Reference{Reference: "Organization/456"},
+		Insurance: []ClaimInsurance{
+			{Sequence: 1, Focal: true, Coverage: &Reference{Reference: "Coverage/789"}},
+		},
+		Total: &Money{Value: 500.00, Currency: "USD"},
+	}
+
+	data, err := json.Marshal(claim)
+	if err != nil {
+		t.Fatalf("Failed to marshal claim: %v", err)
+	}
+
+	jsonStr := string(data)
+	if !strings.Contains(jsonStr, `"resourceType":"Claim"`) {
+		t.Error("JSON missing resourceType")
+	}
+	if !strings.Contains(jsonStr, `"use":"claim"`) {
+		t.Error("JSON missing use")
+	}
+	if !strings.Contains(jsonStr, `"professional"`) {
+		t.Error("JSON missing claim type")
+	}
+}
+
+// --- ExplanationOfBenefit Tests ---
+
+func TestUSCoreMapperMapExplanationOfBenefit(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	checkDate := time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC)
+	event := &events.ClaimAdjudicatedEvent{
+		EventMeta: events.EventMeta{
+			Type:      events.EventClaimAdjudicated,
+			Timestamp: checkDate,
+		},
+		Payer: events.Provider{
+			NPI:              "5555555555",
+			OrganizationName: "Blue Cross",
+		},
+		Payee: events.Provider{
+			NPI:              "1234567890",
+			OrganizationName: "Acme Medical Group",
+		},
+		CheckNumber: "CHK123456",
+		CheckDate:   checkDate,
+		TotalPaid:   180.00,
+		Payment: events.ClaimPayment{
+			ClaimID:       "CLM-001",
+			PayerClaimID:  "PCN-999",
+			Status:        "Processed",
+			ChargedAmount: 250.00,
+			PaidAmount:    180.00,
+			Adjustments: []events.ClaimAdjustment{
+				{Group: "CO", ReasonCode: "45", Amount: 50.00},
+				{Group: "PR", ReasonCode: "1", Amount: 20.00},
+			},
+			ServiceLinePayments: []events.ServiceLinePayment{
+				{
+					ProcedureCode: "99213",
+					ChargedAmount: 150.00,
+					PaidAmount:    120.00,
+					Adjustments: []events.ClaimAdjustment{
+						{Group: "CO", ReasonCode: "45", Amount: 20.00},
+						{Group: "PR", ReasonCode: "1", Amount: 10.00},
+					},
+				},
+				{
+					ProcedureCode: "87880",
+					ChargedAmount: 100.00,
+					PaidAmount:    60.00,
+					Adjustments: []events.ClaimAdjustment{
+						{Group: "CO", ReasonCode: "45", Amount: 30.00},
+						{Group: "PR", ReasonCode: "1", Amount: 10.00},
+					},
+				},
+			},
+		},
+	}
+
+	eob := mapper.MapExplanationOfBenefit(event)
+
+	// Verify resource type
+	if eob.ResourceType != "ExplanationOfBenefit" {
+		t.Errorf("ResourceType = %q, want 'ExplanationOfBenefit'", eob.ResourceType)
+	}
+
+	// Verify PDex profile
+	if eob.Meta == nil || len(eob.Meta.Profile) == 0 {
+		t.Fatal("Expected PDex profile")
+	}
+	if eob.Meta.Profile[0] != PDexEOBProfile {
+		t.Errorf("Profile = %v, want PDex profile", eob.Meta.Profile)
+	}
+
+	// Verify status
+	if eob.Status != "active" {
+		t.Errorf("Status = %q, want 'active'", eob.Status)
+	}
+
+	// Verify outcome
+	if eob.Outcome != "complete" {
+		t.Errorf("Outcome = %q, want 'complete'", eob.Outcome)
+	}
+
+	// Verify insurer
+	if eob.Insurer == nil || eob.Insurer.Reference != "Organization/5555555555" {
+		t.Errorf("Insurer = %v, want 'Organization/5555555555'", eob.Insurer)
+	}
+
+	// Verify provider
+	if eob.Provider == nil || eob.Provider.Reference != "Organization/1234567890" {
+		t.Errorf("Provider = %v, want 'Organization/1234567890'", eob.Provider)
+	}
+
+	// Verify identifiers
+	if len(eob.Identifier) != 2 {
+		t.Fatalf("Identifier count = %d, want 2", len(eob.Identifier))
+	}
+
+	// Verify service line items
+	if len(eob.Item) != 2 {
+		t.Fatalf("Item count = %d, want 2", len(eob.Item))
+	}
+	if eob.Item[0].ProductOrService.Coding[0].Code != "99213" {
+		t.Errorf("Item[0].ProductOrService = %v, want '99213'", eob.Item[0].ProductOrService)
+	}
+
+	// Verify line-level adjudication
+	if len(eob.Item[0].Adjudication) < 2 {
+		t.Fatalf("Item[0].Adjudication count = %d, want at least 2", len(eob.Item[0].Adjudication))
+	}
+
+	// Verify totals
+	if len(eob.Total) < 2 {
+		t.Fatalf("Total count = %d, want at least 2", len(eob.Total))
+	}
+	// Find benefit total
+	var foundBenefit bool
+	for _, total := range eob.Total {
+		if len(total.Category.Coding) > 0 && total.Category.Coding[0].Code == "benefit" {
+			foundBenefit = true
+			if total.Amount.Value != 180.00 {
+				t.Errorf("Benefit total = %v, want 180.00", total.Amount.Value)
+			}
+		}
+	}
+	if !foundBenefit {
+		t.Error("Missing benefit total")
+	}
+
+	// Verify payment
+	if eob.Payment == nil {
+		t.Fatal("Payment should not be nil")
+	}
+	if eob.Payment.Amount.Value != 180.00 {
+		t.Errorf("Payment.Amount = %v, want 180.00", eob.Payment.Amount)
+	}
+	if eob.Payment.Date != "2024-02-01" {
+		t.Errorf("Payment.Date = %q, want '2024-02-01'", eob.Payment.Date)
+	}
+	if eob.Payment.Identifier == nil || eob.Payment.Identifier.Value != "CHK123456" {
+		t.Errorf("Payment.Identifier = %v, want 'CHK123456'", eob.Payment.Identifier)
+	}
+}
+
+func TestUSCoreMapperMapEOBOutcome(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		status   string
+		expected string
+	}{
+		{"Processed", "complete"},
+		{"Paid", "complete"},
+		{"Complete", "complete"},
+		{"Denied", "error"},
+		{"Pending", "queued"},
+		{"In Process", "queued"},
+		{"Partial", "partial"},
+		{"Unknown", "complete"}, // default
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.status, func(t *testing.T) {
+			event := &events.ClaimAdjudicatedEvent{
+				Payer:  events.Provider{OrganizationName: "Test"},
+				Payee:  events.Provider{OrganizationName: "Test"},
+				Payment: events.ClaimPayment{
+					Status: tt.status,
+				},
+			}
+
+			eob := mapper.MapExplanationOfBenefit(event)
+			if eob.Outcome != tt.expected {
+				t.Errorf("Outcome for %q = %q, want %q", tt.status, eob.Outcome, tt.expected)
+			}
+		})
+	}
+}
+
+func TestUSCoreMapperMapEOBPatientResponsibility(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.ClaimAdjudicatedEvent{
+		Payer: events.Provider{OrganizationName: "Test Payer"},
+		Payee: events.Provider{OrganizationName: "Test Payee"},
+		Payment: events.ClaimPayment{
+			Status:        "Processed",
+			ChargedAmount: 500.00,
+			PaidAmount:    350.00,
+			Adjustments: []events.ClaimAdjustment{
+				{Group: "PR", ReasonCode: "1", Amount: 50.00},  // Deductible
+				{Group: "PR", ReasonCode: "2", Amount: 25.00},  // Copay
+				{Group: "CO", ReasonCode: "45", Amount: 75.00}, // Contractual
+			},
+		},
+	}
+
+	eob := mapper.MapExplanationOfBenefit(event)
+
+	// Find patient responsibility total (PR adjustments sum to 75.00)
+	var patientResponsibility float64
+	for _, total := range eob.Total {
+		if len(total.Category.Coding) > 0 && total.Category.Coding[0].Code == "deductible" {
+			patientResponsibility = total.Amount.Value
+		}
+	}
+
+	if patientResponsibility != 75.00 {
+		t.Errorf("Patient responsibility = %v, want 75.00", patientResponsibility)
+	}
+}
+
+func TestUSCoreMapperMapEOBNil(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	eob := mapper.MapExplanationOfBenefit(nil)
+	if eob != nil {
+		t.Error("MapExplanationOfBenefit(nil) should return nil")
+	}
+}
+
+func TestEOBJSONSerialization(t *testing.T) {
+	eob := &ExplanationOfBenefit{
+		ResourceType: "ExplanationOfBenefit",
+		Meta: &Meta{
+			Profile: []string{PDexEOBProfile},
+		},
+		Status:   "active",
+		Use:      "claim",
+		Outcome:  "complete",
+		Type:     CodeableConcept{Coding: []Coding{{System: SystemClaimType, Code: "professional"}}},
+		Insurer:  &Reference{Reference: "Organization/123"},
+		Provider: &Reference{Reference: "Organization/456"},
+		Insurance: []EOBInsurance{
+			{Focal: true, Coverage: &Reference{Display: "Test Coverage"}},
+		},
+		Total: []EOBTotal{
+			{
+				Category: CodeableConcept{Coding: []Coding{{Code: "benefit"}}},
+				Amount:   Money{Value: 100.00, Currency: "USD"},
+			},
+		},
+		Payment: &EOBPayment{
+			Amount: &Money{Value: 100.00, Currency: "USD"},
+		},
+	}
+
+	data, err := json.Marshal(eob)
+	if err != nil {
+		t.Fatalf("Failed to marshal EOB: %v", err)
+	}
+
+	jsonStr := string(data)
+	if !strings.Contains(jsonStr, `"resourceType":"ExplanationOfBenefit"`) {
+		t.Error("JSON missing resourceType")
+	}
+	if !strings.Contains(jsonStr, PDexEOBProfile) {
+		t.Error("JSON missing PDex profile")
+	}
+	if !strings.Contains(jsonStr, `"outcome":"complete"`) {
+		t.Error("JSON missing outcome")
+	}
+	if !strings.Contains(jsonStr, `"benefit"`) {
+		t.Error("JSON missing benefit category")
+	}
+}
+
+func TestNilInputHandlingClaimAndEOB(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	if mapper.MapClaim(nil, "claim") != nil {
+		t.Error("MapClaim(nil) should return nil")
+	}
+
+	if mapper.MapExplanationOfBenefit(nil) != nil {
+		t.Error("MapExplanationOfBenefit(nil) should return nil")
+	}
+}
