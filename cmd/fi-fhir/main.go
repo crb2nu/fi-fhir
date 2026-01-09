@@ -758,7 +758,10 @@ func runWorkflowRun(args []string) error {
 	}
 
 	// Create engine and process
-	engine := workflow.NewEngine(w)
+	engine, err := workflow.NewEngine(w)
+	if err != nil {
+		return fmt.Errorf("failed to create workflow engine: %w", err)
+	}
 
 	var totalMatched, totalErrors int
 	for i, evt := range evts {
@@ -877,7 +880,10 @@ func runWorkflowDryRun(args []string) error {
 		return fmt.Errorf("failed to parse events: %w", err)
 	}
 
-	engine := workflow.NewEngine(w)
+	engine, err := workflow.NewEngine(w)
+	if err != nil {
+		return fmt.Errorf("failed to create workflow engine: %w", err)
+	}
 
 	fmt.Println("Dry-run results:")
 	for i, evt := range evts {

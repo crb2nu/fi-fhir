@@ -54,6 +54,12 @@ workflow:
 
 Filters determine which events a route handles:
 
+| Filter Type | Status | Description |
+|------------|--------|-------------|
+| `event_type` | ✅ Implemented | Match by event type(s) |
+| `source` | ✅ Implemented | Match by source system(s) |
+| `condition` | ✅ Implemented | CEL expressions for complex conditions |
+
 ```yaml
 filter:
   # Match by event type(s)
@@ -70,7 +76,27 @@ filter:
   condition: has(event.patient.identifiers.mrn) && event.source == "lab_system"
 ```
 
+### CEL Quick Reference
+
+CEL (Common Expression Language) provides safe, sandboxed expression evaluation. The `event` variable contains the full event data.
+
+| Expression Type | Example | Description |
+|----------------|---------|-------------|
+| **Equality** | `event.type == "patient_admit"` | Exact string match |
+| **String methods** | `event.patient.mrn.startsWith("TEST")` | String prefix check |
+| **Comparison** | `event.encounter.length > 3` | Numeric comparison |
+| **Membership** | `event.source in ["epic", "cerner"]` | Check if value in list |
+| **Logical AND** | `event.type == "lab_result" && event.source == "lab_system"` | Both conditions must match |
+| **Logical OR** | `event.source == "epic" \|\| event.source == "cerner"` | Either condition matches |
+| **Nested access** | `event.patient.identifiers.mrn` | Dot notation for nested fields |
+| **Has check** | `has(event.patient.ssn)` | Check if field exists |
+| **Negation** | `!(event.source == "test")` | Negate a condition |
+
+**Implementation**: `internal/workflow/cel.go` - compiled expressions are cached for performance.
+
 ### Transform Operations
+
+> **Note**: Transform operations are planned but not yet implemented. Events pass through to actions unchanged.
 
 Transforms modify events before action execution:
 
@@ -102,6 +128,14 @@ transform:
 ```
 
 ### Action Types
+
+| Action Type | Status | Description |
+|------------|--------|-------------|
+| `log` | ✅ Implemented | Log events with Go template messages |
+| `webhook` | ✅ Implemented | POST to REST endpoints with auth |
+| `fhir` | ✅ Implemented | POST to FHIR R4 servers with US Core mapping |
+| `database` | 🔲 Planned | Insert/update to PostgreSQL/MySQL |
+| `queue` | 🔲 Planned | Publish to Kafka/RabbitMQ/NATS |
 
 #### FHIR Action
 Send to FHIR server:
@@ -230,8 +264,16 @@ type Action struct {
 ```go
 // Engine processes events through workflow routes
 type Engine struct {
-    workflow *Workflow
-    actions  map[string]ActionHandler
+    workflow     *Workflow
+    actions      map[string]ActionHandler
+    celEvaluator *CELEvaluator  // For condition expression evaluation
+}
+
+// CELEvaluator evaluates CEL expressions against events (internal/workflow/cel.go)
+type CELEvaluator struct {
+    env   *cel.Env
+    cache map[string]cel.Program  // Compiled expressions cached for performance
+    mu    sync.RWMutex
 }
 
 // ActionHandler executes a specific action type
@@ -390,26 +432,36 @@ fi-fhir parse -f hl7v2 message.hl7 | fi-fhir workflow run --config workflow.yaml
 
 ## Implementation Plan
 
-### Phase 1: Core Engine
+### Phase 1: Core Engine ✅
 - [x] Define workflow YAML schema
-- [ ] Implement Workflow, Route, Filter types
-- [ ] Basic filter matching (event_type, source)
-- [ ] Log action
-- [ ] Webhook action
-- [ ] Engine orchestration
+- [x] Implement Workflow, Route, Filter types
+- [x] Basic filter matching (event_type, source)
+- [x] Log action (with template rendering)
+- [x] Webhook action (with auth, timeout, templates)
+- [x] Engine orchestration
+- [x] DryRun mode for testing routes without execution
 
 ### Phase 2: Transforms & FHIR
-- [ ] CEL expression evaluation for conditions
-- [ ] Transform pipeline
-- [ ] FHIR action with US Core mapping
-- [ ] OAuth2 authentication
+- [x] CEL expression evaluation for conditions (`internal/workflow/cel.go`)
+- [ ] Transform pipeline (see `engine.go:110` TODO)
+- [x] FHIR action with US Core mapping (Patient, Encounter, Observation, DiagnosticReport)
+- [x] FHIR transaction bundle support for multi-resource events
+- [x] Bearer token authentication for FHIR
+- [ ] OAuth2 client credentials flow (currently manual token required)
 
 ### Phase 3: Advanced Actions
-- [ ] Database action
-- [ ] Queue action (Kafka, RabbitMQ)
-- [ ] Retry/error handling
+- [ ] Database action (PostgreSQL, MySQL)
+- [ ] Queue action (Kafka, RabbitMQ, NATS)
+- [ ] Retry/error handling with exponential backoff
 
-### Phase 4: CLI & Tooling
-- [ ] `workflow run` command
-- [ ] `workflow validate` command
-- [ ] `workflow dry-run` command
+### Phase 4: CLI & Tooling ✅
+- [x] `workflow run` command
+- [x] `workflow validate` command
+- [x] `workflow dry-run` command
+
+## See Also
+
+- [SOURCE-PROFILES.md](SOURCE-PROFILES.md) - Profile configuration feeds into workflow event parsing
+- [FHIR-PROFILES.md](FHIR-PROFILES.md) - FHIR action uses US Core mapper for resource generation
+- [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md) - TypeScript Workflow class wraps CLI commands
+- [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) - EDI events can be routed through workflows

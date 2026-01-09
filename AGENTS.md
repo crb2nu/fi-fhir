@@ -65,7 +65,7 @@ FHIR     ──┘          └─────────────┘       
 | `cmd/fi-fhir/` | CLI entry point |
 | `internal/parser/hl7v2/` | HL7v2 message parsing |
 | `internal/semantic/` | Event transformation (planned) |
-| `internal/workflow/` | Workflow engine (planned) |
+| `internal/workflow/` | Workflow engine with CEL conditions |
 | `pkg/events/` | **Public** semantic event types - the canonical model |
 | `pkg/config/` | Configuration types |
 | `testdata/` | Sample HL7v2 messages for testing |
@@ -177,7 +177,7 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 
 ## Roadmap Context
 
-**Current State**: Multi-format parsing (HL7v2, CSV, EDI X12) with workflow routing operational. TypeScript SDK available. FHIR R4 output with US Core mapper implemented.
+**Current State**: Multi-format parsing (HL7v2, CSV, EDI X12) with workflow routing operational. TypeScript SDK available. FHIR R4 output with US Core mapper implemented. FHIR action in workflow engine complete.
 
 **Completed**:
 - HL7v2 ADT messages (A01, A02, A03, A04, A08)
@@ -191,14 +191,18 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 - HL7v2 escape sequence handling
 - CLI with parse, validate, and workflow commands
 - CSV adapter with schema inference (patient, lab result parsing)
-- Workflow DSL engine (routing, log/webhook actions, dry-run)
+- Workflow DSL engine (routing, log/webhook/fhir actions, dry-run)
+- CEL condition evaluation in workflow filters
+- UUID v4 generation for event IDs
 - TypeScript SDK with CLI wrapper (parse, workflow, type definitions)
 - EDI X12 parser (837P claims, 835 remittance, envelope/loop parsing)
+- FHIR action in workflow (POST Patient, Encounter, Observation, DiagnosticReport to FHIR servers)
 
 **Next Steps**:
-1. FHIR action in workflow (POST to FHIR servers)
+1. Transform pipeline in workflow (set_field, map_terminology)
 2. Database action in workflow
 3. EDI X12 270/271 eligibility transactions
+4. OAuth2 authentication for FHIR action
 
 ## Testing Strategy
 
@@ -212,7 +216,8 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 Minimal external dependencies by design:
 - Standard library only for core functionality
 - `gopkg.in/yaml.v3` for profile configuration
-- Future: Consider `github.com/google/uuid` for event IDs
+- `github.com/google/cel-go` for CEL expression evaluation in workflow filters
+- UUID v4 generation uses `crypto/rand` (no external dependency)
 
 ---
 
@@ -320,6 +325,8 @@ classifiedType := p.profile.GetEventClassification(msgType, patientClass)
 | `pkg/profile/profile.go` | Source Profile types, registry, tolerance config |
 | `pkg/validate/identifiers.go` | NPI, MBI, SSN, DEA validators with Luhn/checksum |
 | `internal/parser/hl7v2/parser.go` | HL7v2 parser with profile integration |
+| `internal/workflow/cel.go` | CEL evaluator with expression caching |
+| `internal/workflow/engine.go` | Workflow engine with filters, transforms, actions |
 | `docs/planning/SOURCE-PROFILES.md` | Source Profile specification |
 | `docs/planning/IDENTIFIERS.md` | Patient/provider ID systems reference |
 | `docs/planning/HL7V2-QUIRKS.md` | Version differences and vendor variations |

@@ -2,6 +2,16 @@
 
 This document defines the **Source Profile** system - the unit of scalability for fi-fhir integration adapters.
 
+## Quick Reference
+
+| Concept | Description |
+|---------|-------------|
+| **Source Profile** | YAML config for a single data feed (e.g., `epic_adt_hosp_a.yaml`) |
+| **Why per-feed?** | Each interface has unique quirks, tolerances, and mappings |
+| **3-Phase Pipeline** | Byte normalization → Syntactic parse → Semantic extraction |
+| **Key config sections** | `hl7v2`, `z_segments`, `identifiers`, `terminology`, `quality` |
+| **Implementation** | `pkg/profile/profile.go` - Registry, loader, and config types |
+
 ## Core Technical Thesis
 
 > **The unit of scalability is a Source Profile (per interface / per feed), not "HL7v2 support" in general.**
@@ -598,20 +608,21 @@ source_profile:
 
 Moving Source Profiles to MVP requires:
 
-### Weeks 1-4 (MVP-Hard Requirements)
-- [ ] Profile YAML schema and loader
-- [ ] Delimiter + encoding handling (Phase 1)
-- [ ] Line ending normalization
-- [ ] Repetition parsing + escape sequence decoding
-- [ ] NULL vs empty semantics
-- [ ] Tolerant missing segment handling
-- [ ] Canonical IdentifierSet from PID-3
+### Weeks 1-4 (MVP-Hard Requirements) ✅
+- [x] Profile YAML schema and loader - see `pkg/profile/profile.go:Registry`
+- [x] All config types (HL7v2, ZSegments, Identifiers, Terminology, Quality)
+- [x] Default() profile with sensible tolerances
+- [x] Profile validation on load
+- [x] Delimiter + encoding handling (Phase 1)
+- [x] Tolerant missing segment handling - see `IsMissingSegmentTolerated()`
+- [x] Event classification rules - see `GetEventClassification()`
+- [x] Assigning authority mapping - see `GetAssigningAuthoritySystem()`
 
 ### Weeks 5-8 (Post-Stability)
-- [ ] Terminology mapping tables
-- [ ] NPI/MBI validators wired to quality checks
+- [x] Terminology mapping tables - see `pkg/terminology/mapper.go`
+- [x] NPI/MBI validators wired to quality checks - see `pkg/validate/identifiers.go`
 - [ ] Z-segment field mapping beyond raw capture
-- [ ] Profile inference from samples
+- [ ] Profile inference from samples (`fi-fhir profiles infer`)
 
 ## Testing Strategy
 
@@ -649,6 +660,13 @@ func TestSourceProfileLoading(t *testing.T) {
     }
 }
 ```
+
+## See Also
+
+- [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) - Version differences and Z-segment details
+- [IDENTIFIERS.md](IDENTIFIERS.md) - Identifier validation rules referenced by profiles
+- [TERMINOLOGY.md](TERMINOLOGY.md) - Code mapping files referenced by profiles
+- [WORKFLOW-DSL.md](WORKFLOW-DSL.md) - Routes use events produced by profile-driven parsing
 
 ## References
 

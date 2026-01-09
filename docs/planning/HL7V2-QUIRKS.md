@@ -2,6 +2,23 @@
 
 This document details version differences, Z-segment handling, vendor variations, and parsing edge cases for fi-fhir.
 
+## Quick Reference
+
+| Feature | Status | Implementation |
+|---------|--------|----------------|
+| **ADT messages** | ✅ | A01, A02, A03, A04, A08 |
+| **ORU messages** | ✅ | R01 with multiple OBX |
+| **SIU messages** | ✅ | S12, S13, S14, S15, S26 |
+| **Z-segment extraction** | ✅ | Raw capture + profile mapping |
+| **Escape sequences** | ✅ | \F\, \S\, \T\, \R\, \E\, \X..\ |
+| **Delimiter detection** | ✅ | Non-standard MSH-1/MSH-2 |
+| **Line ending normalization** | ✅ | CR/LF/CRLF → CR |
+
+| Parser | Implementation |
+|--------|----------------|
+| **HL7v2** | `internal/parser/hl7v2/parser.go` |
+| **Segments** | `internal/parser/hl7v2/segments.go` |
+
 ## Version Compatibility Matrix
 
 ### Structural Differences
@@ -453,27 +470,30 @@ ZPD|Y|STANDARD|GREEN|||
 
 ## Implementation Plan
 
-### Phase 1: Core Parsing
-- [x] Basic segment/field extraction
-- [x] Delimiter detection
-- [ ] Version detection from MSH-12
-- [ ] Encoding character handling
+### Phase 1: Core Parsing ✅
+- [x] Basic segment/field extraction - see `internal/parser/hl7v2/parser.go`
+- [x] Delimiter detection from MSH-1/MSH-2
+- [x] Line ending normalization (CR/LF/CRLF → CR)
+- [x] Version detection from MSH-12
+- [x] Encoding character handling
 
 ### Phase 2: Version-Aware Parsing
-- [ ] Data type parsers per version
-- [ ] Component count validation
-- [ ] Segment optionality by version
+- [x] Data type parsers (XCN, XPN, CX) with flexible component handling
+- [x] Component count tolerance via Source Profile
+- [x] Segment optionality via Source Profile `tolerate.missing_segments`
+- [ ] Strict version-specific validation mode
 
-### Phase 3: Z-Segment Framework
-- [ ] Generic Z-segment extraction
-- [ ] Configurable field mapping
-- [ ] Vendor profile support
+### Phase 3: Z-Segment Framework ✅
+- [x] Generic Z-segment extraction
+- [x] Raw field preservation
+- [x] Profile-based mapping configuration
+- [ ] Vendor-specific profile templates
 
-### Phase 4: Edge Case Handling
-- [ ] Escape sequence processing
-- [ ] Character encoding detection
-- [ ] Field repetition parsing
-- [ ] NULL value semantics
+### Phase 4: Edge Case Handling ✅
+- [x] Escape sequence processing (\F\, \S\, \T\, \R\, \E\, \X..\)
+- [x] Field repetition parsing (~)
+- [x] Character encoding detection (UTF-8 BOM, MSH-18)
+- [ ] Full NULL value semantics ("" vs empty)
 
 ## Testing Matrix
 
@@ -486,6 +506,12 @@ ZPD|Y|STANDARD|GREEN|||
 | Repeating PID-3 | Multiple MRNs | All identifiers parsed |
 | Escaped delimiters | \F\ in field | Literal \| in value |
 | UTF-8 characters | Name with accents | Preserved correctly |
+
+## See Also
+
+- [SOURCE-PROFILES.md](SOURCE-PROFILES.md) - Tolerance and Z-segment configuration per source
+- [IDENTIFIERS.md](IDENTIFIERS.md) - PID-3 identifier parsing and validation
+- [TERMINOLOGY.md](TERMINOLOGY.md) - OBX coding systems and LOCAL code mapping
 
 ## References
 

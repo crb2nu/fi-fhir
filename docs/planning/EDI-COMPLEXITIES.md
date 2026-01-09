@@ -2,6 +2,21 @@
 
 This document details X12 healthcare transaction sets, loop structures, situational rules, and payer-specific variations for fi-fhir.
 
+## Quick Reference
+
+| Transaction | Status | Events | Implementation |
+|-------------|--------|--------|----------------|
+| **837P** | ✅ | `ClaimSubmittedEvent` | `internal/parser/edi/mapper.go:Map837ToEvents()` |
+| **835** | ✅ | `ClaimAdjudicatedEvent` | `internal/parser/edi/mapper.go:Map835ToEvents()` |
+| **270/271** | 🔲 | `EligibilityCheckEvent` | Planned |
+| **276/277** | 🔲 | `ClaimStatusEvent` | Planned |
+
+| Component | Implementation |
+|-----------|----------------|
+| **Envelope parsing** | `internal/parser/edi/parser.go:parseInterchange()` |
+| **Loop detection** | `internal/parser/edi/loops.go:Parse837Loops()` |
+| **HL hierarchy** | `internal/parser/edi/loops.go:BuildHLTree()` |
+
 ## X12 Transaction Set Overview
 
 ### Healthcare Transaction Sets (HIPAA)
@@ -534,23 +549,26 @@ func map835ToAdjudication(tx *Transaction835) []*events.ClaimAdjudicatedEvent {
 
 ## Implementation Plan
 
-### Phase 1: Core X12 Parsing
-- [ ] Envelope parsing (ISA/GS/ST)
-- [ ] Segment tokenization
-- [ ] Element/component separation
-- [ ] Basic validation (segment terminator, element separator)
+### Phase 1: Core X12 Parsing ✅
+- [x] Envelope parsing (ISA/GS/ST) - see `parser.go:parseInterchange()`
+- [x] Segment tokenization - see `parser.go:tokenizeSegments()`
+- [x] Element/component separation with delimiter detection
+- [x] Basic validation (segment terminator, element separator)
+- [x] ParseWarning system for non-fatal issues
 
-### Phase 2: Loop Recognition
-- [ ] HL-based hierarchy building
-- [ ] Loop start/end detection
-- [ ] State machine for 837P
-- [ ] State machine for 835
+### Phase 2: Loop Recognition ✅
+- [x] HL-based hierarchy building - see `loops.go:BuildHLTree()`
+- [x] Loop start/end detection - see `loops.go:AssignSegmentsToHL()`
+- [x] State machine for 837P - see `loops.go:Parse837Loops()`
+- [x] State machine for 835 - see `loops.go:Parse835Loops()`
+- [x] Full loop structure types (Loop2000A/B/C, Loop2300, Loop2400, etc.)
 
 ### Phase 3: Semantic Extraction
-- [ ] 837P → ClaimSubmitted event
-- [ ] 835 → ClaimAdjudicated event
+- [x] 837P → ClaimSubmittedEvent - see `mapper.go:Map837ToEvents()`
+- [x] 835 → ClaimAdjudicatedEvent - see `mapper.go:Map835ToEvents()`
 - [ ] 270/271 → EligibilityCheck event
-- [ ] Error handling for malformed EDI
+- [ ] 276/277 → ClaimStatus event
+- [x] Basic error handling with ParseError type
 
 ### Phase 4: Companion Guide Framework
 - [ ] Configuration schema for payer rules
@@ -585,6 +603,12 @@ testdata/edi/
 | Missing NPI | No NM109 | Validation error |
 | Invalid CLP status | CLP02 = "X" | Unknown status warning |
 | COB claim | Secondary payer present | Both payers in event |
+
+## See Also
+
+- [WORKFLOW-DSL.md](WORKFLOW-DSL.md) - Route EDI events to FHIR servers or webhooks
+- [FHIR-PROFILES.md](FHIR-PROFILES.md) - FHIR R4 Claim and ExplanationOfBenefit resources
+- [IDENTIFIERS.md](IDENTIFIERS.md) - NPI validation for provider identifiers in EDI
 
 ## References
 

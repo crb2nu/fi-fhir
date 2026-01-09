@@ -4,7 +4,9 @@
 package events
 
 import (
+	"crypto/rand"
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -615,8 +617,17 @@ func NewEventMeta(eventType EventType, source string, format SourceFormat) Event
 	}
 }
 
-// generateID creates a unique event ID.
-// TODO: Use UUID or ULID for production.
+// generateID creates a unique event ID using UUID v4.
+// UUID v4 uses random bytes and is suitable for distributed systems.
 func generateID() string {
-	return time.Now().UTC().Format("20060102150405.000000")
+	uuid := make([]byte, 16)
+	if _, err := rand.Read(uuid); err != nil {
+		// Fallback to timestamp if crypto/rand fails (should never happen)
+		return time.Now().UTC().Format("20060102150405.000000")
+	}
+	// Set version (4) and variant (RFC 4122)
+	uuid[6] = (uuid[6] & 0x0f) | 0x40 // Version 4
+	uuid[8] = (uuid[8] & 0x3f) | 0x80 // Variant is 10
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
+		uuid[0:4], uuid[4:6], uuid[6:8], uuid[8:10], uuid[10:16])
 }

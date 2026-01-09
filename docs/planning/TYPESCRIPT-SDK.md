@@ -118,6 +118,21 @@ const results = await workflow.process(events);
 const dryRunResults = await workflow.dryRun(events);
 ```
 
+Workflow YAML files support CEL expressions for complex filtering:
+
+```yaml
+routes:
+  - name: critical_labs
+    filter:
+      event_type: lab_result
+      condition: event.result.interpretation == "critical"  # CEL expression
+    actions:
+      - type: webhook
+        url: https://alerts.example.com
+```
+
+See [WORKFLOW-DSL.md](WORKFLOW-DSL.md) for the full CEL Quick Reference.
+
 ### Streaming
 
 ```typescript
@@ -297,19 +312,28 @@ describe('parseCSV', () => {
 
 ## Implementation Plan
 
-### Phase 1: Core SDK
-- [ ] Package setup (package.json, tsconfig)
-- [ ] CLI wrapper utility
-- [ ] Parse functions (HL7, CSV)
-- [ ] Event type definitions
-- [ ] Basic tests
+### Phase 1: Core SDK ✅
+- [x] Package setup (package.json, tsconfig, vitest) - see `sdk/typescript/`
+- [x] CLI wrapper utility with timeout support - see `src/utils/cli.ts`
+- [x] Parse functions (HL7, CSV, auto-detect) - see `src/parser.ts`
+- [x] Event type definitions with type guards - see `src/types/events.ts`
+- [x] Basic tests - see `tests/parser.test.ts`
+- [x] FiFhirError class with structured error info
 
-### Phase 2: Workflow Support
-- [ ] Workflow class
-- [ ] Streaming API
-- [ ] Error handling improvements
+### Phase 2: Workflow Support ✅
+- [x] Workflow class with load(), validate(), run() - see `src/workflow.ts`
+- [x] Dry-run mode with route matching info
+- [x] Error handling with FiFhirError
+- [x] Workflow tests - see `tests/workflow.test.ts`
+- [ ] Streaming API (future)
 
 ### Phase 3: Distribution
 - [ ] Binary download script
 - [ ] Platform-specific packages
 - [ ] npm publish workflow
+
+## See Also
+
+- [WORKFLOW-DSL.md](WORKFLOW-DSL.md) - Workflow YAML format processed by SDK Workflow class
+- [SOURCE-PROFILES.md](SOURCE-PROFILES.md) - Profile option passed to parse functions
+- [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) - HL7v2 parsing behavior exposed via parseHL7()

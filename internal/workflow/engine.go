@@ -7,8 +7,9 @@ import (
 
 // Engine processes events through workflow routes.
 type Engine struct {
-	workflow *Workflow
-	actions  map[string]ActionHandler
+	workflow     *Workflow
+	actions      map[string]ActionHandler
+	celEvaluator *CELEvaluator
 }
 
 // ActionHandler executes a specific action type.
@@ -59,17 +60,24 @@ func (r *Result) AllErrors() []error {
 }
 
 // NewEngine creates a new workflow engine.
-func NewEngine(workflow *Workflow) *Engine {
+func NewEngine(workflow *Workflow) (*Engine, error) {
+	celEval, err := NewCELEvaluator()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create CEL evaluator: %w", err)
+	}
+
 	e := &Engine{
-		workflow: workflow,
-		actions:  make(map[string]ActionHandler),
+		workflow:     workflow,
+		actions:      make(map[string]ActionHandler),
+		celEvaluator: celEval,
 	}
 
 	// Register built-in action handlers
 	e.RegisterAction("log", ActionHandlerFunc(logAction))
 	e.RegisterAction("webhook", ActionHandlerFunc(webhookAction))
+	e.RegisterAction("fhir", ActionHandlerFunc(fhirAction))
 
-	return e
+	return e, nil
 }
 
 // RegisterAction registers a custom action handler.
@@ -139,10 +147,16 @@ func (e *Engine) matches(event interface{}, filter Filter) bool {
 		return false
 	}
 
-	// TODO: CEL condition evaluation
+	// CEL condition evaluation
 	if filter.Condition != "" {
-		// For now, conditions are not evaluated - always match
-		// Future: Use google/cel-go for expression evaluation
+		match, err := e.celEvaluator.Evaluate(filter.Condition, event)
+		if err != nil {
+			// Log error but don't match on evaluation failure
+			return false
+		}
+		if !match {
+			return false
+		}
 	}
 
 	return true

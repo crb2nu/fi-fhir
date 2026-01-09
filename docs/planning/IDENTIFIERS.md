@@ -2,6 +2,20 @@
 
 This document details patient and provider identification systems, normalization strategies, and matching logic for fi-fhir.
 
+## Quick Reference
+
+| Validator | Status | Checksum | Implementation |
+|-----------|--------|----------|----------------|
+| **NPI** | ✅ | Luhn (80840 prefix) | `pkg/validate/identifiers.go:NPIValidator` |
+| **MBI** | ✅ | Format rules | `pkg/validate/identifiers.go:MBIValidator` |
+| **SSN** | ✅ | Area/group rules | `pkg/validate/identifiers.go:SSNValidator` |
+| **DEA** | ✅ | Weighted checksum | `pkg/validate/identifiers.go:DEAValidator` |
+
+| Normalizer | Purpose |
+|------------|---------|
+| **SSN** | Strip dashes, reject invalid patterns (000000000) |
+| **Phone** | Strip country code, normalize to 10 digits |
+
 ## Patient Identifiers
 
 ### Identifier Types Reference
@@ -405,16 +419,17 @@ func (s *IdentifierSet) GetBySystem(system string) []Identifier {
 
 ## Implementation Plan
 
-### Phase 1: Core Identifier Parsing
-- [ ] Parse HL7v2 PID-3 (repeating CX)
-- [ ] Parse HL7v2 XCN (provider names with IDs)
-- [ ] Basic normalization (SSN, phone, name)
+### Phase 1: Core Identifier Parsing ✅
+- [x] Parse HL7v2 PID-3 (repeating CX) - see `internal/parser/hl7v2/parser.go`
+- [x] Parse HL7v2 XCN (provider names with IDs)
+- [x] Basic normalization (SSN, phone) - see `pkg/validate/identifiers.go`
 
-### Phase 2: Validation
-- [ ] NPI Luhn validation
-- [ ] DEA checksum validation
-- [ ] MBI format validation
-- [ ] SSN reasonableness checks
+### Phase 2: Validation ✅
+- [x] NPI Luhn validation - see `pkg/validate/identifiers.go:NPIValidator`
+- [x] DEA checksum validation - see `pkg/validate/identifiers.go:DEAValidator`
+- [x] MBI format validation - see `pkg/validate/identifiers.go:MBIValidator`
+- [x] SSN reasonableness checks - see `pkg/validate/identifiers.go:SSNValidator`
+- [x] Phone/SSN normalizers - see `pkg/validate/identifiers.go`
 
 ### Phase 3: Matching Engine
 - [ ] Deterministic matching rules
@@ -453,6 +468,13 @@ var testPatients = []Patient{
     },
 }
 ```
+
+## See Also
+
+- [SOURCE-PROFILES.md](SOURCE-PROFILES.md) - Identifier validation config per source profile
+- [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) - PID-3 parsing and CX data type variations
+- [FHIR-PROFILES.md](FHIR-PROFILES.md) - FHIR Identifier type and system URIs
+- [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) - NPI validation in EDI NM1 segments
 
 ## References
 

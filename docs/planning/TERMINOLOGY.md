@@ -2,6 +2,17 @@
 
 This document details healthcare code systems, version management, and the fi-fhir terminology normalization strategy.
 
+## Quick Reference
+
+| Feature | Status | Implementation |
+|---------|--------|----------------|
+| **Code system URIs** | ✅ | `pkg/terminology/mapper.go` (LOINC, SNOMED, ICD-10, CPT) |
+| **CSV mapping loader** | ✅ | `pkg/terminology/mapper.go:LoadFromCSV()` |
+| **Mapper registry** | ✅ | `pkg/terminology/mapper.go:Registry` |
+| **MapToLOINC/SNOMED** | ✅ | Convenience methods for common targets |
+| **LOINC file loader** | 🔲 | Direct loading from loinc.org downloads |
+| **Panel expansion** | 🔲 | CBC/BMP/CMP → individual components |
+
 ## Code Systems Reference
 
 ### Clinical Coding Systems
@@ -227,19 +238,22 @@ func GetICD10Version(serviceDate time.Time) string {
 
 ## Implementation Plan
 
-### Phase 1: Core Infrastructure
-- [ ] Code system registry (OIDs, URIs, metadata)
-- [ ] Version tracking per code system
-- [ ] Basic validation (format only)
+### Phase 1: Core Infrastructure ✅
+- [x] Code system URIs (LOINC, SNOMED, ICD-10, CPT, etc.) - see `pkg/terminology/mapper.go`
+- [x] MappingEquivalence enum (equivalent, wider, narrower, inexact, unmatched)
+- [x] CodeMapping struct with full provenance fields
+- [ ] Version tracking per code system (in config only)
 
 ### Phase 2: LOINC Support
 - [ ] LOINC file loader (CSV from loinc.org)
 - [ ] Code lookup by code/display
 - [ ] Panel expansion (CBC → individual components)
 
-### Phase 3: Mapping Engine
-- [ ] CSV mapping file parser
-- [ ] Mapping lookup with fallback
+### Phase 3: Mapping Engine ✅
+- [x] CSV mapping file parser - see `pkg/terminology/mapper.go:LoadFromCSV()`
+- [x] Mapper with lookup (Map, MapToLOINC, MapToSNOMED) - see `pkg/terminology/mapper.go`
+- [x] Mapper Registry for managing multiple source→target pairs
+- [x] HasMapping() check for validation
 - [ ] Confidence scoring for fuzzy matches
 
 ### Phase 4: UMLS Integration (Optional)
@@ -280,6 +294,12 @@ var testCases = []struct {
 | SNOMED CT | US Edition files | https://www.nlm.nih.gov/healthit/snomedct/ |
 | ICD-10-CM | Code list | https://www.cms.gov/medicare/coding |
 | UMLS | Cross-walks | https://uts.nlm.nih.gov/uts/ |
+
+## See Also
+
+- [SOURCE-PROFILES.md](SOURCE-PROFILES.md) - Terminology mapping configuration per source profile
+- [FHIR-PROFILES.md](FHIR-PROFILES.md) - CodeableConcept and Coding in FHIR resources
+- [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) - OBX segment coding and local code systems
 
 ## References
 

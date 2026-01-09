@@ -2,6 +2,23 @@
 
 This document details US Core, Da Vinci, and other FHIR profile requirements for fi-fhir output generation.
 
+## Quick Reference
+
+| Resource | US Core Profile | Status | Implementation |
+|----------|-----------------|--------|----------------|
+| **Patient** | us-core-patient | ✅ | `pkg/fhir/mapper.go:MapPatient()` |
+| **Encounter** | us-core-encounter | ✅ | `pkg/fhir/mapper.go:MapEncounter()` |
+| **Observation** | us-core-observation-lab | ✅ | `pkg/fhir/mapper.go:MapLabObservation()` |
+| **DiagnosticReport** | us-core-diagnosticreport-lab | ✅ | `pkg/fhir/mapper.go:MapLabResult()` |
+| **Condition** | us-core-condition | 🔲 | Planned |
+| **Claim** | (Da Vinci PAS) | 🔲 | Planned |
+
+| Feature | Status | Implementation |
+|---------|--------|----------------|
+| **Transaction bundles** | ✅ | `pkg/fhir/mapper.go:CreateTransactionBundle()` |
+| **Profile metadata** | ✅ | Auto-injected `Meta.Profile` |
+| **Race/ethnicity extensions** | ✅ | US Core OMB categories |
+
 ## FHIR Overview
 
 ### Version Timeline
@@ -422,29 +439,34 @@ profiles:
 
 ## Implementation Plan
 
-### Phase 1: Core FHIR Types
-- [ ] FHIR R4 base types in Go
-- [ ] JSON serialization
-- [ ] Reference handling
+### Phase 1: Core FHIR Types ✅
+- [x] FHIR R4 base types in Go - see `pkg/fhir/types.go`
+- [x] JSON serialization with MarshalJSON methods
+- [x] Reference handling with typed Reference struct
+- [x] Standard URIs and code systems defined (LOINC, SNOMED, ICD-10, etc.)
 
-### Phase 2: US Core Mapping
-- [ ] Patient (with race/ethnicity extensions)
-- [ ] Observation (lab results)
-- [ ] Encounter
-- [ ] Condition
+### Phase 2: US Core Mapping ✅
+- [x] Patient (with race/ethnicity OMB extensions) - see `pkg/fhir/mapper.go:MapPatient()`
+- [x] Observation (lab results) - see `pkg/fhir/mapper.go:MapLabObservation()`
+- [x] Encounter (with participants, hospitalization, location) - see `pkg/fhir/mapper.go:MapEncounter()`
+- [x] DiagnosticReport (for lab panels) - see `pkg/fhir/mapper.go:MapLabResult()`
+- [ ] Condition (for problems/diagnoses)
 
 ### Phase 3: Validation
-- [ ] Must-support element checking
-- [ ] Terminology binding validation
-- [ ] Profile metadata injection
+- [x] Profile metadata injection (Meta.Profile set on all resources)
+- [x] Basic terminology system mapping (identifier type codes to URIs)
+- [ ] Full must-support element validation
+- [ ] Terminology binding strength validation
+- [ ] External FHIR Validator integration
 
 ### Phase 4: Da Vinci Support
 - [ ] PAS Claim/ClaimResponse
 - [ ] PDex ExplanationOfBenefit
 - [ ] Coverage resources
 
-### Phase 5: Bundle Operations
-- [ ] Transaction bundles
+### Phase 5: Bundle Operations ✅
+- [x] Transaction bundles - see `pkg/fhir/mapper.go:CreateTransactionBundle()`
+- [x] Searchset bundles - see `pkg/fhir/mapper.go:CreateSearchsetBundle()`
 - [ ] Batch bundles
 - [ ] Document bundles (if needed)
 
@@ -491,6 +513,13 @@ java -jar validator_cli.jar patient.json \
   -ig hl7.fhir.us.core#6.1.0 \
   -profile http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient
 ```
+
+## See Also
+
+- [WORKFLOW-DSL.md](WORKFLOW-DSL.md) - FHIR action in workflow routes events to FHIR servers
+- [TERMINOLOGY.md](TERMINOLOGY.md) - Code system mapping (LOINC, SNOMED, ICD-10) for FHIR resources
+- [IDENTIFIERS.md](IDENTIFIERS.md) - Identifier systems and validation for FHIR resources
+- [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) - EDI to FHIR Claim/ExplanationOfBenefit mapping
 
 ## References
 
