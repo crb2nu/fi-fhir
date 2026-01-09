@@ -15,6 +15,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/cblevins/fi-fhir/internal/api/graphql"
+	"github.com/cblevins/fi-fhir/internal/api/graphql/resolvers"
 	"github.com/cblevins/fi-fhir/internal/fhir/subscription"
 	"github.com/cblevins/fi-fhir/internal/parser/cda"
 	"github.com/cblevins/fi-fhir/internal/parser/csv"
@@ -60,6 +62,21 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
+	case "serve":
+		if err := runServe(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+	case "eventstore":
+		if err := runEventStore(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+	case "projection":
+		if err := runProjection(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 	case "version", "--version", "-v":
 		fmt.Printf("fi-fhir version %s\n", version)
 	case "help", "--help", "-h":
@@ -85,6 +102,9 @@ Commands:
   workflow     Run events through workflow routing and actions
   config       Manage application configuration
   subscription Manage FHIR subscriptions for bidirectional integration
+  serve        Start the GraphQL API server
+  eventstore   Manage event store (init, stats, streams, read)
+  projection   Manage projections (list, status, run, rebuild)
   version      Show version information
   help         Show this help message
 
@@ -103,6 +123,10 @@ Examples:
 
   # Run workflow on events
   fi-fhir workflow run --config workflow.yaml events.json
+
+  # Initialize event store and run projections
+  fi-fhir eventstore init --db "$DATABASE_URL"
+  fi-fhir projection run --db "$DATABASE_URL"
 
 For more information, visit: https://github.com/cblevins/fi-fhir`)
 }
@@ -3225,4 +3249,229 @@ Examples:
     --config subscriptions.yaml \
     --name patient_changes \
     --resource testdata/patient.json`)
+}
+
+// =============================================================================
+// Serve Command - GraphQL API Server
+// =============================================================================
+
+func runServe(args []string) error {
+	var (
+		host           = "0.0.0.0"
+		port           = 8081
+		path           = "/graphql"
+		playgroundPath = "/"
+		playground     = true
+		introspection  = true
+		workflowPath   = ""
+		maxDepth       = 10
+		maxComplexity  = 1000
+		timeout        = 30 * time.Second
+	)
+
+	// Parse flags
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--host", "-H":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--host requires a value")
+			}
+			i++
+			host = args[i]
+		case "--port", "-p":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--port requires a value")
+			}
+			i++
+			var err error
+			port, err = strconv.Atoi(args[i])
+			if err != nil {
+				return fmt.Errorf("invalid port: %s", args[i])
+			}
+		case "--path":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--path requires a value")
+			}
+			i++
+			path = args[i]
+		case "--playground-path":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--playground-path requires a value")
+			}
+			i++
+			playgroundPath = args[i]
+		case "--no-playground":
+			playground = false
+		case "--no-introspection":
+			introspection = false
+		case "--workflow", "-w":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--workflow requires a value")
+			}
+			i++
+			workflowPath = args[i]
+		case "--max-depth":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--max-depth requires a value")
+			}
+			i++
+			var err error
+			maxDepth, err = strconv.Atoi(args[i])
+			if err != nil {
+				return fmt.Errorf("invalid max-depth: %s", args[i])
+			}
+		case "--max-complexity":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--max-complexity requires a value")
+			}
+			i++
+			var err error
+			maxComplexity, err = strconv.Atoi(args[i])
+			if err != nil {
+				return fmt.Errorf("invalid max-complexity: %s", args[i])
+			}
+		case "--timeout":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--timeout requires a value")
+			}
+			i++
+			var err error
+			timeout, err = time.ParseDuration(args[i])
+			if err != nil {
+				return fmt.Errorf("invalid timeout: %s", args[i])
+			}
+		case "--help", "-h":
+			printServeUsage()
+			return nil
+		default:
+			if len(args[i]) > 0 && args[i][0] == '-' {
+				return fmt.Errorf("unknown flag: %s", args[i])
+			}
+		}
+	}
+
+	// Build resolver options
+	resolverOpts := []resolvers.ResolverOption{
+		resolvers.WithVersion(version),
+	}
+
+	// Load workflow engine if specified
+	if workflowPath != "" {
+		w, err := workflow.LoadWorkflow(workflowPath)
+		if err != nil {
+			return fmt.Errorf("failed to load workflow: %w", err)
+		}
+		if errors := w.Validate(); len(errors) > 0 {
+			fmt.Fprintf(os.Stderr, "Workflow validation warnings:\n")
+			for _, e := range errors {
+				fmt.Fprintf(os.Stderr, "  - %v\n", e)
+			}
+		}
+		engine, err := workflow.NewEngine(w)
+		if err != nil {
+			return fmt.Errorf("failed to create workflow engine: %w", err)
+		}
+		resolverOpts = append(resolverOpts, resolvers.WithWorkflowEngine(engine))
+		fmt.Printf("Loaded workflow: %s (%d routes)\n", w.Name, len(w.Routes))
+	}
+
+	// Create resolver
+	resolver := resolvers.NewResolver(resolverOpts...)
+
+	// Create server config
+	serverConfig := &graphql.ServerConfig{
+		Host:              host,
+		Port:              port,
+		Path:              path,
+		PlaygroundEnabled: playground,
+		PlaygroundPath:    playgroundPath,
+		WebSocketPath:     path + "/ws",
+		MaxDepth:          maxDepth,
+		MaxComplexity:     maxComplexity,
+		Timeout:           timeout,
+		Introspection:     introspection,
+		AllowedOrigins:    []string{"*"},
+	}
+
+	// Create and start server
+	server := graphql.NewServer(resolver, serverConfig)
+
+	// Set up signal handling for graceful shutdown
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+
+	// Start server in goroutine
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- server.Start()
+	}()
+
+	// Wait for signal or error
+	select {
+	case sig := <-sigCh:
+		fmt.Printf("\nReceived %v, shutting down...\n", sig)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		return server.Shutdown(ctx)
+	case err := <-errCh:
+		if err != nil && err != http.ErrServerClosed {
+			return err
+		}
+		return nil
+	}
+}
+
+func printServeUsage() {
+	fmt.Println(`fi-fhir serve - Start GraphQL API server
+
+Start a GraphQL API server for healthcare event management. The server provides:
+- Queries for events and patients
+- Mutations to submit messages and events
+- Subscriptions for real-time event streaming
+- Interactive GraphQL Playground (optional)
+
+Usage:
+  fi-fhir serve [options]
+
+Options:
+  -H, --host <addr>         Host address to bind (default: 0.0.0.0)
+  -p, --port <port>         Port to listen on (default: 8081)
+      --path <path>         GraphQL endpoint path (default: /graphql)
+      --playground-path <p> Playground path (default: /)
+      --no-playground       Disable GraphQL Playground
+      --no-introspection    Disable GraphQL introspection
+  -w, --workflow <file>     Workflow DSL file for event processing
+      --max-depth <n>       Maximum query depth (default: 10)
+      --max-complexity <n>  Maximum query complexity (default: 1000)
+      --timeout <duration>  Request timeout (default: 30s)
+  -h, --help                Show this help message
+
+Endpoints:
+  GET  /          - GraphQL Playground (if enabled)
+  POST /graphql   - GraphQL query endpoint
+  WS   /graphql/ws - GraphQL WebSocket subscriptions
+  GET  /health    - Health check endpoint
+
+Examples:
+  # Start server with defaults
+  fi-fhir serve
+
+  # Start on custom port with workflow
+  fi-fhir serve --port 8080 --workflow workflow.yaml
+
+  # Production mode (no playground, no introspection)
+  fi-fhir serve --no-playground --no-introspection --port 443
+
+  # With custom timeouts
+  fi-fhir serve --timeout 60s --max-depth 15
+
+GraphQL Query Examples:
+  # List recent events
+  query { events(first: 10) { edges { node { id type timestamp } } } }
+
+  # Get patient info
+  query { patient(mrn: "MRN001") { familyName givenName dateOfBirth } }
+
+  # Subscribe to events
+  subscription { eventStream { ... on LabResultEvent { patient { mrn } } } }`)
 }
