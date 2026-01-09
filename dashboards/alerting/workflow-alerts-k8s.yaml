@@ -1,0 +1,219 @@
+# PrometheusRule CRD for Kubernetes/Prometheus Operator
+#
+# Usage:
+#   kubectl apply -f workflow-alerts-k8s.yaml
+#
+# Requirements:
+#   - Prometheus Operator installed
+#   - Prometheus configured to select this rule via ruleSelector
+#
+# Customize:
+#   - Update namespace to match your deployment
+#   - Adjust thresholds based on your SLOs
+#   - Update runbook_url to your documentation
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: fi-fhir-workflow-alerts
+  namespace: monitoring  # Update to your namespace
+  labels:
+    app: fi-fhir
+    prometheus: main
+    role: alert-rules
+spec:
+  groups:
+    - name: fi-fhir-workflow-availability
+      interval: 30s
+      rules:
+        - alert: WorkflowHighErrorRate
+          expr: |
+            (
+              sum(rate(fi_fhir_workflow_events_processed_total{success="false"}[5m]))
+              /
+              sum(rate(fi_fhir_workflow_events_processed_total[5m]))
+            ) > 0.05
+          for: 5m
+          labels:
+            severity: critical
+            service: fi-fhir
+            category: availability
+          annotations:
+            summary: "High workflow event error rate"
+            description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%)."
+            runbook_url: "https://docs.example.com/runbooks/fi-fhir/high-error-rate"
+
+        - alert: WorkflowActionFailures
+          expr: |
+            sum(rate(fi_fhir_workflow_actions_executed_total{success="false"}[5m])) by (action_type, route_name) > 0.1
+          for: 10m
+          labels:
+            severity: warning
+            service: fi-fhir
+            category: availability
+          annotations:
+            summary: "Workflow action failures detected"
+            description: "Action {{ $labels.action_type }} on route {{ $labels.route_name }} is failing."
+
+        - alert: WorkflowNoEventsProcessed
+          expr: |
+            sum(rate(fi_fhir_workflow_events_processed_total[15m])) == 0
+          for: 30m
+          labels:
+            severity: warning
+            service: fi-fhir
+            category: availability
+          annotations:
+            summary: "No workflow events processed"
+            description: "No events have been processed in the last 30 minutes."
+
+    - name: fi-fhir-workflow-latency
+      interval: 30s
+      rules:
+        - alert: WorkflowHighEventLatency
+          expr: |
+            histogram_quantile(0.99,
+              sum(rate(fi_fhir_workflow_events_processed_duration_seconds_bucket[5m])) by (le)
+            ) > 5
+          for: 10m
+          labels:
+            severity: warning
+            service: fi-fhir
+            category: latency
+          annotations:
+            summary: "High workflow event processing latency"
+            description: "p99 event processing latency is {{ $value | humanizeDuration }}."
+
+        - alert: WorkflowHighActionLatency
+          expr: |
+            histogram_quantile(0.99,
+              sum(rate(fi_fhir_workflow_actions_executed_duration_seconds_bucket[5m])) by (le, action_type)
+            ) > 10
+          for: 10m
+          labels:
+            severity: warning
+            service: fi-fhir
+            category: latency
+          annotations:
+            summary: "High workflow action latency"
+            description: "p99 latency for action {{ $labels.action_type }} is {{ $value | humanizeDuration }}."
+
+    - name: fi-fhir-workflow-resilience
+      interval: 30s
+      rules:
+        - alert: WorkflowCircuitBreakerOpen
+          expr: |
+            sum(increase(fi_fhir_workflow_circuit_breaker_state_changes_total{to_state="open"}[5m])) by (endpoint) > 0
+          for: 1m
+          labels:
+            severity: critical
+            service: fi-fhir
+            category: resilience
+          annotations:
+            summary: "Circuit breaker opened"
+            description: "Circuit breaker for {{ $labels.endpoint }} has opened."
+
+        - alert: WorkflowCircuitBreakerRejections
+          expr: |
+            sum(rate(fi_fhir_workflow_circuit_breaker_rejections_total[5m])) by (endpoint) > 1
+          for: 5m
+          labels:
+            severity: warning
+            service: fi-fhir
+            category: resilience
+          annotations:
+            summary: "Circuit breaker rejecting requests"
+            description: "Circuit breaker for {{ $labels.endpoint }} is rejecting requests."
+
+        - alert: WorkflowHighRetryRate
+          expr: |
+            sum(rate(fi_fhir_workflow_action_retries_total[5m])) by (action_type, route_name)
+            /
+            sum(rate(fi_fhir_workflow_actions_executed_total[5m])) by (action_type, route_name)
+            > 0.3
+          for: 10m
+          labels:
+            severity: warning
+            service: fi-fhir
+            category: resilience
+          annotations:
+            summary: "High action retry rate"
+            description: "{{ $value | humanizePercentage }} of actions are being retried."
+
+        - alert: WorkflowRateLimitRejections
+          expr: |
+            sum(rate(fi_fhir_workflow_rate_limit_rejections_total[5m])) by (endpoint) > 0.5
+          for: 5m
+          labels:
+            severity: warning
+            service: fi-fhir
+            category: resilience
+          annotations:
+            summary: "Rate limit rejecting requests"
+            description: "Rate limiter for {{ $labels.endpoint }} is rejecting requests."
+
+    - name: fi-fhir-workflow-dlq
+      interval: 30s
+      rules:
+        - alert: WorkflowDLQGrowing
+          expr: fi_fhir_workflow_dlq_depth > 100
+          for: 15m
+          labels:
+            severity: warning
+            service: fi-fhir
+            category: dlq
+          annotations:
+            summary: "Dead letter queue growing"
+            description: "DLQ depth is {{ $value }} events."
+
+        - alert: WorkflowDLQCritical
+          expr: fi_fhir_workflow_dlq_depth > 1000
+          for: 5m
+          labels:
+            severity: critical
+            service: fi-fhir
+            category: dlq
+          annotations:
+            summary: "Dead letter queue critical depth"
+            description: "DLQ depth is {{ $value }} events. Immediate attention required."
+
+        - alert: WorkflowDLQHighPushRate
+          expr: sum(rate(fi_fhir_workflow_dlq_pushed_total[5m])) > 1
+          for: 10m
+          labels:
+            severity: warning
+            service: fi-fhir
+            category: dlq
+          annotations:
+            summary: "High DLQ push rate"
+            description: "Events are being pushed to DLQ at {{ $value | humanize }}/sec."
+
+    - name: fi-fhir-workflow-http
+      interval: 30s
+      rules:
+        - alert: WorkflowHTTP5xxErrors
+          expr: |
+            sum(rate(fi_fhir_workflow_http_requests_total{status_code=~"5.."}[5m])) by (endpoint)
+            /
+            sum(rate(fi_fhir_workflow_http_requests_total[5m])) by (endpoint)
+            > 0.1
+          for: 5m
+          labels:
+            severity: warning
+            service: fi-fhir
+            category: http
+          annotations:
+            summary: "High HTTP 5xx error rate"
+            description: "{{ $value | humanizePercentage }} of requests to {{ $labels.endpoint }} are returning 5xx."
+
+        - alert: WorkflowAuthFailures
+          expr: |
+            sum(rate(fi_fhir_workflow_http_requests_total{status_code="401"}[5m])) by (endpoint) > 0.1
+          for: 5m
+          labels:
+            severity: warning
+            service: fi-fhir
+            category: http
+          annotations:
+            summary: "Authentication failures detected"
+            description: "{{ $labels.endpoint }} is returning 401 Unauthorized."
