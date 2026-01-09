@@ -1781,3 +1781,322 @@ func TestOAuthClearCache(t *testing.T) {
 
 // Unused but needed to prevent compiler from complaining about time import
 var _ = time.Second
+
+// Database Action Tests
+
+func TestDatabaseActionRegistered(t *testing.T) {
+	workflow := &Workflow{
+		Name:    "test",
+		Version: "1.0",
+		Routes: []Route{
+			{
+				Name:   "test_route",
+				Filter: Filter{EventType: StringOrSlice{"test"}},
+				Actions: []Action{
+					{Type: "database", Config: map[string]string{}},
+				},
+			},
+		},
+	}
+
+	engine, err := NewEngine(workflow)
+	if err != nil {
+		t.Fatalf("NewEngine failed: %v", err)
+	}
+
+	// Verify database action is registered
+	_, exists := engine.actions["database"]
+	if !exists {
+		t.Error("database action should be registered")
+	}
+}
+
+func TestDatabaseConfigParsing(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      map[string]string
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name: "valid config",
+			config: map[string]string{
+				"connection":       "postgres://localhost/test",
+				"table":            "events",
+				"mapping_event_id": "id",
+				"mapping_type":     "type",
+			},
+			expectError: false,
+		},
+		{
+			name: "missing connection",
+			config: map[string]string{
+				"table":            "events",
+				"mapping_event_id": "id",
+			},
+			expectError: true,
+			errorMsg:    "connection",
+		},
+		{
+			name: "missing table",
+			config: map[string]string{
+				"connection":       "postgres://localhost/test",
+				"mapping_event_id": "id",
+			},
+			expectError: true,
+			errorMsg:    "table",
+		},
+		{
+			name: "no mappings",
+			config: map[string]string{
+				"connection": "postgres://localhost/test",
+				"table":      "events",
+			},
+			expectError: true,
+			errorMsg:    "mapping",
+		},
+		{
+			name: "invalid operation",
+			config: map[string]string{
+				"connection":       "postgres://localhost/test",
+				"table":            "events",
+				"operation":        "delete",
+				"mapping_event_id": "id",
+			},
+			expectError: true,
+			errorMsg:    "insert",
+		},
+		{
+			name: "upsert config",
+			config: map[string]string{
+				"connection":       "postgres://localhost/test",
+				"table":            "events",
+				"operation":        "upsert",
+				"conflict_on":      "event_id",
+				"mapping_event_id": "id",
+				"mapping_type":     "type",
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := parseDatabaseConfig(tt.config)
+
+			if tt.expectError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				} else if !strings.Contains(err.Error(), tt.errorMsg) {
+					t.Errorf("Expected error containing '%s', got: %v", tt.errorMsg, err)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if result.Connection != tt.config["connection"] {
+				t.Errorf("Expected connection '%s', got '%s'", tt.config["connection"], result.Connection)
+			}
+			if result.Table != tt.config["table"] {
+				t.Errorf("Expected table '%s', got '%s'", tt.config["table"], result.Table)
+			}
+		})
+	}
+}
+
+func TestDatabaseDriverDetection(t *testing.T) {
+	tests := []struct {
+		dsn      string
+		expected string
+	}{
+		{"postgres://localhost/test", "postgres"},
+		{"postgresql://localhost/test", "postgres"},
+		{"mysql://localhost/test", "mysql"},
+		{"user:pass@tcp(localhost:3306)/test", "mysql"},
+		{"sqlite:///path/to/db.sqlite", "sqlite3"},
+		{"file:test.db", "sqlite3"},
+		{"unknown://localhost/test", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.dsn, func(t *testing.T) {
+			result := detectDriver(tt.dsn)
+			if result != tt.expected {
+				t.Errorf("Expected driver '%s' for DSN '%s', got '%s'", tt.expected, tt.dsn, result)
+			}
+		})
+	}
+}
+
+func TestDatabaseFieldExtraction(t *testing.T) {
+	eventMap := map[string]interface{}{
+		"id":     "evt-123",
+		"type":   "patient_admit",
+		"source": "epic_adt",
+		"patient": map[string]interface{}{
+			"mrn":  "MRN456",
+			"name": "John Doe",
+		},
+	}
+
+	rawEvent := map[string]interface{}{
+		"id":     "evt-123",
+		"type":   "patient_admit",
+		"source": "epic_adt",
+		"patient": map[string]interface{}{
+			"mrn":  "MRN456",
+			"name": "John Doe",
+		},
+	}
+
+	tests := []struct {
+		path     string
+		expected interface{}
+	}{
+		{"id", "evt-123"},
+		{"type", "patient_admit"},
+		{"patient.mrn", "MRN456"},
+		{"patient.name", "John Doe"},
+		{"nonexistent", nil},
+		{"patient.nonexistent", nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			result, err := extractValueForDB(tt.path, eventMap, rawEvent)
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+			if result != tt.expected {
+				t.Errorf("Expected '%v', got '%v'", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestDatabaseRawExtraction(t *testing.T) {
+	rawEvent := map[string]interface{}{
+		"id":   "evt-123",
+		"type": "test",
+	}
+
+	result, err := extractValueForDB("__raw__", nil, rawEvent)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Result should be a JSON string
+	resultStr, ok := result.(string)
+	if !ok {
+		t.Fatalf("Expected string, got %T", result)
+	}
+
+	// Should contain the event data
+	if !strings.Contains(resultStr, "evt-123") {
+		t.Errorf("Raw JSON should contain event ID, got: %s", resultStr)
+	}
+	if !strings.Contains(resultStr, "test") {
+		t.Errorf("Raw JSON should contain event type, got: %s", resultStr)
+	}
+}
+
+func TestDatabaseActionRequiresConnection(t *testing.T) {
+	event := map[string]interface{}{
+		"id":   "evt-123",
+		"type": "test",
+	}
+
+	config := map[string]string{
+		"table":            "events",
+		"mapping_event_id": "id",
+	}
+
+	err := databaseAction(event, config)
+	if err == nil {
+		t.Error("Expected error for missing connection")
+	}
+	if !strings.Contains(err.Error(), "connection") {
+		t.Errorf("Error should mention 'connection', got: %v", err)
+	}
+}
+
+func TestDatabaseActionRequiresTable(t *testing.T) {
+	event := map[string]interface{}{
+		"id":   "evt-123",
+		"type": "test",
+	}
+
+	config := map[string]string{
+		"connection":       "postgres://localhost/test",
+		"mapping_event_id": "id",
+	}
+
+	err := databaseAction(event, config)
+	if err == nil {
+		t.Error("Expected error for missing table")
+	}
+	if !strings.Contains(err.Error(), "table") {
+		t.Errorf("Error should mention 'table', got: %v", err)
+	}
+}
+
+func TestDatabaseManagerConnectionCaching(t *testing.T) {
+	manager := NewDatabaseManager()
+
+	// These will fail without an actual database, but we can test the structure
+	_, err := manager.GetConnection("invalid://connection")
+	if err == nil {
+		t.Error("Expected error for invalid connection")
+	}
+
+	// Verify error mentions driver detection
+	if !strings.Contains(err.Error(), "detect") {
+		t.Errorf("Error should mention driver detection, got: %v", err)
+	}
+}
+
+func TestBuildColumnsAndValues(t *testing.T) {
+	mapping := map[string]string{
+		"col_a": "field_a",
+		"col_b": "nested.field",
+		"col_c": "field_c",
+	}
+
+	eventMap := map[string]interface{}{
+		"field_a": "value_a",
+		"nested": map[string]interface{}{
+			"field": "nested_value",
+		},
+		"field_c": "value_c",
+	}
+
+	rawEvent := eventMap
+
+	columns, values, err := buildColumnsAndValues(mapping, eventMap, rawEvent)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Columns should be sorted alphabetically
+	expectedCols := []string{"col_a", "col_b", "col_c"}
+	if len(columns) != len(expectedCols) {
+		t.Errorf("Expected %d columns, got %d", len(expectedCols), len(columns))
+	}
+
+	for i, col := range expectedCols {
+		if columns[i] != col {
+			t.Errorf("Expected column[%d] = '%s', got '%s'", i, col, columns[i])
+		}
+	}
+
+	// Values should match
+	expectedVals := []interface{}{"value_a", "nested_value", "value_c"}
+	for i, val := range expectedVals {
+		if values[i] != val {
+			t.Errorf("Expected value[%d] = '%v', got '%v'", i, val, values[i])
+		}
+	}
+}

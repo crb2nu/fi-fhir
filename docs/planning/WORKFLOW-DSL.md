@@ -140,7 +140,7 @@ transform:
 | `log` | ✅ Implemented | Log events with Go template messages |
 | `webhook` | ✅ Implemented | POST to REST endpoints with auth |
 | `fhir` | ✅ Implemented | POST to FHIR R4 servers with US Core mapping |
-| `database` | 🔲 Planned | Insert/update to PostgreSQL/MySQL |
+| `database` | ✅ Implemented | Insert/upsert to PostgreSQL/MySQL/SQLite |
 | `queue` | 🔲 Planned | Publish to Kafka/RabbitMQ/NATS |
 
 #### FHIR Action
@@ -459,7 +459,12 @@ fi-fhir parse -f hl7v2 message.hl7 | fi-fhir workflow run --config workflow.yaml
 - [x] OAuth2 client credentials flow (`internal/workflow/oauth.go`)
 
 ### Phase 3: Advanced Actions
-- [ ] Database action (PostgreSQL, MySQL)
+- [x] Database action (`internal/workflow/database.go`)
+  - [x] PostgreSQL, MySQL, SQLite support via database/sql
+  - [x] Insert and upsert operations
+  - [x] Field mapping with dot notation
+  - [x] `__raw__` special value for full JSON payload
+  - [x] Connection pooling with caching
 - [ ] Queue action (Kafka, RabbitMQ, NATS)
 - [ ] Retry/error handling with exponential backoff
 

@@ -81,9 +81,11 @@ See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and curren
 - CEL condition evaluation for workflow filters
 - Transform pipeline (set_field, map_terminology, redact)
 - TypeScript SDK
+- OAuth2 client credentials for FHIR action
+- Database action (PostgreSQL, MySQL, SQLite)
 
 ### In Progress
-- Database action for workflows
+- Queue action for workflows
 - EDI 270/271 eligibility
 
 ## Contributing

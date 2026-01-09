@@ -199,11 +199,11 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 - EDI X12 parser (837P claims, 835 remittance, envelope/loop parsing)
 - FHIR action in workflow (POST Patient, Encounter, Observation, DiagnosticReport to FHIR servers)
 - OAuth2 client credentials flow for FHIR action (token caching, automatic refresh)
+- Database action in workflow (PostgreSQL, MySQL, SQLite; insert/upsert; field mapping)
 
 **Next Steps**:
-1. Database action in workflow
-2. Queue action (Kafka, RabbitMQ, NATS)
-3. EDI X12 270/271 eligibility transactions
+1. Queue action (Kafka, RabbitMQ, NATS)
+2. EDI X12 270/271 eligibility transactions
 
 ## Testing Strategy
 
@@ -330,6 +330,7 @@ classifiedType := p.profile.GetEventClassification(msgType, patientClass)
 | `internal/workflow/engine.go` | Workflow engine with filters, transforms, actions |
 | `internal/workflow/transforms.go` | Transform pipeline (set_field, map_terminology, redact) |
 | `internal/workflow/oauth.go` | OAuth2 client credentials token manager with caching |
+| `internal/workflow/database.go` | Database action with connection pooling and field mapping |
 | `docs/planning/SOURCE-PROFILES.md` | Source Profile specification |
 | `docs/planning/IDENTIFIERS.md` | Patient/provider ID systems reference |
 | `docs/planning/HL7V2-QUIRKS.md` | Version differences and vendor variations |
