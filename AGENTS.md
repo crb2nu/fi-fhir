@@ -264,19 +264,32 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 - Projection framework with checkpointing (`pkg/eventsourcing/projection.go`)
 - Snapshot support for large projections (`pkg/eventsourcing/snapshot.go`)
 - Healthcare projections (patient timeline, event statistics, active encounters)
+- GraphQL projection resolvers with service layer (`internal/api/graphql/resolvers/`)
+- PostgreSQL-backed snapshot store (`pkg/eventsourcing/postgres_snapshot.go`)
+- Event replay tooling with ProjectionRebuilder (`pkg/eventsourcing/rebuild.go`)
+- Time range queries for point-in-time recovery (`pkg/eventsourcing/time_range.go`)
+- PostgreSQL integration tests with testcontainers (`pkg/eventsourcing/postgres_integration_test.go`)
+- Event archival and retention policies (`pkg/eventsourcing/archive.go`)
+- Event stream compaction (`pkg/eventsourcing/compaction.go`)
+- Saga orchestration for multi-step transactions (`pkg/eventsourcing/saga.go`)
+- Outbox pattern for reliable event publishing (`pkg/eventsourcing/outbox.go`)
 - CLI commands: `eventstore init|stats|streams|read|append` and `projection list|status|run|rebuild`
 - Design document: `docs/planning/EVENT-SOURCING.md`
 
-**Future Enhancements**:
+**Future Enhancements** (All Complete!):
   1. ~~Bidirectional FHIR subscriptions~~ ✓
   2. ~~Additional format adapters (CDA, CCDA)~~ ✓
   3. ~~GraphQL API layer~~ ✓
   4. ~~Event sourcing / CQRS patterns~~ ✓
   5. ~~Workflow action for event store integration~~ ✓
   6. ~~GraphQL queries for projections~~ ✓
-  7. Wire projection resolvers to actual projection stores
-  8. PostgreSQL-backed snapshot store
-  9. Event replay tooling for projection rebuilds
+  7. ~~Wire projection resolvers to actual projection stores~~ ✓
+  8. ~~PostgreSQL-backed snapshot store~~ ✓
+  9. ~~Event replay tooling for projection rebuilds~~ ✓
+  10. ~~Event archival and retention policies (HIPAA-aware)~~ ✓
+  11. ~~Event stream compaction (aggregate snapshots)~~ ✓
+  12. ~~Saga orchestration (multi-step transactions)~~ ✓
+  13. ~~Outbox pattern for reliable event publishing~~ ✓
 
 ## Testing Strategy
 
@@ -467,8 +480,17 @@ classifiedType := p.profile.GetEventClassification(msgType, patientClass)
 | `docs/planning/EVENT-SOURCING.md` | Event sourcing / CQRS design document |
 | `pkg/eventsourcing/store.go` | EventStore interface with append-only semantics |
 | `pkg/eventsourcing/memory_store.go` | In-memory event store for testing |
+| `pkg/eventsourcing/postgres_store.go` | PostgreSQL event store for production |
 | `pkg/eventsourcing/projection.go` | Projection framework with checkpointing |
 | `pkg/eventsourcing/projections/` | Healthcare projections (timeline, stats, encounters) |
+| `pkg/eventsourcing/snapshot.go` | Snapshot store interface and memory implementation |
+| `pkg/eventsourcing/postgres_snapshot.go` | PostgreSQL-backed snapshot store |
+| `pkg/eventsourcing/rebuild.go` | ProjectionRebuilder with progress, dry-run, snapshots |
+| `pkg/eventsourcing/time_range.go` | TimeRangeEventStore for temporal queries |
+| `pkg/eventsourcing/archive.go` | Event archival and HIPAA-aware retention policies |
+| `pkg/eventsourcing/compaction.go` | Stream compaction with aggregate snapshots |
+| `pkg/eventsourcing/saga.go` | Saga orchestration for multi-step transactions |
+| `pkg/eventsourcing/outbox.go` | Outbox pattern for reliable event publishing |
 
 ---
 
