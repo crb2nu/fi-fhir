@@ -104,11 +104,12 @@ See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and curren
 - GraphQL queries for projections
 - Projection resolver wiring (GraphQL → projection service layer)
 - PostgreSQL-backed snapshot store for projection recovery
+- Event replay tooling (ProjectionRebuilder with progress, dry-run, snapshot-aware)
 
 ### Next Up
-- Event replay tooling for projection rebuilds
 - Batch event submission endpoint
-- PostgreSQL snapshot store integration tests (testcontainers)
+- PostgreSQL integration tests (testcontainers)
+- Projection rebuild from time range (not just position)
 
 ## Contributing
 

@@ -489,7 +489,19 @@ Examples:
   fi-fhir projection run --db "$DATABASE_URL"
 
   # Rebuild patient timeline projection
-  fi-fhir projection rebuild --name patient_timeline --db "$DATABASE_URL"`)
+  fi-fhir projection rebuild --name patient_timeline --db "$DATABASE_URL"
+
+  # Rebuild from snapshot (faster recovery)
+  fi-fhir projection rebuild --name patient_timeline --from-snapshot --db "$DATABASE_URL"
+
+  # Rebuild all projections in parallel
+  fi-fhir projection rebuild --all --parallel --db "$DATABASE_URL"
+
+  # Dry run to see how many events would be processed
+  fi-fhir projection rebuild --name event_statistics --dry-run --db "$DATABASE_URL"
+
+  # Rebuild from specific position
+  fi-fhir projection rebuild --name active_encounters --from-position 1000 --db "$DATABASE_URL"`)
 
 	return nil
 }
@@ -632,7 +644,15 @@ func runProjectionRebuild(args []string) error {
 		return err
 	}
 
-	var projectionName = ""
+	var (
+		projectionName string
+		allProjections bool
+		fromSnapshot   bool
+		fromPosition   int64
+		stopPosition   int64
+		dryRun         bool
+		parallel       bool
+	)
 
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -642,11 +662,35 @@ func runProjectionRebuild(args []string) error {
 			}
 			i++
 			projectionName = args[i]
+		case "--all":
+			allProjections = true
+		case "--from-snapshot":
+			fromSnapshot = true
+		case "--from-position":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--from-position requires a value")
+			}
+			i++
+			if _, err := fmt.Sscanf(args[i], "%d", &fromPosition); err != nil {
+				return fmt.Errorf("invalid --from-position: %s", args[i])
+			}
+		case "--stop-position":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--stop-position requires a value")
+			}
+			i++
+			if _, err := fmt.Sscanf(args[i], "%d", &stopPosition); err != nil {
+				return fmt.Errorf("invalid --stop-position: %s", args[i])
+			}
+		case "--dry-run":
+			dryRun = true
+		case "--parallel":
+			parallel = true
 		}
 	}
 
-	if projectionName == "" {
-		return fmt.Errorf("--name is required for rebuild")
+	if !allProjections && projectionName == "" {
+		return fmt.Errorf("--name or --all is required for rebuild")
 	}
 
 	db, err := sql.Open("postgres", dbURL)
@@ -663,30 +707,76 @@ func runProjectionRebuild(args []string) error {
 	})
 
 	checkpointStore := eventsourcing.NewPostgresCheckpointStore(db, tableName+"_checkpoints")
+	snapshotStore := eventsourcing.NewPostgresSnapshotStore(db, tableName+"_snapshots")
 
-	runner := eventsourcing.NewProjectionRunner(store, checkpointStore, eventsourcing.DefaultProjectionRunnerConfig())
+	// Create rebuilder with all projections
+	rebuilder := eventsourcing.NewProjectionRebuilder(store, checkpointStore, snapshotStore)
+	rebuilder.RegisterProjection(projections.NewPatientTimelineProjection())
+	rebuilder.RegisterProjection(projections.NewEventStatisticsProjection())
+	rebuilder.RegisterProjection(projections.NewActiveEncountersProjection())
 
-	// Find and register the projection
-	var projection eventsourcing.Projection
-	switch projectionName {
-	case "patient_timeline":
-		projection = projections.NewPatientTimelineProjection()
-	case "event_statistics":
-		projection = projections.NewEventStatisticsProjection()
-	case "active_encounters":
-		projection = projections.NewActiveEncountersProjection()
-	default:
-		return fmt.Errorf("unknown projection: %s", projectionName)
+	config := &eventsourcing.RebuildConfig{
+		FromSnapshot: fromSnapshot,
+		FromPosition: fromPosition,
+		StopPosition: stopPosition,
+		DryRun:       dryRun,
+		Progress: func(stats *eventsourcing.RebuildProgress) {
+			if stats.Complete {
+				return // Final stats printed below
+			}
+			fmt.Printf("\r  [%s] %d events processed (%.1f/sec)",
+				stats.ProjectionName,
+				stats.EventsProcessed,
+				stats.EventsPerSecond)
+		},
 	}
 
-	runner.RegisterProjection(projection)
+	if dryRun {
+		fmt.Println("DRY RUN - no changes will be made")
+	}
 
-	fmt.Printf("Rebuilding projection '%s'...\n", projectionName)
-	if err := runner.Rebuild(ctx, projectionName); err != nil {
+	var results []*eventsourcing.RebuildResult
+
+	if allProjections {
+		fmt.Println("Rebuilding all projections...")
+		if parallel {
+			results, err = rebuilder.RebuildAllParallel(ctx, config)
+		} else {
+			results, err = rebuilder.RebuildAll(ctx, config)
+		}
+	} else {
+		if _, ok := rebuilder.GetProjection(projectionName); !ok {
+			return fmt.Errorf("unknown projection: %s", projectionName)
+		}
+		fmt.Printf("Rebuilding projection '%s'...\n", projectionName)
+		result, rerr := rebuilder.Rebuild(ctx, projectionName, config)
+		results = []*eventsourcing.RebuildResult{result}
+		err = rerr
+	}
+
+	fmt.Println() // Clear progress line
+
+	// Print results
+	for _, result := range results {
+		if result.Error != nil {
+			fmt.Printf("✗ %s: FAILED - %v\n", result.ProjectionName, result.Error)
+		} else {
+			snapshotInfo := ""
+			if result.SnapshotRestored {
+				snapshotInfo = fmt.Sprintf(" (restored from snapshot at %d)", result.SnapshotPosition)
+			}
+			fmt.Printf("✓ %s: %d events processed in %v (%.1f/sec)%s\n",
+				result.ProjectionName,
+				result.EventsProcessed,
+				result.Duration.Round(time.Millisecond),
+				result.EventsPerSecond,
+				snapshotInfo)
+		}
+	}
+
+	if err != nil {
 		return fmt.Errorf("rebuild failed: %w", err)
 	}
-
-	fmt.Printf("Projection '%s' rebuilt successfully\n", projectionName)
 
 	return nil
 }
