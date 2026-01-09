@@ -432,6 +432,64 @@ input SubmitEventInput {
   correlationId: String
 }
 
+# Batch submission inputs
+input BatchMessageItem {
+  format: SourceFormat!
+  data: String!
+  source: String!
+  correlationId: String
+  # Optional index for tracking in results (auto-assigned if not provided)
+  index: Int
+}
+
+input BatchEventItem {
+  type: EventType!
+  data: JSON!
+  source: String!
+  correlationId: String
+  index: Int
+}
+
+input SubmitBatchInput {
+  # Submit multiple raw messages
+  messages: [BatchMessageItem!]
+  # Submit multiple pre-parsed events
+  events: [BatchEventItem!]
+  # Stop processing on first error (default: false, continue processing)
+  stopOnError: Boolean
+  # Enable parallel processing (default: false, sequential)
+  parallel: Boolean
+}
+
+# Batch submission results
+type BatchItemResult {
+  # Index of the item in the input array
+  index: Int!
+  # Whether this item was processed successfully
+  success: Boolean!
+  # Event ID if successfully created
+  eventId: ID
+  # Warnings from parsing
+  warnings: [ParseWarning!]!
+  # Errors for this specific item
+  errors: [String!]!
+  # Workflow results for this item
+  workflowResults: [WorkflowResult!]!
+}
+
+type BatchResult {
+  # Total items submitted
+  totalItems: Int!
+  # Successfully processed items
+  successCount: Int!
+  # Failed items
+  failureCount: Int!
+  # Per-item results (in same order as input)
+  results: [BatchItemResult!]!
+  # Processing duration in milliseconds
+  durationMs: Int!
+}
+
 type WorkflowResult {
   workflowName: String!
   routesMatched: Int!
@@ -471,6 +529,11 @@ type Mutation {
 
   # Submit a pre-parsed event directly
   submitEvent(input: SubmitEventInput!): SubmitResult!
+
+  # Submit multiple messages/events in a batch
+  # Supports both raw messages and pre-parsed events
+  # Returns per-item results for partial success handling
+  submitBatch(input: SubmitBatchInput!): BatchResult!
 
   # Trigger a workflow manually
   triggerWorkflow(

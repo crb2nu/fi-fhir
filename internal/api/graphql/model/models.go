@@ -314,6 +314,25 @@ type SubmitResult struct {
 	WorkflowResults []WorkflowResult `json:"workflowResults"`
 }
 
+// BatchItemResult represents the result of processing a single item in a batch
+type BatchItemResult struct {
+	Index           int              `json:"index"`
+	Success         bool             `json:"success"`
+	EventID         *string          `json:"eventId,omitempty"`
+	Warnings        []ParseWarning   `json:"warnings"`
+	Errors          []string         `json:"errors"`
+	WorkflowResults []WorkflowResult `json:"workflowResults"`
+}
+
+// BatchResult represents the result of a batch submission
+type BatchResult struct {
+	TotalItems   int               `json:"totalItems"`
+	SuccessCount int               `json:"successCount"`
+	FailureCount int               `json:"failureCount"`
+	Results      []BatchItemResult `json:"results"`
+	DurationMs   int               `json:"durationMs"`
+}
+
 type FhirSubscription struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`

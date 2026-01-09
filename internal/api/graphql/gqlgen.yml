@@ -213,6 +213,22 @@ models:
   CreateSubscriptionInput:
     model:
       - github.com/cblevins/fi-fhir/internal/api/graphql/model.CreateSubscriptionInput
+  # Batch submission types
+  BatchMessageItem:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.BatchMessageItem
+  BatchEventItem:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.BatchEventItem
+  SubmitBatchInput:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.SubmitBatchInput
+  BatchItemResult:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.BatchItemResult
+  BatchResult:
+    model:
+      - github.com/cblevins/fi-fhir/internal/api/graphql/model.BatchResult
 
 # gqlgen features
 omit_slice_element_pointers: true

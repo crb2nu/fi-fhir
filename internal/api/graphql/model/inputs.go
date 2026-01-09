@@ -49,3 +49,33 @@ type CreateSubscriptionInput struct {
 	Criteria string `json:"criteria"`
 	Endpoint string `json:"endpoint"`
 }
+
+// =============================================================================
+// Batch Submission Types
+// =============================================================================
+
+// BatchMessageItem represents a single message in a batch submission
+type BatchMessageItem struct {
+	Format        SourceFormat `json:"format"`
+	Data          string       `json:"data"`
+	Source        string       `json:"source"`
+	CorrelationID *string      `json:"correlationId,omitempty"`
+	Index         *int         `json:"index,omitempty"`
+}
+
+// BatchEventItem represents a single pre-parsed event in a batch submission
+type BatchEventItem struct {
+	Type          EventType              `json:"type"`
+	Data          map[string]interface{} `json:"data"`
+	Source        string                 `json:"source"`
+	CorrelationID *string                `json:"correlationId,omitempty"`
+	Index         *int                   `json:"index,omitempty"`
+}
+
+// SubmitBatchInput is the input for batch event submission
+type SubmitBatchInput struct {
+	Messages    []BatchMessageItem `json:"messages,omitempty"`
+	Events      []BatchEventItem   `json:"events,omitempty"`
+	StopOnError *bool              `json:"stopOnError,omitempty"`
+	Parallel    *bool              `json:"parallel,omitempty"`
+}

@@ -526,3 +526,384 @@ func TestQueryResolver_ProjectionStatus(t *testing.T) {
 		}
 	}
 }
+
+// =============================================================================
+// Batch Submission Tests
+// =============================================================================
+
+func TestMutationResolver_SubmitBatch_Empty(t *testing.T) {
+	resolver := NewResolver()
+	mutationResolver := &mutationResolver{resolver}
+	ctx := context.Background()
+
+	input := model.SubmitBatchInput{}
+
+	result, err := mutationResolver.SubmitBatch(ctx, input)
+	if err != nil {
+		t.Fatalf("SubmitBatch failed: %v", err)
+	}
+
+	if result.TotalItems != 0 {
+		t.Errorf("Expected 0 total items, got %d", result.TotalItems)
+	}
+	if result.SuccessCount != 0 {
+		t.Errorf("Expected 0 success count, got %d", result.SuccessCount)
+	}
+	if result.FailureCount != 0 {
+		t.Errorf("Expected 0 failure count, got %d", result.FailureCount)
+	}
+}
+
+func TestMutationResolver_SubmitBatch_SingleMessage(t *testing.T) {
+	resolver := NewResolver()
+	mutationResolver := &mutationResolver{resolver}
+	ctx := context.Background()
+
+	input := model.SubmitBatchInput{
+		Messages: []model.BatchMessageItem{
+			{
+				Format: model.SourceFormatHL7v2,
+				Source: "test-source",
+				Data: `MSH|^~\&|SENDING_APP|SENDING_FAC|RECEIVING_APP|RECEIVING_FAC|20240115120000||ADT^A01|MSG00001|P|2.5
+EVN|A01|20240115120000
+PID|1||123456789^^^HOSPITAL^MRN||DOE^JOHN||19800315|M
+PV1|1|I|ICU^101`,
+			},
+		},
+	}
+
+	result, err := mutationResolver.SubmitBatch(ctx, input)
+	if err != nil {
+		t.Fatalf("SubmitBatch failed: %v", err)
+	}
+
+	if result.TotalItems != 1 {
+		t.Errorf("Expected 1 total item, got %d", result.TotalItems)
+	}
+	if result.SuccessCount != 1 {
+		t.Errorf("Expected 1 success, got %d", result.SuccessCount)
+	}
+	if len(result.Results) != 1 {
+		t.Errorf("Expected 1 result, got %d", len(result.Results))
+	}
+	if !result.Results[0].Success {
+		t.Errorf("Expected first result to succeed, got errors: %v", result.Results[0].Errors)
+	}
+	if result.Results[0].EventID == nil {
+		t.Error("Expected event ID to be set")
+	}
+}
+
+func TestMutationResolver_SubmitBatch_MultipleMessages(t *testing.T) {
+	resolver := NewResolver()
+	mutationResolver := &mutationResolver{resolver}
+	ctx := context.Background()
+
+	hl7Msg := `MSH|^~\&|SENDING_APP|SENDING_FAC|RECEIVING_APP|RECEIVING_FAC|20240115120000||ADT^A01|MSG00001|P|2.5
+EVN|A01|20240115120000
+PID|1||123456789^^^HOSPITAL^MRN||DOE^JOHN||19800315|M
+PV1|1|I|ICU^101`
+
+	input := model.SubmitBatchInput{
+		Messages: []model.BatchMessageItem{
+			{Format: model.SourceFormatHL7v2, Source: "test-1", Data: hl7Msg},
+			{Format: model.SourceFormatHL7v2, Source: "test-2", Data: hl7Msg},
+			{Format: model.SourceFormatHL7v2, Source: "test-3", Data: hl7Msg},
+		},
+	}
+
+	result, err := mutationResolver.SubmitBatch(ctx, input)
+	if err != nil {
+		t.Fatalf("SubmitBatch failed: %v", err)
+	}
+
+	if result.TotalItems != 3 {
+		t.Errorf("Expected 3 total items, got %d", result.TotalItems)
+	}
+	if result.SuccessCount != 3 {
+		t.Errorf("Expected 3 successes, got %d", result.SuccessCount)
+	}
+	if result.FailureCount != 0 {
+		t.Errorf("Expected 0 failures, got %d", result.FailureCount)
+	}
+
+	// Verify each result has correct index
+	for i, r := range result.Results {
+		if r.Index != i {
+			t.Errorf("Expected result index %d, got %d", i, r.Index)
+		}
+	}
+}
+
+func TestMutationResolver_SubmitBatch_SingleEvent(t *testing.T) {
+	resolver := NewResolver()
+	mutationResolver := &mutationResolver{resolver}
+	ctx := context.Background()
+
+	input := model.SubmitBatchInput{
+		Events: []model.BatchEventItem{
+			{
+				Type:   model.EventTypeLabResult,
+				Source: "test-source",
+				Data: map[string]interface{}{
+					"patient": map[string]interface{}{
+						"mrn":        "MRN001",
+						"familyName": "Doe",
+						"givenName":  "John",
+					},
+					"test": map[string]interface{}{
+						"description": "CBC",
+					},
+					"result": map[string]interface{}{
+						"value": "12.5",
+					},
+				},
+			},
+		},
+	}
+
+	result, err := mutationResolver.SubmitBatch(ctx, input)
+	if err != nil {
+		t.Fatalf("SubmitBatch failed: %v", err)
+	}
+
+	if result.TotalItems != 1 {
+		t.Errorf("Expected 1 total item, got %d", result.TotalItems)
+	}
+	if result.SuccessCount != 1 {
+		t.Errorf("Expected 1 success, got %d", result.SuccessCount)
+	}
+	if !result.Results[0].Success {
+		t.Errorf("Expected event to succeed, got errors: %v", result.Results[0].Errors)
+	}
+}
+
+func TestMutationResolver_SubmitBatch_MixedMessagesAndEvents(t *testing.T) {
+	resolver := NewResolver()
+	mutationResolver := &mutationResolver{resolver}
+	ctx := context.Background()
+
+	hl7Msg := `MSH|^~\&|SENDING_APP|SENDING_FAC|RECEIVING_APP|RECEIVING_FAC|20240115120000||ADT^A01|MSG00001|P|2.5
+EVN|A01|20240115120000
+PID|1||123456789^^^HOSPITAL^MRN||DOE^JOHN||19800315|M
+PV1|1|I|ICU^101`
+
+	input := model.SubmitBatchInput{
+		Messages: []model.BatchMessageItem{
+			{Format: model.SourceFormatHL7v2, Source: "msg-1", Data: hl7Msg},
+		},
+		Events: []model.BatchEventItem{
+			{
+				Type:   model.EventTypeLabResult,
+				Source: "evt-1",
+				Data: map[string]interface{}{
+					"patient": map[string]interface{}{"mrn": "MRN001", "familyName": "Doe", "givenName": "John"},
+					"test":    map[string]interface{}{"description": "CBC"},
+					"result":  map[string]interface{}{"value": "12.5"},
+				},
+			},
+		},
+	}
+
+	result, err := mutationResolver.SubmitBatch(ctx, input)
+	if err != nil {
+		t.Fatalf("SubmitBatch failed: %v", err)
+	}
+
+	if result.TotalItems != 2 {
+		t.Errorf("Expected 2 total items, got %d", result.TotalItems)
+	}
+	if result.SuccessCount != 2 {
+		t.Errorf("Expected 2 successes, got %d", result.SuccessCount)
+	}
+	if len(result.Results) != 2 {
+		t.Errorf("Expected 2 results, got %d", len(result.Results))
+	}
+
+	// First result should be message (index 0), second should be event (index 1)
+	if result.Results[0].Index != 0 || result.Results[1].Index != 1 {
+		t.Errorf("Unexpected result indices: %d, %d", result.Results[0].Index, result.Results[1].Index)
+	}
+}
+
+func TestMutationResolver_SubmitBatch_ExceedsMaxSize(t *testing.T) {
+	resolver := NewResolver()
+	mutationResolver := &mutationResolver{resolver}
+	ctx := context.Background()
+
+	// Create 1001 messages to exceed max batch size of 1000
+	messages := make([]model.BatchMessageItem, 1001)
+	for i := range messages {
+		messages[i] = model.BatchMessageItem{
+			Format: model.SourceFormatHL7v2,
+			Source: "test",
+			Data:   "MSH|^~\\&|TEST",
+		}
+	}
+
+	input := model.SubmitBatchInput{Messages: messages}
+
+	_, err := mutationResolver.SubmitBatch(ctx, input)
+	if err == nil {
+		t.Fatal("Expected error for batch exceeding max size")
+	}
+
+	if err.Error() != "batch size 1001 exceeds maximum of 1000" {
+		t.Errorf("Unexpected error message: %v", err)
+	}
+}
+
+func TestMutationResolver_SubmitBatch_StopOnError(t *testing.T) {
+	resolver := NewResolver()
+	mutationResolver := &mutationResolver{resolver}
+	ctx := context.Background()
+
+	stopOnError := true
+	input := model.SubmitBatchInput{
+		StopOnError: &stopOnError,
+		Messages: []model.BatchMessageItem{
+			{Format: model.SourceFormatHL7v2, Source: "test", Data: "INVALID_MESSAGE"},
+			{Format: model.SourceFormatHL7v2, Source: "test", Data: `MSH|^~\&|TEST|FAC|REC|FAC|20240115||ADT^A01|1|P|2.5
+PID|1||123^^^H^MRN||DOE^JOHN||19800315|M`},
+		},
+	}
+
+	result, err := mutationResolver.SubmitBatch(ctx, input)
+	if err != nil {
+		t.Fatalf("SubmitBatch failed: %v", err)
+	}
+
+	// First message should fail, and stopOnError should prevent processing second
+	if result.FailureCount < 1 {
+		t.Errorf("Expected at least 1 failure, got %d", result.FailureCount)
+	}
+	// Should only have 1 result due to stopOnError
+	if len(result.Results) != 1 {
+		t.Errorf("Expected 1 result with stopOnError, got %d", len(result.Results))
+	}
+}
+
+func TestMutationResolver_SubmitBatch_ParallelProcessing(t *testing.T) {
+	resolver := NewResolver()
+	mutationResolver := &mutationResolver{resolver}
+	ctx := context.Background()
+
+	hl7Msg := `MSH|^~\&|SENDING_APP|SENDING_FAC|RECEIVING_APP|RECEIVING_FAC|20240115120000||ADT^A01|MSG00001|P|2.5
+EVN|A01|20240115120000
+PID|1||123456789^^^HOSPITAL^MRN||DOE^JOHN||19800315|M
+PV1|1|I|ICU^101`
+
+	parallel := true
+	input := model.SubmitBatchInput{
+		Parallel: &parallel,
+		Messages: []model.BatchMessageItem{
+			{Format: model.SourceFormatHL7v2, Source: "test-1", Data: hl7Msg},
+			{Format: model.SourceFormatHL7v2, Source: "test-2", Data: hl7Msg},
+			{Format: model.SourceFormatHL7v2, Source: "test-3", Data: hl7Msg},
+			{Format: model.SourceFormatHL7v2, Source: "test-4", Data: hl7Msg},
+		},
+	}
+
+	result, err := mutationResolver.SubmitBatch(ctx, input)
+	if err != nil {
+		t.Fatalf("SubmitBatch failed: %v", err)
+	}
+
+	if result.TotalItems != 4 {
+		t.Errorf("Expected 4 total items, got %d", result.TotalItems)
+	}
+	if result.SuccessCount != 4 {
+		t.Errorf("Expected 4 successes, got %d", result.SuccessCount)
+	}
+
+	// Verify all have event IDs (all succeeded)
+	for i, r := range result.Results {
+		if r.EventID == nil {
+			t.Errorf("Expected event ID at index %d", i)
+		}
+	}
+}
+
+func TestMutationResolver_SubmitBatch_CustomIndex(t *testing.T) {
+	resolver := NewResolver()
+	mutationResolver := &mutationResolver{resolver}
+	ctx := context.Background()
+
+	idx100 := 100
+	idx200 := 200
+	input := model.SubmitBatchInput{
+		Events: []model.BatchEventItem{
+			{
+				Type:   model.EventTypeVitalSign,
+				Source: "test",
+				Index:  &idx100,
+				Data: map[string]interface{}{
+					"patient":   map[string]interface{}{"mrn": "MRN001", "familyName": "Doe", "givenName": "John"},
+					"vitalSign": map[string]interface{}{"name": "Temperature", "value": "98.6"},
+				},
+			},
+			{
+				Type:   model.EventTypeVitalSign,
+				Source: "test",
+				Index:  &idx200,
+				Data: map[string]interface{}{
+					"patient":   map[string]interface{}{"mrn": "MRN002", "familyName": "Smith", "givenName": "Jane"},
+					"vitalSign": map[string]interface{}{"name": "Blood Pressure", "value": "120/80"},
+				},
+			},
+		},
+	}
+
+	result, err := mutationResolver.SubmitBatch(ctx, input)
+	if err != nil {
+		t.Fatalf("SubmitBatch failed: %v", err)
+	}
+
+	// Verify custom indices are preserved
+	if result.Results[0].Index != 100 {
+		t.Errorf("Expected custom index 100, got %d", result.Results[0].Index)
+	}
+	if result.Results[1].Index != 200 {
+		t.Errorf("Expected custom index 200, got %d", result.Results[1].Index)
+	}
+}
+
+func TestMutationResolver_SubmitBatch_PartialFailure(t *testing.T) {
+	resolver := NewResolver()
+	mutationResolver := &mutationResolver{resolver}
+	ctx := context.Background()
+
+	hl7Msg := `MSH|^~\&|SENDING_APP|SENDING_FAC|RECEIVING_APP|RECEIVING_FAC|20240115120000||ADT^A01|MSG00001|P|2.5
+EVN|A01|20240115120000
+PID|1||123456789^^^HOSPITAL^MRN||DOE^JOHN||19800315|M
+PV1|1|I|ICU^101`
+
+	input := model.SubmitBatchInput{
+		Messages: []model.BatchMessageItem{
+			{Format: model.SourceFormatHL7v2, Source: "test-1", Data: hl7Msg},
+			{Format: model.SourceFormatHL7v2, Source: "test-2", Data: "INVALID"},
+			{Format: model.SourceFormatHL7v2, Source: "test-3", Data: hl7Msg},
+		},
+	}
+
+	result, err := mutationResolver.SubmitBatch(ctx, input)
+	if err != nil {
+		t.Fatalf("SubmitBatch failed: %v", err)
+	}
+
+	// Should have 2 successes and 1 failure
+	if result.SuccessCount != 2 {
+		t.Errorf("Expected 2 successes, got %d", result.SuccessCount)
+	}
+	if result.FailureCount != 1 {
+		t.Errorf("Expected 1 failure, got %d", result.FailureCount)
+	}
+
+	// Verify the failed result has errors
+	if result.Results[1].Success {
+		t.Error("Expected index 1 to fail")
+	}
+	if len(result.Results[1].Errors) == 0 {
+		t.Error("Expected errors for failed item")
+	}
+}

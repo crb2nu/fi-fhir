@@ -93,6 +93,23 @@ type ComplexityRoot struct {
 		Type          func(childComplexity int) int
 	}
 
+	BatchItemResult struct {
+		Errors          func(childComplexity int) int
+		EventID         func(childComplexity int) int
+		Index           func(childComplexity int) int
+		Success         func(childComplexity int) int
+		Warnings        func(childComplexity int) int
+		WorkflowResults func(childComplexity int) int
+	}
+
+	BatchResult struct {
+		DurationMs   func(childComplexity int) int
+		FailureCount func(childComplexity int) int
+		Results      func(childComplexity int) int
+		SuccessCount func(childComplexity int) int
+		TotalItems   func(childComplexity int) int
+	}
+
 	ComponentHealth struct {
 		Message func(childComplexity int) int
 		Name    func(childComplexity int) int
@@ -246,6 +263,7 @@ type ComplexityRoot struct {
 		DeleteFhirSubscription func(childComplexity int, id string) int
 		PauseFhirSubscription  func(childComplexity int, id string) int
 		ResumeFhirSubscription func(childComplexity int, id string) int
+		SubmitBatch            func(childComplexity int, input model.SubmitBatchInput) int
 		SubmitEvent            func(childComplexity int, input model.SubmitEventInput) int
 		SubmitMessage          func(childComplexity int, input model.SubmitMessageInput) int
 		TriggerWorkflow        func(childComplexity int, name string, event map[string]any) int
@@ -454,6 +472,7 @@ type ComplexityRoot struct {
 type MutationResolver interface {
 	SubmitMessage(ctx context.Context, input model.SubmitMessageInput) (*model.SubmitResult, error)
 	SubmitEvent(ctx context.Context, input model.SubmitEventInput) (*model.SubmitResult, error)
+	SubmitBatch(ctx context.Context, input model.SubmitBatchInput) (*model.BatchResult, error)
 	TriggerWorkflow(ctx context.Context, name string, event map[string]any) (*model.WorkflowResult, error)
 	CreateFhirSubscription(ctx context.Context, input model.CreateSubscriptionInput) (*model.FhirSubscription, error)
 	DeleteFhirSubscription(ctx context.Context, id string) (bool, error)
@@ -696,6 +715,74 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.AppointmentEvent.Type(childComplexity), true
+
+	case "BatchItemResult.errors":
+		if e.complexity.BatchItemResult.Errors == nil {
+			break
+		}
+
+		return e.complexity.BatchItemResult.Errors(childComplexity), true
+	case "BatchItemResult.eventId":
+		if e.complexity.BatchItemResult.EventID == nil {
+			break
+		}
+
+		return e.complexity.BatchItemResult.EventID(childComplexity), true
+	case "BatchItemResult.index":
+		if e.complexity.BatchItemResult.Index == nil {
+			break
+		}
+
+		return e.complexity.BatchItemResult.Index(childComplexity), true
+	case "BatchItemResult.success":
+		if e.complexity.BatchItemResult.Success == nil {
+			break
+		}
+
+		return e.complexity.BatchItemResult.Success(childComplexity), true
+	case "BatchItemResult.warnings":
+		if e.complexity.BatchItemResult.Warnings == nil {
+			break
+		}
+
+		return e.complexity.BatchItemResult.Warnings(childComplexity), true
+	case "BatchItemResult.workflowResults":
+		if e.complexity.BatchItemResult.WorkflowResults == nil {
+			break
+		}
+
+		return e.complexity.BatchItemResult.WorkflowResults(childComplexity), true
+
+	case "BatchResult.durationMs":
+		if e.complexity.BatchResult.DurationMs == nil {
+			break
+		}
+
+		return e.complexity.BatchResult.DurationMs(childComplexity), true
+	case "BatchResult.failureCount":
+		if e.complexity.BatchResult.FailureCount == nil {
+			break
+		}
+
+		return e.complexity.BatchResult.FailureCount(childComplexity), true
+	case "BatchResult.results":
+		if e.complexity.BatchResult.Results == nil {
+			break
+		}
+
+		return e.complexity.BatchResult.Results(childComplexity), true
+	case "BatchResult.successCount":
+		if e.complexity.BatchResult.SuccessCount == nil {
+			break
+		}
+
+		return e.complexity.BatchResult.SuccessCount(childComplexity), true
+	case "BatchResult.totalItems":
+		if e.complexity.BatchResult.TotalItems == nil {
+			break
+		}
+
+		return e.complexity.BatchResult.TotalItems(childComplexity), true
 
 	case "ComponentHealth.message":
 		if e.complexity.ComponentHealth.Message == nil {
@@ -1323,6 +1410,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.ResumeFhirSubscription(childComplexity, args["id"].(string)), true
+	case "Mutation.submitBatch":
+		if e.complexity.Mutation.SubmitBatch == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_submitBatch_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.SubmitBatch(childComplexity, args["input"].(model.SubmitBatchInput)), true
 	case "Mutation.submitEvent":
 		if e.complexity.Mutation.SubmitEvent == nil {
 			break
@@ -2233,10 +2331,13 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := executionContext{opCtx, e, 0, 0, make(chan graphql.DeferredResult)}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputBatchEventItem,
+		ec.unmarshalInputBatchMessageItem,
 		ec.unmarshalInputCreateSubscriptionInput,
 		ec.unmarshalInputEventFilter,
 		ec.unmarshalInputEventOrderBy,
 		ec.unmarshalInputPatientFilter,
+		ec.unmarshalInputSubmitBatchInput,
 		ec.unmarshalInputSubmitEventInput,
 		ec.unmarshalInputSubmitMessageInput,
 	)
@@ -2413,6 +2514,17 @@ func (ec *executionContext) field_Mutation_resumeFhirSubscription_args(ctx conte
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_submitBatch_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNSubmitBatchInput2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSubmitBatchInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -3705,6 +3817,361 @@ func (ec *executionContext) fieldContext_AppointmentEvent_appointment(_ context.
 				return ec.fieldContext_Appointment_reason(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Appointment", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BatchItemResult_index(ctx context.Context, field graphql.CollectedField, obj *model.BatchItemResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BatchItemResult_index,
+		func(ctx context.Context) (any, error) {
+			return obj.Index, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BatchItemResult_index(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BatchItemResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BatchItemResult_success(ctx context.Context, field graphql.CollectedField, obj *model.BatchItemResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BatchItemResult_success,
+		func(ctx context.Context) (any, error) {
+			return obj.Success, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BatchItemResult_success(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BatchItemResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BatchItemResult_eventId(ctx context.Context, field graphql.CollectedField, obj *model.BatchItemResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BatchItemResult_eventId,
+		func(ctx context.Context) (any, error) {
+			return obj.EventID, nil
+		},
+		nil,
+		ec.marshalOID2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_BatchItemResult_eventId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BatchItemResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BatchItemResult_warnings(ctx context.Context, field graphql.CollectedField, obj *model.BatchItemResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BatchItemResult_warnings,
+		func(ctx context.Context) (any, error) {
+			return obj.Warnings, nil
+		},
+		nil,
+		ec.marshalNParseWarning2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐParseWarningᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BatchItemResult_warnings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BatchItemResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "phase":
+				return ec.fieldContext_ParseWarning_phase(ctx, field)
+			case "code":
+				return ec.fieldContext_ParseWarning_code(ctx, field)
+			case "message":
+				return ec.fieldContext_ParseWarning_message(ctx, field)
+			case "path":
+				return ec.fieldContext_ParseWarning_path(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ParseWarning", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BatchItemResult_errors(ctx context.Context, field graphql.CollectedField, obj *model.BatchItemResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BatchItemResult_errors,
+		func(ctx context.Context) (any, error) {
+			return obj.Errors, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BatchItemResult_errors(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BatchItemResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BatchItemResult_workflowResults(ctx context.Context, field graphql.CollectedField, obj *model.BatchItemResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BatchItemResult_workflowResults,
+		func(ctx context.Context) (any, error) {
+			return obj.WorkflowResults, nil
+		},
+		nil,
+		ec.marshalNWorkflowResult2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowResultᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BatchItemResult_workflowResults(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BatchItemResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "workflowName":
+				return ec.fieldContext_WorkflowResult_workflowName(ctx, field)
+			case "routesMatched":
+				return ec.fieldContext_WorkflowResult_routesMatched(ctx, field)
+			case "actionsExecuted":
+				return ec.fieldContext_WorkflowResult_actionsExecuted(ctx, field)
+			case "errors":
+				return ec.fieldContext_WorkflowResult_errors(ctx, field)
+			case "duration":
+				return ec.fieldContext_WorkflowResult_duration(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowResult", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BatchResult_totalItems(ctx context.Context, field graphql.CollectedField, obj *model.BatchResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BatchResult_totalItems,
+		func(ctx context.Context) (any, error) {
+			return obj.TotalItems, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BatchResult_totalItems(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BatchResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BatchResult_successCount(ctx context.Context, field graphql.CollectedField, obj *model.BatchResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BatchResult_successCount,
+		func(ctx context.Context) (any, error) {
+			return obj.SuccessCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BatchResult_successCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BatchResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BatchResult_failureCount(ctx context.Context, field graphql.CollectedField, obj *model.BatchResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BatchResult_failureCount,
+		func(ctx context.Context) (any, error) {
+			return obj.FailureCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BatchResult_failureCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BatchResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BatchResult_results(ctx context.Context, field graphql.CollectedField, obj *model.BatchResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BatchResult_results,
+		func(ctx context.Context) (any, error) {
+			return obj.Results, nil
+		},
+		nil,
+		ec.marshalNBatchItemResult2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchItemResultᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BatchResult_results(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BatchResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "index":
+				return ec.fieldContext_BatchItemResult_index(ctx, field)
+			case "success":
+				return ec.fieldContext_BatchItemResult_success(ctx, field)
+			case "eventId":
+				return ec.fieldContext_BatchItemResult_eventId(ctx, field)
+			case "warnings":
+				return ec.fieldContext_BatchItemResult_warnings(ctx, field)
+			case "errors":
+				return ec.fieldContext_BatchItemResult_errors(ctx, field)
+			case "workflowResults":
+				return ec.fieldContext_BatchItemResult_workflowResults(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type BatchItemResult", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BatchResult_durationMs(ctx context.Context, field graphql.CollectedField, obj *model.BatchResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BatchResult_durationMs,
+		func(ctx context.Context) (any, error) {
+			return obj.DurationMs, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BatchResult_durationMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BatchResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	return fc, nil
@@ -6738,6 +7205,59 @@ func (ec *executionContext) fieldContext_Mutation_submitEvent(ctx context.Contex
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_submitEvent_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_submitBatch(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_submitBatch,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().SubmitBatch(ctx, fc.Args["input"].(model.SubmitBatchInput))
+		},
+		nil,
+		ec.marshalNBatchResult2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_submitBatch(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "totalItems":
+				return ec.fieldContext_BatchResult_totalItems(ctx, field)
+			case "successCount":
+				return ec.fieldContext_BatchResult_successCount(ctx, field)
+			case "failureCount":
+				return ec.fieldContext_BatchResult_failureCount(ctx, field)
+			case "results":
+				return ec.fieldContext_BatchResult_results(ctx, field)
+			case "durationMs":
+				return ec.fieldContext_BatchResult_durationMs(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type BatchResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_submitBatch_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -12939,6 +13459,116 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputBatchEventItem(ctx context.Context, obj any) (model.BatchEventItem, error) {
+	var it model.BatchEventItem
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"type", "data", "source", "correlationId", "index"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "type":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("type"))
+			data, err := ec.unmarshalNEventType2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Type = data
+		case "data":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("data"))
+			data, err := ec.unmarshalNJSON2map(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Data = data
+		case "source":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("source"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Source = data
+		case "correlationId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("correlationId"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CorrelationID = data
+		case "index":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("index"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Index = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputBatchMessageItem(ctx context.Context, obj any) (model.BatchMessageItem, error) {
+	var it model.BatchMessageItem
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"format", "data", "source", "correlationId", "index"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "format":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("format"))
+			data, err := ec.unmarshalNSourceFormat2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Format = data
+		case "data":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("data"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Data = data
+		case "source":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("source"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Source = data
+		case "correlationId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("correlationId"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CorrelationID = data
+		case "index":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("index"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Index = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputCreateSubscriptionInput(ctx context.Context, obj any) (model.CreateSubscriptionInput, error) {
 	var it model.CreateSubscriptionInput
 	asMap := map[string]any{}
@@ -13125,6 +13755,54 @@ func (ec *executionContext) unmarshalInputPatientFilter(ctx context.Context, obj
 				return it, err
 			}
 			it.DateOfBirth = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputSubmitBatchInput(ctx context.Context, obj any) (model.SubmitBatchInput, error) {
+	var it model.SubmitBatchInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"messages", "events", "stopOnError", "parallel"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "messages":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("messages"))
+			data, err := ec.unmarshalOBatchMessageItem2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchMessageItemᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Messages = data
+		case "events":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("events"))
+			data, err := ec.unmarshalOBatchEventItem2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchEventItemᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Events = data
+		case "stopOnError":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("stopOnError"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.StopOnError = data
+		case "parallel":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("parallel"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Parallel = data
 		}
 	}
 
@@ -13527,6 +14205,126 @@ func (ec *executionContext) _AppointmentEvent(ctx context.Context, sel ast.Selec
 			}
 		case "appointment":
 			out.Values[i] = ec._AppointmentEvent_appointment(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var batchItemResultImplementors = []string{"BatchItemResult"}
+
+func (ec *executionContext) _BatchItemResult(ctx context.Context, sel ast.SelectionSet, obj *model.BatchItemResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, batchItemResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("BatchItemResult")
+		case "index":
+			out.Values[i] = ec._BatchItemResult_index(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "success":
+			out.Values[i] = ec._BatchItemResult_success(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "eventId":
+			out.Values[i] = ec._BatchItemResult_eventId(ctx, field, obj)
+		case "warnings":
+			out.Values[i] = ec._BatchItemResult_warnings(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "errors":
+			out.Values[i] = ec._BatchItemResult_errors(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workflowResults":
+			out.Values[i] = ec._BatchItemResult_workflowResults(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var batchResultImplementors = []string{"BatchResult"}
+
+func (ec *executionContext) _BatchResult(ctx context.Context, sel ast.SelectionSet, obj *model.BatchResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, batchResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("BatchResult")
+		case "totalItems":
+			out.Values[i] = ec._BatchResult_totalItems(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "successCount":
+			out.Values[i] = ec._BatchResult_successCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "failureCount":
+			out.Values[i] = ec._BatchResult_failureCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "results":
+			out.Values[i] = ec._BatchResult_results(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "durationMs":
+			out.Values[i] = ec._BatchResult_durationMs(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -14550,6 +15348,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "submitEvent":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_submitEvent(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "submitBatch":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_submitBatch(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -16549,6 +17354,78 @@ func (ec *executionContext) marshalNAppointment2githubᚗcomᚋcblevinsᚋfiᚑf
 	return ec._Appointment(ctx, sel, &v)
 }
 
+func (ec *executionContext) unmarshalNBatchEventItem2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchEventItem(ctx context.Context, v any) (model.BatchEventItem, error) {
+	res, err := ec.unmarshalInputBatchEventItem(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNBatchItemResult2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchItemResult(ctx context.Context, sel ast.SelectionSet, v model.BatchItemResult) graphql.Marshaler {
+	return ec._BatchItemResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNBatchItemResult2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchItemResultᚄ(ctx context.Context, sel ast.SelectionSet, v []model.BatchItemResult) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNBatchItemResult2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchItemResult(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) unmarshalNBatchMessageItem2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchMessageItem(ctx context.Context, v any) (model.BatchMessageItem, error) {
+	res, err := ec.unmarshalInputBatchMessageItem(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNBatchResult2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchResult(ctx context.Context, sel ast.SelectionSet, v model.BatchResult) graphql.Marshaler {
+	return ec._BatchResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNBatchResult2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchResult(ctx context.Context, sel ast.SelectionSet, v *model.BatchResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._BatchResult(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNBoolean2bool(ctx context.Context, v any) (bool, error) {
 	res, err := graphql.UnmarshalBoolean(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -17280,6 +18157,11 @@ func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel
 	return ret
 }
 
+func (ec *executionContext) unmarshalNSubmitBatchInput2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSubmitBatchInput(ctx context.Context, v any) (model.SubmitBatchInput, error) {
+	res, err := ec.unmarshalInputSubmitBatchInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNSubmitEventInput2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSubmitEventInput(ctx context.Context, v any) (model.SubmitEventInput, error) {
 	res, err := ec.unmarshalInputSubmitEventInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -17741,6 +18623,42 @@ func (ec *executionContext) marshalOAddress2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfh
 		return graphql.Null
 	}
 	return ec._Address(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOBatchEventItem2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchEventItemᚄ(ctx context.Context, v any) ([]model.BatchEventItem, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]model.BatchEventItem, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNBatchEventItem2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchEventItem(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalOBatchMessageItem2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchMessageItemᚄ(ctx context.Context, v any) ([]model.BatchMessageItem, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]model.BatchMessageItem, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNBatchMessageItem2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchMessageItem(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
 }
 
 func (ec *executionContext) unmarshalOBoolean2bool(ctx context.Context, v any) (bool, error) {
