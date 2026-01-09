@@ -149,37 +149,59 @@ Send to FHIR server:
 ```yaml
 - type: fhir
   endpoint: https://fhir.example.com/r4
-  resource: Patient          # or Observation, Encounter, etc.
-  operation: create          # create, update, upsert
-  profile: us-core           # Apply US Core profile mapping
-  auth:
-    type: oauth2
-    token_url: https://auth.example.com/token
-    client_id: ${FHIR_CLIENT_ID}
-    client_secret: ${FHIR_CLIENT_SECRET}
-  retry:
-    attempts: 3
-    backoff: exponential
+  operation: create               # create, update, upsert
+  bundle: "true"                  # Send as transaction bundle
+  timeout: 30s
+  # Static token auth
+  token: ${FHIR_TOKEN}
+  # OR OAuth2 client credentials (takes priority over token)
+  token_url: https://auth.example.com/token
+  client_id: ${FHIR_CLIENT_ID}
+  client_secret: ${FHIR_CLIENT_SECRET}
+  scopes: patient/*.read system/*.write
 ```
+
+**Config Options:**
+| Option | Required | Description |
+|--------|----------|-------------|
+| `endpoint` | Yes | FHIR server base URL |
+| `operation` | No | `create` (default), `update`, or `upsert` |
+| `bundle` | No | `"true"` to send as transaction bundle |
+| `timeout` | No | Request timeout (default: 30s) |
+| `token` | No | Static Bearer token |
+| `token_url` | No | OAuth2 token endpoint (enables OAuth) |
+| `client_id` | For OAuth | OAuth2 client ID |
+| `client_secret` | For OAuth | OAuth2 client secret |
+| `scopes` | No | OAuth2 scopes (space or comma separated) |
+| `authorization` | No | Custom Authorization header (highest priority) |
+
+**Implementation:** `internal/workflow/actions.go` (fhirAction), `internal/workflow/oauth.go` (OAuth2)
 
 #### Webhook Action
 HTTP callback:
 
 ```yaml
 - type: webhook
-  url: https://api.example.com/events
+  url: https://api.example.com/events/{{.type}}  # Supports templates
   method: POST
-  headers:
-    Content-Type: application/json
-    X-Source: fi-fhir
-  body: json               # json, xml, form
-  auth:
-    type: bearer
-    token: ${WEBHOOK_TOKEN}
   timeout: 30s
-  retry:
-    attempts: 3
+  user_agent: fi-fhir/1.0
+  token: ${WEBHOOK_TOKEN}             # Bearer token
+  # OR custom authorization header
+  authorization: Basic ${BASIC_AUTH}
 ```
+
+**Config Options:**
+| Option | Required | Description |
+|--------|----------|-------------|
+| `url` | Yes | Webhook URL (supports Go templates) |
+| `method` | No | HTTP method (default: POST) |
+| `timeout` | No | Request timeout (default: 30s) |
+| `token` | No | Bearer token |
+| `authorization` | No | Custom Authorization header |
+| `user_agent` | No | Custom User-Agent header |
+
+**Implementation:** `internal/workflow/actions.go` (webhookAction)
 
 #### Database Action
 Store to database:
@@ -188,40 +210,67 @@ Store to database:
 - type: database
   connection: ${DATABASE_URL}
   table: events
-  operation: insert         # insert, upsert
-  mapping:
-    event_id: id
-    event_type: type
-    patient_mrn: patient.mrn
-    payload: __raw__        # Full event JSON
+  operation: insert                # insert, upsert
+  conflict_on: event_id            # For upsert: conflict columns
+  mapping_event_id: id             # Column mappings use mapping_<column> prefix
+  mapping_event_type: type
+  mapping_patient_mrn: patient.mrn # Dot notation for nested fields
+  mapping_payload: __raw__         # Special value for full JSON
 ```
+
+**Config Options:**
+| Option | Required | Description |
+|--------|----------|-------------|
+| `connection` | Yes | Database DSN (postgres://, mysql://, sqlite://) |
+| `table` | Yes | Target table name |
+| `operation` | No | `insert` (default) or `upsert` |
+| `conflict_on` | For upsert | Comma-separated conflict columns |
+| `mapping_<col>` | Yes (1+) | Map column to event field path |
+
+**Implementation:** `internal/workflow/database.go` - Uses Go's `database/sql` interface. Users must register their own drivers.
 
 #### Queue Action
 Publish to message queue:
 
 ```yaml
 - type: queue
-  driver: kafka             # kafka, rabbitmq, sqs, nats
-  topic: healthcare.events.{{.Type}}
-  config:
-    brokers: ["kafka:9092"]
-  message:
-    key: patient.mrn
-    headers:
-      source: fi-fhir
+  driver: kafka                    # kafka, rabbitmq, nats, sqs, log
+  topic: healthcare.events.{{.type}}  # Supports Go templates
+  key: patient.mrn                 # Message key for partitioning
+  header_source: fi-fhir           # Headers use header_<name> prefix
+  header_env: production
+  brokers: localhost:9092          # Driver-specific config passed through
 ```
+
+**Config Options:**
+| Option | Required | Description |
+|--------|----------|-------------|
+| `driver` | Yes | Queue driver name (kafka, rabbitmq, nats, sqs, log) |
+| `topic` | Yes | Topic/queue name (supports Go templates) |
+| `key` | No | Event field path for message key |
+| `header_<name>` | No | Static headers to add to messages |
+| Other | No | Driver-specific options passed to factory |
+
+**Implementation:** `internal/workflow/queue.go` - Uses driver registry pattern. Users register drivers via `RegisterQueueDriver()`. Built-in `log` driver for testing.
 
 #### Log Action
 Log for debugging/audit:
 
 ```yaml
 - type: log
-  level: info               # debug, info, warn, error
-  message: "Processed {{.Type}} for {{.Patient.MRN}}"
-  fields:
-    event_id: id
-    source: source
+  level: info                                           # debug, info, warn, error
+  message: "Processed {{.type}} for {{.patient.mrn}}"   # Go template
 ```
+
+**Config Options:**
+| Option | Required | Description |
+|--------|----------|-------------|
+| `level` | No | Log level: debug, info (default), warn, error |
+| `message` | No | Message template (default: "Event processed") |
+
+Note: `debug` level includes full event JSON in output. `warn` and `error` write to stderr.
+
+**Implementation:** `internal/workflow/actions.go` (logAction)
 
 ## Go Implementation
 
@@ -333,7 +382,7 @@ func (e *Engine) Process(event interface{}) []error {
 
 ## Example Workflows
 
-### ADT to FHIR
+### ADT to FHIR with OAuth
 
 ```yaml
 workflow:
@@ -352,13 +401,11 @@ workflow:
       actions:
         - type: fhir
           endpoint: https://fhir.hospital.org/r4
-          resource: Patient
           operation: upsert
-          match_by: identifier
-        - type: fhir
-          endpoint: https://fhir.hospital.org/r4
-          resource: Encounter
-          operation: create
+          token_url: https://auth.hospital.org/token
+          client_id: ${FHIR_CLIENT_ID}
+          client_secret: ${FHIR_CLIENT_SECRET}
+          scopes: patient/*.write
 ```
 
 ### Lab Results with Alerts
@@ -375,23 +422,23 @@ workflow:
       actions:
         - type: fhir
           endpoint: https://fhir.hospital.org/r4
-          resource: Observation
-          profile: us-core
+          token: ${FHIR_TOKEN}
 
     - name: critical_labs
       filter:
         event_type: lab_result
-        condition: result.interpretation in ["critical", "panic"]
+        condition: event.result.interpretation in ["critical", "panic"]
       actions:
         - type: webhook
           url: https://alerts.hospital.org/critical
           method: POST
+          token: ${ALERT_TOKEN}
         - type: log
           level: warn
-          message: "CRITICAL LAB: {{.Test.Code}} = {{.Result.Value}}"
+          message: "CRITICAL LAB: {{.test.code}} = {{.result.value}}"
 ```
 
-### Multi-Source Aggregation
+### Multi-Source Aggregation to Kafka
 
 ```yaml
 workflow:
@@ -408,6 +455,8 @@ workflow:
         - type: queue
           driver: kafka
           topic: patients.unified
+          key: patient.mrn
+          brokers: kafka.hospital.org:9092
 
     - name: cerner_patients
       filter:
@@ -418,6 +467,32 @@ workflow:
         - type: queue
           driver: kafka
           topic: patients.unified
+          key: patient.mrn
+          brokers: kafka.hospital.org:9092
+```
+
+### Event Audit Log to Database
+
+```yaml
+workflow:
+  name: event_audit
+  version: "1.0"
+
+  routes:
+    - name: audit_all_events
+      filter:
+        event_type: [patient_admit, patient_discharge, lab_result]
+      actions:
+        - type: database
+          connection: ${DATABASE_URL}
+          table: audit_log
+          operation: insert
+          mapping_event_id: id
+          mapping_event_type: type
+          mapping_source: source
+          mapping_patient_mrn: patient.mrn
+          mapping_timestamp: timestamp
+          mapping_payload: __raw__
 ```
 
 ## CLI Integration
