@@ -7,7 +7,7 @@ This directory contains detailed planning and specification documents for the fi
 | Document | Purpose | Status |
 |----------|---------|--------|
 | [SOURCE-PROFILES.md](SOURCE-PROFILES.md) | Source Profile configuration system - the unit of scalability | Core complete |
-| [WORKFLOW-DSL.md](WORKFLOW-DSL.md) | Workflow routing, transforms, and actions | Core + FHIR action complete |
+| [WORKFLOW-DSL.md](WORKFLOW-DSL.md) | Workflow routing, transforms, and actions | All actions complete |
 | [FHIR-PROFILES.md](FHIR-PROFILES.md) | FHIR R4 output with US Core mapping | US Core mapper complete |
 | [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) | HL7 v2.x version differences and parsing edge cases | Core parsing complete |
 | [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) | X12 EDI parsing (837P claims, 835 remittance) | 837P/835 complete |
@@ -21,11 +21,11 @@ This directory contains detailed planning and specification documents for the fi
 Input Formats          Source Profiles         Semantic Layer          Workflow Engine
 ─────────────         ───────────────         ──────────────          ───────────────
                       ┌───────────────┐
-HL7v2    ────────────▶│ epic_adt.yaml │──┐
-                      └───────────────┘  │    ┌─────────────┐     ┌─────────────┐
-                      ┌───────────────┐  ├───▶│  Canonical  │────▶│  Workflow   │──▶ FHIR/Webhook/DB
-CSV      ────────────▶│ csv_import    │──┤    │   Events    │     │   Routes    │
-                      └───────────────┘  │    └─────────────┘     └─────────────┘
+HL7v2    ────────────▶│ epic_adt.yaml │──┐                                            ┌─▶ FHIR API
+                      └───────────────┘  │    ┌─────────────┐     ┌─────────────┐     ├─▶ Webhook
+                      ┌───────────────┐  ├───▶│  Canonical  │────▶│  Workflow   │─────┼─▶ Database
+CSV      ────────────▶│ csv_import    │──┤    │   Events    │     │   Routes    │     ├─▶ Queue
+                      └───────────────┘  │    └─────────────┘     └─────────────┘     └─▶ Log
                       ┌───────────────┐  │
 EDI X12  ────────────▶│ edi_claims    │──┘
                       └───────────────┘
@@ -62,9 +62,9 @@ All input formats map to semantic events (`patient_admit`, `lab_result`, `claim_
 
 ### Workflow Engine
 Events flow through configurable routes with:
-- Filters (event type, source, conditions)
-- Transforms (field mapping, terminology)
-- Actions (FHIR POST, webhook, logging)
+- Filters (event type, source, CEL conditions)
+- Transforms (set_field, map_terminology, redact)
+- Actions (FHIR, webhook, database, queue, log)
 
 ## Implementation Status
 
