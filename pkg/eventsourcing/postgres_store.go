@@ -396,3 +396,171 @@ func (s *PostgresCheckpointStore) SetCheckpoint(ctx context.Context, projectionN
 
 	return nil
 }
+
+// =============================================================================
+// PostgreSQL Snapshot Store
+// =============================================================================
+
+// PostgresSnapshotStore is a PostgreSQL-backed snapshot store for projection state.
+type PostgresSnapshotStore struct {
+	db        *sql.DB
+	tableName string
+}
+
+// NewPostgresSnapshotStore creates a new PostgreSQL snapshot store.
+func NewPostgresSnapshotStore(db *sql.DB, tableName string) *PostgresSnapshotStore {
+	if tableName == "" {
+		tableName = "projection_snapshots"
+	}
+	return &PostgresSnapshotStore{
+		db:        db,
+		tableName: tableName,
+	}
+}
+
+// InitSchema creates the snapshots table.
+func (s *PostgresSnapshotStore) InitSchema(ctx context.Context) error {
+	schema := fmt.Sprintf(`
+		CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			projection_name TEXT NOT NULL,
+			position BIGINT NOT NULL,
+			data BYTEA NOT NULL,
+			created_at TIMESTAMPTZ DEFAULT NOW()
+		);
+		CREATE INDEX IF NOT EXISTS idx_%s_projection ON %s (projection_name, position DESC);
+	`, s.tableName, s.tableName, s.tableName)
+
+	_, err := s.db.ExecContext(ctx, schema)
+	return err
+}
+
+// SaveSnapshot persists a snapshot.
+func (s *PostgresSnapshotStore) SaveSnapshot(ctx context.Context, snapshot Snapshot) error {
+	createdAt := snapshot.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = time.Now()
+	}
+
+	_, err := s.db.ExecContext(ctx, fmt.Sprintf(`
+		INSERT INTO %s (projection_name, position, data, created_at)
+		VALUES ($1, $2, $3, $4)
+	`, s.tableName), snapshot.ProjectionName, snapshot.Position, snapshot.Data, createdAt)
+
+	if err != nil {
+		return fmt.Errorf("failed to save snapshot: %w", err)
+	}
+
+	return nil
+}
+
+// GetLatestSnapshot retrieves the most recent snapshot for a projection.
+func (s *PostgresSnapshotStore) GetLatestSnapshot(ctx context.Context, projectionName string) (*Snapshot, error) {
+	row := s.db.QueryRowContext(ctx, fmt.Sprintf(`
+		SELECT projection_name, position, data, created_at
+		FROM %s
+		WHERE projection_name = $1
+		ORDER BY position DESC
+		LIMIT 1
+	`, s.tableName), projectionName)
+
+	var snapshot Snapshot
+	err := row.Scan(&snapshot.ProjectionName, &snapshot.Position, &snapshot.Data, &snapshot.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil // No snapshot exists
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get latest snapshot: %w", err)
+	}
+
+	return &snapshot, nil
+}
+
+// DeleteSnapshots removes all snapshots for a projection.
+func (s *PostgresSnapshotStore) DeleteSnapshots(ctx context.Context, projectionName string) error {
+	_, err := s.db.ExecContext(ctx, fmt.Sprintf(
+		"DELETE FROM %s WHERE projection_name = $1",
+		s.tableName,
+	), projectionName)
+
+	if err != nil {
+		return fmt.Errorf("failed to delete snapshots: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteOldSnapshots removes snapshots older than the keep count for a projection.
+// This helps manage storage by keeping only the most recent N snapshots.
+func (s *PostgresSnapshotStore) DeleteOldSnapshots(ctx context.Context, projectionName string, keepCount int) error {
+	if keepCount <= 0 {
+		return nil
+	}
+
+	// Delete all but the most recent `keepCount` snapshots
+	_, err := s.db.ExecContext(ctx, fmt.Sprintf(`
+		DELETE FROM %s
+		WHERE projection_name = $1
+		AND id NOT IN (
+			SELECT id FROM %s
+			WHERE projection_name = $1
+			ORDER BY position DESC
+			LIMIT $2
+		)
+	`, s.tableName, s.tableName), projectionName, keepCount)
+
+	if err != nil {
+		return fmt.Errorf("failed to delete old snapshots: %w", err)
+	}
+
+	return nil
+}
+
+// GetSnapshotAtOrBefore retrieves the latest snapshot at or before a given position.
+// Useful for temporal queries where you need to restore state at a specific point.
+func (s *PostgresSnapshotStore) GetSnapshotAtOrBefore(ctx context.Context, projectionName string, position int64) (*Snapshot, error) {
+	row := s.db.QueryRowContext(ctx, fmt.Sprintf(`
+		SELECT projection_name, position, data, created_at
+		FROM %s
+		WHERE projection_name = $1 AND position <= $2
+		ORDER BY position DESC
+		LIMIT 1
+	`, s.tableName), projectionName, position)
+
+	var snapshot Snapshot
+	err := row.Scan(&snapshot.ProjectionName, &snapshot.Position, &snapshot.Data, &snapshot.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil // No snapshot exists at or before this position
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get snapshot at position: %w", err)
+	}
+
+	return &snapshot, nil
+}
+
+// ListSnapshots returns metadata about all snapshots for a projection.
+// Does not return snapshot data to avoid loading large blobs.
+func (s *PostgresSnapshotStore) ListSnapshots(ctx context.Context, projectionName string) ([]SnapshotMetadata, error) {
+	rows, err := s.db.QueryContext(ctx, fmt.Sprintf(`
+		SELECT projection_name, position, LENGTH(data) as size, created_at
+		FROM %s
+		WHERE projection_name = $1
+		ORDER BY position DESC
+	`, s.tableName), projectionName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list snapshots: %w", err)
+	}
+	defer rows.Close()
+
+	var snapshots []SnapshotMetadata
+	for rows.Next() {
+		var meta SnapshotMetadata
+		if err := rows.Scan(&meta.ProjectionName, &meta.Position, &meta.SizeBytes, &meta.CreatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan snapshot metadata: %w", err)
+		}
+		snapshots = append(snapshots, meta)
+	}
+
+	return snapshots, rows.Err()
+}

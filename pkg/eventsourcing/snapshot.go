@@ -21,6 +21,22 @@ type Snapshot struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// SnapshotMetadata provides information about a snapshot without the data payload.
+// Useful for listing snapshots without loading potentially large data blobs.
+type SnapshotMetadata struct {
+	// ProjectionName identifies which projection this snapshot belongs to
+	ProjectionName string `json:"projection_name"`
+
+	// Position is the event position this snapshot was taken at
+	Position int64 `json:"position"`
+
+	// SizeBytes is the size of the snapshot data in bytes
+	SizeBytes int64 `json:"size_bytes"`
+
+	// CreatedAt is when this snapshot was taken
+	CreatedAt time.Time `json:"created_at"`
+}
+
 // SnapshotStore provides persistence for projection snapshots.
 type SnapshotStore interface {
 	// SaveSnapshot persists a snapshot for a projection

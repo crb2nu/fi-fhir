@@ -103,11 +103,12 @@ See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and curren
 - Workflow action for event store integration
 - GraphQL queries for projections
 - Projection resolver wiring (GraphQL → projection service layer)
+- PostgreSQL-backed snapshot store for projection recovery
 
 ### Next Up
-- Add PostgreSQL-backed snapshot store
 - Event replay tooling for projection rebuilds
 - Batch event submission endpoint
+- PostgreSQL snapshot store integration tests (testcontainers)
 
 ## Contributing
 
