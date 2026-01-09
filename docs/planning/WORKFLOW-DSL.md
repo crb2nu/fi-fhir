@@ -495,6 +495,68 @@ workflow:
           mapping_payload: __raw__
 ```
 
+### Eligibility Verification Processing
+
+```yaml
+workflow:
+  name: eligibility_processing
+  version: "1.0"
+
+  routes:
+    # Track all eligibility inquiries
+    - name: log_inquiries
+      filter:
+        event_type: eligibility_inquiry
+      actions:
+        - type: database
+          connection: ${DATABASE_URL}
+          table: eligibility_inquiries
+          operation: insert
+          mapping_id: id
+          mapping_trace_number: trace_number
+          mapping_subscriber_id: subscriber.identifiers.member_id
+          mapping_payer_id: information_source.identifiers.payer_id
+          mapping_service_types: inquiry.service_types
+          mapping_timestamp: timestamp
+          mapping_payload: __raw__
+
+    # Handle successful eligibility responses
+    - name: active_coverage
+      filter:
+        event_type: eligibility_response
+        condition: event.status.eligible == true
+      actions:
+        - type: database
+          connection: ${DATABASE_URL}
+          table: eligibility_cache
+          operation: upsert
+          conflict_on: subscriber_id,payer_id
+          mapping_subscriber_id: subscriber.identifiers.member_id
+          mapping_payer_id: information_source.identifiers.payer_id
+          mapping_status: status.status
+          mapping_plan_name: status.plan_name
+          mapping_plan_begin: plan_begin_date
+          mapping_plan_end: plan_end_date
+          mapping_benefits: __raw__
+        - type: log
+          level: info
+          message: "Eligibility confirmed: {{.subscriber.name.family}}, {{.subscriber.name.given}} - {{.status.plan_name}}"
+
+    # Alert on eligibility rejections
+    - name: eligibility_errors
+      filter:
+        event_type: eligibility_response
+        condition: size(event.errors) > 0
+      actions:
+        - type: webhook
+          url: https://notifications.hospital.org/eligibility-error
+          method: POST
+          token: ${NOTIFICATION_TOKEN}
+        - type: log
+          level: warn
+          message: "Eligibility rejected: {{.errors}}"
+```
+
 ## CLI Integration
 
 ```bash

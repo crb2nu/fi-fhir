@@ -231,6 +231,293 @@ CAS03: Adjustment Amount
 CAS04: Adjustment Quantity
 ```
 
+## 270 (Eligibility Inquiry) Deep Dive
+
+### Loop Structure
+
+```
+1000A - Information Source Name (Payer)
+1000B - Information Receiver Name (Provider/Clearinghouse)
+
+2000A - Information Source Level (HL Code 20)
+├── 2100A - Information Source Name (Payer details)
+
+2000B - Information Receiver Level (HL Code 21)
+├── 2100B - Information Receiver Name (Provider details)
+
+2000C - Subscriber Level (HL Code 22)
+├── 2100C - Subscriber Name
+├── TRN - Trace Number (for correlation)
+├── DTP - Date/Time Reference (service date)
+├── EQ - Eligibility/Benefit Inquiry (repeats)
+
+2000D - Dependent Level (HL Code 23) - Optional
+├── 2100D - Dependent Name
+├── TRN - Trace Number
+├── EQ - Eligibility/Benefit Inquiry
+```
+
+### Key Segments
+
+#### BHT Segment (Beginning of Hierarchical Transaction)
+
+```
+BHT*0022*13*ABC123*20240115*0900~
+│   │    │  │      │        │
+1   2    3  4      5        6
+
+BHT01: Hierarchical Structure Code (0022 for 270/271)
+BHT02: Transaction Purpose Code (13=Request)
+BHT03: Reference Identification (Originator ID)
+BHT04: Transaction Set Creation Date
+BHT05: Transaction Set Creation Time
+```
+
+#### TRN Segment (Trace Number)
+
+```
+TRN*1*TRACE123456*9RECEIVER~
+│   │ │           │
+1   2 3           4
+
+TRN01: Trace Type Code (1=Current Transaction)
+TRN02: Reference Identification (your trace number)
+TRN03: Originating Company Identifier
+```
+
+#### EQ Segment (Eligibility/Benefit Inquiry)
+
+```
+EQ*30~          ← Service type code only
+EQ*30**FAM~     ← With coverage level
+
+EQ01: Service Type Code
+  30 = Health Benefit Plan Coverage
+  33 = Chiropractic
+  47 = Hospital
+  48 = Hospital - Inpatient
+  50 = Hospital - Outpatient
+  86 = Emergency Services
+  98 = Professional (Physician) Visit - Office
+  AL = Vision (Optometry)
+  MH = Mental Health
+
+EQ02: Composite Medical Procedure (optional CPT/HCPCS)
+EQ03: Coverage Level Code (optional)
+  IND = Individual
+  FAM = Family
+  EMP = Employee Only
+  ESP = Employee and Spouse
+```
+
+### Semantic Mapping
+
+```go
+// 270 maps to EligibilityInquiryEvent
+// Key extractions:
+// - Information Source (payer) from 2100A NM1
+// - Information Receiver (provider) from 2100B NM1
+// - Subscriber from 2100C NM1 + DMG
+// - Dependent from 2100D NM1 + DMG (if present)
+// - Service types from EQ segments
+// - Trace number from TRN segment
+```
+
+## 271 (Eligibility Response) Deep Dive
+
+### Loop Structure
+
+```
+1000A - Information Source Name (Payer)
+1000B - Information Receiver Name (Provider/Clearinghouse)
+
+2000A - Information Source Level (HL Code 20)
+├── 2100A - Information Source Name
+├── AAA - Request Validation (payer-level errors)
+
+2000B - Information Receiver Level (HL Code 21)
+├── 2100B - Information Receiver Name
+
+2000C - Subscriber Level (HL Code 22)
+├── 2100C - Subscriber Name
+├── TRN - Trace Number (echoed from 270)
+├── AAA - Request Validation (subscriber-level errors)
+├── DTP - Eligibility/Benefit Date (plan dates)
+├── EB - Eligibility/Benefit Information (repeats)
+│   └── EB segment can reference diagnosis, procedure codes
+
+2000D - Dependent Level (HL Code 23) - Optional
+├── 2100D - Dependent Name
+├── AAA - Request Validation
+├── EB - Eligibility/Benefit Information
+```
+
+### EB Segment (Eligibility/Benefit Information)
+
+```
+EB*1*IND*30*HM*GOLD PLAN~
+│  │ │   │  │  │
+1  2 3   4  5  6
+
+EB*C*IND*30**25.00~        ← $25 copay
+EB*G*IND*30**500.00*****23~  ← $500 deductible, calendar year
+
+EB01: Eligibility/Benefit Information Code
+  1 = Active Coverage
+  2 = Active - Full Risk Capitation
+  3 = Active - Services Capitated
+  4 = Active - Services Capitated to Primary Care
+  5 = Active - Pending Investigation
+  6 = Inactive
+  7 = Inactive - Pending Eligibility Update
+  8 = Inactive - Pending Investigation
+  A = Co-Insurance
+  B = Co-Payment
+  C = Deductible
+  D = Benefit Description
+  E = Exclusions
+  F = Limitations
+  G = Out of Pocket (Stop Loss)
+  I = Non-Covered
+  J = Cost Containment
+  K = Reserve
+  L = Primary Care Provider
+  MC = Medicare Coverage Type
+
+EB02: Coverage Level Code (IND, FAM, etc.)
+
+EB03: Service Type Code (same as EQ01)
+
+EB04: Insurance Type Code
+  HM = HMO
+  PPO = Preferred Provider Organization
+  POS = Point of Service
+  EPO = Exclusive Provider Organization
+  IND = Indemnity
+  MC = Medicaid
+  MA = Medicare Part A
+  MB = Medicare Part B
+
+EB05: Plan Coverage Description (free text)
+
+EB06: Time Period Qualifier
+  22 = Service Year
+  23 = Calendar Year
+  24 = Year to Date
+  25 = Contract
+  26 = Episode
+  27 = Visit
+  29 = Remaining
+  32 = Lifetime
+  33 = Lifetime Remaining
+
+EB07: Monetary Amount (deductible, copay, out-of-pocket)
+
+EB08: Percentage (coinsurance)
+```
+
+### AAA Segment (Request Validation)
+
+```
+AAA*N**75*N~
+│   │  │  │
+1   2  3  4
+
+AAA01: Valid Request Indicator (Y/N)
+AAA02: Agency Qualifier Code (unused)
+AAA03: Reject Reason Code
+  04 = Authorized Quantity Exceeded
+  15 = Required Application Data Missing
+  33 = Input Errors
+  41 = Authorization/Access Restrictions
+  42 = Unable to Respond at Current Time
+  43 = Invalid/Missing Provider Identification
+  44 = Invalid/Missing Provider Name
+  45 = Invalid/Missing Provider Specialty
+  46 = Invalid/Missing Provider Phone Number
+  47 = Invalid/Missing Provider State
+  48 = Invalid/Missing Referring Provider ID
+  50 = Provider Not on File
+  51 = Provider Not Primary Care Physician
+  52 = Provider Ineligible for Inquiries
+  53 = Inquired Benefit Inconsistent with Provider Type
+  54 = Inappropriate Product/Service ID Qualifier
+  55 = Inappropriate Product/Service ID
+  56 = Inappropriate Date
+  57 = Invalid/Missing Dates of Service
+  58 = Invalid/Missing Date of Birth
+  60 = Date of Birth Follows Dates of Service
+  61 = Date of Death Precedes Dates of Service
+  62 = Date of Service Not Within Allowable Inquiry Period
+  63 = Date of Service in Future
+  64 = Invalid/Missing Patient ID
+  65 = Invalid/Missing Patient Name
+  66 = Invalid/Missing Patient Gender Code
+  67 = Patient Not Found
+  68 = Duplicate Patient ID Number
+  69 = Inconsistent with Patient's Age
+  70 = Inconsistent with Patient's Gender
+  71 = Patient Birth Date Does Not Match
+  72 = Invalid/Missing Subscriber ID
+  73 = Invalid/Missing Subscriber Name
+  74 = Invalid/Missing Subscriber Gender
+  75 = Subscriber Not Found
+  76 = Duplicate Subscriber ID Number
+  77 = Subscriber Not in Group
+  79 = Invalid Participant ID
+  80 = No Response Received
+  97 = Invalid/Missing Subscriber ID
+  T4 = Payer Name or ID Missing
+
+AAA04: Follow-up Action Code
+  N = Not Applicable
+  C = Please Correct and Resubmit
+  P = Please Resubmit Original Transaction
+  R = Resubmission Not Allowed
+  S = Do Not Resubmit
+  W = Please Wait 30 Days and Resubmit
+  X = Please Wait 10 Days and Resubmit
+```
+
+### Semantic Mapping
+
+```go
+// 271 maps to EligibilityResponseEvent
+// Key extractions:
+// - Status: derived from EB01 codes (1-8 = active/inactive variants)
+// - Benefits: from EB segments with monetary/percentage data
+// - Errors: from AAA segments when validation fails
+// - Plan dates: from DTP segments (348=Plan Begin, 349=Plan End)
+// - Coverage details: EB05 description, EB04 insurance type
+```
+
+### Response Scenarios
+
+#### Active Coverage (Happy Path)
+
+```
+EB*1*IND*30*HM*GOLD PLAN~                    ← Active, HMO, plan name
+EB*C*IND*30**25.00****27~                    ← $25 copay per visit
+EB*A*IND*30**20~                             ← 20% coinsurance
+EB*G*IND*30**2500.00*****23~                 ← $2,500 annual out-of-pocket
+DTP*348*D8*20240101~                         ← Plan begins Jan 1, 2024
+DTP*349*D8*20241231~                         ← Plan ends Dec 31, 2024
+```
+
+#### Inactive Coverage
+
+```
+EB*6*IND*30~                                 ← Inactive
+AAA*N**75*N~                                 ← Subscriber not found
+```
+
+#### Validation Error (No Coverage Inquiry)
+
+```
+AAA*N**67*N~                                 ← Patient not found
+AAA*N**72*C~                                 ← Invalid subscriber ID, please correct
+```
+
 ## Situational Rules
 
 ### What "Situational" Means
