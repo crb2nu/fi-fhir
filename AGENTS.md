@@ -177,7 +177,7 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 
 ## Roadmap Context
 
-**Current State**: HL7v2 and CSV parsing operational. FHIR R4 output with US Core mapper implemented.
+**Current State**: Multi-format parsing (HL7v2, CSV) with workflow routing operational. FHIR R4 output with US Core mapper implemented.
 
 **Completed**:
 - HL7v2 ADT messages (A01, A02, A03, A04, A08)
@@ -189,13 +189,14 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 - Identifier validation (SSN, NPI, MBI)
 - Z-segment extraction
 - HL7v2 escape sequence handling
-- CLI with parse and validate commands
+- CLI with parse, validate, and workflow commands
 - CSV adapter with schema inference (patient, lab result parsing)
+- Workflow DSL engine (routing, log/webhook actions, dry-run)
 
 **Next Steps**:
-1. Workflow DSL and engine
-2. TypeScript SDK wrapper
-3. EDI X12 835/837 parser
+1. TypeScript SDK wrapper
+2. EDI X12 835/837 parser
+3. FHIR action in workflow (POST to FHIR servers)
 
 ## Testing Strategy
 
