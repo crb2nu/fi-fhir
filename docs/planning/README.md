@@ -109,9 +109,10 @@ See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and curren
 - PostgreSQL integration tests (testcontainers for EventStore, CheckpointStore, SnapshotStore)
 - Projection rebuild from time range (TimeRangeEventStore interface, point-in-time recovery)
 - Event archival and retention policies (HIPAA-aware retention, file archive, deletion)
+- Event stream compaction (aggregate snapshots, incremental compaction, bulk prefix compaction)
 
 ### Next Up
-- Event stream compaction (merge old events into snapshots)
+- Saga orchestration for multi-aggregate transactions
 
 ## Contributing
 
