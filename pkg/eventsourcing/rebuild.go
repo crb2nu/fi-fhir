@@ -26,6 +26,15 @@ type RebuildConfig struct {
 
 	// StopPosition stops at this position (0 = no limit)
 	StopPosition int64
+
+	// FromTimestamp starts rebuild from events at or after this time.
+	// If set, position-based parameters are ignored.
+	// Requires store to implement TimeRangeEventStore.
+	FromTimestamp *time.Time
+
+	// ToTimestamp stops rebuild at events before this time.
+	// If nil, processes all events up to current time.
+	ToTimestamp *time.Time
 }
 
 // RebuildProgress reports rebuild progress.
@@ -59,6 +68,12 @@ type RebuildProgress struct {
 
 	// Error if rebuild failed
 	Error error
+
+	// TimeRangeMode indicates if using time-based rebuild
+	TimeRangeMode bool
+
+	// CurrentEventTime is the timestamp of the most recently processed event
+	CurrentEventTime *time.Time
 }
 
 // RebuildResult contains the final result of a rebuild.
@@ -72,6 +87,21 @@ type RebuildResult struct {
 	Duration         time.Duration
 	EventsPerSecond  float64
 	Error            error
+
+	// TimeRangeMode indicates if this was a time-based rebuild
+	TimeRangeMode bool
+
+	// FromTimestamp is the start of the time range (if time-based)
+	FromTimestamp *time.Time
+
+	// ToTimestamp is the end of the time range (if time-based)
+	ToTimestamp *time.Time
+
+	// FirstEventTime is the timestamp of the first processed event
+	FirstEventTime *time.Time
+
+	// LastEventTime is the timestamp of the last processed event
+	LastEventTime *time.Time
 }
 
 // ProjectionRebuilder handles projection rebuilding with progress reporting.
@@ -122,12 +152,18 @@ func (r *ProjectionRebuilder) ListProjections() []string {
 }
 
 // Rebuild rebuilds a single projection with progress reporting.
+// If FromTimestamp is set in config, uses time-based rebuild (requires TimeRangeEventStore).
 func (r *ProjectionRebuilder) Rebuild(ctx context.Context, projectionName string, config *RebuildConfig) (*RebuildResult, error) {
 	if config == nil {
 		config = &RebuildConfig{}
 	}
 	if config.BatchSize <= 0 {
 		config.BatchSize = r.batchSize
+	}
+
+	// Delegate to time-range rebuild if timestamps are specified
+	if config.FromTimestamp != nil {
+		return r.RebuildByTimeRange(ctx, projectionName, config)
 	}
 
 	projection, ok := r.GetProjection(projectionName)
@@ -257,6 +293,171 @@ func (r *ProjectionRebuilder) Rebuild(ctx context.Context, projectionName string
 			EventsPerSecond:  result.EventsPerSecond,
 			SnapshotRestored: result.SnapshotRestored,
 			SnapshotPosition: result.SnapshotPosition,
+			Complete:         true,
+		})
+	}
+
+	return result, nil
+}
+
+// RebuildByTimeRange rebuilds a projection using events within a time range.
+// This is useful for point-in-time recovery or incremental rebuilds.
+// Requires the event store to implement TimeRangeEventStore.
+func (r *ProjectionRebuilder) RebuildByTimeRange(ctx context.Context, projectionName string, config *RebuildConfig) (*RebuildResult, error) {
+	if config == nil || config.FromTimestamp == nil {
+		return nil, fmt.Errorf("FromTimestamp is required for time-based rebuild")
+	}
+	if config.BatchSize <= 0 {
+		config.BatchSize = r.batchSize
+	}
+
+	// Check if store supports time range queries
+	timeStore, ok := r.store.(TimeRangeEventStore)
+	if !ok {
+		return nil, fmt.Errorf("event store does not support time range queries (must implement TimeRangeEventStore)")
+	}
+
+	projection, ok := r.GetProjection(projectionName)
+	if !ok {
+		return nil, fmt.Errorf("projection not found: %s", projectionName)
+	}
+
+	// Set up end time
+	toTime := time.Now()
+	if config.ToTimestamp != nil {
+		toTime = *config.ToTimestamp
+	}
+	fromTime := *config.FromTimestamp
+
+	result := &RebuildResult{
+		ProjectionName: projectionName,
+		TimeRangeMode:  true,
+		FromTimestamp:  &fromTime,
+		ToTimestamp:    &toTime,
+	}
+	startTime := time.Now()
+
+	// Clear projection state if it supports it
+	if clearable, ok := projection.(interface{ Clear() }); ok {
+		clearable.Clear()
+	}
+
+	// For time-based rebuilds, we start from position 0 within the time range
+	// (not using snapshot restoration as the snapshot may be outside the time range)
+	var lastPosition int64 = -1
+	var eventsProcessed int64
+	var firstEventTime, lastEventTime *time.Time
+
+	for {
+		select {
+		case <-ctx.Done():
+			result.Error = ctx.Err()
+			return result, result.Error
+		default:
+		}
+
+		// Read batch within time range, after last position
+		var events []StoredEvent
+		var err error
+
+		if lastPosition < 0 {
+			// First batch - read from beginning of time range
+			events, err = timeStore.ReadAllByTimeRange(ctx, fromTime, toTime, config.BatchSize)
+		} else {
+			// Subsequent batches - read after last position
+			if pgStore, ok := timeStore.(*PostgresStore); ok {
+				events, err = pgStore.ReadAllByTimeRangeAfterPosition(ctx, fromTime, toTime, lastPosition, config.BatchSize)
+			} else {
+				// Fallback: read and filter (less efficient)
+				events, err = timeStore.ReadAllByTimeRange(ctx, fromTime, toTime, config.BatchSize*2)
+				if err == nil {
+					filtered := make([]StoredEvent, 0)
+					for _, e := range events {
+						if e.Position > lastPosition {
+							filtered = append(filtered, e)
+							if len(filtered) >= config.BatchSize {
+								break
+							}
+						}
+					}
+					events = filtered
+				}
+			}
+		}
+
+		if err != nil {
+			result.Error = fmt.Errorf("failed to read events: %w", err)
+			return result, result.Error
+		}
+
+		if len(events) == 0 {
+			break
+		}
+
+		// Process events (unless dry run)
+		for _, event := range events {
+			if !config.DryRun {
+				if err := projection.Handle(ctx, event); err != nil {
+					result.Error = fmt.Errorf("failed to handle event at position %d: %w", event.Position, err)
+					return result, result.Error
+				}
+			}
+
+			eventsProcessed++
+			lastPosition = event.Position
+
+			// Track event times
+			if firstEventTime == nil {
+				firstEventTime = &event.Timestamp
+			}
+			lastEventTime = &event.Timestamp
+		}
+
+		// Update checkpoint to last processed position (unless dry run)
+		if !config.DryRun && lastPosition >= 0 {
+			if err := r.checkpointStore.SetCheckpoint(ctx, projectionName, lastPosition); err != nil {
+				result.Error = fmt.Errorf("failed to save checkpoint: %w", err)
+				return result, result.Error
+			}
+		}
+
+		// Report progress
+		if config.Progress != nil {
+			elapsed := time.Since(startTime)
+			rate := float64(eventsProcessed) / elapsed.Seconds()
+			config.Progress(&RebuildProgress{
+				ProjectionName:   projectionName,
+				EventsProcessed:  eventsProcessed,
+				CurrentPosition:  lastPosition,
+				Duration:         elapsed,
+				EventsPerSecond:  rate,
+				TimeRangeMode:    true,
+				CurrentEventTime: lastEventTime,
+			})
+		}
+	}
+
+	// Final result
+	result.EventsProcessed = eventsProcessed
+	result.StartPosition = 0 // Not meaningful for time-based rebuilds
+	result.EndPosition = lastPosition
+	result.FirstEventTime = firstEventTime
+	result.LastEventTime = lastEventTime
+	result.Duration = time.Since(startTime)
+	if result.Duration.Seconds() > 0 {
+		result.EventsPerSecond = float64(eventsProcessed) / result.Duration.Seconds()
+	}
+
+	// Final progress callback
+	if config.Progress != nil {
+		config.Progress(&RebuildProgress{
+			ProjectionName:   projectionName,
+			EventsProcessed:  eventsProcessed,
+			CurrentPosition:  lastPosition,
+			Duration:         result.Duration,
+			EventsPerSecond:  result.EventsPerSecond,
+			TimeRangeMode:    true,
+			CurrentEventTime: lastEventTime,
 			Complete:         true,
 		})
 	}

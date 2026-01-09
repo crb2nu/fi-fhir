@@ -689,6 +689,356 @@ func TestPostgresSnapshotStore_Integration_GetSnapshotAtOrBefore(t *testing.T) {
 }
 
 // =============================================================================
+// Time Range Query Integration Tests
+// =============================================================================
+
+func TestPostgresStore_Integration_ReadAllByTimeRange(t *testing.T) {
+	tc := setupPostgresContainer(t)
+	if tc == nil {
+		return
+	}
+
+	ctx := context.Background()
+	store := NewPostgresStore(tc.DB, PostgresStoreConfig{
+		TableName: "test_events_timerange",
+	})
+
+	tc.DB.ExecContext(ctx, "DROP TABLE IF EXISTS test_events_timerange")
+	defer tc.DB.ExecContext(ctx, "DROP TABLE IF EXISTS test_events_timerange")
+
+	if err := store.InitSchema(ctx); err != nil {
+		t.Fatalf("InitSchema failed: %v", err)
+	}
+
+	// We can't control timestamps directly since PostgreSQL sets them on insert,
+	// but we can test that the time range queries work
+	baseTime := time.Now()
+
+	// Add events
+	for i := 0; i < 5; i++ {
+		events := []EventData{{EventType: "TestEvent", Data: json.RawMessage(fmt.Sprintf(`{"seq": %d}`, i))}}
+		_, err := store.Append(ctx, fmt.Sprintf("stream-%d", i), VersionAny, events)
+		if err != nil {
+			t.Fatalf("Append failed: %v", err)
+		}
+		// Small delay to ensure different timestamps
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Read all events in time range (from baseTime to now+1sec)
+	events, err := store.ReadAllByTimeRange(ctx, baseTime.Add(-1*time.Second), time.Now().Add(time.Second), 100)
+	if err != nil {
+		t.Fatalf("ReadAllByTimeRange failed: %v", err)
+	}
+
+	if len(events) != 5 {
+		t.Errorf("Expected 5 events, got %d", len(events))
+	}
+
+	// Read with limit
+	events, err = store.ReadAllByTimeRange(ctx, baseTime.Add(-1*time.Second), time.Now().Add(time.Second), 2)
+	if err != nil {
+		t.Fatalf("ReadAllByTimeRange with limit failed: %v", err)
+	}
+
+	if len(events) != 2 {
+		t.Errorf("Expected 2 events with limit, got %d", len(events))
+	}
+}
+
+func TestPostgresStore_Integration_GetPositionAtTime(t *testing.T) {
+	tc := setupPostgresContainer(t)
+	if tc == nil {
+		return
+	}
+
+	ctx := context.Background()
+	store := NewPostgresStore(tc.DB, PostgresStoreConfig{
+		TableName: "test_events_postime",
+	})
+
+	tc.DB.ExecContext(ctx, "DROP TABLE IF EXISTS test_events_postime")
+	defer tc.DB.ExecContext(ctx, "DROP TABLE IF EXISTS test_events_postime")
+
+	if err := store.InitSchema(ctx); err != nil {
+		t.Fatalf("InitSchema failed: %v", err)
+	}
+
+	// Position at time for empty store should be -1
+	pos, err := store.GetPositionAtTime(ctx, time.Now())
+	if err != nil {
+		t.Fatalf("GetPositionAtTime failed: %v", err)
+	}
+	if pos != -1 {
+		t.Errorf("Expected -1 for empty store, got %d", pos)
+	}
+
+	// Add events
+	for i := 0; i < 3; i++ {
+		store.Append(ctx, "stream-1", VersionAny, []EventData{
+			{EventType: "TestEvent", Data: json.RawMessage(`{}`)},
+		})
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	// Position at current time should be the last position
+	pos, err = store.GetPositionAtTime(ctx, time.Now().Add(time.Second))
+	if err != nil {
+		t.Fatalf("GetPositionAtTime failed: %v", err)
+	}
+	if pos < 1 {
+		t.Errorf("Expected position >= 1, got %d", pos)
+	}
+}
+
+func TestPostgresStore_Integration_CountEventsInTimeRange(t *testing.T) {
+	tc := setupPostgresContainer(t)
+	if tc == nil {
+		return
+	}
+
+	ctx := context.Background()
+	store := NewPostgresStore(tc.DB, PostgresStoreConfig{
+		TableName: "test_events_count",
+	})
+
+	tc.DB.ExecContext(ctx, "DROP TABLE IF EXISTS test_events_count")
+	defer tc.DB.ExecContext(ctx, "DROP TABLE IF EXISTS test_events_count")
+
+	if err := store.InitSchema(ctx); err != nil {
+		t.Fatalf("InitSchema failed: %v", err)
+	}
+
+	baseTime := time.Now()
+
+	// Add events
+	for i := 0; i < 7; i++ {
+		store.Append(ctx, "stream-1", VersionAny, []EventData{
+			{EventType: "TestEvent", Data: json.RawMessage(`{}`)},
+		})
+	}
+
+	// Count events
+	count, err := store.CountEventsInTimeRange(ctx, baseTime.Add(-1*time.Second), time.Now().Add(time.Second))
+	if err != nil {
+		t.Fatalf("CountEventsInTimeRange failed: %v", err)
+	}
+
+	if count != 7 {
+		t.Errorf("Expected 7 events, got %d", count)
+	}
+
+	// Count with no events in range
+	count, err = store.CountEventsInTimeRange(ctx, time.Now().Add(time.Hour), time.Now().Add(2*time.Hour))
+	if err != nil {
+		t.Fatalf("CountEventsInTimeRange failed: %v", err)
+	}
+
+	if count != 0 {
+		t.Errorf("Expected 0 events in future range, got %d", count)
+	}
+}
+
+// =============================================================================
+// Projection Rebuild by Time Range Integration Tests
+// =============================================================================
+
+// testRebuildProjectionInt is a simple counting projection for integration tests.
+type testRebuildProjectionInt struct {
+	name   string
+	count  int64
+	events []StoredEvent
+}
+
+func newTestRebuildProjectionInt(name string) *testRebuildProjectionInt {
+	return &testRebuildProjectionInt{name: name}
+}
+
+func (p *testRebuildProjectionInt) Name() string { return p.name }
+
+func (p *testRebuildProjectionInt) Handle(ctx context.Context, event StoredEvent) error {
+	p.count++
+	p.events = append(p.events, event)
+	return nil
+}
+
+func (p *testRebuildProjectionInt) Clear() {
+	p.count = 0
+	p.events = nil
+}
+
+func TestProjectionRebuilder_Integration_RebuildByTimeRange(t *testing.T) {
+	tc := setupPostgresContainer(t)
+	if tc == nil {
+		return
+	}
+
+	ctx := context.Background()
+
+	// Set up stores
+	eventStore := NewPostgresStore(tc.DB, PostgresStoreConfig{TableName: "test_rebuild_events"})
+	checkpointStore := NewPostgresCheckpointStore(tc.DB, "test_rebuild_checkpoints")
+
+	tc.DB.ExecContext(ctx, "DROP TABLE IF EXISTS test_rebuild_events")
+	tc.DB.ExecContext(ctx, "DROP TABLE IF EXISTS test_rebuild_checkpoints")
+	defer func() {
+		tc.DB.ExecContext(ctx, "DROP TABLE IF EXISTS test_rebuild_events")
+		tc.DB.ExecContext(ctx, "DROP TABLE IF EXISTS test_rebuild_checkpoints")
+	}()
+
+	eventStore.InitSchema(ctx)
+	checkpointStore.InitSchema(ctx)
+
+	// Record start time with buffer to account for timing precision
+	startTime := time.Now().Add(-100 * time.Millisecond)
+
+	// Add events
+	for i := 0; i < 10; i++ {
+		eventStore.Append(ctx, fmt.Sprintf("stream-%d", i%3), VersionAny, []EventData{
+			{EventType: "TestEvent", Data: json.RawMessage(fmt.Sprintf(`{"seq": %d}`, i))},
+		})
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Record end time with buffer
+	endTime := time.Now().Add(time.Second)
+
+	// Create rebuilder
+	rebuilder := NewProjectionRebuilder(eventStore, checkpointStore, nil)
+	projection := newTestRebuildProjectionInt("time_range_projection")
+	rebuilder.RegisterProjection(projection)
+
+	// Rebuild by time range
+	result, err := rebuilder.Rebuild(ctx, "time_range_projection", &RebuildConfig{
+		FromTimestamp: &startTime,
+		ToTimestamp:   &endTime,
+		BatchSize:     3,
+	})
+	if err != nil {
+		t.Fatalf("RebuildByTimeRange failed: %v", err)
+	}
+
+	// Verify result
+	if !result.TimeRangeMode {
+		t.Error("Expected TimeRangeMode to be true")
+	}
+	if result.EventsProcessed != 10 {
+		t.Errorf("Expected 10 events processed, got %d", result.EventsProcessed)
+	}
+	if projection.count != 10 {
+		t.Errorf("Expected projection count 10, got %d", projection.count)
+	}
+	if result.FromTimestamp == nil || result.ToTimestamp == nil {
+		t.Error("Expected timestamps to be set in result")
+	}
+	if result.FirstEventTime == nil || result.LastEventTime == nil {
+		t.Error("Expected first/last event times to be set")
+	}
+}
+
+func TestProjectionRebuilder_Integration_RebuildByTimeRange_NoEvents(t *testing.T) {
+	tc := setupPostgresContainer(t)
+	if tc == nil {
+		return
+	}
+
+	ctx := context.Background()
+
+	eventStore := NewPostgresStore(tc.DB, PostgresStoreConfig{TableName: "test_rebuild_empty"})
+	checkpointStore := NewPostgresCheckpointStore(tc.DB, "test_rebuild_empty_cp")
+
+	tc.DB.ExecContext(ctx, "DROP TABLE IF EXISTS test_rebuild_empty")
+	tc.DB.ExecContext(ctx, "DROP TABLE IF EXISTS test_rebuild_empty_cp")
+	defer func() {
+		tc.DB.ExecContext(ctx, "DROP TABLE IF EXISTS test_rebuild_empty")
+		tc.DB.ExecContext(ctx, "DROP TABLE IF EXISTS test_rebuild_empty_cp")
+	}()
+
+	eventStore.InitSchema(ctx)
+	checkpointStore.InitSchema(ctx)
+
+	// Create rebuilder with no events
+	rebuilder := NewProjectionRebuilder(eventStore, checkpointStore, nil)
+	projection := newTestRebuildProjectionInt("empty_projection")
+	rebuilder.RegisterProjection(projection)
+
+	// Rebuild by future time range (no events)
+	futureStart := time.Now().Add(time.Hour)
+	futureEnd := time.Now().Add(2 * time.Hour)
+
+	result, err := rebuilder.Rebuild(ctx, "empty_projection", &RebuildConfig{
+		FromTimestamp: &futureStart,
+		ToTimestamp:   &futureEnd,
+	})
+	if err != nil {
+		t.Fatalf("RebuildByTimeRange failed: %v", err)
+	}
+
+	if result.EventsProcessed != 0 {
+		t.Errorf("Expected 0 events processed, got %d", result.EventsProcessed)
+	}
+}
+
+func TestProjectionRebuilder_Integration_RebuildByTimeRange_DryRun(t *testing.T) {
+	tc := setupPostgresContainer(t)
+	if tc == nil {
+		return
+	}
+
+	ctx := context.Background()
+
+	eventStore := NewPostgresStore(tc.DB, PostgresStoreConfig{TableName: "test_rebuild_dryrun"})
+	checkpointStore := NewPostgresCheckpointStore(tc.DB, "test_rebuild_dryrun_cp")
+
+	tc.DB.ExecContext(ctx, "DROP TABLE IF EXISTS test_rebuild_dryrun")
+	tc.DB.ExecContext(ctx, "DROP TABLE IF EXISTS test_rebuild_dryrun_cp")
+	defer func() {
+		tc.DB.ExecContext(ctx, "DROP TABLE IF EXISTS test_rebuild_dryrun")
+		tc.DB.ExecContext(ctx, "DROP TABLE IF EXISTS test_rebuild_dryrun_cp")
+	}()
+
+	eventStore.InitSchema(ctx)
+	checkpointStore.InitSchema(ctx)
+
+	// Record start time with buffer to account for timing precision
+	startTime := time.Now().Add(-100 * time.Millisecond)
+
+	// Add events
+	for i := 0; i < 5; i++ {
+		eventStore.Append(ctx, "stream-1", VersionAny, []EventData{
+			{EventType: "TestEvent", Data: json.RawMessage(`{}`)},
+		})
+	}
+
+	// Record end time with buffer
+	endTime := time.Now().Add(time.Second)
+
+	rebuilder := NewProjectionRebuilder(eventStore, checkpointStore, nil)
+	projection := newTestRebuildProjectionInt("dryrun_projection")
+	rebuilder.RegisterProjection(projection)
+
+	// Dry run rebuild
+	result, err := rebuilder.Rebuild(ctx, "dryrun_projection", &RebuildConfig{
+		FromTimestamp: &startTime,
+		ToTimestamp:   &endTime,
+		DryRun:        true,
+	})
+	if err != nil {
+		t.Fatalf("DryRun RebuildByTimeRange failed: %v", err)
+	}
+
+	// Events should be counted
+	if result.EventsProcessed != 5 {
+		t.Errorf("Expected 5 events counted in dry run, got %d", result.EventsProcessed)
+	}
+
+	// But projection should not be updated
+	if projection.count != 0 {
+		t.Errorf("Expected projection count 0 in dry run, got %d", projection.count)
+	}
+}
+
+// =============================================================================
 // End-to-End Integration: Event Store + Checkpoint + Snapshot
 // =============================================================================
 

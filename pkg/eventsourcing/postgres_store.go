@@ -340,6 +340,77 @@ func (s *PostgresStore) scanEvents(rows *sql.Rows) ([]StoredEvent, error) {
 	return events, nil
 }
 
+// ReadAllByTimeRange reads events within a time range in global position order.
+// fromTime is inclusive, toTime is exclusive.
+func (s *PostgresStore) ReadAllByTimeRange(ctx context.Context, fromTime, toTime time.Time, maxCount int) ([]StoredEvent, error) {
+	rows, err := s.db.QueryContext(ctx, fmt.Sprintf(`
+		SELECT position, stream_id, stream_version, event_type, data, metadata, timestamp
+		FROM %s
+		WHERE timestamp >= $1 AND timestamp < $2
+		ORDER BY position ASC
+		LIMIT $3
+	`, s.tableName), fromTime, toTime, maxCount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query events by time range: %w", err)
+	}
+	defer rows.Close()
+
+	return s.scanEvents(rows)
+}
+
+// ReadAllByTimeRangeAfterPosition reads events within a time range starting after a position.
+// This is useful for paginated time-range queries.
+func (s *PostgresStore) ReadAllByTimeRangeAfterPosition(ctx context.Context, fromTime, toTime time.Time, afterPosition int64, maxCount int) ([]StoredEvent, error) {
+	rows, err := s.db.QueryContext(ctx, fmt.Sprintf(`
+		SELECT position, stream_id, stream_version, event_type, data, metadata, timestamp
+		FROM %s
+		WHERE timestamp >= $1 AND timestamp < $2 AND position > $3
+		ORDER BY position ASC
+		LIMIT $4
+	`, s.tableName), fromTime, toTime, afterPosition, maxCount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query events by time range: %w", err)
+	}
+	defer rows.Close()
+
+	return s.scanEvents(rows)
+}
+
+// GetPositionAtTime returns the position of the event at or just before the given time.
+// Returns -1 if no events exist before that time.
+func (s *PostgresStore) GetPositionAtTime(ctx context.Context, t time.Time) (int64, error) {
+	var position int64 = -1
+	row := s.db.QueryRowContext(ctx, fmt.Sprintf(`
+		SELECT position FROM %s
+		WHERE timestamp <= $1
+		ORDER BY timestamp DESC, position DESC
+		LIMIT 1
+	`, s.tableName), t)
+
+	err := row.Scan(&position)
+	if err != nil && err.Error() != "sql: no rows in result set" {
+		return -1, fmt.Errorf("failed to get position at time: %w", err)
+	}
+
+	return position, nil
+}
+
+// CountEventsInTimeRange returns the number of events within a time range.
+// Useful for estimating rebuild duration.
+func (s *PostgresStore) CountEventsInTimeRange(ctx context.Context, fromTime, toTime time.Time) (int64, error) {
+	var count int64
+	row := s.db.QueryRowContext(ctx, fmt.Sprintf(
+		"SELECT COUNT(*) FROM %s WHERE timestamp >= $1 AND timestamp < $2",
+		s.tableName,
+	), fromTime, toTime)
+
+	if err := row.Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count events in time range: %w", err)
+	}
+
+	return count, nil
+}
+
 // PostgresCheckpointStore is a PostgreSQL-backed checkpoint store.
 type PostgresCheckpointStore struct {
 	db        *sql.DB

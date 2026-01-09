@@ -107,9 +107,10 @@ See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and curren
 - Event replay tooling (ProjectionRebuilder with progress, dry-run, snapshot-aware)
 - Batch event submission endpoint (submitBatch mutation with parallel/sequential modes)
 - PostgreSQL integration tests (testcontainers for EventStore, CheckpointStore, SnapshotStore)
+- Projection rebuild from time range (TimeRangeEventStore interface, point-in-time recovery)
 
 ### Next Up
-- Projection rebuild from time range (not just position)
+- Event archival and retention policies
 
 ## Contributing
 

@@ -125,6 +125,21 @@ func (e *StoredEvent) Decode(target interface{}) error {
 	return json.Unmarshal(e.Data, target)
 }
 
+// TimeRangeEventStore extends EventStore with time-based queries.
+// This is optional - not all event stores support efficient time-based access.
+type TimeRangeEventStore interface {
+	EventStore
+
+	// ReadAllByTimeRange reads events within a time range in global position order.
+	// fromTime is inclusive, toTime is exclusive.
+	// Used for temporal rebuilds and point-in-time recovery.
+	ReadAllByTimeRange(ctx context.Context, fromTime, toTime time.Time, maxCount int) ([]StoredEvent, error)
+
+	// GetPositionAtTime returns the approximate position at or just before the given time.
+	// Returns -1 if no events exist before that time.
+	GetPositionAtTime(ctx context.Context, t time.Time) (int64, error)
+}
+
 // StreamID builders for common healthcare patterns.
 
 // PatientStreamID returns a stream ID for patient-centric events.
