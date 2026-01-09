@@ -79,10 +79,10 @@ See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and curren
 - Terminology mapper
 - Workflow engine with FHIR action
 - CEL condition evaluation for workflow filters
+- Transform pipeline (set_field, map_terminology, redact)
 - TypeScript SDK
 
 ### In Progress
-- Transform pipeline for workflows
 - Database action for workflows
 - EDI 270/271 eligibility
 - OAuth2 for FHIR action

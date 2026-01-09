@@ -10,6 +10,7 @@ type Engine struct {
 	workflow     *Workflow
 	actions      map[string]ActionHandler
 	celEvaluator *CELEvaluator
+	transformer  *Transformer
 }
 
 // ActionHandler executes a specific action type.
@@ -32,28 +33,31 @@ type Result struct {
 
 // RouteResult represents the outcome of a single route.
 type RouteResult struct {
-	RouteName    string
-	Matched      bool
-	ActionsRun   int
-	ActionErrors []error
-	Skipped      bool
-	SkipReason   string
+	RouteName       string
+	Matched         bool
+	TransformsRun   int
+	TransformErrors []error
+	ActionsRun      int
+	ActionErrors    []error
+	Skipped         bool
+	SkipReason      string
 }
 
-// HasErrors returns true if any route had action errors.
+// HasErrors returns true if any route had errors (transform or action).
 func (r *Result) HasErrors() bool {
 	for _, rr := range r.RouteResults {
-		if len(rr.ActionErrors) > 0 {
+		if len(rr.TransformErrors) > 0 || len(rr.ActionErrors) > 0 {
 			return true
 		}
 	}
 	return false
 }
 
-// AllErrors returns all action errors from all routes.
+// AllErrors returns all errors (transform and action) from all routes.
 func (r *Result) AllErrors() []error {
 	var errors []error
 	for _, rr := range r.RouteResults {
+		errors = append(errors, rr.TransformErrors...)
 		errors = append(errors, rr.ActionErrors...)
 	}
 	return errors
@@ -70,6 +74,7 @@ func NewEngine(workflow *Workflow) (*Engine, error) {
 		workflow:     workflow,
 		actions:      make(map[string]ActionHandler),
 		celEvaluator: celEval,
+		transformer:  NewTransformer(nil), // Default transformer without terminology
 	}
 
 	// Register built-in action handlers
@@ -78,6 +83,12 @@ func NewEngine(workflow *Workflow) (*Engine, error) {
 	e.RegisterAction("fhir", ActionHandlerFunc(fhirAction))
 
 	return e, nil
+}
+
+// SetTerminologyMapper configures a terminology mapper for transforms.
+// Pass a TerminologyMapperInterface implementation or use NewTerminologyMapperAdapter.
+func (e *Engine) SetTerminologyMapper(mapper TerminologyMapperInterface) {
+	e.transformer = NewTransformer(mapper)
 }
 
 // RegisterAction registers a custom action handler.
@@ -104,10 +115,17 @@ func (e *Engine) Process(event interface{}) *Result {
 
 		rr.Matched = true
 
-		// Apply transforms (future implementation)
+		// Apply transforms
 		transformed := event
-		for range route.Transforms {
-			// TODO: Apply transforms
+		for _, transform := range route.Transforms {
+			var err error
+			transformed, err = e.transformer.Apply(transformed, transform)
+			if err != nil {
+				rr.TransformErrors = append(rr.TransformErrors,
+					fmt.Errorf("transform failed: %w", err))
+				// Continue with other transforms despite errors
+			}
+			rr.TransformsRun++
 		}
 
 		// Execute actions

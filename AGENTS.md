@@ -193,16 +193,17 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 - CSV adapter with schema inference (patient, lab result parsing)
 - Workflow DSL engine (routing, log/webhook/fhir actions, dry-run)
 - CEL condition evaluation in workflow filters
+- Transform pipeline (set_field, map_terminology, redact)
 - UUID v4 generation for event IDs
 - TypeScript SDK with CLI wrapper (parse, workflow, type definitions)
 - EDI X12 parser (837P claims, 835 remittance, envelope/loop parsing)
 - FHIR action in workflow (POST Patient, Encounter, Observation, DiagnosticReport to FHIR servers)
 
 **Next Steps**:
-1. Transform pipeline in workflow (set_field, map_terminology)
+1. OAuth2 authentication for FHIR action
 2. Database action in workflow
 3. EDI X12 270/271 eligibility transactions
-4. OAuth2 authentication for FHIR action
+4. Queue action (Kafka, RabbitMQ, NATS)
 
 ## Testing Strategy
 
@@ -327,6 +328,7 @@ classifiedType := p.profile.GetEventClassification(msgType, patientClass)
 | `internal/parser/hl7v2/parser.go` | HL7v2 parser with profile integration |
 | `internal/workflow/cel.go` | CEL evaluator with expression caching |
 | `internal/workflow/engine.go` | Workflow engine with filters, transforms, actions |
+| `internal/workflow/transforms.go` | Transform pipeline (set_field, map_terminology, redact) |
 | `docs/planning/SOURCE-PROFILES.md` | Source Profile specification |
 | `docs/planning/IDENTIFIERS.md` | Patient/provider ID systems reference |
 | `docs/planning/HL7V2-QUIRKS.md` | Version differences and vendor variations |

@@ -96,9 +96,15 @@ CEL (Common Expression Language) provides safe, sandboxed expression evaluation.
 
 ### Transform Operations
 
-> **Note**: Transform operations are planned but not yet implemented. Events pass through to actions unchanged.
+Transforms modify events before action execution. The original event is not modified; a copy is returned.
 
-Transforms modify events before action execution:
+| Transform Type | Status | Description |
+|---------------|--------|-------------|
+| `set_field` | ✅ Implemented | Set field values with path notation |
+| `map_terminology` | ✅ Implemented | Map codes between terminology systems |
+| `redact` | ✅ Implemented | Remove sensitive fields |
+
+Transforms are applied sequentially, and each receives the output of the previous transform:
 
 ```yaml
 transform:
@@ -441,9 +447,12 @@ fi-fhir parse -f hl7v2 message.hl7 | fi-fhir workflow run --config workflow.yaml
 - [x] Engine orchestration
 - [x] DryRun mode for testing routes without execution
 
-### Phase 2: Transforms & FHIR
+### Phase 2: Transforms & FHIR ✅
 - [x] CEL expression evaluation for conditions (`internal/workflow/cel.go`)
-- [ ] Transform pipeline (see `engine.go:110` TODO)
+- [x] Transform pipeline (`internal/workflow/transforms.go`)
+  - [x] `set_field` - Set field values with path notation
+  - [x] `map_terminology` - Map codes between terminology systems
+  - [x] `redact` - Remove sensitive fields
 - [x] FHIR action with US Core mapping (Patient, Encounter, Observation, DiagnosticReport)
 - [x] FHIR transaction bundle support for multi-resource events
 - [x] Bearer token authentication for FHIR

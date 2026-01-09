@@ -3,6 +3,7 @@ package workflow
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1053,4 +1054,303 @@ func TestCELCaching(t *testing.T) {
 	if len(eval.cache) != 1 {
 		t.Errorf("Expected 1 cached program, got %d", len(eval.cache))
 	}
+}
+
+func TestTransformSetField(t *testing.T) {
+	transformer := NewTransformer(nil)
+
+	tests := []struct {
+		name      string
+		event     map[string]interface{}
+		setField  string
+		wantPath  string
+		wantValue interface{}
+		wantErr   bool
+	}{
+		{
+			name:      "set string field",
+			event:     map[string]interface{}{"name": "old"},
+			setField:  `name = "new"`,
+			wantPath:  "name",
+			wantValue: "new",
+		},
+		{
+			name:      "set nested field",
+			event:     map[string]interface{}{"patient": map[string]interface{}{"name": "old"}},
+			setField:  `patient.status = "active"`,
+			wantPath:  "patient.status",
+			wantValue: "active",
+		},
+		{
+			name:      "set boolean true",
+			event:     map[string]interface{}{},
+			setField:  "active = true",
+			wantPath:  "active",
+			wantValue: true,
+		},
+		{
+			name:      "set boolean false",
+			event:     map[string]interface{}{},
+			setField:  "active = false",
+			wantPath:  "active",
+			wantValue: false,
+		},
+		{
+			name:      "set integer",
+			event:     map[string]interface{}{},
+			setField:  "count = 42",
+			wantPath:  "count",
+			wantValue: int64(42),
+		},
+		{
+			name:      "set null",
+			event:     map[string]interface{}{"value": "something"},
+			setField:  "value = null",
+			wantPath:  "value",
+			wantValue: nil,
+		},
+		{
+			name:      "create nested path",
+			event:     map[string]interface{}{},
+			setField:  `deeply.nested.field = "value"`,
+			wantPath:  "deeply.nested.field",
+			wantValue: "value",
+		},
+		{
+			name:     "invalid format",
+			event:    map[string]interface{}{},
+			setField: "no_equals_sign",
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			transform := Transform{SetField: tt.setField}
+			result, err := transformer.Apply(tt.event, transform)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Error("Expected error, got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Apply failed: %v", err)
+			}
+
+			resultMap := result.(map[string]interface{})
+			gotValue, err := getNestedValueForTest(resultMap, tt.wantPath)
+			if err != nil {
+				t.Fatalf("Failed to get value at path %s: %v", tt.wantPath, err)
+			}
+
+			if gotValue != tt.wantValue {
+				t.Errorf("Expected %v (%T), got %v (%T)", tt.wantValue, tt.wantValue, gotValue, gotValue)
+			}
+		})
+	}
+}
+
+func TestTransformRedact(t *testing.T) {
+	transformer := NewTransformer(nil)
+
+	tests := []struct {
+		name         string
+		event        map[string]interface{}
+		redactFields []string
+		checkMissing []string
+	}{
+		{
+			name: "redact top-level field",
+			event: map[string]interface{}{
+				"name": "John",
+				"ssn":  "123-45-6789",
+			},
+			redactFields: []string{"ssn"},
+			checkMissing: []string{"ssn"},
+		},
+		{
+			name: "redact nested field",
+			event: map[string]interface{}{
+				"patient": map[string]interface{}{
+					"name": "John",
+					"ssn":  "123-45-6789",
+				},
+			},
+			redactFields: []string{"patient.ssn"},
+			checkMissing: []string{"patient.ssn"},
+		},
+		{
+			name: "redact multiple fields",
+			event: map[string]interface{}{
+				"name": "John",
+				"ssn":  "123-45-6789",
+				"dob":  "1990-01-01",
+			},
+			redactFields: []string{"ssn", "dob"},
+			checkMissing: []string{"ssn", "dob"},
+		},
+		{
+			name:         "redact non-existent field (no error)",
+			event:        map[string]interface{}{"name": "John"},
+			redactFields: []string{"nonexistent"},
+			checkMissing: []string{"nonexistent"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			transform := Transform{
+				Redact: &RedactConfig{Fields: tt.redactFields},
+			}
+			result, err := transformer.Apply(tt.event, transform)
+			if err != nil {
+				t.Fatalf("Apply failed: %v", err)
+			}
+
+			resultMap := result.(map[string]interface{})
+			for _, field := range tt.checkMissing {
+				_, err := getNestedValueForTest(resultMap, field)
+				if err == nil {
+					t.Errorf("Expected field %s to be redacted, but it exists", field)
+				}
+			}
+		})
+	}
+}
+
+func TestTransformInWorkflow(t *testing.T) {
+	workflow := &Workflow{
+		Name:    "transform_test",
+		Version: "1.0",
+		Routes: []Route{
+			{
+				Name:   "transform_route",
+				Filter: Filter{}, // Match all
+				Transforms: []Transform{
+					{SetField: `patient.status = "active"`},
+					{SetField: `processed = true`},
+				},
+				Actions: []Action{{Type: "log"}},
+			},
+		},
+	}
+
+	engine, err := NewEngine(workflow)
+	if err != nil {
+		t.Fatalf("NewEngine failed: %v", err)
+	}
+
+	event := map[string]interface{}{
+		"type": "patient_admit",
+		"patient": map[string]interface{}{
+			"name": "John",
+		},
+	}
+
+	result := engine.Process(event)
+
+	if len(result.RouteResults) != 1 {
+		t.Fatalf("Expected 1 route result, got %d", len(result.RouteResults))
+	}
+
+	rr := result.RouteResults[0]
+	if !rr.Matched {
+		t.Error("Expected route to match")
+	}
+	if rr.TransformsRun != 2 {
+		t.Errorf("Expected 2 transforms run, got %d", rr.TransformsRun)
+	}
+	if len(rr.TransformErrors) > 0 {
+		t.Errorf("Expected no transform errors, got: %v", rr.TransformErrors)
+	}
+}
+
+func TestTransformWithRedactInWorkflow(t *testing.T) {
+	workflow := &Workflow{
+		Name:    "redact_test",
+		Version: "1.0",
+		Routes: []Route{
+			{
+				Name:   "redact_route",
+				Filter: Filter{},
+				Transforms: []Transform{
+					{Redact: &RedactConfig{Fields: []string{"patient.ssn", "patient.dob"}}},
+				},
+				Actions: []Action{{Type: "log"}},
+			},
+		},
+	}
+
+	engine, err := NewEngine(workflow)
+	if err != nil {
+		t.Fatalf("NewEngine failed: %v", err)
+	}
+
+	event := map[string]interface{}{
+		"type": "patient_admit",
+		"patient": map[string]interface{}{
+			"name": "John",
+			"ssn":  "123-45-6789",
+			"dob":  "1990-01-01",
+		},
+	}
+
+	result := engine.Process(event)
+
+	if result.HasErrors() {
+		t.Errorf("Unexpected errors: %v", result.AllErrors())
+	}
+
+	rr := result.RouteResults[0]
+	if rr.TransformsRun != 1 {
+		t.Errorf("Expected 1 transform run, got %d", rr.TransformsRun)
+	}
+}
+
+func TestTransformPreservesOriginal(t *testing.T) {
+	transformer := NewTransformer(nil)
+
+	original := map[string]interface{}{
+		"name":  "original",
+		"value": 100,
+	}
+
+	transform := Transform{SetField: `name = "modified"`}
+	result, err := transformer.Apply(original, transform)
+	if err != nil {
+		t.Fatalf("Apply failed: %v", err)
+	}
+
+	// Verify original is unchanged
+	if original["name"] != "original" {
+		t.Errorf("Original was modified: name = %v", original["name"])
+	}
+
+	// Verify result has new value
+	resultMap := result.(map[string]interface{})
+	if resultMap["name"] != "modified" {
+		t.Errorf("Result should have modified value: name = %v", resultMap["name"])
+	}
+}
+
+// Helper to get nested values for testing
+func getNestedValueForTest(m map[string]interface{}, path string) (interface{}, error) {
+	parts := strings.Split(path, ".")
+	var current interface{} = m
+
+	for _, key := range parts {
+		currentMap, ok := current.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("not a map")
+		}
+		next, exists := currentMap[key]
+		if !exists {
+			return nil, fmt.Errorf("key not found: %s", key)
+		}
+		current = next
+	}
+	return current, nil
 }
