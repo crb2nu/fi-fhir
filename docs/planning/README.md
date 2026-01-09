@@ -12,7 +12,7 @@ This directory contains detailed planning and specification documents for the fi
 | [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) | HL7 v2.x version differences and parsing edge cases | Core parsing complete |
 | [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) | X12 EDI parsing (837P, 835, 270/271, 276/277) | All transactions complete |
 | [IDENTIFIERS.md](IDENTIFIERS.md) | Patient/provider identifier systems and validation | Validators complete |
-| [TERMINOLOGY.md](TERMINOLOGY.md) | Healthcare code systems and mapping (LOINC, SNOMED) | Mapper engine complete |
+| [TERMINOLOGY.md](TERMINOLOGY.md) | Healthcare code systems and mapping (LOINC, SNOMED) | LOINC loader complete |
 | [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md) | TypeScript/JavaScript SDK | SDK complete |
 | [CDA-CCDA.md](CDA-CCDA.md) | CDA/CCDA clinical document parsing | Parser complete |
 | [FHIR-SUBSCRIPTIONS.md](FHIR-SUBSCRIPTIONS.md) | FHIR R4 Subscriptions (bidirectional) | Complete |
@@ -112,9 +112,11 @@ See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and curren
 - Event stream compaction (aggregate snapshots, incremental compaction, bulk prefix compaction)
 - Saga orchestration (multi-step transactions with compensation, retry, timeout)
 - Outbox pattern for reliable event publishing (OutboxStore, OutboxRelay, OutboxEventStore)
+- LOINC file loader with panel expansion (`pkg/terminology/loinc.go`)
 
 ### Next Up
-- (Roadmap complete for event sourcing)
+- Confidence scoring for fuzzy terminology matches
+- UMLS API integration (optional)
 
 ## Contributing
 

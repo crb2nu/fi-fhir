@@ -10,8 +10,8 @@ This document details healthcare code systems, version management, and the fi-fh
 | **CSV mapping loader** | ✅ | `pkg/terminology/mapper.go:LoadFromCSV()` |
 | **Mapper registry** | ✅ | `pkg/terminology/mapper.go:Registry` |
 | **MapToLOINC/SNOMED** | ✅ | Convenience methods for common targets |
-| **LOINC file loader** | 🔲 | Direct loading from loinc.org downloads |
-| **Panel expansion** | 🔲 | CBC/BMP/CMP → individual components |
+| **LOINC file loader** | ✅ | `pkg/terminology/loinc.go:LOINCLoader` |
+| **Panel expansion** | ✅ | `pkg/terminology/loinc.go:ExpandPanel()` |
 
 ## Code Systems Reference
 
@@ -244,10 +244,10 @@ func GetICD10Version(serviceDate time.Time) string {
 - [x] CodeMapping struct with full provenance fields
 - [ ] Version tracking per code system (in config only)
 
-### Phase 2: LOINC Support
-- [ ] LOINC file loader (CSV from loinc.org)
-- [ ] Code lookup by code/display
-- [ ] Panel expansion (CBC → individual components)
+### Phase 2: LOINC Support ✅
+- [x] LOINC file loader (CSV from loinc.org) - see `pkg/terminology/loinc.go:LOINCLoader`
+- [x] Code lookup by code/display - see `GetCode()`, `LookupByDisplay()`, `SearchCodes()`
+- [x] Panel expansion (CBC → individual components) - see `ExpandPanel()`, `GetPanelMembers()`
 
 ### Phase 3: Mapping Engine ✅
 - [x] CSV mapping file parser - see `pkg/terminology/mapper.go:LoadFromCSV()`
