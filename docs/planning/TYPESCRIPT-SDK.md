@@ -120,6 +120,29 @@ interface EligibilityResponseEvent extends EventMeta {
   planEndDate?: string;
 }
 
+interface ClaimStatusRequestEvent extends EventMeta {
+  type: 'claim_status_request';
+  payer: Provider;
+  provider: Provider;
+  subscriber: Patient;
+  dependent?: Patient;
+  inquiry: ClaimStatusInquiry;
+  traceNumber?: string;
+}
+
+interface ClaimStatusResponseEvent extends EventMeta {
+  type: 'claim_status_response';
+  payer: Provider;
+  provider: Provider;
+  subscriber: Patient;
+  dependent?: Patient;
+  claimSubmitterID?: string;
+  payerClaimID?: string;
+  statuses: ClaimStatusInfo[];
+  serviceLines?: ClaimServiceLineStatus[];
+  traceNumber?: string;
+}
+
 type HealthcareEvent =
   | PatientAdmitEvent
   | PatientUpdateEvent
@@ -129,7 +152,9 @@ type HealthcareEvent =
   | ClaimSubmittedEvent
   | ClaimAdjudicatedEvent
   | EligibilityInquiryEvent
-  | EligibilityResponseEvent;
+  | EligibilityResponseEvent
+  | ClaimStatusRequestEvent
+  | ClaimStatusResponseEvent;
 ```
 
 ### Workflow
@@ -365,4 +390,4 @@ describe('parseCSV', () => {
 - [WORKFLOW-DSL.md](WORKFLOW-DSL.md) - Workflow YAML format processed by SDK Workflow class
 - [SOURCE-PROFILES.md](SOURCE-PROFILES.md) - Profile option passed to parse functions
 - [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) - HL7v2 parsing behavior exposed via parseHL7()
-- [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) - EDI X12 parsing (837, 835, 270, 271) for claims and eligibility
+- [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) - EDI X12 parsing (837, 835, 270/271, 276/277) for claims, eligibility, and claim status

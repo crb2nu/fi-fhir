@@ -10,7 +10,8 @@ This document details X12 healthcare transaction sets, loop structures, situatio
 | **835** | ✅ | `ClaimAdjudicatedEvent` | `internal/parser/edi/mapper.go:Map835ToEvents()` |
 | **270** | ✅ | `EligibilityInquiryEvent` | `internal/parser/edi/mapper.go:Map270ToEvents()` |
 | **271** | ✅ | `EligibilityResponseEvent` | `internal/parser/edi/mapper.go:Map271ToEvents()` |
-| **276/277** | 🔲 | `ClaimStatusEvent` | Planned |
+| **276** | ✅ | `ClaimStatusRequestEvent` | `internal/parser/edi/mapper.go:Map276ToEvents()` |
+| **277** | ✅ | `ClaimStatusResponseEvent` | `internal/parser/edi/mapper.go:Map277ToEvents()` |
 
 | Component | Implementation |
 |-----------|----------------|
@@ -518,6 +519,243 @@ AAA*N**67*N~                                 ← Patient not found
 AAA*N**72*C~                                 ← Invalid subscriber ID, please correct
 ```
 
+## 276 (Claim Status Request) Deep Dive
+
+### Loop Structure
+
+```
+1000A - Information Source Name (Payer)
+1000B - Information Receiver Name (Provider)
+
+2000A - Information Source Level (HL Code 20)
+├── 2100A - Payer Name
+
+2000B - Information Receiver Level (HL Code 21)
+├── 2100B - Provider Name
+├── REF - Provider Tax ID
+
+2000C - Subscriber Level (HL Code 22)
+├── 2100C - Subscriber Name
+├── DMG - Subscriber Demographics
+├── TRN - Trace Number (starts claim inquiry)
+├── REF - Claim Identifiers
+│   ├── REF*1K - Payer Claim Control Number
+│   ├── REF*D9 - Claim Number (Provider's ID)
+│   ├── REF*EJ - Patient Control Number
+├── AMT - Claim Amount
+├── DTP - Service Date Range
+
+2000D - Dependent Level (HL Code 23) - Optional
+├── 2100D - Dependent Name
+├── DMG - Dependent Demographics
+├── TRN/REF/AMT/DTP - Claim info for dependent
+```
+
+### Key Segments
+
+#### SBR Segment (Subscriber Information) - Optional
+
+```
+SBR*P*18*******HM~
+│   │ │         │
+1   2 3         9
+
+SBR01: Payer Responsibility Sequence (P=Primary, S=Secondary)
+SBR02: Individual Relationship Code (18=Self)
+SBR09: Claim Filing Indicator Code (HM=HMO)
+```
+
+#### REF Segment (Reference Identification)
+
+```
+REF*1K*CLM123456~    ← Payer Claim Control Number
+REF*D9*12345678~     ← Claim Number (Provider's Internal ID)
+REF*EJ*PATACCT001~   ← Patient Control Number
+
+Qualifier Codes:
+1K = Payer Claim Control Number (payer's ID for the claim)
+D9 = Claim Number (provider's original claim ID)
+EJ = Patient Control Number (patient account number)
+BLT = Billing Type
+TJ = Federal Taxpayer ID
+```
+
+#### AMT Segment (Monetary Amount)
+
+```
+AMT*T3*1500.00~
+│   │  │
+1   2  3
+
+AMT01: Amount Qualifier Code (T3=Total Claim Charge Amount)
+AMT02: Monetary Amount
+```
+
+### Semantic Mapping
+
+```go
+// 276 maps to ClaimStatusRequestEvent
+// Key extractions:
+// - Payer from 2100A NM1
+// - Provider from 2100B NM1
+// - Subscriber from 2100C NM1 + DMG
+// - Dependent from 2100D NM1 + DMG (if present)
+// - Trace number from TRN segment
+// - Claim identifiers from REF segments
+// - Claim amount from AMT segment
+```
+
+## 277 (Claim Status Response) Deep Dive
+
+### Loop Structure
+
+```
+1000A - Information Source Name (Payer)
+1000B - Information Receiver Name (Provider)
+
+2000A - Information Source Level (HL Code 20)
+├── 2100A - Payer Name
+
+2000B - Information Receiver Level (HL Code 21)
+├── 2100B - Provider Name
+
+2000C - Subscriber Level (HL Code 22)
+├── 2100C - Subscriber Name
+├── TRN - Trace Number (echoed from 276)
+├── STC - Status Information (claim-level, repeats)
+├── REF - Claim Identifiers
+├── DTP - Service/Adjudication Dates
+├── QTY - Quantities
+├── AMT - Amounts
+
+2000D - Dependent Level (HL Code 23) - Optional
+├── 2100D - Dependent Name
+├── TRN/STC/REF/DTP/QTY/AMT - Status info for dependent
+```
+
+### STC Segment (Status Information)
+
+The STC segment is the core of 277 responses, containing status details:
+
+```
+STC*A2:20:PR*20240115*WQ*1350.00~
+│   │  │  │  │        │  │
+1   │  │  │  2        3  4
+    │  │  └── Entity ID Code (PR=Payer)
+    │  └── Status Code (Code Source 508)
+    └── Status Category Code (Code Source 507)
+
+STC01: Composite Status Information (C043)
+  C043-01: Status Category Code (A0-A8, DR, E0, F0, P0, R0)
+  C043-02: Status Code (detailed status from Code Source 508)
+  C043-03: Entity Identifier Code (PR=Payer, PV=Provider, etc.)
+
+STC02: Status Effective Date
+STC03: Action Code (optional)
+  WQ = Waiting on response
+  U = Unavailable
+  N = No action required
+STC04: Total Claim Charge Amount
+```
+
+### Status Category Codes (STC01-01, Code Source 507)
+
+| Code | Meaning | Description |
+|------|---------|-------------|
+| **A0** | Acknowledgement | Claim/encounter has been received |
+| **A1** | Pending | Awaiting further review |
+| **A2** | Finalized | Processing is complete |
+| **A3** | Additional Info | Request for more information |
+| **A4** | Adjudicated | Claim has been adjudicated |
+| **A5** | Denied | Claim has been denied |
+| **A6** | Partial Pay | Partial payment issued |
+| **A7** | Paid | Paid in full |
+| **A8** | Rejected | Claim has been rejected |
+| **DR** | Data Reporting | Data reporting acknowledgement |
+| **E0** | Error | Response not possible due to request errors |
+| **F0** | Recovery | Recoupment/recovery in progress |
+| **P0** | Prior Auth | Prior authorization related |
+| **R0** | Referral | Referral related |
+
+### Common Status Codes (STC01-02, Code Source 508)
+
+| Code | Description |
+|------|-------------|
+| **0** | Cannot provide further status electronically |
+| **1** | See remittance advice for details |
+| **2** | Pending - review in progress |
+| **3** | Pending - provider requested information |
+| **4** | Pending - patient requested information |
+| **19** | Entity's claim contains a condition |
+| **20** | Entity accepts responsibility |
+| **21** | Missing/invalid information |
+| **29** | Entity not approved as provider |
+| **33** | Claim submitted to wrong payer |
+| **35** | Entity's claim contains invalid information |
+| **52** | Requires primary payer adjudication |
+| **65** | Claim submitted to wrong payer |
+| **E0** | Response not possible - error on request |
+| **E1** | Response not possible - system error |
+
+### SVC Segment (Service Line Information)
+
+```
+SVC*HC:99213*150.00*120.00**1~
+│   │  │     │      │       │
+1   │  │     2      3       5
+    │  └── CPT/HCPCS Code
+    └── Composite Medical Procedure
+
+SVC01: Composite Medical Procedure (HC: prefix indicates HCPCS)
+SVC02: Line Item Charge Amount
+SVC03: Line Item Payment Amount
+SVC05: Units of Service
+```
+
+### Response Scenarios
+
+#### Finalized/Paid (Happy Path)
+
+```
+TRN*1*TRACE276001*9PAYER~
+STC*A2:20:PR*20240115*WQ*1350.00~        ← Finalized, accepted
+REF*1K*CLM123456~
+DTP*472*D8*20240101~
+SVC*HC:99213*150.00*120.00**1~
+STC*A2:20:PR*20240115*WQ*120.00~         ← Line paid
+```
+
+#### Pending Review
+
+```
+TRN*1*TRACE276002*9PAYER~
+STC*A1:2:PR*20240116**0.00~              ← Pending review
+REF*1K*CLM789012~
+```
+
+#### Denied/Rejected
+
+```
+TRN*1*TRACE276003*9PAYER~
+STC*A8:52:PR*20240116*U*0.00~            ← Rejected, needs primary payer
+REF*1K*CLM555555~
+```
+
+### Semantic Mapping
+
+```go
+// 277 maps to ClaimStatusResponseEvent
+// Key extractions:
+// - Payer from 2100A NM1
+// - Provider from 2100B NM1
+// - Subscriber from 2100C NM1 + DMG
+// - Dependent from 2100D NM1 + DMG (if present)
+// - Trace number from TRN (correlates to 276 request)
+// - Status category and code from STC segments
+// - Claim identifiers from REF segments
+// - Service line status from SVC + STC pairs
+```
+
 ## Situational Rules
 
 ### What "Situational" Means
@@ -856,7 +1094,8 @@ func map835ToAdjudication(tx *Transaction835) []*events.ClaimAdjudicatedEvent {
 - [x] 835 → ClaimAdjudicatedEvent - see `mapper.go:Map835ToEvents()`
 - [x] 270 → EligibilityInquiryEvent - see `mapper.go:Map270ToEvents()`
 - [x] 271 → EligibilityResponseEvent - see `mapper.go:Map271ToEvents()`
-- [ ] 276/277 → ClaimStatus event
+- [x] 276 → ClaimStatusRequestEvent - see `mapper.go:Map276ToEvents()`
+- [x] 277 → ClaimStatusResponseEvent - see `mapper.go:Map277ToEvents()`
 - [x] Basic error handling with ParseError type
 
 ### Phase 4: Companion Guide Framework
@@ -879,6 +1118,9 @@ testdata/edi/
 ├── 270_inquiry.edi        # ✅ Eligibility inquiry
 ├── 271_response.edi       # ✅ Eligibility response (active coverage)
 ├── 271_rejected.edi       # ✅ Eligibility rejected (errors)
+├── 276_request.edi        # ✅ Claim status inquiry
+├── 277_response.edi       # ✅ Claim status response (finalized)
+├── 277_denied.edi         # ✅ Claim status response (rejected)
 └── invalid/
     ├── bad_envelope.edi
     ├── missing_hl.edi
@@ -903,6 +1145,8 @@ testdata/edi/
 ## References
 
 - [X12 837P Implementation Guide (5010)](https://x12.org/products/5010-702)
+- [X12 276/277 Implementation Guide (005010X212)](https://x12.org/products/5010-276-277)
 - [CMS EDI Requirements](https://www.cms.gov/medicare/billing/electronicbillingeditrans)
 - [Washington Publishing Company Guides](https://www.wpc-edi.com/)
 - [Stedi EDI Reference](https://www.stedi.com/edi)
+- [Stedi 276/277 Documentation](https://www.stedi.com/edi/x12/transaction-set/276)
