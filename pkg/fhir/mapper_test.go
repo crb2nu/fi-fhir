@@ -14,15 +14,15 @@ func TestUSCoreMapperMapPatient(t *testing.T) {
 
 	dob := time.Date(1980, 5, 15, 0, 0, 0, 0, time.UTC)
 	patient := &events.Patient{
-		MRN:        "123456",
-		FamilyName: "Doe",
-		GivenName:  "John",
-		MiddleName: "William",
-		Prefix:     "Mr.",
-		Gender:     "M",
+		MRN:         "123456",
+		FamilyName:  "Doe",
+		GivenName:   "John",
+		MiddleName:  "William",
+		Prefix:      "Mr.",
+		Gender:      "M",
 		DateOfBirth: dob,
-		Race:       "White",
-		Ethnicity:  "Not Hispanic",
+		Race:        "White",
+		Ethnicity:   "Not Hispanic",
 		Address: events.Address{
 			Line1:      "123 Main St",
 			City:       "Anytown",

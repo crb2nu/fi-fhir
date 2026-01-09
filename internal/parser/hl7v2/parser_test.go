@@ -174,9 +174,9 @@ func TestEventClassification(t *testing.T) {
 	// Default profile has event classification rules
 
 	tests := []struct {
-		name                string
-		pv1Class            string
-		expectedClassified  string
+		name               string
+		pv1Class           string
+		expectedClassified string
 	}{
 		{"inpatient", "I", "inpatient_admit"},
 		{"outpatient", "O", "outpatient_registration"},
@@ -884,5 +884,126 @@ OBX|1|NM|GLU^Glucose||120|mg/dL|70-100|H|||F`
 	}
 	if event.Test.OrderID != "" {
 		t.Errorf("Test.OrderID = %q, want empty", event.Test.OrderID)
+	}
+}
+
+// =============================================================================
+// SIU (Scheduling) Message Tests
+// =============================================================================
+
+// TestSIUMessageTypes verifies all SIU message types produce correct event types.
+// This is the primary test for SIU message routing.
+func TestSIUMessageTypes(t *testing.T) {
+	tests := []struct {
+		name         string
+		msgType      string
+		expectedType events.EventType
+	}{
+		{"S12 New Booking", "SIU^S12", events.EventAppointmentScheduled},
+		{"S13 Reschedule", "SIU^S13", events.EventAppointmentRescheduled},
+		{"S14 Modification", "SIU^S14", events.EventAppointmentModified},
+		{"S15 Cancellation", "SIU^S15", events.EventAppointmentCancelled},
+		{"S26 No-Show", "SIU^S26", events.EventAppointmentNoShow},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			parser := NewParser("test", ParserConfig{})
+
+			// Minimal valid SIU message - just needs SCH and PID
+			msg := fmt.Sprintf(`MSH|^~\&|SCHED|HOSP|EHR|HOSP|20240115100000||%s|MSG001|P|2.5
+SCH|APPT001
+PID|1||123456^^^HOSPITAL^MRN||DOE^JOHN|||M`, tt.msgType)
+
+			result, err := parser.Parse(msg)
+			if err != nil {
+				t.Fatalf("Parse failed for %s: %v", tt.msgType, err)
+			}
+
+			event, ok := result.(*events.AppointmentEvent)
+			if !ok {
+				t.Fatalf("Expected AppointmentEvent for %s, got %T", tt.msgType, result)
+			}
+
+			if event.Type != tt.expectedType {
+				t.Errorf("%s: expected event type %s, got %s", tt.msgType, tt.expectedType, event.Type)
+			}
+
+			// Verify appointment ID is extracted
+			if event.Appointment.ID != "APPT001" {
+				t.Errorf("%s: expected appointment ID 'APPT001', got '%s'", tt.msgType, event.Appointment.ID)
+			}
+
+			// Verify patient is extracted
+			if event.Patient.MRN != "123456" {
+				t.Errorf("%s: expected patient MRN '123456', got '%s'", tt.msgType, event.Patient.MRN)
+			}
+		})
+	}
+}
+
+// TestSIU_S15_CancellationDefaults verifies S15 sets cancelled status.
+func TestSIU_S15_CancellationDefaults(t *testing.T) {
+	parser := NewParser("test", ParserConfig{})
+
+	// S15 with no status field - should default to "cancelled"
+	msg := `MSH|^~\&|SCHED|HOSP|EHR|HOSP|20240115100000||SIU^S15|MSG001|P|2.5
+SCH|APPT001
+PID|1||123456^^^HOSPITAL^MRN||DOE^JOHN|||M`
+
+	result, err := parser.Parse(msg)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	event := result.(*events.AppointmentEvent)
+
+	if event.Appointment.Status != "cancelled" {
+		t.Errorf("S15 should set status to 'cancelled', got '%s'", event.Appointment.Status)
+	}
+}
+
+// TestSIU_S26_NoShowDefaults verifies S26 sets noshow status and flag.
+func TestSIU_S26_NoShowDefaults(t *testing.T) {
+	parser := NewParser("test", ParserConfig{})
+
+	// S26 with no status field - should default to "noshow" and set NoShow flag
+	msg := `MSH|^~\&|SCHED|HOSP|EHR|HOSP|20240115100000||SIU^S26|MSG001|P|2.5
+SCH|APPT001
+PID|1||123456^^^HOSPITAL^MRN||DOE^JOHN|||M`
+
+	result, err := parser.Parse(msg)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	event := result.(*events.AppointmentEvent)
+
+	if event.Appointment.Status != "noshow" {
+		t.Errorf("S26 should set status to 'noshow', got '%s'", event.Appointment.Status)
+	}
+	if !event.Appointment.NoShow {
+		t.Error("S26 should set NoShow flag to true")
+	}
+}
+
+// TestSIUWithAISSegment verifies location is extracted from AIS segment.
+func TestSIUWithAISSegment(t *testing.T) {
+	parser := NewParser("test", ParserConfig{})
+
+	msg := `MSH|^~\&|SCHED|HOSP|EHR|HOSP|20240115100000||SIU^S12|MSG001|P|2.5
+SCH|APPT001
+PID|1||123456^^^HOSPITAL^MRN||DOE^JOHN|||M
+AIS|1|A|CARDIO^Cardiology Department`
+
+	result, err := parser.Parse(msg)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	event := result.(*events.AppointmentEvent)
+
+	if event.Appointment.Location.Description != "Cardiology Department" {
+		t.Errorf("Expected location 'Cardiology Department', got '%s'", event.Appointment.Location.Description)
 	}
 }

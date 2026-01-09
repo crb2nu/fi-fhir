@@ -20,20 +20,22 @@ const (
 	EventPatientMerge     EventType = "patient_merge"
 
 	// Scheduling events
-	EventAppointmentScheduled EventType = "appointment_scheduled"
-	EventAppointmentCancelled EventType = "appointment_cancelled"
+	EventAppointmentScheduled   EventType = "appointment_scheduled"
+	EventAppointmentCancelled   EventType = "appointment_cancelled"
 	EventAppointmentRescheduled EventType = "appointment_rescheduled"
-	EventAppointmentCheckedIn  EventType = "appointment_checked_in"
+	EventAppointmentModified    EventType = "appointment_modified"
+	EventAppointmentNoShow      EventType = "appointment_noshow"
+	EventAppointmentCheckedIn   EventType = "appointment_checked_in"
 
 	// Lab/results events
-	EventLabResult   EventType = "lab_result"
-	EventLabOrdered  EventType = "lab_ordered"
+	EventLabResult    EventType = "lab_result"
+	EventLabOrdered   EventType = "lab_ordered"
 	EventLabCancelled EventType = "lab_cancelled"
 
 	// Claims/billing events
-	EventClaimSubmitted  EventType = "claim_submitted"
-	EventClaimAdjudicated EventType = "claim_adjudicated"
-	EventPriorAuthRequest EventType = "prior_auth_request"
+	EventClaimSubmitted    EventType = "claim_submitted"
+	EventClaimAdjudicated  EventType = "claim_adjudicated"
+	EventPriorAuthRequest  EventType = "prior_auth_request"
 	EventPriorAuthResponse EventType = "prior_auth_response"
 )
 
@@ -295,10 +297,10 @@ type Provider struct {
 	Degree     string `json:"degree,omitempty"` // Professional degree
 
 	// Classification
-	Specialty     string   `json:"specialty,omitempty"`
-	Specialties   []string `json:"specialties,omitempty"`
-	ProviderType  string   `json:"provider_type,omitempty"` // Type 1 (individual) or Type 2 (org)
-	Taxonomy      string   `json:"taxonomy,omitempty"`      // Healthcare provider taxonomy code
+	Specialty    string   `json:"specialty,omitempty"`
+	Specialties  []string `json:"specialties,omitempty"`
+	ProviderType string   `json:"provider_type,omitempty"` // Type 1 (individual) or Type 2 (org)
+	Taxonomy     string   `json:"taxonomy,omitempty"`      // Healthcare provider taxonomy code
 
 	// Organization (for Type 2 NPIs)
 	OrganizationName string `json:"organization_name,omitempty"`
@@ -382,11 +384,11 @@ type LabTest struct {
 
 // LabValue represents a laboratory result value.
 type LabValue struct {
-	Value          string    `json:"value"`
-	Unit           string    `json:"unit,omitempty"`
-	ReferenceRange string    `json:"reference_range,omitempty"`
-	Interpretation string    `json:"interpretation,omitempty"` // Normal, High, Low, Critical
-	Status         string    `json:"status,omitempty"`         // Final, Preliminary, Corrected
+	Value           string    `json:"value"`
+	Unit            string    `json:"unit,omitempty"`
+	ReferenceRange  string    `json:"reference_range,omitempty"`
+	Interpretation  string    `json:"interpretation,omitempty"` // Normal, High, Low, Critical
+	Status          string    `json:"status,omitempty"`         // Final, Preliminary, Corrected
 	ObservationTime time.Time `json:"observation_time,omitempty"`
 }
 
@@ -402,21 +404,26 @@ type Appointment struct {
 	Provider     *Provider `json:"provider,omitempty"`
 	Reason       string    `json:"reason,omitempty"`
 	Instructions string    `json:"instructions,omitempty"`
+
+	// Rescheduling/cancellation fields
+	PreviousStatus     string `json:"previous_status,omitempty"`
+	CancellationReason string `json:"cancellation_reason,omitempty"`
+	NoShow             bool   `json:"noshow,omitempty"`
 }
 
 // PatientAdmitEvent is emitted when a patient is admitted.
 type PatientAdmitEvent struct {
 	EventMeta
-	Patient   Patient   `json:"patient"`
-	Encounter Encounter `json:"encounter"`
+	Patient    Patient         `json:"patient"`
+	Encounter  Encounter       `json:"encounter"`
 	RawPayload json.RawMessage `json:"raw_payload,omitempty"`
 }
 
 // PatientDischargeEvent is emitted when a patient is discharged.
 type PatientDischargeEvent struct {
 	EventMeta
-	Patient   Patient   `json:"patient"`
-	Encounter Encounter `json:"encounter"`
+	Patient    Patient         `json:"patient"`
+	Encounter  Encounter       `json:"encounter"`
 	RawPayload json.RawMessage `json:"raw_payload,omitempty"`
 }
 
@@ -432,9 +439,9 @@ type LabResultEvent struct {
 	EventMeta
 	Patient          Patient          `json:"patient"`
 	OrderingProvider *Provider        `json:"ordering_provider,omitempty"`
-	Test             LabTest          `json:"test"`                        // Primary/first test (for single-OBX compat)
-	Result           LabValue         `json:"result"`                      // Primary/first result (for single-OBX compat)
-	Results          []LabObservation `json:"results,omitempty"`           // All observations (for multi-OBX)
+	Test             LabTest          `json:"test"`              // Primary/first test (for single-OBX compat)
+	Result           LabValue         `json:"result"`            // Primary/first result (for single-OBX compat)
+	Results          []LabObservation `json:"results,omitempty"` // All observations (for multi-OBX)
 	IsCritical       bool             `json:"is_critical"`
 	Encounter        *Encounter       `json:"encounter,omitempty"`
 	RawPayload       json.RawMessage  `json:"raw_payload,omitempty"`
@@ -443,8 +450,8 @@ type LabResultEvent struct {
 // AppointmentEvent is emitted for scheduling events.
 type AppointmentEvent struct {
 	EventMeta
-	Patient     Patient     `json:"patient"`
-	Appointment Appointment `json:"appointment"`
+	Patient     Patient         `json:"patient"`
+	Appointment Appointment     `json:"appointment"`
 	RawPayload  json.RawMessage `json:"raw_payload,omitempty"`
 }
 

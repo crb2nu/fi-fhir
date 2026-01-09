@@ -12,10 +12,10 @@ const (
 	// Profile URIs
 	USCoreBaseURL = "http://hl7.org/fhir/us/core/StructureDefinition/"
 
-	USCorePatientProfile     = USCoreBaseURL + "us-core-patient"
+	USCorePatientProfile        = USCoreBaseURL + "us-core-patient"
 	USCoreObservationLabProfile = USCoreBaseURL + "us-core-observation-lab"
-	USCoreEncounterProfile   = USCoreBaseURL + "us-core-encounter"
-	USCoreConditionProfile   = USCoreBaseURL + "us-core-condition-problems-health-concerns"
+	USCoreEncounterProfile      = USCoreBaseURL + "us-core-encounter"
+	USCoreConditionProfile      = USCoreBaseURL + "us-core-condition-problems-health-concerns"
 
 	// Extension URIs
 	USCoreRaceExtension      = USCoreBaseURL + "us-core-race"
@@ -23,12 +23,12 @@ const (
 	USCoreBirthSexExtension  = USCoreBaseURL + "us-core-birthsex"
 
 	// Code system URIs
-	SystemLOINC             = "http://loinc.org"
-	SystemSNOMED            = "http://snomed.info/sct"
-	SystemICD10CM           = "http://hl7.org/fhir/sid/icd-10-cm"
-	SystemCPT               = "http://www.ama-assn.org/go/cpt"
-	SystemRxNorm            = "http://www.nlm.nih.gov/research/umls/rxnorm"
-	SystemUCUM              = "http://unitsofmeasure.org"
+	SystemLOINC                = "http://loinc.org"
+	SystemSNOMED               = "http://snomed.info/sct"
+	SystemICD10CM              = "http://hl7.org/fhir/sid/icd-10-cm"
+	SystemCPT                  = "http://www.ama-assn.org/go/cpt"
+	SystemRxNorm               = "http://www.nlm.nih.gov/research/umls/rxnorm"
+	SystemUCUM                 = "http://unitsofmeasure.org"
 	SystemAdministrativeGender = "http://hl7.org/fhir/administrative-gender"
 	SystemObservationCategory  = "http://terminology.hl7.org/CodeSystem/observation-category"
 	SystemInterpretation       = "http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation"
@@ -53,12 +53,12 @@ type Meta struct {
 
 // Identifier represents a business identifier.
 type Identifier struct {
-	System   string  `json:"system,omitempty"`
-	Value    string  `json:"value,omitempty"`
+	System   string           `json:"system,omitempty"`
+	Value    string           `json:"value,omitempty"`
 	Type     *CodeableConcept `json:"type,omitempty"`
-	Use      string  `json:"use,omitempty"` // usual | official | temp | secondary | old
-	Assigner *Reference `json:"assigner,omitempty"`
-	Period   *Period `json:"period,omitempty"`
+	Use      string           `json:"use,omitempty"` // usual | official | temp | secondary | old
+	Assigner *Reference       `json:"assigner,omitempty"`
+	Period   *Period          `json:"period,omitempty"`
 }
 
 // CodeableConcept represents a value with one or more code representations.
@@ -91,11 +91,11 @@ type Period struct {
 
 // Extension represents a FHIR extension.
 type Extension struct {
-	URL         string       `json:"url"`
-	ValueString string       `json:"valueString,omitempty"`
-	ValueCoding *Coding      `json:"valueCoding,omitempty"`
-	ValueCode   string       `json:"valueCode,omitempty"`
-	Extension   []Extension  `json:"extension,omitempty"` // Nested extensions
+	URL         string      `json:"url"`
+	ValueString string      `json:"valueString,omitempty"`
+	ValueCoding *Coding     `json:"valueCoding,omitempty"`
+	ValueCode   string      `json:"valueCode,omitempty"`
+	Extension   []Extension `json:"extension,omitempty"` // Nested extensions
 }
 
 // HumanName represents a person's name.
@@ -111,7 +111,7 @@ type HumanName struct {
 
 // Address represents a postal address.
 type Address struct {
-	Use        string   `json:"use,omitempty"` // home | work | temp | old | billing
+	Use        string   `json:"use,omitempty"`  // home | work | temp | old | billing
 	Type       string   `json:"type,omitempty"` // postal | physical | both
 	Line       []string `json:"line,omitempty"`
 	City       string   `json:"city,omitempty"`
@@ -147,28 +147,28 @@ type Range struct {
 
 // ReferenceRange for observations.
 type ReferenceRange struct {
-	Low  *Quantity `json:"low,omitempty"`
-	High *Quantity `json:"high,omitempty"`
+	Low  *Quantity        `json:"low,omitempty"`
+	High *Quantity        `json:"high,omitempty"`
 	Type *CodeableConcept `json:"type,omitempty"`
-	Text string `json:"text,omitempty"`
+	Text string           `json:"text,omitempty"`
 }
 
 // Patient represents a FHIR Patient resource.
 type Patient struct {
-	ResourceType string       `json:"resourceType"`
-	ID           string       `json:"id,omitempty"`
-	Meta         *Meta        `json:"meta,omitempty"`
-	Extension    []Extension  `json:"extension,omitempty"`
-	Identifier   []Identifier `json:"identifier,omitempty"`
-	Active       *bool        `json:"active,omitempty"`
-	Name         []HumanName  `json:"name,omitempty"`
-	Telecom      []ContactPoint `json:"telecom,omitempty"`
-	Gender       string       `json:"gender,omitempty"` // male | female | other | unknown
-	BirthDate    string       `json:"birthDate,omitempty"` // YYYY-MM-DD
-	Address      []Address    `json:"address,omitempty"`
-	MaritalStatus *CodeableConcept `json:"maritalStatus,omitempty"`
-	Communication []PatientCommunication `json:"communication,omitempty"`
-	GeneralPractitioner []Reference `json:"generalPractitioner,omitempty"`
+	ResourceType        string                 `json:"resourceType"`
+	ID                  string                 `json:"id,omitempty"`
+	Meta                *Meta                  `json:"meta,omitempty"`
+	Extension           []Extension            `json:"extension,omitempty"`
+	Identifier          []Identifier           `json:"identifier,omitempty"`
+	Active              *bool                  `json:"active,omitempty"`
+	Name                []HumanName            `json:"name,omitempty"`
+	Telecom             []ContactPoint         `json:"telecom,omitempty"`
+	Gender              string                 `json:"gender,omitempty"`    // male | female | other | unknown
+	BirthDate           string                 `json:"birthDate,omitempty"` // YYYY-MM-DD
+	Address             []Address              `json:"address,omitempty"`
+	MaritalStatus       *CodeableConcept       `json:"maritalStatus,omitempty"`
+	Communication       []PatientCommunication `json:"communication,omitempty"`
+	GeneralPractitioner []Reference            `json:"generalPractitioner,omitempty"`
 }
 
 // PatientCommunication represents patient language preferences.
@@ -196,24 +196,24 @@ func (p *Patient) MarshalJSON() ([]byte, error) {
 
 // Observation represents a FHIR Observation resource.
 type Observation struct {
-	ResourceType   string           `json:"resourceType"`
-	ID             string           `json:"id,omitempty"`
-	Meta           *Meta            `json:"meta,omitempty"`
-	Identifier     []Identifier     `json:"identifier,omitempty"`
-	Status         string           `json:"status"` // registered | preliminary | final | amended | corrected | cancelled | entered-in-error | unknown
-	Category       []CodeableConcept `json:"category,omitempty"`
-	Code           CodeableConcept  `json:"code"`
-	Subject        *Reference       `json:"subject,omitempty"`
-	Encounter      *Reference       `json:"encounter,omitempty"`
-	EffectiveDateTime string        `json:"effectiveDateTime,omitempty"`
-	Issued         *time.Time       `json:"issued,omitempty"`
-	Performer      []Reference      `json:"performer,omitempty"`
-	ValueQuantity  *Quantity        `json:"valueQuantity,omitempty"`
-	ValueString    string           `json:"valueString,omitempty"`
-	ValueCodeableConcept *CodeableConcept `json:"valueCodeableConcept,omitempty"`
-	Interpretation []CodeableConcept `json:"interpretation,omitempty"`
-	Note           []Annotation     `json:"note,omitempty"`
-	ReferenceRange []ReferenceRange `json:"referenceRange,omitempty"`
+	ResourceType         string            `json:"resourceType"`
+	ID                   string            `json:"id,omitempty"`
+	Meta                 *Meta             `json:"meta,omitempty"`
+	Identifier           []Identifier      `json:"identifier,omitempty"`
+	Status               string            `json:"status"` // registered | preliminary | final | amended | corrected | cancelled | entered-in-error | unknown
+	Category             []CodeableConcept `json:"category,omitempty"`
+	Code                 CodeableConcept   `json:"code"`
+	Subject              *Reference        `json:"subject,omitempty"`
+	Encounter            *Reference        `json:"encounter,omitempty"`
+	EffectiveDateTime    string            `json:"effectiveDateTime,omitempty"`
+	Issued               *time.Time        `json:"issued,omitempty"`
+	Performer            []Reference       `json:"performer,omitempty"`
+	ValueQuantity        *Quantity         `json:"valueQuantity,omitempty"`
+	ValueString          string            `json:"valueString,omitempty"`
+	ValueCodeableConcept *CodeableConcept  `json:"valueCodeableConcept,omitempty"`
+	Interpretation       []CodeableConcept `json:"interpretation,omitempty"`
+	Note                 []Annotation      `json:"note,omitempty"`
+	ReferenceRange       []ReferenceRange  `json:"referenceRange,omitempty"`
 }
 
 // Annotation represents a text note with optional author.
@@ -240,20 +240,20 @@ func (o *Observation) MarshalJSON() ([]byte, error) {
 
 // Encounter represents a FHIR Encounter resource.
 type Encounter struct {
-	ResourceType   string           `json:"resourceType"`
-	ID             string           `json:"id,omitempty"`
-	Meta           *Meta            `json:"meta,omitempty"`
-	Identifier     []Identifier     `json:"identifier,omitempty"`
-	Status         string           `json:"status"` // planned | arrived | triaged | in-progress | onleave | finished | cancelled | entered-in-error | unknown
-	Class          Coding           `json:"class"`
-	Type           []CodeableConcept `json:"type,omitempty"`
-	Subject        *Reference       `json:"subject,omitempty"`
-	Participant    []EncounterParticipant `json:"participant,omitempty"`
-	Period         *Period          `json:"period,omitempty"`
-	ReasonCode     []CodeableConcept `json:"reasonCode,omitempty"`
-	Hospitalization *Hospitalization `json:"hospitalization,omitempty"`
-	Location       []EncounterLocation `json:"location,omitempty"`
-	ServiceProvider *Reference      `json:"serviceProvider,omitempty"`
+	ResourceType    string                 `json:"resourceType"`
+	ID              string                 `json:"id,omitempty"`
+	Meta            *Meta                  `json:"meta,omitempty"`
+	Identifier      []Identifier           `json:"identifier,omitempty"`
+	Status          string                 `json:"status"` // planned | arrived | triaged | in-progress | onleave | finished | cancelled | entered-in-error | unknown
+	Class           Coding                 `json:"class"`
+	Type            []CodeableConcept      `json:"type,omitempty"`
+	Subject         *Reference             `json:"subject,omitempty"`
+	Participant     []EncounterParticipant `json:"participant,omitempty"`
+	Period          *Period                `json:"period,omitempty"`
+	ReasonCode      []CodeableConcept      `json:"reasonCode,omitempty"`
+	Hospitalization *Hospitalization       `json:"hospitalization,omitempty"`
+	Location        []EncounterLocation    `json:"location,omitempty"`
+	ServiceProvider *Reference             `json:"serviceProvider,omitempty"`
 }
 
 // EncounterParticipant represents a participant in an encounter.
@@ -312,11 +312,11 @@ type BundleLink struct {
 
 // BundleEntry represents an entry in a bundle.
 type BundleEntry struct {
-	FullURL  string              `json:"fullUrl,omitempty"`
-	Resource json.RawMessage     `json:"resource,omitempty"`
-	Request  *BundleEntryRequest `json:"request,omitempty"`
+	FullURL  string               `json:"fullUrl,omitempty"`
+	Resource json.RawMessage      `json:"resource,omitempty"`
+	Request  *BundleEntryRequest  `json:"request,omitempty"`
 	Response *BundleEntryResponse `json:"response,omitempty"`
-	Search   *BundleEntrySearch  `json:"search,omitempty"`
+	Search   *BundleEntrySearch   `json:"search,omitempty"`
 }
 
 // BundleEntryRequest represents a transaction/batch request.
@@ -357,20 +357,20 @@ func (b *Bundle) MarshalJSON() ([]byte, error) {
 
 // DiagnosticReport represents a FHIR DiagnosticReport resource.
 type DiagnosticReport struct {
-	ResourceType     string           `json:"resourceType"`
-	ID               string           `json:"id,omitempty"`
-	Meta             *Meta            `json:"meta,omitempty"`
-	Identifier       []Identifier     `json:"identifier,omitempty"`
-	Status           string           `json:"status"` // registered | partial | preliminary | final | amended | corrected | appended | cancelled | entered-in-error | unknown
-	Category         []CodeableConcept `json:"category,omitempty"`
-	Code             CodeableConcept  `json:"code"`
-	Subject          *Reference       `json:"subject,omitempty"`
-	Encounter        *Reference       `json:"encounter,omitempty"`
-	EffectiveDateTime string          `json:"effectiveDateTime,omitempty"`
-	Issued           *time.Time       `json:"issued,omitempty"`
-	Performer        []Reference      `json:"performer,omitempty"`
-	Result           []Reference      `json:"result,omitempty"`
-	Conclusion       string           `json:"conclusion,omitempty"`
+	ResourceType      string            `json:"resourceType"`
+	ID                string            `json:"id,omitempty"`
+	Meta              *Meta             `json:"meta,omitempty"`
+	Identifier        []Identifier      `json:"identifier,omitempty"`
+	Status            string            `json:"status"` // registered | partial | preliminary | final | amended | corrected | appended | cancelled | entered-in-error | unknown
+	Category          []CodeableConcept `json:"category,omitempty"`
+	Code              CodeableConcept   `json:"code"`
+	Subject           *Reference        `json:"subject,omitempty"`
+	Encounter         *Reference        `json:"encounter,omitempty"`
+	EffectiveDateTime string            `json:"effectiveDateTime,omitempty"`
+	Issued            *time.Time        `json:"issued,omitempty"`
+	Performer         []Reference       `json:"performer,omitempty"`
+	Result            []Reference       `json:"result,omitempty"`
+	Conclusion        string            `json:"conclusion,omitempty"`
 }
 
 // GetResourceType returns "DiagnosticReport".
@@ -380,9 +380,9 @@ func (d *DiagnosticReport) GetResourceType() string {
 
 // OperationOutcome represents a FHIR OperationOutcome for errors/warnings.
 type OperationOutcome struct {
-	ResourceType string                    `json:"resourceType"`
-	ID           string                    `json:"id,omitempty"`
-	Issue        []OperationOutcomeIssue   `json:"issue"`
+	ResourceType string                  `json:"resourceType"`
+	ID           string                  `json:"id,omitempty"`
+	Issue        []OperationOutcomeIssue `json:"issue"`
 }
 
 // OperationOutcomeIssue represents an individual issue in an OperationOutcome.

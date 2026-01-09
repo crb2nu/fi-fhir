@@ -297,6 +297,14 @@ func (p *Parser) toSemanticEvent(msg *Message) (interface{}, error) {
 		return p.parseORU_R01(msg)
 	case strings.HasPrefix(msg.Type, "SIU^S12"):
 		return p.parseSIU_S12(msg)
+	case strings.HasPrefix(msg.Type, "SIU^S13"):
+		return p.parseSIU_S13(msg)
+	case strings.HasPrefix(msg.Type, "SIU^S14"):
+		return p.parseSIU_S14(msg)
+	case strings.HasPrefix(msg.Type, "SIU^S15"):
+		return p.parseSIU_S15(msg)
+	case strings.HasPrefix(msg.Type, "SIU^S26"):
+		return p.parseSIU_S26(msg)
 	default:
 		return nil, fmt.Errorf("unsupported message type: %s", msg.Type)
 	}
@@ -590,6 +598,128 @@ func (p *Parser) parseSIU_S12(msg *Message) (*events.AppointmentEvent, error) {
 	}
 
 	meta := events.NewEventMeta(events.EventAppointmentScheduled, p.source, events.FormatHL7v2)
+	meta.SourceMessageID = msg.ControlID
+
+	return &events.AppointmentEvent{
+		EventMeta:   meta,
+		Patient:     patient,
+		Appointment: appt,
+	}, nil
+}
+
+// parseSIU_S13 parses an appointment rescheduling message.
+func (p *Parser) parseSIU_S13(msg *Message) (*events.AppointmentEvent, error) {
+	patient, err := p.extractPatient(msg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract patient: %w", err)
+	}
+
+	appt, err := p.extractAppointment(msg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract appointment: %w", err)
+	}
+
+	// For rescheduling, extract the previous appointment time if available
+	// SCH-11 contains the new timing, SCH-27 may contain previous timing
+	sch := p.getSegment(msg, "SCH")
+	if sch != nil {
+		// SCH-27: Filler Status Code for previous appointment
+		prevStatus := p.getField(sch, 27)
+		if prevStatus != "" {
+			appt.PreviousStatus = prevStatus
+		}
+	}
+
+	meta := events.NewEventMeta(events.EventAppointmentRescheduled, p.source, events.FormatHL7v2)
+	meta.SourceMessageID = msg.ControlID
+
+	return &events.AppointmentEvent{
+		EventMeta:   meta,
+		Patient:     patient,
+		Appointment: appt,
+	}, nil
+}
+
+// parseSIU_S14 parses an appointment modification message.
+// Modifications differ from rescheduling in that the time remains the same
+// but other details (provider, location, reason) may change.
+func (p *Parser) parseSIU_S14(msg *Message) (*events.AppointmentEvent, error) {
+	patient, err := p.extractPatient(msg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract patient: %w", err)
+	}
+
+	appt, err := p.extractAppointment(msg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract appointment: %w", err)
+	}
+
+	meta := events.NewEventMeta(events.EventAppointmentModified, p.source, events.FormatHL7v2)
+	meta.SourceMessageID = msg.ControlID
+
+	return &events.AppointmentEvent{
+		EventMeta:   meta,
+		Patient:     patient,
+		Appointment: appt,
+	}, nil
+}
+
+// parseSIU_S15 parses an appointment cancellation message.
+func (p *Parser) parseSIU_S15(msg *Message) (*events.AppointmentEvent, error) {
+	patient, err := p.extractPatient(msg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract patient: %w", err)
+	}
+
+	appt, err := p.extractAppointment(msg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract appointment: %w", err)
+	}
+
+	// For cancellations, the status should reflect cancelled
+	if appt.Status == "" {
+		appt.Status = "cancelled"
+	}
+
+	// SCH-6 contains the event reason (cancellation reason)
+	sch := p.getSegment(msg, "SCH")
+	if sch != nil {
+		schField6 := p.getField(sch, 6)
+		cancelReason := p.getComponent(schField6, 1)
+		if cancelReason != "" && appt.CancellationReason == "" {
+			appt.CancellationReason = cancelReason
+		}
+	}
+
+	meta := events.NewEventMeta(events.EventAppointmentCancelled, p.source, events.FormatHL7v2)
+	meta.SourceMessageID = msg.ControlID
+
+	return &events.AppointmentEvent{
+		EventMeta:   meta,
+		Patient:     patient,
+		Appointment: appt,
+	}, nil
+}
+
+// parseSIU_S26 parses a patient no-show notification message.
+func (p *Parser) parseSIU_S26(msg *Message) (*events.AppointmentEvent, error) {
+	patient, err := p.extractPatient(msg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract patient: %w", err)
+	}
+
+	appt, err := p.extractAppointment(msg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract appointment: %w", err)
+	}
+
+	// Mark as no-show
+	if appt.Status == "" {
+		appt.Status = "noshow"
+	}
+	appt.NoShow = true
+
+	meta := events.NewEventMeta(events.EventAppointmentNoShow, p.source, events.FormatHL7v2)
 	meta.SourceMessageID = msg.ControlID
 
 	return &events.AppointmentEvent{
@@ -924,9 +1054,9 @@ func (p *Parser) extractEncounterFromSegment(pv1 *Segment) (events.Encounter, er
 	// PV1-3: Assigned location
 	pv1Field3 := p.getField(pv1, 3)
 	location := events.Location{
-		Unit:  p.getComponent(pv1Field3, 0),
-		Room:  p.getComponent(pv1Field3, 1),
-		Bed:   p.getComponent(pv1Field3, 2),
+		Unit:     p.getComponent(pv1Field3, 0),
+		Room:     p.getComponent(pv1Field3, 1),
+		Bed:      p.getComponent(pv1Field3, 2),
 		Facility: p.getComponent(pv1Field3, 3),
 	}
 
@@ -1221,10 +1351,10 @@ func (p *Parser) extractZSegmentExtensions(msg *Message) map[string]interface{} 
 
 // Delimiters holds the HL7v2 message delimiters extracted from MSH-2.
 type Delimiters struct {
-	Field       byte // | (from MSH-1)
-	Component   byte // ^ (first char of MSH-2)
-	Repetition  byte // ~ (second char of MSH-2)
-	Escape      byte // \ (third char of MSH-2)
+	Field        byte // | (from MSH-1)
+	Component    byte // ^ (first char of MSH-2)
+	Repetition   byte // ~ (second char of MSH-2)
+	Escape       byte // \ (third char of MSH-2)
 	Subcomponent byte // & (fourth char of MSH-2)
 }
 

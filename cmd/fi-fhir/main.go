@@ -74,11 +74,11 @@ For more information, visit: https://github.com/cblevins/fi-fhir`)
 
 func runParse(args []string) error {
 	var (
-		format      = "hl7v2"
-		source      = "unknown"
-		profilePath = ""
-		input       = ""
-		pretty      = false
+		format       = "hl7v2"
+		source       = "unknown"
+		profilePath  = ""
+		input        = ""
+		pretty       = false
 		showWarnings = false
 	)
 

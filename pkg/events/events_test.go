@@ -67,9 +67,9 @@ func TestIdentifierSetGetBySystem(t *testing.T) {
 
 func TestIdentifierSetGetMRN(t *testing.T) {
 	tests := []struct {
-		name   string
-		idSet  IdentifierSet
-		want   string
+		name  string
+		idSet IdentifierSet
+		want  string
 	}{
 		{
 			name: "MRN present",

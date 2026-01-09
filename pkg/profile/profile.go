@@ -26,11 +26,11 @@ type SourceProfile struct {
 
 // HL7v2Config governs HL7v2 parsing behavior.
 type HL7v2Config struct {
-	DefaultVersion string           `yaml:"default_version" json:"default_version"`
-	Timezone       string           `yaml:"timezone" json:"timezone"`
-	Encoding       *EncodingConfig  `yaml:"encoding,omitempty" json:"encoding,omitempty"`
-	Tolerate       *ToleranceConfig `yaml:"tolerate,omitempty" json:"tolerate,omitempty"`
-	Datatypes      *DatatypeConfig  `yaml:"datatypes,omitempty" json:"datatypes,omitempty"`
+	DefaultVersion string            `yaml:"default_version" json:"default_version"`
+	Timezone       string            `yaml:"timezone" json:"timezone"`
+	Encoding       *EncodingConfig   `yaml:"encoding,omitempty" json:"encoding,omitempty"`
+	Tolerate       *ToleranceConfig  `yaml:"tolerate,omitempty" json:"tolerate,omitempty"`
+	Datatypes      *DatatypeConfig   `yaml:"datatypes,omitempty" json:"datatypes,omitempty"`
 	EventRules     *EventRulesConfig `yaml:"event_classification,omitempty" json:"event_classification,omitempty"`
 }
 
@@ -66,7 +66,7 @@ type EventRulesConfig struct {
 
 // EventRule defines how to classify an event based on message content.
 type EventRule struct {
-	Default string              `yaml:"default" json:"default"`
+	Default string               `yaml:"default" json:"default"`
 	Rules   []ClassificationRule `yaml:"rules,omitempty" json:"rules,omitempty"`
 }
 
@@ -91,10 +91,10 @@ type ZFieldMapping struct {
 
 // IdentifierConfig governs ID normalization and validation.
 type IdentifierConfig struct {
-	AssigningAuthorityMap map[string]string    `yaml:"assigning_authority_map" json:"assigning_authority_map"`
-	PrimaryIDPreference   []IDPreferenceRule   `yaml:"primary_id_preference" json:"primary_id_preference"`
+	AssigningAuthorityMap map[string]string           `yaml:"assigning_authority_map" json:"assigning_authority_map"`
+	PrimaryIDPreference   []IDPreferenceRule          `yaml:"primary_id_preference" json:"primary_id_preference"`
 	Validation            map[string]*ValidatorConfig `yaml:"validation" json:"validation"`
-	Normalization         *NormalizationConfig `yaml:"normalization" json:"normalization"`
+	Normalization         *NormalizationConfig        `yaml:"normalization" json:"normalization"`
 }
 
 // IDPreferenceRule determines primary identifier selection.
@@ -125,8 +125,8 @@ type SSNNormConfig struct {
 
 // PhoneNormConfig for phone normalization.
 type PhoneNormConfig struct {
-	StripCountryCode   bool `yaml:"strip_country_code" json:"strip_country_code"`
-	NormalizeToDigits  bool `yaml:"normalize_to_digits" json:"normalize_to_digits"`
+	StripCountryCode  bool `yaml:"strip_country_code" json:"strip_country_code"`
+	NormalizeToDigits bool `yaml:"normalize_to_digits" json:"normalize_to_digits"`
 }
 
 // MRNNormConfig for MRN normalization.
@@ -152,7 +152,7 @@ type TerminologyMapping struct {
 
 // QualityConfig defines quality tracking settings.
 type QualityConfig struct {
-	Metrics []string            `yaml:"metrics" json:"metrics"`
+	Metrics []string                `yaml:"metrics" json:"metrics"`
 	Alerts  map[string]*AlertConfig `yaml:"alerts" json:"alerts"`
 }
 

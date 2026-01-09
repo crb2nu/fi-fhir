@@ -177,13 +177,25 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 
 ## Roadmap Context
 
-**Current State**: HL7v2 parsing for ADT and ORU messages works.
+**Current State**: HL7v2 parsing for ADT, ORU, and SIU messages works. FHIR R4 output with US Core mapper implemented.
+
+**Completed**:
+- HL7v2 ADT messages (A01, A02, A03, A04, A08)
+- HL7v2 ORU^R01 with multiple OBX support
+- HL7v2 SIU messages (S12, S13, S14, S15, S26)
+- Source Profile system with YAML configuration
+- Terminology mapping (LOCAL to LOINC/SNOMED)
+- FHIR R4 resource types and US Core mapper
+- Identifier validation (SSN, NPI, MBI)
+- Z-segment extraction
+- HL7v2 escape sequence handling
+- CLI with parse and validate commands
 
 **Next Steps**:
-1. SIU (scheduling) message support
-2. CSV adapter with schema inference
-3. Workflow DSL and engine
-4. TypeScript SDK wrapper
+1. CSV adapter with schema inference
+2. Workflow DSL and engine
+3. TypeScript SDK wrapper
+4. EDI X12 835/837 parser
 
 ## Testing Strategy
 

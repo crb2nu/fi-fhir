@@ -493,7 +493,7 @@ func (m *USCoreMapper) buildPatientExtensions(p *events.Patient) []Extension {
 			URL: USCoreRaceExtension,
 			Extension: []Extension{
 				{
-					URL:       "text",
+					URL:         "text",
 					ValueString: p.Race,
 				},
 			},
@@ -516,7 +516,7 @@ func (m *USCoreMapper) buildPatientExtensions(p *events.Patient) []Extension {
 			URL: USCoreEthnicityExtension,
 			Extension: []Extension{
 				{
-					URL:       "text",
+					URL:         "text",
 					ValueString: p.Ethnicity,
 				},
 			},
@@ -539,17 +539,17 @@ func (m *USCoreMapper) buildPatientExtensions(p *events.Patient) []Extension {
 func (m *USCoreMapper) mapRaceToOMB(race string) *Coding {
 	// OMB race categories (CDC Race & Ethnicity codes)
 	raceMap := map[string]struct{ code, display string }{
-		"WHITE":               {"2106-3", "White"},
-		"W":                   {"2106-3", "White"},
-		"BLACK":               {"2054-5", "Black or African American"},
-		"AFRICAN AMERICAN":    {"2054-5", "Black or African American"},
-		"B":                   {"2054-5", "Black or African American"},
-		"ASIAN":               {"2028-9", "Asian"},
-		"A":                   {"2028-9", "Asian"},
-		"NATIVE AMERICAN":     {"1002-5", "American Indian or Alaska Native"},
-		"AMERICAN INDIAN":     {"1002-5", "American Indian or Alaska Native"},
-		"PACIFIC ISLANDER":    {"2076-8", "Native Hawaiian or Other Pacific Islander"},
-		"HAWAIIAN":            {"2076-8", "Native Hawaiian or Other Pacific Islander"},
+		"WHITE":            {"2106-3", "White"},
+		"W":                {"2106-3", "White"},
+		"BLACK":            {"2054-5", "Black or African American"},
+		"AFRICAN AMERICAN": {"2054-5", "Black or African American"},
+		"B":                {"2054-5", "Black or African American"},
+		"ASIAN":            {"2028-9", "Asian"},
+		"A":                {"2028-9", "Asian"},
+		"NATIVE AMERICAN":  {"1002-5", "American Indian or Alaska Native"},
+		"AMERICAN INDIAN":  {"1002-5", "American Indian or Alaska Native"},
+		"PACIFIC ISLANDER": {"2076-8", "Native Hawaiian or Other Pacific Islander"},
+		"HAWAIIAN":         {"2076-8", "Native Hawaiian or Other Pacific Islander"},
 	}
 
 	if info, ok := raceMap[strings.ToUpper(race)]; ok {

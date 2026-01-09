@@ -13,15 +13,15 @@ import (
 
 // Standard code system URIs
 const (
-	SystemLOINC      = "http://loinc.org"
-	SystemSNOMED     = "http://snomed.info/sct"
-	SystemICD10CM    = "http://hl7.org/fhir/sid/icd-10-cm"
-	SystemICD10PCS   = "http://www.cms.gov/Medicare/Coding/ICD10"
-	SystemCPT        = "http://www.ama-assn.org/go/cpt"
-	SystemRxNorm     = "http://www.nlm.nih.gov/research/umls/rxnorm"
-	SystemHCPCS      = "https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets"
-	SystemNDC        = "http://hl7.org/fhir/sid/ndc"
-	SystemCVX        = "http://hl7.org/fhir/sid/cvx"
+	SystemLOINC    = "http://loinc.org"
+	SystemSNOMED   = "http://snomed.info/sct"
+	SystemICD10CM  = "http://hl7.org/fhir/sid/icd-10-cm"
+	SystemICD10PCS = "http://www.cms.gov/Medicare/Coding/ICD10"
+	SystemCPT      = "http://www.ama-assn.org/go/cpt"
+	SystemRxNorm   = "http://www.nlm.nih.gov/research/umls/rxnorm"
+	SystemHCPCS    = "https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets"
+	SystemNDC      = "http://hl7.org/fhir/sid/ndc"
+	SystemCVX      = "http://hl7.org/fhir/sid/cvx"
 )
 
 // MappingEquivalence indicates the quality of a code mapping.
@@ -37,14 +37,14 @@ const (
 
 // CodeMapping represents a mapping from a source code to a target code.
 type CodeMapping struct {
-	SourceSystem string             `json:"source_system"`
-	SourceCode   string             `json:"source_code"`
-	SourceDisplay string            `json:"source_display,omitempty"`
-	TargetSystem string             `json:"target_system"`
-	TargetCode   string             `json:"target_code"`
-	TargetDisplay string            `json:"target_display,omitempty"`
-	Equivalence  MappingEquivalence `json:"equivalence"`
-	Comment      string             `json:"comment,omitempty"`
+	SourceSystem  string             `json:"source_system"`
+	SourceCode    string             `json:"source_code"`
+	SourceDisplay string             `json:"source_display,omitempty"`
+	TargetSystem  string             `json:"target_system"`
+	TargetCode    string             `json:"target_code"`
+	TargetDisplay string             `json:"target_display,omitempty"`
+	Equivalence   MappingEquivalence `json:"equivalence"`
+	Comment       string             `json:"comment,omitempty"`
 }
 
 // Mapper provides terminology mapping services.
@@ -116,14 +116,14 @@ func (m *Mapper) LoadFromReader(r io.Reader) error {
 		}
 
 		mapping := CodeMapping{
-			SourceSystem: getCol(record, colIdx, "source_system"),
-			SourceCode:   getCol(record, colIdx, "source_code"),
+			SourceSystem:  getCol(record, colIdx, "source_system"),
+			SourceCode:    getCol(record, colIdx, "source_code"),
 			SourceDisplay: getCol(record, colIdx, "source_display"),
-			TargetSystem: getCol(record, colIdx, "target_system"),
-			TargetCode:   getCol(record, colIdx, "target_code"),
+			TargetSystem:  getCol(record, colIdx, "target_system"),
+			TargetCode:    getCol(record, colIdx, "target_code"),
 			TargetDisplay: getCol(record, colIdx, "target_display"),
-			Equivalence:  parseEquivalence(getCol(record, colIdx, "equivalence")),
-			Comment:      getCol(record, colIdx, "comment"),
+			Equivalence:   parseEquivalence(getCol(record, colIdx, "equivalence")),
+			Comment:       getCol(record, colIdx, "comment"),
 		}
 
 		if mapping.SourceCode == "" || mapping.TargetCode == "" {

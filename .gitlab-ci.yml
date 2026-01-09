@@ -1,0 +1,114 @@
+stages:
+  - lint
+  - test
+  - build
+
+variables:
+  GO_VERSION: "1.21"
+
+# Cache Go modules between jobs
+.go-cache:
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - .go/pkg/mod/
+    policy: pull-push
+  before_script:
+    - mkdir -p .go
+    - export GOPATH="$CI_PROJECT_DIR/.go"
+    - export PATH="$GOPATH/bin:$PATH"
+
+lint:
+  stage: lint
+  image: golangci/golangci-lint:v1.55-alpine
+  extends: .go-cache
+  script:
+    - golangci-lint run --timeout 5m ./...
+  allow_failure: true  # Until lint config is tuned
+
+fmt:
+  stage: lint
+  image: golang:${GO_VERSION}-alpine
+  extends: .go-cache
+  script:
+    - go fmt ./...
+    - |
+      if [ -n "$(git status --porcelain)" ]; then
+        echo "Code is not formatted. Run 'go fmt ./...'"
+        git diff
+        exit 1
+      fi
+
+vet:
+  stage: lint
+  image: golang:${GO_VERSION}-alpine
+  extends: .go-cache
+  script:
+    - go vet ./...
+
+test:
+  stage: test
+  image: golang:${GO_VERSION}-alpine
+  extends: .go-cache
+  script:
+    - go test -race -coverprofile=coverage.out -covermode=atomic ./...
+    - go tool cover -func=coverage.out
+  coverage: '/total:\s+\(statements\)\s+(\d+.\d+)%/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.out
+    paths:
+      - coverage.out
+    expire_in: 1 week
+
+test:integration:
+  stage: test
+  image: golang:${GO_VERSION}-alpine
+  extends: .go-cache
+  script:
+    - go test -tags=integration -race ./...
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  allow_failure: true  # Until integration tests exist
+
+build:
+  stage: build
+  image: golang:${GO_VERSION}-alpine
+  extends: .go-cache
+  script:
+    - CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/fi-fhir ./cmd/fi-fhir
+  artifacts:
+    paths:
+      - bin/fi-fhir
+    expire_in: 1 week
+
+build:linux-amd64:
+  stage: build
+  image: golang:${GO_VERSION}-alpine
+  extends: .go-cache
+  script:
+    - GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/fi-fhir-linux-amd64 ./cmd/fi-fhir
+  artifacts:
+    paths:
+      - bin/fi-fhir-linux-amd64
+    expire_in: 1 week
+  rules:
+    - if: '$CI_COMMIT_TAG'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+build:darwin-arm64:
+  stage: build
+  image: golang:${GO_VERSION}-alpine
+  extends: .go-cache
+  script:
+    - GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/fi-fhir-darwin-arm64 ./cmd/fi-fhir
+  artifacts:
+    paths:
+      - bin/fi-fhir-darwin-arm64
+    expire_in: 1 week
+  rules:
+    - if: '$CI_COMMIT_TAG'
+    - if: '$CI_COMMIT_BRANCH == "main"'
