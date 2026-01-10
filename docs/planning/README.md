@@ -185,7 +185,7 @@ The following items remain for full production readiness:
 |------|------------------|--------|
 | CLI (`cmd/fi-fhir/`) | 0% | 80%+ |
 | GraphQL Resolvers | 54.7% | 80%+ |
-| FHIR Subscription | 43.7% | 80%+ |
+| FHIR Subscription | 53.3% | 80%+ |
 | ✅ FHIR Parser | 92.5% | 80%+ |
 | ✅ Workflow Engine | 79.5% | 80%+ |
 
