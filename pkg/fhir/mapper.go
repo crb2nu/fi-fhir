@@ -67,6 +67,12 @@ type Mapper interface {
 
 	// MapServiceRequest converts a canonical ServiceRequestEvent to a FHIR ServiceRequest.
 	MapServiceRequest(event *events.ServiceRequestEvent, patientRef string) *ServiceRequest
+
+	// MapDocumentReference converts a canonical DocumentReferenceEvent to a FHIR DocumentReference.
+	MapDocumentReference(event *events.DocumentReferenceEvent, patientRef string) *DocumentReference
+
+	// MapDiagnosticReportNote converts a canonical DiagnosticReportNoteEvent to a FHIR DiagnosticReport.
+	MapDiagnosticReportNote(event *events.DiagnosticReportNoteEvent, patientRef string) *DiagnosticReportNote
 }
 
 // USCoreMapper implements Mapper for US Core 6.1.0 compliant resources.
@@ -2646,18 +2652,18 @@ func (m *USCoreMapper) mapImmunizationSite(site string) *CodeableConcept {
 		code    string
 		display string
 	}{
-		"LA":    {"72098002", "Left arm"},
-		"RA":    {"59126009", "Right arm"},
-		"LT":    {"61396006", "Left thigh"},
-		"RT":    {"11207009", "Right thigh"},
-		"LLFA":  {"66480008", "Left lower forearm"},
-		"RLFA":  {"64262003", "Right lower forearm"},
-		"LD":    {"46862004", "Left deltoid"},
-		"RD":    {"91775009", "Right deltoid"},
-		"LG":    {"85562004", "Left gluteal"},
-		"RG":    {"78067005", "Right gluteal"},
-		"LVL":   {"64688005", "Left vastus lateralis"},
-		"RVL":   {"11207009", "Right vastus lateralis"},
+		"LA":   {"72098002", "Left arm"},
+		"RA":   {"59126009", "Right arm"},
+		"LT":   {"61396006", "Left thigh"},
+		"RT":   {"11207009", "Right thigh"},
+		"LLFA": {"66480008", "Left lower forearm"},
+		"RLFA": {"64262003", "Right lower forearm"},
+		"LD":   {"46862004", "Left deltoid"},
+		"RD":   {"91775009", "Right deltoid"},
+		"LG":   {"85562004", "Left gluteal"},
+		"RG":   {"78067005", "Right gluteal"},
+		"LVL":  {"64688005", "Left vastus lateralis"},
+		"RVL":  {"11207009", "Right vastus lateralis"},
 	}
 
 	if mapped, ok := siteMap[strings.ToUpper(site)]; ok {
@@ -2960,12 +2966,12 @@ func (m *USCoreMapper) mapVitalSignUnitToUCUM(unit, loincCode string) string {
 	// Common vital signs unit mappings to UCUM
 	unitMap := map[string]string{
 		// Temperature
-		"°c":          "Cel",
-		"°f":          "[degF]",
-		"celsius":     "Cel",
-		"fahrenheit":  "[degF]",
-		"c":           "Cel",
-		"f":           "[degF]",
+		"°c":         "Cel",
+		"°f":         "[degF]",
+		"celsius":    "Cel",
+		"fahrenheit": "[degF]",
+		"c":          "Cel",
+		"f":          "[degF]",
 
 		// Heart/Respiratory rate
 		"bpm":         "/min",
@@ -2974,32 +2980,32 @@ func (m *USCoreMapper) mapVitalSignUnitToUCUM(unit, loincCode string) string {
 		"/min":        "/min",
 
 		// Height
-		"cm":          "cm",
-		"in":          "[in_i]",
-		"inches":      "[in_i]",
-		"m":           "m",
-		"ft":          "[ft_i]",
-		"feet":        "[ft_i]",
+		"cm":     "cm",
+		"in":     "[in_i]",
+		"inches": "[in_i]",
+		"m":      "m",
+		"ft":     "[ft_i]",
+		"feet":   "[ft_i]",
 
 		// Weight
-		"kg":          "kg",
-		"lb":          "[lb_av]",
-		"lbs":         "[lb_av]",
-		"pounds":      "[lb_av]",
-		"oz":          "[oz_av]",
-		"g":           "g",
+		"kg":     "kg",
+		"lb":     "[lb_av]",
+		"lbs":    "[lb_av]",
+		"pounds": "[lb_av]",
+		"oz":     "[oz_av]",
+		"g":      "g",
 
 		// Blood pressure
-		"mmhg":        "mm[Hg]",
-		"mm hg":       "mm[Hg]",
+		"mmhg":  "mm[Hg]",
+		"mm hg": "mm[Hg]",
 
 		// Oxygen saturation
-		"%":           "%",
-		"percent":     "%",
+		"%":       "%",
+		"percent": "%",
 
 		// BMI
-		"kg/m2":       "kg/m2",
-		"kg/m^2":      "kg/m2",
+		"kg/m2":  "kg/m2",
+		"kg/m^2": "kg/m2",
 	}
 
 	if ucum, ok := unitMap[unitLower]; ok {
@@ -3041,24 +3047,24 @@ func (m *USCoreMapper) mapVitalSignInterpretation(interpretation string) []Codea
 		code    string
 		display string
 	}{
-		"normal":          {"N", "Normal"},
-		"n":               {"N", "Normal"},
-		"high":            {"H", "High"},
-		"h":               {"H", "High"},
-		"low":             {"L", "Low"},
-		"l":               {"L", "Low"},
-		"critical":        {"AA", "Critical abnormal"},
-		"critical high":   {"HH", "Critical high"},
-		"critical low":    {"LL", "Critical low"},
-		"hh":              {"HH", "Critical high"},
-		"ll":              {"LL", "Critical low"},
-		"abnormal":        {"A", "Abnormal"},
-		"a":               {"A", "Abnormal"},
-		"very high":       {"HH", "Critical high"},
-		"very low":        {"LL", "Critical low"},
-		"panic":           {"AA", "Critical abnormal"},
-		"panic high":      {"HH", "Critical high"},
-		"panic low":       {"LL", "Critical low"},
+		"normal":        {"N", "Normal"},
+		"n":             {"N", "Normal"},
+		"high":          {"H", "High"},
+		"h":             {"H", "High"},
+		"low":           {"L", "Low"},
+		"l":             {"L", "Low"},
+		"critical":      {"AA", "Critical abnormal"},
+		"critical high": {"HH", "Critical high"},
+		"critical low":  {"LL", "Critical low"},
+		"hh":            {"HH", "Critical high"},
+		"ll":            {"LL", "Critical low"},
+		"abnormal":      {"A", "Abnormal"},
+		"a":             {"A", "Abnormal"},
+		"very high":     {"HH", "Critical high"},
+		"very low":      {"LL", "Critical low"},
+		"panic":         {"AA", "Critical abnormal"},
+		"panic high":    {"HH", "Critical high"},
+		"panic low":     {"LL", "Critical low"},
 	}
 
 	if mapped, ok := interpretationMap[interpLower]; ok {
@@ -3470,9 +3476,9 @@ func (m *USCoreMapper) mapFrequencyToTiming(freq string) *Timing {
 
 	// Map common frequency abbreviations
 	freqMap := map[string]struct {
-		code      string
-		frequency int
-		period    float64
+		code       string
+		frequency  int
+		period     float64
 		periodUnit string
 	}{
 		"QD":    {"QD", 1, 1, "d"},
@@ -3816,14 +3822,14 @@ func (m *USCoreMapper) mapAllergyCategory(category string) string {
 func (m *USCoreMapper) mapAllergyCriticality(criticality string) string {
 	critLower := strings.ToLower(strings.TrimSpace(criticality))
 	critMap := map[string]string{
-		"low":               "low",
-		"high":              "high",
-		"unable-to-assess":  "unable-to-assess",
-		"unable to assess":  "unable-to-assess",
-		"unknown":           "unable-to-assess",
-		"critical":          "high",
-		"life-threatening":  "high",
-		"life threatening":  "high",
+		"low":              "low",
+		"high":             "high",
+		"unable-to-assess": "unable-to-assess",
+		"unable to assess": "unable-to-assess",
+		"unknown":          "unable-to-assess",
+		"critical":         "high",
+		"life-threatening": "high",
+		"life threatening": "high",
 	}
 	if mapped, ok := critMap[critLower]; ok {
 		return mapped
@@ -3902,23 +3908,23 @@ func (m *USCoreMapper) lookupManifestationCode(manifestation string) *Coding {
 		code    string
 		display string
 	}{
-		"rash":               {"271807003", "Rash"},
-		"hives":              {"126485001", "Urticaria"},
-		"urticaria":          {"126485001", "Urticaria"},
-		"itching":            {"418290006", "Itching"},
-		"pruritus":           {"418290006", "Itching"},
-		"swelling":           {"65124004", "Swelling"},
-		"angioedema":         {"41291007", "Angioedema"},
-		"anaphylaxis":        {"39579001", "Anaphylaxis"},
-		"anaphylactic shock": {"39579001", "Anaphylaxis"},
-		"nausea":             {"422587007", "Nausea"},
-		"vomiting":           {"422400008", "Vomiting"},
-		"diarrhea":           {"62315008", "Diarrhea"},
+		"rash":                 {"271807003", "Rash"},
+		"hives":                {"126485001", "Urticaria"},
+		"urticaria":            {"126485001", "Urticaria"},
+		"itching":              {"418290006", "Itching"},
+		"pruritus":             {"418290006", "Itching"},
+		"swelling":             {"65124004", "Swelling"},
+		"angioedema":           {"41291007", "Angioedema"},
+		"anaphylaxis":          {"39579001", "Anaphylaxis"},
+		"anaphylactic shock":   {"39579001", "Anaphylaxis"},
+		"nausea":               {"422587007", "Nausea"},
+		"vomiting":             {"422400008", "Vomiting"},
+		"diarrhea":             {"62315008", "Diarrhea"},
 		"difficulty breathing": {"267036007", "Dyspnea"},
-		"dyspnea":            {"267036007", "Dyspnea"},
-		"wheezing":           {"56018004", "Wheezing"},
-		"throat swelling":    {"262577005", "Throat swelling"},
-		"headache":           {"25064002", "Headache"},
+		"dyspnea":              {"267036007", "Dyspnea"},
+		"wheezing":             {"56018004", "Wheezing"},
+		"throat swelling":      {"262577005", "Throat swelling"},
+		"headache":             {"25064002", "Headache"},
 	}
 
 	if mapped, ok := manifMap[manifLower]; ok {
@@ -4124,16 +4130,16 @@ func (m *USCoreMapper) mapCarePlanCategory(category string) []CodeableConcept {
 			code    string
 			display string
 		}{
-			"discharge":       {"discharge", "Discharge Plan"},
-			"discharge-plan":  {"discharge", "Discharge Plan"},
-			"hospital":        {"hospital", "Hospital Plan"},
-			"hospital-plan":   {"hospital", "Hospital Plan"},
-			"longitudinal":    {"longitudinal", "Longitudinal Care Plan"},
-			"home-health":     {"home-health", "Home Health Plan"},
-			"homehealth":      {"home-health", "Home Health Plan"},
-			"mental-health":   {"mental-health", "Mental Health Plan"},
-			"mentalhealth":    {"mental-health", "Mental Health Plan"},
-			"community":       {"community", "Community Health Plan"},
+			"discharge":        {"discharge", "Discharge Plan"},
+			"discharge-plan":   {"discharge", "Discharge Plan"},
+			"hospital":         {"hospital", "Hospital Plan"},
+			"hospital-plan":    {"hospital", "Hospital Plan"},
+			"longitudinal":     {"longitudinal", "Longitudinal Care Plan"},
+			"home-health":      {"home-health", "Home Health Plan"},
+			"homehealth":       {"home-health", "Home Health Plan"},
+			"mental-health":    {"mental-health", "Mental Health Plan"},
+			"mentalhealth":     {"mental-health", "Mental Health Plan"},
+			"community":        {"community", "Community Health Plan"},
 			"community-health": {"community", "Community Health Plan"},
 		}
 
@@ -4597,35 +4603,35 @@ func (m *USCoreMapper) mapGoalTargetUnit(unit string) (display, code string) {
 		code    string
 	}{
 		// Weight
-		"kg":         {"kg", "kg"},
-		"kilogram":   {"kg", "kg"},
-		"kilograms":  {"kg", "kg"},
-		"lb":         {"[lb_av]", "[lb_av]"},
-		"lbs":        {"[lb_av]", "[lb_av]"},
-		"pound":      {"[lb_av]", "[lb_av]"},
-		"pounds":     {"[lb_av]", "[lb_av]"},
+		"kg":        {"kg", "kg"},
+		"kilogram":  {"kg", "kg"},
+		"kilograms": {"kg", "kg"},
+		"lb":        {"[lb_av]", "[lb_av]"},
+		"lbs":       {"[lb_av]", "[lb_av]"},
+		"pound":     {"[lb_av]", "[lb_av]"},
+		"pounds":    {"[lb_av]", "[lb_av]"},
 		// Blood pressure
-		"mmhg":       {"mmHg", "mm[Hg]"},
-		"mm hg":      {"mmHg", "mm[Hg]"},
+		"mmhg":  {"mmHg", "mm[Hg]"},
+		"mm hg": {"mmHg", "mm[Hg]"},
 		// Blood glucose
-		"mg/dl":      {"mg/dL", "mg/dL"},
-		"mmol/l":     {"mmol/L", "mmol/L"},
+		"mg/dl":  {"mg/dL", "mg/dL"},
+		"mmol/l": {"mmol/L", "mmol/L"},
 		// A1C
-		"%":          {"%", "%"},
-		"percent":    {"%", "%"},
+		"%":       {"%", "%"},
+		"percent": {"%", "%"},
 		// Steps
-		"steps":      {"steps", "{steps}"},
-		"steps/day":  {"steps/day", "{steps}/d"},
+		"steps":     {"steps", "{steps}"},
+		"steps/day": {"steps/day", "{steps}/d"},
 		// Minutes
-		"min":        {"min", "min"},
-		"minute":     {"min", "min"},
-		"minutes":    {"min", "min"},
-		"min/day":    {"min/day", "min/d"},
-		"min/week":   {"min/week", "min/wk"},
+		"min":      {"min", "min"},
+		"minute":   {"min", "min"},
+		"minutes":  {"min", "min"},
+		"min/day":  {"min/day", "min/d"},
+		"min/week": {"min/week", "min/wk"},
 		// General counts
-		"count":      {"count", "{count}"},
-		"servings":   {"servings", "{servings}"},
-		"glasses":    {"glasses", "{glasses}"},
+		"count":    {"count", "{count}"},
+		"servings": {"servings", "{servings}"},
+		"glasses":  {"glasses", "{glasses}"},
 	}
 
 	if mapped, ok := unitMap[unitLower]; ok {
@@ -4763,19 +4769,19 @@ func (m *USCoreMapper) mapCareTeamCategory(category string) CodeableConcept {
 		code    string
 		display string
 	}{
-		"longitudinal":         {"LA27976-2", "Longitudinal care-coordination focused care team"},
-		"longitudinal-care":    {"LA27976-2", "Longitudinal care-coordination focused care team"},
-		"episode":              {"LA27977-0", "Episode of care-focused care team"},
-		"episode-of-care":      {"LA27977-0", "Episode of care-focused care team"},
-		"condition":            {"LA27978-8", "Condition-focused care team"},
-		"condition-focused":    {"LA27978-8", "Condition-focused care team"},
-		"encounter":            {"LA28865-6", "Encounter-focused care team"},
-		"encounter-focused":    {"LA28865-6", "Encounter-focused care team"},
-		"home-health":          {"LA28866-4", "Home & Community Based Services (HCBS)-focused care team"},
-		"hcbs":                 {"LA28866-4", "Home & Community Based Services (HCBS)-focused care team"},
-		"clinical-research":    {"LA28867-2", "Clinical research-focused care team"},
-		"research":             {"LA28867-2", "Clinical research-focused care team"},
-		"public-health":        {"LA28868-0", "Public health-focused care team"},
+		"longitudinal":      {"LA27976-2", "Longitudinal care-coordination focused care team"},
+		"longitudinal-care": {"LA27976-2", "Longitudinal care-coordination focused care team"},
+		"episode":           {"LA27977-0", "Episode of care-focused care team"},
+		"episode-of-care":   {"LA27977-0", "Episode of care-focused care team"},
+		"condition":         {"LA27978-8", "Condition-focused care team"},
+		"condition-focused": {"LA27978-8", "Condition-focused care team"},
+		"encounter":         {"LA28865-6", "Encounter-focused care team"},
+		"encounter-focused": {"LA28865-6", "Encounter-focused care team"},
+		"home-health":       {"LA28866-4", "Home & Community Based Services (HCBS)-focused care team"},
+		"hcbs":              {"LA28866-4", "Home & Community Based Services (HCBS)-focused care team"},
+		"clinical-research": {"LA28867-2", "Clinical research-focused care team"},
+		"research":          {"LA28867-2", "Clinical research-focused care team"},
+		"public-health":     {"LA28868-0", "Public health-focused care team"},
 	}
 
 	if mapped, ok := catMap[catLower]; ok {
@@ -4885,31 +4891,31 @@ func (m *USCoreMapper) mapParticipantRole(role, roleCode, roleCodeSystem string)
 			code    string
 			display string
 		}{
-			"primary care physician":    {"446050000", "Primary care physician"},
-			"pcp":                       {"446050000", "Primary care physician"},
-			"primary care provider":     {"446050000", "Primary care physician"},
-			"specialist":                {"309395003", "Specialist physician"},
-			"nurse":                     {"224535009", "Registered nurse"},
-			"registered nurse":          {"224535009", "Registered nurse"},
-			"rn":                        {"224535009", "Registered nurse"},
-			"nurse practitioner":        {"224571005", "Nurse practitioner"},
-			"np":                        {"224571005", "Nurse practitioner"},
-			"physician assistant":       {"449161006", "Physician assistant"},
-			"pa":                        {"449161006", "Physician assistant"},
-			"case manager":              {"768820003", "Case manager"},
-			"care coordinator":          {"768820003", "Case manager"},
-			"social worker":             {"106328005", "Social worker"},
-			"pharmacist":                {"46255001", "Pharmacist"},
-			"physical therapist":        {"36682004", "Physical therapist"},
-			"pt":                        {"36682004", "Physical therapist"},
-			"occupational therapist":    {"80546007", "Occupational therapist"},
-			"ot":                        {"80546007", "Occupational therapist"},
-			"dietitian":                 {"159033005", "Dietitian"},
-			"nutritionist":              {"159033005", "Dietitian"},
-			"psychologist":              {"59944000", "Psychologist"},
-			"psychiatrist":              {"80584001", "Psychiatrist"},
-			"caregiver":                 {"133932002", "Caregiver"},
-			"family member":             {"303071001", "Person in family of patient"},
+			"primary care physician": {"446050000", "Primary care physician"},
+			"pcp":                    {"446050000", "Primary care physician"},
+			"primary care provider":  {"446050000", "Primary care physician"},
+			"specialist":             {"309395003", "Specialist physician"},
+			"nurse":                  {"224535009", "Registered nurse"},
+			"registered nurse":       {"224535009", "Registered nurse"},
+			"rn":                     {"224535009", "Registered nurse"},
+			"nurse practitioner":     {"224571005", "Nurse practitioner"},
+			"np":                     {"224571005", "Nurse practitioner"},
+			"physician assistant":    {"449161006", "Physician assistant"},
+			"pa":                     {"449161006", "Physician assistant"},
+			"case manager":           {"768820003", "Case manager"},
+			"care coordinator":       {"768820003", "Case manager"},
+			"social worker":          {"106328005", "Social worker"},
+			"pharmacist":             {"46255001", "Pharmacist"},
+			"physical therapist":     {"36682004", "Physical therapist"},
+			"pt":                     {"36682004", "Physical therapist"},
+			"occupational therapist": {"80546007", "Occupational therapist"},
+			"ot":                     {"80546007", "Occupational therapist"},
+			"dietitian":              {"159033005", "Dietitian"},
+			"nutritionist":           {"159033005", "Dietitian"},
+			"psychologist":           {"59944000", "Psychologist"},
+			"psychiatrist":           {"80584001", "Psychiatrist"},
+			"caregiver":              {"133932002", "Caregiver"},
+			"family member":          {"303071001", "Person in family of patient"},
 		}
 
 		if mapped, ok := roleMap[roleLower]; ok {
@@ -5149,22 +5155,22 @@ func (m *USCoreMapper) mapServiceRequestCategory(category string) CodeableConcep
 		code    string
 		display string
 	}{
-		"laboratory":      {"108252007", "Laboratory procedure"},
-		"lab":             {"108252007", "Laboratory procedure"},
-		"imaging":         {"363679005", "Imaging"},
-		"radiology":       {"363679005", "Imaging"},
-		"procedure":       {"387713003", "Surgical procedure"},
-		"surgical":        {"387713003", "Surgical procedure"},
-		"counseling":      {"409063005", "Counseling"},
-		"therapy":         {"276239002", "Therapy"},
-		"referral":        {"3457005", "Patient referral"},
-		"consultation":    {"11429006", "Consultation"},
-		"consult":         {"11429006", "Consultation"},
-		"education":       {"311401005", "Patient education"},
+		"laboratory":        {"108252007", "Laboratory procedure"},
+		"lab":               {"108252007", "Laboratory procedure"},
+		"imaging":           {"363679005", "Imaging"},
+		"radiology":         {"363679005", "Imaging"},
+		"procedure":         {"387713003", "Surgical procedure"},
+		"surgical":          {"387713003", "Surgical procedure"},
+		"counseling":        {"409063005", "Counseling"},
+		"therapy":           {"276239002", "Therapy"},
+		"referral":          {"3457005", "Patient referral"},
+		"consultation":      {"11429006", "Consultation"},
+		"consult":           {"11429006", "Consultation"},
+		"education":         {"311401005", "Patient education"},
 		"patient-education": {"311401005", "Patient education"},
-		"screening":       {"360156006", "Screening procedure"},
-		"assessment":      {"386053000", "Evaluation procedure"},
-		"evaluation":      {"386053000", "Evaluation procedure"},
+		"screening":         {"360156006", "Screening procedure"},
+		"assessment":        {"386053000", "Evaluation procedure"},
+		"evaluation":        {"386053000", "Evaluation procedure"},
 	}
 
 	if mapped, ok := catMap[catLower]; ok {
@@ -5190,12 +5196,12 @@ func (m *USCoreMapper) mapServiceRequestCategory(category string) CodeableConcep
 func (m *USCoreMapper) mapServiceRequestPriority(priority string) string {
 	prioLower := strings.ToLower(strings.TrimSpace(priority))
 	prioMap := map[string]string{
-		"routine": "routine",
-		"normal":  "routine",
-		"urgent":  "urgent",
-		"asap":    "asap",
-		"stat":    "stat",
-		"emergent": "stat",
+		"routine":   "routine",
+		"normal":    "routine",
+		"urgent":    "urgent",
+		"asap":      "asap",
+		"stat":      "stat",
+		"emergent":  "stat",
 		"emergency": "stat",
 	}
 	if mapped, ok := prioMap[prioLower]; ok {
@@ -5309,22 +5315,22 @@ func (m *USCoreMapper) mapBodySite(site, siteCode string) CodeableConcept {
 			code    string
 			display string
 		}{
-			"head":          {"69536005", "Head structure"},
-			"neck":          {"45048000", "Neck structure"},
-			"chest":         {"51185008", "Thoracic structure"},
-			"thorax":        {"51185008", "Thoracic structure"},
-			"abdomen":       {"818983003", "Abdominal structure"},
-			"back":          {"77568009", "Back structure"},
-			"arm":           {"53120007", "Upper limb structure"},
-			"upper arm":     {"40983000", "Upper arm structure"},
-			"forearm":       {"14975008", "Forearm structure"},
-			"hand":          {"85562004", "Hand structure"},
-			"leg":           {"61685007", "Lower limb structure"},
-			"thigh":         {"68367000", "Thigh structure"},
-			"knee":          {"72696002", "Knee region structure"},
-			"foot":          {"56459004", "Foot structure"},
-			"left":          {"7771000", "Left"},
-			"right":         {"24028007", "Right"},
+			"head":      {"69536005", "Head structure"},
+			"neck":      {"45048000", "Neck structure"},
+			"chest":     {"51185008", "Thoracic structure"},
+			"thorax":    {"51185008", "Thoracic structure"},
+			"abdomen":   {"818983003", "Abdominal structure"},
+			"back":      {"77568009", "Back structure"},
+			"arm":       {"53120007", "Upper limb structure"},
+			"upper arm": {"40983000", "Upper arm structure"},
+			"forearm":   {"14975008", "Forearm structure"},
+			"hand":      {"85562004", "Hand structure"},
+			"leg":       {"61685007", "Lower limb structure"},
+			"thigh":     {"68367000", "Thigh structure"},
+			"knee":      {"72696002", "Knee region structure"},
+			"foot":      {"56459004", "Foot structure"},
+			"left":      {"7771000", "Left"},
+			"right":     {"24028007", "Right"},
 		}
 
 		if mapped, ok := siteMap[siteLower]; ok {
@@ -5340,6 +5346,710 @@ func (m *USCoreMapper) mapBodySite(site, siteCode string) CodeableConcept {
 
 	if site != "" {
 		cc.Text = site
+	}
+
+	return cc
+}
+
+// ============================================================================
+// DocumentReference Mapping (US Core)
+// ============================================================================
+
+// MapDocumentReference converts a canonical DocumentReferenceEvent to a US Core DocumentReference.
+func (m *USCoreMapper) MapDocumentReference(event *events.DocumentReferenceEvent, patientRef string) *DocumentReference {
+	if event == nil {
+		return nil
+	}
+
+	dr := event.DocumentReference
+
+	docRef := &DocumentReference{
+		Meta: &Meta{
+			Profile: []string{USCoreDocumentReferenceProfile},
+		},
+		Status:  m.mapDocumentReferenceStatus(dr.Status),
+		Subject: &Reference{Reference: patientRef},
+	}
+
+	// DocStatus (composition status)
+	if dr.DocStatus != "" {
+		docRef.DocStatus = m.mapCompositionStatus(dr.DocStatus)
+	}
+
+	// Type (required by US Core - LOINC code)
+	docRef.Type = m.mapDocumentType(dr.TypeCode, dr.TypeCodeSystem, dr.Type)
+
+	// Category (required by US Core)
+	docRef.Category = []CodeableConcept{
+		m.mapDocumentCategory(dr.CategoryCode, dr.CategoryCodeSystem, dr.Category),
+	}
+
+	// Date
+	if dr.Date != "" {
+		docRef.Date = dr.Date
+	}
+
+	// Author
+	if event.Author != nil {
+		docRef.Author = []Reference{
+			{
+				Reference: m.buildProviderReference(event.Author),
+				Display:   m.buildProviderDisplayName(event.Author),
+			},
+		}
+	} else if event.AuthorOrgID != "" || event.AuthorOrgName != "" {
+		docRef.Author = []Reference{
+			m.buildOrganizationReference(event.AuthorOrgID, event.AuthorOrgName),
+		}
+	}
+
+	// Authenticator
+	if event.Authenticator != nil {
+		docRef.Authenticator = &Reference{
+			Reference: m.buildProviderReference(event.Authenticator),
+			Display:   m.buildProviderDisplayName(event.Authenticator),
+		}
+	}
+
+	// Custodian
+	if dr.CustodianID != "" || dr.CustodianName != "" {
+		docRef.Custodian = &Reference{
+			Reference: "Organization/" + dr.CustodianID,
+			Display:   dr.CustodianName,
+		}
+		if dr.CustodianID == "" {
+			docRef.Custodian.Reference = ""
+		}
+	}
+
+	// Description
+	if dr.Description != "" {
+		docRef.Description = dr.Description
+	}
+
+	// Security label
+	if dr.SecurityLabel != "" {
+		docRef.SecurityLabel = []CodeableConcept{
+			m.mapSecurityLabel(dr.SecurityLabel),
+		}
+	}
+
+	// Content (required by US Core - at least one attachment)
+	if len(dr.Content) > 0 {
+		for _, content := range dr.Content {
+			docRef.Content = append(docRef.Content, m.mapDocumentContent(content))
+		}
+	}
+
+	// Context
+	if dr.Context != nil || (event.Encounter != nil && event.Encounter.ID != "") {
+		docRef.Context = m.mapDocumentContext(dr.Context, event.Encounter)
+	}
+
+	// RelatesTo
+	if len(dr.RelatesTo) > 0 {
+		for _, rel := range dr.RelatesTo {
+			docRef.RelatesTo = append(docRef.RelatesTo, DocumentReferenceRelatesTo{
+				Code: m.mapDocumentRelationship(rel.Code),
+				Target: &Reference{
+					Reference: "DocumentReference/" + rel.TargetID,
+				},
+			})
+		}
+	}
+
+	return docRef
+}
+
+// mapDocumentReferenceStatus maps status to FHIR DocumentReference status.
+func (m *USCoreMapper) mapDocumentReferenceStatus(status string) string {
+	statusLower := strings.ToLower(strings.TrimSpace(status))
+	statusMap := map[string]string{
+		"current":          "current",
+		"active":           "current",
+		"superseded":       "superseded",
+		"replaced":         "superseded",
+		"entered-in-error": "entered-in-error",
+		"error":            "entered-in-error",
+	}
+	if mapped, ok := statusMap[statusLower]; ok {
+		return mapped
+	}
+	return "current" // Default
+}
+
+// mapCompositionStatus maps composition/document status.
+func (m *USCoreMapper) mapCompositionStatus(status string) string {
+	statusLower := strings.ToLower(strings.TrimSpace(status))
+	statusMap := map[string]string{
+		"preliminary":      "preliminary",
+		"draft":            "preliminary",
+		"final":            "final",
+		"amended":          "amended",
+		"corrected":        "amended",
+		"entered-in-error": "entered-in-error",
+	}
+	if mapped, ok := statusMap[statusLower]; ok {
+		return mapped
+	}
+	return "final" // Default
+}
+
+// mapDocumentType maps document type to CodeableConcept.
+// US Core requires LOINC codes for document type.
+func (m *USCoreMapper) mapDocumentType(code, codeSystem, text string) *CodeableConcept {
+	cc := &CodeableConcept{}
+
+	if code != "" {
+		system := codeSystem
+		if system == "" {
+			system = SystemLOINC // Default to LOINC
+		}
+		cc.Coding = []Coding{
+			{
+				System:  system,
+				Code:    code,
+				Display: text,
+			},
+		}
+	} else if text != "" {
+		// Try to map common document type text to LOINC
+		typeMap := map[string]struct {
+			code    string
+			display string
+		}{
+			"discharge summary":    {"18842-5", "Discharge summary"},
+			"progress note":        {"11506-3", "Progress note"},
+			"history and physical": {"34117-2", "History and physical note"},
+			"h&p":                  {"34117-2", "History and physical note"},
+			"consultation":         {"11488-4", "Consultation note"},
+			"consult note":         {"11488-4", "Consultation note"},
+			"operative note":       {"11504-8", "Surgical operation note"},
+			"surgical note":        {"11504-8", "Surgical operation note"},
+			"procedure note":       {"28570-0", "Procedure note"},
+			"referral":             {"57133-1", "Referral note"},
+			"transfer summary":     {"18761-7", "Transfer summary note"},
+			"continuity of care":   {"34133-9", "Summary of episode note"},
+			"ccd":                  {"34133-9", "Summary of episode note"},
+			"clinical note":        {"34109-9", "Clinical note"},
+			"imaging report":       {"18748-4", "Diagnostic imaging study"},
+			"radiology report":     {"18748-4", "Diagnostic imaging study"},
+			"pathology report":     {"11526-1", "Pathology study"},
+			"lab report":           {"11502-2", "Laboratory report"},
+			"cardiology":           {"11524-6", "EKG study"},
+		}
+
+		textLower := strings.ToLower(strings.TrimSpace(text))
+		if mapped, ok := typeMap[textLower]; ok {
+			cc.Coding = []Coding{
+				{
+					System:  SystemLOINC,
+					Code:    mapped.code,
+					Display: mapped.display,
+				},
+			}
+		}
+	}
+
+	if text != "" {
+		cc.Text = text
+	}
+
+	return cc
+}
+
+// mapDocumentCategory maps document category to CodeableConcept.
+func (m *USCoreMapper) mapDocumentCategory(code, codeSystem, text string) CodeableConcept {
+	cc := CodeableConcept{}
+
+	if code != "" {
+		system := codeSystem
+		if system == "" {
+			system = SystemDocumentReferenceCategory
+		}
+		cc.Coding = []Coding{
+			{
+				System:  system,
+				Code:    code,
+				Display: text,
+			},
+		}
+	} else if text != "" {
+		// Map common category names to US Core categories
+		catMap := map[string]struct {
+			code    string
+			display string
+		}{
+			"clinical-note": {"clinical-note", "Clinical Note"},
+			"clinical note": {"clinical-note", "Clinical Note"},
+			"note":          {"clinical-note", "Clinical Note"},
+		}
+
+		textLower := strings.ToLower(strings.TrimSpace(text))
+		if mapped, ok := catMap[textLower]; ok {
+			cc.Coding = []Coding{
+				{
+					System:  SystemDocumentReferenceCategory,
+					Code:    mapped.code,
+					Display: mapped.display,
+				},
+			}
+		}
+	}
+
+	// Default to clinical-note category
+	if len(cc.Coding) == 0 {
+		cc.Coding = []Coding{
+			{
+				System:  SystemDocumentReferenceCategory,
+				Code:    "clinical-note",
+				Display: "Clinical Note",
+			},
+		}
+	}
+
+	if text != "" {
+		cc.Text = text
+	}
+
+	return cc
+}
+
+// mapSecurityLabel maps confidentiality level to CodeableConcept.
+func (m *USCoreMapper) mapSecurityLabel(label string) CodeableConcept {
+	labelUpper := strings.ToUpper(strings.TrimSpace(label))
+	labelMap := map[string]struct {
+		code    string
+		display string
+	}{
+		"U":          {"U", "Unrestricted"},
+		"L":          {"L", "Low"},
+		"M":          {"M", "Moderate"},
+		"N":          {"N", "Normal"},
+		"R":          {"R", "Restricted"},
+		"V":          {"V", "Very Restricted"},
+		"NORMAL":     {"N", "Normal"},
+		"RESTRICTED": {"R", "Restricted"},
+	}
+
+	if mapped, ok := labelMap[labelUpper]; ok {
+		return CodeableConcept{
+			Coding: []Coding{
+				{
+					System:  SystemConfidentiality,
+					Code:    mapped.code,
+					Display: mapped.display,
+				},
+			},
+		}
+	}
+
+	return CodeableConcept{
+		Coding: []Coding{
+			{
+				System:  SystemConfidentiality,
+				Code:    "N",
+				Display: "Normal",
+			},
+		},
+	}
+}
+
+// mapDocumentContent maps document content to FHIR DocumentReferenceContent.
+func (m *USCoreMapper) mapDocumentContent(content events.DocumentReferenceContent) DocumentReferenceContent {
+	drc := DocumentReferenceContent{
+		Attachment: &Attachment{},
+	}
+
+	if content.AttachmentURL != "" {
+		drc.Attachment.URL = content.AttachmentURL
+	}
+	if content.AttachmentData != "" {
+		drc.Attachment.Data = content.AttachmentData
+	}
+	if content.AttachmentContentType != "" {
+		drc.Attachment.ContentType = content.AttachmentContentType
+	}
+	if content.AttachmentSize > 0 {
+		drc.Attachment.Size = content.AttachmentSize
+	}
+	if content.AttachmentHash != "" {
+		drc.Attachment.Hash = content.AttachmentHash
+	}
+	if content.AttachmentTitle != "" {
+		drc.Attachment.Title = content.AttachmentTitle
+	}
+	if content.AttachmentCreation != "" {
+		drc.Attachment.Creation = content.AttachmentCreation
+	}
+
+	// Format
+	if content.Format != "" {
+		system := content.FormatSystem
+		if system == "" {
+			system = SystemDocumentFormat
+		}
+		drc.Format = &Coding{
+			System: system,
+			Code:   content.Format,
+		}
+	}
+
+	return drc
+}
+
+// mapDocumentContext maps document context.
+func (m *USCoreMapper) mapDocumentContext(ctx *events.DocumentReferenceContext, encounter *events.Encounter) *DocumentReferenceContext {
+	drc := &DocumentReferenceContext{}
+
+	if encounter != nil && encounter.ID != "" {
+		drc.Encounter = []Reference{
+			{Reference: "Encounter/" + encounter.ID},
+		}
+	} else if ctx != nil && ctx.EncounterID != "" {
+		drc.Encounter = []Reference{
+			{Reference: "Encounter/" + ctx.EncounterID},
+		}
+	}
+
+	if ctx != nil {
+		// Period
+		if ctx.PeriodStart != "" || ctx.PeriodEnd != "" {
+			drc.Period = &Period{}
+			if ctx.PeriodStart != "" {
+				if t, err := time.Parse("2006-01-02", ctx.PeriodStart); err == nil {
+					drc.Period.Start = &t
+				} else if t, err := time.Parse(time.RFC3339, ctx.PeriodStart); err == nil {
+					drc.Period.Start = &t
+				}
+			}
+			if ctx.PeriodEnd != "" {
+				if t, err := time.Parse("2006-01-02", ctx.PeriodEnd); err == nil {
+					drc.Period.End = &t
+				} else if t, err := time.Parse(time.RFC3339, ctx.PeriodEnd); err == nil {
+					drc.Period.End = &t
+				}
+			}
+		}
+
+		// Facility type
+		if ctx.FacilityType != "" || ctx.FacilityTypeCode != "" {
+			drc.FacilityType = &CodeableConcept{}
+			if ctx.FacilityTypeCode != "" {
+				drc.FacilityType.Coding = []Coding{
+					{
+						System:  SystemFacilityType,
+						Code:    ctx.FacilityTypeCode,
+						Display: ctx.FacilityType,
+					},
+				}
+			}
+			if ctx.FacilityType != "" {
+				drc.FacilityType.Text = ctx.FacilityType
+			}
+		}
+
+		// Practice setting
+		if ctx.PracticeSetting != "" || ctx.PracticeSettingCode != "" {
+			drc.PracticeSetting = &CodeableConcept{}
+			if ctx.PracticeSettingCode != "" {
+				drc.PracticeSetting.Coding = []Coding{
+					{
+						System:  SystemPracticeSetting,
+						Code:    ctx.PracticeSettingCode,
+						Display: ctx.PracticeSetting,
+					},
+				}
+			}
+			if ctx.PracticeSetting != "" {
+				drc.PracticeSetting.Text = ctx.PracticeSetting
+			}
+		}
+	}
+
+	return drc
+}
+
+// mapDocumentRelationship maps relationship type.
+func (m *USCoreMapper) mapDocumentRelationship(code string) string {
+	codeLower := strings.ToLower(strings.TrimSpace(code))
+	codeMap := map[string]string{
+		"replaces":   "replaces",
+		"transforms": "transforms",
+		"signs":      "signs",
+		"appends":    "appends",
+		"supersedes": "replaces",
+	}
+	if mapped, ok := codeMap[codeLower]; ok {
+		return mapped
+	}
+	return "replaces" // Default
+}
+
+// ============================================================================
+// DiagnosticReport (Clinical Notes) Mapping (US Core)
+// ============================================================================
+
+// MapDiagnosticReportNote converts a canonical DiagnosticReportNoteEvent to a US Core DiagnosticReport.
+func (m *USCoreMapper) MapDiagnosticReportNote(event *events.DiagnosticReportNoteEvent, patientRef string) *DiagnosticReportNote {
+	if event == nil {
+		return nil
+	}
+
+	drn := event.DiagnosticReportNote
+
+	report := &DiagnosticReportNote{
+		Meta: &Meta{
+			Profile: []string{USCoreDiagnosticReportNoteProfile},
+		},
+		Status:  m.mapDiagnosticReportStatus(drn.Status),
+		Subject: &Reference{Reference: patientRef},
+	}
+
+	// Category (required by US Core)
+	report.Category = []CodeableConcept{
+		m.mapDiagnosticReportCategory(drn.CategoryCode, drn.CategoryCodeSystem, drn.Category),
+	}
+
+	// Code (required by US Core)
+	report.Code = m.mapDiagnosticReportCode(drn.CodeValue, drn.CodeSystem, drn.Code)
+
+	// Encounter
+	if event.Encounter != nil && event.Encounter.ID != "" {
+		report.Encounter = &Reference{
+			Reference: "Encounter/" + event.Encounter.ID,
+		}
+	}
+
+	// Effective date/time
+	if drn.EffectiveDateTime != "" {
+		report.EffectiveDateTime = drn.EffectiveDateTime
+	} else if drn.EffectivePeriodStart != "" || drn.EffectivePeriodEnd != "" {
+		report.EffectivePeriod = &Period{}
+		if drn.EffectivePeriodStart != "" {
+			if t, err := time.Parse("2006-01-02", drn.EffectivePeriodStart); err == nil {
+				report.EffectivePeriod.Start = &t
+			} else if t, err := time.Parse(time.RFC3339, drn.EffectivePeriodStart); err == nil {
+				report.EffectivePeriod.Start = &t
+			}
+		}
+		if drn.EffectivePeriodEnd != "" {
+			if t, err := time.Parse("2006-01-02", drn.EffectivePeriodEnd); err == nil {
+				report.EffectivePeriod.End = &t
+			} else if t, err := time.Parse(time.RFC3339, drn.EffectivePeriodEnd); err == nil {
+				report.EffectivePeriod.End = &t
+			}
+		}
+	}
+
+	// Issued
+	if drn.Issued != "" {
+		report.Issued = drn.Issued
+	}
+
+	// Performer
+	if event.Performer != nil {
+		report.Performer = []Reference{
+			{
+				Reference: m.buildProviderReference(event.Performer),
+				Display:   m.buildProviderDisplayName(event.Performer),
+			},
+		}
+	} else if event.PerformerOrgID != "" || event.PerformerOrgName != "" {
+		report.Performer = []Reference{
+			m.buildOrganizationReference(event.PerformerOrgID, event.PerformerOrgName),
+		}
+	}
+
+	// Conclusion
+	if drn.Conclusion != "" {
+		report.Conclusion = drn.Conclusion
+	}
+
+	// Conclusion code
+	if drn.ConclusionCode != "" {
+		system := drn.ConclusionCodeSystem
+		if system == "" {
+			system = SystemSNOMED
+		}
+		report.ConclusionCode = []CodeableConcept{
+			{
+				Coding: []Coding{
+					{
+						System: system,
+						Code:   drn.ConclusionCode,
+					},
+				},
+			},
+		}
+	}
+
+	// Presented form (required by US Core for notes)
+	if len(drn.PresentedForm) > 0 {
+		for _, pf := range drn.PresentedForm {
+			report.PresentedForm = append(report.PresentedForm, Attachment{
+				ContentType: pf.ContentType,
+				Data:        pf.Data,
+				URL:         pf.URL,
+				Size:        pf.Size,
+				Hash:        pf.Hash,
+				Title:       pf.Title,
+				Creation:    pf.Creation,
+			})
+		}
+	}
+
+	// Media
+	if len(drn.Media) > 0 {
+		for _, media := range drn.Media {
+			report.Media = append(report.Media, DiagnosticReportMedia{
+				Comment: media.Comment,
+				Link:    &Reference{Reference: "Media/" + media.LinkID},
+			})
+		}
+	}
+
+	// Result references
+	if len(drn.ResultIDs) > 0 {
+		for _, id := range drn.ResultIDs {
+			report.Result = append(report.Result, Reference{
+				Reference: "Observation/" + id,
+			})
+		}
+	}
+
+	// Imaging study references
+	if len(drn.ImagingStudyIDs) > 0 {
+		for _, id := range drn.ImagingStudyIDs {
+			report.ImagingStudy = append(report.ImagingStudy, Reference{
+				Reference: "ImagingStudy/" + id,
+			})
+		}
+	}
+
+	// Specimen references
+	if len(drn.SpecimenIDs) > 0 {
+		for _, id := range drn.SpecimenIDs {
+			report.Specimen = append(report.Specimen, Reference{
+				Reference: "Specimen/" + id,
+			})
+		}
+	}
+
+	return report
+}
+
+// mapDiagnosticReportCategory maps category to CodeableConcept.
+func (m *USCoreMapper) mapDiagnosticReportCategory(code, codeSystem, text string) CodeableConcept {
+	cc := CodeableConcept{}
+
+	if code != "" {
+		system := codeSystem
+		if system == "" {
+			system = SystemLOINC
+		}
+		cc.Coding = []Coding{
+			{
+				System:  system,
+				Code:    code,
+				Display: text,
+			},
+		}
+	} else if text != "" {
+		// Map common category names to LOINC
+		catMap := map[string]struct {
+			code    string
+			display string
+		}{
+			"radiology":         {"LP29684-5", "Radiology"},
+			"imaging":           {"LP29684-5", "Radiology"},
+			"pathology":         {"LP7839-6", "Pathology"},
+			"cardiology":        {"LP29708-2", "Cardiology"},
+			"pulmonary":         {"LP29693-6", "Pulmonary function"},
+			"laboratory":        {"LAB", "Laboratory"},
+			"lab":               {"LAB", "Laboratory"},
+			"microbiology":      {"LP7819-8", "Microbiology"},
+			"hematology":        {"LP7818-0", "Hematology and coagulation"},
+			"clinical note":     {"LP173421-1", "Clinical note"},
+			"consultation note": {"11488-4", "Consultation note"},
+			"discharge summary": {"18842-5", "Discharge summary"},
+			"progress note":     {"11506-3", "Progress note"},
+		}
+
+		textLower := strings.ToLower(strings.TrimSpace(text))
+		if mapped, ok := catMap[textLower]; ok {
+			cc.Coding = []Coding{
+				{
+					System:  SystemLOINC,
+					Code:    mapped.code,
+					Display: mapped.display,
+				},
+			}
+		}
+	}
+
+	if text != "" {
+		cc.Text = text
+	}
+
+	return cc
+}
+
+// mapDiagnosticReportCode maps report code to CodeableConcept.
+func (m *USCoreMapper) mapDiagnosticReportCode(code, codeSystem, text string) *CodeableConcept {
+	cc := &CodeableConcept{}
+
+	if code != "" {
+		system := codeSystem
+		if system == "" {
+			system = SystemLOINC // Default to LOINC
+		}
+		cc.Coding = []Coding{
+			{
+				System:  system,
+				Code:    code,
+				Display: text,
+			},
+		}
+	} else if text != "" {
+		// Try to map common report types to LOINC
+		codeMap := map[string]struct {
+			code    string
+			display string
+		}{
+			"chest x-ray":        {"36643-5", "Chest X-ray 2 Views"},
+			"chest xray":         {"36643-5", "Chest X-ray 2 Views"},
+			"ct scan":            {"25056-3", "CT without contrast"},
+			"ct":                 {"25056-3", "CT without contrast"},
+			"mri":                {"25056-9", "MRI"},
+			"echocardiogram":     {"34552-0", "Echocardiography"},
+			"echo":               {"34552-0", "Echocardiography"},
+			"ekg":                {"11524-6", "EKG study"},
+			"ecg":                {"11524-6", "EKG study"},
+			"electrocardiogram":  {"11524-6", "EKG study"},
+			"ultrasound":         {"25061-3", "Ultrasound"},
+			"pathology":          {"11526-1", "Pathology study"},
+			"surgical pathology": {"11529-5", "Surgical pathology study"},
+			"colonoscopy":        {"18746-8", "Colonoscopy study"},
+			"endoscopy":          {"18751-8", "Upper GI endoscopy"},
+			"bone density":       {"38269-7", "DXA Bone density"},
+			"mammogram":          {"26346-7", "Mammography"},
+		}
+
+		textLower := strings.ToLower(strings.TrimSpace(text))
+		if mapped, ok := codeMap[textLower]; ok {
+			cc.Coding = []Coding{
+				{
+					System:  SystemLOINC,
+					Code:    mapped.code,
+					Display: mapped.display,
+				},
+			}
+		}
+	}
+
+	if text != "" {
+		cc.Text = text
 	}
 
 	return cc

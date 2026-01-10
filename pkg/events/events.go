@@ -1552,8 +1552,248 @@ type ServiceRequestEvent struct {
 	Performer      *Provider       `json:"performer,omitempty"`
 	PerformerOrgID string          `json:"performer_org_id,omitempty"`
 	PerformerOrgName string        `json:"performer_org_name,omitempty"`
-	Encounter      *Encounter      `json:"encounter,omitempty"`
-	RawPayload     json.RawMessage `json:"raw_payload,omitempty"`
+	Encounter        *Encounter      `json:"encounter,omitempty"`
+	RawPayload       json.RawMessage `json:"raw_payload,omitempty"`
+}
+
+// ============================================================================
+// DocumentReference - Clinical Documents (US Core)
+// ============================================================================
+
+// DocumentReferenceContent represents the actual document content or reference.
+type DocumentReferenceContent struct {
+	// AttachmentURL is the URL where the document can be retrieved
+	AttachmentURL string `json:"attachment_url,omitempty"`
+
+	// AttachmentData is base64-encoded document content (for inline documents)
+	AttachmentData string `json:"attachment_data,omitempty"`
+
+	// AttachmentContentType is the MIME type (e.g., "application/pdf", "text/xml")
+	AttachmentContentType string `json:"attachment_content_type,omitempty"`
+
+	// AttachmentSize is the document size in bytes
+	AttachmentSize int64 `json:"attachment_size,omitempty"`
+
+	// AttachmentHash is the SHA-1 hash of the document (base64)
+	AttachmentHash string `json:"attachment_hash,omitempty"`
+
+	// AttachmentTitle is the document title
+	AttachmentTitle string `json:"attachment_title,omitempty"`
+
+	// AttachmentCreation is when the document was created
+	AttachmentCreation string `json:"attachment_creation,omitempty"`
+
+	// Format is the format code (e.g., "urn:hl7-org:sdwg:ccda-structuredBody:2.1")
+	Format string `json:"format,omitempty"`
+
+	// FormatSystem is the format code system
+	FormatSystem string `json:"format_system,omitempty"`
+}
+
+// DocumentReferenceContext represents the clinical context of the document.
+type DocumentReferenceContext struct {
+	// EncounterID is the encounter during which the document was created
+	EncounterID string `json:"encounter_id,omitempty"`
+
+	// PeriodStart is the start of the time period the document covers
+	PeriodStart string `json:"period_start,omitempty"`
+
+	// PeriodEnd is the end of the time period the document covers
+	PeriodEnd string `json:"period_end,omitempty"`
+
+	// FacilityType is the type of facility (e.g., "Hospital", "Clinic")
+	FacilityType string `json:"facility_type,omitempty"`
+
+	// FacilityTypeCode is the coded facility type
+	FacilityTypeCode string `json:"facility_type_code,omitempty"`
+
+	// PracticeSetting is the clinical specialty (e.g., "Cardiology")
+	PracticeSetting string `json:"practice_setting,omitempty"`
+
+	// PracticeSettingCode is the coded practice setting
+	PracticeSettingCode string `json:"practice_setting_code,omitempty"`
+}
+
+// DocumentReference represents a reference to a clinical document.
+type DocumentReference struct {
+	// Status is the document status (current, superseded, entered-in-error)
+	Status string `json:"status,omitempty"`
+
+	// DocStatus is the status of the underlying document (preliminary, final, amended)
+	DocStatus string `json:"doc_status,omitempty"`
+
+	// Type is the document type (e.g., "Discharge Summary", "Progress Note")
+	Type string `json:"type,omitempty"`
+
+	// TypeCode is the LOINC code for the document type
+	TypeCode string `json:"type_code,omitempty"`
+
+	// TypeCodeSystem is the code system for type (usually LOINC)
+	TypeCodeSystem string `json:"type_code_system,omitempty"`
+
+	// Category is the document category (clinical-note, cardiology, etc.)
+	Category string `json:"category,omitempty"`
+
+	// CategoryCode is the coded category
+	CategoryCode string `json:"category_code,omitempty"`
+
+	// CategoryCodeSystem is the category code system
+	CategoryCodeSystem string `json:"category_code_system,omitempty"`
+
+	// Date is when the document was indexed/created
+	Date string `json:"date,omitempty"`
+
+	// Description is a human-readable description
+	Description string `json:"description,omitempty"`
+
+	// SecurityLabel is the confidentiality level (e.g., "N" for normal, "R" for restricted)
+	SecurityLabel string `json:"security_label,omitempty"`
+
+	// Content is the document content/attachment
+	Content []DocumentReferenceContent `json:"content,omitempty"`
+
+	// Context is the clinical context
+	Context *DocumentReferenceContext `json:"context,omitempty"`
+
+	// CustodianID is the organization maintaining the document
+	CustodianID string `json:"custodian_id,omitempty"`
+
+	// CustodianName is the custodian organization name
+	CustodianName string `json:"custodian_name,omitempty"`
+
+	// RelatesTo is related documents (replaces, transforms, etc.)
+	RelatesTo []DocumentReferenceRelation `json:"relates_to,omitempty"`
+}
+
+// DocumentReferenceRelation represents a relationship to another document.
+type DocumentReferenceRelation struct {
+	// Code is the relationship type (replaces, transforms, signs, appends)
+	Code string `json:"code,omitempty"`
+
+	// TargetID is the ID of the related document
+	TargetID string `json:"target_id,omitempty"`
+}
+
+// DocumentReferenceEvent represents a document reference event for workflow processing.
+type DocumentReferenceEvent struct {
+	EventMeta
+	Patient           *Patient          `json:"patient,omitempty"`
+	DocumentReference DocumentReference `json:"document_reference"`
+	Author            *Provider         `json:"author,omitempty"`
+	AuthorOrgID       string            `json:"author_org_id,omitempty"`
+	AuthorOrgName     string            `json:"author_org_name,omitempty"`
+	Authenticator     *Provider         `json:"authenticator,omitempty"`
+	Encounter         *Encounter        `json:"encounter,omitempty"`
+	RawPayload        json.RawMessage   `json:"raw_payload,omitempty"`
+}
+
+// ============================================================================
+// DiagnosticReport (Clinical Notes) - US Core DiagnosticReport for Report and Note Exchange
+// ============================================================================
+
+// DiagnosticReportNote represents a clinical note/report (not lab).
+type DiagnosticReportNote struct {
+	// Status is the report status (registered, partial, preliminary, final, amended, etc.)
+	Status string `json:"status,omitempty"`
+
+	// Category is the report category (e.g., "Radiology", "Pathology", "Cardiology")
+	Category string `json:"category,omitempty"`
+
+	// CategoryCode is the coded category (LOINC)
+	CategoryCode string `json:"category_code,omitempty"`
+
+	// CategoryCodeSystem is the category code system
+	CategoryCodeSystem string `json:"category_code_system,omitempty"`
+
+	// Code is the report type (e.g., "Chest X-ray", "Echocardiogram")
+	Code string `json:"code,omitempty"`
+
+	// CodeValue is the LOINC or other code for the report type
+	CodeValue string `json:"code_value,omitempty"`
+
+	// CodeSystem is the code system for the report code
+	CodeSystem string `json:"code_system,omitempty"`
+
+	// EffectiveDateTime is when the report was clinically relevant
+	EffectiveDateTime string `json:"effective_date_time,omitempty"`
+
+	// EffectivePeriodStart is the start of the effective period
+	EffectivePeriodStart string `json:"effective_period_start,omitempty"`
+
+	// EffectivePeriodEnd is the end of the effective period
+	EffectivePeriodEnd string `json:"effective_period_end,omitempty"`
+
+	// Issued is when the report was issued
+	Issued string `json:"issued,omitempty"`
+
+	// Conclusion is the clinical conclusion/interpretation
+	Conclusion string `json:"conclusion,omitempty"`
+
+	// ConclusionCode is a coded conclusion
+	ConclusionCode string `json:"conclusion_code,omitempty"`
+
+	// ConclusionCodeSystem is the code system for the conclusion
+	ConclusionCodeSystem string `json:"conclusion_code_system,omitempty"`
+
+	// PresentedForm is the rendered report (PDF, etc.)
+	PresentedForm []DiagnosticReportAttachment `json:"presented_form,omitempty"`
+
+	// Media is embedded images/media
+	Media []DiagnosticReportMedia `json:"media,omitempty"`
+
+	// ResultIDs are references to Observation resources
+	ResultIDs []string `json:"result_ids,omitempty"`
+
+	// ImagingStudyIDs are references to ImagingStudy resources
+	ImagingStudyIDs []string `json:"imaging_study_ids,omitempty"`
+
+	// SpecimenIDs are references to Specimen resources
+	SpecimenIDs []string `json:"specimen_ids,omitempty"`
+}
+
+// DiagnosticReportAttachment represents an attached document.
+type DiagnosticReportAttachment struct {
+	// ContentType is the MIME type
+	ContentType string `json:"content_type,omitempty"`
+
+	// Data is base64-encoded content
+	Data string `json:"data,omitempty"`
+
+	// URL is where the content can be retrieved
+	URL string `json:"url,omitempty"`
+
+	// Size is the content size in bytes
+	Size int64 `json:"size,omitempty"`
+
+	// Hash is the SHA-1 hash (base64)
+	Hash string `json:"hash,omitempty"`
+
+	// Title is the attachment title
+	Title string `json:"title,omitempty"`
+
+	// Creation is when the attachment was created
+	Creation string `json:"creation,omitempty"`
+}
+
+// DiagnosticReportMedia represents embedded media.
+type DiagnosticReportMedia struct {
+	// Comment is a description of the media
+	Comment string `json:"comment,omitempty"`
+
+	// Link is the media reference (usually to a Media resource)
+	LinkID string `json:"link_id,omitempty"`
+}
+
+// DiagnosticReportNoteEvent represents a clinical note/report event.
+type DiagnosticReportNoteEvent struct {
+	EventMeta
+	Patient              *Patient             `json:"patient,omitempty"`
+	DiagnosticReportNote DiagnosticReportNote `json:"diagnostic_report_note"`
+	Performer            *Provider            `json:"performer,omitempty"`
+	PerformerOrgID       string               `json:"performer_org_id,omitempty"`
+	PerformerOrgName     string               `json:"performer_org_name,omitempty"`
+	Encounter            *Encounter           `json:"encounter,omitempty"`
+	RawPayload           json.RawMessage      `json:"raw_payload,omitempty"`
 }
 
 // LabTest convenience fields

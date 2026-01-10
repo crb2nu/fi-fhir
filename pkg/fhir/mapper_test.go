@@ -690,13 +690,13 @@ func TestUSCoreMapperInferConditionCodeSystem(t *testing.T) {
 		code       string
 		wantSystem string
 	}{
-		{"E11.9", SystemICD10CM},     // ICD-10-CM diabetes
-		{"J18.9", SystemICD10CM},     // ICD-10-CM pneumonia
-		{"A01.0", SystemICD10CM},     // ICD-10-CM typhoid fever
-		{"44054006", SystemSNOMED},   // SNOMED diabetes type 2
-		{"233604007", SystemSNOMED},  // SNOMED pneumonia
-		{"12345678", SystemSNOMED},   // Generic numeric (assume SNOMED)
-		{"ABC", SystemSNOMED},        // Short non-numeric (default to SNOMED)
+		{"E11.9", SystemICD10CM},    // ICD-10-CM diabetes
+		{"J18.9", SystemICD10CM},    // ICD-10-CM pneumonia
+		{"A01.0", SystemICD10CM},    // ICD-10-CM typhoid fever
+		{"44054006", SystemSNOMED},  // SNOMED diabetes type 2
+		{"233604007", SystemSNOMED}, // SNOMED pneumonia
+		{"12345678", SystemSNOMED},  // Generic numeric (assume SNOMED)
+		{"ABC", SystemSNOMED},       // Short non-numeric (default to SNOMED)
 	}
 
 	for _, tt := range tests {
@@ -1467,8 +1467,8 @@ func TestUSCoreMapperMapEOBOutcome(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.status, func(t *testing.T) {
 			event := &events.ClaimAdjudicatedEvent{
-				Payer:  events.Provider{OrganizationName: "Test"},
-				Payee:  events.Provider{OrganizationName: "Test"},
+				Payer: events.Provider{OrganizationName: "Test"},
+				Payee: events.Provider{OrganizationName: "Test"},
 				Payment: events.ClaimPayment{
 					Status: tt.status,
 				},
@@ -1861,11 +1861,11 @@ func TestUSCoreMapperMapCERBenefitTypes(t *testing.T) {
 		percent      float64
 		expectedType string
 	}{
-		{"C", 1500.00, 0, "deductible"},     // Deductible amount
-		{"B", 30.00, 0, "copay"},            // Copay amount
-		{"A", 0, 20.00, "coinsurance"},      // Coinsurance percent
-		{"1", 0, 0, "benefit"},              // Active coverage
-		{"G", 0, 0, "limit"},                // Quantity limit
+		{"C", 1500.00, 0, "deductible"}, // Deductible amount
+		{"B", 30.00, 0, "copay"},        // Copay amount
+		{"A", 0, 20.00, "coinsurance"},  // Coinsurance percent
+		{"1", 0, 0, "benefit"},          // Active coverage
+		{"G", 0, 0, "limit"},            // Quantity limit
 	}
 
 	for _, tt := range tests {
@@ -2159,9 +2159,9 @@ func TestMapProcedure_StatusMapping(t *testing.T) {
 		{"aborted", "stopped"},
 		{"entered-in-error", "entered-in-error"},
 		{"error", "entered-in-error"},
-		{"", "completed"},         // Default
-		{"unknown", "completed"},  // Default
-		{"xyz", "completed"},      // Unknown maps to default
+		{"", "completed"},        // Default
+		{"unknown", "completed"}, // Default
+		{"xyz", "completed"},     // Unknown maps to default
 	}
 
 	for _, test := range tests {
@@ -2187,9 +2187,9 @@ func TestMapProcedure_CodeSystemDetection(t *testing.T) {
 	mapper := NewUSCoreMapper()
 
 	tests := []struct {
-		code         string
+		code           string
 		expectedSystem string
-		description  string
+		description    string
 	}{
 		{"80146002", SystemSNOMED, "SNOMED code (8 digits)"},
 		{"73761001", SystemSNOMED, "SNOMED code (8 digits)"},
@@ -2465,7 +2465,7 @@ func TestMapImmunization_StatusMapping(t *testing.T) {
 		{"contraindicated", "not-done"},
 		{"entered-in-error", "entered-in-error"},
 		{"error", "entered-in-error"},
-		{"", "completed"},  // Default
+		{"", "completed"}, // Default
 	}
 
 	for _, test := range tests {
@@ -2572,7 +2572,7 @@ func TestMapImmunization_DoseQuantityParsing(t *testing.T) {
 		{"0.5 mL", 0.5, "mL"},
 		{"0.3 mL", 0.3, "mL"},
 		{"1.0 mL", 1.0, "mL"},
-		{"0.5", 0.5, "mL"},  // Default unit
+		{"0.5", 0.5, "mL"}, // Default unit
 	}
 
 	for _, test := range tests {
@@ -2967,9 +2967,9 @@ func TestMapVitalSign_UnitToUCUM(t *testing.T) {
 	mapper := NewUSCoreMapper()
 
 	tests := []struct {
-		unit     string
+		unit      string
 		loincCode string
-		expected string
+		expected  string
 	}{
 		{"bpm", LOINCHeartRate, "/min"},
 		{"beats/min", LOINCHeartRate, "/min"},
@@ -3437,8 +3437,8 @@ func TestMapMedicationRequest_RouteMapping(t *testing.T) {
 	mapper := NewUSCoreMapper()
 
 	tests := []struct {
-		route       string
-		snomedCode  string
+		route      string
+		snomedCode string
 	}{
 		{"oral", "26643006"},
 		{"PO", "26643006"},
@@ -4158,9 +4158,9 @@ func TestMapCarePlan_IntentMapping(t *testing.T) {
 
 func TestMapCarePlan_CategoryMapping(t *testing.T) {
 	tests := []struct {
-		name             string
-		input            string
-		additionalCodes  []string
+		name            string
+		input           string
+		additionalCodes []string
 	}{
 		{"empty", "", nil},
 		{"discharge", "discharge", []string{"discharge"}},
@@ -4569,9 +4569,9 @@ func TestMapGoal_PriorityMapping(t *testing.T) {
 
 func TestMapGoal_CategoryMapping(t *testing.T) {
 	tests := []struct {
-		input       string
-		hasSNOMED   bool
-		snomedCode  string
+		input      string
+		hasSNOMED  bool
+		snomedCode string
 	}{
 		{"dietary", true, "289141003"},
 		{"safety", true, "410518001"},
@@ -5725,5 +5725,778 @@ func TestMapServiceRequest_JSONSerialization(t *testing.T) {
 	}
 	if !strings.Contains(jsonStr, "80053") {
 		t.Error("JSON missing code")
+	}
+}
+
+// ============================================================================
+// DocumentReference Tests
+// ============================================================================
+
+func TestMapDocumentReference_BasicMapping(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.DocumentReferenceEvent{
+		EventMeta: events.EventMeta{
+			ID:   "doc-001",
+			Type: "document_created",
+		},
+		Patient: &events.Patient{
+			MRN:        "12345",
+			GivenName:  "John",
+			FamilyName: "Doe",
+		},
+		DocumentReference: events.DocumentReference{
+			Status:         "current",
+			DocStatus:      "final",
+			Type:           "Discharge summary",
+			TypeCode:       "18842-5",
+			TypeCodeSystem: "http://loinc.org",
+			Category:       "Clinical Note",
+			Date:           "2024-01-15T10:30:00Z",
+			Description:    "Patient discharge summary",
+			Content: []events.DocumentReferenceContent{
+				{
+					AttachmentContentType: "application/pdf",
+					AttachmentURL:         "https://example.com/docs/discharge.pdf",
+					AttachmentTitle:       "Discharge Summary",
+				},
+			},
+		},
+		Author: &events.Provider{
+			NPI:        "1234567890",
+			GivenName:  "Jane",
+			FamilyName: "Smith",
+		},
+	}
+
+	result := mapper.MapDocumentReference(event, "Patient/12345")
+
+	if result == nil {
+		t.Fatal("Expected non-nil result")
+	}
+	// ResourceType is set via MarshalJSON, verified in JSON serialization test
+	if len(result.Meta.Profile) != 1 || result.Meta.Profile[0] != USCoreDocumentReferenceProfile {
+		t.Errorf("Profile = %v, want [%s]", result.Meta.Profile, USCoreDocumentReferenceProfile)
+	}
+	if result.Status != "current" {
+		t.Errorf("Status = %q, want 'current'", result.Status)
+	}
+	if result.DocStatus != "final" {
+		t.Errorf("DocStatus = %q, want 'final'", result.DocStatus)
+	}
+	if result.Subject.Reference != "Patient/12345" {
+		t.Errorf("Subject.Reference = %q, want 'Patient/12345'", result.Subject.Reference)
+	}
+	if result.Type == nil {
+		t.Fatal("Type is nil")
+	}
+	if len(result.Type.Coding) == 0 || result.Type.Coding[0].Code != "18842-5" {
+		t.Error("Type.Coding missing LOINC code 18842-5")
+	}
+	if len(result.Category) == 0 {
+		t.Fatal("Category is empty")
+	}
+	if result.Date != "2024-01-15T10:30:00Z" {
+		t.Errorf("Date = %q, want '2024-01-15T10:30:00Z'", result.Date)
+	}
+	if result.Description != "Patient discharge summary" {
+		t.Errorf("Description = %q, want 'Patient discharge summary'", result.Description)
+	}
+	if len(result.Author) == 0 {
+		t.Error("Author is empty")
+	}
+	if len(result.Content) == 0 {
+		t.Fatal("Content is empty")
+	}
+	if result.Content[0].Attachment.ContentType != "application/pdf" {
+		t.Errorf("Content.Attachment.ContentType = %q, want 'application/pdf'", result.Content[0].Attachment.ContentType)
+	}
+}
+
+func TestMapDocumentReference_StatusMapping(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"current", "current"},
+		{"active", "current"},
+		{"superseded", "superseded"},
+		{"replaced", "superseded"},
+		{"entered-in-error", "entered-in-error"},
+		{"error", "entered-in-error"},
+		{"unknown", "current"}, // Default
+	}
+
+	for _, tt := range tests {
+		event := &events.DocumentReferenceEvent{
+			DocumentReference: events.DocumentReference{
+				Status: tt.input,
+			},
+		}
+		result := mapper.MapDocumentReference(event, "Patient/12345")
+		if result.Status != tt.expected {
+			t.Errorf("Status for input %q = %q, want %q", tt.input, result.Status, tt.expected)
+		}
+	}
+}
+
+func TestMapDocumentReference_DocStatusMapping(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"preliminary", "preliminary"},
+		{"draft", "preliminary"},
+		{"final", "final"},
+		{"amended", "amended"},
+		{"corrected", "amended"},
+		{"unknown", "final"}, // Default
+	}
+
+	for _, tt := range tests {
+		event := &events.DocumentReferenceEvent{
+			DocumentReference: events.DocumentReference{
+				DocStatus: tt.input,
+			},
+		}
+		result := mapper.MapDocumentReference(event, "Patient/12345")
+		if result.DocStatus != tt.expected {
+			t.Errorf("DocStatus for input %q = %q, want %q", tt.input, result.DocStatus, tt.expected)
+		}
+	}
+}
+
+func TestMapDocumentReference_TypeMapping(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		text     string
+		code     string
+		expected string
+	}{
+		{"Discharge summary", "", "18842-5"},
+		{"Progress note", "", "11506-3"},
+		{"H&P", "", "34117-2"},
+		{"Consultation", "", "11488-4"},
+		{"Operative note", "", "11504-8"},
+		{"Referral", "", "57133-1"},
+		{"CCD", "", "34133-9"},
+		{"Radiology report", "", "18748-4"},
+		{"Pathology report", "", "11526-1"},
+		{"Lab report", "", "11502-2"},
+	}
+
+	for _, tt := range tests {
+		event := &events.DocumentReferenceEvent{
+			DocumentReference: events.DocumentReference{
+				Type:     tt.text,
+				TypeCode: tt.code,
+			},
+		}
+		result := mapper.MapDocumentReference(event, "Patient/12345")
+		if result.Type == nil || len(result.Type.Coding) == 0 {
+			t.Errorf("Type.Coding empty for %q", tt.text)
+			continue
+		}
+		if result.Type.Coding[0].Code != tt.expected {
+			t.Errorf("Type code for %q = %q, want %q", tt.text, result.Type.Coding[0].Code, tt.expected)
+		}
+	}
+}
+
+func TestMapDocumentReference_WithSecurityLabel(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.DocumentReferenceEvent{
+		DocumentReference: events.DocumentReference{
+			Status:        "current",
+			SecurityLabel: "R",
+		},
+	}
+
+	result := mapper.MapDocumentReference(event, "Patient/12345")
+
+	if len(result.SecurityLabel) == 0 {
+		t.Fatal("SecurityLabel is empty")
+	}
+	if len(result.SecurityLabel[0].Coding) == 0 {
+		t.Fatal("SecurityLabel.Coding is empty")
+	}
+	if result.SecurityLabel[0].Coding[0].Code != "R" {
+		t.Errorf("SecurityLabel code = %q, want 'R'", result.SecurityLabel[0].Coding[0].Code)
+	}
+	if result.SecurityLabel[0].Coding[0].System != SystemConfidentiality {
+		t.Errorf("SecurityLabel system = %q, want %q", result.SecurityLabel[0].Coding[0].System, SystemConfidentiality)
+	}
+}
+
+func TestMapDocumentReference_WithContext(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.DocumentReferenceEvent{
+		DocumentReference: events.DocumentReference{
+			Status: "current",
+			Context: &events.DocumentReferenceContext{
+				PeriodStart:         "2024-01-15",
+				PeriodEnd:           "2024-01-16",
+				FacilityType:        "Hospital",
+				FacilityTypeCode:    "HOSP",
+				PracticeSetting:     "General medicine",
+				PracticeSettingCode: "394802001",
+			},
+		},
+		Encounter: &events.Encounter{
+			ID: "enc-001",
+		},
+	}
+
+	result := mapper.MapDocumentReference(event, "Patient/12345")
+
+	if result.Context == nil {
+		t.Fatal("Context is nil")
+	}
+	if result.Context.Period == nil {
+		t.Fatal("Context.Period is nil")
+	}
+	if result.Context.FacilityType == nil {
+		t.Error("Context.FacilityType is nil")
+	}
+	if result.Context.PracticeSetting == nil {
+		t.Error("Context.PracticeSetting is nil")
+	}
+	if len(result.Context.Encounter) == 0 {
+		t.Error("Context.Encounter is empty")
+	}
+}
+
+func TestMapDocumentReference_WithRelatesTo(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.DocumentReferenceEvent{
+		DocumentReference: events.DocumentReference{
+			Status: "current",
+			RelatesTo: []events.DocumentReferenceRelation{
+				{Code: "replaces", TargetID: "doc-old-001"},
+				{Code: "appends", TargetID: "doc-orig-001"},
+			},
+		},
+	}
+
+	result := mapper.MapDocumentReference(event, "Patient/12345")
+
+	if len(result.RelatesTo) != 2 {
+		t.Fatalf("RelatesTo count = %d, want 2", len(result.RelatesTo))
+	}
+	if result.RelatesTo[0].Code != "replaces" {
+		t.Errorf("RelatesTo[0].Code = %q, want 'replaces'", result.RelatesTo[0].Code)
+	}
+	if result.RelatesTo[0].Target.Reference != "DocumentReference/doc-old-001" {
+		t.Errorf("RelatesTo[0].Target = %q, want 'DocumentReference/doc-old-001'", result.RelatesTo[0].Target.Reference)
+	}
+}
+
+func TestMapDocumentReference_WithCustodian(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.DocumentReferenceEvent{
+		DocumentReference: events.DocumentReference{
+			Status:        "current",
+			CustodianID:   "org-001",
+			CustodianName: "General Hospital",
+		},
+	}
+
+	result := mapper.MapDocumentReference(event, "Patient/12345")
+
+	if result.Custodian == nil {
+		t.Fatal("Custodian is nil")
+	}
+	if result.Custodian.Reference != "Organization/org-001" {
+		t.Errorf("Custodian.Reference = %q, want 'Organization/org-001'", result.Custodian.Reference)
+	}
+	if result.Custodian.Display != "General Hospital" {
+		t.Errorf("Custodian.Display = %q, want 'General Hospital'", result.Custodian.Display)
+	}
+}
+
+func TestMapDocumentReference_WithAuthenticator(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.DocumentReferenceEvent{
+		DocumentReference: events.DocumentReference{
+			Status: "current",
+		},
+		Authenticator: &events.Provider{
+			NPI:        "9876543210",
+			GivenName:  "Bob",
+			FamilyName: "Johnson",
+		},
+	}
+
+	result := mapper.MapDocumentReference(event, "Patient/12345")
+
+	if result.Authenticator == nil {
+		t.Fatal("Authenticator is nil")
+	}
+	if !strings.Contains(result.Authenticator.Reference, "9876543210") {
+		t.Error("Authenticator.Reference missing NPI")
+	}
+}
+
+func TestMapDocumentReference_WithMultipleContent(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.DocumentReferenceEvent{
+		DocumentReference: events.DocumentReference{
+			Status: "current",
+			Content: []events.DocumentReferenceContent{
+				{
+					AttachmentContentType: "application/pdf",
+					AttachmentURL:         "https://example.com/doc.pdf",
+					Format:                "urn:ihe:pcc:xphr:2007",
+				},
+				{
+					AttachmentContentType: "text/html",
+					AttachmentData:        "PGh0bWw+PC9odG1sPg==",
+				},
+			},
+		},
+	}
+
+	result := mapper.MapDocumentReference(event, "Patient/12345")
+
+	if len(result.Content) != 2 {
+		t.Fatalf("Content count = %d, want 2", len(result.Content))
+	}
+	if result.Content[0].Attachment.ContentType != "application/pdf" {
+		t.Errorf("Content[0].Attachment.ContentType = %q, want 'application/pdf'", result.Content[0].Attachment.ContentType)
+	}
+	if result.Content[0].Format == nil {
+		t.Error("Content[0].Format is nil")
+	}
+	if result.Content[1].Attachment.Data != "PGh0bWw+PC9odG1sPg==" {
+		t.Error("Content[1].Attachment.Data mismatch")
+	}
+}
+
+func TestMapDocumentReference_NilEvent(t *testing.T) {
+	mapper := NewUSCoreMapper()
+	result := mapper.MapDocumentReference(nil, "Patient/12345")
+	if result != nil {
+		t.Error("Expected nil result for nil event")
+	}
+}
+
+func TestMapDocumentReference_JSONSerialization(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.DocumentReferenceEvent{
+		DocumentReference: events.DocumentReference{
+			Status:    "current",
+			DocStatus: "final",
+			Type:      "Discharge summary",
+			TypeCode:  "18842-5",
+			Category:  "Clinical Note",
+			Content: []events.DocumentReferenceContent{
+				{
+					AttachmentContentType: "application/pdf",
+					AttachmentURL:         "https://example.com/doc.pdf",
+				},
+			},
+		},
+	}
+
+	result := mapper.MapDocumentReference(event, "Patient/12345")
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
+
+	jsonStr := string(data)
+	if !strings.Contains(jsonStr, `"resourceType":"DocumentReference"`) {
+		t.Error("JSON missing resourceType")
+	}
+	if !strings.Contains(jsonStr, USCoreDocumentReferenceProfile) {
+		t.Error("JSON missing profile")
+	}
+	if !strings.Contains(jsonStr, `"status":"current"`) {
+		t.Error("JSON missing status")
+	}
+	if !strings.Contains(jsonStr, "18842-5") {
+		t.Error("JSON missing type code")
+	}
+}
+
+// ============================================================================
+// DiagnosticReportNote Tests
+// ============================================================================
+
+func TestMapDiagnosticReportNote_BasicMapping(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.DiagnosticReportNoteEvent{
+		EventMeta: events.EventMeta{
+			ID:   "report-001",
+			Type: "diagnostic_report_created",
+		},
+		Patient: &events.Patient{
+			MRN:        "12345",
+			GivenName:  "John",
+			FamilyName: "Doe",
+		},
+		DiagnosticReportNote: events.DiagnosticReportNote{
+			Status:            "final",
+			Category:          "Radiology",
+			CategoryCode:      "LP29684-5",
+			Code:              "Chest X-ray",
+			CodeValue:         "36643-5",
+			CodeSystem:        "http://loinc.org",
+			EffectiveDateTime: "2024-01-15T10:30:00Z",
+			Issued:            "2024-01-15T12:00:00Z",
+			Conclusion:        "No acute cardiopulmonary disease",
+			PresentedForm: []events.DiagnosticReportAttachment{
+				{
+					ContentType: "application/pdf",
+					URL:         "https://example.com/reports/chest-xray.pdf",
+					Title:       "Chest X-Ray Report",
+				},
+			},
+		},
+		Performer: &events.Provider{
+			NPI:        "1234567890",
+			GivenName:  "Jane",
+			FamilyName: "Smith",
+		},
+	}
+
+	result := mapper.MapDiagnosticReportNote(event, "Patient/12345")
+
+	if result == nil {
+		t.Fatal("Expected non-nil result")
+	}
+	// ResourceType is set via MarshalJSON, verified in JSON serialization test
+	if len(result.Meta.Profile) != 1 || result.Meta.Profile[0] != USCoreDiagnosticReportNoteProfile {
+		t.Errorf("Profile = %v, want [%s]", result.Meta.Profile, USCoreDiagnosticReportNoteProfile)
+	}
+	if result.Status != "final" {
+		t.Errorf("Status = %q, want 'final'", result.Status)
+	}
+	if result.Subject.Reference != "Patient/12345" {
+		t.Errorf("Subject.Reference = %q, want 'Patient/12345'", result.Subject.Reference)
+	}
+	if len(result.Category) == 0 {
+		t.Fatal("Category is empty")
+	}
+	if result.Code == nil {
+		t.Fatal("Code is nil")
+	}
+	if len(result.Code.Coding) == 0 || result.Code.Coding[0].Code != "36643-5" {
+		t.Error("Code.Coding missing LOINC code 36643-5")
+	}
+	if result.EffectiveDateTime != "2024-01-15T10:30:00Z" {
+		t.Errorf("EffectiveDateTime = %q, want '2024-01-15T10:30:00Z'", result.EffectiveDateTime)
+	}
+	if result.Issued != "2024-01-15T12:00:00Z" {
+		t.Errorf("Issued = %q, want '2024-01-15T12:00:00Z'", result.Issued)
+	}
+	if result.Conclusion != "No acute cardiopulmonary disease" {
+		t.Errorf("Conclusion = %q, want 'No acute cardiopulmonary disease'", result.Conclusion)
+	}
+	if len(result.Performer) == 0 {
+		t.Error("Performer is empty")
+	}
+	if len(result.PresentedForm) == 0 {
+		t.Fatal("PresentedForm is empty")
+	}
+	if result.PresentedForm[0].ContentType != "application/pdf" {
+		t.Errorf("PresentedForm.ContentType = %q, want 'application/pdf'", result.PresentedForm[0].ContentType)
+	}
+}
+
+func TestMapDiagnosticReportNote_StatusMapping(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"registered", "registered"},
+		{"partial", "partial"},
+		{"preliminary", "preliminary"},
+		{"p", "preliminary"},
+		{"final", "final"},
+		{"f", "final"},
+		{"amended", "amended"},
+		{"a", "amended"},
+		{"corrected", "corrected"},
+		{"c", "corrected"},
+		{"cancelled", "cancelled"},
+		{"x", "cancelled"},
+		{"unknown", "final"}, // Default
+	}
+
+	for _, tt := range tests {
+		event := &events.DiagnosticReportNoteEvent{
+			DiagnosticReportNote: events.DiagnosticReportNote{
+				Status: tt.input,
+			},
+		}
+		result := mapper.MapDiagnosticReportNote(event, "Patient/12345")
+		if result.Status != tt.expected {
+			t.Errorf("Status for input %q = %q, want %q", tt.input, result.Status, tt.expected)
+		}
+	}
+}
+
+func TestMapDiagnosticReportNote_CategoryMapping(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		text     string
+		code     string
+		expected string
+	}{
+		{"Radiology", "", "LP29684-5"},
+		{"Cardiology", "", "LP29708-2"},
+		{"Pathology", "", "LP7839-6"},
+	}
+
+	for _, tt := range tests {
+		event := &events.DiagnosticReportNoteEvent{
+			DiagnosticReportNote: events.DiagnosticReportNote{
+				Category:     tt.text,
+				CategoryCode: tt.code,
+			},
+		}
+		result := mapper.MapDiagnosticReportNote(event, "Patient/12345")
+		if len(result.Category) == 0 {
+			t.Errorf("Category empty for %q", tt.text)
+			continue
+		}
+		if len(result.Category[0].Coding) == 0 {
+			t.Errorf("Category.Coding empty for %q", tt.text)
+			continue
+		}
+		if result.Category[0].Coding[0].Code != tt.expected {
+			t.Errorf("Category code for %q = %q, want %q", tt.text, result.Category[0].Coding[0].Code, tt.expected)
+		}
+	}
+}
+
+func TestMapDiagnosticReportNote_WithEncounter(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.DiagnosticReportNoteEvent{
+		DiagnosticReportNote: events.DiagnosticReportNote{
+			Status: "final",
+		},
+		Encounter: &events.Encounter{
+			ID: "enc-001",
+		},
+	}
+
+	result := mapper.MapDiagnosticReportNote(event, "Patient/12345")
+
+	if result.Encounter == nil {
+		t.Fatal("Encounter is nil")
+	}
+	if result.Encounter.Reference != "Encounter/enc-001" {
+		t.Errorf("Encounter.Reference = %q, want 'Encounter/enc-001'", result.Encounter.Reference)
+	}
+}
+
+func TestMapDiagnosticReportNote_WithEffectivePeriod(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.DiagnosticReportNoteEvent{
+		DiagnosticReportNote: events.DiagnosticReportNote{
+			Status:               "final",
+			EffectivePeriodStart: "2024-01-15",
+			EffectivePeriodEnd:   "2024-01-16",
+		},
+	}
+
+	result := mapper.MapDiagnosticReportNote(event, "Patient/12345")
+
+	if result.EffectivePeriod == nil {
+		t.Fatal("EffectivePeriod is nil")
+	}
+	if result.EffectivePeriod.Start == nil {
+		t.Error("EffectivePeriod.Start is nil")
+	}
+	if result.EffectivePeriod.End == nil {
+		t.Error("EffectivePeriod.End is nil")
+	}
+}
+
+func TestMapDiagnosticReportNote_WithConclusionCode(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.DiagnosticReportNoteEvent{
+		DiagnosticReportNote: events.DiagnosticReportNote{
+			Status:         "final",
+			ConclusionCode: "260385009",
+		},
+	}
+
+	result := mapper.MapDiagnosticReportNote(event, "Patient/12345")
+
+	if len(result.ConclusionCode) == 0 {
+		t.Fatal("ConclusionCode is empty")
+	}
+	if len(result.ConclusionCode[0].Coding) == 0 {
+		t.Fatal("ConclusionCode.Coding is empty")
+	}
+	if result.ConclusionCode[0].Coding[0].Code != "260385009" {
+		t.Errorf("ConclusionCode = %q, want '260385009'", result.ConclusionCode[0].Coding[0].Code)
+	}
+	if result.ConclusionCode[0].Coding[0].System != SystemSNOMED {
+		t.Errorf("ConclusionCode system = %q, want %q", result.ConclusionCode[0].Coding[0].System, SystemSNOMED)
+	}
+}
+
+func TestMapDiagnosticReportNote_WithMedia(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.DiagnosticReportNoteEvent{
+		DiagnosticReportNote: events.DiagnosticReportNote{
+			Status: "final",
+			Media: []events.DiagnosticReportMedia{
+				{Comment: "Chest X-Ray image", LinkID: "media-001"},
+				{Comment: "Lateral view", LinkID: "media-002"},
+			},
+		},
+	}
+
+	result := mapper.MapDiagnosticReportNote(event, "Patient/12345")
+
+	if len(result.Media) != 2 {
+		t.Fatalf("Media count = %d, want 2", len(result.Media))
+	}
+	if result.Media[0].Comment != "Chest X-Ray image" {
+		t.Errorf("Media[0].Comment = %q, want 'Chest X-Ray image'", result.Media[0].Comment)
+	}
+	if result.Media[0].Link.Reference != "Media/media-001" {
+		t.Errorf("Media[0].Link = %q, want 'Media/media-001'", result.Media[0].Link.Reference)
+	}
+}
+
+func TestMapDiagnosticReportNote_WithResultReferences(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.DiagnosticReportNoteEvent{
+		DiagnosticReportNote: events.DiagnosticReportNote{
+			Status:    "final",
+			ResultIDs: []string{"obs-001", "obs-002"},
+		},
+	}
+
+	result := mapper.MapDiagnosticReportNote(event, "Patient/12345")
+
+	if len(result.Result) != 2 {
+		t.Fatalf("Result count = %d, want 2", len(result.Result))
+	}
+	if result.Result[0].Reference != "Observation/obs-001" {
+		t.Errorf("Result[0] = %q, want 'Observation/obs-001'", result.Result[0].Reference)
+	}
+}
+
+func TestMapDiagnosticReportNote_WithImagingStudyReferences(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.DiagnosticReportNoteEvent{
+		DiagnosticReportNote: events.DiagnosticReportNote{
+			Status:          "final",
+			ImagingStudyIDs: []string{"study-001", "study-002"},
+		},
+	}
+
+	result := mapper.MapDiagnosticReportNote(event, "Patient/12345")
+
+	if len(result.ImagingStudy) != 2 {
+		t.Fatalf("ImagingStudy count = %d, want 2", len(result.ImagingStudy))
+	}
+	if result.ImagingStudy[0].Reference != "ImagingStudy/study-001" {
+		t.Errorf("ImagingStudy[0] = %q, want 'ImagingStudy/study-001'", result.ImagingStudy[0].Reference)
+	}
+}
+
+func TestMapDiagnosticReportNote_WithPerformerOrg(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.DiagnosticReportNoteEvent{
+		DiagnosticReportNote: events.DiagnosticReportNote{
+			Status: "final",
+		},
+		PerformerOrgID:   "org-001",
+		PerformerOrgName: "Radiology Department",
+	}
+
+	result := mapper.MapDiagnosticReportNote(event, "Patient/12345")
+
+	if len(result.Performer) == 0 {
+		t.Fatal("Performer is empty")
+	}
+	if result.Performer[0].Reference != "Organization/org-001" {
+		t.Errorf("Performer[0].Reference = %q, want 'Organization/org-001'", result.Performer[0].Reference)
+	}
+	if result.Performer[0].Display != "Radiology Department" {
+		t.Errorf("Performer[0].Display = %q, want 'Radiology Department'", result.Performer[0].Display)
+	}
+}
+
+func TestMapDiagnosticReportNote_NilEvent(t *testing.T) {
+	mapper := NewUSCoreMapper()
+	result := mapper.MapDiagnosticReportNote(nil, "Patient/12345")
+	if result != nil {
+		t.Error("Expected nil result for nil event")
+	}
+}
+
+func TestMapDiagnosticReportNote_JSONSerialization(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.DiagnosticReportNoteEvent{
+		DiagnosticReportNote: events.DiagnosticReportNote{
+			Status:            "final",
+			Category:          "Radiology",
+			Code:              "Chest X-Ray",
+			CodeValue:         "36643-5",
+			EffectiveDateTime: "2024-01-15T10:30:00Z",
+			Conclusion:        "Normal findings",
+			PresentedForm: []events.DiagnosticReportAttachment{
+				{
+					ContentType: "application/pdf",
+					URL:         "https://example.com/report.pdf",
+				},
+			},
+		},
+	}
+
+	result := mapper.MapDiagnosticReportNote(event, "Patient/12345")
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
+
+	jsonStr := string(data)
+	if !strings.Contains(jsonStr, `"resourceType":"DiagnosticReport"`) {
+		t.Error("JSON missing resourceType")
+	}
+	if !strings.Contains(jsonStr, USCoreDiagnosticReportNoteProfile) {
+		t.Error("JSON missing profile")
+	}
+	if !strings.Contains(jsonStr, `"status":"final"`) {
+		t.Error("JSON missing status")
+	}
+	if !strings.Contains(jsonStr, "36643-5") {
+		t.Error("JSON missing code")
+	}
+	if !strings.Contains(jsonStr, "Normal findings") {
+		t.Error("JSON missing conclusion")
 	}
 }
