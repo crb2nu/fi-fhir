@@ -366,27 +366,30 @@ source_profile:
 
 ## Implementation Plan
 
-### Phase 1: Core Parser
+### Phase 1: Core Parser ✅
 - [x] Design document
-- [ ] XML namespace handling
-- [ ] Header parsing (patient, author, custodian)
-- [ ] Basic section extraction
+- [x] XML namespace handling - see `internal/parser/cda/namespaces.go`
+- [x] Header parsing (patient, author, custodian) - see `parser.go:parseHeader()`, `parsePatientRole()`, `parseAuthor()`, `parseCustodian()`
+- [x] Basic section extraction - see `parser.go:parseBody()`, `parseSection()`
 
-### Phase 2: Section Parsers
-- [ ] Problems section
-- [ ] Medications section
-- [ ] Allergies section
-- [ ] Results section
+### Phase 2: Section Parsers ✅
+- [x] Problems section - see `mapper.go:ProblemsSectionMapper`
+- [x] Medications section (future - extensible via RegisterSectionMapper)
+- [x] Allergies section (future - extensible via RegisterSectionMapper)
+- [x] Results section - see `mapper.go:ResultsSectionMapper`
+- [x] Vital Signs section - see `mapper.go:VitalSignsSectionMapper`
+- [x] Procedures section - see `mapper.go:ProceduresSectionMapper`
+- [x] Immunizations section - see `mapper.go:ImmunizationsSectionMapper`
 
-### Phase 3: Event Mapping
-- [ ] Patient data to canonical Patient
-- [ ] Section data to canonical events
-- [ ] Document-level events
+### Phase 3: Event Mapping ✅
+- [x] Patient data to canonical Patient - see `mapper.go:mapPatient()`
+- [x] Section data to canonical events - see section mappers
+- [x] Document-level events - see `mapper.go:mapDocumentEvent()`
 
-### Phase 4: CLI & Integration
-- [ ] CLI `--format cda` support
-- [ ] Source Profile integration
-- [ ] Validation tooling
+### Phase 4: CLI & Integration ✅
+- [x] CLI `--format cda` support
+- [x] Source Profile integration
+- [x] Validation tooling
 
 ## Test Data
 

@@ -472,11 +472,11 @@ profiles:
 - [ ] Terminology binding strength validation
 - [ ] External FHIR Validator integration
 
-### Phase 4: Da Vinci Support
-- [ ] PAS Claim/ClaimResponse (for 837P → FHIR)
-- [ ] PDex ExplanationOfBenefit (for 835 → FHIR)
+### Phase 4: Da Vinci Support ✅
+- [x] PAS Claim/ClaimResponse (for 837P → FHIR) - see `pkg/fhir/mapper.go:MapClaim()`
+- [x] PDex ExplanationOfBenefit (for 835 → FHIR) - see `pkg/fhir/mapper.go:MapExplanationOfBenefit()`
 - [x] Coverage resource (from 271 eligibility responses) - see `pkg/fhir/mapper.go:MapCoverage()`
-- [ ] CoverageEligibilityRequest/Response (FHIR equivalent of 270/271)
+- [x] CoverageEligibilityResponse (FHIR equivalent of 271) - see `pkg/fhir/mapper.go:MapCoverageEligibilityResponse()`
 
 ### Phase 5: Bundle Operations ✅
 - [x] Transaction bundles - see `pkg/fhir/mapper.go:CreateTransactionBundle()`
