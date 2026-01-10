@@ -73,6 +73,24 @@ type Mapper interface {
 
 	// MapDiagnosticReportNote converts a canonical DiagnosticReportNoteEvent to a FHIR DiagnosticReport.
 	MapDiagnosticReportNote(event *events.DiagnosticReportNoteEvent, patientRef string) *DiagnosticReportNote
+
+	// MapProvenance converts a canonical ProvenanceEvent to a US Core Provenance.
+	MapProvenance(event *events.ProvenanceEvent) *Provenance
+
+	// MapLocation converts a canonical FacilityLocationEvent to a US Core Location.
+	MapLocation(event *events.FacilityLocationEvent) *FHIRLocation
+
+	// MapOrganization converts a canonical OrganizationEvent to a US Core Organization.
+	MapOrganization(event *events.OrganizationEvent) *FHIROrganization
+
+	// MapPractitioner converts a canonical PractitionerEvent to a US Core Practitioner.
+	MapPractitioner(event *events.PractitionerEvent) *FHIRPractitioner
+
+	// MapPractitionerRole converts a canonical PractitionerRoleEvent to a US Core PractitionerRole.
+	MapPractitionerRole(event *events.PractitionerRoleEvent) *FHIRPractitionerRole
+
+	// MapRelatedPerson converts a canonical RelatedPersonEvent to a US Core RelatedPerson.
+	MapRelatedPerson(event *events.RelatedPersonEvent, patientRef string) *FHIRRelatedPerson
 }
 
 // USCoreMapper implements Mapper for US Core 6.1.0 compliant resources.
@@ -6050,6 +6068,1095 @@ func (m *USCoreMapper) mapDiagnosticReportCode(code, codeSystem, text string) *C
 
 	if text != "" {
 		cc.Text = text
+	}
+
+	return cc
+}
+
+// ============================================================================
+// Provenance (US Core 6.1.0)
+// ============================================================================
+
+// MapProvenance converts a canonical ProvenanceEvent to a US Core Provenance.
+// US Core Provenance is required for USCDI v3 data provenance tracking.
+func (m *USCoreMapper) MapProvenance(event *events.ProvenanceEvent) *Provenance {
+	if event == nil {
+		return nil
+	}
+
+	p := event.Provenance
+
+	provenance := &Provenance{
+		Meta: &Meta{
+			Profile: []string{USCoreProvenanceProfile},
+		},
+		Recorded: p.Recorded,
+	}
+
+	// Target references (required by US Core - at least one)
+	if len(p.TargetReferences) > 0 {
+		for i, targetRef := range p.TargetReferences {
+			ref := Reference{Reference: targetRef}
+			if i < len(p.TargetDisplays) && p.TargetDisplays[i] != "" {
+				ref.Display = p.TargetDisplays[i]
+			}
+			provenance.Target = append(provenance.Target, ref)
+		}
+	}
+
+	// Occurred date/time or period
+	if p.OccurredDateTime != "" {
+		provenance.OccurredDateTime = p.OccurredDateTime
+	} else if p.OccurredPeriodStart != "" || p.OccurredPeriodEnd != "" {
+		provenance.OccurredPeriod = &Period{}
+		if p.OccurredPeriodStart != "" {
+			if t, err := time.Parse(time.RFC3339, p.OccurredPeriodStart); err == nil {
+				provenance.OccurredPeriod.Start = &t
+			} else if t, err := time.Parse("2006-01-02", p.OccurredPeriodStart); err == nil {
+				provenance.OccurredPeriod.Start = &t
+			}
+		}
+		if p.OccurredPeriodEnd != "" {
+			if t, err := time.Parse(time.RFC3339, p.OccurredPeriodEnd); err == nil {
+				provenance.OccurredPeriod.End = &t
+			} else if t, err := time.Parse("2006-01-02", p.OccurredPeriodEnd); err == nil {
+				provenance.OccurredPeriod.End = &t
+			}
+		}
+	}
+
+	// Activity (what happened)
+	if p.Activity != "" || p.ActivityCode != "" {
+		provenance.Activity = m.mapProvenanceActivity(p.ActivityCode, p.ActivityCodeSystem, p.Activity)
+	}
+
+	// Location reference
+	if p.LocationReference != "" {
+		provenance.Location = &Reference{
+			Reference: p.LocationReference,
+		}
+		if p.LocationDisplay != "" {
+			provenance.Location.Display = p.LocationDisplay
+		}
+	}
+
+	// Reason
+	if p.Reason != "" || p.ReasonCode != "" {
+		provenance.Reason = []CodeableConcept{
+			m.mapProvenanceReason(p.ReasonCode, p.ReasonCodeSystem, p.Reason),
+		}
+	}
+
+	// Policy URIs
+	if len(p.Policy) > 0 {
+		provenance.Policy = p.Policy
+	}
+
+	// Agents (required by US Core - at least one)
+	if len(p.Agents) > 0 {
+		for _, agent := range p.Agents {
+			provenance.Agent = append(provenance.Agent, m.mapProvenanceAgent(agent))
+		}
+	}
+
+	// Entities
+	if len(p.Entities) > 0 {
+		for _, entity := range p.Entities {
+			provenance.Entity = append(provenance.Entity, m.mapProvenanceEntity(entity))
+		}
+	}
+
+	// Signatures
+	if len(p.Signatures) > 0 {
+		for _, sig := range p.Signatures {
+			provenance.Signature = append(provenance.Signature, m.mapProvenanceSignature(sig))
+		}
+	}
+
+	return provenance
+}
+
+// mapProvenanceActivity maps activity to CodeableConcept.
+func (m *USCoreMapper) mapProvenanceActivity(code, codeSystem, display string) *CodeableConcept {
+	cc := &CodeableConcept{}
+
+	if code != "" {
+		system := codeSystem
+		if system == "" {
+			// Default to provenance activity type
+			system = "http://terminology.hl7.org/CodeSystem/v3-DataOperation"
+		}
+		cc.Coding = []Coding{
+			{
+				System:  system,
+				Code:    code,
+				Display: display,
+			},
+		}
+	}
+
+	if display != "" {
+		cc.Text = display
+	}
+
+	return cc
+}
+
+// mapProvenanceReason maps reason to CodeableConcept.
+func (m *USCoreMapper) mapProvenanceReason(code, codeSystem, text string) CodeableConcept {
+	cc := CodeableConcept{}
+
+	if code != "" {
+		system := codeSystem
+		if system == "" {
+			system = "http://terminology.hl7.org/CodeSystem/v3-ActReason"
+		}
+		cc.Coding = []Coding{
+			{
+				System:  system,
+				Code:    code,
+				Display: text,
+			},
+		}
+	}
+
+	if text != "" {
+		cc.Text = text
+	}
+
+	return cc
+}
+
+// mapProvenanceAgent maps a canonical ProvenanceAgent to FHIR ProvenanceAgent.
+func (m *USCoreMapper) mapProvenanceAgent(agent events.ProvenanceAgent) ProvenanceAgent {
+	fhirAgent := ProvenanceAgent{}
+
+	// Type (how the agent participated)
+	if agent.Type != "" || agent.TypeCode != "" {
+		fhirAgent.Type = &CodeableConcept{
+			Coding: []Coding{
+				{
+					System:  SystemProvenanceParticipantType,
+					Code:    agent.TypeCode,
+					Display: agent.Type,
+				},
+			},
+		}
+		if agent.Type != "" {
+			fhirAgent.Type.Text = agent.Type
+		}
+	}
+
+	// Role
+	if agent.RoleCode != "" || agent.Role != "" {
+		fhirAgent.Role = []CodeableConcept{
+			{
+				Coding: []Coding{
+					{
+						System:  "http://terminology.hl7.org/CodeSystem/contractsignertypecodes",
+						Code:    agent.RoleCode,
+						Display: agent.Role,
+					},
+				},
+			},
+		}
+		if agent.Role != "" {
+			fhirAgent.Role[0].Text = agent.Role
+		}
+	}
+
+	// Who (required)
+	if agent.WhoReference != "" {
+		fhirAgent.Who = &Reference{
+			Reference: agent.WhoReference,
+		}
+		if agent.WhoDisplay != "" {
+			fhirAgent.Who.Display = agent.WhoDisplay
+		}
+	}
+
+	// OnBehalfOf
+	if agent.OnBehalfOfReference != "" {
+		fhirAgent.OnBehalfOf = &Reference{
+			Reference: agent.OnBehalfOfReference,
+		}
+		if agent.OnBehalfOfDisplay != "" {
+			fhirAgent.OnBehalfOf.Display = agent.OnBehalfOfDisplay
+		}
+	}
+
+	return fhirAgent
+}
+
+// mapProvenanceEntity maps a canonical ProvenanceEntity to FHIR ProvenanceEntity.
+func (m *USCoreMapper) mapProvenanceEntity(entity events.ProvenanceEntity) ProvenanceEntity {
+	fhirEntity := ProvenanceEntity{
+		Role: m.mapProvenanceEntityRole(entity.Role),
+	}
+
+	// What (required)
+	if entity.WhatReference != "" {
+		fhirEntity.What = &Reference{
+			Reference: entity.WhatReference,
+		}
+		if entity.WhatDisplay != "" {
+			fhirEntity.What.Display = entity.WhatDisplay
+		}
+	}
+
+	return fhirEntity
+}
+
+// mapProvenanceEntityRole maps role to FHIR entity role.
+func (m *USCoreMapper) mapProvenanceEntityRole(role string) string {
+	roleLower := strings.ToLower(strings.TrimSpace(role))
+	roleMap := map[string]string{
+		"derivation": "derivation",
+		"derived":    "derivation",
+		"revision":   "revision",
+		"revised":    "revision",
+		"quotation":  "quotation",
+		"quoted":     "quotation",
+		"source":     "source",
+		"removal":    "removal",
+		"removed":    "removal",
+	}
+
+	if mapped, ok := roleMap[roleLower]; ok {
+		return mapped
+	}
+	if role != "" {
+		return role
+	}
+	return "source" // Default
+}
+
+// mapProvenanceSignature maps a canonical ProvenanceSignature to FHIR Signature.
+func (m *USCoreMapper) mapProvenanceSignature(sig events.ProvenanceSignature) Signature {
+	fhirSig := Signature{
+		When: sig.When,
+	}
+
+	// Type (required)
+	if sig.TypeCode != "" {
+		fhirSig.Type = []Coding{
+			{
+				System:  "urn:iso-astm:E1762-95:2013",
+				Code:    sig.TypeCode,
+				Display: sig.Type,
+			},
+		}
+	}
+
+	// Who (required)
+	if sig.WhoReference != "" {
+		fhirSig.Who = &Reference{
+			Reference: sig.WhoReference,
+		}
+		if sig.WhoDisplay != "" {
+			fhirSig.Who.Display = sig.WhoDisplay
+		}
+	}
+
+	// Format information
+	if sig.TargetFormat != "" {
+		fhirSig.TargetFormat = sig.TargetFormat
+	}
+	if sig.SigFormat != "" {
+		fhirSig.SigFormat = sig.SigFormat
+	}
+	if sig.Data != "" {
+		fhirSig.Data = sig.Data
+	}
+
+	return fhirSig
+}
+
+// ============================================================================
+// Location (US Core 6.1.0)
+// ============================================================================
+
+// MapLocation converts a canonical FacilityLocationEvent to a US Core Location.
+func (m *USCoreMapper) MapLocation(event *events.FacilityLocationEvent) *FHIRLocation {
+	if event == nil {
+		return nil
+	}
+
+	loc := event.FacilityLocation
+
+	location := &FHIRLocation{
+		Meta: &Meta{
+			Profile: []string{USCoreLocationProfile},
+		},
+		Name: loc.Name, // Required by US Core
+	}
+
+	// ID as identifier
+	if loc.ID != "" {
+		location.Identifier = []Identifier{
+			{
+				System: "urn:ietf:rfc:3986",
+				Value:  loc.ID,
+			},
+		}
+	}
+
+	// Status
+	if loc.Status != "" {
+		location.Status = m.mapLocationStatus(loc.Status)
+	}
+
+	// Description
+	if loc.Description != "" {
+		location.Description = loc.Description
+	}
+
+	// Mode (instance or kind)
+	if loc.Mode != "" {
+		location.Mode = loc.Mode
+	}
+
+	// Type
+	if loc.Type != "" || loc.TypeCode != "" {
+		location.Type = []CodeableConcept{
+			m.mapLocationType(loc.TypeCode, loc.TypeCodeSystem, loc.Type),
+		}
+	}
+
+	// Address (required by US Core)
+	if loc.Address != nil {
+		addr := m.mapAddress(loc.Address)
+		location.Address = &addr
+	}
+
+	// Physical type
+	if loc.PhysicalType != "" || loc.PhysicalTypeCode != "" {
+		location.PhysicalType = &CodeableConcept{
+			Coding: []Coding{
+				{
+					System:  "http://terminology.hl7.org/CodeSystem/location-physical-type",
+					Code:    loc.PhysicalTypeCode,
+					Display: loc.PhysicalType,
+				},
+			},
+		}
+		if loc.PhysicalType != "" {
+			location.PhysicalType.Text = loc.PhysicalType
+		}
+	}
+
+	// Managing organization
+	if loc.ManagingOrganizationID != "" || loc.ManagingOrganizationName != "" {
+		location.ManagingOrganization = &Reference{}
+		if loc.ManagingOrganizationID != "" {
+			location.ManagingOrganization.Reference = "Organization/" + loc.ManagingOrganizationID
+		}
+		if loc.ManagingOrganizationName != "" {
+			location.ManagingOrganization.Display = loc.ManagingOrganizationName
+		}
+	}
+
+	// Part of (parent location)
+	if loc.PartOfLocationID != "" {
+		location.PartOf = &Reference{
+			Reference: "Location/" + loc.PartOfLocationID,
+		}
+	}
+
+	// Telecom
+	if loc.Phone != "" || loc.Email != "" {
+		if loc.Phone != "" {
+			location.Telecom = append(location.Telecom, ContactPoint{
+				System: "phone",
+				Value:  loc.Phone,
+				Use:    "work",
+			})
+		}
+		if loc.Email != "" {
+			location.Telecom = append(location.Telecom, ContactPoint{
+				System: "email",
+				Value:  loc.Email,
+				Use:    "work",
+			})
+		}
+	}
+
+	return location
+}
+
+// mapLocationStatus maps canonical status to FHIR location status.
+func (m *USCoreMapper) mapLocationStatus(status string) string {
+	statusLower := strings.ToLower(strings.TrimSpace(status))
+	statusMap := map[string]string{
+		"active":    "active",
+		"suspended": "suspended",
+		"inactive":  "inactive",
+	}
+
+	if mapped, ok := statusMap[statusLower]; ok {
+		return mapped
+	}
+	return "active" // Default
+}
+
+// mapLocationType maps location type to CodeableConcept.
+func (m *USCoreMapper) mapLocationType(code, codeSystem, display string) CodeableConcept {
+	cc := CodeableConcept{}
+
+	if code != "" {
+		system := codeSystem
+		if system == "" {
+			system = "http://terminology.hl7.org/CodeSystem/v3-RoleCode"
+		}
+		cc.Coding = []Coding{
+			{
+				System:  system,
+				Code:    code,
+				Display: display,
+			},
+		}
+	}
+
+	if display != "" {
+		cc.Text = display
+	}
+
+	return cc
+}
+
+// ============================================================================
+// Organization (US Core 6.1.0)
+// ============================================================================
+
+// MapOrganization converts a canonical OrganizationEvent to a US Core Organization.
+func (m *USCoreMapper) MapOrganization(event *events.OrganizationEvent) *FHIROrganization {
+	if event == nil {
+		return nil
+	}
+
+	org := event.Organization
+
+	organization := &FHIROrganization{
+		Meta: &Meta{
+			Profile: []string{USCoreOrganizationProfile},
+		},
+		Name: org.Name, // Required by US Core
+	}
+
+	// Identifiers (US Core requires NPI for healthcare organizations)
+	if org.NPI != "" {
+		organization.Identifier = append(organization.Identifier, Identifier{
+			System: "http://hl7.org/fhir/sid/us-npi",
+			Value:  org.NPI,
+		})
+	}
+	if org.TIN != "" {
+		organization.Identifier = append(organization.Identifier, Identifier{
+			System: "urn:oid:2.16.840.1.113883.4.4", // IRS TIN
+			Value:  org.TIN,
+		})
+	}
+	if org.ID != "" && org.NPI == "" {
+		organization.Identifier = append(organization.Identifier, Identifier{
+			System: "urn:ietf:rfc:3986",
+			Value:  org.ID,
+		})
+	}
+
+	// Active status
+	if org.Active {
+		organization.Active = &org.Active
+	}
+
+	// Type
+	if org.Type != "" || org.TypeCode != "" {
+		organization.Type = []CodeableConcept{
+			m.mapOrganizationType(org.TypeCode, org.TypeCodeSystem, org.Type),
+		}
+	}
+
+	// Aliases
+	if len(org.Alias) > 0 {
+		organization.Alias = org.Alias
+	}
+
+	// Address (required by US Core)
+	if org.Address != nil {
+		organization.Address = []Address{m.mapAddress(org.Address)}
+	}
+
+	// Telecom
+	if org.Phone != "" || org.Email != "" {
+		if org.Phone != "" {
+			organization.Telecom = append(organization.Telecom, ContactPoint{
+				System: "phone",
+				Value:  org.Phone,
+				Use:    "work",
+			})
+		}
+		if org.Email != "" {
+			organization.Telecom = append(organization.Telecom, ContactPoint{
+				System: "email",
+				Value:  org.Email,
+				Use:    "work",
+			})
+		}
+	}
+
+	// Part of (parent organization)
+	if org.PartOfOrganizationID != "" || org.PartOfOrganizationName != "" {
+		organization.PartOf = &Reference{}
+		if org.PartOfOrganizationID != "" {
+			organization.PartOf.Reference = "Organization/" + org.PartOfOrganizationID
+		}
+		if org.PartOfOrganizationName != "" {
+			organization.PartOf.Display = org.PartOfOrganizationName
+		}
+	}
+
+	return organization
+}
+
+// mapOrganizationType maps organization type to CodeableConcept.
+func (m *USCoreMapper) mapOrganizationType(code, codeSystem, display string) CodeableConcept {
+	cc := CodeableConcept{}
+
+	if code != "" {
+		system := codeSystem
+		if system == "" {
+			system = SystemOrganizationType
+		}
+		cc.Coding = []Coding{
+			{
+				System:  system,
+				Code:    code,
+				Display: display,
+			},
+		}
+	}
+
+	if display != "" {
+		cc.Text = display
+	}
+
+	return cc
+}
+
+// ============================================================================
+// Practitioner (US Core 6.1.0)
+// ============================================================================
+
+// MapPractitioner converts a canonical PractitionerEvent to a US Core Practitioner.
+func (m *USCoreMapper) MapPractitioner(event *events.PractitionerEvent) *FHIRPractitioner {
+	if event == nil {
+		return nil
+	}
+
+	prac := event.Practitioner
+
+	practitioner := &FHIRPractitioner{
+		Meta: &Meta{
+			Profile: []string{USCorePractitionerProfile},
+		},
+	}
+
+	// Identifiers (US Core requires NPI)
+	if prac.NPI != "" {
+		practitioner.Identifier = append(practitioner.Identifier, Identifier{
+			System: "http://hl7.org/fhir/sid/us-npi",
+			Value:  prac.NPI,
+		})
+	}
+	if prac.ID != "" && prac.NPI == "" {
+		practitioner.Identifier = append(practitioner.Identifier, Identifier{
+			System: "urn:ietf:rfc:3986",
+			Value:  prac.ID,
+		})
+	}
+
+	// Active status
+	if prac.Active {
+		practitioner.Active = &prac.Active
+	}
+
+	// Name (required by US Core)
+	name := HumanName{
+		Use:    "official",
+		Family: prac.FamilyName,
+	}
+	if prac.GivenName != "" {
+		name.Given = append(name.Given, prac.GivenName)
+	}
+	if prac.MiddleName != "" {
+		name.Given = append(name.Given, prac.MiddleName)
+	}
+	if prac.Prefix != "" {
+		name.Prefix = []string{prac.Prefix}
+	}
+	if prac.Suffix != "" {
+		name.Suffix = []string{prac.Suffix}
+	}
+	practitioner.Name = []HumanName{name}
+
+	// Gender
+	if prac.Gender != "" {
+		practitioner.Gender = m.mapGender(prac.Gender)
+	}
+
+	// Birth date
+	if prac.BirthDate != "" {
+		practitioner.BirthDate = prac.BirthDate
+	}
+
+	// Address
+	if prac.Address != nil {
+		practitioner.Address = []Address{m.mapAddress(prac.Address)}
+	}
+
+	// Telecom
+	if prac.Phone != "" || prac.Email != "" {
+		if prac.Phone != "" {
+			practitioner.Telecom = append(practitioner.Telecom, ContactPoint{
+				System: "phone",
+				Value:  prac.Phone,
+				Use:    "work",
+			})
+		}
+		if prac.Email != "" {
+			practitioner.Telecom = append(practitioner.Telecom, ContactPoint{
+				System: "email",
+				Value:  prac.Email,
+				Use:    "work",
+			})
+		}
+	}
+
+	// Qualifications
+	if len(prac.Qualifications) > 0 {
+		for _, qual := range prac.Qualifications {
+			practitioner.Qualification = append(practitioner.Qualification, m.mapPractitionerQualification(qual))
+		}
+	}
+
+	// Communication (languages)
+	if len(prac.Languages) > 0 {
+		for _, lang := range prac.Languages {
+			practitioner.Communication = append(practitioner.Communication, CodeableConcept{
+				Coding: []Coding{
+					{
+						System: "urn:ietf:bcp:47",
+						Code:   lang,
+					},
+				},
+				Text: lang,
+			})
+		}
+	}
+
+	return practitioner
+}
+
+// mapPractitionerQualification maps a canonical PractitionerQualification to FHIR.
+func (m *USCoreMapper) mapPractitionerQualification(qual events.PractitionerQualification) PractitionerQualification {
+	fhirQual := PractitionerQualification{}
+
+	// Code (required)
+	if qual.Code != "" || qual.Display != "" {
+		fhirQual.Code = &CodeableConcept{
+			Coding: []Coding{
+				{
+					System:  qual.CodeSystem,
+					Code:    qual.Code,
+					Display: qual.Display,
+				},
+			},
+		}
+		if qual.Display != "" {
+			fhirQual.Code.Text = qual.Display
+		}
+	}
+
+	// Period
+	if qual.PeriodStart != "" || qual.PeriodEnd != "" {
+		fhirQual.Period = &Period{}
+		if qual.PeriodStart != "" {
+			if t, err := time.Parse("2006-01-02", qual.PeriodStart); err == nil {
+				fhirQual.Period.Start = &t
+			}
+		}
+		if qual.PeriodEnd != "" {
+			if t, err := time.Parse("2006-01-02", qual.PeriodEnd); err == nil {
+				fhirQual.Period.End = &t
+			}
+		}
+	}
+
+	// Issuer
+	if qual.IssuerID != "" || qual.IssuerName != "" {
+		fhirQual.Issuer = &Reference{}
+		if qual.IssuerID != "" {
+			fhirQual.Issuer.Reference = "Organization/" + qual.IssuerID
+		}
+		if qual.IssuerName != "" {
+			fhirQual.Issuer.Display = qual.IssuerName
+		}
+	}
+
+	return fhirQual
+}
+
+// ============================================================================
+// PractitionerRole (US Core 6.1.0)
+// ============================================================================
+
+// MapPractitionerRole converts a canonical PractitionerRoleEvent to a US Core PractitionerRole.
+func (m *USCoreMapper) MapPractitionerRole(event *events.PractitionerRoleEvent) *FHIRPractitionerRole {
+	if event == nil {
+		return nil
+	}
+
+	pr := event.PractitionerRole
+
+	practitionerRole := &FHIRPractitionerRole{
+		Meta: &Meta{
+			Profile: []string{USCorePractitionerRoleProfile},
+		},
+	}
+
+	// ID as identifier
+	if pr.ID != "" {
+		practitionerRole.Identifier = []Identifier{
+			{
+				System: "urn:ietf:rfc:3986",
+				Value:  pr.ID,
+			},
+		}
+	}
+
+	// Active status
+	if pr.Active {
+		practitionerRole.Active = &pr.Active
+	}
+
+	// Period
+	if pr.PeriodStart != "" || pr.PeriodEnd != "" {
+		practitionerRole.Period = &Period{}
+		if pr.PeriodStart != "" {
+			if t, err := time.Parse("2006-01-02", pr.PeriodStart); err == nil {
+				practitionerRole.Period.Start = &t
+			} else if t, err := time.Parse(time.RFC3339, pr.PeriodStart); err == nil {
+				practitionerRole.Period.Start = &t
+			}
+		}
+		if pr.PeriodEnd != "" {
+			if t, err := time.Parse("2006-01-02", pr.PeriodEnd); err == nil {
+				practitionerRole.Period.End = &t
+			} else if t, err := time.Parse(time.RFC3339, pr.PeriodEnd); err == nil {
+				practitionerRole.Period.End = &t
+			}
+		}
+	}
+
+	// Practitioner reference (required by US Core)
+	if pr.PractitionerID != "" {
+		practitionerRole.Practitioner = &Reference{
+			Reference: "Practitioner/" + pr.PractitionerID,
+		}
+		if pr.PractitionerName != "" {
+			practitionerRole.Practitioner.Display = pr.PractitionerName
+		}
+	}
+
+	// Organization reference (required by US Core)
+	if pr.OrganizationID != "" {
+		practitionerRole.Organization = &Reference{
+			Reference: "Organization/" + pr.OrganizationID,
+		}
+		if pr.OrganizationName != "" {
+			practitionerRole.Organization.Display = pr.OrganizationName
+		}
+	}
+
+	// Code (role)
+	if pr.Code != "" || pr.CodeValue != "" {
+		practitionerRole.Code = []CodeableConcept{
+			m.mapPractitionerRoleCode(pr.CodeValue, pr.CodeSystem, pr.Code),
+		}
+	}
+
+	// Specialty
+	if pr.Specialty != "" || pr.SpecialtyCode != "" {
+		practitionerRole.Specialty = []CodeableConcept{
+			m.mapPractitionerRoleSpecialty(pr.SpecialtyCode, pr.SpecialtyCodeSystem, pr.Specialty),
+		}
+	}
+
+	// Locations
+	if len(pr.LocationIDs) > 0 {
+		for _, locID := range pr.LocationIDs {
+			practitionerRole.Location = append(practitionerRole.Location, Reference{
+				Reference: "Location/" + locID,
+			})
+		}
+	}
+
+	// Telecom
+	if pr.Phone != "" || pr.Email != "" {
+		if pr.Phone != "" {
+			practitionerRole.Telecom = append(practitionerRole.Telecom, ContactPoint{
+				System: "phone",
+				Value:  pr.Phone,
+				Use:    "work",
+			})
+		}
+		if pr.Email != "" {
+			practitionerRole.Telecom = append(practitionerRole.Telecom, ContactPoint{
+				System: "email",
+				Value:  pr.Email,
+				Use:    "work",
+			})
+		}
+	}
+
+	return practitionerRole
+}
+
+// mapPractitionerRoleCode maps role code to CodeableConcept.
+func (m *USCoreMapper) mapPractitionerRoleCode(code, codeSystem, display string) CodeableConcept {
+	cc := CodeableConcept{}
+
+	if code != "" {
+		system := codeSystem
+		if system == "" {
+			system = SystemPractitionerRole
+		}
+		cc.Coding = []Coding{
+			{
+				System:  system,
+				Code:    code,
+				Display: display,
+			},
+		}
+	}
+
+	if display != "" {
+		cc.Text = display
+	}
+
+	return cc
+}
+
+// mapPractitionerRoleSpecialty maps specialty to CodeableConcept.
+func (m *USCoreMapper) mapPractitionerRoleSpecialty(code, codeSystem, display string) CodeableConcept {
+	cc := CodeableConcept{}
+
+	if code != "" {
+		system := codeSystem
+		if system == "" {
+			// Default to NUCC Health Care Provider Taxonomy
+			system = "http://nucc.org/provider-taxonomy"
+		}
+		cc.Coding = []Coding{
+			{
+				System:  system,
+				Code:    code,
+				Display: display,
+			},
+		}
+	}
+
+	if display != "" {
+		cc.Text = display
+	}
+
+	return cc
+}
+
+// ============================================================================
+// RelatedPerson (US Core 6.1.0)
+// ============================================================================
+
+// MapRelatedPerson converts a canonical RelatedPersonEvent to a US Core RelatedPerson.
+func (m *USCoreMapper) MapRelatedPerson(event *events.RelatedPersonEvent, patientRef string) *FHIRRelatedPerson {
+	if event == nil {
+		return nil
+	}
+
+	rp := event.RelatedPerson
+
+	relatedPerson := &FHIRRelatedPerson{
+		Meta: &Meta{
+			Profile: []string{USCoreRelatedPersonProfile},
+		},
+		Patient: &Reference{Reference: patientRef}, // Required
+	}
+
+	// ID as identifier
+	if rp.ID != "" {
+		relatedPerson.Identifier = []Identifier{
+			{
+				System: "urn:ietf:rfc:3986",
+				Value:  rp.ID,
+			},
+		}
+	}
+
+	// Active status
+	if rp.Active {
+		relatedPerson.Active = &rp.Active
+	}
+
+	// Relationship (required by US Core)
+	if rp.Relationship != "" || rp.RelationshipCode != "" {
+		relatedPerson.Relationship = []CodeableConcept{
+			m.mapRelatedPersonRelationship(rp.RelationshipCode, rp.RelationshipCodeSystem, rp.Relationship),
+		}
+	}
+
+	// Name
+	if rp.GivenName != "" || rp.FamilyName != "" {
+		name := HumanName{
+			Use:    "official",
+			Family: rp.FamilyName,
+		}
+		if rp.GivenName != "" {
+			name.Given = append(name.Given, rp.GivenName)
+		}
+		if rp.MiddleName != "" {
+			name.Given = append(name.Given, rp.MiddleName)
+		}
+		if rp.Prefix != "" {
+			name.Prefix = []string{rp.Prefix}
+		}
+		if rp.Suffix != "" {
+			name.Suffix = []string{rp.Suffix}
+		}
+		relatedPerson.Name = []HumanName{name}
+	}
+
+	// Gender
+	if rp.Gender != "" {
+		relatedPerson.Gender = m.mapGender(rp.Gender)
+	}
+
+	// Birth date
+	if rp.BirthDate != "" {
+		relatedPerson.BirthDate = rp.BirthDate
+	}
+
+	// Address
+	if rp.Address != nil {
+		relatedPerson.Address = []Address{m.mapAddress(rp.Address)}
+	}
+
+	// Telecom
+	if rp.Phone != "" || rp.Email != "" {
+		if rp.Phone != "" {
+			relatedPerson.Telecom = append(relatedPerson.Telecom, ContactPoint{
+				System: "phone",
+				Value:  rp.Phone,
+				Use:    "home",
+			})
+		}
+		if rp.Email != "" {
+			relatedPerson.Telecom = append(relatedPerson.Telecom, ContactPoint{
+				System: "email",
+				Value:  rp.Email,
+				Use:    "home",
+			})
+		}
+	}
+
+	// Period
+	if rp.PeriodStart != "" || rp.PeriodEnd != "" {
+		relatedPerson.Period = &Period{}
+		if rp.PeriodStart != "" {
+			if t, err := time.Parse("2006-01-02", rp.PeriodStart); err == nil {
+				relatedPerson.Period.Start = &t
+			} else if t, err := time.Parse(time.RFC3339, rp.PeriodStart); err == nil {
+				relatedPerson.Period.Start = &t
+			}
+		}
+		if rp.PeriodEnd != "" {
+			if t, err := time.Parse("2006-01-02", rp.PeriodEnd); err == nil {
+				relatedPerson.Period.End = &t
+			} else if t, err := time.Parse(time.RFC3339, rp.PeriodEnd); err == nil {
+				relatedPerson.Period.End = &t
+			}
+		}
+	}
+
+	// Communication (languages)
+	if len(rp.Languages) > 0 {
+		for _, lang := range rp.Languages {
+			relatedPerson.Communication = append(relatedPerson.Communication, RelatedPersonCommunication{
+				Language: &CodeableConcept{
+					Coding: []Coding{
+						{
+							System: "urn:ietf:bcp:47",
+							Code:   lang,
+						},
+					},
+					Text: lang,
+				},
+			})
+		}
+	}
+
+	return relatedPerson
+}
+
+// mapRelatedPersonRelationship maps relationship to CodeableConcept.
+func (m *USCoreMapper) mapRelatedPersonRelationship(code, codeSystem, display string) CodeableConcept {
+	cc := CodeableConcept{}
+
+	if code != "" {
+		system := codeSystem
+		if system == "" {
+			system = SystemRelatedPersonRelationship
+		}
+		cc.Coding = []Coding{
+			{
+				System:  system,
+				Code:    code,
+				Display: display,
+			},
+		}
+	}
+
+	// Map common relationship terms to codes
+	if code == "" && display != "" {
+		codeMap := map[string]struct {
+			code    string
+			display string
+		}{
+			"mother":      {"MTH", "mother"},
+			"father":      {"FTH", "father"},
+			"parent":      {"PRN", "parent"},
+			"spouse":      {"SPS", "spouse"},
+			"child":       {"CHILD", "child"},
+			"sibling":     {"SIB", "sibling"},
+			"guardian":    {"GUARD", "guardian"},
+			"caregiver":   {"CAREGIVER", "caregiver"},
+			"emergency":   {"ECON", "emergency contact"},
+			"contact":     {"C", "contact"},
+			"next of kin": {"N", "next of kin"},
+		}
+
+		displayLower := strings.ToLower(strings.TrimSpace(display))
+		if mapped, ok := codeMap[displayLower]; ok {
+			cc.Coding = []Coding{
+				{
+					System:  SystemRelatedPersonRelationship,
+					Code:    mapped.code,
+					Display: mapped.display,
+				},
+			}
+		}
+	}
+
+	if display != "" {
+		cc.Text = display
 	}
 
 	return cc

@@ -6500,3 +6500,718 @@ func TestMapDiagnosticReportNote_JSONSerialization(t *testing.T) {
 		t.Error("JSON missing conclusion")
 	}
 }
+
+// ============================================================================
+// Provenance Tests
+// ============================================================================
+
+func TestMapProvenance(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.ProvenanceEvent{
+		Provenance: events.Provenance{
+			TargetReferences: []string{"Patient/12345", "Observation/obs-1"},
+			TargetDisplays:   []string{"John Doe", "Blood Glucose"},
+			Recorded:         "2024-01-15T10:30:00Z",
+			OccurredDateTime: "2024-01-15T10:00:00Z",
+			Activity:         "Create",
+			ActivityCode:     "CREATE",
+			LocationReference: "Location/loc-1",
+			LocationDisplay:   "Main Hospital",
+			Agents: []events.ProvenanceAgent{
+				{
+					Type:         "Author",
+					TypeCode:     "author",
+					WhoReference: "Practitioner/prac-1",
+					WhoDisplay:   "Dr. Jane Smith",
+				},
+			},
+			Entities: []events.ProvenanceEntity{
+				{
+					Role:          "source",
+					WhatReference: "DocumentReference/doc-1",
+					WhatDisplay:   "Original Document",
+				},
+			},
+		},
+	}
+
+	result := mapper.MapProvenance(event)
+
+	// Verify basic fields
+	if result == nil {
+		t.Fatal("Expected non-nil result")
+	}
+	if len(result.Meta.Profile) != 1 || result.Meta.Profile[0] != USCoreProvenanceProfile {
+		t.Errorf("Profile = %v, want [%s]", result.Meta.Profile, USCoreProvenanceProfile)
+	}
+	if result.Recorded != "2024-01-15T10:30:00Z" {
+		t.Errorf("Recorded = %q, want '2024-01-15T10:30:00Z'", result.Recorded)
+	}
+
+	// Verify targets
+	if len(result.Target) != 2 {
+		t.Errorf("Target count = %d, want 2", len(result.Target))
+	} else {
+		if result.Target[0].Reference != "Patient/12345" {
+			t.Errorf("Target[0].Reference = %q, want 'Patient/12345'", result.Target[0].Reference)
+		}
+		if result.Target[0].Display != "John Doe" {
+			t.Errorf("Target[0].Display = %q, want 'John Doe'", result.Target[0].Display)
+		}
+	}
+
+	// Verify agents
+	if len(result.Agent) != 1 {
+		t.Errorf("Agent count = %d, want 1", len(result.Agent))
+	} else {
+		if result.Agent[0].Who.Reference != "Practitioner/prac-1" {
+			t.Errorf("Agent[0].Who.Reference = %q, want 'Practitioner/prac-1'", result.Agent[0].Who.Reference)
+		}
+	}
+
+	// Verify entities
+	if len(result.Entity) != 1 {
+		t.Errorf("Entity count = %d, want 1", len(result.Entity))
+	} else {
+		if result.Entity[0].Role != "source" {
+			t.Errorf("Entity[0].Role = %q, want 'source'", result.Entity[0].Role)
+		}
+	}
+
+	// Verify location
+	if result.Location == nil {
+		t.Error("Expected non-nil Location")
+	} else if result.Location.Reference != "Location/loc-1" {
+		t.Errorf("Location.Reference = %q, want 'Location/loc-1'", result.Location.Reference)
+	}
+}
+
+func TestMapProvenance_NilEvent(t *testing.T) {
+	mapper := NewUSCoreMapper()
+	result := mapper.MapProvenance(nil)
+	if result != nil {
+		t.Error("Expected nil result for nil event")
+	}
+}
+
+func TestMapProvenance_JSONSerialization(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.ProvenanceEvent{
+		Provenance: events.Provenance{
+			TargetReferences: []string{"Observation/obs-1"},
+			Recorded:         "2024-01-15T10:30:00Z",
+			Agents: []events.ProvenanceAgent{
+				{
+					TypeCode:     "author",
+					WhoReference: "Practitioner/prac-1",
+				},
+			},
+		},
+	}
+
+	result := mapper.MapProvenance(event)
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
+
+	jsonStr := string(data)
+	if !strings.Contains(jsonStr, `"resourceType":"Provenance"`) {
+		t.Error("JSON missing resourceType")
+	}
+	if !strings.Contains(jsonStr, USCoreProvenanceProfile) {
+		t.Error("JSON missing profile")
+	}
+}
+
+// ============================================================================
+// Location Tests
+// ============================================================================
+
+func TestMapLocation(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.FacilityLocationEvent{
+		FacilityLocation: events.FacilityLocation{
+			ID:          "loc-1",
+			Status:      "active",
+			Name:        "Main Hospital",
+			Description: "Primary care facility",
+			Mode:        "instance",
+			Type:        "Hospital",
+			TypeCode:    "HOSP",
+			Address: &events.Address{
+				Line1:      "123 Health St",
+				City:       "Boston",
+				State:      "MA",
+				PostalCode: "02101",
+			},
+			PhysicalType:             "Building",
+			PhysicalTypeCode:         "bu",
+			ManagingOrganizationID:   "org-1",
+			ManagingOrganizationName: "Health System Inc",
+			Phone:                    "555-123-4567",
+			Email:                    "info@hospital.org",
+		},
+	}
+
+	result := mapper.MapLocation(event)
+
+	// Verify basic fields
+	if result == nil {
+		t.Fatal("Expected non-nil result")
+	}
+	if len(result.Meta.Profile) != 1 || result.Meta.Profile[0] != USCoreLocationProfile {
+		t.Errorf("Profile = %v, want [%s]", result.Meta.Profile, USCoreLocationProfile)
+	}
+	if result.Name != "Main Hospital" {
+		t.Errorf("Name = %q, want 'Main Hospital'", result.Name)
+	}
+	if result.Status != "active" {
+		t.Errorf("Status = %q, want 'active'", result.Status)
+	}
+	if result.Description != "Primary care facility" {
+		t.Errorf("Description = %q, want 'Primary care facility'", result.Description)
+	}
+
+	// Verify address
+	if result.Address == nil {
+		t.Fatal("Expected non-nil Address")
+	}
+	if result.Address.City != "Boston" {
+		t.Errorf("Address.City = %q, want 'Boston'", result.Address.City)
+	}
+
+	// Verify managing organization
+	if result.ManagingOrganization == nil {
+		t.Error("Expected non-nil ManagingOrganization")
+	} else if result.ManagingOrganization.Reference != "Organization/org-1" {
+		t.Errorf("ManagingOrganization.Reference = %q, want 'Organization/org-1'", result.ManagingOrganization.Reference)
+	}
+
+	// Verify telecom
+	if len(result.Telecom) != 2 {
+		t.Errorf("Telecom count = %d, want 2", len(result.Telecom))
+	}
+}
+
+func TestMapLocation_NilEvent(t *testing.T) {
+	mapper := NewUSCoreMapper()
+	result := mapper.MapLocation(nil)
+	if result != nil {
+		t.Error("Expected nil result for nil event")
+	}
+}
+
+func TestMapLocation_JSONSerialization(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.FacilityLocationEvent{
+		FacilityLocation: events.FacilityLocation{
+			Name:   "Test Clinic",
+			Status: "active",
+		},
+	}
+
+	result := mapper.MapLocation(event)
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
+
+	jsonStr := string(data)
+	if !strings.Contains(jsonStr, `"resourceType":"Location"`) {
+		t.Error("JSON missing resourceType")
+	}
+	if !strings.Contains(jsonStr, USCoreLocationProfile) {
+		t.Error("JSON missing profile")
+	}
+}
+
+// ============================================================================
+// Organization Tests
+// ============================================================================
+
+func TestMapOrganization(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.OrganizationEvent{
+		Organization: events.Organization{
+			ID:             "org-1",
+			Active:         true,
+			Name:           "General Hospital",
+			NPI:            "1234567890",
+			TIN:            "12-3456789",
+			Type:           "Healthcare Provider",
+			TypeCode:       "prov",
+			Alias:          []string{"GH", "Gen Hospital"},
+			Address: &events.Address{
+				Line1:      "100 Medical Center Dr",
+				City:       "Boston",
+				State:      "MA",
+				PostalCode: "02101",
+			},
+			Phone: "555-999-0000",
+			Email: "admin@genhospital.org",
+		},
+	}
+
+	result := mapper.MapOrganization(event)
+
+	// Verify basic fields
+	if result == nil {
+		t.Fatal("Expected non-nil result")
+	}
+	if len(result.Meta.Profile) != 1 || result.Meta.Profile[0] != USCoreOrganizationProfile {
+		t.Errorf("Profile = %v, want [%s]", result.Meta.Profile, USCoreOrganizationProfile)
+	}
+	if result.Name != "General Hospital" {
+		t.Errorf("Name = %q, want 'General Hospital'", result.Name)
+	}
+
+	// Verify NPI identifier
+	hasNPI := false
+	for _, id := range result.Identifier {
+		if id.System == "http://hl7.org/fhir/sid/us-npi" && id.Value == "1234567890" {
+			hasNPI = true
+			break
+		}
+	}
+	if !hasNPI {
+		t.Error("Expected NPI identifier")
+	}
+
+	// Verify TIN identifier
+	hasTIN := false
+	for _, id := range result.Identifier {
+		if id.Value == "12-3456789" {
+			hasTIN = true
+			break
+		}
+	}
+	if !hasTIN {
+		t.Error("Expected TIN identifier")
+	}
+
+	// Verify aliases
+	if len(result.Alias) != 2 {
+		t.Errorf("Alias count = %d, want 2", len(result.Alias))
+	}
+
+	// Verify address
+	if len(result.Address) != 1 {
+		t.Fatalf("Address count = %d, want 1", len(result.Address))
+	}
+	if result.Address[0].City != "Boston" {
+		t.Errorf("Address[0].City = %q, want 'Boston'", result.Address[0].City)
+	}
+}
+
+func TestMapOrganization_NilEvent(t *testing.T) {
+	mapper := NewUSCoreMapper()
+	result := mapper.MapOrganization(nil)
+	if result != nil {
+		t.Error("Expected nil result for nil event")
+	}
+}
+
+func TestMapOrganization_JSONSerialization(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.OrganizationEvent{
+		Organization: events.Organization{
+			Name: "Test Org",
+			NPI:  "1234567890",
+		},
+	}
+
+	result := mapper.MapOrganization(event)
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
+
+	jsonStr := string(data)
+	if !strings.Contains(jsonStr, `"resourceType":"Organization"`) {
+		t.Error("JSON missing resourceType")
+	}
+	if !strings.Contains(jsonStr, USCoreOrganizationProfile) {
+		t.Error("JSON missing profile")
+	}
+	if !strings.Contains(jsonStr, "1234567890") {
+		t.Error("JSON missing NPI")
+	}
+}
+
+// ============================================================================
+// Practitioner Tests
+// ============================================================================
+
+func TestMapPractitioner(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.PractitionerEvent{
+		Practitioner: events.Practitioner{
+			ID:         "prac-1",
+			Active:     true,
+			NPI:        "1234567890",
+			GivenName:  "Jane",
+			MiddleName: "Elizabeth",
+			FamilyName: "Smith",
+			Prefix:     "Dr.",
+			Suffix:     "MD",
+			Gender:     "F",
+			BirthDate:  "1975-03-20",
+			Address: &events.Address{
+				Line1:      "500 Doctor Way",
+				City:       "Cambridge",
+				State:      "MA",
+				PostalCode: "02139",
+			},
+			Phone:     "555-DOC-TORS",
+			Email:     "jane.smith@hospital.org",
+			Languages: []string{"en", "es"},
+			Qualifications: []events.PractitionerQualification{
+				{
+					Code:       "MD",
+					Display:    "Doctor of Medicine",
+					IssuerName: "Harvard Medical School",
+				},
+			},
+		},
+	}
+
+	result := mapper.MapPractitioner(event)
+
+	// Verify basic fields
+	if result == nil {
+		t.Fatal("Expected non-nil result")
+	}
+	if len(result.Meta.Profile) != 1 || result.Meta.Profile[0] != USCorePractitionerProfile {
+		t.Errorf("Profile = %v, want [%s]", result.Meta.Profile, USCorePractitionerProfile)
+	}
+
+	// Verify NPI
+	hasNPI := false
+	for _, id := range result.Identifier {
+		if id.System == "http://hl7.org/fhir/sid/us-npi" && id.Value == "1234567890" {
+			hasNPI = true
+			break
+		}
+	}
+	if !hasNPI {
+		t.Error("Expected NPI identifier")
+	}
+
+	// Verify name
+	if len(result.Name) != 1 {
+		t.Fatalf("Name count = %d, want 1", len(result.Name))
+	}
+	if result.Name[0].Family != "Smith" {
+		t.Errorf("Family = %q, want 'Smith'", result.Name[0].Family)
+	}
+	if len(result.Name[0].Given) != 2 {
+		t.Errorf("Given count = %d, want 2", len(result.Name[0].Given))
+	}
+
+	// Verify gender
+	if result.Gender != "female" {
+		t.Errorf("Gender = %q, want 'female'", result.Gender)
+	}
+
+	// Verify qualifications
+	if len(result.Qualification) != 1 {
+		t.Errorf("Qualification count = %d, want 1", len(result.Qualification))
+	}
+
+	// Verify communication
+	if len(result.Communication) != 2 {
+		t.Errorf("Communication count = %d, want 2", len(result.Communication))
+	}
+}
+
+func TestMapPractitioner_NilEvent(t *testing.T) {
+	mapper := NewUSCoreMapper()
+	result := mapper.MapPractitioner(nil)
+	if result != nil {
+		t.Error("Expected nil result for nil event")
+	}
+}
+
+func TestMapPractitioner_JSONSerialization(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.PractitionerEvent{
+		Practitioner: events.Practitioner{
+			NPI:        "1234567890",
+			GivenName:  "John",
+			FamilyName: "Doe",
+		},
+	}
+
+	result := mapper.MapPractitioner(event)
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
+
+	jsonStr := string(data)
+	if !strings.Contains(jsonStr, `"resourceType":"Practitioner"`) {
+		t.Error("JSON missing resourceType")
+	}
+	if !strings.Contains(jsonStr, USCorePractitionerProfile) {
+		t.Error("JSON missing profile")
+	}
+}
+
+// ============================================================================
+// PractitionerRole Tests
+// ============================================================================
+
+func TestMapPractitionerRole(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.PractitionerRoleEvent{
+		PractitionerRole: events.PractitionerRole{
+			ID:               "role-1",
+			Active:           true,
+			PractitionerID:   "prac-1",
+			PractitionerName: "Dr. Jane Smith",
+			OrganizationID:   "org-1",
+			OrganizationName: "General Hospital",
+			Code:             "Physician",
+			CodeValue:        "physician",
+			Specialty:        "Internal Medicine",
+			SpecialtyCode:    "207R00000X",
+			LocationIDs:      []string{"loc-1", "loc-2"},
+			Phone:            "555-111-2222",
+			Email:            "jane.smith@hospital.org",
+		},
+	}
+
+	result := mapper.MapPractitionerRole(event)
+
+	// Verify basic fields
+	if result == nil {
+		t.Fatal("Expected non-nil result")
+	}
+	if len(result.Meta.Profile) != 1 || result.Meta.Profile[0] != USCorePractitionerRoleProfile {
+		t.Errorf("Profile = %v, want [%s]", result.Meta.Profile, USCorePractitionerRoleProfile)
+	}
+
+	// Verify practitioner reference
+	if result.Practitioner == nil {
+		t.Error("Expected non-nil Practitioner")
+	} else if result.Practitioner.Reference != "Practitioner/prac-1" {
+		t.Errorf("Practitioner.Reference = %q, want 'Practitioner/prac-1'", result.Practitioner.Reference)
+	}
+
+	// Verify organization reference
+	if result.Organization == nil {
+		t.Error("Expected non-nil Organization")
+	} else if result.Organization.Reference != "Organization/org-1" {
+		t.Errorf("Organization.Reference = %q, want 'Organization/org-1'", result.Organization.Reference)
+	}
+
+	// Verify specialty
+	if len(result.Specialty) != 1 {
+		t.Errorf("Specialty count = %d, want 1", len(result.Specialty))
+	}
+
+	// Verify locations
+	if len(result.Location) != 2 {
+		t.Errorf("Location count = %d, want 2", len(result.Location))
+	}
+}
+
+func TestMapPractitionerRole_NilEvent(t *testing.T) {
+	mapper := NewUSCoreMapper()
+	result := mapper.MapPractitionerRole(nil)
+	if result != nil {
+		t.Error("Expected nil result for nil event")
+	}
+}
+
+func TestMapPractitionerRole_JSONSerialization(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.PractitionerRoleEvent{
+		PractitionerRole: events.PractitionerRole{
+			PractitionerID: "prac-1",
+			OrganizationID: "org-1",
+		},
+	}
+
+	result := mapper.MapPractitionerRole(event)
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
+
+	jsonStr := string(data)
+	if !strings.Contains(jsonStr, `"resourceType":"PractitionerRole"`) {
+		t.Error("JSON missing resourceType")
+	}
+	if !strings.Contains(jsonStr, USCorePractitionerRoleProfile) {
+		t.Error("JSON missing profile")
+	}
+}
+
+// ============================================================================
+// RelatedPerson Tests
+// ============================================================================
+
+func TestMapRelatedPerson(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.RelatedPersonEvent{
+		RelatedPerson: events.RelatedPerson{
+			ID:               "rp-1",
+			Active:           true,
+			PatientID:        "patient-1",
+			Relationship:     "Mother",
+			RelationshipCode: "MTH",
+			GivenName:        "Mary",
+			MiddleName:       "Jane",
+			FamilyName:       "Doe",
+			Gender:           "F",
+			BirthDate:        "1950-06-15",
+			Address: &events.Address{
+				Line1:      "123 Family St",
+				City:       "Boston",
+				State:      "MA",
+				PostalCode: "02101",
+			},
+			Phone:     "555-555-1234",
+			Email:     "mary.doe@email.com",
+			Languages: []string{"en"},
+		},
+	}
+
+	result := mapper.MapRelatedPerson(event, "Patient/patient-1")
+
+	// Verify basic fields
+	if result == nil {
+		t.Fatal("Expected non-nil result")
+	}
+	if len(result.Meta.Profile) != 1 || result.Meta.Profile[0] != USCoreRelatedPersonProfile {
+		t.Errorf("Profile = %v, want [%s]", result.Meta.Profile, USCoreRelatedPersonProfile)
+	}
+
+	// Verify patient reference
+	if result.Patient == nil {
+		t.Error("Expected non-nil Patient")
+	} else if result.Patient.Reference != "Patient/patient-1" {
+		t.Errorf("Patient.Reference = %q, want 'Patient/patient-1'", result.Patient.Reference)
+	}
+
+	// Verify relationship
+	if len(result.Relationship) != 1 {
+		t.Errorf("Relationship count = %d, want 1", len(result.Relationship))
+	} else if len(result.Relationship[0].Coding) != 1 {
+		t.Error("Expected relationship coding")
+	} else if result.Relationship[0].Coding[0].Code != "MTH" {
+		t.Errorf("Relationship code = %q, want 'MTH'", result.Relationship[0].Coding[0].Code)
+	}
+
+	// Verify name
+	if len(result.Name) != 1 {
+		t.Fatalf("Name count = %d, want 1", len(result.Name))
+	}
+	if result.Name[0].Family != "Doe" {
+		t.Errorf("Family = %q, want 'Doe'", result.Name[0].Family)
+	}
+
+	// Verify gender
+	if result.Gender != "female" {
+		t.Errorf("Gender = %q, want 'female'", result.Gender)
+	}
+
+	// Verify telecom
+	if len(result.Telecom) != 2 {
+		t.Errorf("Telecom count = %d, want 2", len(result.Telecom))
+	}
+
+	// Verify communication
+	if len(result.Communication) != 1 {
+		t.Errorf("Communication count = %d, want 1", len(result.Communication))
+	}
+}
+
+func TestMapRelatedPerson_NilEvent(t *testing.T) {
+	mapper := NewUSCoreMapper()
+	result := mapper.MapRelatedPerson(nil, "Patient/12345")
+	if result != nil {
+		t.Error("Expected nil result for nil event")
+	}
+}
+
+func TestMapRelatedPerson_RelationshipMapping(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		display      string
+		expectedCode string
+	}{
+		{"mother", "MTH"},
+		{"father", "FTH"},
+		{"spouse", "SPS"},
+		{"child", "CHILD"},
+		{"guardian", "GUARD"},
+		{"caregiver", "CAREGIVER"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.display, func(t *testing.T) {
+			event := &events.RelatedPersonEvent{
+				RelatedPerson: events.RelatedPerson{
+					Relationship: tc.display,
+					FamilyName:   "Test",
+				},
+			}
+
+			result := mapper.MapRelatedPerson(event, "Patient/12345")
+			if len(result.Relationship) != 1 {
+				t.Fatalf("Relationship count = %d, want 1", len(result.Relationship))
+			}
+			if len(result.Relationship[0].Coding) != 1 {
+				t.Fatal("Expected relationship coding")
+			}
+			if result.Relationship[0].Coding[0].Code != tc.expectedCode {
+				t.Errorf("Relationship code = %q, want %q", result.Relationship[0].Coding[0].Code, tc.expectedCode)
+			}
+		})
+	}
+}
+
+func TestMapRelatedPerson_JSONSerialization(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.RelatedPersonEvent{
+		RelatedPerson: events.RelatedPerson{
+			Relationship:     "Mother",
+			RelationshipCode: "MTH",
+			GivenName:        "Mary",
+			FamilyName:       "Doe",
+		},
+	}
+
+	result := mapper.MapRelatedPerson(event, "Patient/12345")
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
+
+	jsonStr := string(data)
+	if !strings.Contains(jsonStr, `"resourceType":"RelatedPerson"`) {
+		t.Error("JSON missing resourceType")
+	}
+	if !strings.Contains(jsonStr, USCoreRelatedPersonProfile) {
+		t.Error("JSON missing profile")
+	}
+	if !strings.Contains(jsonStr, "MTH") {
+		t.Error("JSON missing relationship code")
+	}
+}

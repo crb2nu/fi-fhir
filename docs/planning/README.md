@@ -130,10 +130,15 @@ See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and curren
 - FHIR ServiceRequest resource (US Core profile) - `pkg/fhir/mapper.go:MapServiceRequest()`
 - FHIR DocumentReference resource (US Core profile) - `pkg/fhir/mapper.go:MapDocumentReference()`
 - FHIR DiagnosticReport (clinical notes) resource (US Core profile) - `pkg/fhir/mapper.go:MapDiagnosticReportNote()`
+- FHIR Provenance resource (US Core profile) - `pkg/fhir/mapper.go:MapProvenance()`
+- FHIR Location resource (US Core profile) - `pkg/fhir/mapper.go:MapLocation()`
+- FHIR Organization resource (US Core profile) - `pkg/fhir/mapper.go:MapOrganization()`
+- FHIR Practitioner resource (US Core profile) - `pkg/fhir/mapper.go:MapPractitioner()`
+- FHIR PractitionerRole resource (US Core profile) - `pkg/fhir/mapper.go:MapPractitionerRole()`
+- FHIR RelatedPerson resource (US Core profile) - `pkg/fhir/mapper.go:MapRelatedPerson()`
 
 ### Next Up
 - UMLS API integration (optional)
-- Additional US Core profiles (Provenance, RelatedPerson, etc.)
 
 ## Contributing
 
