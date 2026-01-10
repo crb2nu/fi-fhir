@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cblevins/fi-fhir/internal/api/graphql/model"
 	"github.com/cblevins/fi-fhir/internal/api/graphql/projections"
 	"github.com/cblevins/fi-fhir/internal/api/graphql/store"
 	"github.com/cblevins/fi-fhir/internal/fhir/subscription"
@@ -26,6 +27,12 @@ type SubscriptionRecord struct {
 	CreatedAt time.Time
 }
 
+// workflowSubscriber represents a subscriber to workflow events.
+type workflowSubscriber struct {
+	ch           chan *model.WorkflowEventNotification
+	workflowName string // empty means all workflows
+}
+
 // Resolver is the root resolver for the GraphQL API.
 // It holds dependencies needed by all resolvers.
 type Resolver struct {
@@ -42,6 +49,10 @@ type Resolver struct {
 	subscriptionClients map[string]*subscription.Client
 	subscriptionRecords map[string]*SubscriptionRecord
 	subscriptionMu      sync.RWMutex
+
+	// Workflow event subscribers
+	workflowSubscribers []*workflowSubscriber
+	workflowSubMu       sync.RWMutex
 
 	// Server metadata
 	Version   string
@@ -158,4 +169,51 @@ func (r *Resolver) updateSubscriptionStatus(id, status string) bool {
 		return true
 	}
 	return false
+}
+
+// subscribeToWorkflowEvents creates a subscription channel for workflow events.
+func (r *Resolver) subscribeToWorkflowEvents(workflowName string) chan *model.WorkflowEventNotification {
+	ch := make(chan *model.WorkflowEventNotification, 100)
+	sub := &workflowSubscriber{
+		ch:           ch,
+		workflowName: workflowName,
+	}
+
+	r.workflowSubMu.Lock()
+	r.workflowSubscribers = append(r.workflowSubscribers, sub)
+	r.workflowSubMu.Unlock()
+
+	return ch
+}
+
+// unsubscribeFromWorkflowEvents removes a subscription channel.
+func (r *Resolver) unsubscribeFromWorkflowEvents(ch chan *model.WorkflowEventNotification) {
+	r.workflowSubMu.Lock()
+	defer r.workflowSubMu.Unlock()
+
+	for i, sub := range r.workflowSubscribers {
+		if sub.ch == ch {
+			r.workflowSubscribers = append(r.workflowSubscribers[:i], r.workflowSubscribers[i+1:]...)
+			close(ch)
+			return
+		}
+	}
+}
+
+// broadcastWorkflowEvent sends a workflow event notification to all matching subscribers.
+func (r *Resolver) broadcastWorkflowEvent(notification *model.WorkflowEventNotification) {
+	r.workflowSubMu.RLock()
+	defer r.workflowSubMu.RUnlock()
+
+	for _, sub := range r.workflowSubscribers {
+		// Match if subscriber wants all workflows or this specific workflow
+		if sub.workflowName == "" || sub.workflowName == notification.Workflow {
+			// Non-blocking send to avoid slow subscribers blocking others
+			select {
+			case sub.ch <- notification:
+			default:
+				// Channel full, skip this notification for this subscriber
+			}
+		}
+	}
 }

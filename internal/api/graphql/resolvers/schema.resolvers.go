@@ -438,15 +438,22 @@ func (r *mutationResolver) TriggerWorkflow(ctx context.Context, name string, eve
 	wfResult := r.WorkflowEngine.ProcessWithContext(ctx, event)
 	duration := time.Since(startTime).Milliseconds()
 
-	// Count matched routes and actions
-	routesMatched := 0
-	actionsExecuted := 0
+	// Collect matched routes and actions
+	routesMatchedCount := 0
+	actionsExecutedCount := 0
 	var errors []string
+	var routeNames []string
+	var actionsSummary []string
 
 	for _, rr := range wfResult.RouteResults {
 		if rr.Matched {
-			routesMatched++
-			actionsExecuted += rr.ActionsRun
+			routesMatchedCount++
+			routeNames = append(routeNames, rr.RouteName)
+			actionsExecutedCount += rr.ActionsRun
+			// Record how many actions ran for this route
+			if rr.ActionsRun > 0 {
+				actionsSummary = append(actionsSummary, fmt.Sprintf("%s:%d", rr.RouteName, rr.ActionsRun))
+			}
 			for _, err := range rr.ActionErrors {
 				errors = append(errors, err.Error())
 			}
@@ -456,10 +463,20 @@ func (r *mutationResolver) TriggerWorkflow(ctx context.Context, name string, eve
 		}
 	}
 
+	// Broadcast to workflow event subscribers
+	notification := &model.WorkflowEventNotification{
+		Event:           nil, // Raw map can't be converted to Event interface
+		Workflow:        name,
+		RoutesMatched:   routeNames,
+		ActionsExecuted: actionsSummary,
+		Duration:        int(duration),
+	}
+	r.broadcastWorkflowEvent(notification)
+
 	return &model.WorkflowResult{
 		WorkflowName:    name,
-		RoutesMatched:   routesMatched,
-		ActionsExecuted: actionsExecuted,
+		RoutesMatched:   routesMatchedCount,
+		ActionsExecuted: actionsExecutedCount,
 		Errors:          errors,
 		Duration:        int(duration),
 	}, nil
@@ -870,13 +887,13 @@ func (r *subscriptionResolver) EventStream(ctx context.Context, filter *model.Ev
 
 // WorkflowEvents is the resolver for the workflowEvents field.
 func (r *subscriptionResolver) WorkflowEvents(ctx context.Context, workflowName string) (<-chan *model.WorkflowEventNotification, error) {
-	ch := make(chan *model.WorkflowEventNotification, 100)
+	// Subscribe to workflow events with optional workflow name filter
+	ch := r.subscribeToWorkflowEvents(workflowName)
 
-	// TODO: Hook into workflow engine for real-time notifications
-	// For now, return an empty channel
+	// Clean up subscription when context is cancelled
 	go func() {
 		<-ctx.Done()
-		close(ch)
+		r.unsubscribeFromWorkflowEvents(ch)
 	}()
 
 	return ch, nil
