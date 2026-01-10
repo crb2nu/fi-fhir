@@ -31,6 +31,11 @@ const (
 	USCorePulseOximetryProfile     = USCoreBaseURL + "us-core-pulse-oximetry"
 	USCoreBMIProfile               = USCoreBaseURL + "us-core-bmi"
 
+	// Medication and allergy profiles
+	USCoreMedicationRequestProfile    = USCoreBaseURL + "us-core-medicationrequest"
+	USCoreMedicationProfile           = USCoreBaseURL + "us-core-medication"
+	USCoreAllergyIntoleranceProfile   = USCoreBaseURL + "us-core-allergyintolerance"
+
 	// Extension URIs
 	USCoreRaceExtension      = USCoreBaseURL + "us-core-race"
 	USCoreEthnicityExtension = USCoreBaseURL + "us-core-ethnicity"
@@ -104,6 +109,23 @@ const (
 	SystemEligibilityCategory    = "http://terminology.hl7.org/CodeSystem/ex-benefitcategory"
 	SystemEligibilityPurpose     = "http://hl7.org/fhir/eligibilityresponse-purpose"
 	SystemProcessingError        = "http://terminology.hl7.org/CodeSystem/adjudication-error"
+
+	// MedicationRequest code systems
+	SystemMedicationRequestIntent    = "http://hl7.org/fhir/CodeSystem/medicationrequest-intent"
+	SystemMedicationRequestStatus    = "http://hl7.org/fhir/CodeSystem/medicationrequest-status"
+	SystemMedicationRequestCategory  = "http://terminology.hl7.org/CodeSystem/medicationrequest-category"
+	SystemMedicationAdminRoute       = "http://snomed.info/sct" // SNOMED CT for routes
+	SystemTimingAbbreviation         = "http://terminology.hl7.org/CodeSystem/v3-GTSAbbreviation"
+	SystemDoseForm                   = "http://snomed.info/sct" // SNOMED CT for dose forms
+	SystemUNII                       = "http://fdasis.nlm.nih.gov" // FDA UNII for substances
+
+	// AllergyIntolerance code systems
+	SystemAllergyIntoleranceType            = "http://hl7.org/fhir/allergy-intolerance-type"
+	SystemAllergyIntoleranceCategory        = "http://hl7.org/fhir/allergy-intolerance-category"
+	SystemAllergyIntoleranceCriticality     = "http://hl7.org/fhir/allergy-intolerance-criticality"
+	SystemAllergyIntoleranceClinicalStatus  = "http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical"
+	SystemAllergyIntoleranceVerification    = "http://terminology.hl7.org/CodeSystem/allergyintolerance-verification"
+	SystemReactionSeverity                  = "http://hl7.org/fhir/reaction-event-severity"
 
 	// Vital Signs LOINC codes (US Core required)
 	LOINCHeartRate         = "8867-4"
@@ -1056,5 +1078,211 @@ func (i *Immunization) MarshalJSON() ([]byte, error) {
 	}{
 		ResourceType: "Immunization",
 		Alias:        (*Alias)(i),
+	})
+}
+
+// MedicationRequest represents a FHIR MedicationRequest resource (US Core profile).
+type MedicationRequest struct {
+	ID                      string                    `json:"id,omitempty"`
+	Meta                    *Meta                     `json:"meta,omitempty"`
+	Identifier              []Identifier              `json:"identifier,omitempty"`
+	Status                  string                    `json:"status"`                         // active | completed | cancelled | entered-in-error | stopped | draft | on-hold | unknown
+	StatusReason            *CodeableConcept          `json:"statusReason,omitempty"`         // Reason for current status
+	Intent                  string                    `json:"intent"`                         // proposal | plan | order | original-order | reflex-order | filler-order | instance-order | option
+	Category                []CodeableConcept         `json:"category,omitempty"`             // inpatient | outpatient | community | discharge
+	Priority                string                    `json:"priority,omitempty"`             // routine | urgent | asap | stat
+	DoNotPerform            bool                      `json:"doNotPerform,omitempty"`         // True if request should NOT be performed
+	ReportedBoolean         bool                      `json:"reportedBoolean,omitempty"`      // Reported vs primary record
+	ReportedReference       *Reference                `json:"reportedReference,omitempty"`    // Who reported
+	MedicationCodeableConcept *CodeableConcept        `json:"medicationCodeableConcept,omitempty"` // Medication code (RxNorm)
+	MedicationReference     *Reference                `json:"medicationReference,omitempty"`  // Reference to contained Medication
+	Subject                 *Reference                `json:"subject"`                        // Patient reference
+	Encounter               *Reference                `json:"encounter,omitempty"`            // Encounter reference
+	SupportingInformation   []Reference               `json:"supportingInformation,omitempty"` // Supporting info
+	AuthoredOn              string                    `json:"authoredOn,omitempty"`           // When request was authored
+	Requester               *Reference                `json:"requester,omitempty"`            // Who requested (Practitioner/Organization)
+	Performer               *Reference                `json:"performer,omitempty"`            // Intended performer
+	PerformerType           *CodeableConcept          `json:"performerType,omitempty"`        // Type of performer
+	Recorder                *Reference                `json:"recorder,omitempty"`             // Who entered order
+	ReasonCode              []CodeableConcept         `json:"reasonCode,omitempty"`           // Reason for prescription
+	ReasonReference         []Reference               `json:"reasonReference,omitempty"`      // Condition that supports medication
+	InstantiatesCanonical   []string                  `json:"instantiatesCanonical,omitempty"` // Protocol followed
+	InstantiatesURI         []string                  `json:"instantiatesUri,omitempty"`      // External protocol
+	BasedOn                 []Reference               `json:"basedOn,omitempty"`              // What request fulfills
+	GroupIdentifier         *Identifier               `json:"groupIdentifier,omitempty"`      // Composite request ID
+	CourseOfTherapyType     *CodeableConcept          `json:"courseOfTherapyType,omitempty"`  // Overall pattern of medication administration
+	Insurance               []Reference               `json:"insurance,omitempty"`            // Coverage
+	Note                    []Annotation              `json:"note,omitempty"`                 // Additional notes
+	DosageInstruction       []Dosage                  `json:"dosageInstruction,omitempty"`    // How the medication should be taken
+	DispenseRequest         *DispenseRequest          `json:"dispenseRequest,omitempty"`      // Dispense details
+	Substitution            *MedSubstitution          `json:"substitution,omitempty"`         // Substitution rules
+	PriorPrescription       *Reference                `json:"priorPrescription,omitempty"`    // Previous order
+	DetectedIssue           []Reference               `json:"detectedIssue,omitempty"`        // Clinical issues
+	EventHistory            []Reference               `json:"eventHistory,omitempty"`         // Lifecycle events
+}
+
+// Dosage represents medication dosage instructions.
+type Dosage struct {
+	Sequence                 int               `json:"sequence,omitempty"`
+	Text                     string            `json:"text,omitempty"`                     // Free text sig
+	AdditionalInstruction    []CodeableConcept `json:"additionalInstruction,omitempty"`    // Supplemental instruction (e.g., "with meals")
+	PatientInstruction       string            `json:"patientInstruction,omitempty"`       // Patient-specific instructions
+	Timing                   *Timing           `json:"timing,omitempty"`                   // When to take
+	AsNeededBoolean          bool              `json:"asNeededBoolean,omitempty"`          // PRN indicator
+	AsNeededCodeableConcept  *CodeableConcept  `json:"asNeededCodeableConcept,omitempty"`  // Condition for PRN
+	Site                     *CodeableConcept  `json:"site,omitempty"`                     // Body site
+	Route                    *CodeableConcept  `json:"route,omitempty"`                    // How drug enters body
+	Method                   *CodeableConcept  `json:"method,omitempty"`                   // Technique
+	DoseAndRate              []DoseAndRate     `json:"doseAndRate,omitempty"`              // Amount of medication
+	MaxDosePerPeriod         *Ratio            `json:"maxDosePerPeriod,omitempty"`         // Max dose per period
+	MaxDosePerAdministration *Quantity         `json:"maxDosePerAdministration,omitempty"` // Max dose per administration
+	MaxDosePerLifetime       *Quantity         `json:"maxDosePerLifetime,omitempty"`       // Max lifetime dose
+}
+
+// DoseAndRate represents dose amount with rate.
+type DoseAndRate struct {
+	Type         *CodeableConcept `json:"type,omitempty"`         // Type of dose (calculated, ordered, etc.)
+	DoseQuantity *Quantity        `json:"doseQuantity,omitempty"` // Amount per dose
+	DoseRange    *Range           `json:"doseRange,omitempty"`    // Amount per dose range
+	RateRatio    *Ratio           `json:"rateRatio,omitempty"`    // Rate ratio
+	RateRange    *Range           `json:"rateRange,omitempty"`    // Rate range
+	RateQuantity *Quantity        `json:"rateQuantity,omitempty"` // Rate quantity
+}
+
+// Timing represents event timing.
+type Timing struct {
+	Event  []string      `json:"event,omitempty"`  // Specific times (dateTime)
+	Repeat *TimingRepeat `json:"repeat,omitempty"` // When the event is to occur
+	Code   *CodeableConcept `json:"code,omitempty"` // BID | TID | QID | AM | PM | QD | QOD | etc.
+}
+
+// TimingRepeat represents repeating timing details.
+type TimingRepeat struct {
+	BoundsDuration *Duration `json:"boundsDuration,omitempty"` // Length of timing bounds
+	BoundsRange    *Range    `json:"boundsRange,omitempty"`    // Range of timing bounds
+	BoundsPeriod   *Period   `json:"boundsPeriod,omitempty"`   // Period of timing bounds
+	Count          int       `json:"count,omitempty"`          // Number of times to repeat
+	CountMax       int       `json:"countMax,omitempty"`       // Maximum number of times
+	Duration       float64   `json:"duration,omitempty"`       // How long when it happens
+	DurationMax    float64   `json:"durationMax,omitempty"`    // Maximum duration
+	DurationUnit   string    `json:"durationUnit,omitempty"`   // s | min | h | d | wk | mo | a
+	Frequency      int       `json:"frequency,omitempty"`      // Event occurs frequency times per period
+	FrequencyMax   int       `json:"frequencyMax,omitempty"`   // Maximum frequency
+	Period         float64   `json:"period,omitempty"`         // Event occurs frequency times per period
+	PeriodMax      float64   `json:"periodMax,omitempty"`      // Maximum period
+	PeriodUnit     string    `json:"periodUnit,omitempty"`     // s | min | h | d | wk | mo | a
+	DayOfWeek      []string  `json:"dayOfWeek,omitempty"`      // mon | tue | wed | thu | fri | sat | sun
+	TimeOfDay      []string  `json:"timeOfDay,omitempty"`      // Time of day (hh:mm:ss format)
+	When           []string  `json:"when,omitempty"`           // Code for time period (MORN, AFT, EVE, NIGHT, etc.)
+	Offset         int       `json:"offset,omitempty"`         // Minutes from event
+}
+
+// Duration represents a length of time.
+type Duration struct {
+	Value      float64 `json:"value,omitempty"`
+	Comparator string  `json:"comparator,omitempty"` // < | <= | >= | >
+	Unit       string  `json:"unit,omitempty"`
+	System     string  `json:"system,omitempty"`
+	Code       string  `json:"code,omitempty"`
+}
+
+// DispenseRequest represents medication dispense details.
+type DispenseRequest struct {
+	InitialFill         *InitialFill  `json:"initialFill,omitempty"`         // First fill details
+	DispenseInterval    *Duration     `json:"dispenseInterval,omitempty"`    // Minimum period between dispenses
+	ValidityPeriod      *Period       `json:"validityPeriod,omitempty"`      // When prescription is valid
+	NumberOfRepeatsAllowed int        `json:"numberOfRepeatsAllowed,omitempty"` // Number of refills
+	Quantity            *Quantity     `json:"quantity,omitempty"`            // Quantity per dispense
+	ExpectedSupplyDuration *Duration  `json:"expectedSupplyDuration,omitempty"` // Days supply
+	Performer           *Reference    `json:"performer,omitempty"`           // Intended dispenser (Pharmacy)
+}
+
+// InitialFill represents initial dispensing details.
+type InitialFill struct {
+	Quantity *Quantity `json:"quantity,omitempty"` // First fill quantity
+	Duration *Duration `json:"duration,omitempty"` // First fill duration
+}
+
+// MedSubstitution represents medication substitution rules.
+type MedSubstitution struct {
+	AllowedBoolean         bool             `json:"allowedBoolean,omitempty"`
+	AllowedCodeableConcept *CodeableConcept `json:"allowedCodeableConcept,omitempty"`
+	Reason                 *CodeableConcept `json:"reason,omitempty"`
+}
+
+// Ratio represents a ratio of two quantities.
+type Ratio struct {
+	Numerator   *Quantity `json:"numerator,omitempty"`
+	Denominator *Quantity `json:"denominator,omitempty"`
+}
+
+// GetResourceType returns "MedicationRequest".
+func (m *MedicationRequest) GetResourceType() string {
+	return "MedicationRequest"
+}
+
+// MarshalJSON ensures ResourceType is always set.
+func (m *MedicationRequest) MarshalJSON() ([]byte, error) {
+	type Alias MedicationRequest
+	return json.Marshal(&struct {
+		ResourceType string `json:"resourceType"`
+		*Alias
+	}{
+		ResourceType: "MedicationRequest",
+		Alias:        (*Alias)(m),
+	})
+}
+
+// AllergyIntolerance represents a FHIR AllergyIntolerance resource (US Core profile).
+type AllergyIntolerance struct {
+	ID                   string                  `json:"id,omitempty"`
+	Meta                 *Meta                   `json:"meta,omitempty"`
+	Identifier           []Identifier            `json:"identifier,omitempty"`
+	ClinicalStatus       *CodeableConcept        `json:"clinicalStatus,omitempty"`       // active | inactive | resolved
+	VerificationStatus   *CodeableConcept        `json:"verificationStatus,omitempty"`   // unconfirmed | confirmed | refuted | entered-in-error
+	Type                 string                  `json:"type,omitempty"`                 // allergy | intolerance
+	Category             []string                `json:"category,omitempty"`             // food | medication | environment | biologic
+	Criticality          string                  `json:"criticality,omitempty"`          // low | high | unable-to-assess
+	Code                 *CodeableConcept        `json:"code"`                           // Allergen code (required by US Core)
+	Patient              *Reference              `json:"patient"`                        // Patient reference
+	Encounter            *Reference              `json:"encounter,omitempty"`            // Encounter when allergy was recorded
+	OnsetDateTime        string                  `json:"onsetDateTime,omitempty"`        // When allergy was identified
+	OnsetAge             *Age                    `json:"onsetAge,omitempty"`             // Onset as age
+	OnsetPeriod          *Period                 `json:"onsetPeriod,omitempty"`          // Onset period
+	OnsetRange           *Range                  `json:"onsetRange,omitempty"`           // Onset range
+	OnsetString          string                  `json:"onsetString,omitempty"`          // Onset as string
+	RecordedDate         string                  `json:"recordedDate,omitempty"`         // When allergy was recorded
+	Recorder             *Reference              `json:"recorder,omitempty"`             // Who recorded
+	Asserter             *Reference              `json:"asserter,omitempty"`             // Who asserted
+	LastOccurrence       string                  `json:"lastOccurrence,omitempty"`       // Last occurrence date
+	Note                 []Annotation            `json:"note,omitempty"`                 // Additional notes
+	Reaction             []AllergyReaction       `json:"reaction,omitempty"`             // Adverse reactions
+}
+
+// AllergyReaction represents an adverse reaction event.
+type AllergyReaction struct {
+	Substance     *CodeableConcept  `json:"substance,omitempty"`     // Specific substance
+	Manifestation []CodeableConcept `json:"manifestation"`           // Symptoms/signs (required)
+	Description   string            `json:"description,omitempty"`   // Description of reaction
+	Onset         string            `json:"onset,omitempty"`         // When reaction occurred
+	Severity      string            `json:"severity,omitempty"`      // mild | moderate | severe
+	ExposureRoute *CodeableConcept  `json:"exposureRoute,omitempty"` // How allergen was encountered
+	Note          []Annotation      `json:"note,omitempty"`          // Additional notes
+}
+
+// GetResourceType returns "AllergyIntolerance".
+func (a *AllergyIntolerance) GetResourceType() string {
+	return "AllergyIntolerance"
+}
+
+// MarshalJSON ensures ResourceType is always set.
+func (a *AllergyIntolerance) MarshalJSON() ([]byte, error) {
+	type Alias AllergyIntolerance
+	return json.Marshal(&struct {
+		ResourceType string `json:"resourceType"`
+		*Alias
+	}{
+		ResourceType: "AllergyIntolerance",
+		Alias:        (*Alias)(a),
 	})
 }

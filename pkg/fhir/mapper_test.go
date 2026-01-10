@@ -3184,3 +3184,835 @@ func TestVitalSignObservationJSONSerialization(t *testing.T) {
 		t.Error("JSON missing value")
 	}
 }
+
+// =============================================================================
+// MedicationRequest Tests
+// =============================================================================
+
+func TestMapMedicationRequest_Basic(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.MedicationRequestEvent{
+		EventMeta: events.EventMeta{ID: "med-req-001"},
+		Patient:   &events.Patient{MRN: "12345"},
+		MedicationRequest: events.MedicationRequest{
+			Medication: events.Medication{
+				Code: "197361",
+				Name: "Lisinopril 10 MG Oral Tablet",
+			},
+			Status:            "active",
+			Intent:            "order",
+			AuthoredOn:        "2024-01-15T10:30:00Z",
+			DosageInstruction: "Take 1 tablet by mouth daily",
+			DispenseQuantity:  30,
+			DispenseUnit:      "tablet",
+			DaysSupply:        30,
+			NumberOfRefills:   3,
+		},
+	}
+
+	result := mapper.MapMedicationRequest(event, "Patient/12345")
+
+	if result == nil {
+		t.Fatal("Expected MedicationRequest, got nil")
+	}
+	if result.ID != "med-req-001" {
+		t.Errorf("Expected ID 'med-req-001', got '%s'", result.ID)
+	}
+	if result.Status != "active" {
+		t.Errorf("Expected status 'active', got '%s'", result.Status)
+	}
+	if result.Intent != "order" {
+		t.Errorf("Expected intent 'order', got '%s'", result.Intent)
+	}
+	if result.Subject == nil || result.Subject.Reference != "Patient/12345" {
+		t.Error("Expected patient reference")
+	}
+	if result.Meta == nil || len(result.Meta.Profile) == 0 {
+		t.Error("Expected US Core profile in meta")
+	}
+	if result.Meta.Profile[0] != USCoreMedicationRequestProfile {
+		t.Errorf("Expected US Core MedicationRequest profile, got '%s'", result.Meta.Profile[0])
+	}
+}
+
+func TestMapMedicationRequest_MedicationCode(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.MedicationRequestEvent{
+		EventMeta: events.EventMeta{ID: "med-req-002"},
+		MedicationRequest: events.MedicationRequest{
+			Medication: events.Medication{
+				Code:     "197361",
+				Name:     "Lisinopril",
+				Strength: "10 MG",
+				Form:     "Oral Tablet",
+			},
+			Status: "active",
+			Intent: "order",
+		},
+	}
+
+	result := mapper.MapMedicationRequest(event, "Patient/12345")
+
+	if result.MedicationCodeableConcept == nil {
+		t.Fatal("Expected medication code")
+	}
+	if len(result.MedicationCodeableConcept.Coding) == 0 {
+		t.Fatal("Expected medication coding")
+	}
+	if result.MedicationCodeableConcept.Coding[0].System != SystemRxNorm {
+		t.Errorf("Expected RxNorm system, got '%s'", result.MedicationCodeableConcept.Coding[0].System)
+	}
+	if result.MedicationCodeableConcept.Coding[0].Code != "197361" {
+		t.Errorf("Expected code '197361', got '%s'", result.MedicationCodeableConcept.Coding[0].Code)
+	}
+	// Check text includes strength and form
+	if !strings.Contains(result.MedicationCodeableConcept.Text, "10 MG") {
+		t.Error("Expected text to include strength")
+	}
+	if !strings.Contains(result.MedicationCodeableConcept.Text, "Oral Tablet") {
+		t.Error("Expected text to include form")
+	}
+}
+
+func TestMapMedicationRequest_DosageInstruction(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.MedicationRequestEvent{
+		EventMeta: events.EventMeta{ID: "med-req-003"},
+		MedicationRequest: events.MedicationRequest{
+			Medication: events.Medication{
+				Code: "197361",
+				Name: "Lisinopril",
+			},
+			Status:            "active",
+			Intent:            "order",
+			DosageInstruction: "Take 1 tablet by mouth once daily",
+			DoseQuantity:      "1",
+			DoseUnit:          "tablet",
+			Route:             "oral",
+			Frequency:         "QD",
+		},
+	}
+
+	result := mapper.MapMedicationRequest(event, "Patient/12345")
+
+	if len(result.DosageInstruction) == 0 {
+		t.Fatal("Expected dosage instruction")
+	}
+
+	dosage := result.DosageInstruction[0]
+	if dosage.Text != "Take 1 tablet by mouth once daily" {
+		t.Errorf("Expected dosage text, got '%s'", dosage.Text)
+	}
+	if dosage.Route == nil {
+		t.Fatal("Expected route")
+	}
+	if len(dosage.Route.Coding) == 0 || dosage.Route.Coding[0].Code != "26643006" {
+		t.Error("Expected SNOMED oral route code")
+	}
+	if dosage.Timing == nil {
+		t.Fatal("Expected timing")
+	}
+	if dosage.Timing.Code == nil || dosage.Timing.Code.Text != "QD" {
+		t.Error("Expected timing code QD")
+	}
+}
+
+func TestMapMedicationRequest_DispenseRequest(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.MedicationRequestEvent{
+		EventMeta:    events.EventMeta{ID: "med-req-004"},
+		PharmacyID:   "pharmacy-123",
+		PharmacyName: "CVS Pharmacy",
+		MedicationRequest: events.MedicationRequest{
+			Medication: events.Medication{
+				Code: "197361",
+				Name: "Lisinopril",
+			},
+			Status:           "active",
+			Intent:           "order",
+			DispenseQuantity: 30,
+			DispenseUnit:     "tablet",
+			DaysSupply:       30,
+			NumberOfRefills:  3,
+		},
+	}
+
+	result := mapper.MapMedicationRequest(event, "Patient/12345")
+
+	if result.DispenseRequest == nil {
+		t.Fatal("Expected dispense request")
+	}
+	if result.DispenseRequest.Quantity == nil || result.DispenseRequest.Quantity.Value != 30 {
+		t.Error("Expected dispense quantity 30")
+	}
+	if result.DispenseRequest.NumberOfRepeatsAllowed != 3 {
+		t.Errorf("Expected 3 refills, got %d", result.DispenseRequest.NumberOfRepeatsAllowed)
+	}
+	if result.DispenseRequest.ExpectedSupplyDuration == nil || result.DispenseRequest.ExpectedSupplyDuration.Value != 30 {
+		t.Error("Expected 30 days supply")
+	}
+	if result.DispenseRequest.Performer == nil || !strings.Contains(result.DispenseRequest.Performer.Reference, "pharmacy-123") {
+		t.Error("Expected pharmacy reference")
+	}
+}
+
+func TestMapMedicationRequest_Prescriber(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.MedicationRequestEvent{
+		EventMeta: events.EventMeta{ID: "med-req-005"},
+		Prescriber: &events.Provider{
+			NPI:        "1234567890",
+			GivenName:  "John",
+			FamilyName: "Smith",
+			Prefix:     "Dr.",
+			Suffix:     "MD",
+		},
+		MedicationRequest: events.MedicationRequest{
+			Medication: events.Medication{Code: "197361", Name: "Lisinopril"},
+			Status:     "active",
+			Intent:     "order",
+		},
+	}
+
+	result := mapper.MapMedicationRequest(event, "Patient/12345")
+
+	if result.Requester == nil {
+		t.Fatal("Expected requester")
+	}
+	if !strings.Contains(result.Requester.Reference, "1234567890") {
+		t.Error("Expected NPI in requester reference")
+	}
+	if !strings.Contains(result.Requester.Display, "Dr.") {
+		t.Error("Expected prefix in display")
+	}
+	if !strings.Contains(result.Requester.Display, "John") {
+		t.Error("Expected given name in display")
+	}
+	if !strings.Contains(result.Requester.Display, "Smith") {
+		t.Error("Expected family name in display")
+	}
+}
+
+func TestMapMedicationRequest_StatusMapping(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"active", "active"},
+		{"completed", "completed"},
+		{"cancelled", "cancelled"},
+		{"canceled", "cancelled"},
+		{"stopped", "stopped"},
+		{"on-hold", "on-hold"},
+		{"on hold", "on-hold"},
+		{"", "active"},         // Default
+		{"invalid", "unknown"}, // Unknown
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			event := &events.MedicationRequestEvent{
+				MedicationRequest: events.MedicationRequest{
+					Medication: events.Medication{Code: "123", Name: "Test"},
+					Status:     tt.input,
+					Intent:     "order",
+				},
+			}
+			result := mapper.MapMedicationRequest(event, "Patient/1")
+			if result.Status != tt.expected {
+				t.Errorf("Expected '%s', got '%s'", tt.expected, result.Status)
+			}
+		})
+	}
+}
+
+func TestMapMedicationRequest_RouteMapping(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		route       string
+		snomedCode  string
+	}{
+		{"oral", "26643006"},
+		{"PO", "26643006"},
+		{"IV", "47625008"},
+		{"intravenous", "47625008"},
+		{"IM", "78421000"},
+		{"SubQ", "34206005"},
+		{"topical", "6064005"},
+		{"inhaled", "447694001"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.route, func(t *testing.T) {
+			event := &events.MedicationRequestEvent{
+				MedicationRequest: events.MedicationRequest{
+					Medication: events.Medication{Code: "123", Name: "Test"},
+					Status:     "active",
+					Intent:     "order",
+					Route:      tt.route,
+				},
+			}
+			result := mapper.MapMedicationRequest(event, "Patient/1")
+			if len(result.DosageInstruction) == 0 {
+				t.Fatal("Expected dosage instruction")
+			}
+			if result.DosageInstruction[0].Route == nil {
+				t.Fatal("Expected route")
+			}
+			if len(result.DosageInstruction[0].Route.Coding) == 0 {
+				t.Fatal("Expected route coding")
+			}
+			if result.DosageInstruction[0].Route.Coding[0].Code != tt.snomedCode {
+				t.Errorf("Expected SNOMED code '%s', got '%s'", tt.snomedCode, result.DosageInstruction[0].Route.Coding[0].Code)
+			}
+		})
+	}
+}
+
+func TestMapMedicationRequest_FrequencyMapping(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		freq      string
+		frequency int
+		period    float64
+	}{
+		{"QD", 1, 1},
+		{"BID", 2, 1},
+		{"TID", 3, 1},
+		{"QID", 4, 1},
+		{"Q8H", 1, 8},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.freq, func(t *testing.T) {
+			event := &events.MedicationRequestEvent{
+				MedicationRequest: events.MedicationRequest{
+					Medication: events.Medication{Code: "123", Name: "Test"},
+					Status:     "active",
+					Intent:     "order",
+					Frequency:  tt.freq,
+				},
+			}
+			result := mapper.MapMedicationRequest(event, "Patient/1")
+			if len(result.DosageInstruction) == 0 {
+				t.Fatal("Expected dosage instruction")
+			}
+			if result.DosageInstruction[0].Timing == nil {
+				t.Fatal("Expected timing")
+			}
+			if result.DosageInstruction[0].Timing.Repeat == nil {
+				t.Fatal("Expected timing repeat")
+			}
+			if result.DosageInstruction[0].Timing.Repeat.Frequency != tt.frequency {
+				t.Errorf("Expected frequency %d, got %d", tt.frequency, result.DosageInstruction[0].Timing.Repeat.Frequency)
+			}
+		})
+	}
+}
+
+func TestMapMedicationRequest_NilEvent(t *testing.T) {
+	mapper := NewUSCoreMapper()
+	result := mapper.MapMedicationRequest(nil, "Patient/12345")
+	if result != nil {
+		t.Error("Expected nil for nil event")
+	}
+}
+
+func TestMapMedicationRequest_Substitution(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	// Test with substitution not allowed (default false)
+	event := &events.MedicationRequestEvent{
+		MedicationRequest: events.MedicationRequest{
+			Medication:   events.Medication{Code: "123", Name: "Test"},
+			Status:       "active",
+			Intent:       "order",
+			Substitution: false,
+		},
+	}
+	result := mapper.MapMedicationRequest(event, "Patient/1")
+	if result.Substitution == nil {
+		t.Fatal("Expected substitution")
+	}
+	if result.Substitution.AllowedBoolean != false {
+		t.Error("Expected substitution not allowed")
+	}
+}
+
+// =============================================================================
+// AllergyIntolerance Tests
+// =============================================================================
+
+func TestMapAllergyIntolerance_Basic(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.AllergyIntoleranceEvent{
+		EventMeta: events.EventMeta{ID: "allergy-001"},
+		Patient:   &events.Patient{MRN: "12345"},
+		AllergyIntolerance: events.AllergyIntolerance{
+			Code:               "7980",
+			Name:               "Penicillin",
+			Category:           "medication",
+			ClinicalStatus:     "active",
+			VerificationStatus: "confirmed",
+			Criticality:        "high",
+			Type:               "allergy",
+		},
+	}
+
+	result := mapper.MapAllergyIntolerance(event, "Patient/12345")
+
+	if result == nil {
+		t.Fatal("Expected AllergyIntolerance, got nil")
+	}
+	if result.ID != "allergy-001" {
+		t.Errorf("Expected ID 'allergy-001', got '%s'", result.ID)
+	}
+	if result.Patient == nil || result.Patient.Reference != "Patient/12345" {
+		t.Error("Expected patient reference")
+	}
+	if result.Meta == nil || len(result.Meta.Profile) == 0 {
+		t.Error("Expected US Core profile in meta")
+	}
+	if result.Meta.Profile[0] != USCoreAllergyIntoleranceProfile {
+		t.Errorf("Expected US Core AllergyIntolerance profile, got '%s'", result.Meta.Profile[0])
+	}
+}
+
+func TestMapAllergyIntolerance_AllergenCode(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	// Test medication allergy (should use RxNorm)
+	event := &events.AllergyIntoleranceEvent{
+		AllergyIntolerance: events.AllergyIntolerance{
+			Code:     "7980",
+			Name:     "Penicillin",
+			Category: "medication",
+		},
+	}
+
+	result := mapper.MapAllergyIntolerance(event, "Patient/12345")
+
+	if result.Code == nil {
+		t.Fatal("Expected allergen code")
+	}
+	if len(result.Code.Coding) == 0 {
+		t.Fatal("Expected allergen coding")
+	}
+	if result.Code.Coding[0].System != SystemRxNorm {
+		t.Errorf("Expected RxNorm for medication allergy, got '%s'", result.Code.Coding[0].System)
+	}
+	if result.Code.Text != "Penicillin" {
+		t.Errorf("Expected text 'Penicillin', got '%s'", result.Code.Text)
+	}
+}
+
+func TestMapAllergyIntolerance_FoodAllergy(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.AllergyIntoleranceEvent{
+		AllergyIntolerance: events.AllergyIntolerance{
+			Code:     "91935009",
+			Name:     "Peanut",
+			Category: "food",
+		},
+	}
+
+	result := mapper.MapAllergyIntolerance(event, "Patient/12345")
+
+	if result.Code == nil {
+		t.Fatal("Expected allergen code")
+	}
+	if len(result.Code.Coding) == 0 {
+		t.Fatal("Expected allergen coding")
+	}
+	// Food allergies should use SNOMED
+	if result.Code.Coding[0].System != SystemSNOMED {
+		t.Errorf("Expected SNOMED for food allergy, got '%s'", result.Code.Coding[0].System)
+	}
+	if len(result.Category) == 0 || result.Category[0] != "food" {
+		t.Error("Expected food category")
+	}
+}
+
+func TestMapAllergyIntolerance_ClinicalStatus(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"active", "active"},
+		{"inactive", "inactive"},
+		{"resolved", "resolved"},
+		{"", "active"}, // Default
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			event := &events.AllergyIntoleranceEvent{
+				AllergyIntolerance: events.AllergyIntolerance{
+					Name:           "Test Allergen",
+					ClinicalStatus: tt.input,
+				},
+			}
+			result := mapper.MapAllergyIntolerance(event, "Patient/1")
+			if tt.input != "" && result.ClinicalStatus == nil {
+				t.Fatal("Expected clinical status")
+			}
+			if tt.input != "" && len(result.ClinicalStatus.Coding) > 0 {
+				if result.ClinicalStatus.Coding[0].Code != tt.expected {
+					t.Errorf("Expected '%s', got '%s'", tt.expected, result.ClinicalStatus.Coding[0].Code)
+				}
+			}
+		})
+	}
+}
+
+func TestMapAllergyIntolerance_Criticality(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"low", "low"},
+		{"high", "high"},
+		{"unable-to-assess", "unable-to-assess"},
+		{"critical", "high"},
+		{"life-threatening", "high"},
+		{"unknown", "unable-to-assess"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			event := &events.AllergyIntoleranceEvent{
+				AllergyIntolerance: events.AllergyIntolerance{
+					Name:        "Test Allergen",
+					Criticality: tt.input,
+				},
+			}
+			result := mapper.MapAllergyIntolerance(event, "Patient/1")
+			if result.Criticality != tt.expected {
+				t.Errorf("Expected '%s', got '%s'", tt.expected, result.Criticality)
+			}
+		})
+	}
+}
+
+func TestMapAllergyIntolerance_Category(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"food", "food"},
+		{"medication", "medication"},
+		{"drug", "medication"},
+		{"environment", "environment"},
+		{"biologic", "biologic"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			event := &events.AllergyIntoleranceEvent{
+				AllergyIntolerance: events.AllergyIntolerance{
+					Name:     "Test Allergen",
+					Category: tt.input,
+				},
+			}
+			result := mapper.MapAllergyIntolerance(event, "Patient/1")
+			if len(result.Category) == 0 {
+				t.Fatal("Expected category")
+			}
+			if result.Category[0] != tt.expected {
+				t.Errorf("Expected '%s', got '%s'", tt.expected, result.Category[0])
+			}
+		})
+	}
+}
+
+func TestMapAllergyIntolerance_Type(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"allergy", "allergy"},
+		{"intolerance", "intolerance"},
+		{"true allergy", "allergy"},
+		{"", "allergy"}, // Default
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			event := &events.AllergyIntoleranceEvent{
+				AllergyIntolerance: events.AllergyIntolerance{
+					Name: "Test Allergen",
+					Type: tt.input,
+				},
+			}
+			result := mapper.MapAllergyIntolerance(event, "Patient/1")
+			if tt.input != "" && result.Type != tt.expected {
+				t.Errorf("Expected '%s', got '%s'", tt.expected, result.Type)
+			}
+		})
+	}
+}
+
+func TestMapAllergyIntolerance_Reactions(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.AllergyIntoleranceEvent{
+		AllergyIntolerance: events.AllergyIntolerance{
+			Name: "Penicillin",
+			Reactions: []events.AllergyReaction{
+				{
+					Manifestation:     "rash",
+					ManifestationText: "Skin rash on arms",
+					Severity:          "moderate",
+					OnsetDate:         "2023-01-15",
+					Note:              "Occurred 2 hours after first dose",
+				},
+				{
+					Manifestation:     "hives",
+					ManifestationText: "Urticaria",
+					Severity:          "severe",
+				},
+			},
+		},
+	}
+
+	result := mapper.MapAllergyIntolerance(event, "Patient/12345")
+
+	if len(result.Reaction) != 2 {
+		t.Fatalf("Expected 2 reactions, got %d", len(result.Reaction))
+	}
+
+	// Check first reaction
+	r1 := result.Reaction[0]
+	if len(r1.Manifestation) == 0 {
+		t.Fatal("Expected manifestation")
+	}
+	// Should have SNOMED code for "rash"
+	if len(r1.Manifestation[0].Coding) > 0 && r1.Manifestation[0].Coding[0].Code != "271807003" {
+		t.Errorf("Expected SNOMED code for rash")
+	}
+	if r1.Severity != "moderate" {
+		t.Errorf("Expected moderate severity, got '%s'", r1.Severity)
+	}
+	if r1.Description != "Occurred 2 hours after first dose" {
+		t.Error("Expected reaction description")
+	}
+
+	// Check second reaction
+	r2 := result.Reaction[1]
+	if r2.Severity != "severe" {
+		t.Errorf("Expected severe severity, got '%s'", r2.Severity)
+	}
+}
+
+func TestMapAllergyIntolerance_ReactionManifestation(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		manifestation string
+		snomedCode    string
+	}{
+		{"rash", "271807003"},
+		{"hives", "126485001"},
+		{"urticaria", "126485001"},
+		{"anaphylaxis", "39579001"},
+		{"nausea", "422587007"},
+		{"wheezing", "56018004"},
+		{"dyspnea", "267036007"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.manifestation, func(t *testing.T) {
+			event := &events.AllergyIntoleranceEvent{
+				AllergyIntolerance: events.AllergyIntolerance{
+					Name: "Test Allergen",
+					Reactions: []events.AllergyReaction{
+						{Manifestation: tt.manifestation},
+					},
+				},
+			}
+			result := mapper.MapAllergyIntolerance(event, "Patient/1")
+			if len(result.Reaction) == 0 {
+				t.Fatal("Expected reaction")
+			}
+			if len(result.Reaction[0].Manifestation) == 0 {
+				t.Fatal("Expected manifestation")
+			}
+			if len(result.Reaction[0].Manifestation[0].Coding) == 0 {
+				t.Fatal("Expected SNOMED coding")
+			}
+			if result.Reaction[0].Manifestation[0].Coding[0].Code != tt.snomedCode {
+				t.Errorf("Expected SNOMED code '%s', got '%s'", tt.snomedCode, result.Reaction[0].Manifestation[0].Coding[0].Code)
+			}
+		})
+	}
+}
+
+func TestMapAllergyIntolerance_Recorder(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.AllergyIntoleranceEvent{
+		AllergyIntolerance: events.AllergyIntolerance{
+			Name: "Penicillin",
+		},
+		Recorder: &events.Provider{
+			NPI:        "1234567890",
+			GivenName:  "Jane",
+			FamilyName: "Doe",
+			Suffix:     "RN",
+		},
+	}
+
+	result := mapper.MapAllergyIntolerance(event, "Patient/12345")
+
+	if result.Recorder == nil {
+		t.Fatal("Expected recorder")
+	}
+	if !strings.Contains(result.Recorder.Reference, "1234567890") {
+		t.Error("Expected NPI in recorder reference")
+	}
+	if !strings.Contains(result.Recorder.Display, "Jane") {
+		t.Error("Expected given name in display")
+	}
+	if !strings.Contains(result.Recorder.Display, "Doe") {
+		t.Error("Expected family name in display")
+	}
+}
+
+func TestMapAllergyIntolerance_WithEncounter(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.AllergyIntoleranceEvent{
+		AllergyIntolerance: events.AllergyIntolerance{
+			Name: "Penicillin",
+		},
+		Encounter: &events.Encounter{
+			ID: "enc-12345",
+		},
+	}
+
+	result := mapper.MapAllergyIntolerance(event, "Patient/12345")
+
+	if result.Encounter == nil {
+		t.Fatal("Expected encounter reference")
+	}
+	if result.Encounter.Reference != "Encounter/enc-12345" {
+		t.Errorf("Expected 'Encounter/enc-12345', got '%s'", result.Encounter.Reference)
+	}
+}
+
+func TestMapAllergyIntolerance_NilEvent(t *testing.T) {
+	mapper := NewUSCoreMapper()
+	result := mapper.MapAllergyIntolerance(nil, "Patient/12345")
+	if result != nil {
+		t.Error("Expected nil for nil event")
+	}
+}
+
+func TestMapAllergyIntolerance_Dates(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.AllergyIntoleranceEvent{
+		AllergyIntolerance: events.AllergyIntolerance{
+			Name:         "Penicillin",
+			OnsetDate:    "2020-05-15",
+			RecordedDate: "2020-05-16T10:30:00Z",
+		},
+	}
+
+	result := mapper.MapAllergyIntolerance(event, "Patient/12345")
+
+	if result.OnsetDateTime != "2020-05-15" {
+		t.Errorf("Expected onset '2020-05-15', got '%s'", result.OnsetDateTime)
+	}
+	if result.RecordedDate != "2020-05-16T10:30:00Z" {
+		t.Errorf("Expected recorded date, got '%s'", result.RecordedDate)
+	}
+}
+
+func TestMedicationRequestJSONSerialization(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.MedicationRequestEvent{
+		EventMeta: events.EventMeta{ID: "med-req-json"},
+		MedicationRequest: events.MedicationRequest{
+			Medication: events.Medication{
+				Code: "197361",
+				Name: "Lisinopril 10 MG",
+			},
+			Status:            "active",
+			Intent:            "order",
+			DosageInstruction: "Take 1 tablet daily",
+		},
+	}
+
+	result := mapper.MapMedicationRequest(event, "Patient/12345")
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
+
+	jsonStr := string(data)
+	if !strings.Contains(jsonStr, `"resourceType":"MedicationRequest"`) {
+		t.Error("JSON missing resourceType")
+	}
+	if !strings.Contains(jsonStr, USCoreMedicationRequestProfile) {
+		t.Error("JSON missing profile")
+	}
+	if !strings.Contains(jsonStr, "197361") {
+		t.Error("JSON missing medication code")
+	}
+}
+
+func TestAllergyIntoleranceJSONSerialization(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.AllergyIntoleranceEvent{
+		EventMeta: events.EventMeta{ID: "allergy-json"},
+		AllergyIntolerance: events.AllergyIntolerance{
+			Code:           "7980",
+			Name:           "Penicillin",
+			Category:       "medication",
+			ClinicalStatus: "active",
+			Criticality:    "high",
+		},
+	}
+
+	result := mapper.MapAllergyIntolerance(event, "Patient/12345")
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
+
+	jsonStr := string(data)
+	if !strings.Contains(jsonStr, `"resourceType":"AllergyIntolerance"`) {
+		t.Error("JSON missing resourceType")
+	}
+	if !strings.Contains(jsonStr, USCoreAllergyIntoleranceProfile) {
+		t.Error("JSON missing profile")
+	}
+	if !strings.Contains(jsonStr, "Penicillin") {
+		t.Error("JSON missing allergen name")
+	}
+	if !strings.Contains(jsonStr, `"criticality":"high"`) {
+		t.Error("JSON missing criticality")
+	}
+}

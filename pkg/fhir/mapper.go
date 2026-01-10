@@ -49,6 +49,12 @@ type Mapper interface {
 
 	// MapVitalSign converts a canonical VitalSignEvent to a FHIR Observation (Vital Signs).
 	MapVitalSign(event *events.VitalSignEvent, patientRef string) *Observation
+
+	// MapMedicationRequest converts a canonical MedicationRequestEvent to a FHIR MedicationRequest.
+	MapMedicationRequest(event *events.MedicationRequestEvent, patientRef string) *MedicationRequest
+
+	// MapAllergyIntolerance converts a canonical AllergyIntoleranceEvent to a FHIR AllergyIntolerance.
+	MapAllergyIntolerance(event *events.AllergyIntoleranceEvent, patientRef string) *AllergyIntolerance
 }
 
 // USCoreMapper implements Mapper for US Core 6.1.0 compliant resources.
@@ -3063,4 +3069,870 @@ func (m *USCoreMapper) mapVitalSignInterpretation(interpretation string) []Codea
 			Text: interpretation,
 		},
 	}
+}
+
+// MapMedicationRequest converts a canonical MedicationRequestEvent to a US Core MedicationRequest.
+func (m *USCoreMapper) MapMedicationRequest(event *events.MedicationRequestEvent, patientRef string) *MedicationRequest {
+	if event == nil {
+		return nil
+	}
+
+	req := event.MedicationRequest
+	med := req.Medication
+
+	medReq := &MedicationRequest{
+		ID: event.ID,
+		Meta: &Meta{
+			Profile: []string{USCoreMedicationRequestProfile},
+		},
+		Status: m.mapMedicationRequestStatus(req.Status),
+		Intent: m.mapMedicationRequestIntent(req.Intent),
+		Subject: &Reference{
+			Reference: patientRef,
+		},
+	}
+
+	// Map medication (required by US Core)
+	medReq.MedicationCodeableConcept = m.mapMedicationCode(med)
+
+	// Map authored date
+	if req.AuthoredOn != "" {
+		medReq.AuthoredOn = req.AuthoredOn
+	}
+
+	// Map prescriber/requester
+	if event.Prescriber != nil {
+		ref := &Reference{}
+		if event.Prescriber.NPI != "" {
+			ref.Reference = "Practitioner/" + event.Prescriber.NPI
+		} else if event.Prescriber.ID != "" {
+			ref.Reference = "Practitioner/" + event.Prescriber.ID
+		}
+		// Build display name from components
+		if event.Prescriber.GivenName != "" || event.Prescriber.FamilyName != "" {
+			displayParts := []string{}
+			if event.Prescriber.Prefix != "" {
+				displayParts = append(displayParts, event.Prescriber.Prefix)
+			}
+			if event.Prescriber.GivenName != "" {
+				displayParts = append(displayParts, event.Prescriber.GivenName)
+			}
+			if event.Prescriber.FamilyName != "" {
+				displayParts = append(displayParts, event.Prescriber.FamilyName)
+			}
+			if event.Prescriber.Suffix != "" {
+				displayParts = append(displayParts, event.Prescriber.Suffix)
+			}
+			ref.Display = strings.Join(displayParts, " ")
+		}
+		medReq.Requester = ref
+	}
+
+	// Map encounter reference
+	if event.Encounter != nil && event.Encounter.ID != "" {
+		medReq.Encounter = &Reference{
+			Reference: "Encounter/" + event.Encounter.ID,
+		}
+	}
+
+	// Map dosage instructions
+	dosage := m.mapDosageInstruction(req)
+	if dosage != nil {
+		medReq.DosageInstruction = []Dosage{*dosage}
+	}
+
+	// Map dispense request
+	dispenseReq := m.mapDispenseRequest(req, event.PharmacyID)
+	if dispenseReq != nil {
+		medReq.DispenseRequest = dispenseReq
+	}
+
+	// Map substitution rules
+	if !req.Substitution {
+		medReq.Substitution = &MedSubstitution{
+			AllowedBoolean: false,
+		}
+	}
+
+	// Map reason code
+	if req.ReasonCode != "" || req.ReasonText != "" {
+		reasonCode := &CodeableConcept{}
+		if req.ReasonCode != "" {
+			// Detect code system from format (ICD-10 vs SNOMED)
+			system := SystemSNOMED // Default
+			if len(req.ReasonCode) >= 3 && (req.ReasonCode[0] >= 'A' && req.ReasonCode[0] <= 'Z') {
+				// ICD-10-CM codes start with a letter and have format like A00.0
+				system = SystemICD10CM
+			}
+			reasonCode.Coding = []Coding{
+				{
+					System: system,
+					Code:   req.ReasonCode,
+				},
+			}
+		}
+		if req.ReasonText != "" {
+			reasonCode.Text = req.ReasonText
+		}
+		medReq.ReasonCode = []CodeableConcept{*reasonCode}
+	}
+
+	// Map category (outpatient, inpatient, community, discharge)
+	category := m.inferMedicationRequestCategory(event)
+	if category != "" {
+		medReq.Category = []CodeableConcept{
+			{
+				Coding: []Coding{
+					{
+						System:  SystemMedicationRequestCategory,
+						Code:    category,
+						Display: m.medicationCategoryDisplay(category),
+					},
+				},
+			},
+		}
+	}
+
+	return medReq
+}
+
+// mapMedicationRequestStatus maps input status to FHIR MedicationRequest status.
+func (m *USCoreMapper) mapMedicationRequestStatus(status string) string {
+	statusLower := strings.ToLower(strings.TrimSpace(status))
+	statusMap := map[string]string{
+		"active":           "active",
+		"completed":        "completed",
+		"cancelled":        "cancelled",
+		"canceled":         "cancelled",
+		"stopped":          "stopped",
+		"draft":            "draft",
+		"on-hold":          "on-hold",
+		"on hold":          "on-hold",
+		"onhold":           "on-hold",
+		"entered-in-error": "entered-in-error",
+		"error":            "entered-in-error",
+		"unknown":          "unknown",
+	}
+	if mapped, ok := statusMap[statusLower]; ok {
+		return mapped
+	}
+	// Default to active for prescriptions
+	if status == "" {
+		return "active"
+	}
+	return "unknown"
+}
+
+// mapMedicationRequestIntent maps input intent to FHIR MedicationRequest intent.
+func (m *USCoreMapper) mapMedicationRequestIntent(intent string) string {
+	intentLower := strings.ToLower(strings.TrimSpace(intent))
+	intentMap := map[string]string{
+		"order":          "order",
+		"proposal":       "proposal",
+		"plan":           "plan",
+		"original-order": "original-order",
+		"reflex-order":   "reflex-order",
+		"filler-order":   "filler-order",
+		"instance-order": "instance-order",
+		"option":         "option",
+	}
+	if mapped, ok := intentMap[intentLower]; ok {
+		return mapped
+	}
+	// Default to order for prescriptions
+	return "order"
+}
+
+// mapMedicationCode maps medication info to a CodeableConcept with RxNorm.
+func (m *USCoreMapper) mapMedicationCode(med events.Medication) *CodeableConcept {
+	cc := &CodeableConcept{}
+
+	if med.Code != "" {
+		system := SystemRxNorm // Default to RxNorm
+		if med.CodeSystem != "" {
+			system = med.CodeSystem
+		}
+		cc.Coding = []Coding{
+			{
+				System:  system,
+				Code:    med.Code,
+				Display: med.Name,
+			},
+		}
+	}
+
+	// Build display text with form and strength if available
+	displayText := med.Name
+	if med.Strength != "" {
+		displayText += " " + med.Strength
+	}
+	if med.Form != "" {
+		displayText += " " + med.Form
+	}
+	cc.Text = strings.TrimSpace(displayText)
+
+	return cc
+}
+
+// mapDosageInstruction maps medication request dosage info to FHIR Dosage.
+func (m *USCoreMapper) mapDosageInstruction(req events.MedicationRequest) *Dosage {
+	// Only create dosage if we have some information
+	if req.DosageInstruction == "" && req.DoseQuantity == "" && req.Frequency == "" && req.Route == "" {
+		return nil
+	}
+
+	dosage := &Dosage{
+		Sequence: 1,
+	}
+
+	// Free text sig (most important)
+	if req.DosageInstruction != "" {
+		dosage.Text = req.DosageInstruction
+	} else {
+		// Build a sig from structured data
+		dosage.Text = m.buildSigText(req)
+	}
+
+	// Dose quantity
+	if req.DoseQuantity != "" {
+		qty := m.parseDoseQuantity(req.DoseQuantity, req.DoseUnit)
+		if qty != nil {
+			dosage.DoseAndRate = []DoseAndRate{
+				{
+					DoseQuantity: qty,
+				},
+			}
+		}
+	}
+
+	// Route
+	if req.Route != "" {
+		dosage.Route = m.mapAdministrationRoute(req.Route)
+	}
+
+	// Timing/frequency
+	if req.Frequency != "" {
+		dosage.Timing = m.mapFrequencyToTiming(req.Frequency)
+	}
+
+	return dosage
+}
+
+// buildSigText builds a sig from structured data.
+func (m *USCoreMapper) buildSigText(req events.MedicationRequest) string {
+	var parts []string
+
+	if req.DoseQuantity != "" {
+		dose := req.DoseQuantity
+		if req.DoseUnit != "" {
+			dose += " " + req.DoseUnit
+		}
+		parts = append(parts, "Take "+dose)
+	}
+
+	if req.Route != "" {
+		parts = append(parts, "by "+strings.ToLower(req.Route))
+	}
+
+	if req.Frequency != "" {
+		parts = append(parts, req.Frequency)
+	}
+
+	if len(parts) == 0 {
+		return ""
+	}
+
+	return strings.Join(parts, " ")
+}
+
+// parseDoseQuantity parses a dose quantity string into a Quantity.
+func (m *USCoreMapper) parseDoseQuantity(doseStr, unit string) *Quantity {
+	doseStr = strings.TrimSpace(doseStr)
+	if doseStr == "" {
+		return nil
+	}
+
+	// Try to parse as number
+	var value float64
+	_, err := fmt.Sscanf(doseStr, "%f", &value)
+	if err != nil {
+		// If parsing fails, might be text like "1-2"
+		return &Quantity{
+			Unit: unit,
+		}
+	}
+
+	qty := &Quantity{
+		Value: value,
+		Unit:  unit,
+	}
+
+	// Map common units to UCUM
+	ucumUnit := m.mapMedicationUnitToUCUM(unit)
+	if ucumUnit != "" {
+		qty.System = SystemUCUM
+		qty.Code = ucumUnit
+	}
+
+	return qty
+}
+
+// mapMedicationUnitToUCUM maps common medication units to UCUM codes.
+func (m *USCoreMapper) mapMedicationUnitToUCUM(unit string) string {
+	unitLower := strings.ToLower(strings.TrimSpace(unit))
+	unitMap := map[string]string{
+		"mg":      "mg",
+		"g":       "g",
+		"mcg":     "ug",
+		"ml":      "mL",
+		"l":       "L",
+		"tablet":  "{tbl}",
+		"tablets": "{tbl}",
+		"tab":     "{tbl}",
+		"capsule": "{cap}",
+		"cap":     "{cap}",
+		"patch":   "{patch}",
+		"puff":    "{puff}",
+		"puffs":   "{puff}",
+		"drop":    "{drop}",
+		"drops":   "{drop}",
+		"unit":    "[iU]",
+		"units":   "[iU]",
+		"iu":      "[iU]",
+	}
+	return unitMap[unitLower]
+}
+
+// mapAdministrationRoute maps route text to a CodeableConcept (SNOMED CT).
+func (m *USCoreMapper) mapAdministrationRoute(route string) *CodeableConcept {
+	routeLower := strings.ToLower(strings.TrimSpace(route))
+
+	// SNOMED CT route codes
+	routeMap := map[string]struct {
+		code    string
+		display string
+	}{
+		"oral":          {"26643006", "Oral route"},
+		"po":            {"26643006", "Oral route"},
+		"by mouth":      {"26643006", "Oral route"},
+		"sublingual":    {"37839007", "Sublingual route"},
+		"sl":            {"37839007", "Sublingual route"},
+		"intravenous":   {"47625008", "Intravenous route"},
+		"iv":            {"47625008", "Intravenous route"},
+		"intramuscular": {"78421000", "Intramuscular route"},
+		"im":            {"78421000", "Intramuscular route"},
+		"subcutaneous":  {"34206005", "Subcutaneous route"},
+		"subq":          {"34206005", "Subcutaneous route"},
+		"sc":            {"34206005", "Subcutaneous route"},
+		"topical":       {"6064005", "Topical route"},
+		"rectal":        {"37161004", "Rectal route"},
+		"pr":            {"37161004", "Rectal route"},
+		"inhalation":    {"447694001", "Respiratory tract route"},
+		"inhaled":       {"447694001", "Respiratory tract route"},
+		"nasal":         {"46713006", "Nasal route"},
+		"ophthalmic":    {"54485002", "Ophthalmic route"},
+		"otic":          {"10547007", "Otic route"},
+		"vaginal":       {"16857009", "Vaginal route"},
+		"transdermal":   {"45890007", "Transdermal route"},
+	}
+
+	if mapped, ok := routeMap[routeLower]; ok {
+		return &CodeableConcept{
+			Coding: []Coding{
+				{
+					System:  SystemSNOMED,
+					Code:    mapped.code,
+					Display: mapped.display,
+				},
+			},
+			Text: route,
+		}
+	}
+
+	return &CodeableConcept{Text: route}
+}
+
+// mapFrequencyToTiming maps frequency abbreviations to Timing.
+func (m *USCoreMapper) mapFrequencyToTiming(freq string) *Timing {
+	freqUpper := strings.ToUpper(strings.TrimSpace(freq))
+
+	// Map common frequency abbreviations
+	freqMap := map[string]struct {
+		code      string
+		frequency int
+		period    float64
+		periodUnit string
+	}{
+		"QD":    {"QD", 1, 1, "d"},
+		"DAILY": {"QD", 1, 1, "d"},
+		"BID":   {"BID", 2, 1, "d"},
+		"TID":   {"TID", 3, 1, "d"},
+		"QID":   {"QID", 4, 1, "d"},
+		"Q4H":   {"Q4H", 1, 4, "h"},
+		"Q6H":   {"Q6H", 1, 6, "h"},
+		"Q8H":   {"Q8H", 1, 8, "h"},
+		"Q12H":  {"Q12H", 1, 12, "h"},
+		"QHS":   {"QHS", 1, 1, "d"}, // At bedtime
+		"PRN":   {"PRN", 0, 0, ""},  // As needed
+		"STAT":  {"STAT", 1, 0, ""}, // Immediately
+		"QW":    {"QW", 1, 1, "wk"}, // Weekly
+		"QOD":   {"QOD", 1, 2, "d"}, // Every other day
+	}
+
+	timing := &Timing{}
+
+	if mapped, ok := freqMap[freqUpper]; ok {
+		timing.Code = &CodeableConcept{
+			Coding: []Coding{
+				{
+					System: SystemTimingAbbreviation,
+					Code:   mapped.code,
+				},
+			},
+			Text: freq,
+		}
+
+		if mapped.frequency > 0 && mapped.period > 0 {
+			timing.Repeat = &TimingRepeat{
+				Frequency:  mapped.frequency,
+				Period:     mapped.period,
+				PeriodUnit: mapped.periodUnit,
+			}
+		}
+
+		// Handle PRN (as needed)
+		if freqUpper == "PRN" {
+			return timing
+		}
+	} else {
+		// Just store as text
+		timing.Code = &CodeableConcept{Text: freq}
+	}
+
+	return timing
+}
+
+// mapDispenseRequest maps dispense info to FHIR DispenseRequest.
+func (m *USCoreMapper) mapDispenseRequest(req events.MedicationRequest, pharmacyID string) *DispenseRequest {
+	if req.DispenseQuantity == 0 && req.DaysSupply == 0 && req.NumberOfRefills == 0 && pharmacyID == "" {
+		return nil
+	}
+
+	dispReq := &DispenseRequest{}
+
+	if req.DispenseQuantity > 0 {
+		dispReq.Quantity = &Quantity{
+			Value: req.DispenseQuantity,
+		}
+		if req.DispenseUnit != "" {
+			dispReq.Quantity.Unit = req.DispenseUnit
+			ucum := m.mapMedicationUnitToUCUM(req.DispenseUnit)
+			if ucum != "" {
+				dispReq.Quantity.System = SystemUCUM
+				dispReq.Quantity.Code = ucum
+			}
+		}
+	}
+
+	if req.DaysSupply > 0 {
+		daysFloat := float64(req.DaysSupply)
+		dispReq.ExpectedSupplyDuration = &Duration{
+			Value:  daysFloat,
+			Unit:   "days",
+			System: SystemUCUM,
+			Code:   "d",
+		}
+	}
+
+	if req.NumberOfRefills > 0 {
+		dispReq.NumberOfRepeatsAllowed = req.NumberOfRefills
+	}
+
+	if pharmacyID != "" {
+		dispReq.Performer = &Reference{
+			Reference: "Organization/" + pharmacyID,
+		}
+	}
+
+	return dispReq
+}
+
+// inferMedicationRequestCategory infers the medication category from context.
+func (m *USCoreMapper) inferMedicationRequestCategory(event *events.MedicationRequestEvent) string {
+	// If there's an encounter, check its class
+	if event.Encounter != nil && event.Encounter.Class != "" {
+		classLower := strings.ToLower(event.Encounter.Class)
+		if strings.Contains(classLower, "inpatient") || classLower == "imp" {
+			return "inpatient"
+		}
+		if strings.Contains(classLower, "outpatient") || classLower == "amb" {
+			return "outpatient"
+		}
+		if strings.Contains(classLower, "discharge") {
+			return "discharge"
+		}
+	}
+	// Default to community (retail pharmacy)
+	return "community"
+}
+
+// medicationCategoryDisplay returns the display text for a medication category.
+func (m *USCoreMapper) medicationCategoryDisplay(category string) string {
+	displayMap := map[string]string{
+		"inpatient":  "Inpatient",
+		"outpatient": "Outpatient",
+		"community":  "Community",
+		"discharge":  "Discharge",
+	}
+	if display, ok := displayMap[category]; ok {
+		return display
+	}
+	return category
+}
+
+// MapAllergyIntolerance converts a canonical AllergyIntoleranceEvent to a US Core AllergyIntolerance.
+func (m *USCoreMapper) MapAllergyIntolerance(event *events.AllergyIntoleranceEvent, patientRef string) *AllergyIntolerance {
+	if event == nil {
+		return nil
+	}
+
+	allergy := event.AllergyIntolerance
+
+	ai := &AllergyIntolerance{
+		ID: event.ID,
+		Meta: &Meta{
+			Profile: []string{USCoreAllergyIntoleranceProfile},
+		},
+		Patient: &Reference{
+			Reference: patientRef,
+		},
+	}
+
+	// Map allergen code (required by US Core)
+	ai.Code = m.mapAllergenCode(allergy)
+
+	// Map clinical status
+	if allergy.ClinicalStatus != "" {
+		ai.ClinicalStatus = m.mapAllergyClinicalStatus(allergy.ClinicalStatus)
+	}
+
+	// Map verification status
+	if allergy.VerificationStatus != "" {
+		ai.VerificationStatus = m.mapAllergyVerificationStatus(allergy.VerificationStatus)
+	}
+
+	// Map type (allergy vs intolerance)
+	if allergy.Type != "" {
+		ai.Type = m.mapAllergyType(allergy.Type)
+	}
+
+	// Map category
+	if allergy.Category != "" {
+		ai.Category = []string{m.mapAllergyCategory(allergy.Category)}
+	}
+
+	// Map criticality
+	if allergy.Criticality != "" {
+		ai.Criticality = m.mapAllergyCriticality(allergy.Criticality)
+	}
+
+	// Map onset date
+	if allergy.OnsetDate != "" {
+		ai.OnsetDateTime = allergy.OnsetDate
+	}
+
+	// Map recorded date
+	if allergy.RecordedDate != "" {
+		ai.RecordedDate = allergy.RecordedDate
+	}
+
+	// Map recorder (who recorded this)
+	if event.Recorder != nil {
+		ref := &Reference{}
+		if event.Recorder.NPI != "" {
+			ref.Reference = "Practitioner/" + event.Recorder.NPI
+		} else if event.Recorder.ID != "" {
+			ref.Reference = "Practitioner/" + event.Recorder.ID
+		}
+		// Build display name from components
+		if event.Recorder.GivenName != "" || event.Recorder.FamilyName != "" {
+			displayParts := []string{}
+			if event.Recorder.Prefix != "" {
+				displayParts = append(displayParts, event.Recorder.Prefix)
+			}
+			if event.Recorder.GivenName != "" {
+				displayParts = append(displayParts, event.Recorder.GivenName)
+			}
+			if event.Recorder.FamilyName != "" {
+				displayParts = append(displayParts, event.Recorder.FamilyName)
+			}
+			if event.Recorder.Suffix != "" {
+				displayParts = append(displayParts, event.Recorder.Suffix)
+			}
+			ref.Display = strings.Join(displayParts, " ")
+		}
+		ai.Recorder = ref
+	}
+
+	// Map encounter reference
+	if event.Encounter != nil && event.Encounter.ID != "" {
+		ai.Encounter = &Reference{
+			Reference: "Encounter/" + event.Encounter.ID,
+		}
+	}
+
+	// Map reactions
+	if len(allergy.Reactions) > 0 {
+		ai.Reaction = m.mapAllergyReactions(allergy.Reactions)
+	}
+
+	return ai
+}
+
+// mapAllergenCode maps allergen info to a CodeableConcept.
+func (m *USCoreMapper) mapAllergenCode(allergy events.AllergyIntolerance) *CodeableConcept {
+	cc := &CodeableConcept{}
+
+	if allergy.Code != "" {
+		// Determine code system - prefer RxNorm for medications, SNOMED for others
+		system := allergy.CodeSystem
+		if system == "" {
+			// Try to infer based on category
+			if strings.ToLower(allergy.Category) == "medication" {
+				system = SystemRxNorm
+			} else {
+				system = SystemSNOMED
+			}
+		}
+
+		cc.Coding = []Coding{
+			{
+				System:  system,
+				Code:    allergy.Code,
+				Display: allergy.Name,
+			},
+		}
+	}
+
+	if allergy.Name != "" {
+		cc.Text = allergy.Name
+	}
+
+	return cc
+}
+
+// mapAllergyClinicalStatus maps clinical status to CodeableConcept.
+func (m *USCoreMapper) mapAllergyClinicalStatus(status string) *CodeableConcept {
+	statusLower := strings.ToLower(strings.TrimSpace(status))
+	statusMap := map[string]string{
+		"active":   "active",
+		"inactive": "inactive",
+		"resolved": "resolved",
+	}
+
+	code := statusMap[statusLower]
+	if code == "" {
+		code = "active" // Default
+	}
+
+	return &CodeableConcept{
+		Coding: []Coding{
+			{
+				System: SystemAllergyIntoleranceClinicalStatus,
+				Code:   code,
+			},
+		},
+	}
+}
+
+// mapAllergyVerificationStatus maps verification status to CodeableConcept.
+func (m *USCoreMapper) mapAllergyVerificationStatus(status string) *CodeableConcept {
+	statusLower := strings.ToLower(strings.TrimSpace(status))
+	statusMap := map[string]string{
+		"unconfirmed":      "unconfirmed",
+		"confirmed":        "confirmed",
+		"refuted":          "refuted",
+		"entered-in-error": "entered-in-error",
+		"error":            "entered-in-error",
+	}
+
+	code := statusMap[statusLower]
+	if code == "" {
+		code = "unconfirmed" // Default
+	}
+
+	return &CodeableConcept{
+		Coding: []Coding{
+			{
+				System: SystemAllergyIntoleranceVerification,
+				Code:   code,
+			},
+		},
+	}
+}
+
+// mapAllergyType maps allergy type to FHIR allergy type.
+func (m *USCoreMapper) mapAllergyType(allergyType string) string {
+	typeLower := strings.ToLower(strings.TrimSpace(allergyType))
+	if typeLower == "allergy" || typeLower == "true allergy" {
+		return "allergy"
+	}
+	if typeLower == "intolerance" {
+		return "intolerance"
+	}
+	return "allergy" // Default
+}
+
+// mapAllergyCategory maps category to FHIR allergy category.
+func (m *USCoreMapper) mapAllergyCategory(category string) string {
+	catLower := strings.ToLower(strings.TrimSpace(category))
+	catMap := map[string]string{
+		"food":        "food",
+		"medication":  "medication",
+		"drug":        "medication",
+		"medicine":    "medication",
+		"environment": "environment",
+		"biologic":    "biologic",
+	}
+	if mapped, ok := catMap[catLower]; ok {
+		return mapped
+	}
+	return category
+}
+
+// mapAllergyCriticality maps criticality to FHIR criticality.
+func (m *USCoreMapper) mapAllergyCriticality(criticality string) string {
+	critLower := strings.ToLower(strings.TrimSpace(criticality))
+	critMap := map[string]string{
+		"low":               "low",
+		"high":              "high",
+		"unable-to-assess":  "unable-to-assess",
+		"unable to assess":  "unable-to-assess",
+		"unknown":           "unable-to-assess",
+		"critical":          "high",
+		"life-threatening":  "high",
+		"life threatening":  "high",
+	}
+	if mapped, ok := critMap[critLower]; ok {
+		return mapped
+	}
+	return "unable-to-assess"
+}
+
+// mapAllergyReactions maps allergy reactions to FHIR AllergyReaction.
+func (m *USCoreMapper) mapAllergyReactions(reactions []events.AllergyReaction) []AllergyReaction {
+	var fhirReactions []AllergyReaction
+
+	for _, r := range reactions {
+		fhirReaction := AllergyReaction{}
+
+		// Manifestation is required in FHIR
+		manifestation := m.mapReactionManifestation(r.Manifestation, r.ManifestationText)
+		fhirReaction.Manifestation = manifestation
+
+		// Substance (if different from main allergen)
+		if r.Substance != "" {
+			fhirReaction.Substance = &CodeableConcept{
+				Text: r.Substance,
+			}
+		}
+
+		// Severity
+		if r.Severity != "" {
+			fhirReaction.Severity = m.mapReactionSeverity(r.Severity)
+		}
+
+		// Description
+		if r.Note != "" {
+			fhirReaction.Description = r.Note
+		}
+
+		// Onset
+		if r.OnsetDate != "" {
+			fhirReaction.Onset = r.OnsetDate
+		}
+
+		fhirReactions = append(fhirReactions, fhirReaction)
+	}
+
+	return fhirReactions
+}
+
+// mapReactionManifestation maps reaction manifestation to CodeableConcept.
+func (m *USCoreMapper) mapReactionManifestation(code, text string) []CodeableConcept {
+	var manifestations []CodeableConcept
+
+	cc := &CodeableConcept{}
+	if code != "" {
+		// Try to map common manifestations to SNOMED CT
+		mapped := m.lookupManifestationCode(code)
+		if mapped != nil {
+			cc.Coding = []Coding{*mapped}
+		}
+	}
+
+	if text != "" {
+		cc.Text = text
+	} else if code != "" {
+		cc.Text = code
+	}
+
+	manifestations = append(manifestations, *cc)
+	return manifestations
+}
+
+// lookupManifestationCode maps common reaction manifestations to SNOMED CT.
+func (m *USCoreMapper) lookupManifestationCode(manifestation string) *Coding {
+	manifLower := strings.ToLower(strings.TrimSpace(manifestation))
+
+	// Common reaction manifestations (SNOMED CT)
+	manifMap := map[string]struct {
+		code    string
+		display string
+	}{
+		"rash":               {"271807003", "Rash"},
+		"hives":              {"126485001", "Urticaria"},
+		"urticaria":          {"126485001", "Urticaria"},
+		"itching":            {"418290006", "Itching"},
+		"pruritus":           {"418290006", "Itching"},
+		"swelling":           {"65124004", "Swelling"},
+		"angioedema":         {"41291007", "Angioedema"},
+		"anaphylaxis":        {"39579001", "Anaphylaxis"},
+		"anaphylactic shock": {"39579001", "Anaphylaxis"},
+		"nausea":             {"422587007", "Nausea"},
+		"vomiting":           {"422400008", "Vomiting"},
+		"diarrhea":           {"62315008", "Diarrhea"},
+		"difficulty breathing": {"267036007", "Dyspnea"},
+		"dyspnea":            {"267036007", "Dyspnea"},
+		"wheezing":           {"56018004", "Wheezing"},
+		"throat swelling":    {"262577005", "Throat swelling"},
+		"headache":           {"25064002", "Headache"},
+	}
+
+	if mapped, ok := manifMap[manifLower]; ok {
+		return &Coding{
+			System:  SystemSNOMED,
+			Code:    mapped.code,
+			Display: mapped.display,
+		}
+	}
+
+	return nil
+}
+
+// mapReactionSeverity maps reaction severity to FHIR severity code.
+func (m *USCoreMapper) mapReactionSeverity(severity string) string {
+	sevLower := strings.ToLower(strings.TrimSpace(severity))
+	sevMap := map[string]string{
+		"mild":     "mild",
+		"moderate": "moderate",
+		"severe":   "severe",
+		"minor":    "mild",
+		"major":    "severe",
+		"serious":  "severe",
+	}
+	if mapped, ok := sevMap[sevLower]; ok {
+		return mapped
+	}
+	return "moderate" // Default
 }

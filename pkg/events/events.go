@@ -1094,6 +1094,160 @@ type ImmunizationEvent struct {
 	RawPayload       json.RawMessage `json:"raw_payload,omitempty"`
 }
 
+// Medication represents a medication/drug.
+type Medication struct {
+	// Code is the medication code (RxNorm preferred)
+	Code string `json:"code,omitempty"`
+
+	// CodeSystem is the code system (e.g., "http://www.nlm.nih.gov/research/umls/rxnorm")
+	CodeSystem string `json:"code_system,omitempty"`
+
+	// Name is the display name of the medication
+	Name string `json:"name,omitempty"`
+
+	// Form is the dose form (tablet, capsule, injection, etc.)
+	Form string `json:"form,omitempty"`
+
+	// Strength is the medication strength (e.g., "500mg", "10mg/5mL")
+	Strength string `json:"strength,omitempty"`
+
+	// Manufacturer is the drug manufacturer
+	Manufacturer string `json:"manufacturer,omitempty"`
+}
+
+// MedicationRequest represents a prescription or medication order.
+type MedicationRequest struct {
+	// Medication contains the medication details
+	Medication Medication `json:"medication"`
+
+	// Status is the request status (active, completed, cancelled, etc.)
+	Status string `json:"status,omitempty"`
+
+	// Intent is the request intent (order, plan, proposal, etc.)
+	Intent string `json:"intent,omitempty"`
+
+	// AuthoredOn is when the request was created (RFC3339 format)
+	AuthoredOn string `json:"authored_on,omitempty"`
+
+	// DosageInstruction contains sig/directions
+	DosageInstruction string `json:"dosage_instruction,omitempty"`
+
+	// DoseQuantity is the dose amount per administration
+	DoseQuantity string `json:"dose_quantity,omitempty"`
+
+	// DoseUnit is the unit for the dose (e.g., "mg", "mL", "tablet")
+	DoseUnit string `json:"dose_unit,omitempty"`
+
+	// Frequency is the dosing frequency (e.g., "BID", "TID", "Q8H")
+	Frequency string `json:"frequency,omitempty"`
+
+	// Route is the administration route (oral, IV, topical, etc.)
+	Route string `json:"route,omitempty"`
+
+	// DispenseQuantity is the total quantity to dispense
+	DispenseQuantity float64 `json:"dispense_quantity,omitempty"`
+
+	// DispenseUnit is the unit for dispense quantity
+	DispenseUnit string `json:"dispense_unit,omitempty"`
+
+	// DaysSupply is the expected supply duration
+	DaysSupply int `json:"days_supply,omitempty"`
+
+	// NumberOfRefills is the number of authorized refills
+	NumberOfRefills int `json:"number_of_refills,omitempty"`
+
+	// Substitution indicates if generic substitution is allowed
+	Substitution bool `json:"substitution,omitempty"`
+
+	// ReasonCode is the indication/reason for the medication
+	ReasonCode string `json:"reason_code,omitempty"`
+
+	// ReasonText is the textual reason for the medication
+	ReasonText string `json:"reason_text,omitempty"`
+
+	// PriorAuthRequired indicates if prior authorization is needed
+	PriorAuthRequired bool `json:"prior_auth_required,omitempty"`
+}
+
+// MedicationRequestEvent is emitted for prescription/medication order events.
+type MedicationRequestEvent struct {
+	EventMeta
+	Patient           *Patient          `json:"patient,omitempty"`
+	MedicationRequest MedicationRequest `json:"medication_request"`
+	Prescriber        *Provider         `json:"prescriber,omitempty"`
+	PharmacyID        string            `json:"pharmacy_id,omitempty"`
+	PharmacyName      string            `json:"pharmacy_name,omitempty"`
+	Encounter         *Encounter        `json:"encounter,omitempty"`
+	RawPayload        json.RawMessage   `json:"raw_payload,omitempty"`
+}
+
+// AllergyIntolerance represents a patient allergy or intolerance.
+type AllergyIntolerance struct {
+	// Code is the allergy/substance code (RxNorm, SNOMED, UNII)
+	Code string `json:"code,omitempty"`
+
+	// CodeSystem is the code system for the allergy code
+	CodeSystem string `json:"code_system,omitempty"`
+
+	// Name is the display name of the allergen/substance
+	Name string `json:"name,omitempty"`
+
+	// Type distinguishes allergy from intolerance
+	Type string `json:"type,omitempty"` // allergy, intolerance
+
+	// Category is the category of the allergen (food, medication, environment, biologic)
+	Category string `json:"category,omitempty"`
+
+	// Criticality is the potential for harm (low, high, unable-to-assess)
+	Criticality string `json:"criticality,omitempty"`
+
+	// ClinicalStatus is the clinical status (active, inactive, resolved)
+	ClinicalStatus string `json:"clinical_status,omitempty"`
+
+	// VerificationStatus is the verification state (unconfirmed, confirmed, refuted, entered-in-error)
+	VerificationStatus string `json:"verification_status,omitempty"`
+
+	// OnsetDate is when the allergy was first identified
+	OnsetDate string `json:"onset_date,omitempty"`
+
+	// RecordedDate is when this record was created
+	RecordedDate string `json:"recorded_date,omitempty"`
+
+	// Reactions contains the reaction manifestations
+	Reactions []AllergyReaction `json:"reactions,omitempty"`
+}
+
+// AllergyReaction represents a specific reaction to an allergen.
+type AllergyReaction struct {
+	// Substance is the specific substance that caused the reaction (if different from main allergen)
+	Substance string `json:"substance,omitempty"`
+
+	// Manifestation is the clinical manifestation code (SNOMED)
+	Manifestation string `json:"manifestation,omitempty"`
+
+	// ManifestationText is the description of the reaction
+	ManifestationText string `json:"manifestation_text,omitempty"`
+
+	// Severity is the reaction severity (mild, moderate, severe)
+	Severity string `json:"severity,omitempty"`
+
+	// OnsetDate is when this reaction occurred
+	OnsetDate string `json:"onset_date,omitempty"`
+
+	// Note contains additional details about the reaction
+	Note string `json:"note,omitempty"`
+}
+
+// AllergyIntoleranceEvent is emitted for patient allergy/intolerance events.
+type AllergyIntoleranceEvent struct {
+	EventMeta
+	Patient            *Patient           `json:"patient,omitempty"`
+	AllergyIntolerance AllergyIntolerance `json:"allergy_intolerance"`
+	Recorder           *Provider          `json:"recorder,omitempty"`
+	Encounter          *Encounter         `json:"encounter,omitempty"`
+	RawPayload         json.RawMessage    `json:"raw_payload,omitempty"`
+}
+
 // DocumentEvent is emitted for clinical document events.
 type DocumentEvent struct {
 	EventMeta
