@@ -7,7 +7,7 @@ stages:
 
 variables:
   GO_VERSION: "1.25.5"
-  GOLANGCI_LINT_VERSION: "v1.64.5"
+  GOLANGCI_LINT_VERSION: "v2.8.0"
   CGO_ENABLED: "0"
   DOCKER_DRIVER: overlay2
   DOCKER_TLS_CERTDIR: "/certs"
@@ -58,9 +58,6 @@ lint:go:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-  # TODO: Remove allow_failure once golangci-lint releases a Go 1.25 compatible version
-  # Current v1.64.5 is built with Go 1.24 and can't lint Go 1.25 projects
-  allow_failure: true
 
 lint:fmt:
   stage: lint
