@@ -41,8 +41,9 @@ lint:go:
   <<: *go-image
   <<: *go-cache
   script:
-    - apk add --no-cache git
-    - go install github.com/golangci/golangci-lint/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}
+    - apk add --no-cache git curl
+    # Use pre-built binary to avoid dependency download issues
+    - curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b "${GOPATH}/bin" ${GOLANGCI_LINT_VERSION}
     - golangci-lint run --timeout=5m ./...
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -54,11 +55,15 @@ lint:fmt:
   <<: *go-cache
   script:
     - apk add --no-cache git
-    - go fmt ./...
+    # Check formatting without modifying files
     - |
-      if [ -n "$(git status --porcelain)" ]; then
-        echo "Code is not formatted. Run 'go fmt ./...'"
-        git diff
+      unformatted=$(gofmt -l .)
+      if [ -n "$unformatted" ]; then
+        echo "The following files are not formatted:"
+        echo "$unformatted"
+        echo ""
+        echo "Run 'go fmt ./...' to fix"
+        gofmt -d .
         exit 1
       fi
   rules:
