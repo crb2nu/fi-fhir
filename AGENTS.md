@@ -256,7 +256,8 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 - Workflow integration for routing received events
 - CLI commands: `subscription list|status|create|delete|pause|resume|serve|validate|test`
 - Design document: `docs/planning/FHIR-SUBSCRIPTIONS.md`
-- **Pending**: CEL-based event mapping (`mapper.go:157`), OAuth2 for router (`router.go:350`)
+- CEL-based event mapping - `mapper.go` (uses workflow.CELEvaluator)
+- OAuth2 client credentials - `router.go` (OAuth2Auth provider)
 
 **Event Sourcing / CQRS - Complete!** 🎉
 - Event store interface with append-only semantics (`pkg/eventsourcing/store.go`)
@@ -278,9 +279,9 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 - Design document: `docs/planning/EVENT-SOURCING.md`
 
 **Future Enhancements** (Core Complete, see backlog for details):
-  1. ~~Bidirectional FHIR subscriptions~~ ⚠️ (2 TODOs pending)
+  1. ~~Bidirectional FHIR subscriptions~~ ✓
   2. ~~Additional format adapters (CDA, CCDA)~~ ✓
-  3. ~~GraphQL API layer~~ ⚠️ (3 TODOs pending)
+  3. ~~GraphQL API layer~~ ✓
   4. ~~Event sourcing / CQRS patterns~~ ✓
   5. ~~Workflow action for event store integration~~ ✓
   6. ~~GraphQL queries for projections~~ ✓
