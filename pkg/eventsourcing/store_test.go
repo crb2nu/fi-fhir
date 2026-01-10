@@ -319,3 +319,71 @@ func TestMemoryStore_Clear(t *testing.T) {
 		t.Errorf("Expected 0 streams after clear, got %d", stats.StreamCount)
 	}
 }
+
+func TestMemoryStore_GetLastPosition(t *testing.T) {
+	store := NewMemoryStore()
+	ctx := context.Background()
+
+	// Empty store should return -1
+	pos, err := store.GetLastPosition(ctx)
+	if err != nil {
+		t.Fatalf("GetLastPosition failed: %v", err)
+	}
+	if pos != -1 {
+		t.Errorf("Expected position -1 for empty store, got %d", pos)
+	}
+
+	// Add one event
+	store.Append(ctx, "patient:123", VersionNone, []EventData{{EventType: "admit", Data: []byte(`{}`)}})
+	pos, err = store.GetLastPosition(ctx)
+	if err != nil {
+		t.Fatalf("GetLastPosition failed: %v", err)
+	}
+	if pos != 0 {
+		t.Errorf("Expected position 0 after one event, got %d", pos)
+	}
+
+	// Add more events
+	store.Append(ctx, "patient:456", VersionNone, []EventData{{EventType: "admit", Data: []byte(`{}`)}})
+	store.Append(ctx, "patient:123", 0, []EventData{{EventType: "discharge", Data: []byte(`{}`)}})
+
+	pos, err = store.GetLastPosition(ctx)
+	if err != nil {
+		t.Fatalf("GetLastPosition failed: %v", err)
+	}
+	if pos != 2 {
+		t.Errorf("Expected position 2 after three events, got %d", pos)
+	}
+}
+
+func TestMemoryStore_ReadStreamNonExistent(t *testing.T) {
+	store := NewMemoryStore()
+	ctx := context.Background()
+
+	// Read from non-existent stream should return empty slice
+	events, err := store.ReadStream(ctx, "nonexistent", 0, 100)
+	if err != nil {
+		t.Fatalf("ReadStream failed: %v", err)
+	}
+	if len(events) != 0 {
+		t.Errorf("Expected 0 events for nonexistent stream, got %d", len(events))
+	}
+}
+
+func TestMemoryStore_ReadStreamBeyondEnd(t *testing.T) {
+	store := NewMemoryStore()
+	ctx := context.Background()
+
+	// Add a few events
+	store.Append(ctx, "stream:1", VersionNone, []EventData{{EventType: "e1", Data: []byte(`{}`)}})
+	store.Append(ctx, "stream:1", 0, []EventData{{EventType: "e2", Data: []byte(`{}`)}})
+
+	// Read with offset beyond end should return empty slice
+	events, err := store.ReadStream(ctx, "stream:1", 10, 100)
+	if err != nil {
+		t.Fatalf("ReadStream failed: %v", err)
+	}
+	if len(events) != 0 {
+		t.Errorf("Expected 0 events when offset beyond end, got %d", len(events))
+	}
+}
