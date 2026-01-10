@@ -142,6 +142,11 @@ For AI assistant guidance, see [AGENTS.md](../../AGENTS.md).
   - Concept normalization and search
   - Rate limiting and caching
   - Ticket-based authentication
+- GraphQL triggerWorkflow mutation - `internal/api/graphql/resolvers/schema.resolvers.go`
+- GraphQL FHIR subscription CRUD mutations - `internal/api/graphql/resolvers/schema.resolvers.go`
+- GraphQL workflow event notifications (pub/sub) - `internal/api/graphql/resolvers/resolver.go`
+- CEL expression evaluation in FHIR subscription mapper - `internal/fhir/subscription/mapper.go`
+- OAuth2 client credentials for FHIR subscriptions - `internal/fhir/subscription/router.go`
 
 ---
 
