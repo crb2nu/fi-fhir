@@ -6,7 +6,8 @@ stages:
   - release
 
 variables:
-  GO_VERSION: "1.25"
+  GO_VERSION: "1.25.5"
+  GOLANGCI_LINT_VERSION: "v1.64.5"
   CGO_ENABLED: "0"
   DOCKER_DRIVER: overlay2
   DOCKER_TLS_CERTDIR: "/certs"
@@ -14,9 +15,11 @@ variables:
 # Cache Go modules across jobs
 .go-cache: &go-cache
   cache:
-    key: ${CI_COMMIT_REF_SLUG}-go
+    key: ${CI_COMMIT_REF_SLUG}-go-${GO_VERSION}
     paths:
       - .go/pkg/mod/
+      - .go/bin/
+      - .cache/go-build/
     policy: pull-push
 
 # Default Go image
@@ -24,8 +27,10 @@ variables:
   image: golang:${GO_VERSION}-alpine
   before_script:
     - export GOPATH="${CI_PROJECT_DIR}/.go"
+    - export GOCACHE="${CI_PROJECT_DIR}/.cache/go-build"
     - export PATH="${GOPATH}/bin:${PATH}"
     - mkdir -p "${GOPATH}/bin"
+    - mkdir -p "${GOCACHE}"
 
 # =============================================================================
 # Lint Stage
@@ -33,9 +38,11 @@ variables:
 
 lint:go:
   stage: lint
-  image: golangci/golangci-lint:v1.64.5
+  <<: *go-image
   <<: *go-cache
   script:
+    - apk add --no-cache git
+    - go install github.com/golangci/golangci-lint/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}
     - golangci-lint run --timeout=5m ./...
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -89,11 +96,10 @@ test:unit:
   stage: test
   <<: *go-image
   <<: *go-cache
-  parallel:
-    matrix:
-      - GO_VERSION: ["1.24", "1.25"]
+  variables:
+    CGO_ENABLED: "1"
   script:
-    - apk add --no-cache git
+    - apk add --no-cache git build-base
     - go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
     - go tool cover -func=coverage.out
   coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
@@ -113,8 +119,10 @@ test:integration:
   stage: test
   <<: *go-image
   <<: *go-cache
+  variables:
+    CGO_ENABLED: "1"
   script:
-    - apk add --no-cache git
+    - apk add --no-cache git build-base
     - go test -tags=integration -race ./...
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"

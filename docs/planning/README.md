@@ -184,7 +184,7 @@ The following items remain for full production readiness:
 | Area | Current Coverage | Target |
 |------|------------------|--------|
 | CLI (`cmd/fi-fhir/`) | 0% | 80%+ |
-| GraphQL Resolvers | 54.7% | 80%+ |
+| GraphQL Resolvers | 59.9% | 80%+ |
 | FHIR Subscription | 67.9% | 80%+ |
 | Terminology | 62.8% | 80%+ |
 | CDA Parser | 70.6% | 80%+ |

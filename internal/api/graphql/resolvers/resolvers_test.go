@@ -8,6 +8,7 @@ import (
 	"github.com/cblevins/fi-fhir/internal/api/graphql/model"
 	"github.com/cblevins/fi-fhir/internal/api/graphql/store"
 	"github.com/cblevins/fi-fhir/internal/workflow"
+	"github.com/cblevins/fi-fhir/pkg/events"
 )
 
 func TestQueryResolver_Health(t *testing.T) {
@@ -1345,5 +1346,492 @@ func TestQueryResolver_ParsePreview_UnsupportedFormat(t *testing.T) {
 	}
 	if len(result.Errors) == 0 {
 		t.Error("Expected errors for unsupported format")
+	}
+}
+
+// =============================================================================
+// Helper Function Tests
+// =============================================================================
+
+func TestConvertToGraphQLEvent_VitalSign(t *testing.T) {
+	patient := &events.Patient{MRN: "MRN001", FamilyName: "Doe", GivenName: "John"}
+	evt := &events.VitalSignEvent{
+		EventMeta: events.EventMeta{
+			ID:        "vs-123",
+			Type:      events.EventVitalSign,
+			Timestamp: time.Now(),
+		},
+		Patient: patient,
+		VitalSign: events.VitalSign{
+			Name:      "Temperature",
+			LOINCCode: "8310-5",
+			Value:     "98.6",
+			Unit:      "degF",
+		},
+	}
+
+	format := model.SourceFormatHL7v2
+	correlationID := "corr-123"
+	result := convertToGraphQLEvent(evt, "test-source", format, &correlationID)
+
+	vsEvent, ok := result.(*model.VitalSignEvent)
+	if !ok {
+		t.Fatalf("Expected *model.VitalSignEvent, got %T", result)
+	}
+
+	if vsEvent.ID != "vs-123" {
+		t.Errorf("Expected ID 'vs-123', got '%s'", vsEvent.ID)
+	}
+	if vsEvent.VitalSign.Name != "Temperature" {
+		t.Errorf("Expected vital sign name 'Temperature', got '%s'", vsEvent.VitalSign.Name)
+	}
+	if vsEvent.VitalSign.Value != "98.6" {
+		t.Errorf("Expected value '98.6', got '%s'", vsEvent.VitalSign.Value)
+	}
+}
+
+func TestConvertToGraphQLEvent_Condition(t *testing.T) {
+	patient := &events.Patient{MRN: "MRN001", FamilyName: "Doe", GivenName: "John"}
+	evt := &events.ConditionEvent{
+		EventMeta: events.EventMeta{
+			ID:        "cond-123",
+			Type:      events.EventCondition,
+			Timestamp: time.Now(),
+		},
+		Patient: patient,
+		Condition: events.Condition{
+			Name:       "Diabetes mellitus type 2",
+			Code:       "E11.9",
+			CodeSystem: "ICD-10-CM",
+			Category:   "encounter-diagnosis",
+		},
+		ClinicalStatus: "active",
+		OnsetDate:      "2020-01-15",
+	}
+
+	format := model.SourceFormatFHIR
+	result := convertToGraphQLEvent(evt, "ehr", format, nil)
+
+	condEvent, ok := result.(*model.ConditionEvent)
+	if !ok {
+		t.Fatalf("Expected *model.ConditionEvent, got %T", result)
+	}
+
+	if condEvent.ID != "cond-123" {
+		t.Errorf("Expected ID 'cond-123', got '%s'", condEvent.ID)
+	}
+	if condEvent.Condition.Name != "Diabetes mellitus type 2" {
+		t.Errorf("Expected condition name 'Diabetes mellitus type 2', got '%s'", condEvent.Condition.Name)
+	}
+	if *condEvent.ClinicalStatus != "active" {
+		t.Errorf("Expected clinical status 'active', got '%s'", *condEvent.ClinicalStatus)
+	}
+}
+
+func TestConvertToGraphQLEvent_Procedure(t *testing.T) {
+	patient := &events.Patient{MRN: "MRN001"}
+	evt := &events.ProcedureEvent{
+		EventMeta: events.EventMeta{
+			ID:        "proc-123",
+			Type:      events.EventProcedure,
+			Timestamp: time.Now(),
+		},
+		Patient: patient,
+		Procedure: events.Procedure{
+			Name:       "Appendectomy",
+			Code:       "80146002",
+			CodeSystem: "SNOMED-CT",
+			Status:     "completed",
+		},
+		PerformedDate: "2024-01-15",
+	}
+
+	result := convertToGraphQLEvent(evt, "surgery", model.SourceFormatHL7v2, nil)
+
+	procEvent, ok := result.(*model.ProcedureEvent)
+	if !ok {
+		t.Fatalf("Expected *model.ProcedureEvent, got %T", result)
+	}
+
+	if procEvent.Procedure.Name != "Appendectomy" {
+		t.Errorf("Expected procedure name 'Appendectomy', got '%s'", procEvent.Procedure.Name)
+	}
+	if *procEvent.PerformedDate != "2024-01-15" {
+		t.Errorf("Expected performed date '2024-01-15', got '%s'", *procEvent.PerformedDate)
+	}
+}
+
+func TestConvertToGraphQLEvent_Immunization(t *testing.T) {
+	patient := &events.Patient{MRN: "MRN001"}
+	evt := &events.ImmunizationEvent{
+		EventMeta: events.EventMeta{
+			ID:        "imm-123",
+			Type:      events.EventImmunization,
+			Timestamp: time.Now(),
+		},
+		Patient: patient,
+		Immunization: events.Immunization{
+			VaccineName: "COVID-19 vaccine",
+			VaccineCode: "207",
+			Status:      "completed",
+		},
+		AdministeredDate: "2024-01-15",
+	}
+
+	result := convertToGraphQLEvent(evt, "clinic", model.SourceFormatFHIR, nil)
+
+	immEvent, ok := result.(*model.ImmunizationEvent)
+	if !ok {
+		t.Fatalf("Expected *model.ImmunizationEvent, got %T", result)
+	}
+
+	if immEvent.Immunization.VaccineName != "COVID-19 vaccine" {
+		t.Errorf("Expected vaccine name 'COVID-19 vaccine', got '%s'", immEvent.Immunization.VaccineName)
+	}
+}
+
+func TestConvertToGraphQLEvent_Document(t *testing.T) {
+	patient := &events.Patient{MRN: "MRN001", FamilyName: "Doe", GivenName: "John"}
+	evt := &events.DocumentEvent{
+		EventMeta: events.EventMeta{
+			ID:        "doc-123",
+			Type:      events.EventDocument,
+			Timestamp: time.Now(),
+		},
+		Patient:      patient,
+		DocumentType: "Discharge Summary",
+		Title:        "Patient Discharge Summary for John Doe",
+	}
+
+	result := convertToGraphQLEvent(evt, "records", model.SourceFormatCDA, nil)
+
+	docEvent, ok := result.(*model.DocumentEvent)
+	if !ok {
+		t.Fatalf("Expected *model.DocumentEvent, got %T", result)
+	}
+
+	if docEvent.DocumentType != "Discharge Summary" {
+		t.Errorf("Expected document type 'Discharge Summary', got '%s'", docEvent.DocumentType)
+	}
+	if *docEvent.Title != "Patient Discharge Summary for John Doe" {
+		t.Errorf("Expected title, got '%s'", *docEvent.Title)
+	}
+	if docEvent.Patient == nil {
+		t.Error("Expected patient to be set")
+	}
+}
+
+func TestConvertToGraphQLEvent_DocumentNilPatient(t *testing.T) {
+	evt := &events.DocumentEvent{
+		EventMeta: events.EventMeta{
+			ID:        "doc-124",
+			Type:      events.EventDocument,
+			Timestamp: time.Now(),
+		},
+		Patient:      nil, // Nil patient
+		DocumentType: "Note",
+	}
+
+	result := convertToGraphQLEvent(evt, "records", model.SourceFormatCDA, nil)
+
+	docEvent, ok := result.(*model.DocumentEvent)
+	if !ok {
+		t.Fatalf("Expected *model.DocumentEvent, got %T", result)
+	}
+
+	if docEvent.Patient != nil {
+		t.Error("Expected patient to be nil")
+	}
+}
+
+func TestConvertToGraphQLEvent_Appointment(t *testing.T) {
+	patient := events.Patient{MRN: "MRN001"}
+	endTime := time.Now().Add(30 * time.Minute)
+	evt := &events.AppointmentEvent{
+		EventMeta: events.EventMeta{
+			ID:        "appt-123",
+			Type:      events.EventAppointmentScheduled,
+			Timestamp: time.Now(),
+		},
+		Patient: patient,
+		Appointment: events.Appointment{
+			ID:        "APPT001",
+			Status:    "booked",
+			StartTime: time.Now(),
+			EndTime:   endTime,
+		},
+	}
+
+	result := convertToGraphQLEvent(evt, "scheduling", model.SourceFormatHL7v2, nil)
+
+	apptEvent, ok := result.(*model.AppointmentEvent)
+	if !ok {
+		t.Fatalf("Expected *model.AppointmentEvent, got %T", result)
+	}
+
+	if apptEvent.Appointment.ID != "APPT001" {
+		t.Errorf("Expected appointment ID 'APPT001', got '%s'", apptEvent.Appointment.ID)
+	}
+	if apptEvent.Appointment.EndTime == nil {
+		t.Error("Expected end time to be set")
+	}
+}
+
+func TestConvertToGraphQLEvent_UnknownType(t *testing.T) {
+	// Pass a type that isn't handled
+	result := convertToGraphQLEvent("unknown", "test", model.SourceFormatHL7v2, nil)
+
+	if result != nil {
+		t.Errorf("Expected nil for unknown event type, got %T", result)
+	}
+}
+
+func TestConvertPatientPtr_Nil(t *testing.T) {
+	result := convertPatientPtr(nil)
+
+	// Should return empty patient
+	if result.MRN != "" {
+		t.Errorf("Expected empty MRN, got '%s'", result.MRN)
+	}
+}
+
+func TestConvertPatientPtr_WithPatient(t *testing.T) {
+	patient := &events.Patient{
+		MRN:        "MRN001",
+		FamilyName: "Doe",
+		GivenName:  "John",
+	}
+	result := convertPatientPtr(patient)
+
+	if result.MRN != "MRN001" {
+		t.Errorf("Expected MRN 'MRN001', got '%s'", result.MRN)
+	}
+	if result.FamilyName != "Doe" {
+		t.Errorf("Expected family name 'Doe', got '%s'", result.FamilyName)
+	}
+}
+
+func TestCreateEventFromInput_PatientAdmit(t *testing.T) {
+	input := model.SubmitEventInput{
+		Type:   model.EventTypePatientAdmit,
+		Source: "adt",
+		Data: map[string]interface{}{
+			"patient": map[string]interface{}{
+				"mrn":        "MRN001",
+				"familyName": "Doe",
+				"givenName":  "John",
+			},
+			"encounter": map[string]interface{}{
+				"id":     "ENC001",
+				"class":  "inpatient",
+				"status": "active",
+			},
+		},
+	}
+
+	event, err := createEventFromInput(input)
+	if err != nil {
+		t.Fatalf("createEventFromInput failed: %v", err)
+	}
+
+	admitEvent, ok := event.(*model.PatientAdmitEvent)
+	if !ok {
+		t.Fatalf("Expected *model.PatientAdmitEvent, got %T", event)
+	}
+
+	if admitEvent.Patient.MRN != "MRN001" {
+		t.Errorf("Expected MRN 'MRN001', got '%s'", admitEvent.Patient.MRN)
+	}
+	if admitEvent.Encounter.ID != "ENC001" {
+		t.Errorf("Expected encounter ID 'ENC001', got '%s'", admitEvent.Encounter.ID)
+	}
+	if admitEvent.Encounter.Class != "inpatient" {
+		t.Errorf("Expected encounter class 'inpatient', got '%s'", admitEvent.Encounter.Class)
+	}
+}
+
+func TestCreateEventFromInput_PatientDischarge(t *testing.T) {
+	input := model.SubmitEventInput{
+		Type:   model.EventTypePatientDischarge,
+		Source: "adt",
+		Data: map[string]interface{}{
+			"patient": map[string]interface{}{
+				"mrn":        "MRN002",
+				"familyName": "Smith",
+				"givenName":  "Jane",
+			},
+			"encounter": map[string]interface{}{
+				"id":    "ENC002",
+				"class": "inpatient",
+			},
+		},
+	}
+
+	event, err := createEventFromInput(input)
+	if err != nil {
+		t.Fatalf("createEventFromInput failed: %v", err)
+	}
+
+	dischargeEvent, ok := event.(*model.PatientDischargeEvent)
+	if !ok {
+		t.Fatalf("Expected *model.PatientDischargeEvent, got %T", event)
+	}
+
+	if dischargeEvent.Patient.MRN != "MRN002" {
+		t.Errorf("Expected MRN 'MRN002', got '%s'", dischargeEvent.Patient.MRN)
+	}
+}
+
+func TestCreateEventFromInput_Condition(t *testing.T) {
+	input := model.SubmitEventInput{
+		Type:   model.EventTypeCondition,
+		Source: "ehr",
+		Data: map[string]interface{}{
+			"patient": map[string]interface{}{
+				"mrn":        "MRN003",
+				"familyName": "Johnson",
+				"givenName":  "Robert",
+			},
+			"condition": map[string]interface{}{
+				"name":       "Hypertension",
+				"code":       "I10",
+				"codeSystem": "ICD-10-CM",
+				"category":   "problem-list-item",
+			},
+			"clinicalStatus": "active",
+			"onsetDate":      "2023-06-15",
+		},
+	}
+
+	event, err := createEventFromInput(input)
+	if err != nil {
+		t.Fatalf("createEventFromInput failed: %v", err)
+	}
+
+	condEvent, ok := event.(*model.ConditionEvent)
+	if !ok {
+		t.Fatalf("Expected *model.ConditionEvent, got %T", event)
+	}
+
+	if condEvent.Condition.Name != "Hypertension" {
+		t.Errorf("Expected condition name 'Hypertension', got '%s'", condEvent.Condition.Name)
+	}
+	if *condEvent.Condition.Code != "I10" {
+		t.Errorf("Expected condition code 'I10', got '%s'", *condEvent.Condition.Code)
+	}
+	if *condEvent.ClinicalStatus != "active" {
+		t.Errorf("Expected clinical status 'active', got '%s'", *condEvent.ClinicalStatus)
+	}
+}
+
+func TestCreateEventFromInput_Document(t *testing.T) {
+	input := model.SubmitEventInput{
+		Type:   model.EventTypeDocument,
+		Source: "records",
+		Data: map[string]interface{}{
+			"documentType": "Progress Note",
+			"title":        "Daily Progress Note",
+		},
+	}
+
+	event, err := createEventFromInput(input)
+	if err != nil {
+		t.Fatalf("createEventFromInput failed: %v", err)
+	}
+
+	docEvent, ok := event.(*model.DocumentEvent)
+	if !ok {
+		t.Fatalf("Expected *model.DocumentEvent, got %T", event)
+	}
+
+	if docEvent.DocumentType != "Progress Note" {
+		t.Errorf("Expected document type 'Progress Note', got '%s'", docEvent.DocumentType)
+	}
+	if *docEvent.Title != "Daily Progress Note" {
+		t.Errorf("Expected title 'Daily Progress Note', got '%s'", *docEvent.Title)
+	}
+}
+
+func TestCreateEventFromInput_UnsupportedType(t *testing.T) {
+	input := model.SubmitEventInput{
+		Type:   model.EventType("unsupported_type"),
+		Source: "test",
+		Data:   map[string]interface{}{},
+	}
+
+	_, err := createEventFromInput(input)
+	if err == nil {
+		t.Error("Expected error for unsupported event type")
+	}
+	if err.Error() != "unsupported event type: unsupported_type" {
+		t.Errorf("Unexpected error message: %v", err)
+	}
+}
+
+func TestMutationResolver_SubmitEvent_VitalSign(t *testing.T) {
+	resolver := NewResolver()
+	mutationResolver := &mutationResolver{resolver}
+
+	ctx := context.Background()
+
+	input := model.SubmitEventInput{
+		Type:   model.EventTypeVitalSign,
+		Source: "vitals-monitor",
+		Data: map[string]interface{}{
+			"patient": map[string]interface{}{
+				"mrn":        "MRN001",
+				"familyName": "Doe",
+				"givenName":  "John",
+			},
+			"vitalSign": map[string]interface{}{
+				"name":      "Blood Pressure",
+				"loincCode": "85354-9",
+				"value":     "120/80",
+				"unit":      "mmHg",
+			},
+		},
+	}
+
+	result, err := mutationResolver.SubmitEvent(ctx, input)
+	if err != nil {
+		t.Fatalf("SubmitEvent failed: %v", err)
+	}
+
+	if !result.Success {
+		t.Errorf("Expected success, got errors: %v", result.Errors)
+	}
+}
+
+func TestMutationResolver_SubmitEvent_Condition(t *testing.T) {
+	resolver := NewResolver()
+	mutationResolver := &mutationResolver{resolver}
+
+	ctx := context.Background()
+
+	input := model.SubmitEventInput{
+		Type:   model.EventTypeCondition,
+		Source: "ehr",
+		Data: map[string]interface{}{
+			"patient": map[string]interface{}{
+				"mrn":        "MRN001",
+				"familyName": "Doe",
+				"givenName":  "John",
+			},
+			"condition": map[string]interface{}{
+				"name":       "Type 2 Diabetes",
+				"code":       "E11.9",
+				"codeSystem": "ICD-10-CM",
+			},
+			"clinicalStatus": "active",
+		},
+	}
+
+	result, err := mutationResolver.SubmitEvent(ctx, input)
+	if err != nil {
+		t.Fatalf("SubmitEvent failed: %v", err)
+	}
+
+	if !result.Success {
+		t.Errorf("Expected success, got errors: %v", result.Errors)
 	}
 }
