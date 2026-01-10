@@ -19,6 +19,17 @@ const (
 	USCoreCoverageProfile       = USCoreBaseURL + "us-core-coverage"
 	USCoreProcedureProfile      = USCoreBaseURL + "us-core-procedure"
 	USCoreImmunizationProfile   = USCoreBaseURL + "us-core-immunization"
+	USCoreVitalSignsProfile     = USCoreBaseURL + "us-core-vital-signs"
+
+	// Specific vital signs profiles (derived from us-core-vital-signs)
+	USCoreBloodPressureProfile     = USCoreBaseURL + "us-core-blood-pressure"
+	USCoreBodyHeightProfile        = USCoreBaseURL + "us-core-body-height"
+	USCoreBodyWeightProfile        = USCoreBaseURL + "us-core-body-weight"
+	USCoreBodyTemperatureProfile   = USCoreBaseURL + "us-core-body-temperature"
+	USCoreHeartRateProfile         = USCoreBaseURL + "us-core-heart-rate"
+	USCoreRespiratoryRateProfile   = USCoreBaseURL + "us-core-respiratory-rate"
+	USCorePulseOximetryProfile     = USCoreBaseURL + "us-core-pulse-oximetry"
+	USCoreBMIProfile               = USCoreBaseURL + "us-core-bmi"
 
 	// Extension URIs
 	USCoreRaceExtension      = USCoreBaseURL + "us-core-race"
@@ -93,6 +104,23 @@ const (
 	SystemEligibilityCategory    = "http://terminology.hl7.org/CodeSystem/ex-benefitcategory"
 	SystemEligibilityPurpose     = "http://hl7.org/fhir/eligibilityresponse-purpose"
 	SystemProcessingError        = "http://terminology.hl7.org/CodeSystem/adjudication-error"
+
+	// Vital Signs LOINC codes (US Core required)
+	LOINCHeartRate         = "8867-4"
+	LOINCRespiratoryRate   = "9279-1"
+	LOINCBodyTemperature   = "8310-5"
+	LOINCBodyHeight        = "8302-2"
+	LOINCBodyWeight        = "29463-7"
+	LOINCBodyMassIndex     = "39156-5"
+	LOINCOxygenSaturation  = "2708-6"  // O2 saturation (arterial)
+	LOINCPulseOximetry     = "59408-5" // Oxygen saturation in arterial blood by pulse oximetry
+	LOINCBloodPressurePanel = "85354-9" // Blood pressure panel
+	LOINCSystolicBP        = "8480-6"
+	LOINCDiastolicBP       = "8462-4"
+	LOINCHeadCircumference = "9843-4"
+
+	// Vital signs category code
+	VitalSignsCategory = "vital-signs"
 )
 
 // Resource is the base interface for all FHIR resources.

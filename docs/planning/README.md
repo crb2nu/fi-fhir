@@ -121,6 +121,7 @@ See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and curren
 - CoverageEligibilityResponse resource (for 271 → FHIR) - `pkg/fhir/mapper.go:MapCoverageEligibilityResponse()`
 - FHIR Procedure resource (US Core profile) - `pkg/fhir/mapper.go:MapProcedure()`
 - FHIR Immunization resource (US Core profile) - `pkg/fhir/mapper.go:MapImmunization()`
+- FHIR Observation (Vital Signs) - `pkg/fhir/mapper.go:MapVitalSign()` (8 specific US Core profiles)
 
 ### Next Up
 - UMLS API integration (optional)

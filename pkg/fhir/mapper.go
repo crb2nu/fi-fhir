@@ -46,6 +46,9 @@ type Mapper interface {
 
 	// MapImmunization converts a canonical ImmunizationEvent to a FHIR Immunization.
 	MapImmunization(event *events.ImmunizationEvent, patientRef string) *Immunization
+
+	// MapVitalSign converts a canonical VitalSignEvent to a FHIR Observation (Vital Signs).
+	MapVitalSign(event *events.VitalSignEvent, patientRef string) *Observation
 }
 
 // USCoreMapper implements Mapper for US Core 6.1.0 compliant resources.
@@ -2746,6 +2749,318 @@ func (m *USCoreMapper) mapImmunizationPerformers(provider *events.Provider) []Im
 				Reference: ref,
 				Display:   displayName,
 			},
+		},
+	}
+}
+
+// MapVitalSign converts a canonical VitalSignEvent to a US Core Vital Signs Observation.
+func (m *USCoreMapper) MapVitalSign(event *events.VitalSignEvent, patientRef string) *Observation {
+	if event == nil {
+		return nil
+	}
+
+	// Determine the appropriate US Core profile based on the vital sign type
+	profile := m.determineVitalSignProfile(event.VitalSign.LOINCCode, event.VitalSign.Name)
+
+	obs := &Observation{
+		ResourceType: "Observation",
+		ID:           event.ID,
+		Meta: &Meta{
+			Profile: []string{profile},
+		},
+		Status: "final", // Most vital signs are final when recorded
+		Subject: &Reference{
+			Reference: patientRef,
+		},
+	}
+
+	// Set category to "vital-signs" (required for US Core)
+	obs.Category = []CodeableConcept{
+		{
+			Coding: []Coding{
+				{
+					System:  SystemObservationCategory,
+					Code:    VitalSignsCategory,
+					Display: "Vital Signs",
+				},
+			},
+		},
+	}
+
+	// Map the code (LOINC required for vital signs)
+	obs.Code = m.mapVitalSignCode(event.VitalSign)
+
+	// Map effective date time from event timestamp
+	if !event.Timestamp.IsZero() {
+		obs.EffectiveDateTime = event.Timestamp.Format("2006-01-02T15:04:05Z07:00")
+	}
+
+	// Map the value
+	m.mapVitalSignValue(obs, event.VitalSign)
+
+	// Map interpretation if present
+	if event.VitalSign.Interpretation != "" {
+		obs.Interpretation = m.mapVitalSignInterpretation(event.VitalSign.Interpretation)
+	}
+
+	// Map encounter reference if present
+	if event.Encounter != nil && event.Encounter.ID != "" {
+		obs.Encounter = &Reference{
+			Reference: fmt.Sprintf("Encounter/%s", event.Encounter.ID),
+		}
+	}
+
+	return obs
+}
+
+// determineVitalSignProfile returns the appropriate US Core vital signs profile.
+func (m *USCoreMapper) determineVitalSignProfile(loincCode, name string) string {
+	// Check LOINC code first for specific profiles
+	switch loincCode {
+	case LOINCHeartRate:
+		return USCoreHeartRateProfile
+	case LOINCRespiratoryRate:
+		return USCoreRespiratoryRateProfile
+	case LOINCBodyTemperature:
+		return USCoreBodyTemperatureProfile
+	case LOINCBodyHeight:
+		return USCoreBodyHeightProfile
+	case LOINCBodyWeight:
+		return USCoreBodyWeightProfile
+	case LOINCBodyMassIndex:
+		return USCoreBMIProfile
+	case LOINCOxygenSaturation, LOINCPulseOximetry:
+		return USCorePulseOximetryProfile
+	case LOINCBloodPressurePanel, LOINCSystolicBP, LOINCDiastolicBP:
+		return USCoreBloodPressureProfile
+	}
+
+	// Fallback: try to determine from name
+	nameLower := strings.ToLower(name)
+	switch {
+	case strings.Contains(nameLower, "heart rate") || strings.Contains(nameLower, "pulse"):
+		return USCoreHeartRateProfile
+	case strings.Contains(nameLower, "respiratory") || strings.Contains(nameLower, "breathing"):
+		return USCoreRespiratoryRateProfile
+	case strings.Contains(nameLower, "temperature") || strings.Contains(nameLower, "temp"):
+		return USCoreBodyTemperatureProfile
+	case strings.Contains(nameLower, "height") || strings.Contains(nameLower, "stature"):
+		return USCoreBodyHeightProfile
+	case strings.Contains(nameLower, "weight"):
+		return USCoreBodyWeightProfile
+	case strings.Contains(nameLower, "bmi") || strings.Contains(nameLower, "body mass"):
+		return USCoreBMIProfile
+	case strings.Contains(nameLower, "oxygen") || strings.Contains(nameLower, "o2 sat") || strings.Contains(nameLower, "spo2"):
+		return USCorePulseOximetryProfile
+	case strings.Contains(nameLower, "blood pressure") || strings.Contains(nameLower, "bp"):
+		return USCoreBloodPressureProfile
+	}
+
+	// Default to base vital signs profile
+	return USCoreVitalSignsProfile
+}
+
+// mapVitalSignCode creates a CodeableConcept for the vital sign.
+func (m *USCoreMapper) mapVitalSignCode(vs events.VitalSign) CodeableConcept {
+	coding := Coding{
+		System:  SystemLOINC,
+		Display: vs.Name,
+	}
+
+	// Use the provided LOINC code if available
+	if vs.LOINCCode != "" {
+		coding.Code = vs.LOINCCode
+	} else {
+		// Try to infer LOINC code from name
+		coding.Code = m.inferVitalSignLOINCCode(vs.Name)
+	}
+
+	return CodeableConcept{
+		Coding: []Coding{coding},
+		Text:   vs.Name,
+	}
+}
+
+// inferVitalSignLOINCCode attempts to determine LOINC code from vital sign name.
+func (m *USCoreMapper) inferVitalSignLOINCCode(name string) string {
+	nameLower := strings.ToLower(name)
+
+	switch {
+	case strings.Contains(nameLower, "heart rate") || strings.Contains(nameLower, "pulse rate"):
+		return LOINCHeartRate
+	case strings.Contains(nameLower, "respiratory rate") || strings.Contains(nameLower, "breathing rate"):
+		return LOINCRespiratoryRate
+	case strings.Contains(nameLower, "body temperature") || strings.Contains(nameLower, "temperature"):
+		return LOINCBodyTemperature
+	case strings.Contains(nameLower, "body height") || strings.Contains(nameLower, "height"):
+		return LOINCBodyHeight
+	case strings.Contains(nameLower, "body weight") || strings.Contains(nameLower, "weight"):
+		return LOINCBodyWeight
+	case strings.Contains(nameLower, "bmi") || strings.Contains(nameLower, "body mass index"):
+		return LOINCBodyMassIndex
+	case strings.Contains(nameLower, "oxygen saturation") || strings.Contains(nameLower, "spo2") || strings.Contains(nameLower, "o2 sat"):
+		return LOINCPulseOximetry
+	case strings.Contains(nameLower, "systolic"):
+		return LOINCSystolicBP
+	case strings.Contains(nameLower, "diastolic"):
+		return LOINCDiastolicBP
+	case strings.Contains(nameLower, "blood pressure"):
+		return LOINCBloodPressurePanel
+	case strings.Contains(nameLower, "head circumference"):
+		return LOINCHeadCircumference
+	}
+
+	// Return empty if no match - caller should handle missing code
+	return ""
+}
+
+// mapVitalSignValue maps the vital sign value to the observation.
+func (m *USCoreMapper) mapVitalSignValue(obs *Observation, vs events.VitalSign) {
+	if vs.Value == "" {
+		return
+	}
+
+	// Try to parse as a numeric value
+	if val, err := strconv.ParseFloat(vs.Value, 64); err == nil {
+		ucumCode := m.mapVitalSignUnitToUCUM(vs.Unit, vs.LOINCCode)
+		obs.ValueQuantity = &Quantity{
+			Value:  val,
+			Unit:   vs.Unit,
+			System: SystemUCUM,
+			Code:   ucumCode,
+		}
+	} else {
+		// Non-numeric value - store as string
+		obs.ValueString = vs.Value
+	}
+}
+
+// mapVitalSignUnitToUCUM converts common unit strings to UCUM codes.
+func (m *USCoreMapper) mapVitalSignUnitToUCUM(unit, loincCode string) string {
+	unitLower := strings.ToLower(unit)
+
+	// Common vital signs unit mappings to UCUM
+	unitMap := map[string]string{
+		// Temperature
+		"°c":          "Cel",
+		"°f":          "[degF]",
+		"celsius":     "Cel",
+		"fahrenheit":  "[degF]",
+		"c":           "Cel",
+		"f":           "[degF]",
+
+		// Heart/Respiratory rate
+		"bpm":         "/min",
+		"beats/min":   "/min",
+		"breaths/min": "/min",
+		"/min":        "/min",
+
+		// Height
+		"cm":          "cm",
+		"in":          "[in_i]",
+		"inches":      "[in_i]",
+		"m":           "m",
+		"ft":          "[ft_i]",
+		"feet":        "[ft_i]",
+
+		// Weight
+		"kg":          "kg",
+		"lb":          "[lb_av]",
+		"lbs":         "[lb_av]",
+		"pounds":      "[lb_av]",
+		"oz":          "[oz_av]",
+		"g":           "g",
+
+		// Blood pressure
+		"mmhg":        "mm[Hg]",
+		"mm hg":       "mm[Hg]",
+
+		// Oxygen saturation
+		"%":           "%",
+		"percent":     "%",
+
+		// BMI
+		"kg/m2":       "kg/m2",
+		"kg/m^2":      "kg/m2",
+	}
+
+	if ucum, ok := unitMap[unitLower]; ok {
+		return ucum
+	}
+
+	// If unit looks like a valid UCUM code already, return as-is
+	if unit != "" {
+		return unit
+	}
+
+	// Default based on LOINC code
+	switch loincCode {
+	case LOINCHeartRate, LOINCRespiratoryRate:
+		return "/min"
+	case LOINCBodyTemperature:
+		return "Cel"
+	case LOINCBodyHeight:
+		return "cm"
+	case LOINCBodyWeight:
+		return "kg"
+	case LOINCBodyMassIndex:
+		return "kg/m2"
+	case LOINCOxygenSaturation, LOINCPulseOximetry:
+		return "%"
+	case LOINCSystolicBP, LOINCDiastolicBP:
+		return "mm[Hg]"
+	}
+
+	return unit
+}
+
+// mapVitalSignInterpretation maps interpretation codes to FHIR CodeableConcepts.
+func (m *USCoreMapper) mapVitalSignInterpretation(interpretation string) []CodeableConcept {
+	interpLower := strings.ToLower(interpretation)
+
+	// Map common interpretation strings to HL7 v3 ObservationInterpretation codes
+	interpretationMap := map[string]struct {
+		code    string
+		display string
+	}{
+		"normal":          {"N", "Normal"},
+		"n":               {"N", "Normal"},
+		"high":            {"H", "High"},
+		"h":               {"H", "High"},
+		"low":             {"L", "Low"},
+		"l":               {"L", "Low"},
+		"critical":        {"AA", "Critical abnormal"},
+		"critical high":   {"HH", "Critical high"},
+		"critical low":    {"LL", "Critical low"},
+		"hh":              {"HH", "Critical high"},
+		"ll":              {"LL", "Critical low"},
+		"abnormal":        {"A", "Abnormal"},
+		"a":               {"A", "Abnormal"},
+		"very high":       {"HH", "Critical high"},
+		"very low":        {"LL", "Critical low"},
+		"panic":           {"AA", "Critical abnormal"},
+		"panic high":      {"HH", "Critical high"},
+		"panic low":       {"LL", "Critical low"},
+	}
+
+	if mapped, ok := interpretationMap[interpLower]; ok {
+		return []CodeableConcept{
+			{
+				Coding: []Coding{
+					{
+						System:  SystemInterpretation,
+						Code:    mapped.code,
+						Display: mapped.display,
+					},
+				},
+			},
+		}
+	}
+
+	// Return as text if not a known code
+	return []CodeableConcept{
+		{
+			Text: interpretation,
 		},
 	}
 }

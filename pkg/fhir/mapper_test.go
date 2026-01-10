@@ -2689,3 +2689,498 @@ func TestImmunizationJSONSerialization(t *testing.T) {
 		t.Error("JSON missing primarySource")
 	}
 }
+
+// ========== Vital Signs Tests ==========
+
+func TestMapVitalSign_HeartRate(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.VitalSignEvent{
+		EventMeta: events.NewEventMeta(events.EventVitalSign, "test", events.FormatCDA),
+		VitalSign: events.VitalSign{
+			Name:           "Heart Rate",
+			LOINCCode:      LOINCHeartRate,
+			Value:          "72",
+			Unit:           "bpm",
+			Interpretation: "normal",
+		},
+	}
+	event.ID = "vs-123"
+
+	obs := mapper.MapVitalSign(event, "Patient/test-patient")
+
+	if obs == nil {
+		t.Fatal("Expected non-nil Observation")
+	}
+
+	// Verify resource type and profile
+	if obs.ResourceType != "Observation" {
+		t.Errorf("ResourceType = %q, want 'Observation'", obs.ResourceType)
+	}
+	if len(obs.Meta.Profile) != 1 || obs.Meta.Profile[0] != USCoreHeartRateProfile {
+		t.Errorf("Profile = %v, want [%s]", obs.Meta.Profile, USCoreHeartRateProfile)
+	}
+
+	// Verify status
+	if obs.Status != "final" {
+		t.Errorf("Status = %q, want 'final'", obs.Status)
+	}
+
+	// Verify category is "vital-signs"
+	if len(obs.Category) != 1 {
+		t.Fatalf("Expected 1 category, got %d", len(obs.Category))
+	}
+	if len(obs.Category[0].Coding) != 1 || obs.Category[0].Coding[0].Code != VitalSignsCategory {
+		t.Errorf("Category code = %q, want %q", obs.Category[0].Coding[0].Code, VitalSignsCategory)
+	}
+
+	// Verify code is LOINC
+	if len(obs.Code.Coding) != 1 {
+		t.Fatalf("Expected 1 code, got %d", len(obs.Code.Coding))
+	}
+	if obs.Code.Coding[0].System != SystemLOINC {
+		t.Errorf("Code system = %q, want %q", obs.Code.Coding[0].System, SystemLOINC)
+	}
+	if obs.Code.Coding[0].Code != LOINCHeartRate {
+		t.Errorf("LOINC code = %q, want %q", obs.Code.Coding[0].Code, LOINCHeartRate)
+	}
+
+	// Verify value
+	if obs.ValueQuantity == nil {
+		t.Fatal("Expected ValueQuantity to be set")
+	}
+	if obs.ValueQuantity.Value != 72 {
+		t.Errorf("Value = %f, want 72", obs.ValueQuantity.Value)
+	}
+	if obs.ValueQuantity.Unit != "bpm" {
+		t.Errorf("Unit = %q, want 'bpm'", obs.ValueQuantity.Unit)
+	}
+	if obs.ValueQuantity.Code != "/min" {
+		t.Errorf("UCUM code = %q, want '/min'", obs.ValueQuantity.Code)
+	}
+
+	// Verify interpretation
+	if len(obs.Interpretation) != 1 {
+		t.Fatalf("Expected 1 interpretation, got %d", len(obs.Interpretation))
+	}
+	if len(obs.Interpretation[0].Coding) != 1 || obs.Interpretation[0].Coding[0].Code != "N" {
+		t.Errorf("Interpretation code = %q, want 'N'", obs.Interpretation[0].Coding[0].Code)
+	}
+
+	// Verify subject
+	if obs.Subject == nil || obs.Subject.Reference != "Patient/test-patient" {
+		t.Error("Subject reference incorrect")
+	}
+}
+
+func TestMapVitalSign_BodyTemperature(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.VitalSignEvent{
+		EventMeta: events.NewEventMeta(events.EventVitalSign, "test", events.FormatCDA),
+		VitalSign: events.VitalSign{
+			Name:      "Body Temperature",
+			LOINCCode: LOINCBodyTemperature,
+			Value:     "37.2",
+			Unit:      "°C",
+		},
+	}
+
+	obs := mapper.MapVitalSign(event, "Patient/123")
+
+	if obs.Meta.Profile[0] != USCoreBodyTemperatureProfile {
+		t.Errorf("Profile = %q, want %q", obs.Meta.Profile[0], USCoreBodyTemperatureProfile)
+	}
+
+	if obs.ValueQuantity.Value != 37.2 {
+		t.Errorf("Value = %f, want 37.2", obs.ValueQuantity.Value)
+	}
+	if obs.ValueQuantity.Code != "Cel" {
+		t.Errorf("UCUM code = %q, want 'Cel'", obs.ValueQuantity.Code)
+	}
+}
+
+func TestMapVitalSign_BloodPressure(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.VitalSignEvent{
+		EventMeta: events.NewEventMeta(events.EventVitalSign, "test", events.FormatCDA),
+		VitalSign: events.VitalSign{
+			Name:      "Systolic Blood Pressure",
+			LOINCCode: LOINCSystolicBP,
+			Value:     "120",
+			Unit:      "mmHg",
+		},
+	}
+
+	obs := mapper.MapVitalSign(event, "Patient/123")
+
+	if obs.Meta.Profile[0] != USCoreBloodPressureProfile {
+		t.Errorf("Profile = %q, want %q", obs.Meta.Profile[0], USCoreBloodPressureProfile)
+	}
+
+	if obs.Code.Coding[0].Code != LOINCSystolicBP {
+		t.Errorf("LOINC code = %q, want %q", obs.Code.Coding[0].Code, LOINCSystolicBP)
+	}
+
+	if obs.ValueQuantity.Code != "mm[Hg]" {
+		t.Errorf("UCUM code = %q, want 'mm[Hg]'", obs.ValueQuantity.Code)
+	}
+}
+
+func TestMapVitalSign_OxygenSaturation(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.VitalSignEvent{
+		EventMeta: events.NewEventMeta(events.EventVitalSign, "test", events.FormatCDA),
+		VitalSign: events.VitalSign{
+			Name:      "Oxygen Saturation",
+			LOINCCode: LOINCPulseOximetry,
+			Value:     "98",
+			Unit:      "%",
+		},
+	}
+
+	obs := mapper.MapVitalSign(event, "Patient/123")
+
+	if obs.Meta.Profile[0] != USCorePulseOximetryProfile {
+		t.Errorf("Profile = %q, want %q", obs.Meta.Profile[0], USCorePulseOximetryProfile)
+	}
+
+	if obs.ValueQuantity.Value != 98 {
+		t.Errorf("Value = %f, want 98", obs.ValueQuantity.Value)
+	}
+	if obs.ValueQuantity.Code != "%" {
+		t.Errorf("UCUM code = %q, want '%%'", obs.ValueQuantity.Code)
+	}
+}
+
+func TestMapVitalSign_BMI(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.VitalSignEvent{
+		EventMeta: events.NewEventMeta(events.EventVitalSign, "test", events.FormatCDA),
+		VitalSign: events.VitalSign{
+			Name:      "Body Mass Index",
+			LOINCCode: LOINCBodyMassIndex,
+			Value:     "24.5",
+			Unit:      "kg/m2",
+		},
+	}
+
+	obs := mapper.MapVitalSign(event, "Patient/123")
+
+	if obs.Meta.Profile[0] != USCoreBMIProfile {
+		t.Errorf("Profile = %q, want %q", obs.Meta.Profile[0], USCoreBMIProfile)
+	}
+
+	if obs.ValueQuantity.Value != 24.5 {
+		t.Errorf("Value = %f, want 24.5", obs.ValueQuantity.Value)
+	}
+	if obs.ValueQuantity.Code != "kg/m2" {
+		t.Errorf("UCUM code = %q, want 'kg/m2'", obs.ValueQuantity.Code)
+	}
+}
+
+func TestMapVitalSign_ProfileDetectionByName(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		name     string
+		expected string
+	}{
+		{"Heart Rate", USCoreHeartRateProfile},
+		{"Pulse Rate", USCoreHeartRateProfile},
+		{"Respiratory Rate", USCoreRespiratoryRateProfile},
+		{"Body Temperature", USCoreBodyTemperatureProfile},
+		{"Temperature", USCoreBodyTemperatureProfile},
+		{"Height", USCoreBodyHeightProfile},
+		{"Body Weight", USCoreBodyWeightProfile},
+		{"Weight", USCoreBodyWeightProfile},
+		{"BMI", USCoreBMIProfile},
+		{"Body Mass Index", USCoreBMIProfile},
+		{"Oxygen Saturation", USCorePulseOximetryProfile},
+		{"SpO2", USCorePulseOximetryProfile},
+		{"Blood Pressure", USCoreBloodPressureProfile},
+		{"Unknown Vital Sign", USCoreVitalSignsProfile},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			event := &events.VitalSignEvent{
+				VitalSign: events.VitalSign{
+					Name:  test.name,
+					Value: "100",
+				},
+			}
+
+			obs := mapper.MapVitalSign(event, "Patient/123")
+
+			if obs.Meta.Profile[0] != test.expected {
+				t.Errorf("Profile for %q = %q, want %q", test.name, obs.Meta.Profile[0], test.expected)
+			}
+		})
+	}
+}
+
+func TestMapVitalSign_LOINCCodeInference(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		name         string
+		expectedCode string
+	}{
+		{"Heart Rate", LOINCHeartRate},
+		{"Pulse Rate", LOINCHeartRate},
+		{"Respiratory Rate", LOINCRespiratoryRate},
+		{"Body Temperature", LOINCBodyTemperature},
+		{"Body Height", LOINCBodyHeight},
+		{"Body Weight", LOINCBodyWeight},
+		{"BMI", LOINCBodyMassIndex},
+		{"Oxygen Saturation", LOINCPulseOximetry},
+		{"SpO2", LOINCPulseOximetry},
+		{"Systolic BP", LOINCSystolicBP},
+		{"Diastolic BP", LOINCDiastolicBP},
+		{"Blood Pressure", LOINCBloodPressurePanel},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			event := &events.VitalSignEvent{
+				VitalSign: events.VitalSign{
+					Name:  test.name,
+					Value: "100",
+					// No LOINCCode provided - should be inferred
+				},
+			}
+
+			obs := mapper.MapVitalSign(event, "Patient/123")
+
+			if obs.Code.Coding[0].Code != test.expectedCode {
+				t.Errorf("Inferred LOINC for %q = %q, want %q", test.name, obs.Code.Coding[0].Code, test.expectedCode)
+			}
+		})
+	}
+}
+
+func TestMapVitalSign_UnitToUCUM(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		unit     string
+		loincCode string
+		expected string
+	}{
+		{"bpm", LOINCHeartRate, "/min"},
+		{"beats/min", LOINCHeartRate, "/min"},
+		{"°C", LOINCBodyTemperature, "Cel"},
+		{"°F", LOINCBodyTemperature, "[degF]"},
+		{"cm", LOINCBodyHeight, "cm"},
+		{"in", LOINCBodyHeight, "[in_i]"},
+		{"kg", LOINCBodyWeight, "kg"},
+		{"lb", LOINCBodyWeight, "[lb_av]"},
+		{"mmHg", LOINCSystolicBP, "mm[Hg]"},
+		{"%", LOINCPulseOximetry, "%"},
+		{"kg/m2", LOINCBodyMassIndex, "kg/m2"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.unit, func(t *testing.T) {
+			event := &events.VitalSignEvent{
+				VitalSign: events.VitalSign{
+					Name:      "Test",
+					LOINCCode: test.loincCode,
+					Value:     "100",
+					Unit:      test.unit,
+				},
+			}
+
+			obs := mapper.MapVitalSign(event, "Patient/123")
+
+			if obs.ValueQuantity.Code != test.expected {
+				t.Errorf("UCUM for %q = %q, want %q", test.unit, obs.ValueQuantity.Code, test.expected)
+			}
+		})
+	}
+}
+
+func TestMapVitalSign_InterpretationMapping(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		interpretation string
+		expectedCode   string
+	}{
+		{"normal", "N"},
+		{"Normal", "N"},
+		{"high", "H"},
+		{"High", "H"},
+		{"low", "L"},
+		{"Low", "L"},
+		{"critical", "AA"},
+		{"critical high", "HH"},
+		{"critical low", "LL"},
+		{"abnormal", "A"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.interpretation, func(t *testing.T) {
+			event := &events.VitalSignEvent{
+				VitalSign: events.VitalSign{
+					Name:           "Heart Rate",
+					LOINCCode:      LOINCHeartRate,
+					Value:          "100",
+					Interpretation: test.interpretation,
+				},
+			}
+
+			obs := mapper.MapVitalSign(event, "Patient/123")
+
+			if len(obs.Interpretation) != 1 {
+				t.Fatalf("Expected 1 interpretation, got %d", len(obs.Interpretation))
+			}
+			if len(obs.Interpretation[0].Coding) != 1 {
+				t.Fatal("Expected interpretation coding")
+			}
+			if obs.Interpretation[0].Coding[0].Code != test.expectedCode {
+				t.Errorf("Interpretation for %q = %q, want %q", test.interpretation, obs.Interpretation[0].Coding[0].Code, test.expectedCode)
+			}
+		})
+	}
+}
+
+func TestMapVitalSign_WithEncounter(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.VitalSignEvent{
+		EventMeta: events.NewEventMeta(events.EventVitalSign, "test", events.FormatCDA),
+		VitalSign: events.VitalSign{
+			Name:      "Heart Rate",
+			LOINCCode: LOINCHeartRate,
+			Value:     "72",
+		},
+		Encounter: &events.Encounter{
+			ID: "enc-123",
+		},
+	}
+
+	obs := mapper.MapVitalSign(event, "Patient/123")
+
+	if obs.Encounter == nil {
+		t.Fatal("Expected encounter reference")
+	}
+	if obs.Encounter.Reference != "Encounter/enc-123" {
+		t.Errorf("Encounter reference = %q, want 'Encounter/enc-123'", obs.Encounter.Reference)
+	}
+}
+
+func TestMapVitalSign_NonNumericValue(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.VitalSignEvent{
+		VitalSign: events.VitalSign{
+			Name:  "Pain Scale",
+			Value: "moderate",
+		},
+	}
+
+	obs := mapper.MapVitalSign(event, "Patient/123")
+
+	// Non-numeric value should be stored as ValueString
+	if obs.ValueQuantity != nil {
+		t.Error("Expected ValueQuantity to be nil for non-numeric value")
+	}
+	if obs.ValueString != "moderate" {
+		t.Errorf("ValueString = %q, want 'moderate'", obs.ValueString)
+	}
+}
+
+func TestMapVitalSign_NilEvent(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	obs := mapper.MapVitalSign(nil, "Patient/123")
+
+	if obs != nil {
+		t.Error("Expected nil for nil event")
+	}
+}
+
+func TestMapVitalSign_WithEffectiveDateTime(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.VitalSignEvent{
+		EventMeta: events.NewEventMeta(events.EventVitalSign, "test", events.FormatCDA),
+		VitalSign: events.VitalSign{
+			Name:      "Heart Rate",
+			LOINCCode: LOINCHeartRate,
+			Value:     "72",
+		},
+	}
+
+	obs := mapper.MapVitalSign(event, "Patient/123")
+
+	// EffectiveDateTime should be set from event timestamp
+	if obs.EffectiveDateTime == "" {
+		t.Error("Expected EffectiveDateTime to be set")
+	}
+}
+
+func TestVitalSignObservationJSONSerialization(t *testing.T) {
+	obs := &Observation{
+		ResourceType: "Observation",
+		ID:           "vs-test",
+		Meta: &Meta{
+			Profile: []string{USCoreHeartRateProfile},
+		},
+		Status: "final",
+		Category: []CodeableConcept{
+			{
+				Coding: []Coding{
+					{
+						System:  SystemObservationCategory,
+						Code:    VitalSignsCategory,
+						Display: "Vital Signs",
+					},
+				},
+			},
+		},
+		Code: CodeableConcept{
+			Coding: []Coding{
+				{
+					System:  SystemLOINC,
+					Code:    LOINCHeartRate,
+					Display: "Heart Rate",
+				},
+			},
+		},
+		Subject: &Reference{Reference: "Patient/123"},
+		ValueQuantity: &Quantity{
+			Value:  72,
+			Unit:   "bpm",
+			System: SystemUCUM,
+			Code:   "/min",
+		},
+	}
+
+	data, err := json.Marshal(obs)
+	if err != nil {
+		t.Fatalf("Failed to marshal Observation: %v", err)
+	}
+
+	jsonStr := string(data)
+	if !strings.Contains(jsonStr, `"resourceType":"Observation"`) {
+		t.Error("JSON missing resourceType")
+	}
+	if !strings.Contains(jsonStr, USCoreHeartRateProfile) {
+		t.Error("JSON missing profile")
+	}
+	if !strings.Contains(jsonStr, VitalSignsCategory) {
+		t.Error("JSON missing vital-signs category")
+	}
+	if !strings.Contains(jsonStr, LOINCHeartRate) {
+		t.Error("JSON missing LOINC code")
+	}
+	if !strings.Contains(jsonStr, `"value":72`) {
+		t.Error("JSON missing value")
+	}
+}

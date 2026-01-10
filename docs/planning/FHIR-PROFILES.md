@@ -17,6 +17,7 @@ This document details US Core, Da Vinci, and other FHIR profile requirements for
 | **CoverageEligibilityResponse** | (base R4) | ✅ | `pkg/fhir/mapper.go:MapCoverageEligibilityResponse()` |
 | **Procedure** | us-core-procedure | ✅ | `pkg/fhir/mapper.go:MapProcedure()` |
 | **Immunization** | us-core-immunization | ✅ | `pkg/fhir/mapper.go:MapImmunization()` |
+| **Observation (Vital Signs)** | us-core-vital-signs | ✅ | `pkg/fhir/mapper.go:MapVitalSign()` |
 
 | Feature | Status | Implementation |
 |---------|--------|----------------|
