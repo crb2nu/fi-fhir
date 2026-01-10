@@ -15,6 +15,8 @@ This document details US Core, Da Vinci, and other FHIR profile requirements for
 | **Claim** | (Da Vinci PAS) | ✅ | `pkg/fhir/mapper.go:MapClaim()` |
 | **ExplanationOfBenefit** | (PDex) | ✅ | `pkg/fhir/mapper.go:MapExplanationOfBenefit()` |
 | **CoverageEligibilityResponse** | (base R4) | ✅ | `pkg/fhir/mapper.go:MapCoverageEligibilityResponse()` |
+| **Procedure** | us-core-procedure | ✅ | `pkg/fhir/mapper.go:MapProcedure()` |
+| **Immunization** | us-core-immunization | ✅ | `pkg/fhir/mapper.go:MapImmunization()` |
 
 | Feature | Status | Implementation |
 |---------|--------|----------------|

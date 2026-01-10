@@ -17,6 +17,8 @@ const (
 	USCoreEncounterProfile      = USCoreBaseURL + "us-core-encounter"
 	USCoreConditionProfile      = USCoreBaseURL + "us-core-condition-problems-health-concerns"
 	USCoreCoverageProfile       = USCoreBaseURL + "us-core-coverage"
+	USCoreProcedureProfile      = USCoreBaseURL + "us-core-procedure"
+	USCoreImmunizationProfile   = USCoreBaseURL + "us-core-immunization"
 
 	// Extension URIs
 	USCoreRaceExtension      = USCoreBaseURL + "us-core-race"
@@ -28,6 +30,8 @@ const (
 	SystemSNOMED               = "http://snomed.info/sct"
 	SystemICD10CM              = "http://hl7.org/fhir/sid/icd-10-cm"
 	SystemCPT                  = "http://www.ama-assn.org/go/cpt"
+	SystemICD10PCS             = "http://www.cms.gov/Medicare/Coding/ICD10"
+	SystemCVX                  = "http://hl7.org/fhir/sid/cvx"
 	SystemRxNorm               = "http://www.nlm.nih.gov/research/umls/rxnorm"
 	SystemUCUM                 = "http://unitsofmeasure.org"
 	SystemAdministrativeGender = "http://hl7.org/fhir/administrative-gender"
@@ -886,5 +890,143 @@ func (c *CoverageEligibilityResponse) MarshalJSON() ([]byte, error) {
 	}{
 		ResourceType: "CoverageEligibilityResponse",
 		Alias:        (*Alias)(c),
+	})
+}
+
+// Procedure represents a FHIR Procedure resource.
+// Follows US Core Procedure profile.
+type Procedure struct {
+	ResourceType   string            `json:"resourceType"`
+	ID             string            `json:"id,omitempty"`
+	Meta           *Meta             `json:"meta,omitempty"`
+	Identifier     []Identifier      `json:"identifier,omitempty"`
+	Status         string            `json:"status"`                  // preparation | in-progress | not-done | on-hold | stopped | completed | entered-in-error | unknown
+	StatusReason   *CodeableConcept  `json:"statusReason,omitempty"`  // Why procedure not performed
+	Category       *CodeableConcept  `json:"category,omitempty"`      // Classification of the procedure
+	Code           CodeableConcept   `json:"code"`                    // Required - SNOMED CT, CPT, or ICD-10-PCS
+	Subject        *Reference        `json:"subject"`                 // Required - Reference to Patient
+	Encounter      *Reference        `json:"encounter,omitempty"`     // Reference to Encounter
+	PerformedDateTime string         `json:"performedDateTime,omitempty"`
+	PerformedPeriod *Period          `json:"performedPeriod,omitempty"`
+	PerformedString string           `json:"performedString,omitempty"`
+	Performer      []ProcedurePerformer `json:"performer,omitempty"`  // Who performed the procedure
+	Location       *Reference        `json:"location,omitempty"`      // Where procedure happened
+	ReasonCode     []CodeableConcept `json:"reasonCode,omitempty"`    // Why procedure performed
+	ReasonReference []Reference      `json:"reasonReference,omitempty"` // Condition/Observation justifying
+	BodySite       []CodeableConcept `json:"bodySite,omitempty"`      // Body site
+	Outcome        *CodeableConcept  `json:"outcome,omitempty"`       // Outcome of procedure
+	Report         []Reference       `json:"report,omitempty"`        // Reports/DiagnosticReports
+	Complication   []CodeableConcept `json:"complication,omitempty"`  // Complications
+	FollowUp       []CodeableConcept `json:"followUp,omitempty"`      // Follow-up instructions
+	Note           []Annotation      `json:"note,omitempty"`          // Additional notes
+}
+
+// ProcedurePerformer represents who performed the procedure.
+type ProcedurePerformer struct {
+	Function *CodeableConcept `json:"function,omitempty"` // Role of performer
+	Actor    *Reference       `json:"actor"`              // Who performed
+	OnBehalfOf *Reference     `json:"onBehalfOf,omitempty"` // Organization
+}
+
+// GetResourceType returns "Procedure".
+func (p *Procedure) GetResourceType() string {
+	return "Procedure"
+}
+
+// MarshalJSON ensures ResourceType is always set.
+func (p *Procedure) MarshalJSON() ([]byte, error) {
+	type Alias Procedure
+	return json.Marshal(&struct {
+		ResourceType string `json:"resourceType"`
+		*Alias
+	}{
+		ResourceType: "Procedure",
+		Alias:        (*Alias)(p),
+	})
+}
+
+// Immunization represents a FHIR Immunization resource.
+// Follows US Core Immunization profile.
+type Immunization struct {
+	ResourceType        string                    `json:"resourceType"`
+	ID                  string                    `json:"id,omitempty"`
+	Meta                *Meta                     `json:"meta,omitempty"`
+	Identifier          []Identifier              `json:"identifier,omitempty"`
+	Status              string                    `json:"status"`                    // completed | entered-in-error | not-done
+	StatusReason        *CodeableConcept          `json:"statusReason,omitempty"`    // Reason not given
+	VaccineCode         CodeableConcept           `json:"vaccineCode"`               // Required - CVX code
+	Patient             *Reference                `json:"patient"`                   // Required - Reference to Patient
+	Encounter           *Reference                `json:"encounter,omitempty"`       // Reference to Encounter
+	OccurrenceDateTime  string                    `json:"occurrenceDateTime,omitempty"` // Required (choice)
+	OccurrenceString    string                    `json:"occurrenceString,omitempty"`
+	Recorded            string                    `json:"recorded,omitempty"`        // When first entered
+	PrimarySource       *bool                     `json:"primarySource,omitempty"`   // From primary source?
+	ReportOrigin        *CodeableConcept          `json:"reportOrigin,omitempty"`    // Source of secondhand info
+	Location            *Reference                `json:"location,omitempty"`        // Where administered
+	Manufacturer        *Reference                `json:"manufacturer,omitempty"`    // Vaccine manufacturer
+	LotNumber           string                    `json:"lotNumber,omitempty"`       // Vaccine lot number
+	ExpirationDate      string                    `json:"expirationDate,omitempty"`  // Vaccine expiration
+	Site                *CodeableConcept          `json:"site,omitempty"`            // Body site
+	Route               *CodeableConcept          `json:"route,omitempty"`           // Administration route
+	DoseQuantity        *Quantity                 `json:"doseQuantity,omitempty"`    // Amount administered
+	Performer           []ImmunizationPerformer   `json:"performer,omitempty"`       // Who administered
+	Note                []Annotation              `json:"note,omitempty"`            // Additional notes
+	ReasonCode          []CodeableConcept         `json:"reasonCode,omitempty"`      // Why given
+	ReasonReference     []Reference               `json:"reasonReference,omitempty"` // Condition/observation justifying
+	IsSubpotent         bool                      `json:"isSubpotent,omitempty"`     // Dose potency
+	SubpotentReason     []CodeableConcept         `json:"subpotentReason,omitempty"` // Reason for being subpotent
+	Education           []ImmunizationEducation   `json:"education,omitempty"`       // Educational material
+	ProgramEligibility  []CodeableConcept         `json:"programEligibility,omitempty"` // Program eligibility
+	FundingSource       *CodeableConcept          `json:"fundingSource,omitempty"`   // Source of funding
+	Reaction            []ImmunizationReaction    `json:"reaction,omitempty"`        // Adverse reactions
+	ProtocolApplied     []ImmunizationProtocol    `json:"protocolApplied,omitempty"` // Protocol followed
+}
+
+// ImmunizationPerformer represents who performed the immunization.
+type ImmunizationPerformer struct {
+	Function *CodeableConcept `json:"function,omitempty"` // Role of performer (AP=Administering, OP=Ordering)
+	Actor    *Reference       `json:"actor"`              // Who performed
+}
+
+// ImmunizationEducation represents educational material presented.
+type ImmunizationEducation struct {
+	DocumentType string `json:"documentType,omitempty"`   // Type of material
+	Reference    string `json:"reference,omitempty"`      // URL of material
+	PublicationDate string `json:"publicationDate,omitempty"` // When published
+	PresentationDate string `json:"presentationDate,omitempty"` // When presented
+}
+
+// ImmunizationReaction represents an adverse reaction.
+type ImmunizationReaction struct {
+	Date   string     `json:"date,omitempty"`     // When reaction started
+	Detail *Reference `json:"detail,omitempty"`   // Reference to Observation
+	Reported bool     `json:"reported,omitempty"` // Was reaction self-reported?
+}
+
+// ImmunizationProtocol represents a protocol applied.
+type ImmunizationProtocol struct {
+	Series         string            `json:"series,omitempty"`           // Series name
+	Authority      *Reference        `json:"authority,omitempty"`        // Organization
+	TargetDisease  []CodeableConcept `json:"targetDisease,omitempty"`    // Disease being targeted
+	DoseNumberPositiveInt int        `json:"doseNumberPositiveInt,omitempty"` // Dose number
+	DoseNumberString string          `json:"doseNumberString,omitempty"`
+	SeriesDosesPositiveInt int       `json:"seriesDosesPositiveInt,omitempty"` // Total doses in series
+	SeriesDosesString string         `json:"seriesDosesString,omitempty"`
+}
+
+// GetResourceType returns "Immunization".
+func (i *Immunization) GetResourceType() string {
+	return "Immunization"
+}
+
+// MarshalJSON ensures ResourceType is always set.
+func (i *Immunization) MarshalJSON() ([]byte, error) {
+	type Alias Immunization
+	return json.Marshal(&struct {
+		ResourceType string `json:"resourceType"`
+		*Alias
+	}{
+		ResourceType: "Immunization",
+		Alias:        (*Alias)(i),
 	})
 }

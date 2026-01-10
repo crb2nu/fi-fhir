@@ -1994,3 +1994,698 @@ func TestCoverageEligibilityResponseJSONSerialization(t *testing.T) {
 		t.Error("JSON missing deductible benefit type")
 	}
 }
+
+// ========== Procedure Tests ==========
+
+func TestMapProcedure_Basic(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.ProcedureEvent{
+		EventMeta: events.NewEventMeta(events.EventProcedure, "test", events.FormatCDA),
+		Procedure: events.Procedure{
+			Name:   "Appendectomy",
+			Code:   "80146002",
+			Status: "completed",
+		},
+		PerformedDate: "2024-01-15",
+	}
+	event.ID = "proc-123"
+
+	proc := mapper.MapProcedure(event, "Patient/test-patient")
+
+	if proc == nil {
+		t.Fatal("Expected non-nil Procedure")
+	}
+
+	// Verify resource type and profile
+	if proc.ResourceType != "Procedure" {
+		t.Errorf("ResourceType = %q, want 'Procedure'", proc.ResourceType)
+	}
+	if len(proc.Meta.Profile) != 1 || proc.Meta.Profile[0] != USCoreProcedureProfile {
+		t.Errorf("Profile = %v, want [%s]", proc.Meta.Profile, USCoreProcedureProfile)
+	}
+
+	// Verify required elements
+	if proc.Status != "completed" {
+		t.Errorf("Status = %q, want 'completed'", proc.Status)
+	}
+	if proc.Subject == nil || proc.Subject.Reference != "Patient/test-patient" {
+		t.Errorf("Subject reference incorrect")
+	}
+
+	// Verify code
+	if len(proc.Code.Coding) != 1 {
+		t.Errorf("Expected 1 coding, got %d", len(proc.Code.Coding))
+	}
+	if proc.Code.Coding[0].Code != "80146002" {
+		t.Errorf("Code = %q, want '80146002'", proc.Code.Coding[0].Code)
+	}
+	if proc.Code.Coding[0].Display != "Appendectomy" {
+		t.Errorf("Display = %q, want 'Appendectomy'", proc.Code.Coding[0].Display)
+	}
+
+	// Verify performed date
+	if proc.PerformedDateTime != "2024-01-15" {
+		t.Errorf("PerformedDateTime = %q, want '2024-01-15'", proc.PerformedDateTime)
+	}
+}
+
+func TestMapProcedure_WithPerformer(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.ProcedureEvent{
+		EventMeta: events.NewEventMeta(events.EventProcedure, "test", events.FormatCDA),
+		Procedure: events.Procedure{
+			Name:   "Colonoscopy",
+			Code:   "73761001",
+			Status: "completed",
+		},
+		PerformedDate: "2024-02-20",
+		Performer: &events.Provider{
+			NPI:        "1234567890",
+			FamilyName: "Smith",
+			GivenName:  "Jane",
+		},
+	}
+
+	proc := mapper.MapProcedure(event, "Patient/123")
+
+	if len(proc.Performer) != 1 {
+		t.Fatalf("Expected 1 performer, got %d", len(proc.Performer))
+	}
+
+	performer := proc.Performer[0]
+	if performer.Actor == nil {
+		t.Fatal("Expected non-nil performer actor")
+	}
+	if performer.Actor.Reference != "Practitioner/1234567890" {
+		t.Errorf("Performer reference = %q, want 'Practitioner/1234567890'", performer.Actor.Reference)
+	}
+	if performer.Actor.Display != "Smith, Jane" {
+		t.Errorf("Performer display = %q, want 'Smith, Jane'", performer.Actor.Display)
+	}
+}
+
+func TestMapProcedure_WithEncounter(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.ProcedureEvent{
+		EventMeta: events.NewEventMeta(events.EventProcedure, "test", events.FormatCDA),
+		Procedure: events.Procedure{
+			Name: "Blood Draw",
+			Code: "82078001",
+		},
+		Encounter: &events.Encounter{
+			ID: "enc-456",
+		},
+	}
+
+	proc := mapper.MapProcedure(event, "Patient/123")
+
+	if proc.Encounter == nil {
+		t.Fatal("Expected encounter reference")
+	}
+	if proc.Encounter.Reference != "Encounter/enc-456" {
+		t.Errorf("Encounter reference = %q, want 'Encounter/enc-456'", proc.Encounter.Reference)
+	}
+}
+
+func TestMapProcedure_WithLocation(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.ProcedureEvent{
+		EventMeta: events.NewEventMeta(events.EventProcedure, "test", events.FormatCDA),
+		Procedure: events.Procedure{
+			Name: "X-Ray",
+			Code: "168537006",
+		},
+		Location: &events.Location{
+			Facility: "General Hospital",
+			Building: "Main",
+			Unit:     "Radiology",
+		},
+	}
+
+	proc := mapper.MapProcedure(event, "Patient/123")
+
+	if proc.Location == nil {
+		t.Fatal("Expected location reference")
+	}
+	if proc.Location.Display != "General Hospital - Main - Radiology" {
+		t.Errorf("Location display = %q, want 'General Hospital - Main - Radiology'", proc.Location.Display)
+	}
+}
+
+func TestMapProcedure_StatusMapping(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"completed", "completed"},
+		{"complete", "completed"},
+		{"done", "completed"},
+		{"in-progress", "in-progress"},
+		{"inprogress", "in-progress"},
+		{"active", "in-progress"},
+		{"preparation", "preparation"},
+		{"scheduled", "preparation"},
+		{"not-done", "not-done"},
+		{"cancelled", "not-done"},
+		{"on-hold", "on-hold"},
+		{"paused", "on-hold"},
+		{"stopped", "stopped"},
+		{"aborted", "stopped"},
+		{"entered-in-error", "entered-in-error"},
+		{"error", "entered-in-error"},
+		{"", "completed"},         // Default
+		{"unknown", "completed"},  // Default
+		{"xyz", "completed"},      // Unknown maps to default
+	}
+
+	for _, test := range tests {
+		t.Run(test.input, func(t *testing.T) {
+			event := &events.ProcedureEvent{
+				Procedure: events.Procedure{
+					Name:   "Test",
+					Code:   "123",
+					Status: test.input,
+				},
+			}
+
+			proc := mapper.MapProcedure(event, "Patient/123")
+
+			if proc.Status != test.expected {
+				t.Errorf("Status for %q = %q, want %q", test.input, proc.Status, test.expected)
+			}
+		})
+	}
+}
+
+func TestMapProcedure_CodeSystemDetection(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		code         string
+		expectedSystem string
+		description  string
+	}{
+		{"80146002", SystemSNOMED, "SNOMED code (8 digits)"},
+		{"73761001", SystemSNOMED, "SNOMED code (8 digits)"},
+		{"99213", SystemCPT, "CPT code (5 digits)"},
+		{"12345", SystemCPT, "CPT code (5 digits)"},
+		{"0DB64ZZ", SystemICD10PCS, "ICD-10-PCS code (7 chars)"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			event := &events.ProcedureEvent{
+				Procedure: events.Procedure{
+					Name: "Test Procedure",
+					Code: test.code,
+				},
+			}
+
+			proc := mapper.MapProcedure(event, "Patient/123")
+
+			if len(proc.Code.Coding) != 1 {
+				t.Fatalf("Expected 1 coding, got %d", len(proc.Code.Coding))
+			}
+			if proc.Code.Coding[0].System != test.expectedSystem {
+				t.Errorf("System for %q = %q, want %q", test.code, proc.Code.Coding[0].System, test.expectedSystem)
+			}
+		})
+	}
+}
+
+func TestMapProcedure_ExplicitCodeSystem(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.ProcedureEvent{
+		Procedure: events.Procedure{
+			Name:       "Test",
+			Code:       "ABC123",
+			CodeSystem: "http://custom.system/codes",
+		},
+	}
+
+	proc := mapper.MapProcedure(event, "Patient/123")
+
+	if proc.Code.Coding[0].System != "http://custom.system/codes" {
+		t.Errorf("System = %q, want 'http://custom.system/codes'", proc.Code.Coding[0].System)
+	}
+}
+
+func TestMapProcedure_NilEvent(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	proc := mapper.MapProcedure(nil, "Patient/123")
+
+	if proc != nil {
+		t.Error("Expected nil for nil event")
+	}
+}
+
+func TestProcedureJSONSerialization(t *testing.T) {
+	proc := &Procedure{
+		ResourceType: "Procedure",
+		ID:           "test-proc",
+		Status:       "completed",
+		Code: CodeableConcept{
+			Coding: []Coding{
+				{
+					System:  SystemSNOMED,
+					Code:    "80146002",
+					Display: "Appendectomy",
+				},
+			},
+		},
+		Subject: &Reference{Reference: "Patient/123"},
+	}
+
+	data, err := json.Marshal(proc)
+	if err != nil {
+		t.Fatalf("Failed to marshal Procedure: %v", err)
+	}
+
+	jsonStr := string(data)
+	if !strings.Contains(jsonStr, `"resourceType":"Procedure"`) {
+		t.Error("JSON missing resourceType")
+	}
+	if !strings.Contains(jsonStr, `"status":"completed"`) {
+		t.Error("JSON missing status")
+	}
+	if !strings.Contains(jsonStr, `"80146002"`) {
+		t.Error("JSON missing code")
+	}
+}
+
+// ========== Immunization Tests ==========
+
+func TestMapImmunization_Basic(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.ImmunizationEvent{
+		EventMeta: events.NewEventMeta(events.EventImmunization, "test", events.FormatCDA),
+		Immunization: events.Immunization{
+			VaccineCode: "140",
+			VaccineName: "Influenza, seasonal, injectable, preservative free",
+			Status:      "completed",
+		},
+		AdministeredDate: "2024-10-15",
+	}
+	event.ID = "imm-123"
+
+	imm := mapper.MapImmunization(event, "Patient/test-patient")
+
+	if imm == nil {
+		t.Fatal("Expected non-nil Immunization")
+	}
+
+	// Verify resource type and profile
+	if imm.ResourceType != "Immunization" {
+		t.Errorf("ResourceType = %q, want 'Immunization'", imm.ResourceType)
+	}
+	if len(imm.Meta.Profile) != 1 || imm.Meta.Profile[0] != USCoreImmunizationProfile {
+		t.Errorf("Profile = %v, want [%s]", imm.Meta.Profile, USCoreImmunizationProfile)
+	}
+
+	// Verify required elements
+	if imm.Status != "completed" {
+		t.Errorf("Status = %q, want 'completed'", imm.Status)
+	}
+	if imm.Patient == nil || imm.Patient.Reference != "Patient/test-patient" {
+		t.Errorf("Patient reference incorrect")
+	}
+
+	// Verify vaccine code uses CVX system
+	if len(imm.VaccineCode.Coding) != 1 {
+		t.Errorf("Expected 1 coding, got %d", len(imm.VaccineCode.Coding))
+	}
+	if imm.VaccineCode.Coding[0].System != SystemCVX {
+		t.Errorf("System = %q, want %q", imm.VaccineCode.Coding[0].System, SystemCVX)
+	}
+	if imm.VaccineCode.Coding[0].Code != "140" {
+		t.Errorf("Code = %q, want '140'", imm.VaccineCode.Coding[0].Code)
+	}
+
+	// Verify occurrence date
+	if imm.OccurrenceDateTime != "2024-10-15" {
+		t.Errorf("OccurrenceDateTime = %q, want '2024-10-15'", imm.OccurrenceDateTime)
+	}
+
+	// Verify primary source is set
+	if imm.PrimarySource == nil || !*imm.PrimarySource {
+		t.Error("Expected PrimarySource to be true")
+	}
+}
+
+func TestMapImmunization_WithDetails(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.ImmunizationEvent{
+		EventMeta: events.NewEventMeta(events.EventImmunization, "test", events.FormatCDA),
+		Immunization: events.Immunization{
+			VaccineCode:  "208",
+			VaccineName:  "Pfizer-BioNTech COVID-19 Vaccine",
+			Status:       "completed",
+			LotNumber:    "EW0150",
+			Site:         "LA",
+			Route:        "IM",
+			DoseQuantity: "0.3 mL",
+		},
+		AdministeredDate: "2024-03-15",
+	}
+
+	imm := mapper.MapImmunization(event, "Patient/123")
+
+	// Verify lot number
+	if imm.LotNumber != "EW0150" {
+		t.Errorf("LotNumber = %q, want 'EW0150'", imm.LotNumber)
+	}
+
+	// Verify site (should be mapped to SNOMED)
+	if imm.Site == nil {
+		t.Fatal("Expected site to be set")
+	}
+	if len(imm.Site.Coding) != 1 {
+		t.Errorf("Expected 1 site coding, got %d", len(imm.Site.Coding))
+	}
+	if imm.Site.Coding[0].System != SystemSNOMED {
+		t.Errorf("Site system = %q, want %q", imm.Site.Coding[0].System, SystemSNOMED)
+	}
+	if imm.Site.Coding[0].Display != "Left arm" {
+		t.Errorf("Site display = %q, want 'Left arm'", imm.Site.Coding[0].Display)
+	}
+
+	// Verify route (should be mapped to NCIT)
+	if imm.Route == nil {
+		t.Fatal("Expected route to be set")
+	}
+	if len(imm.Route.Coding) != 1 {
+		t.Errorf("Expected 1 route coding, got %d", len(imm.Route.Coding))
+	}
+	if imm.Route.Coding[0].Display != "Intramuscular" {
+		t.Errorf("Route display = %q, want 'Intramuscular'", imm.Route.Coding[0].Display)
+	}
+
+	// Verify dose quantity
+	if imm.DoseQuantity == nil {
+		t.Fatal("Expected dose quantity to be set")
+	}
+	if imm.DoseQuantity.Value != 0.3 {
+		t.Errorf("DoseQuantity value = %f, want 0.3", imm.DoseQuantity.Value)
+	}
+	if imm.DoseQuantity.Unit != "mL" {
+		t.Errorf("DoseQuantity unit = %q, want 'mL'", imm.DoseQuantity.Unit)
+	}
+}
+
+func TestMapImmunization_WithPerformer(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.ImmunizationEvent{
+		EventMeta: events.NewEventMeta(events.EventImmunization, "test", events.FormatCDA),
+		Immunization: events.Immunization{
+			VaccineCode: "140",
+			VaccineName: "Flu Shot",
+		},
+		AdministeredDate: "2024-10-15",
+		Performer: &events.Provider{
+			NPI:        "9876543210",
+			FamilyName: "Johnson",
+			GivenName:  "Mary",
+		},
+	}
+
+	imm := mapper.MapImmunization(event, "Patient/123")
+
+	if len(imm.Performer) != 1 {
+		t.Fatalf("Expected 1 performer, got %d", len(imm.Performer))
+	}
+
+	performer := imm.Performer[0]
+
+	// Verify function code (AP = Administering Provider)
+	if performer.Function == nil || len(performer.Function.Coding) != 1 {
+		t.Fatal("Expected performer function with coding")
+	}
+	if performer.Function.Coding[0].Code != "AP" {
+		t.Errorf("Function code = %q, want 'AP'", performer.Function.Coding[0].Code)
+	}
+
+	// Verify actor
+	if performer.Actor == nil {
+		t.Fatal("Expected performer actor")
+	}
+	if performer.Actor.Reference != "Practitioner/9876543210" {
+		t.Errorf("Actor reference = %q, want 'Practitioner/9876543210'", performer.Actor.Reference)
+	}
+	if performer.Actor.Display != "Johnson, Mary" {
+		t.Errorf("Actor display = %q, want 'Johnson, Mary'", performer.Actor.Display)
+	}
+}
+
+func TestMapImmunization_StatusMapping(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"completed", "completed"},
+		{"complete", "completed"},
+		{"done", "completed"},
+		{"given", "completed"},
+		{"administered", "completed"},
+		{"not-done", "not-done"},
+		{"not_given", "not-done"},
+		{"refused", "not-done"},
+		{"contraindicated", "not-done"},
+		{"entered-in-error", "entered-in-error"},
+		{"error", "entered-in-error"},
+		{"", "completed"},  // Default
+	}
+
+	for _, test := range tests {
+		t.Run(test.input, func(t *testing.T) {
+			event := &events.ImmunizationEvent{
+				Immunization: events.Immunization{
+					VaccineCode: "140",
+					VaccineName: "Test",
+					Status:      test.input,
+				},
+			}
+
+			imm := mapper.MapImmunization(event, "Patient/123")
+
+			if imm.Status != test.expected {
+				t.Errorf("Status for %q = %q, want %q", test.input, imm.Status, test.expected)
+			}
+		})
+	}
+}
+
+func TestMapImmunization_SiteMapping(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		site     string
+		expected string
+	}{
+		{"LA", "Left arm"},
+		{"RA", "Right arm"},
+		{"LT", "Left thigh"},
+		{"RT", "Right thigh"},
+		{"LD", "Left deltoid"},
+		{"RD", "Right deltoid"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.site, func(t *testing.T) {
+			event := &events.ImmunizationEvent{
+				Immunization: events.Immunization{
+					VaccineCode: "140",
+					Site:        test.site,
+				},
+			}
+
+			imm := mapper.MapImmunization(event, "Patient/123")
+
+			if imm.Site == nil {
+				t.Fatal("Expected site to be set")
+			}
+			if imm.Site.Text != test.expected {
+				t.Errorf("Site text for %q = %q, want %q", test.site, imm.Site.Text, test.expected)
+			}
+		})
+	}
+}
+
+func TestMapImmunization_RouteMapping(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		route    string
+		expected string
+	}{
+		{"IM", "Intramuscular"},
+		{"SC", "Subcutaneous"},
+		{"SQ", "Subcutaneous"},
+		{"ID", "Intradermal"},
+		{"PO", "Oral"},
+		{"IN", "Intranasal"},
+		{"NASAL", "Intranasal"},
+		{"ORAL", "Oral"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.route, func(t *testing.T) {
+			event := &events.ImmunizationEvent{
+				Immunization: events.Immunization{
+					VaccineCode: "140",
+					Route:       test.route,
+				},
+			}
+
+			imm := mapper.MapImmunization(event, "Patient/123")
+
+			if imm.Route == nil {
+				t.Fatal("Expected route to be set")
+			}
+			if imm.Route.Text != test.expected {
+				t.Errorf("Route text for %q = %q, want %q", test.route, imm.Route.Text, test.expected)
+			}
+		})
+	}
+}
+
+func TestMapImmunization_DoseQuantityParsing(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		input         string
+		expectedValue float64
+		expectedUnit  string
+	}{
+		{"0.5 mL", 0.5, "mL"},
+		{"0.3 mL", 0.3, "mL"},
+		{"1.0 mL", 1.0, "mL"},
+		{"0.5", 0.5, "mL"},  // Default unit
+	}
+
+	for _, test := range tests {
+		t.Run(test.input, func(t *testing.T) {
+			event := &events.ImmunizationEvent{
+				Immunization: events.Immunization{
+					VaccineCode:  "140",
+					DoseQuantity: test.input,
+				},
+			}
+
+			imm := mapper.MapImmunization(event, "Patient/123")
+
+			if imm.DoseQuantity == nil {
+				t.Fatal("Expected dose quantity to be set")
+			}
+			if imm.DoseQuantity.Value != test.expectedValue {
+				t.Errorf("Value for %q = %f, want %f", test.input, imm.DoseQuantity.Value, test.expectedValue)
+			}
+			if imm.DoseQuantity.Unit != test.expectedUnit {
+				t.Errorf("Unit for %q = %q, want %q", test.input, imm.DoseQuantity.Unit, test.expectedUnit)
+			}
+		})
+	}
+}
+
+func TestMapImmunization_NilEvent(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	imm := mapper.MapImmunization(nil, "Patient/123")
+
+	if imm != nil {
+		t.Error("Expected nil for nil event")
+	}
+}
+
+func TestMapImmunization_WithEncounterAndLocation(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.ImmunizationEvent{
+		EventMeta: events.NewEventMeta(events.EventImmunization, "test", events.FormatCDA),
+		Immunization: events.Immunization{
+			VaccineCode: "140",
+			VaccineName: "Flu Shot",
+		},
+		AdministeredDate: "2024-10-15",
+		Encounter: &events.Encounter{
+			ID: "enc-789",
+		},
+		Location: &events.Location{
+			Facility:    "Community Clinic",
+			Description: "Main Building",
+		},
+	}
+
+	imm := mapper.MapImmunization(event, "Patient/123")
+
+	// Verify encounter
+	if imm.Encounter == nil {
+		t.Fatal("Expected encounter reference")
+	}
+	if imm.Encounter.Reference != "Encounter/enc-789" {
+		t.Errorf("Encounter reference = %q, want 'Encounter/enc-789'", imm.Encounter.Reference)
+	}
+
+	// Verify location
+	if imm.Location == nil {
+		t.Fatal("Expected location reference")
+	}
+	if imm.Location.Display != "Community Clinic" {
+		t.Errorf("Location display = %q, want 'Community Clinic'", imm.Location.Display)
+	}
+}
+
+func TestImmunizationJSONSerialization(t *testing.T) {
+	primarySource := true
+	imm := &Immunization{
+		ResourceType: "Immunization",
+		ID:           "test-imm",
+		Status:       "completed",
+		VaccineCode: CodeableConcept{
+			Coding: []Coding{
+				{
+					System:  SystemCVX,
+					Code:    "140",
+					Display: "Flu Shot",
+				},
+			},
+		},
+		Patient:            &Reference{Reference: "Patient/123"},
+		OccurrenceDateTime: "2024-10-15",
+		PrimarySource:      &primarySource,
+	}
+
+	data, err := json.Marshal(imm)
+	if err != nil {
+		t.Fatalf("Failed to marshal Immunization: %v", err)
+	}
+
+	jsonStr := string(data)
+	if !strings.Contains(jsonStr, `"resourceType":"Immunization"`) {
+		t.Error("JSON missing resourceType")
+	}
+	if !strings.Contains(jsonStr, `"status":"completed"`) {
+		t.Error("JSON missing status")
+	}
+	if !strings.Contains(jsonStr, SystemCVX) {
+		t.Error("JSON missing CVX system")
+	}
+	if !strings.Contains(jsonStr, `"140"`) {
+		t.Error("JSON missing vaccine code")
+	}
+	if !strings.Contains(jsonStr, `"primarySource":true`) {
+		t.Error("JSON missing primarySource")
+	}
+}

@@ -40,6 +40,12 @@ type Mapper interface {
 
 	// MapCoverageEligibilityResponse converts an EligibilityResponseEvent to a FHIR CoverageEligibilityResponse.
 	MapCoverageEligibilityResponse(event *events.EligibilityResponseEvent, patientRef string) *CoverageEligibilityResponse
+
+	// MapProcedure converts a canonical ProcedureEvent to a FHIR Procedure.
+	MapProcedure(event *events.ProcedureEvent, patientRef string) *Procedure
+
+	// MapImmunization converts a canonical ImmunizationEvent to a FHIR Immunization.
+	MapImmunization(event *events.ImmunizationEvent, patientRef string) *Immunization
 }
 
 // USCoreMapper implements Mapper for US Core 6.1.0 compliant resources.
@@ -2295,4 +2301,451 @@ func (m *USCoreMapper) mapEligibilityErrors(errors []events.EligibilityValidatio
 	}
 
 	return cerErrors
+}
+
+// MapProcedure converts a canonical ProcedureEvent to a US Core Procedure.
+func (m *USCoreMapper) MapProcedure(event *events.ProcedureEvent, patientRef string) *Procedure {
+	if event == nil {
+		return nil
+	}
+
+	procedure := &Procedure{
+		ResourceType: "Procedure",
+		ID:           event.ID,
+		Meta: &Meta{
+			Profile: []string{USCoreProcedureProfile},
+		},
+		Subject: &Reference{
+			Reference: patientRef,
+		},
+	}
+
+	// Map status (default to "completed" if not provided)
+	procedure.Status = m.mapProcedureStatus(event.Procedure.Status)
+
+	// Map code (required) - detect code system
+	procedure.Code = m.mapProcedureCode(event.Procedure)
+
+	// Map performed date
+	if event.PerformedDate != "" {
+		procedure.PerformedDateTime = event.PerformedDate
+	}
+
+	// Map performer
+	if event.Performer != nil {
+		procedure.Performer = m.mapProcedurePerformers(event.Performer)
+	}
+
+	// Map encounter reference
+	if event.Encounter != nil && event.Encounter.ID != "" {
+		procedure.Encounter = &Reference{
+			Reference: fmt.Sprintf("Encounter/%s", event.Encounter.ID),
+		}
+	}
+
+	// Map location
+	if event.Location != nil {
+		procedure.Location = m.mapProcedureLocation(event.Location)
+	}
+
+	return procedure
+}
+
+// mapProcedureStatus converts canonical status to FHIR Procedure status.
+func (m *USCoreMapper) mapProcedureStatus(status string) string {
+	switch strings.ToLower(status) {
+	case "completed", "complete", "done":
+		return "completed"
+	case "in-progress", "inprogress", "active":
+		return "in-progress"
+	case "preparation", "prep", "scheduled":
+		return "preparation"
+	case "not-done", "notdone", "cancelled", "canceled":
+		return "not-done"
+	case "on-hold", "onhold", "paused":
+		return "on-hold"
+	case "stopped", "aborted":
+		return "stopped"
+	case "entered-in-error", "error":
+		return "entered-in-error"
+	case "unknown", "":
+		return "completed" // Default to completed for historical data
+	default:
+		return "completed"
+	}
+}
+
+// mapProcedureCode converts the canonical procedure code to FHIR CodeableConcept.
+// Detects the code system based on format (CPT, SNOMED, ICD-10-PCS).
+func (m *USCoreMapper) mapProcedureCode(proc events.Procedure) CodeableConcept {
+	coding := Coding{
+		Code:    proc.Code,
+		Display: proc.Name,
+	}
+
+	// Determine code system
+	if proc.CodeSystem != "" {
+		coding.System = proc.CodeSystem
+	} else {
+		coding.System = m.detectProcedureCodeSystem(proc.Code)
+	}
+
+	return CodeableConcept{
+		Coding: []Coding{coding},
+		Text:   proc.Name,
+	}
+}
+
+// detectProcedureCodeSystem attempts to identify the code system from the code format.
+func (m *USCoreMapper) detectProcedureCodeSystem(code string) string {
+	if code == "" {
+		return SystemSNOMED // Default to SNOMED
+	}
+
+	// CPT codes: 5 digits, sometimes with modifiers
+	// Pattern: NNNNN or NNNNN-NN
+	if len(code) >= 5 && len(code) <= 7 {
+		allDigits := true
+		for i := 0; i < 5 && i < len(code); i++ {
+			if code[i] < '0' || code[i] > '9' {
+				allDigits = false
+				break
+			}
+		}
+		if allDigits {
+			// Check if it looks like a CPT code (range 00100-99999)
+			if num, err := strconv.Atoi(code[:5]); err == nil && num >= 100 && num <= 99999 {
+				return SystemCPT
+			}
+		}
+	}
+
+	// SNOMED codes: longer numeric codes, typically 6-18 digits
+	if len(code) >= 6 {
+		allDigits := true
+		for _, ch := range code {
+			if ch < '0' || ch > '9' {
+				allDigits = false
+				break
+			}
+		}
+		if allDigits {
+			return SystemSNOMED
+		}
+	}
+
+	// ICD-10-PCS codes: 7 alphanumeric characters
+	if len(code) == 7 {
+		return SystemICD10PCS
+	}
+
+	// Default to SNOMED
+	return SystemSNOMED
+}
+
+// mapProcedurePerformers converts a Provider to FHIR ProcedurePerformers.
+func (m *USCoreMapper) mapProcedurePerformers(provider *events.Provider) []ProcedurePerformer {
+	if provider == nil {
+		return nil
+	}
+
+	displayName := m.buildProviderDisplayName(provider)
+	ref := m.buildProviderReference(provider)
+
+	return []ProcedurePerformer{
+		{
+			Actor: &Reference{
+				Reference: ref,
+				Display:   displayName,
+			},
+		},
+	}
+}
+
+// buildProviderDisplayName creates a display name for a provider.
+func (m *USCoreMapper) buildProviderDisplayName(provider *events.Provider) string {
+	if provider.OrganizationName != "" {
+		return provider.OrganizationName
+	}
+	if provider.FamilyName != "" {
+		if provider.GivenName != "" {
+			return fmt.Sprintf("%s, %s", provider.FamilyName, provider.GivenName)
+		}
+		return provider.FamilyName
+	}
+	return ""
+}
+
+// buildProviderReference creates a reference string for a provider.
+func (m *USCoreMapper) buildProviderReference(provider *events.Provider) string {
+	if provider.NPI != "" {
+		return fmt.Sprintf("Practitioner/%s", provider.NPI)
+	}
+	if provider.ID != "" {
+		return fmt.Sprintf("Practitioner/%s", provider.ID)
+	}
+	return "Practitioner/unknown"
+}
+
+// mapProcedureLocation converts a canonical Location to a FHIR Reference.
+func (m *USCoreMapper) mapProcedureLocation(loc *events.Location) *Reference {
+	if loc == nil {
+		return nil
+	}
+
+	// Build a display name from location components
+	var parts []string
+	if loc.Facility != "" {
+		parts = append(parts, loc.Facility)
+	}
+	if loc.Building != "" {
+		parts = append(parts, loc.Building)
+	}
+	if loc.Unit != "" {
+		parts = append(parts, loc.Unit)
+	}
+
+	display := strings.Join(parts, " - ")
+	if display == "" {
+		display = loc.Description
+	}
+
+	return &Reference{
+		Display: display,
+	}
+}
+
+// MapImmunization converts a canonical ImmunizationEvent to a US Core Immunization.
+func (m *USCoreMapper) MapImmunization(event *events.ImmunizationEvent, patientRef string) *Immunization {
+	if event == nil {
+		return nil
+	}
+
+	immunization := &Immunization{
+		ResourceType: "Immunization",
+		ID:           event.ID,
+		Meta: &Meta{
+			Profile: []string{USCoreImmunizationProfile},
+		},
+		Patient: &Reference{
+			Reference: patientRef,
+		},
+	}
+
+	// Map status (required) - default to "completed"
+	immunization.Status = m.mapImmunizationStatus(event.Immunization.Status)
+
+	// Map vaccine code (required) - CVX code system
+	immunization.VaccineCode = m.mapVaccineCode(event.Immunization)
+
+	// Map occurrence date (required)
+	if event.AdministeredDate != "" {
+		immunization.OccurrenceDateTime = event.AdministeredDate
+	}
+
+	// Map lot number
+	if event.Immunization.LotNumber != "" {
+		immunization.LotNumber = event.Immunization.LotNumber
+	}
+
+	// Map site
+	if event.Immunization.Site != "" {
+		immunization.Site = m.mapImmunizationSite(event.Immunization.Site)
+	}
+
+	// Map route
+	if event.Immunization.Route != "" {
+		immunization.Route = m.mapImmunizationRoute(event.Immunization.Route)
+	}
+
+	// Map dose quantity
+	if event.Immunization.DoseQuantity != "" {
+		immunization.DoseQuantity = m.parseImmunizationDoseQuantity(event.Immunization.DoseQuantity)
+	}
+
+	// Map performer
+	if event.Performer != nil {
+		immunization.Performer = m.mapImmunizationPerformers(event.Performer)
+	}
+
+	// Map encounter reference
+	if event.Encounter != nil && event.Encounter.ID != "" {
+		immunization.Encounter = &Reference{
+			Reference: fmt.Sprintf("Encounter/%s", event.Encounter.ID),
+		}
+	}
+
+	// Map location
+	if event.Location != nil {
+		immunization.Location = m.mapProcedureLocation(event.Location)
+	}
+
+	// Primary source - default to true if not explicitly set
+	primarySource := true
+	immunization.PrimarySource = &primarySource
+
+	return immunization
+}
+
+// mapImmunizationStatus converts canonical status to FHIR Immunization status.
+func (m *USCoreMapper) mapImmunizationStatus(status string) string {
+	switch strings.ToLower(status) {
+	case "completed", "complete", "done", "given", "administered":
+		return "completed"
+	case "not-done", "notdone", "not_given", "refused", "contraindicated":
+		return "not-done"
+	case "entered-in-error", "error":
+		return "entered-in-error"
+	case "":
+		return "completed" // Default
+	default:
+		return "completed"
+	}
+}
+
+// mapVaccineCode converts the canonical immunization to a CVX-coded CodeableConcept.
+func (m *USCoreMapper) mapVaccineCode(imm events.Immunization) CodeableConcept {
+	coding := Coding{
+		System:  SystemCVX,
+		Code:    imm.VaccineCode,
+		Display: imm.VaccineName,
+	}
+
+	return CodeableConcept{
+		Coding: []Coding{coding},
+		Text:   imm.VaccineName,
+	}
+}
+
+// mapImmunizationSite converts site string to CodeableConcept.
+// Uses SNOMED CT for body site codes.
+func (m *USCoreMapper) mapImmunizationSite(site string) *CodeableConcept {
+	// Map common site abbreviations to SNOMED CT codes
+	siteMap := map[string]struct {
+		code    string
+		display string
+	}{
+		"LA":    {"72098002", "Left arm"},
+		"RA":    {"59126009", "Right arm"},
+		"LT":    {"61396006", "Left thigh"},
+		"RT":    {"11207009", "Right thigh"},
+		"LLFA":  {"66480008", "Left lower forearm"},
+		"RLFA":  {"64262003", "Right lower forearm"},
+		"LD":    {"46862004", "Left deltoid"},
+		"RD":    {"91775009", "Right deltoid"},
+		"LG":    {"85562004", "Left gluteal"},
+		"RG":    {"78067005", "Right gluteal"},
+		"LVL":   {"64688005", "Left vastus lateralis"},
+		"RVL":   {"11207009", "Right vastus lateralis"},
+	}
+
+	if mapped, ok := siteMap[strings.ToUpper(site)]; ok {
+		return &CodeableConcept{
+			Coding: []Coding{
+				{
+					System:  SystemSNOMED,
+					Code:    mapped.code,
+					Display: mapped.display,
+				},
+			},
+			Text: mapped.display,
+		}
+	}
+
+	// Return as text if not a known code
+	return &CodeableConcept{
+		Text: site,
+	}
+}
+
+// mapImmunizationRoute converts route string to CodeableConcept.
+// Uses NCI Thesaurus (NCIT) for route codes.
+func (m *USCoreMapper) mapImmunizationRoute(route string) *CodeableConcept {
+	const SystemNCIT = "http://ncimeta.nci.nih.gov"
+
+	// Map common route abbreviations
+	routeMap := map[string]struct {
+		code    string
+		display string
+	}{
+		"IM":    {"C28161", "Intramuscular"},
+		"SC":    {"C38299", "Subcutaneous"},
+		"SQ":    {"C38299", "Subcutaneous"},
+		"ID":    {"C38238", "Intradermal"},
+		"IV":    {"C38276", "Intravenous"},
+		"PO":    {"C38288", "Oral"},
+		"IN":    {"C38284", "Intranasal"},
+		"TD":    {"C38305", "Transdermal"},
+		"NASAL": {"C38284", "Intranasal"},
+		"ORAL":  {"C38288", "Oral"},
+	}
+
+	if mapped, ok := routeMap[strings.ToUpper(route)]; ok {
+		return &CodeableConcept{
+			Coding: []Coding{
+				{
+					System:  SystemNCIT,
+					Code:    mapped.code,
+					Display: mapped.display,
+				},
+			},
+			Text: mapped.display,
+		}
+	}
+
+	// Return as text if not a known code
+	return &CodeableConcept{
+		Text: route,
+	}
+}
+
+// parseImmunizationDoseQuantity parses a dose quantity string.
+func (m *USCoreMapper) parseImmunizationDoseQuantity(doseStr string) *Quantity {
+	// Try to parse "value unit" format (e.g., "0.5 mL")
+	parts := strings.Fields(doseStr)
+	if len(parts) >= 1 {
+		if val, err := strconv.ParseFloat(parts[0], 64); err == nil {
+			unit := "mL" // Default unit
+			if len(parts) >= 2 {
+				unit = parts[1]
+			}
+			return &Quantity{
+				Value:  val,
+				Unit:   unit,
+				System: SystemUCUM,
+				Code:   strings.ToLower(unit),
+			}
+		}
+	}
+
+	// If parsing fails, return nil
+	return nil
+}
+
+// mapImmunizationPerformers converts a Provider to FHIR ImmunizationPerformers.
+func (m *USCoreMapper) mapImmunizationPerformers(provider *events.Provider) []ImmunizationPerformer {
+	if provider == nil {
+		return nil
+	}
+
+	displayName := m.buildProviderDisplayName(provider)
+	ref := m.buildProviderReference(provider)
+
+	return []ImmunizationPerformer{
+		{
+			Function: &CodeableConcept{
+				Coding: []Coding{
+					{
+						System:  "http://terminology.hl7.org/CodeSystem/v2-0443",
+						Code:    "AP",
+						Display: "Administering Provider",
+					},
+				},
+			},
+			Actor: &Reference{
+				Reference: ref,
+				Display:   displayName,
+			},
+		},
+	}
 }
