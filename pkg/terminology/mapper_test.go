@@ -198,3 +198,71 @@ LOCAL_LAB,WBC,http://loinc.org,6690-2
 		t.Errorf("Count() = %d, want 2", mapper.Count())
 	}
 }
+
+func TestMapperMapToSNOMED(t *testing.T) {
+	csvData := `source_system,source_code,target_system,target_code,target_display,equivalence
+LOCAL_LAB,DM2,http://snomed.info/sct,44054006,Diabetes mellitus type 2,equivalent
+LOCAL_LAB,HTN,http://snomed.info/sct,38341003,Hypertensive disorder,equivalent
+LOCAL_LAB,GLU,http://loinc.org,2345-7,Glucose,equivalent`
+
+	mapper := NewMapper()
+	if err := mapper.LoadFromReader(strings.NewReader(csvData)); err != nil {
+		t.Fatalf("LoadFromReader failed: %v", err)
+	}
+
+	// Found - mapping to SNOMED
+	mapping := mapper.MapToSNOMED("LOCAL_LAB", "DM2")
+	if mapping == nil {
+		t.Fatal("MapToSNOMED() returned nil, want mapping")
+	}
+	if mapping.TargetCode != "44054006" {
+		t.Errorf("TargetCode = %q, want '44054006'", mapping.TargetCode)
+	}
+	if mapping.TargetSystem != SystemSNOMED {
+		t.Errorf("TargetSystem = %q, want %q", mapping.TargetSystem, SystemSNOMED)
+	}
+	if mapping.TargetDisplay != "Diabetes mellitus type 2" {
+		t.Errorf("TargetDisplay = %q, want 'Diabetes mellitus type 2'", mapping.TargetDisplay)
+	}
+
+	// Found - different code
+	mapping = mapper.MapToSNOMED("LOCAL_LAB", "HTN")
+	if mapping == nil {
+		t.Fatal("MapToSNOMED(HTN) returned nil, want mapping")
+	}
+	if mapping.TargetCode != "38341003" {
+		t.Errorf("TargetCode = %q, want '38341003'", mapping.TargetCode)
+	}
+
+	// Not found - code exists but targets LOINC, not SNOMED
+	mapping = mapper.MapToSNOMED("LOCAL_LAB", "GLU")
+	if mapping != nil {
+		t.Errorf("MapToSNOMED(GLU) = %v, want nil (GLU maps to LOINC, not SNOMED)", mapping)
+	}
+
+	// Not found - code doesn't exist
+	mapping = mapper.MapToSNOMED("LOCAL_LAB", "UNKNOWN")
+	if mapping != nil {
+		t.Errorf("MapToSNOMED(UNKNOWN) = %v, want nil", mapping)
+	}
+}
+
+func TestMapperMapToICD10(t *testing.T) {
+	csvData := `source_system,source_code,target_system,target_code,target_display,equivalence
+LOCAL_DX,DM2,http://hl7.org/fhir/sid/icd-10-cm,E11.9,Type 2 diabetes mellitus without complications,equivalent
+LOCAL_DX,HTN,http://hl7.org/fhir/sid/icd-10-cm,I10,Essential hypertension,equivalent`
+
+	mapper := NewMapper()
+	if err := mapper.LoadFromReader(strings.NewReader(csvData)); err != nil {
+		t.Fatalf("LoadFromReader failed: %v", err)
+	}
+
+	// Test mapping to ICD-10
+	mappings := mapper.Map("LOCAL_DX", "DM2", SystemICD10CM)
+	if len(mappings) != 1 {
+		t.Fatalf("Map() returned %d mappings, want 1", len(mappings))
+	}
+	if mappings[0].TargetCode != "E11.9" {
+		t.Errorf("TargetCode = %q, want 'E11.9'", mappings[0].TargetCode)
+	}
+}

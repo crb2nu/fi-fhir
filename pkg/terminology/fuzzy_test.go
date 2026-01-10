@@ -204,6 +204,52 @@ func TestFuzzyMatcher_SynonymMatch(t *testing.T) {
 	}
 }
 
+func TestFuzzyMatcher_AddAbbreviation(t *testing.T) {
+	fm := newTestFuzzyMatcher()
+
+	// Add a custom abbreviation
+	fm.AddAbbreviation("LEUKS", "LEUKOCYTES")
+
+	// Verify abbreviation was added (case insensitive)
+	fm.mu.RLock()
+	expansion, ok := fm.abbreviations["LEUKS"]
+	fm.mu.RUnlock()
+
+	if !ok {
+		t.Fatal("Abbreviation 'LEUKS' was not added")
+	}
+	if expansion != "LEUKOCYTES" {
+		t.Errorf("Expansion = %q, want 'LEUKOCYTES'", expansion)
+	}
+
+	// Test case insensitivity - add lowercase, check uppercase storage
+	fm.AddAbbreviation("retics", "reticulocytes")
+
+	fm.mu.RLock()
+	expansion, ok = fm.abbreviations["RETICS"]
+	fm.mu.RUnlock()
+
+	if !ok {
+		t.Fatal("Abbreviation 'retics' was not normalized to uppercase")
+	}
+	if expansion != "RETICULOCYTES" {
+		t.Errorf("Expansion = %q, want 'RETICULOCYTES'", expansion)
+	}
+
+	// Verify default abbreviations still exist
+	fm.mu.RLock()
+	_, hasWBC := fm.abbreviations["WBC"]
+	_, hasHGB := fm.abbreviations["HGB"]
+	fm.mu.RUnlock()
+
+	if !hasWBC {
+		t.Error("Default abbreviation 'WBC' should exist")
+	}
+	if !hasHGB {
+		t.Error("Default abbreviation 'HGB' should exist")
+	}
+}
+
 func TestFuzzyMatcher_BestMatch(t *testing.T) {
 	fm := newTestFuzzyMatcher()
 

@@ -92,6 +92,47 @@ func TestLOINCLoader_GetCode_NotFound(t *testing.T) {
 	}
 }
 
+func TestLOINCLoader_LookupByCode(t *testing.T) {
+	loader := NewLOINCLoader()
+	loader.LoadLoincTableFromReader(strings.NewReader(testLoincTable))
+
+	// LookupByCode is an alias for GetCode - verify it works the same
+	tests := []struct {
+		code        string
+		wantCode    string
+		wantStatus  string
+		wantDisplay string
+	}{
+		{"6690-2", "6690-2", "ACTIVE", "White blood cell count"},
+		{"718-7", "718-7", "ACTIVE", "Hemoglobin"},
+		{"2345-7", "2345-7", "ACTIVE", "Glucose"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.code, func(t *testing.T) {
+			code := loader.LookupByCode(tc.code)
+			if code == nil {
+				t.Fatalf("LookupByCode(%s) = nil, want code", tc.code)
+			}
+			if code.Code != tc.wantCode {
+				t.Errorf("Code = %s, want %s", code.Code, tc.wantCode)
+			}
+			if code.Status != tc.wantStatus {
+				t.Errorf("Status = %s, want %s", code.Status, tc.wantStatus)
+			}
+			if code.DisplayName() != tc.wantDisplay {
+				t.Errorf("DisplayName() = %s, want %s", code.DisplayName(), tc.wantDisplay)
+			}
+		})
+	}
+
+	// Test not found case
+	code := loader.LookupByCode("NONEXISTENT")
+	if code != nil {
+		t.Error("LookupByCode(NONEXISTENT) should return nil")
+	}
+}
+
 func TestLOINCLoader_LookupByDisplay(t *testing.T) {
 	loader := NewLOINCLoader()
 	loader.LoadLoincTableFromReader(strings.NewReader(testLoincTable))
