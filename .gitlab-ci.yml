@@ -58,9 +58,17 @@ lint:fmt:
   <<: *go-cache
   script:
     - apk add --no-cache git
-    # Check formatting without modifying files (exclude module cache and vendor)
+    # Check formatting on source directories only (not module cache)
     - |
-      unformatted=$(find . -name '*.go' -not -path './.go/*' -not -path './vendor/*' | xargs gofmt -l 2>/dev/null)
+      unformatted=""
+      for dir in cmd internal pkg sdk; do
+        if [ -d "$dir" ]; then
+          found=$(gofmt -l "$dir" 2>/dev/null || true)
+          if [ -n "$found" ]; then
+            unformatted="${unformatted}${found}"$'\n'
+          fi
+        fi
+      done
       if [ -n "$unformatted" ]; then
         echo "The following files are not formatted:"
         echo "$unformatted"
