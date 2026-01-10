@@ -431,13 +431,36 @@ func (r *mutationResolver) TriggerWorkflow(ctx context.Context, name string, eve
 		return nil, fmt.Errorf("workflow engine not configured")
 	}
 
-	// TODO: Implement workflow triggering with JSON event data
+	// Process the event through the workflow engine
+	// The engine accepts interface{}, so we can pass the map directly
+	startTime := time.Now()
+	wfResult := r.WorkflowEngine.ProcessWithContext(ctx, event)
+	duration := time.Since(startTime).Milliseconds()
+
+	// Count matched routes and actions
+	routesMatched := 0
+	actionsExecuted := 0
+	var errors []string
+
+	for _, rr := range wfResult.RouteResults {
+		if rr.Matched {
+			routesMatched++
+			actionsExecuted += rr.ActionsRun
+			for _, err := range rr.ActionErrors {
+				errors = append(errors, err.Error())
+			}
+			for _, err := range rr.TransformErrors {
+				errors = append(errors, err.Error())
+			}
+		}
+	}
+
 	return &model.WorkflowResult{
 		WorkflowName:    name,
-		RoutesMatched:   0,
-		ActionsExecuted: 0,
-		Errors:          []string{"workflow triggering not yet implemented"},
-		Duration:        0,
+		RoutesMatched:   routesMatched,
+		ActionsExecuted: actionsExecuted,
+		Errors:          errors,
+		Duration:        int(duration),
 	}, nil
 }
 
