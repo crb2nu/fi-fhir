@@ -1,3 +1,5 @@
+//go:build integration
+
 // Package eventsourcing provides integration tests for PostgreSQL stores.
 // These tests use testcontainers to automatically spin up PostgreSQL.
 //
