@@ -46,6 +46,14 @@ const (
 	USCoreDocumentReferenceProfile    = USCoreBaseURL + "us-core-documentreference"
 	USCoreDiagnosticReportNoteProfile = USCoreBaseURL + "us-core-diagnosticreport-note"
 
+	// Administrative/Infrastructure profiles
+	USCoreProvenanceProfile       = USCoreBaseURL + "us-core-provenance"
+	USCoreLocationProfile         = USCoreBaseURL + "us-core-location"
+	USCoreOrganizationProfile     = USCoreBaseURL + "us-core-organization"
+	USCorePractitionerProfile     = USCoreBaseURL + "us-core-practitioner"
+	USCorePractitionerRoleProfile = USCoreBaseURL + "us-core-practitionerrole"
+	USCoreRelatedPersonProfile    = USCoreBaseURL + "us-core-relatedperson"
+
 	// Extension URIs
 	USCoreRaceExtension      = USCoreBaseURL + "us-core-race"
 	USCoreEthnicityExtension = USCoreBaseURL + "us-core-ethnicity"
@@ -174,6 +182,27 @@ const (
 	SystemAllergyIntoleranceClinicalStatus = "http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical"
 	SystemAllergyIntoleranceVerification   = "http://terminology.hl7.org/CodeSystem/allergyintolerance-verification"
 	SystemReactionSeverity                 = "http://hl7.org/fhir/reaction-event-severity"
+
+	// Provenance code systems
+	SystemProvenanceParticipantType = "http://terminology.hl7.org/CodeSystem/provenance-participant-type"
+	SystemProvenanceEntityRole      = "http://hl7.org/fhir/provenance-entity-role"
+	SystemProvenanceActivity        = "http://terminology.hl7.org/CodeSystem/v3-DataOperation"
+	SystemSignatureType             = "urn:iso-astm:E1762-95:2013"
+
+	// Location/Organization code systems
+	SystemLocationStatus       = "http://hl7.org/fhir/location-status"
+	SystemLocationMode         = "http://hl7.org/fhir/location-mode"
+	SystemLocationType         = "http://terminology.hl7.org/CodeSystem/v3-RoleCode"
+	SystemLocationPhysicalType = "http://terminology.hl7.org/CodeSystem/location-physical-type"
+	SystemOrganizationType     = "http://terminology.hl7.org/CodeSystem/organization-type"
+
+	// Practitioner/Role code systems
+	SystemPractitionerRole  = "http://terminology.hl7.org/CodeSystem/practitioner-role"
+	SystemProviderTaxonomy  = "http://nucc.org/provider-taxonomy"
+	SystemQualificationType = "http://terminology.hl7.org/CodeSystem/v2-0360"
+
+	// RelatedPerson code systems
+	SystemRelatedPersonRelationship = "http://terminology.hl7.org/CodeSystem/v3-RoleCode"
 
 	// Vital Signs LOINC codes (US Core required)
 	LOINCHeartRate          = "8867-4"
@@ -1697,5 +1726,312 @@ func (drn *DiagnosticReportNote) MarshalJSON() ([]byte, error) {
 	}{
 		ResourceType: "DiagnosticReport",
 		Alias:        (*Alias)(drn),
+	})
+}
+
+// ============================================================================
+// Provenance (US Core 6.1.0)
+// ============================================================================
+
+// Provenance tracks the origins and derivation of FHIR resources.
+// US Core Provenance requires: target, recorded, agent (with type and who).
+type Provenance struct {
+	Meta             *Meta              `json:"meta,omitempty"`
+	Identifier       []Identifier       `json:"identifier,omitempty"`
+	Target           []Reference        `json:"target"`                     // Target resources (required)
+	OccurredDateTime string             `json:"occurredDateTime,omitempty"` // When the activity occurred
+	OccurredPeriod   *Period            `json:"occurredPeriod,omitempty"`   // When the activity occurred (period)
+	Recorded         string             `json:"recorded"`                   // When provenance was recorded (required)
+	Policy           []string           `json:"policy,omitempty"`           // Policy or plan that authorized the activity
+	Location         *Reference         `json:"location,omitempty"`         // Where the activity occurred
+	Reason           []CodeableConcept  `json:"reason,omitempty"`           // Reason for the activity
+	Activity         *CodeableConcept   `json:"activity,omitempty"`         // Activity that occurred
+	Agent            []ProvenanceAgent  `json:"agent"`                      // Actor(s) involved (required)
+	Entity           []ProvenanceEntity `json:"entity,omitempty"`           // An entity used in this activity
+	Signature        []Signature        `json:"signature,omitempty"`        // Signature on target
+}
+
+// ProvenanceAgent represents an actor involved in the provenance activity.
+type ProvenanceAgent struct {
+	Type       *CodeableConcept  `json:"type,omitempty"`       // How the agent participated
+	Role       []CodeableConcept `json:"role,omitempty"`       // Functional role the agent played
+	Who        *Reference        `json:"who"`                  // Who participated (required)
+	OnBehalfOf *Reference        `json:"onBehalfOf,omitempty"` // Who the agent acted on behalf of
+}
+
+// ProvenanceEntity represents an entity used in the provenance activity.
+type ProvenanceEntity struct {
+	Role  string            `json:"role"`            // derivation | revision | quotation | source | removal
+	What  *Reference        `json:"what"`            // Identity of the entity
+	Agent []ProvenanceAgent `json:"agent,omitempty"` // Entity is attributed to this agent
+}
+
+// Signature represents a digital signature.
+type Signature struct {
+	Type         []Coding   `json:"type"`                   // Indication of the reason for signing
+	When         string     `json:"when"`                   // When the signature was created
+	Who          *Reference `json:"who"`                    // Who signed
+	OnBehalfOf   *Reference `json:"onBehalfOf,omitempty"`   // On behalf of
+	TargetFormat string     `json:"targetFormat,omitempty"` // The technical format of the signed resources
+	SigFormat    string     `json:"sigFormat,omitempty"`    // The technical format of the signature
+	Data         string     `json:"data,omitempty"`         // The actual signature content (base64)
+}
+
+// GetResourceType returns "Provenance".
+func (p *Provenance) GetResourceType() string {
+	return "Provenance"
+}
+
+// MarshalJSON ensures ResourceType is always set.
+func (p *Provenance) MarshalJSON() ([]byte, error) {
+	type Alias Provenance
+	return json.Marshal(&struct {
+		ResourceType string `json:"resourceType"`
+		*Alias
+	}{
+		ResourceType: "Provenance",
+		Alias:        (*Alias)(p),
+	})
+}
+
+// ============================================================================
+// Location (US Core 6.1.0)
+// ============================================================================
+
+// FHIRLocation represents a physical place where healthcare services are provided.
+// Named FHIRLocation to avoid conflict with simple Location used in encounters.
+type FHIRLocation struct {
+	Meta                   *Meta                      `json:"meta,omitempty"`
+	Identifier             []Identifier               `json:"identifier,omitempty"`
+	Status                 string                     `json:"status,omitempty"`                 // active | suspended | inactive
+	OperationalStatus      *Coding                    `json:"operationalStatus,omitempty"`      // Operational status
+	Name                   string                     `json:"name"`                             // Name of the location (required)
+	Alias                  []string                   `json:"alias,omitempty"`                  // Alternate names
+	Description            string                     `json:"description,omitempty"`            // Additional details
+	Mode                   string                     `json:"mode,omitempty"`                   // instance | kind
+	Type                   []CodeableConcept          `json:"type,omitempty"`                   // Type of function performed
+	Telecom                []ContactPoint             `json:"telecom,omitempty"`                // Contact details
+	Address                *Address                   `json:"address,omitempty"`                // Physical location
+	PhysicalType           *CodeableConcept           `json:"physicalType,omitempty"`           // Physical form of the location
+	Position               *LocationPosition          `json:"position,omitempty"`               // Absolute geographical location
+	ManagingOrganization   *Reference                 `json:"managingOrganization,omitempty"`   // Organization responsible
+	PartOf                 *Reference                 `json:"partOf,omitempty"`                 // Part of larger location
+	HoursOfOperation       []LocationHoursOfOperation `json:"hoursOfOperation,omitempty"`       // Hours of operation
+	AvailabilityExceptions string                     `json:"availabilityExceptions,omitempty"` // Description of availability exceptions
+}
+
+// LocationPosition represents geographical coordinates.
+type LocationPosition struct {
+	Longitude float64 `json:"longitude"`          // Longitude
+	Latitude  float64 `json:"latitude"`           // Latitude
+	Altitude  float64 `json:"altitude,omitempty"` // Altitude
+}
+
+// LocationHoursOfOperation represents available hours.
+type LocationHoursOfOperation struct {
+	DaysOfWeek  []string `json:"daysOfWeek,omitempty"`  // Days of week
+	AllDay      bool     `json:"allDay,omitempty"`      // Always available
+	OpeningTime string   `json:"openingTime,omitempty"` // Opening time
+	ClosingTime string   `json:"closingTime,omitempty"` // Closing time
+}
+
+// GetResourceType returns "Location".
+func (l *FHIRLocation) GetResourceType() string {
+	return "Location"
+}
+
+// MarshalJSON ensures ResourceType is always set.
+func (l *FHIRLocation) MarshalJSON() ([]byte, error) {
+	type Alias FHIRLocation
+	return json.Marshal(&struct {
+		ResourceType string `json:"resourceType"`
+		*Alias
+	}{
+		ResourceType: "Location",
+		Alias:        (*Alias)(l),
+	})
+}
+
+// ============================================================================
+// Organization (US Core 6.1.0)
+// ============================================================================
+
+// FHIROrganization represents a grouping of people or organizations for collective action.
+type FHIROrganization struct {
+	Meta       *Meta                 `json:"meta,omitempty"`
+	Identifier []Identifier          `json:"identifier,omitempty"` // Business identifiers (US Core requires NPI)
+	Active     *bool                 `json:"active,omitempty"`     // Whether organization is still active
+	Type       []CodeableConcept     `json:"type,omitempty"`       // Kind of organization
+	Name       string                `json:"name"`                 // Name (required by US Core)
+	Alias      []string              `json:"alias,omitempty"`      // Alternate names
+	Telecom    []ContactPoint        `json:"telecom,omitempty"`    // Contact details
+	Address    []Address             `json:"address,omitempty"`    // Addresses (US Core requires)
+	PartOf     *Reference            `json:"partOf,omitempty"`     // Part of larger organization
+	Contact    []OrganizationContact `json:"contact,omitempty"`    // Contact for organization
+}
+
+// OrganizationContact represents a contact for the organization.
+type OrganizationContact struct {
+	Purpose *CodeableConcept `json:"purpose,omitempty"` // Type of contact
+	Name    *HumanName       `json:"name,omitempty"`    // Name of contact person
+	Telecom []ContactPoint   `json:"telecom,omitempty"` // Contact details
+	Address *Address         `json:"address,omitempty"` // Mailing address
+}
+
+// GetResourceType returns "Organization".
+func (o *FHIROrganization) GetResourceType() string {
+	return "Organization"
+}
+
+// MarshalJSON ensures ResourceType is always set.
+func (o *FHIROrganization) MarshalJSON() ([]byte, error) {
+	type Alias FHIROrganization
+	return json.Marshal(&struct {
+		ResourceType string `json:"resourceType"`
+		*Alias
+	}{
+		ResourceType: "Organization",
+		Alias:        (*Alias)(o),
+	})
+}
+
+// ============================================================================
+// Practitioner (US Core 6.1.0)
+// ============================================================================
+
+// FHIRPractitioner represents a person who is involved in healthcare.
+type FHIRPractitioner struct {
+	Meta          *Meta                       `json:"meta,omitempty"`
+	Identifier    []Identifier                `json:"identifier,omitempty"`    // Business identifiers (US Core requires NPI)
+	Active        *bool                       `json:"active,omitempty"`        // Whether record is active
+	Name          []HumanName                 `json:"name"`                    // Name(s) (required by US Core)
+	Telecom       []ContactPoint              `json:"telecom,omitempty"`       // Contact details
+	Address       []Address                   `json:"address,omitempty"`       // Addresses
+	Gender        string                      `json:"gender,omitempty"`        // male | female | other | unknown
+	BirthDate     string                      `json:"birthDate,omitempty"`     // Date of birth
+	Photo         []Attachment                `json:"photo,omitempty"`         // Image of the person
+	Qualification []PractitionerQualification `json:"qualification,omitempty"` // Professional qualifications
+	Communication []CodeableConcept           `json:"communication,omitempty"` // Languages spoken
+}
+
+// PractitionerQualification represents a qualification obtained by training.
+type PractitionerQualification struct {
+	Identifier []Identifier     `json:"identifier,omitempty"` // Qualification identifier
+	Code       *CodeableConcept `json:"code"`                 // Coded representation (required)
+	Period     *Period          `json:"period,omitempty"`     // Period during which qualification is valid
+	Issuer     *Reference       `json:"issuer,omitempty"`     // Organization that issued the qualification
+}
+
+// GetResourceType returns "Practitioner".
+func (p *FHIRPractitioner) GetResourceType() string {
+	return "Practitioner"
+}
+
+// MarshalJSON ensures ResourceType is always set.
+func (p *FHIRPractitioner) MarshalJSON() ([]byte, error) {
+	type Alias FHIRPractitioner
+	return json.Marshal(&struct {
+		ResourceType string `json:"resourceType"`
+		*Alias
+	}{
+		ResourceType: "Practitioner",
+		Alias:        (*Alias)(p),
+	})
+}
+
+// ============================================================================
+// PractitionerRole (US Core 6.1.0)
+// ============================================================================
+
+// FHIRPractitionerRole represents the role a practitioner plays at an organization.
+type FHIRPractitionerRole struct {
+	Meta                   *Meta                           `json:"meta,omitempty"`
+	Identifier             []Identifier                    `json:"identifier,omitempty"`             // Business identifiers
+	Active                 *bool                           `json:"active,omitempty"`                 // Whether record is active
+	Period                 *Period                         `json:"period,omitempty"`                 // When role is/was active
+	Practitioner           *Reference                      `json:"practitioner,omitempty"`           // Practitioner (required by US Core)
+	Organization           *Reference                      `json:"organization,omitempty"`           // Organization (required by US Core)
+	Code                   []CodeableConcept               `json:"code,omitempty"`                   // Roles the practitioner can perform
+	Specialty              []CodeableConcept               `json:"specialty,omitempty"`              // Specific specialty of practitioner
+	Location               []Reference                     `json:"location,omitempty"`               // Location(s) where role is performed
+	HealthcareService      []Reference                     `json:"healthcareService,omitempty"`      // Services provided at this role
+	Telecom                []ContactPoint                  `json:"telecom,omitempty"`                // Contact details
+	AvailableTime          []PractitionerRoleAvailableTime `json:"availableTime,omitempty"`          // Times when available
+	NotAvailable           []PractitionerRoleNotAvailable  `json:"notAvailable,omitempty"`           // Not available times
+	AvailabilityExceptions string                          `json:"availabilityExceptions,omitempty"` // Description of availability exceptions
+}
+
+// PractitionerRoleAvailableTime represents available time for the role.
+type PractitionerRoleAvailableTime struct {
+	DaysOfWeek         []string `json:"daysOfWeek,omitempty"`         // Days of week
+	AllDay             bool     `json:"allDay,omitempty"`             // Always available
+	AvailableStartTime string   `json:"availableStartTime,omitempty"` // Opening time
+	AvailableEndTime   string   `json:"availableEndTime,omitempty"`   // Closing time
+}
+
+// PractitionerRoleNotAvailable represents times not available.
+type PractitionerRoleNotAvailable struct {
+	Description string  `json:"description"`      // Reason unavailable
+	During      *Period `json:"during,omitempty"` // Service not available from this date
+}
+
+// GetResourceType returns "PractitionerRole".
+func (pr *FHIRPractitionerRole) GetResourceType() string {
+	return "PractitionerRole"
+}
+
+// MarshalJSON ensures ResourceType is always set.
+func (pr *FHIRPractitionerRole) MarshalJSON() ([]byte, error) {
+	type Alias FHIRPractitionerRole
+	return json.Marshal(&struct {
+		ResourceType string `json:"resourceType"`
+		*Alias
+	}{
+		ResourceType: "PractitionerRole",
+		Alias:        (*Alias)(pr),
+	})
+}
+
+// ============================================================================
+// RelatedPerson (US Core 6.1.0)
+// ============================================================================
+
+// FHIRRelatedPerson represents a person related to a patient.
+type FHIRRelatedPerson struct {
+	Meta          *Meta                        `json:"meta,omitempty"`
+	Identifier    []Identifier                 `json:"identifier,omitempty"`    // Business identifiers
+	Active        *bool                        `json:"active,omitempty"`        // Whether record is active
+	Patient       *Reference                   `json:"patient"`                 // Patient this person is related to (required)
+	Relationship  []CodeableConcept            `json:"relationship,omitempty"`  // Nature of relationship (required by US Core)
+	Name          []HumanName                  `json:"name,omitempty"`          // Name(s)
+	Telecom       []ContactPoint               `json:"telecom,omitempty"`       // Contact details
+	Gender        string                       `json:"gender,omitempty"`        // male | female | other | unknown
+	BirthDate     string                       `json:"birthDate,omitempty"`     // Date of birth
+	Address       []Address                    `json:"address,omitempty"`       // Addresses
+	Photo         []Attachment                 `json:"photo,omitempty"`         // Image of the person
+	Period        *Period                      `json:"period,omitempty"`        // Period of time relationship is/was valid
+	Communication []RelatedPersonCommunication `json:"communication,omitempty"` // Preferred languages
+}
+
+// RelatedPersonCommunication represents language preference.
+type RelatedPersonCommunication struct {
+	Language  *CodeableConcept `json:"language"`            // Preferred language
+	Preferred bool             `json:"preferred,omitempty"` // Preferred for communication
+}
+
+// GetResourceType returns "RelatedPerson".
+func (rp *FHIRRelatedPerson) GetResourceType() string {
+	return "RelatedPerson"
+}
+
+// MarshalJSON ensures ResourceType is always set.
+func (rp *FHIRRelatedPerson) MarshalJSON() ([]byte, error) {
+	type Alias FHIRRelatedPerson
+	return json.Marshal(&struct {
+		ResourceType string `json:"resourceType"`
+		*Alias
+	}{
+		ResourceType: "RelatedPerson",
+		Alias:        (*Alias)(rp),
 	})
 }

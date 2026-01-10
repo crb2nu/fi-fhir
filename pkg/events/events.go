@@ -627,26 +627,26 @@ type Event struct {
 type EligibilityServiceType string
 
 const (
-	EligibilityServiceHealth              EligibilityServiceType = "30" // Health Benefit Plan Coverage
-	EligibilityServiceMedicalCare         EligibilityServiceType = "1"  // Medical Care
-	EligibilityServiceSurgical            EligibilityServiceType = "2"  // Surgical
-	EligibilityServiceConsultation        EligibilityServiceType = "3"  // Consultation
-	EligibilityServiceDiagnosticXRay      EligibilityServiceType = "4"  // Diagnostic X-Ray
-	EligibilityServiceDiagnosticLab       EligibilityServiceType = "5"  // Diagnostic Lab
-	EligibilityServiceRadiation           EligibilityServiceType = "6"  // Radiation Therapy
-	EligibilityServiceAnesthesia          EligibilityServiceType = "7"  // Anesthesia
-	EligibilityServiceSurgicalAssistance  EligibilityServiceType = "8"  // Surgical Assistance
-	EligibilityServiceProfessionalPhys    EligibilityServiceType = "96" // Professional (Physician)
-	EligibilityServiceEmergencyServices   EligibilityServiceType = "88" // Emergency Services
-	EligibilityServicePharmacy            EligibilityServiceType = "89" // Pharmacy
-	EligibilityServiceDME                 EligibilityServiceType = "12" // DME (Durable Medical Equipment)
-	EligibilityServiceMentalHealth        EligibilityServiceType = "MH" // Mental Health
-	EligibilityServiceSubstanceAbuse      EligibilityServiceType = "AJ" // Substance Abuse
-	EligibilityServiceHospitalInpatient   EligibilityServiceType = "47" // Hospital - Inpatient
-	EligibilityServiceHospitalOutpatient  EligibilityServiceType = "48" // Hospital - Outpatient
-	EligibilityServiceUrgentCare          EligibilityServiceType = "UC" // Urgent Care
-	EligibilityServicePreventive          EligibilityServiceType = "A4" // Preventive Care
-	EligibilityServiceChiropractic        EligibilityServiceType = "CH" // Chiropractic
+	EligibilityServiceHealth             EligibilityServiceType = "30" // Health Benefit Plan Coverage
+	EligibilityServiceMedicalCare        EligibilityServiceType = "1"  // Medical Care
+	EligibilityServiceSurgical           EligibilityServiceType = "2"  // Surgical
+	EligibilityServiceConsultation       EligibilityServiceType = "3"  // Consultation
+	EligibilityServiceDiagnosticXRay     EligibilityServiceType = "4"  // Diagnostic X-Ray
+	EligibilityServiceDiagnosticLab      EligibilityServiceType = "5"  // Diagnostic Lab
+	EligibilityServiceRadiation          EligibilityServiceType = "6"  // Radiation Therapy
+	EligibilityServiceAnesthesia         EligibilityServiceType = "7"  // Anesthesia
+	EligibilityServiceSurgicalAssistance EligibilityServiceType = "8"  // Surgical Assistance
+	EligibilityServiceProfessionalPhys   EligibilityServiceType = "96" // Professional (Physician)
+	EligibilityServiceEmergencyServices  EligibilityServiceType = "88" // Emergency Services
+	EligibilityServicePharmacy           EligibilityServiceType = "89" // Pharmacy
+	EligibilityServiceDME                EligibilityServiceType = "12" // DME (Durable Medical Equipment)
+	EligibilityServiceMentalHealth       EligibilityServiceType = "MH" // Mental Health
+	EligibilityServiceSubstanceAbuse     EligibilityServiceType = "AJ" // Substance Abuse
+	EligibilityServiceHospitalInpatient  EligibilityServiceType = "47" // Hospital - Inpatient
+	EligibilityServiceHospitalOutpatient EligibilityServiceType = "48" // Hospital - Outpatient
+	EligibilityServiceUrgentCare         EligibilityServiceType = "UC" // Urgent Care
+	EligibilityServicePreventive         EligibilityServiceType = "A4" // Preventive Care
+	EligibilityServiceChiropractic       EligibilityServiceType = "CH" // Chiropractic
 )
 
 // EligibilityInquiry represents a request for eligibility information.
@@ -998,9 +998,9 @@ type VitalSign struct {
 // VitalSignEvent is emitted for vital sign measurements.
 type VitalSignEvent struct {
 	EventMeta
-	Patient   *Patient        `json:"patient,omitempty"`
-	VitalSign VitalSign       `json:"vital_sign"`
-	Encounter *Encounter      `json:"encounter,omitempty"`
+	Patient    *Patient        `json:"patient,omitempty"`
+	VitalSign  VitalSign       `json:"vital_sign"`
+	Encounter  *Encounter      `json:"encounter,omitempty"`
 	RawPayload json.RawMessage `json:"raw_payload,omitempty"`
 }
 
@@ -1546,12 +1546,12 @@ type ServiceRequest struct {
 // ServiceRequestEvent is emitted for service request events (orders, referrals).
 type ServiceRequestEvent struct {
 	EventMeta
-	Patient        *Patient        `json:"patient,omitempty"`
-	ServiceRequest ServiceRequest  `json:"service_request"`
-	Requester      *Provider       `json:"requester,omitempty"`
-	Performer      *Provider       `json:"performer,omitempty"`
-	PerformerOrgID string          `json:"performer_org_id,omitempty"`
-	PerformerOrgName string        `json:"performer_org_name,omitempty"`
+	Patient          *Patient        `json:"patient,omitempty"`
+	ServiceRequest   ServiceRequest  `json:"service_request"`
+	Requester        *Provider       `json:"requester,omitempty"`
+	Performer        *Provider       `json:"performer,omitempty"`
+	PerformerOrgID   string          `json:"performer_org_id,omitempty"`
+	PerformerOrgName string          `json:"performer_org_name,omitempty"`
 	Encounter        *Encounter      `json:"encounter,omitempty"`
 	RawPayload       json.RawMessage `json:"raw_payload,omitempty"`
 }
@@ -1839,4 +1839,523 @@ func generateID() string {
 	uuid[8] = (uuid[8] & 0x3f) | 0x80 // Variant is 10
 	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
 		uuid[0:4], uuid[4:6], uuid[6:8], uuid[8:10], uuid[10:16])
+}
+
+// ============================================================================
+// Provenance (US Core)
+// ============================================================================
+
+// ProvenanceAgent represents an actor (person, device, organization) that was
+// involved in creating, modifying, or transmitting the target resources.
+type ProvenanceAgent struct {
+	// Type indicates the type of agent (author, performer, verifier, etc.)
+	// US Core requires provenance-participant-type from http://terminology.hl7.org/CodeSystem/provenance-participant-type
+	Type string `json:"type,omitempty"`
+
+	// TypeCode is the coded agent type
+	TypeCode string `json:"type_code,omitempty"`
+
+	// TypeCodeSystem is the code system for the agent type
+	TypeCodeSystem string `json:"type_code_system,omitempty"`
+
+	// Role specifies the functional role of the agent (optional)
+	Role string `json:"role,omitempty"`
+
+	// RoleCode is the coded role
+	RoleCode string `json:"role_code,omitempty"`
+
+	// RoleCodeSystem is the code system for the role
+	RoleCodeSystem string `json:"role_code_system,omitempty"`
+
+	// Who identifies the agent - can be a Provider, Organization, or Device
+	// Reference format: "Practitioner/id", "Organization/id", "Device/id"
+	WhoReference string `json:"who_reference,omitempty"`
+
+	// WhoDisplay is the display name for the agent
+	WhoDisplay string `json:"who_display,omitempty"`
+
+	// OnBehalfOf indicates the organization the agent was acting on behalf of
+	OnBehalfOfReference string `json:"on_behalf_of_reference,omitempty"`
+
+	// OnBehalfOfDisplay is the display name for the organization
+	OnBehalfOfDisplay string `json:"on_behalf_of_display,omitempty"`
+}
+
+// ProvenanceEntity represents an entity used in an activity that produced the
+// target resource (e.g., source document, input data).
+type ProvenanceEntity struct {
+	// Role indicates how the entity was used (derivation, revision, quotation, source, removal)
+	Role string `json:"role,omitempty"`
+
+	// WhatReference is a reference to the entity resource
+	WhatReference string `json:"what_reference,omitempty"`
+
+	// WhatDisplay is the display name for the entity
+	WhatDisplay string `json:"what_display,omitempty"`
+
+	// Agent is the agent that was involved with the entity
+	Agent *ProvenanceAgent `json:"agent,omitempty"`
+}
+
+// Provenance captures information about the origin, derivation, and attestation
+// of a set of resources. Used for data provenance tracking per USCDI v3.
+type Provenance struct {
+	// TargetReferences are the resources this provenance statement is about
+	// US Core requires at least one target
+	TargetReferences []string `json:"target_references"`
+
+	// TargetDisplays are display names for the target resources
+	TargetDisplays []string `json:"target_displays,omitempty"`
+
+	// Recorded is when the activity was recorded (required by US Core)
+	Recorded string `json:"recorded"`
+
+	// OccurredDateTime is when the activity occurred (optional)
+	OccurredDateTime string `json:"occurred_date_time,omitempty"`
+
+	// OccurredPeriodStart is the start of the activity period (optional)
+	OccurredPeriodStart string `json:"occurred_period_start,omitempty"`
+
+	// OccurredPeriodEnd is the end of the activity period (optional)
+	OccurredPeriodEnd string `json:"occurred_period_end,omitempty"`
+
+	// Activity describes what activity occurred
+	Activity string `json:"activity,omitempty"`
+
+	// ActivityCode is the coded activity type
+	ActivityCode string `json:"activity_code,omitempty"`
+
+	// ActivityCodeSystem is the code system for the activity
+	ActivityCodeSystem string `json:"activity_code_system,omitempty"`
+
+	// Location is where the activity occurred
+	LocationReference string `json:"location_reference,omitempty"`
+
+	// LocationDisplay is the display name for the location
+	LocationDisplay string `json:"location_display,omitempty"`
+
+	// Reason describes why the activity occurred
+	Reason string `json:"reason,omitempty"`
+
+	// ReasonCode is the coded reason
+	ReasonCode string `json:"reason_code,omitempty"`
+
+	// ReasonCodeSystem is the code system for the reason
+	ReasonCodeSystem string `json:"reason_code_system,omitempty"`
+
+	// Agents are the actors involved in the activity (required by US Core - at least one)
+	Agents []ProvenanceAgent `json:"agents"`
+
+	// Entities are the entities used in the activity (optional)
+	Entities []ProvenanceEntity `json:"entities,omitempty"`
+
+	// Policy references external policy documents that apply
+	Policy []string `json:"policy,omitempty"`
+
+	// Signature contains digital signatures for attestation
+	Signatures []ProvenanceSignature `json:"signatures,omitempty"`
+}
+
+// ProvenanceSignature represents a digital signature on provenance.
+type ProvenanceSignature struct {
+	// Type indicates the type of signature
+	Type string `json:"type,omitempty"`
+
+	// TypeCode is the coded signature type
+	TypeCode string `json:"type_code,omitempty"`
+
+	// When is when the signature was created
+	When string `json:"when,omitempty"`
+
+	// WhoReference is who signed
+	WhoReference string `json:"who_reference,omitempty"`
+
+	// WhoDisplay is the display name of the signer
+	WhoDisplay string `json:"who_display,omitempty"`
+
+	// TargetFormat is the MIME type of the signed content
+	TargetFormat string `json:"target_format,omitempty"`
+
+	// SigFormat is the MIME type of the signature
+	SigFormat string `json:"sig_format,omitempty"`
+
+	// Data is the base64-encoded signature value
+	Data string `json:"data,omitempty"`
+}
+
+// ProvenanceEvent is a canonical event for provenance tracking.
+type ProvenanceEvent struct {
+	EventMeta
+
+	// Provenance contains the provenance data
+	Provenance Provenance `json:"provenance"`
+
+	// RawPayload contains the original message if available
+	RawPayload json.RawMessage `json:"raw_payload,omitempty"`
+}
+
+// ============================================================================
+// Location (US Core)
+// ============================================================================
+
+// FacilityLocation represents a physical place where healthcare services are provided.
+// Note: Named FacilityLocation to avoid conflict with the simple Location struct used in Encounter.
+type FacilityLocation struct {
+	// ID is the unique identifier
+	ID string `json:"id,omitempty"`
+
+	// Status indicates whether the location is active
+	Status string `json:"status,omitempty"`
+
+	// Name is the human-readable name
+	Name string `json:"name"`
+
+	// Description provides additional information about the location
+	Description string `json:"description,omitempty"`
+
+	// Mode indicates whether this is a specific instance or a class
+	Mode string `json:"mode,omitempty"`
+
+	// Type indicates the type of location (e.g., hospital, clinic)
+	Type string `json:"type,omitempty"`
+
+	// TypeCode is the coded location type
+	TypeCode string `json:"type_code,omitempty"`
+
+	// TypeCodeSystem is the code system for the type
+	TypeCodeSystem string `json:"type_code_system,omitempty"`
+
+	// Address is the physical address
+	Address *Address `json:"address,omitempty"`
+
+	// PhysicalType describes what kind of physical space (building, room, etc.)
+	PhysicalType string `json:"physical_type,omitempty"`
+
+	// PhysicalTypeCode is the coded physical type
+	PhysicalTypeCode string `json:"physical_type_code,omitempty"`
+
+	// ManagingOrganizationID is the organization responsible for the location
+	ManagingOrganizationID string `json:"managing_organization_id,omitempty"`
+
+	// ManagingOrganizationName is the organization name
+	ManagingOrganizationName string `json:"managing_organization_name,omitempty"`
+
+	// PartOfLocationID is the parent location (for nested locations)
+	PartOfLocationID string `json:"part_of_location_id,omitempty"`
+
+	// Telecom contains contact information
+	Phone string `json:"phone,omitempty"`
+	Fax   string `json:"fax,omitempty"`
+	Email string `json:"email,omitempty"`
+}
+
+// FacilityLocationEvent is a canonical event for facility location data.
+type FacilityLocationEvent struct {
+	EventMeta
+
+	// FacilityLocation contains the location data
+	FacilityLocation FacilityLocation `json:"facility_location"`
+
+	// RawPayload contains the original message if available
+	RawPayload json.RawMessage `json:"raw_payload,omitempty"`
+}
+
+// ============================================================================
+// Organization (US Core)
+// ============================================================================
+
+// Organization represents a formally or informally recognized grouping of
+// people or organizations formed for the purpose of achieving some form of
+// collective action (healthcare provider organizations, payers, etc.).
+type Organization struct {
+	// ID is the unique identifier
+	ID string `json:"id,omitempty"`
+
+	// Active indicates whether the organization is still in use
+	Active bool `json:"active,omitempty"`
+
+	// Type indicates the type of organization
+	Type string `json:"type,omitempty"`
+
+	// TypeCode is the coded organization type
+	TypeCode string `json:"type_code,omitempty"`
+
+	// TypeCodeSystem is the code system for the type
+	TypeCodeSystem string `json:"type_code_system,omitempty"`
+
+	// Name is the organization's name (required by US Core)
+	Name string `json:"name"`
+
+	// Alias contains alternative names
+	Alias []string `json:"alias,omitempty"`
+
+	// NPI is the National Provider Identifier (for healthcare organizations)
+	NPI string `json:"npi,omitempty"`
+
+	// TIN is the Tax Identification Number
+	TIN string `json:"tin,omitempty"`
+
+	// Address is the organization's address
+	Address *Address `json:"address,omitempty"`
+
+	// Telecom contains contact information
+	Phone string `json:"phone,omitempty"`
+	Fax   string `json:"fax,omitempty"`
+	Email string `json:"email,omitempty"`
+
+	// PartOfOrganizationID is the parent organization
+	PartOfOrganizationID string `json:"part_of_organization_id,omitempty"`
+
+	// PartOfOrganizationName is the parent organization name
+	PartOfOrganizationName string `json:"part_of_organization_name,omitempty"`
+}
+
+// OrganizationEvent is a canonical event for organization data.
+type OrganizationEvent struct {
+	EventMeta
+
+	// Organization contains the organization data
+	Organization Organization `json:"organization"`
+
+	// RawPayload contains the original message if available
+	RawPayload json.RawMessage `json:"raw_payload,omitempty"`
+}
+
+// ============================================================================
+// Practitioner (US Core)
+// ============================================================================
+
+// Practitioner represents a person who is directly or indirectly involved
+// in the provisioning of healthcare (physicians, nurses, technicians, etc.).
+type Practitioner struct {
+	// ID is the unique identifier
+	ID string `json:"id,omitempty"`
+
+	// Active indicates whether the practitioner is currently active
+	Active bool `json:"active,omitempty"`
+
+	// NPI is the National Provider Identifier (required by US Core)
+	NPI string `json:"npi,omitempty"`
+
+	// GivenName is the practitioner's first name
+	GivenName string `json:"given_name,omitempty"`
+
+	// MiddleName is the practitioner's middle name
+	MiddleName string `json:"middle_name,omitempty"`
+
+	// FamilyName is the practitioner's last name
+	FamilyName string `json:"family_name,omitempty"`
+
+	// Prefix is the name prefix (Dr., Mr., etc.)
+	Prefix string `json:"prefix,omitempty"`
+
+	// Suffix is the name suffix (Jr., MD, etc.)
+	Suffix string `json:"suffix,omitempty"`
+
+	// Gender is the administrative gender
+	Gender string `json:"gender,omitempty"`
+
+	// BirthDate is the practitioner's date of birth
+	BirthDate string `json:"birth_date,omitempty"`
+
+	// Address is the practitioner's address
+	Address *Address `json:"address,omitempty"`
+
+	// Telecom contains contact information
+	Phone string `json:"phone,omitempty"`
+	Email string `json:"email,omitempty"`
+
+	// Qualifications are the practitioner's professional qualifications
+	Qualifications []PractitionerQualification `json:"qualifications,omitempty"`
+
+	// Communication languages
+	Languages []string `json:"languages,omitempty"`
+}
+
+// PractitionerQualification represents a professional qualification.
+type PractitionerQualification struct {
+	// Code is the qualification code
+	Code string `json:"code,omitempty"`
+
+	// CodeSystem is the code system
+	CodeSystem string `json:"code_system,omitempty"`
+
+	// Display is the display name
+	Display string `json:"display,omitempty"`
+
+	// Issuer is the organization that issued the qualification
+	IssuerID string `json:"issuer_id,omitempty"`
+
+	// IssuerName is the issuer name
+	IssuerName string `json:"issuer_name,omitempty"`
+
+	// PeriodStart is when the qualification became effective
+	PeriodStart string `json:"period_start,omitempty"`
+
+	// PeriodEnd is when the qualification expires
+	PeriodEnd string `json:"period_end,omitempty"`
+}
+
+// PractitionerEvent is a canonical event for practitioner data.
+type PractitionerEvent struct {
+	EventMeta
+
+	// Practitioner contains the practitioner data
+	Practitioner Practitioner `json:"practitioner"`
+
+	// RawPayload contains the original message if available
+	RawPayload json.RawMessage `json:"raw_payload,omitempty"`
+}
+
+// ============================================================================
+// PractitionerRole (US Core)
+// ============================================================================
+
+// PractitionerRole represents the role a practitioner plays at an organization.
+type PractitionerRole struct {
+	// ID is the unique identifier
+	ID string `json:"id,omitempty"`
+
+	// Active indicates whether the role is currently active
+	Active bool `json:"active,omitempty"`
+
+	// PractitionerID is the practitioner reference
+	PractitionerID string `json:"practitioner_id,omitempty"`
+
+	// PractitionerName is the practitioner display name
+	PractitionerName string `json:"practitioner_name,omitempty"`
+
+	// OrganizationID is the organization reference
+	OrganizationID string `json:"organization_id,omitempty"`
+
+	// OrganizationName is the organization display name
+	OrganizationName string `json:"organization_name,omitempty"`
+
+	// Code is the role code (e.g., physician, nurse)
+	Code string `json:"code,omitempty"`
+
+	// CodeValue is the coded role
+	CodeValue string `json:"code_value,omitempty"`
+
+	// CodeSystem is the code system for the role
+	CodeSystem string `json:"code_system,omitempty"`
+
+	// Specialty is the practitioner's specialty in this role
+	Specialty string `json:"specialty,omitempty"`
+
+	// SpecialtyCode is the coded specialty
+	SpecialtyCode string `json:"specialty_code,omitempty"`
+
+	// SpecialtyCodeSystem is the code system for the specialty
+	SpecialtyCodeSystem string `json:"specialty_code_system,omitempty"`
+
+	// LocationIDs are the locations where this role applies
+	LocationIDs []string `json:"location_ids,omitempty"`
+
+	// Telecom contains role-specific contact information
+	Phone string `json:"phone,omitempty"`
+	Email string `json:"email,omitempty"`
+
+	// AvailableTimeStart is when the practitioner is available
+	AvailableTimeStart string `json:"available_time_start,omitempty"`
+
+	// AvailableTimeEnd is when availability ends
+	AvailableTimeEnd string `json:"available_time_end,omitempty"`
+
+	// AvailableDays are the days of the week available
+	AvailableDays []string `json:"available_days,omitempty"`
+
+	// PeriodStart is when this role started
+	PeriodStart string `json:"period_start,omitempty"`
+
+	// PeriodEnd is when this role ended
+	PeriodEnd string `json:"period_end,omitempty"`
+}
+
+// PractitionerRoleEvent is a canonical event for practitioner role data.
+type PractitionerRoleEvent struct {
+	EventMeta
+
+	// PractitionerRole contains the practitioner role data
+	PractitionerRole PractitionerRole `json:"practitioner_role"`
+
+	// RawPayload contains the original message if available
+	RawPayload json.RawMessage `json:"raw_payload,omitempty"`
+}
+
+// ============================================================================
+// RelatedPerson (US Core)
+// ============================================================================
+
+// RelatedPerson represents a person who has a personal or non-healthcare-specific
+// relationship to the patient (family members, guardians, caregivers).
+type RelatedPerson struct {
+	// ID is the unique identifier
+	ID string `json:"id,omitempty"`
+
+	// Active indicates whether the relationship is currently active
+	Active bool `json:"active,omitempty"`
+
+	// PatientID is the patient this person is related to
+	PatientID string `json:"patient_id,omitempty"`
+
+	// PatientName is the patient display name
+	PatientName string `json:"patient_name,omitempty"`
+
+	// Relationship describes how this person is related to the patient
+	Relationship string `json:"relationship,omitempty"`
+
+	// RelationshipCode is the coded relationship
+	RelationshipCode string `json:"relationship_code,omitempty"`
+
+	// RelationshipCodeSystem is the code system for the relationship
+	RelationshipCodeSystem string `json:"relationship_code_system,omitempty"`
+
+	// GivenName is the person's first name
+	GivenName string `json:"given_name,omitempty"`
+
+	// MiddleName is the person's middle name
+	MiddleName string `json:"middle_name,omitempty"`
+
+	// FamilyName is the person's last name
+	FamilyName string `json:"family_name,omitempty"`
+
+	// Prefix is the name prefix
+	Prefix string `json:"prefix,omitempty"`
+
+	// Suffix is the name suffix
+	Suffix string `json:"suffix,omitempty"`
+
+	// Gender is the administrative gender
+	Gender string `json:"gender,omitempty"`
+
+	// BirthDate is the person's date of birth
+	BirthDate string `json:"birth_date,omitempty"`
+
+	// Address is the person's address
+	Address *Address `json:"address,omitempty"`
+
+	// Telecom contains contact information
+	Phone string `json:"phone,omitempty"`
+	Email string `json:"email,omitempty"`
+
+	// PeriodStart is when the relationship started
+	PeriodStart string `json:"period_start,omitempty"`
+
+	// PeriodEnd is when the relationship ended
+	PeriodEnd string `json:"period_end,omitempty"`
+
+	// Communication languages
+	Languages []string `json:"languages,omitempty"`
+}
+
+// RelatedPersonEvent is a canonical event for related person data.
+type RelatedPersonEvent struct {
+	EventMeta
+
+	// RelatedPerson contains the related person data
+	RelatedPerson RelatedPerson `json:"related_person"`
+
+	// RawPayload contains the original message if available
+	RawPayload json.RawMessage `json:"raw_payload,omitempty"`
 }
