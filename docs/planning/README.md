@@ -187,6 +187,7 @@ The following items remain for full production readiness:
 | GraphQL Resolvers | 54.7% | 80%+ |
 | FHIR Subscription | 53.3% | 80%+ |
 | Terminology | 62.8% | 80%+ |
+| CDA Parser | 70.6% | 80%+ |
 | ✅ FHIR Parser | 92.5% | 80%+ |
 | ✅ Workflow Engine | 79.5% | 80%+ |
 
