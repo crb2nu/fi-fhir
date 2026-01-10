@@ -290,6 +290,7 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
   11. ~~Event stream compaction (aggregate snapshots)~~ ✓
   12. ~~Saga orchestration (multi-step transactions)~~ ✓
   13. ~~Outbox pattern for reliable event publishing~~ ✓
+  14. ~~UMLS API integration~~ ✓ (`pkg/terminology/umls.go`)
 
 ## Testing Strategy
 

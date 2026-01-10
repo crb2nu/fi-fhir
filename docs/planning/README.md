@@ -136,9 +136,15 @@ See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and curren
 - FHIR Practitioner resource (US Core profile) - `pkg/fhir/mapper.go:MapPractitioner()`
 - FHIR PractitionerRole resource (US Core profile) - `pkg/fhir/mapper.go:MapPractitionerRole()`
 - FHIR RelatedPerson resource (US Core profile) - `pkg/fhir/mapper.go:MapRelatedPerson()`
+- UMLS API integration - `pkg/terminology/umls.go:UMLSClient`
+  - Cross-walk queries (ICD-10 ↔ SNOMED, RxNorm ↔ NDC)
+  - Concept normalization and search
+  - Rate limiting and caching
+  - Ticket-based authentication
 
-### Next Up
-- UMLS API integration (optional)
+### All Features Complete
+
+The fi-fhir library has reached feature completion for v1.0. All planned components have been implemented.
 
 ## Contributing
 

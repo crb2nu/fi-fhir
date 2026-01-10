@@ -12,6 +12,9 @@ This document details healthcare code systems, version management, and the fi-fh
 | **MapToLOINC/SNOMED** | ✅ | Convenience methods for common targets |
 | **LOINC file loader** | ✅ | `pkg/terminology/loinc.go:LOINCLoader` |
 | **Panel expansion** | ✅ | `pkg/terminology/loinc.go:ExpandPanel()` |
+| **UMLS API client** | ✅ | `pkg/terminology/umls.go:UMLSClient` |
+| **Cross-walk queries** | ✅ | `pkg/terminology/umls.go:CrossWalk()` (ICD-10↔SNOMED) |
+| **Concept normalization** | ✅ | `pkg/terminology/umls.go:NormalizeCode()` |
 
 ## Code Systems Reference
 
@@ -256,10 +259,13 @@ func GetICD10Version(serviceDate time.Time) string {
 - [x] HasMapping() check for validation
 - [x] Confidence scoring for fuzzy matches - see `pkg/terminology/fuzzy.go:FuzzyMatcher`
 
-### Phase 4: UMLS Integration (Optional)
-- [ ] UMLS API client
-- [ ] Cross-walk queries (ICD-10 ↔ SNOMED)
-- [ ] Concept normalization
+### Phase 4: UMLS Integration ✅
+- [x] UMLS API client - see `pkg/terminology/umls.go:UMLSClient`
+- [x] Cross-walk queries (ICD-10 ↔ SNOMED) - see `CrossWalk()`, `ICD10ToSNOMED()`, `SNOMEDToICD10()`
+- [x] Concept normalization - see `NormalizeCode()`, `GetConcept()`, `GetConceptAtoms()`
+- [x] Search functionality - see `Search()` with configurable options
+- [x] Rate limiting and caching - built-in token bucket limiter and result cache
+- [x] Ticket-based authentication - automatic TGT/ST management
 
 ## Testing Strategy
 
