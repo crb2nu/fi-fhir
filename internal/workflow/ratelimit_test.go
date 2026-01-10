@@ -168,7 +168,9 @@ func TestTokenBucketDefaults(t *testing.T) {
 }
 
 func TestTokenBucketConcurrency(t *testing.T) {
-	tb := NewTokenBucket(1000, 100)
+	// Use very low refill rate (1/sec) to make test deterministic
+	// The burst of 100 is consumed immediately with minimal refill
+	tb := NewTokenBucket(1, 100)
 
 	var wg sync.WaitGroup
 	allowed := make(chan bool, 1000)
@@ -196,9 +198,9 @@ func TestTokenBucketConcurrency(t *testing.T) {
 	}
 
 	// Should have allowed approximately 100 (the burst capacity)
-	// Allow small tolerance for token refill during test execution
-	if successCount < 100 || successCount > 105 {
-		t.Errorf("expected ~100 allowed (tolerance 100-105), got %d", successCount)
+	// With 1 token/sec refill, at most 1-2 extra tokens during test
+	if successCount < 100 || successCount > 102 {
+		t.Errorf("expected ~100 allowed (tolerance 100-102), got %d", successCount)
 	}
 }
 
