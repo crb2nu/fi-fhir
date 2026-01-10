@@ -120,8 +120,8 @@ type TimeInterval struct {
 
 // Identifier represents an II (Instance Identifier) data type.
 type Identifier struct {
-	Root            string // OID or UUID
-	Extension       string // The actual identifier value
+	Root               string // OID or UUID
+	Extension          string // The actual identifier value
 	AssigningAuthority string
 }
 
@@ -136,25 +136,25 @@ type PatientRole struct {
 
 // PatientInfo contains patient demographics.
 type PatientInfo struct {
-	Names           []PersonName
-	Gender          string
-	BirthTime       *time.Time
-	DeceasedTime    *time.Time
-	MaritalStatus   *CodedValue
-	RaceCode        *CodedValue
-	EthnicityCode   *CodedValue
-	LanguageCode    string
+	Names                []PersonName
+	Gender               string
+	BirthTime            *time.Time
+	DeceasedTime         *time.Time
+	MaritalStatus        *CodedValue
+	RaceCode             *CodedValue
+	EthnicityCode        *CodedValue
+	LanguageCode         string
 	ReligiousAffiliation *CodedValue
 }
 
 // PersonName represents a human name.
 type PersonName struct {
-	Use        string // L (legal), P (pseudonym), etc.
-	Family     string
-	Given      []string
-	Prefix     []string
-	Suffix     []string
-	ValidTime  *TimeInterval
+	Use       string // L (legal), P (pseudonym), etc.
+	Family    string
+	Given     []string
+	Prefix    []string
+	Suffix    []string
+	ValidTime *TimeInterval
 }
 
 // FullName returns a formatted full name.
@@ -175,13 +175,13 @@ func (pn PersonName) FullName() string {
 
 // Address represents a postal address.
 type Address struct {
-	Use            string // H (home), WP (work), etc.
-	StreetAddress  []string
-	City           string
-	State          string
-	PostalCode     string
-	Country        string
-	UseablePeriod  *TimeInterval
+	Use           string // H (home), WP (work), etc.
+	StreetAddress []string
+	City          string
+	State         string
+	PostalCode    string
+	Country       string
+	UseablePeriod *TimeInterval
 }
 
 // Telecom represents a telecommunication address.
@@ -192,7 +192,7 @@ type Telecom struct {
 
 // Author represents the document or entry author.
 type Author struct {
-	Time         *time.Time
+	Time           *time.Time
 	AssignedAuthor *AssignedAuthor
 }
 
@@ -225,9 +225,9 @@ type Custodian struct {
 
 // Authenticator represents a document authenticator.
 type Authenticator struct {
-	Time              *time.Time
-	SignatureCode     string
-	AssignedEntity    *AssignedEntity
+	Time           *time.Time
+	SignatureCode  string
+	AssignedEntity *AssignedEntity
 }
 
 // AssignedEntity represents an assigned person/organization.
@@ -241,8 +241,8 @@ type AssignedEntity struct {
 
 // Informant represents an information source.
 type Informant struct {
-	AssignedEntity    *AssignedEntity
-	RelatedEntity     *RelatedEntity
+	AssignedEntity *AssignedEntity
+	RelatedEntity  *RelatedEntity
 }
 
 // RelatedEntity represents a related person (family member, etc.).
@@ -254,17 +254,17 @@ type RelatedEntity struct {
 
 // Participant represents a participant in an entry.
 type Participant struct {
-	TypeCode       string
-	Time           *TimeInterval
+	TypeCode        string
+	Time            *TimeInterval
 	ParticipantRole *ParticipantRole
 }
 
 // ParticipantRole represents the role of a participant.
 type ParticipantRole struct {
-	ClassCode    string
-	IDs          []Identifier
-	Addresses    []Address
-	Telecoms     []Telecom
+	ClassCode     string
+	IDs           []Identifier
+	Addresses     []Address
+	Telecoms      []Telecom
 	PlayingEntity *PlayingEntity
 }
 
@@ -292,11 +292,11 @@ type ServiceEvent struct {
 
 // EncompassingEncounter represents the encounter context.
 type EncompassingEncounter struct {
-	IDs              []Identifier
-	Code             *CodedValue
-	EffectiveTime    *TimeInterval
+	IDs                  []Identifier
+	Code                 *CodedValue
+	EffectiveTime        *TimeInterval
 	DischargeDisposition *CodedValue
-	Location         *Location
+	Location             *Location
 }
 
 // Location represents a healthcare facility location.

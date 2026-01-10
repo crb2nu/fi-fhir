@@ -68,9 +68,9 @@ func (m *Mapper) registerDefaultMappers() {
 
 // MapResult contains mapped events and any issues.
 type MapResult struct {
-	Events    []interface{}
-	Patient   *events.Patient
-	Warnings  []string
+	Events   []interface{}
+	Patient  *events.Patient
+	Warnings []string
 }
 
 // Map converts a CDA document to canonical events.

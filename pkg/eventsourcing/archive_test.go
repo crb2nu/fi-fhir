@@ -23,10 +23,10 @@ func TestRetentionPolicy_GetRetention(t *testing.T) {
 	}
 
 	tests := []struct {
-		name       string
-		eventType  string
-		streamID   string
-		wantYears  int
+		name      string
+		eventType string
+		streamID  string
+		wantYears int
 	}{
 		{
 			name:      "default retention",

@@ -446,15 +446,15 @@ type Loop835Service struct {
 
 // Loop270Structure represents the parsed structure of a 270 eligibility inquiry
 type Loop270Structure struct {
-	BHT                 *Segment
-	InformationSources  []*Loop270Source // 2000A - Information Source (Payer)
+	BHT                *Segment
+	InformationSources []*Loop270Source // 2000A - Information Source (Payer)
 }
 
 // Loop270Source represents the Information Source (Payer) hierarchy
 type Loop270Source struct {
-	HL              *Segment
-	SourceInfo      *Loop270Entity // 2100A - Source Name
-	Receivers       []*Loop270Receiver
+	HL         *Segment
+	SourceInfo *Loop270Entity // 2100A - Source Name
+	Receivers  []*Loop270Receiver
 }
 
 // Loop270Receiver represents the Information Receiver (Provider) hierarchy
@@ -467,8 +467,8 @@ type Loop270Receiver struct {
 // Loop270Subscriber represents the Subscriber hierarchy
 type Loop270Subscriber struct {
 	HL             *Segment
-	TRN            []*Segment // Trace numbers
-	SubscriberInfo *Loop270Entity // 2100C - Subscriber Name
+	TRN            []*Segment            // Trace numbers
+	SubscriberInfo *Loop270Entity        // 2100C - Subscriber Name
 	EligibilityReq []*Loop270Eligibility // 2110C - Eligibility inquiries
 	Dependents     []*Loop270Dependent
 }
@@ -477,7 +477,7 @@ type Loop270Subscriber struct {
 type Loop270Dependent struct {
 	HL             *Segment
 	TRN            []*Segment
-	DependentInfo  *Loop270Entity // 2100D - Dependent Name
+	DependentInfo  *Loop270Entity        // 2100D - Dependent Name
 	EligibilityReq []*Loop270Eligibility // 2110D - Eligibility inquiries
 }
 
@@ -496,7 +496,7 @@ type Loop270Entity struct {
 
 // Loop270Eligibility represents an eligibility/inquiry loop (2110C/2110D)
 type Loop270Eligibility struct {
-	EQ  *Segment // Eligibility or Benefit Inquiry
+	EQ  *Segment   // Eligibility or Benefit Inquiry
 	III []*Segment // Additional Information
 	REF []*Segment
 	DTP []*Segment
@@ -504,16 +504,16 @@ type Loop270Eligibility struct {
 
 // Loop271Structure represents the parsed structure of a 271 eligibility response
 type Loop271Structure struct {
-	BHT                 *Segment
-	InformationSources  []*Loop271Source // 2000A - Information Source (Payer)
+	BHT                *Segment
+	InformationSources []*Loop271Source // 2000A - Information Source (Payer)
 }
 
 // Loop271Source represents the Information Source hierarchy in 271
 type Loop271Source struct {
-	HL              *Segment
-	AAA             []*Segment // Request validation
-	SourceInfo      *Loop271Entity // 2100A - Source Name
-	Receivers       []*Loop271Receiver
+	HL         *Segment
+	AAA        []*Segment     // Request validation
+	SourceInfo *Loop271Entity // 2100A - Source Name
+	Receivers  []*Loop271Receiver
 }
 
 // Loop271Receiver represents the Information Receiver hierarchy in 271
@@ -527,7 +527,7 @@ type Loop271Receiver struct {
 type Loop271Subscriber struct {
 	HL             *Segment
 	TRN            []*Segment
-	SubscriberInfo *Loop271Entity // 2100C - Subscriber Name
+	SubscriberInfo *Loop271Entity    // 2100C - Subscriber Name
 	Benefits       []*Loop271Benefit // 2110C - Eligibility/Benefit Information
 	Dependents     []*Loop271Dependent
 }
@@ -536,7 +536,7 @@ type Loop271Subscriber struct {
 type Loop271Dependent struct {
 	HL            *Segment
 	TRN           []*Segment
-	DependentInfo *Loop271Entity // 2100D - Dependent Name
+	DependentInfo *Loop271Entity    // 2100D - Dependent Name
 	Benefits      []*Loop271Benefit // 2110D - Eligibility/Benefit Information
 }
 
@@ -556,15 +556,15 @@ type Loop271Entity struct {
 
 // Loop271Benefit represents eligibility/benefit information (2110C/2110D)
 type Loop271Benefit struct {
-	EB  *Segment // Eligibility or Benefit Information
+	EB  *Segment   // Eligibility or Benefit Information
 	HSD []*Segment // Health Care Services Delivery
 	REF []*Segment
 	DTP []*Segment
 	AAA []*Segment // Request validation
 	MSG []*Segment // Message Text
 	III []*Segment // Additional Information
-	LS  *Segment // Loop Header
-	LE  *Segment // Loop Trailer
+	LS  *Segment   // Loop Header
+	LE  *Segment   // Loop Trailer
 }
 
 // Parse270Loops parses a 270 transaction into its loop structure
@@ -1151,12 +1151,12 @@ type Loop277Entity struct {
 
 // Loop277Status represents claim status information (Loop 2200)
 type Loop277Status struct {
-	TRN          *Segment   // Trace Number
-	STC          []*Segment // Status Information (can repeat)
-	REF          []*Segment // Reference Information
-	DTP          []*Segment // Date/Time Information
-	QTY          []*Segment // Quantity
-	AMT          []*Segment // Monetary Amounts
+	TRN          *Segment                    // Trace Number
+	STC          []*Segment                  // Status Information (can repeat)
+	REF          []*Segment                  // Reference Information
+	DTP          []*Segment                  // Date/Time Information
+	QTY          []*Segment                  // Quantity
+	AMT          []*Segment                  // Monetary Amounts
 	ServiceLines []*Loop277ServiceLineStatus // 2220 - Service line status
 }
 

@@ -840,10 +840,10 @@ func TestFHIRActionInWorkflow(t *testing.T) {
 
 func TestCELConditionEvaluation(t *testing.T) {
 	tests := []struct {
-		name          string
-		condition     string
-		event         interface{}
-		shouldMatch   bool
+		name        string
+		condition   string
+		event       interface{}
+		shouldMatch bool
 	}{
 		{
 			name:      "simple equality match",

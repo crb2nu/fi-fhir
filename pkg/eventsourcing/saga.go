@@ -40,12 +40,12 @@ const (
 type StepStatus string
 
 const (
-	StepStatusPending     StepStatus = "pending"
-	StepStatusRunning     StepStatus = "running"
-	StepStatusCompleted   StepStatus = "completed"
-	StepStatusFailed      StepStatus = "failed"
+	StepStatusPending      StepStatus = "pending"
+	StepStatusRunning      StepStatus = "running"
+	StepStatusCompleted    StepStatus = "completed"
+	StepStatusFailed       StepStatus = "failed"
 	StepStatusCompensating StepStatus = "compensating"
-	StepStatusCompensated StepStatus = "compensated"
+	StepStatusCompensated  StepStatus = "compensated"
 )
 
 // =============================================================================

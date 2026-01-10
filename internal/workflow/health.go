@@ -73,15 +73,15 @@ func DefaultHealthConfig() *HealthConfig {
 
 // HealthService manages health checks for the application.
 type HealthService struct {
-	config           *HealthConfig
-	livenessChecks   map[string]HealthChecker
-	readinessChecks  map[string]HealthChecker
-	mu               sync.RWMutex
+	config          *HealthConfig
+	livenessChecks  map[string]HealthChecker
+	readinessChecks map[string]HealthChecker
+	mu              sync.RWMutex
 
 	// Cache for readiness checks to avoid hammering dependencies
-	cachedReadiness  *HealthResponse
-	cacheExpiry      time.Time
-	cacheDuration    time.Duration
+	cachedReadiness *HealthResponse
+	cacheExpiry     time.Time
+	cacheDuration   time.Duration
 }
 
 // NewHealthService creates a new health service.
@@ -366,9 +366,9 @@ func HTTPHealthChecker(url string, timeout time.Duration) HealthChecker {
 		req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
 		if err != nil {
 			return ComponentHealth{
-				Status:  StatusUnhealthy,
-				Message: fmt.Sprintf("Failed to create request: %v", err),
-				Details: map[string]string{"url": url},
+				Status:    StatusUnhealthy,
+				Message:   fmt.Sprintf("Failed to create request: %v", err),
+				Details:   map[string]string{"url": url},
 				CheckedAt: time.Now(),
 			}
 		}
@@ -377,9 +377,9 @@ func HTTPHealthChecker(url string, timeout time.Duration) HealthChecker {
 		resp, err := client.Do(req)
 		if err != nil {
 			return ComponentHealth{
-				Status:  StatusUnhealthy,
-				Message: fmt.Sprintf("Request failed: %v", err),
-				Details: map[string]string{"url": url},
+				Status:    StatusUnhealthy,
+				Message:   fmt.Sprintf("Request failed: %v", err),
+				Details:   map[string]string{"url": url},
 				CheckedAt: time.Now(),
 			}
 		}

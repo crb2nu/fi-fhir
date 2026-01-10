@@ -111,9 +111,9 @@ func DefaultLoggerConfig() LoggerConfig {
 
 // StructuredLogger implements Logger with trace correlation support.
 type StructuredLogger struct {
-	config       LoggerConfig
-	baseFields   []Field
-	mu           sync.Mutex
+	config     LoggerConfig
+	baseFields []Field
+	mu         sync.Mutex
 }
 
 // NewStructuredLogger creates a new structured logger with trace correlation.

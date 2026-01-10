@@ -169,14 +169,14 @@ type CompactionResult struct {
 
 // BulkCompactionResult contains results from compacting multiple streams.
 type BulkCompactionResult struct {
-	StreamsProcessed  int64
-	StreamsCompacted  int64
-	StreamsSkipped    int64
-	StreamsFailed     int64
-	TotalEvents       int64
+	StreamsProcessed   int64
+	StreamsCompacted   int64
+	StreamsSkipped     int64
+	StreamsFailed      int64
+	TotalEvents        int64
 	TotalEventsDeleted int64
-	Duration          time.Duration
-	Results           []*CompactionResult
+	Duration           time.Duration
+	Results            []*CompactionResult
 }
 
 // =============================================================================

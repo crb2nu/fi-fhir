@@ -323,12 +323,12 @@ func TestLoadTestResult_Summary(t *testing.T) {
 
 func TestLoadTestResult_Passed(t *testing.T) {
 	tests := []struct {
-		name              string
-		result            *LoadTestResult
-		minAchievedRatio  float64
-		maxErrorRate      float64
-		maxP99Latency     time.Duration
-		expectedPass      bool
+		name             string
+		result           *LoadTestResult
+		minAchievedRatio float64
+		maxErrorRate     float64
+		maxP99Latency    time.Duration
+		expectedPass     bool
 	}{
 		{
 			name: "all passing",

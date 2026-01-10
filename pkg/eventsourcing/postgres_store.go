@@ -12,9 +12,9 @@ import (
 // PostgresStore is a PostgreSQL-backed event store.
 // It provides durable, production-ready event storage with ACID guarantees.
 type PostgresStore struct {
-	db            *sql.DB
-	tableName     string
-	pollInterval  time.Duration
+	db           *sql.DB
+	tableName    string
+	pollInterval time.Duration
 }
 
 // PostgresStoreConfig configures the PostgreSQL event store.

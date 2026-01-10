@@ -246,9 +246,9 @@ func TestChainSecretProvider(t *testing.T) {
 
 func TestSecretResolver(t *testing.T) {
 	provider := NewMapSecretProvider(map[string]string{
-		"DB_PASSWORD":   "secret123",
-		"API_KEY":       "key456",
-		"OAUTH_SECRET":  "oauth789",
+		"DB_PASSWORD":  "secret123",
+		"API_KEY":      "key456",
+		"OAUTH_SECRET": "oauth789",
 	})
 	resolver := NewSecretResolver(provider)
 

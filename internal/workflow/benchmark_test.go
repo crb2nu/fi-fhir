@@ -253,11 +253,11 @@ func BenchmarkCELEvaluate_CacheMiss(b *testing.B) {
 // BenchmarkCELEvaluate_ConditionComplexity tests varying condition complexity.
 func BenchmarkCELEvaluate_ConditionComplexity(b *testing.B) {
 	conditions := map[string]string{
-		"simple":      `event.type == "patient_admit"`,
-		"two_clause":  `event.type == "patient_admit" && event.source == "epic"`,
+		"simple":       `event.type == "patient_admit"`,
+		"two_clause":   `event.type == "patient_admit" && event.source == "epic"`,
 		"three_clause": `event.type == "patient_admit" && event.source == "epic" && event.patient.age > 18`,
-		"has_check":   `has(event.patient) && has(event.patient.mrn)`,
-		"in_list":     `event.type in ["patient_admit", "patient_update", "patient_discharge"]`,
+		"has_check":    `has(event.patient) && has(event.patient.mrn)`,
+		"in_list":      `event.type in ["patient_admit", "patient_update", "patient_discharge"]`,
 	}
 
 	evaluator, _ := NewCELEvaluator()

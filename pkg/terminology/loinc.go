@@ -14,10 +14,10 @@ import (
 // LOINCCode represents a LOINC code with its attributes.
 type LOINCCode struct {
 	// Core identifiers
-	Code       string `json:"loinc_num"`
-	LongName   string `json:"long_common_name"`
-	ShortName  string `json:"shortname"`
-	Status     string `json:"status"` // ACTIVE, TRIAL, DISCOURAGED, DEPRECATED
+	Code      string `json:"loinc_num"`
+	LongName  string `json:"long_common_name"`
+	ShortName string `json:"shortname"`
+	Status    string `json:"status"` // ACTIVE, TRIAL, DISCOURAGED, DEPRECATED
 
 	// 6-axis model
 	Component string `json:"component"`
@@ -33,7 +33,7 @@ type LOINCCode struct {
 
 	// Additional attributes
 	ExampleUnits   string `json:"example_units"`
-	OrderObs       string `json:"order_obs"`   // Order, Observation, Both
+	OrderObs       string `json:"order_obs"` // Order, Observation, Both
 	UnitsRequired  string `json:"unitsrequired"`
 	RelatedNames   string `json:"relatednames2"`
 	Consumer       string `json:"consumer_name"`
@@ -71,9 +71,9 @@ type PanelMember struct {
 
 // LOINCLoader loads and indexes LOINC codes from official distribution files.
 type LOINCLoader struct {
-	codes        map[string]*LOINCCode  // LOINC_NUM -> code
-	byComponent  map[string][]*LOINCCode // Component -> codes
-	byShortName  map[string][]*LOINCCode // ShortName -> codes
+	codes        map[string]*LOINCCode    // LOINC_NUM -> code
+	byComponent  map[string][]*LOINCCode  // Component -> codes
+	byShortName  map[string][]*LOINCCode  // ShortName -> codes
 	panels       map[string][]PanelMember // Panel code -> members
 	panelParents map[string][]string      // Code -> parent panels
 	mu           sync.RWMutex
@@ -423,8 +423,8 @@ var CommonPanels = map[string]string{
 	"HEPATIC":     "24325-3",
 	"URINALYSIS":  "24356-8", // Urinalysis
 	"UA":          "24356-8",
-	"TSH":         "3016-3",  // TSH alone (not a panel but commonly referenced)
-	"HBA1C":       "4548-4",  // Hemoglobin A1c
+	"TSH":         "3016-3", // TSH alone (not a panel but commonly referenced)
+	"HBA1C":       "4548-4", // Hemoglobin A1c
 	"A1C":         "4548-4",
 	"PT_INR":      "34714-6", // PT/INR Panel
 	"COAG":        "34714-6",
@@ -433,65 +433,65 @@ var CommonPanels = map[string]string{
 // CommonLabCodes provides LOINC codes for commonly used individual tests.
 var CommonLabCodes = map[string]string{
 	// Hematology
-	"WBC":         "6690-2",  // White blood cells
-	"RBC":         "789-8",   // Red blood cells
-	"HGB":         "718-7",   // Hemoglobin
-	"HCT":         "4544-3",  // Hematocrit
-	"PLT":         "777-3",   // Platelets
-	"MCV":         "787-2",   // Mean corpuscular volume
-	"MCH":         "785-6",   // Mean corpuscular hemoglobin
-	"MCHC":        "786-4",   // Mean corpuscular hemoglobin concentration
+	"WBC":  "6690-2", // White blood cells
+	"RBC":  "789-8",  // Red blood cells
+	"HGB":  "718-7",  // Hemoglobin
+	"HCT":  "4544-3", // Hematocrit
+	"PLT":  "777-3",  // Platelets
+	"MCV":  "787-2",  // Mean corpuscular volume
+	"MCH":  "785-6",  // Mean corpuscular hemoglobin
+	"MCHC": "786-4",  // Mean corpuscular hemoglobin concentration
 
 	// Chemistry
-	"GLUCOSE":     "2345-7",  // Glucose
-	"BUN":         "3094-0",  // Blood urea nitrogen
-	"CREATININE":  "2160-0",  // Creatinine
-	"SODIUM":      "2951-2",  // Sodium
-	"POTASSIUM":   "2823-3",  // Potassium
-	"CHLORIDE":    "2075-0",  // Chloride
-	"CO2":         "2028-9",  // Carbon dioxide
-	"CALCIUM":     "17861-6", // Calcium
-	"MAGNESIUM":   "19123-9", // Magnesium
+	"GLUCOSE":    "2345-7",  // Glucose
+	"BUN":        "3094-0",  // Blood urea nitrogen
+	"CREATININE": "2160-0",  // Creatinine
+	"SODIUM":     "2951-2",  // Sodium
+	"POTASSIUM":  "2823-3",  // Potassium
+	"CHLORIDE":   "2075-0",  // Chloride
+	"CO2":        "2028-9",  // Carbon dioxide
+	"CALCIUM":    "17861-6", // Calcium
+	"MAGNESIUM":  "19123-9", // Magnesium
 
 	// Liver
-	"ALT":         "1742-6",  // Alanine aminotransferase
-	"AST":         "1920-8",  // Aspartate aminotransferase
-	"ALP":         "6768-6",  // Alkaline phosphatase
-	"BILIRUBIN":   "1975-2",  // Total bilirubin
-	"ALBUMIN":     "1751-7",  // Albumin
-	"PROTEIN":     "2885-2",  // Total protein
+	"ALT":       "1742-6", // Alanine aminotransferase
+	"AST":       "1920-8", // Aspartate aminotransferase
+	"ALP":       "6768-6", // Alkaline phosphatase
+	"BILIRUBIN": "1975-2", // Total bilirubin
+	"ALBUMIN":   "1751-7", // Albumin
+	"PROTEIN":   "2885-2", // Total protein
 
 	// Lipids
-	"CHOLESTEROL": "2093-3",  // Total cholesterol
-	"HDL":         "2085-9",  // HDL cholesterol
-	"LDL":         "2089-1",  // LDL cholesterol (calculated)
+	"CHOLESTEROL":  "2093-3", // Total cholesterol
+	"HDL":          "2085-9", // HDL cholesterol
+	"LDL":          "2089-1", // LDL cholesterol (calculated)
 	"TRIGLYCERIDE": "2571-8", // Triglycerides
 
 	// Thyroid
-	"TSH":         "3016-3",  // Thyroid stimulating hormone
-	"T3":          "3053-6",  // Triiodothyronine
-	"T4":          "3026-2",  // Thyroxine
-	"FREE_T4":     "3024-7",  // Free thyroxine
+	"TSH":     "3016-3", // Thyroid stimulating hormone
+	"T3":      "3053-6", // Triiodothyronine
+	"T4":      "3026-2", // Thyroxine
+	"FREE_T4": "3024-7", // Free thyroxine
 
 	// Cardiac
-	"TROPONIN_I":  "10839-9", // Troponin I
-	"TROPONIN_T":  "6598-7",  // Troponin T
-	"BNP":         "30934-4", // Brain natriuretic peptide
-	"PRBNP":       "33762-6", // NT-proBNP
+	"TROPONIN_I": "10839-9", // Troponin I
+	"TROPONIN_T": "6598-7",  // Troponin T
+	"BNP":        "30934-4", // Brain natriuretic peptide
+	"PRBNP":      "33762-6", // NT-proBNP
 
 	// Coagulation
-	"PT":          "5902-2",  // Prothrombin time
-	"INR":         "6301-6",  // INR
-	"PTT":         "3173-2",  // Partial thromboplastin time
+	"PT":  "5902-2", // Prothrombin time
+	"INR": "6301-6", // INR
+	"PTT": "3173-2", // Partial thromboplastin time
 
 	// Diabetes
-	"HBA1C":       "4548-4",  // Hemoglobin A1c
+	"HBA1C": "4548-4", // Hemoglobin A1c
 
 	// Urinalysis
-	"UA_GLUCOSE":  "2350-7",  // Urine glucose
-	"UA_PROTEIN":  "2888-6",  // Urine protein
-	"UA_BLOOD":    "5794-3",  // Urine blood
-	"UA_PH":       "2756-5",  // Urine pH
+	"UA_GLUCOSE":          "2350-7", // Urine glucose
+	"UA_PROTEIN":          "2888-6", // Urine protein
+	"UA_BLOOD":            "5794-3", // Urine blood
+	"UA_PH":               "2756-5", // Urine pH
 	"UA_SPECIFIC_GRAVITY": "2965-2", // Urine specific gravity
 }
 

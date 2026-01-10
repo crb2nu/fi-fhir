@@ -558,11 +558,11 @@ func (r *ProjectionRebuilder) EstimateRebuildTime(ctx context.Context, projectio
 
 // RebuildEstimate provides time estimates for rebuilding.
 type RebuildEstimate struct {
-	ProjectionName               string
-	CurrentCheckpoint            int64
-	LatestSnapshotPosition       int64
-	EventsFromStart              int64
-	EventsFromSnapshot           int64
-	EstimatedDurationFromStart   time.Duration
+	ProjectionName                string
+	CurrentCheckpoint             int64
+	LatestSnapshotPosition        int64
+	EventsFromStart               int64
+	EventsFromSnapshot            int64
+	EstimatedDurationFromStart    time.Duration
 	EstimatedDurationFromSnapshot time.Duration
 }

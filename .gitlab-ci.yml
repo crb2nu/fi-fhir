@@ -33,11 +33,9 @@ variables:
 
 lint:go:
   stage: lint
-  <<: *go-image
+  image: golangci/golangci-lint:v1.64.5
   <<: *go-cache
   script:
-    - apk add --no-cache git
-    - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
     - golangci-lint run --timeout=5m ./...
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"

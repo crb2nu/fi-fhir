@@ -6510,12 +6510,12 @@ func TestMapProvenance(t *testing.T) {
 
 	event := &events.ProvenanceEvent{
 		Provenance: events.Provenance{
-			TargetReferences: []string{"Patient/12345", "Observation/obs-1"},
-			TargetDisplays:   []string{"John Doe", "Blood Glucose"},
-			Recorded:         "2024-01-15T10:30:00Z",
-			OccurredDateTime: "2024-01-15T10:00:00Z",
-			Activity:         "Create",
-			ActivityCode:     "CREATE",
+			TargetReferences:  []string{"Patient/12345", "Observation/obs-1"},
+			TargetDisplays:    []string{"John Doe", "Blood Glucose"},
+			Recorded:          "2024-01-15T10:30:00Z",
+			OccurredDateTime:  "2024-01-15T10:00:00Z",
+			Activity:          "Create",
+			ActivityCode:      "CREATE",
 			LocationReference: "Location/loc-1",
 			LocationDisplay:   "Main Hospital",
 			Agents: []events.ProvenanceAgent{
@@ -6739,14 +6739,14 @@ func TestMapOrganization(t *testing.T) {
 
 	event := &events.OrganizationEvent{
 		Organization: events.Organization{
-			ID:             "org-1",
-			Active:         true,
-			Name:           "General Hospital",
-			NPI:            "1234567890",
-			TIN:            "12-3456789",
-			Type:           "Healthcare Provider",
-			TypeCode:       "prov",
-			Alias:          []string{"GH", "Gen Hospital"},
+			ID:       "org-1",
+			Active:   true,
+			Name:     "General Hospital",
+			NPI:      "1234567890",
+			TIN:      "12-3456789",
+			Type:     "Healthcare Provider",
+			TypeCode: "prov",
+			Alias:    []string{"GH", "Gen Hospital"},
 			Address: &events.Address{
 				Line1:      "100 Medical Center Dr",
 				City:       "Boston",

@@ -136,15 +136,15 @@ func TestLoadFromFile_NotFound(t *testing.T) {
 func TestApplyEnv(t *testing.T) {
 	// Set environment variables
 	envVars := map[string]string{
-		"FI_FHIR_SERVER_PORT":             "9999",
-		"FI_FHIR_SERVER_HOST":             "127.0.0.1",
-		"FI_FHIR_DATABASE_HOST":           "localhost",
-		"FI_FHIR_DATABASE_PASSWORD":       "secret123",
-		"FI_FHIR_WORKFLOW_DRY_RUN":        "true",
+		"FI_FHIR_SERVER_PORT":              "9999",
+		"FI_FHIR_SERVER_HOST":              "127.0.0.1",
+		"FI_FHIR_DATABASE_HOST":            "localhost",
+		"FI_FHIR_DATABASE_PASSWORD":        "secret123",
+		"FI_FHIR_WORKFLOW_DRY_RUN":         "true",
 		"FI_FHIR_WORKFLOW_MAX_CONCURRENCY": "50",
-		"FI_FHIR_LOG_LEVEL":               "warn",
-		"FI_FHIR_TRACING_SAMPLER":         "0.5",
-		"FI_FHIR_QUEUE_BROKERS":           "kafka1:9092,kafka2:9092",
+		"FI_FHIR_LOG_LEVEL":                "warn",
+		"FI_FHIR_TRACING_SAMPLER":          "0.5",
+		"FI_FHIR_QUEUE_BROKERS":            "kafka1:9092,kafka2:9092",
 	}
 
 	for k, v := range envVars {

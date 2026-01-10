@@ -41,18 +41,18 @@ type NoOpMetrics struct{}
 
 func (n *NoOpMetrics) EventProcessed(eventType, source string, success bool, duration time.Duration) {
 }
-func (n *NoOpMetrics) EventRouted(eventType, routeName string)                                  {}
+func (n *NoOpMetrics) EventRouted(eventType, routeName string) {}
 func (n *NoOpMetrics) ActionExecuted(actionType, routeName string, success bool, duration time.Duration) {
 }
-func (n *NoOpMetrics) ActionRetried(actionType, routeName string, attempt int)                  {}
+func (n *NoOpMetrics) ActionRetried(actionType, routeName string, attempt int) {}
 func (n *NoOpMetrics) CircuitBreakerStateChanged(endpoint string, fromState, toState CircuitState) {
 }
-func (n *NoOpMetrics) CircuitBreakerRejected(endpoint string)                                   {}
-func (n *NoOpMetrics) RateLimitWaited(endpoint string, waitDuration time.Duration)              {}
-func (n *NoOpMetrics) RateLimitRejected(endpoint string)                                        {}
-func (n *NoOpMetrics) DLQPushed(routeName, actionType, errorType string)                        {}
-func (n *NoOpMetrics) DLQPopped(routeName string, success bool)                                 {}
-func (n *NoOpMetrics) DLQDepth() int64                                                          { return 0 }
+func (n *NoOpMetrics) CircuitBreakerRejected(endpoint string)                      {}
+func (n *NoOpMetrics) RateLimitWaited(endpoint string, waitDuration time.Duration) {}
+func (n *NoOpMetrics) RateLimitRejected(endpoint string)                           {}
+func (n *NoOpMetrics) DLQPushed(routeName, actionType, errorType string)           {}
+func (n *NoOpMetrics) DLQPopped(routeName string, success bool)                    {}
+func (n *NoOpMetrics) DLQDepth() int64                                             { return 0 }
 func (n *NoOpMetrics) HTTPRequestCompleted(endpoint, method string, statusCode int, duration time.Duration) {
 }
 
@@ -74,9 +74,9 @@ type InMemoryMetrics struct {
 	httpRequests        map[string]*CounterValue // key: endpoint:method:statusCode
 
 	// Histograms (simplified as min/max/sum/count)
-	eventDurations      map[string]*HistogramValue // key: eventType:source
-	actionDurations     map[string]*HistogramValue // key: actionType:routeName
-	rateLimitWaits      map[string]*HistogramValue // key: endpoint
+	eventDurations       map[string]*HistogramValue // key: eventType:source
+	actionDurations      map[string]*HistogramValue // key: actionType:routeName
+	rateLimitWaits       map[string]*HistogramValue // key: endpoint
 	httpRequestDurations map[string]*HistogramValue // key: endpoint:method
 
 	// Gauges
@@ -285,22 +285,22 @@ func (m *InMemoryMetrics) recordDuration(histMap map[string]*HistogramValue, key
 
 // Snapshot returns a copy of all current metrics for inspection.
 type MetricsSnapshot struct {
-	EventsProcessed      map[string]int64
-	EventsRouted         map[string]int64
-	ActionsExecuted      map[string]int64
-	ActionRetries        map[string]int64
-	CBStateChanges       map[string]int64
-	CBRejections         map[string]int64
-	RateLimitRejections  map[string]int64
-	DLQPushed            map[string]int64
-	DLQPopped            map[string]int64
-	HTTPRequests         map[string]int64
-	DLQDepth             int64
+	EventsProcessed     map[string]int64
+	EventsRouted        map[string]int64
+	ActionsExecuted     map[string]int64
+	ActionRetries       map[string]int64
+	CBStateChanges      map[string]int64
+	CBRejections        map[string]int64
+	RateLimitRejections map[string]int64
+	DLQPushed           map[string]int64
+	DLQPopped           map[string]int64
+	HTTPRequests        map[string]int64
+	DLQDepth            int64
 
 	// Duration stats
-	EventDurations      map[string]DurationStats
-	ActionDurations     map[string]DurationStats
-	RateLimitWaits      map[string]DurationStats
+	EventDurations       map[string]DurationStats
+	ActionDurations      map[string]DurationStats
+	RateLimitWaits       map[string]DurationStats
 	HTTPRequestDurations map[string]DurationStats
 }
 

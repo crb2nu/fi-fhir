@@ -378,9 +378,9 @@ func (a *EventArchiver) EstimateArchival(ctx context.Context, policy *RetentionP
 	}
 
 	return &ArchiveEstimate{
-		EligibleEvents:  result.EventsArchived,
+		EligibleEvents:   result.EventsArchived,
 		IneligibleEvents: result.EventsSkipped,
-		TotalEvents:     result.EventsProcessed,
+		TotalEvents:      result.EventsProcessed,
 	}, nil
 }
 

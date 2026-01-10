@@ -27,10 +27,10 @@ const (
 type ChannelType string
 
 const (
-	ChannelRestHook   ChannelType = "rest-hook"
-	ChannelWebSocket  ChannelType = "websocket"
-	ChannelEmail      ChannelType = "email"
-	ChannelMessage    ChannelType = "message"
+	ChannelRestHook  ChannelType = "rest-hook"
+	ChannelWebSocket ChannelType = "websocket"
+	ChannelEmail     ChannelType = "email"
+	ChannelMessage   ChannelType = "message"
 )
 
 // Subscription represents a FHIR R4 Subscription resource.

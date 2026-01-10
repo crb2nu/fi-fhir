@@ -96,10 +96,10 @@ func (n *NoOpTracer) StartSpan(ctx context.Context, name string, opts ...SpanOpt
 
 type noOpSpan struct{}
 
-func (n *noOpSpan) End()                                          {}
-func (n *noOpSpan) SetAttribute(key string, value interface{})    {}
-func (n *noOpSpan) SetStatus(code SpanStatus, message string)     {}
-func (n *noOpSpan) RecordError(err error)                         {}
+func (n *noOpSpan) End()                                         {}
+func (n *noOpSpan) SetAttribute(key string, value interface{})   {}
+func (n *noOpSpan) SetStatus(code SpanStatus, message string)    {}
+func (n *noOpSpan) RecordError(err error)                        {}
 func (n *noOpSpan) AddEvent(name string, attrs ...SpanAttribute) {}
 
 // Global tracer instance (can be set by user)

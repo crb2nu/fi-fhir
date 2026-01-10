@@ -19,22 +19,22 @@ type PrometheusMetrics struct {
 	config   PrometheusConfig
 
 	// Event metrics
-	eventsProcessedTotal *prometheus.CounterVec
+	eventsProcessedTotal    *prometheus.CounterVec
 	eventsProcessedDuration *prometheus.HistogramVec
-	eventsRoutedTotal *prometheus.CounterVec
+	eventsRoutedTotal       *prometheus.CounterVec
 
 	// Action metrics
-	actionsExecutedTotal *prometheus.CounterVec
+	actionsExecutedTotal    *prometheus.CounterVec
 	actionsExecutedDuration *prometheus.HistogramVec
-	actionRetriesTotal *prometheus.CounterVec
+	actionRetriesTotal      *prometheus.CounterVec
 
 	// Circuit breaker metrics
 	circuitBreakerStateChanges *prometheus.CounterVec
-	circuitBreakerRejections *prometheus.CounterVec
+	circuitBreakerRejections   *prometheus.CounterVec
 
 	// Rate limiter metrics
-	rateLimitWaitsTotal *prometheus.CounterVec
-	rateLimitWaitsDuration *prometheus.HistogramVec
+	rateLimitWaitsTotal      *prometheus.CounterVec
+	rateLimitWaitsDuration   *prometheus.HistogramVec
 	rateLimitRejectionsTotal *prometheus.CounterVec
 
 	// DLQ metrics
@@ -44,7 +44,7 @@ type PrometheusMetrics struct {
 	dlqDepthValue  int64 // atomic counter for DLQDepth() method
 
 	// HTTP metrics
-	httpRequestsTotal *prometheus.CounterVec
+	httpRequestsTotal    *prometheus.CounterVec
 	httpRequestsDuration *prometheus.HistogramVec
 }
 

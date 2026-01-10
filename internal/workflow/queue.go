@@ -34,8 +34,8 @@ type QueueDriverFactory func(config map[string]string) (QueuePublisher, error)
 
 // QueueRegistry manages queue driver registrations.
 type QueueRegistry struct {
-	mu       sync.RWMutex
-	drivers  map[string]QueueDriverFactory
+	mu        sync.RWMutex
+	drivers   map[string]QueueDriverFactory
 	instances map[string]QueuePublisher // Cached publisher instances
 }
 

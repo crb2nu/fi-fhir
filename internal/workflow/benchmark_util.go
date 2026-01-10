@@ -9,13 +9,13 @@ import (
 
 // BenchmarkResult holds the results of a single benchmark run.
 type BenchmarkResult struct {
-	Name           string
-	Iterations     int64
-	NsPerOp        float64
-	BytesPerOp     int64
-	AllocsPerOp    int64
-	EventsPerSec   float64
-	CustomMetrics  map[string]float64
+	Name          string
+	Iterations    int64
+	NsPerOp       float64
+	BytesPerOp    int64
+	AllocsPerOp   int64
+	EventsPerSec  float64
+	CustomMetrics map[string]float64
 }
 
 // BenchmarkSuite holds results from multiple benchmark runs for comparison.
@@ -94,10 +94,10 @@ type BenchmarkDiff struct {
 	Name            string
 	BaselineNsPerOp float64
 	CurrentNsPerOp  float64
-	NsPerOpDelta    float64  // Percentage change (negative is improvement)
+	NsPerOpDelta    float64 // Percentage change (negative is improvement)
 	BaselineAllocs  int64
 	CurrentAllocs   int64
-	AllocsDelta     float64  // Percentage change
+	AllocsDelta     float64 // Percentage change
 	Improved        bool
 	Regressed       bool
 }
@@ -214,19 +214,19 @@ func truncateName(name string, maxLen int) string {
 
 // PerformanceThresholds defines acceptable performance bounds.
 type PerformanceThresholds struct {
-	MaxNsPerOp    map[string]float64 // Maximum ns/op per benchmark
-	MaxAllocsPerOp map[string]int64  // Maximum allocs/op per benchmark
-	MinThroughput map[string]float64 // Minimum events/sec per benchmark
+	MaxNsPerOp     map[string]float64 // Maximum ns/op per benchmark
+	MaxAllocsPerOp map[string]int64   // Maximum allocs/op per benchmark
+	MinThroughput  map[string]float64 // Minimum events/sec per benchmark
 }
 
 // DefaultWorkflowThresholds returns default performance thresholds for workflow engine.
 func DefaultWorkflowThresholds() *PerformanceThresholds {
 	return &PerformanceThresholds{
 		MaxNsPerOp: map[string]float64{
-			"BenchmarkEngineProcess":      5000,   // 5µs max
-			"BenchmarkCELEvaluate_Simple": 500,    // 500ns max (cached)
-			"BenchmarkFilterMatch":        3000,   // 3µs max
-			"BenchmarkTransform_SetField": 500,    // 500ns max
+			"BenchmarkEngineProcess":      5000, // 5µs max
+			"BenchmarkCELEvaluate_Simple": 500,  // 500ns max (cached)
+			"BenchmarkFilterMatch":        3000, // 3µs max
+			"BenchmarkTransform_SetField": 500,  // 500ns max
 		},
 		MaxAllocsPerOp: map[string]int64{
 			"BenchmarkEngineProcess":      50,

@@ -12,21 +12,21 @@ import (
 
 // TimelineEvent represents an event in a patient's timeline.
 type TimelineEvent struct {
-	Position    int64     `json:"position"`
-	Timestamp   time.Time `json:"timestamp"`
-	EventType   string    `json:"event_type"`
-	Summary     string    `json:"summary"`
-	StreamID    string    `json:"stream_id"`
-	Source      string    `json:"source,omitempty"`
-	RawData     []byte    `json:"-"` // Not included in JSON by default
+	Position  int64     `json:"position"`
+	Timestamp time.Time `json:"timestamp"`
+	EventType string    `json:"event_type"`
+	Summary   string    `json:"summary"`
+	StreamID  string    `json:"stream_id"`
+	Source    string    `json:"source,omitempty"`
+	RawData   []byte    `json:"-"` // Not included in JSON by default
 }
 
 // PatientTimeline is the read model for a patient's event timeline.
 type PatientTimeline struct {
-	MRN           string          `json:"mrn"`
-	Events        []TimelineEvent `json:"events"`
-	LastUpdated   time.Time       `json:"last_updated"`
-	LastPosition  int64           `json:"last_position"`
+	MRN          string          `json:"mrn"`
+	Events       []TimelineEvent `json:"events"`
+	LastUpdated  time.Time       `json:"last_updated"`
+	LastPosition int64           `json:"last_position"`
 }
 
 // PatientTimelineProjection builds chronological timelines for each patient.

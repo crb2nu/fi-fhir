@@ -13,11 +13,11 @@ import (
 
 // OAuthTokenManager handles OAuth2 client credentials token management.
 type OAuthTokenManager struct {
-	mu           sync.RWMutex
-	tokens       map[string]*cachedToken
-	client       *http.Client
-	tokenBuffer  time.Duration // Refresh token this much before expiry
-	retryConfig  RetryConfig   // Retry configuration for token fetch
+	mu          sync.RWMutex
+	tokens      map[string]*cachedToken
+	client      *http.Client
+	tokenBuffer time.Duration // Refresh token this much before expiry
+	retryConfig RetryConfig   // Retry configuration for token fetch
 }
 
 // cachedToken stores a token with its expiration.

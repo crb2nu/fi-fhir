@@ -408,14 +408,14 @@ func TestMemorySagaStore(t *testing.T) {
 
 func TestSagaBuilder(t *testing.T) {
 	saga := NewSaga("builder_test").
-		WithTimeout(5 * time.Second).
+		WithTimeout(5*time.Second).
 		Step("step1", func(ctx context.Context, data map[string]interface{}) (map[string]interface{}, error) {
 			return nil, nil
 		}).
 		WithCompensation(func(ctx context.Context, data map[string]interface{}) error {
 			return nil
 		}).
-		WithTimeout(10 * time.Second).
+		WithTimeout(10*time.Second).
 		WithRetry(3, time.Second).
 		Step("step2", func(ctx context.Context, data map[string]interface{}) (map[string]interface{}, error) {
 			return nil, nil

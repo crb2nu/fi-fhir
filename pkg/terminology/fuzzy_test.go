@@ -47,7 +47,7 @@ func TestFuzzyMatcher_CommonLabCode(t *testing.T) {
 		wantCode string
 	}{
 		{"WBC", "6690-2"},
-		{"wbc", "6690-2"},  // Case insensitive
+		{"wbc", "6690-2"}, // Case insensitive
 		{"HGB", "718-7"},
 		{"GLUCOSE", "2345-7"},
 		{"BUN", "3094-0"},
@@ -95,9 +95,9 @@ func TestFuzzyMatcher_DisplayMatch(t *testing.T) {
 	fm := newTestFuzzyMatcher()
 
 	tests := []struct {
-		query          string
-		wantCode       string
-		minConfidence  MatchConfidence
+		query         string
+		wantCode      string
+		minConfidence MatchConfidence
 	}{
 		{"Leukocytes", "6690-2", 0.9},
 		{"LEUKOCYTES", "6690-2", 0.9},
@@ -394,13 +394,13 @@ func TestStringSimilarity(t *testing.T) {
 	fm := newTestFuzzyMatcher()
 
 	tests := []struct {
-		a, b        string
-		minSim      MatchConfidence
+		a, b   string
+		minSim MatchConfidence
 	}{
 		{"glucose", "glucose", 1.0},
-		{"glucose", "GLUCOSE", 1.0},  // Case insensitive
-		{"glucose", "glucos", 0.8},   // One char difference
-		{"abc", "xyz", 0.0},          // Completely different
+		{"glucose", "GLUCOSE", 1.0}, // Case insensitive
+		{"glucose", "glucos", 0.8},  // One char difference
+		{"abc", "xyz", 0.0},         // Completely different
 	}
 
 	for _, tc := range tests {

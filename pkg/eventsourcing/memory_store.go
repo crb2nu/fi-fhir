@@ -202,9 +202,9 @@ func (s *MemoryStore) Stats() MemoryStoreStats {
 	defer s.mu.RUnlock()
 
 	return MemoryStoreStats{
-		TotalEvents:  len(s.events),
-		StreamCount:  len(s.streams),
-		Subscribers:  len(s.subscribers),
+		TotalEvents: len(s.events),
+		StreamCount: len(s.streams),
+		Subscribers: len(s.subscribers),
 	}
 }
 

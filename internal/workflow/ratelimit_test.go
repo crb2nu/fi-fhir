@@ -337,10 +337,10 @@ func TestShouldWaitOnRateLimit(t *testing.T) {
 		config   map[string]string
 		expected bool
 	}{
-		{map[string]string{}, true},                              // Default is wait
-		{map[string]string{"rate_limit_wait": "true"}, true},     // Explicit wait
-		{map[string]string{"rate_limit_wait": "false"}, false},   // Explicit no wait
-		{map[string]string{"rate_limit_wait": "invalid"}, true},  // Invalid defaults to wait
+		{map[string]string{}, true},                             // Default is wait
+		{map[string]string{"rate_limit_wait": "true"}, true},    // Explicit wait
+		{map[string]string{"rate_limit_wait": "false"}, false},  // Explicit no wait
+		{map[string]string{"rate_limit_wait": "invalid"}, true}, // Invalid defaults to wait
 	}
 
 	for _, tt := range tests {
@@ -614,7 +614,7 @@ func TestWebhookActionWithRateLimitDenied(t *testing.T) {
 		"url":              server.URL,
 		"rate_limit":       "true",
 		"rate_limit_rate":  "100",
-		"rate_limit_burst": "1", // Only 1 token
+		"rate_limit_burst": "1",     // Only 1 token
 		"rate_limit_wait":  "false", // Fail fast, don't wait
 	}
 

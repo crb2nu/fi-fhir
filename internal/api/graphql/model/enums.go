@@ -10,22 +10,22 @@ import (
 type EventType string
 
 const (
-	EventTypePatientAdmit          EventType = "PATIENT_ADMIT"
-	EventTypePatientDischarge      EventType = "PATIENT_DISCHARGE"
-	EventTypePatientTransfer       EventType = "PATIENT_TRANSFER"
-	EventTypePatientUpdate         EventType = "PATIENT_UPDATE"
-	EventTypeLabResult             EventType = "LAB_RESULT"
-	EventTypeLabOrdered            EventType = "LAB_ORDERED"
-	EventTypeAppointmentScheduled  EventType = "APPOINTMENT_SCHEDULED"
-	EventTypeAppointmentCancelled  EventType = "APPOINTMENT_CANCELLED"
-	EventTypeAppointmentNoshow     EventType = "APPOINTMENT_NOSHOW"
-	EventTypeClaimSubmitted        EventType = "CLAIM_SUBMITTED"
-	EventTypeClaimAdjudicated      EventType = "CLAIM_ADJUDICATED"
-	EventTypeVitalSign             EventType = "VITAL_SIGN"
-	EventTypeCondition             EventType = "CONDITION"
-	EventTypeProcedure             EventType = "PROCEDURE"
-	EventTypeImmunization          EventType = "IMMUNIZATION"
-	EventTypeDocument              EventType = "DOCUMENT"
+	EventTypePatientAdmit         EventType = "PATIENT_ADMIT"
+	EventTypePatientDischarge     EventType = "PATIENT_DISCHARGE"
+	EventTypePatientTransfer      EventType = "PATIENT_TRANSFER"
+	EventTypePatientUpdate        EventType = "PATIENT_UPDATE"
+	EventTypeLabResult            EventType = "LAB_RESULT"
+	EventTypeLabOrdered           EventType = "LAB_ORDERED"
+	EventTypeAppointmentScheduled EventType = "APPOINTMENT_SCHEDULED"
+	EventTypeAppointmentCancelled EventType = "APPOINTMENT_CANCELLED"
+	EventTypeAppointmentNoshow    EventType = "APPOINTMENT_NOSHOW"
+	EventTypeClaimSubmitted       EventType = "CLAIM_SUBMITTED"
+	EventTypeClaimAdjudicated     EventType = "CLAIM_ADJUDICATED"
+	EventTypeVitalSign            EventType = "VITAL_SIGN"
+	EventTypeCondition            EventType = "CONDITION"
+	EventTypeProcedure            EventType = "PROCEDURE"
+	EventTypeImmunization         EventType = "IMMUNIZATION"
+	EventTypeDocument             EventType = "DOCUMENT"
 )
 
 var AllEventType = []EventType{

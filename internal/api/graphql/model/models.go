@@ -28,12 +28,12 @@ type BaseEventFields struct {
 }
 
 // Event interface implementation for BaseEventFields
-func (e BaseEventFields) GetID() string              { return e.ID }
-func (e BaseEventFields) GetType() EventType         { return e.Type }
-func (e BaseEventFields) GetTimestamp() time.Time    { return e.Timestamp }
-func (e BaseEventFields) GetSource() string          { return e.Source }
+func (e BaseEventFields) GetID() string                  { return e.ID }
+func (e BaseEventFields) GetType() EventType             { return e.Type }
+func (e BaseEventFields) GetTimestamp() time.Time        { return e.Timestamp }
+func (e BaseEventFields) GetSource() string              { return e.Source }
 func (e BaseEventFields) GetSourceFormat() *SourceFormat { return e.SourceFormat }
-func (e BaseEventFields) GetCorrelationID() *string  { return e.CorrelationID }
+func (e BaseEventFields) GetCorrelationID() *string      { return e.CorrelationID }
 
 // Concrete event types - implement Event interface
 

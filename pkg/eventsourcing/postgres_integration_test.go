@@ -2,10 +2,12 @@
 // These tests use testcontainers to automatically spin up PostgreSQL.
 //
 // To run these tests:
-//   go test -tags=integration ./pkg/eventsourcing/...
+//
+//	go test -tags=integration ./pkg/eventsourcing/...
 //
 // Or to run without testcontainers (manual PostgreSQL):
-//   POSTGRES_TEST_URL=postgres://user:pass@localhost:5432/testdb go test ./pkg/eventsourcing/...
+//
+//	POSTGRES_TEST_URL=postgres://user:pass@localhost:5432/testdb go test ./pkg/eventsourcing/...
 package eventsourcing
 
 import (

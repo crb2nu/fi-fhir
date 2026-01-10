@@ -306,11 +306,11 @@ func (c *UMLSClient) doRequest(ctx context.Context, method, path string, params 
 
 // CrossWalkResult represents the result of a cross-walk query.
 type CrossWalkResult struct {
-	SourceCode    string         `json:"source_code"`
-	SourceSystem  string         `json:"source_system"`
-	TargetCodes   []CrossWalkHit `json:"target_codes"`
-	QueryTime     time.Duration  `json:"query_time"`
-	FromCache     bool           `json:"from_cache"`
+	SourceCode   string         `json:"source_code"`
+	SourceSystem string         `json:"source_system"`
+	TargetCodes  []CrossWalkHit `json:"target_codes"`
+	QueryTime    time.Duration  `json:"query_time"`
+	FromCache    bool           `json:"from_cache"`
 }
 
 // CrossWalkHit represents a single code mapping from UMLS.
@@ -325,11 +325,11 @@ type CrossWalkHit struct {
 // crossWalkResponse represents the UMLS API crosswalk response.
 type crossWalkResponse struct {
 	Result []struct {
-		UI          string `json:"ui"`
-		Name        string `json:"name"`
-		RootSource  string `json:"rootSource"`
-		AtomCount   int    `json:"atomCount"`
-		Obsolete    string `json:"obsolete"`
+		UI           string `json:"ui"`
+		Name         string `json:"name"`
+		RootSource   string `json:"rootSource"`
+		AtomCount    int    `json:"atomCount"`
+		Obsolete     string `json:"obsolete"`
 		Suppressible string `json:"suppressible"`
 	} `json:"result"`
 	PageSize   int `json:"pageSize"`
@@ -409,8 +409,8 @@ type ConceptInfo struct {
 
 // ConceptDefinition represents a definition for a concept.
 type ConceptDefinition struct {
-	Value       string `json:"value"`
-	RootSource  string `json:"root_source"`
+	Value      string `json:"value"`
+	RootSource string `json:"root_source"`
 }
 
 // ConceptAtom represents a source-specific representation of a concept.
@@ -563,11 +563,11 @@ type searchResponse struct {
 
 // SearchOptions configures a concept search.
 type SearchOptions struct {
-	SearchType    string // exact, words, leftTruncation, rightTruncation, normalizedString
-	InputType     string // atom, code, sourceConcept, sourceDescriptor, sourceUi
+	SearchType     string   // exact, words, leftTruncation, rightTruncation, normalizedString
+	InputType      string   // atom, code, sourceConcept, sourceDescriptor, sourceUi
 	IncludeSources []string // Filter to specific sources (e.g., SNOMEDCT_US, ICD10CM)
-	PageSize      int
-	PageNumber    int
+	PageSize       int
+	PageNumber     int
 }
 
 // Search performs a concept search in UMLS.

@@ -84,11 +84,11 @@ func DefaultFuzzyMatcherConfig() *FuzzyMatcherConfig {
 
 // FuzzyMatcher provides fuzzy matching for terminology codes.
 type FuzzyMatcher struct {
-	loincLoader  *LOINCLoader
-	synonyms     map[string][]string // normalized term -> synonyms
+	loincLoader   *LOINCLoader
+	synonyms      map[string][]string // normalized term -> synonyms
 	abbreviations map[string]string   // abbreviation -> expansion
-	config       *FuzzyMatcherConfig
-	mu           sync.RWMutex
+	config        *FuzzyMatcherConfig
+	mu            sync.RWMutex
 }
 
 // NewFuzzyMatcher creates a new fuzzy matcher.
@@ -479,54 +479,54 @@ func (fm *FuzzyMatcher) AddAbbreviation(abbrev, expansion string) {
 // loadDefaultAbbreviations loads common medical abbreviations.
 func (fm *FuzzyMatcher) loadDefaultAbbreviations() {
 	abbrevs := map[string]string{
-		"WBC":  "WHITE BLOOD CELLS",
-		"RBC":  "RED BLOOD CELLS",
-		"HGB":  "HEMOGLOBIN",
-		"HCT":  "HEMATOCRIT",
-		"PLT":  "PLATELETS",
-		"MCV":  "MEAN CORPUSCULAR VOLUME",
-		"MCH":  "MEAN CORPUSCULAR HEMOGLOBIN",
-		"MCHC": "MEAN CORPUSCULAR HEMOGLOBIN CONCENTRATION",
-		"GLU":  "GLUCOSE",
-		"BUN":  "BLOOD UREA NITROGEN",
+		"WBC":   "WHITE BLOOD CELLS",
+		"RBC":   "RED BLOOD CELLS",
+		"HGB":   "HEMOGLOBIN",
+		"HCT":   "HEMATOCRIT",
+		"PLT":   "PLATELETS",
+		"MCV":   "MEAN CORPUSCULAR VOLUME",
+		"MCH":   "MEAN CORPUSCULAR HEMOGLOBIN",
+		"MCHC":  "MEAN CORPUSCULAR HEMOGLOBIN CONCENTRATION",
+		"GLU":   "GLUCOSE",
+		"BUN":   "BLOOD UREA NITROGEN",
 		"CREAT": "CREATININE",
-		"NA":   "SODIUM",
-		"K":    "POTASSIUM",
-		"CL":   "CHLORIDE",
-		"CO2":  "CARBON DIOXIDE",
-		"CA":   "CALCIUM",
-		"MG":   "MAGNESIUM",
-		"PHOS": "PHOSPHORUS",
-		"ALT":  "ALANINE AMINOTRANSFERASE",
-		"AST":  "ASPARTATE AMINOTRANSFERASE",
-		"ALP":  "ALKALINE PHOSPHATASE",
-		"TBIL": "TOTAL BILIRUBIN",
-		"ALB":  "ALBUMIN",
-		"TP":   "TOTAL PROTEIN",
-		"CHOL": "CHOLESTEROL",
-		"TRIG": "TRIGLYCERIDES",
-		"HDL":  "HIGH DENSITY LIPOPROTEIN",
-		"LDL":  "LOW DENSITY LIPOPROTEIN",
-		"TSH":  "THYROID STIMULATING HORMONE",
-		"T3":   "TRIIODOTHYRONINE",
-		"T4":   "THYROXINE",
+		"NA":    "SODIUM",
+		"K":     "POTASSIUM",
+		"CL":    "CHLORIDE",
+		"CO2":   "CARBON DIOXIDE",
+		"CA":    "CALCIUM",
+		"MG":    "MAGNESIUM",
+		"PHOS":  "PHOSPHORUS",
+		"ALT":   "ALANINE AMINOTRANSFERASE",
+		"AST":   "ASPARTATE AMINOTRANSFERASE",
+		"ALP":   "ALKALINE PHOSPHATASE",
+		"TBIL":  "TOTAL BILIRUBIN",
+		"ALB":   "ALBUMIN",
+		"TP":    "TOTAL PROTEIN",
+		"CHOL":  "CHOLESTEROL",
+		"TRIG":  "TRIGLYCERIDES",
+		"HDL":   "HIGH DENSITY LIPOPROTEIN",
+		"LDL":   "LOW DENSITY LIPOPROTEIN",
+		"TSH":   "THYROID STIMULATING HORMONE",
+		"T3":    "TRIIODOTHYRONINE",
+		"T4":    "THYROXINE",
 		"HBA1C": "HEMOGLOBIN A1C",
-		"A1C":  "HEMOGLOBIN A1C",
-		"PT":   "PROTHROMBIN TIME",
-		"INR":  "INTERNATIONAL NORMALIZED RATIO",
-		"PTT":  "PARTIAL THROMBOPLASTIN TIME",
-		"APTT": "ACTIVATED PARTIAL THROMBOPLASTIN TIME",
-		"CBC":  "COMPLETE BLOOD COUNT",
-		"BMP":  "BASIC METABOLIC PANEL",
-		"CMP":  "COMPREHENSIVE METABOLIC PANEL",
-		"LFT":  "LIVER FUNCTION TESTS",
-		"UA":   "URINALYSIS",
-		"ABG":  "ARTERIAL BLOOD GAS",
-		"ESR":  "ERYTHROCYTE SEDIMENTATION RATE",
-		"CRP":  "C-REACTIVE PROTEIN",
-		"PSA":  "PROSTATE SPECIFIC ANTIGEN",
-		"BNP":  "BRAIN NATRIURETIC PEPTIDE",
-		"TROP": "TROPONIN",
+		"A1C":   "HEMOGLOBIN A1C",
+		"PT":    "PROTHROMBIN TIME",
+		"INR":   "INTERNATIONAL NORMALIZED RATIO",
+		"PTT":   "PARTIAL THROMBOPLASTIN TIME",
+		"APTT":  "ACTIVATED PARTIAL THROMBOPLASTIN TIME",
+		"CBC":   "COMPLETE BLOOD COUNT",
+		"BMP":   "BASIC METABOLIC PANEL",
+		"CMP":   "COMPREHENSIVE METABOLIC PANEL",
+		"LFT":   "LIVER FUNCTION TESTS",
+		"UA":    "URINALYSIS",
+		"ABG":   "ARTERIAL BLOOD GAS",
+		"ESR":   "ERYTHROCYTE SEDIMENTATION RATE",
+		"CRP":   "C-REACTIVE PROTEIN",
+		"PSA":   "PROSTATE SPECIFIC ANTIGEN",
+		"BNP":   "BRAIN NATRIURETIC PEPTIDE",
+		"TROP":  "TROPONIN",
 	}
 
 	for abbrev, expansion := range abbrevs {

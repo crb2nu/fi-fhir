@@ -10,13 +10,13 @@ import (
 
 // EventStatistics is the read model for event statistics.
 type EventStatistics struct {
-	TotalEvents    int64                      `json:"total_events"`
-	ByType         map[string]int64           `json:"by_type"`
-	BySource       map[string]int64           `json:"by_source"`
-	ByHour         map[string]int64           `json:"by_hour"`          // "2024-01-15T10" -> count
+	TotalEvents     int64                       `json:"total_events"`
+	ByType          map[string]int64            `json:"by_type"`
+	BySource        map[string]int64            `json:"by_source"`
+	ByHour          map[string]int64            `json:"by_hour"`            // "2024-01-15T10" -> count
 	ByTypeAndSource map[string]map[string]int64 `json:"by_type_and_source"` // type -> source -> count
-	LastUpdated    time.Time                  `json:"last_updated"`
-	LastPosition   int64                      `json:"last_position"`
+	LastUpdated     time.Time                   `json:"last_updated"`
+	LastPosition    int64                       `json:"last_position"`
 }
 
 // EventStatisticsProjection aggregates event counts by various dimensions.
@@ -84,13 +84,13 @@ func (p *EventStatisticsProjection) GetStatistics() EventStatistics {
 
 	// Return a deep copy
 	result := EventStatistics{
-		TotalEvents:    p.stats.TotalEvents,
-		ByType:         make(map[string]int64),
-		BySource:       make(map[string]int64),
-		ByHour:         make(map[string]int64),
+		TotalEvents:     p.stats.TotalEvents,
+		ByType:          make(map[string]int64),
+		BySource:        make(map[string]int64),
+		ByHour:          make(map[string]int64),
 		ByTypeAndSource: make(map[string]map[string]int64),
-		LastUpdated:    p.stats.LastUpdated,
-		LastPosition:   p.stats.LastPosition,
+		LastUpdated:     p.stats.LastUpdated,
+		LastPosition:    p.stats.LastPosition,
 	}
 
 	for k, v := range p.stats.ByType {

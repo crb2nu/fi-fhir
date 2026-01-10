@@ -47,7 +47,7 @@ type ReceiverMetrics interface {
 // NoOpReceiverMetrics discards all metrics.
 type NoOpReceiverMetrics struct{}
 
-func (NoOpReceiverMetrics) NotificationReceived(subscription, resourceType string)           {}
+func (NoOpReceiverMetrics) NotificationReceived(subscription, resourceType string) {}
 func (NoOpReceiverMetrics) NotificationProcessed(subscription string, success bool, d time.Duration) {
 }
 func (NoOpReceiverMetrics) NotificationError(subscription, errorType string) {}
@@ -62,9 +62,9 @@ type SubscriptionConfig struct {
 
 // EventMappingConfig defines how FHIR resources map to canonical events.
 type EventMappingConfig struct {
-	CreateEvent string            // Event type for create operations
-	UpdateEvent string            // Event type for update operations
-	DeleteEvent string            // Event type for delete operations
+	CreateEvent string             // Event type for create operations
+	UpdateEvent string             // Event type for update operations
+	DeleteEvent string             // Event type for delete operations
 	Rules       []EventMappingRule // Custom rules (evaluated first)
 }
 

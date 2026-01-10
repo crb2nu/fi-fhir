@@ -66,14 +66,14 @@ type CircuitBreaker struct {
 
 	config CircuitBreakerConfig
 
-	state            CircuitState
-	failures         int       // Consecutive failures in closed state
-	successes        int       // Consecutive successes in half-open state
-	lastFailureTime  time.Time // Time of last failure (for open->half-open transition)
-	lastStateChange  time.Time // Time of last state change
-	totalFailures    int64     // Total failures (for metrics)
-	totalSuccesses   int64     // Total successes (for metrics)
-	totalRejected    int64     // Total rejected by open circuit (for metrics)
+	state           CircuitState
+	failures        int       // Consecutive failures in closed state
+	successes       int       // Consecutive successes in half-open state
+	lastFailureTime time.Time // Time of last failure (for open->half-open transition)
+	lastStateChange time.Time // Time of last state change
+	totalFailures   int64     // Total failures (for metrics)
+	totalSuccesses  int64     // Total successes (for metrics)
+	totalRejected   int64     // Total rejected by open circuit (for metrics)
 }
 
 // NewCircuitBreaker creates a new circuit breaker with the given configuration.

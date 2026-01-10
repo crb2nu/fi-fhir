@@ -605,10 +605,10 @@ func NewOutboxMessageFromStoredEvent(id string, event StoredEvent, topic string)
 
 // OutboxEventStore wraps an EventStore to automatically create outbox messages.
 type OutboxEventStore struct {
-	eventStore   EventStore
-	outboxStore  OutboxStore
-	topicMapper  func(eventType string) string
-	idGenerator  func() string
+	eventStore  EventStore
+	outboxStore OutboxStore
+	topicMapper func(eventType string) string
+	idGenerator func() string
 }
 
 // NewOutboxEventStore creates an event store that automatically adds outbox messages.
@@ -640,14 +640,14 @@ func (s *OutboxEventStore) Append(ctx context.Context, streamID string, expected
 	for i, event := range events {
 		topic := s.topicMapper(event.EventType)
 		messages[i] = &OutboxMessage{
-			ID:            s.idGenerator(),
-			AggregateID:   streamID,
-			EventType:     event.EventType,
-			Payload:       event.Data,
-			Metadata:      event.Metadata,
-			Topic:         topic,
-			Status:        OutboxStatusPending,
-			CreatedAt:     time.Now(),
+			ID:          s.idGenerator(),
+			AggregateID: streamID,
+			EventType:   event.EventType,
+			Payload:     event.Data,
+			Metadata:    event.Metadata,
+			Topic:       topic,
+			Status:      OutboxStatusPending,
+			CreatedAt:   time.Now(),
 		}
 	}
 
