@@ -72,7 +72,8 @@ Events flow through configurable routes with:
 
 ## Implementation Status
 
-See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and current roadmap.
+The backlog of remaining work is documented in the [Backlog section](#backlog-prioritized) below.
+For AI assistant guidance, see [AGENTS.md](../../AGENTS.md).
 
 ### Completed
 - HL7v2 parsing (ADT, ORU, SIU messages)
