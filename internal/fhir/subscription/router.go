@@ -235,13 +235,41 @@ type SubscriptionDefinition struct {
 
 // AuthConfig defines authentication for a FHIR server.
 type AuthConfig struct {
-	Type         string `yaml:"type"` // bearer, oauth2, basic
-	Token        string `yaml:"token,omitempty"`
-	TokenURL     string `yaml:"token_url,omitempty"`
-	ClientID     string `yaml:"client_id,omitempty"`
-	ClientSecret string `yaml:"client_secret,omitempty"`
-	Username     string `yaml:"username,omitempty"`
-	Password     string `yaml:"password,omitempty"`
+	Type         string   `yaml:"type"` // bearer, oauth2, basic
+	Token        string   `yaml:"token,omitempty"`
+	TokenURL     string   `yaml:"token_url,omitempty"`
+	ClientID     string   `yaml:"client_id,omitempty"`
+	ClientSecret string   `yaml:"client_secret,omitempty"`
+	Scopes       []string `yaml:"scopes,omitempty"`
+	Username     string   `yaml:"username,omitempty"`
+	Password     string   `yaml:"password,omitempty"`
+}
+
+// OAuth2Auth provides OAuth2 client credentials authentication.
+// Uses the workflow package's token manager for caching and automatic refresh.
+type OAuth2Auth struct {
+	config workflow.OAuthConfig
+}
+
+// NewOAuth2Auth creates a new OAuth2 auth provider.
+func NewOAuth2Auth(tokenURL, clientID, clientSecret string, scopes []string) *OAuth2Auth {
+	return &OAuth2Auth{
+		config: workflow.OAuthConfig{
+			TokenURL:     tokenURL,
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			Scopes:       scopes,
+		},
+	}
+}
+
+// GetAuthHeader returns the OAuth2 Bearer token header.
+func (a *OAuth2Auth) GetAuthHeader(ctx context.Context) (string, error) {
+	token, err := workflow.GetOAuthToken(a.config)
+	if err != nil {
+		return "", fmt.Errorf("failed to get OAuth token: %w", err)
+	}
+	return "Bearer " + token, nil
 }
 
 // ChannelConfig defines the notification channel.
@@ -347,7 +375,13 @@ func (m *Manager) getOrCreateClient(def *SubscriptionDefinition) (*Client, error
 	switch def.Auth.Type {
 	case "bearer":
 		auth = &StaticTokenAuth{Token: def.Auth.Token}
-	// TODO: Add OAuth2 support using existing oauth.go
+	case "oauth2":
+		auth = NewOAuth2Auth(
+			def.Auth.TokenURL,
+			def.Auth.ClientID,
+			def.Auth.ClientSecret,
+			def.Auth.Scopes,
+		)
 	default:
 		// No auth
 	}
