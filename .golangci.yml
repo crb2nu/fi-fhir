@@ -1,5 +1,14 @@
 version: "2"
 
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/crb2nu/fi-fhir
+
 run:
   timeout: 5m
   issues-exit-code: 1
@@ -35,8 +44,6 @@ linters:
     - gocritic
     - gocyclo
     - godot
-    - gofmt
-    - goimports
     - goprintffuncname
     - gosec
     - misspell
@@ -84,9 +91,6 @@ linters-settings:
       - ifElseChain
       - octalLiteral
       - whyNoLint
-
-  goimports:
-    local-prefixes: github.com/crb2nu/fi-fhir
 
   gosec:
     excludes:
