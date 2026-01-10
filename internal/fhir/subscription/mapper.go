@@ -4,10 +4,28 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/cblevins/fi-fhir/internal/workflow"
 	"github.com/cblevins/fi-fhir/pkg/events"
 )
+
+// Package-level CEL evaluator for event mapping rules.
+// Thread-safe with internal caching.
+var (
+	celEvaluator     *workflow.CELEvaluator
+	celEvaluatorOnce sync.Once
+	celEvaluatorErr  error
+)
+
+// getCELEvaluator returns the shared CEL evaluator, creating it if needed.
+func getCELEvaluator() (*workflow.CELEvaluator, error) {
+	celEvaluatorOnce.Do(func() {
+		celEvaluator, celEvaluatorErr = workflow.NewCELEvaluator()
+	})
+	return celEvaluator, celEvaluatorErr
+}
 
 // FHIRMapper converts FHIR resources to canonical events.
 type FHIRMapper struct {
@@ -151,14 +169,22 @@ func (e *EncounterMapper) Map(resource map[string]interface{}, action string, co
 
 	var eventType events.EventType
 
-	// Apply custom rules first
-	if config != nil {
-		for _, rule := range config.Rules {
-			// TODO: Evaluate CEL expression
-			// For now, use simple status-based matching
-			if strings.Contains(rule.Condition, status) {
-				eventType = events.EventType(rule.EventType)
-				break
+	// Apply custom rules first using CEL expressions
+	if config != nil && len(config.Rules) > 0 {
+		evaluator, err := getCELEvaluator()
+		if err == nil {
+			for _, rule := range config.Rules {
+				if rule.Condition == "" {
+					// Empty condition always matches
+					eventType = events.EventType(rule.EventType)
+					break
+				}
+				// Evaluate CEL expression against the FHIR resource
+				matched, evalErr := evaluator.Evaluate(rule.Condition, resource)
+				if evalErr == nil && matched {
+					eventType = events.EventType(rule.EventType)
+					break
+				}
 			}
 		}
 	}
