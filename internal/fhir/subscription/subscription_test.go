@@ -487,6 +487,293 @@ func TestFilterRouter(t *testing.T) {
 	}
 }
 
+// =============================================================================
+// Client CRUD Tests
+// =============================================================================
+
+func TestClient_Get(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Errorf("Expected GET, got %s", r.Method)
+		}
+		if r.URL.Path != "/Subscription/sub-123" {
+			t.Errorf("Expected /Subscription/sub-123, got %s", r.URL.Path)
+		}
+
+		w.Header().Set("Content-Type", "application/fhir+json")
+		json.NewEncoder(w).Encode(Subscription{
+			ResourceType: "Subscription",
+			ID:           "sub-123",
+			Status:       StatusActive,
+			Criteria:     "Patient",
+		})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient(&ClientConfig{FHIREndpoint: server.URL})
+
+	sub, err := client.Get(context.Background(), "sub-123")
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+
+	if sub.ID != "sub-123" {
+		t.Errorf("Expected ID sub-123, got %s", sub.ID)
+	}
+}
+
+func TestClient_Get_NotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	client, _ := NewClient(&ClientConfig{FHIREndpoint: server.URL})
+
+	_, err := client.Get(context.Background(), "missing")
+	if err != ErrNotFound {
+		t.Errorf("Expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestClient_List(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" || r.URL.Path != "/Subscription" {
+			t.Errorf("Unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+
+		w.Header().Set("Content-Type", "application/fhir+json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"resourceType": "Bundle",
+			"entry": []map[string]interface{}{
+				{
+					"resource": Subscription{
+						ResourceType: "Subscription",
+						ID:           "sub-1",
+						Status:       StatusActive,
+					},
+				},
+				{
+					"resource": Subscription{
+						ResourceType: "Subscription",
+						ID:           "sub-2",
+						Status:       StatusOff,
+					},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient(&ClientConfig{FHIREndpoint: server.URL})
+
+	subs, err := client.List(context.Background())
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+
+	if len(subs) != 2 {
+		t.Errorf("Expected 2 subscriptions, got %d", len(subs))
+	}
+}
+
+func TestClient_Delete(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "DELETE" {
+			t.Errorf("Expected DELETE, got %s", r.Method)
+		}
+		if r.URL.Path != "/Subscription/sub-123" {
+			t.Errorf("Expected /Subscription/sub-123, got %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	client, _ := NewClient(&ClientConfig{FHIREndpoint: server.URL})
+
+	err := client.Delete(context.Background(), "sub-123")
+	if err != nil {
+		t.Fatalf("Delete failed: %v", err)
+	}
+}
+
+func TestClient_Delete_NotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	client, _ := NewClient(&ClientConfig{FHIREndpoint: server.URL})
+
+	err := client.Delete(context.Background(), "missing")
+	if err != ErrNotFound {
+		t.Errorf("Expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestClient_Pause(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		if callCount == 1 {
+			// First call: Get
+			if r.Method != "GET" {
+				t.Errorf("Expected GET, got %s", r.Method)
+			}
+			w.Header().Set("Content-Type", "application/fhir+json")
+			json.NewEncoder(w).Encode(Subscription{
+				ResourceType: "Subscription",
+				ID:           "sub-123",
+				Status:       StatusActive,
+				Criteria:     "Patient",
+			})
+		} else {
+			// Second call: Put
+			if r.Method != "PUT" {
+				t.Errorf("Expected PUT, got %s", r.Method)
+			}
+
+			var sub Subscription
+			json.NewDecoder(r.Body).Decode(&sub)
+			if sub.Status != StatusOff {
+				t.Errorf("Expected status 'off', got '%s'", sub.Status)
+			}
+
+			w.Header().Set("Content-Type", "application/fhir+json")
+			json.NewEncoder(w).Encode(sub)
+		}
+	}))
+	defer server.Close()
+
+	client, _ := NewClient(&ClientConfig{FHIREndpoint: server.URL})
+
+	err := client.Pause(context.Background(), "sub-123")
+	if err != nil {
+		t.Fatalf("Pause failed: %v", err)
+	}
+}
+
+func TestClient_Resume(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		if callCount == 1 {
+			// First call: Get
+			w.Header().Set("Content-Type", "application/fhir+json")
+			json.NewEncoder(w).Encode(Subscription{
+				ResourceType: "Subscription",
+				ID:           "sub-123",
+				Status:       StatusOff,
+				Criteria:     "Patient",
+			})
+		} else {
+			// Second call: Put
+			var sub Subscription
+			json.NewDecoder(r.Body).Decode(&sub)
+			if sub.Status != StatusRequested {
+				t.Errorf("Expected status 'requested', got '%s'", sub.Status)
+			}
+
+			w.Header().Set("Content-Type", "application/fhir+json")
+			json.NewEncoder(w).Encode(sub)
+		}
+	}))
+	defer server.Close()
+
+	client, _ := NewClient(&ClientConfig{FHIREndpoint: server.URL})
+
+	err := client.Resume(context.Background(), "sub-123")
+	if err != nil {
+		t.Fatalf("Resume failed: %v", err)
+	}
+}
+
+func TestClient_ParseError_OperationOutcome(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/fhir+json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"resourceType": "OperationOutcome",
+			"issue": []map[string]interface{}{
+				{
+					"severity":    "error",
+					"code":        "invalid",
+					"diagnostics": "Invalid subscription criteria",
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient(&ClientConfig{FHIREndpoint: server.URL})
+
+	_, err := client.Get(context.Background(), "bad-sub")
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+
+	fhirErr, ok := err.(*FHIRError)
+	if !ok {
+		t.Fatalf("Expected *FHIRError, got %T", err)
+	}
+
+	if fhirErr.StatusCode != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", fhirErr.StatusCode)
+	}
+	if fhirErr.Diagnostics != "Invalid subscription criteria" {
+		t.Errorf("Unexpected diagnostics: %s", fhirErr.Diagnostics)
+	}
+}
+
+func TestClient_WithAuth(t *testing.T) {
+	var receivedAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/fhir+json")
+		json.NewEncoder(w).Encode(Subscription{ID: "sub-123"})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient(&ClientConfig{
+		FHIREndpoint: server.URL,
+		AuthProvider: &StaticTokenAuth{Token: "test-token"},
+	})
+
+	client.Get(context.Background(), "sub-123")
+
+	if receivedAuth != "Bearer test-token" {
+		t.Errorf("Expected 'Bearer test-token', got '%s'", receivedAuth)
+	}
+}
+
+func TestFHIRError_Error(t *testing.T) {
+	err := &FHIRError{
+		StatusCode:  400,
+		Severity:    "error",
+		Code:        "invalid",
+		Diagnostics: "Something went wrong",
+	}
+
+	msg := err.Error()
+	if !strings.Contains(msg, "400") {
+		t.Errorf("Error message should contain status code: %s", msg)
+	}
+	if !strings.Contains(msg, "Something went wrong") {
+		t.Errorf("Error message should contain diagnostics: %s", msg)
+	}
+}
+
+func TestNewClient_EmptyEndpoint(t *testing.T) {
+	_, err := NewClient(&ClientConfig{FHIREndpoint: ""})
+	if err == nil {
+		t.Error("Expected error for empty endpoint")
+	}
+}
+
+// =============================================================================
+// Config Tests
+// =============================================================================
+
 func TestConfigValidation(t *testing.T) {
 	tests := []struct {
 		name    string
