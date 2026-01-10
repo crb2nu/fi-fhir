@@ -501,6 +501,254 @@ func TestFuzzyMatcher_CustomConfig(t *testing.T) {
 }
 
 // =============================================================================
+// calculateDisplayConfidence Tests
+// =============================================================================
+
+func TestFuzzyMatcher_CalculateDisplayConfidence(t *testing.T) {
+	fm := newTestFuzzyMatcher()
+
+	// Test cases that exercise calculateDisplayConfidence branches
+	// Note: LookupByDisplay only indexes by component and shortname,
+	// so we test those primary paths plus fuzzy matching
+	tests := []struct {
+		name          string
+		query         string
+		wantCode      string
+		minConfidence MatchConfidence
+		maxConfidence MatchConfidence
+		description   string
+	}{
+		{
+			name:          "exact_component_match",
+			query:         "Leukocytes",
+			wantCode:      "6690-2",
+			minConfidence: 0.97,
+			maxConfidence: 1.0,
+			description:   "Exact component match should return ~0.98",
+		},
+		{
+			name:          "exact_shortname_match",
+			query:         "WBC Auto",
+			wantCode:      "6690-2",
+			minConfidence: 0.96,
+			maxConfidence: 0.98,
+			description:   "Exact short name match should return ~0.97",
+		},
+		{
+			name:          "component_case_insensitive",
+			query:         "leukocytes",
+			wantCode:      "6690-2",
+			minConfidence: 0.97,
+			maxConfidence: 1.0,
+			description:   "Case insensitive component match",
+		},
+		{
+			name:          "shortname_glucose",
+			query:         "Glucose SerPl",
+			wantCode:      "2345-7",
+			minConfidence: 0.96,
+			maxConfidence: 0.98,
+			description:   "Short name match for glucose",
+		},
+		{
+			name:          "component_hemoglobin",
+			query:         "Hemoglobin",
+			wantCode:      "718-7",
+			minConfidence: 0.97,
+			maxConfidence: 1.0,
+			description:   "Component match for hemoglobin",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			matches := fm.Match(tc.query)
+			if len(matches) == 0 {
+				t.Fatalf("No matches for query '%s'", tc.query)
+			}
+
+			// Find the expected code in results
+			var found *FuzzyMatch
+			for i := range matches {
+				if matches[i].Code == tc.wantCode {
+					found = &matches[i]
+					break
+				}
+			}
+
+			if found == nil {
+				t.Fatalf("Expected code %s not in results for query '%s'", tc.wantCode, tc.query)
+			}
+
+			if found.Confidence < tc.minConfidence || found.Confidence > tc.maxConfidence {
+				t.Errorf("%s: confidence = %f, want [%f, %f]",
+					tc.description, found.Confidence, tc.minConfidence, tc.maxConfidence)
+			}
+		})
+	}
+}
+
+// TestCalculateDisplayConfidence_AllBranches tests the internal confidence calculation
+// by directly calling the method to ensure all branches are covered.
+func TestCalculateDisplayConfidence_AllBranches(t *testing.T) {
+	loader := NewLOINCLoader()
+	loader.LoadLoincTableFromReader(strings.NewReader(testLoincTable))
+	fm := NewFuzzyMatcher(loader, nil)
+
+	code := loader.GetCode("6690-2")
+	if code == nil {
+		t.Fatal("Failed to get test code")
+	}
+
+	tests := []struct {
+		name       string
+		query      string
+		minConf    MatchConfidence
+		maxConf    MatchConfidence
+		branchHit  string
+	}{
+		{
+			name:      "component_exact",
+			query:     "Leukocytes",
+			minConf:   0.98,
+			maxConf:   0.99,
+			branchHit: "exact component",
+		},
+		{
+			name:      "shortname_exact",
+			query:     "WBC Auto",
+			minConf:   0.97,
+			maxConf:   0.98,
+			branchHit: "exact shortname",
+		},
+		{
+			name:      "consumer_exact",
+			query:     "White blood cell count",
+			minConf:   0.96,
+			maxConf:   0.97,
+			branchHit: "exact consumer",
+		},
+		{
+			name:      "contains_longname",
+			query:     "Automated",
+			minConf:   0.70,
+			maxConf:   0.90,
+			branchHit: "contains in longname",
+		},
+		{
+			name:      "token_overlap",
+			query:     "xyz random words",
+			minConf:   0.0,
+			maxConf:   0.50,
+			branchHit: "token overlap fallback",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			conf := fm.calculateDisplayConfidence(tc.query, code)
+			if conf < tc.minConf || conf > tc.maxConf {
+				t.Errorf("calculateDisplayConfidence(%q) = %f, want [%f, %f] for %s",
+					tc.query, conf, tc.minConf, tc.maxConf, tc.branchHit)
+			}
+		})
+	}
+}
+
+// =============================================================================
+// tokenOverlapScore Tests
+// =============================================================================
+
+func TestTokenOverlapScore(t *testing.T) {
+	fm := NewFuzzyMatcher(NewLOINCLoader(), nil)
+
+	tests := []struct {
+		name     string
+		query    string
+		target   string
+		minScore MatchConfidence
+		maxScore MatchConfidence
+	}{
+		{
+			name:     "empty_query",
+			query:    "",
+			target:   "some text",
+			minScore: 0,
+			maxScore: 0,
+		},
+		{
+			name:     "empty_target",
+			query:    "some",
+			target:   "",
+			minScore: 0,
+			maxScore: 0,
+		},
+		{
+			name:     "no_overlap",
+			query:    "foo bar",
+			target:   "baz qux",
+			minScore: 0,
+			maxScore: 0.1,
+		},
+		{
+			name:     "partial_overlap",
+			query:    "blood glucose test",
+			target:   "glucose in blood",
+			minScore: 0.5,
+			maxScore: 1.0,
+		},
+		{
+			name:     "full_overlap",
+			query:    "glucose blood",
+			target:   "blood glucose",
+			minScore: 0.9,
+			maxScore: 1.0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			score := fm.tokenOverlapScore(tc.query, tc.target)
+			if score < tc.minScore || score > tc.maxScore {
+				t.Errorf("tokenOverlapScore(%q, %q) = %f, want [%f, %f]",
+					tc.query, tc.target, score, tc.minScore, tc.maxScore)
+			}
+		})
+	}
+}
+
+// =============================================================================
+// BestMatch and MatchWithThreshold Tests
+// =============================================================================
+
+func TestFuzzyMatcher_BestMatch_NoResults(t *testing.T) {
+	fm := newTestFuzzyMatcher()
+
+	// Query that won't match anything
+	match := fm.BestMatch("xyznonexistent12345")
+	if match != nil {
+		t.Errorf("BestMatch should return nil for non-matching query, got match: %+v", match)
+	}
+}
+
+func TestFuzzyMatcher_MatchWithThreshold_HighThreshold(t *testing.T) {
+	fm := newTestFuzzyMatcher()
+
+	// With a very high threshold (0.99), fuzzy matches should be filtered out
+	// Only exact code matches would pass this threshold
+	match := fm.MatchWithThreshold("blood", 0.99)
+	if match != nil && match.Confidence < 0.99 {
+		t.Errorf("MatchWithThreshold(0.99) returned match with confidence %f < 0.99", match.Confidence)
+	}
+
+	// Non-matching query should return nil
+	noMatch := fm.MatchWithThreshold("xyznonexistent", 0.5)
+	if noMatch != nil {
+		t.Errorf("MatchWithThreshold should return nil for non-matching query")
+	}
+}
+
+// =============================================================================
 // Concurrency Tests
 // =============================================================================
 

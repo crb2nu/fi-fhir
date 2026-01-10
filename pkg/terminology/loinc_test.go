@@ -1,6 +1,7 @@
 package terminology
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -502,5 +503,85 @@ func TestLOINCLoader_Concurrent(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		<-done
+	}
+}
+
+// =============================================================================
+// File-based Loader Tests
+// =============================================================================
+
+func TestLOINCLoader_LoadLoincTable_File(t *testing.T) {
+	// Create temp file with LOINC data
+	tmpfile, err := os.CreateTemp("", "loinc_test_*.csv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.WriteString(testLoincTable); err != nil {
+		t.Fatal(err)
+	}
+	if err := tmpfile.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Test loading from file
+	loader := NewLOINCLoader()
+	err = loader.LoadLoincTable(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("LoadLoincTable() error = %v", err)
+	}
+
+	// Verify data was loaded
+	code := loader.GetCode("6690-2")
+	if code == nil {
+		t.Error("Expected code 6690-2 to be loaded")
+	}
+}
+
+func TestLOINCLoader_LoadLoincTable_FileNotFound(t *testing.T) {
+	loader := NewLOINCLoader()
+	err := loader.LoadLoincTable("/nonexistent/path/to/file.csv")
+	if err == nil {
+		t.Error("Expected error for non-existent file")
+	}
+}
+
+func TestLOINCLoader_LoadPanelHierarchy_File(t *testing.T) {
+	// First load the LOINC table
+	loader := NewLOINCLoader()
+	loader.LoadLoincTableFromReader(strings.NewReader(testLoincTable))
+
+	// Create temp file with panel hierarchy data
+	tmpfile, err := os.CreateTemp("", "panel_test_*.csv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.WriteString(testPanelHierarchy); err != nil {
+		t.Fatal(err)
+	}
+	if err := tmpfile.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Test loading from file
+	err = loader.LoadPanelHierarchy(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("LoadPanelHierarchy() error = %v", err)
+	}
+
+	// Verify panel data was loaded
+	if !loader.IsPanel("58410-2") {
+		t.Error("Expected 58410-2 to be a panel")
+	}
+}
+
+func TestLOINCLoader_LoadPanelHierarchy_FileNotFound(t *testing.T) {
+	loader := NewLOINCLoader()
+	err := loader.LoadPanelHierarchy("/nonexistent/path/to/file.csv")
+	if err == nil {
+		t.Error("Expected error for non-existent file")
 	}
 }
