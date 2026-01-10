@@ -79,6 +79,16 @@ const (
 
 	// Place of service code system
 	SystemPlaceOfService = "https://www.cms.gov/Medicare/Coding/place-of-service-codes"
+
+	// Eligibility response code systems
+	SystemEligibilityOutcome     = "http://hl7.org/fhir/remittance-outcome"
+	SystemBenefitType            = "http://terminology.hl7.org/CodeSystem/benefit-type"
+	SystemBenefitNetwork         = "http://terminology.hl7.org/CodeSystem/benefit-network"
+	SystemBenefitUnit            = "http://terminology.hl7.org/CodeSystem/benefit-unit"
+	SystemBenefitTerm            = "http://terminology.hl7.org/CodeSystem/benefit-term"
+	SystemEligibilityCategory    = "http://terminology.hl7.org/CodeSystem/ex-benefitcategory"
+	SystemEligibilityPurpose     = "http://hl7.org/fhir/eligibilityresponse-purpose"
+	SystemProcessingError        = "http://terminology.hl7.org/CodeSystem/adjudication-error"
 )
 
 // Resource is the base interface for all FHIR resources.
@@ -793,5 +803,88 @@ func (e *ExplanationOfBenefit) MarshalJSON() ([]byte, error) {
 	}{
 		ResourceType: "ExplanationOfBenefit",
 		Alias:        (*Alias)(e),
+	})
+}
+
+// CoverageEligibilityResponse represents a FHIR CoverageEligibilityResponse resource.
+// Used for 271 eligibility response transactions.
+type CoverageEligibilityResponse struct {
+	ResourceType string                         `json:"resourceType"`
+	ID           string                         `json:"id,omitempty"`
+	Meta         *Meta                          `json:"meta,omitempty"`
+	Identifier   []Identifier                   `json:"identifier,omitempty"`
+	Status       string                         `json:"status"`                    // active | cancelled | draft | entered-in-error
+	Purpose      []string                       `json:"purpose"`                   // auth-requirements | benefits | discovery | validation
+	Patient      *Reference                     `json:"patient"`                   // Required
+	ServicedDate string                         `json:"servicedDate,omitempty"`    // Date for which eligibility was checked
+	ServicedPeriod *Period                      `json:"servicedPeriod,omitempty"`  // Period for which eligibility was checked
+	Created      string                         `json:"created,omitempty"`         // Response creation date
+	Requestor    *Reference                     `json:"requestor,omitempty"`       // Provider making the request
+	Request      *Reference                     `json:"request,omitempty"`         // Reference to original request
+	Outcome      string                         `json:"outcome"`                   // queued | complete | error | partial
+	Disposition  string                         `json:"disposition,omitempty"`     // Disposition message
+	Insurer      *Reference                     `json:"insurer"`                   // Required - payer
+	Insurance    []CERInsurance                 `json:"insurance,omitempty"`       // Coverage/benefit details
+	PreAuthRef   string                         `json:"preAuthRef,omitempty"`      // Pre-authorization reference
+	Form         *CodeableConcept               `json:"form,omitempty"`            // Form identifier
+	Error        []CERError                     `json:"error,omitempty"`           // Processing errors
+}
+
+// CERInsurance represents insurance coverage information in CoverageEligibilityResponse.
+type CERInsurance struct {
+	Coverage       *Reference    `json:"coverage"`                 // Reference to Coverage resource
+	Inforce        bool          `json:"inforce,omitempty"`        // Is coverage currently in force?
+	BenefitPeriod  *Period       `json:"benefitPeriod,omitempty"`  // Benefit period
+	Item           []CERItem     `json:"item,omitempty"`           // Benefits/services covered
+}
+
+// CERItem represents a benefit/service item in CoverageEligibilityResponse.
+type CERItem struct {
+	Category              *CodeableConcept  `json:"category,omitempty"`              // Benefit category
+	ProductOrService      *CodeableConcept  `json:"productOrService,omitempty"`      // Billing code
+	Modifier              []CodeableConcept `json:"modifier,omitempty"`              // Service modifiers
+	Provider              *Reference        `json:"provider,omitempty"`              // Provider reference
+	Excluded              bool              `json:"excluded,omitempty"`              // Is this excluded from coverage?
+	Name                  string            `json:"name,omitempty"`                  // Benefit name
+	Description           string            `json:"description,omitempty"`           // Description
+	Network               *CodeableConcept  `json:"network,omitempty"`               // In or out of network
+	Unit                  *CodeableConcept  `json:"unit,omitempty"`                  // Individual or family
+	Term                  *CodeableConcept  `json:"term,omitempty"`                  // Annual or lifetime
+	Benefit               []CERBenefit      `json:"benefit,omitempty"`               // Benefit amounts
+	AuthorizationRequired bool              `json:"authorizationRequired,omitempty"` // Is prior auth needed?
+	AuthorizationSupporting []CodeableConcept `json:"authorizationSupporting,omitempty"` // Documentation required
+	AuthorizationUrl      string            `json:"authorizationUrl,omitempty"`      // URL for authorization
+}
+
+// CERBenefit represents a specific benefit amount in CoverageEligibilityResponse.
+type CERBenefit struct {
+	Type               CodeableConcept `json:"type"`                         // deductible | visit | copay | benefit | etc.
+	AllowedUnsignedInt *int            `json:"allowedUnsignedInt,omitempty"` // Numeric allowed value
+	AllowedString      string          `json:"allowedString,omitempty"`      // String allowed value
+	AllowedMoney       *Money          `json:"allowedMoney,omitempty"`       // Monetary allowed value
+	UsedUnsignedInt    *int            `json:"usedUnsignedInt,omitempty"`    // Numeric used value
+	UsedString         string          `json:"usedString,omitempty"`         // String used value
+	UsedMoney          *Money          `json:"usedMoney,omitempty"`          // Monetary used value
+}
+
+// CERError represents a processing error in CoverageEligibilityResponse.
+type CERError struct {
+	Code CodeableConcept `json:"code"` // Error code
+}
+
+// GetResourceType returns "CoverageEligibilityResponse".
+func (c *CoverageEligibilityResponse) GetResourceType() string {
+	return "CoverageEligibilityResponse"
+}
+
+// MarshalJSON ensures ResourceType is always set.
+func (c *CoverageEligibilityResponse) MarshalJSON() ([]byte, error) {
+	type Alias CoverageEligibilityResponse
+	return json.Marshal(&struct {
+		ResourceType string `json:"resourceType"`
+		*Alias
+	}{
+		ResourceType: "CoverageEligibilityResponse",
+		Alias:        (*Alias)(c),
 	})
 }

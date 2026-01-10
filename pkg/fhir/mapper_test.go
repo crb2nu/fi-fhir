@@ -1581,3 +1581,416 @@ func TestNilInputHandlingClaimAndEOB(t *testing.T) {
 		t.Error("MapExplanationOfBenefit(nil) should return nil")
 	}
 }
+
+// --- CoverageEligibilityResponse Tests ---
+
+func TestUSCoreMapperMapCoverageEligibilityResponse(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	planStart := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	planEnd := time.Date(2024, 12, 31, 0, 0, 0, 0, time.UTC)
+	event := &events.EligibilityResponseEvent{
+		EventMeta: events.EventMeta{
+			Type:      events.EventEligibilityResponse,
+			Timestamp: time.Now(),
+		},
+		InformationSource: events.Provider{
+			NPI:              "5555555555",
+			OrganizationName: "Blue Cross Blue Shield",
+		},
+		InformationReceiver: events.Provider{
+			NPI:              "1234567890",
+			OrganizationName: "Acme Medical Group",
+		},
+		Subscriber: events.Patient{
+			MRN:        "SUB123",
+			FamilyName: "Smith",
+			GivenName:  "John",
+			Identifiers: events.IdentifierSet{
+				Identifiers: []events.Identifier{
+					{Type: "MB", Value: "MEM456789"},
+				},
+			},
+		},
+		Status:        events.EligibilityStatusActive,
+		TraceNumber:   "TRN-001",
+		PlanBeginDate: planStart,
+		PlanEndDate:   planEnd,
+		Benefits: []events.EligibilityBenefit{
+			{
+				InformationCode:            "1",
+				InformationCodeDescription: "Active Coverage",
+				ServiceType:                "30",
+				ServiceTypeDescription:     "Health Benefit Plan Coverage",
+				InNetworkIndicator:         "Y",
+				CoverageLevel:              "IND",
+				PlanDescription:            "PPO Gold Plan",
+			},
+			{
+				InformationCode:            "C",
+				InformationCodeDescription: "Deductible",
+				ServiceType:                "30",
+				ServiceTypeDescription:     "Health Benefit Plan Coverage",
+				InNetworkIndicator:         "Y",
+				CoverageLevel:              "IND",
+				Amount:                     1500.00,
+			},
+			{
+				InformationCode:            "B",
+				InformationCodeDescription: "Co-Payment",
+				ServiceType:                "1",
+				ServiceTypeDescription:     "Medical Care",
+				InNetworkIndicator:         "Y",
+				Amount:                     30.00,
+			},
+			{
+				InformationCode:            "A",
+				InformationCodeDescription: "Coinsurance",
+				ServiceType:                "47",
+				ServiceTypeDescription:     "Hospital - Inpatient",
+				InNetworkIndicator:         "Y",
+				Percent:                    20.00,
+			},
+		},
+	}
+
+	cer := mapper.MapCoverageEligibilityResponse(event, "")
+
+	// Verify resource type
+	if cer.ResourceType != "CoverageEligibilityResponse" {
+		t.Errorf("ResourceType = %q, want 'CoverageEligibilityResponse'", cer.ResourceType)
+	}
+
+	// Verify status
+	if cer.Status != "active" {
+		t.Errorf("Status = %q, want 'active'", cer.Status)
+	}
+
+	// Verify purpose
+	if len(cer.Purpose) == 0 || cer.Purpose[0] != "benefits" {
+		t.Errorf("Purpose = %v, want ['benefits']", cer.Purpose)
+	}
+
+	// Verify outcome
+	if cer.Outcome != "complete" {
+		t.Errorf("Outcome = %q, want 'complete'", cer.Outcome)
+	}
+
+	// Verify patient (should use subscriber since no explicit ref)
+	if cer.Patient == nil || cer.Patient.Reference != "Patient/SUB123" {
+		t.Errorf("Patient = %v, want 'Patient/SUB123'", cer.Patient)
+	}
+
+	// Verify insurer
+	if cer.Insurer == nil || cer.Insurer.Reference != "Organization/5555555555" {
+		t.Errorf("Insurer = %v, want 'Organization/5555555555'", cer.Insurer)
+	}
+
+	// Verify requestor
+	if cer.Requestor == nil || cer.Requestor.Reference != "Organization/1234567890" {
+		t.Errorf("Requestor = %v, want 'Organization/1234567890'", cer.Requestor)
+	}
+
+	// Verify identifier (trace number)
+	if len(cer.Identifier) == 0 || cer.Identifier[0].Value != "TRN-001" {
+		t.Errorf("Identifier = %v, want trace number 'TRN-001'", cer.Identifier)
+	}
+
+	// Verify insurance section
+	if len(cer.Insurance) == 0 {
+		t.Fatal("Insurance section should not be empty")
+	}
+
+	insurance := cer.Insurance[0]
+
+	// Verify inforce
+	if !insurance.Inforce {
+		t.Error("Insurance.Inforce should be true for active coverage")
+	}
+
+	// Verify coverage reference
+	if insurance.Coverage == nil || insurance.Coverage.Reference != "Coverage/MEM456789" {
+		t.Errorf("Insurance.Coverage = %v, want 'Coverage/MEM456789'", insurance.Coverage)
+	}
+
+	// Verify benefit period
+	if insurance.BenefitPeriod == nil {
+		t.Fatal("BenefitPeriod should not be nil")
+	}
+	if insurance.BenefitPeriod.Start == nil || insurance.BenefitPeriod.Start.Year() != 2024 {
+		t.Errorf("BenefitPeriod.Start = %v, want 2024-01-01", insurance.BenefitPeriod.Start)
+	}
+
+	// Verify items (should have 3 unique service type + network combinations)
+	if len(insurance.Item) < 3 {
+		t.Errorf("Insurance.Item count = %d, want at least 3", len(insurance.Item))
+	}
+}
+
+func TestUSCoreMapperMapCERWithDependent(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.EligibilityResponseEvent{
+		InformationSource: events.Provider{OrganizationName: "Test Payer"},
+		Subscriber: events.Patient{
+			MRN:        "SUB123",
+			FamilyName: "Parent",
+			GivenName:  "John",
+		},
+		Dependent: &events.Patient{
+			MRN:        "DEP456",
+			FamilyName: "Child",
+			GivenName:  "Jane",
+		},
+		Status: events.EligibilityStatusActive,
+	}
+
+	cer := mapper.MapCoverageEligibilityResponse(event, "")
+
+	// Verify dependent is used as patient
+	if cer.Patient == nil || cer.Patient.Reference != "Patient/DEP456" {
+		t.Errorf("Patient = %v, want 'Patient/DEP456' (dependent)", cer.Patient)
+	}
+}
+
+func TestUSCoreMapperMapCERExplicitPatientRef(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.EligibilityResponseEvent{
+		InformationSource: events.Provider{OrganizationName: "Test Payer"},
+		Subscriber:        events.Patient{MRN: "SUB123"},
+		Status:            events.EligibilityStatusActive,
+	}
+
+	// Explicit patient ref should take precedence
+	cer := mapper.MapCoverageEligibilityResponse(event, "Patient/explicit-ref")
+
+	if cer.Patient == nil || cer.Patient.Reference != "Patient/explicit-ref" {
+		t.Errorf("Patient = %v, want 'Patient/explicit-ref'", cer.Patient)
+	}
+}
+
+func TestUSCoreMapperMapCEROutcome(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		status   events.EligibilityStatus
+		hasError bool
+		expected string
+	}{
+		{events.EligibilityStatusActive, false, "complete"},
+		{events.EligibilityStatusInactive, false, "complete"},
+		{events.EligibilityStatusRejected, false, "error"},
+		{events.EligibilityStatusActive, true, "error"}, // Error takes precedence
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.status), func(t *testing.T) {
+			event := &events.EligibilityResponseEvent{
+				InformationSource: events.Provider{OrganizationName: "Test"},
+				Subscriber:        events.Patient{MRN: "SUB123"},
+				Status:            tt.status,
+			}
+			if tt.hasError {
+				event.Errors = []events.EligibilityValidationError{
+					{Code: "TEST", Message: "Test error"},
+				}
+			}
+
+			cer := mapper.MapCoverageEligibilityResponse(event, "")
+			if cer.Outcome != tt.expected {
+				t.Errorf("Outcome for %s (error=%v) = %q, want %q",
+					tt.status, tt.hasError, cer.Outcome, tt.expected)
+			}
+		})
+	}
+}
+
+func TestUSCoreMapperMapCERNetworkIndicator(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		indicator string
+		expected  string
+	}{
+		{"Y", "in"},
+		{"N", "out"},
+		{"W", "other"},
+		{"", "other"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.indicator, func(t *testing.T) {
+			event := &events.EligibilityResponseEvent{
+				InformationSource: events.Provider{OrganizationName: "Test"},
+				Subscriber:        events.Patient{MRN: "SUB123"},
+				Status:            events.EligibilityStatusActive,
+				Benefits: []events.EligibilityBenefit{
+					{
+						InformationCode:    "1",
+						ServiceType:        "30",
+						InNetworkIndicator: tt.indicator,
+					},
+				},
+			}
+
+			cer := mapper.MapCoverageEligibilityResponse(event, "")
+			if len(cer.Insurance) == 0 || len(cer.Insurance[0].Item) == 0 {
+				t.Fatal("Expected insurance with items")
+			}
+
+			item := cer.Insurance[0].Item[0]
+			if item.Network != nil && len(item.Network.Coding) > 0 {
+				if item.Network.Coding[0].Code != tt.expected {
+					t.Errorf("Network.Code = %q, want %q",
+						item.Network.Coding[0].Code, tt.expected)
+				}
+			} else if tt.indicator != "" {
+				t.Error("Expected network to be set")
+			}
+		})
+	}
+}
+
+func TestUSCoreMapperMapCERBenefitTypes(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		infoCode     string
+		amount       float64
+		percent      float64
+		expectedType string
+	}{
+		{"C", 1500.00, 0, "deductible"},     // Deductible amount
+		{"B", 30.00, 0, "copay"},            // Copay amount
+		{"A", 0, 20.00, "coinsurance"},      // Coinsurance percent
+		{"1", 0, 0, "benefit"},              // Active coverage
+		{"G", 0, 0, "limit"},                // Quantity limit
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.infoCode, func(t *testing.T) {
+			event := &events.EligibilityResponseEvent{
+				InformationSource: events.Provider{OrganizationName: "Test"},
+				Subscriber:        events.Patient{MRN: "SUB123"},
+				Status:            events.EligibilityStatusActive,
+				Benefits: []events.EligibilityBenefit{
+					{
+						InformationCode:            tt.infoCode,
+						InformationCodeDescription: "Test",
+						ServiceType:                "30",
+						Amount:                     tt.amount,
+						Percent:                    tt.percent,
+						Quantity:                   10, // For quantity tests
+					},
+				},
+			}
+
+			cer := mapper.MapCoverageEligibilityResponse(event, "")
+			if len(cer.Insurance) == 0 || len(cer.Insurance[0].Item) == 0 {
+				t.Fatal("Expected insurance with items")
+			}
+
+			item := cer.Insurance[0].Item[0]
+			if len(item.Benefit) == 0 {
+				// Some codes may not produce benefits (info-only)
+				if tt.infoCode == "1" {
+					// Active coverage should produce a benefit
+					t.Fatal("Expected benefit for active coverage")
+				}
+				return
+			}
+
+			benefit := item.Benefit[0]
+			if len(benefit.Type.Coding) == 0 || benefit.Type.Coding[0].Code != tt.expectedType {
+				t.Errorf("Benefit.Type = %v, want code %q", benefit.Type.Coding, tt.expectedType)
+			}
+		})
+	}
+}
+
+func TestUSCoreMapperMapCERWithErrors(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.EligibilityResponseEvent{
+		InformationSource: events.Provider{OrganizationName: "Test"},
+		Subscriber:        events.Patient{MRN: "SUB123"},
+		Status:            events.EligibilityStatusRejected,
+		Errors: []events.EligibilityValidationError{
+			{Code: "72", Message: "Invalid/Missing Subscriber ID"},
+			{Code: "73", Message: "Invalid/Missing Dependent ID"},
+		},
+	}
+
+	cer := mapper.MapCoverageEligibilityResponse(event, "")
+
+	// Verify outcome is error
+	if cer.Outcome != "error" {
+		t.Errorf("Outcome = %q, want 'error'", cer.Outcome)
+	}
+
+	// Verify errors are mapped
+	if len(cer.Error) != 2 {
+		t.Fatalf("Error count = %d, want 2", len(cer.Error))
+	}
+
+	if cer.Error[0].Code.Coding[0].Code != "72" {
+		t.Errorf("Error[0].Code = %q, want '72'", cer.Error[0].Code.Coding[0].Code)
+	}
+}
+
+func TestUSCoreMapperMapCERNil(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	cer := mapper.MapCoverageEligibilityResponse(nil, "")
+	if cer != nil {
+		t.Error("MapCoverageEligibilityResponse(nil) should return nil")
+	}
+}
+
+func TestCoverageEligibilityResponseJSONSerialization(t *testing.T) {
+	cer := &CoverageEligibilityResponse{
+		ResourceType: "CoverageEligibilityResponse",
+		Status:       "active",
+		Purpose:      []string{"benefits"},
+		Patient:      &Reference{Reference: "Patient/123"},
+		Insurer:      &Reference{Reference: "Organization/456"},
+		Outcome:      "complete",
+		Insurance: []CERInsurance{
+			{
+				Coverage: &Reference{Reference: "Coverage/789"},
+				Inforce:  true,
+				Item: []CERItem{
+					{
+						Name: "Medical Care",
+						Benefit: []CERBenefit{
+							{
+								Type:         CodeableConcept{Coding: []Coding{{Code: "deductible"}}},
+								AllowedMoney: &Money{Value: 1500.00, Currency: "USD"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	data, err := json.Marshal(cer)
+	if err != nil {
+		t.Fatalf("Failed to marshal CoverageEligibilityResponse: %v", err)
+	}
+
+	jsonStr := string(data)
+	if !strings.Contains(jsonStr, `"resourceType":"CoverageEligibilityResponse"`) {
+		t.Error("JSON missing resourceType")
+	}
+	if !strings.Contains(jsonStr, `"outcome":"complete"`) {
+		t.Error("JSON missing outcome")
+	}
+	if !strings.Contains(jsonStr, `"inforce":true`) {
+		t.Error("JSON missing inforce")
+	}
+	if !strings.Contains(jsonStr, `"deductible"`) {
+		t.Error("JSON missing deductible benefit type")
+	}
+}

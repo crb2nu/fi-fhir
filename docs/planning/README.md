@@ -118,10 +118,11 @@ See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and curren
 - FHIR Coverage resource (US Core profile) - `pkg/fhir/mapper.go:MapCoverage()`
 - Da Vinci PAS Claim resource (for 837P → FHIR) - `pkg/fhir/mapper.go:MapClaim()`
 - PDex ExplanationOfBenefit resource (for 835 → FHIR) - `pkg/fhir/mapper.go:MapExplanationOfBenefit()`
+- CoverageEligibilityResponse resource (for 271 → FHIR) - `pkg/fhir/mapper.go:MapCoverageEligibilityResponse()`
 
 ### Next Up
 - UMLS API integration (optional)
-- CoverageEligibilityResponse (for 271 → FHIR)
+- Additional US Core profiles (Procedure, MedicationRequest, etc.)
 
 ## Contributing
 

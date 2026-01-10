@@ -37,6 +37,9 @@ type Mapper interface {
 
 	// MapExplanationOfBenefit converts a ClaimAdjudicatedEvent to a FHIR ExplanationOfBenefit.
 	MapExplanationOfBenefit(event *events.ClaimAdjudicatedEvent) *ExplanationOfBenefit
+
+	// MapCoverageEligibilityResponse converts an EligibilityResponseEvent to a FHIR CoverageEligibilityResponse.
+	MapCoverageEligibilityResponse(event *events.EligibilityResponseEvent, patientRef string) *CoverageEligibilityResponse
 }
 
 // USCoreMapper implements Mapper for US Core 6.1.0 compliant resources.
@@ -1865,4 +1868,431 @@ func (m *USCoreMapper) mapEOBPayment(event *events.ClaimAdjudicatedEvent) *EOBPa
 	}
 
 	return payment
+}
+
+// MapCoverageEligibilityResponse converts an EligibilityResponseEvent to a FHIR CoverageEligibilityResponse.
+func (m *USCoreMapper) MapCoverageEligibilityResponse(event *events.EligibilityResponseEvent, patientRef string) *CoverageEligibilityResponse {
+	if event == nil {
+		return nil
+	}
+
+	cer := &CoverageEligibilityResponse{
+		ResourceType: "CoverageEligibilityResponse",
+		Status:       "active",
+		Purpose:      []string{"benefits"},
+		Outcome:      m.mapEligibilityOutcome(event.Status, event.Errors),
+	}
+
+	// Set patient reference
+	if patientRef != "" {
+		cer.Patient = &Reference{Reference: patientRef}
+	} else if event.Dependent != nil && event.Dependent.MRN != "" {
+		cer.Patient = &Reference{
+			Reference: fmt.Sprintf("Patient/%s", event.Dependent.MRN),
+			Display:   fmt.Sprintf("%s, %s", event.Dependent.FamilyName, event.Dependent.GivenName),
+		}
+	} else if event.Subscriber.MRN != "" {
+		cer.Patient = &Reference{
+			Reference: fmt.Sprintf("Patient/%s", event.Subscriber.MRN),
+			Display:   fmt.Sprintf("%s, %s", event.Subscriber.FamilyName, event.Subscriber.GivenName),
+		}
+	}
+
+	// Set insurer from information source
+	if event.InformationSource.NPI != "" || event.InformationSource.OrganizationName != "" {
+		cer.Insurer = &Reference{
+			Display: event.InformationSource.OrganizationName,
+		}
+		if event.InformationSource.NPI != "" {
+			cer.Insurer.Reference = fmt.Sprintf("Organization/%s", event.InformationSource.NPI)
+		}
+	}
+
+	// Set requestor from information receiver
+	if event.InformationReceiver.NPI != "" || event.InformationReceiver.OrganizationName != "" {
+		cer.Requestor = &Reference{
+			Display: event.InformationReceiver.OrganizationName,
+		}
+		if event.InformationReceiver.NPI != "" {
+			cer.Requestor.Reference = fmt.Sprintf("Organization/%s", event.InformationReceiver.NPI)
+		}
+	}
+
+	// Set created date
+	if !event.Timestamp.IsZero() {
+		cer.Created = event.Timestamp.Format("2006-01-02T15:04:05Z")
+	}
+
+	// Add trace number as identifier
+	if event.TraceNumber != "" {
+		cer.Identifier = []Identifier{
+			{
+				System: "urn:oid:2.16.840.1.113883.3.8901.2.4", // Sample trace number system
+				Value:  event.TraceNumber,
+			},
+		}
+	}
+
+	// Build insurance section
+	cer.Insurance = m.buildCERInsurance(event)
+
+	// Map errors
+	if len(event.Errors) > 0 {
+		cer.Error = m.mapEligibilityErrors(event.Errors)
+	}
+
+	return cer
+}
+
+func (m *USCoreMapper) mapEligibilityOutcome(status events.EligibilityStatus, errors []events.EligibilityValidationError) string {
+	if len(errors) > 0 {
+		return "error"
+	}
+
+	switch status {
+	case events.EligibilityStatusActive:
+		return "complete"
+	case events.EligibilityStatusInactive:
+		return "complete"
+	case events.EligibilityStatusRejected:
+		return "error"
+	default:
+		return "complete"
+	}
+}
+
+func (m *USCoreMapper) buildCERInsurance(event *events.EligibilityResponseEvent) []CERInsurance {
+	insurance := CERInsurance{
+		Inforce: event.Status == events.EligibilityStatusActive,
+	}
+
+	// Set coverage reference from subscriber
+	subscriberID := ""
+	if mbID := event.Subscriber.Identifiers.GetByType("MB"); mbID != nil {
+		subscriberID = mbID.Value
+	} else if event.Subscriber.MRN != "" {
+		subscriberID = event.Subscriber.MRN
+	}
+	if subscriberID != "" {
+		insurance.Coverage = &Reference{
+			Reference: fmt.Sprintf("Coverage/%s", subscriberID),
+		}
+	}
+
+	// Set benefit period
+	if !event.PlanBeginDate.IsZero() || !event.PlanEndDate.IsZero() {
+		insurance.BenefitPeriod = &Period{}
+		if !event.PlanBeginDate.IsZero() {
+			t := event.PlanBeginDate
+			insurance.BenefitPeriod.Start = &t
+		}
+		if !event.PlanEndDate.IsZero() {
+			t := event.PlanEndDate
+			insurance.BenefitPeriod.End = &t
+		}
+	}
+
+	// Group benefits by service type and network indicator
+	insurance.Item = m.groupBenefitsIntoItems(event.Benefits)
+
+	return []CERInsurance{insurance}
+}
+
+func (m *USCoreMapper) groupBenefitsIntoItems(benefits []events.EligibilityBenefit) []CERItem {
+	// Group benefits by service type + network indicator
+	type itemKey struct {
+		serviceType string
+		network     string
+	}
+	groups := make(map[itemKey]*CERItem)
+
+	for _, benefit := range benefits {
+		key := itemKey{
+			serviceType: benefit.ServiceType,
+			network:     benefit.InNetworkIndicator,
+		}
+
+		item, exists := groups[key]
+		if !exists {
+			item = &CERItem{
+				Name:        benefit.ServiceTypeDescription,
+				Description: benefit.PlanDescription,
+			}
+
+			// Set category
+			if benefit.ServiceType != "" {
+				item.Category = m.mapServiceTypeToCategory(benefit.ServiceType, benefit.ServiceTypeDescription)
+			}
+
+			// Set network
+			if benefit.InNetworkIndicator != "" {
+				item.Network = m.mapNetworkIndicator(benefit.InNetworkIndicator)
+			}
+
+			// Set unit (individual/family)
+			if benefit.CoverageLevel != "" {
+				item.Unit = m.mapCoverageLevel(benefit.CoverageLevel)
+			}
+
+			// Check for authorization requirement
+			item.AuthorizationRequired = benefit.AuthorizationRequired
+
+			groups[key] = item
+		}
+
+		// Add benefit details
+		cerBenefit := m.mapEligibilityBenefit(benefit)
+		if cerBenefit != nil {
+			item.Benefit = append(item.Benefit, *cerBenefit)
+		}
+	}
+
+	// Convert map to slice
+	var items []CERItem
+	for _, item := range groups {
+		items = append(items, *item)
+	}
+	return items
+}
+
+func (m *USCoreMapper) mapServiceTypeToCategory(code, description string) *CodeableConcept {
+	// Map X12 service type codes to FHIR benefit categories
+	var fhirCode, fhirDisplay string
+
+	switch code {
+	case "30":
+		fhirCode, fhirDisplay = "30", "Health Benefit Plan Coverage"
+	case "1":
+		fhirCode, fhirDisplay = "1", "Medical Care"
+	case "2":
+		fhirCode, fhirDisplay = "2", "Surgical"
+	case "3":
+		fhirCode, fhirDisplay = "3", "Consultation"
+	case "4":
+		fhirCode, fhirDisplay = "4", "Diagnostic X-Ray"
+	case "5":
+		fhirCode, fhirDisplay = "5", "Diagnostic Lab"
+	case "47":
+		fhirCode, fhirDisplay = "47", "Hospital - Inpatient"
+	case "48":
+		fhirCode, fhirDisplay = "48", "Hospital - Outpatient"
+	case "88":
+		fhirCode, fhirDisplay = "88", "Emergency Services"
+	case "89":
+		fhirCode, fhirDisplay = "89", "Pharmacy"
+	case "MH":
+		fhirCode, fhirDisplay = "MH", "Mental Health"
+	case "UC":
+		fhirCode, fhirDisplay = "UC", "Urgent Care"
+	default:
+		fhirCode = code
+		if description != "" {
+			fhirDisplay = description
+		} else {
+			fhirDisplay = code
+		}
+	}
+
+	return &CodeableConcept{
+		Coding: []Coding{
+			{
+				System:  SystemEligibilityCategory,
+				Code:    fhirCode,
+				Display: fhirDisplay,
+			},
+		},
+		Text: description,
+	}
+}
+
+func (m *USCoreMapper) mapNetworkIndicator(indicator string) *CodeableConcept {
+	var code, display string
+
+	switch strings.ToUpper(indicator) {
+	case "Y":
+		code, display = "in", "In Network"
+	case "N":
+		code, display = "out", "Out of Network"
+	default:
+		code, display = "other", "Other"
+	}
+
+	return &CodeableConcept{
+		Coding: []Coding{
+			{
+				System:  SystemBenefitNetwork,
+				Code:    code,
+				Display: display,
+			},
+		},
+	}
+}
+
+func (m *USCoreMapper) mapCoverageLevel(level string) *CodeableConcept {
+	var code, display string
+
+	switch strings.ToUpper(level) {
+	case "IND":
+		code, display = "individual", "Individual"
+	case "FAM":
+		code, display = "family", "Family"
+	case "CHD":
+		code, display = "child", "Child"
+	case "ESP":
+		code, display = "spouse", "Spouse"
+	case "EMP":
+		code, display = "employee", "Employee"
+	default:
+		code, display = "individual", "Individual"
+	}
+
+	return &CodeableConcept{
+		Coding: []Coding{
+			{
+				System:  SystemBenefitUnit,
+				Code:    code,
+				Display: display,
+			},
+		},
+	}
+}
+
+func (m *USCoreMapper) mapEligibilityBenefit(benefit events.EligibilityBenefit) *CERBenefit {
+	// Map information code (EB01) to benefit type
+	benefitType := m.mapInformationCodeToBenefitType(benefit.InformationCode, benefit.InformationCodeDescription)
+
+	cerBenefit := &CERBenefit{
+		Type: benefitType,
+	}
+
+	// Set allowed values based on what's present
+	switch benefit.InformationCode {
+	case "A": // Coinsurance
+		if benefit.Percent > 0 {
+			pct := int(benefit.Percent)
+			cerBenefit.AllowedUnsignedInt = &pct
+			cerBenefit.AllowedString = fmt.Sprintf("%.0f%%", benefit.Percent)
+		}
+	case "B": // Copay
+		if benefit.Amount > 0 {
+			cerBenefit.AllowedMoney = &Money{Value: benefit.Amount, Currency: "USD"}
+		}
+	case "C": // Deductible
+		if benefit.Amount > 0 {
+			cerBenefit.AllowedMoney = &Money{Value: benefit.Amount, Currency: "USD"}
+		}
+	case "F": // Limitation - percent
+		if benefit.Percent > 0 {
+			pct := int(benefit.Percent)
+			cerBenefit.AllowedUnsignedInt = &pct
+		}
+	case "G": // Limitation - quantity
+		if benefit.Quantity > 0 {
+			qty := int(benefit.Quantity)
+			cerBenefit.AllowedUnsignedInt = &qty
+		}
+	default:
+		// Generic amount handling
+		if benefit.Amount > 0 {
+			cerBenefit.AllowedMoney = &Money{Value: benefit.Amount, Currency: "USD"}
+		} else if benefit.Percent > 0 {
+			pct := int(benefit.Percent)
+			cerBenefit.AllowedUnsignedInt = &pct
+		} else if benefit.Quantity > 0 {
+			qty := int(benefit.Quantity)
+			cerBenefit.AllowedUnsignedInt = &qty
+		}
+	}
+
+	// Only return if we have meaningful data
+	if cerBenefit.AllowedMoney == nil && cerBenefit.AllowedUnsignedInt == nil && cerBenefit.AllowedString == "" {
+		// Still return for coverage status codes (1, 6, 8)
+		if benefit.InformationCode == "1" || benefit.InformationCode == "6" || benefit.InformationCode == "8" {
+			cerBenefit.AllowedString = benefit.InformationCodeDescription
+			return cerBenefit
+		}
+		return nil
+	}
+
+	return cerBenefit
+}
+
+func (m *USCoreMapper) mapInformationCodeToBenefitType(code, description string) CodeableConcept {
+	var benefitCode, benefitDisplay string
+
+	switch code {
+	case "1":
+		benefitCode, benefitDisplay = "benefit", "Active Coverage"
+	case "6":
+		benefitCode, benefitDisplay = "benefit", "Inactive Coverage"
+	case "8":
+		benefitCode, benefitDisplay = "benefit", "Not Covered"
+	case "A":
+		benefitCode, benefitDisplay = "coinsurance", "Coinsurance"
+	case "B":
+		benefitCode, benefitDisplay = "copay", "Co-Payment"
+	case "C":
+		benefitCode, benefitDisplay = "deductible", "Deductible"
+	case "D":
+		benefitCode, benefitDisplay = "benefit", "Benefit Description"
+	case "E":
+		benefitCode, benefitDisplay = "benefit", "Exclusions"
+	case "F":
+		benefitCode, benefitDisplay = "limitpercent", "Limitations - Percent"
+	case "G":
+		benefitCode, benefitDisplay = "limit", "Limitations - Quantity"
+	case "H":
+		benefitCode, benefitDisplay = "limit", "Unlimited"
+	case "I":
+		benefitCode, benefitDisplay = "benefit", "Non-Covered"
+	case "J":
+		benefitCode, benefitDisplay = "benefit", "Out of Pocket (Stop Loss)"
+	case "K":
+		benefitCode, benefitDisplay = "benefit", "Reserve"
+	case "L":
+		benefitCode, benefitDisplay = "benefit", "Primary Care Provider"
+	case "M":
+		benefitCode, benefitDisplay = "benefit", "Spend Down"
+	case "N":
+		benefitCode, benefitDisplay = "benefit", "Room"
+	case "Y":
+		benefitCode, benefitDisplay = "benefit", "Mental Health Provider"
+	default:
+		benefitCode, benefitDisplay = "benefit", "Benefit"
+		if description != "" {
+			benefitDisplay = description
+		}
+	}
+
+	return CodeableConcept{
+		Coding: []Coding{
+			{
+				System:  SystemBenefitType,
+				Code:    benefitCode,
+				Display: benefitDisplay,
+			},
+		},
+		Text: description,
+	}
+}
+
+func (m *USCoreMapper) mapEligibilityErrors(errors []events.EligibilityValidationError) []CERError {
+	var cerErrors []CERError
+
+	for _, err := range errors {
+		cerErrors = append(cerErrors, CERError{
+			Code: CodeableConcept{
+				Coding: []Coding{
+					{
+						System:  SystemProcessingError,
+						Code:    err.Code,
+						Display: err.Message,
+					},
+				},
+				Text: err.Message,
+			},
+		})
+	}
+
+	return cerErrors
 }
