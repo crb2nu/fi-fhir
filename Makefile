@@ -1,4 +1,4 @@
-.PHONY: build test clean run lint test-e2e test-integration e2e-up e2e-down
+.PHONY: build test clean run lint test-e2e test-integration e2e-up e2e-down fmt setup-hooks
 
 # Build the CLI
 build:
@@ -71,6 +71,26 @@ docker-build:
 # Run benchmarks
 bench:
 	go test -bench=. -benchmem ./internal/workflow/...
+
+# Format Go code
+fmt:
+	go fmt ./...
+
+# Check formatting without modifying files
+fmt-check:
+	@echo "Checking formatting..."
+	@unformatted=$$(gofmt -l cmd internal pkg sdk 2>/dev/null); \
+	if [ -n "$$unformatted" ]; then \
+		echo "The following files need formatting:"; \
+		echo "$$unformatted"; \
+		exit 1; \
+	fi
+	@echo "All files are properly formatted."
+
+# Setup git hooks for pre-commit checks
+setup-hooks:
+	git config core.hooksPath .githooks
+	@echo "Git hooks configured to use .githooks directory"
 
 # Build and test
 all: build test lint

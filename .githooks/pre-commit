@@ -1,0 +1,48 @@
+#!/bin/sh
+# Pre-commit hook for fi-fhir
+# Runs formatting and vetting checks before allowing commits
+
+set -e
+
+echo "Running pre-commit checks..."
+
+# Check if there are staged Go files
+STAGED_GO_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$' || true)
+
+if [ -z "$STAGED_GO_FILES" ]; then
+    echo "No Go files staged, skipping checks."
+    exit 0
+fi
+
+# Run go fmt on staged files and check for changes
+echo "Checking formatting..."
+UNFORMATTED=""
+for file in $STAGED_GO_FILES; do
+    if [ -f "$file" ]; then
+        # Check if file needs formatting
+        if ! gofmt -l "$file" | grep -q '^'; then
+            :
+        else
+            UNFORMATTED="$UNFORMATTED $file"
+        fi
+    fi
+done
+
+if [ -n "$UNFORMATTED" ]; then
+    echo "The following files need formatting:"
+    echo "$UNFORMATTED"
+    echo ""
+    echo "Run 'go fmt ./...' to fix, then stage the changes."
+    exit 1
+fi
+
+# Run go vet on the packages containing staged files
+echo "Running go vet..."
+PACKAGES=$(echo "$STAGED_GO_FILES" | xargs -n1 dirname | sort -u | sed 's|^|./|')
+if ! go vet $PACKAGES 2>&1; then
+    echo "go vet failed. Please fix the issues before committing."
+    exit 1
+fi
+
+echo "Pre-commit checks passed!"
+exit 0
