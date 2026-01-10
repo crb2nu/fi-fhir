@@ -126,6 +126,8 @@ See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and curren
 - FHIR AllergyIntolerance resource (US Core profile) - `pkg/fhir/mapper.go:MapAllergyIntolerance()`
 - FHIR CarePlan resource (US Core profile) - `pkg/fhir/mapper.go:MapCarePlan()`
 - FHIR Goal resource (US Core profile) - `pkg/fhir/mapper.go:MapGoal()`
+- FHIR CareTeam resource (US Core profile) - `pkg/fhir/mapper.go:MapCareTeam()`
+- FHIR ServiceRequest resource (US Core profile) - `pkg/fhir/mapper.go:MapServiceRequest()`
 
 ### Next Up
 - UMLS API integration (optional)

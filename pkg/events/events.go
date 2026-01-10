@@ -1396,6 +1396,166 @@ type GoalEvent struct {
 	RawPayload json.RawMessage `json:"raw_payload,omitempty"`
 }
 
+// CareTeamMember represents a participant in a care team.
+type CareTeamMember struct {
+	// Role is the role of the member (e.g., "primary care physician", "nurse", "case manager")
+	Role string `json:"role,omitempty"`
+
+	// RoleCode is the coded role (SNOMED CT preferred)
+	RoleCode string `json:"role_code,omitempty"`
+
+	// RoleCodeSystem is the code system for the role
+	RoleCodeSystem string `json:"role_code_system,omitempty"`
+
+	// Provider is the practitioner/organization member
+	Provider *Provider `json:"provider,omitempty"`
+
+	// OrganizationID references an organization member
+	OrganizationID string `json:"organization_id,omitempty"`
+
+	// OrganizationName is the display name of the organization
+	OrganizationName string `json:"organization_name,omitempty"`
+
+	// PeriodStart is when the member joined the care team
+	PeriodStart string `json:"period_start,omitempty"`
+
+	// PeriodEnd is when the member left the care team
+	PeriodEnd string `json:"period_end,omitempty"`
+}
+
+// CareTeam represents a care team for a patient.
+type CareTeam struct {
+	// Name is the human-readable name of the care team
+	Name string `json:"name,omitempty"`
+
+	// Status is the care team status (proposed, active, suspended, inactive, entered-in-error)
+	Status string `json:"status,omitempty"`
+
+	// Category is the type of care team (e.g., "episode", "condition", "longitudinal")
+	Category string `json:"category,omitempty"`
+
+	// PeriodStart is when the care team was established
+	PeriodStart string `json:"period_start,omitempty"`
+
+	// PeriodEnd is when the care team was disbanded
+	PeriodEnd string `json:"period_end,omitempty"`
+
+	// ReasonCode is the coded reason for the care team (SNOMED CT)
+	ReasonCode string `json:"reason_code,omitempty"`
+
+	// ReasonCodeSystem is the code system for the reason
+	ReasonCodeSystem string `json:"reason_code_system,omitempty"`
+
+	// ReasonText is the text description of the reason
+	ReasonText string `json:"reason_text,omitempty"`
+
+	// ConditionIDs are the conditions this care team addresses
+	ConditionIDs []string `json:"condition_ids,omitempty"`
+
+	// Members are the care team participants
+	Members []CareTeamMember `json:"members,omitempty"`
+
+	// ManagingOrganizationID is the organization responsible for the care team
+	ManagingOrganizationID string `json:"managing_organization_id,omitempty"`
+
+	// ManagingOrganizationName is the display name of the managing organization
+	ManagingOrganizationName string `json:"managing_organization_name,omitempty"`
+
+	// Note contains additional notes about the care team
+	Note string `json:"note,omitempty"`
+}
+
+// CareTeamEvent is emitted for care team events.
+type CareTeamEvent struct {
+	EventMeta
+	Patient    *Patient        `json:"patient,omitempty"`
+	CareTeam   CareTeam        `json:"care_team"`
+	Encounter  *Encounter      `json:"encounter,omitempty"`
+	RawPayload json.RawMessage `json:"raw_payload,omitempty"`
+}
+
+// ServiceRequest represents a request for a service (order, referral, procedure request).
+type ServiceRequest struct {
+	// Status is the request status (draft, active, on-hold, revoked, completed, entered-in-error, unknown)
+	Status string `json:"status,omitempty"`
+
+	// Intent is the request intent (proposal, plan, directive, order, original-order, reflex-order, filler-order, instance-order, option)
+	Intent string `json:"intent,omitempty"`
+
+	// Category is the type of service (e.g., "laboratory", "imaging", "procedure", "counseling", "referral")
+	Category string `json:"category,omitempty"`
+
+	// Priority is the request priority (routine, urgent, asap, stat)
+	Priority string `json:"priority,omitempty"`
+
+	// Code is the service being requested (CPT, SNOMED CT, LOINC)
+	Code string `json:"code,omitempty"`
+
+	// CodeSystem is the code system for the service code
+	CodeSystem string `json:"code_system,omitempty"`
+
+	// CodeText is the text description of the service
+	CodeText string `json:"code_text,omitempty"`
+
+	// OrderDetail provides additional details about the order
+	OrderDetail string `json:"order_detail,omitempty"`
+
+	// QuantityValue is the quantity of the service requested
+	QuantityValue float64 `json:"quantity_value,omitempty"`
+
+	// QuantityUnit is the unit for the quantity
+	QuantityUnit string `json:"quantity_unit,omitempty"`
+
+	// OccurrenceDateTime is when the service should occur
+	OccurrenceDateTime string `json:"occurrence_date_time,omitempty"`
+
+	// OccurrencePeriodStart is the start of the occurrence period
+	OccurrencePeriodStart string `json:"occurrence_period_start,omitempty"`
+
+	// OccurrencePeriodEnd is the end of the occurrence period
+	OccurrencePeriodEnd string `json:"occurrence_period_end,omitempty"`
+
+	// AuthoredOn is when the request was created
+	AuthoredOn string `json:"authored_on,omitempty"`
+
+	// ReasonCode is the coded reason for the request
+	ReasonCode string `json:"reason_code,omitempty"`
+
+	// ReasonCodeSystem is the code system for the reason
+	ReasonCodeSystem string `json:"reason_code_system,omitempty"`
+
+	// ReasonText is the text description of the reason
+	ReasonText string `json:"reason_text,omitempty"`
+
+	// ConditionIDs are conditions that justify the service request
+	ConditionIDs []string `json:"condition_ids,omitempty"`
+
+	// BodySite is the anatomical location (SNOMED CT)
+	BodySite string `json:"body_site,omitempty"`
+
+	// BodySiteCode is the coded body site
+	BodySiteCode string `json:"body_site_code,omitempty"`
+
+	// Note contains additional instructions or comments
+	Note string `json:"note,omitempty"`
+
+	// PatientInstruction is instructions for the patient
+	PatientInstruction string `json:"patient_instruction,omitempty"`
+}
+
+// ServiceRequestEvent is emitted for service request events (orders, referrals).
+type ServiceRequestEvent struct {
+	EventMeta
+	Patient        *Patient        `json:"patient,omitempty"`
+	ServiceRequest ServiceRequest  `json:"service_request"`
+	Requester      *Provider       `json:"requester,omitempty"`
+	Performer      *Provider       `json:"performer,omitempty"`
+	PerformerOrgID string          `json:"performer_org_id,omitempty"`
+	PerformerOrgName string        `json:"performer_org_name,omitempty"`
+	Encounter      *Encounter      `json:"encounter,omitempty"`
+	RawPayload     json.RawMessage `json:"raw_payload,omitempty"`
+}
+
 // LabTest convenience fields
 func (t *LabTest) GetName() string {
 	if t.Description != "" {

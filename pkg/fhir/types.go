@@ -37,8 +37,10 @@ const (
 	USCoreAllergyIntoleranceProfile   = USCoreBaseURL + "us-core-allergyintolerance"
 
 	// Care coordination profiles
-	USCoreCarePlanProfile = USCoreBaseURL + "us-core-careplan"
-	USCoreGoalProfile     = USCoreBaseURL + "us-core-goal"
+	USCoreCarePlanProfile       = USCoreBaseURL + "us-core-careplan"
+	USCoreGoalProfile           = USCoreBaseURL + "us-core-goal"
+	USCoreCareTeamProfile       = USCoreBaseURL + "us-core-careteam"
+	USCoreServiceRequestProfile = USCoreBaseURL + "us-core-servicerequest"
 
 	// Extension URIs
 	USCoreRaceExtension      = USCoreBaseURL + "us-core-race"
@@ -132,6 +134,18 @@ const (
 	SystemGoalAchievementStatus  = "http://hl7.org/fhir/goal-achievement"
 	SystemGoalCategory           = "http://terminology.hl7.org/CodeSystem/goal-category"
 	SystemGoalPriority           = "http://terminology.hl7.org/CodeSystem/goal-priority"
+
+	// CareTeam code systems
+	SystemCareTeamStatus       = "http://hl7.org/fhir/care-team-status"
+	SystemCareTeamCategory     = "http://loinc.org" // LOINC for care team category
+	SystemParticipantRole      = "http://snomed.info/sct" // SNOMED CT for roles
+	SystemCareTeamParticipant  = "http://terminology.hl7.org/CodeSystem/data-absent-reason"
+
+	// ServiceRequest code systems
+	SystemServiceRequestStatus   = "http://hl7.org/fhir/request-status"
+	SystemServiceRequestIntent   = "http://hl7.org/fhir/request-intent"
+	SystemServiceRequestCategory = "http://snomed.info/sct" // SNOMED CT for category
+	SystemServiceRequestPriority = "http://hl7.org/fhir/request-priority"
 
 	// AllergyIntolerance code systems
 	SystemAllergyIntoleranceType            = "http://hl7.org/fhir/allergy-intolerance-type"
@@ -1426,5 +1440,108 @@ func (g *Goal) MarshalJSON() ([]byte, error) {
 	}{
 		ResourceType: "Goal",
 		Alias:        (*Alias)(g),
+	})
+}
+
+// CareTeam represents a FHIR CareTeam resource (US Core profile).
+type CareTeam struct {
+	ID                   string                `json:"id,omitempty"`
+	Meta                 *Meta                 `json:"meta,omitempty"`
+	Identifier           []Identifier          `json:"identifier,omitempty"`
+	Status               string                `json:"status"`                         // proposed | active | suspended | inactive | entered-in-error
+	Category             []CodeableConcept     `json:"category,omitempty"`             // Type of care team
+	Name                 string                `json:"name,omitempty"`                 // Name of the team
+	Subject              *Reference            `json:"subject"`                        // Patient reference (required by US Core)
+	Encounter            *Reference            `json:"encounter,omitempty"`            // Encounter context
+	Period               *Period               `json:"period,omitempty"`               // Time period
+	Participant          []CareTeamParticipant `json:"participant,omitempty"`          // Members of the team
+	ReasonCode           []CodeableConcept     `json:"reasonCode,omitempty"`           // Why the team exists
+	ReasonReference      []Reference           `json:"reasonReference,omitempty"`      // Condition references
+	ManagingOrganization []Reference           `json:"managingOrganization,omitempty"` // Organization responsible
+	Telecom              []ContactPoint        `json:"telecom,omitempty"`              // Contact details
+	Note                 []Annotation          `json:"note,omitempty"`                 // Comments
+}
+
+// CareTeamParticipant represents a member of the care team.
+type CareTeamParticipant struct {
+	Role       []CodeableConcept `json:"role,omitempty"`       // Role of the participant (US Core requires at least one)
+	Member     *Reference        `json:"member,omitempty"`     // Practitioner, Organization, Patient, RelatedPerson
+	OnBehalfOf *Reference        `json:"onBehalfOf,omitempty"` // Organization the participant represents
+	Period     *Period           `json:"period,omitempty"`     // Time period of involvement
+}
+
+// GetResourceType returns "CareTeam".
+func (ct *CareTeam) GetResourceType() string {
+	return "CareTeam"
+}
+
+// MarshalJSON ensures ResourceType is always set.
+func (ct *CareTeam) MarshalJSON() ([]byte, error) {
+	type Alias CareTeam
+	return json.Marshal(&struct {
+		ResourceType string `json:"resourceType"`
+		*Alias
+	}{
+		ResourceType: "CareTeam",
+		Alias:        (*Alias)(ct),
+	})
+}
+
+// ServiceRequest represents a FHIR ServiceRequest resource (US Core profile).
+type ServiceRequest struct {
+	ID                    string            `json:"id,omitempty"`
+	Meta                  *Meta             `json:"meta,omitempty"`
+	Identifier            []Identifier      `json:"identifier,omitempty"`
+	BasedOn               []Reference       `json:"basedOn,omitempty"`               // What request fulfills
+	Replaces              []Reference       `json:"replaces,omitempty"`              // Request being replaced
+	Requisition           *Identifier       `json:"requisition,omitempty"`           // Composite request ID
+	Status                string            `json:"status"`                          // draft | active | on-hold | revoked | completed | entered-in-error | unknown
+	Intent                string            `json:"intent"`                          // proposal | plan | directive | order | original-order | reflex-order | filler-order | instance-order | option
+	Category              []CodeableConcept `json:"category,omitempty"`              // Classification of service
+	Priority              string            `json:"priority,omitempty"`              // routine | urgent | asap | stat
+	DoNotPerform          *bool             `json:"doNotPerform,omitempty"`          // True if service should NOT be performed
+	Code                  *CodeableConcept  `json:"code,omitempty"`                  // What is being requested (US Core requires)
+	OrderDetail           []CodeableConcept `json:"orderDetail,omitempty"`           // Additional order information
+	QuantityQuantity      *Quantity         `json:"quantityQuantity,omitempty"`      // Service amount (quantity)
+	QuantityRatio         *Ratio            `json:"quantityRatio,omitempty"`         // Service amount (ratio)
+	QuantityRange         *Range            `json:"quantityRange,omitempty"`         // Service amount (range)
+	Subject               *Reference        `json:"subject"`                         // Patient reference (required by US Core)
+	Encounter             *Reference        `json:"encounter,omitempty"`             // Encounter context
+	OccurrenceDateTime    string            `json:"occurrenceDateTime,omitempty"`    // When service should occur
+	OccurrencePeriod      *Period           `json:"occurrencePeriod,omitempty"`      // When service should occur (period)
+	OccurrenceTiming      *Timing           `json:"occurrenceTiming,omitempty"`      // When service should occur (timing)
+	AsNeededBoolean       *bool             `json:"asNeededBoolean,omitempty"`       // Preconditions for service
+	AsNeededCodeableConcept *CodeableConcept `json:"asNeededCodeableConcept,omitempty"` // Preconditions for service (coded)
+	AuthoredOn            string            `json:"authoredOn,omitempty"`            // When the request was made (US Core requires)
+	Requester             *Reference        `json:"requester,omitempty"`             // Who/what is requesting service (US Core requires)
+	PerformerType         *CodeableConcept  `json:"performerType,omitempty"`         // Type of performer
+	Performer             []Reference       `json:"performer,omitempty"`             // Requested performer
+	LocationCode          []CodeableConcept `json:"locationCode,omitempty"`          // Requested location (coded)
+	LocationReference     []Reference       `json:"locationReference,omitempty"`     // Requested location (reference)
+	ReasonCode            []CodeableConcept `json:"reasonCode,omitempty"`            // Explanation/justification
+	ReasonReference       []Reference       `json:"reasonReference,omitempty"`       // Condition references
+	Insurance             []Reference       `json:"insurance,omitempty"`             // Associated insurance coverage
+	SupportingInfo        []Reference       `json:"supportingInfo,omitempty"`        // Additional clinical information
+	Specimen              []Reference       `json:"specimen,omitempty"`              // Procedure samples
+	BodySite              []CodeableConcept `json:"bodySite,omitempty"`              // Anatomical location (SNOMED CT)
+	Note                  []Annotation      `json:"note,omitempty"`                  // Comments
+	PatientInstruction    string            `json:"patientInstruction,omitempty"`    // Patient instructions
+	RelevantHistory       []Reference       `json:"relevantHistory,omitempty"`       // Request provenance
+}
+
+// GetResourceType returns "ServiceRequest".
+func (sr *ServiceRequest) GetResourceType() string {
+	return "ServiceRequest"
+}
+
+// MarshalJSON ensures ResourceType is always set.
+func (sr *ServiceRequest) MarshalJSON() ([]byte, error) {
+	type Alias ServiceRequest
+	return json.Marshal(&struct {
+		ResourceType string `json:"resourceType"`
+		*Alias
+	}{
+		ResourceType: "ServiceRequest",
+		Alias:        (*Alias)(sr),
 	})
 }

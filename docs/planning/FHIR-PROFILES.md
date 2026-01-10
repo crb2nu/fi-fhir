@@ -22,6 +22,8 @@ This document details US Core, Da Vinci, and other FHIR profile requirements for
 | **AllergyIntolerance** | us-core-allergyintolerance | ✅ | `pkg/fhir/mapper.go:MapAllergyIntolerance()` |
 | **CarePlan** | us-core-careplan | ✅ | `pkg/fhir/mapper.go:MapCarePlan()` |
 | **Goal** | us-core-goal | ✅ | `pkg/fhir/mapper.go:MapGoal()` |
+| **CareTeam** | us-core-careteam | ✅ | `pkg/fhir/mapper.go:MapCareTeam()` |
+| **ServiceRequest** | us-core-servicerequest | ✅ | `pkg/fhir/mapper.go:MapServiceRequest()` |
 
 | Feature | Status | Implementation |
 |---------|--------|----------------|

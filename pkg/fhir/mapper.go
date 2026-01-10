@@ -61,6 +61,12 @@ type Mapper interface {
 
 	// MapGoal converts a canonical GoalEvent to a FHIR Goal.
 	MapGoal(event *events.GoalEvent, patientRef string) *Goal
+
+	// MapCareTeam converts a canonical CareTeamEvent to a FHIR CareTeam.
+	MapCareTeam(event *events.CareTeamEvent, patientRef string) *CareTeam
+
+	// MapServiceRequest converts a canonical ServiceRequestEvent to a FHIR ServiceRequest.
+	MapServiceRequest(event *events.ServiceRequestEvent, patientRef string) *ServiceRequest
 }
 
 // USCoreMapper implements Mapper for US Core 6.1.0 compliant resources.
@@ -4628,4 +4634,713 @@ func (m *USCoreMapper) mapGoalTargetUnit(unit string) (display, code string) {
 
 	// Return as-is if no mapping
 	return unit, unit
+}
+
+// ============================================================================
+// CareTeam Mapping (US Core 6.1.0)
+// ============================================================================
+
+// MapCareTeam converts a canonical CareTeamEvent to a US Core CareTeam.
+func (m *USCoreMapper) MapCareTeam(event *events.CareTeamEvent, patientRef string) *CareTeam {
+	if event == nil {
+		return nil
+	}
+
+	ct := event.CareTeam
+
+	careTeam := &CareTeam{
+		Meta: &Meta{
+			Profile: []string{USCoreCareTeamProfile},
+		},
+		Status:  m.mapCareTeamStatus(ct.Status),
+		Subject: &Reference{Reference: patientRef},
+	}
+
+	// Name (optional but recommended)
+	if ct.Name != "" {
+		careTeam.Name = ct.Name
+	}
+
+	// Category
+	if ct.Category != "" {
+		careTeam.Category = []CodeableConcept{
+			m.mapCareTeamCategory(ct.Category),
+		}
+	}
+
+	// Period
+	if ct.PeriodStart != "" || ct.PeriodEnd != "" {
+		careTeam.Period = &Period{}
+		if ct.PeriodStart != "" {
+			if t, err := time.Parse("2006-01-02", ct.PeriodStart); err == nil {
+				careTeam.Period.Start = &t
+			} else if t, err := time.Parse(time.RFC3339, ct.PeriodStart); err == nil {
+				careTeam.Period.Start = &t
+			}
+		}
+		if ct.PeriodEnd != "" {
+			if t, err := time.Parse("2006-01-02", ct.PeriodEnd); err == nil {
+				careTeam.Period.End = &t
+			} else if t, err := time.Parse(time.RFC3339, ct.PeriodEnd); err == nil {
+				careTeam.Period.End = &t
+			}
+		}
+	}
+
+	// Encounter reference
+	if event.Encounter != nil && event.Encounter.ID != "" {
+		careTeam.Encounter = &Reference{
+			Reference: "Encounter/" + event.Encounter.ID,
+		}
+	}
+
+	// Reason (coded)
+	if ct.ReasonCode != "" || ct.ReasonText != "" {
+		careTeam.ReasonCode = []CodeableConcept{
+			m.mapCareTeamReason(ct.ReasonCode, ct.ReasonCodeSystem, ct.ReasonText),
+		}
+	}
+
+	// Reason references (conditions)
+	if len(ct.ConditionIDs) > 0 {
+		for _, condID := range ct.ConditionIDs {
+			careTeam.ReasonReference = append(careTeam.ReasonReference, Reference{
+				Reference: "Condition/" + condID,
+			})
+		}
+	}
+
+	// Participants (US Core requires at least one participant with a role)
+	if len(ct.Members) > 0 {
+		for _, member := range ct.Members {
+			careTeam.Participant = append(careTeam.Participant, m.mapCareTeamParticipant(member))
+		}
+	}
+
+	// Managing organization
+	if ct.ManagingOrganizationID != "" || ct.ManagingOrganizationName != "" {
+		careTeam.ManagingOrganization = []Reference{
+			m.buildOrganizationReference(ct.ManagingOrganizationID, ct.ManagingOrganizationName),
+		}
+	}
+
+	// Note
+	if ct.Note != "" {
+		careTeam.Note = []Annotation{
+			{Text: ct.Note},
+		}
+	}
+
+	return careTeam
+}
+
+// mapCareTeamStatus maps canonical status to FHIR CareTeam status.
+func (m *USCoreMapper) mapCareTeamStatus(status string) string {
+	statusLower := strings.ToLower(strings.TrimSpace(status))
+	statusMap := map[string]string{
+		"proposed":         "proposed",
+		"active":           "active",
+		"suspended":        "suspended",
+		"on-hold":          "suspended",
+		"onhold":           "suspended",
+		"inactive":         "inactive",
+		"entered-in-error": "entered-in-error",
+		"error":            "entered-in-error",
+	}
+	if mapped, ok := statusMap[statusLower]; ok {
+		return mapped
+	}
+	return "active" // Default
+}
+
+// mapCareTeamCategory maps category to CodeableConcept.
+// US Core recommends LOINC codes for care team category.
+func (m *USCoreMapper) mapCareTeamCategory(category string) CodeableConcept {
+	catLower := strings.ToLower(strings.TrimSpace(category))
+
+	// LOINC care team categories
+	catMap := map[string]struct {
+		code    string
+		display string
+	}{
+		"longitudinal":         {"LA27976-2", "Longitudinal care-coordination focused care team"},
+		"longitudinal-care":    {"LA27976-2", "Longitudinal care-coordination focused care team"},
+		"episode":              {"LA27977-0", "Episode of care-focused care team"},
+		"episode-of-care":      {"LA27977-0", "Episode of care-focused care team"},
+		"condition":            {"LA27978-8", "Condition-focused care team"},
+		"condition-focused":    {"LA27978-8", "Condition-focused care team"},
+		"encounter":            {"LA28865-6", "Encounter-focused care team"},
+		"encounter-focused":    {"LA28865-6", "Encounter-focused care team"},
+		"home-health":          {"LA28866-4", "Home & Community Based Services (HCBS)-focused care team"},
+		"hcbs":                 {"LA28866-4", "Home & Community Based Services (HCBS)-focused care team"},
+		"clinical-research":    {"LA28867-2", "Clinical research-focused care team"},
+		"research":             {"LA28867-2", "Clinical research-focused care team"},
+		"public-health":        {"LA28868-0", "Public health-focused care team"},
+	}
+
+	if mapped, ok := catMap[catLower]; ok {
+		return CodeableConcept{
+			Coding: []Coding{
+				{
+					System:  SystemLOINC,
+					Code:    mapped.code,
+					Display: mapped.display,
+				},
+			},
+			Text: category,
+		}
+	}
+
+	// Return as text-only
+	return CodeableConcept{
+		Text: category,
+	}
+}
+
+// mapCareTeamReason maps reason to CodeableConcept.
+func (m *USCoreMapper) mapCareTeamReason(code, codeSystem, text string) CodeableConcept {
+	cc := CodeableConcept{}
+
+	if code != "" {
+		system := codeSystem
+		if system == "" {
+			system = SystemSNOMED // Default to SNOMED CT
+		}
+		cc.Coding = []Coding{
+			{
+				System:  system,
+				Code:    code,
+				Display: text,
+			},
+		}
+	}
+
+	if text != "" {
+		cc.Text = text
+	}
+
+	return cc
+}
+
+// mapCareTeamParticipant maps a CareTeamMember to FHIR CareTeamParticipant.
+func (m *USCoreMapper) mapCareTeamParticipant(member events.CareTeamMember) CareTeamParticipant {
+	participant := CareTeamParticipant{}
+
+	// Role is required by US Core
+	if member.Role != "" || member.RoleCode != "" {
+		participant.Role = []CodeableConcept{
+			m.mapParticipantRole(member.Role, member.RoleCode, member.RoleCodeSystem),
+		}
+	}
+
+	// Member reference (Practitioner or Organization)
+	if member.Provider != nil {
+		participant.Member = &Reference{
+			Reference: m.buildProviderReference(member.Provider),
+			Display:   m.buildProviderDisplayName(member.Provider),
+		}
+	} else if member.OrganizationID != "" || member.OrganizationName != "" {
+		ref := m.buildOrganizationReference(member.OrganizationID, member.OrganizationName)
+		participant.Member = &ref
+	}
+
+	// Period
+	if member.PeriodStart != "" || member.PeriodEnd != "" {
+		participant.Period = &Period{}
+		if member.PeriodStart != "" {
+			if t, err := time.Parse("2006-01-02", member.PeriodStart); err == nil {
+				participant.Period.Start = &t
+			}
+		}
+		if member.PeriodEnd != "" {
+			if t, err := time.Parse("2006-01-02", member.PeriodEnd); err == nil {
+				participant.Period.End = &t
+			}
+		}
+	}
+
+	return participant
+}
+
+// mapParticipantRole maps role to CodeableConcept.
+func (m *USCoreMapper) mapParticipantRole(role, roleCode, roleCodeSystem string) CodeableConcept {
+	cc := CodeableConcept{}
+
+	if roleCode != "" {
+		system := roleCodeSystem
+		if system == "" {
+			system = SystemSNOMED // Default to SNOMED CT
+		}
+		cc.Coding = []Coding{
+			{
+				System:  system,
+				Code:    roleCode,
+				Display: role,
+			},
+		}
+	} else if role != "" {
+		// Map common roles to SNOMED CT
+		roleLower := strings.ToLower(strings.TrimSpace(role))
+		roleMap := map[string]struct {
+			code    string
+			display string
+		}{
+			"primary care physician":    {"446050000", "Primary care physician"},
+			"pcp":                       {"446050000", "Primary care physician"},
+			"primary care provider":     {"446050000", "Primary care physician"},
+			"specialist":                {"309395003", "Specialist physician"},
+			"nurse":                     {"224535009", "Registered nurse"},
+			"registered nurse":          {"224535009", "Registered nurse"},
+			"rn":                        {"224535009", "Registered nurse"},
+			"nurse practitioner":        {"224571005", "Nurse practitioner"},
+			"np":                        {"224571005", "Nurse practitioner"},
+			"physician assistant":       {"449161006", "Physician assistant"},
+			"pa":                        {"449161006", "Physician assistant"},
+			"case manager":              {"768820003", "Case manager"},
+			"care coordinator":          {"768820003", "Case manager"},
+			"social worker":             {"106328005", "Social worker"},
+			"pharmacist":                {"46255001", "Pharmacist"},
+			"physical therapist":        {"36682004", "Physical therapist"},
+			"pt":                        {"36682004", "Physical therapist"},
+			"occupational therapist":    {"80546007", "Occupational therapist"},
+			"ot":                        {"80546007", "Occupational therapist"},
+			"dietitian":                 {"159033005", "Dietitian"},
+			"nutritionist":              {"159033005", "Dietitian"},
+			"psychologist":              {"59944000", "Psychologist"},
+			"psychiatrist":              {"80584001", "Psychiatrist"},
+			"caregiver":                 {"133932002", "Caregiver"},
+			"family member":             {"303071001", "Person in family of patient"},
+		}
+
+		if mapped, ok := roleMap[roleLower]; ok {
+			cc.Coding = []Coding{
+				{
+					System:  SystemSNOMED,
+					Code:    mapped.code,
+					Display: mapped.display,
+				},
+			}
+		}
+	}
+
+	if role != "" {
+		cc.Text = role
+	}
+
+	return cc
+}
+
+// buildOrganizationReference builds a reference for an organization.
+func (m *USCoreMapper) buildOrganizationReference(orgID, orgName string) Reference {
+	ref := Reference{}
+
+	if orgID != "" {
+		ref.Reference = "Organization/" + orgID
+	}
+	if orgName != "" {
+		ref.Display = orgName
+	}
+
+	return ref
+}
+
+// ============================================================================
+// ServiceRequest Mapping (US Core 6.1.0)
+// ============================================================================
+
+// MapServiceRequest converts a canonical ServiceRequestEvent to a US Core ServiceRequest.
+func (m *USCoreMapper) MapServiceRequest(event *events.ServiceRequestEvent, patientRef string) *ServiceRequest {
+	if event == nil {
+		return nil
+	}
+
+	sr := event.ServiceRequest
+
+	serviceRequest := &ServiceRequest{
+		Meta: &Meta{
+			Profile: []string{USCoreServiceRequestProfile},
+		},
+		Status:  m.mapServiceRequestStatus(sr.Status),
+		Intent:  m.mapServiceRequestIntent(sr.Intent),
+		Subject: &Reference{Reference: patientRef},
+	}
+
+	// Category
+	if sr.Category != "" {
+		serviceRequest.Category = []CodeableConcept{
+			m.mapServiceRequestCategory(sr.Category),
+		}
+	}
+
+	// Priority
+	if sr.Priority != "" {
+		serviceRequest.Priority = m.mapServiceRequestPriority(sr.Priority)
+	}
+
+	// Code (required by US Core)
+	if sr.Code != "" || sr.CodeText != "" {
+		serviceRequest.Code = m.mapServiceCode(sr.Code, sr.CodeSystem, sr.CodeText)
+	}
+
+	// Order detail
+	if sr.OrderDetail != "" {
+		serviceRequest.OrderDetail = []CodeableConcept{
+			{Text: sr.OrderDetail},
+		}
+	}
+
+	// Quantity
+	if sr.QuantityValue != 0 || sr.QuantityUnit != "" {
+		serviceRequest.QuantityQuantity = &Quantity{
+			Value: sr.QuantityValue,
+		}
+		if sr.QuantityUnit != "" {
+			serviceRequest.QuantityQuantity.Unit = sr.QuantityUnit
+		}
+	}
+
+	// Occurrence
+	if sr.OccurrenceDateTime != "" {
+		serviceRequest.OccurrenceDateTime = sr.OccurrenceDateTime
+	} else if sr.OccurrencePeriodStart != "" || sr.OccurrencePeriodEnd != "" {
+		serviceRequest.OccurrencePeriod = &Period{}
+		if sr.OccurrencePeriodStart != "" {
+			if t, err := time.Parse("2006-01-02", sr.OccurrencePeriodStart); err == nil {
+				serviceRequest.OccurrencePeriod.Start = &t
+			} else if t, err := time.Parse(time.RFC3339, sr.OccurrencePeriodStart); err == nil {
+				serviceRequest.OccurrencePeriod.Start = &t
+			}
+		}
+		if sr.OccurrencePeriodEnd != "" {
+			if t, err := time.Parse("2006-01-02", sr.OccurrencePeriodEnd); err == nil {
+				serviceRequest.OccurrencePeriod.End = &t
+			} else if t, err := time.Parse(time.RFC3339, sr.OccurrencePeriodEnd); err == nil {
+				serviceRequest.OccurrencePeriod.End = &t
+			}
+		}
+	}
+
+	// Authored on (required by US Core)
+	if sr.AuthoredOn != "" {
+		serviceRequest.AuthoredOn = sr.AuthoredOn
+	} else if !event.Timestamp.IsZero() {
+		serviceRequest.AuthoredOn = event.Timestamp.Format(time.RFC3339)
+	}
+
+	// Requester (required by US Core)
+	if event.Requester != nil {
+		serviceRequest.Requester = &Reference{
+			Reference: m.buildProviderReference(event.Requester),
+			Display:   m.buildProviderDisplayName(event.Requester),
+		}
+	}
+
+	// Performer
+	if event.Performer != nil {
+		serviceRequest.Performer = []Reference{
+			{
+				Reference: m.buildProviderReference(event.Performer),
+				Display:   m.buildProviderDisplayName(event.Performer),
+			},
+		}
+	} else if event.PerformerOrgID != "" || event.PerformerOrgName != "" {
+		serviceRequest.Performer = []Reference{
+			m.buildOrganizationReference(event.PerformerOrgID, event.PerformerOrgName),
+		}
+	}
+
+	// Encounter reference
+	if event.Encounter != nil && event.Encounter.ID != "" {
+		serviceRequest.Encounter = &Reference{
+			Reference: "Encounter/" + event.Encounter.ID,
+		}
+	}
+
+	// Reason (coded)
+	if sr.ReasonCode != "" || sr.ReasonText != "" {
+		serviceRequest.ReasonCode = []CodeableConcept{
+			m.mapServiceRequestReason(sr.ReasonCode, sr.ReasonCodeSystem, sr.ReasonText),
+		}
+	}
+
+	// Reason references (conditions)
+	if len(sr.ConditionIDs) > 0 {
+		for _, condID := range sr.ConditionIDs {
+			serviceRequest.ReasonReference = append(serviceRequest.ReasonReference, Reference{
+				Reference: "Condition/" + condID,
+			})
+		}
+	}
+
+	// Body site
+	if sr.BodySite != "" || sr.BodySiteCode != "" {
+		serviceRequest.BodySite = []CodeableConcept{
+			m.mapBodySite(sr.BodySite, sr.BodySiteCode),
+		}
+	}
+
+	// Note
+	if sr.Note != "" {
+		serviceRequest.Note = []Annotation{
+			{Text: sr.Note},
+		}
+	}
+
+	// Patient instruction
+	if sr.PatientInstruction != "" {
+		serviceRequest.PatientInstruction = sr.PatientInstruction
+	}
+
+	return serviceRequest
+}
+
+// mapServiceRequestStatus maps canonical status to FHIR ServiceRequest status.
+func (m *USCoreMapper) mapServiceRequestStatus(status string) string {
+	statusLower := strings.ToLower(strings.TrimSpace(status))
+	statusMap := map[string]string{
+		"draft":            "draft",
+		"active":           "active",
+		"on-hold":          "on-hold",
+		"onhold":           "on-hold",
+		"revoked":          "revoked",
+		"cancelled":        "revoked",
+		"canceled":         "revoked",
+		"completed":        "completed",
+		"entered-in-error": "entered-in-error",
+		"error":            "entered-in-error",
+		"unknown":          "unknown",
+	}
+	if mapped, ok := statusMap[statusLower]; ok {
+		return mapped
+	}
+	return "active" // Default
+}
+
+// mapServiceRequestIntent maps canonical intent to FHIR ServiceRequest intent.
+func (m *USCoreMapper) mapServiceRequestIntent(intent string) string {
+	intentLower := strings.ToLower(strings.TrimSpace(intent))
+	intentMap := map[string]string{
+		"proposal":       "proposal",
+		"plan":           "plan",
+		"directive":      "directive",
+		"order":          "order",
+		"original-order": "original-order",
+		"originalorder":  "original-order",
+		"reflex-order":   "reflex-order",
+		"reflexorder":    "reflex-order",
+		"filler-order":   "filler-order",
+		"fillerorder":    "filler-order",
+		"instance-order": "instance-order",
+		"instanceorder":  "instance-order",
+		"option":         "option",
+	}
+	if mapped, ok := intentMap[intentLower]; ok {
+		return mapped
+	}
+	return "order" // Default
+}
+
+// mapServiceRequestCategory maps category to CodeableConcept.
+func (m *USCoreMapper) mapServiceRequestCategory(category string) CodeableConcept {
+	catLower := strings.ToLower(strings.TrimSpace(category))
+
+	// SNOMED CT service categories
+	catMap := map[string]struct {
+		code    string
+		display string
+	}{
+		"laboratory":      {"108252007", "Laboratory procedure"},
+		"lab":             {"108252007", "Laboratory procedure"},
+		"imaging":         {"363679005", "Imaging"},
+		"radiology":       {"363679005", "Imaging"},
+		"procedure":       {"387713003", "Surgical procedure"},
+		"surgical":        {"387713003", "Surgical procedure"},
+		"counseling":      {"409063005", "Counseling"},
+		"therapy":         {"276239002", "Therapy"},
+		"referral":        {"3457005", "Patient referral"},
+		"consultation":    {"11429006", "Consultation"},
+		"consult":         {"11429006", "Consultation"},
+		"education":       {"311401005", "Patient education"},
+		"patient-education": {"311401005", "Patient education"},
+		"screening":       {"360156006", "Screening procedure"},
+		"assessment":      {"386053000", "Evaluation procedure"},
+		"evaluation":      {"386053000", "Evaluation procedure"},
+	}
+
+	if mapped, ok := catMap[catLower]; ok {
+		return CodeableConcept{
+			Coding: []Coding{
+				{
+					System:  SystemSNOMED,
+					Code:    mapped.code,
+					Display: mapped.display,
+				},
+			},
+			Text: category,
+		}
+	}
+
+	// Return as text-only
+	return CodeableConcept{
+		Text: category,
+	}
+}
+
+// mapServiceRequestPriority maps priority to FHIR code.
+func (m *USCoreMapper) mapServiceRequestPriority(priority string) string {
+	prioLower := strings.ToLower(strings.TrimSpace(priority))
+	prioMap := map[string]string{
+		"routine": "routine",
+		"normal":  "routine",
+		"urgent":  "urgent",
+		"asap":    "asap",
+		"stat":    "stat",
+		"emergent": "stat",
+		"emergency": "stat",
+	}
+	if mapped, ok := prioMap[prioLower]; ok {
+		return mapped
+	}
+	return "routine" // Default
+}
+
+// mapServiceCode maps service code to CodeableConcept.
+func (m *USCoreMapper) mapServiceCode(code, codeSystem, text string) *CodeableConcept {
+	cc := &CodeableConcept{}
+
+	if code != "" {
+		system := codeSystem
+		if system == "" {
+			// Try to detect the code system
+			system = m.detectServiceCodeSystem(code)
+		}
+		cc.Coding = []Coding{
+			{
+				System:  system,
+				Code:    code,
+				Display: text,
+			},
+		}
+	}
+
+	if text != "" {
+		cc.Text = text
+	}
+
+	return cc
+}
+
+// detectServiceCodeSystem attempts to detect the code system for a service code.
+func (m *USCoreMapper) detectServiceCodeSystem(code string) string {
+	// CPT codes are 5-digit numbers
+	if len(code) == 5 {
+		if _, err := strconv.Atoi(code); err == nil {
+			return SystemCPT
+		}
+	}
+
+	// LOINC codes typically have a hyphen (e.g., "12345-6")
+	if strings.Contains(code, "-") && len(code) >= 5 && len(code) <= 10 {
+		return SystemLOINC
+	}
+
+	// HCPCS codes start with a letter
+	if len(code) == 5 && code[0] >= 'A' && code[0] <= 'Z' {
+		return SystemHCPCS
+	}
+
+	// SNOMED CT codes are typically 6-18 digits
+	if len(code) >= 6 && len(code) <= 18 {
+		if _, err := strconv.Atoi(code); err == nil {
+			return SystemSNOMED
+		}
+	}
+
+	// Default to SNOMED CT
+	return SystemSNOMED
+}
+
+// mapServiceRequestReason maps reason to CodeableConcept.
+func (m *USCoreMapper) mapServiceRequestReason(code, codeSystem, text string) CodeableConcept {
+	cc := CodeableConcept{}
+
+	if code != "" {
+		system := codeSystem
+		if system == "" {
+			// Default to ICD-10-CM for reason codes
+			if len(code) >= 3 && code[0] >= 'A' && code[0] <= 'Z' {
+				system = SystemICD10CM
+			} else {
+				system = SystemSNOMED
+			}
+		}
+		cc.Coding = []Coding{
+			{
+				System:  system,
+				Code:    code,
+				Display: text,
+			},
+		}
+	}
+
+	if text != "" {
+		cc.Text = text
+	}
+
+	return cc
+}
+
+// mapBodySite maps body site to CodeableConcept.
+func (m *USCoreMapper) mapBodySite(site, siteCode string) CodeableConcept {
+	cc := CodeableConcept{}
+
+	if siteCode != "" {
+		cc.Coding = []Coding{
+			{
+				System:  SystemSNOMED,
+				Code:    siteCode,
+				Display: site,
+			},
+		}
+	} else if site != "" {
+		// Try to map common body sites to SNOMED CT
+		siteLower := strings.ToLower(strings.TrimSpace(site))
+		siteMap := map[string]struct {
+			code    string
+			display string
+		}{
+			"head":          {"69536005", "Head structure"},
+			"neck":          {"45048000", "Neck structure"},
+			"chest":         {"51185008", "Thoracic structure"},
+			"thorax":        {"51185008", "Thoracic structure"},
+			"abdomen":       {"818983003", "Abdominal structure"},
+			"back":          {"77568009", "Back structure"},
+			"arm":           {"53120007", "Upper limb structure"},
+			"upper arm":     {"40983000", "Upper arm structure"},
+			"forearm":       {"14975008", "Forearm structure"},
+			"hand":          {"85562004", "Hand structure"},
+			"leg":           {"61685007", "Lower limb structure"},
+			"thigh":         {"68367000", "Thigh structure"},
+			"knee":          {"72696002", "Knee region structure"},
+			"foot":          {"56459004", "Foot structure"},
+			"left":          {"7771000", "Left"},
+			"right":         {"24028007", "Right"},
+		}
+
+		if mapped, ok := siteMap[siteLower]; ok {
+			cc.Coding = []Coding{
+				{
+					System:  SystemSNOMED,
+					Code:    mapped.code,
+					Display: mapped.display,
+				},
+			}
+		}
+	}
+
+	if site != "" {
+		cc.Text = site
+	}
+
+	return cc
 }

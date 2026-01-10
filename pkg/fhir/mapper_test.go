@@ -4891,3 +4891,839 @@ func TestMapGoal_JSONSerialization(t *testing.T) {
 		t.Error("JSON missing priority")
 	}
 }
+
+// ============================================================================
+// CareTeam Tests
+// ============================================================================
+
+func TestMapCareTeam_BasicMapping(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.CareTeamEvent{
+		EventMeta: events.EventMeta{ID: "ct-001"},
+		CareTeam: events.CareTeam{
+			Name:        "Diabetes Care Team",
+			Status:      "active",
+			Category:    "longitudinal",
+			PeriodStart: "2024-01-01",
+			PeriodEnd:   "2024-12-31",
+			Note:        "Primary care team for ongoing diabetes management",
+		},
+	}
+
+	result := mapper.MapCareTeam(event, "Patient/12345")
+
+	if result == nil {
+		t.Fatal("Expected non-nil result")
+	}
+
+	// Check profile
+	if len(result.Meta.Profile) != 1 || result.Meta.Profile[0] != USCoreCareTeamProfile {
+		t.Errorf("Expected US Core CareTeam profile, got %v", result.Meta.Profile)
+	}
+
+	// Check required fields
+	if result.Status != "active" {
+		t.Errorf("Expected status 'active', got '%s'", result.Status)
+	}
+	if result.Subject == nil || result.Subject.Reference != "Patient/12345" {
+		t.Error("Expected patient subject reference")
+	}
+
+	// Check name
+	if result.Name != "Diabetes Care Team" {
+		t.Errorf("Expected name, got '%s'", result.Name)
+	}
+
+	// Check period
+	if result.Period == nil {
+		t.Fatal("Expected period")
+	}
+	if result.Period.Start == nil || result.Period.Start.Year() != 2024 {
+		t.Error("Expected start period in 2024")
+	}
+
+	// Check note
+	if len(result.Note) != 1 {
+		t.Fatal("Expected one note")
+	}
+	if result.Note[0].Text != "Primary care team for ongoing diabetes management" {
+		t.Error("Note text not mapped correctly")
+	}
+}
+
+func TestMapCareTeam_StatusMapping(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"proposed", "proposed"},
+		{"active", "active"},
+		{"suspended", "suspended"},
+		{"inactive", "inactive"},
+		{"entered-in-error", "entered-in-error"},
+		{"on-hold", "suspended"},
+		{"onhold", "suspended"},
+		{"error", "entered-in-error"},
+		{"invalid", "active"}, // Default
+	}
+
+	mapper := NewUSCoreMapper()
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			event := &events.CareTeamEvent{
+				CareTeam: events.CareTeam{
+					Status: tc.input,
+				},
+			}
+			result := mapper.MapCareTeam(event, "Patient/12345")
+			if result.Status != tc.expected {
+				t.Errorf("Status '%s': expected '%s', got '%s'", tc.input, tc.expected, result.Status)
+			}
+		})
+	}
+}
+
+func TestMapCareTeam_CategoryMapping(t *testing.T) {
+	tests := []struct {
+		input       string
+		expectedSys string
+		expected    string
+	}{
+		{"longitudinal", SystemCareTeamCategory, "LA27976-2"},
+		{"longitudinal-care", SystemCareTeamCategory, "LA27976-2"},
+		{"episode", SystemCareTeamCategory, "LA27977-0"},
+		{"episode-of-care", SystemCareTeamCategory, "LA27977-0"},
+		{"condition", SystemCareTeamCategory, "LA27978-8"},
+		{"condition-focused", SystemCareTeamCategory, "LA27978-8"},
+		{"encounter", SystemCareTeamCategory, "LA28865-6"},
+		{"home-health", SystemCareTeamCategory, "LA28866-4"},
+		{"hcbs", SystemCareTeamCategory, "LA28866-4"},
+		{"clinical-research", SystemCareTeamCategory, "LA28867-2"},
+		{"public-health", SystemCareTeamCategory, "LA28868-0"},
+	}
+
+	mapper := NewUSCoreMapper()
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			event := &events.CareTeamEvent{
+				CareTeam: events.CareTeam{
+					Category: tc.input,
+				},
+			}
+			result := mapper.MapCareTeam(event, "Patient/12345")
+			if len(result.Category) < 1 {
+				t.Fatal("Expected at least one category")
+			}
+			found := false
+			for _, cat := range result.Category {
+				for _, coding := range cat.Coding {
+					if coding.Code == tc.expected && coding.System == tc.expectedSys {
+						found = true
+						break
+					}
+				}
+			}
+			if !found {
+				t.Errorf("Category '%s': expected LOINC code '%s'", tc.input, tc.expected)
+			}
+		})
+	}
+}
+
+func TestMapCareTeam_WithParticipants(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.CareTeamEvent{
+		CareTeam: events.CareTeam{
+			Status: "active",
+			Members: []events.CareTeamMember{
+				{
+					Role: "primary care provider",
+					Provider: &events.Provider{
+						ID:         "prov-001",
+						GivenName:  "Jane",
+						FamilyName: "Smith",
+						Suffix:     "MD",
+					},
+					PeriodStart: "2024-01-01",
+				},
+				{
+					Role:             "case manager",
+					OrganizationID:   "org-001",
+					OrganizationName: "Care Management Services",
+				},
+			},
+		},
+	}
+
+	result := mapper.MapCareTeam(event, "Patient/12345")
+
+	if len(result.Participant) != 2 {
+		t.Fatalf("Expected 2 participants, got %d", len(result.Participant))
+	}
+
+	// Check first participant (provider)
+	if result.Participant[0].Member == nil {
+		t.Error("Expected first participant to have member reference")
+	}
+	if result.Participant[0].Member.Reference != "Practitioner/prov-001" {
+		t.Errorf("Expected Practitioner reference, got %s", result.Participant[0].Member.Reference)
+	}
+	if result.Participant[0].Period == nil {
+		t.Error("Expected period on first participant")
+	}
+
+	// Check second participant (organization)
+	if result.Participant[1].Member == nil {
+		t.Error("Expected second participant to have member reference")
+	}
+	if result.Participant[1].Member.Reference != "Organization/org-001" {
+		t.Errorf("Expected Organization reference, got %s", result.Participant[1].Member.Reference)
+	}
+}
+
+func TestMapCareTeam_ParticipantRoleMapping(t *testing.T) {
+	tests := []struct {
+		role         string
+		expectedCode string
+	}{
+		{"primary care provider", "446050000"},
+		{"pcp", "446050000"},
+		{"nurse", "224535009"},
+		{"rn", "224535009"},
+		{"case manager", "768820003"},
+		{"specialist", "309395003"},
+		{"pharmacist", "46255001"},
+		{"social worker", "106328005"},
+		{"physical therapist", "36682004"},
+		{"dietitian", "159033005"},
+		{"psychologist", "59944000"},
+	}
+
+	mapper := NewUSCoreMapper()
+
+	for _, tc := range tests {
+		t.Run(tc.role, func(t *testing.T) {
+			event := &events.CareTeamEvent{
+				CareTeam: events.CareTeam{
+					Status: "active",
+					Members: []events.CareTeamMember{
+						{
+							Role: tc.role,
+							Provider: &events.Provider{
+								ID: "prov-001",
+							},
+						},
+					},
+				},
+			}
+			result := mapper.MapCareTeam(event, "Patient/12345")
+			if len(result.Participant) < 1 {
+				t.Fatal("Expected at least one participant")
+			}
+			if len(result.Participant[0].Role) < 1 {
+				t.Fatal("Expected at least one role")
+			}
+			found := false
+			for _, role := range result.Participant[0].Role {
+				for _, coding := range role.Coding {
+					if coding.Code == tc.expectedCode {
+						found = true
+						break
+					}
+				}
+			}
+			if !found {
+				t.Errorf("Role '%s': expected SNOMED code '%s'", tc.role, tc.expectedCode)
+			}
+		})
+	}
+}
+
+func TestMapCareTeam_WithManagingOrganization(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.CareTeamEvent{
+		CareTeam: events.CareTeam{
+			Status:                   "active",
+			ManagingOrganizationID:   "org-manage-001",
+			ManagingOrganizationName: "Primary Care Associates",
+		},
+	}
+
+	result := mapper.MapCareTeam(event, "Patient/12345")
+
+	if len(result.ManagingOrganization) != 1 {
+		t.Fatalf("Expected 1 managing organization, got %d", len(result.ManagingOrganization))
+	}
+	if result.ManagingOrganization[0].Reference != "Organization/org-manage-001" {
+		t.Errorf("Expected Organization reference, got %s", result.ManagingOrganization[0].Reference)
+	}
+	if result.ManagingOrganization[0].Display != "Primary Care Associates" {
+		t.Errorf("Expected display name, got %s", result.ManagingOrganization[0].Display)
+	}
+}
+
+func TestMapCareTeam_WithReasonAndConditions(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.CareTeamEvent{
+		CareTeam: events.CareTeam{
+			Status:           "active",
+			ReasonCode:       "E11.9",
+			ReasonCodeSystem: "http://hl7.org/fhir/sid/icd-10-cm",
+			ReasonText:       "Type 2 diabetes mellitus",
+			ConditionIDs:     []string{"cond-001", "cond-002"},
+		},
+	}
+
+	result := mapper.MapCareTeam(event, "Patient/12345")
+
+	// Check reason code
+	if len(result.ReasonCode) != 1 {
+		t.Fatalf("Expected 1 reason code, got %d", len(result.ReasonCode))
+	}
+	if len(result.ReasonCode[0].Coding) < 1 {
+		t.Fatal("Expected reason code coding")
+	}
+	if result.ReasonCode[0].Coding[0].Code != "E11.9" {
+		t.Errorf("Expected reason code E11.9, got %s", result.ReasonCode[0].Coding[0].Code)
+	}
+
+	// Check reason references (conditions)
+	if len(result.ReasonReference) != 2 {
+		t.Fatalf("Expected 2 reason references, got %d", len(result.ReasonReference))
+	}
+	if result.ReasonReference[0].Reference != "Condition/cond-001" {
+		t.Errorf("Expected Condition reference, got %s", result.ReasonReference[0].Reference)
+	}
+}
+
+func TestMapCareTeam_NilEvent(t *testing.T) {
+	mapper := NewUSCoreMapper()
+	result := mapper.MapCareTeam(nil, "Patient/12345")
+	if result != nil {
+		t.Error("Expected nil result for nil event")
+	}
+}
+
+func TestMapCareTeam_JSONSerialization(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.CareTeamEvent{
+		CareTeam: events.CareTeam{
+			Name:     "Oncology Care Team",
+			Status:   "active",
+			Category: "condition-focused",
+			Members: []events.CareTeamMember{
+				{
+					Role: "specialist",
+					Provider: &events.Provider{
+						ID:        "onc-001",
+						GivenName: "Dr. Smith",
+					},
+				},
+			},
+		},
+	}
+
+	result := mapper.MapCareTeam(event, "Patient/12345")
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
+
+	jsonStr := string(data)
+	if !strings.Contains(jsonStr, `"resourceType":"CareTeam"`) {
+		t.Error("JSON missing resourceType")
+	}
+	if !strings.Contains(jsonStr, USCoreCareTeamProfile) {
+		t.Error("JSON missing profile")
+	}
+	if !strings.Contains(jsonStr, "Oncology Care Team") {
+		t.Error("JSON missing name")
+	}
+	if !strings.Contains(jsonStr, `"status":"active"`) {
+		t.Error("JSON missing status")
+	}
+}
+
+// ============================================================================
+// ServiceRequest Tests
+// ============================================================================
+
+func TestMapServiceRequest_BasicMapping(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.ServiceRequestEvent{
+		EventMeta: events.EventMeta{ID: "sr-001"},
+		ServiceRequest: events.ServiceRequest{
+			Status:             "active",
+			Intent:             "order",
+			Category:           "laboratory",
+			Code:               "80053",
+			CodeSystem:         "http://www.ama-assn.org/go/cpt",
+			CodeText:           "Comprehensive metabolic panel",
+			AuthoredOn:         "2024-01-15",
+			OccurrenceDateTime: "2024-01-20",
+			Note:               "Fasting required",
+		},
+		Requester: &events.Provider{
+			ID:         "doc-001",
+			GivenName:  "John",
+			FamilyName: "Doe",
+		},
+	}
+
+	result := mapper.MapServiceRequest(event, "Patient/12345")
+
+	if result == nil {
+		t.Fatal("Expected non-nil result")
+	}
+
+	// Check profile
+	if len(result.Meta.Profile) != 1 || result.Meta.Profile[0] != USCoreServiceRequestProfile {
+		t.Errorf("Expected US Core ServiceRequest profile, got %v", result.Meta.Profile)
+	}
+
+	// Check required fields
+	if result.Status != "active" {
+		t.Errorf("Expected status 'active', got '%s'", result.Status)
+	}
+	if result.Intent != "order" {
+		t.Errorf("Expected intent 'order', got '%s'", result.Intent)
+	}
+	if result.Subject == nil || result.Subject.Reference != "Patient/12345" {
+		t.Error("Expected patient subject reference")
+	}
+
+	// Check code
+	if result.Code == nil || len(result.Code.Coding) < 1 {
+		t.Fatal("Expected code with coding")
+	}
+	if result.Code.Coding[0].Code != "80053" {
+		t.Errorf("Expected code 80053, got %s", result.Code.Coding[0].Code)
+	}
+	if result.Code.Text != "Comprehensive metabolic panel" {
+		t.Errorf("Expected code text, got %s", result.Code.Text)
+	}
+
+	// Check requester
+	if result.Requester == nil {
+		t.Fatal("Expected requester")
+	}
+	if result.Requester.Reference != "Practitioner/doc-001" {
+		t.Errorf("Expected Practitioner reference, got %s", result.Requester.Reference)
+	}
+
+	// Check note
+	if len(result.Note) != 1 || result.Note[0].Text != "Fasting required" {
+		t.Error("Expected note")
+	}
+}
+
+func TestMapServiceRequest_StatusMapping(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"draft", "draft"},
+		{"active", "active"},
+		{"on-hold", "on-hold"},
+		{"revoked", "revoked"},
+		{"completed", "completed"},
+		{"entered-in-error", "entered-in-error"},
+		{"unknown", "unknown"},
+		{"cancelled", "revoked"},
+		{"pending", "active"},
+		{"invalid", "active"}, // Default
+	}
+
+	mapper := NewUSCoreMapper()
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			event := &events.ServiceRequestEvent{
+				ServiceRequest: events.ServiceRequest{
+					Status: tc.input,
+					Intent: "order",
+				},
+			}
+			result := mapper.MapServiceRequest(event, "Patient/12345")
+			if result.Status != tc.expected {
+				t.Errorf("Status '%s': expected '%s', got '%s'", tc.input, tc.expected, result.Status)
+			}
+		})
+	}
+}
+
+func TestMapServiceRequest_IntentMapping(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"proposal", "proposal"},
+		{"plan", "plan"},
+		{"directive", "directive"},
+		{"order", "order"},
+		{"original-order", "original-order"},
+		{"reflex-order", "reflex-order"},
+		{"filler-order", "filler-order"},
+		{"instance-order", "instance-order"},
+		{"option", "option"},
+		{"invalid", "order"}, // Default
+	}
+
+	mapper := NewUSCoreMapper()
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			event := &events.ServiceRequestEvent{
+				ServiceRequest: events.ServiceRequest{
+					Intent: tc.input,
+				},
+			}
+			result := mapper.MapServiceRequest(event, "Patient/12345")
+			if result.Intent != tc.expected {
+				t.Errorf("Intent '%s': expected '%s', got '%s'", tc.input, tc.expected, result.Intent)
+			}
+		})
+	}
+}
+
+func TestMapServiceRequest_CategoryMapping(t *testing.T) {
+	tests := []struct {
+		input       string
+		expectedSys string
+		expected    string
+	}{
+		{"laboratory", SystemServiceRequestCategory, "108252007"},
+		{"lab", SystemServiceRequestCategory, "108252007"},
+		{"imaging", SystemServiceRequestCategory, "363679005"},
+		{"radiology", SystemServiceRequestCategory, "363679005"},
+		{"referral", SystemServiceRequestCategory, "3457005"},
+		{"consultation", SystemServiceRequestCategory, "11429006"},
+		{"consult", SystemServiceRequestCategory, "11429006"},
+		{"procedure", SystemServiceRequestCategory, "387713003"},
+		{"surgical", SystemServiceRequestCategory, "387713003"},
+		{"counseling", SystemServiceRequestCategory, "409063005"},
+		{"therapy", SystemServiceRequestCategory, "276239002"},
+		{"education", SystemServiceRequestCategory, "311401005"},
+		{"patient-education", SystemServiceRequestCategory, "311401005"},
+		{"screening", SystemServiceRequestCategory, "360156006"},
+		{"assessment", SystemServiceRequestCategory, "386053000"},
+		{"evaluation", SystemServiceRequestCategory, "386053000"},
+	}
+
+	mapper := NewUSCoreMapper()
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			event := &events.ServiceRequestEvent{
+				ServiceRequest: events.ServiceRequest{
+					Category: tc.input,
+				},
+			}
+			result := mapper.MapServiceRequest(event, "Patient/12345")
+			if len(result.Category) < 1 {
+				t.Fatal("Expected at least one category")
+			}
+			found := false
+			for _, cat := range result.Category {
+				for _, coding := range cat.Coding {
+					if coding.Code == tc.expected && coding.System == tc.expectedSys {
+						found = true
+						break
+					}
+				}
+			}
+			if !found {
+				t.Errorf("Category '%s': expected SNOMED code '%s'", tc.input, tc.expected)
+			}
+		})
+	}
+}
+
+func TestMapServiceRequest_PriorityMapping(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"routine", "routine"},
+		{"normal", "routine"},
+		{"urgent", "urgent"},
+		{"asap", "asap"},
+		{"stat", "stat"},
+		{"emergent", "stat"},
+		{"emergency", "stat"},
+		{"invalid", "routine"}, // Default
+	}
+
+	mapper := NewUSCoreMapper()
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			event := &events.ServiceRequestEvent{
+				ServiceRequest: events.ServiceRequest{
+					Priority: tc.input,
+				},
+			}
+			result := mapper.MapServiceRequest(event, "Patient/12345")
+			if result.Priority != tc.expected {
+				t.Errorf("Priority '%s': expected '%s', got '%s'", tc.input, tc.expected, result.Priority)
+			}
+		})
+	}
+}
+
+func TestMapServiceRequest_CodeSystemDetection(t *testing.T) {
+	tests := []struct {
+		name           string
+		code           string
+		expectedSystem string
+	}{
+		{"CPT code", "80053", "http://www.ama-assn.org/go/cpt"},
+		{"LOINC code", "2951-2", "http://loinc.org"},
+		{"HCPCS code", "G0101", "http://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets"},
+		{"SNOMED code", "122869004", "http://snomed.info/sct"},
+	}
+
+	mapper := NewUSCoreMapper()
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			event := &events.ServiceRequestEvent{
+				ServiceRequest: events.ServiceRequest{
+					Code: tc.code,
+				},
+			}
+			result := mapper.MapServiceRequest(event, "Patient/12345")
+			if result.Code == nil || len(result.Code.Coding) < 1 {
+				t.Fatal("Expected code with coding")
+			}
+			if result.Code.Coding[0].System != tc.expectedSystem {
+				t.Errorf("Code '%s': expected system '%s', got '%s'", tc.code, tc.expectedSystem, result.Code.Coding[0].System)
+			}
+		})
+	}
+}
+
+func TestMapServiceRequest_WithOccurrence(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	// Test with date
+	event := &events.ServiceRequestEvent{
+		ServiceRequest: events.ServiceRequest{
+			OccurrenceDateTime: "2024-02-01",
+		},
+	}
+	result := mapper.MapServiceRequest(event, "Patient/12345")
+	if result.OccurrenceDateTime == "" {
+		t.Error("Expected occurrenceDateTime for date")
+	}
+
+	// Test with period
+	event = &events.ServiceRequestEvent{
+		ServiceRequest: events.ServiceRequest{
+			OccurrencePeriodStart: "2024-02-01",
+			OccurrencePeriodEnd:   "2024-02-15",
+		},
+	}
+	result = mapper.MapServiceRequest(event, "Patient/12345")
+	if result.OccurrencePeriod == nil {
+		t.Fatal("Expected occurrencePeriod")
+	}
+	if result.OccurrencePeriod.Start == nil || result.OccurrencePeriod.End == nil {
+		t.Error("Expected period with start and end")
+	}
+}
+
+func TestMapServiceRequest_WithReasonCodes(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.ServiceRequestEvent{
+		ServiceRequest: events.ServiceRequest{
+			ReasonCode:       "E11.9",
+			ReasonCodeSystem: "http://hl7.org/fhir/sid/icd-10-cm",
+			ReasonText:       "Type 2 diabetes",
+			ConditionIDs:     []string{"cond-001"},
+		},
+	}
+
+	result := mapper.MapServiceRequest(event, "Patient/12345")
+
+	if len(result.ReasonCode) != 1 {
+		t.Fatalf("Expected 1 reason code, got %d", len(result.ReasonCode))
+	}
+	if result.ReasonCode[0].Coding[0].Code != "E11.9" {
+		t.Errorf("Expected reason code E11.9")
+	}
+
+	if len(result.ReasonReference) != 1 {
+		t.Fatalf("Expected 1 reason reference, got %d", len(result.ReasonReference))
+	}
+	if result.ReasonReference[0].Reference != "Condition/cond-001" {
+		t.Errorf("Expected Condition reference")
+	}
+}
+
+func TestMapServiceRequest_WithBodySite(t *testing.T) {
+	tests := []struct {
+		site         string
+		expectedCode string
+	}{
+		{"head", "69536005"},
+		{"neck", "45048000"},
+		{"chest", "51185008"},
+		{"thorax", "51185008"},
+		{"abdomen", "818983003"},
+		{"back", "77568009"},
+		{"arm", "53120007"},
+		{"upper arm", "40983000"},
+		{"forearm", "14975008"},
+		{"hand", "85562004"},
+		{"leg", "61685007"},
+		{"thigh", "68367000"},
+		{"knee", "72696002"},
+		{"foot", "56459004"},
+	}
+
+	mapper := NewUSCoreMapper()
+
+	for _, tc := range tests {
+		t.Run(tc.site, func(t *testing.T) {
+			event := &events.ServiceRequestEvent{
+				ServiceRequest: events.ServiceRequest{
+					BodySite: tc.site,
+				},
+			}
+			result := mapper.MapServiceRequest(event, "Patient/12345")
+			if len(result.BodySite) < 1 {
+				t.Fatal("Expected at least one body site")
+			}
+			found := false
+			for _, site := range result.BodySite {
+				for _, coding := range site.Coding {
+					if coding.Code == tc.expectedCode {
+						found = true
+						break
+					}
+				}
+			}
+			if !found {
+				t.Errorf("Body site '%s': expected SNOMED code '%s'", tc.site, tc.expectedCode)
+			}
+		})
+	}
+}
+
+func TestMapServiceRequest_WithRequesterAndPerformer(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	// Test with Practitioner performer (takes precedence over org)
+	event := &events.ServiceRequestEvent{
+		ServiceRequest: events.ServiceRequest{
+			Status: "active",
+			Intent: "order",
+		},
+		Requester: &events.Provider{
+			ID:         "doc-001",
+			GivenName:  "Jane",
+			FamilyName: "Smith",
+		},
+		Performer: &events.Provider{
+			ID:         "spec-001",
+			GivenName:  "Bob",
+			FamilyName: "Jones",
+		},
+	}
+
+	result := mapper.MapServiceRequest(event, "Patient/12345")
+
+	// Check requester
+	if result.Requester == nil {
+		t.Fatal("Expected requester")
+	}
+	if result.Requester.Reference != "Practitioner/doc-001" {
+		t.Errorf("Expected Practitioner reference for requester")
+	}
+
+	// Check performer (Practitioner)
+	if len(result.Performer) != 1 {
+		t.Fatalf("Expected 1 performer, got %d", len(result.Performer))
+	}
+	if result.Performer[0].Reference != "Practitioner/spec-001" {
+		t.Errorf("Expected Practitioner performer, got %s", result.Performer[0].Reference)
+	}
+
+	// Test with Organization performer only
+	eventOrg := &events.ServiceRequestEvent{
+		ServiceRequest: events.ServiceRequest{
+			Status: "active",
+			Intent: "order",
+		},
+		PerformerOrgID:   "lab-001",
+		PerformerOrgName: "Quest Diagnostics",
+	}
+
+	resultOrg := mapper.MapServiceRequest(eventOrg, "Patient/12345")
+	if len(resultOrg.Performer) != 1 {
+		t.Fatalf("Expected 1 performer for org-only, got %d", len(resultOrg.Performer))
+	}
+	if resultOrg.Performer[0].Reference != "Organization/lab-001" {
+		t.Errorf("Expected Organization performer, got %s", resultOrg.Performer[0].Reference)
+	}
+}
+
+func TestMapServiceRequest_NilEvent(t *testing.T) {
+	mapper := NewUSCoreMapper()
+	result := mapper.MapServiceRequest(nil, "Patient/12345")
+	if result != nil {
+		t.Error("Expected nil result for nil event")
+	}
+}
+
+func TestMapServiceRequest_JSONSerialization(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.ServiceRequestEvent{
+		ServiceRequest: events.ServiceRequest{
+			Status:     "active",
+			Intent:     "order",
+			Category:   "laboratory",
+			Priority:   "urgent",
+			Code:       "80053",
+			CodeText:   "Comprehensive metabolic panel",
+			AuthoredOn: "2024-01-15",
+		},
+	}
+
+	result := mapper.MapServiceRequest(event, "Patient/12345")
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
+
+	jsonStr := string(data)
+	if !strings.Contains(jsonStr, `"resourceType":"ServiceRequest"`) {
+		t.Error("JSON missing resourceType")
+	}
+	if !strings.Contains(jsonStr, USCoreServiceRequestProfile) {
+		t.Error("JSON missing profile")
+	}
+	if !strings.Contains(jsonStr, `"status":"active"`) {
+		t.Error("JSON missing status")
+	}
+	if !strings.Contains(jsonStr, `"intent":"order"`) {
+		t.Error("JSON missing intent")
+	}
+	if !strings.Contains(jsonStr, `"priority":"urgent"`) {
+		t.Error("JSON missing priority")
+	}
+	if !strings.Contains(jsonStr, "80053") {
+		t.Error("JSON missing code")
+	}
+}
