@@ -1260,6 +1260,142 @@ type DocumentEvent struct {
 	RawPayload   json.RawMessage `json:"raw_payload,omitempty"`
 }
 
+// CarePlan represents a care plan for a patient.
+type CarePlan struct {
+	// Title is the human-readable title of the care plan
+	Title string `json:"title,omitempty"`
+
+	// Description provides additional details about the care plan
+	Description string `json:"description,omitempty"`
+
+	// Status is the plan status (draft, active, on-hold, revoked, completed, entered-in-error, unknown)
+	Status string `json:"status,omitempty"`
+
+	// Intent is the plan intent (proposal, plan, order, option)
+	Intent string `json:"intent,omitempty"`
+
+	// Category is the type of care plan (assess-plan, discharge, etc.)
+	Category string `json:"category,omitempty"`
+
+	// Period is the time period the plan covers
+	PeriodStart string `json:"period_start,omitempty"`
+	PeriodEnd   string `json:"period_end,omitempty"`
+
+	// Goals are the goals addressed by this care plan
+	GoalIDs []string `json:"goal_ids,omitempty"`
+
+	// Conditions are the health issues addressed by this plan
+	ConditionIDs []string `json:"condition_ids,omitempty"`
+
+	// Activities are the planned activities
+	Activities []CarePlanActivity `json:"activities,omitempty"`
+}
+
+// CarePlanActivity represents a planned activity in a care plan.
+type CarePlanActivity struct {
+	// OutcomeDescription describes the activity outcome
+	OutcomeDescription string `json:"outcome_description,omitempty"`
+
+	// Status is the activity status (not-started, scheduled, in-progress, on-hold, completed, cancelled, stopped, unknown, entered-in-error)
+	Status string `json:"status,omitempty"`
+
+	// Code is the activity code (SNOMED, CPT, etc.)
+	Code string `json:"code,omitempty"`
+
+	// CodeSystem is the code system for the activity code
+	CodeSystem string `json:"code_system,omitempty"`
+
+	// Description is the activity description
+	Description string `json:"description,omitempty"`
+
+	// ScheduledDate is when the activity is scheduled
+	ScheduledDate string `json:"scheduled_date,omitempty"`
+}
+
+// CarePlanEvent is emitted for care plan events.
+type CarePlanEvent struct {
+	EventMeta
+	Patient    *Patient        `json:"patient,omitempty"`
+	CarePlan   CarePlan        `json:"care_plan"`
+	Author     *Provider       `json:"author,omitempty"`
+	CareTeam   []*Provider     `json:"care_team,omitempty"`
+	Encounter  *Encounter      `json:"encounter,omitempty"`
+	RawPayload json.RawMessage `json:"raw_payload,omitempty"`
+}
+
+// Goal represents a patient goal.
+type Goal struct {
+	// Description is the goal description (required by US Core)
+	Description string `json:"description"`
+
+	// LifecycleStatus is the goal status (proposed, planned, accepted, active, on-hold, completed, cancelled, entered-in-error, rejected)
+	LifecycleStatus string `json:"lifecycle_status,omitempty"`
+
+	// AchievementStatus is the achievement status (in-progress, improving, worsening, no-change, achieved, sustaining, not-achieved, no-progress, not-attainable)
+	AchievementStatus string `json:"achievement_status,omitempty"`
+
+	// Category is the goal category (dietary, safety, behavioral, nursing, physiotherapy, etc.)
+	Category string `json:"category,omitempty"`
+
+	// Priority is the goal priority (high-priority, medium-priority, low-priority)
+	Priority string `json:"priority,omitempty"`
+
+	// StartDate is when the goal was established
+	StartDate string `json:"start_date,omitempty"`
+
+	// TargetDate is the target date for achieving the goal
+	TargetDate string `json:"target_date,omitempty"`
+
+	// StatusDate is when the status was last updated
+	StatusDate string `json:"status_date,omitempty"`
+
+	// StatusReason explains why the goal has its current status
+	StatusReason string `json:"status_reason,omitempty"`
+
+	// ExpressedBy indicates who set the goal (patient, practitioner, related person)
+	ExpressedBy string `json:"expressed_by,omitempty"`
+
+	// Addresses are the conditions/diagnoses this goal addresses
+	AddressesIDs []string `json:"addresses_ids,omitempty"`
+
+	// Note contains additional details about the goal
+	Note string `json:"note,omitempty"`
+
+	// Target contains the measurable outcome target
+	Target *GoalTarget `json:"target,omitempty"`
+}
+
+// GoalTarget represents a measurable target for a goal.
+type GoalTarget struct {
+	// Measure is what is being measured (LOINC code, etc.)
+	Measure string `json:"measure,omitempty"`
+
+	// MeasureSystem is the code system for measure
+	MeasureSystem string `json:"measure_system,omitempty"`
+
+	// DetailQuantity is the target value as a quantity
+	DetailQuantity float64 `json:"detail_quantity,omitempty"`
+
+	// DetailUnit is the unit for the quantity
+	DetailUnit string `json:"detail_unit,omitempty"`
+
+	// DetailString is the target as a string description
+	DetailString string `json:"detail_string,omitempty"`
+
+	// DueDate is when the target should be achieved
+	DueDate string `json:"due_date,omitempty"`
+}
+
+// GoalEvent is emitted for patient goal events.
+type GoalEvent struct {
+	EventMeta
+	Patient    *Patient        `json:"patient,omitempty"`
+	Goal       Goal            `json:"goal"`
+	Author     *Provider       `json:"author,omitempty"`
+	Encounter  *Encounter      `json:"encounter,omitempty"`
+	RawPayload json.RawMessage `json:"raw_payload,omitempty"`
+}
+
 // LabTest convenience fields
 func (t *LabTest) GetName() string {
 	if t.Description != "" {

@@ -4016,3 +4016,878 @@ func TestAllergyIntoleranceJSONSerialization(t *testing.T) {
 		t.Error("JSON missing criticality")
 	}
 }
+
+// ============================================================================
+// CarePlan Tests
+// ============================================================================
+
+func TestMapCarePlan_BasicMapping(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.CarePlanEvent{
+		EventMeta: events.EventMeta{ID: "cp-001"},
+		CarePlan: events.CarePlan{
+			Title:       "Diabetes Management Plan",
+			Description: "Comprehensive plan for managing Type 2 diabetes",
+			Status:      "active",
+			Intent:      "plan",
+			Category:    "discharge",
+			PeriodStart: "2024-01-01",
+			PeriodEnd:   "2024-12-31",
+		},
+	}
+
+	result := mapper.MapCarePlan(event, "Patient/12345")
+
+	if result == nil {
+		t.Fatal("Expected non-nil result")
+	}
+
+	// Check profile
+	if len(result.Meta.Profile) != 1 || result.Meta.Profile[0] != USCoreCarePlanProfile {
+		t.Errorf("Expected US Core CarePlan profile, got %v", result.Meta.Profile)
+	}
+
+	// Check required fields
+	if result.Status != "active" {
+		t.Errorf("Expected status 'active', got '%s'", result.Status)
+	}
+	if result.Intent != "plan" {
+		t.Errorf("Expected intent 'plan', got '%s'", result.Intent)
+	}
+	if result.Subject == nil || result.Subject.Reference != "Patient/12345" {
+		t.Error("Expected patient subject reference")
+	}
+
+	// Check title and description
+	if result.Title != "Diabetes Management Plan" {
+		t.Errorf("Expected title, got '%s'", result.Title)
+	}
+	if result.Description != "Comprehensive plan for managing Type 2 diabetes" {
+		t.Errorf("Expected description, got '%s'", result.Description)
+	}
+
+	// Check category (must include assess-plan for US Core)
+	if len(result.Category) < 1 {
+		t.Fatal("Expected at least one category")
+	}
+	foundAssessPlan := false
+	for _, cat := range result.Category {
+		for _, coding := range cat.Coding {
+			if coding.Code == "assess-plan" {
+				foundAssessPlan = true
+				break
+			}
+		}
+	}
+	if !foundAssessPlan {
+		t.Error("Expected 'assess-plan' category for US Core compliance")
+	}
+
+	// Check period
+	if result.Period == nil {
+		t.Fatal("Expected period")
+	}
+	if result.Period.Start == nil || result.Period.Start.Year() != 2024 {
+		t.Error("Expected start period in 2024")
+	}
+}
+
+func TestMapCarePlan_StatusMapping(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"draft", "draft"},
+		{"active", "active"},
+		{"on-hold", "on-hold"},
+		{"onhold", "on-hold"},
+		{"revoked", "revoked"},
+		{"cancelled", "revoked"},
+		{"completed", "completed"},
+		{"entered-in-error", "entered-in-error"},
+		{"unknown", "unknown"},
+		{"invalid", "active"}, // Default
+	}
+
+	mapper := NewUSCoreMapper()
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			event := &events.CarePlanEvent{
+				CarePlan: events.CarePlan{
+					Status: tc.input,
+				},
+			}
+			result := mapper.MapCarePlan(event, "Patient/12345")
+			if result.Status != tc.expected {
+				t.Errorf("Status '%s': expected '%s', got '%s'", tc.input, tc.expected, result.Status)
+			}
+		})
+	}
+}
+
+func TestMapCarePlan_IntentMapping(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"proposal", "proposal"},
+		{"plan", "plan"},
+		{"order", "order"},
+		{"option", "option"},
+		{"invalid", "plan"}, // Default
+	}
+
+	mapper := NewUSCoreMapper()
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			event := &events.CarePlanEvent{
+				CarePlan: events.CarePlan{
+					Intent: tc.input,
+				},
+			}
+			result := mapper.MapCarePlan(event, "Patient/12345")
+			if result.Intent != tc.expected {
+				t.Errorf("Intent '%s': expected '%s', got '%s'", tc.input, tc.expected, result.Intent)
+			}
+		})
+	}
+}
+
+func TestMapCarePlan_CategoryMapping(t *testing.T) {
+	tests := []struct {
+		name             string
+		input            string
+		additionalCodes  []string
+	}{
+		{"empty", "", nil},
+		{"discharge", "discharge", []string{"discharge"}},
+		{"hospital", "hospital", []string{"hospital"}},
+		{"home-health", "home-health", []string{"home-health"}},
+		{"custom", "My Custom Plan", nil}, // Should be text-only
+	}
+
+	mapper := NewUSCoreMapper()
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			event := &events.CarePlanEvent{
+				CarePlan: events.CarePlan{
+					Category: tc.input,
+				},
+			}
+			result := mapper.MapCarePlan(event, "Patient/12345")
+
+			// Should always have assess-plan
+			foundAssessPlan := false
+			for _, cat := range result.Category {
+				for _, coding := range cat.Coding {
+					if coding.Code == "assess-plan" {
+						foundAssessPlan = true
+					}
+				}
+			}
+			if !foundAssessPlan {
+				t.Error("Missing required assess-plan category")
+			}
+		})
+	}
+}
+
+func TestMapCarePlan_WithActivities(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.CarePlanEvent{
+		CarePlan: events.CarePlan{
+			Status: "active",
+			Activities: []events.CarePlanActivity{
+				{
+					Description:        "Daily blood glucose monitoring",
+					Status:             "in-progress",
+					Code:               "308113006",
+					CodeSystem:         "http://snomed.info/sct",
+					OutcomeDescription: "Blood glucose within target range",
+				},
+				{
+					Description:   "Weekly exercise regimen",
+					Status:        "scheduled",
+					ScheduledDate: "2024-02-01",
+				},
+			},
+		},
+	}
+
+	result := mapper.MapCarePlan(event, "Patient/12345")
+
+	if len(result.Activity) != 2 {
+		t.Fatalf("Expected 2 activities, got %d", len(result.Activity))
+	}
+
+	// Check first activity
+	act1 := result.Activity[0]
+	if act1.Detail == nil {
+		t.Fatal("Expected activity detail")
+	}
+	if act1.Detail.Status != "in-progress" {
+		t.Errorf("Expected status 'in-progress', got '%s'", act1.Detail.Status)
+	}
+	if act1.Detail.Code == nil || len(act1.Detail.Code.Coding) == 0 {
+		t.Fatal("Expected activity code")
+	}
+	if act1.Detail.Code.Coding[0].Code != "308113006" {
+		t.Errorf("Expected code '308113006', got '%s'", act1.Detail.Code.Coding[0].Code)
+	}
+
+	// Check outcome
+	if len(act1.OutcomeCodeableConcept) == 0 {
+		t.Error("Expected outcome codeable concept")
+	}
+
+	// Check second activity scheduled date
+	act2 := result.Activity[1]
+	if act2.Detail.ScheduledString != "2024-02-01" {
+		t.Errorf("Expected scheduled date '2024-02-01', got '%s'", act2.Detail.ScheduledString)
+	}
+}
+
+func TestMapCarePlan_ActivityStatusMapping(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"not-started", "not-started"},
+		{"pending", "not-started"},
+		{"scheduled", "scheduled"},
+		{"in-progress", "in-progress"},
+		{"active", "in-progress"},
+		{"completed", "completed"},
+		{"done", "completed"},
+		{"cancelled", "cancelled"},
+		{"stopped", "stopped"},
+		{"unknown", "unknown"},
+		{"invalid", "not-started"}, // Default
+	}
+
+	mapper := NewUSCoreMapper()
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			event := &events.CarePlanEvent{
+				CarePlan: events.CarePlan{
+					Activities: []events.CarePlanActivity{
+						{Status: tc.input, Description: "Test"},
+					},
+				},
+			}
+			result := mapper.MapCarePlan(event, "Patient/12345")
+			if len(result.Activity) == 0 || result.Activity[0].Detail == nil {
+				t.Fatal("Expected activity with detail")
+			}
+			if result.Activity[0].Detail.Status != tc.expected {
+				t.Errorf("Activity status '%s': expected '%s', got '%s'", tc.input, tc.expected, result.Activity[0].Detail.Status)
+			}
+		})
+	}
+}
+
+func TestMapCarePlan_WithGoalsAndConditions(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.CarePlanEvent{
+		CarePlan: events.CarePlan{
+			Status:       "active",
+			GoalIDs:      []string{"goal-1", "goal-2"},
+			ConditionIDs: []string{"cond-diabetes", "cond-hypertension"},
+		},
+	}
+
+	result := mapper.MapCarePlan(event, "Patient/12345")
+
+	// Check goal references
+	if len(result.Goal) != 2 {
+		t.Fatalf("Expected 2 goals, got %d", len(result.Goal))
+	}
+	if result.Goal[0].Reference != "Goal/goal-1" {
+		t.Errorf("Expected 'Goal/goal-1', got '%s'", result.Goal[0].Reference)
+	}
+
+	// Check condition references
+	if len(result.Addresses) != 2 {
+		t.Fatalf("Expected 2 addresses (conditions), got %d", len(result.Addresses))
+	}
+	if result.Addresses[0].Reference != "Condition/cond-diabetes" {
+		t.Errorf("Expected 'Condition/cond-diabetes', got '%s'", result.Addresses[0].Reference)
+	}
+}
+
+func TestMapCarePlan_WithAuthorAndCareTeam(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.CarePlanEvent{
+		CarePlan: events.CarePlan{Status: "active"},
+		Author: &events.Provider{
+			NPI:        "1234567890",
+			FamilyName: "Smith",
+			GivenName:  "John",
+		},
+		CareTeam: []*events.Provider{
+			{NPI: "0987654321", FamilyName: "Doe", GivenName: "Jane"},
+			{ID: "nurse-001", FamilyName: "Brown", GivenName: "Alice"},
+		},
+	}
+
+	result := mapper.MapCarePlan(event, "Patient/12345")
+
+	// Check author
+	if result.Author == nil {
+		t.Fatal("Expected author reference")
+	}
+	if result.Author.Reference != "Practitioner/1234567890" {
+		t.Errorf("Expected 'Practitioner/1234567890', got '%s'", result.Author.Reference)
+	}
+
+	// Check care team
+	if len(result.CareTeam) != 2 {
+		t.Fatalf("Expected 2 care team members, got %d", len(result.CareTeam))
+	}
+}
+
+func TestMapCarePlan_NilEvent(t *testing.T) {
+	mapper := NewUSCoreMapper()
+	result := mapper.MapCarePlan(nil, "Patient/12345")
+	if result != nil {
+		t.Error("Expected nil for nil event")
+	}
+}
+
+func TestMapCarePlan_JSONSerialization(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.CarePlanEvent{
+		CarePlan: events.CarePlan{
+			Title:       "Diabetes Management",
+			Status:      "active",
+			Intent:      "plan",
+			PeriodStart: "2024-01-01",
+		},
+	}
+
+	result := mapper.MapCarePlan(event, "Patient/12345")
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
+
+	jsonStr := string(data)
+	if !strings.Contains(jsonStr, `"resourceType":"CarePlan"`) {
+		t.Error("JSON missing resourceType")
+	}
+	if !strings.Contains(jsonStr, USCoreCarePlanProfile) {
+		t.Error("JSON missing profile")
+	}
+	if !strings.Contains(jsonStr, "Diabetes Management") {
+		t.Error("JSON missing title")
+	}
+	if !strings.Contains(jsonStr, "assess-plan") {
+		t.Error("JSON missing required category")
+	}
+}
+
+// ============================================================================
+// Goal Tests
+// ============================================================================
+
+func TestMapGoal_BasicMapping(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.GoalEvent{
+		EventMeta: events.EventMeta{ID: "goal-001"},
+		Goal: events.Goal{
+			Description:       "Maintain HbA1c below 7%",
+			LifecycleStatus:   "active",
+			AchievementStatus: "in-progress",
+			Category:          "dietary",
+			Priority:          "high",
+			StartDate:         "2024-01-01",
+			TargetDate:        "2024-06-01",
+		},
+	}
+
+	result := mapper.MapGoal(event, "Patient/12345")
+
+	if result == nil {
+		t.Fatal("Expected non-nil result")
+	}
+
+	// Check profile
+	if len(result.Meta.Profile) != 1 || result.Meta.Profile[0] != USCoreGoalProfile {
+		t.Errorf("Expected US Core Goal profile, got %v", result.Meta.Profile)
+	}
+
+	// Check required fields
+	if result.LifecycleStatus != "active" {
+		t.Errorf("Expected status 'active', got '%s'", result.LifecycleStatus)
+	}
+	if result.Description == nil || result.Description.Text != "Maintain HbA1c below 7%" {
+		t.Error("Expected description")
+	}
+	if result.Subject == nil || result.Subject.Reference != "Patient/12345" {
+		t.Error("Expected patient subject reference")
+	}
+
+	// Check optional fields
+	if result.StartDate != "2024-01-01" {
+		t.Errorf("Expected start date '2024-01-01', got '%s'", result.StartDate)
+	}
+
+	// Check achievement status
+	if result.AchievementStatus == nil {
+		t.Fatal("Expected achievement status")
+	}
+	if len(result.AchievementStatus.Coding) == 0 || result.AchievementStatus.Coding[0].Code != "in-progress" {
+		t.Error("Expected achievement status 'in-progress'")
+	}
+
+	// Check priority
+	if result.Priority == nil {
+		t.Fatal("Expected priority")
+	}
+	if len(result.Priority.Coding) == 0 || result.Priority.Coding[0].Code != "high-priority" {
+		t.Error("Expected priority 'high-priority'")
+	}
+}
+
+func TestMapGoal_LifecycleStatusMapping(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"proposed", "proposed"},
+		{"planned", "planned"},
+		{"accepted", "accepted"},
+		{"active", "active"},
+		{"on-hold", "on-hold"},
+		{"onhold", "on-hold"},
+		{"completed", "completed"},
+		{"cancelled", "cancelled"},
+		{"canceled", "cancelled"},
+		{"entered-in-error", "entered-in-error"},
+		{"rejected", "rejected"},
+		{"invalid", "active"}, // Default
+	}
+
+	mapper := NewUSCoreMapper()
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			event := &events.GoalEvent{
+				Goal: events.Goal{
+					Description:     "Test goal",
+					LifecycleStatus: tc.input,
+				},
+			}
+			result := mapper.MapGoal(event, "Patient/12345")
+			if result.LifecycleStatus != tc.expected {
+				t.Errorf("Status '%s': expected '%s', got '%s'", tc.input, tc.expected, result.LifecycleStatus)
+			}
+		})
+	}
+}
+
+func TestMapGoal_AchievementStatusMapping(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"in-progress", "in-progress"},
+		{"improving", "improving"},
+		{"worsening", "worsening"},
+		{"no-change", "no-change"},
+		{"achieved", "achieved"},
+		{"sustaining", "sustaining"},
+		{"not-achieved", "not-achieved"},
+		{"no-progress", "no-progress"},
+		{"not-attainable", "not-attainable"},
+	}
+
+	mapper := NewUSCoreMapper()
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			event := &events.GoalEvent{
+				Goal: events.Goal{
+					Description:       "Test goal",
+					AchievementStatus: tc.input,
+				},
+			}
+			result := mapper.MapGoal(event, "Patient/12345")
+			if result.AchievementStatus == nil || len(result.AchievementStatus.Coding) == 0 {
+				t.Fatal("Expected achievement status")
+			}
+			if result.AchievementStatus.Coding[0].Code != tc.expected {
+				t.Errorf("Achievement status '%s': expected '%s', got '%s'", tc.input, tc.expected, result.AchievementStatus.Coding[0].Code)
+			}
+		})
+	}
+}
+
+func TestMapGoal_PriorityMapping(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"high", "high-priority"},
+		{"high-priority", "high-priority"},
+		{"medium", "medium-priority"},
+		{"normal", "medium-priority"},
+		{"low", "low-priority"},
+		{"low-priority", "low-priority"},
+	}
+
+	mapper := NewUSCoreMapper()
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			event := &events.GoalEvent{
+				Goal: events.Goal{
+					Description: "Test goal",
+					Priority:    tc.input,
+				},
+			}
+			result := mapper.MapGoal(event, "Patient/12345")
+			if result.Priority == nil || len(result.Priority.Coding) == 0 {
+				t.Fatal("Expected priority")
+			}
+			if result.Priority.Coding[0].Code != tc.expected {
+				t.Errorf("Priority '%s': expected '%s', got '%s'", tc.input, tc.expected, result.Priority.Coding[0].Code)
+			}
+		})
+	}
+}
+
+func TestMapGoal_CategoryMapping(t *testing.T) {
+	tests := []struct {
+		input       string
+		hasSNOMED   bool
+		snomedCode  string
+	}{
+		{"dietary", true, "289141003"},
+		{"safety", true, "410518001"},
+		{"behavioral", true, "363879005"},
+		{"nursing", true, "365857007"},
+		{"physiotherapy", true, "410602005"},
+		{"custom category", false, ""}, // Text only
+	}
+
+	mapper := NewUSCoreMapper()
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			event := &events.GoalEvent{
+				Goal: events.Goal{
+					Description: "Test goal",
+					Category:    tc.input,
+				},
+			}
+			result := mapper.MapGoal(event, "Patient/12345")
+			if len(result.Category) == 0 {
+				t.Fatal("Expected category")
+			}
+			cat := result.Category[0]
+
+			if tc.hasSNOMED {
+				if len(cat.Coding) == 0 || cat.Coding[0].Code != tc.snomedCode {
+					t.Errorf("Category '%s': expected SNOMED code '%s'", tc.input, tc.snomedCode)
+				}
+			}
+		})
+	}
+}
+
+func TestMapGoal_WithTarget(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.GoalEvent{
+		Goal: events.Goal{
+			Description: "Reduce HbA1c",
+			Target: &events.GoalTarget{
+				Measure:        "4548-4",
+				MeasureSystem:  "http://loinc.org",
+				DetailQuantity: 6.5,
+				DetailUnit:     "%",
+				DueDate:        "2024-06-01",
+			},
+		},
+	}
+
+	result := mapper.MapGoal(event, "Patient/12345")
+
+	if len(result.Target) != 1 {
+		t.Fatalf("Expected 1 target, got %d", len(result.Target))
+	}
+
+	target := result.Target[0]
+
+	// Check measure
+	if target.Measure == nil || len(target.Measure.Coding) == 0 {
+		t.Fatal("Expected target measure")
+	}
+	if target.Measure.Coding[0].Code != "4548-4" {
+		t.Errorf("Expected measure code '4548-4', got '%s'", target.Measure.Coding[0].Code)
+	}
+
+	// Check detail quantity
+	if target.DetailQuantity == nil {
+		t.Fatal("Expected detail quantity")
+	}
+	if target.DetailQuantity.Value != 6.5 {
+		t.Errorf("Expected value 6.5, got %f", target.DetailQuantity.Value)
+	}
+	if target.DetailQuantity.Unit != "%" {
+		t.Errorf("Expected unit '%%', got '%s'", target.DetailQuantity.Unit)
+	}
+
+	// Check due date
+	if target.DueDate != "2024-06-01" {
+		t.Errorf("Expected due date '2024-06-01', got '%s'", target.DueDate)
+	}
+}
+
+func TestMapGoal_TargetWithStringDetail(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.GoalEvent{
+		Goal: events.Goal{
+			Description: "Improve mobility",
+			Target: &events.GoalTarget{
+				DetailString: "Walk 30 minutes daily without pain",
+				DueDate:      "2024-03-01",
+			},
+		},
+	}
+
+	result := mapper.MapGoal(event, "Patient/12345")
+
+	if len(result.Target) != 1 {
+		t.Fatalf("Expected 1 target, got %d", len(result.Target))
+	}
+
+	target := result.Target[0]
+	if target.DetailString != "Walk 30 minutes daily without pain" {
+		t.Errorf("Expected detail string, got '%s'", target.DetailString)
+	}
+}
+
+func TestMapGoal_TargetUnitMapping(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"kg", "kg"},
+		{"pounds", "[lb_av]"},
+		{"mmHg", "mm[Hg]"},
+		{"mg/dL", "mg/dL"},
+		{"%", "%"},
+		{"steps", "{steps}"},
+		{"min", "min"},
+	}
+
+	mapper := NewUSCoreMapper()
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			event := &events.GoalEvent{
+				Goal: events.Goal{
+					Description: "Test goal",
+					Target: &events.GoalTarget{
+						DetailQuantity: 100,
+						DetailUnit:     tc.input,
+					},
+				},
+			}
+			result := mapper.MapGoal(event, "Patient/12345")
+			if len(result.Target) == 0 || result.Target[0].DetailQuantity == nil {
+				t.Fatal("Expected target with quantity")
+			}
+			if result.Target[0].DetailQuantity.Code != tc.expected {
+				t.Errorf("Unit '%s': expected code '%s', got '%s'", tc.input, tc.expected, result.Target[0].DetailQuantity.Code)
+			}
+		})
+	}
+}
+
+func TestMapGoal_WithExpressedBy(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	tests := []struct {
+		name        string
+		expressedBy string
+		author      *events.Provider
+		expectType  string
+	}{
+		{"patient", "patient", nil, "Patient"},
+		{"practitioner", "practitioner", nil, "Practitioner"},
+		{"related person", "family", nil, "RelatedPerson"},
+		{"with author", "", &events.Provider{NPI: "1234567890", FamilyName: "Smith"}, ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			event := &events.GoalEvent{
+				Goal: events.Goal{
+					Description: "Test goal",
+					ExpressedBy: tc.expressedBy,
+				},
+				Author: tc.author,
+			}
+			result := mapper.MapGoal(event, "Patient/12345")
+
+			if result.ExpressedBy == nil {
+				t.Fatal("Expected expressedBy")
+			}
+
+			if tc.author != nil {
+				if result.ExpressedBy.Reference != "Practitioner/1234567890" {
+					t.Errorf("Expected practitioner reference from author")
+				}
+			} else if tc.expectType != "" {
+				if result.ExpressedBy.Type != tc.expectType {
+					t.Errorf("Expected type '%s', got '%s'", tc.expectType, result.ExpressedBy.Type)
+				}
+			}
+		})
+	}
+}
+
+func TestMapGoal_WithAddresses(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.GoalEvent{
+		Goal: events.Goal{
+			Description:  "Lower blood pressure",
+			AddressesIDs: []string{"cond-hypertension", "cond-heart-disease"},
+		},
+	}
+
+	result := mapper.MapGoal(event, "Patient/12345")
+
+	if len(result.Addresses) != 2 {
+		t.Fatalf("Expected 2 addresses, got %d", len(result.Addresses))
+	}
+	if result.Addresses[0].Reference != "Condition/cond-hypertension" {
+		t.Errorf("Expected 'Condition/cond-hypertension', got '%s'", result.Addresses[0].Reference)
+	}
+}
+
+func TestMapGoal_WithNote(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.GoalEvent{
+		Goal: events.Goal{
+			Description: "Test goal",
+			Note:        "Patient motivated to achieve this goal",
+		},
+	}
+
+	result := mapper.MapGoal(event, "Patient/12345")
+
+	if len(result.Note) != 1 {
+		t.Fatalf("Expected 1 note, got %d", len(result.Note))
+	}
+	if result.Note[0].Text != "Patient motivated to achieve this goal" {
+		t.Errorf("Expected note text, got '%s'", result.Note[0].Text)
+	}
+}
+
+func TestMapGoal_StatusDates(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.GoalEvent{
+		Goal: events.Goal{
+			Description:  "Test goal",
+			StatusDate:   "2024-02-15",
+			StatusReason: "Patient making good progress",
+		},
+	}
+
+	result := mapper.MapGoal(event, "Patient/12345")
+
+	if result.StatusDate != "2024-02-15" {
+		t.Errorf("Expected status date '2024-02-15', got '%s'", result.StatusDate)
+	}
+	if result.StatusReason != "Patient making good progress" {
+		t.Errorf("Expected status reason, got '%s'", result.StatusReason)
+	}
+}
+
+func TestMapGoal_TargetDateWithoutTarget(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	// When targetDate is set but no Target struct, should create minimal target
+	event := &events.GoalEvent{
+		Goal: events.Goal{
+			Description: "Test goal",
+			TargetDate:  "2024-12-31",
+		},
+	}
+
+	result := mapper.MapGoal(event, "Patient/12345")
+
+	if len(result.Target) != 1 {
+		t.Fatalf("Expected 1 target from targetDate, got %d", len(result.Target))
+	}
+	if result.Target[0].DueDate != "2024-12-31" {
+		t.Errorf("Expected due date '2024-12-31', got '%s'", result.Target[0].DueDate)
+	}
+}
+
+func TestMapGoal_NilEvent(t *testing.T) {
+	mapper := NewUSCoreMapper()
+	result := mapper.MapGoal(nil, "Patient/12345")
+	if result != nil {
+		t.Error("Expected nil for nil event")
+	}
+}
+
+func TestMapGoal_JSONSerialization(t *testing.T) {
+	mapper := NewUSCoreMapper()
+
+	event := &events.GoalEvent{
+		Goal: events.Goal{
+			Description:       "Maintain healthy weight",
+			LifecycleStatus:   "active",
+			AchievementStatus: "in-progress",
+			Priority:          "high",
+			Target: &events.GoalTarget{
+				DetailQuantity: 75,
+				DetailUnit:     "kg",
+				DueDate:        "2024-06-01",
+			},
+		},
+	}
+
+	result := mapper.MapGoal(event, "Patient/12345")
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
+
+	jsonStr := string(data)
+	if !strings.Contains(jsonStr, `"resourceType":"Goal"`) {
+		t.Error("JSON missing resourceType")
+	}
+	if !strings.Contains(jsonStr, USCoreGoalProfile) {
+		t.Error("JSON missing profile")
+	}
+	if !strings.Contains(jsonStr, "Maintain healthy weight") {
+		t.Error("JSON missing description")
+	}
+	if !strings.Contains(jsonStr, `"lifecycleStatus":"active"`) {
+		t.Error("JSON missing lifecycle status")
+	}
+	if !strings.Contains(jsonStr, "high-priority") {
+		t.Error("JSON missing priority")
+	}
+}

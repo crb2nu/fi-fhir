@@ -20,6 +20,8 @@ This document details US Core, Da Vinci, and other FHIR profile requirements for
 | **Observation (Vital Signs)** | us-core-vital-signs | ✅ | `pkg/fhir/mapper.go:MapVitalSign()` |
 | **MedicationRequest** | us-core-medicationrequest | ✅ | `pkg/fhir/mapper.go:MapMedicationRequest()` |
 | **AllergyIntolerance** | us-core-allergyintolerance | ✅ | `pkg/fhir/mapper.go:MapAllergyIntolerance()` |
+| **CarePlan** | us-core-careplan | ✅ | `pkg/fhir/mapper.go:MapCarePlan()` |
+| **Goal** | us-core-goal | ✅ | `pkg/fhir/mapper.go:MapGoal()` |
 
 | Feature | Status | Implementation |
 |---------|--------|----------------|

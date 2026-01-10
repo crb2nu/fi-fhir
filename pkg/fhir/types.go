@@ -36,6 +36,10 @@ const (
 	USCoreMedicationProfile           = USCoreBaseURL + "us-core-medication"
 	USCoreAllergyIntoleranceProfile   = USCoreBaseURL + "us-core-allergyintolerance"
 
+	// Care coordination profiles
+	USCoreCarePlanProfile = USCoreBaseURL + "us-core-careplan"
+	USCoreGoalProfile     = USCoreBaseURL + "us-core-goal"
+
 	// Extension URIs
 	USCoreRaceExtension      = USCoreBaseURL + "us-core-race"
 	USCoreEthnicityExtension = USCoreBaseURL + "us-core-ethnicity"
@@ -118,6 +122,16 @@ const (
 	SystemTimingAbbreviation         = "http://terminology.hl7.org/CodeSystem/v3-GTSAbbreviation"
 	SystemDoseForm                   = "http://snomed.info/sct" // SNOMED CT for dose forms
 	SystemUNII                       = "http://fdasis.nlm.nih.gov" // FDA UNII for substances
+
+	// CarePlan and Goal code systems
+	SystemCarePlanCategory       = "http://hl7.org/fhir/us/core/CodeSystem/careplan-category"
+	SystemCarePlanStatus         = "http://hl7.org/fhir/request-status"
+	SystemCarePlanIntent         = "http://hl7.org/fhir/request-intent"
+	SystemCarePlanActivityStatus = "http://hl7.org/fhir/care-plan-activity-status"
+	SystemGoalLifecycleStatus    = "http://hl7.org/fhir/goal-status"
+	SystemGoalAchievementStatus  = "http://hl7.org/fhir/goal-achievement"
+	SystemGoalCategory           = "http://terminology.hl7.org/CodeSystem/goal-category"
+	SystemGoalPriority           = "http://terminology.hl7.org/CodeSystem/goal-priority"
 
 	// AllergyIntolerance code systems
 	SystemAllergyIntoleranceType            = "http://hl7.org/fhir/allergy-intolerance-type"
@@ -1284,5 +1298,133 @@ func (a *AllergyIntolerance) MarshalJSON() ([]byte, error) {
 	}{
 		ResourceType: "AllergyIntolerance",
 		Alias:        (*Alias)(a),
+	})
+}
+
+// CarePlan represents a FHIR CarePlan resource (US Core profile).
+type CarePlan struct {
+	ID              string              `json:"id,omitempty"`
+	Meta            *Meta               `json:"meta,omitempty"`
+	Identifier      []Identifier        `json:"identifier,omitempty"`
+	Status          string              `json:"status"`                     // draft | active | on-hold | revoked | completed | entered-in-error | unknown
+	Intent          string              `json:"intent"`                     // proposal | plan | order | option
+	Category        []CodeableConcept   `json:"category"`                   // Required by US Core - must include "assess-plan"
+	Title           string              `json:"title,omitempty"`            // Human-friendly name
+	Description     string              `json:"description,omitempty"`      // Summary of plan
+	Subject         *Reference          `json:"subject"`                    // Patient reference
+	Encounter       *Reference          `json:"encounter,omitempty"`        // Encounter reference
+	Period          *Period             `json:"period,omitempty"`           // Time period plan covers
+	Created         string              `json:"created,omitempty"`          // When plan was created
+	Author          *Reference          `json:"author,omitempty"`           // Who created the plan
+	Contributor     []Reference         `json:"contributor,omitempty"`      // Who contributed to the plan
+	CareTeam        []Reference         `json:"careTeam,omitempty"`         // Care team references
+	Addresses       []Reference         `json:"addresses,omitempty"`        // Conditions addressed
+	SupportingInfo  []Reference         `json:"supportingInfo,omitempty"`   // Supporting information
+	Goal            []Reference         `json:"goal,omitempty"`             // Goal references
+	Activity        []CarePlanActivity  `json:"activity,omitempty"`         // Planned activities
+	Note            []Annotation        `json:"note,omitempty"`             // Additional notes
+}
+
+// CarePlanActivity represents a planned activity within a care plan.
+type CarePlanActivity struct {
+	OutcomeCodeableConcept []CodeableConcept     `json:"outcomeCodeableConcept,omitempty"` // Activity outcome
+	OutcomeReference       []Reference           `json:"outcomeReference,omitempty"`       // Reference to outcome resource
+	Progress               []Annotation          `json:"progress,omitempty"`               // Activity progress notes
+	Reference              *Reference            `json:"reference,omitempty"`              // Reference to activity resource
+	Detail                 *CarePlanActivityDetail `json:"detail,omitempty"`               // In-line activity definition
+}
+
+// CarePlanActivityDetail represents the detailed definition of a care plan activity.
+type CarePlanActivityDetail struct {
+	Kind                 string            `json:"kind,omitempty"`                 // Appointment | CommunicationRequest | DeviceRequest | MedicationRequest | etc.
+	InstantiatesCanonical []string          `json:"instantiatesCanonical,omitempty"` // Protocol followed
+	InstantiatesURI      []string          `json:"instantiatesUri,omitempty"`      // External protocol
+	Code                 *CodeableConcept  `json:"code,omitempty"`                 // Activity code
+	ReasonCode           []CodeableConcept `json:"reasonCode,omitempty"`           // Why activity should be done
+	ReasonReference      []Reference       `json:"reasonReference,omitempty"`      // Condition that is reason
+	Goal                 []Reference       `json:"goal,omitempty"`                 // Goals this activity relates to
+	Status               string            `json:"status"`                         // not-started | scheduled | in-progress | on-hold | completed | cancelled | stopped | unknown | entered-in-error
+	StatusReason         *CodeableConcept  `json:"statusReason,omitempty"`         // Reason for current status
+	DoNotPerform         bool              `json:"doNotPerform,omitempty"`         // If true, activity should not be performed
+	ScheduledTiming      *Timing           `json:"scheduledTiming,omitempty"`      // When activity should occur
+	ScheduledPeriod      *Period           `json:"scheduledPeriod,omitempty"`      // When activity should occur
+	ScheduledString      string            `json:"scheduledString,omitempty"`      // When activity should occur
+	Location             *Reference        `json:"location,omitempty"`             // Where activity should occur
+	Performer            []Reference       `json:"performer,omitempty"`            // Who will perform
+	ProductCodeableConcept *CodeableConcept `json:"productCodeableConcept,omitempty"` // What is to be administered/supplied
+	ProductReference     *Reference        `json:"productReference,omitempty"`     // What is to be administered/supplied
+	DailyAmount          *Quantity         `json:"dailyAmount,omitempty"`          // How to consume/day
+	Quantity             *Quantity         `json:"quantity,omitempty"`             // How much to administer/supply
+	Description          string            `json:"description,omitempty"`          // Extra info describing activity
+}
+
+// GetResourceType returns "CarePlan".
+func (c *CarePlan) GetResourceType() string {
+	return "CarePlan"
+}
+
+// MarshalJSON ensures ResourceType is always set.
+func (c *CarePlan) MarshalJSON() ([]byte, error) {
+	type Alias CarePlan
+	return json.Marshal(&struct {
+		ResourceType string `json:"resourceType"`
+		*Alias
+	}{
+		ResourceType: "CarePlan",
+		Alias:        (*Alias)(c),
+	})
+}
+
+// Goal represents a FHIR Goal resource (US Core profile).
+type Goal struct {
+	ID                string            `json:"id,omitempty"`
+	Meta              *Meta             `json:"meta,omitempty"`
+	Identifier        []Identifier      `json:"identifier,omitempty"`
+	LifecycleStatus   string            `json:"lifecycleStatus"`              // proposed | planned | accepted | active | on-hold | completed | cancelled | entered-in-error | rejected
+	AchievementStatus *CodeableConcept  `json:"achievementStatus,omitempty"`  // in-progress | improving | worsening | no-change | achieved | sustaining | not-achieved | no-progress | not-attainable
+	Category          []CodeableConcept `json:"category,omitempty"`           // E.g., dietary, safety, behavioral
+	Priority          *CodeableConcept  `json:"priority,omitempty"`           // high-priority | medium-priority | low-priority
+	Description       *CodeableConcept  `json:"description"`                  // Required by US Core - what the goal describes
+	Subject           *Reference        `json:"subject"`                      // Patient reference
+	StartDate         string            `json:"startDate,omitempty"`          // When goal started
+	StartCodeableConcept *CodeableConcept `json:"startCodeableConcept,omitempty"` // When goal started
+	Target            []GoalTarget      `json:"target,omitempty"`             // Target outcome
+	StatusDate        string            `json:"statusDate,omitempty"`         // When goal status changed
+	StatusReason      string            `json:"statusReason,omitempty"`       // Reason for status
+	ExpressedBy       *Reference        `json:"expressedBy,omitempty"`        // Who set the goal
+	Addresses         []Reference       `json:"addresses,omitempty"`          // Conditions this goal addresses
+	Note              []Annotation      `json:"note,omitempty"`               // Comments about the goal
+	OutcomeCode       []CodeableConcept `json:"outcomeCode,omitempty"`        // What was achieved
+	OutcomeReference  []Reference       `json:"outcomeReference,omitempty"`   // Observation that resulted from goal
+}
+
+// GoalTarget represents a target outcome for the goal.
+type GoalTarget struct {
+	Measure           *CodeableConcept `json:"measure,omitempty"`           // The parameter whose value is being tracked
+	DetailQuantity    *Quantity        `json:"detailQuantity,omitempty"`    // Target value (quantity)
+	DetailRange       *Range           `json:"detailRange,omitempty"`       // Target value (range)
+	DetailCodeableConcept *CodeableConcept `json:"detailCodeableConcept,omitempty"` // Target value (code)
+	DetailString      string           `json:"detailString,omitempty"`      // Target value (string)
+	DetailBoolean     *bool            `json:"detailBoolean,omitempty"`     // Target value (boolean)
+	DetailInteger     *int             `json:"detailInteger,omitempty"`     // Target value (integer)
+	DetailRatio       *Ratio           `json:"detailRatio,omitempty"`       // Target value (ratio)
+	DueDate           string           `json:"dueDate,omitempty"`           // When target should be reached
+	DueDuration       *Duration        `json:"dueDuration,omitempty"`       // When target should be reached
+}
+
+// GetResourceType returns "Goal".
+func (g *Goal) GetResourceType() string {
+	return "Goal"
+}
+
+// MarshalJSON ensures ResourceType is always set.
+func (g *Goal) MarshalJSON() ([]byte, error) {
+	type Alias Goal
+	return json.Marshal(&struct {
+		ResourceType string `json:"resourceType"`
+		*Alias
+	}{
+		ResourceType: "Goal",
+		Alias:        (*Alias)(g),
 	})
 }

@@ -55,6 +55,12 @@ type Mapper interface {
 
 	// MapAllergyIntolerance converts a canonical AllergyIntoleranceEvent to a FHIR AllergyIntolerance.
 	MapAllergyIntolerance(event *events.AllergyIntoleranceEvent, patientRef string) *AllergyIntolerance
+
+	// MapCarePlan converts a canonical CarePlanEvent to a FHIR CarePlan.
+	MapCarePlan(event *events.CarePlanEvent, patientRef string) *CarePlan
+
+	// MapGoal converts a canonical GoalEvent to a FHIR Goal.
+	MapGoal(event *events.GoalEvent, patientRef string) *Goal
 }
 
 // USCoreMapper implements Mapper for US Core 6.1.0 compliant resources.
@@ -3935,4 +3941,691 @@ func (m *USCoreMapper) mapReactionSeverity(severity string) string {
 		return mapped
 	}
 	return "moderate" // Default
+}
+
+// ============================================================================
+// CarePlan Mapping (US Core 6.1.0)
+// ============================================================================
+
+// MapCarePlan converts a canonical CarePlanEvent to a US Core CarePlan.
+func (m *USCoreMapper) MapCarePlan(event *events.CarePlanEvent, patientRef string) *CarePlan {
+	if event == nil {
+		return nil
+	}
+
+	cp := event.CarePlan
+
+	carePlan := &CarePlan{
+		Meta: &Meta{
+			Profile: []string{USCoreCarePlanProfile},
+		},
+		Status:  m.mapCarePlanStatus(cp.Status),
+		Intent:  m.mapCarePlanIntent(cp.Intent),
+		Subject: &Reference{Reference: patientRef},
+	}
+
+	// Category is required by US Core - must include "assess-plan"
+	carePlan.Category = m.mapCarePlanCategory(cp.Category)
+
+	// Title (optional but recommended)
+	if cp.Title != "" {
+		carePlan.Title = cp.Title
+	}
+
+	// Description (optional)
+	if cp.Description != "" {
+		carePlan.Description = cp.Description
+	}
+
+	// Period
+	if cp.PeriodStart != "" || cp.PeriodEnd != "" {
+		carePlan.Period = &Period{}
+		if cp.PeriodStart != "" {
+			if t, err := time.Parse("2006-01-02", cp.PeriodStart); err == nil {
+				carePlan.Period.Start = &t
+			} else if t, err := time.Parse(time.RFC3339, cp.PeriodStart); err == nil {
+				carePlan.Period.Start = &t
+			}
+		}
+		if cp.PeriodEnd != "" {
+			if t, err := time.Parse("2006-01-02", cp.PeriodEnd); err == nil {
+				carePlan.Period.End = &t
+			} else if t, err := time.Parse(time.RFC3339, cp.PeriodEnd); err == nil {
+				carePlan.Period.End = &t
+			}
+		}
+	}
+
+	// Created timestamp from event
+	if !event.Timestamp.IsZero() {
+		carePlan.Created = event.Timestamp.Format(time.RFC3339)
+	}
+
+	// Author
+	if event.Author != nil {
+		refStr := m.buildProviderReference(event.Author)
+		carePlan.Author = &Reference{
+			Reference: refStr,
+			Display:   m.buildProviderDisplayName(event.Author),
+		}
+	}
+
+	// Care team
+	if len(event.CareTeam) > 0 {
+		for _, provider := range event.CareTeam {
+			if provider != nil {
+				refStr := m.buildProviderReference(provider)
+				carePlan.CareTeam = append(carePlan.CareTeam, Reference{
+					Reference: refStr,
+					Display:   m.buildProviderDisplayName(provider),
+				})
+			}
+		}
+	}
+
+	// Encounter reference
+	if event.Encounter != nil && event.Encounter.ID != "" {
+		carePlan.Encounter = &Reference{
+			Reference: "Encounter/" + event.Encounter.ID,
+		}
+	}
+
+	// Goal references
+	if len(cp.GoalIDs) > 0 {
+		for _, goalID := range cp.GoalIDs {
+			carePlan.Goal = append(carePlan.Goal, Reference{
+				Reference: "Goal/" + goalID,
+			})
+		}
+	}
+
+	// Condition references (addresses)
+	if len(cp.ConditionIDs) > 0 {
+		for _, condID := range cp.ConditionIDs {
+			carePlan.Addresses = append(carePlan.Addresses, Reference{
+				Reference: "Condition/" + condID,
+			})
+		}
+	}
+
+	// Activities
+	if len(cp.Activities) > 0 {
+		for _, act := range cp.Activities {
+			carePlan.Activity = append(carePlan.Activity, m.mapCarePlanActivity(act))
+		}
+	}
+
+	return carePlan
+}
+
+// mapCarePlanStatus maps canonical status to FHIR CarePlan status.
+func (m *USCoreMapper) mapCarePlanStatus(status string) string {
+	statusLower := strings.ToLower(strings.TrimSpace(status))
+	statusMap := map[string]string{
+		"draft":            "draft",
+		"active":           "active",
+		"on-hold":          "on-hold",
+		"onhold":           "on-hold",
+		"revoked":          "revoked",
+		"cancelled":        "revoked",
+		"canceled":         "revoked",
+		"completed":        "completed",
+		"entered-in-error": "entered-in-error",
+		"error":            "entered-in-error",
+		"unknown":          "unknown",
+	}
+	if mapped, ok := statusMap[statusLower]; ok {
+		return mapped
+	}
+	return "active" // Default
+}
+
+// mapCarePlanIntent maps canonical intent to FHIR CarePlan intent.
+func (m *USCoreMapper) mapCarePlanIntent(intent string) string {
+	intentLower := strings.ToLower(strings.TrimSpace(intent))
+	intentMap := map[string]string{
+		"proposal": "proposal",
+		"plan":     "plan",
+		"order":    "order",
+		"option":   "option",
+	}
+	if mapped, ok := intentMap[intentLower]; ok {
+		return mapped
+	}
+	return "plan" // Default
+}
+
+// mapCarePlanCategory maps category to US Core required CodeableConcept.
+// US Core requires at least one category from http://hl7.org/fhir/us/core/CodeSystem/careplan-category
+func (m *USCoreMapper) mapCarePlanCategory(category string) []CodeableConcept {
+	// Always include the required "assess-plan" category for US Core
+	categories := []CodeableConcept{
+		{
+			Coding: []Coding{
+				{
+					System:  SystemCarePlanCategory,
+					Code:    "assess-plan",
+					Display: "Assessment and Plan of Treatment",
+				},
+			},
+		},
+	}
+
+	// If additional category provided, add it
+	if category != "" && category != "assess-plan" {
+		catLower := strings.ToLower(strings.TrimSpace(category))
+		catMap := map[string]struct {
+			code    string
+			display string
+		}{
+			"discharge":       {"discharge", "Discharge Plan"},
+			"discharge-plan":  {"discharge", "Discharge Plan"},
+			"hospital":        {"hospital", "Hospital Plan"},
+			"hospital-plan":   {"hospital", "Hospital Plan"},
+			"longitudinal":    {"longitudinal", "Longitudinal Care Plan"},
+			"home-health":     {"home-health", "Home Health Plan"},
+			"homehealth":      {"home-health", "Home Health Plan"},
+			"mental-health":   {"mental-health", "Mental Health Plan"},
+			"mentalhealth":    {"mental-health", "Mental Health Plan"},
+			"community":       {"community", "Community Health Plan"},
+			"community-health": {"community", "Community Health Plan"},
+		}
+
+		if mapped, ok := catMap[catLower]; ok {
+			categories = append(categories, CodeableConcept{
+				Coding: []Coding{
+					{
+						System:  SystemCarePlanCategory,
+						Code:    mapped.code,
+						Display: mapped.display,
+					},
+				},
+			})
+		} else {
+			// Add as text-only category
+			categories = append(categories, CodeableConcept{
+				Text: category,
+			})
+		}
+	}
+
+	return categories
+}
+
+// mapCarePlanActivity maps a canonical CarePlanActivity to FHIR.
+func (m *USCoreMapper) mapCarePlanActivity(act events.CarePlanActivity) CarePlanActivity {
+	activity := CarePlanActivity{}
+
+	// Outcome description
+	if act.OutcomeDescription != "" {
+		activity.OutcomeCodeableConcept = []CodeableConcept{
+			{Text: act.OutcomeDescription},
+		}
+	}
+
+	// Activity detail
+	detail := &CarePlanActivityDetail{
+		Status: m.mapActivityStatus(act.Status),
+	}
+
+	// Activity code
+	if act.Code != "" || act.Description != "" {
+		detail.Code = m.mapActivityCode(act.Code, act.CodeSystem, act.Description)
+	}
+
+	// Activity description
+	if act.Description != "" {
+		detail.Description = act.Description
+	}
+
+	// Scheduled date
+	if act.ScheduledDate != "" {
+		detail.ScheduledString = act.ScheduledDate
+	}
+
+	activity.Detail = detail
+	return activity
+}
+
+// mapActivityStatus maps activity status to FHIR.
+func (m *USCoreMapper) mapActivityStatus(status string) string {
+	statusLower := strings.ToLower(strings.TrimSpace(status))
+	statusMap := map[string]string{
+		"not-started":      "not-started",
+		"notstarted":       "not-started",
+		"pending":          "not-started",
+		"scheduled":        "scheduled",
+		"in-progress":      "in-progress",
+		"inprogress":       "in-progress",
+		"active":           "in-progress",
+		"on-hold":          "on-hold",
+		"onhold":           "on-hold",
+		"completed":        "completed",
+		"done":             "completed",
+		"finished":         "completed",
+		"cancelled":        "cancelled",
+		"canceled":         "cancelled",
+		"stopped":          "stopped",
+		"unknown":          "unknown",
+		"entered-in-error": "entered-in-error",
+		"error":            "entered-in-error",
+	}
+	if mapped, ok := statusMap[statusLower]; ok {
+		return mapped
+	}
+	return "not-started" // Default
+}
+
+// mapActivityCode maps activity code to CodeableConcept.
+func (m *USCoreMapper) mapActivityCode(code, codeSystem, description string) *CodeableConcept {
+	cc := &CodeableConcept{}
+
+	if code != "" {
+		system := codeSystem
+		if system == "" {
+			// Detect code system
+			system = m.detectActivityCodeSystem(code)
+		}
+		cc.Coding = []Coding{
+			{
+				System:  system,
+				Code:    code,
+				Display: description,
+			},
+		}
+	}
+
+	if description != "" {
+		cc.Text = description
+	}
+
+	return cc
+}
+
+// detectActivityCodeSystem detects the code system for an activity code.
+func (m *USCoreMapper) detectActivityCodeSystem(code string) string {
+	// CPT codes are 5-digit numbers
+	if len(code) == 5 {
+		if _, err := strconv.Atoi(code); err == nil {
+			return SystemCPT
+		}
+	}
+
+	// SNOMED CT codes are typically 6-18 digits
+	if len(code) >= 6 && len(code) <= 18 {
+		if _, err := strconv.Atoi(code); err == nil {
+			return SystemSNOMED
+		}
+	}
+
+	// Default to SNOMED
+	return SystemSNOMED
+}
+
+// ============================================================================
+// Goal Mapping (US Core 6.1.0)
+// ============================================================================
+
+// MapGoal converts a canonical GoalEvent to a US Core Goal.
+func (m *USCoreMapper) MapGoal(event *events.GoalEvent, patientRef string) *Goal {
+	if event == nil {
+		return nil
+	}
+
+	g := event.Goal
+
+	goal := &Goal{
+		Meta: &Meta{
+			Profile: []string{USCoreGoalProfile},
+		},
+		LifecycleStatus: m.mapGoalLifecycleStatus(g.LifecycleStatus),
+		Subject:         &Reference{Reference: patientRef},
+	}
+
+	// Description is required by US Core
+	goal.Description = &CodeableConcept{
+		Text: g.Description,
+	}
+
+	// Achievement status
+	if g.AchievementStatus != "" {
+		goal.AchievementStatus = m.mapGoalAchievementStatus(g.AchievementStatus)
+	}
+
+	// Category
+	if g.Category != "" {
+		goal.Category = []CodeableConcept{
+			m.mapGoalCategory(g.Category),
+		}
+	}
+
+	// Priority
+	if g.Priority != "" {
+		goal.Priority = m.mapGoalPriority(g.Priority)
+	}
+
+	// Start date
+	if g.StartDate != "" {
+		goal.StartDate = g.StartDate
+	}
+
+	// Status date
+	if g.StatusDate != "" {
+		goal.StatusDate = g.StatusDate
+	}
+
+	// Status reason
+	if g.StatusReason != "" {
+		goal.StatusReason = g.StatusReason
+	}
+
+	// Expressed by
+	if g.ExpressedBy != "" || event.Author != nil {
+		goal.ExpressedBy = m.buildGoalExpressedBy(g.ExpressedBy, event.Author)
+	}
+
+	// Addresses (conditions)
+	if len(g.AddressesIDs) > 0 {
+		for _, condID := range g.AddressesIDs {
+			goal.Addresses = append(goal.Addresses, Reference{
+				Reference: "Condition/" + condID,
+			})
+		}
+	}
+
+	// Note
+	if g.Note != "" {
+		goal.Note = []Annotation{
+			{Text: g.Note},
+		}
+	}
+
+	// Target
+	if g.Target != nil {
+		goal.Target = []GoalTarget{m.mapGoalTarget(g.Target, g.TargetDate)}
+	} else if g.TargetDate != "" {
+		// If no target but have target date, create minimal target
+		goal.Target = []GoalTarget{
+			{DueDate: g.TargetDate},
+		}
+	}
+
+	return goal
+}
+
+// mapGoalLifecycleStatus maps canonical status to FHIR Goal lifecycle status.
+func (m *USCoreMapper) mapGoalLifecycleStatus(status string) string {
+	statusLower := strings.ToLower(strings.TrimSpace(status))
+	statusMap := map[string]string{
+		"proposed":         "proposed",
+		"planned":          "planned",
+		"accepted":         "accepted",
+		"active":           "active",
+		"on-hold":          "on-hold",
+		"onhold":           "on-hold",
+		"completed":        "completed",
+		"cancelled":        "cancelled",
+		"canceled":         "cancelled",
+		"entered-in-error": "entered-in-error",
+		"error":            "entered-in-error",
+		"rejected":         "rejected",
+	}
+	if mapped, ok := statusMap[statusLower]; ok {
+		return mapped
+	}
+	return "active" // Default
+}
+
+// mapGoalAchievementStatus maps canonical achievement status to FHIR CodeableConcept.
+func (m *USCoreMapper) mapGoalAchievementStatus(status string) *CodeableConcept {
+	statusLower := strings.ToLower(strings.TrimSpace(status))
+	statusMap := map[string]struct {
+		code    string
+		display string
+	}{
+		"in-progress":    {"in-progress", "In Progress"},
+		"inprogress":     {"in-progress", "In Progress"},
+		"improving":      {"improving", "Improving"},
+		"worsening":      {"worsening", "Worsening"},
+		"no-change":      {"no-change", "No Change"},
+		"nochange":       {"no-change", "No Change"},
+		"achieved":       {"achieved", "Achieved"},
+		"sustaining":     {"sustaining", "Sustaining"},
+		"not-achieved":   {"not-achieved", "Not Achieved"},
+		"notachieved":    {"not-achieved", "Not Achieved"},
+		"no-progress":    {"no-progress", "No Progress"},
+		"noprogress":     {"no-progress", "No Progress"},
+		"not-attainable": {"not-attainable", "Not Attainable"},
+		"notattainable":  {"not-attainable", "Not Attainable"},
+	}
+
+	if mapped, ok := statusMap[statusLower]; ok {
+		return &CodeableConcept{
+			Coding: []Coding{
+				{
+					System:  SystemGoalAchievementStatus,
+					Code:    mapped.code,
+					Display: mapped.display,
+				},
+			},
+		}
+	}
+
+	// Default to in-progress
+	return &CodeableConcept{
+		Coding: []Coding{
+			{
+				System:  SystemGoalAchievementStatus,
+				Code:    "in-progress",
+				Display: "In Progress",
+			},
+		},
+	}
+}
+
+// mapGoalCategory maps canonical category to FHIR CodeableConcept.
+func (m *USCoreMapper) mapGoalCategory(category string) CodeableConcept {
+	catLower := strings.ToLower(strings.TrimSpace(category))
+
+	// Common goal categories (SNOMED CT)
+	catMap := map[string]struct {
+		code    string
+		display string
+	}{
+		"dietary":       {"289141003", "Dietary finding"},
+		"diet":          {"289141003", "Dietary finding"},
+		"nutrition":     {"289141003", "Dietary finding"},
+		"safety":        {"410518001", "Personal safety status"},
+		"behavioral":    {"363879005", "Mental and behavioral observation"},
+		"behavior":      {"363879005", "Mental and behavioral observation"},
+		"mental-health": {"363879005", "Mental and behavioral observation"},
+		"mentalhealth":  {"363879005", "Mental and behavioral observation"},
+		"nursing":       {"365857007", "Nursing assessment finding"},
+		"physiotherapy": {"410602005", "Physical therapy assessment finding"},
+		"physical":      {"410602005", "Physical therapy assessment finding"},
+		"pt":            {"410602005", "Physical therapy assessment finding"},
+	}
+
+	if mapped, ok := catMap[catLower]; ok {
+		return CodeableConcept{
+			Coding: []Coding{
+				{
+					System:  SystemSNOMED,
+					Code:    mapped.code,
+					Display: mapped.display,
+				},
+			},
+			Text: category,
+		}
+	}
+
+	// Return as text-only
+	return CodeableConcept{
+		Text: category,
+	}
+}
+
+// mapGoalPriority maps canonical priority to FHIR CodeableConcept.
+func (m *USCoreMapper) mapGoalPriority(priority string) *CodeableConcept {
+	prioLower := strings.ToLower(strings.TrimSpace(priority))
+	prioMap := map[string]struct {
+		code    string
+		display string
+	}{
+		"high":            {"high-priority", "High Priority"},
+		"high-priority":   {"high-priority", "High Priority"},
+		"highpriority":    {"high-priority", "High Priority"},
+		"medium":          {"medium-priority", "Medium Priority"},
+		"medium-priority": {"medium-priority", "Medium Priority"},
+		"mediumpriority":  {"medium-priority", "Medium Priority"},
+		"normal":          {"medium-priority", "Medium Priority"},
+		"low":             {"low-priority", "Low Priority"},
+		"low-priority":    {"low-priority", "Low Priority"},
+		"lowpriority":     {"low-priority", "Low Priority"},
+	}
+
+	if mapped, ok := prioMap[prioLower]; ok {
+		return &CodeableConcept{
+			Coding: []Coding{
+				{
+					System:  SystemGoalPriority,
+					Code:    mapped.code,
+					Display: mapped.display,
+				},
+			},
+		}
+	}
+
+	return nil
+}
+
+// buildGoalExpressedBy builds the expressedBy reference for a goal.
+func (m *USCoreMapper) buildGoalExpressedBy(expressedBy string, author *events.Provider) *Reference {
+	// If we have an author provider, use that
+	if author != nil {
+		return &Reference{
+			Reference: m.buildProviderReference(author),
+			Display:   m.buildProviderDisplayName(author),
+		}
+	}
+
+	// Otherwise, use the expressedBy string
+	if expressedBy == "" {
+		return nil
+	}
+
+	expLower := strings.ToLower(strings.TrimSpace(expressedBy))
+	switch expLower {
+	case "patient":
+		return &Reference{
+			Type:    "Patient",
+			Display: "Patient",
+		}
+	case "practitioner", "provider", "physician", "doctor":
+		return &Reference{
+			Type:    "Practitioner",
+			Display: "Practitioner",
+		}
+	case "related", "related-person", "relatedperson", "family", "caregiver":
+		return &Reference{
+			Type:    "RelatedPerson",
+			Display: "Related Person",
+		}
+	default:
+		return &Reference{
+			Display: expressedBy,
+		}
+	}
+}
+
+// mapGoalTarget maps a canonical GoalTarget to FHIR GoalTarget.
+func (m *USCoreMapper) mapGoalTarget(target *events.GoalTarget, targetDate string) GoalTarget {
+	gt := GoalTarget{}
+
+	// Measure (what is being tracked)
+	if target.Measure != "" {
+		system := target.MeasureSystem
+		if system == "" {
+			system = SystemLOINC // Default to LOINC for measurements
+		}
+		gt.Measure = &CodeableConcept{
+			Coding: []Coding{
+				{
+					System: system,
+					Code:   target.Measure,
+				},
+			},
+		}
+	}
+
+	// Target value - quantity takes precedence over string
+	if target.DetailQuantity != 0 || target.DetailUnit != "" {
+		gt.DetailQuantity = &Quantity{
+			Value: target.DetailQuantity,
+		}
+		if target.DetailUnit != "" {
+			ucumUnit, ucumCode := m.mapGoalTargetUnit(target.DetailUnit)
+			gt.DetailQuantity.Unit = ucumUnit
+			gt.DetailQuantity.Code = ucumCode
+			gt.DetailQuantity.System = SystemUCUM
+		}
+	} else if target.DetailString != "" {
+		gt.DetailString = target.DetailString
+	}
+
+	// Due date (from target or passed-in targetDate)
+	if target.DueDate != "" {
+		gt.DueDate = target.DueDate
+	} else if targetDate != "" {
+		gt.DueDate = targetDate
+	}
+
+	return gt
+}
+
+// mapGoalTargetUnit maps common goal target units to UCUM.
+func (m *USCoreMapper) mapGoalTargetUnit(unit string) (display, code string) {
+	unitLower := strings.ToLower(strings.TrimSpace(unit))
+	unitMap := map[string]struct {
+		display string
+		code    string
+	}{
+		// Weight
+		"kg":         {"kg", "kg"},
+		"kilogram":   {"kg", "kg"},
+		"kilograms":  {"kg", "kg"},
+		"lb":         {"[lb_av]", "[lb_av]"},
+		"lbs":        {"[lb_av]", "[lb_av]"},
+		"pound":      {"[lb_av]", "[lb_av]"},
+		"pounds":     {"[lb_av]", "[lb_av]"},
+		// Blood pressure
+		"mmhg":       {"mmHg", "mm[Hg]"},
+		"mm hg":      {"mmHg", "mm[Hg]"},
+		// Blood glucose
+		"mg/dl":      {"mg/dL", "mg/dL"},
+		"mmol/l":     {"mmol/L", "mmol/L"},
+		// A1C
+		"%":          {"%", "%"},
+		"percent":    {"%", "%"},
+		// Steps
+		"steps":      {"steps", "{steps}"},
+		"steps/day":  {"steps/day", "{steps}/d"},
+		// Minutes
+		"min":        {"min", "min"},
+		"minute":     {"min", "min"},
+		"minutes":    {"min", "min"},
+		"min/day":    {"min/day", "min/d"},
+		"min/week":   {"min/week", "min/wk"},
+		// General counts
+		"count":      {"count", "{count}"},
+		"servings":   {"servings", "{servings}"},
+		"glasses":    {"glasses", "{glasses}"},
+	}
+
+	if mapped, ok := unitMap[unitLower]; ok {
+		return mapped.display, mapped.code
+	}
+
+	// Return as-is if no mapping
+	return unit, unit
 }

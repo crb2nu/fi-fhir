@@ -124,10 +124,12 @@ See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and curren
 - FHIR Observation (Vital Signs) - `pkg/fhir/mapper.go:MapVitalSign()` (8 specific US Core profiles)
 - FHIR MedicationRequest resource (US Core profile) - `pkg/fhir/mapper.go:MapMedicationRequest()`
 - FHIR AllergyIntolerance resource (US Core profile) - `pkg/fhir/mapper.go:MapAllergyIntolerance()`
+- FHIR CarePlan resource (US Core profile) - `pkg/fhir/mapper.go:MapCarePlan()`
+- FHIR Goal resource (US Core profile) - `pkg/fhir/mapper.go:MapGoal()`
 
 ### Next Up
 - UMLS API integration (optional)
-- Additional US Core profiles (CarePlan, Goal, etc.)
+- Additional US Core profiles (DiagnosticReport-note, DocumentReference, etc.)
 
 ## Contributing
 
