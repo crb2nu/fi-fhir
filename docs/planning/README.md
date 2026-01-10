@@ -184,9 +184,10 @@ The following items remain for full production readiness:
 | Area | Current Coverage | Target |
 |------|------------------|--------|
 | CLI (`cmd/fi-fhir/`) | 0% | 80%+ |
-| GraphQL API | 18% | 80%+ |
-| FHIR Subscription | 20% | 80%+ |
-| Workflow Engine core | Partial | Full coverage for engine.go, oauth.go, cel.go |
+| GraphQL Resolvers | 38.7% | 80%+ |
+| FHIR Subscription | 43.7% | 80%+ |
+| ✅ FHIR Parser | 92.5% | 80%+ |
+| ✅ Workflow Engine | 79.5% | 80%+ |
 
 ### P3 - Future Enhancements
 
