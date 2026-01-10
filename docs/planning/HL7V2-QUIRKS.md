@@ -477,19 +477,19 @@ ZPD|Y|STANDARD|GREEN|||
 - [x] Version detection from MSH-12
 - [x] Encoding character handling
 
-### Phase 2: Version-Aware Parsing
+### Phase 2: Version-Aware Parsing ⚠️
 - [x] Data type parsers (XCN, XPN, CX) with flexible component handling
 - [x] Component count tolerance via Source Profile
 - [x] Segment optionality via Source Profile `tolerate.missing_segments`
 - [ ] Strict version-specific validation mode
 
-### Phase 3: Z-Segment Framework ✅
+### Phase 3: Z-Segment Framework ⚠️
 - [x] Generic Z-segment extraction
 - [x] Raw field preservation
 - [x] Profile-based mapping configuration
-- [ ] Vendor-specific profile templates
+- [ ] Vendor-specific profile templates (Epic, Cerner, Meditech)
 
-### Phase 4: Edge Case Handling ✅
+### Phase 4: Edge Case Handling ⚠️
 - [x] Escape sequence processing (\F\, \S\, \T\, \R\, \E\, \X..\)
 - [x] Field repetition parsing (~)
 - [x] Character encoding detection (UTF-8 BOM, MSH-18)

@@ -431,15 +431,17 @@ func (s *IdentifierSet) GetBySystem(system string) []Identifier {
 - [x] SSN reasonableness checks - see `pkg/validate/identifiers.go:SSNValidator`
 - [x] Phone/SSN normalizers - see `pkg/validate/identifiers.go`
 
-### Phase 3: Matching Engine
+### Phase 3: Matching Engine 🔲
 - [ ] Deterministic matching rules
-- [ ] Probabilistic scoring
+- [ ] Probabilistic scoring (Jaro-Winkler, Soundex)
 - [ ] Configurable thresholds
 
-### Phase 4: MPI Interface
+### Phase 4: MPI Interface 🔲
 - [ ] Abstract MPI interface
 - [ ] In-memory implementation for testing
 - [ ] External MPI integration (future)
+
+> **Note**: Matching engine and MPI interface are planned but not yet implemented. See backlog in [README.md](README.md).
 
 ## Testing Data
 

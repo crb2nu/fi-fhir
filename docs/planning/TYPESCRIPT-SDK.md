@@ -380,10 +380,12 @@ describe('parseCSV', () => {
 - [x] Workflow tests - see `tests/workflow.test.ts`
 - [ ] Streaming API (future)
 
-### Phase 3: Distribution
+### Phase 3: Distribution 🔲
 - [ ] Binary download script
 - [ ] Platform-specific packages
 - [ ] npm publish workflow
+
+> **Note**: SDK is functional but distribution automation is not yet implemented.
 
 ## See Also
 

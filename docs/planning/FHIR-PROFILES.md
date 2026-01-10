@@ -465,7 +465,7 @@ profiles:
 - [x] Condition (for problems/diagnoses) - see `pkg/fhir/mapper.go:MapCondition()`
 - [x] Coverage (from 271 eligibility responses) - see `pkg/fhir/mapper.go:MapCoverage()`
 
-### Phase 3: Validation
+### Phase 3: Validation ⚠️
 - [x] Profile metadata injection (Meta.Profile set on all resources)
 - [x] Basic terminology system mapping (identifier type codes to URIs)
 - [ ] Full must-support element validation

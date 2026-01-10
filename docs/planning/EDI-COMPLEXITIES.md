@@ -1089,7 +1089,7 @@ func map835ToAdjudication(tx *Transaction835) []*events.ClaimAdjudicatedEvent {
 - [x] State machine for 835 - see `loops.go:Parse835Loops()`
 - [x] Full loop structure types (Loop2000A/B/C, Loop2300, Loop2400, etc.)
 
-### Phase 3: Semantic Extraction
+### Phase 3: Semantic Extraction ✅
 - [x] 837P → ClaimSubmittedEvent - see `mapper.go:Map837ToEvents()`
 - [x] 835 → ClaimAdjudicatedEvent - see `mapper.go:Map835ToEvents()`
 - [x] 270 → EligibilityInquiryEvent - see `mapper.go:Map270ToEvents()`
@@ -1098,11 +1098,13 @@ func map835ToAdjudication(tx *Transaction835) []*events.ClaimAdjudicatedEvent {
 - [x] 277 → ClaimStatusResponseEvent - see `mapper.go:Map277ToEvents()`
 - [x] Basic error handling with ParseError type
 
-### Phase 4: Companion Guide Framework
+### Phase 4: Companion Guide Framework 🔲
 - [ ] Configuration schema for payer rules
 - [ ] Validation engine
 - [ ] Medicare guide
 - [ ] 2-3 major commercial payer guides
+
+> **Note**: Companion guide framework is planned but not yet implemented. See backlog in [README.md](README.md).
 
 ## Testing Strategy
 
