@@ -6,18 +6,18 @@ This directory contains detailed planning and specification documents for the fi
 
 | Document | Purpose | Status |
 |----------|---------|--------|
-| [SOURCE-PROFILES.md](SOURCE-PROFILES.md) | Source Profile configuration system - the unit of scalability | Core complete |
-| [WORKFLOW-DSL.md](WORKFLOW-DSL.md) | Workflow routing, transforms, and actions | Complete with metrics |
-| [FHIR-PROFILES.md](FHIR-PROFILES.md) | FHIR R4 output with US Core mapping | US Core mapper complete |
-| [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) | HL7 v2.x version differences and parsing edge cases | Core parsing complete |
-| [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) | X12 EDI parsing (837P, 835, 270/271, 276/277) | All transactions complete |
-| [IDENTIFIERS.md](IDENTIFIERS.md) | Patient/provider identifier systems and validation | Validators complete |
-| [TERMINOLOGY.md](TERMINOLOGY.md) | Healthcare code systems and mapping (LOINC, SNOMED, UMLS) | Complete |
-| [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md) | TypeScript/JavaScript SDK | SDK complete |
-| [CDA-CCDA.md](CDA-CCDA.md) | CDA/CCDA clinical document parsing | Parser complete |
-| [FHIR-SUBSCRIPTIONS.md](FHIR-SUBSCRIPTIONS.md) | FHIR R4 Subscriptions (bidirectional) | Complete |
-| [GRAPHQL-API.md](GRAPHQL-API.md) | GraphQL API layer for events | Complete |
-| [EVENT-SOURCING.md](EVENT-SOURCING.md) | Event sourcing / CQRS patterns | Core complete |
+| [SOURCE-PROFILES.md](SOURCE-PROFILES.md) | Source Profile configuration system - the unit of scalability | ✅ Complete |
+| [WORKFLOW-DSL.md](WORKFLOW-DSL.md) | Workflow routing, transforms, and actions | ✅ Complete |
+| [FHIR-PROFILES.md](FHIR-PROFILES.md) | FHIR R4 output with US Core mapping | ✅ Complete (17+ resources) |
+| [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) | HL7 v2.x version differences and parsing edge cases | ✅ Complete |
+| [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) | X12 EDI parsing (837P, 835, 270/271, 276/277) | ⚠️ Parsing complete, companion guides pending |
+| [IDENTIFIERS.md](IDENTIFIERS.md) | Patient/provider identifier systems and validation | ⚠️ Validators complete, matching engine pending |
+| [TERMINOLOGY.md](TERMINOLOGY.md) | Healthcare code systems and mapping (LOINC, SNOMED, UMLS) | ✅ Complete |
+| [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md) | TypeScript/JavaScript SDK | ✅ Complete |
+| [CDA-CCDA.md](CDA-CCDA.md) | CDA/CCDA clinical document parsing | ✅ Complete |
+| [FHIR-SUBSCRIPTIONS.md](FHIR-SUBSCRIPTIONS.md) | FHIR R4 Subscriptions (bidirectional) | ⚠️ Core complete, 2 TODOs pending |
+| [GRAPHQL-API.md](GRAPHQL-API.md) | GraphQL API layer for events | ⚠️ Schema complete, 3 TODOs pending |
+| [EVENT-SOURCING.md](EVENT-SOURCING.md) | Event sourcing / CQRS patterns | ✅ Complete |
 
 ## Architecture Overview
 
@@ -142,9 +142,45 @@ See [AGENTS.md](../../AGENTS.md) for the canonical "what's done" list and curren
   - Rate limiting and caching
   - Ticket-based authentication
 
-### All Features Complete
+---
 
-The fi-fhir library has reached feature completion for v1.0. All planned components have been implemented.
+## Backlog (Prioritized)
+
+The following items remain for full production readiness:
+
+### P0 - Critical (TODOs in Production Code)
+
+| Location | Issue |
+|----------|-------|
+| `internal/api/graphql/resolvers/schema.resolvers.go:434` | TODO: Implement workflow triggering with JSON event data |
+| `internal/api/graphql/resolvers/schema.resolvers.go:446` | TODO: Implement FHIR subscription creation |
+| `internal/api/graphql/resolvers/schema.resolvers.go:732` | TODO: Hook into workflow engine for real-time notifications |
+| `internal/fhir/subscription/mapper.go:157` | TODO: Evaluate CEL expression for conditional mapping |
+| `internal/fhir/subscription/router.go:350` | TODO: Add OAuth2 support using existing oauth.go |
+
+### P1 - High Priority (Planned but Not Implemented)
+
+| Feature | Planned In | Notes |
+|---------|------------|-------|
+| Patient Matching Engine | [IDENTIFIERS.md](IDENTIFIERS.md) | Deterministic + probabilistic matching, MPI interface |
+| EDI Companion Guide Framework | [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) | Payer-specific parsing rules (Medicare, Blue Cross, etc.) |
+
+### P2 - Test Coverage Gaps
+
+| Area | Current Coverage | Target |
+|------|------------------|--------|
+| CLI (`cmd/fi-fhir/`) | 0% | 80%+ |
+| GraphQL API | 18% | 80%+ |
+| FHIR Subscription | 20% | 80%+ |
+| Workflow Engine core | Partial | Full coverage for engine.go, oauth.go, cel.go |
+
+### P3 - Future Enhancements
+
+- Additional HL7v2 message types (VXU, MDM, RDE, DFT)
+- CDA/CCDA section expansion (Medications, Allergies, Social History)
+- Test data organization and edge case fixtures
+
+---
 
 ## Contributing
 
