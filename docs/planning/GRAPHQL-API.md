@@ -679,26 +679,29 @@ subscription PatientMonitor {
 
 ## Implementation Plan
 
-### Phase 1: Core API
-- [ ] Schema definition with gqlgen
-- [ ] Query resolvers (events, patients, health)
-- [ ] Basic HTTP server
+### Phase 1: Core API ✅
+- [x] Schema definition with gqlgen - see `internal/api/graphql/schema.graphql`
+- [x] Query resolvers (events, patients, health) - see `internal/api/graphql/resolvers/`
+- [x] Basic HTTP server - see `internal/api/graphql/server.go`
 
-### Phase 2: Mutations
-- [ ] submitMessage mutation
-- [ ] submitEvent mutation
-- [ ] FHIR subscription management
+### Phase 2: Mutations ⚠️
+- [x] submitMessage mutation - see `schema.resolvers.go`
+- [x] submitEvent mutation - see `schema.resolvers.go`
+- [ ] **TODO** triggerWorkflow mutation - `schema.resolvers.go:434`
+- [ ] **TODO** FHIR subscription creation - `schema.resolvers.go:446`
 
-### Phase 3: Real-time
-- [ ] WebSocket subscriptions
-- [ ] Event stream filtering
-- [ ] Workflow event notifications
+### Phase 3: Real-time ⚠️
+- [x] WebSocket subscriptions - see `server.go` (graphql-ws protocol)
+- [x] Event stream filtering - see `schema.resolvers.go`
+- [ ] **TODO** Workflow event notifications - `schema.resolvers.go:732`
 
-### Phase 4: Production
-- [ ] Authentication/Authorization
-- [ ] Query complexity limiting
-- [ ] Metrics and tracing
-- [ ] Rate limiting
+### Phase 4: Production ✅
+- [x] Authentication/Authorization - see `server.go`
+- [x] Query complexity limiting - see `server.go`
+- [x] Metrics and tracing - integrated with workflow metrics
+- [x] Rate limiting - see `server.go`
+
+> **Note**: 3 TODOs remain in `internal/api/graphql/resolvers/schema.resolvers.go` at lines 434, 446, and 732.
 
 ## See Also
 
