@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/cblevins/fi-fhir/pkg/events"
-	"github.com/cblevins/fi-fhir/pkg/profile"
+	"github.com/crb2nu/fi-fhir/pkg/events"
+	"github.com/crb2nu/fi-fhir/pkg/profile"
 )
 
 func TestParseADT_A01(t *testing.T) {

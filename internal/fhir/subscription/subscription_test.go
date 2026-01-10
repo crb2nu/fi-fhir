@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cblevins/fi-fhir/pkg/events"
+	"github.com/crb2nu/fi-fhir/pkg/events"
 )
 
 func TestFHIRMapper_MapPatient(t *testing.T) {

@@ -2,8 +2,8 @@
 
 A format-agnostic healthcare integration platform that transforms legacy formats (HL7v2, CSV, EDI X12) into semantic events and routes them through configurable workflows.
 
-[![CI](https://github.com/cblevins/fi-fhir/actions/workflows/ci.yaml/badge.svg)](https://github.com/cblevins/fi-fhir/actions/workflows/ci.yaml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/cblevins/fi-fhir)](https://goreportcard.com/report/github.com/cblevins/fi-fhir)
+[![CI](https://github.com/crb2nu/fi-fhir/actions/workflows/ci.yaml/badge.svg)](https://github.com/crb2nu/fi-fhir/actions/workflows/ci.yaml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/crb2nu/fi-fhir)](https://goreportcard.com/report/github.com/crb2nu/fi-fhir)
 
 ## Overview
 
@@ -36,10 +36,10 @@ EDI X12  ──┘          │ Event Model │          │  Execution  │    
 
 ```bash
 # From source
-go install github.com/cblevins/fi-fhir/cmd/fi-fhir@latest
+go install github.com/crb2nu/fi-fhir/cmd/fi-fhir@latest
 
 # Or build locally
-git clone https://github.com/cblevins/fi-fhir.git
+git clone https://github.com/crb2nu/fi-fhir.git
 cd fi-fhir
 make build
 ```

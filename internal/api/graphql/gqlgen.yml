@@ -24,7 +24,7 @@ resolver:
 
 # Automatically bind to existing types
 autobind:
-  - "github.com/cblevins/fi-fhir/internal/api/graphql/model"
+  - "github.com/crb2nu/fi-fhir/internal/api/graphql/model"
 
 # Custom type mappings
 models:
@@ -43,192 +43,192 @@ models:
   # Use interface for Event type
   Event:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.Event
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.Event
 
   # Enum types
   EventType:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.EventType
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.EventType
   SourceFormat:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.SourceFormat
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.SourceFormat
   EventOrderField:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.EventOrderField
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.EventOrderField
   OrderDirection:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.OrderDirection
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.OrderDirection
 
   # Concrete event types
   PatientAdmitEvent:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.PatientAdmitEvent
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.PatientAdmitEvent
   PatientDischargeEvent:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.PatientDischargeEvent
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.PatientDischargeEvent
   LabResultEvent:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.LabResultEvent
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.LabResultEvent
   VitalSignEvent:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.VitalSignEvent
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.VitalSignEvent
   ConditionEvent:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.ConditionEvent
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.ConditionEvent
   ProcedureEvent:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.ProcedureEvent
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.ProcedureEvent
   ImmunizationEvent:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.ImmunizationEvent
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.ImmunizationEvent
   AppointmentEvent:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.AppointmentEvent
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.AppointmentEvent
   DocumentEvent:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.DocumentEvent
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.DocumentEvent
 
   # Other complex types
   Patient:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.Patient
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.Patient
   Identifier:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.Identifier
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.Identifier
   Address:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.Address
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.Address
   Provider:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.Provider
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.Provider
   Location:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.Location
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.Location
   Encounter:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.Encounter
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.Encounter
   LabTest:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.LabTest
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.LabTest
   LabResult:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.LabResult
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.LabResult
   VitalSign:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.VitalSign
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.VitalSign
   Condition:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.Condition
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.Condition
   Procedure:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.Procedure
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.Procedure
   Immunization:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.Immunization
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.Immunization
   Appointment:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.Appointment
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.Appointment
   PageInfo:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.PageInfo
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.PageInfo
   EventEdge:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.EventEdge
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.EventEdge
   EventConnection:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.EventConnection
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.EventConnection
   PatientEdge:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.PatientEdge
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.PatientEdge
   PatientConnection:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.PatientConnection
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.PatientConnection
   WorkflowStatus:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.WorkflowStatus
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.WorkflowStatus
   ComponentHealth:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.ComponentHealth
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.ComponentHealth
   HealthStatus:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.HealthStatus
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.HealthStatus
   ParseWarning:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.ParseWarning
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.ParseWarning
   ParseResult:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.ParseResult
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.ParseResult
   WorkflowResult:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.WorkflowResult
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.WorkflowResult
   SubmitResult:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.SubmitResult
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.SubmitResult
   FhirSubscription:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.FhirSubscription
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.FhirSubscription
   WorkflowEventNotification:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.WorkflowEventNotification
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.WorkflowEventNotification
 
   # Event Sourcing / Projection types
   TimelineEvent:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.TimelineEvent
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.TimelineEvent
   PatientTimeline:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.PatientTimeline
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.PatientTimeline
   EventTypeCount:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.EventTypeCount
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.EventTypeCount
   SourceCount:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.SourceCount
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.SourceCount
   EventStatistics:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.EventStatistics
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.EventStatistics
   ActiveEncounter:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.ActiveEncounter
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.ActiveEncounter
   ProjectionStatus:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.ProjectionStatus
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.ProjectionStatus
 
   # Input types
   EventFilter:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.EventFilter
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.EventFilter
   EventOrderBy:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.EventOrderBy
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.EventOrderBy
   PatientFilter:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.PatientFilter
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.PatientFilter
   SubmitMessageInput:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.SubmitMessageInput
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.SubmitMessageInput
   SubmitEventInput:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.SubmitEventInput
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.SubmitEventInput
   CreateSubscriptionInput:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.CreateSubscriptionInput
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.CreateSubscriptionInput
   # Batch submission types
   BatchMessageItem:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.BatchMessageItem
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.BatchMessageItem
   BatchEventItem:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.BatchEventItem
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.BatchEventItem
   SubmitBatchInput:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.SubmitBatchInput
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.SubmitBatchInput
   BatchItemResult:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.BatchItemResult
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.BatchItemResult
   BatchResult:
     model:
-      - github.com/cblevins/fi-fhir/internal/api/graphql/model.BatchResult
+      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.BatchResult
 
 # gqlgen features
 omit_slice_element_pointers: true

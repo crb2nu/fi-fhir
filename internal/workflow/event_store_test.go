@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/cblevins/fi-fhir/pkg/eventsourcing"
+	"github.com/crb2nu/fi-fhir/pkg/eventsourcing"
 )
 
 func TestParseEventStoreConfig(t *testing.T) {

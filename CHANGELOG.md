@@ -93,5 +93,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Fixed` for any bug fixes
 - `Security` for vulnerability fixes
 
-[Unreleased]: https://github.com/cblevins/fi-fhir/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/cblevins/fi-fhir/releases/tag/v0.1.0
+[Unreleased]: https://github.com/crb2nu/fi-fhir/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/crb2nu/fi-fhir/releases/tag/v0.1.0

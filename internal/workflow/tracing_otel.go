@@ -98,7 +98,7 @@ func NewOTelTracer(config *OTelConfig) (*OTelTracer, error) {
 
 	// Create tracer
 	tracer := tp.Tracer(
-		"github.com/cblevins/fi-fhir/internal/workflow",
+		"github.com/crb2nu/fi-fhir/internal/workflow",
 		trace.WithInstrumentationVersion(cfg.ServiceVersion),
 	)
 

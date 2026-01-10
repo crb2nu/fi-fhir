@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cblevins/fi-fhir/pkg/eventsourcing"
+	"github.com/crb2nu/fi-fhir/pkg/eventsourcing"
 )
 
 // EventStatistics is the read model for event statistics.

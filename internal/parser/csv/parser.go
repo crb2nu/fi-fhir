@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cblevins/fi-fhir/pkg/events"
-	"github.com/cblevins/fi-fhir/pkg/profile"
+	"github.com/crb2nu/fi-fhir/pkg/events"
+	"github.com/crb2nu/fi-fhir/pkg/profile"
 )
 
 // Parser parses CSV/flatfile data into semantic events.

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cblevins/fi-fhir/pkg/events"
+	"github.com/crb2nu/fi-fhir/pkg/events"
 )
 
 func TestParseWorkflow(t *testing.T) {

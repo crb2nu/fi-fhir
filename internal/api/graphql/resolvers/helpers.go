@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cblevins/fi-fhir/internal/api/graphql/model"
-	"github.com/cblevins/fi-fhir/pkg/events"
+	"github.com/crb2nu/fi-fhir/internal/api/graphql/model"
+	"github.com/crb2nu/fi-fhir/pkg/events"
 )
 
 // strPtr returns a pointer to the string, or nil if empty.

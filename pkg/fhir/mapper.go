@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cblevins/fi-fhir/pkg/events"
+	"github.com/crb2nu/fi-fhir/pkg/events"
 )
 
 // Mapper defines the interface for converting canonical events to FHIR resources.

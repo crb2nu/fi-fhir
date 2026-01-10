@@ -34,7 +34,7 @@ info:
   version: 1.0.0
   contact:
     name: fi-fhir Support
-    url: https://github.com/cblevins/fi-fhir
+    url: https://github.com/crb2nu/fi-fhir
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT

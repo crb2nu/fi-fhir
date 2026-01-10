@@ -7,7 +7,7 @@ Operational procedures for running fi-fhir in production.
 | Field | Value |
 |-------|-------|
 | **Service Name** | fi-fhir |
-| **Repository** | https://github.com/cblevins/fi-fhir |
+| **Repository** | https://github.com/crb2nu/fi-fhir |
 | **Primary Language** | Go |
 | **Default Port** | 8080 (API), 9090 (metrics) |
 | **Health Endpoint** | `/health` |

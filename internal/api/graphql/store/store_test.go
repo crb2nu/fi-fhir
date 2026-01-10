@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cblevins/fi-fhir/internal/api/graphql/model"
+	"github.com/crb2nu/fi-fhir/internal/api/graphql/model"
 )
 
 func TestMemoryStore_SaveAndGetEvent(t *testing.T) {

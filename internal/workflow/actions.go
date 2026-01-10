@@ -13,8 +13,8 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/cblevins/fi-fhir/pkg/events"
-	"github.com/cblevins/fi-fhir/pkg/fhir"
+	"github.com/crb2nu/fi-fhir/pkg/events"
+	"github.com/crb2nu/fi-fhir/pkg/fhir"
 )
 
 // logAction logs an event to stdout/stderr.

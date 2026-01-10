@@ -83,7 +83,7 @@ linters-settings:
       - whyNoLint
 
   goimports:
-    local-prefixes: github.com/cblevins/fi-fhir
+    local-prefixes: github.com/crb2nu/fi-fhir
 
   gosec:
     excludes:

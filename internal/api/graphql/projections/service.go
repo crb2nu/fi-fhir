@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cblevins/fi-fhir/internal/api/graphql/model"
-	"github.com/cblevins/fi-fhir/pkg/eventsourcing"
-	"github.com/cblevins/fi-fhir/pkg/eventsourcing/projections"
+	"github.com/crb2nu/fi-fhir/internal/api/graphql/model"
+	"github.com/crb2nu/fi-fhir/pkg/eventsourcing"
+	"github.com/crb2nu/fi-fhir/pkg/eventsourcing/projections"
 )
 
 // Service provides access to all projection read models.

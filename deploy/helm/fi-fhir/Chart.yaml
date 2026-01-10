@@ -13,13 +13,13 @@ keywords:
   - edi
   - integration
 
-home: https://github.com/cblevins/fi-fhir
+home: https://github.com/crb2nu/fi-fhir
 sources:
-  - https://github.com/cblevins/fi-fhir
+  - https://github.com/crb2nu/fi-fhir
 
 maintainers:
   - name: fi-fhir
-    url: https://github.com/cblevins/fi-fhir
+    url: https://github.com/crb2nu/fi-fhir
 
 annotations:
   category: Healthcare

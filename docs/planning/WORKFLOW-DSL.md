@@ -680,7 +680,7 @@ type Metrics interface {
 A ready-to-use Prometheus adapter is included:
 
 ```go
-import "github.com/cblevins/fi-fhir/internal/workflow"
+import "github.com/crb2nu/fi-fhir/internal/workflow"
 
 // Create Prometheus metrics with defaults
 promMetrics, err := workflow.NewPrometheusMetrics(nil)
@@ -760,7 +760,7 @@ The workflow engine supports distributed tracing via a pluggable tracer interfac
 
 **Setup:**
 ```go
-import "github.com/cblevins/fi-fhir/internal/workflow"
+import "github.com/crb2nu/fi-fhir/internal/workflow"
 
 // Create workflow engine
 engine, _ := workflow.NewEngine(workflowConfig)
@@ -1417,7 +1417,7 @@ The workflow engine supports structured logging with automatic trace correlation
 
 **Setup:**
 ```go
-import "github.com/cblevins/fi-fhir/internal/workflow"
+import "github.com/crb2nu/fi-fhir/internal/workflow"
 
 // Create workflow engine
 engine, _ := workflow.NewEngine(workflowConfig)
@@ -1613,7 +1613,7 @@ The workflow package provides Kubernetes-compatible health check endpoints for l
 
 **Setup:**
 ```go
-import "github.com/cblevins/fi-fhir/internal/workflow"
+import "github.com/crb2nu/fi-fhir/internal/workflow"
 
 // Create health service
 health := workflow.NewHealthService(&workflow.HealthConfig{
@@ -1704,7 +1704,7 @@ The workflow package provides comprehensive validation of workflow configuration
 
 **Programmatic Usage:**
 ```go
-import "github.com/cblevins/fi-fhir/internal/workflow"
+import "github.com/crb2nu/fi-fhir/internal/workflow"
 
 // Load workflow from YAML
 wf, err := workflow.LoadWorkflowFromFile("workflow.yaml")
@@ -1805,7 +1805,7 @@ The workflow package provides event recording, replay, and simulation capabiliti
 Record events as they're processed for later replay:
 
 ```go
-import "github.com/cblevins/fi-fhir/internal/workflow"
+import "github.com/crb2nu/fi-fhir/internal/workflow"
 
 // Option 1: Wrap engine with automatic recording
 recorder := workflow.NewMemoryRecorder()
@@ -2052,7 +2052,7 @@ Typical performance on modern hardware (Apple M-series, AMD Ryzen):
 ### Using Benchmark Utilities
 
 ```go
-import "github.com/cblevins/fi-fhir/internal/workflow"
+import "github.com/crb2nu/fi-fhir/internal/workflow"
 
 // Create benchmark suite for tracking
 suite := workflow.NewBenchmarkSuite("v1.0.0")
@@ -2168,7 +2168,7 @@ fi-fhir workflow loadtest --list-scenarios
 ### Programmatic Load Testing
 
 ```go
-import "github.com/cblevins/fi-fhir/internal/workflow"
+import "github.com/crb2nu/fi-fhir/internal/workflow"
 
 engine, _ := workflow.NewEngine(myWorkflow)
 tester := workflow.NewLoadTester(engine)

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cblevins/fi-fhir/internal/api/graphql/model"
+	"github.com/crb2nu/fi-fhir/internal/api/graphql/model"
 )
 
 // EventStore provides storage and retrieval of healthcare events.
