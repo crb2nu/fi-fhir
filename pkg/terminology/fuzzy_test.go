@@ -601,11 +601,11 @@ func TestCalculateDisplayConfidence_AllBranches(t *testing.T) {
 	}
 
 	tests := []struct {
-		name       string
-		query      string
-		minConf    MatchConfidence
-		maxConf    MatchConfidence
-		branchHit  string
+		name      string
+		query     string
+		minConf   MatchConfidence
+		maxConf   MatchConfidence
+		branchHit string
 	}{
 		{
 			name:      "component_exact",
