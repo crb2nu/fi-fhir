@@ -359,3 +359,254 @@ func TestOIDToFHIRSystemMapping(t *testing.T) {
 		}
 	}
 }
+
+func TestProceduresSectionMapper_TemplateOID(t *testing.T) {
+	mapper := &ProceduresSectionMapper{}
+	if mapper.TemplateOID() != TemplateSectionProcedures {
+		t.Errorf("Expected template OID %s, got %s", TemplateSectionProcedures, mapper.TemplateOID())
+	}
+}
+
+func TestProceduresSectionMapper_MapSection(t *testing.T) {
+	mapper := &ProceduresSectionMapper{}
+	docTime := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
+	patient := &events.Patient{
+		MRN:        "MRN12345",
+		FamilyName: "Smith",
+		GivenName:  "John",
+	}
+
+	// Test with procedure entries
+	section := &Section{
+		TemplateID: TemplateSectionProcedures,
+		Title:      "Procedures",
+		Entries: []Entry{
+			{
+				ID:         "PROC-001",
+				TypeCode:   "procedure",
+				StatusCode: "completed",
+				Code: CodedValue{
+					Code:        "80146002",
+					CodeSystem:  CodeSystemSNOMEDCT,
+					DisplayName: "Appendectomy",
+				},
+				EffectiveTime: &TimeInterval{
+					Value: timePtr(time.Date(2023, 6, 15, 0, 0, 0, 0, time.UTC)),
+				},
+			},
+			{
+				ID:         "PROC-002",
+				TypeCode:   "procedure",
+				StatusCode: "active",
+				Code: CodedValue{
+					Code:        "27768002",
+					CodeSystem:  CodeSystemSNOMEDCT,
+					DisplayName: "Physical therapy",
+				},
+				EffectiveTime: &TimeInterval{
+					Low: timePtr(time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)),
+				},
+			},
+			{
+				// Non-procedure entry should be ignored
+				ID:       "OTHER-001",
+				TypeCode: "observation",
+			},
+		},
+	}
+
+	results, err := mapper.MapSection(section, patient, docTime)
+	if err != nil {
+		t.Fatalf("MapSection failed: %v", err)
+	}
+
+	if len(results) != 2 {
+		t.Fatalf("Expected 2 procedure events, got %d", len(results))
+	}
+
+	// Check first procedure
+	proc1 := results[0].(*events.ProcedureEvent)
+	if proc1.Procedure.Name != "Appendectomy" {
+		t.Errorf("Expected name 'Appendectomy', got '%s'", proc1.Procedure.Name)
+	}
+	if proc1.Procedure.Code != "80146002" {
+		t.Errorf("Expected code '80146002', got '%s'", proc1.Procedure.Code)
+	}
+	if proc1.Procedure.Status != "completed" {
+		t.Errorf("Expected status 'completed', got '%s'", proc1.Procedure.Status)
+	}
+	if proc1.PerformedDate != "2023-06-15" {
+		t.Errorf("Expected performed date '2023-06-15', got '%s'", proc1.PerformedDate)
+	}
+	if proc1.Procedure.CodeSystem != "http://snomed.info/sct" {
+		t.Errorf("Expected FHIR code system, got '%s'", proc1.Procedure.CodeSystem)
+	}
+
+	// Check second procedure uses low time
+	proc2 := results[1].(*events.ProcedureEvent)
+	if proc2.PerformedDate != "2024-01-01" {
+		t.Errorf("Expected performed date from low time, got '%s'", proc2.PerformedDate)
+	}
+	if proc2.Procedure.Status != "active" {
+		t.Errorf("Expected status 'active', got '%s'", proc2.Procedure.Status)
+	}
+}
+
+func TestProceduresSectionMapper_EmptySection(t *testing.T) {
+	mapper := &ProceduresSectionMapper{}
+	docTime := time.Now()
+	patient := &events.Patient{MRN: "MRN123"}
+
+	section := &Section{
+		TemplateID: TemplateSectionProcedures,
+		Title:      "Procedures",
+		Entries:    []Entry{},
+	}
+
+	results, err := mapper.MapSection(section, patient, docTime)
+	if err != nil {
+		t.Fatalf("MapSection failed: %v", err)
+	}
+
+	if len(results) != 0 {
+		t.Errorf("Expected 0 events for empty section, got %d", len(results))
+	}
+}
+
+func TestImmunizationsSectionMapper_TemplateOID(t *testing.T) {
+	mapper := &ImmunizationsSectionMapper{}
+	if mapper.TemplateOID() != TemplateSectionImmunizations {
+		t.Errorf("Expected template OID %s, got %s", TemplateSectionImmunizations, mapper.TemplateOID())
+	}
+}
+
+func TestImmunizationsSectionMapper_MapSection(t *testing.T) {
+	mapper := &ImmunizationsSectionMapper{}
+	docTime := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
+	patient := &events.Patient{
+		MRN:        "MRN12345",
+		FamilyName: "Smith",
+		GivenName:  "John",
+	}
+
+	// Test with immunization entries
+	section := &Section{
+		TemplateID: TemplateSectionImmunizations,
+		Title:      "Immunizations",
+		Entries: []Entry{
+			{
+				ID:         "IMM-001",
+				TypeCode:   "substanceAdministration",
+				StatusCode: "completed",
+				Code: CodedValue{
+					Code:        "140",
+					CodeSystem:  CodeSystemCVX,
+					DisplayName: "Influenza, seasonal, injectable",
+				},
+				EffectiveTime: &TimeInterval{
+					Value: timePtr(time.Date(2023, 10, 15, 0, 0, 0, 0, time.UTC)),
+				},
+			},
+			{
+				ID:         "IMM-002",
+				TypeCode:   "substanceAdministration",
+				StatusCode: "completed",
+				Code: CodedValue{
+					Code:        "208",
+					CodeSystem:  CodeSystemCVX,
+					DisplayName: "COVID-19 vaccine",
+				},
+				EffectiveTime: &TimeInterval{
+					Low: timePtr(time.Date(2023, 11, 1, 0, 0, 0, 0, time.UTC)),
+				},
+			},
+			{
+				// Non-immunization entry should be ignored
+				ID:       "OTHER-001",
+				TypeCode: "procedure",
+			},
+		},
+	}
+
+	results, err := mapper.MapSection(section, patient, docTime)
+	if err != nil {
+		t.Fatalf("MapSection failed: %v", err)
+	}
+
+	if len(results) != 2 {
+		t.Fatalf("Expected 2 immunization events, got %d", len(results))
+	}
+
+	// Check first immunization
+	imm1 := results[0].(*events.ImmunizationEvent)
+	if imm1.Immunization.VaccineName != "Influenza, seasonal, injectable" {
+		t.Errorf("Expected vaccine name 'Influenza, seasonal, injectable', got '%s'", imm1.Immunization.VaccineName)
+	}
+	if imm1.Immunization.VaccineCode != "140" {
+		t.Errorf("Expected vaccine code '140', got '%s'", imm1.Immunization.VaccineCode)
+	}
+	if imm1.Immunization.Status != "completed" {
+		t.Errorf("Expected status 'completed', got '%s'", imm1.Immunization.Status)
+	}
+	if imm1.AdministeredDate != "2023-10-15" {
+		t.Errorf("Expected administered date '2023-10-15', got '%s'", imm1.AdministeredDate)
+	}
+
+	// Check second immunization uses low time
+	imm2 := results[1].(*events.ImmunizationEvent)
+	if imm2.AdministeredDate != "2023-11-01" {
+		t.Errorf("Expected administered date from low time, got '%s'", imm2.AdministeredDate)
+	}
+}
+
+func TestImmunizationsSectionMapper_EmptySection(t *testing.T) {
+	mapper := &ImmunizationsSectionMapper{}
+	docTime := time.Now()
+	patient := &events.Patient{MRN: "MRN123"}
+
+	section := &Section{
+		TemplateID: TemplateSectionImmunizations,
+		Title:      "Immunizations",
+		Entries:    []Entry{},
+	}
+
+	results, err := mapper.MapSection(section, patient, docTime)
+	if err != nil {
+		t.Fatalf("MapSection failed: %v", err)
+	}
+
+	if len(results) != 0 {
+		t.Errorf("Expected 0 events for empty section, got %d", len(results))
+	}
+}
+
+func TestMapStatusCode(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"completed", "completed"},
+		{"active", "active"},
+		{"cancelled", "cancelled"},
+		{"aborted", "aborted"},
+		{"suspended", "on-hold"},
+		{"held", "on-hold"},
+		{"unknown", "unknown"}, // Unknown codes pass through unchanged
+		{"", ""},               // Empty string passes through unchanged
+		{"new", "new"},         // Unknown code passes through
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := mapStatusCode(tt.input)
+			if result != tt.expected {
+				t.Errorf("mapStatusCode(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+// timePtr is a helper to create time.Time pointers for tests
+func timePtr(t time.Time) *time.Time {
+	return &t
+}
