@@ -241,7 +241,7 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 - ~~Production documentation~~ ✓ (`docs/operations/` - hardening guide, runbook)
 - Production monitoring dashboards (Grafana dashboards exist in `dashboards/grafana/`)
 
-**All Phases Complete!** 🎉
+**Core Phases Complete** - See `docs/planning/README.md` for detailed backlog of remaining items.
 
 **Post-v1.0 Additions**:
 - ~~API documentation~~ ✓ (`api/openapi.yaml` - OpenAPI 3.1 spec)
@@ -249,13 +249,14 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 - ~~Example workflows~~ ✓ (`examples/workflows/` - ADT, labs, claims, appointments)
 - ~~CHANGELOG~~ ✓ (`CHANGELOG.md` - release history)
 
-**Bidirectional FHIR Subscriptions - Complete!** 🎉
+**Bidirectional FHIR Subscriptions** ⚠️
 - FHIR R4 Subscription client for managing subscriptions on FHIR servers
 - Notification receiver (webhook server) for incoming notifications
 - FHIR-to-canonical event mapper (Patient, Encounter, Observation, Appointment)
 - Workflow integration for routing received events
 - CLI commands: `subscription list|status|create|delete|pause|resume|serve|validate|test`
 - Design document: `docs/planning/FHIR-SUBSCRIPTIONS.md`
+- **Pending**: CEL-based event mapping (`mapper.go:157`), OAuth2 for router (`router.go:350`)
 
 **Event Sourcing / CQRS - Complete!** 🎉
 - Event store interface with append-only semantics (`pkg/eventsourcing/store.go`)
@@ -276,10 +277,10 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 - CLI commands: `eventstore init|stats|streams|read|append` and `projection list|status|run|rebuild`
 - Design document: `docs/planning/EVENT-SOURCING.md`
 
-**Future Enhancements** (All Complete!):
-  1. ~~Bidirectional FHIR subscriptions~~ ✓
+**Future Enhancements** (Core Complete, see backlog for details):
+  1. ~~Bidirectional FHIR subscriptions~~ ⚠️ (2 TODOs pending)
   2. ~~Additional format adapters (CDA, CCDA)~~ ✓
-  3. ~~GraphQL API layer~~ ✓
+  3. ~~GraphQL API layer~~ ⚠️ (3 TODOs pending)
   4. ~~Event sourcing / CQRS patterns~~ ✓
   5. ~~Workflow action for event store integration~~ ✓
   6. ~~GraphQL queries for projections~~ ✓
@@ -291,6 +292,13 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
   12. ~~Saga orchestration (multi-step transactions)~~ ✓
   13. ~~Outbox pattern for reliable event publishing~~ ✓
   14. ~~UMLS API integration~~ ✓ (`pkg/terminology/umls.go`)
+
+**Remaining Backlog** (see `docs/planning/README.md`):
+- Patient matching engine / MPI interface
+- EDI companion guide framework
+- GraphQL mutations: triggerWorkflow, createFHIRSubscription
+- WebSocket real-time notifications
+- Test coverage gaps (CLI, workflow engine core)
 
 ## Testing Strategy
 
