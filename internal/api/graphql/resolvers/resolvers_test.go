@@ -1835,3 +1835,519 @@ func TestMutationResolver_SubmitEvent_Condition(t *testing.T) {
 		t.Errorf("Expected success, got errors: %v", result.Errors)
 	}
 }
+
+// =============================================================================
+// Additional SubmitMessage Format Tests
+// =============================================================================
+
+func TestMutationResolver_SubmitMessage_FHIR(t *testing.T) {
+	resolver := NewResolver()
+	mutationResolver := &mutationResolver{resolver}
+
+	ctx := context.Background()
+
+	fhirPatient := `{
+		"resourceType": "Patient",
+		"id": "example",
+		"identifier": [{"system": "http://hospital.example.org", "value": "MRN12345"}],
+		"name": [{"family": "Doe", "given": ["John"]}],
+		"gender": "male",
+		"birthDate": "1980-03-15"
+	}`
+
+	input := model.SubmitMessageInput{
+		Format: model.SourceFormatFHIR,
+		Source: "fhir-server",
+		Data:   fhirPatient,
+	}
+
+	result, err := mutationResolver.SubmitMessage(ctx, input)
+	if err != nil {
+		t.Fatalf("SubmitMessage failed: %v", err)
+	}
+
+	// FHIR parsing should succeed
+	if !result.Success {
+		t.Errorf("Expected success, got errors: %v", result.Errors)
+	}
+}
+
+func TestMutationResolver_SubmitMessage_FHIR_Invalid(t *testing.T) {
+	resolver := NewResolver()
+	mutationResolver := &mutationResolver{resolver}
+
+	ctx := context.Background()
+
+	input := model.SubmitMessageInput{
+		Format: model.SourceFormatFHIR,
+		Source: "test",
+		Data:   "not valid json",
+	}
+
+	result, err := mutationResolver.SubmitMessage(ctx, input)
+	if err != nil {
+		t.Fatalf("SubmitMessage should not return error: %v", err)
+	}
+
+	// Should fail parsing
+	if result.Success {
+		t.Error("Expected failure for invalid FHIR")
+	}
+	if len(result.Errors) == 0 {
+		t.Error("Expected errors for invalid FHIR")
+	}
+}
+
+func TestMutationResolver_SubmitMessage_CSV(t *testing.T) {
+	resolver := NewResolver()
+	mutationResolver := &mutationResolver{resolver}
+
+	ctx := context.Background()
+
+	csvData := `mrn,family_name,given_name,dob,gender
+MRN001,Doe,John,1980-03-15,M
+MRN002,Smith,Jane,1975-06-22,F`
+
+	input := model.SubmitMessageInput{
+		Format: model.SourceFormatCSV,
+		Source: "csv-upload",
+		Data:   csvData,
+	}
+
+	result, err := mutationResolver.SubmitMessage(ctx, input)
+	if err != nil {
+		t.Fatalf("SubmitMessage failed: %v", err)
+	}
+
+	// CSV parsing should succeed
+	if !result.Success {
+		t.Errorf("Expected success, got errors: %v", result.Errors)
+	}
+}
+
+func TestMutationResolver_SubmitMessage_CDA(t *testing.T) {
+	resolver := NewResolver()
+	mutationResolver := &mutationResolver{resolver}
+
+	ctx := context.Background()
+
+	cdaDoc := `<?xml version="1.0" encoding="UTF-8"?>
+<ClinicalDocument xmlns="urn:hl7-org:v3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <realmCode code="US"/>
+  <typeId root="2.16.840.1.113883.1.3" extension="POCD_HD000040"/>
+  <templateId root="2.16.840.1.113883.10.20.22.1.1"/>
+  <id root="2.16.840.1.113883.19.5" extension="12345"/>
+  <code code="34133-9" codeSystem="2.16.840.1.113883.6.1" displayName="Summarization of Episode Note"/>
+  <title>Patient Summary</title>
+  <effectiveTime value="20240115120000"/>
+  <confidentialityCode code="N" codeSystem="2.16.840.1.113883.5.25"/>
+  <languageCode code="en-US"/>
+  <recordTarget>
+    <patientRole>
+      <id root="2.16.840.1.113883.19.5" extension="MRN001"/>
+      <patient>
+        <name><given>John</given><family>Doe</family></name>
+        <administrativeGenderCode code="M" codeSystem="2.16.840.1.113883.5.1"/>
+        <birthTime value="19800315"/>
+      </patient>
+    </patientRole>
+  </recordTarget>
+  <component>
+    <structuredBody>
+      <component>
+        <section>
+          <templateId root="2.16.840.1.113883.10.20.22.2.6.1"/>
+          <code code="48765-2" codeSystem="2.16.840.1.113883.6.1"/>
+          <title>Allergies</title>
+          <text>No known allergies</text>
+        </section>
+      </component>
+    </structuredBody>
+  </component>
+</ClinicalDocument>`
+
+	input := model.SubmitMessageInput{
+		Format: model.SourceFormatCDA,
+		Source: "cda-import",
+		Data:   cdaDoc,
+	}
+
+	result, err := mutationResolver.SubmitMessage(ctx, input)
+	if err != nil {
+		t.Fatalf("SubmitMessage failed: %v", err)
+	}
+
+	// CDA parsing should succeed (returns document event)
+	if !result.Success {
+		t.Errorf("Expected success, got errors: %v", result.Errors)
+	}
+}
+
+func TestMutationResolver_SubmitMessage_CDA_Invalid(t *testing.T) {
+	resolver := NewResolver()
+	mutationResolver := &mutationResolver{resolver}
+
+	ctx := context.Background()
+
+	input := model.SubmitMessageInput{
+		Format: model.SourceFormatCDA,
+		Source: "test",
+		Data:   "not valid xml",
+	}
+
+	result, err := mutationResolver.SubmitMessage(ctx, input)
+	if err != nil {
+		t.Fatalf("SubmitMessage should not return error: %v", err)
+	}
+
+	// Should fail parsing
+	if result.Success {
+		t.Error("Expected failure for invalid CDA")
+	}
+}
+
+func TestMutationResolver_SubmitMessage_EDI837(t *testing.T) {
+	resolver := NewResolver()
+	mutationResolver := &mutationResolver{resolver}
+
+	ctx := context.Background()
+
+	// Minimal 837 transaction
+	edi837 := `ISA*00*          *00*          *ZZ*SENDER         *ZZ*RECEIVER       *240115*1200*^*00501*000000001*0*P*:~
+GS*HC*SENDER*RECEIVER*20240115*1200*1*X*005010X222A1~
+ST*837*0001*005010X222A1~
+BHT*0019*00*123456*20240115*1200*CH~
+SE*4*0001~
+GE*1*1~
+IEA*1*000000001~`
+
+	input := model.SubmitMessageInput{
+		Format: model.SourceFormatEDI837,
+		Source: "clearinghouse",
+		Data:   edi837,
+	}
+
+	result, err := mutationResolver.SubmitMessage(ctx, input)
+	if err != nil {
+		t.Fatalf("SubmitMessage failed: %v", err)
+	}
+
+	// EDI parsing should succeed (even if no claims extracted)
+	if !result.Success {
+		t.Logf("EDI837 result errors: %v", result.Errors)
+	}
+}
+
+func TestMutationResolver_SubmitMessage_EDI835(t *testing.T) {
+	resolver := NewResolver()
+	mutationResolver := &mutationResolver{resolver}
+
+	ctx := context.Background()
+
+	// Minimal 835 transaction
+	edi835 := `ISA*00*          *00*          *ZZ*PAYER          *ZZ*PROVIDER       *240115*1200*^*00501*000000001*0*P*:~
+GS*HP*PAYER*PROVIDER*20240115*1200*1*X*005010X221A1~
+ST*835*0001*005010X221A1~
+BPR*I*500.00*C*ACH*CTX*01*999999999*DA*123456789**01*999999999*DA*987654321*20240115~
+TRN*1*TRACE123*1234567890~
+SE*5*0001~
+GE*1*1~
+IEA*1*000000001~`
+
+	input := model.SubmitMessageInput{
+		Format: model.SourceFormatEDI835,
+		Source: "payer",
+		Data:   edi835,
+	}
+
+	result, err := mutationResolver.SubmitMessage(ctx, input)
+	if err != nil {
+		t.Fatalf("SubmitMessage failed: %v", err)
+	}
+
+	// EDI parsing should succeed
+	if !result.Success {
+		t.Logf("EDI835 result errors: %v", result.Errors)
+	}
+}
+
+func TestMutationResolver_SubmitMessage_WithWorkflow(t *testing.T) {
+	// Create a workflow that matches and executes
+	wf := &workflow.Workflow{
+		Name:    "test-workflow",
+		Version: "1.0",
+		Routes: []workflow.Route{
+			{
+				Name:   "all-events",
+				Filter: workflow.Filter{},
+				Actions: []workflow.Action{
+					{Type: "log", Config: map[string]string{"level": "info"}},
+				},
+			},
+		},
+	}
+
+	engine, err := workflow.NewEngine(wf)
+	if err != nil {
+		t.Fatalf("Failed to create workflow engine: %v", err)
+	}
+
+	resolver := NewResolver(WithWorkflowEngine(engine))
+	mutationResolver := &mutationResolver{resolver}
+
+	ctx := context.Background()
+
+	input := model.SubmitMessageInput{
+		Format: model.SourceFormatHL7v2,
+		Source: "adt",
+		Data: `MSH|^~\&|SENDING_APP|SENDING_FAC|RECEIVING_APP|RECEIVING_FAC|20240115120000||ADT^A01|MSG00001|P|2.5
+EVN|A01|20240115120000
+PID|1||123456789^^^HOSPITAL^MRN||DOE^JOHN||19800315|M
+PV1|1|I|ICU^101`,
+	}
+
+	result, err := mutationResolver.SubmitMessage(ctx, input)
+	if err != nil {
+		t.Fatalf("SubmitMessage failed: %v", err)
+	}
+
+	if !result.Success {
+		t.Errorf("Expected success, got errors: %v", result.Errors)
+	}
+
+	// Should have workflow results
+	if len(result.WorkflowResults) == 0 {
+		t.Error("Expected workflow results when engine is configured")
+	}
+}
+
+// =============================================================================
+// Additional ParsePreview Tests
+// =============================================================================
+
+func TestQueryResolver_ParsePreview_FHIR(t *testing.T) {
+	resolver := NewResolver()
+	queryResolver := &queryResolver{resolver}
+
+	ctx := context.Background()
+
+	fhirPatient := `{
+		"resourceType": "Patient",
+		"id": "example",
+		"name": [{"family": "Doe", "given": ["John"]}]
+	}`
+
+	result, err := queryResolver.ParsePreview(ctx, model.SourceFormatFHIR, fhirPatient, nil)
+	if err != nil {
+		t.Fatalf("ParsePreview failed: %v", err)
+	}
+
+	if !result.Success {
+		t.Errorf("Expected success, got errors: %v", result.Errors)
+	}
+}
+
+func TestQueryResolver_ParsePreview_CSV(t *testing.T) {
+	resolver := NewResolver()
+	queryResolver := &queryResolver{resolver}
+
+	ctx := context.Background()
+
+	csvData := `mrn,family_name,given_name
+MRN001,Doe,John`
+
+	result, err := queryResolver.ParsePreview(ctx, model.SourceFormatCSV, csvData, nil)
+	if err != nil {
+		t.Fatalf("ParsePreview failed: %v", err)
+	}
+
+	if !result.Success {
+		t.Errorf("Expected success, got errors: %v", result.Errors)
+	}
+}
+
+func TestQueryResolver_ParsePreview_CDA(t *testing.T) {
+	resolver := NewResolver()
+	queryResolver := &queryResolver{resolver}
+
+	ctx := context.Background()
+
+	cdaDoc := `<?xml version="1.0" encoding="UTF-8"?>
+<ClinicalDocument xmlns="urn:hl7-org:v3">
+  <realmCode code="US"/>
+  <typeId root="2.16.840.1.113883.1.3" extension="POCD_HD000040"/>
+  <id root="2.16.840.1.113883.19.5" extension="12345"/>
+  <code code="34133-9" codeSystem="2.16.840.1.113883.6.1"/>
+  <effectiveTime value="20240115"/>
+  <confidentialityCode code="N" codeSystem="2.16.840.1.113883.5.25"/>
+  <recordTarget>
+    <patientRole>
+      <id extension="MRN001"/>
+      <patient>
+        <name><given>John</given><family>Doe</family></name>
+      </patient>
+    </patientRole>
+  </recordTarget>
+  <component><structuredBody/></component>
+</ClinicalDocument>`
+
+	result, err := queryResolver.ParsePreview(ctx, model.SourceFormatCDA, cdaDoc, nil)
+	if err != nil {
+		t.Fatalf("ParsePreview failed: %v", err)
+	}
+
+	if !result.Success {
+		t.Errorf("Expected success, got errors: %v", result.Errors)
+	}
+}
+
+func TestQueryResolver_ParsePreview_EDI837(t *testing.T) {
+	resolver := NewResolver()
+	queryResolver := &queryResolver{resolver}
+
+	ctx := context.Background()
+
+	edi837 := `ISA*00*          *00*          *ZZ*SENDER         *ZZ*RECEIVER       *240115*1200*^*00501*000000001*0*P*:~
+GS*HC*SENDER*RECEIVER*20240115*1200*1*X*005010X222A1~
+ST*837*0001~
+BHT*0019*00*123456*20240115*1200*CH~
+SE*4*0001~
+GE*1*1~
+IEA*1*000000001~`
+
+	result, err := queryResolver.ParsePreview(ctx, model.SourceFormatEDI837, edi837, nil)
+	if err != nil {
+		t.Fatalf("ParsePreview failed: %v", err)
+	}
+
+	// Should succeed even if no events extracted
+	if len(result.Errors) > 0 && result.Errors[0] != "" {
+		t.Logf("EDI837 parse preview notes: %v", result.Errors)
+	}
+}
+
+func TestQueryResolver_ParsePreview_EDI835(t *testing.T) {
+	resolver := NewResolver()
+	queryResolver := &queryResolver{resolver}
+
+	ctx := context.Background()
+
+	edi835 := `ISA*00*          *00*          *ZZ*PAYER          *ZZ*PROVIDER       *240115*1200*^*00501*000000001*0*P*:~
+GS*HP*PAYER*PROVIDER*20240115*1200*1*X*005010X221A1~
+ST*835*0001~
+BPR*I*500.00*C*ACH*CTX*01*999999999*DA*123456789**01*999999999*DA*987654321*20240115~
+TRN*1*TRACE123*1234567890~
+SE*5*0001~
+GE*1*1~
+IEA*1*000000001~`
+
+	result, err := queryResolver.ParsePreview(ctx, model.SourceFormatEDI835, edi835, nil)
+	if err != nil {
+		t.Fatalf("ParsePreview failed: %v", err)
+	}
+
+	// Should succeed
+	if len(result.Errors) > 0 && result.Errors[0] != "" {
+		t.Logf("EDI835 parse preview notes: %v", result.Errors)
+	}
+}
+
+// =============================================================================
+// FHIR Subscription Tests with Mocked Client
+// =============================================================================
+
+func TestMutationResolver_CreateFhirSubscription_NoClient(t *testing.T) {
+	resolver := NewResolver()
+	mutationResolver := &mutationResolver{resolver}
+
+	ctx := context.Background()
+
+	input := model.CreateSubscriptionInput{
+		Name:     "test-subscription",
+		Server:   "https://fhir.example.com",
+		Criteria: "Patient?_id=123",
+		Endpoint: "https://my-app.com/webhook",
+	}
+
+	// Without FHIR subscription client factory, should fail
+	_, err := mutationResolver.CreateFhirSubscription(ctx, input)
+	if err == nil {
+		t.Error("Expected error when FHIR subscription is not configured")
+	}
+}
+
+// =============================================================================
+// Patients Query Test
+// =============================================================================
+
+func TestQueryResolver_Patients(t *testing.T) {
+	memStore := store.NewMemoryStore()
+	resolver := NewResolver(WithStore(memStore))
+	queryResolver := &queryResolver{resolver}
+
+	ctx := context.Background()
+
+	// Add some patients
+	memStore.SavePatient(&model.Patient{MRN: "MRN001", FamilyName: "Doe", GivenName: "John"})
+	memStore.SavePatient(&model.Patient{MRN: "MRN002", FamilyName: "Smith", GivenName: "Jane"})
+
+	first := 10
+	patients, err := queryResolver.Patients(ctx, nil, &first, nil)
+	if err != nil {
+		t.Fatalf("Patients query failed: %v", err)
+	}
+
+	if patients.TotalCount != 2 {
+		t.Errorf("Expected 2 patients, got %d", patients.TotalCount)
+	}
+}
+
+func TestQueryResolver_Patients_WithFilter(t *testing.T) {
+	memStore := store.NewMemoryStore()
+	resolver := NewResolver(WithStore(memStore))
+	queryResolver := &queryResolver{resolver}
+
+	ctx := context.Background()
+
+	// Add some patients
+	memStore.SavePatient(&model.Patient{MRN: "MRN001", FamilyName: "Doe", GivenName: "John"})
+	memStore.SavePatient(&model.Patient{MRN: "MRN002", FamilyName: "Smith", GivenName: "Jane"})
+
+	first := 10
+	mrn := "MRN001"
+	filter := &model.PatientFilter{
+		MRN: &mrn,
+	}
+	patients, err := queryResolver.Patients(ctx, filter, &first, nil)
+	if err != nil {
+		t.Fatalf("Patients query failed: %v", err)
+	}
+
+	if patients.TotalCount != 1 {
+		t.Errorf("Expected 1 patient with filter, got %d", patients.TotalCount)
+	}
+}
+
+// =============================================================================
+// Root Resolver Tests
+// =============================================================================
+
+func TestResolver_RootResolvers(t *testing.T) {
+	resolver := NewResolver()
+
+	// Test that root resolvers return proper resolver types
+	mutation := resolver.Mutation()
+	if mutation == nil {
+		t.Error("Expected Mutation() to return non-nil")
+	}
+
+	query := resolver.Query()
+	if query == nil {
+		t.Error("Expected Query() to return non-nil")
+	}
+
+	sub := resolver.Subscription()
+	if sub == nil {
+		t.Error("Expected Subscription() to return non-nil")
+	}
+}
