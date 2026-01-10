@@ -976,19 +976,19 @@ func (e *Engine) Process(event interface{}) []error {
 
 ## Built-in Actions
 
-### Phase 1 (MVP)
-- `log` - Structured logging
-- `webhook` - HTTP callbacks
-- `fhir` - FHIR R4 server integration
+### Phase 1 (MVP) ✅
+- `log` - Structured logging - see `internal/workflow/actions.go`
+- `webhook` - HTTP callbacks - see `internal/workflow/actions.go`
+- `fhir` - FHIR R4 server integration - see `internal/workflow/fhir.go`
 
-### Phase 2
-- `database` - SQL/NoSQL storage
-- `queue` - Message queue publishing
+### Phase 2 ✅
+- `database` - SQL/NoSQL storage - see `internal/workflow/database.go`
+- `queue` - Message queue publishing - see `internal/workflow/queue.go`
 
-### Phase 3
-- `email` - Email notifications
-- `file` - File output
-- `custom` - User-defined action plugins
+### Phase 3 🔲
+- `email` - Email notifications (planned)
+- `file` - File output (planned)
+- `custom` - User-defined action plugins (planned)
 
 ## Example Workflows
 

@@ -618,7 +618,7 @@ Moving Source Profiles to MVP requires:
 - [x] Event classification rules - see `GetEventClassification()`
 - [x] Assigning authority mapping - see `GetAssigningAuthoritySystem()`
 
-### Weeks 5-8 (Post-Stability)
+### Weeks 5-8 (Post-Stability) ⚠️
 - [x] Terminology mapping tables - see `pkg/terminology/mapper.go`
 - [x] NPI/MBI validators wired to quality checks - see `pkg/validate/identifiers.go`
 - [ ] Z-segment field mapping beyond raw capture

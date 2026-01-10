@@ -241,7 +241,7 @@ func GetICD10Version(serviceDate time.Time) string {
 
 ## Implementation Plan
 
-### Phase 1: Core Infrastructure ✅
+### Phase 1: Core Infrastructure ⚠️
 - [x] Code system URIs (LOINC, SNOMED, ICD-10, CPT, etc.) - see `pkg/terminology/mapper.go`
 - [x] MappingEquivalence enum (equivalent, wider, narrower, inexact, unmatched)
 - [x] CodeMapping struct with full provenance fields
