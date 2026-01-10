@@ -100,16 +100,19 @@ test:unit:
     CGO_ENABLED: "1"
   script:
     - apk add --no-cache git build-base
+    - go install github.com/boumenot/gocover-cobertura@latest
     - go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
     - go tool cover -func=coverage.out
+    - gocover-cobertura < coverage.out > coverage.xml
   coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
   artifacts:
     reports:
       coverage_report:
         coverage_format: cobertura
-        path: coverage.out
+        path: coverage.xml
     paths:
       - coverage.out
+      - coverage.xml
     expire_in: 1 week
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -169,11 +172,10 @@ security:gosec:
   script:
     - apk add --no-cache git
     - go install github.com/securego/gosec/v2/cmd/gosec@latest
-    - gosec -fmt json -out gosec-report.json -exclude-generated ./... || true
-    - gosec -exclude-generated ./...
+    - gosec -fmt sarif -out gosec-report.sarif -exclude-generated ./... || true
   artifacts:
     reports:
-      sast: gosec-report.json
+      sast: gosec-report.sarif
     when: always
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -186,11 +188,13 @@ security:trivy:
     name: aquasec/trivy:latest
     entrypoint: [""]
   script:
-    - trivy fs --exit-code 0 --severity HIGH,CRITICAL --format json -o trivy-report.json .
+    - trivy fs --exit-code 0 --severity HIGH,CRITICAL --format sarif -o trivy-report.sarif .
     - trivy fs --exit-code 1 --severity CRITICAL .
   artifacts:
     reports:
-      container_scanning: trivy-report.json
+      sast: trivy-report.sarif
+    paths:
+      - trivy-report.sarif
     when: always
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
