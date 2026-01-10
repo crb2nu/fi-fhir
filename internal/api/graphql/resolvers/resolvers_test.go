@@ -7,6 +7,7 @@ import (
 
 	"github.com/cblevins/fi-fhir/internal/api/graphql/model"
 	"github.com/cblevins/fi-fhir/internal/api/graphql/store"
+	"github.com/cblevins/fi-fhir/internal/workflow"
 )
 
 func TestQueryResolver_Health(t *testing.T) {
@@ -905,5 +906,444 @@ PV1|1|I|ICU^101`
 	}
 	if len(result.Results[1].Errors) == 0 {
 		t.Error("Expected errors for failed item")
+	}
+}
+
+// =============================================================================
+// TriggerWorkflow Tests
+// =============================================================================
+
+func TestMutationResolver_TriggerWorkflow_WithEngine(t *testing.T) {
+	// Create a minimal workflow
+	wf := &workflow.Workflow{
+		Name:    "test-workflow",
+		Version: "1.0",
+		Routes: []workflow.Route{
+			{
+				Name:   "test-route",
+				Filter: workflow.Filter{}, // Empty filter matches all events
+				Actions: []workflow.Action{
+					{
+						Type: "log",
+						Config: map[string]string{
+							"level": "info",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	engine, err := workflow.NewEngine(wf)
+	if err != nil {
+		t.Fatalf("Failed to create workflow engine: %v", err)
+	}
+
+	resolver := NewResolver(WithWorkflowEngine(engine))
+	mutationResolver := &mutationResolver{resolver}
+
+	ctx := context.Background()
+	event := map[string]any{
+		"type":   "lab_result",
+		"source": "test",
+		"patient": map[string]any{
+			"mrn": "MRN001",
+		},
+	}
+
+	result, err := mutationResolver.TriggerWorkflow(ctx, "test-workflow", event)
+	if err != nil {
+		t.Fatalf("TriggerWorkflow failed: %v", err)
+	}
+
+	if result.WorkflowName != "test-workflow" {
+		t.Errorf("Expected workflow name 'test-workflow', got '%s'", result.WorkflowName)
+	}
+	if result.RoutesMatched != 1 {
+		t.Errorf("Expected 1 matched route, got %d", result.RoutesMatched)
+	}
+	if result.Duration < 0 {
+		t.Errorf("Expected non-negative duration, got %d", result.Duration)
+	}
+}
+
+func TestMutationResolver_TriggerWorkflow_NoMatchingRoute(t *testing.T) {
+	// Create a workflow with a filter that won't match
+	wf := &workflow.Workflow{
+		Name:    "selective-workflow",
+		Version: "1.0",
+		Routes: []workflow.Route{
+			{
+				Name: "specific-route",
+				Filter: workflow.Filter{
+					EventType: workflow.StringOrSlice{"claim_submitted"}, // Only matches claims
+				},
+				Actions: []workflow.Action{
+					{Type: "log"},
+				},
+			},
+		},
+	}
+
+	engine, err := workflow.NewEngine(wf)
+	if err != nil {
+		t.Fatalf("Failed to create workflow engine: %v", err)
+	}
+
+	resolver := NewResolver(WithWorkflowEngine(engine))
+	mutationResolver := &mutationResolver{resolver}
+
+	ctx := context.Background()
+	event := map[string]any{
+		"type": "lab_result", // Won't match the claim_submitted filter
+	}
+
+	result, err := mutationResolver.TriggerWorkflow(ctx, "test-workflow", event)
+	if err != nil {
+		t.Fatalf("TriggerWorkflow failed: %v", err)
+	}
+
+	// Should not match any routes
+	if result.RoutesMatched != 0 {
+		t.Errorf("Expected 0 matched routes, got %d", result.RoutesMatched)
+	}
+}
+
+// =============================================================================
+// WorkflowEvents Subscription Tests
+// =============================================================================
+
+func TestSubscriptionResolver_WorkflowEvents(t *testing.T) {
+	resolver := NewResolver()
+	subscriptionResolver := &subscriptionResolver{resolver}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Subscribe to workflow events
+	eventCh, err := subscriptionResolver.WorkflowEvents(ctx, "test-workflow")
+	if err != nil {
+		t.Fatalf("WorkflowEvents subscription failed: %v", err)
+	}
+
+	// Broadcast a workflow event notification
+	notification := &model.WorkflowEventNotification{
+		Workflow:        "test-workflow",
+		RoutesMatched:   []string{"route-1"},
+		ActionsExecuted: []string{"route-1:2"},
+		Duration:        100,
+	}
+	resolver.broadcastWorkflowEvent(notification)
+
+	// Should receive the notification
+	select {
+	case received := <-eventCh:
+		if received.Workflow != "test-workflow" {
+			t.Errorf("Expected workflow 'test-workflow', got '%s'", received.Workflow)
+		}
+		if len(received.RoutesMatched) != 1 || received.RoutesMatched[0] != "route-1" {
+			t.Errorf("Unexpected routes matched: %v", received.RoutesMatched)
+		}
+	case <-time.After(time.Second):
+		t.Error("Timeout waiting for workflow event notification")
+	}
+}
+
+func TestSubscriptionResolver_WorkflowEvents_AllWorkflows(t *testing.T) {
+	resolver := NewResolver()
+	subscriptionResolver := &subscriptionResolver{resolver}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Subscribe to all workflows (empty name)
+	eventCh, err := subscriptionResolver.WorkflowEvents(ctx, "")
+	if err != nil {
+		t.Fatalf("WorkflowEvents subscription failed: %v", err)
+	}
+
+	// Broadcast events for different workflows
+	notification1 := &model.WorkflowEventNotification{Workflow: "workflow-a", Duration: 10}
+	notification2 := &model.WorkflowEventNotification{Workflow: "workflow-b", Duration: 20}
+
+	resolver.broadcastWorkflowEvent(notification1)
+	resolver.broadcastWorkflowEvent(notification2)
+
+	// Should receive both notifications
+	received := 0
+	timeout := time.After(time.Second)
+	for received < 2 {
+		select {
+		case <-eventCh:
+			received++
+		case <-timeout:
+			t.Fatalf("Timeout: only received %d of 2 expected notifications", received)
+		}
+	}
+}
+
+func TestSubscriptionResolver_WorkflowEvents_Filtered(t *testing.T) {
+	resolver := NewResolver()
+	subscriptionResolver := &subscriptionResolver{resolver}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Subscribe to specific workflow
+	eventCh, err := subscriptionResolver.WorkflowEvents(ctx, "target-workflow")
+	if err != nil {
+		t.Fatalf("WorkflowEvents subscription failed: %v", err)
+	}
+
+	// Broadcast notification for different workflow (should NOT be received)
+	resolver.broadcastWorkflowEvent(&model.WorkflowEventNotification{Workflow: "other-workflow"})
+
+	// Broadcast notification for target workflow (should be received)
+	resolver.broadcastWorkflowEvent(&model.WorkflowEventNotification{Workflow: "target-workflow"})
+
+	select {
+	case received := <-eventCh:
+		if received.Workflow != "target-workflow" {
+			t.Errorf("Expected 'target-workflow', got '%s'", received.Workflow)
+		}
+	case <-time.After(time.Second):
+		t.Error("Timeout waiting for target workflow notification")
+	}
+}
+
+func TestSubscriptionResolver_WorkflowEvents_Unsubscribe(t *testing.T) {
+	resolver := NewResolver()
+
+	// Create subscription
+	ch := resolver.subscribeToWorkflowEvents("")
+	if len(resolver.workflowSubscribers) != 1 {
+		t.Errorf("Expected 1 subscriber, got %d", len(resolver.workflowSubscribers))
+	}
+
+	// Unsubscribe
+	resolver.unsubscribeFromWorkflowEvents(ch)
+	if len(resolver.workflowSubscribers) != 0 {
+		t.Errorf("Expected 0 subscribers after unsubscribe, got %d", len(resolver.workflowSubscribers))
+	}
+}
+
+// =============================================================================
+// FHIR Subscription Mutation Tests (Error Cases)
+// =============================================================================
+
+func TestMutationResolver_DeleteFhirSubscription_NotFound(t *testing.T) {
+	resolver := NewResolver()
+	mutationResolver := &mutationResolver{resolver}
+
+	ctx := context.Background()
+
+	// Try to delete non-existent subscription
+	_, err := mutationResolver.DeleteFhirSubscription(ctx, "non-existent-id")
+	if err == nil {
+		t.Error("Expected error for non-existent subscription")
+	}
+	if err.Error() != "subscription not found: non-existent-id" {
+		t.Errorf("Unexpected error message: %v", err)
+	}
+}
+
+func TestMutationResolver_PauseFhirSubscription_NotFound(t *testing.T) {
+	resolver := NewResolver()
+	mutationResolver := &mutationResolver{resolver}
+
+	ctx := context.Background()
+
+	// Try to pause non-existent subscription
+	_, err := mutationResolver.PauseFhirSubscription(ctx, "non-existent-id")
+	if err == nil {
+		t.Error("Expected error for non-existent subscription")
+	}
+	if err.Error() != "subscription not found: non-existent-id" {
+		t.Errorf("Unexpected error message: %v", err)
+	}
+}
+
+func TestMutationResolver_ResumeFhirSubscription_NotFound(t *testing.T) {
+	resolver := NewResolver()
+	mutationResolver := &mutationResolver{resolver}
+
+	ctx := context.Background()
+
+	// Try to resume non-existent subscription
+	_, err := mutationResolver.ResumeFhirSubscription(ctx, "non-existent-id")
+	if err == nil {
+		t.Error("Expected error for non-existent subscription")
+	}
+	if err.Error() != "subscription not found: non-existent-id" {
+		t.Errorf("Unexpected error message: %v", err)
+	}
+}
+
+// Test subscription record management helpers
+func TestResolver_SubscriptionRecordManagement(t *testing.T) {
+	resolver := NewResolver()
+
+	// Store a record
+	record := &SubscriptionRecord{
+		ID:        "sub-123",
+		Name:      "Test Subscription",
+		Server:    "https://fhir.example.com",
+		Criteria:  "Patient?_id=123",
+		Endpoint:  "https://my-app.com/webhook",
+		Status:    "active",
+		CreatedAt: time.Now(),
+	}
+	resolver.storeSubscriptionRecord(record)
+
+	// Retrieve the record
+	retrieved, exists := resolver.getSubscriptionRecord("sub-123")
+	if !exists {
+		t.Fatal("Expected subscription record to exist")
+	}
+	if retrieved.Name != "Test Subscription" {
+		t.Errorf("Expected name 'Test Subscription', got '%s'", retrieved.Name)
+	}
+
+	// Update status
+	updated := resolver.updateSubscriptionStatus("sub-123", "off")
+	if !updated {
+		t.Error("Expected updateSubscriptionStatus to return true")
+	}
+	retrieved, _ = resolver.getSubscriptionRecord("sub-123")
+	if retrieved.Status != "off" {
+		t.Errorf("Expected status 'off', got '%s'", retrieved.Status)
+	}
+
+	// Update non-existent record
+	updated = resolver.updateSubscriptionStatus("non-existent", "off")
+	if updated {
+		t.Error("Expected updateSubscriptionStatus to return false for non-existent record")
+	}
+
+	// Delete the record
+	resolver.deleteSubscriptionRecord("sub-123")
+	_, exists = resolver.getSubscriptionRecord("sub-123")
+	if exists {
+		t.Error("Expected subscription record to be deleted")
+	}
+}
+
+// =============================================================================
+// Query Resolver - Workflow Tests
+// =============================================================================
+
+func TestQueryResolver_Workflow_NoEngine(t *testing.T) {
+	resolver := NewResolver() // No workflow engine
+	queryResolver := &queryResolver{resolver}
+
+	ctx := context.Background()
+
+	_, err := queryResolver.Workflow(ctx, "test-workflow")
+	if err == nil {
+		t.Error("Expected error when workflow engine is not configured")
+	}
+}
+
+func TestQueryResolver_Workflow_WithEngine(t *testing.T) {
+	wf := &workflow.Workflow{Name: "test", Version: "1.0"}
+	engine, _ := workflow.NewEngine(wf)
+
+	resolver := NewResolver(WithWorkflowEngine(engine))
+	queryResolver := &queryResolver{resolver}
+
+	ctx := context.Background()
+
+	status, err := queryResolver.Workflow(ctx, "test-workflow")
+	if err != nil {
+		t.Fatalf("Workflow query failed: %v", err)
+	}
+	if status.Name != "test-workflow" {
+		t.Errorf("Expected name 'test-workflow', got '%s'", status.Name)
+	}
+	if !status.Enabled {
+		t.Error("Expected workflow to be enabled")
+	}
+}
+
+func TestQueryResolver_Workflows_NoEngine(t *testing.T) {
+	resolver := NewResolver() // No workflow engine
+	queryResolver := &queryResolver{resolver}
+
+	ctx := context.Background()
+
+	workflows, err := queryResolver.Workflows(ctx)
+	if err != nil {
+		t.Fatalf("Workflows query failed: %v", err)
+	}
+	if len(workflows) != 0 {
+		t.Errorf("Expected empty list without engine, got %d workflows", len(workflows))
+	}
+}
+
+func TestQueryResolver_Workflows_WithEngine(t *testing.T) {
+	wf := &workflow.Workflow{Name: "test", Version: "1.0"}
+	engine, _ := workflow.NewEngine(wf)
+
+	resolver := NewResolver(WithWorkflowEngine(engine))
+	queryResolver := &queryResolver{resolver}
+
+	ctx := context.Background()
+
+	workflows, err := queryResolver.Workflows(ctx)
+	if err != nil {
+		t.Fatalf("Workflows query failed: %v", err)
+	}
+	// Currently returns empty list (workflow listing not implemented in code)
+	if workflows == nil {
+		t.Error("Expected non-nil workflows list")
+	}
+}
+
+// =============================================================================
+// Additional Coverage Tests
+// =============================================================================
+
+func TestMutationResolver_SubmitMessage_UnsupportedFormat(t *testing.T) {
+	resolver := NewResolver()
+	mutationResolver := &mutationResolver{resolver}
+
+	ctx := context.Background()
+
+	// Use an invalid format by type assertion
+	input := model.SubmitMessageInput{
+		Format: model.SourceFormat("invalid"),
+		Data:   "test data",
+		Source: "test",
+	}
+
+	result, err := mutationResolver.SubmitMessage(ctx, input)
+	if err != nil {
+		t.Fatalf("SubmitMessage should not return error: %v", err)
+	}
+
+	if result.Success {
+		t.Error("Expected failure for unsupported format")
+	}
+	if len(result.Errors) == 0 {
+		t.Error("Expected errors for unsupported format")
+	}
+}
+
+func TestQueryResolver_ParsePreview_UnsupportedFormat(t *testing.T) {
+	resolver := NewResolver()
+	queryResolver := &queryResolver{resolver}
+
+	ctx := context.Background()
+
+	result, err := queryResolver.ParsePreview(ctx, model.SourceFormat("invalid"), "data", nil)
+	if err != nil {
+		t.Fatalf("ParsePreview should not return error: %v", err)
+	}
+
+	if result.Success {
+		t.Error("Expected failure for unsupported format")
+	}
+	if len(result.Errors) == 0 {
+		t.Error("Expected errors for unsupported format")
 	}
 }
