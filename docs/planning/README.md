@@ -147,6 +147,12 @@ For AI assistant guidance, see [AGENTS.md](../../AGENTS.md).
 - GraphQL workflow event notifications (pub/sub) - `internal/api/graphql/resolvers/resolver.go`
 - CEL expression evaluation in FHIR subscription mapper - `internal/fhir/subscription/mapper.go`
 - OAuth2 client credentials for FHIR subscriptions - `internal/fhir/subscription/router.go`
+- Patient Matching Engine - `pkg/matching/`
+  - Deterministic matching rules (SSN, MBI, MRN exact match)
+  - Probabilistic scoring (Jaro-Winkler, Soundex, Levenshtein)
+  - Combined matcher with configurable thresholds
+  - MPI interface abstraction with in-memory implementation
+  - Batch matching with blocking keys
 
 ---
 
@@ -170,7 +176,7 @@ The following items remain for full production readiness:
 
 | Feature | Planned In | Notes |
 |---------|------------|-------|
-| Patient Matching Engine | [IDENTIFIERS.md](IDENTIFIERS.md) | Deterministic + probabilistic matching, MPI interface |
+| ✅ Patient Matching Engine | [IDENTIFIERS.md](IDENTIFIERS.md) | Implemented in `pkg/matching/` (2026-01-10) |
 | EDI Companion Guide Framework | [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) | Payer-specific parsing rules (Medicare, Blue Cross, etc.) |
 
 ### P2 - Test Coverage Gaps
