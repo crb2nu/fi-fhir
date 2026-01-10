@@ -500,11 +500,11 @@ fhir.notification.receive (root span)
 - [x] Notification receiver HTTP server - see `internal/fhir/subscription/receiver.go`
 - [x] Basic FHIR-to-canonical mappers (Patient, Encounter, Observation, Appointment) - see `mapper.go`
 
-### Phase 2: Event Routing ⚠️
+### Phase 2: Event Routing ✅
 - [x] Integration with workflow engine - see `internal/fhir/subscription/router.go`
 - [x] Source identification (`source: fhir_subscription`) - see `mapper.go`
 - [x] Subscription configuration YAML - see `internal/fhir/subscription/config.go`
-- [ ] **TODO** OAuth2 support for outgoing requests - `router.go:350`
+- [x] OAuth2 support for outgoing requests - see `router.go` (OAuth2Auth provider)
 
 ### Phase 3: CLI & Management ✅
 - [x] `subscription` CLI commands - see `cmd/fi-fhir/` (list, status, create, delete, pause, resume, serve, validate, test)
@@ -513,10 +513,8 @@ fhir.notification.receive (root span)
 
 ### Phase 4: Advanced Features ⚠️
 - [ ] WebSocket channel support (planned)
-- [ ] **TODO** Custom CEL-based event mapping - `mapper.go:157`
+- [x] Custom CEL-based event mapping - see `mapper.go` (uses workflow.CELEvaluator)
 - [ ] Subscription backfill (initial sync)
-
-> **Note**: 2 TODOs remain in `internal/fhir/subscription/mapper.go:157` and `router.go:350`.
 
 ## Example: Full Integration
 

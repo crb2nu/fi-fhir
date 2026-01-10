@@ -15,8 +15,8 @@ This directory contains detailed planning and specification documents for the fi
 | [TERMINOLOGY.md](TERMINOLOGY.md) | Healthcare code systems and mapping (LOINC, SNOMED, UMLS) | ⚠️ Core complete, version tracking pending |
 | [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md) | TypeScript/JavaScript SDK | ⚠️ SDK complete, distribution pending |
 | [CDA-CCDA.md](CDA-CCDA.md) | CDA/CCDA clinical document parsing | ✅ Complete |
-| [FHIR-SUBSCRIPTIONS.md](FHIR-SUBSCRIPTIONS.md) | FHIR R4 Subscriptions (bidirectional) | ⚠️ Core complete, 2 TODOs pending |
-| [GRAPHQL-API.md](GRAPHQL-API.md) | GraphQL API layer for events | ⚠️ Schema complete, 3 TODOs pending |
+| [FHIR-SUBSCRIPTIONS.md](FHIR-SUBSCRIPTIONS.md) | FHIR R4 Subscriptions (bidirectional) | ✅ Complete |
+| [GRAPHQL-API.md](GRAPHQL-API.md) | GraphQL API layer for events | ✅ Complete |
 | [EVENT-SOURCING.md](EVENT-SOURCING.md) | Event sourcing / CQRS patterns | ✅ Complete |
 
 ## Architecture Overview
@@ -151,13 +151,15 @@ The following items remain for full production readiness:
 
 ### P0 - Critical (TODOs in Production Code)
 
-| Location | Issue |
-|----------|-------|
-| `internal/api/graphql/resolvers/schema.resolvers.go:434` | TODO: Implement workflow triggering with JSON event data |
-| `internal/api/graphql/resolvers/schema.resolvers.go:446` | TODO: Implement FHIR subscription creation |
-| `internal/api/graphql/resolvers/schema.resolvers.go:732` | TODO: Hook into workflow engine for real-time notifications |
-| `internal/fhir/subscription/mapper.go:157` | TODO: Evaluate CEL expression for conditional mapping |
-| `internal/fhir/subscription/router.go:350` | TODO: Add OAuth2 support using existing oauth.go |
+✅ **All P0 items complete** (resolved 2026-01-10)
+
+| Location | Status |
+|----------|--------|
+| `internal/api/graphql/resolvers/schema.resolvers.go` | ✅ `triggerWorkflow` mutation implemented |
+| `internal/api/graphql/resolvers/schema.resolvers.go` | ✅ FHIR subscription CRUD mutations implemented |
+| `internal/api/graphql/resolvers/schema.resolvers.go` | ✅ Workflow event notifications via pub/sub |
+| `internal/fhir/subscription/mapper.go` | ✅ CEL expression evaluation using workflow.CELEvaluator |
+| `internal/fhir/subscription/router.go` | ✅ OAuth2 client credentials via OAuth2Auth provider |
 
 ### P1 - High Priority (Planned but Not Implemented)
 
