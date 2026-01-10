@@ -268,10 +268,12 @@ build:docker:
     DOCKER_TLS_CERTDIR: ""
   script:
     - |
+      # Use CI_REGISTRY_IMAGE if set, otherwise default to fi-fhir
+      IMAGE_BASE="${CI_REGISTRY_IMAGE:-fi-fhir}"
       if [ -n "${CI_COMMIT_TAG}" ]; then
-        IMAGE_TAG="${CI_REGISTRY_IMAGE}:${CI_COMMIT_TAG}"
+        IMAGE_TAG="${IMAGE_BASE}:${CI_COMMIT_TAG}"
       else
-        IMAGE_TAG="${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}"
+        IMAGE_TAG="${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}"
       fi
     - docker build --build-arg VERSION="${CI_COMMIT_TAG:-${CI_COMMIT_SHORT_SHA}}" -t "${IMAGE_TAG}" .
     - docker save "${IMAGE_TAG}" > docker-image.tar
@@ -341,6 +343,8 @@ release:docker:
     - docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
   script:
     - |
+      # Use CI_REGISTRY_IMAGE if set, otherwise default to fi-fhir
+      IMAGE_BASE="${CI_REGISTRY_IMAGE:-fi-fhir}"
       VERSION="${CI_COMMIT_TAG#v}"
       MAJOR="${VERSION%%.*}"
       MINOR="${VERSION%.*}"
@@ -348,19 +352,19 @@ release:docker:
       # Build image
       docker build \
         --build-arg VERSION="${CI_COMMIT_TAG}" \
-        -t "${CI_REGISTRY_IMAGE}:${CI_COMMIT_TAG}" \
-        -t "${CI_REGISTRY_IMAGE}:${VERSION}" \
-        -t "${CI_REGISTRY_IMAGE}:${MINOR}" \
-        -t "${CI_REGISTRY_IMAGE}:${MAJOR}" \
-        -t "${CI_REGISTRY_IMAGE}:latest" \
+        -t "${IMAGE_BASE}:${CI_COMMIT_TAG}" \
+        -t "${IMAGE_BASE}:${VERSION}" \
+        -t "${IMAGE_BASE}:${MINOR}" \
+        -t "${IMAGE_BASE}:${MAJOR}" \
+        -t "${IMAGE_BASE}:latest" \
         .
 
       # Push all tags
-      docker push "${CI_REGISTRY_IMAGE}:${CI_COMMIT_TAG}"
-      docker push "${CI_REGISTRY_IMAGE}:${VERSION}"
-      docker push "${CI_REGISTRY_IMAGE}:${MINOR}"
-      docker push "${CI_REGISTRY_IMAGE}:${MAJOR}"
-      docker push "${CI_REGISTRY_IMAGE}:latest"
+      docker push "${IMAGE_BASE}:${CI_COMMIT_TAG}"
+      docker push "${IMAGE_BASE}:${VERSION}"
+      docker push "${IMAGE_BASE}:${MINOR}"
+      docker push "${IMAGE_BASE}:${MAJOR}"
+      docker push "${IMAGE_BASE}:latest"
   rules:
     - if: $CI_COMMIT_TAG
 
