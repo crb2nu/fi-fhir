@@ -14,6 +14,7 @@ import (
 
 	graphql1 "github.com/cblevins/fi-fhir/internal/api/graphql"
 	"github.com/cblevins/fi-fhir/internal/api/graphql/model"
+	"github.com/cblevins/fi-fhir/internal/fhir/subscription"
 	"github.com/cblevins/fi-fhir/internal/parser/cda"
 	"github.com/cblevins/fi-fhir/internal/parser/csv"
 	"github.com/cblevins/fi-fhir/internal/parser/edi"
@@ -466,23 +467,142 @@ func (r *mutationResolver) TriggerWorkflow(ctx context.Context, name string, eve
 
 // CreateFhirSubscription is the resolver for the createFhirSubscription field.
 func (r *mutationResolver) CreateFhirSubscription(ctx context.Context, input model.CreateSubscriptionInput) (*model.FhirSubscription, error) {
-	// TODO: Implement FHIR subscription creation
-	return nil, fmt.Errorf("FHIR subscriptions not yet implemented")
+	// Get or create a client for this FHIR server
+	client, err := r.getOrCreateSubscriptionClient(input.Server)
+	if err != nil {
+		return nil, fmt.Errorf("create subscription client: %w", err)
+	}
+
+	// Build the FHIR Subscription resource
+	sub := &subscription.Subscription{
+		Status:   subscription.StatusRequested,
+		Reason:   input.Name,
+		Criteria: input.Criteria,
+		Channel: subscription.Channel{
+			Type:     subscription.ChannelRestHook,
+			Endpoint: input.Endpoint,
+			Payload:  "application/fhir+json",
+		},
+	}
+
+	// Create on the FHIR server
+	created, err := client.Create(ctx, sub)
+	if err != nil {
+		return nil, fmt.Errorf("create subscription on server: %w", err)
+	}
+
+	// Store locally for tracking
+	record := &SubscriptionRecord{
+		ID:        created.ID,
+		Name:      input.Name,
+		Server:    input.Server,
+		Criteria:  input.Criteria,
+		Endpoint:  input.Endpoint,
+		Status:    string(created.Status),
+		CreatedAt: time.Now(),
+	}
+	r.storeSubscriptionRecord(record)
+
+	return &model.FhirSubscription{
+		ID:        created.ID,
+		Name:      input.Name,
+		Status:    string(created.Status),
+		Criteria:  input.Criteria,
+		Server:    input.Server,
+		Endpoint:  input.Endpoint,
+		CreatedAt: record.CreatedAt,
+	}, nil
 }
 
 // DeleteFhirSubscription is the resolver for the deleteFhirSubscription field.
 func (r *mutationResolver) DeleteFhirSubscription(ctx context.Context, id string) (bool, error) {
-	return false, fmt.Errorf("FHIR subscriptions not yet implemented")
+	// Look up the subscription to get the server
+	record, exists := r.getSubscriptionRecord(id)
+	if !exists {
+		return false, fmt.Errorf("subscription not found: %s", id)
+	}
+
+	// Get the client for this server
+	client, err := r.getOrCreateSubscriptionClient(record.Server)
+	if err != nil {
+		return false, fmt.Errorf("get subscription client: %w", err)
+	}
+
+	// Delete from the FHIR server
+	if err := client.Delete(ctx, id); err != nil {
+		return false, fmt.Errorf("delete subscription: %w", err)
+	}
+
+	// Remove local record
+	r.deleteSubscriptionRecord(id)
+
+	return true, nil
 }
 
 // PauseFhirSubscription is the resolver for the pauseFhirSubscription field.
 func (r *mutationResolver) PauseFhirSubscription(ctx context.Context, id string) (*model.FhirSubscription, error) {
-	return nil, fmt.Errorf("FHIR subscriptions not yet implemented")
+	// Look up the subscription
+	record, exists := r.getSubscriptionRecord(id)
+	if !exists {
+		return nil, fmt.Errorf("subscription not found: %s", id)
+	}
+
+	// Get the client for this server
+	client, err := r.getOrCreateSubscriptionClient(record.Server)
+	if err != nil {
+		return nil, fmt.Errorf("get subscription client: %w", err)
+	}
+
+	// Pause on the FHIR server
+	if err := client.Pause(ctx, id); err != nil {
+		return nil, fmt.Errorf("pause subscription: %w", err)
+	}
+
+	// Update local status
+	r.updateSubscriptionStatus(id, string(subscription.StatusOff))
+
+	return &model.FhirSubscription{
+		ID:        record.ID,
+		Name:      record.Name,
+		Status:    string(subscription.StatusOff),
+		Criteria:  record.Criteria,
+		Server:    record.Server,
+		Endpoint:  record.Endpoint,
+		CreatedAt: record.CreatedAt,
+	}, nil
 }
 
 // ResumeFhirSubscription is the resolver for the resumeFhirSubscription field.
 func (r *mutationResolver) ResumeFhirSubscription(ctx context.Context, id string) (*model.FhirSubscription, error) {
-	return nil, fmt.Errorf("FHIR subscriptions not yet implemented")
+	// Look up the subscription
+	record, exists := r.getSubscriptionRecord(id)
+	if !exists {
+		return nil, fmt.Errorf("subscription not found: %s", id)
+	}
+
+	// Get the client for this server
+	client, err := r.getOrCreateSubscriptionClient(record.Server)
+	if err != nil {
+		return nil, fmt.Errorf("get subscription client: %w", err)
+	}
+
+	// Resume on the FHIR server
+	if err := client.Resume(ctx, id); err != nil {
+		return nil, fmt.Errorf("resume subscription: %w", err)
+	}
+
+	// Update local status (server will activate, so we mark as requested)
+	r.updateSubscriptionStatus(id, string(subscription.StatusRequested))
+
+	return &model.FhirSubscription{
+		ID:        record.ID,
+		Name:      record.Name,
+		Status:    string(subscription.StatusRequested),
+		Criteria:  record.Criteria,
+		Server:    record.Server,
+		Endpoint:  record.Endpoint,
+		CreatedAt: record.CreatedAt,
+	}, nil
 }
 
 // Event is the resolver for the event field.
