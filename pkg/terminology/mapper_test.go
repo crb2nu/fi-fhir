@@ -1,6 +1,8 @@
 package terminology
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -264,5 +266,95 @@ LOCAL_DX,HTN,http://hl7.org/fhir/sid/icd-10-cm,I10,Essential hypertension,equiva
 	}
 	if mappings[0].TargetCode != "E11.9" {
 		t.Errorf("TargetCode = %q, want 'E11.9'", mappings[0].TargetCode)
+	}
+}
+
+func TestMapperLoadFromCSV(t *testing.T) {
+	// Create a temp CSV file
+	csvContent := `source_system,source_code,source_display,target_system,target_code,target_display,equivalence
+LOCAL_LAB,GLU,Glucose,http://loinc.org,2345-7,Glucose [Mass/volume] in Serum or Plasma,equivalent
+LOCAL_LAB,WBC,White Blood Cell Count,http://loinc.org,6690-2,Leukocytes [#/volume] in Blood,equivalent`
+
+	tempDir := t.TempDir()
+	csvPath := filepath.Join(tempDir, "test_mappings.csv")
+
+	if err := os.WriteFile(csvPath, []byte(csvContent), 0600); err != nil {
+		t.Fatalf("Failed to write temp CSV: %v", err)
+	}
+
+	// Test successful load
+	mapper := NewMapper()
+	if err := mapper.LoadFromCSV(csvPath); err != nil {
+		t.Fatalf("LoadFromCSV failed: %v", err)
+	}
+
+	if mapper.Count() != 2 {
+		t.Errorf("Count() = %d, want 2", mapper.Count())
+	}
+
+	// Verify mapping works
+	mapping := mapper.MapToLOINC("LOCAL_LAB", "GLU")
+	if mapping == nil {
+		t.Fatal("MapToLOINC() returned nil, want mapping")
+	}
+	if mapping.TargetCode != "2345-7" {
+		t.Errorf("TargetCode = %q, want '2345-7'", mapping.TargetCode)
+	}
+}
+
+func TestMapperLoadFromCSV_FileNotFound(t *testing.T) {
+	mapper := NewMapper()
+	err := mapper.LoadFromCSV("/nonexistent/path/to/file.csv")
+	if err == nil {
+		t.Error("LoadFromCSV should fail for nonexistent file")
+	}
+}
+
+func TestMapperHasMapping_NotFound(t *testing.T) {
+	csvData := `source_system,source_code,target_system,target_code
+LOCAL_LAB,GLU,http://loinc.org,2345-7`
+
+	mapper := NewMapper()
+	if err := mapper.LoadFromReader(strings.NewReader(csvData)); err != nil {
+		t.Fatalf("LoadFromReader failed: %v", err)
+	}
+
+	// Test code that doesn't exist
+	if mapper.HasMapping("LOCAL_LAB", "UNKNOWN") {
+		t.Error("HasMapping() = true for unknown code, want false")
+	}
+
+	// Test system that doesn't exist
+	if mapper.HasMapping("UNKNOWN_SYS", "GLU") {
+		t.Error("HasMapping() = true for unknown system, want false")
+	}
+}
+
+func TestMapperMapNoResults(t *testing.T) {
+	csvData := `source_system,source_code,target_system,target_code
+LOCAL_LAB,GLU,http://loinc.org,2345-7`
+
+	mapper := NewMapper()
+	if err := mapper.LoadFromReader(strings.NewReader(csvData)); err != nil {
+		t.Fatalf("LoadFromReader failed: %v", err)
+	}
+
+	// Map to a target system that doesn't exist for this code
+	mappings := mapper.Map("LOCAL_LAB", "GLU", SystemSNOMED)
+	if len(mappings) != 0 {
+		t.Errorf("Map() to SNOMED returned %d mappings, want 0", len(mappings))
+	}
+
+	// Map unknown code
+	mappings = mapper.Map("LOCAL_LAB", "UNKNOWN", "")
+	if len(mappings) != 0 {
+		t.Errorf("Map() for unknown code returned %d mappings, want 0", len(mappings))
+	}
+}
+
+func TestMapperCount_Empty(t *testing.T) {
+	mapper := NewMapper()
+	if mapper.Count() != 0 {
+		t.Errorf("Count() = %d for empty mapper, want 0", mapper.Count())
 	}
 }
