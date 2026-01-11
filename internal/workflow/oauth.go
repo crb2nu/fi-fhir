@@ -264,7 +264,7 @@ func WithOAuthRetry(
 		// Check for 401 Unauthorized with OAuth
 		if resp.StatusCode == http.StatusUnauthorized && oauthConfig != nil && !retriedOn401 {
 			// Close the response body before retrying
-			resp.Body.Close()
+			resp.Body.Close() //nolint:gosec // G104: closing before retry, error not actionable
 
 			// Invalidate the cached token
 			globalTokenManager.InvalidateToken(*oauthConfig)

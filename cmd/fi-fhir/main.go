@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -688,7 +689,7 @@ func validateMessage(profilePath, messagePath, format string, verbose bool) []st
 	}
 
 	// Read message
-	data, err := os.ReadFile(messagePath)
+	data, err := os.ReadFile(messagePath) //nolint:gosec // G304: CLI tool reads user-specified file
 	if err != nil {
 		return []string{fmt.Sprintf("failed to read message: %v", err)}
 	}
@@ -1243,7 +1244,7 @@ func runWorkflowReplay(args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to marshal summary: %w", err)
 		}
-		if err := os.WriteFile(outputPath, outputData, 0644); err != nil {
+		if err := os.WriteFile(outputPath, outputData, 0644); err != nil { //nolint:gosec // G306: non-sensitive output file
 			return fmt.Errorf("failed to write output: %w", err)
 		}
 		fmt.Printf("\nSummary written to %s\n", outputPath)
@@ -1369,7 +1370,7 @@ func runWorkflowSimulate(args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to marshal report: %w", err)
 		}
-		if err := os.WriteFile(outputPath, outputData, 0644); err != nil {
+		if err := os.WriteFile(outputPath, outputData, 0644); err != nil { //nolint:gosec // G306: non-sensitive output file
 			return fmt.Errorf("failed to write output: %w", err)
 		}
 		fmt.Printf("\nReport written to %s\n", outputPath)
@@ -1597,7 +1598,7 @@ func runWorkflowLoadtest(args []string) error {
 			i++
 			d, err := time.ParseDuration(args[i])
 			if err != nil {
-				return fmt.Errorf("invalid duration: %v", err)
+				return fmt.Errorf("invalid duration: %w", err)
 			}
 			duration = d
 		case "-r", "--rps":
@@ -1607,7 +1608,7 @@ func runWorkflowLoadtest(args []string) error {
 			i++
 			r, err := strconv.Atoi(args[i])
 			if err != nil {
-				return fmt.Errorf("invalid rps: %v", err)
+				return fmt.Errorf("invalid rps: %w", err)
 			}
 			rps = r
 		case "-w", "--workers":
@@ -1617,7 +1618,7 @@ func runWorkflowLoadtest(args []string) error {
 			i++
 			w, err := strconv.Atoi(args[i])
 			if err != nil {
-				return fmt.Errorf("invalid workers: %v", err)
+				return fmt.Errorf("invalid workers: %w", err)
 			}
 			workers = w
 		case "--warmup":
@@ -1627,7 +1628,7 @@ func runWorkflowLoadtest(args []string) error {
 			i++
 			w, err := time.ParseDuration(args[i])
 			if err != nil {
-				return fmt.Errorf("invalid warmup: %v", err)
+				return fmt.Errorf("invalid warmup: %w", err)
 			}
 			warmup = w
 		case "-v", "--verbose":
@@ -2202,7 +2203,7 @@ secrets:
 `
 	}
 
-	if err := os.WriteFile(outputPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(outputPath, []byte(content), 0644); err != nil { //nolint:gosec // G306: config template file
 		return fmt.Errorf("failed to write config: %w", err)
 	}
 
@@ -3022,7 +3023,7 @@ func runSubscriptionServe(args []string) error {
 		fmt.Println("\nShutting down...")
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		server.Shutdown(ctx)
+		server.Shutdown(ctx) //nolint:gosec // G104: graceful shutdown, errors logged internally
 	}()
 
 	fmt.Printf("Starting subscription receiver on %s:%d\n", host, port)
@@ -3037,7 +3038,7 @@ func runSubscriptionServe(args []string) error {
 		serveErr = server.Start("", "")
 	}
 
-	if serveErr != nil && serveErr != http.ErrServerClosed {
+	if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
 		return serveErr
 	}
 
@@ -3182,7 +3183,7 @@ func runSubscriptionTest(args []string) error {
 	}
 
 	// Load resource
-	data, err := os.ReadFile(resourceFile)
+	data, err := os.ReadFile(resourceFile) //nolint:gosec // G304: CLI tool reads user-specified file
 	if err != nil {
 		return fmt.Errorf("read resource: %w", err)
 	}
@@ -3413,7 +3414,7 @@ func runServe(args []string) error {
 		defer cancel()
 		return server.Shutdown(ctx)
 	case err := <-errCh:
-		if err != nil && err != http.ErrServerClosed {
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			return err
 		}
 		return nil

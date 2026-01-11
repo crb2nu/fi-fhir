@@ -228,7 +228,7 @@ func (c *UMLSClient) doRequest(ctx context.Context, method, path string, params 
 	for attempt := 0; attempt <= c.maxRetries; attempt++ {
 		if attempt > 0 {
 			// Exponential backoff
-			backoff := time.Duration(1<<uint(attempt-1)) * time.Second
+			backoff := time.Duration(1<<uint(attempt-1)) * time.Second //nolint:gosec // G115: attempt bounded by maxRetries (typically 3-5)
 			select {
 			case <-time.After(backoff):
 			case <-ctx.Done():
@@ -273,7 +273,7 @@ func (c *UMLSClient) doRequest(ctx context.Context, method, path string, params 
 		}
 
 		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		resp.Body.Close() //nolint:gosec // G104: response body close errors not actionable
 
 		if err != nil {
 			lastErr = fmt.Errorf("failed to read response: %w", err)

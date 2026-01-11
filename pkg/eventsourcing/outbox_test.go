@@ -420,7 +420,7 @@ func TestMockPublisher_SetFailure(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected error, got nil")
 	}
-	if err != expectedErr {
+	if !errors.Is(err, expectedErr) {
 		t.Errorf("Error = %v, want %v", err, expectedErr)
 	}
 

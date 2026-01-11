@@ -1,6 +1,7 @@
 package edi
 
 import (
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -302,8 +303,8 @@ func TestParseErrors(t *testing.T) {
 				t.Error("expected error but got none")
 				return
 			}
-			parseErr, ok := err.(*ParseError)
-			if !ok {
+			var parseErr *ParseError
+			if !errors.As(err, &parseErr) {
 				t.Errorf("expected ParseError, got %T", err)
 				return
 			}

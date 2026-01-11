@@ -123,7 +123,7 @@ func (a *Action) UnmarshalYAML(value *yaml.Node) error {
 
 // LoadWorkflow loads a workflow from a YAML file.
 func LoadWorkflow(path string) (*Workflow, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // G304: path from trusted caller
 	if err != nil {
 		return nil, fmt.Errorf("failed to read workflow file: %w", err)
 	}

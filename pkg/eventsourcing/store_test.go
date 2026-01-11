@@ -2,6 +2,7 @@ package eventsourcing
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 )
@@ -49,13 +50,13 @@ func TestMemoryStore_ConcurrencyConflict(t *testing.T) {
 
 	// Second append with wrong version should fail
 	_, err = store.Append(ctx, "patient:123", VersionNone, events)
-	if err != ErrConcurrencyConflict {
+	if !errors.Is(err, ErrConcurrencyConflict) {
 		t.Errorf("Expected ErrConcurrencyConflict, got %v", err)
 	}
 
 	// Append with wrong expected version should fail
 	_, err = store.Append(ctx, "patient:123", 5, events)
-	if err != ErrConcurrencyConflict {
+	if !errors.Is(err, ErrConcurrencyConflict) {
 		t.Errorf("Expected ErrConcurrencyConflict, got %v", err)
 	}
 }

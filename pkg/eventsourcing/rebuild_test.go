@@ -3,6 +3,7 @@ package eventsourcing
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -378,7 +379,7 @@ func TestProjectionRebuilder_ContextCancellation(t *testing.T) {
 	})
 
 	// Should either complete or be cancelled
-	if err != nil && err != context.DeadlineExceeded && err != context.Canceled {
+	if err != nil && !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
 		t.Errorf("Unexpected error: %v", err)
 	}
 }

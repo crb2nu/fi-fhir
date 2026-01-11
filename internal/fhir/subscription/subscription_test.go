@@ -3,6 +3,7 @@ package subscription
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -532,7 +533,7 @@ func TestClient_Get_NotFound(t *testing.T) {
 	client, _ := NewClient(&ClientConfig{FHIREndpoint: server.URL})
 
 	_, err := client.Get(context.Background(), "missing")
-	if err != ErrNotFound {
+	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("Expected ErrNotFound, got %v", err)
 	}
 }
@@ -607,7 +608,7 @@ func TestClient_Delete_NotFound(t *testing.T) {
 	client, _ := NewClient(&ClientConfig{FHIREndpoint: server.URL})
 
 	err := client.Delete(context.Background(), "missing")
-	if err != ErrNotFound {
+	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("Expected ErrNotFound, got %v", err)
 	}
 }
@@ -713,8 +714,8 @@ func TestClient_ParseError_OperationOutcome(t *testing.T) {
 		t.Fatal("Expected error")
 	}
 
-	fhirErr, ok := err.(*FHIRError)
-	if !ok {
+	var fhirErr *FHIRError
+	if !errors.As(err, &fhirErr) {
 		t.Fatalf("Expected *FHIRError, got %T", err)
 	}
 

@@ -37,7 +37,7 @@ func TestMockAction_WithError(t *testing.T) {
 	mock := NewMockAction().WithError(expectedErr)
 
 	err := mock.Execute(nil, nil)
-	if err != expectedErr {
+	if !errors.Is(err, expectedErr) {
 		t.Errorf("Expected %v, got %v", expectedErr, err)
 	}
 
@@ -72,12 +72,12 @@ func TestMockAction_FailAfter(t *testing.T) {
 	}
 
 	// Third call fails
-	if err := mock.Execute(nil, nil); err != expectedErr {
+	if err := mock.Execute(nil, nil); !errors.Is(err, expectedErr) {
 		t.Errorf("Call 3: expected %v, got %v", expectedErr, err)
 	}
 
 	// Fourth call also fails
-	if err := mock.Execute(nil, nil); err != expectedErr {
+	if err := mock.Execute(nil, nil); !errors.Is(err, expectedErr) {
 		t.Errorf("Call 4: expected %v, got %v", expectedErr, err)
 	}
 }
@@ -577,7 +577,7 @@ func TestMockAction_ContextCancellation(t *testing.T) {
 	err := mock.ExecuteWithContext(ctx, nil, nil)
 	elapsed := time.Since(start)
 
-	if err != context.Canceled {
+	if !errors.Is(err, context.Canceled) {
 		t.Errorf("Expected context.Canceled, got %v", err)
 	}
 

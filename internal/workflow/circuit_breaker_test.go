@@ -563,7 +563,7 @@ func TestWithCircuitBreakerRecordsFailureOnError(t *testing.T) {
 		return nil, testErr
 	})
 
-	if err != testErr {
+	if !errors.Is(err, testErr) {
 		t.Errorf("expected original error, got %v", err)
 	}
 	if resp != nil {

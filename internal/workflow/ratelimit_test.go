@@ -458,7 +458,7 @@ func TestWithRateLimitFunctionError(t *testing.T) {
 		return expectedErr
 	})
 
-	if err != expectedErr {
+	if !errors.Is(err, expectedErr) {
 		t.Errorf("expected function error, got %v", err)
 	}
 }

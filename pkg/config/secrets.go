@@ -120,7 +120,7 @@ func NewFileSecretProvider(basePath string) *FileSecretProvider {
 
 func (p *FileSecretProvider) Get(key string) (string, error) {
 	path := p.basePath + "/" + key
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // G304: basePath from trusted config
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "", nil
@@ -133,7 +133,7 @@ func (p *FileSecretProvider) Get(key string) (string, error) {
 
 func (p *FileSecretProvider) GetRequired(key string) (string, error) {
 	path := p.basePath + "/" + key
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // G304: basePath from trusted config
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "", fmt.Errorf("required secret %q not found at %s", key, path)

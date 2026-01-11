@@ -157,7 +157,7 @@ func (rc RetryConfig) CalculateDelay(attempt int) time.Duration {
 	// Apply jitter: delay * (1 - jitter + rand(0, 2*jitter))
 	if rc.Jitter > 0 {
 		jitterRange := delay * rc.Jitter * 2
-		delay = delay - (delay * rc.Jitter) + (rand.Float64() * jitterRange)
+		delay = delay - (delay * rc.Jitter) + (rand.Float64() * jitterRange) //nolint:gosec // G404: math/rand OK for jitter
 	}
 
 	// Cap at max delay
@@ -208,7 +208,7 @@ func WithRetry(ctx context.Context, rc RetryConfig, fn HTTPRequestFunc) (*http.R
 
 			// Close response body if we're going to retry (avoid leaking)
 			if shouldRetry && resp.Body != nil {
-				resp.Body.Close()
+				resp.Body.Close() //nolint:gosec // G104: closing before retry, error not actionable
 			}
 		}
 

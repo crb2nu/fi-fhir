@@ -255,7 +255,7 @@ func (h *HealthService) writeResponse(w http.ResponseWriter, response *HealthRes
 	}
 
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(response) //nolint:gosec // G104: HTTP response encoding errors not recoverable
 }
 
 // ---- Built-in Health Checkers ----

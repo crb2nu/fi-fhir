@@ -3,6 +3,7 @@ package terminology
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -479,7 +480,7 @@ func TestRateLimiter(t *testing.T) {
 	slowLimiter.tokens = 0
 
 	err := slowLimiter.wait(cancelCtx)
-	if err != context.Canceled {
+	if !errors.Is(err, context.Canceled) {
 		t.Errorf("expected context.Canceled, got %v", err)
 	}
 }

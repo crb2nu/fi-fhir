@@ -43,7 +43,7 @@ func (m *EventStoreManager) GetStore(dsn string, tableName string) (*eventsourci
 		}
 		// Connection dead, remove it
 		m.mu.Lock()
-		db.Close()
+		db.Close() //nolint:gosec // G104: cleanup of dead connection
 		delete(m.stores, key)
 		delete(m.dbs, key)
 		m.mu.Unlock()
@@ -70,7 +70,7 @@ func (m *EventStoreManager) createStore(dsn string, tableName string) (*eventsou
 
 	// Verify connection
 	if err := db.Ping(); err != nil {
-		db.Close()
+		db.Close() //nolint:gosec // G104: cleanup on failed connection
 		return nil, fmt.Errorf("database ping failed: %w", err)
 	}
 

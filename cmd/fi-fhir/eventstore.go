@@ -199,7 +199,7 @@ func runEventStoreStreams(args []string) error {
 				return fmt.Errorf("--limit requires a value")
 			}
 			i++
-			fmt.Sscanf(args[i], "%d", &limit)
+			fmt.Sscanf(args[i], "%d", &limit) //nolint:gosec // CLI arg parsing, invalid input uses default
 		}
 	}
 
@@ -213,6 +213,7 @@ func runEventStoreStreams(args []string) error {
 	defer cancel()
 
 	// Query distinct streams
+	//nolint:gosec // G201: tableName is trusted internal config, not user input
 	query := fmt.Sprintf(`
 		SELECT stream_id, MAX(stream_version) as version, COUNT(*) as event_count
 		FROM %s
@@ -276,19 +277,19 @@ func runEventStoreRead(args []string) error {
 				return fmt.Errorf("--from-position requires a value")
 			}
 			i++
-			fmt.Sscanf(args[i], "%d", &fromPosition)
+			fmt.Sscanf(args[i], "%d", &fromPosition) //nolint:gosec // CLI arg parsing
 		case "--from-version":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--from-version requires a value")
 			}
 			i++
-			fmt.Sscanf(args[i], "%d", &fromVersion)
+			fmt.Sscanf(args[i], "%d", &fromVersion) //nolint:gosec // CLI arg parsing
 		case "--limit":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--limit requires a value")
 			}
 			i++
-			fmt.Sscanf(args[i], "%d", &limit)
+			fmt.Sscanf(args[i], "%d", &limit) //nolint:gosec // CLI arg parsing
 		case "--pretty":
 			pretty = true
 		}
@@ -351,7 +352,7 @@ func runEventStoreRead(args []string) error {
 			output["data"] = string(event.Data)
 		}
 
-		encoder.Encode(output)
+		encoder.Encode(output) //nolint:gosec // JSON output to stdout
 	}
 
 	return nil
@@ -383,7 +384,7 @@ func runEventStoreAppend(args []string) error {
 				return fmt.Errorf("--version requires a value")
 			}
 			i++
-			fmt.Sscanf(args[i], "%d", &expectedVersion)
+			fmt.Sscanf(args[i], "%d", &expectedVersion) //nolint:gosec // CLI arg parsing
 		case "--type":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--type requires a value")

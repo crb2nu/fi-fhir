@@ -45,7 +45,7 @@ func (m *DatabaseManager) GetConnection(dsn string) (*sql.DB, error) {
 		}
 		// Connection dead, remove it
 		m.mu.Lock()
-		db.Close()
+		db.Close() //nolint:gosec // G104: cleanup of dead connection
 		delete(m.connections, dsn)
 		m.mu.Unlock()
 	}
@@ -76,7 +76,7 @@ func (m *DatabaseManager) createConnection(dsn string) (*sql.DB, error) {
 
 	// Verify connection
 	if err := db.Ping(); err != nil {
-		db.Close()
+		db.Close() //nolint:gosec // G104: cleanup on failed connection
 		return nil, fmt.Errorf("database ping failed (is driver registered?): %w", err)
 	}
 
@@ -239,7 +239,7 @@ func executeInsert(db *sql.DB, config *DatabaseConfig, eventMap map[string]inter
 		placeholders[i] = fmt.Sprintf("$%d", i+1) // PostgreSQL style
 	}
 
-	query := fmt.Sprintf(
+	query := fmt.Sprintf( //nolint:gosec // G201: table/columns from trusted config
 		"INSERT INTO %s (%s) VALUES (%s)",
 		config.Table,
 		strings.Join(columns, ", "),
@@ -287,7 +287,7 @@ func executeUpsert(db *sql.DB, config *DatabaseConfig, eventMap map[string]inter
 	}
 
 	// Build PostgreSQL-style upsert query
-	query := fmt.Sprintf(
+	query := fmt.Sprintf( //nolint:gosec // G201: table/columns from trusted config
 		"INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s) DO UPDATE SET %s",
 		config.Table,
 		strings.Join(columns, ", "),
