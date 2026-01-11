@@ -449,3 +449,11 @@ func GetTransactionType(tx *Transaction) TransactionType {
 func (p *Parser) Warnings() []ParseWarning {
 	return p.warnings
 }
+
+// Delimiters returns the delimiters for a parse result
+func (r *ParseResult) Delimiters() Delimiters {
+	if r.Interchange != nil {
+		return r.Interchange.Delimiters
+	}
+	return DefaultDelimiters()
+}
