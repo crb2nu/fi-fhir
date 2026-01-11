@@ -1199,7 +1199,7 @@ func runWorkflowReplay(args []string) error {
 		Limit:      limit,
 	}
 
-	summary, err := replayer.Replay(nil, config)
+	summary, err := replayer.Replay(context.Background(), config)
 	if err != nil {
 		return fmt.Errorf("replay failed: %w", err)
 	}
@@ -2989,9 +2989,8 @@ func runSubscriptionServe(args []string) error {
 		PathPrefix:    "/fhir/notify",
 		MaxBundleSize: 100,
 	}
-	if configPath != "" {
-		// TODO: Load receiver config from file
-	}
+	// TODO: Load receiver config from configPath when config file support is implemented
+	_ = configPath
 
 	receiver := subscription.NewReceiver(router, receiverOpts)
 

@@ -221,7 +221,8 @@ func mockUMLSServer(t *testing.T) *httptest.Server {
 
 		var response map[string]interface{}
 
-		if term == "diabetes" {
+		switch term {
+		case "diabetes":
 			response = map[string]interface{}{
 				"result": map[string]interface{}{
 					"results": []map[string]interface{}{
@@ -242,7 +243,7 @@ func mockUMLSServer(t *testing.T) *httptest.Server {
 				"pageSize":  25,
 				"pageCount": 1,
 			}
-		} else if term == "E11.9" {
+		case "E11.9":
 			response = map[string]interface{}{
 				"result": map[string]interface{}{
 					"results": []map[string]interface{}{
@@ -257,7 +258,7 @@ func mockUMLSServer(t *testing.T) *httptest.Server {
 				"pageSize":  25,
 				"pageCount": 1,
 			}
-		} else {
+		default:
 			response = map[string]interface{}{
 				"result": map[string]interface{}{
 					"results": []map[string]interface{}{},

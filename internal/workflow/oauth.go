@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -91,7 +92,7 @@ func (m *OAuthTokenManager) fetchToken(config OAuthConfig, cacheKey string) (str
 	formBody := formData.Encode()
 
 	// Execute request with retry
-	resp, err := WithRetry(nil, m.retryConfig, func() (*http.Response, error) {
+	resp, err := WithRetry(context.Background(), m.retryConfig, func() (*http.Response, error) {
 		req, err := http.NewRequest("POST", config.TokenURL, strings.NewReader(formBody))
 		if err != nil {
 			return nil, fmt.Errorf("failed to create token request: %w", err)
@@ -242,7 +243,7 @@ func WithOAuthRetry(
 
 	for {
 		// Execute request with retry
-		resp, err := WithRetry(nil, retryConfig, func() (*http.Response, error) {
+		resp, err := WithRetry(context.Background(), retryConfig, func() (*http.Response, error) {
 			req, err := requestFn()
 			if err != nil {
 				return nil, err

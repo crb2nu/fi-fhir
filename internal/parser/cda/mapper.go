@@ -236,7 +236,8 @@ func (m *ResultsSectionMapper) MapSection(section *Section, patient *events.Pati
 
 	for _, entry := range section.Entries {
 		// Results come as organizers containing observations
-		if entry.TypeCode == "organizer" {
+		switch entry.TypeCode {
+		case "organizer":
 			for _, obs := range entry.EntryRelationships {
 				if obs.TypeCode == "observation" {
 					event := mapLabResultObservation(&obs, patient, docTime)
@@ -245,7 +246,7 @@ func (m *ResultsSectionMapper) MapSection(section *Section, patient *events.Pati
 					}
 				}
 			}
-		} else if entry.TypeCode == "observation" {
+		case "observation":
 			event := mapLabResultObservation(&entry, patient, docTime)
 			if event != nil {
 				results = append(results, event)
@@ -401,9 +402,10 @@ func (m *ProblemsSectionMapper) MapSection(section *Section, patient *events.Pat
 					event := mapConditionObservation(&obs, patient, docTime)
 					if event != nil {
 						// Set clinical status from act status
-						if entry.StatusCode == "active" {
+						switch entry.StatusCode {
+						case "active":
 							event.ClinicalStatus = "active"
-						} else if entry.StatusCode == "completed" {
+						case "completed":
 							event.ClinicalStatus = "resolved"
 						}
 						results = append(results, event)

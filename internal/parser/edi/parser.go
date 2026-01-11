@@ -398,9 +398,7 @@ func (p *Parser) addWarning(phase, code, message, segment string, element int) {
 // normalizeContent prepares EDI content for parsing
 func normalizeContent(content string) string {
 	// Remove BOM if present
-	if strings.HasPrefix(content, "\xef\xbb\xbf") {
-		content = content[3:]
-	}
+	content = strings.TrimPrefix(content, "\xef\xbb\xbf")
 
 	// Normalize line endings - some EDI uses \n as segment terminator
 	// but we should preserve the actual terminator from ISA

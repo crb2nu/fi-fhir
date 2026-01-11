@@ -111,9 +111,7 @@ func (p *PatientTimelineProjection) GetTimeline(mrn string) (*PatientTimeline, b
 		LastUpdated:  timeline.LastUpdated,
 		LastPosition: timeline.LastPosition,
 	}
-	for i, e := range timeline.Events {
-		tlCopy.Events[i] = e
-	}
+	copy(tlCopy.Events, timeline.Events)
 
 	return tlCopy, true
 }

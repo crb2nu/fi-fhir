@@ -710,9 +710,10 @@ func Parse270Loops(tx *Transaction) *Loop270Structure {
 			} else if currentSubscriber != nil {
 				currentSubscriber.EligibilityReq = append(currentSubscriber.EligibilityReq, currentEligibility)
 			}
-			if state == "2100C" {
+			switch state {
+			case "2100C":
 				state = "2110C"
-			} else if state == "2100D" {
+			case "2100D":
 				state = "2110D"
 			}
 

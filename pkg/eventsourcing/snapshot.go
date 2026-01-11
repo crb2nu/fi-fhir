@@ -169,11 +169,7 @@ func (m *SnapshotManager) ShouldSnapshot(projectionName string) bool {
 
 	// Check minimum age
 	lastTime := m.lastSnap[projectionName]
-	if time.Since(lastTime) < m.config.MinAge {
-		return false
-	}
-
-	return true
+	return time.Since(lastTime) >= m.config.MinAge
 }
 
 // RecordEvent increments the event counter for a projection.
@@ -320,9 +316,8 @@ func (r *SnapshotAwareRunner) RebuildWithSnapshots(ctx context.Context, projecti
 
 			// Check if we should snapshot
 			if r.snapshotMgr.ShouldSnapshot(projectionName) {
-				if err := r.snapshotMgr.TakeSnapshot(ctx, projection, event.Position); err != nil {
-					// Log error but continue
-				}
+				// Ignore snapshot errors - we continue processing events regardless
+				_ = r.snapshotMgr.TakeSnapshot(ctx, projection, event.Position)
 			}
 		}
 	}

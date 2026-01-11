@@ -348,7 +348,7 @@ func TestWithRetrySuccess(t *testing.T) {
 		RetryableStatusCodes: []int{500},
 	}
 
-	resp, err := WithRetry(nil, rc, func() (*http.Response, error) {
+	resp, err := WithRetry(context.Background(), rc, func() (*http.Response, error) {
 		return http.Get(server.URL)
 	})
 
@@ -386,7 +386,7 @@ func TestWithRetryEventualSuccess(t *testing.T) {
 		RetryableStatusCodes: []int{503},
 	}
 
-	resp, err := WithRetry(nil, rc, func() (*http.Response, error) {
+	resp, err := WithRetry(context.Background(), rc, func() (*http.Response, error) {
 		return http.Get(server.URL)
 	})
 
@@ -420,7 +420,7 @@ func TestWithRetryMaxRetriesExhausted(t *testing.T) {
 		RetryableStatusCodes: []int{503},
 	}
 
-	resp, err := WithRetry(nil, rc, func() (*http.Response, error) {
+	resp, err := WithRetry(context.Background(), rc, func() (*http.Response, error) {
 		return http.Get(server.URL)
 	})
 
@@ -456,7 +456,7 @@ func TestWithRetryNonRetryableStatus(t *testing.T) {
 		RetryableStatusCodes: []int{500, 502, 503},
 	}
 
-	resp, err := WithRetry(nil, rc, func() (*http.Response, error) {
+	resp, err := WithRetry(context.Background(), rc, func() (*http.Response, error) {
 		return http.Get(server.URL)
 	})
 
@@ -485,7 +485,7 @@ func TestWithRetryNetworkError(t *testing.T) {
 		RetryableStatusCodes: []int{500},
 	}
 
-	_, err := WithRetry(nil, rc, func() (*http.Response, error) {
+	_, err := WithRetry(context.Background(), rc, func() (*http.Response, error) {
 		callCount++
 		return nil, errors.New("network error")
 	})
@@ -575,7 +575,7 @@ func TestWithRetryNoRetries(t *testing.T) {
 		RetryableStatusCodes: []int{503},
 	}
 
-	resp, err := WithRetry(nil, rc, func() (*http.Response, error) {
+	resp, err := WithRetry(context.Background(), rc, func() (*http.Response, error) {
 		return http.Get(server.URL)
 	})
 
@@ -597,7 +597,7 @@ func TestWithSimpleRetrySuccess(t *testing.T) {
 		InitialDelay: 1 * time.Millisecond,
 	}
 
-	err := WithSimpleRetry(nil, rc, func() error {
+	err := WithSimpleRetry(context.Background(), rc, func() error {
 		callCount++
 		return nil
 	})
@@ -620,7 +620,7 @@ func TestWithSimpleRetryEventualSuccess(t *testing.T) {
 		Jitter:       0,
 	}
 
-	err := WithSimpleRetry(nil, rc, func() error {
+	err := WithSimpleRetry(context.Background(), rc, func() error {
 		callCount++
 		if callCount < 3 {
 			return errors.New("temporary error")
@@ -646,7 +646,7 @@ func TestWithSimpleRetryMaxRetriesExhausted(t *testing.T) {
 		Jitter:       0,
 	}
 
-	err := WithSimpleRetry(nil, rc, func() error {
+	err := WithSimpleRetry(context.Background(), rc, func() error {
 		callCount++
 		return errors.New("persistent error")
 	})

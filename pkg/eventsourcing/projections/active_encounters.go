@@ -142,7 +142,7 @@ func (p *ActiveEncountersProjection) handleAdmitAlternate(event eventsourcing.St
 	// Handle simpler event format
 	var data map[string]interface{}
 	if err := json.Unmarshal(event.Data, &data); err != nil {
-		return nil // Skip malformed events
+		return nil //nolint:nilerr // Intentional: skip malformed events
 	}
 
 	encounterID := event.StreamID
@@ -186,7 +186,7 @@ func (p *ActiveEncountersProjection) handleDischarge(event eventsourcing.StoredE
 	}
 
 	if err := json.Unmarshal(event.Data, &data); err != nil {
-		return nil
+		return nil //nolint:nilerr // Intentional: skip malformed events
 	}
 
 	encounterID := data.Encounter.ID
@@ -229,7 +229,7 @@ func (p *ActiveEncountersProjection) handleTransfer(event eventsourcing.StoredEv
 	}
 
 	if err := json.Unmarshal(event.Data, &data); err != nil {
-		return nil
+		return nil //nolint:nilerr // Intentional: skip malformed events
 	}
 
 	encounterID := data.Encounter.ID

@@ -417,7 +417,7 @@ func TestStandardScenarios(t *testing.T) {
 	// Check smoke test exists
 	smoke := GetScenario("smoke")
 	if smoke == nil {
-		t.Error("Expected 'smoke' scenario to exist")
+		t.Fatal("Expected 'smoke' scenario to exist")
 	}
 	if smoke.Config.Duration != 10*time.Second {
 		t.Errorf("Smoke test should be 10s, got %v", smoke.Config.Duration)

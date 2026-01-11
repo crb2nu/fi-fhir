@@ -239,7 +239,7 @@ func NewSimulationEngine(workflow *Workflow) (*SimulationEngine, error) {
 	for _, actionType := range []string{"log", "webhook", "fhir", "database", "queue"} {
 		mock := NewMockAction()
 		sim.mocks[actionType] = mock
-		sim.Engine.RegisterAction(actionType, sim.createTrackedHandler(actionType, mock))
+		sim.RegisterAction(actionType, sim.createTrackedHandler(actionType, mock))
 	}
 
 	return sim, nil
@@ -279,7 +279,7 @@ func (s *SimulationEngine) GetMock(actionType string) *MockAction {
 // SetMock sets a custom mock for an action type.
 func (s *SimulationEngine) SetMock(actionType string, mock *MockAction) {
 	s.mocks[actionType] = mock
-	s.Engine.RegisterAction(actionType, s.createTrackedHandler(actionType, mock))
+	s.RegisterAction(actionType, s.createTrackedHandler(actionType, mock))
 }
 
 // AllInvocations returns all action invocations across all mocks.

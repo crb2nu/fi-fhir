@@ -343,7 +343,6 @@ func (p *Parser) parseEntry(node *xmlquery.Node, depth int) *Entry {
 			"supply", "encounter", "organizer":
 			entryContent = child
 			typeCode = name
-			break
 		}
 	}
 

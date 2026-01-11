@@ -293,6 +293,10 @@ func (s *PostgresStore) GetStats(ctx context.Context) (*PostgresStoreStats, erro
 		stats.EventTypes[eventType] = count
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating event types: %w", err)
+	}
+
 	return stats, nil
 }
 

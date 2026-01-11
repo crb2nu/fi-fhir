@@ -360,11 +360,9 @@ func (o *SagaOrchestrator) executeForward(ctx context.Context, state *SagaState,
 		state.StepStates[i].Status = StepStatusCompleted
 		state.StepStates[i].OutputData = outputData
 
-		// Merge output data into saga data
-		if outputData != nil {
-			for k, v := range outputData {
-				state.Data[k] = v
-			}
+		// Merge output data into saga data (range on nil map is safe no-op)
+		for k, v := range outputData {
+			state.Data[k] = v
 		}
 
 		state.LastUpdatedAt = time.Now()

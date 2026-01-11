@@ -89,7 +89,7 @@ func (t *Transformer) applyMapTerminology(event map[string]interface{}, config *
 	currentValue, err := getNestedValue(event, config.Field)
 	if err != nil {
 		// Field doesn't exist - skip silently
-		return nil
+		return nil //nolint:nilerr // Intentional: missing field is not an error for terminology mapping
 	}
 
 	codeStr, ok := currentValue.(string)

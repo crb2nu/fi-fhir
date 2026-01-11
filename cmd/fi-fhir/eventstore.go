@@ -239,6 +239,10 @@ func runEventStoreStreams(args []string) error {
 		fmt.Printf("%-40s %10d %10d\n", streamID, version, eventCount)
 	}
 
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("error iterating rows: %w", err)
+	}
+
 	return nil
 }
 
