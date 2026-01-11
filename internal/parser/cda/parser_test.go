@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/antchfx/xmlquery"
 )
 
 // Sample CCDA CCD document for testing
@@ -804,5 +806,174 @@ func TestOIDToFHIRSystem(t *testing.T) {
 		if result != tt.expected {
 			t.Errorf("OIDToFHIRSystem[%q] = %q, expected %q", tt.oid, result, tt.expected)
 		}
+	}
+}
+
+// mockSectionParser implements SectionParser for testing
+type mockSectionParser struct {
+	templateOID string
+	called      bool
+}
+
+func (m *mockSectionParser) TemplateOID() string {
+	return m.templateOID
+}
+
+func (m *mockSectionParser) Parse(section *xmlquery.Node, config *ParserConfig) (*Section, error) {
+	m.called = true
+	return &Section{}, nil
+}
+
+func TestParser_RegisterSectionParser(t *testing.T) {
+	parser := NewParser("test", nil)
+
+	// Register a custom section parser
+	mock := &mockSectionParser{templateOID: "2.16.840.1.113883.10.20.22.2.999"}
+	parser.RegisterSectionParser(mock)
+
+	// Parse a document - the custom parser won't be called since the template doesn't exist
+	// but this ensures RegisterSectionParser works
+	_, err := parser.Parse([]byte(sampleCCDA))
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	// The custom parser shouldn't be called for the sample document
+	// since none of the sections have that template ID
+	if mock.called {
+		t.Error("Custom parser should not have been called for sections without matching template")
+	}
+}
+
+// Test CDA document with authenticator
+const cdaWithAuthenticator = `<?xml version="1.0" encoding="UTF-8"?>
+<ClinicalDocument xmlns="urn:hl7-org:v3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <typeId root="2.16.840.1.113883.1.3" extension="POCD_HD000040"/>
+  <id root="2.16.840.1.113883.19.5" extension="DOC-002"/>
+  <code code="34133-9" codeSystem="2.16.840.1.113883.6.1"/>
+  <effectiveTime value="20240115"/>
+  <confidentialityCode code="N" codeSystem="2.16.840.1.113883.5.25"/>
+
+  <recordTarget>
+    <patientRole>
+      <id root="2.16.840.1.113883.19.5" extension="MRN001"/>
+      <patient>
+        <name><family>Test</family></name>
+      </patient>
+    </patientRole>
+  </recordTarget>
+
+  <authenticator>
+    <time value="20240115120000"/>
+    <signatureCode code="S"/>
+    <assignedEntity>
+      <id root="2.16.840.1.113883.4.6" extension="9876543210"/>
+      <assignedPerson>
+        <name><given>Auth</given><family>User</family></name>
+      </assignedPerson>
+    </assignedEntity>
+  </authenticator>
+
+  <informant>
+    <assignedEntity>
+      <id root="2.16.840.1.113883.19.5" extension="INF001"/>
+      <assignedPerson>
+        <name><given>Info</given><family>Person</family></name>
+      </assignedPerson>
+    </assignedEntity>
+  </informant>
+
+  <participant typeCode="IND">
+    <associatedEntity classCode="NOK">
+      <code code="MTH" displayName="Mother" codeSystem="2.16.840.1.113883.5.111"/>
+      <associatedPerson>
+        <name><given>Jane</given><family>Mother</family></name>
+      </associatedPerson>
+    </associatedEntity>
+  </participant>
+
+  <documentationOf>
+    <serviceEvent classCode="PCPR">
+      <effectiveTime><low value="20240101"/><high value="20240115"/></effectiveTime>
+    </serviceEvent>
+  </documentationOf>
+
+  <componentOf>
+    <encompassingEncounter>
+      <id root="2.16.840.1.113883.19.5" extension="ENC001"/>
+      <code code="IMP" codeSystem="2.16.840.1.113883.5.4" displayName="Inpatient"/>
+      <effectiveTime><low value="20240110"/><high value="20240115"/></effectiveTime>
+      <location>
+        <healthCareFacility>
+          <id root="2.16.840.1.113883.19.5" extension="FAC001"/>
+          <code code="1160-1" codeSystem="2.16.840.1.113883.6.259" displayName="Hospital"/>
+        </healthCareFacility>
+      </location>
+    </encompassingEncounter>
+  </componentOf>
+
+  <component><structuredBody><component>
+    <section>
+      <templateId root="2.16.840.1.113883.10.20.22.2.5.1"/>
+      <code code="11450-4" codeSystem="2.16.840.1.113883.6.1"/>
+      <title>Problems</title>
+    </section>
+  </component></structuredBody></component>
+</ClinicalDocument>`
+
+func TestParser_ParseAuthenticator(t *testing.T) {
+	parser := NewParser("test", nil)
+	doc, err := parser.Parse([]byte(cdaWithAuthenticator))
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	if doc.Authenticator == nil {
+		t.Fatal("Expected authenticator, got nil")
+	}
+
+	if doc.Authenticator.SignatureCode != "S" {
+		t.Errorf("Expected signature code S, got %s", doc.Authenticator.SignatureCode)
+	}
+
+	if doc.Authenticator.AssignedEntity == nil {
+		t.Fatal("Expected assigned entity")
+	}
+}
+
+func TestParser_ParseInformant(t *testing.T) {
+	parser := NewParser("test", nil)
+	doc, err := parser.Parse([]byte(cdaWithAuthenticator))
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	if len(doc.InformantList) == 0 {
+		t.Fatal("Expected informants, got none")
+	}
+
+	if doc.InformantList[0].AssignedEntity == nil {
+		t.Fatal("Expected assigned entity")
+	}
+}
+
+func TestParser_ParseEncompassingEncounter(t *testing.T) {
+	parser := NewParser("test", nil)
+	doc, err := parser.Parse([]byte(cdaWithAuthenticator))
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	if doc.EncompassingEncounter == nil {
+		t.Fatal("Expected encompassing encounter, got nil")
+	}
+
+	enc := doc.EncompassingEncounter
+	if len(enc.IDs) == 0 || enc.IDs[0].Extension != "ENC001" {
+		t.Errorf("Expected encounter ID ENC001, got %v", enc.IDs)
+	}
+
+	if enc.Code == nil || enc.Code.Code != "IMP" {
+		t.Error("Expected encounter code IMP")
 	}
 }
