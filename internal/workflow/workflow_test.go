@@ -1,3 +1,4 @@
+//nolint:gosec // Test file - G104 errors intentionally ignored in test setup
 package workflow
 
 import (
@@ -1405,7 +1406,7 @@ func TestOAuthTokenManager(t *testing.T) {
 		t.Fatalf("GetToken failed: %v", err)
 	}
 
-	if token != "oauth_access_token_123" {
+	if token != "oauth_access_token_123" { //nolint:gosec // G101: test token string, not a real credential
 		t.Errorf("Expected token 'oauth_access_token_123', got '%s'", token)
 	}
 }

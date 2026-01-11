@@ -1,3 +1,4 @@
+//nolint:gosec // Test file - G104 errors intentionally ignored in test setup
 package terminology
 
 import (
@@ -68,7 +69,7 @@ func mockUMLSServer(t *testing.T) *httptest.Server {
 		}
 
 		apiKey := r.FormValue("apikey")
-		if apiKey != "valid-api-key" {
+		if apiKey != "valid-api-key" { //nolint:gosec // G101: test API key, not a real credential
 			http.Error(w, "invalid API key", http.StatusUnauthorized)
 			return
 		}

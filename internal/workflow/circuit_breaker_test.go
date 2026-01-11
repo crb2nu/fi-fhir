@@ -1,4 +1,4 @@
-//nolint:bodyclose // Mock responses in tests don't require body closing
+//nolint:bodyclose,gosec // Mock responses in tests don't require body closing; G104 errors ignored
 package workflow
 
 import (

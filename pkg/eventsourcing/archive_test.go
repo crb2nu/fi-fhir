@@ -1,3 +1,4 @@
+//nolint:gosec // Test file - G104 errors intentionally ignored in test setup
 package eventsourcing
 
 import (
@@ -209,7 +210,7 @@ func TestArchiveReader(t *testing.T) {
 	archivePath := filepath.Join(tmpDir, "events.jsonl")
 
 	// Write directly to file
-	file, err := os.Create(archivePath)
+	file, err := os.Create(archivePath) //nolint:gosec // G304: test file creation
 	if err != nil {
 		t.Fatalf("Failed to create file: %v", err)
 	}
@@ -228,7 +229,7 @@ func TestArchiveReader(t *testing.T) {
 			t.Fatalf("Failed to encode event: %v", err)
 		}
 	}
-	file.Close()
+	file.Close() //nolint:gosec // G104: test cleanup
 
 	// Read with ArchiveReader
 	reader, err := NewArchiveReader(archivePath)
@@ -261,7 +262,7 @@ func TestEventArchiver_DryRun(t *testing.T) {
 	// Add some events
 	ctx := context.Background()
 	for i := 0; i < 10; i++ {
-		store.Append(ctx, "test:stream", VersionAny, []EventData{
+		store.Append(ctx, "test:stream", VersionAny, []EventData{ //nolint:gosec // G104: test setup
 			{EventType: "test_event", Data: json.RawMessage(`{}`)},
 		})
 	}

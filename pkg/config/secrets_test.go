@@ -1,3 +1,4 @@
+//nolint:gosec // Test file - G104 errors intentionally ignored in test setup
 package config
 
 import (
@@ -487,7 +488,7 @@ database:
 secrets:
   provider: env
 `
-	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil { //nolint:gosec // G306: test file
 		t.Fatalf("Failed to write temp config: %v", err)
 	}
 

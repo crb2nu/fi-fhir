@@ -1,3 +1,4 @@
+//nolint:gosec // Test file - G104 errors intentionally ignored in test setup
 package config
 
 import (
@@ -109,7 +110,7 @@ server:
 observability:
   log_level: debug
 `
-	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil { //nolint:gosec // G306: test file
 		t.Fatalf("Failed to write temp config: %v", err)
 	}
 
@@ -195,7 +196,7 @@ server:
 database:
   host: fromfile.example.com
 `
-	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil { //nolint:gosec // G306: test file
 		t.Fatalf("Failed to write temp config: %v", err)
 	}
 
