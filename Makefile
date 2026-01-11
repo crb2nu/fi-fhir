@@ -1,4 +1,8 @@
-.PHONY: build test clean run lint test-e2e test-integration e2e-up e2e-down fmt setup-hooks
+.PHONY: build test clean run lint lint-fix test-e2e test-integration e2e-up e2e-down fmt setup-hooks dev-setup check-deps
+
+# Tool versions (update these when upgrading)
+GOLANGCI_LINT_VERSION := v2.1.6
+GO_MIN_VERSION := 1.21
 
 # Build the CLI
 build:
@@ -59,10 +63,19 @@ run:
 tidy:
 	go mod tidy
 
-# Install golangci-lint and run
+# Run linter using 'go run' for reliability (no PATH issues)
 lint:
-	@which golangci-lint > /dev/null || go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-	golangci-lint run
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run
+
+# Run linter with auto-fix
+lint-fix:
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run --fix
+
+# Install linter to $GOPATH/bin (for IDE integration)
+install-lint:
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+	@echo "Installed golangci-lint $(GOLANGCI_LINT_VERSION) to $$(go env GOPATH)/bin"
+	@echo "Make sure $$(go env GOPATH)/bin is in your PATH for IDE integration"
 
 # Build Docker image
 docker-build:
@@ -94,3 +107,49 @@ setup-hooks:
 
 # Build and test
 all: build test lint
+
+# =============================================================================
+# Development Setup
+# =============================================================================
+
+# Full development environment setup
+dev-setup: check-deps setup-hooks tidy
+	@echo ""
+	@echo "✅ Development environment ready!"
+	@echo ""
+	@echo "Quick reference:"
+	@echo "  make lint         - Run linter"
+	@echo "  make lint-fix     - Run linter with auto-fix"
+	@echo "  make test         - Run all tests"
+	@echo "  make test-v       - Run tests with verbose output"
+	@echo "  make test-cover   - Run tests with coverage report"
+	@echo "  make build        - Build CLI binary"
+	@echo "  make bench        - Run benchmarks"
+	@echo "  make check        - Run lint + test"
+	@echo "  make ci           - Simulate CI locally"
+	@echo ""
+	@echo "For IDE integration, also run: make install-lint"
+	@echo ""
+
+# Check development dependencies
+check-deps:
+	@echo "Checking Go version..."
+	@go version | grep -q "go1\.\(2[1-9]\|[3-9][0-9]\)" || { \
+		echo "❌ Go $(GO_MIN_VERSION)+ required. Current: $$(go version)"; \
+		exit 1; \
+	}
+	@echo "✓ Go version OK"
+	@echo ""
+	@echo "Checking required tools..."
+	@command -v git >/dev/null 2>&1 || { echo "❌ git not found"; exit 1; }
+	@echo "✓ git"
+	@command -v docker >/dev/null 2>&1 && echo "✓ docker (optional, for e2e tests)" || echo "⚠ docker not found (optional, needed for e2e tests)"
+	@echo ""
+
+# Quick check: lint and test in one command
+check: lint test
+	@echo "✅ All checks passed!"
+
+# Verify CI will pass locally
+ci: fmt-check lint test
+	@echo "✅ CI checks passed locally!"
