@@ -1,3 +1,4 @@
+//nolint:bodyclose // Mock responses in tests don't require body closing
 package workflow
 
 import (

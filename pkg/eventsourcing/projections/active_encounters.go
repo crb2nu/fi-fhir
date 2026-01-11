@@ -293,8 +293,8 @@ func (p *ActiveEncountersProjection) GetEncounter(encounterID string) (*ActiveEn
 	if !ok {
 		return nil, false
 	}
-	copy := *enc
-	return &copy, true
+	encCopy := *enc
+	return &encCopy, true
 }
 
 // GetEncounterByPatient returns the active encounter for a patient.
@@ -311,8 +311,8 @@ func (p *ActiveEncountersProjection) GetEncounterByPatient(mrn string) (*ActiveE
 	if !ok {
 		return nil, false
 	}
-	copy := *enc
-	return &copy, true
+	encCopy := *enc
+	return &encCopy, true
 }
 
 // GetEncountersByLocation returns encounters at a specific location.

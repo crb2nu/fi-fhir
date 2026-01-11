@@ -747,16 +747,6 @@ func (p *Parser) getField(seg *Segment, index int) string {
 	return seg.Fields[index]
 }
 
-// getFieldUnescaped retrieves a field and decodes HL7v2 escape sequences.
-// Use this for text fields (names, addresses, notes) that may contain escapes.
-func (p *Parser) getFieldUnescaped(seg *Segment, msg *Message, index int) string {
-	raw := p.getField(seg, index)
-	if raw == "" {
-		return ""
-	}
-	return UnescapeHL7(raw, msg.Delimiters)
-}
-
 // getComponent extracts a component from a field (separated by ^).
 func (p *Parser) getComponent(field string, index int) string {
 	parts := strings.Split(field, "^")
@@ -1033,15 +1023,6 @@ func (p *Parser) extractEncounterTolerant(msg *Message, segmentID string) (event
 	return p.extractEncounterFromSegment(pv1)
 }
 
-// extractEncounter extracts encounter data from PV1 segment (strict mode).
-func (p *Parser) extractEncounter(msg *Message) (events.Encounter, error) {
-	pv1 := p.getSegment(msg, "PV1")
-	if pv1 == nil {
-		return events.Encounter{}, errors.New("PV1 segment not found")
-	}
-	return p.extractEncounterFromSegment(pv1)
-}
-
 // extractEncounterFromSegment extracts encounter data from a given PV1 segment.
 func (p *Parser) extractEncounterFromSegment(pv1 *Segment) (events.Encounter, error) {
 	if pv1 == nil {
@@ -1096,16 +1077,6 @@ func (p *Parser) extractEncounterFromSegment(pv1 *Segment) (events.Encounter, er
 		AdmitDateTime:     admitTime,
 		DischargeDateTime: dischargeTime,
 	}, nil
-}
-
-// extractObservation extracts lab test and result from the first OBX segment.
-// Deprecated: Use extractObservationFromSegment for multi-OBX support.
-func (p *Parser) extractObservation(msg *Message) (events.LabTest, events.LabValue, error) {
-	obx := p.getSegment(msg, "OBX")
-	if obx == nil {
-		return events.LabTest{}, events.LabValue{}, errors.New("OBX segment not found")
-	}
-	return p.extractObservationFromSegment(obx, msg.Delimiters)
 }
 
 // extractObservationFromSegment extracts lab test and result from a single OBX segment.

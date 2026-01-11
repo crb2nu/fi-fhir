@@ -354,9 +354,9 @@ func (s *MemoryOutboxStore) SaveMessage(ctx context.Context, message *OutboxMess
 
 	// Deep copy
 	data, _ := json.Marshal(message)
-	var copy OutboxMessage
-	json.Unmarshal(data, &copy)
-	s.messages[message.ID] = &copy
+	var msgCopy OutboxMessage
+	json.Unmarshal(data, &msgCopy)
+	s.messages[message.ID] = &msgCopy
 
 	return nil
 }
@@ -391,9 +391,9 @@ func (s *MemoryOutboxStore) GetPendingMessages(ctx context.Context, limit int) (
 
 		// Return a copy
 		data, _ := json.Marshal(msg)
-		var copy OutboxMessage
-		json.Unmarshal(data, &copy)
-		result = append(result, &copy)
+		var msgCopy OutboxMessage
+		json.Unmarshal(data, &msgCopy)
+		result = append(result, &msgCopy)
 
 		if limit > 0 && len(result) >= limit {
 			break
@@ -470,9 +470,9 @@ func (s *MemoryOutboxStore) GetMessage(ctx context.Context, messageID string) (*
 
 	// Return a copy
 	data, _ := json.Marshal(msg)
-	var copy OutboxMessage
-	json.Unmarshal(data, &copy)
-	return &copy, nil
+	var msgCopy OutboxMessage
+	json.Unmarshal(data, &msgCopy)
+	return &msgCopy, nil
 }
 
 // DeleteOldMessages removes old published/failed messages.

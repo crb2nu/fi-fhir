@@ -3,7 +3,6 @@ package projections
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/crb2nu/fi-fhir/internal/api/graphql/model"
@@ -18,8 +17,6 @@ type Service struct {
 	statistics *projections.EventStatisticsProjection
 	encounters *projections.ActiveEncountersProjection
 	runner     *eventsourcing.ProjectionRunner
-
-	mu sync.RWMutex
 }
 
 // NewService creates a new projection service with the given event store.

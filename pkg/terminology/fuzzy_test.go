@@ -272,8 +272,8 @@ func TestFuzzyMatcher_MatchWithThreshold(t *testing.T) {
 	}
 
 	// Very high threshold for fuzzy match might not match
-	match = fm.MatchWithThreshold("white cells", 0.99)
-	// This might or might not match depending on the data
+	_ = fm.MatchWithThreshold("white cells", 0.99)
+	// This might or might not match depending on the data - we're just testing it doesn't panic
 }
 
 func TestFuzzyMatcher_EmptyQuery(t *testing.T) {

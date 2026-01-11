@@ -1133,10 +1133,3 @@ func parseTimestamp(value string) *time.Time {
 
 	return nil
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

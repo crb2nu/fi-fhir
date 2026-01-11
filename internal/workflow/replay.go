@@ -95,9 +95,9 @@ type MemoryRecorder struct {
 type RecorderOption func(*MemoryRecorder)
 
 // WithMaxSize limits the recorder to a maximum number of events (oldest dropped).
-func WithMaxSize(max int) RecorderOption {
+func WithMaxSize(maxSize int) RecorderOption {
 	return func(r *MemoryRecorder) {
-		r.maxSize = max
+		r.maxSize = maxSize
 	}
 }
 

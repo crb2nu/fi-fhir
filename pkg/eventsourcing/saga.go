@@ -531,9 +531,9 @@ func (s *MemorySagaStore) SaveSaga(ctx context.Context, state *SagaState) error 
 
 	// Deep copy to avoid mutation issues
 	data, _ := json.Marshal(state)
-	var copy SagaState
-	json.Unmarshal(data, &copy)
-	s.sagas[state.ID] = &copy
+	var stateCopy SagaState
+	json.Unmarshal(data, &stateCopy)
+	s.sagas[state.ID] = &stateCopy
 
 	return nil
 }
@@ -550,9 +550,9 @@ func (s *MemorySagaStore) GetSaga(ctx context.Context, sagaID string) (*SagaStat
 
 	// Return a copy
 	data, _ := json.Marshal(state)
-	var copy SagaState
-	json.Unmarshal(data, &copy)
-	return &copy, nil
+	var stateCopy SagaState
+	json.Unmarshal(data, &stateCopy)
+	return &stateCopy, nil
 }
 
 // ListSagasByStatus returns sagas with the given status.
@@ -564,9 +564,9 @@ func (s *MemorySagaStore) ListSagasByStatus(ctx context.Context, status SagaStat
 	for _, state := range s.sagas {
 		if state.Status == status {
 			data, _ := json.Marshal(state)
-			var copy SagaState
-			json.Unmarshal(data, &copy)
-			result = append(result, &copy)
+			var stateCopy SagaState
+			json.Unmarshal(data, &stateCopy)
+			result = append(result, &stateCopy)
 
 			if limit > 0 && len(result) >= limit {
 				break
@@ -588,9 +588,9 @@ func (s *MemorySagaStore) ListPendingSagas(ctx context.Context, limit int) ([]*S
 			state.Status == SagaStatusRunning ||
 			state.Status == SagaStatusCompensating {
 			data, _ := json.Marshal(state)
-			var copy SagaState
-			json.Unmarshal(data, &copy)
-			result = append(result, &copy)
+			var stateCopy SagaState
+			json.Unmarshal(data, &stateCopy)
+			result = append(result, &stateCopy)
 
 			if limit > 0 && len(result) >= limit {
 				break

@@ -156,6 +156,7 @@ func webhookAction(ctx context.Context, event interface{}, config map[string]str
 
 	err = WithRateLimit(httpCtx, limiter, waitOnRateLimit, func() error {
 		var innerErr error
+		//nolint:bodyclose // Body is closed via defer after error check below
 		resp, innerErr = WithCircuitBreaker(cb, func() (*http.Response, error) {
 			return WithRetry(nil, retryConfig, func() (*http.Response, error) {
 				req, reqErr := http.NewRequestWithContext(httpCtx, method, url, bytes.NewReader(body))
@@ -492,6 +493,7 @@ func sendFHIRResource(ctx context.Context, client *http.Client, endpoint string,
 
 	err = WithRateLimit(httpCtx, limiter, waitOnRateLimit, func() error {
 		var innerErr error
+		//nolint:bodyclose // Body is closed via defer after error check below
 		resp, innerErr = WithCircuitBreaker(cb, func() (*http.Response, error) {
 			return WithOAuthRetry(retryConfig, config,
 				func() (*http.Request, error) {
@@ -589,6 +591,7 @@ func sendFHIRBundle(ctx context.Context, client *http.Client, endpoint string, r
 
 	err = WithRateLimit(httpCtx, limiter, waitOnRateLimit, func() error {
 		var innerErr error
+		//nolint:bodyclose // Body is closed via defer after error check below
 		resp, innerErr = WithCircuitBreaker(cb, func() (*http.Response, error) {
 			return WithOAuthRetry(retryConfig, config,
 				func() (*http.Request, error) {

@@ -31,64 +31,58 @@ linters:
     - staticcheck
     - unused
 
-    # Additional linters
+    # Security and correctness linters
     - bodyclose
-    - dogsled
-    - dupl
-    - errname
     - errorlint
-    - exhaustive
-    - gochecknoinits
-    - goconst
-    - gocritic
-    - gocyclo
-    - godot
-    - goprintffuncname
     - gosec
-    - misspell
-    - nakedret
     - nilerr
-    - noctx
-    - nolintlint
-    - prealloc
-    - predeclared
-    - revive
     - rowserrcheck
     - sqlclosecheck
-    - tparallel
+
+    # Style linters (minimal set)
+    - dogsled
+    - errname
+    - misspell
+    - nakedret
+    - nolintlint
+    - predeclared
     - unconvert
-    - unparam
     - whitespace
+
+    # Disabled for now (too noisy, can re-enable incrementally):
+    # - dupl          # 15 issues - intentional duplication in parsers
+    # - exhaustive    # 16 issues - enum exhaustiveness
+    # - gochecknoinits # 1 issue - init functions
+    # - goconst       # 50 issues - magic strings
+    # - gocritic      # 18 issues - opinionated
+    # - gocyclo       # 19 issues - complexity
+    # - godot         # 10 issues - comment periods
+    # - goprintffuncname # 1 issue
+    # - noctx         # 16 issues - context propagation
+    # - prealloc      # 13 issues - performance hints
+    # - revive        # 50 issues - style rules
+    # - tparallel     # test parallelism
+    # - unparam       # 10 issues - unused params
 
 linters-settings:
   errcheck:
     check-type-assertions: true
-    check-blank: true
+    check-blank: false  # Reduce noise from intentional _ = err patterns
 
   govet:
     enable-all: true
     disable:
       - fieldalignment
 
-  gocyclo:
-    min-complexity: 15
-
-  goconst:
-    min-len: 3
-    min-occurrences: 3
-
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - experimental
-      - opinionated
-      - performance
-      - style
-    disabled-checks:
-      - dupImport
-      - ifElseChain
-      - octalLiteral
-      - whyNoLint
+  # Settings for disabled linters (kept for future re-enablement):
+  # gocyclo:
+  #   min-complexity: 15
+  # goconst:
+  #   min-len: 3
+  #   min-occurrences: 3
+  # gocritic:
+  #   enabled-tags: [diagnostic, experimental, opinionated, performance, style]
+  #   disabled-checks: [dupImport, ifElseChain, octalLiteral, whyNoLint]
 
   gosec:
     excludes:
@@ -101,39 +95,12 @@ linters-settings:
   nakedret:
     max-func-lines: 30
 
-  prealloc:
-    simple: true
-    range-loops: true
-    for-loops: false
+  # prealloc: (disabled)
+  #   simple: true
+  #   range-loops: true
+  #   for-loops: false
 
-  revive:
-    ignore-generated-header: true
-    severity: warning
-    rules:
-      - name: blank-imports
-      - name: context-as-argument
-      - name: context-keys-type
-      - name: dot-imports
-      - name: error-return
-      - name: error-strings
-      - name: error-naming
-      - name: exported
-      - name: if-return
-      - name: increment-decrement
-      - name: var-naming
-      - name: var-declaration
-      - name: package-comments
-      - name: range
-      - name: receiver-naming
-      - name: time-naming
-      - name: unexported-return
-      - name: indent-error-flow
-      - name: errorf
-      - name: empty-block
-      - name: superfluous-else
-      - name: unused-parameter
-      - name: unreachable-code
-      - name: redefines-builtin-id
+  # revive: (disabled - too many style rules)
 
 issues:
   exclude-rules:

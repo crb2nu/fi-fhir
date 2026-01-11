@@ -102,7 +102,7 @@ func TestMemoryRecorder_WithMaxSize(t *testing.T) {
 	for i, e := range events {
 		eventMap := e.Event.(map[string]interface{})
 		expectedIndex := i + 2
-		if int(eventMap["index"].(int)) != expectedIndex {
+		if eventMap["index"].(int) != expectedIndex {
 			t.Errorf("Expected index %d, got %v", expectedIndex, eventMap["index"])
 		}
 	}

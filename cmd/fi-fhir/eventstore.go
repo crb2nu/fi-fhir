@@ -9,9 +9,10 @@ import (
 	"strings"
 	"time"
 
+	_ "github.com/lib/pq"
+
 	"github.com/crb2nu/fi-fhir/pkg/eventsourcing"
 	"github.com/crb2nu/fi-fhir/pkg/eventsourcing/projections"
-	_ "github.com/lib/pq"
 )
 
 func runEventStore(args []string) error {

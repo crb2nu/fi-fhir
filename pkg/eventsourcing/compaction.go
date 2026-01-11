@@ -187,7 +187,6 @@ type BulkCompactionResult struct {
 type StreamCompactor struct {
 	eventStore    EventStore
 	snapshotStore StreamSnapshotStore
-	mu            sync.Mutex
 }
 
 // NewStreamCompactor creates a new stream compactor.

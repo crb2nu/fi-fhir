@@ -1,8 +1,11 @@
+//nolint:bodyclose // Mock responses in tests don't require body closing
 package workflow
 
 import (
 	"errors"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -491,7 +494,7 @@ func TestWithCircuitBreakerNilBreaker(t *testing.T) {
 	called := false
 	resp, err := WithCircuitBreaker(nil, func() (*http.Response, error) {
 		called = true
-		return &http.Response{StatusCode: 200}, nil
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(""))}, nil
 	})
 
 	if !called {
@@ -503,6 +506,7 @@ func TestWithCircuitBreakerNilBreaker(t *testing.T) {
 	if resp.StatusCode != 200 {
 		t.Errorf("expected status 200, got %d", resp.StatusCode)
 	}
+	resp.Body.Close()
 }
 
 func TestWithCircuitBreakerOpenCircuit(t *testing.T) {

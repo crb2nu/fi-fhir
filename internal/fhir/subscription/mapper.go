@@ -16,15 +16,15 @@ import (
 var (
 	celEvaluator     *workflow.CELEvaluator
 	celEvaluatorOnce sync.Once
-	celEvaluatorErr  error
+	errCELEvaluator  error
 )
 
 // getCELEvaluator returns the shared CEL evaluator, creating it if needed.
 func getCELEvaluator() (*workflow.CELEvaluator, error) {
 	celEvaluatorOnce.Do(func() {
-		celEvaluator, celEvaluatorErr = workflow.NewCELEvaluator()
+		celEvaluator, errCELEvaluator = workflow.NewCELEvaluator()
 	})
-	return celEvaluator, celEvaluatorErr
+	return celEvaluator, errCELEvaluator
 }
 
 // FHIRMapper converts FHIR resources to canonical events.

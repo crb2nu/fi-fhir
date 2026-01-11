@@ -105,17 +105,17 @@ func (p *PatientTimelineProjection) GetTimeline(mrn string) (*PatientTimeline, b
 	}
 
 	// Return a copy
-	copy := &PatientTimeline{
+	tlCopy := &PatientTimeline{
 		MRN:          timeline.MRN,
 		Events:       make([]TimelineEvent, len(timeline.Events)),
 		LastUpdated:  timeline.LastUpdated,
 		LastPosition: timeline.LastPosition,
 	}
 	for i, e := range timeline.Events {
-		copy.Events[i] = e
+		tlCopy.Events[i] = e
 	}
 
-	return copy, true
+	return tlCopy, true
 }
 
 // GetTimelineRange returns events within a time range.

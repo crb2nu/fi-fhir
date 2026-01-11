@@ -447,13 +447,13 @@ func (ml *MultiLimiter) Tokens() float64 {
 	if len(ml.limiters) == 0 {
 		return 0
 	}
-	min := ml.limiters[0].Tokens()
+	minVal := ml.limiters[0].Tokens()
 	for _, l := range ml.limiters[1:] {
-		if t := l.Tokens(); t < min {
-			min = t
+		if t := l.Tokens(); t < minVal {
+			minVal = t
 		}
 	}
-	return min
+	return minVal
 }
 
 // Limit returns the minimum rate across all limiters.
@@ -461,13 +461,13 @@ func (ml *MultiLimiter) Limit() float64 {
 	if len(ml.limiters) == 0 {
 		return 0
 	}
-	min := ml.limiters[0].Limit()
+	minVal := ml.limiters[0].Limit()
 	for _, l := range ml.limiters[1:] {
-		if r := l.Limit(); r < min {
-			min = r
+		if r := l.Limit(); r < minVal {
+			minVal = r
 		}
 	}
-	return min
+	return minVal
 }
 
 // Burst returns the minimum burst across all limiters.
@@ -475,11 +475,11 @@ func (ml *MultiLimiter) Burst() int {
 	if len(ml.limiters) == 0 {
 		return 0
 	}
-	min := ml.limiters[0].Burst()
+	minVal := ml.limiters[0].Burst()
 	for _, l := range ml.limiters[1:] {
-		if b := l.Burst(); b < min {
-			min = b
+		if b := l.Burst(); b < minVal {
+			minVal = b
 		}
 	}
-	return min
+	return minVal
 }

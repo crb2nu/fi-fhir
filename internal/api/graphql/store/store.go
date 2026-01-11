@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -453,16 +452,4 @@ func decodeCursor(cursor string) (string, error) {
 		return "", err
 	}
 	return string(data), nil
-}
-
-// parseInt safely parses an int with a default value.
-func parseInt(s string, defaultVal int) int {
-	if s == "" {
-		return defaultVal
-	}
-	v, err := strconv.Atoi(s)
-	if err != nil {
-		return defaultVal
-	}
-	return v
 }
