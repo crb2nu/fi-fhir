@@ -1655,3 +1655,462 @@ type mockMapper struct {
 func (m *mockMapper) Map(resource map[string]interface{}, action string, config *EventMappingConfig) (interface{}, error) {
 	return m.mapFunc(resource, action, config)
 }
+
+// =============================================================================
+// ChannelRouter Tests
+// =============================================================================
+
+func TestChannelRouter(t *testing.T) {
+	router := NewChannelRouter(10)
+
+	// Route an event
+	err := router.Route(context.Background(), "test event")
+	if err != nil {
+		t.Fatalf("Route failed: %v", err)
+	}
+
+	// Read from events channel
+	select {
+	case event := <-router.Events():
+		if event != "test event" {
+			t.Errorf("Expected 'test event', got %v", event)
+		}
+	default:
+		t.Error("Expected event on channel")
+	}
+
+	// Close the router
+	router.Close()
+}
+
+func TestChannelRouter_ContextCancellation(t *testing.T) {
+	router := NewChannelRouter(1)
+
+	// Fill the buffer
+	router.Route(context.Background(), "event1")
+
+	// Try to route with cancelled context (should fail gracefully)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := router.Route(ctx, "event2")
+	if err == nil {
+		t.Error("Expected error for cancelled context")
+	}
+
+	router.Close()
+}
+
+// =============================================================================
+// MultiRouter Error Handling Tests
+// =============================================================================
+
+func TestMultiRouter_ErrorHandling_FailFast(t *testing.T) {
+	testErr := errors.New("first error")
+
+	router1 := NewCallbackRouter(func(ctx context.Context, event interface{}) error {
+		return testErr
+	})
+
+	router2 := NewCallbackRouter(func(ctx context.Context, event interface{}) error {
+		return nil
+	})
+
+	// FailFast mode - should stop after first error
+	multi := NewMultiRouter(MultiRouterFailFast, router1, router2)
+
+	err := multi.Route(context.Background(), "test event")
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+
+	// Error should be the first error, not a MultiRouterError
+	if !errors.Is(err, testErr) {
+		t.Errorf("Expected testErr, got %v", err)
+	}
+}
+
+func TestMultiRouter_ErrorHandling_AllWithError(t *testing.T) {
+	testErr := errors.New("test error")
+
+	router1 := NewCallbackRouter(func(ctx context.Context, event interface{}) error {
+		return testErr
+	})
+
+	router2 := NewCallbackRouter(func(ctx context.Context, event interface{}) error {
+		return nil
+	})
+
+	// All mode should continue even if one fails
+	multi := NewMultiRouter(MultiRouterAll, router1, router2)
+
+	err := multi.Route(context.Background(), "test event")
+	// Should get multi-error containing the test error
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+
+	var multiErr *MultiRouterError
+	if !errors.As(err, &multiErr) {
+		t.Fatalf("Expected *MultiRouterError, got %T", err)
+	}
+}
+
+// =============================================================================
+// Mapper Edge Cases for Encounter
+// =============================================================================
+
+func TestFHIRMapper_MapEncounter_WithPeriod(t *testing.T) {
+	mapper := NewFHIRMapper()
+
+	resource := map[string]interface{}{
+		"resourceType": "Encounter",
+		"id":           "enc-123",
+		"status":       "in-progress",
+		"class": map[string]interface{}{
+			"code": "IMP",
+		},
+		"subject": map[string]interface{}{
+			"reference": "Patient/pat-456",
+		},
+		"period": map[string]interface{}{
+			"start": "2024-01-15T10:00:00Z",
+			"end":   "2024-01-15T14:00:00Z",
+		},
+		"type": []interface{}{
+			map[string]interface{}{
+				"coding": []interface{}{
+					map[string]interface{}{
+						"code":    "IMP",
+						"display": "Inpatient admission",
+					},
+				},
+			},
+		},
+		"serviceType": map[string]interface{}{
+			"coding": []interface{}{
+				map[string]interface{}{
+					"code":    "cardiology",
+					"display": "Cardiology",
+				},
+			},
+		},
+		"reasonCode": []interface{}{
+			map[string]interface{}{
+				"coding": []interface{}{
+					map[string]interface{}{
+						"code":    "I21.0",
+						"display": "Acute myocardial infarction",
+					},
+				},
+			},
+		},
+	}
+
+	event, err := mapper.MapResource(resource, "create", nil)
+	if err != nil {
+		t.Fatalf("MapResource failed: %v", err)
+	}
+
+	if event == nil {
+		t.Fatal("Expected event, got nil")
+	}
+
+	admitEvent, ok := event.(*events.PatientAdmitEvent)
+	if !ok {
+		t.Fatalf("Expected *PatientAdmitEvent, got %T", event)
+	}
+
+	if admitEvent.Encounter.Class != "IMP" {
+		t.Errorf("Expected Encounter.Class IMP, got %s", admitEvent.Encounter.Class)
+	}
+}
+
+func TestFHIRMapper_MapEncounter_Emergency(t *testing.T) {
+	mapper := NewFHIRMapper()
+
+	resource := map[string]interface{}{
+		"resourceType": "Encounter",
+		"id":           "enc-er-456",
+		"status":       "in-progress",
+		"class": map[string]interface{}{
+			"code": "EMER",
+		},
+		"subject": map[string]interface{}{
+			"reference": "Patient/pat-789",
+		},
+	}
+
+	event, err := mapper.MapResource(resource, "create", nil)
+	if err != nil {
+		t.Fatalf("MapResource failed: %v", err)
+	}
+
+	if event == nil {
+		t.Fatal("Expected event for emergency encounter")
+	}
+}
+
+func TestFHIRMapper_MapEncounter_Delete(t *testing.T) {
+	mapper := NewFHIRMapper()
+
+	resource := map[string]interface{}{
+		"resourceType": "Encounter",
+		"id":           "enc-123",
+	}
+
+	event, err := mapper.MapResource(resource, "delete", nil)
+	if err != nil {
+		t.Fatalf("MapResource failed: %v", err)
+	}
+
+	// Delete for encounter should return nil (not a significant event)
+	if event != nil {
+		t.Errorf("Expected nil for encounter delete, got %T", event)
+	}
+}
+
+// =============================================================================
+// Mapper Edge Cases for Observation
+// =============================================================================
+
+func TestFHIRMapper_MapObservation_VitalSigns(t *testing.T) {
+	mapper := NewFHIRMapper()
+
+	// Note: Current implementation only maps lab observations
+	// vital-signs category returns nil (not mapped to VitalSignEvent yet)
+	resource := map[string]interface{}{
+		"resourceType": "Observation",
+		"id":           "obs-vs-123",
+		"status":       "final",
+		"category": []interface{}{
+			map[string]interface{}{
+				"coding": []interface{}{
+					map[string]interface{}{
+						"code": "vital-signs",
+					},
+				},
+			},
+		},
+		"code": map[string]interface{}{
+			"coding": []interface{}{
+				map[string]interface{}{
+					"system":  "http://loinc.org",
+					"code":    "8867-4",
+					"display": "Heart rate",
+				},
+			},
+		},
+		"subject": map[string]interface{}{
+			"reference": "Patient/pat-456",
+		},
+		"valueQuantity": map[string]interface{}{
+			"value": 72.0,
+			"unit":  "beats/minute",
+		},
+	}
+
+	event, err := mapper.MapResource(resource, "create", nil)
+	if err != nil {
+		t.Fatalf("MapResource failed: %v", err)
+	}
+
+	// Currently vital-signs returns nil (only labs are mapped)
+	if event != nil {
+		t.Errorf("Expected nil for vital-signs observation, got %T", event)
+	}
+}
+
+func TestFHIRMapper_MapObservation_CriticalValue(t *testing.T) {
+	mapper := NewFHIRMapper()
+
+	resource := map[string]interface{}{
+		"resourceType": "Observation",
+		"id":           "obs-crit-123",
+		"status":       "final",
+		"category": []interface{}{
+			map[string]interface{}{
+				"coding": []interface{}{
+					map[string]interface{}{
+						"code": "laboratory",
+					},
+				},
+			},
+		},
+		"code": map[string]interface{}{
+			"coding": []interface{}{
+				map[string]interface{}{
+					"system":  "http://loinc.org",
+					"code":    "2823-3",
+					"display": "Potassium",
+				},
+			},
+		},
+		"subject": map[string]interface{}{
+			"reference": "Patient/pat-456",
+		},
+		"valueQuantity": map[string]interface{}{
+			"value": 7.2,
+			"unit":  "mmol/L",
+		},
+		"interpretation": []interface{}{
+			map[string]interface{}{
+				"coding": []interface{}{
+					map[string]interface{}{
+						"code": "HH", // Critical high
+					},
+				},
+			},
+		},
+	}
+
+	event, err := mapper.MapResource(resource, "create", nil)
+	if err != nil {
+		t.Fatalf("MapResource failed: %v", err)
+	}
+
+	labEvent, ok := event.(*events.LabResultEvent)
+	if !ok {
+		t.Fatalf("Expected *LabResultEvent, got %T", event)
+	}
+
+	// HH interpretation should be captured
+	if labEvent.Result.Interpretation != "HH" {
+		t.Errorf("Expected Interpretation HH, got %s", labEvent.Result.Interpretation)
+	}
+}
+
+func TestFHIRMapper_MapObservation_WithReferenceRange(t *testing.T) {
+	mapper := NewFHIRMapper()
+
+	resource := map[string]interface{}{
+		"resourceType": "Observation",
+		"id":           "obs-range-123",
+		"status":       "final",
+		"category": []interface{}{
+			map[string]interface{}{
+				"coding": []interface{}{
+					map[string]interface{}{
+						"code": "laboratory",
+					},
+				},
+			},
+		},
+		"code": map[string]interface{}{
+			"coding": []interface{}{
+				map[string]interface{}{
+					"system": "http://loinc.org",
+					"code":   "2093-3",
+				},
+			},
+		},
+		"subject": map[string]interface{}{
+			"reference": "Patient/pat-456",
+		},
+		"valueQuantity": map[string]interface{}{
+			"value": 185.0,
+			"unit":  "mg/dL",
+		},
+		"referenceRange": []interface{}{
+			map[string]interface{}{
+				"low": map[string]interface{}{
+					"value": 0.0,
+					"unit":  "mg/dL",
+				},
+				"high": map[string]interface{}{
+					"value": 200.0,
+					"unit":  "mg/dL",
+				},
+				"text": "Normal: 0-200 mg/dL",
+			},
+		},
+	}
+
+	event, err := mapper.MapResource(resource, "create", nil)
+	if err != nil {
+		t.Fatalf("MapResource failed: %v", err)
+	}
+
+	labEvent, ok := event.(*events.LabResultEvent)
+	if !ok {
+		t.Fatalf("Expected *LabResultEvent, got %T", event)
+	}
+
+	if labEvent.Result.ReferenceRange == "" {
+		t.Error("Expected ReferenceRange to be populated")
+	}
+}
+
+func TestFHIRMapper_MapObservation_Delete(t *testing.T) {
+	mapper := NewFHIRMapper()
+
+	resource := map[string]interface{}{
+		"resourceType": "Observation",
+		"id":           "obs-123",
+	}
+
+	event, err := mapper.MapResource(resource, "delete", nil)
+	if err != nil {
+		t.Fatalf("MapResource failed: %v", err)
+	}
+
+	// Delete action should return nil
+	if event != nil {
+		t.Errorf("Expected nil for delete action, got %v", event)
+	}
+}
+
+// =============================================================================
+// Receiver Health Handler Tests
+// =============================================================================
+
+func TestReceiver_HealthHandler(t *testing.T) {
+	router := NoOpRouter{}
+	receiver := NewReceiver(router, &ReceiverOptions{
+		PathPrefix: "/fhir/notify",
+	})
+
+	// Request to health endpoint
+	req := httptest.NewRequest("GET", "/fhir/notify/health", nil)
+	w := httptest.NewRecorder()
+
+	receiver.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	// Check response body (mixed types: status is string, subscriptions is int)
+	var response map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to parse response: %v", err)
+	}
+
+	if response["status"] != "healthy" {
+		t.Errorf("Expected status 'healthy', got %v", response["status"])
+	}
+
+	// Check subscription count (should be 0)
+	if count, ok := response["subscriptions"].(float64); !ok || count != 0 {
+		t.Errorf("Expected subscriptions 0, got %v", response["subscriptions"])
+	}
+}
+
+func TestReceiver_MethodNotAllowed(t *testing.T) {
+	router := NoOpRouter{}
+	receiver := NewReceiver(router, nil)
+
+	receiver.RegisterSubscription(&SubscriptionConfig{
+		Name: "test_sub",
+	})
+
+	// Send GET instead of POST
+	req := httptest.NewRequest("GET", "/fhir/notify/test_sub", nil)
+	w := httptest.NewRecorder()
+
+	receiver.ServeHTTP(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("Expected status 405, got %d", w.Code)
+	}
+}
