@@ -158,7 +158,7 @@ func webhookAction(ctx context.Context, event interface{}, config map[string]str
 		var innerErr error
 		//nolint:bodyclose // Body is closed via defer after error check below
 		resp, innerErr = WithCircuitBreaker(cb, func() (*http.Response, error) {
-			return WithRetry(nil, retryConfig, func() (*http.Response, error) {
+			return WithRetry(httpCtx, retryConfig, func() (*http.Response, error) {
 				req, reqErr := http.NewRequestWithContext(httpCtx, method, url, bytes.NewReader(body))
 				if reqErr != nil {
 					return nil, fmt.Errorf("failed to create request: %w", reqErr)

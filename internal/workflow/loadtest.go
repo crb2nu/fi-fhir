@@ -106,25 +106,25 @@ type LoadTestError struct {
 func (r *LoadTestResult) Summary() string {
 	var sb string
 
-	sb += fmt.Sprintf("Load Test Results\n")
-	sb += fmt.Sprintf("================\n\n")
+	sb += "Load Test Results\n"
+	sb += "================\n\n"
 
-	sb += fmt.Sprintf("Configuration:\n")
+	sb += "Configuration:\n"
 	sb += fmt.Sprintf("  Duration:    %v\n", r.Config.Duration)
 	sb += fmt.Sprintf("  Target RPS:  %d\n", r.Config.TargetRPS)
 	sb += fmt.Sprintf("  Workers:     %d\n", r.Config.Workers)
 	sb += fmt.Sprintf("  Warmup:      %v\n", r.Config.WarmupDuration)
-	sb += fmt.Sprintf("\n")
+	sb += "\n"
 
-	sb += fmt.Sprintf("Throughput:\n")
+	sb += "Throughput:\n"
 	sb += fmt.Sprintf("  Total Events: %d\n", r.TotalEvents)
 	sb += fmt.Sprintf("  Events/sec:   %.2f\n", r.EventsPerSec)
 	if r.TargetRPS > 0 {
 		sb += fmt.Sprintf("  Achievement:  %.1f%% of target\n", r.AchievedRatio*100)
 	}
-	sb += fmt.Sprintf("\n")
+	sb += "\n"
 
-	sb += fmt.Sprintf("Latency:\n")
+	sb += "Latency:\n"
 	sb += fmt.Sprintf("  Min:    %v\n", r.LatencyMin)
 	sb += fmt.Sprintf("  Mean:   %v\n", r.LatencyMean)
 	sb += fmt.Sprintf("  P50:    %v\n", r.LatencyP50)
@@ -133,9 +133,9 @@ func (r *LoadTestResult) Summary() string {
 	sb += fmt.Sprintf("  P99:    %v\n", r.LatencyP99)
 	sb += fmt.Sprintf("  P99.9:  %v\n", r.LatencyP999)
 	sb += fmt.Sprintf("  Max:    %v\n", r.LatencyMax)
-	sb += fmt.Sprintf("\n")
+	sb += "\n"
 
-	sb += fmt.Sprintf("Errors:\n")
+	sb += "Errors:\n"
 	sb += fmt.Sprintf("  Count:  %d\n", r.ErrorCount)
 	sb += fmt.Sprintf("  Rate:   %.4f%%\n", r.ErrorRate*100)
 
