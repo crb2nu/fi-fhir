@@ -383,3 +383,267 @@ func TestPatientTimelineProjection_Snapshot(t *testing.T) {
 		t.Errorf("Expected 1 event in MRN002 timeline, got %d", len(timeline2.Events))
 	}
 }
+
+// =============================================================================
+// Additional Coverage Tests
+// =============================================================================
+
+func TestActiveEncountersProjection_Name(t *testing.T) {
+	projection := NewActiveEncountersProjection()
+	if projection.Name() != "active_encounters" {
+		t.Errorf("Expected name 'active_encounters', got '%s'", projection.Name())
+	}
+}
+
+func TestActiveEncountersProjection_GetAllEncounters(t *testing.T) {
+	projection := NewActiveEncountersProjection()
+	ctx := context.Background()
+
+	// Add multiple encounters
+	projection.Handle(ctx, eventsourcing.StoredEvent{
+		Position: 0, StreamID: "enc:1", EventType: "patient_admit",
+		Data: []byte(`{"patient":{"mrn":"M1"},"encounter":{"id":"E1","class":"inpatient"}}`),
+	})
+	projection.Handle(ctx, eventsourcing.StoredEvent{
+		Position: 1, StreamID: "enc:2", EventType: "patient_admit",
+		Data: []byte(`{"patient":{"mrn":"M2"},"encounter":{"id":"E2","class":"outpatient"}}`),
+	})
+
+	all := projection.GetAllEncounters()
+	if len(all) != 2 {
+		t.Errorf("Expected 2 encounters, got %d", len(all))
+	}
+}
+
+func TestActiveEncountersProjection_GetEncountersByLocation(t *testing.T) {
+	projection := NewActiveEncountersProjection()
+	ctx := context.Background()
+
+	// Add encounters in different units
+	projection.Handle(ctx, eventsourcing.StoredEvent{
+		Position: 0, StreamID: "enc:1", EventType: "patient_admit",
+		Data: []byte(`{"patient":{"mrn":"M1"},"encounter":{"id":"E1"},"location":{"unit":"ICU"}}`),
+	})
+	projection.Handle(ctx, eventsourcing.StoredEvent{
+		Position: 1, StreamID: "enc:2", EventType: "patient_admit",
+		Data: []byte(`{"patient":{"mrn":"M2"},"encounter":{"id":"E2"},"location":{"unit":"ICU"}}`),
+	})
+	projection.Handle(ctx, eventsourcing.StoredEvent{
+		Position: 2, StreamID: "enc:3", EventType: "patient_admit",
+		Data: []byte(`{"patient":{"mrn":"M3"},"encounter":{"id":"E3"},"location":{"unit":"MED-SURG"}}`),
+	})
+
+	icuEncounters := projection.GetEncountersByLocation("ICU")
+	if len(icuEncounters) != 2 {
+		t.Errorf("Expected 2 ICU encounters, got %d", len(icuEncounters))
+	}
+
+	medSurgEncounters := projection.GetEncountersByLocation("MED-SURG")
+	if len(medSurgEncounters) != 1 {
+		t.Errorf("Expected 1 MED-SURG encounter, got %d", len(medSurgEncounters))
+	}
+}
+
+func TestActiveEncountersProjection_Clear(t *testing.T) {
+	projection := NewActiveEncountersProjection()
+	ctx := context.Background()
+
+	// Add an encounter
+	projection.Handle(ctx, eventsourcing.StoredEvent{
+		Position: 0, StreamID: "enc:1", EventType: "patient_admit",
+		Data: []byte(`{"patient":{"mrn":"M1"},"encounter":{"id":"E1"}}`),
+	})
+
+	if projection.Count() != 1 {
+		t.Errorf("Expected 1 encounter, got %d", projection.Count())
+	}
+
+	// Clear
+	projection.Clear()
+
+	if projection.Count() != 0 {
+		t.Errorf("Expected 0 encounters after clear, got %d", projection.Count())
+	}
+}
+
+func TestActiveEncountersProjection_AdmitWithoutEncounterID(t *testing.T) {
+	projection := NewActiveEncountersProjection()
+	ctx := context.Background()
+
+	// Admit without encounter.id (uses alternate path - generates ID from patient MRN)
+	projection.Handle(ctx, eventsourcing.StoredEvent{
+		Position:  0,
+		StreamID:  "enc:1",
+		EventType: "patient_admit",
+		Timestamp: time.Now(),
+		Data:      []byte(`{"patient":{"mrn":"MRN001"},"location":{"unit":"ICU"}}`),
+	})
+
+	// Should have created an encounter with generated ID
+	if projection.Count() != 1 {
+		t.Fatalf("Expected 1 encounter, got %d", projection.Count())
+	}
+
+	// Get by patient MRN
+	enc, ok := projection.GetEncounterByPatient("MRN001")
+	if !ok {
+		t.Fatal("Expected encounter for patient MRN001")
+	}
+	if enc.PatientMRN != "MRN001" {
+		t.Errorf("Expected MRN 'MRN001', got '%s'", enc.PatientMRN)
+	}
+}
+
+func TestActiveEncountersProjection_DischargeNonExistent(t *testing.T) {
+	projection := NewActiveEncountersProjection()
+	ctx := context.Background()
+
+	// Discharge without prior admit - should not panic
+	projection.Handle(ctx, eventsourcing.StoredEvent{
+		Position:  0,
+		StreamID:  "enc:1",
+		EventType: "patient_discharge",
+		Timestamp: time.Now(),
+		Data:      []byte(`{"patient":{"mrn":"MRN001"},"encounter":{"id":"ENC_NONEXISTENT"}}`),
+	})
+
+	if projection.Count() != 0 {
+		t.Errorf("Expected 0 encounters, got %d", projection.Count())
+	}
+}
+
+func TestEventStatisticsProjection_GetCountByTypeAndSource(t *testing.T) {
+	projection := NewEventStatisticsProjection()
+	ctx := context.Background()
+
+	// Add events
+	projection.Handle(ctx, eventsourcing.StoredEvent{
+		EventType: "patient_admit", Metadata: map[string]string{"source": "adt"},
+	})
+	projection.Handle(ctx, eventsourcing.StoredEvent{
+		EventType: "patient_admit", Metadata: map[string]string{"source": "adt"},
+	})
+	projection.Handle(ctx, eventsourcing.StoredEvent{
+		EventType: "lab_result", Metadata: map[string]string{"source": "lab"},
+	})
+
+	// Test GetEventCountByType
+	admitCount := projection.GetEventCountByType("patient_admit")
+	if admitCount != 2 {
+		t.Errorf("Expected 2 patient_admit events, got %d", admitCount)
+	}
+
+	// Test GetEventCountBySource
+	adtCount := projection.GetEventCountBySource("adt")
+	if adtCount != 2 {
+		t.Errorf("Expected 2 adt events, got %d", adtCount)
+	}
+
+	// Test GetTopSources
+	topSources := projection.GetTopSources(1)
+	if len(topSources) != 1 {
+		t.Errorf("Expected 1 top source, got %d", len(topSources))
+	}
+	if topSources[0].Name != "adt" {
+		t.Errorf("Expected top source 'adt', got '%s'", topSources[0].Name)
+	}
+}
+
+func TestEventStatisticsProjection_Clear(t *testing.T) {
+	projection := NewEventStatisticsProjection()
+	ctx := context.Background()
+
+	// Add events
+	projection.Handle(ctx, eventsourcing.StoredEvent{EventType: "test"})
+
+	stats := projection.GetStatistics()
+	if stats.TotalEvents != 1 {
+		t.Errorf("Expected 1 event, got %d", stats.TotalEvents)
+	}
+
+	// Clear
+	projection.Clear()
+
+	stats = projection.GetStatistics()
+	if stats.TotalEvents != 0 {
+		t.Errorf("Expected 0 events after clear, got %d", stats.TotalEvents)
+	}
+}
+
+func TestPatientTimelineProjection_ExtractMRN_EdgeCases(t *testing.T) {
+	projection := NewPatientTimelineProjection()
+	ctx := context.Background()
+
+	// Test with MRN in root level
+	projection.Handle(ctx, eventsourcing.StoredEvent{
+		Position:  0,
+		StreamID:  "patient:MRN_ROOT",
+		EventType: "event1",
+		Timestamp: time.Now(),
+		Data:      []byte(`{"mrn":"MRN_ROOT"}`),
+	})
+
+	// Test with MRN in patient object
+	projection.Handle(ctx, eventsourcing.StoredEvent{
+		Position:  1,
+		StreamID:  "patient:MRN_PATIENT",
+		EventType: "event2",
+		Timestamp: time.Now(),
+		Data:      []byte(`{"patient":{"mrn":"MRN_PATIENT"}}`),
+	})
+
+	// Test with patient_mrn field
+	projection.Handle(ctx, eventsourcing.StoredEvent{
+		Position:  2,
+		StreamID:  "patient:MRN_FIELD",
+		EventType: "event3",
+		Timestamp: time.Now(),
+		Data:      []byte(`{"patient_mrn":"MRN_FIELD"}`),
+	})
+
+	// Verify all MRNs were extracted
+	mrns := projection.GetPatientMRNs()
+	if len(mrns) != 3 {
+		t.Errorf("Expected 3 patients, got %d: %v", len(mrns), mrns)
+	}
+}
+
+func TestPatientTimelineProjection_MultipleEventTypes(t *testing.T) {
+	projection := NewPatientTimelineProjection()
+	ctx := context.Background()
+
+	// Add events with different types
+	now := time.Now()
+	events := []eventsourcing.StoredEvent{
+		{Position: 0, StreamID: "patient:MRN001", EventType: "patient_admit", Timestamp: now.Add(-3 * time.Hour), Data: []byte(`{"mrn":"MRN001"}`)},
+		{Position: 1, StreamID: "patient:MRN001", EventType: "lab_result", Timestamp: now.Add(-2 * time.Hour), Data: []byte(`{"mrn":"MRN001"}`)},
+		{Position: 2, StreamID: "patient:MRN001", EventType: "lab_result", Timestamp: now.Add(-1 * time.Hour), Data: []byte(`{"mrn":"MRN001"}`)},
+		{Position: 3, StreamID: "patient:MRN001", EventType: "vital_sign", Timestamp: now, Data: []byte(`{"mrn":"MRN001"}`)},
+	}
+
+	for _, e := range events {
+		projection.Handle(ctx, e)
+	}
+
+	timeline, ok := projection.GetTimeline("MRN001")
+	if !ok {
+		t.Fatal("Expected timeline for MRN001")
+	}
+
+	// Check all events were captured
+	if len(timeline.Events) != 4 {
+		t.Errorf("Expected 4 events in timeline, got %d", len(timeline.Events))
+	}
+
+	// Verify last updated is set
+	if timeline.LastUpdated.IsZero() {
+		t.Error("Expected LastUpdated to be set")
+	}
+
+	// Verify events are in order by timestamp
+	for i := 1; i < len(timeline.Events); i++ {
+		if timeline.Events[i].Timestamp.Before(timeline.Events[i-1].Timestamp) {
+			t.Error("Events should be sorted by timestamp")
+		}
+	}
+}
