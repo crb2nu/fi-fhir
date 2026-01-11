@@ -31,4 +31,7 @@ Thumbs.db
 
 # Claude Code local files
 .claude/
-fi-fhir
+
+# Binaries (built by make build)
+/bin/
+/fi-fhir
