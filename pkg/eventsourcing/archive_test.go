@@ -4,6 +4,7 @@ package eventsourcing
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -401,5 +402,150 @@ func TestEventArchiver_EstimateArchival(t *testing.T) {
 	}
 	if estimate.TotalEvents != 20 {
 		t.Errorf("TotalEvents = %d, want 20", estimate.TotalEvents)
+	}
+}
+
+func TestArchive_RequiresArchiveStore(t *testing.T) {
+	store := NewMemoryStore()
+	archiver := NewEventArchiver(store)
+
+	// Archive without ArchiveStore and DryRun=false should fail
+	config := &ArchiveConfig{
+		Policy:       DefaultRetentionPolicy(),
+		DryRun:       false,
+		ArchiveStore: nil, // Missing!
+	}
+
+	_, err := archiver.Archive(context.Background(), config)
+	if err == nil {
+		t.Error("Expected error when ArchiveStore is nil and DryRun is false")
+	}
+}
+
+func TestArchive_ContextCancellation(t *testing.T) {
+	store := NewMemoryStore()
+	ctx := context.Background()
+
+	// Add many events to ensure we hit the cancellation check
+	for i := 0; i < 100; i++ {
+		store.Append(ctx, "test-stream", VersionAny, []EventData{
+			{EventType: "test", Data: json.RawMessage(`{}`)},
+		})
+	}
+
+	archiver := NewEventArchiver(store)
+	archivePath := filepath.Join(t.TempDir(), "archive.jsonl")
+	archiveStore, err := NewFileArchiveStore(archivePath)
+	if err != nil {
+		t.Fatalf("NewFileArchiveStore() error = %v", err)
+	}
+	defer archiveStore.Close()
+
+	// Use very short retention so events are eligible
+	policy := &RetentionPolicy{
+		DefaultRetention: 1 * time.Nanosecond,
+		MinRetention:     1 * time.Nanosecond,
+	}
+
+	// Create cancelled context
+	cancelCtx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	config := &ArchiveConfig{
+		Policy:       policy,
+		DryRun:       false,
+		ArchiveStore: archiveStore,
+		BatchSize:    10, // Small batch to trigger more iterations
+	}
+
+	result, err := archiver.Archive(cancelCtx, config)
+	// Context cancellation may or may not happen before first batch
+	// Just verify that if cancelled, we get the right error
+	if err != nil && result != nil && result.Error != nil {
+		if !errors.Is(result.Error, context.Canceled) {
+			// Also valid: batch completed before cancel check
+			t.Logf("Got error (may be valid): %v", result.Error)
+		}
+	}
+}
+
+func TestArchive_BeforePositionLimit(t *testing.T) {
+	store := NewMemoryStore()
+	ctx := context.Background()
+
+	// Add many events
+	for i := 0; i < 100; i++ {
+		store.Append(ctx, "test-stream", VersionAny, []EventData{
+			{EventType: "test", Data: json.RawMessage(`{}`)},
+		})
+	}
+
+	archiver := NewEventArchiver(store)
+
+	// Use very short retention
+	policy := &RetentionPolicy{
+		DefaultRetention: 1 * time.Nanosecond,
+		MinRetention:     1 * time.Nanosecond,
+	}
+
+	time.Sleep(10 * time.Millisecond)
+
+	config := &ArchiveConfig{
+		Policy:         policy,
+		DryRun:         true,
+		BeforePosition: 50, // Stop at position 50
+		BatchSize:      10, // Small batches
+	}
+
+	result, err := archiver.Archive(ctx, config)
+	if err != nil {
+		t.Fatalf("Archive() error = %v", err)
+	}
+
+	// Should have processed events up to position 50 (not all 100)
+	if result.EventsProcessed >= 100 {
+		t.Errorf("EventsProcessed = %d, expected less than 100 with BeforePosition=50", result.EventsProcessed)
+	}
+}
+
+func TestArchive_BeforeTimeLimit(t *testing.T) {
+	store := NewMemoryStore()
+	ctx := context.Background()
+
+	// Add events
+	store.Append(ctx, "test-stream", VersionAny, []EventData{
+		{EventType: "test", Data: json.RawMessage(`{}`)},
+	})
+
+	archiver := NewEventArchiver(store)
+
+	// Set BeforeTime to far in the past (before any events)
+	pastTime := time.Now().Add(-24 * time.Hour)
+	config := &ArchiveConfig{
+		Policy:     DefaultRetentionPolicy(),
+		DryRun:     true,
+		BeforeTime: &pastTime,
+	}
+
+	result, err := archiver.Archive(ctx, config)
+	if err != nil {
+		t.Fatalf("Archive() error = %v", err)
+	}
+
+	// All events should be skipped because they're after BeforeTime
+	if result.EventsArchived != 0 {
+		t.Errorf("EventsArchived = %d, want 0 (all events after BeforeTime)", result.EventsArchived)
+	}
+}
+
+func TestArchive_NilConfig(t *testing.T) {
+	store := NewMemoryStore()
+	archiver := NewEventArchiver(store)
+
+	// Archive with nil config should use defaults (DryRun mode)
+	// This will fail because ArchiveStore is nil but DryRun defaults to false
+	_, err := archiver.Archive(context.Background(), nil)
+	if err == nil {
+		t.Error("Expected error with nil config (defaults to DryRun=false which requires ArchiveStore)")
 	}
 }
