@@ -76,7 +76,7 @@ func (e *EventType) UnmarshalGQL(v interface{}) error {
 }
 
 func (e EventType) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String())) // MarshalGQL interface doesn't return error
 }
 
 // SourceFormat represents the source format of healthcare data
@@ -126,7 +126,7 @@ func (e *SourceFormat) UnmarshalGQL(v interface{}) error {
 }
 
 func (e SourceFormat) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String())) // MarshalGQL interface doesn't return error
 }
 
 // EventOrderField represents fields for ordering events
@@ -169,7 +169,7 @@ func (e *EventOrderField) UnmarshalGQL(v interface{}) error {
 }
 
 func (e EventOrderField) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String())) // MarshalGQL interface doesn't return error
 }
 
 // OrderDirection represents sort direction
@@ -210,5 +210,5 @@ func (e *OrderDirection) UnmarshalGQL(v interface{}) error {
 }
 
 func (e OrderDirection) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String())) // MarshalGQL interface doesn't return error
 }

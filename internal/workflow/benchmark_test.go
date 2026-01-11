@@ -1,4 +1,4 @@
-//nolint:gosec // Test file - G104 errors intentionally ignored in benchmarks
+//nolint:gosec,errcheck // Test file - G104 errors intentionally ignored in benchmarks
 package workflow
 
 import (

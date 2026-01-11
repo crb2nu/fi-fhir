@@ -107,7 +107,7 @@ func (m *OAuthTokenManager) fetchToken(config OAuthConfig, cacheKey string) (str
 	if err != nil {
 		return "", fmt.Errorf("token request failed after retries: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Read response
 	body, err := io.ReadAll(resp.Body)
@@ -264,7 +264,7 @@ func WithOAuthRetry(
 		// Check for 401 Unauthorized with OAuth
 		if resp.StatusCode == http.StatusUnauthorized && oauthConfig != nil && !retriedOn401 {
 			// Close the response body before retrying
-			resp.Body.Close() //nolint:gosec // G104: closing before retry, error not actionable
+			_ = resp.Body.Close() // closing before retry, error not actionable
 
 			// Invalidate the cached token
 			globalTokenManager.InvalidateToken(*oauthConfig)

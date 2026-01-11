@@ -180,7 +180,7 @@ func webhookAction(ctx context.Context, event interface{}, config map[string]str
 		httpSpan.SetStatus(SpanStatusError, err.Error())
 		return fmt.Errorf("webhook request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Record span attributes and metrics
 	httpSpan.SetAttribute(AttrHTTPStatus, resp.StatusCode)
@@ -520,7 +520,7 @@ func sendFHIRResource(ctx context.Context, client *http.Client, endpoint string,
 		httpSpan.SetStatus(SpanStatusError, err.Error())
 		return fmt.Errorf("FHIR request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Record span attributes and metrics
 	httpSpan.SetAttribute(AttrHTTPStatus, resp.StatusCode)
@@ -618,7 +618,7 @@ func sendFHIRBundle(ctx context.Context, client *http.Client, endpoint string, r
 		httpSpan.SetStatus(SpanStatusError, err.Error())
 		return fmt.Errorf("FHIR bundle request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Record span attributes and metrics
 	httpSpan.SetAttribute(AttrHTTPStatus, resp.StatusCode)

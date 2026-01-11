@@ -3023,7 +3023,7 @@ func runSubscriptionServe(args []string) error {
 		fmt.Println("\nShutting down...")
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		server.Shutdown(ctx) //nolint:gosec // G104: graceful shutdown, errors logged internally
+		_ = server.Shutdown(ctx) // Graceful shutdown in signal handler
 	}()
 
 	fmt.Printf("Starting subscription receiver on %s:%d\n", host, port)

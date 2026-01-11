@@ -516,6 +516,6 @@ func containsAny(s string, substrs ...string) bool {
 func GenerateFailedEventID() string {
 	// Use timestamp + random suffix for uniqueness
 	b := make([]byte, 8)
-	rand.Read(b) //nolint:gosec // G104: crypto/rand.Read very rarely fails
+	_, _ = rand.Read(b) // crypto/rand.Read very rarely fails
 	return fmt.Sprintf("%d-%s", time.Now().UnixNano(), hex.EncodeToString(b))
 }

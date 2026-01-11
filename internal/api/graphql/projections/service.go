@@ -55,7 +55,9 @@ func (s *Service) Start(ctx context.Context) error {
 	if s.runner == nil {
 		return nil // No runner configured
 	}
-	go s.runner.Run(ctx)
+	go func() {
+		_ = s.runner.Run(ctx) // Error is ctx.Canceled when context is done
+	}()
 	return nil
 }
 

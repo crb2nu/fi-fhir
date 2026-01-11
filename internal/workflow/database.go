@@ -45,7 +45,7 @@ func (m *DatabaseManager) GetConnection(dsn string) (*sql.DB, error) {
 		}
 		// Connection dead, remove it
 		m.mu.Lock()
-		db.Close() //nolint:gosec // G104: cleanup of dead connection
+		_ = db.Close() // Cleanup of dead connection
 		delete(m.connections, dsn)
 		m.mu.Unlock()
 	}
@@ -76,7 +76,7 @@ func (m *DatabaseManager) createConnection(dsn string) (*sql.DB, error) {
 
 	// Verify connection
 	if err := db.Ping(); err != nil {
-		db.Close() //nolint:gosec // G104: cleanup on failed connection
+		_ = db.Close() // Cleanup on failed connection
 		return nil, fmt.Errorf("database ping failed (is driver registered?): %w", err)
 	}
 

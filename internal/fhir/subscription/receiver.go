@@ -281,7 +281,7 @@ func (r *Receiver) handleNotification(w http.ResponseWriter, req *http.Request) 
 	// Return 200 even if some events failed to route
 	// This prevents the FHIR server from retrying the entire bundle
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status": "accepted"}`)) //nolint:gosec // G104: HTTP response write errors not recoverable
+	_, _ = w.Write([]byte(`{"status": "accepted"}`)) // HTTP response write errors not recoverable
 }
 
 func (r *Receiver) handleHealth(w http.ResponseWriter, req *http.Request) {
@@ -292,7 +292,7 @@ func (r *Receiver) handleHealth(w http.ResponseWriter, req *http.Request) {
 	count := len(r.subscriptions)
 	r.mu.RUnlock()
 
-	json.NewEncoder(w).Encode(map[string]interface{}{ //nolint:gosec // G104: HTTP response errors not recoverable
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{ // HTTP response errors not recoverable
 		"status":        "healthy",
 		"subscriptions": count,
 	})

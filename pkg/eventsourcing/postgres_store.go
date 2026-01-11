@@ -84,7 +84,7 @@ func (s *PostgresStore) Append(ctx context.Context, streamID string, expectedVer
 	if err != nil {
 		return 0, fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() // Rollback is no-op after Commit
 
 	// Lock the stream by selecting its rows (FOR UPDATE can't be used with aggregates)
 	// First, try to lock any existing rows for this stream
@@ -157,7 +157,7 @@ func (s *PostgresStore) ReadStream(ctx context.Context, streamID string, fromVer
 	if err != nil {
 		return nil, fmt.Errorf("failed to query events: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	return s.scanEvents(rows)
 }
@@ -174,7 +174,7 @@ func (s *PostgresStore) ReadAll(ctx context.Context, fromPosition int64, maxCoun
 	if err != nil {
 		return nil, fmt.Errorf("failed to query events: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	return s.scanEvents(rows)
 }
@@ -281,7 +281,7 @@ func (s *PostgresStore) GetStats(ctx context.Context) (*PostgresStoreStats, erro
 	if err != nil {
 		return nil, fmt.Errorf("failed to query event types: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	stats.EventTypes = make(map[string]int64)
 	for rows.Next() {
@@ -358,7 +358,7 @@ func (s *PostgresStore) ReadAllByTimeRange(ctx context.Context, fromTime, toTime
 	if err != nil {
 		return nil, fmt.Errorf("failed to query events by time range: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	return s.scanEvents(rows)
 }
@@ -376,7 +376,7 @@ func (s *PostgresStore) ReadAllByTimeRangeAfterPosition(ctx context.Context, fro
 	if err != nil {
 		return nil, fmt.Errorf("failed to query events by time range: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	return s.scanEvents(rows)
 }
@@ -637,7 +637,7 @@ func (s *PostgresSnapshotStore) ListSnapshots(ctx context.Context, projectionNam
 	if err != nil {
 		return nil, fmt.Errorf("failed to list snapshots: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var snapshots []SnapshotMetadata
 	for rows.Next() {

@@ -555,7 +555,7 @@ func ReadArchiveFile(path string) ([]ArchivedEvent, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	var events []ArchivedEvent
 	for {

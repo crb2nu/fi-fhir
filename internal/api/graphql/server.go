@@ -135,10 +135,10 @@ func (s *Server) Start() error {
 	}
 
 	// Health endpoint
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, `{"status":"healthy","service":"graphql"}`)
+		_, _ = fmt.Fprintf(w, `{"status":"healthy","service":"graphql"}`)
 	})
 
 	addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)

@@ -167,7 +167,7 @@ func (c *UMLSClient) getTicketGrantingTicket(ctx context.Context) (string, error
 	if err != nil {
 		return "", fmt.Errorf("failed to request TGT: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(resp.Body)
@@ -206,7 +206,7 @@ func (c *UMLSClient) getServiceTicket(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to request ST: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -273,7 +273,7 @@ func (c *UMLSClient) doRequest(ctx context.Context, method, path string, params 
 		}
 
 		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close() //nolint:gosec // G104: response body close errors not actionable
+		_ = resp.Body.Close() // Response body close errors not actionable
 
 		if err != nil {
 			lastErr = fmt.Errorf("failed to read response: %w", err)

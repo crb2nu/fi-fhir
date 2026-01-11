@@ -158,7 +158,7 @@ func (r *ProjectionRunner) runProjection(ctx context.Context, projection Project
 		case <-ctx.Done():
 			// Save final checkpoint
 			if eventsProcessed > 0 {
-				r.checkpointStore.SetCheckpoint(ctx, projection.Name(), position) //nolint:gosec // G104: best-effort checkpoint on shutdown
+				_ = r.checkpointStore.SetCheckpoint(ctx, projection.Name(), position) // best-effort checkpoint on shutdown
 			}
 			return nil
 		default:

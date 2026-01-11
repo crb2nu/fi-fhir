@@ -69,7 +69,7 @@ func (m *Mapper) LoadFromCSV(path string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open mapping file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	return m.LoadFromReader(f)
 }

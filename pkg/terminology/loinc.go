@@ -98,7 +98,7 @@ func (l *LOINCLoader) LoadLoincTable(path string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open LOINC table: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	return l.LoadLoincTableFromReader(f)
 }
@@ -192,7 +192,7 @@ func (l *LOINCLoader) LoadPanelHierarchy(path string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open panel hierarchy: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	return l.LoadPanelHierarchyFromReader(f)
 }

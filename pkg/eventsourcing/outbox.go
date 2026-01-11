@@ -355,7 +355,7 @@ func (s *MemoryOutboxStore) SaveMessage(ctx context.Context, message *OutboxMess
 	// Deep copy
 	data, _ := json.Marshal(message)
 	var msgCopy OutboxMessage
-	json.Unmarshal(data, &msgCopy) //nolint:gosec // G104: internal copy from just-marshaled data
+	_ = json.Unmarshal(data, &msgCopy) // internal copy from just-marshaled data
 	s.messages[message.ID] = &msgCopy
 
 	return nil
@@ -392,7 +392,7 @@ func (s *MemoryOutboxStore) GetPendingMessages(ctx context.Context, limit int) (
 		// Return a copy
 		data, _ := json.Marshal(msg)
 		var msgCopy OutboxMessage
-		json.Unmarshal(data, &msgCopy) //nolint:gosec // G104: internal copy from just-marshaled data
+		_ = json.Unmarshal(data, &msgCopy) // internal copy from just-marshaled data
 		result = append(result, &msgCopy)
 
 		if limit > 0 && len(result) >= limit {
@@ -471,7 +471,7 @@ func (s *MemoryOutboxStore) GetMessage(ctx context.Context, messageID string) (*
 	// Return a copy
 	data, _ := json.Marshal(msg)
 	var msgCopy OutboxMessage
-	json.Unmarshal(data, &msgCopy) //nolint:gosec // G104: internal copy from just-marshaled data
+	_ = json.Unmarshal(data, &msgCopy) // internal copy from just-marshaled data
 	return &msgCopy, nil
 }
 

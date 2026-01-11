@@ -704,7 +704,7 @@ func (s *PostgresStreamSnapshotStore) ListStreamSnapshots(ctx context.Context) (
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var result []StreamSnapshotMetadata
 	for rows.Next() {

@@ -208,7 +208,7 @@ func WithRetry(ctx context.Context, rc RetryConfig, fn HTTPRequestFunc) (*http.R
 
 			// Close response body if we're going to retry (avoid leaking)
 			if shouldRetry && resp.Body != nil {
-				resp.Body.Close() //nolint:gosec // G104: closing before retry, error not actionable
+				_ = resp.Body.Close() // closing before retry, error not actionable
 			}
 		}
 

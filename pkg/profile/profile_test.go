@@ -1,3 +1,4 @@
+//nolint:errcheck // Test file - error checking intentionally relaxed
 package profile
 
 import "testing"

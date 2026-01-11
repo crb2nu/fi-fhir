@@ -255,7 +255,7 @@ func (h *HealthService) writeResponse(w http.ResponseWriter, response *HealthRes
 	}
 
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(response) //nolint:gosec // G104: HTTP response encoding errors not recoverable
+	_ = json.NewEncoder(w).Encode(response) // HTTP response encoding errors not recoverable
 }
 
 // ---- Built-in Health Checkers ----
@@ -383,7 +383,7 @@ func HTTPHealthChecker(url string, timeout time.Duration) HealthChecker {
 				CheckedAt: time.Now(),
 			}
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode >= 500 {
 			return ComponentHealth{

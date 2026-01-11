@@ -113,7 +113,7 @@ func runEventStoreInit(args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -149,7 +149,7 @@ func runEventStoreStats(args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -199,7 +199,7 @@ func runEventStoreStreams(args []string) error {
 				return fmt.Errorf("--limit requires a value")
 			}
 			i++
-			fmt.Sscanf(args[i], "%d", &limit) //nolint:gosec // CLI arg parsing, invalid input uses default
+			_, _ = fmt.Sscanf(args[i], "%d", &limit) // CLI arg parsing, invalid input uses default
 		}
 	}
 
@@ -207,7 +207,7 @@ func runEventStoreStreams(args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -226,7 +226,7 @@ func runEventStoreStreams(args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to query streams: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	fmt.Printf("%-40s %10s %10s\n", "STREAM ID", "VERSION", "EVENTS")
 	fmt.Println(strings.Repeat("-", 64))
@@ -277,19 +277,19 @@ func runEventStoreRead(args []string) error {
 				return fmt.Errorf("--from-position requires a value")
 			}
 			i++
-			fmt.Sscanf(args[i], "%d", &fromPosition) //nolint:gosec // CLI arg parsing
+			_, _ = fmt.Sscanf(args[i], "%d", &fromPosition) // CLI arg parsing
 		case "--from-version":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--from-version requires a value")
 			}
 			i++
-			fmt.Sscanf(args[i], "%d", &fromVersion) //nolint:gosec // CLI arg parsing
+			_, _ = fmt.Sscanf(args[i], "%d", &fromVersion) // CLI arg parsing
 		case "--limit":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--limit requires a value")
 			}
 			i++
-			fmt.Sscanf(args[i], "%d", &limit) //nolint:gosec // CLI arg parsing
+			_, _ = fmt.Sscanf(args[i], "%d", &limit) // CLI arg parsing
 		case "--pretty":
 			pretty = true
 		}
@@ -303,7 +303,7 @@ func runEventStoreRead(args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -352,7 +352,7 @@ func runEventStoreRead(args []string) error {
 			output["data"] = string(event.Data)
 		}
 
-		encoder.Encode(output) //nolint:gosec // JSON output to stdout
+		_ = encoder.Encode(output) // JSON output to stdout
 	}
 
 	return nil
@@ -384,7 +384,7 @@ func runEventStoreAppend(args []string) error {
 				return fmt.Errorf("--version requires a value")
 			}
 			i++
-			fmt.Sscanf(args[i], "%d", &expectedVersion) //nolint:gosec // CLI arg parsing
+			_, _ = fmt.Sscanf(args[i], "%d", &expectedVersion) // CLI arg parsing
 		case "--type":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--type requires a value")
@@ -420,7 +420,7 @@ func runEventStoreAppend(args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -533,7 +533,7 @@ func runProjectionStatus(args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -608,7 +608,7 @@ func runProjectionRun(args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
@@ -703,7 +703,7 @@ func runProjectionRebuild(args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()

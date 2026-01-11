@@ -203,11 +203,11 @@ func (l *StructuredLogger) outputJSON(fields []Field) {
 
 	data, err := json.Marshal(m)
 	if err != nil {
-		fmt.Fprintf(l.config.Output, `{"error":"failed to marshal log entry: %v"}`, err)
+		_, _ = fmt.Fprintf(l.config.Output, `{"error":"failed to marshal log entry: %v"}`, err)
 		return
 	}
 
-	fmt.Fprintln(l.config.Output, string(data))
+	_, _ = fmt.Fprintln(l.config.Output, string(data))
 }
 
 func (l *StructuredLogger) outputText(level LogLevel, msg string, fields []Field) {
@@ -256,7 +256,7 @@ func (l *StructuredLogger) outputText(level LogLevel, msg string, fields []Field
 		output += fmt.Sprintf(" %s=%v", f.Key, f.Value)
 	}
 
-	fmt.Fprintln(l.config.Output, output)
+	_, _ = fmt.Fprintln(l.config.Output, output)
 }
 
 func (l *StructuredLogger) Debug(ctx context.Context, msg string, fields ...Field) {

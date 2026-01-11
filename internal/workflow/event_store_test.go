@@ -197,7 +197,7 @@ func TestEventStoreActionIntegration(t *testing.T) {
 // TestEventStoreManager tests the connection manager
 func TestEventStoreManager(t *testing.T) {
 	mgr := NewEventStoreManager()
-	defer mgr.Close()
+	defer func() { _ = mgr.Close() }()
 
 	// Manager should be empty initially
 	if len(mgr.stores) != 0 {

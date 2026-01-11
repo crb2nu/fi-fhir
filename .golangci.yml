@@ -24,8 +24,6 @@ output:
 
 linters:
   disable-all: true
-  disable:
-    - errcheck  # Too noisy - 50+ issues
   enable:
     # Default linters (gosimple and stylecheck are now part of staticcheck)
     - govet
@@ -51,6 +49,7 @@ linters:
 
     # Error handling
     - errorlint
+    - errcheck
 
     # Security
     - gosec

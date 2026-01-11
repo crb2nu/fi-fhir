@@ -679,14 +679,14 @@ func NewRecordingEngine(workflow *Workflow, recorder EventRecorder) (*RecordingE
 // Process routes an event and records it.
 func (e *RecordingEngine) Process(event interface{}) *Result {
 	result := e.Engine.Process(event)
-	e.recorder.Record(event, result) //nolint:gosec // G104: recording is best-effort, not critical path
+	_ = e.recorder.Record(event, result) // Recording is best-effort, not critical path
 	return result
 }
 
 // ProcessWithContext routes an event with tracing and records it.
 func (e *RecordingEngine) ProcessWithContext(ctx context.Context, event interface{}) *Result {
 	result := e.Engine.ProcessWithContext(ctx, event)
-	e.recorder.Record(event, result) //nolint:gosec // G104: recording is best-effort, not critical path
+	_ = e.recorder.Record(event, result) // Recording is best-effort, not critical path
 	return result
 }
 
