@@ -11,8 +11,8 @@ This directory contains detailed planning and specification documents for the fi
 | [FHIR-PROFILES.md](FHIR-PROFILES.md) | FHIR R4 output with US Core mapping | ⚠️ 17+ resources, validation pending |
 | [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) | HL7 v2.x version differences and parsing edge cases | ⚠️ Core complete, vendor templates pending |
 | [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) | X12 EDI parsing (837P, 835, 270/271, 276/277) | ⚠️ Parsing complete, companion guides pending |
-| [IDENTIFIERS.md](IDENTIFIERS.md) | Patient/provider identifier systems and validation | ⚠️ Validators complete, matching engine pending |
-| [TERMINOLOGY.md](TERMINOLOGY.md) | Healthcare code systems and mapping (LOINC, SNOMED, UMLS) | ⚠️ Core complete, version tracking pending |
+| [IDENTIFIERS.md](IDENTIFIERS.md) | Patient/provider identifier systems and validation | ✅ Complete (validators + matching engine) |
+| [TERMINOLOGY.md](TERMINOLOGY.md) | Healthcare code systems and mapping (LOINC, SNOMED, UMLS, ICD-10-CM) | ⚠️ Core complete, version tracking pending |
 | [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md) | TypeScript/JavaScript SDK | ⚠️ SDK complete, distribution pending |
 | [CDA-CCDA.md](CDA-CCDA.md) | CDA/CCDA clinical document parsing | ✅ Complete |
 | [FHIR-SUBSCRIPTIONS.md](FHIR-SUBSCRIPTIONS.md) | FHIR R4 Subscriptions (bidirectional) | ✅ Complete |
@@ -114,6 +114,7 @@ For AI assistant guidance, see [AGENTS.md](../../AGENTS.md).
 - Saga orchestration (multi-step transactions with compensation, retry, timeout)
 - Outbox pattern for reliable event publishing (OutboxStore, OutboxRelay, OutboxEventStore)
 - LOINC file loader with panel expansion (`pkg/terminology/loinc.go`)
+- ICD-10-CM loader with ETL pipeline integration (`pkg/terminology/db/icd10.go`)
 - Fuzzy terminology matching with confidence scoring (`pkg/terminology/fuzzy.go`)
 - FHIR Condition resource (US Core profile) - `pkg/fhir/mapper.go:MapCondition()`
 - FHIR Coverage resource (US Core profile) - `pkg/fhir/mapper.go:MapCoverage()`
