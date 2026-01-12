@@ -81,8 +81,12 @@ func runCLI(t *testing.T, args ...string) (stdout, stderr string, err error) {
 			capturedErr = runConfig(args[1:])
 		case "eventstore":
 			capturedErr = runEventStore(args[1:])
+		case "projection":
+			capturedErr = runProjection(args[1:])
 		case "subscription":
 			capturedErr = runSubscription(args[1:])
+		case "serve":
+			capturedErr = runServe(args[1:])
 		case "version", "--version", "-v":
 			printVersion()
 		case "help", "--help", "-h":

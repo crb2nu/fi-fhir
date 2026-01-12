@@ -814,3 +814,773 @@ func TestValidate_Message_Help(t *testing.T) {
 	assertNoError(t, err)
 	assertContains(t, stdout, "validate")
 }
+
+// =============================================================================
+// Projection Command Tests
+// =============================================================================
+
+func TestProjection_Help(t *testing.T) {
+	stdout, _, err := runCLI(t, "projection", "--help")
+	assertNoError(t, err)
+	assertContains(t, stdout, "projection")
+	assertContains(t, stdout, "list")
+	assertContains(t, stdout, "status")
+	assertContains(t, stdout, "run")
+	assertContains(t, stdout, "rebuild")
+}
+
+func TestProjection_NoArgs(t *testing.T) {
+	stdout, _, err := runCLI(t, "projection")
+	assertNoError(t, err) // prints usage
+	assertContains(t, stdout, "projection")
+}
+
+func TestProjection_UnknownSubcommand(t *testing.T) {
+	stdout, _, err := runCLI(t, "projection", "unknown")
+	assertNoError(t, err) // prints usage
+	assertContains(t, stdout, "projection")
+}
+
+func TestProjection_List(t *testing.T) {
+	stdout, _, err := runCLI(t, "projection", "list")
+	assertNoError(t, err)
+	assertContains(t, stdout, "Available Projections")
+	assertContains(t, stdout, "patient_timeline")
+	assertContains(t, stdout, "event_statistics")
+	assertContains(t, stdout, "active_encounters")
+}
+
+func TestProjection_Status_MissingDB(t *testing.T) {
+	oldVal := os.Getenv("FI_FHIR_DATABASE_URL")
+	os.Unsetenv("FI_FHIR_DATABASE_URL")
+	defer func() {
+		if oldVal != "" {
+			os.Setenv("FI_FHIR_DATABASE_URL", oldVal)
+		}
+	}()
+
+	_, _, err := runCLI(t, "projection", "status")
+	assertError(t, err)
+	assertErrorContains(t, err, "database URL required")
+}
+
+func TestProjection_Run_MissingDB(t *testing.T) {
+	oldVal := os.Getenv("FI_FHIR_DATABASE_URL")
+	os.Unsetenv("FI_FHIR_DATABASE_URL")
+	defer func() {
+		if oldVal != "" {
+			os.Setenv("FI_FHIR_DATABASE_URL", oldVal)
+		}
+	}()
+
+	_, _, err := runCLI(t, "projection", "run")
+	assertError(t, err)
+	assertErrorContains(t, err, "database URL required")
+}
+
+func TestProjection_Run_WithName_MissingDB(t *testing.T) {
+	oldVal := os.Getenv("FI_FHIR_DATABASE_URL")
+	os.Unsetenv("FI_FHIR_DATABASE_URL")
+	defer func() {
+		if oldVal != "" {
+			os.Setenv("FI_FHIR_DATABASE_URL", oldVal)
+		}
+	}()
+
+	_, _, err := runCLI(t, "projection", "run", "--name", "patient_timeline")
+	assertError(t, err)
+	assertErrorContains(t, err, "database URL required")
+}
+
+func TestProjection_Rebuild_MissingNameAndAll(t *testing.T) {
+	oldVal := os.Getenv("FI_FHIR_DATABASE_URL")
+	os.Setenv("FI_FHIR_DATABASE_URL", "postgres://localhost/test")
+	defer func() {
+		if oldVal != "" {
+			os.Setenv("FI_FHIR_DATABASE_URL", oldVal)
+		} else {
+			os.Unsetenv("FI_FHIR_DATABASE_URL")
+		}
+	}()
+
+	_, _, err := runCLI(t, "projection", "rebuild")
+	assertError(t, err)
+	assertErrorContains(t, err, "--name or --all")
+}
+
+func TestProjection_Rebuild_MissingDB(t *testing.T) {
+	oldVal := os.Getenv("FI_FHIR_DATABASE_URL")
+	os.Unsetenv("FI_FHIR_DATABASE_URL")
+	defer func() {
+		if oldVal != "" {
+			os.Setenv("FI_FHIR_DATABASE_URL", oldVal)
+		}
+	}()
+
+	_, _, err := runCLI(t, "projection", "rebuild", "--all")
+	assertError(t, err)
+	assertErrorContains(t, err, "database URL required")
+}
+
+func TestProjection_Rebuild_InvalidFromPosition(t *testing.T) {
+	oldVal := os.Getenv("FI_FHIR_DATABASE_URL")
+	os.Setenv("FI_FHIR_DATABASE_URL", "postgres://localhost/test")
+	defer func() {
+		if oldVal != "" {
+			os.Setenv("FI_FHIR_DATABASE_URL", oldVal)
+		} else {
+			os.Unsetenv("FI_FHIR_DATABASE_URL")
+		}
+	}()
+
+	_, _, err := runCLI(t, "projection", "rebuild", "--all", "--from-position", "invalid")
+	assertError(t, err)
+	assertErrorContains(t, err, "invalid --from-position")
+}
+
+func TestProjection_Rebuild_InvalidStopPosition(t *testing.T) {
+	oldVal := os.Getenv("FI_FHIR_DATABASE_URL")
+	os.Setenv("FI_FHIR_DATABASE_URL", "postgres://localhost/test")
+	defer func() {
+		if oldVal != "" {
+			os.Setenv("FI_FHIR_DATABASE_URL", oldVal)
+		} else {
+			os.Unsetenv("FI_FHIR_DATABASE_URL")
+		}
+	}()
+
+	_, _, err := runCLI(t, "projection", "rebuild", "--all", "--stop-position", "invalid")
+	assertError(t, err)
+	assertErrorContains(t, err, "invalid --stop-position")
+}
+
+func TestProjection_Status_DBFlag(t *testing.T) {
+	// Should fail to connect but validates the --db flag is parsed
+	_, _, err := runCLI(t, "projection", "status", "--db", "postgres://invalid:5432/noexist")
+	assertError(t, err)
+	// Should get a connection error, not a flag parsing error
+	if strings.Contains(err.Error(), "requires a value") {
+		t.Errorf("Expected connection error, got flag error: %v", err)
+	}
+}
+
+func TestProjection_Run_NameFlagMissingValue(t *testing.T) {
+	oldVal := os.Getenv("FI_FHIR_DATABASE_URL")
+	os.Setenv("FI_FHIR_DATABASE_URL", "postgres://localhost/test")
+	defer func() {
+		if oldVal != "" {
+			os.Setenv("FI_FHIR_DATABASE_URL", oldVal)
+		} else {
+			os.Unsetenv("FI_FHIR_DATABASE_URL")
+		}
+	}()
+
+	_, _, err := runCLI(t, "projection", "run", "--name")
+	assertError(t, err)
+	assertErrorContains(t, err, "--name requires a value")
+}
+
+func TestProjection_Rebuild_NameFlagMissingValue(t *testing.T) {
+	oldVal := os.Getenv("FI_FHIR_DATABASE_URL")
+	os.Setenv("FI_FHIR_DATABASE_URL", "postgres://localhost/test")
+	defer func() {
+		if oldVal != "" {
+			os.Setenv("FI_FHIR_DATABASE_URL", oldVal)
+		} else {
+			os.Unsetenv("FI_FHIR_DATABASE_URL")
+		}
+	}()
+
+	_, _, err := runCLI(t, "projection", "rebuild", "--name")
+	assertError(t, err)
+	assertErrorContains(t, err, "--name requires a value")
+}
+
+func TestProjection_Rebuild_FromPositionMissingValue(t *testing.T) {
+	oldVal := os.Getenv("FI_FHIR_DATABASE_URL")
+	os.Setenv("FI_FHIR_DATABASE_URL", "postgres://localhost/test")
+	defer func() {
+		if oldVal != "" {
+			os.Setenv("FI_FHIR_DATABASE_URL", oldVal)
+		} else {
+			os.Unsetenv("FI_FHIR_DATABASE_URL")
+		}
+	}()
+
+	_, _, err := runCLI(t, "projection", "rebuild", "--all", "--from-position")
+	assertError(t, err)
+	assertErrorContains(t, err, "--from-position requires a value")
+}
+
+func TestProjection_Rebuild_StopPositionMissingValue(t *testing.T) {
+	oldVal := os.Getenv("FI_FHIR_DATABASE_URL")
+	os.Setenv("FI_FHIR_DATABASE_URL", "postgres://localhost/test")
+	defer func() {
+		if oldVal != "" {
+			os.Setenv("FI_FHIR_DATABASE_URL", oldVal)
+		} else {
+			os.Unsetenv("FI_FHIR_DATABASE_URL")
+		}
+	}()
+
+	_, _, err := runCLI(t, "projection", "rebuild", "--all", "--stop-position")
+	assertError(t, err)
+	assertErrorContains(t, err, "--stop-position requires a value")
+}
+
+// =============================================================================
+// Additional Subscription Command Tests
+// =============================================================================
+
+func TestSubscription_List_Help(t *testing.T) {
+	stdout, _, err := runCLI(t, "subscription", "list", "--help")
+	assertNoError(t, err)
+	assertContains(t, stdout, "list")
+}
+
+func TestSubscription_List_MissingConfig(t *testing.T) {
+	_, _, err := runCLI(t, "subscription", "list")
+	assertError(t, err)
+	assertErrorContains(t, err, "configuration file required")
+}
+
+func TestSubscription_Create_Help(t *testing.T) {
+	stdout, _, err := runCLI(t, "subscription", "create", "--help")
+	assertNoError(t, err)
+	assertContains(t, stdout, "create")
+}
+
+func TestSubscription_Create_MissingConfig(t *testing.T) {
+	_, _, err := runCLI(t, "subscription", "create")
+	assertError(t, err)
+	assertErrorContains(t, err, "--config is required")
+}
+
+func TestSubscription_Create_MissingName(t *testing.T) {
+	tmpDir := t.TempDir()
+	configYAML := `subscriptions: []`
+	configPath := filepath.Join(tmpDir, "subscriptions.yaml")
+	if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+		t.Fatalf("Failed to create config: %v", err)
+	}
+
+	_, _, err := runCLI(t, "subscription", "create", "--config", configPath)
+	assertError(t, err)
+	assertErrorContains(t, err, "subscription name is required")
+}
+
+func TestSubscription_Delete_Help(t *testing.T) {
+	stdout, _, err := runCLI(t, "subscription", "delete", "--help")
+	assertNoError(t, err)
+	assertContains(t, stdout, "delete")
+}
+
+func TestSubscription_Delete_MissingConfig(t *testing.T) {
+	_, _, err := runCLI(t, "subscription", "delete")
+	assertError(t, err)
+	assertErrorContains(t, err, "--config is required")
+}
+
+func TestSubscription_Delete_MissingName(t *testing.T) {
+	tmpDir := t.TempDir()
+	configYAML := `subscriptions: []`
+	configPath := filepath.Join(tmpDir, "subscriptions.yaml")
+	if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+		t.Fatalf("Failed to create config: %v", err)
+	}
+
+	_, _, err := runCLI(t, "subscription", "delete", "--config", configPath)
+	assertError(t, err)
+	assertErrorContains(t, err, "--name is required")
+}
+
+func TestSubscription_Delete_MissingID(t *testing.T) {
+	tmpDir := t.TempDir()
+	configYAML := `subscriptions: []`
+	configPath := filepath.Join(tmpDir, "subscriptions.yaml")
+	if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+		t.Fatalf("Failed to create config: %v", err)
+	}
+
+	_, _, err := runCLI(t, "subscription", "delete", "--config", configPath, "--name", "test")
+	assertError(t, err)
+	assertErrorContains(t, err, "--id is required")
+}
+
+func TestSubscription_Pause_Help(t *testing.T) {
+	stdout, _, err := runCLI(t, "subscription", "pause", "--help")
+	assertNoError(t, err)
+	assertContains(t, stdout, "pause")
+}
+
+func TestSubscription_Resume_Help(t *testing.T) {
+	stdout, _, err := runCLI(t, "subscription", "resume", "--help")
+	assertNoError(t, err)
+	assertContains(t, stdout, "resume")
+}
+
+// =============================================================================
+// EventStore Additional Tests
+// =============================================================================
+
+func TestEventStore_Append_MissingData(t *testing.T) {
+	oldVal := os.Getenv("FI_FHIR_DATABASE_URL")
+	os.Setenv("FI_FHIR_DATABASE_URL", "postgres://localhost/test")
+	defer func() {
+		if oldVal != "" {
+			os.Setenv("FI_FHIR_DATABASE_URL", oldVal)
+		} else {
+			os.Unsetenv("FI_FHIR_DATABASE_URL")
+		}
+	}()
+
+	_, _, err := runCLI(t, "eventstore", "append", "--stream", "test", "--type", "test")
+	assertError(t, err)
+	assertErrorContains(t, err, "--data")
+}
+
+func TestEventStore_Append_InvalidJSON(t *testing.T) {
+	oldVal := os.Getenv("FI_FHIR_DATABASE_URL")
+	os.Setenv("FI_FHIR_DATABASE_URL", "postgres://localhost/test")
+	defer func() {
+		if oldVal != "" {
+			os.Setenv("FI_FHIR_DATABASE_URL", oldVal)
+		} else {
+			os.Unsetenv("FI_FHIR_DATABASE_URL")
+		}
+	}()
+
+	_, _, err := runCLI(t, "eventstore", "append", "--stream", "test", "--type", "test", "--data", "not-json")
+	assertError(t, err)
+	assertErrorContains(t, err, "valid JSON")
+}
+
+func TestEventStore_Read_FromPositionMissingValue(t *testing.T) {
+	oldVal := os.Getenv("FI_FHIR_DATABASE_URL")
+	os.Setenv("FI_FHIR_DATABASE_URL", "postgres://localhost/test")
+	defer func() {
+		if oldVal != "" {
+			os.Setenv("FI_FHIR_DATABASE_URL", oldVal)
+		} else {
+			os.Unsetenv("FI_FHIR_DATABASE_URL")
+		}
+	}()
+
+	_, _, err := runCLI(t, "eventstore", "read", "--all", "--from-position")
+	assertError(t, err)
+	assertErrorContains(t, err, "--from-position requires a value")
+}
+
+func TestEventStore_Read_FromVersionMissingValue(t *testing.T) {
+	oldVal := os.Getenv("FI_FHIR_DATABASE_URL")
+	os.Setenv("FI_FHIR_DATABASE_URL", "postgres://localhost/test")
+	defer func() {
+		if oldVal != "" {
+			os.Setenv("FI_FHIR_DATABASE_URL", oldVal)
+		} else {
+			os.Unsetenv("FI_FHIR_DATABASE_URL")
+		}
+	}()
+
+	_, _, err := runCLI(t, "eventstore", "read", "--stream", "test", "--from-version")
+	assertError(t, err)
+	assertErrorContains(t, err, "--from-version requires a value")
+}
+
+func TestEventStore_Read_LimitMissingValue(t *testing.T) {
+	oldVal := os.Getenv("FI_FHIR_DATABASE_URL")
+	os.Setenv("FI_FHIR_DATABASE_URL", "postgres://localhost/test")
+	defer func() {
+		if oldVal != "" {
+			os.Setenv("FI_FHIR_DATABASE_URL", oldVal)
+		} else {
+			os.Unsetenv("FI_FHIR_DATABASE_URL")
+		}
+	}()
+
+	_, _, err := runCLI(t, "eventstore", "read", "--all", "--limit")
+	assertError(t, err)
+	assertErrorContains(t, err, "--limit requires a value")
+}
+
+func TestEventStore_Read_StreamMissingValue(t *testing.T) {
+	oldVal := os.Getenv("FI_FHIR_DATABASE_URL")
+	os.Setenv("FI_FHIR_DATABASE_URL", "postgres://localhost/test")
+	defer func() {
+		if oldVal != "" {
+			os.Setenv("FI_FHIR_DATABASE_URL", oldVal)
+		} else {
+			os.Unsetenv("FI_FHIR_DATABASE_URL")
+		}
+	}()
+
+	_, _, err := runCLI(t, "eventstore", "read", "--stream")
+	assertError(t, err)
+	assertErrorContains(t, err, "--stream requires a value")
+}
+
+func TestEventStore_Append_StreamMissingValue(t *testing.T) {
+	oldVal := os.Getenv("FI_FHIR_DATABASE_URL")
+	os.Setenv("FI_FHIR_DATABASE_URL", "postgres://localhost/test")
+	defer func() {
+		if oldVal != "" {
+			os.Setenv("FI_FHIR_DATABASE_URL", oldVal)
+		} else {
+			os.Unsetenv("FI_FHIR_DATABASE_URL")
+		}
+	}()
+
+	_, _, err := runCLI(t, "eventstore", "append", "--stream")
+	assertError(t, err)
+	assertErrorContains(t, err, "--stream requires a value")
+}
+
+func TestEventStore_Append_TypeMissingValue(t *testing.T) {
+	oldVal := os.Getenv("FI_FHIR_DATABASE_URL")
+	os.Setenv("FI_FHIR_DATABASE_URL", "postgres://localhost/test")
+	defer func() {
+		if oldVal != "" {
+			os.Setenv("FI_FHIR_DATABASE_URL", oldVal)
+		} else {
+			os.Unsetenv("FI_FHIR_DATABASE_URL")
+		}
+	}()
+
+	_, _, err := runCLI(t, "eventstore", "append", "--stream", "test", "--type")
+	assertError(t, err)
+	assertErrorContains(t, err, "--type requires a value")
+}
+
+func TestEventStore_Append_DataMissingValue(t *testing.T) {
+	oldVal := os.Getenv("FI_FHIR_DATABASE_URL")
+	os.Setenv("FI_FHIR_DATABASE_URL", "postgres://localhost/test")
+	defer func() {
+		if oldVal != "" {
+			os.Setenv("FI_FHIR_DATABASE_URL", oldVal)
+		} else {
+			os.Unsetenv("FI_FHIR_DATABASE_URL")
+		}
+	}()
+
+	_, _, err := runCLI(t, "eventstore", "append", "--stream", "test", "--type", "test", "--data")
+	assertError(t, err)
+	assertErrorContains(t, err, "--data requires a value")
+}
+
+func TestEventStore_Append_VersionMissingValue(t *testing.T) {
+	oldVal := os.Getenv("FI_FHIR_DATABASE_URL")
+	os.Setenv("FI_FHIR_DATABASE_URL", "postgres://localhost/test")
+	defer func() {
+		if oldVal != "" {
+			os.Setenv("FI_FHIR_DATABASE_URL", oldVal)
+		} else {
+			os.Unsetenv("FI_FHIR_DATABASE_URL")
+		}
+	}()
+
+	_, _, err := runCLI(t, "eventstore", "append", "--stream", "test", "--type", "test", "--data", "{}", "--version")
+	assertError(t, err)
+	assertErrorContains(t, err, "--version requires a value")
+}
+
+func TestEventStore_Streams_LimitMissingValue(t *testing.T) {
+	oldVal := os.Getenv("FI_FHIR_DATABASE_URL")
+	os.Setenv("FI_FHIR_DATABASE_URL", "postgres://localhost/test")
+	defer func() {
+		if oldVal != "" {
+			os.Setenv("FI_FHIR_DATABASE_URL", oldVal)
+		} else {
+			os.Unsetenv("FI_FHIR_DATABASE_URL")
+		}
+	}()
+
+	_, _, err := runCLI(t, "eventstore", "streams", "--limit")
+	assertError(t, err)
+	assertErrorContains(t, err, "--limit requires a value")
+}
+
+func TestEventStore_DB_MissingValue(t *testing.T) {
+	_, _, err := runCLI(t, "eventstore", "stats", "--db")
+	assertError(t, err)
+	assertErrorContains(t, err, "--db requires a value")
+}
+
+func TestEventStore_Table_MissingValue(t *testing.T) {
+	oldVal := os.Getenv("FI_FHIR_DATABASE_URL")
+	os.Setenv("FI_FHIR_DATABASE_URL", "postgres://localhost/test")
+	defer func() {
+		if oldVal != "" {
+			os.Setenv("FI_FHIR_DATABASE_URL", oldVal)
+		} else {
+			os.Unsetenv("FI_FHIR_DATABASE_URL")
+		}
+	}()
+
+	_, _, err := runCLI(t, "eventstore", "stats", "--table")
+	assertError(t, err)
+	assertErrorContains(t, err, "--table requires a value")
+}
+
+// =============================================================================
+// More Subscription Command Tests
+// =============================================================================
+
+func TestSubscription_Validate_Help(t *testing.T) {
+	stdout, _, err := runCLI(t, "subscription", "validate", "--help")
+	assertNoError(t, err)
+	assertContains(t, stdout, "validate")
+}
+
+func TestSubscription_Validate_MissingConfig(t *testing.T) {
+	_, _, err := runCLI(t, "subscription", "validate")
+	assertError(t, err)
+	assertErrorContains(t, err, "configuration file required")
+}
+
+func TestSubscription_Validate_InvalidConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "invalid.yaml")
+	if err := os.WriteFile(configPath, []byte("not: valid yaml: ["), 0644); err != nil {
+		t.Fatalf("Failed to create config: %v", err)
+	}
+
+	_, _, err := runCLI(t, "subscription", "validate", configPath)
+	assertError(t, err)
+	assertErrorContains(t, err, "validation failed")
+}
+
+func TestSubscription_Validate_ValidConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	configYAML := `subscriptions:
+  - name: test_subscription
+    server: http://localhost:8080/fhir
+    criteria: Patient
+    channel:
+      endpoint: http://localhost:8081/notify
+`
+	configPath := filepath.Join(tmpDir, "subscriptions.yaml")
+	if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+		t.Fatalf("Failed to create config: %v", err)
+	}
+
+	stdout, _, err := runCLI(t, "subscription", "validate", configPath)
+	assertNoError(t, err)
+	assertContains(t, stdout, "valid")
+}
+
+func TestSubscription_Status_Help(t *testing.T) {
+	stdout, _, err := runCLI(t, "subscription", "status", "--help")
+	assertNoError(t, err)
+	assertContains(t, stdout, "status")
+}
+
+func TestSubscription_Status_MissingConfig(t *testing.T) {
+	_, _, err := runCLI(t, "subscription", "status")
+	assertError(t, err)
+	assertErrorContains(t, err, "--config is required")
+}
+
+func TestSubscription_Status_MissingName(t *testing.T) {
+	tmpDir := t.TempDir()
+	configYAML := `subscriptions: []`
+	configPath := filepath.Join(tmpDir, "subscriptions.yaml")
+	if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+		t.Fatalf("Failed to create config: %v", err)
+	}
+
+	_, _, err := runCLI(t, "subscription", "status", "--config", configPath)
+	assertError(t, err)
+	assertErrorContains(t, err, "subscription name is required")
+}
+
+func TestSubscription_Test_Help(t *testing.T) {
+	stdout, _, err := runCLI(t, "subscription", "test", "--help")
+	assertNoError(t, err)
+	assertContains(t, stdout, "test")
+}
+
+func TestSubscription_Test_MissingConfig(t *testing.T) {
+	_, _, err := runCLI(t, "subscription", "test")
+	assertError(t, err)
+	assertErrorContains(t, err, "--config is required")
+}
+
+func TestSubscription_Test_MissingName(t *testing.T) {
+	tmpDir := t.TempDir()
+	configYAML := `subscriptions: []`
+	configPath := filepath.Join(tmpDir, "subscriptions.yaml")
+	if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+		t.Fatalf("Failed to create config: %v", err)
+	}
+
+	_, _, err := runCLI(t, "subscription", "test", "--config", configPath)
+	assertError(t, err)
+	assertErrorContains(t, err, "--name is required")
+}
+
+func TestSubscription_Test_MissingResource(t *testing.T) {
+	tmpDir := t.TempDir()
+	configYAML := `subscriptions: []`
+	configPath := filepath.Join(tmpDir, "subscriptions.yaml")
+	if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+		t.Fatalf("Failed to create config: %v", err)
+	}
+
+	_, _, err := runCLI(t, "subscription", "test", "--config", configPath, "--name", "test")
+	assertError(t, err)
+	assertErrorContains(t, err, "--resource is required")
+}
+
+func TestSubscription_Serve_Help(t *testing.T) {
+	stdout, _, err := runCLI(t, "subscription", "serve", "--help")
+	assertNoError(t, err)
+	assertContains(t, stdout, "serve")
+}
+
+func TestSubscription_Serve_MissingSubscriptions(t *testing.T) {
+	_, _, err := runCLI(t, "subscription", "serve")
+	assertError(t, err)
+	assertErrorContains(t, err, "--subscriptions")
+}
+
+func TestSubscription_PauseResume_MissingConfig(t *testing.T) {
+	_, _, err := runCLI(t, "subscription", "pause")
+	assertError(t, err)
+	assertErrorContains(t, err, "--config is required")
+
+	_, _, err = runCLI(t, "subscription", "resume")
+	assertError(t, err)
+	assertErrorContains(t, err, "--config is required")
+}
+
+func TestSubscription_PauseResume_MissingName(t *testing.T) {
+	tmpDir := t.TempDir()
+	configYAML := `subscriptions: []`
+	configPath := filepath.Join(tmpDir, "subscriptions.yaml")
+	if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+		t.Fatalf("Failed to create config: %v", err)
+	}
+
+	_, _, err := runCLI(t, "subscription", "pause", "--config", configPath)
+	assertError(t, err)
+	assertErrorContains(t, err, "--name is required")
+
+	_, _, err = runCLI(t, "subscription", "resume", "--config", configPath)
+	assertError(t, err)
+	assertErrorContains(t, err, "--name is required")
+}
+
+func TestSubscription_PauseResume_MissingID(t *testing.T) {
+	tmpDir := t.TempDir()
+	configYAML := `subscriptions: []`
+	configPath := filepath.Join(tmpDir, "subscriptions.yaml")
+	if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+		t.Fatalf("Failed to create config: %v", err)
+	}
+
+	_, _, err := runCLI(t, "subscription", "pause", "--config", configPath, "--name", "test")
+	assertError(t, err)
+	assertErrorContains(t, err, "--id is required")
+
+	_, _, err = runCLI(t, "subscription", "resume", "--config", configPath, "--name", "test")
+	assertError(t, err)
+	assertErrorContains(t, err, "--id is required")
+}
+
+// =============================================================================
+// More Workflow Command Tests
+// =============================================================================
+
+func TestWorkflow_Replay_MissingConfig(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "replay")
+	assertError(t, err)
+	// May fail for missing config or recording
+}
+
+func TestWorkflow_Simulate_MissingConfig(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "simulate")
+	assertError(t, err)
+	// May fail for missing config or input
+}
+
+func TestWorkflow_Loadtest_MissingConfig(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "loadtest")
+	assertError(t, err)
+	// May fail for missing config
+}
+
+func TestWorkflow_Run_MissingConfig(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "run")
+	assertError(t, err)
+	// Should fail because config is required
+}
+
+func TestWorkflow_Run_InvalidConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "invalid.yaml")
+	if err := os.WriteFile(configPath, []byte("not: valid yaml: ["), 0644); err != nil {
+		t.Fatalf("Failed to create config: %v", err)
+	}
+
+	_, _, err := runCLI(t, "workflow", "run", "--config", configPath)
+	assertError(t, err)
+}
+
+func TestWorkflow_Run_Help(t *testing.T) {
+	stdout, _, err := runCLI(t, "workflow", "run", "--help")
+	assertNoError(t, err)
+	assertContains(t, stdout, "run")
+}
+
+func TestWorkflow_Validate_Help(t *testing.T) {
+	stdout, _, err := runCLI(t, "workflow", "validate", "--help")
+	assertNoError(t, err)
+	assertContains(t, stdout, "validate")
+}
+
+// =============================================================================
+// Serve Command Tests
+// =============================================================================
+
+func TestServe_Help(t *testing.T) {
+	stdout, _, err := runCLI(t, "serve", "--help")
+	assertNoError(t, err)
+	assertContains(t, stdout, "serve")
+}
+
+// =============================================================================
+// Config Show Tests
+// =============================================================================
+
+func TestConfig_Show_Help(t *testing.T) {
+	stdout, _, err := runCLI(t, "config", "show", "--help")
+	assertNoError(t, err)
+	assertContains(t, stdout, "show")
+}
+
+func TestConfig_Validate_Help(t *testing.T) {
+	stdout, _, err := runCLI(t, "config", "validate", "--help")
+	assertNoError(t, err)
+	assertContains(t, stdout, "validate")
+}
+
+// =============================================================================
+// Validate Command Tests
+// =============================================================================
+
+func TestValidate_NoArgs(t *testing.T) {
+	_, _, err := runCLI(t, "validate")
+	// Should require --profile
+	assertError(t, err)
+	assertErrorContains(t, err, "profile")
+}
+
+func TestValidate_Profile_NonexistentFile(t *testing.T) {
+	_, _, err := runCLI(t, "validate", "--profile", "/nonexistent/profile.yaml")
+	assertError(t, err)
+}
+
+func TestValidate_Message_NonexistentFile(t *testing.T) {
+	_, _, err := runCLI(t, "validate", "--message", "/nonexistent/message.hl7", "--profile", "/nonexistent/profile.yaml")
+	assertError(t, err)
+}
