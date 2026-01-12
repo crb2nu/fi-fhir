@@ -610,3 +610,28 @@ func TestMapStatusCode(t *testing.T) {
 func timePtr(t time.Time) *time.Time {
 	return &t
 }
+
+// =============================================================================
+// Section Mapper TemplateOID Tests
+// =============================================================================
+
+func TestResultsSectionMapper_TemplateOID(t *testing.T) {
+	mapper := &ResultsSectionMapper{}
+	if mapper.TemplateOID() != TemplateSectionResults {
+		t.Errorf("Expected template OID %s, got %s", TemplateSectionResults, mapper.TemplateOID())
+	}
+}
+
+func TestVitalSignsSectionMapper_TemplateOID(t *testing.T) {
+	mapper := &VitalSignsSectionMapper{}
+	if mapper.TemplateOID() != TemplateSectionVitalSigns {
+		t.Errorf("Expected template OID %s, got %s", TemplateSectionVitalSigns, mapper.TemplateOID())
+	}
+}
+
+func TestProblemsSectionMapper_TemplateOID(t *testing.T) {
+	mapper := &ProblemsSectionMapper{}
+	if mapper.TemplateOID() != TemplateSectionProblems {
+		t.Errorf("Expected template OID %s, got %s", TemplateSectionProblems, mapper.TemplateOID())
+	}
+}
