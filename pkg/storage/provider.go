@@ -30,10 +30,15 @@ type Provider interface {
 	// Stat returns metadata for the file without reading content.
 	Stat(ctx context.Context, path string) (*FileInfo, error)
 
-	// List returns files matching the prefix.
+	// List returns files matching the prefix (immediate children only).
 	// For S3, this lists objects with the given prefix.
 	// For local filesystem, this lists files in the directory.
 	List(ctx context.Context, prefix string) ([]FileInfo, error)
+
+	// ListRecursive returns all files matching the prefix recursively.
+	// For S3, this lists all objects with the given prefix.
+	// For local filesystem, this walks the directory tree.
+	ListRecursive(ctx context.Context, prefix string) ([]FileInfo, error)
 
 	// Put uploads content to the given path.
 	// size should be -1 if unknown (will buffer the entire content).
@@ -86,6 +91,15 @@ func (m *MultiProvider) List(ctx context.Context, prefix string) ([]FileInfo, er
 		return nil, err
 	}
 	return provider.List(ctx, resolvedPath)
+}
+
+// ListRecursive returns all files matching the prefix recursively.
+func (m *MultiProvider) ListRecursive(ctx context.Context, prefix string) ([]FileInfo, error) {
+	provider, resolvedPath, err := m.resolve(prefix)
+	if err != nil {
+		return nil, err
+	}
+	return provider.ListRecursive(ctx, resolvedPath)
 }
 
 // Put uploads content to the path.

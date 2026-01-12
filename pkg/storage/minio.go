@@ -56,25 +56,28 @@ func NewMinIOProviderFromClient(client *minio.Client, defaultBucket string) *Min
 // parsePath extracts bucket and key from a path.
 // Accepts "bucket/key" or just "key" (uses default bucket).
 func (m *MinIOProvider) parsePath(path string) (bucket, key string) {
+	// Strip s3:// or minio:// prefix if present
+	path = strings.TrimPrefix(path, "s3://")
+	path = strings.TrimPrefix(path, "minio://")
+
 	// Check if path contains bucket
 	parts := strings.SplitN(path, "/", 2)
 	if len(parts) == 2 {
-		// Could be bucket/key or just a path with subdirectory
-		// Use heuristic: if first part looks like a bucket name (no path separators in original)
-		// and we have a default bucket, use the whole thing as key
-		if m.defaultBucket != "" && !strings.Contains(parts[0], ".") {
-			// Treat entire path as key under default bucket
-			return m.defaultBucket, path
+		// If the first part is a known bucket name, use it as bucket
+		// This handles explicit s3://bucket/key URLs
+		if parts[0] == m.defaultBucket || m.defaultBucket == "" {
+			return parts[0], parts[1]
 		}
-		return parts[0], parts[1]
+		// Otherwise, user provided a relative path - use default bucket
+		return m.defaultBucket, path
 	}
 
-	// Single component - use default bucket
+	// Single component - use default bucket if available
 	if m.defaultBucket != "" {
 		return m.defaultBucket, path
 	}
 
-	// No default bucket, treat first component as bucket
+	// No default bucket, treat single component as bucket with empty key
 	return path, ""
 }
 

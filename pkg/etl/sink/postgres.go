@@ -191,8 +191,8 @@ func (s *PostgresSink) downloadAndExtract(ctx context.Context, storagePath, pref
 		_ = os.RemoveAll(localDir)
 	}
 
-	// List files in storage path
-	files, err := s.provider.List(ctx, storagePath)
+	// List files in storage path recursively
+	files, err := s.provider.ListRecursive(ctx, storagePath)
 	if err != nil {
 		cleanup()
 		return "", nil, fmt.Errorf("failed to list storage path: %w", err)

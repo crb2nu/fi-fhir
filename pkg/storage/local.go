@@ -126,6 +126,68 @@ func (l *LocalProvider) List(ctx context.Context, prefix string) ([]FileInfo, er
 	return files, nil
 }
 
+// ListRecursive returns all files under the given path recursively.
+func (l *LocalProvider) ListRecursive(ctx context.Context, prefix string) ([]FileInfo, error) {
+	resolved := l.resolvePath(prefix)
+
+	// Check if it's a file or directory
+	info, err := os.Stat(resolved)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil // Empty list for non-existent paths
+		}
+		return nil, fmt.Errorf("failed to stat path: %w", err)
+	}
+
+	if !info.IsDir() {
+		// Single file
+		return []FileInfo{{
+			Path:         prefix,
+			Size:         info.Size(),
+			LastModified: info.ModTime(),
+			IsDir:        false,
+		}}, nil
+	}
+
+	// Walk directory tree
+	var files []FileInfo
+	err = filepath.WalkDir(resolved, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip the root directory itself
+		if path == resolved {
+			return nil
+		}
+
+		entryInfo, err := d.Info()
+		if err != nil {
+			return nil // Skip entries we can't read
+		}
+
+		// Calculate relative path from prefix
+		relPath, err := filepath.Rel(resolved, path)
+		if err != nil {
+			return nil
+		}
+
+		files = append(files, FileInfo{
+			Path:         filepath.Join(prefix, relPath),
+			Size:         entryInfo.Size(),
+			LastModified: entryInfo.ModTime(),
+			IsDir:        d.IsDir(),
+		})
+
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to walk directory: %w", err)
+	}
+
+	return files, nil
+}
+
 // Put writes content to a file.
 // Creates parent directories if they don't exist.
 func (l *LocalProvider) Put(ctx context.Context, path string, r io.Reader, size int64) (err error) {
