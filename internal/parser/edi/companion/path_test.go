@@ -443,3 +443,295 @@ func TestLooksLikeLoop(t *testing.T) {
 		})
 	}
 }
+
+// TestPathResolver_835LoopResolution tests path resolution for 835 transactions.
+func TestPathResolver_835LoopResolution(t *testing.T) {
+	// Create a minimal 835 transaction with proper loop structure
+	tx := &edi.Transaction{
+		SetIdentifier: "835",
+		Segments: []*edi.Segment{
+			// Header segments
+			{ID: "BPR", Elements: []string{"C", "150.00", "C", "CHK", "CCP", "01", "999999999", "DA", "123456789"}},
+			{ID: "TRN", Elements: []string{"1", "12345678901234567890", "1999999999"}},
+			{ID: "DTM", Elements: []string{"405", "20240115"}},
+			// 1000A - Payer
+			{ID: "N1", Elements: []string{"PR", "MEDICARE PART B"}},
+			{ID: "NM1", Elements: []string{"PR", "2", "MEDICARE", "", "", "", "", "PI", "CMS123456"}},
+			{ID: "N3", Elements: []string{"123 PAYER STREET"}},
+			{ID: "N4", Elements: []string{"CITY", "ST", "12345"}},
+			// 1000B - Payee
+			{ID: "N1", Elements: []string{"PE", "MEDICAL PROVIDER"}},
+			{ID: "NM1", Elements: []string{"PE", "2", "PROVIDER NAME", "", "", "", "", "XX", "1234567893"}},
+			{ID: "N3", Elements: []string{"456 PROVIDER LANE"}},
+			{ID: "N4", Elements: []string{"TOWN", "CA", "98765"}},
+			// 2000 - Header loop with LX
+			{ID: "LX", Elements: []string{"1"}},
+			{ID: "TS3", Elements: []string{"1234567893", "13", "20240101", "5", "5000.00", "4000.00"}},
+			// 2100 - Claim
+			{ID: "CLP", Elements: []string{"CLAIM123", "1", "150.00", "150.00", "", "12", "999999"}},
+			{ID: "NM1", Elements: []string{"QC", "1", "PATIENT", "JOHN", "", "", "", "MI", "123456789A"}},
+			// 2110 - Service
+			{ID: "SVC", Elements: []string{"HC:99213", "75.00", "75.00", "", "1"}},
+			{ID: "DTM", Elements: []string{"472", "20240110"}},
+		},
+	}
+
+	delimiters := edi.DefaultDelimiters()
+	// Parse the 835 loop structure and pass it to the resolver
+	loopStruct := edi.Parse835Loops(tx)
+	resolver := NewPathResolverWithLoops(tx, delimiters, loopStruct)
+
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{
+			name: "BPR payment amount",
+			path: "BPR.02",
+			want: "150.00",
+		},
+		{
+			name: "TRN reference number",
+			path: "TRN.02",
+			want: "12345678901234567890",
+		},
+		{
+			name: "2000 loop LX segment",
+			path: "2000.LX.01",
+			want: "1",
+		},
+		{
+			name: "2100 CLP claim ID",
+			path: "2100.CLP.01",
+			want: "CLAIM123",
+		},
+		{
+			name: "2110 SVC procedure code",
+			path: "2110.SVC.01",
+			want: "HC:99213",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := resolver.Resolve(tt.path)
+			if got != tt.want {
+				t.Errorf("Resolve(%q) = %q, want %q", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestPathResolver_270LoopResolution tests path resolution for 270 transactions.
+func TestPathResolver_270LoopResolution(t *testing.T) {
+	// Create a minimal 270 eligibility inquiry transaction
+	tx := &edi.Transaction{
+		SetIdentifier: "270",
+		Segments: []*edi.Segment{
+			// Header
+			{ID: "BHT", Elements: []string{"0022", "13", "TRACE123", "20240115", "1200", "00"}},
+			// 2000A - Information Source
+			{ID: "HL", Elements: []string{"1", "", "20", "1"}},
+			{ID: "NM1", Elements: []string{"PR", "2", "BCBS", "", "", "", "", "PI", "BCBS123"}},
+			// 2000B - Information Receiver
+			{ID: "HL", Elements: []string{"2", "1", "21", "1"}},
+			{ID: "NM1", Elements: []string{"1P", "2", "DOCTOR NAME", "", "", "", "", "XX", "1234567893"}},
+			// 2000C - Subscriber
+			{ID: "HL", Elements: []string{"3", "2", "22", "0"}},
+			{ID: "TRN", Elements: []string{"1", "987654321"}},
+			{ID: "NM1", Elements: []string{"IL", "1", "PATIENT", "JOHN", "M", "", "", "MI", "ABC123"}},
+			{ID: "DMG", Elements: []string{"D8", "19850101", "M"}},
+			{ID: "DTP", Elements: []string{"291", "D8", "20240115"}},
+			// 2110C - Eligibility inquiry
+			{ID: "EQ", Elements: []string{"30"}},
+		},
+	}
+
+	delimiters := edi.DefaultDelimiters()
+	// Parse the 270 loop structure and pass it to the resolver
+	loopStruct := edi.Parse270Loops(tx)
+	resolver := NewPathResolverWithLoops(tx, delimiters, loopStruct)
+
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{
+			name: "BHT trace number",
+			path: "BHT.03",
+			want: "TRACE123",
+		},
+		{
+			name: "2000A information source HL",
+			path: "2000A.HL.01",
+			want: "1",
+		},
+		{
+			name: "2000B receiver HL",
+			path: "2000B.HL.01",
+			want: "2",
+		},
+		{
+			name: "2000C subscriber HL",
+			path: "2000C.HL.01",
+			want: "3",
+		},
+		{
+			name: "2100C subscriber name",
+			path: "2100C.NM1.03",
+			want: "PATIENT",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := resolver.Resolve(tt.path)
+			if got != tt.want {
+				t.Errorf("Resolve(%q) = %q, want %q", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestPathResolver_271LoopResolution tests path resolution for 271 transactions.
+func TestPathResolver_271LoopResolution(t *testing.T) {
+	// Create a minimal 271 eligibility response transaction
+	tx := &edi.Transaction{
+		SetIdentifier: "271",
+		Segments: []*edi.Segment{
+			// Header
+			{ID: "BHT", Elements: []string{"0022", "11", "TRACE456", "20240115", "1215", "00"}},
+			// 2000A - Information Source
+			{ID: "HL", Elements: []string{"1", "", "20", "1"}},
+			{ID: "AAA", Elements: []string{"Y", "", "", ""}},
+			{ID: "NM1", Elements: []string{"PR", "2", "BCBS", "", "", "", "", "PI", "BCBS123"}},
+			// 2000B - Information Receiver
+			{ID: "HL", Elements: []string{"2", "1", "21", "1"}},
+			{ID: "NM1", Elements: []string{"1P", "2", "DOCTOR NAME", "", "", "", "", "XX", "1234567893"}},
+			// 2000C - Subscriber
+			{ID: "HL", Elements: []string{"3", "2", "22", "0"}},
+			{ID: "TRN", Elements: []string{"2", "987654321"}},
+			{ID: "NM1", Elements: []string{"IL", "1", "PATIENT", "JOHN", "M", "", "", "MI", "ABC123"}},
+			// 2110C - Eligibility info
+			{ID: "EB", Elements: []string{"1", "IND", "30", "", "", "", "", "", "", ""}},
+			{ID: "DTP", Elements: []string{"291", "D8", "20240101"}},
+		},
+	}
+
+	delimiters := edi.DefaultDelimiters()
+	// Parse the 271 loop structure and pass it to the resolver
+	loopStruct := edi.Parse271Loops(tx)
+	resolver := NewPathResolverWithLoops(tx, delimiters, loopStruct)
+
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{
+			name: "BHT trace number",
+			path: "BHT.03",
+			want: "TRACE456",
+		},
+		{
+			name: "2000A HL for source",
+			path: "2000A.HL.01",
+			want: "1",
+		},
+		{
+			name: "2100A source NM1",
+			path: "2100A.NM1.01",
+			want: "PR",
+		},
+		// Note: 2000B and 2110C loops are not yet implemented in find271LoopSegments
+		// Only 2000A, 2100A, 2000C, and 2100C are currently supported
+		{
+			name: "2000C subscriber HL",
+			path: "2000C.HL.01",
+			want: "3",
+		},
+		{
+			name: "2100C subscriber NM1",
+			path: "2100C.NM1.03",
+			want: "PATIENT",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := resolver.Resolve(tt.path)
+			if got != tt.want {
+				t.Errorf("Resolve(%q) = %q, want %q", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestFilterByIndex tests the filterByIndex function edge cases.
+func TestFilterByIndex(t *testing.T) {
+	segments := []*edi.Segment{
+		{ID: "REF", Elements: []string{"D9", "AAA"}},
+		{ID: "REF", Elements: []string{"EA", "BBB"}},
+		{ID: "REF", Elements: []string{"F8", "CCC"}},
+	}
+
+	t.Run("first occurrence (index -1)", func(t *testing.T) {
+		result := filterByIndex(segments, -1)
+		if len(result) != 1 {
+			t.Fatalf("expected 1 segment, got %d", len(result))
+		}
+		if result[0].Elements[0] != "D9" {
+			t.Errorf("expected D9, got %s", result[0].Elements[0])
+		}
+	})
+
+	t.Run("all occurrences (index -2)", func(t *testing.T) {
+		result := filterByIndex(segments, -2)
+		if len(result) != 3 {
+			t.Fatalf("expected 3 segments, got %d", len(result))
+		}
+	})
+
+	t.Run("specific index 0", func(t *testing.T) {
+		result := filterByIndex(segments, 0)
+		if len(result) != 1 {
+			t.Fatalf("expected 1 segment, got %d", len(result))
+		}
+		if result[0].Elements[0] != "D9" {
+			t.Errorf("expected D9, got %s", result[0].Elements[0])
+		}
+	})
+
+	t.Run("specific index 1", func(t *testing.T) {
+		result := filterByIndex(segments, 1)
+		if len(result) != 1 {
+			t.Fatalf("expected 1 segment, got %d", len(result))
+		}
+		if result[0].Elements[0] != "EA" {
+			t.Errorf("expected EA, got %s", result[0].Elements[0])
+		}
+	})
+
+	t.Run("index out of range", func(t *testing.T) {
+		result := filterByIndex(segments, 99)
+		if len(result) != 0 {
+			t.Fatalf("expected 0 segments, got %d", len(result))
+		}
+	})
+
+	t.Run("nil segments", func(t *testing.T) {
+		result := filterByIndex(nil, 0)
+		if result != nil {
+			t.Fatalf("expected nil, got %v", result)
+		}
+	})
+
+	t.Run("empty segments", func(t *testing.T) {
+		result := filterByIndex([]*edi.Segment{}, 0)
+		if len(result) != 0 {
+			t.Fatalf("expected 0 segments, got %d", len(result))
+		}
+	})
+}
