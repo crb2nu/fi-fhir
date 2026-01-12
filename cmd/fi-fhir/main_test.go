@@ -1584,3 +1584,361 @@ func TestValidate_Message_NonexistentFile(t *testing.T) {
 	_, _, err := runCLI(t, "validate", "--message", "/nonexistent/message.hl7", "--profile", "/nonexistent/profile.yaml")
 	assertError(t, err)
 }
+
+// =============================================================================
+// parseEventInput Tests
+// =============================================================================
+
+func TestParseEventInput_JSONArray(t *testing.T) {
+	input := `[{"type": "patient_created", "id": "1"}, {"type": "patient_updated", "id": "2"}]`
+	events, err := parseEventInput([]byte(input))
+	assertNoError(t, err)
+	if len(events) != 2 {
+		t.Errorf("Expected 2 events, got %d", len(events))
+	}
+
+	// Verify first event
+	first, ok := events[0].(map[string]interface{})
+	if !ok {
+		t.Fatal("First event is not a map")
+	}
+	if first["type"] != "patient_created" {
+		t.Errorf("Expected type 'patient_created', got %v", first["type"])
+	}
+}
+
+func TestParseEventInput_NewlineDelimited(t *testing.T) {
+	input := `{"type": "event1", "id": "1"}
+{"type": "event2", "id": "2"}
+{"type": "event3", "id": "3"}`
+	events, err := parseEventInput([]byte(input))
+	assertNoError(t, err)
+	if len(events) != 3 {
+		t.Errorf("Expected 3 events, got %d", len(events))
+	}
+}
+
+func TestParseEventInput_NewlineDelimitedWithBlanks(t *testing.T) {
+	input := `{"type": "event1"}
+
+{"type": "event2"}
+
+`
+	events, err := parseEventInput([]byte(input))
+	assertNoError(t, err)
+	if len(events) != 2 {
+		t.Errorf("Expected 2 events (blank lines ignored), got %d", len(events))
+	}
+}
+
+func TestParseEventInput_EmptyInput(t *testing.T) {
+	_, err := parseEventInput([]byte(""))
+	assertError(t, err)
+	assertErrorContains(t, err, "empty input")
+}
+
+func TestParseEventInput_WhitespaceOnly(t *testing.T) {
+	_, err := parseEventInput([]byte("   \n\t  \n  "))
+	assertError(t, err)
+	assertErrorContains(t, err, "empty input")
+}
+
+func TestParseEventInput_InvalidJSONArray(t *testing.T) {
+	input := `[{"type": "event1", "id": "1"}, invalid}`
+	_, err := parseEventInput([]byte(input))
+	assertError(t, err)
+	assertErrorContains(t, err, "failed to parse JSON array")
+}
+
+func TestParseEventInput_InvalidNewlineJSON(t *testing.T) {
+	input := `{"type": "event1"}
+not valid json
+{"type": "event3"}`
+	_, err := parseEventInput([]byte(input))
+	assertError(t, err)
+	assertErrorContains(t, err, "failed to parse JSON line")
+}
+
+func TestParseEventInput_SingleEvent(t *testing.T) {
+	input := `{"type": "single_event", "data": {"name": "test"}}`
+	events, err := parseEventInput([]byte(input))
+	assertNoError(t, err)
+	if len(events) != 1 {
+		t.Errorf("Expected 1 event, got %d", len(events))
+	}
+}
+
+func TestParseEventInput_OnlyBlankLines(t *testing.T) {
+	// When input is only blank lines, TrimSpace makes it empty
+	input := `
+
+
+
+`
+	_, err := parseEventInput([]byte(input))
+	assertError(t, err)
+	assertErrorContains(t, err, "empty input")
+}
+
+// =============================================================================
+// Workflow Loadtest Flag Validation Tests
+// =============================================================================
+
+func TestWorkflow_Loadtest_ListScenarios(t *testing.T) {
+	stdout, _, err := runCLI(t, "workflow", "loadtest", "--list-scenarios")
+	assertNoError(t, err)
+	assertContains(t, stdout, "Available load test scenarios")
+}
+
+func TestWorkflow_Loadtest_DurationMissingValue(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "loadtest", "-c", "test.yaml", "--duration")
+	assertError(t, err)
+	assertErrorContains(t, err, "requires a value")
+}
+
+func TestWorkflow_Loadtest_InvalidDuration(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "workflow.yaml")
+	os.WriteFile(configPath, []byte("name: test\nroutes: []"), 0644)
+
+	_, _, err := runCLI(t, "workflow", "loadtest", "-c", configPath, "--duration", "invalid")
+	assertError(t, err)
+	assertErrorContains(t, err, "invalid duration")
+}
+
+func TestWorkflow_Loadtest_RPSMissingValue(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "loadtest", "-c", "test.yaml", "--rps")
+	assertError(t, err)
+	assertErrorContains(t, err, "requires a value")
+}
+
+func TestWorkflow_Loadtest_InvalidRPS(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "workflow.yaml")
+	os.WriteFile(configPath, []byte("name: test\nroutes: []"), 0644)
+
+	_, _, err := runCLI(t, "workflow", "loadtest", "-c", configPath, "--rps", "notanumber")
+	assertError(t, err)
+	assertErrorContains(t, err, "invalid rps")
+}
+
+func TestWorkflow_Loadtest_WorkersMissingValue(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "loadtest", "-c", "test.yaml", "--workers")
+	assertError(t, err)
+	assertErrorContains(t, err, "requires a value")
+}
+
+func TestWorkflow_Loadtest_InvalidWorkers(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "workflow.yaml")
+	os.WriteFile(configPath, []byte("name: test\nroutes: []"), 0644)
+
+	_, _, err := runCLI(t, "workflow", "loadtest", "-c", configPath, "--workers", "abc")
+	assertError(t, err)
+	assertErrorContains(t, err, "invalid workers")
+}
+
+func TestWorkflow_Loadtest_WarmupMissingValue(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "loadtest", "-c", "test.yaml", "--warmup")
+	assertError(t, err)
+	assertErrorContains(t, err, "requires a value")
+}
+
+func TestWorkflow_Loadtest_InvalidWarmup(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "workflow.yaml")
+	os.WriteFile(configPath, []byte("name: test\nroutes: []"), 0644)
+
+	_, _, err := runCLI(t, "workflow", "loadtest", "-c", configPath, "--warmup", "xyz")
+	assertError(t, err)
+	assertErrorContains(t, err, "invalid warmup")
+}
+
+func TestWorkflow_Loadtest_ScenarioMissingValue(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "loadtest", "-c", "test.yaml", "--scenario")
+	assertError(t, err)
+	assertErrorContains(t, err, "requires a name")
+}
+
+func TestWorkflow_Loadtest_UnknownScenario(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "workflow.yaml")
+	os.WriteFile(configPath, []byte("name: test\nroutes: []"), 0644)
+
+	_, _, err := runCLI(t, "workflow", "loadtest", "-c", configPath, "--scenario", "nonexistent_scenario")
+	assertError(t, err)
+	assertErrorContains(t, err, "unknown scenario")
+}
+
+func TestWorkflow_Loadtest_UnknownFlag(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "loadtest", "-c", "test.yaml", "--unknown-flag")
+	assertError(t, err)
+	assertErrorContains(t, err, "unknown flag")
+}
+
+func TestWorkflow_Loadtest_ConfigMissingValue(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "loadtest", "--config")
+	assertError(t, err)
+	assertErrorContains(t, err, "requires a file path")
+}
+
+// =============================================================================
+// Workflow Replay Flag Validation Tests
+// =============================================================================
+
+func TestWorkflow_Replay_RecordingsMissingValue(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "replay", "-c", "test.yaml", "--recordings")
+	assertError(t, err)
+	assertErrorContains(t, err, "requires a value")
+}
+
+func TestWorkflow_Replay_EventTypeMissingValue(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "replay", "-c", "test.yaml", "-r", "rec.json", "--event-type")
+	assertError(t, err)
+	assertErrorContains(t, err, "requires a value")
+}
+
+func TestWorkflow_Replay_SourceMissingValue(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "replay", "-c", "test.yaml", "-r", "rec.json", "--source")
+	assertError(t, err)
+	assertErrorContains(t, err, "requires a value")
+}
+
+func TestWorkflow_Replay_LimitMissingValue(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "replay", "-c", "test.yaml", "-r", "rec.json", "--limit")
+	assertError(t, err)
+	assertErrorContains(t, err, "requires a value")
+}
+
+func TestWorkflow_Replay_OutputMissingValue(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "replay", "-c", "test.yaml", "-r", "rec.json", "--output")
+	assertError(t, err)
+	assertErrorContains(t, err, "requires a value")
+}
+
+func TestWorkflow_Replay_InvalidLimit(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "workflow.yaml")
+	recPath := filepath.Join(tmpDir, "recordings.json")
+	os.WriteFile(configPath, []byte("name: test\nroutes: []"), 0644)
+	os.WriteFile(recPath, []byte("[]"), 0644)
+
+	_, _, err := runCLI(t, "workflow", "replay", "-c", configPath, "-r", recPath, "--limit", "notanumber")
+	assertError(t, err)
+	assertErrorContains(t, err, "invalid limit")
+}
+
+func TestWorkflow_Replay_UnknownFlag(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "replay", "-c", "test.yaml", "-r", "rec.json", "--unknown-flag")
+	assertError(t, err)
+	assertErrorContains(t, err, "unknown flag")
+}
+
+func TestWorkflow_Replay_MissingRecordings(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "workflow.yaml")
+	os.WriteFile(configPath, []byte("name: test\nroutes: []"), 0644)
+
+	_, _, err := runCLI(t, "workflow", "replay", "-c", configPath)
+	assertError(t, err)
+	assertErrorContains(t, err, "recordings")
+}
+
+// =============================================================================
+// Workflow Record Flag Validation Tests
+// =============================================================================
+
+func TestWorkflow_Record_ConfigMissingValue(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "record", "--config")
+	assertError(t, err)
+	assertErrorContains(t, err, "requires a value")
+}
+
+func TestWorkflow_Record_OutputMissingValue(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "record", "-c", "test.yaml", "--output")
+	assertError(t, err)
+	assertErrorContains(t, err, "requires a value")
+}
+
+func TestWorkflow_Record_UnknownFlag(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "record", "-c", "test.yaml", "-o", "out.json", "--unknown-flag")
+	assertError(t, err)
+	assertErrorContains(t, err, "unknown flag")
+}
+
+func TestWorkflow_Record_MissingConfig(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "record", "-o", "output.json")
+	assertError(t, err)
+	assertErrorContains(t, err, "--config is required")
+}
+
+// =============================================================================
+// Workflow Simulate Flag Validation Tests
+// =============================================================================
+
+func TestWorkflow_Simulate_ConfigMissingValue(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "simulate", "--config")
+	assertError(t, err)
+	assertErrorContains(t, err, "requires a value")
+}
+
+func TestWorkflow_Simulate_OutputMissingValue(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "simulate", "-c", "test.yaml", "--output")
+	assertError(t, err)
+	assertErrorContains(t, err, "requires a value")
+}
+
+func TestWorkflow_Simulate_UnknownFlag(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "simulate", "-c", "test.yaml", "--unknown-flag")
+	assertError(t, err)
+	assertErrorContains(t, err, "unknown flag")
+}
+
+func TestWorkflow_Simulate_InvalidConfigFile(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "simulate", "-c", "/nonexistent/workflow.yaml")
+	assertError(t, err)
+	assertErrorContains(t, err, "failed to load workflow")
+}
+
+// =============================================================================
+// Workflow Run Flag Validation Tests (Additional)
+// =============================================================================
+
+func TestWorkflow_Run_ConfigMissingValue(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "run", "--config")
+	assertError(t, err)
+	assertErrorContains(t, err, "requires a value")
+}
+
+func TestWorkflow_Run_UnknownFlag(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "run", "-c", "test.yaml", "--unknown-flag")
+	assertError(t, err)
+	assertErrorContains(t, err, "unknown flag")
+}
+
+// =============================================================================
+// Workflow DryRun Flag Validation Tests
+// =============================================================================
+
+func TestWorkflow_DryRun_ConfigMissingValue(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "dry-run", "--config")
+	assertError(t, err)
+	assertErrorContains(t, err, "requires a value")
+}
+
+func TestWorkflow_DryRun_MissingConfig(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "dry-run")
+	assertError(t, err)
+	assertErrorContains(t, err, "--config is required")
+}
+
+func TestWorkflow_DryRun_InvalidConfigFile(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "dry-run", "-c", "/nonexistent/workflow.yaml")
+	assertError(t, err)
+}
+
+func TestWorkflow_DryRun_UnknownFlag(t *testing.T) {
+	_, _, err := runCLI(t, "workflow", "dry-run", "-c", "test.yaml", "--unknown-flag")
+	assertError(t, err)
+	assertErrorContains(t, err, "unknown flag")
+}
