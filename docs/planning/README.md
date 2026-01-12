@@ -182,15 +182,15 @@ The following items remain for full production readiness:
 
 ### P2 - Test Coverage Gaps
 
-| Area | Current Coverage | Target |
-|------|------------------|--------|
-| CLI (`cmd/fi-fhir/`) | 0% | 80%+ |
-| GraphQL Resolvers | 59.9% | 80%+ |
-| FHIR Subscription | 67.9% | 80%+ |
-| Terminology | 62.8% | 80%+ |
-| CDA Parser | 70.6% | 80%+ |
-| ✅ FHIR Parser | 92.5% | 80%+ |
-| ✅ Workflow Engine | 79.5% | 80%+ |
+| Area | Current Coverage | Target | Notes |
+|------|------------------|--------|-------|
+| CLI (`cmd/fi-fhir/`) | 29.5% | 80%+ | storage.go/terminology.go at 0% (external service deps) |
+| GraphQL Resolvers | 59.9% | 80%+ | |
+| FHIR Subscription | 67.9% | 80%+ | |
+| Terminology | 62.8% | 80%+ | |
+| CDA Parser | 70.6% | 80%+ | |
+| ✅ FHIR Parser | 92.5% | 80%+ | |
+| ✅ Workflow Engine | 79.5% | 80%+ | |
 
 ### P3 - Future Enhancements
 

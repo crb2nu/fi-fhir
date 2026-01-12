@@ -87,6 +87,12 @@ func runCLI(t *testing.T, args ...string) (stdout, stderr string, err error) {
 			capturedErr = runSubscription(args[1:])
 		case "serve":
 			capturedErr = runServe(args[1:])
+		case "storage":
+			capturedErr = runStorage(args[1:])
+		case "terminology":
+			capturedErr = runTerminology(args[1:])
+		case "etl":
+			capturedErr = runETL(args[1:])
 		case "version", "--version", "-v":
 			printVersion()
 		case "help", "--help", "-h":
