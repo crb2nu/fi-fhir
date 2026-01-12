@@ -1,0 +1,46 @@
+# ADT Message Processing Workflow
+# Demonstrates routing HL7v2 ADT messages to the event store
+
+name: adt-processor
+description: Process ADT (Admit/Discharge/Transfer) messages and emit events
+
+routes:
+  # Patient Admission (A01)
+  - name: patient-admit
+    condition: 'event.type == "patient_admit"'
+    actions:
+      - type: emit
+        event_type: PatientAdmitted
+        stream: 'patient:{{ event.data.patient.mrn }}'
+
+  # Patient Discharge (A03)
+  - name: patient-discharge
+    condition: 'event.type == "patient_discharge"'
+    actions:
+      - type: emit
+        event_type: PatientDischarged
+        stream: 'patient:{{ event.data.patient.mrn }}'
+
+  # Patient Transfer (A02)
+  - name: patient-transfer
+    condition: 'event.type == "patient_transfer"'
+    actions:
+      - type: emit
+        event_type: PatientTransferred
+        stream: 'patient:{{ event.data.patient.mrn }}'
+
+  # Patient Information Update (A08)
+  - name: patient-update
+    condition: 'event.type == "patient_update"'
+    actions:
+      - type: emit
+        event_type: PatientInfoUpdated
+        stream: 'patient:{{ event.data.patient.mrn }}'
+
+  # Default catch-all for other ADT messages
+  - name: adt-other
+    condition: 'event.type.startsWith("patient_")'
+    actions:
+      - type: log
+        level: info
+        message: 'Unhandled ADT event: {{ event.type }}'

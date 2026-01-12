@@ -1,0 +1,11 @@
+LOINC_NUM,COMPONENT,PROPERTY,TIME_ASPCT,SYSTEM,SCALE_TYP,METHOD_TYP,CLASS,CLASSTYPE,LONG_COMMON_NAME,SHORTNAME,CONSUMER_NAME,STATUS,VERSIONFIRSTRELEASED,VERSIONLASTCHANGED,ORDER_OBS,EXAMPLE_UNITS,UNITSREQUIRED
+2345-7,Glucose,MCnc,Pt,Ser/Plas,Qn,,CHEM,1,Glucose [Mass/volume] in Serum or Plasma,Glucose SerPl-mCnc,Blood Sugar,ACTIVE,1.0c,2.77,Both,mg/dL,Y
+718-7,Hemoglobin,MCnc,Pt,Bld,Qn,,HEM/BC,1,Hemoglobin [Mass/volume] in Blood,Hgb Bld-mCnc,Hemoglobin,ACTIVE,1.0c,2.77,Both,g/dL,Y
+6690-2,Leukocytes,NCnc,Pt,Bld,Qn,,HEM/BC,1,Leukocytes [#/volume] in Blood by Automated count,WBC # Bld Auto,White Blood Cell Count,ACTIVE,1.0c,2.77,Both,10*3/uL,Y
+789-8,Erythrocytes,NCnc,Pt,Bld,Qn,,HEM/BC,1,Erythrocytes [#/volume] in Blood by Automated count,RBC # Bld Auto,Red Blood Cell Count,ACTIVE,1.0c,2.77,Both,10*6/uL,Y
+777-3,Platelets,NCnc,Pt,Bld,Qn,,HEM/BC,1,Platelets [#/volume] in Blood by Automated count,Platelet # Bld Auto,Platelet Count,ACTIVE,1.0c,2.77,Both,10*3/uL,Y
+4544-3,Hematocrit,VFr,Pt,Bld,Qn,,HEM/BC,1,Hematocrit [Volume Fraction] of Blood by Automated count,Hct VFr Bld Auto,Hematocrit,ACTIVE,1.0c,2.77,Both,%,Y
+58410-2,Complete blood count panel,Pnl,Pt,Bld,Doc,,HEM/BC,1,Complete blood count panel,-,CBC Panel,ACTIVE,2.32,2.77,Order,,
+4548-4,Hemoglobin A1c,MFr,Pt,Bld,Qn,,CHEM,1,Hemoglobin A1c/Hemoglobin.total in Blood,HgbA1c MFr Bld,Hemoglobin A1c,ACTIVE,1.0c,2.77,Observation,%,Y
+3016-3,Thyrotropin,ACnc,Pt,Ser/Plas,Qn,,CHEM,1,Thyrotropin [Units/volume] in Serum or Plasma,TSH SerPl-aCnc,TSH,ACTIVE,1.0c,2.77,Observation,mIU/L,Y
+2160-0,Creatinine,MCnc,Pt,Ser/Plas,Qn,,CHEM,1,Creatinine [Mass/volume] in Serum or Plasma,Creat SerPl-mCnc,Creatinine,ACTIVE,1.0c,2.77,Both,mg/dL,Y

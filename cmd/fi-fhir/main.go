@@ -78,6 +78,21 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
+	case "terminology":
+		if err := runTerminology(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+	case "storage":
+		if err := runStorage(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+	case "etl":
+		if err := runETL(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 	case "version", "--version", "-v":
 		fmt.Printf("fi-fhir version %s\n", version)
 	case "help", "--help", "-h":
@@ -106,6 +121,9 @@ Commands:
   serve        Start the GraphQL API server
   eventstore   Manage event store (init, stats, streams, read)
   projection   Manage projections (list, status, run, rebuild)
+  terminology  Manage terminology database (init, load, status, crosswalk)
+  storage      Manage object storage (test, ls, get, put, rm)
+  etl          ETL pipeline for terminology data (sync, fetch, status)
   version      Show version information
   help         Show this help message
 

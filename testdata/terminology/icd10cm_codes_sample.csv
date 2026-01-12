@@ -1,0 +1,31 @@
+code,description,category,chapter,is_billable
+E11,Type 2 diabetes mellitus,E11,Chapter 4: Endocrine nutritional and metabolic diseases,false
+E11.9,Type 2 diabetes mellitus without complications,E11,Chapter 4: Endocrine nutritional and metabolic diseases,true
+E11.65,Type 2 diabetes mellitus with hyperglycemia,E11,Chapter 4: Endocrine nutritional and metabolic diseases,true
+E11.21,Type 2 diabetes mellitus with diabetic nephropathy,E11,Chapter 4: Endocrine nutritional and metabolic diseases,true
+E11.22,Type 2 diabetes mellitus with diabetic chronic kidney disease,E11,Chapter 4: Endocrine nutritional and metabolic diseases,true
+E11.40,Type 2 diabetes mellitus with diabetic neuropathy unspecified,E11,Chapter 4: Endocrine nutritional and metabolic diseases,true
+I10,Essential (primary) hypertension,I10,Chapter 9: Diseases of the circulatory system,true
+I11,Hypertensive heart disease,I11,Chapter 9: Diseases of the circulatory system,false
+I11.0,Hypertensive heart disease with heart failure,I11,Chapter 9: Diseases of the circulatory system,true
+I11.9,Hypertensive heart disease without heart failure,I11,Chapter 9: Diseases of the circulatory system,true
+I50,Heart failure,I50,Chapter 9: Diseases of the circulatory system,false
+I50.1,Left ventricular failure unspecified,I50,Chapter 9: Diseases of the circulatory system,true
+I50.20,Unspecified systolic (congestive) heart failure,I50,Chapter 9: Diseases of the circulatory system,true
+I50.9,Heart failure unspecified,I50,Chapter 9: Diseases of the circulatory system,true
+J45,Asthma,J45,Chapter 10: Diseases of the respiratory system,false
+J45.20,Mild intermittent asthma uncomplicated,J45,Chapter 10: Diseases of the respiratory system,true
+J45.30,Mild persistent asthma uncomplicated,J45,Chapter 10: Diseases of the respiratory system,true
+J45.40,Moderate persistent asthma uncomplicated,J45,Chapter 10: Diseases of the respiratory system,true
+J45.50,Severe persistent asthma uncomplicated,J45,Chapter 10: Diseases of the respiratory system,true
+J44,Other chronic obstructive pulmonary disease,J44,Chapter 10: Diseases of the respiratory system,false
+J44.0,Chronic obstructive pulmonary disease with acute lower respiratory infection,J44,Chapter 10: Diseases of the respiratory system,true
+J44.1,Chronic obstructive pulmonary disease with (acute) exacerbation,J44,Chapter 10: Diseases of the respiratory system,true
+J44.9,Chronic obstructive pulmonary disease unspecified,J44,Chapter 10: Diseases of the respiratory system,true
+I21,Acute myocardial infarction,I21,Chapter 9: Diseases of the circulatory system,false
+I21.0,ST elevation (STEMI) myocardial infarction of anterior wall,I21,Chapter 9: Diseases of the circulatory system,true
+I21.3,ST elevation (STEMI) myocardial infarction of unspecified site,I21,Chapter 9: Diseases of the circulatory system,true
+R06.02,Shortness of breath,R06,Chapter 18: Symptoms signs and abnormal clinical findings,true
+R05.9,Cough unspecified,R05,Chapter 18: Symptoms signs and abnormal clinical findings,true
+R50.9,Fever unspecified,R50,Chapter 18: Symptoms signs and abnormal clinical findings,true
+J01.90,Acute sinusitis unspecified,J01,Chapter 10: Diseases of the respiratory system,true
