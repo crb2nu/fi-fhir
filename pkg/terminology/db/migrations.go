@@ -147,6 +147,7 @@ func (m *Migrator) Stats(ctx context.Context) (*SchemaStats, error) {
 		}
 
 		// Get row count (use estimate for large tables)
+		//nolint:gosec // G201: table name from trusted internal list, not user input
 		query := fmt.Sprintf(`SELECT COUNT(*) FROM terminology.%s`, table)
 		err = m.db.QueryRowContext(ctx, query).Scan(&count)
 		if err != nil {
@@ -174,6 +175,10 @@ func (m *Migrator) Stats(ctx context.Context) (*SchemaStats, error) {
 				r.LoadedAt = loadedAt
 				stats.Releases = append(stats.Releases, r)
 			}
+		}
+		// Check for iteration errors (required by rowserrcheck)
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("reading releases: %w", err)
 		}
 	}
 

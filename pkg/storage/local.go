@@ -163,13 +163,13 @@ func (l *LocalProvider) ListRecursive(ctx context.Context, prefix string) ([]Fil
 
 		entryInfo, err := d.Info()
 		if err != nil {
-			return nil // Skip entries we can't read
+			return nil //nolint:nilerr // Skip entries we can't read
 		}
 
 		// Calculate relative path from prefix
 		relPath, err := filepath.Rel(resolved, path)
 		if err != nil {
-			return nil
+			return nil //nolint:nilerr // Skip entries with path issues
 		}
 
 		files = append(files, FileInfo{

@@ -442,7 +442,30 @@ func loadSNOMED(ctx context.Context, conn *sql.DB, migrator *db.Migrator, path, 
 
 func loadICD10CM(ctx context.Context, conn *sql.DB, migrator *db.Migrator, path, version string, releaseDate *time.Time) error {
 	fmt.Printf("Loading ICD-10-CM version %s from %s...\n", version, path)
-	fmt.Println("ICD-10-CM loader not yet implemented. Coming in Phase 3.")
+
+	loader := db.NewICD10Loader(conn)
+
+	// Load options - include category headers
+	opts := &db.ICD10LoadOptions{
+		IncludeHeaders: true,
+	}
+
+	// Progress reporter that prints to stdout
+	progress := db.DefaultProgressReporter(os.Stdout)
+
+	result, err := loader.LoadICD10CMCSV(ctx, path, version, releaseDate, progress, opts)
+	if err != nil {
+		return fmt.Errorf("failed to load ICD-10-CM: %w", err)
+	}
+
+	fmt.Println() // Newline after progress output
+	fmt.Printf("ICD-10-CM load complete:\n")
+	fmt.Printf("  Release ID: %d\n", result.ReleaseID)
+	fmt.Printf("  Billable codes: %d\n", result.CodesLoaded)
+	fmt.Printf("  Category headers: %d\n", result.HeadersLoaded)
+	fmt.Printf("  Total: %d\n", result.CodesLoaded+result.HeadersLoaded)
+	fmt.Printf("  Duration: %s\n", result.Duration.Round(time.Millisecond))
+
 	return nil
 }
 

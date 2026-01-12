@@ -35,7 +35,6 @@ func NewBulkLoader(db *sql.DB, batchSize int) *BulkLoader {
 
 // BatchInserter handles batched INSERT operations for a specific table.
 type BatchInserter struct {
-	db           *sql.DB
 	tx           *sql.Tx
 	table        string
 	columns      []string
@@ -103,6 +102,7 @@ func (b *BatchInserter) Flush(ctx context.Context) error {
 		args = append(args, row...)
 	}
 
+	//nolint:gosec // G201: table name from trusted internal code, not user input
 	query := fmt.Sprintf(
 		"INSERT INTO %s (%s) VALUES %s",
 		b.table,

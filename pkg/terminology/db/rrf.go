@@ -109,11 +109,8 @@ func (r *RRFReader) Read() ([]string, error) {
 		// Split on pipe
 		fields := strings.Split(line, "|")
 
-		// Validate column count if specified
-		if r.columns > 0 && len(fields) != r.columns {
-			// Log warning but don't fail - some RRF files have variable columns
-			// The caller can validate specific required fields
-		}
+		// Note: We intentionally don't fail on mismatched columns - some RRF files have
+		// variable columns. The caller can validate specific required fields.
 
 		// Progress callback
 		if r.progressFn != nil {

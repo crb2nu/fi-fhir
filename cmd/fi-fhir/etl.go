@@ -316,6 +316,7 @@ Supported Sources:
   umls     - UMLS Metathesaurus (MRCONSO, MRREL, MRSTY)
   rxnorm   - RxNorm drug terminology
   loinc    - LOINC lab codes
+  icd10cm  - ICD-10-CM diagnosis codes
 
 Options:
   --version, -v   Version to load (required)
@@ -336,6 +337,9 @@ Examples:
 
   # Load RxNorm with progress
   fi-fhir etl load rxnorm --version 2024-01 --progress
+
+  # Load ICD-10-CM
+  fi-fhir etl load icd10cm --version FY2024
 
   # Load UMLS with SAB filter
   fi-fhir etl load umls --version 2024AB --sabs SNOMEDCT_US,ICD10CM`)
@@ -451,8 +455,10 @@ Examples:
 		result, err = pgSink.LoadRxNorm(ctx, storagePath, version, nil, progressReporter)
 	case "loinc":
 		result, err = pgSink.LoadLOINC(ctx, storagePath, version, progressReporter)
+	case "icd10cm":
+		result, err = pgSink.LoadICD10CM(ctx, storagePath, version, nil, progressReporter)
 	default:
-		return fmt.Errorf("unknown source: %s (supported: umls, rxnorm, loinc)", sourceName)
+		return fmt.Errorf("unknown source: %s (supported: umls, rxnorm, loinc, icd10cm)", sourceName)
 	}
 
 	if err != nil {

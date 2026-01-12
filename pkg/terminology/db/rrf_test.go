@@ -185,7 +185,7 @@ func TestValidateUMLSDirectory(t *testing.T) {
 
 	// Create required files
 	for _, file := range []string{"MRCONSO.RRF", "MRREL.RRF", "MRSTY.RRF"} {
-		f, err := os.Create(filepath.Join(tmpDir, file))
+		f, err := os.Create(filepath.Join(tmpDir, file)) //nolint:gosec // G304: test file, path from trusted test code
 		if err != nil {
 			t.Fatalf("Failed to create %s: %v", file, err)
 		}
@@ -306,7 +306,7 @@ func TestFileOpener_LocalFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "test.rrf")
 	content := "C0000001|ENG|P|L0000001|PF|S0000001|Y|A0000001|||C0000001|SNOMEDCT_US|PT|12345|Test Term|0|N||\n"
-	if err := os.WriteFile(testFile, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(testFile, []byte(content), 0o644); err != nil { //nolint:gosec // G306: test file, 0644 perms acceptable
 		t.Fatal(err)
 	}
 

@@ -355,10 +355,52 @@ func findFile(root string, names ...string) (string, error) {
 	return found, nil
 }
 
+// LoadICD10CM loads ICD-10-CM data from storage into PostgreSQL.
+func (s *PostgresSink) LoadICD10CM(ctx context.Context, storagePath, version string, opts *db.ICD10LoadOptions, progress db.ProgressReporter) (*LoadResult, error) {
+	start := time.Now()
+
+	// Download to temp directory
+	localDir, cleanup, err := s.downloadAndExtract(ctx, storagePath, "icd10cm-"+version)
+	if err != nil {
+		return nil, fmt.Errorf("failed to download ICD-10-CM: %w", err)
+	}
+	defer cleanup()
+
+	// Find ICD-10-CM CSV file (try common names)
+	csvFile, err := findFile(localDir, "icd10cm_codes.csv", "icd10cm_codes_sample.csv", "icd10cm.csv", "codes.csv")
+	if err != nil {
+		return nil, fmt.Errorf("failed to find ICD-10-CM file: %w", err)
+	}
+
+	// Default options if not provided
+	if opts == nil {
+		opts = &db.ICD10LoadOptions{IncludeHeaders: true}
+	}
+
+	// Create loader and load
+	loader := db.NewICD10Loader(s.database)
+	result, err := loader.LoadICD10CMCSV(ctx, csvFile, version, nil, progress, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load ICD-10-CM: %w", err)
+	}
+
+	return &LoadResult{
+		Source:     "icd10cm",
+		Version:    version,
+		RowsLoaded: result.CodesLoaded + result.HeadersLoaded,
+		Duration:   time.Since(start),
+		ReleaseID:  result.ReleaseID,
+		Details: map[string]int64{
+			"codes":   result.CodesLoaded,
+			"headers": result.HeadersLoaded,
+		},
+	}, nil
+}
+
 // Write implements the Sink interface but is not used for PostgresSink.
-// Use LoadUMLS, LoadRxNorm, or LoadLOINC instead.
+// Use LoadUMLS, LoadRxNorm, LoadLOINC, or LoadICD10CM instead.
 func (s *PostgresSink) Write(ctx context.Context, path string, r io.Reader, size int64) error {
-	return fmt.Errorf("PostgresSink.Write not supported; use LoadUMLS, LoadRxNorm, or LoadLOINC")
+	return fmt.Errorf("PostgresSink.Write not supported; use LoadUMLS, LoadRxNorm, LoadLOINC, or LoadICD10CM")
 }
 
 // Exists checks if data exists for the given source/version.
