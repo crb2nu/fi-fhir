@@ -118,15 +118,16 @@ dev-setup: check-deps setup-hooks tidy
 	@echo "✅ Development environment ready!"
 	@echo ""
 	@echo "Quick reference:"
-	@echo "  make lint         - Run linter"
-	@echo "  make lint-fix     - Run linter with auto-fix"
-	@echo "  make test         - Run all tests"
-	@echo "  make test-v       - Run tests with verbose output"
-	@echo "  make test-cover   - Run tests with coverage report"
-	@echo "  make build        - Build CLI binary"
-	@echo "  make bench        - Run benchmarks"
-	@echo "  make check        - Run lint + test"
-	@echo "  make ci           - Simulate CI locally"
+	@echo "  make install-tools - Install linters and helpers (golangci-lint, staticcheck, gci)"
+	@echo "  make lint          - Run linter"
+	@echo "  make lint-fix      - Run linter with auto-fix"
+	@echo "  make test          - Run all tests"
+	@echo "  make test-v        - Run tests with verbose output"
+	@echo "  make test-cover    - Run tests with coverage report"
+	@echo "  make build         - Build CLI binary"
+	@echo "  make bench         - Run benchmarks"
+	@echo "  make check         - Run lint + test"
+	@echo "  make ci            - Simulate CI locally"
 	@echo ""
 	@echo "For IDE integration, also run: make install-lint"
 	@echo ""
@@ -145,6 +146,16 @@ check-deps:
 	@echo "✓ git"
 	@command -v docker >/dev/null 2>&1 && echo "✓ docker (optional, for e2e tests)" || echo "⚠ docker not found (optional, needed for e2e tests)"
 	@echo ""
+
+# Install lint/format tools locally
+install-tools:
+	@echo "Installing golangci-lint..."
+	@GOBIN=$(shell go env GOPATH)/bin go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.61.0
+	@echo "Installing staticcheck..."
+	@GOBIN=$(shell go env GOPATH)/bin go install honnef.co/go/tools/cmd/staticcheck@latest
+	@echo "Installing gci (import formatter)..."
+	@GOBIN=$(shell go env GOPATH)/bin go install github.com/daixiang0/gci@latest
+	@echo "Tools installed."
 
 # Quick check: lint and test in one command
 check: lint test
