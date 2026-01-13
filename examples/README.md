@@ -13,6 +13,13 @@ This directory contains example configurations and workflows for common healthca
 
 ## Running Examples
 
+```mermaid
+flowchart LR
+  MSG[Input message] -->|fi-fhir parse| EVT[events + warnings]
+  EVT -->|workflow run| ROUTE[CEL filters + transforms]
+  ROUTE --> OUT[FHIR / webhook / DB / queue / log]
+```
+
 ### 1. ADT to FHIR
 
 Routes HL7v2 ADT messages (admits, discharges, transfers) to a FHIR server:

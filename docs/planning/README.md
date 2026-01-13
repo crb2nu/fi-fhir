@@ -21,18 +21,63 @@ This directory contains detailed planning and specification documents for the fi
 
 ## Architecture Overview
 
+```mermaid
+flowchart LR
+  subgraph Inputs[Input Formats]
+    HL7[HL7v2]
+    CSV[CSV / Flatfiles]
+    X12[EDI X12]
+    CDA[CDA/CCDA]
+    FHIR[FHIR]
+  end
+
+  subgraph Profiles[Source Profiles (per feed/interface)]
+    P1[epic_adt.yaml]
+    P2[csv_import.yaml]
+    P3[edi_claims.yaml]
+  end
+
+  subgraph Parse[Parsing Pipeline]
+    B[Byte normalization]
+    S[Syntactic parse]
+    E[Semantic extraction]
+  end
+
+  subgraph Canon[Canonical Events]
+    EV[Semantic event model]
+  end
+
+  subgraph WF[Workflow Engine]
+    ROUTES[Routes + CEL filters]
+    XFORMS[Transforms]
+    ACT[Actions]
+  end
+
+  subgraph Out[Outputs]
+    OFHIR[FHIR R4 API]
+    WH[Webhook]
+    DB[Database]
+    Q[Queue]
+    LOG[Log]
+  end
+
+  Inputs --> B --> S --> E --> EV --> ROUTES --> XFORMS --> ACT
+  Profiles -. drive parsing .-> B
+  Profiles -. drive mapping .-> E
+
+  ACT --> OFHIR
+  ACT --> WH
+  ACT --> DB
+  ACT --> Q
+  ACT --> LOG
 ```
-Input Formats          Source Profiles         Semantic Layer          Workflow Engine
-─────────────         ───────────────         ──────────────          ───────────────
-                      ┌───────────────┐
-HL7v2    ────────────▶│ epic_adt.yaml │──┐                                            ┌─▶ FHIR API
-                      └───────────────┘  │    ┌─────────────┐     ┌─────────────┐     ├─▶ Webhook
-                      ┌───────────────┐  ├───▶│  Canonical  │────▶│  Workflow   │─────┼─▶ Database
-CSV      ────────────▶│ csv_import    │──┤    │   Events    │     │   Routes    │     ├─▶ Queue
-                      └───────────────┘  │    └─────────────┘     └─────────────┘     └─▶ Log
-                      ┌───────────────┐  │
-EDI X12  ────────────▶│ edi_claims    │──┘
-                      └───────────────┘
+
+```mermaid
+flowchart LR
+  RAW[Raw bytes] --> B[Phase 1: Byte normalization]
+  B --> S[Phase 2: Syntactic parse]
+  S --> E[Phase 3: Semantic extraction]
+  E --> EV[Canonical events + warnings]
 ```
 
 See also [Architecture Diagrams](../diagrams/README.md) for generated package and call-graph diagrams.

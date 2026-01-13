@@ -13,13 +13,59 @@ fi-fhir addresses a core problem in healthcare integration: **users think in wor
 
 Instead of writing code that references `PID.3.1` or `OBX.5`, you work with semantic events like `patient_admit` and `lab_result`. The library handles format parsing, field mapping, validation, and routing automatically.
 
+```mermaid
+flowchart LR
+  subgraph Inputs[Input Formats]
+    HL7[HL7v2]
+    CSV[CSV / Flatfiles]
+    X12[EDI X12]
+    CDA[CDA/CCDA]
+    FHIR[FHIR]
+  end
+
+  subgraph Profiles[Source Profiles]
+    P[profile.yaml (tolerance • mapping • classification)]
+  end
+
+  subgraph Parse[Parsing Pipeline]
+    B[Byte normalization]
+    S[Syntactic parse]
+    E[Semantic extraction]
+  end
+
+  subgraph Events[Canonical Events]
+    EV[Semantic events (patient_admit • lab_result • claim_submitted)]
+  end
+
+  subgraph WF[Workflow Engine]
+    R[Routes + filters (CEL)]
+    T[Transforms]
+    A[Actions]
+  end
+
+  subgraph Outputs[Outputs]
+    OFHIR[FHIR R4 API]
+    WH[REST Webhook]
+    DB[Database]
+    MQ[Queue / Kafka]
+    LOG[Logs / Metrics]
+  end
+
+  Inputs --> B --> S --> E --> EV --> R --> T --> A
+  P -. drives .-> B
+  P -. drives .-> E
+
+  A --> OFHIR
+  A --> WH
+  A --> DB
+  A --> MQ
+  A --> LOG
 ```
-Input Formats          Semantic Layer           Workflow Engine         Output/Actions
-─────────────         ────────────────         ───────────────         ──────────────
-HL7v2    ──┐          ┌─────────────┐          ┌─────────────┐          ┌─> FHIR API
-CSV      ──┼──────────┤ Canonical   ├──────────┤  Workflow   ├──────────┼─> REST Webhook
-EDI X12  ──┘          │ Event Model │          │  Execution  │          ├─> Database
-                      └─────────────┘          └─────────────┘          └─> Message Queue
+
+```mermaid
+flowchart LR
+  MSG[message.hl7 / patients.csv / claim.edi] -->|fi-fhir parse| EVT[event.json (events + warnings)]
+  EVT -->|fi-fhir workflow run| OUT[actions executed (FHIR • webhook • DB • queue • log)]
 ```
 
 ## Features
