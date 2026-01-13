@@ -16,7 +16,7 @@ This directory contains example configurations and workflows for common healthca
 ```mermaid
 flowchart LR
   MSG[Input message] -->|fi-fhir parse| EVT[events + warnings]
-  EVT -->|workflow run| ROUTE[CEL filters + transforms]
+  EVT -->|workflow run| ROUTE[CEL filters and transforms]
   ROUTE --> OUT[FHIR / webhook / DB / queue / log]
 ```
 

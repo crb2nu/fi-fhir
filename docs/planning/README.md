@@ -23,7 +23,7 @@ This directory contains detailed planning and specification documents for the fi
 
 ```mermaid
 flowchart LR
-  subgraph Inputs[Input Formats]
+  subgraph "Input Formats"
     HL7[HL7v2]
     CSV[CSV / Flatfiles]
     X12[EDI X12]
@@ -31,29 +31,21 @@ flowchart LR
     FHIR[FHIR]
   end
 
-  subgraph Profiles[Source Profiles (per feed/interface)]
+  subgraph "Source Profiles (per feed/interface)"
     P1[epic_adt.yaml]
     P2[csv_import.yaml]
     P3[edi_claims.yaml]
   end
 
-  subgraph Parse[Parsing Pipeline]
-    B[Byte normalization]
-    S[Syntactic parse]
-    E[Semantic extraction]
-  end
+  B[Byte normalization]
+  S[Syntactic parse]
+  E[Semantic extraction]
+  EV[Canonical events + warnings]
+  ROUTES[Routes + CEL filters]
+  XFORMS[Transforms]
+  ACT[Actions]
 
-  subgraph Canon[Canonical Events]
-    EV[Semantic event model]
-  end
-
-  subgraph WF[Workflow Engine]
-    ROUTES[Routes + CEL filters]
-    XFORMS[Transforms]
-    ACT[Actions]
-  end
-
-  subgraph Out[Outputs]
+  subgraph "Outputs"
     OFHIR[FHIR R4 API]
     WH[Webhook]
     DB[Database]
@@ -61,9 +53,20 @@ flowchart LR
     LOG[Log]
   end
 
-  Inputs --> B --> S --> E --> EV --> ROUTES --> XFORMS --> ACT
-  Profiles -. drive parsing .-> B
-  Profiles -. drive mapping .-> E
+  HL7 --> B
+  CSV --> B
+  X12 --> B
+  CDA --> B
+  FHIR --> B
+
+  P1 -.->|drives| B
+  P2 -.->|drives| B
+  P3 -.->|drives| B
+  P1 -.->|drives| E
+  P2 -.->|drives| E
+  P3 -.->|drives| E
+
+  B --> S --> E --> EV --> ROUTES --> XFORMS --> ACT
 
   ACT --> OFHIR
   ACT --> WH

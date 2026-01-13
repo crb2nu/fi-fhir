@@ -15,7 +15,7 @@ Instead of writing code that references `PID.3.1` or `OBX.5`, you work with sema
 
 ```mermaid
 flowchart LR
-  subgraph Inputs[Input Formats]
+  subgraph "Input Formats"
     HL7[HL7v2]
     CSV[CSV / Flatfiles]
     X12[EDI X12]
@@ -23,37 +23,34 @@ flowchart LR
     FHIR[FHIR]
   end
 
-  subgraph Profiles[Source Profiles]
-    P[profile.yaml (tolerance • mapping • classification)]
-  end
+  P[Source profile (YAML)]
 
-  subgraph Parse[Parsing Pipeline]
-    B[Byte normalization]
-    S[Syntactic parse]
-    E[Semantic extraction]
-  end
+  B[Byte normalization]
+  S[Syntactic parse]
+  E[Semantic extraction]
+  EV[Canonical events]
+  R[Routes + filters (CEL)]
+  T[Transforms]
+  A[Actions]
 
-  subgraph Events[Canonical Events]
-    EV[Semantic events (patient_admit • lab_result • claim_submitted)]
-  end
+  HL7 --> B
+  CSV --> B
+  X12 --> B
+  CDA --> B
+  FHIR --> B
 
-  subgraph WF[Workflow Engine]
-    R[Routes + filters (CEL)]
-    T[Transforms]
-    A[Actions]
-  end
+  P -.->|configures| B
+  P -.->|configures| E
 
-  subgraph Outputs[Outputs]
+  B --> S --> E --> EV --> R --> T --> A
+
+  subgraph "Outputs"
     OFHIR[FHIR R4 API]
-    WH[REST Webhook]
+    WH[REST webhook]
     DB[Database]
     MQ[Queue / Kafka]
-    LOG[Logs / Metrics]
+    LOG[Logs / metrics]
   end
-
-  Inputs --> B --> S --> E --> EV --> R --> T --> A
-  P -. drives .-> B
-  P -. drives .-> E
 
   A --> OFHIR
   A --> WH
@@ -64,8 +61,8 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  MSG[message.hl7 / patients.csv / claim.edi] -->|fi-fhir parse| EVT[event.json (events + warnings)]
-  EVT -->|fi-fhir workflow run| OUT[actions executed (FHIR • webhook • DB • queue • log)]
+  MSG[Input message] -->|fi-fhir parse| EVT[event.json (events + warnings)]
+  EVT -->|fi-fhir workflow run| OUT[Side effects: FHIR, webhook, DB, queue, log]
 ```
 
 ## Features
