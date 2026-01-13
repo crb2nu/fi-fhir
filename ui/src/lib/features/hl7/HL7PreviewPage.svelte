@@ -13,13 +13,17 @@
   import { createHL7SampleStore } from '$lib/features/hl7/samples/sampleStore';
   import type { HL7Sample } from '$lib/features/hl7/samples/types';
   import { onMount } from 'svelte';
+  import ProfileDraftPanel from '$lib/features/hl7/components/ProfileDraftPanel.svelte';
+  import { createHL7ProfileDraftStore } from '$lib/features/hl7/profile/profileDraftStore';
+  import { suggestFixes } from '$lib/features/hl7/profile/fixes';
 
   const store = createHL7PreviewStore();
   const { state, warningsByPhase, events, hl7 } = store;
   const samplesStore = createHL7SampleStore();
   const { samples, activeId, activeSample } = samplesStore;
+  const profileDraft = createHL7ProfileDraftStore();
 
-  let activeTab: 'samples' | 'events' | 'warnings' | 'inspector' = 'warnings';
+  let activeTab: 'samples' | 'warnings' | 'events' | 'inspector' | 'profile' = 'warnings';
   let selectedPath: string | null = null;
   let selectedLocation: HL7PathLocation | null = null;
 
@@ -27,7 +31,8 @@
     { key: 'samples', label: 'Samples' },
     { key: 'warnings', label: 'Warnings' },
     { key: 'events', label: 'Events' },
-    { key: 'inspector', label: 'Inspector' }
+    { key: 'inspector', label: 'Inspector' },
+    { key: 'profile', label: 'Profile draft' }
   ] as const;
 
   async function run() {
@@ -65,6 +70,8 @@
   function loadSample(sample: HL7Sample) {
     state.update((s) => ({ ...s, source: sample.source, data: sample.raw }));
   }
+
+  $: fixes = suggestFixes($state.result?.parsePreview.warnings ?? []);
 
   onMount(() => {
     const unsub = activeSample.subscribe((s) => {
@@ -155,8 +162,15 @@
         <WarningList groups={$warningsByPhase} {selectedPath} on:select={onSelectWarning} />
       {:else if activeTab === 'events'}
         <pre class="json">{JSON.stringify($events, null, 2)}</pre>
-      {:else}
+      {:else if activeTab === 'inspector'}
         <HL7Inspector message={$hl7} selected={selectedLocation} />
+      {:else}
+        <ProfileDraftPanel
+          bind:draft={$profileDraft}
+          fixes={fixes}
+          onApplyFix={(fix) => profileDraft.update((d) => fix.apply(d))}
+          onReset={() => profileDraft.reset()}
+        />
       {/if}
     {/if}
   </Panel>

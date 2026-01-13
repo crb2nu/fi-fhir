@@ -3,13 +3,22 @@
   export let placeholder: string | undefined = undefined;
   export let rows = 10;
   export let disabled = false;
+  export let readOnly = false;
 
   function onInput(e: Event) {
     value = (e.currentTarget as HTMLTextAreaElement).value;
   }
 </script>
 
-<textarea class="ta" bind:value {placeholder} {rows} {disabled} on:input={onInput}></textarea>
+<textarea
+  class="ta"
+  bind:value
+  {placeholder}
+  {rows}
+  {disabled}
+  readonly={readOnly}
+  on:input={onInput}
+></textarea>
 
 <style>
   .ta {
