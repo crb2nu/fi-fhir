@@ -7,13 +7,15 @@
   import TextArea from '$lib/ui/TextArea.svelte';
   import WarningList from '$lib/ui/WarningList.svelte';
   import HL7Inspector from '$lib/features/hl7/components/HL7Inspector.svelte';
+  import { parseHL7Path } from '$lib/domain/hl7Path';
+  import type { HL7PathLocation } from '$lib/domain/hl7Path';
 
   const store = createHL7PreviewStore();
   const { state, warningsByPhase, events, hl7 } = store;
 
   let activeTab: 'events' | 'warnings' | 'inspector' = 'warnings';
   let selectedPath: string | null = null;
-  let selectedSegmentId: string | null = null;
+  let selectedLocation: HL7PathLocation | null = null;
 
   const tabs = [
     { key: 'warnings', label: 'Warnings' },
@@ -24,7 +26,7 @@
   async function run() {
     state.update((s) => ({ ...s, loading: true, error: null, result: null }));
     selectedPath = null;
-    selectedSegmentId = null;
+    selectedLocation = null;
     const snapshot = getSnapshot();
 
     try {
@@ -40,8 +42,8 @@
     e: CustomEvent<{ phase: string; code: string; message: string; path?: string | null }>
   ) {
     selectedPath = e.detail.path ?? null;
-    selectedSegmentId = selectedPath && /^[A-Z0-9]{3}$/.test(selectedPath) ? selectedPath : null;
-    activeTab = selectedSegmentId ? 'inspector' : 'warnings';
+    selectedLocation = parseHL7Path(selectedPath);
+    activeTab = selectedLocation ? 'inspector' : 'warnings';
   }
 
   function getSnapshot() {
@@ -117,7 +119,7 @@
       {:else if activeTab === 'events'}
         <pre class="json">{JSON.stringify($events, null, 2)}</pre>
       {:else}
-        <HL7Inspector message={$hl7} selectedSegmentId={selectedSegmentId} />
+        <HL7Inspector message={$hl7} selected={selectedLocation} />
       {/if}
     {/if}
   </Panel>
