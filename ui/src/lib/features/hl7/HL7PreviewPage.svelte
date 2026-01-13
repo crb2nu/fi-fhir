@@ -9,15 +9,22 @@
   import HL7Inspector from '$lib/features/hl7/components/HL7Inspector.svelte';
   import { parseHL7Path } from '$lib/domain/hl7Path';
   import type { HL7PathLocation } from '$lib/domain/hl7Path';
+  import SampleInbox from '$lib/features/hl7/components/SampleInbox.svelte';
+  import { createHL7SampleStore } from '$lib/features/hl7/samples/sampleStore';
+  import type { HL7Sample } from '$lib/features/hl7/samples/types';
+  import { onMount } from 'svelte';
 
   const store = createHL7PreviewStore();
   const { state, warningsByPhase, events, hl7 } = store;
+  const samplesStore = createHL7SampleStore();
+  const { samples, activeId, activeSample } = samplesStore;
 
-  let activeTab: 'events' | 'warnings' | 'inspector' = 'warnings';
+  let activeTab: 'samples' | 'events' | 'warnings' | 'inspector' = 'warnings';
   let selectedPath: string | null = null;
   let selectedLocation: HL7PathLocation | null = null;
 
   const tabs = [
+    { key: 'samples', label: 'Samples' },
     { key: 'warnings', label: 'Warnings' },
     { key: 'events', label: 'Events' },
     { key: 'inspector', label: 'Inspector' }
@@ -54,6 +61,17 @@
     }
     return snapshot;
   }
+
+  function loadSample(sample: HL7Sample) {
+    state.update((s) => ({ ...s, source: sample.source, data: sample.raw }));
+  }
+
+  onMount(() => {
+    const unsub = activeSample.subscribe((s) => {
+      if (s) loadSample(s);
+    });
+    return () => unsub();
+  });
 </script>
 
 <h1>HL7 Preview & Triage</h1>
@@ -114,7 +132,26 @@
         <Tabs tabs={tabs} active={activeTab} onChange={(k) => (activeTab = k as typeof activeTab)} />
       </div>
 
-      {#if activeTab === 'warnings'}
+      {#if activeTab === 'samples'}
+        <SampleInbox
+          samples={$samples}
+          activeId={$activeId}
+          disabled={$state.loading}
+          currentRaw={$state.data}
+          on:saveCurrent={(e) => {
+            const n = e.detail.name;
+            const input = n ? { name: n, source: $state.source, raw: $state.data } : { source: $state.source, raw: $state.data };
+            samplesStore.add(input);
+          }}
+          on:select={(e) => {
+            samplesStore.setActive(e.detail.id);
+            const s = $samples.find((x) => x.id === e.detail.id);
+            if (s) loadSample(s);
+          }}
+          on:remove={(e) => samplesStore.remove(e.detail.id)}
+          on:clear={() => samplesStore.clear()}
+        />
+      {:else if activeTab === 'warnings'}
         <WarningList groups={$warningsByPhase} {selectedPath} on:select={onSelectWarning} />
       {:else if activeTab === 'events'}
         <pre class="json">{JSON.stringify($events, null, 2)}</pre>

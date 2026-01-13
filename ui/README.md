@@ -14,6 +14,7 @@ This directory contains the (future) mapping frontend for fi-fhir.
 
 - `ui/docs/ARCHITECTURE.md`
 - `ui/docs/FEATURES.md`
+- `ui/docs/ITERATION-LOOP.md`
 
 ## Commands
 
