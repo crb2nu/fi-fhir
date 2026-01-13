@@ -10,6 +10,11 @@ This directory contains the (future) mapping frontend for fi-fhir.
   - OpenAPI spec: `../api/openapi.yaml`
 - CI enforces codegen drift (generated artifacts must be committed and up to date).
 
+## Design docs
+
+- `ui/docs/ARCHITECTURE.md`
+- `ui/docs/FEATURES.md`
+
 ## Commands
 
 ```bash
@@ -25,4 +30,3 @@ npm run typecheck
 npm run codegen
 npm run codegen:check
 ```
-
