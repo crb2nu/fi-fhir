@@ -22,6 +22,8 @@ import (
 	"github.com/crb2nu/fi-fhir/internal/parser/cda"
 	"github.com/crb2nu/fi-fhir/internal/parser/csv"
 	"github.com/crb2nu/fi-fhir/internal/parser/edi"
+	"github.com/crb2nu/fi-fhir/internal/parser/edi/companion"
+	"github.com/crb2nu/fi-fhir/internal/parser/edi/companion/builtin"
 	"github.com/crb2nu/fi-fhir/internal/parser/hl7v2"
 	"github.com/crb2nu/fi-fhir/internal/workflow"
 	"github.com/crb2nu/fi-fhir/pkg/config"
@@ -163,6 +165,9 @@ func runParse(args []string) error {
 		csvDelimiter   = ","
 		csvEventType   = ""
 		csvInferSchema = false
+		// EDI-specific options
+		ediCompanionMode = "" // "", "auto", guide ID, or guide file path
+		ediCompanionDir  = "" // optional directory of YAML/JSON guide files
 	)
 
 	// Parse flags
@@ -208,6 +213,18 @@ func runParse(args []string) error {
 			csvEventType = args[i]
 		case "--infer-schema":
 			csvInferSchema = true
+		case "--edi-companion":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--edi-companion requires a value")
+			}
+			i++
+			ediCompanionMode = args[i]
+		case "--edi-companion-dir":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--edi-companion-dir requires a value")
+			}
+			i++
+			ediCompanionDir = args[i]
 		case "--help", "-h":
 			printParseUsage()
 			return nil
@@ -339,6 +356,53 @@ func runParse(args []string) error {
 			})
 		}
 
+		// Optional companion guide validation (payer-specific rules).
+		if ediCompanionMode != "" {
+			registry := companion.NewRegistry()
+			if err := builtin.RegisterAll(registry); err != nil {
+				return fmt.Errorf("failed to load built-in companion guides: %w", err)
+			}
+			if ediCompanionDir != "" {
+				if err := registry.LoadAll(ediCompanionDir); err != nil {
+					return fmt.Errorf("failed to load companion guides from dir: %w", err)
+				}
+			}
+
+			switch strings.ToLower(ediCompanionMode) {
+			case "auto":
+				validation := companion.DetectAndValidate(result, registry)
+				if validation == nil {
+					info := companion.GetParseResultInfo(result)
+					warnings = append(warnings, events.ParseWarning{
+						Phase:    "edi_companion",
+						Code:     "NO_COMPANION_GUIDE",
+						Message:  fmt.Sprintf("no companion guide detected (receiver=%s tx=%s)", info.ReceiverID, info.TransactionType),
+						Severity: "info",
+					})
+				} else {
+					warnings = append(warnings, companionIssuesToWarnings(validation)...)
+				}
+			default:
+				// Treat as a file path if it exists; otherwise treat as a guide ID.
+				var guide *companion.CompanionGuide
+				if st, statErr := os.Stat(ediCompanionMode); statErr == nil && !st.IsDir() {
+					loaded, err := companion.LoadGuide(ediCompanionMode)
+					if err != nil {
+						return fmt.Errorf("failed to load companion guide: %w", err)
+					}
+					guide = loaded
+				} else {
+					guide = registry.Get(ediCompanionMode)
+					if guide == nil {
+						return fmt.Errorf("unknown companion guide %q (use --edi-companion auto or provide a guide file path)", ediCompanionMode)
+					}
+				}
+
+				validation := companion.ValidateParseResult(result, guide)
+				warnings = append(warnings, companionIssuesToWarnings(validation)...)
+			}
+		}
+
 		// Map transactions to events
 		var allEvents []interface{}
 		for _, fg := range result.Interchange.FunctionalGroups {
@@ -351,6 +415,7 @@ func runParse(args []string) error {
 						return fmt.Errorf("failed to map 837: %w", err)
 					}
 					for _, c := range claims {
+						c.ParseWarnings = append(c.ParseWarnings, warnings...)
 						allEvents = append(allEvents, c)
 					}
 				case edi.Transaction835:
@@ -359,6 +424,7 @@ func runParse(args []string) error {
 						return fmt.Errorf("failed to map 835: %w", err)
 					}
 					for _, r := range remittances {
+						r.ParseWarnings = append(r.ParseWarnings, warnings...)
 						allEvents = append(allEvents, r)
 					}
 				default:
@@ -474,6 +540,10 @@ CSV Options:
   -t, --event-type <type> Event type to produce: patient, lab (default: generic)
       --infer-schema      Analyze columns and output inferred schema with events
 
+EDI Options:
+      --edi-companion <mode>     Companion guide validation: auto | <guide-id> | <path-to-guide.yaml>
+      --edi-companion-dir <dir>  Load additional guide files from a directory (YAML/JSON)
+
 Arguments:
   <file>                  Input file path, or "-" for stdin
 
@@ -495,11 +565,58 @@ Examples:
   # Parse EDI X12 837 claim
   fi-fhir parse -f edi --source "clearinghouse" claim.edi
 
+  # Parse EDI X12 837 claim with companion guide validation (auto-detect)
+  fi-fhir parse -f edi --edi-companion auto --warnings claim.edi
+
   # Parse EDI X12 835 remittance
   fi-fhir parse -f 835 --pretty remittance.edi
 
   # Parse from stdin
   cat message.hl7 | fi-fhir parse -f hl7v2 -`)
+}
+
+func companionIssuesToWarnings(result *companion.ValidationResult) []events.ParseWarning {
+	if result == nil {
+		return nil
+	}
+
+	var out []events.ParseWarning
+
+	// Include the guide used for easier debugging.
+	if result.GuideID != "" {
+		out = append(out, events.ParseWarning{
+			Phase:    "edi_companion",
+			Code:     "COMPANION_GUIDE",
+			Message:  fmt.Sprintf("validated against companion guide %q", result.GuideID),
+			Severity: "info",
+		})
+	}
+
+	appendIssue := func(issue companion.ValidationIssue) {
+		msg := issue.Message
+		if issue.Value != "" {
+			msg = fmt.Sprintf("%s (value=%q)", msg, issue.Value)
+		}
+		out = append(out, events.ParseWarning{
+			Phase:    "edi_companion",
+			Code:     issue.Code,
+			Message:  msg,
+			Path:     issue.Path,
+			Severity: string(issue.Severity),
+		})
+	}
+
+	for _, issue := range result.Info {
+		appendIssue(issue)
+	}
+	for _, issue := range result.Warnings {
+		appendIssue(issue)
+	}
+	for _, issue := range result.Errors {
+		appendIssue(issue)
+	}
+
+	return out
 }
 
 func runValidate(args []string) error {

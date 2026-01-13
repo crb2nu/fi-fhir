@@ -1098,13 +1098,17 @@ func map835ToAdjudication(tx *Transaction835) []*events.ClaimAdjudicatedEvent {
 - [x] 277 → ClaimStatusResponseEvent - see `mapper.go:Map277ToEvents()`
 - [x] Basic error handling with ParseError type
 
-### Phase 4: Companion Guide Framework 🔲
-- [ ] Configuration schema for payer rules
-- [ ] Validation engine
-- [ ] Medicare guide
-- [ ] 2-3 major commercial payer guides
+### Phase 4: Companion Guide Framework ✅
+- [x] Configuration schema for payer rules - see `internal/parser/edi/companion/guide.go`
+- [x] Validation engine - see `internal/parser/edi/companion/validator.go`
+- [x] Medicare guide (sample) - see `internal/parser/edi/companion/builtin/medicare.go`
+- [x] Commercial payer guides (sample) - see `internal/parser/edi/companion/builtin/bluecross.go`, `internal/parser/edi/companion/builtin/united.go`
 
-> **Note**: Companion guide framework is planned but not yet implemented. See backlog in [README.md](README.md).
+CLI usage:
+
+```bash
+fi-fhir parse -f edi --edi-companion auto --warnings claim.edi
+```
 
 ## Testing Strategy
 

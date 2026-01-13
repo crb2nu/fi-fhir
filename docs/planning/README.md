@@ -170,7 +170,7 @@ The following items remain for full production readiness:
 | Feature | Planned In | Notes |
 |---------|------------|-------|
 | ✅ Patient Matching Engine | [IDENTIFIERS.md](IDENTIFIERS.md) | Implemented in `pkg/matching/` (2026-01-10) |
-| EDI Companion Guide Framework | [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) | Payer-specific parsing rules (Medicare, Blue Cross, etc.) |
+| ✅ EDI Companion Guide Framework | [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) | Implemented in `internal/parser/edi/companion/`; CLI support via `fi-fhir parse --edi-companion auto` |
 
 ### P2 - Test Coverage Gaps
 
