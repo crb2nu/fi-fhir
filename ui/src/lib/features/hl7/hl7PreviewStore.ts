@@ -1,6 +1,7 @@
 import { derived, writable } from 'svelte/store';
 import type { ParsePreviewQuery } from '$lib/gen/graphql';
 import { groupWarningsByPhase } from '$lib/domain/warnings';
+import { parseHL7Message } from '$lib/domain/hl7v2';
 
 export type HL7PreviewState = {
   source: string;
@@ -31,6 +32,7 @@ export function createHL7PreviewStore() {
 
   const events = derived(state, ($s) => $s.result?.parsePreview.events ?? []);
 
-  return { state, warningsByPhase, events };
-}
+  const hl7 = derived(state, ($s) => parseHL7Message($s.data));
 
+  return { state, warningsByPhase, events, hl7 };
+}

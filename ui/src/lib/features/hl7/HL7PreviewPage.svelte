@@ -6,19 +6,25 @@
   import Tabs from '$lib/ui/Tabs.svelte';
   import TextArea from '$lib/ui/TextArea.svelte';
   import WarningList from '$lib/ui/WarningList.svelte';
+  import HL7Inspector from '$lib/features/hl7/components/HL7Inspector.svelte';
 
   const store = createHL7PreviewStore();
-  const { state, warningsByPhase, events } = store;
+  const { state, warningsByPhase, events, hl7 } = store;
 
-  let activeTab: 'events' | 'warnings' = 'warnings';
+  let activeTab: 'events' | 'warnings' | 'inspector' = 'warnings';
+  let selectedPath: string | null = null;
+  let selectedSegmentId: string | null = null;
 
   const tabs = [
     { key: 'warnings', label: 'Warnings' },
-    { key: 'events', label: 'Events' }
+    { key: 'events', label: 'Events' },
+    { key: 'inspector', label: 'Inspector' }
   ] as const;
 
   async function run() {
     state.update((s) => ({ ...s, loading: true, error: null, result: null }));
+    selectedPath = null;
+    selectedSegmentId = null;
     const snapshot = getSnapshot();
 
     try {
@@ -28,6 +34,14 @@
       const msg = e instanceof Error ? e.message : String(e);
       state.update((s) => ({ ...s, loading: false, error: msg }));
     }
+  }
+
+  function onSelectWarning(
+    e: CustomEvent<{ phase: string; code: string; message: string; path?: string | null }>
+  ) {
+    selectedPath = e.detail.path ?? null;
+    selectedSegmentId = selectedPath && /^[A-Z0-9]{3}$/.test(selectedPath) ? selectedPath : null;
+    activeTab = selectedSegmentId ? 'inspector' : 'warnings';
   }
 
   function getSnapshot() {
@@ -99,9 +113,11 @@
       </div>
 
       {#if activeTab === 'warnings'}
-        <WarningList groups={$warningsByPhase} />
-      {:else}
+        <WarningList groups={$warningsByPhase} {selectedPath} on:select={onSelectWarning} />
+      {:else if activeTab === 'events'}
         <pre class="json">{JSON.stringify($events, null, 2)}</pre>
+      {:else}
+        <HL7Inspector message={$hl7} selectedSegmentId={selectedSegmentId} />
       {/if}
     {/if}
   </Panel>
@@ -230,4 +246,3 @@
     color: rgba(254, 226, 226, 0.9);
   }
 </style>
-

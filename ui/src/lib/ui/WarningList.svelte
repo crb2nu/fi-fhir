@@ -1,7 +1,12 @@
 <script lang="ts">
   import type { WarningGroup } from '$lib/domain/warnings';
+  import type { WarningLike } from '$lib/domain/warnings';
+  import { createEventDispatcher } from 'svelte';
 
   export let groups: readonly WarningGroup[];
+  export let selectedPath: string | null = null;
+
+  const dispatch = createEventDispatcher<{ select: WarningLike }>();
 </script>
 
 {#if groups.length === 0}
@@ -16,14 +21,21 @@
         </div>
         <ul class="list">
           {#each g.items as w, idx (w.phase + ':' + w.code + ':' + idx)}
-            <li class="item">
-              <div class="top">
-                <span class="code">{w.code}</span>
-                {#if w.path}
-                  <span class="path">{w.path}</span>
-                {/if}
-              </div>
-              <div class="msg">{w.message}</div>
+            <li class="li">
+              <button
+                class="item"
+                class:selected={selectedPath !== null && w.path === selectedPath}
+                on:click={() => dispatch('select', w)}
+                type="button"
+              >
+                <div class="top">
+                  <span class="code">{w.code}</span>
+                  {#if w.path}
+                    <span class="path">{w.path}</span>
+                  {/if}
+                </div>
+                <div class="msg">{w.message}</div>
+              </button>
             </li>
           {/each}
         </ul>
@@ -80,11 +92,27 @@
     gap: 10px;
   }
 
+  .li {
+    list-style: none;
+  }
+
   .item {
     border-radius: 10px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.03);
     padding: 10px 10px;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+  }
+
+  .item:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .item.selected {
+    border-color: rgba(59, 130, 246, 0.45);
+    background: rgba(59, 130, 246, 0.12);
   }
 
   .top {
@@ -115,4 +143,3 @@
     line-height: 1.4;
   }
 </style>
-
