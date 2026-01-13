@@ -16,6 +16,17 @@ const defaultDraft: HL7ProfileDraft = {
     extraComponents: true,
     unknownSegments: true,
     nonStandardDelimiters: true
+  },
+  identifiers: {
+    validation: {
+      npi: { enabled: true, onInvalid: 'warn' },
+      mbi: { enabled: true, onInvalid: 'warn' },
+      ssn: { enabled: true, onInvalid: 'warn' }
+    },
+    normalization: {
+      ssn: { stripDashes: true, rejectPatterns: ['000000000', '123456789', '111111111'] },
+      phone: { stripCountryCode: true, normalizeToDigits: true }
+    }
   }
 };
 
@@ -48,4 +59,3 @@ export function createHL7ProfileDraftStore() {
     reset: () => store.set(defaultDraft)
   };
 }
-
