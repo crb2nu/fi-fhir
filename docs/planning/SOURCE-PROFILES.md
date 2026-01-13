@@ -86,6 +86,21 @@ source_profile:
         default: "outpatient_registration"
 
   # ─────────────────────────────────────────────────────────────────
+  # EDI/X12 Configuration (Companion Guides)
+  # ─────────────────────────────────────────────────────────────────
+  edi:
+    # Enable payer-specific companion guide validation.
+    # Values:
+    #   - "auto" (auto-detect from ISA/GS/ST + payer loop)
+    #   - "<guide-id>" (built-in guide ID)
+    #   - "<path>" (guide YAML/JSON file)
+    companion_guide: "auto"
+
+    # Optionally load additional guide files from a directory.
+    # Files with .yaml/.yml/.json extensions are loaded.
+    companion_guide_dir: "./guides"
+
+  # ─────────────────────────────────────────────────────────────────
   # Z-Segment Mappings
   # ─────────────────────────────────────────────────────────────────
   z_segments:

@@ -35,6 +35,18 @@ func TestLoadFromBytes(t *testing.T) {
 			wantID:  "epic_adt",
 		},
 		{
+			name: "with edi config",
+			yaml: `source_profile:
+  id: payer_claims_feed
+  name: Claims Feed
+  version: "1.0"
+  edi:
+    companion_guide: "auto"
+    companion_guide_dir: "./guides"`,
+			wantErr: false,
+			wantID:  "payer_claims_feed",
+		},
+		{
 			name: "missing id",
 			yaml: `source_profile:
   name: Test Profile`,

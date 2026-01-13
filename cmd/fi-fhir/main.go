@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -42,6 +44,11 @@ func main() {
 	switch os.Args[1] {
 	case "parse":
 		if err := runParse(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+	case "companion":
+		if err := runCompanion(os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
@@ -116,6 +123,7 @@ Usage:
 
 Commands:
   parse        Parse a healthcare message and output semantic event JSON
+  companion    List/show/validate EDI companion guides
   validate     Validate Source Profile YAML files or messages
   workflow     Run events through workflow routing and actions
   config       Manage application configuration
@@ -141,6 +149,9 @@ Examples:
 
   # Validate a Source Profile
   fi-fhir validate --profile profiles/lab_interface.yaml
+
+  # List built-in EDI companion guides
+  fi-fhir companion list
 
   # Run workflow on events
   fi-fhir workflow run --config workflow.yaml events.json
@@ -357,18 +368,29 @@ func runParse(args []string) error {
 		}
 
 		// Optional companion guide validation (payer-specific rules).
-		if ediCompanionMode != "" {
+		effectiveCompanionMode := ediCompanionMode
+		effectiveCompanionDir := ediCompanionDir
+		if sourceProfile != nil && sourceProfile.EDI != nil {
+			if effectiveCompanionMode == "" {
+				effectiveCompanionMode = sourceProfile.EDI.CompanionGuide
+			}
+			if effectiveCompanionDir == "" {
+				effectiveCompanionDir = sourceProfile.EDI.CompanionGuideDir
+			}
+		}
+
+		if effectiveCompanionMode != "" {
 			registry := companion.NewRegistry()
 			if err := builtin.RegisterAll(registry); err != nil {
 				return fmt.Errorf("failed to load built-in companion guides: %w", err)
 			}
-			if ediCompanionDir != "" {
-				if err := registry.LoadAll(ediCompanionDir); err != nil {
+			if effectiveCompanionDir != "" {
+				if err := registry.LoadAll(effectiveCompanionDir); err != nil {
 					return fmt.Errorf("failed to load companion guides from dir: %w", err)
 				}
 			}
 
-			switch strings.ToLower(ediCompanionMode) {
+			switch strings.ToLower(effectiveCompanionMode) {
 			case "auto":
 				validation := companion.DetectAndValidate(result, registry)
 				if validation == nil {
@@ -385,16 +407,16 @@ func runParse(args []string) error {
 			default:
 				// Treat as a file path if it exists; otherwise treat as a guide ID.
 				var guide *companion.CompanionGuide
-				if st, statErr := os.Stat(ediCompanionMode); statErr == nil && !st.IsDir() {
-					loaded, err := companion.LoadGuide(ediCompanionMode)
+				if st, statErr := os.Stat(effectiveCompanionMode); statErr == nil && !st.IsDir() {
+					loaded, err := companion.LoadGuide(effectiveCompanionMode)
 					if err != nil {
 						return fmt.Errorf("failed to load companion guide: %w", err)
 					}
 					guide = loaded
 				} else {
-					guide = registry.Get(ediCompanionMode)
+					guide = registry.Get(effectiveCompanionMode)
 					if guide == nil {
-						return fmt.Errorf("unknown companion guide %q (use --edi-companion auto or provide a guide file path)", ediCompanionMode)
+						return fmt.Errorf("unknown companion guide %q (use --edi-companion auto or provide a guide file path)", effectiveCompanionMode)
 					}
 				}
 
@@ -617,6 +639,232 @@ func companionIssuesToWarnings(result *companion.ValidationResult) []events.Pars
 	}
 
 	return out
+}
+
+func printCompanionUsage() {
+	fmt.Print(`fi-fhir companion - EDI companion guide utilities
+
+Usage:
+  fi-fhir companion list [--dir <dir>] [--json]
+  fi-fhir companion show <guide-id> [--dir <dir>] [--format yaml|json]
+  fi-fhir companion validate <guide.(yaml|yml|json)>
+  fi-fhir companion export <guide-id> <out.(yaml|yml|json)> [--dir <dir>]
+
+Flags:
+  --dir <dir>        Load additional guide files from a directory (YAML/JSON)
+  --format <format>  Output format for show/export: yaml | json (default: yaml)
+  --json             JSON output for list
+`)
+}
+
+func runCompanion(args []string) error {
+	if len(args) == 0 {
+		printCompanionUsage()
+		return nil
+	}
+
+	subcmd := args[0]
+	if subcmd == "--help" || subcmd == "-h" || subcmd == "help" {
+		printCompanionUsage()
+		return nil
+	}
+
+	loadRegistry := func(dir string) (*companion.Registry, error) {
+		registry := companion.NewRegistry()
+		if err := builtin.RegisterAll(registry); err != nil {
+			return nil, fmt.Errorf("failed to load built-in companion guides: %w", err)
+		}
+		if dir != "" {
+			if err := registry.LoadAll(dir); err != nil {
+				return nil, fmt.Errorf("failed to load companion guides from dir: %w", err)
+			}
+		}
+		return registry, nil
+	}
+
+	parseFlags := func(in []string) (positional []string, dir string, format string, jsonOut bool, help bool, err error) {
+		format = "yaml"
+		for i := 0; i < len(in); i++ {
+			switch in[i] {
+			case "--dir":
+				if i+1 >= len(in) {
+					return nil, "", "", false, false, fmt.Errorf("--dir requires a value")
+				}
+				i++
+				dir = in[i]
+			case "--format":
+				if i+1 >= len(in) {
+					return nil, "", "", false, false, fmt.Errorf("--format requires a value")
+				}
+				i++
+				format = strings.ToLower(in[i])
+			case "--json":
+				jsonOut = true
+			case "--help", "-h":
+				return nil, "", "", false, true, nil
+			default:
+				if strings.HasPrefix(in[i], "-") {
+					return nil, "", "", false, false, fmt.Errorf("unknown flag: %s", in[i])
+				}
+				positional = append(positional, in[i])
+			}
+		}
+		if format != "yaml" && format != "json" {
+			return nil, "", "", false, false, fmt.Errorf("invalid --format %q (expected yaml or json)", format)
+		}
+		return positional, dir, format, jsonOut, false, nil
+	}
+
+	switch subcmd {
+	case "list":
+		positional, dir, _, jsonOut, help, err := parseFlags(args[1:])
+		if err != nil {
+			return err
+		}
+		if help {
+			printCompanionUsage()
+			return nil
+		}
+		if len(positional) != 0 {
+			return fmt.Errorf("unexpected args: %v", positional)
+		}
+
+		registry, err := loadRegistry(dir)
+		if err != nil {
+			return err
+		}
+
+		guides := registry.All()
+		sort.Slice(guides, func(i, j int) bool { return guides[i].ID < guides[j].ID })
+
+		if jsonOut {
+			type item struct {
+				ID               string   `json:"id"`
+				Name             string   `json:"name"`
+				PayerID          string   `json:"payer_id,omitempty"`
+				ReceiverIDs      []string `json:"receiver_ids,omitempty"`
+				BaseGuide        string   `json:"base_guide,omitempty"`
+				TransactionTypes []string `json:"transaction_types,omitempty"`
+			}
+			out := make([]item, 0, len(guides))
+			for _, g := range guides {
+				out = append(out, item{
+					ID:               g.ID,
+					Name:             g.Name,
+					PayerID:          g.PayerID,
+					ReceiverIDs:      g.ReceiverIDs,
+					BaseGuide:        g.BaseGuide,
+					TransactionTypes: g.TransactionTypes,
+				})
+			}
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			return enc.Encode(out)
+		}
+
+		for _, g := range guides {
+			line := g.ID
+			if g.Name != "" {
+				line += " - " + g.Name
+			}
+			fmt.Println(line)
+		}
+		return nil
+
+	case "show":
+		positional, dir, format, _, help, err := parseFlags(args[1:])
+		if err != nil {
+			return err
+		}
+		if help {
+			printCompanionUsage()
+			return nil
+		}
+		if len(positional) != 1 {
+			return fmt.Errorf("usage: fi-fhir companion show <guide-id> [--dir <dir>] [--format yaml|json]")
+		}
+
+		registry, err := loadRegistry(dir)
+		if err != nil {
+			return err
+		}
+
+		guide := registry.Get(positional[0])
+		if guide == nil {
+			return fmt.Errorf("unknown companion guide %q (use `fi-fhir companion list`)", positional[0])
+		}
+
+		switch format {
+		case "yaml":
+			return companion.SaveGuideToYAML(guide, os.Stdout)
+		case "json":
+			return companion.SaveGuideToJSON(guide, os.Stdout, true)
+		default:
+			return fmt.Errorf("invalid --format %q", format)
+		}
+
+	case "validate":
+		positional, _, _, _, help, err := parseFlags(args[1:])
+		if err != nil {
+			return err
+		}
+		if help {
+			printCompanionUsage()
+			return nil
+		}
+		if len(positional) != 1 {
+			return fmt.Errorf("usage: fi-fhir companion validate <guide.(yaml|yml|json)>")
+		}
+		guide, err := companion.LoadGuide(positional[0])
+		if err != nil {
+			return err
+		}
+		fmt.Printf("ok: %s (%s)\n", guide.ID, guide.Name)
+		return nil
+
+	case "export":
+		positional, dir, format, _, help, err := parseFlags(args[1:])
+		if err != nil {
+			return err
+		}
+		if help {
+			printCompanionUsage()
+			return nil
+		}
+		if len(positional) != 2 {
+			return fmt.Errorf("usage: fi-fhir companion export <guide-id> <out.(yaml|yml|json)> [--dir <dir>]")
+		}
+
+		registry, err := loadRegistry(dir)
+		if err != nil {
+			return err
+		}
+
+		guide := registry.Get(positional[0])
+		if guide == nil {
+			return fmt.Errorf("unknown companion guide %q (use `fi-fhir companion list`)", positional[0])
+		}
+
+		var buf bytes.Buffer
+		switch format {
+		case "yaml":
+			if err := companion.SaveGuideToYAML(guide, &buf); err != nil {
+				return err
+			}
+		case "json":
+			if err := companion.SaveGuideToJSON(guide, &buf, true); err != nil {
+				return err
+			}
+		}
+
+		if err := os.WriteFile(positional[1], buf.Bytes(), 0600); err != nil {
+			return fmt.Errorf("failed to write %s: %w", positional[1], err)
+		}
+		return nil
+
+	default:
+		return fmt.Errorf("unknown companion subcommand: %s (use `fi-fhir companion --help`)", subcmd)
+	}
 }
 
 func runValidate(args []string) error {

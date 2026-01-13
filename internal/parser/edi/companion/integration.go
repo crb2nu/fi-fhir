@@ -75,11 +75,17 @@ func DetectFromParseResult(result *edi.ParseResult, registry *Registry) *Compani
 	receiverID := result.Interchange.ReceiverID
 	payerID := ""
 	transactionType := ""
+	baseGuide := ""
 
 	// Get transaction type from first transaction
 	for _, group := range result.Interchange.FunctionalGroups {
 		for _, tx := range group.Transactions {
 			transactionType = tx.SetIdentifier
+			if tx.ImplementationRef != "" {
+				baseGuide = tx.ImplementationRef
+			} else if group.VersionCode != "" {
+				baseGuide = group.VersionCode
+			}
 
 			// Try to find payer ID in the transaction for 837
 			if tx.SetIdentifier == "837" {
@@ -107,7 +113,7 @@ func DetectFromParseResult(result *edi.ParseResult, registry *Registry) *Compani
 		}
 	}
 
-	return registry.Detect(receiverID, payerID, transactionType)
+	return registry.Detect(receiverID, payerID, transactionType, baseGuide)
 }
 
 // ParseResultInfo extracts information useful for guide detection.

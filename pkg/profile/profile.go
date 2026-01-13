@@ -18,10 +18,25 @@ type SourceProfile struct {
 	Version string `yaml:"version" json:"version"`
 
 	HL7v2       *HL7v2Config       `yaml:"hl7v2,omitempty" json:"hl7v2,omitempty"`
+	EDI         *EDIConfig         `yaml:"edi,omitempty" json:"edi,omitempty"`
 	ZSegments   *ZSegmentConfig    `yaml:"z_segments,omitempty" json:"z_segments,omitempty"`
 	Identifiers *IdentifierConfig  `yaml:"identifiers,omitempty" json:"identifiers,omitempty"`
 	Terminology *TerminologyConfig `yaml:"terminology,omitempty" json:"terminology,omitempty"`
 	Quality     *QualityConfig     `yaml:"quality,omitempty" json:"quality,omitempty"`
+}
+
+// EDIConfig governs EDI/X12 parsing and companion guide validation.
+type EDIConfig struct {
+	// CompanionGuide enables payer-specific validation.
+	//
+	// Values:
+	//  - "auto": auto-detect based on receiver ID / ST03 / payer NM1
+	//  - "<guide-id>": a built-in guide ID
+	//  - "<path>": a YAML/JSON file path
+	CompanionGuide string `yaml:"companion_guide,omitempty" json:"companion_guide,omitempty"`
+
+	// CompanionGuideDir loads additional guide files from a directory (YAML/JSON).
+	CompanionGuideDir string `yaml:"companion_guide_dir,omitempty" json:"companion_guide_dir,omitempty"`
 }
 
 // HL7v2Config governs HL7v2 parsing behavior.

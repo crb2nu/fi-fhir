@@ -874,36 +874,43 @@ uhc:
 ### Companion Guide Configuration
 
 ```yaml
-# fi-fhir companion guide config
-companion_guides:
-  medicare_part_b:
-    base_guide: "005010X222A1"
-    overrides:
-      - path: "2010AA.NM109"
-        requirement: "required"
-        validation: "npi_only"
+# Enable companion guide validation via Source Profile (recommended)
+source_profile:
+  id: "payer_claims_feed"
+  name: "Claims Feed"
+  version: "1.0.0"
+  edi:
+    companion_guide: "auto"         # auto | <guide-id> | <path-to-guide.yaml>
+    companion_guide_dir: "./guides" # optional additional YAML/JSON guides
 
-      - path: "2000A.PRV"
-        requirement: "required"
-        note: "Provider taxonomy required"
+# Companion guide file (YAML or JSON) - matches internal/parser/edi/companion/guide.go
+id: "medicare_part_b"
+name: "Medicare Part B (Professional)"
+payer_id: "CMS"
+receiver_ids: ["CMS", "80840"]
+base_guide: "005010X222A1"
+transaction_types: ["837", "837P"]
+description: "CMS Medicare Part B companion guide for 837P professional claims"
+version: "1.0.0"
 
-    validations:
-      - rule: "subscriber_id_format"
-        pattern: "^[0-9A-Z]{11}$"  # MBI format
+overrides:
+  - path: "2010AA.NM1.09"
+    requirement: "required"
+    note: "Billing provider NPI required"
 
-  bcbs_virginia:
-    base_guide: "005010X222A1"
-    overrides:
-      - path: "2010AA.REF*EI"
-        requirement: "required"
+validations:
+  - id: "BILLING_NPI_FORMAT"
+    path: "2010AA.NM1.09"
+    type: "luhn"
+    message: "Billing provider NPI must be valid (Luhn check)"
+    required: true
+    severity: "error"
 
-      - path: "2300.HI"
-        max_diagnoses: 12  # vs standard 12
-
-    custom_segments:
-      - id: "NTE"
-        position: "after:CLM"
-        max_repeats: 5
+code_restrictions:
+  - path: "SBR.09"
+    values: ["MA", "MB"]
+    message: "Claim filing indicator must be MA or MB for Medicare claims"
+    severity: "error"
 ```
 
 ## EDI Parsing Strategy

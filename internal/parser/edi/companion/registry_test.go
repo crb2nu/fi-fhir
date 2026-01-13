@@ -316,19 +316,20 @@ func TestRegistry_Detect(t *testing.T) {
 		receiverID string
 		payerID    string
 		txType     string
+		baseGuide  string
 		wantID     string
 	}{
-		{"by receiver ID", "REC123", "", "", "receiver_guide"},
-		{"by payer ID", "", "PAYER456", "", "payer_guide"},
-		{"by transaction type", "", "", "835", "tx_guide"},
-		{"receiver takes precedence", "REC123", "PAYER456", "835", "receiver_guide"},
-		{"payer over tx type", "", "PAYER456", "835", "payer_guide"},
-		{"none match", "", "", "277", ""},
+		{"by receiver ID", "REC123", "", "", "", "receiver_guide"},
+		{"by payer ID", "", "PAYER456", "", "", "payer_guide"},
+		{"by transaction type", "", "", "835", "", "tx_guide"},
+		{"receiver takes precedence", "REC123", "PAYER456", "835", "", "receiver_guide"},
+		{"payer over tx type", "", "PAYER456", "835", "", "payer_guide"},
+		{"none match", "", "", "277", "", ""},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := r.Detect(tt.receiverID, tt.payerID, tt.txType)
+			got := r.Detect(tt.receiverID, tt.payerID, tt.txType, tt.baseGuide)
 			if tt.wantID == "" {
 				if got != nil {
 					t.Errorf("Detect() = %q, want nil", got.ID)
@@ -341,6 +342,35 @@ func TestRegistry_Detect(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestRegistry_Detect_BaseGuide(t *testing.T) {
+	r := NewRegistry()
+
+	_ = r.Register(&CompanionGuide{
+		ID:               "cms_837p",
+		Name:             "CMS 837P",
+		ReceiverIDs:      []string{"CMS"},
+		BaseGuide:        "005010X222A1",
+		TransactionTypes: []string{"837"},
+	})
+	_ = r.Register(&CompanionGuide{
+		ID:               "cms_835",
+		Name:             "CMS 835",
+		ReceiverIDs:      []string{"CMS"},
+		BaseGuide:        "005010X221A1",
+		TransactionTypes: []string{"835"},
+	})
+
+	got := r.Detect("CMS", "", "837", "005010X222A1")
+	if got == nil || got.ID != "cms_837p" {
+		t.Fatalf("Detect(CMS, 837, 005010X222A1) = %+v, want cms_837p", got)
+	}
+
+	got = r.Detect("CMS", "", "835", "005010X221A1")
+	if got == nil || got.ID != "cms_835" {
+		t.Fatalf("Detect(CMS, 835, 005010X221A1) = %+v, want cms_835", got)
 	}
 }
 
