@@ -33,6 +33,14 @@ Thumbs.db
 # Claude Code local files
 .claude/
 
+# Local agent tooling
+.antigravity/
+.codex/
+.gemini/
+.kilocode/
+.vscode-mcp/
+claude_desktop_config/
+
 # Binaries (built by make build)
 /bin/
 /fi-fhir

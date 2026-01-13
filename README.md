@@ -1,3 +1,5 @@
+![Banner](assets/banner.png)
+
 # fi-fhir
 
 A format-agnostic healthcare integration platform that transforms legacy formats (HL7v2, CSV, EDI X12) into semantic events and routes them through configurable workflows.
@@ -246,6 +248,7 @@ const output = await fiFhir.workflow.run({
 | [AGENTS.md](AGENTS.md) | AI assistant guidance and architecture |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
 | [API Reference](api/openapi.yaml) | OpenAPI 3.1 specification |
+| [Architecture Diagrams](docs/diagrams/README.md) | Generated package/call-graph diagrams |
 | [Workflow DSL](docs/planning/WORKFLOW-DSL.md) | Complete workflow reference |
 | [Production Hardening](docs/operations/PRODUCTION-HARDENING.md) | Security hardening guide |
 | [Operations Runbook](docs/operations/RUNBOOK.md) | Troubleshooting and operations |

@@ -35,6 +35,8 @@ EDI X12  ────────────▶│ edi_claims    │──┘
                       └───────────────┘
 ```
 
+See also [Architecture Diagrams](../diagrams/README.md) for generated package and call-graph diagrams.
+
 ## Reading Order
 
 For new contributors, recommended reading order:
