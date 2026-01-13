@@ -1,0 +1,4 @@
+flowchart LR
+  MSG[Input message] -->|fi-fhir parse| EVT[event.json - events and warnings]
+  EVT -->|fi-fhir workflow run| OUT[Side effects: FHIR, webhook, DB, queue, log]
+

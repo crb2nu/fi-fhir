@@ -21,39 +21,9 @@ This directory contains detailed planning and specification documents for the fi
 
 ## Architecture Overview
 
-```mermaid
-flowchart LR
-  HL7[HL7v2] --> B[Byte normalization]
-  CSV[CSV / Flatfiles] --> B
-  X12[EDI X12] --> B
-  CDA[CDA/CCDA] --> B
-  FHIR[FHIR] --> B
+![Architecture Overview](../mermaid/overview-flow.svg)
 
-  P1[epic_adt.yaml] -.->|drives| B
-  P2[csv_import.yaml] -.->|drives| B
-  P3[edi_claims.yaml] -.->|drives| B
-
-  B --> S[Syntactic parse] --> E[Semantic extraction] --> EV[Canonical events + warnings]
-  P1 -.->|drives| E
-  P2 -.->|drives| E
-  P3 -.->|drives| E
-
-  EV --> ROUTES[Routes and CEL filters] --> XFORMS[Transforms] --> ACT[Actions]
-
-  ACT --> OFHIR[FHIR R4 API]
-  ACT --> WH[Webhook]
-  ACT --> DB[Database]
-  ACT --> Q[Queue]
-  ACT --> LOG[Log]
-```
-
-```mermaid
-flowchart LR
-  RAW[Raw bytes] --> B[Phase 1: Byte normalization]
-  B --> S[Phase 2: Syntactic parse]
-  S --> E[Phase 3: Semantic extraction]
-  E --> EV[Canonical events + warnings]
-```
+![Parsing Phases](../mermaid/parsing-phases.svg)
 
 See also [Architecture Diagrams](../diagrams/README.md) for generated package and call-graph diagrams.
 

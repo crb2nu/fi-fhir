@@ -13,12 +13,7 @@ This directory contains example configurations and workflows for common healthca
 
 ## Running Examples
 
-```mermaid
-flowchart LR
-  MSG[Input message] -->|fi-fhir parse| EVT[events + warnings]
-  EVT -->|workflow run| ROUTE[CEL filters and transforms]
-  ROUTE --> OUT[FHIR / webhook / DB / queue / log]
-```
+![CLI Dataflow](../docs/mermaid/cli-flow.svg)
 
 ### 1. ADT to FHIR
 

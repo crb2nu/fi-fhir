@@ -1,4 +1,4 @@
-.PHONY: build test clean run lint lint-fix test-e2e test-integration e2e-up e2e-down fmt setup-hooks dev-setup check-deps
+.PHONY: build test clean run lint lint-fix test-e2e test-integration e2e-up e2e-down fmt setup-hooks dev-setup check-deps docs-mermaid
 
 # Tool versions (update these when upgrading)
 GOLANGCI_LINT_VERSION := v2.1.6
@@ -164,3 +164,17 @@ check: lint test
 # Verify CI will pass locally
 ci: fmt-check lint test
 	@echo "✅ CI checks passed locally!"
+
+# =============================================================================
+# Documentation
+# =============================================================================
+
+# Render Mermaid diagrams to SVG (pre-rendered for GitLab Markdown reliability).
+docs-mermaid:
+	@command -v node >/dev/null 2>&1 || { echo "❌ node not found (required for mermaid-cli)"; exit 1; }
+	@command -v npx >/dev/null 2>&1 || { echo "❌ npx not found (required for mermaid-cli)"; exit 1; }
+	@echo "Rendering Mermaid diagrams to docs/mermaid/*.svg..."
+	@npx -y @mermaid-js/mermaid-cli@latest -c docs/mermaid/config.json -b transparent -i docs/mermaid/overview-flow.mmd -o docs/mermaid/overview-flow.svg -q
+	@npx -y @mermaid-js/mermaid-cli@latest -c docs/mermaid/config.json -b transparent -i docs/mermaid/parsing-phases.mmd -o docs/mermaid/parsing-phases.svg -q
+	@npx -y @mermaid-js/mermaid-cli@latest -c docs/mermaid/config.json -b transparent -i docs/mermaid/cli-flow.mmd -o docs/mermaid/cli-flow.svg -q
+	@echo "✓ Done"

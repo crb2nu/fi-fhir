@@ -13,33 +13,9 @@ fi-fhir addresses a core problem in healthcare integration: **users think in wor
 
 Instead of writing code that references `PID.3.1` or `OBX.5`, you work with semantic events like `patient_admit` and `lab_result`. The library handles format parsing, field mapping, validation, and routing automatically.
 
-```mermaid
-flowchart LR
-  HL7[HL7v2] --> B[Byte normalization]
-  CSV[CSV / Flatfiles] --> B
-  X12[EDI X12] --> B
-  CDA[CDA/CCDA] --> B
-  FHIR[FHIR] --> B
+![Overview Dataflow](docs/mermaid/overview-flow.svg)
 
-  P[Source profile - YAML] -.->|configures| B
-
-  B --> S[Syntactic parse] --> E[Semantic extraction] --> EV[Canonical events]
-  P -.->|configures| E
-
-  EV --> R[Routes and filters - CEL] --> T[Transforms] --> A[Actions]
-
-  A --> OFHIR[FHIR R4 API]
-  A --> WH[REST webhook]
-  A --> DB[Database]
-  A --> MQ[Queue / Kafka]
-  A --> LOG[Logs / metrics]
-```
-
-```mermaid
-flowchart LR
-  MSG[Input message] -->|fi-fhir parse| EVT[event.json - events and warnings]
-  EVT -->|fi-fhir workflow run| OUT[Side effects: FHIR, webhook, DB, queue, log]
-```
+![CLI Dataflow](docs/mermaid/cli-flow.svg)
 
 ## Features
 

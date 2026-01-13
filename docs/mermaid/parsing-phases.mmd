@@ -1,0 +1,6 @@
+flowchart LR
+  RAW[Raw bytes] --> B[Phase 1: Byte normalization]
+  B --> S[Phase 2: Syntactic parse]
+  S --> E[Phase 3: Semantic extraction]
+  E --> EV[Canonical events + warnings]
+
