@@ -15,53 +15,29 @@ Instead of writing code that references `PID.3.1` or `OBX.5`, you work with sema
 
 ```mermaid
 flowchart LR
-  subgraph "Input Formats"
-    HL7[HL7v2]
-    CSV[CSV / Flatfiles]
-    X12[EDI X12]
-    CDA[CDA/CCDA]
-    FHIR[FHIR]
-  end
+  HL7[HL7v2] --> B[Byte normalization]
+  CSV[CSV / Flatfiles] --> B
+  X12[EDI X12] --> B
+  CDA[CDA/CCDA] --> B
+  FHIR[FHIR] --> B
 
-  P[Source profile (YAML)]
+  P[Source profile - YAML] -.->|configures| B
 
-  B[Byte normalization]
-  S[Syntactic parse]
-  E[Semantic extraction]
-  EV[Canonical events]
-  R[Routes + filters (CEL)]
-  T[Transforms]
-  A[Actions]
-
-  HL7 --> B
-  CSV --> B
-  X12 --> B
-  CDA --> B
-  FHIR --> B
-
-  P -.->|configures| B
+  B --> S[Syntactic parse] --> E[Semantic extraction] --> EV[Canonical events]
   P -.->|configures| E
 
-  B --> S --> E --> EV --> R --> T --> A
+  EV --> R[Routes and filters - CEL] --> T[Transforms] --> A[Actions]
 
-  subgraph "Outputs"
-    OFHIR[FHIR R4 API]
-    WH[REST webhook]
-    DB[Database]
-    MQ[Queue / Kafka]
-    LOG[Logs / metrics]
-  end
-
-  A --> OFHIR
-  A --> WH
-  A --> DB
-  A --> MQ
-  A --> LOG
+  A --> OFHIR[FHIR R4 API]
+  A --> WH[REST webhook]
+  A --> DB[Database]
+  A --> MQ[Queue / Kafka]
+  A --> LOG[Logs / metrics]
 ```
 
 ```mermaid
 flowchart LR
-  MSG[Input message] -->|fi-fhir parse| EVT[event.json (events + warnings)]
+  MSG[Input message] -->|fi-fhir parse| EVT[event.json - events and warnings]
   EVT -->|fi-fhir workflow run| OUT[Side effects: FHIR, webhook, DB, queue, log]
 ```
 

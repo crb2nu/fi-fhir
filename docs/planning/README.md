@@ -23,56 +23,28 @@ This directory contains detailed planning and specification documents for the fi
 
 ```mermaid
 flowchart LR
-  subgraph "Input Formats"
-    HL7[HL7v2]
-    CSV[CSV / Flatfiles]
-    X12[EDI X12]
-    CDA[CDA/CCDA]
-    FHIR[FHIR]
-  end
+  HL7[HL7v2] --> B[Byte normalization]
+  CSV[CSV / Flatfiles] --> B
+  X12[EDI X12] --> B
+  CDA[CDA/CCDA] --> B
+  FHIR[FHIR] --> B
 
-  subgraph "Source Profiles (per feed/interface)"
-    P1[epic_adt.yaml]
-    P2[csv_import.yaml]
-    P3[edi_claims.yaml]
-  end
+  P1[epic_adt.yaml] -.->|drives| B
+  P2[csv_import.yaml] -.->|drives| B
+  P3[edi_claims.yaml] -.->|drives| B
 
-  B[Byte normalization]
-  S[Syntactic parse]
-  E[Semantic extraction]
-  EV[Canonical events + warnings]
-  ROUTES[Routes + CEL filters]
-  XFORMS[Transforms]
-  ACT[Actions]
-
-  subgraph "Outputs"
-    OFHIR[FHIR R4 API]
-    WH[Webhook]
-    DB[Database]
-    Q[Queue]
-    LOG[Log]
-  end
-
-  HL7 --> B
-  CSV --> B
-  X12 --> B
-  CDA --> B
-  FHIR --> B
-
-  P1 -.->|drives| B
-  P2 -.->|drives| B
-  P3 -.->|drives| B
+  B --> S[Syntactic parse] --> E[Semantic extraction] --> EV[Canonical events + warnings]
   P1 -.->|drives| E
   P2 -.->|drives| E
   P3 -.->|drives| E
 
-  B --> S --> E --> EV --> ROUTES --> XFORMS --> ACT
+  EV --> ROUTES[Routes and CEL filters] --> XFORMS[Transforms] --> ACT[Actions]
 
-  ACT --> OFHIR
-  ACT --> WH
-  ACT --> DB
-  ACT --> Q
-  ACT --> LOG
+  ACT --> OFHIR[FHIR R4 API]
+  ACT --> WH[Webhook]
+  ACT --> DB[Database]
+  ACT --> Q[Queue]
+  ACT --> LOG[Log]
 ```
 
 ```mermaid
