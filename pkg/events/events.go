@@ -54,6 +54,9 @@ const (
 	EventCondition    EventType = "condition"
 	EventProcedure    EventType = "procedure"
 	EventImmunization EventType = "immunization"
+
+	// Medications
+	EventMedicationRequest EventType = "medication_request"
 )
 
 // SourceFormat indicates the original format of the data.

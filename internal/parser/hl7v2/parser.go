@@ -27,6 +27,12 @@ const (
 	// ORU - Observation Result
 	MsgORU_R01 = "ORU^R01" // Unsolicited observation result
 
+	// Pharmacy
+	MsgRDE_O11 = "RDE^O11" // Pharmacy/treatment encoded order
+
+	// Immunizations
+	MsgVXU_V04 = "VXU^V04" // Unsolicited vaccination record update
+
 	// ORM - Order Message
 	MsgORM_O01 = "ORM^O01" // Order message
 
@@ -197,6 +203,20 @@ func (p *Parser) setEventWarnings(event interface{}) {
 		if p.profile != nil {
 			e.SourceProfileID = p.profile.ID
 		}
+	case *events.ImmunizationEvent:
+		if len(p.warnings) > 0 {
+			e.ParseWarnings = p.warnings
+		}
+		if p.profile != nil {
+			e.SourceProfileID = p.profile.ID
+		}
+	case *events.MedicationRequestEvent:
+		if len(p.warnings) > 0 {
+			e.ParseWarnings = p.warnings
+		}
+		if p.profile != nil {
+			e.SourceProfileID = p.profile.ID
+		}
 	}
 }
 
@@ -295,6 +315,10 @@ func (p *Parser) toSemanticEvent(msg *Message) (interface{}, error) {
 		return p.parseADT_A08(msg)
 	case strings.HasPrefix(msg.Type, "ORU^R01"):
 		return p.parseORU_R01(msg)
+	case strings.HasPrefix(msg.Type, "RDE^O11"):
+		return p.parseRDE_O11(msg)
+	case strings.HasPrefix(msg.Type, "VXU^V04"):
+		return p.parseVXU_V04(msg)
 	case strings.HasPrefix(msg.Type, "SIU^S12"):
 		return p.parseSIU_S12(msg)
 	case strings.HasPrefix(msg.Type, "SIU^S13"):
@@ -308,6 +332,146 @@ func (p *Parser) toSemanticEvent(msg *Message) (interface{}, error) {
 	default:
 		return nil, fmt.Errorf("unsupported message type: %s", msg.Type)
 	}
+}
+
+// parseVXU_V04 parses an immunization update message.
+func (p *Parser) parseVXU_V04(msg *Message) (*events.ImmunizationEvent, error) {
+	patient, err := p.extractPatient(msg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract patient: %w", err)
+	}
+
+	rxa := p.getSegment(msg, "RXA")
+	if rxa == nil {
+		return nil, fmt.Errorf("RXA segment not found")
+	}
+
+	// RXA-3: Date/Time Start of Administration
+	adminDate := ""
+	if v := p.getField(rxa, 3); v != "" {
+		if t, perr := p.parseHL7DateTime(v); perr == nil {
+			adminDate = t.Format(time.RFC3339)
+		}
+	}
+
+	// RXA-5: Administered Code (CE): id^text^coding system
+	rxa5 := p.getField(rxa, 5)
+	vaccineCode := p.getComponent(rxa5, 0)
+	vaccineName := p.getComponentUnescaped(rxa5, 1, msg.Delimiters)
+
+	// RXA-6/7: Administered Amount + Units
+	dose := ""
+	if amt := p.getField(rxa, 6); amt != "" {
+		if unit := p.getField(rxa, 7); unit != "" {
+			dose = amt + " " + unit
+		} else {
+			dose = amt
+		}
+	}
+
+	// RXA-15: Lot Number
+	lotNumber := p.getField(rxa, 15)
+
+	// RXR: Route/Site (optional)
+	route := ""
+	site := ""
+	if rxr := p.getSegment(msg, "RXR"); rxr != nil {
+		rxr1 := p.getField(rxr, 1) // route
+		route = p.getComponentUnescaped(rxr1, 1, msg.Delimiters)
+		if route == "" {
+			route = p.getComponentUnescaped(rxr1, 0, msg.Delimiters)
+		}
+
+		rxr2 := p.getField(rxr, 2) // site
+		site = p.getComponentUnescaped(rxr2, 1, msg.Delimiters)
+		if site == "" {
+			site = p.getComponentUnescaped(rxr2, 0, msg.Delimiters)
+		}
+	}
+
+	meta := events.NewEventMeta(events.EventImmunization, p.source, events.FormatHL7v2)
+	meta.SourceMessageID = msg.ControlID
+
+	return &events.ImmunizationEvent{
+		EventMeta: meta,
+		Patient:   &patient,
+		Immunization: events.Immunization{
+			VaccineCode:  vaccineCode,
+			VaccineName:  vaccineName,
+			Status:       "completed",
+			LotNumber:    lotNumber,
+			Site:         site,
+			Route:        route,
+			DoseQuantity: dose,
+		},
+		AdministeredDate: adminDate,
+	}, nil
+}
+
+// parseRDE_O11 parses a medication order message.
+func (p *Parser) parseRDE_O11(msg *Message) (*events.MedicationRequestEvent, error) {
+	patient, err := p.extractPatient(msg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract patient: %w", err)
+	}
+
+	rxe := p.getSegment(msg, "RXE")
+	if rxe == nil {
+		return nil, fmt.Errorf("RXE segment not found")
+	}
+
+	// RXE-2: Give Code (CE): id^text^coding system
+	rxe2 := p.getField(rxe, 2)
+	medCode := p.getComponent(rxe2, 0)
+	medName := p.getComponentUnescaped(rxe2, 1, msg.Delimiters)
+	medSystem := p.getComponent(rxe2, 2)
+
+	// ORC (optional): authored-on and prescriber
+	authoredOn := ""
+	var prescriber *events.Provider
+	if orc := p.getSegment(msg, "ORC"); orc != nil {
+		if v := p.getField(orc, 9); v != "" { // ORC-9 Date/Time of Transaction
+			if t, perr := p.parseHL7DateTime(v); perr == nil {
+				authoredOn = t.Format(time.RFC3339)
+			}
+		}
+
+		orc12 := p.getField(orc, 12) // ORC-12 Ordering Provider (XCN)
+		if orc12 != "" {
+			id := p.getComponent(orc12, 0)
+			family := p.getComponentUnescaped(orc12, 1, msg.Delimiters)
+			given := p.getComponentUnescaped(orc12, 2, msg.Delimiters)
+			if id != "" || family != "" || given != "" {
+				prescriber = &events.Provider{
+					ID:         id,
+					FamilyName: family,
+					GivenName:  given,
+					MiddleName: p.getComponentUnescaped(orc12, 3, msg.Delimiters),
+					Suffix:     p.getComponentUnescaped(orc12, 4, msg.Delimiters),
+					Prefix:     p.getComponentUnescaped(orc12, 5, msg.Delimiters),
+				}
+			}
+		}
+	}
+
+	meta := events.NewEventMeta(events.EventMedicationRequest, p.source, events.FormatHL7v2)
+	meta.SourceMessageID = msg.ControlID
+
+	return &events.MedicationRequestEvent{
+		EventMeta: meta,
+		Patient:   &patient,
+		MedicationRequest: events.MedicationRequest{
+			Medication: events.Medication{
+				Code:       medCode,
+				CodeSystem: medSystem,
+				Name:       medName,
+			},
+			Status:     "active",
+			Intent:     "order",
+			AuthoredOn: authoredOn,
+		},
+		Prescriber: prescriber,
+	}, nil
 }
 
 // parseADT_A01 parses an admit message.

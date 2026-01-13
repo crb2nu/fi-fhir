@@ -187,7 +187,7 @@ The following items remain for full production readiness:
 
 ### P3 - Future Enhancements
 
-- Additional HL7v2 message types (VXU, MDM, RDE, DFT)
+- Additional HL7v2 message types (MDM, DFT)
 - CDA/CCDA section expansion (Medications, Allergies, Social History)
 - Test data organization and edge case fixtures
 

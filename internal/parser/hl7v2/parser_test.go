@@ -135,15 +135,74 @@ PV1|1|I|MED^201^B||||||||||||||||VISIT002||||||||||||||||||20240116080000`
 	}
 }
 
-func TestParseUnsupportedMessageType(t *testing.T) {
+func TestParseRDE_O11_MedicationRequest(t *testing.T) {
 	parser := NewParser("test_source", ParserConfig{})
 
 	msg := `MSH|^~\&|APP|FAC|APP|FAC|20240115120000||RDE^O11|MSG123|P|2.5
-PID|1||123456789^^^HOSPITAL^MRN||DOE^JOHN`
+PID|1||123456789^^^HOSPITAL^MRN||DOE^JOHN||19800101|M
+ORC|NW|ORD123|||||||20240115120000|||1234^Smith^Jane
+RXE|^^^|1049502^amoxicillin 500 MG Oral Capsule^RXNORM|1|CAP`
 
-	_, err := parser.Parse(msg)
-	if err == nil {
-		t.Error("Expected error for unsupported message type")
+	result, err := parser.ParseWithResult(msg)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	event, ok := result.Event.(*events.MedicationRequestEvent)
+	if !ok {
+		t.Fatalf("expected MedicationRequestEvent, got %T", result.Event)
+	}
+
+	if event.Type != events.EventMedicationRequest {
+		t.Fatalf("event type = %s, want %s", event.Type, events.EventMedicationRequest)
+	}
+
+	if event.Patient == nil || event.Patient.FamilyName != "DOE" {
+		t.Fatalf("unexpected patient: %+v", event.Patient)
+	}
+
+	if event.MedicationRequest.Medication.Code != "1049502" {
+		t.Fatalf("medication code = %q, want %q", event.MedicationRequest.Medication.Code, "1049502")
+	}
+	if event.MedicationRequest.Medication.Name != "amoxicillin 500 MG Oral Capsule" {
+		t.Fatalf("medication name = %q", event.MedicationRequest.Medication.Name)
+	}
+
+	if event.Prescriber == nil || event.Prescriber.FamilyName != "Smith" {
+		t.Fatalf("unexpected prescriber: %+v", event.Prescriber)
+	}
+}
+
+func TestParseVXU_V04_Immunization(t *testing.T) {
+	parser := NewParser("test_source", ParserConfig{})
+
+	msg := `MSH|^~\&|IMM|FAC|EHR|FAC|20240115120000||VXU^V04|MSG124|P|2.5
+PID|1||123456789^^^HOSPITAL^MRN||DOE^JANE||19900101|F
+RXA|0|1|20240115100000|20240115100000|207^COVID-19 mRNA^CVX|0.5|mL||||||||LOT123`
+
+	result, err := parser.ParseWithResult(msg)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	event, ok := result.Event.(*events.ImmunizationEvent)
+	if !ok {
+		t.Fatalf("expected ImmunizationEvent, got %T", result.Event)
+	}
+	if event.Type != events.EventImmunization {
+		t.Fatalf("event type = %s, want %s", event.Type, events.EventImmunization)
+	}
+	if event.Patient == nil || event.Patient.GivenName != "JANE" {
+		t.Fatalf("unexpected patient: %+v", event.Patient)
+	}
+	if event.Immunization.VaccineCode != "207" {
+		t.Fatalf("vaccine code = %q, want %q", event.Immunization.VaccineCode, "207")
+	}
+	if event.Immunization.LotNumber != "LOT123" {
+		t.Fatalf("lot number = %q, want %q", event.Immunization.LotNumber, "LOT123")
+	}
+	if event.AdministeredDate == "" {
+		t.Fatalf("expected administered date to be set")
 	}
 }
 
