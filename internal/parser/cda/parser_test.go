@@ -977,3 +977,195 @@ func TestParser_ParseEncompassingEncounter(t *testing.T) {
 		t.Error("Expected encounter code IMP")
 	}
 }
+
+func TestParseEntryValue_InferAndTypes(t *testing.T) {
+	tests := []struct {
+		name     string
+		xml      string
+		validate func(t *testing.T, ev *EntryValue)
+	}{
+		{
+			name: "ExplicitPQ",
+			xml:  `<value xsi:type="PQ" value="7.2" unit="%"/>`,
+			validate: func(t *testing.T, ev *EntryValue) {
+				if ev.Type != "PQ" || ev.Value != "7.2" || ev.Unit != "%" {
+					t.Fatalf("Expected PQ with value 7.2%%, got %+v", ev)
+				}
+			},
+		},
+		{
+			name: "InferCDFromCode",
+			xml:  `<value code="12345-6" codeSystem="2.16.840.1.113883.6.1" displayName="Test Code"/>`,
+			validate: func(t *testing.T, ev *EntryValue) {
+				if ev.Type != "CD" || ev.Code != "12345-6" || ev.CodeSystem != "2.16.840.1.113883.6.1" {
+					t.Fatalf("Expected inferred CD with code 12345-6, got %+v", ev)
+				}
+			},
+		},
+		{
+			name: "InferPQFromUnit",
+			xml:  `<value value="1.2" unit="mg"/>`,
+			validate: func(t *testing.T, ev *EntryValue) {
+				if ev.Type != "PQ" || ev.Value != "1.2" || ev.Unit != "mg" {
+					t.Fatalf("Expected inferred PQ with value 1.2 mg, got %+v", ev)
+				}
+			},
+		},
+		{
+			name: "InferIVLPQFromBounds",
+			xml:  `<value><low value="4.0" unit="mmol/L"/><high value="6.0" unit="mmol/L"/></value>`,
+			validate: func(t *testing.T, ev *EntryValue) {
+				if ev.Type != "IVL_PQ" || ev.Low != "4.0" || ev.High != "6.0" || ev.Unit != "mmol/L" {
+					t.Fatalf("Expected IVL_PQ with bounds 4.0-6.0 mmol/L, got %+v", ev)
+				}
+			},
+		},
+		{
+			name: "InferIVLTSFromBounds",
+			xml:  `<value><low value="20240101"/><high value="20240131"/></value>`,
+			validate: func(t *testing.T, ev *EntryValue) {
+				if ev.Type != "IVL_TS" || ev.Low != "20240101" || ev.High != "20240131" {
+					t.Fatalf("Expected IVL_TS with low/high set, got %+v", ev)
+				}
+			},
+		},
+		{
+			name: "InferSTFromValueAttr",
+			xml:  `<value value="text-value">text-value</value>`,
+			validate: func(t *testing.T, ev *EntryValue) {
+				if ev.Type != "ST" || ev.Value != "text-value" {
+					t.Fatalf("Expected ST with value 'text-value', got %+v", ev)
+				}
+			},
+		},
+		{
+			name: "DefaultInnerText",
+			xml:  `<value> note content </value>`,
+			validate: func(t *testing.T, ev *EntryValue) {
+				if ev.Type != "ST" || ev.Value != "note content" {
+					t.Fatalf("Expected ST with inner text, got %+v", ev)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc, err := xmlquery.Parse(strings.NewReader(`<root xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">` + tt.xml + `</root>`))
+			if err != nil {
+				t.Fatalf("failed to parse xml: %v", err)
+			}
+
+			node := xmlquery.FindOne(doc, "//value")
+			if node == nil {
+				t.Fatal("value node not found")
+			}
+
+			ev := parseEntryValue(node)
+			tt.validate(t, ev)
+		})
+	}
+}
+
+func TestParser_ParseParticipant(t *testing.T) {
+	parser := NewParser("test", nil)
+	xml := `
+<participant typeCode="IND" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <time value="20240101123000"/>
+  <participantRole classCode="ROL">
+    <id root="1.2.3" extension="PART-123"/>
+    <addr use="HP">
+      <streetAddressLine>1 Main St</streetAddressLine>
+      <city>Metropolis</city>
+      <state>NY</state>
+      <postalCode>10001</postalCode>
+      <country>US</country>
+    </addr>
+    <telecom use="HP" value="tel:+15551234567"/>
+    <playingEntity classCode="PSN">
+      <code code="407543006" codeSystem="2.16.840.1.113883.6.96" displayName="Spouse"/>
+      <name>Jane Doe</name>
+    </playingEntity>
+  </participantRole>
+</participant>`
+
+	doc, err := xmlquery.Parse(strings.NewReader(xml))
+	if err != nil {
+		t.Fatalf("failed to parse xml: %v", err)
+	}
+
+	node := xmlquery.FindOne(doc, "//participant")
+	part := parser.parseParticipant(node)
+	if part == nil {
+		t.Fatal("expected participant")
+	}
+
+	if part.TypeCode != "IND" {
+		t.Errorf("expected typeCode IND, got %s", part.TypeCode)
+	}
+	if part.Time == nil || part.Time.Value == nil || part.Time.Value.Format("20060102150405") != "20240101123000" {
+		t.Fatalf("unexpected participant time: %+v", part.Time)
+	}
+	if part.ParticipantRole == nil || len(part.ParticipantRole.IDs) != 1 || part.ParticipantRole.IDs[0].Extension != "PART-123" {
+		t.Fatalf("expected participant role id PART-123, got %+v", part.ParticipantRole)
+	}
+	if part.ParticipantRole.PlayingEntity == nil || part.ParticipantRole.PlayingEntity.Code == nil || part.ParticipantRole.PlayingEntity.Code.Code != "407543006" {
+		t.Fatalf("expected playing entity code, got %+v", part.ParticipantRole.PlayingEntity)
+	}
+	if len(part.ParticipantRole.PlayingEntity.Names) != 1 || part.ParticipantRole.PlayingEntity.Names[0] != "Jane Doe" {
+		t.Fatalf("expected playing entity name, got %+v", part.ParticipantRole.PlayingEntity.Names)
+	}
+}
+
+func TestParser_ParseInformantVariants(t *testing.T) {
+	parser := NewParser("test", nil)
+	xml := `
+<root xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <informant>
+    <assignedEntity>
+      <id root="1.2.3" extension="AE-1"/>
+    </assignedEntity>
+    <relatedEntity classCode="PRS">
+      <code code="FAMMEMB" codeSystem="2.16.840.1.113883.5.111" displayName="Family member"/>
+      <relatedPerson>
+        <name><family>Doe</family><given>Jane</given></name>
+      </relatedPerson>
+    </relatedEntity>
+  </informant>
+  <informant>
+    <other/>
+  </informant>
+</root>`
+
+	doc, err := xmlquery.Parse(strings.NewReader(xml))
+	if err != nil {
+		t.Fatalf("failed to parse xml: %v", err)
+	}
+
+	informants := xmlquery.Find(doc, "//informant")
+	if len(informants) != 2 {
+		t.Fatalf("expected 2 informant nodes, got %d", len(informants))
+	}
+
+	first := parser.parseInformant(informants[0])
+	if first == nil {
+		t.Fatal("expected informant parsed")
+	}
+	if first.AssignedEntity == nil || len(first.AssignedEntity.IDs) != 1 || first.AssignedEntity.IDs[0].Extension != "AE-1" {
+		t.Fatalf("expected assigned entity with ID AE-1, got %+v", first.AssignedEntity)
+	}
+	if first.RelatedEntity == nil || first.RelatedEntity.ClassCode != "PRS" {
+		t.Fatalf("expected related entity PRS, got %+v", first.RelatedEntity)
+	}
+	if first.RelatedEntity.Code == nil || first.RelatedEntity.Code.Code != "FAMMEMB" {
+		t.Fatalf("expected related entity code FAMMEMB, got %+v", first.RelatedEntity.Code)
+	}
+	if first.RelatedEntity.Person == nil || len(first.RelatedEntity.Person.Names) == 0 || first.RelatedEntity.Person.Names[0].Family != "Doe" {
+		t.Fatalf("expected related person Doe, got %+v", first.RelatedEntity.Person)
+	}
+
+	// Informant without assignedEntity/relatedEntity should return nil
+	if second := parser.parseInformant(informants[1]); second != nil {
+		t.Fatalf("expected nil informant for empty node, got %+v", second)
+	}
+}

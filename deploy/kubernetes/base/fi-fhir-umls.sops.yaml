@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: fi-fhir-umls
+    namespace: fi-fhir
+    labels:
+        app: fi-fhir
+        component: terminology
+stringData:
+    UMLS_API_KEY: ENC[AES256_GCM,data:GgsC676XBSGaQLv/T+mKw/Xql0yG8UpbfKWN6Leozo2bMw6p,iv:3eBi9nnWzQq8USzcXeQuG7eE4/co+ePRPE5C5/h3ulA=,tag:kaNajxx/f4a8nhHKum0rAA==,type:str]
+sops:
+    age:
+        - recipient: age1d8mxyz340rdexgn068097s0le3tmf3898xd5a4qpqng4zdtg8sgswnx9r9
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBISEp2MVIxcG5Xbkk0T0Nr
+            bkpHWGZqdmVDdDRIQXdjSUoxbHlFRG54U1RzCmhPTy9hdkVIWWpuQm0rYmtrVVVL
+            QUNSeitQV0tCSWtQTXhIQ0lRcHlKckEKLS0tIEhzOVArMTBDSEY4Zlk3amhVa2lR
+            bTFpZzVnT1BrRGhvOFhFa3pyN0FDdGMK+vlPYhtAgzkx0orArlDE1C6vgWmFdRzt
+            6O55fl4aUOAEenEM0N1qEOrVQifsJMTaBhhc2yG6ouK2vqzYc3/GkQ==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-01-12T21:55:06Z"
+    mac: ENC[AES256_GCM,data:QozaK4hI9DRi/VdX+bWgmSyAPO4H5LrdX//9oyUCjpZ47MRHKAG1uEHtUGlSgq2sc6V+edDPqjKMMLCqUG4FrYKdDKzsI9xc5Q0bBDNIjVLW6u/BX5vHAKYX7JWY1t6xe5Ixphf3vfTEK0BHoTKH1yO2AMWnqfGRXu8AbDVlHnE=,iv:QRwrFVKErfsKnFZGqQqjhZ5nNyyfwMpiEknK2tcHujM=,tag:4vGYgY/pE71wJMQZAw67iw==,type:str]
+    encrypted_regex: ^(data|stringData)$
+    version: 3.11.0

@@ -184,9 +184,9 @@ The following items remain for full production readiness:
 
 | Area | Current Coverage | Target | Notes |
 |------|------------------|--------|-------|
-| CLI (`cmd/fi-fhir/`) | 35.3% | 80%+ | Limited by external service deps (MinIO, PostgreSQL) |
+| CLI (`cmd/fi-fhir/`) | 40.7% | 80%+ | Improved with offline stubs; limited by external service deps (MinIO, PostgreSQL) |
 | Terminology (db) | 7.2% | 80%+ | Requires PostgreSQL testcontainers |
-| CDA Parser | 77.3% | 80%+ | Close to target |
+| CDA Parser | 87.1% | 80%+ | ✅ Above target |
 | ✅ GraphQL Resolvers | 80.8% | 80%+ | |
 | ✅ FHIR Subscription | 84.7% | 80%+ | |
 | ✅ Terminology (pkg) | 66.9% | 80%+ | Core pkg good, db layer needs work |

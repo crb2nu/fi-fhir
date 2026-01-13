@@ -635,3 +635,173 @@ func TestProblemsSectionMapper_TemplateOID(t *testing.T) {
 		t.Errorf("Expected template OID %s, got %s", TemplateSectionProblems, mapper.TemplateOID())
 	}
 }
+
+func TestMapLabResultObservationVariants(t *testing.T) {
+	docTime := time.Date(2024, 2, 1, 9, 0, 0, 0, time.UTC)
+	effective := time.Date(2024, 2, 2, 10, 0, 0, 0, time.UTC)
+	patient := &events.Patient{MRN: "MRN-1"}
+
+	tests := []struct {
+		name      string
+		entry     Entry
+		wantValue string
+		wantUnit  string
+		wantTime  time.Time
+		wantLOINC string
+	}{
+		{
+			name: "QuantitativePQ",
+			entry: Entry{
+				ID:         "LAB-1",
+				TypeCode:   "observation",
+				StatusCode: "completed",
+				Code:       CodedValue{Code: "1234-5", CodeSystem: CodeSystemLOINC, DisplayName: "Glucose"},
+				Value:      &EntryValue{Type: "PQ", Value: "5.6", Unit: "mg/dL"},
+			},
+			wantValue: "5.6",
+			wantUnit:  "mg/dL",
+			wantTime:  docTime,
+			wantLOINC: "1234-5",
+		},
+		{
+			name: "CodedDisplaysCodeWhenNameMissing",
+			entry: Entry{
+				ID:         "LAB-2",
+				TypeCode:   "observation",
+				StatusCode: "completed",
+				Code:       CodedValue{Code: "2345-7", CodeSystem: CodeSystemLOINC},
+				Value:      &EntryValue{Type: "CD", Code: "NEG", DisplayName: ""},
+			},
+			wantValue: "NEG",
+			wantUnit:  "",
+			wantTime:  docTime,
+			wantLOINC: "2345-7",
+		},
+		{
+			name: "RangeIVLPQ",
+			entry: Entry{
+				ID:            "LAB-3",
+				TypeCode:      "observation",
+				StatusCode:    "active",
+				Code:          CodedValue{Code: "3456-7", CodeSystem: CodeSystemLOINC},
+				EffectiveTime: &TimeInterval{Value: &effective},
+				Value:         &EntryValue{Type: "IVL_PQ", Low: "4.0", High: "6.0", Unit: "mmol/L"},
+			},
+			wantValue: "4.0-6.0",
+			wantUnit:  "mmol/L",
+			wantTime:  effective,
+			wantLOINC: "3456-7",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event := mapLabResultObservation(&tt.entry, patient, docTime)
+			if event == nil {
+				t.Fatal("expected lab result event")
+			}
+			if event.Result.Value != tt.wantValue {
+				t.Errorf("expected value %s, got %s", tt.wantValue, event.Result.Value)
+			}
+			if event.Result.Unit != tt.wantUnit {
+				t.Errorf("expected unit %s, got %s", tt.wantUnit, event.Result.Unit)
+			}
+			if event.Test.LOINCCode != tt.wantLOINC {
+				t.Errorf("expected LOINC %s, got %s", tt.wantLOINC, event.Test.LOINCCode)
+			}
+			if event.Timestamp != tt.wantTime {
+				t.Errorf("expected timestamp %v, got %v", tt.wantTime, event.Timestamp)
+			}
+			if event.Patient.MRN != patient.MRN {
+				t.Errorf("expected patient MRN %s, got %s", patient.MRN, event.Patient.MRN)
+			}
+		})
+	}
+}
+
+func TestMapper_MapDocumentEventVariants(t *testing.T) {
+	mapper := NewMapper(&MapperConfig{Source: "source"})
+	patient := &events.Patient{MRN: "MRN-Doc"}
+	docTime := time.Date(2024, 3, 1, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name        string
+		templateIDs []string
+		title       string
+		expectNil   bool
+		validate    func(t *testing.T, evt interface{})
+	}{
+		{
+			name:        "DischargeSummary",
+			templateIDs: []string{TemplateOIDDischargeSummary},
+			title:       "Discharge",
+			validate: func(t *testing.T, evt interface{}) {
+				discharge, ok := evt.(*events.PatientDischargeEvent)
+				if !ok {
+					t.Fatalf("expected PatientDischargeEvent, got %T", evt)
+				}
+				if discharge.Patient.MRN != patient.MRN {
+					t.Fatalf("expected patient MRN %s, got %s", patient.MRN, discharge.Patient.MRN)
+				}
+				if discharge.Timestamp != docTime {
+					t.Fatalf("expected timestamp %v, got %v", docTime, discharge.Timestamp)
+				}
+			},
+		},
+		{
+			name:        "TransferSummary",
+			templateIDs: []string{TemplateOIDTransferSummary},
+			title:       "Transfer Summary",
+			validate: func(t *testing.T, evt interface{}) {
+				docEvent, ok := evt.(*events.DocumentEvent)
+				if !ok {
+					t.Fatalf("expected DocumentEvent, got %T", evt)
+				}
+				if docEvent.DocumentType != "Transfer Summary" || docEvent.Title != "Transfer Summary" {
+					t.Fatalf("unexpected document event contents %+v", docEvent)
+				}
+			},
+		},
+		{
+			name:        "ReferralNote",
+			templateIDs: []string{TemplateOIDReferralNote},
+			title:       "Referral",
+			validate: func(t *testing.T, evt interface{}) {
+				docEvent, ok := evt.(*events.DocumentEvent)
+				if !ok {
+					t.Fatalf("expected DocumentEvent, got %T", evt)
+				}
+				if docEvent.DocumentType != "Referral Note" {
+					t.Fatalf("expected referral note type, got %s", docEvent.DocumentType)
+				}
+			},
+		},
+		{
+			name:        "UnknownTemplate",
+			templateIDs: []string{"1.2.3.unknown"},
+			expectNil:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := &CDADocument{
+				ID:            "DOC-" + tt.name,
+				TemplateIDs:   tt.templateIDs,
+				Title:         tt.title,
+				EffectiveTime: docTime,
+			}
+			evt := mapper.mapDocumentEvent(doc, patient)
+			if tt.expectNil {
+				if evt != nil {
+					t.Fatalf("expected nil event for unknown template, got %T", evt)
+				}
+				return
+			}
+			if evt == nil {
+				t.Fatal("expected document event")
+			}
+			tt.validate(t, evt)
+		})
+	}
+}

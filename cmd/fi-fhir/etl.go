@@ -17,6 +17,18 @@ import (
 	_ "github.com/lib/pq" // PostgreSQL driver
 )
 
+type minioSink interface {
+	etl.Sink
+	Validate(ctx context.Context) error
+	List(ctx context.Context, prefix string) ([]storage.FileInfo, error)
+}
+
+var minioSinkFactory = func() (minioSink, error) {
+	return createMinIOSink()
+}
+
+var sourcesProvider = getConfiguredSources
+
 func runETL(args []string) error {
 	if len(args) == 0 {
 		printETLUsage()
@@ -137,13 +149,13 @@ func runETLSync(args []string) error {
 	}
 
 	// Create MinIO sink
-	minioSink, err := createMinIOSink()
+	minioSink, err := minioSinkFactory()
 	if err != nil {
 		return err
 	}
 
 	// Get configured sources
-	sources := getConfiguredSources()
+	sources := sourcesProvider()
 
 	if sourceName != "" {
 		// Sync specific source
@@ -195,13 +207,13 @@ func runETLFetch(args []string) error {
 	}
 
 	// Create MinIO sink
-	minioSink, err := createMinIOSink()
+	minioSink, err := minioSinkFactory()
 	if err != nil {
 		return err
 	}
 
 	// Get source
-	sources := getConfiguredSources()
+	sources := sourcesProvider()
 	src, ok := sources[sourceName]
 	if !ok {
 		return fmt.Errorf("unknown source: %s", sourceName)
@@ -255,7 +267,7 @@ Examples:
 	}
 
 	// Get source
-	sources := getConfiguredSources()
+	sources := sourcesProvider()
 	src, ok := sources[sourceName]
 	if !ok {
 		return fmt.Errorf("unknown source: %s (available: ndc, synthea-sample, rxnorm-api, icd10cm, icd10pcs)", sourceName)
@@ -505,7 +517,7 @@ func cliProgressReporter() db.ProgressReporter {
 
 func runETLStatus(args []string) error {
 	// Create MinIO sink to check what's stored
-	minioSink, err := createMinIOSink()
+	minioSink, err := minioSinkFactory()
 	if err != nil {
 		return err
 	}
@@ -513,7 +525,7 @@ func runETLStatus(args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	sources := getConfiguredSources()
+	sources := sourcesProvider()
 
 	fmt.Printf("%-15s %-15s %-20s %s\n", "SOURCE", "VERSION", "LAST SYNC", "STATUS")
 	fmt.Println(strings.Repeat("-", 70))
@@ -561,7 +573,7 @@ func runETLValidate(args []string) error {
 
 	// Check MinIO connectivity
 	fmt.Print("  MinIO connectivity: ")
-	minioSink, err := createMinIOSink()
+	minioSink, err := minioSinkFactory()
 	if err != nil {
 		fmt.Printf("FAILED (%v)\n", err)
 	} else {
@@ -751,19 +763,8 @@ func getConfiguredSources() map[string]etl.Source {
 	// UMLS Metathesaurus (requires API key from NLM)
 	umlsAPIKey := os.Getenv("UMLS_API_KEY")
 	if umlsAPIKey != "" {
-		sources["umls"] = source.NewHTTPSource(source.HTTPSourceConfig{
-			Name:      "umls",
-			UserAgent: "fi-fhir-etl/1.0",
-			Auth: &source.HTTPAuth{
-				Type:   "api_key",
-				APIKey: umlsAPIKey,
-				Header: "apiKey",
-			},
-			URLs: map[string]string{
-				// UMLS requires authentication ticket service, so direct download
-				// is complex. These are placeholders for the UTS API integration.
-				"2024AB": "https://download.nlm.nih.gov/umls/kss/2024AB/umls-2024AB-full.zip",
-			},
+		sources["umls"] = source.NewUMLSSource(source.UMLSSourceConfig{
+			APIKey: umlsAPIKey,
 		})
 	}
 

@@ -28,6 +28,7 @@ Thumbs.db
 
 # Local config
 *.local.json
+.env
 
 # Claude Code local files
 .claude/

@@ -16,6 +16,8 @@ resources:
   - service.yaml
   - ingress.yaml
   - pdb.yaml
+  - postgres.yaml
+  - fi-fhir-umls.sops.yaml
 
 # Images can be overridden per environment
 images:
