@@ -1,0 +1,15 @@
+schema: ../internal/api/graphql/schema.graphql
+documents: src/lib/graphql/**/*.graphql
+generates:
+  src/lib/gen/graphql.ts:
+    plugins:
+      - typescript
+      - typescript-operations
+      - typed-document-node
+    config:
+      avoidOptionals: true
+      enumsAsTypes: true
+      useTypeImports: true
+      scalars:
+        DateTime: string
+        JSON: unknown

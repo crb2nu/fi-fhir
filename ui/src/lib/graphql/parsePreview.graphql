@@ -1,0 +1,21 @@
+query ParsePreview($format: SourceFormat!, $data: String!, $source: String) {
+  parsePreview(format: $format, data: $data, source: $source) {
+    success
+    errors
+    events {
+      __typename
+      id
+      type
+      timestamp
+      source
+      sourceFormat
+      correlationId
+    }
+    warnings {
+      phase
+      code
+      message
+      path
+    }
+  }
+}
