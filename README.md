@@ -17,6 +17,19 @@ Instead of writing code that references `PID.3.1` or `OBX.5`, you work with sema
 
 ![CLI Dataflow](docs/mermaid/cli-flow.svg)
 
+## Mapping Studio (UI)
+
+The `ui/` app is a SvelteKit 5 “Mapping Studio” designed to make ETL approachable for non-developers: iterate on **samples → warnings → profile/workflow drafts → run/dry-run**.
+
+![Mapping Studio Loop](docs/mermaid/ui-mapping-flow.svg)
+
+See `ui/README.md` for the current UI roadmap and dev commands.
+
+## Docs
+
+- Planning/specs: `docs/planning/README.md`
+- Generated architecture diagrams: `docs/diagrams/README.md`
+
 ## Features
 
 - **Multi-format parsing**: HL7v2, CSV/flatfiles, EDI X12 (837, 835, 270/271, 276/277)

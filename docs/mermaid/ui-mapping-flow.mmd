@@ -1,0 +1,26 @@
+flowchart TB
+  subgraph USER["User / analyst"]
+    SAMPLES[Sample HL7 feed messages]
+  end
+
+  subgraph UI["Mapping Studio (SvelteKit UI)"]
+    INBOX[Inbox<br/>collect + label samples]
+    TRIAGE[Preview & triage<br/>phase warnings]
+    PROFILE[Profile draft<br/>tolerance + identifiers]
+    WORKFLOW[Workflow draft<br/>routes + transforms + actions]
+    INBOX --> TRIAGE --> PROFILE --> WORKFLOW
+  end
+
+  subgraph CORE["fi-fhir core"]
+    PARSE[Parse pipeline<br/>3 phases]
+    EVT[Canonical events<br/>+ warnings]
+    RUN[Workflow engine]
+    OUT[Actions<br/>FHIR/webhook/DB/queue/log]
+    PARSE --> EVT --> RUN --> OUT
+  end
+
+  SAMPLES --> INBOX
+  INBOX -. preview .-> PARSE
+  PROFILE -. exports YAML .-> PARSE
+  TRIAGE -. explains .-> EVT
+  WORKFLOW -. run / dry-run .-> RUN

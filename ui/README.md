@@ -2,6 +2,8 @@
 
 This directory contains the (future) mapping frontend for fi-fhir.
 
+![Mapping Studio Loop](../docs/mermaid/ui-mapping-flow.svg)
+
 ## Goals
 
 - Strictly typed frontend (TypeScript + generated API clients).

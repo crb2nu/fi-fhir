@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { resolve } from '$app/paths';
+
   const nav = [
     { href: '/', label: 'Home' },
     { href: '/hl7', label: 'HL7 Mapping' }
@@ -9,8 +11,8 @@
   <header class="header">
     <div class="brand">fi-fhir</div>
     <nav class="nav">
-      {#each nav as item}
-        <a class="nav-link" href={item.href}>{item.label}</a>
+      {#each nav as item (item.href)}
+        <a class="nav-link" href={resolve(item.href)}>{item.label}</a>
       {/each}
     </nav>
   </header>
@@ -64,4 +66,3 @@
     margin: 0 auto;
   }
 </style>
-

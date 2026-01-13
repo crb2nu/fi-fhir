@@ -1,4 +1,5 @@
-flowchart LR
-  MSG[Input message] -->|fi-fhir parse| EVT[event.json - events and warnings]
-  EVT -->|fi-fhir workflow run| OUT[Side effects: FHIR, webhook, DB, queue, log]
-
+flowchart TB
+  MSG[Input message] -->|fi-fhir parse| EVT[event.json<br/>events + warnings]
+  CFG[Workflow config<br/>YAML] -.->|--config| RUN
+  EVT --> RUN[fi-fhir workflow run<br/>--dry-run optional]
+  RUN --> OUT[Side effects<br/>FHIR / webhook / DB / queue / log]

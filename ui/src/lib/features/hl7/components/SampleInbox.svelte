@@ -14,7 +14,7 @@
     select: { id: string };
     remove: { id: string };
     saveCurrent: { name?: string };
-    clear: {};
+    clear: Record<string, never>;
   }>();
 
   let name = '';

@@ -126,6 +126,7 @@ lint:ui:
     - apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
     - cd ui
     - npm ci
+    - npm run lint
     - npm run codegen:check
     - npm run check
     - npm run typecheck
