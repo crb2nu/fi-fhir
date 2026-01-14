@@ -110,11 +110,11 @@ func TestTerminology_Live_Load_LOINC_And_ICD10CM(t *testing.T) {
 		"LOINC_NUM,LONG_COMMON_NAME,STATUS",
 		"1234-5,Example test,ACTIVE",
 	}, "\n"))
-	_ = os.Rename(loincTable, loincDir+"/LoincTable.csv")
-	_ = os.WriteFile(loincDir+"/PanelHierarchy.csv", []byte(strings.Join([]string{
+	assertNoError(t, os.Rename(loincTable, loincDir+"/LoincTable.csv"))
+	assertNoError(t, os.WriteFile(loincDir+"/PanelHierarchy.csv", []byte(strings.Join([]string{
 		"PARENTLOINC,LOINC,SEQUENCE,CARDINALITY",
 		"1234-5,1234-5,1,1..1",
-	}, "\n")), 0o600)
+	}, "\n")), 0o600))
 
 	stdout, _, err := runCLI(t, "terminology", "load", "loinc", loincDir+"/LoincTable.csv", "--version", "0.0-test", "--date", "2026-01-14", "--db", dsn)
 	assertNoError(t, err)
