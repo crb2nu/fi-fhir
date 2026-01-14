@@ -228,25 +228,17 @@ actions:
 ## TypeScript SDK
 
 ```bash
-npm install @cblevins/fi-fhir
+npm install @fi-fhir/sdk
 ```
 
 ```typescript
-import { FiFhir, PatientAdmitEvent } from '@cblevins/fi-fhir';
+import { parseHL7, Workflow } from '@fi-fhir/sdk';
 
-const fiFhir = new FiFhir({ binaryPath: './fi-fhir' });
+const event = await parseHL7(hl7Message, { source: 'epic_adt' });
 
-// Parse message
-const result = await fiFhir.parse({
-  format: 'hl7v2',
-  data: hl7Message
-});
-
-// Run workflow
-const output = await fiFhir.workflow.run({
-  configPath: './workflow.yaml',
-  events: result.events
-});
+const workflow = new Workflow('./workflow.yaml');
+await workflow.validate();
+const output = await workflow.run([event]);
 ```
 
 ## Documentation
