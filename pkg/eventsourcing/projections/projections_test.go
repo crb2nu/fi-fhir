@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/crb2nu/fi-fhir/pkg/eventsourcing"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/eventsourcing"
 )
 
 func TestPatientTimelineProjection(t *testing.T) {

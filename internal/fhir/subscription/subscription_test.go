@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/crb2nu/fi-fhir/pkg/events"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 )
 
 func TestFHIRMapper_MapPatient(t *testing.T) {

@@ -10,7 +10,7 @@ import (
 
 	_ "github.com/lib/pq"
 
-	"github.com/crb2nu/fi-fhir/pkg/terminology/db"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/db"
 )
 
 func runTerminology(args []string) error {
@@ -79,8 +79,8 @@ Examples:
 
 func getTerminologyDBURL(args []string) string {
 	// Check for --db flag
-	for i := 0; i < len(args)-1; i++ {
-		if args[i] == "--db" {
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] == "--db" { //nolint:gosec // guarded by loop bounds; gosec false positive
 			return args[i+1]
 		}
 	}
@@ -257,24 +257,28 @@ Examples:
 	var dateStr string
 	dbURL := os.Getenv("FI_FHIR_DATABASE_URL")
 
-	for i := 2; i < len(args); i++ {
-		switch args[i] {
+	for i := 2; i < len(args); {
+		switch args[i] { //nolint:gosec // guarded by loop bounds; gosec false positive
 		case "--db":
 			if i+1 < len(args) {
 				dbURL = args[i+1]
-				i++
+				i += 2
+				continue
 			}
 		case "--version":
 			if i+1 < len(args) {
 				version = args[i+1]
-				i++
+				i += 2
+				continue
 			}
 		case "--date":
 			if i+1 < len(args) {
 				dateStr = args[i+1]
-				i++
+				i += 2
+				continue
 			}
 		}
+		i++
 	}
 
 	if dbURL == "" {

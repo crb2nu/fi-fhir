@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/crb2nu/fi-fhir/internal/workflow"
-	"github.com/crb2nu/fi-fhir/pkg/events"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/workflow"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 )
 
 // Package-level CEL evaluator for event mapping rules.

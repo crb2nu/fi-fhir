@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/crb2nu/fi-fhir/pkg/storage"
-	"github.com/crb2nu/fi-fhir/pkg/terminology/db"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/storage"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/db"
 )
 
 // PostgresSink loads terminology data into PostgreSQL.

@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/crb2nu/fi-fhir/pkg/eventsourcing"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/eventsourcing"
 )
 
 // EventStoreManager manages event store connections for workflow actions.

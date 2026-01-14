@@ -16,7 +16,7 @@ import (
 
 	_ "github.com/lib/pq" // Postgres driver for integration tests
 
-	"github.com/crb2nu/fi-fhir/pkg/storage"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/storage"
 )
 
 // requireEnv ensures required environment variables are set or skips the test.
@@ -126,7 +126,7 @@ func TestIntegration_Postgres_Live(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)
 	}
-	defer db.Close()
+	t.Cleanup(func() { _ = db.Close() })
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

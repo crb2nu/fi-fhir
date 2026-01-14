@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/crb2nu/fi-fhir/pkg/events"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 )
 
 func TestMap837ToEvents(t *testing.T) {

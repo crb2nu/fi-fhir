@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/crb2nu/fi-fhir/pkg/events"
-	"github.com/crb2nu/fi-fhir/pkg/profile"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/profile"
 )
 
 func TestParseADT_A01(t *testing.T) {

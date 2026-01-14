@@ -1,7 +1,7 @@
 package companion
 
 import (
-	"github.com/crb2nu/fi-fhir/internal/parser/edi"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/edi"
 )
 
 // ValidateParseResult validates a parse result against a companion guide.

@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/crb2nu/fi-fhir/pkg/etl"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/etl"
 )
 
 // LocalSource reads data from local filesystem.

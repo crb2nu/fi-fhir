@@ -64,7 +64,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Kubernetes manifests with Kustomize overlays
 - Helm chart with full templating
 - GitLab CI/CD pipeline (lint, test, security, build, release)
-- GitHub Actions workflows
 
 #### SDK
 - TypeScript SDK with CLI wrapper
@@ -93,5 +92,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Fixed` for any bug fixes
 - `Security` for vulnerability fixes
 
-[Unreleased]: https://github.com/crb2nu/fi-fhir/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/crb2nu/fi-fhir/releases/tag/v0.1.0
+[Unreleased]: https://gitlab.flexinfer.ai/libs/fi-fhir/-/compare/v0.1.0...main
+[0.1.0]: https://gitlab.flexinfer.ai/libs/fi-fhir/-/releases/v0.1.0

@@ -34,10 +34,10 @@ info:
   version: 1.0.0
   contact:
     name: fi-fhir Support
-    url: https://github.com/crb2nu/fi-fhir
+    url: https://gitlab.flexinfer.ai/libs/fi-fhir
   license:
-    name: MIT
-    url: https://opensource.org/licenses/MIT
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
 
 servers:
   - url: http://localhost:8080

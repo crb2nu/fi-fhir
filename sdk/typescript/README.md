@@ -12,7 +12,7 @@ npm install @fi-fhir/sdk
 
 ```bash
 # Install fi-fhir (from source)
-go install github.com/crb2nu/fi-fhir/cmd/fi-fhir@latest
+go install gitlab.flexinfer.ai/libs/fi-fhir/cmd/fi-fhir@latest
 
 # Or set custom path
 export FI_FHIR_PATH=/path/to/fi-fhir

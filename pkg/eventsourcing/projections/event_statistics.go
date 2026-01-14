@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/crb2nu/fi-fhir/pkg/eventsourcing"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/eventsourcing"
 )
 
 // EventStatistics is the read model for event statistics.

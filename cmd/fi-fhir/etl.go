@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/crb2nu/fi-fhir/pkg/etl"
-	"github.com/crb2nu/fi-fhir/pkg/etl/sink"
-	"github.com/crb2nu/fi-fhir/pkg/etl/source"
-	"github.com/crb2nu/fi-fhir/pkg/storage"
-	"github.com/crb2nu/fi-fhir/pkg/terminology/db"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/etl"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/etl/sink"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/etl/source"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/storage"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/db"
 
 	_ "github.com/lib/pq" // PostgreSQL driver
 )
@@ -129,23 +129,26 @@ func runETLSync(args []string) error {
 		overwrite  bool
 	)
 
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
+	for i := 0; i < len(args); {
+		switch args[i] { //nolint:gosec // guarded by loop bounds; gosec false positive
 		case "--source", "-s":
 			if i+1 < len(args) {
 				sourceName = args[i+1]
-				i++
+				i += 2
+				continue
 			}
 		case "--version", "-v":
 			if i+1 < len(args) {
 				version = args[i+1]
-				i++
+				i += 2
+				continue
 			}
 		case "--dry-run":
 			dryRun = true
 		case "--overwrite":
 			overwrite = true
 		}
+		i++
 	}
 
 	// Create MinIO sink
@@ -192,18 +195,20 @@ func runETLFetch(args []string) error {
 		overwrite bool
 	)
 
-	for i := 1; i < len(args); i++ {
-		switch args[i] {
+	for i := 1; i < len(args); {
+		switch args[i] { //nolint:gosec // guarded by loop bounds; gosec false positive
 		case "--version", "-v":
 			if i+1 < len(args) {
 				version = args[i+1]
-				i++
+				i += 2
+				continue
 			}
 		case "--dry-run":
 			dryRun = true
 		case "--overwrite":
 			overwrite = true
 		}
+		i++
 	}
 
 	// Create MinIO sink
@@ -251,19 +256,22 @@ Examples:
 	outputDir := "./testdata/downloads"
 	version := ""
 
-	for i := 1; i < len(args); i++ {
-		switch args[i] {
+	for i := 1; i < len(args); {
+		switch args[i] { //nolint:gosec // guarded by loop bounds; gosec false positive
 		case "--output", "-o":
 			if i+1 < len(args) {
 				outputDir = args[i+1]
-				i++
+				i += 2
+				continue
 			}
 		case "--version", "-v":
 			if i+1 < len(args) {
 				version = args[i+1]
-				i++
+				i += 2
+				continue
 			}
 		}
+		i++
 	}
 
 	// Get source
@@ -366,23 +374,26 @@ Examples:
 		progress bool
 	)
 
-	for i := 1; i < len(args); i++ {
-		switch args[i] {
+	for i := 1; i < len(args); {
+		switch args[i] { //nolint:gosec // guarded by loop bounds; gosec false positive
 		case "--version", "-v":
 			if i+1 < len(args) {
 				version = args[i+1]
-				i++
+				i += 2
+				continue
 			}
 		case "--sabs":
 			if i+1 < len(args) {
 				sabs = args[i+1]
-				i++
+				i += 2
+				continue
 			}
 		case "--dry-run":
 			dryRun = true
 		case "--progress":
 			progress = true
 		}
+		i++
 	}
 
 	if version == "" {

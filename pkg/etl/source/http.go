@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/crb2nu/fi-fhir/pkg/etl"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/etl"
 )
 
 // HTTPSource downloads data from HTTP/HTTPS URLs.

@@ -95,10 +95,10 @@ Sign images for supply chain security:
 cosign generate-key-pair
 
 # Sign image
-cosign sign --key cosign.key ghcr.io/cblevins/fi-fhir:v1.0.0
+cosign sign --key cosign.key registry.gitlab.flexinfer.ai/libs/fi-fhir:v1.0.0
 
 # Verify signature
-cosign verify --key cosign.pub ghcr.io/cblevins/fi-fhir:v1.0.0
+cosign verify --key cosign.pub registry.gitlab.flexinfer.ai/libs/fi-fhir:v1.0.0
 ```
 
 ---

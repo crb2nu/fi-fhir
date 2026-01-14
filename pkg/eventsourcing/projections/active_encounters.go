@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/crb2nu/fi-fhir/pkg/eventsourcing"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/eventsourcing"
 )
 
 // ActiveEncounter represents a currently active patient encounter.

@@ -4,11 +4,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/crb2nu/fi-fhir/internal/api/graphql/model"
-	"github.com/crb2nu/fi-fhir/internal/api/graphql/projections"
-	"github.com/crb2nu/fi-fhir/internal/api/graphql/store"
-	"github.com/crb2nu/fi-fhir/internal/fhir/subscription"
-	"github.com/crb2nu/fi-fhir/internal/workflow"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/projections"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/store"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/fhir/subscription"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/workflow"
 )
 
 // This file will not be regenerated automatically.

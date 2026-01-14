@@ -3,7 +3,7 @@ package csv
 import (
 	"testing"
 
-	"github.com/crb2nu/fi-fhir/pkg/events"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 )
 
 func TestParsePatientCSV(t *testing.T) {

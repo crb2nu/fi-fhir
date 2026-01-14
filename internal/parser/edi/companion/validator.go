@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/crb2nu/fi-fhir/internal/parser/edi"
-	"github.com/crb2nu/fi-fhir/pkg/validate"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/edi"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/validate"
 )
 
 // Validator validates EDI transactions against a companion guide.

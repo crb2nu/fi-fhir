@@ -11,8 +11,8 @@ import (
 
 	_ "github.com/lib/pq"
 
-	"github.com/crb2nu/fi-fhir/pkg/eventsourcing"
-	"github.com/crb2nu/fi-fhir/pkg/eventsourcing/projections"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/eventsourcing"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/eventsourcing/projections"
 )
 
 func runEventStore(args []string) error {

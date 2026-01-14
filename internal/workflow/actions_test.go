@@ -3,8 +3,8 @@ package workflow
 import (
 	"testing"
 
-	"github.com/crb2nu/fi-fhir/pkg/events"
-	"github.com/crb2nu/fi-fhir/pkg/fhir"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/fhir"
 )
 
 func TestRenderTemplate(t *testing.T) {

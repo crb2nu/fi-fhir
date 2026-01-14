@@ -34,10 +34,10 @@
     "interoperability"
   ],
   "author": "",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/crb2nu/fi-fhir.git",
+    "url": "https://gitlab.flexinfer.ai/libs/fi-fhir.git",
     "directory": "sdk/typescript"
   },
   "devDependencies": {

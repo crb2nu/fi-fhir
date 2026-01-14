@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/crb2nu/fi-fhir/pkg/events"
-	"github.com/crb2nu/fi-fhir/pkg/profile"
-	"github.com/crb2nu/fi-fhir/pkg/validate"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/profile"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/validate"
 )
 
 // Common HL7v2 message types

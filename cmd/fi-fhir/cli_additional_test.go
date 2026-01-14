@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/crb2nu/fi-fhir/pkg/etl"
-	"github.com/crb2nu/fi-fhir/pkg/storage"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/etl"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/storage"
 )
 
 // Stub implementations to exercise ETL sync logic without external services.
@@ -102,15 +102,8 @@ func TestSyncSource_DownloadsToSink(t *testing.T) {
 }
 
 func TestCreateMinIOSink_MissingCredentials(t *testing.T) {
-	// Clear env to force credential error path.
-	oldAccess := os.Getenv("MINIO_ACCESS_KEY")
-	oldSecret := os.Getenv("MINIO_SECRET_KEY")
-	os.Unsetenv("MINIO_ACCESS_KEY")
-	os.Unsetenv("MINIO_SECRET_KEY")
-	defer func() {
-		os.Setenv("MINIO_ACCESS_KEY", oldAccess)
-		os.Setenv("MINIO_SECRET_KEY", oldSecret)
-	}()
+	t.Setenv("MINIO_ACCESS_KEY", "")
+	t.Setenv("MINIO_SECRET_KEY", "")
 
 	_, err := createMinIOSink()
 	if err == nil || !contains(err.Error(), "MINIO_ACCESS_KEY") {
@@ -167,19 +160,8 @@ func TestRunETLLoad_MissingVersion(t *testing.T) {
 }
 
 func TestRunETLLoad_MissingDB(t *testing.T) {
-	// Ensure DB env vars are cleared to hit the expected validation branch.
-	oldDB := os.Getenv("FI_FHIR_DATABASE_URL")
-	oldDB2 := os.Getenv("DATABASE_URL")
-	os.Unsetenv("FI_FHIR_DATABASE_URL")
-	os.Unsetenv("DATABASE_URL")
-	defer func() {
-		if oldDB != "" {
-			os.Setenv("FI_FHIR_DATABASE_URL", oldDB)
-		}
-		if oldDB2 != "" {
-			os.Setenv("DATABASE_URL", oldDB2)
-		}
-	}()
+	t.Setenv("FI_FHIR_DATABASE_URL", "")
+	t.Setenv("DATABASE_URL", "")
 
 	err := runETLLoad([]string{"loinc", "/data/path", "--version", "2.77"})
 	if err == nil || (!contains(err.Error(), "database URL") && !contains(err.Error(), "environment variable is required")) {
@@ -189,8 +171,7 @@ func TestRunETLLoad_MissingDB(t *testing.T) {
 
 func TestRunTerminologyDrop_RequiresForce(t *testing.T) {
 	// Set dummy DB URL so function passes initial check and exercises force guard.
-	os.Setenv("FI_FHIR_DATABASE_URL", "postgres://example/test")
-	defer os.Unsetenv("FI_FHIR_DATABASE_URL")
+	t.Setenv("FI_FHIR_DATABASE_URL", "postgres://example/test")
 
 	err := runTerminologyDrop([]string{"--db", "postgres://example/test"})
 	if err != nil {
@@ -199,8 +180,7 @@ func TestRunTerminologyDrop_RequiresForce(t *testing.T) {
 }
 
 func TestRunTerminologyLoad_MissingVersion(t *testing.T) {
-	os.Setenv("FI_FHIR_DATABASE_URL", "postgres://example/test")
-	defer os.Unsetenv("FI_FHIR_DATABASE_URL")
+	t.Setenv("FI_FHIR_DATABASE_URL", "postgres://example/test")
 
 	err := runTerminologyLoad([]string{"loinc", "/data/path"})
 	if err == nil || !contains(err.Error(), "--version is required") {
@@ -216,15 +196,8 @@ func TestRunETLFetchTest_UnknownSource(t *testing.T) {
 }
 
 func TestRunETLStatus_MissingCredentials(t *testing.T) {
-	// Clear env to force early error from createMinIOSink.
-	oldAccess := os.Getenv("MINIO_ACCESS_KEY")
-	oldSecret := os.Getenv("MINIO_SECRET_KEY")
-	os.Unsetenv("MINIO_ACCESS_KEY")
-	os.Unsetenv("MINIO_SECRET_KEY")
-	defer func() {
-		os.Setenv("MINIO_ACCESS_KEY", oldAccess)
-		os.Setenv("MINIO_SECRET_KEY", oldSecret)
-	}()
+	t.Setenv("MINIO_ACCESS_KEY", "")
+	t.Setenv("MINIO_SECRET_KEY", "")
 
 	err := runETLStatus(nil)
 	if err == nil || !contains(err.Error(), "MINIO_ACCESS_KEY") {
@@ -245,7 +218,7 @@ name: Test Profile
 hl7v2:
   default_version: "2.5"`
 	profileYAML = "source_profile:\n  " + strings.ReplaceAll(profileYAML, "\n", "\n  ")
-	if err := os.WriteFile(profilePath, []byte(profileYAML), 0o644); err != nil {
+	if err := os.WriteFile(profilePath, []byte(profileYAML), 0o600); err != nil {
 		t.Fatalf("failed to write profile: %v", err)
 	}
 
@@ -258,9 +231,13 @@ hl7v2:
 func TestValidateMessage_UnsupportedFormat(t *testing.T) {
 	tmpDir := t.TempDir()
 	profilePath := filepath.Join(tmpDir, "profile.yaml")
-	_ = os.WriteFile(profilePath, []byte("id: test\nname: Test"), 0o644)
+	if err := os.WriteFile(profilePath, []byte("id: test\nname: Test"), 0o600); err != nil {
+		t.Fatalf("failed to write profile: %v", err)
+	}
 	msgPath := filepath.Join(tmpDir, "msg.txt")
-	_ = os.WriteFile(msgPath, []byte("dummy"), 0o644)
+	if err := os.WriteFile(msgPath, []byte("dummy"), 0o600); err != nil {
+		t.Fatalf("failed to write msg: %v", err)
+	}
 
 	errs := validateMessage(profilePath, msgPath, "unsupported", false)
 	if len(errs) == 0 {
@@ -269,8 +246,7 @@ func TestValidateMessage_UnsupportedFormat(t *testing.T) {
 }
 
 func TestRunTerminologyCrosswalk_RequiresVocab(t *testing.T) {
-	os.Setenv("FI_FHIR_DATABASE_URL", "postgres://example/test")
-	defer os.Unsetenv("FI_FHIR_DATABASE_URL")
+	t.Setenv("FI_FHIR_DATABASE_URL", "postgres://example/test")
 
 	err := runTerminologyCrosswalk([]string{"E11.9", "--from", "ICD10CM"})
 	if err == nil || !contains(err.Error(), "--from and --to") {

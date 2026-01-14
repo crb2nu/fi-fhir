@@ -1,6 +1,7 @@
 apiVersion: v2
 name: fi-fhir
 description: Healthcare integration platform for transforming HL7v2, CSV, and EDI into FHIR
+icon: https://gitlab.flexinfer.ai/libs/fi-fhir/-/raw/main/assets/icon.png
 
 type: application
 version: 0.1.0
@@ -13,14 +14,14 @@ keywords:
   - edi
   - integration
 
-home: https://github.com/crb2nu/fi-fhir
+home: https://gitlab.flexinfer.ai/libs/fi-fhir
 sources:
-  - https://github.com/crb2nu/fi-fhir
+  - https://gitlab.flexinfer.ai/libs/fi-fhir
 
 maintainers:
   - name: fi-fhir
-    url: https://github.com/crb2nu/fi-fhir
+    url: https://gitlab.flexinfer.ai/libs/fi-fhir
 
 annotations:
   category: Healthcare
-  licenses: MIT
+  licenses: Apache-2.0

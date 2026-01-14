@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/crb2nu/fi-fhir/pkg/etl"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/etl"
 )
 
 // UMLSSourceConfig configures UMLS download source.
@@ -130,7 +130,7 @@ func (s *UMLSSource) Download(ctx context.Context, version string, w io.Writer) 
 	if err != nil {
 		return 0, fmt.Errorf("download request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("download failed: %s", resp.Status)
@@ -174,7 +174,7 @@ func (s *UMLSSource) requestTGT(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
@@ -210,7 +210,7 @@ func (s *UMLSSource) requestServiceTicket(ctx context.Context, tgt string, servi
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))

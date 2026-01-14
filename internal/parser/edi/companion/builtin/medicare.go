@@ -1,7 +1,7 @@
 // Package builtin provides pre-configured companion guides for common payers.
 package builtin
 
-import "github.com/crb2nu/fi-fhir/internal/parser/edi/companion"
+import "gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/edi/companion"
 
 // MedicarePartB returns a companion guide for Medicare Part B 837P claims.
 // This guide enforces CMS-specific requirements for professional claims.

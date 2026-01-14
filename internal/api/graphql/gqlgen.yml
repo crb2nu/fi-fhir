@@ -24,7 +24,7 @@ resolver:
 
 # Automatically bind to existing types
 autobind:
-  - "github.com/crb2nu/fi-fhir/internal/api/graphql/model"
+  - "gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model"
 
 # Custom type mappings
 models:
@@ -43,192 +43,192 @@ models:
   # Use interface for Event type
   Event:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.Event
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.Event
 
   # Enum types
   EventType:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.EventType
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.EventType
   SourceFormat:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.SourceFormat
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.SourceFormat
   EventOrderField:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.EventOrderField
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.EventOrderField
   OrderDirection:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.OrderDirection
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.OrderDirection
 
   # Concrete event types
   PatientAdmitEvent:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.PatientAdmitEvent
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.PatientAdmitEvent
   PatientDischargeEvent:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.PatientDischargeEvent
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.PatientDischargeEvent
   LabResultEvent:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.LabResultEvent
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.LabResultEvent
   VitalSignEvent:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.VitalSignEvent
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.VitalSignEvent
   ConditionEvent:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.ConditionEvent
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.ConditionEvent
   ProcedureEvent:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.ProcedureEvent
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.ProcedureEvent
   ImmunizationEvent:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.ImmunizationEvent
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.ImmunizationEvent
   AppointmentEvent:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.AppointmentEvent
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.AppointmentEvent
   DocumentEvent:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.DocumentEvent
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.DocumentEvent
 
   # Other complex types
   Patient:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.Patient
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.Patient
   Identifier:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.Identifier
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.Identifier
   Address:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.Address
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.Address
   Provider:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.Provider
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.Provider
   Location:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.Location
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.Location
   Encounter:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.Encounter
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.Encounter
   LabTest:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.LabTest
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.LabTest
   LabResult:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.LabResult
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.LabResult
   VitalSign:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.VitalSign
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.VitalSign
   Condition:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.Condition
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.Condition
   Procedure:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.Procedure
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.Procedure
   Immunization:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.Immunization
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.Immunization
   Appointment:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.Appointment
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.Appointment
   PageInfo:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.PageInfo
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.PageInfo
   EventEdge:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.EventEdge
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.EventEdge
   EventConnection:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.EventConnection
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.EventConnection
   PatientEdge:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.PatientEdge
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.PatientEdge
   PatientConnection:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.PatientConnection
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.PatientConnection
   WorkflowStatus:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.WorkflowStatus
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.WorkflowStatus
   ComponentHealth:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.ComponentHealth
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.ComponentHealth
   HealthStatus:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.HealthStatus
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.HealthStatus
   ParseWarning:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.ParseWarning
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.ParseWarning
   ParseResult:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.ParseResult
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.ParseResult
   WorkflowResult:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.WorkflowResult
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.WorkflowResult
   SubmitResult:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.SubmitResult
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.SubmitResult
   FhirSubscription:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.FhirSubscription
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.FhirSubscription
   WorkflowEventNotification:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.WorkflowEventNotification
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.WorkflowEventNotification
 
   # Event Sourcing / Projection types
   TimelineEvent:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.TimelineEvent
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.TimelineEvent
   PatientTimeline:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.PatientTimeline
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.PatientTimeline
   EventTypeCount:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.EventTypeCount
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.EventTypeCount
   SourceCount:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.SourceCount
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.SourceCount
   EventStatistics:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.EventStatistics
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.EventStatistics
   ActiveEncounter:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.ActiveEncounter
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.ActiveEncounter
   ProjectionStatus:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.ProjectionStatus
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.ProjectionStatus
 
   # Input types
   EventFilter:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.EventFilter
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.EventFilter
   EventOrderBy:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.EventOrderBy
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.EventOrderBy
   PatientFilter:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.PatientFilter
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.PatientFilter
   SubmitMessageInput:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.SubmitMessageInput
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.SubmitMessageInput
   SubmitEventInput:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.SubmitEventInput
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.SubmitEventInput
   CreateSubscriptionInput:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.CreateSubscriptionInput
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.CreateSubscriptionInput
   # Batch submission types
   BatchMessageItem:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.BatchMessageItem
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.BatchMessageItem
   BatchEventItem:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.BatchEventItem
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.BatchEventItem
   SubmitBatchInput:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.SubmitBatchInput
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.SubmitBatchInput
   BatchItemResult:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.BatchItemResult
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.BatchItemResult
   BatchResult:
     model:
-      - github.com/crb2nu/fi-fhir/internal/api/graphql/model.BatchResult
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.BatchResult
 
 # gqlgen features
 omit_slice_element_pointers: true

@@ -237,7 +237,7 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 - ~~Configuration management~~ ✓ (`pkg/config/`, CLI `config` command)
 - ~~Deployment examples~~ ✓ (Dockerfile, docker-compose, Kubernetes manifests)
 - ~~Helm chart~~ ✓ (`deploy/helm/fi-fhir/` with full templating)
-- ~~CI/CD pipelines~~ ✓ (GitLab CI primary, GitHub Actions mirror)
+- ~~CI/CD pipelines~~ ✓ (GitLab CI)
 - ~~Production documentation~~ ✓ (`docs/operations/` - hardening guide, runbook)
 - Production monitoring dashboards (Grafana dashboards exist in `dashboards/grafana/`)
 
@@ -458,8 +458,6 @@ classifiedType := p.profile.GetEventClassification(msgType, patientClass)
 | `deploy/helm/fi-fhir/values.yaml` | Helm chart default values (config, secrets, resources) |
 | `deploy/helm/fi-fhir/templates/` | Helm templates (deployment, service, ingress, hpa, pdb, servicemonitor) |
 | `.gitlab-ci.yml` | GitLab CI/CD pipeline (lint, test, security, build, release) |
-| `.github/workflows/ci.yaml` | GitHub Actions CI workflow (lint, test, security, docker) |
-| `.github/workflows/release.yaml` | GitHub Actions release workflow (binaries, docker, helm) |
 | `.golangci.yml` | golangci-lint configuration |
 | `docs/operations/PRODUCTION-HARDENING.md` | Security hardening guide (HIPAA, network policies, secrets) |
 | `docs/operations/RUNBOOK.md` | Operations runbook (troubleshooting, incident response) |

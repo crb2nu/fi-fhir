@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/crb2nu/fi-fhir/internal/api/graphql/model"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model"
 )
 
 func TestMemoryStore_SaveAndGetEvent(t *testing.T) {

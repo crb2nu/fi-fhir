@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/crb2nu/fi-fhir/pkg/eventsourcing"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/eventsourcing"
 )
 
 func TestParseEventStoreConfig(t *testing.T) {

@@ -36,14 +36,14 @@ func TestUMLSSource_Download(t *testing.T) {
 				http.Error(w, "missing service", http.StatusBadRequest)
 				return
 			}
-			fmt.Fprint(w, "ST-abc")
+			_, _ = fmt.Fprint(w, "ST-abc")
 		case downloadPath:
 			if ticket := r.URL.Query().Get("ticket"); ticket != "ST-abc" {
 				http.Error(w, "missing ticket", http.StatusUnauthorized)
 				return
 			}
 			downloadCalled = true
-			fmt.Fprint(w, "content")
+			_, _ = fmt.Fprint(w, "content")
 		default:
 			http.NotFound(w, r)
 		}

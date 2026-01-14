@@ -3,8 +3,8 @@ package builtin
 import (
 	"testing"
 
-	"github.com/crb2nu/fi-fhir/internal/parser/edi"
-	"github.com/crb2nu/fi-fhir/internal/parser/edi/companion"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/edi"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/edi/companion"
 )
 
 func TestMedicarePartB(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/crb2nu/fi-fhir/pkg/storage"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/storage"
 )
 
 // MinIOSink writes data to MinIO/S3 storage.

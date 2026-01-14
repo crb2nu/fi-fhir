@@ -4,8 +4,8 @@
 
 A format-agnostic healthcare integration platform that transforms legacy formats (HL7v2, CSV, EDI X12) into semantic events and routes them through configurable workflows.
 
-[![CI](https://github.com/crb2nu/fi-fhir/actions/workflows/ci.yaml/badge.svg)](https://github.com/crb2nu/fi-fhir/actions/workflows/ci.yaml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/crb2nu/fi-fhir)](https://goreportcard.com/report/github.com/crb2nu/fi-fhir)
+[![pipeline status](https://gitlab.flexinfer.ai/libs/fi-fhir/badges/main/pipeline.svg)](https://gitlab.flexinfer.ai/libs/fi-fhir/-/commits/main)
+[![coverage report](https://gitlab.flexinfer.ai/libs/fi-fhir/badges/main/coverage.svg)](https://gitlab.flexinfer.ai/libs/fi-fhir/-/commits/main)
 
 ## Overview
 
@@ -46,10 +46,10 @@ See `ui/README.md` for the current UI roadmap and dev commands.
 
 ```bash
 # From source
-go install github.com/crb2nu/fi-fhir/cmd/fi-fhir@latest
+go install gitlab.flexinfer.ai/libs/fi-fhir/cmd/fi-fhir@latest
 
 # Or build locally
-git clone https://github.com/crb2nu/fi-fhir.git
+git clone https://gitlab.flexinfer.ai/libs/fi-fhir.git
 cd fi-fhir
 make build
 ```
@@ -57,8 +57,8 @@ make build
 ### Docker
 
 ```bash
-docker pull ghcr.io/cblevins/fi-fhir:latest
-docker run -p 8080:8080 ghcr.io/cblevins/fi-fhir:latest
+docker pull registry.gitlab.flexinfer.ai/libs/fi-fhir:latest
+docker run -p 8080:8080 registry.gitlab.flexinfer.ai/libs/fi-fhir:latest
 ```
 
 ### Helm
@@ -378,4 +378,4 @@ See [AGENTS.md](AGENTS.md) for architecture guidance and coding conventions.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE)
+Apache License 2.0 - see [LICENSE](LICENSE)

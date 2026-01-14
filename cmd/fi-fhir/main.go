@@ -18,19 +18,19 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/crb2nu/fi-fhir/internal/api/graphql"
-	"github.com/crb2nu/fi-fhir/internal/api/graphql/resolvers"
-	"github.com/crb2nu/fi-fhir/internal/fhir/subscription"
-	"github.com/crb2nu/fi-fhir/internal/parser/cda"
-	"github.com/crb2nu/fi-fhir/internal/parser/csv"
-	"github.com/crb2nu/fi-fhir/internal/parser/edi"
-	"github.com/crb2nu/fi-fhir/internal/parser/edi/companion"
-	"github.com/crb2nu/fi-fhir/internal/parser/edi/companion/builtin"
-	"github.com/crb2nu/fi-fhir/internal/parser/hl7v2"
-	"github.com/crb2nu/fi-fhir/internal/workflow"
-	"github.com/crb2nu/fi-fhir/pkg/config"
-	"github.com/crb2nu/fi-fhir/pkg/events"
-	"github.com/crb2nu/fi-fhir/pkg/profile"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/resolvers"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/fhir/subscription"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/cda"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/csv"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/edi"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/edi/companion"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/edi/companion/builtin"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/hl7v2"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/workflow"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/config"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/profile"
 )
 
 const version = "0.1.0"
@@ -160,7 +160,7 @@ Examples:
   fi-fhir eventstore init --db "$DATABASE_URL"
   fi-fhir projection run --db "$DATABASE_URL"
 
-For more information, visit: https://github.com/crb2nu/fi-fhir`)
+For more information, visit: https://gitlab.flexinfer.ai/libs/fi-fhir`)
 }
 
 func runParse(args []string) error {

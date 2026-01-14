@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/crb2nu/fi-fhir/internal/api/graphql/model"
-	"github.com/crb2nu/fi-fhir/pkg/events"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 )
 
 // strPtr returns a pointer to the string, or nil if empty.

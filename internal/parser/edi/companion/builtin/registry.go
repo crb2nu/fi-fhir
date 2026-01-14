@@ -1,6 +1,6 @@
 package builtin
 
-import "github.com/crb2nu/fi-fhir/internal/parser/edi/companion"
+import "gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/edi/companion"
 
 // RegisterAll registers all built-in companion guides into the provided registry.
 func RegisterAll(registry *companion.Registry) error {

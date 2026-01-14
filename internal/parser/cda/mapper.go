@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/crb2nu/fi-fhir/pkg/events"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 )
 
 // Mapper converts CDA documents to canonical events.

@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/crb2nu/fi-fhir/pkg/storage"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/storage"
 )
 
 // BulkLoader provides efficient bulk loading of terminology data into PostgreSQL.

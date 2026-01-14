@@ -3,7 +3,7 @@ package companion
 import (
 	"testing"
 
-	"github.com/crb2nu/fi-fhir/internal/parser/edi"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/edi"
 )
 
 func TestParsePath(t *testing.T) {

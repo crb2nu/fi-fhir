@@ -15,9 +15,9 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
-	"github.com/crb2nu/fi-fhir/internal/api/graphql/model"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model"
 )
 
 // region    ************************** generated!.gotpl **************************
@@ -2476,7 +2476,7 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 func (ec *executionContext) field_Mutation_createFhirSubscription_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNCreateSubscriptionInput2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐCreateSubscriptionInput)
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNCreateSubscriptionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐCreateSubscriptionInput)
 	if err != nil {
 		return nil, err
 	}
@@ -2520,7 +2520,7 @@ func (ec *executionContext) field_Mutation_resumeFhirSubscription_args(ctx conte
 func (ec *executionContext) field_Mutation_submitBatch_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNSubmitBatchInput2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSubmitBatchInput)
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNSubmitBatchInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSubmitBatchInput)
 	if err != nil {
 		return nil, err
 	}
@@ -2531,7 +2531,7 @@ func (ec *executionContext) field_Mutation_submitBatch_args(ctx context.Context,
 func (ec *executionContext) field_Mutation_submitEvent_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNSubmitEventInput2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSubmitEventInput)
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNSubmitEventInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSubmitEventInput)
 	if err != nil {
 		return nil, err
 	}
@@ -2542,7 +2542,7 @@ func (ec *executionContext) field_Mutation_submitEvent_args(ctx context.Context,
 func (ec *executionContext) field_Mutation_submitMessage_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNSubmitMessageInput2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSubmitMessageInput)
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNSubmitMessageInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSubmitMessageInput)
 	if err != nil {
 		return nil, err
 	}
@@ -2634,7 +2634,7 @@ func (ec *executionContext) field_Query_event_args(ctx context.Context, rawArgs 
 func (ec *executionContext) field_Query_events_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "filter", ec.unmarshalOEventFilter2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventFilter)
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "filter", ec.unmarshalOEventFilter2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventFilter)
 	if err != nil {
 		return nil, err
 	}
@@ -2649,7 +2649,7 @@ func (ec *executionContext) field_Query_events_args(ctx context.Context, rawArgs
 		return nil, err
 	}
 	args["after"] = arg2
-	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "orderBy", ec.unmarshalOEventOrderBy2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventOrderBy)
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "orderBy", ec.unmarshalOEventOrderBy2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventOrderBy)
 	if err != nil {
 		return nil, err
 	}
@@ -2660,7 +2660,7 @@ func (ec *executionContext) field_Query_events_args(ctx context.Context, rawArgs
 func (ec *executionContext) field_Query_parsePreview_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "format", ec.unmarshalNSourceFormat2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat)
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "format", ec.unmarshalNSourceFormat2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat)
 	if err != nil {
 		return nil, err
 	}
@@ -2718,7 +2718,7 @@ func (ec *executionContext) field_Query_patient_args(ctx context.Context, rawArg
 func (ec *executionContext) field_Query_patients_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "filter", ec.unmarshalOPatientFilter2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatientFilter)
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "filter", ec.unmarshalOPatientFilter2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatientFilter)
 	if err != nil {
 		return nil, err
 	}
@@ -2750,7 +2750,7 @@ func (ec *executionContext) field_Query_workflow_args(ctx context.Context, rawAr
 func (ec *executionContext) field_Subscription_eventStream_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "filter", ec.unmarshalOEventFilter2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventFilter)
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "filter", ec.unmarshalOEventFilter2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventFilter)
 	if err != nil {
 		return nil, err
 	}
@@ -3451,7 +3451,7 @@ func (ec *executionContext) _Appointment_location(ctx context.Context, field gra
 			return obj.Location, nil
 		},
 		nil,
-		ec.marshalOLocation2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLocation,
+		ec.marshalOLocation2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLocation,
 		true,
 		false,
 	)
@@ -3490,7 +3490,7 @@ func (ec *executionContext) _Appointment_provider(ctx context.Context, field gra
 			return obj.Provider, nil
 		},
 		nil,
-		ec.marshalOProvider2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProvider,
+		ec.marshalOProvider2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProvider,
 		true,
 		false,
 	)
@@ -3591,7 +3591,7 @@ func (ec *executionContext) _AppointmentEvent_type(ctx context.Context, field gr
 			return obj.Type, nil
 		},
 		nil,
-		ec.marshalNEventType2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType,
+		ec.marshalNEventType2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType,
 		true,
 		true,
 	)
@@ -3678,7 +3678,7 @@ func (ec *executionContext) _AppointmentEvent_sourceFormat(ctx context.Context, 
 			return obj.SourceFormat, nil
 		},
 		nil,
-		ec.marshalOSourceFormat2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat,
+		ec.marshalOSourceFormat2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat,
 		true,
 		false,
 	)
@@ -3736,7 +3736,7 @@ func (ec *executionContext) _AppointmentEvent_patient(ctx context.Context, field
 			return obj.Patient, nil
 		},
 		nil,
-		ec.marshalNPatient2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient,
+		ec.marshalNPatient2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient,
 		true,
 		true,
 	)
@@ -3787,7 +3787,7 @@ func (ec *executionContext) _AppointmentEvent_appointment(ctx context.Context, f
 			return obj.Appointment, nil
 		},
 		nil,
-		ec.marshalNAppointment2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAppointment,
+		ec.marshalNAppointment2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAppointment,
 		true,
 		true,
 	)
@@ -3919,7 +3919,7 @@ func (ec *executionContext) _BatchItemResult_warnings(ctx context.Context, field
 			return obj.Warnings, nil
 		},
 		nil,
-		ec.marshalNParseWarning2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐParseWarningᚄ,
+		ec.marshalNParseWarning2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐParseWarningᚄ,
 		true,
 		true,
 	)
@@ -3987,7 +3987,7 @@ func (ec *executionContext) _BatchItemResult_workflowResults(ctx context.Context
 			return obj.WorkflowResults, nil
 		},
 		nil,
-		ec.marshalNWorkflowResult2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowResultᚄ,
+		ec.marshalNWorkflowResult2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowResultᚄ,
 		true,
 		true,
 	)
@@ -4115,7 +4115,7 @@ func (ec *executionContext) _BatchResult_results(ctx context.Context, field grap
 			return obj.Results, nil
 		},
 		nil,
-		ec.marshalNBatchItemResult2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchItemResultᚄ,
+		ec.marshalNBatchItemResult2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchItemResultᚄ,
 		true,
 		true,
 	)
@@ -4419,7 +4419,7 @@ func (ec *executionContext) _ConditionEvent_type(ctx context.Context, field grap
 			return obj.Type, nil
 		},
 		nil,
-		ec.marshalNEventType2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType,
+		ec.marshalNEventType2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType,
 		true,
 		true,
 	)
@@ -4506,7 +4506,7 @@ func (ec *executionContext) _ConditionEvent_sourceFormat(ctx context.Context, fi
 			return obj.SourceFormat, nil
 		},
 		nil,
-		ec.marshalOSourceFormat2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat,
+		ec.marshalOSourceFormat2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat,
 		true,
 		false,
 	)
@@ -4564,7 +4564,7 @@ func (ec *executionContext) _ConditionEvent_patient(ctx context.Context, field g
 			return obj.Patient, nil
 		},
 		nil,
-		ec.marshalNPatient2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient,
+		ec.marshalNPatient2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient,
 		true,
 		true,
 	)
@@ -4615,7 +4615,7 @@ func (ec *executionContext) _ConditionEvent_condition(ctx context.Context, field
 			return obj.Condition, nil
 		},
 		nil,
-		ec.marshalNCondition2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐCondition,
+		ec.marshalNCondition2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐCondition,
 		true,
 		true,
 	)
@@ -4741,7 +4741,7 @@ func (ec *executionContext) _DocumentEvent_type(ctx context.Context, field graph
 			return obj.Type, nil
 		},
 		nil,
-		ec.marshalNEventType2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType,
+		ec.marshalNEventType2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType,
 		true,
 		true,
 	)
@@ -4828,7 +4828,7 @@ func (ec *executionContext) _DocumentEvent_sourceFormat(ctx context.Context, fie
 			return obj.SourceFormat, nil
 		},
 		nil,
-		ec.marshalOSourceFormat2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat,
+		ec.marshalOSourceFormat2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat,
 		true,
 		false,
 	)
@@ -4886,7 +4886,7 @@ func (ec *executionContext) _DocumentEvent_patient(ctx context.Context, field gr
 			return obj.Patient, nil
 		},
 		nil,
-		ec.marshalOPatient2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient,
+		ec.marshalOPatient2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient,
 		true,
 		false,
 	)
@@ -5140,7 +5140,7 @@ func (ec *executionContext) _Encounter_location(ctx context.Context, field graph
 			return obj.Location, nil
 		},
 		nil,
-		ec.marshalOLocation2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLocation,
+		ec.marshalOLocation2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLocation,
 		true,
 		false,
 	)
@@ -5179,7 +5179,7 @@ func (ec *executionContext) _Encounter_attendingProvider(ctx context.Context, fi
 			return obj.AttendingProvider, nil
 		},
 		nil,
-		ec.marshalOProvider2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProvider,
+		ec.marshalOProvider2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProvider,
 		true,
 		false,
 	)
@@ -5222,7 +5222,7 @@ func (ec *executionContext) _EventConnection_edges(ctx context.Context, field gr
 			return obj.Edges, nil
 		},
 		nil,
-		ec.marshalNEventEdge2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventEdgeᚄ,
+		ec.marshalNEventEdge2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventEdgeᚄ,
 		true,
 		true,
 	)
@@ -5257,7 +5257,7 @@ func (ec *executionContext) _EventConnection_pageInfo(ctx context.Context, field
 			return obj.PageInfo, nil
 		},
 		nil,
-		ec.marshalNPageInfo2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPageInfo,
+		ec.marshalNPageInfo2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPageInfo,
 		true,
 		true,
 	)
@@ -5354,7 +5354,7 @@ func (ec *executionContext) _EventEdge_node(ctx context.Context, field graphql.C
 			return obj.Node, nil
 		},
 		nil,
-		ec.marshalNEvent2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEvent,
+		ec.marshalNEvent2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEvent,
 		true,
 		true,
 	)
@@ -5412,7 +5412,7 @@ func (ec *executionContext) _EventStatistics_byType(ctx context.Context, field g
 			return obj.ByType, nil
 		},
 		nil,
-		ec.marshalNEventTypeCount2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventTypeCountᚄ,
+		ec.marshalNEventTypeCount2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventTypeCountᚄ,
 		true,
 		true,
 	)
@@ -5447,7 +5447,7 @@ func (ec *executionContext) _EventStatistics_bySource(ctx context.Context, field
 			return obj.BySource, nil
 		},
 		nil,
-		ec.marshalNSourceCount2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceCountᚄ,
+		ec.marshalNSourceCount2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceCountᚄ,
 		true,
 		true,
 	)
@@ -5830,7 +5830,7 @@ func (ec *executionContext) _HealthStatus_components(ctx context.Context, field 
 			return obj.Components, nil
 		},
 		nil,
-		ec.marshalNComponentHealth2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐComponentHealthᚄ,
+		ec.marshalNComponentHealth2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐComponentHealthᚄ,
 		true,
 		true,
 	)
@@ -6099,7 +6099,7 @@ func (ec *executionContext) _ImmunizationEvent_type(ctx context.Context, field g
 			return obj.Type, nil
 		},
 		nil,
-		ec.marshalNEventType2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType,
+		ec.marshalNEventType2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType,
 		true,
 		true,
 	)
@@ -6186,7 +6186,7 @@ func (ec *executionContext) _ImmunizationEvent_sourceFormat(ctx context.Context,
 			return obj.SourceFormat, nil
 		},
 		nil,
-		ec.marshalOSourceFormat2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat,
+		ec.marshalOSourceFormat2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat,
 		true,
 		false,
 	)
@@ -6244,7 +6244,7 @@ func (ec *executionContext) _ImmunizationEvent_patient(ctx context.Context, fiel
 			return obj.Patient, nil
 		},
 		nil,
-		ec.marshalNPatient2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient,
+		ec.marshalNPatient2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient,
 		true,
 		true,
 	)
@@ -6295,7 +6295,7 @@ func (ec *executionContext) _ImmunizationEvent_immunization(ctx context.Context,
 			return obj.Immunization, nil
 		},
 		nil,
-		ec.marshalNImmunization2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐImmunization,
+		ec.marshalNImmunization2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐImmunization,
 		true,
 		true,
 	)
@@ -6535,7 +6535,7 @@ func (ec *executionContext) _LabResultEvent_type(ctx context.Context, field grap
 			return obj.Type, nil
 		},
 		nil,
-		ec.marshalNEventType2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType,
+		ec.marshalNEventType2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType,
 		true,
 		true,
 	)
@@ -6622,7 +6622,7 @@ func (ec *executionContext) _LabResultEvent_sourceFormat(ctx context.Context, fi
 			return obj.SourceFormat, nil
 		},
 		nil,
-		ec.marshalOSourceFormat2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat,
+		ec.marshalOSourceFormat2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat,
 		true,
 		false,
 	)
@@ -6680,7 +6680,7 @@ func (ec *executionContext) _LabResultEvent_patient(ctx context.Context, field g
 			return obj.Patient, nil
 		},
 		nil,
-		ec.marshalNPatient2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient,
+		ec.marshalNPatient2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient,
 		true,
 		true,
 	)
@@ -6731,7 +6731,7 @@ func (ec *executionContext) _LabResultEvent_test(ctx context.Context, field grap
 			return obj.Test, nil
 		},
 		nil,
-		ec.marshalNLabTest2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLabTest,
+		ec.marshalNLabTest2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLabTest,
 		true,
 		true,
 	)
@@ -6770,7 +6770,7 @@ func (ec *executionContext) _LabResultEvent_result(ctx context.Context, field gr
 			return obj.Result, nil
 		},
 		nil,
-		ec.marshalNLabResult2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLabResult,
+		ec.marshalNLabResult2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLabResult,
 		true,
 		true,
 	)
@@ -6840,7 +6840,7 @@ func (ec *executionContext) _LabResultEvent_orderingProvider(ctx context.Context
 			return obj.OrderingProvider, nil
 		},
 		nil,
-		ec.marshalOProvider2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProvider,
+		ec.marshalOProvider2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProvider,
 		true,
 		false,
 	)
@@ -7116,7 +7116,7 @@ func (ec *executionContext) _Mutation_submitMessage(ctx context.Context, field g
 			return ec.resolvers.Mutation().SubmitMessage(ctx, fc.Args["input"].(model.SubmitMessageInput))
 		},
 		nil,
-		ec.marshalNSubmitResult2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSubmitResult,
+		ec.marshalNSubmitResult2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSubmitResult,
 		true,
 		true,
 	)
@@ -7169,7 +7169,7 @@ func (ec *executionContext) _Mutation_submitEvent(ctx context.Context, field gra
 			return ec.resolvers.Mutation().SubmitEvent(ctx, fc.Args["input"].(model.SubmitEventInput))
 		},
 		nil,
-		ec.marshalNSubmitResult2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSubmitResult,
+		ec.marshalNSubmitResult2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSubmitResult,
 		true,
 		true,
 	)
@@ -7222,7 +7222,7 @@ func (ec *executionContext) _Mutation_submitBatch(ctx context.Context, field gra
 			return ec.resolvers.Mutation().SubmitBatch(ctx, fc.Args["input"].(model.SubmitBatchInput))
 		},
 		nil,
-		ec.marshalNBatchResult2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchResult,
+		ec.marshalNBatchResult2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchResult,
 		true,
 		true,
 	)
@@ -7275,7 +7275,7 @@ func (ec *executionContext) _Mutation_triggerWorkflow(ctx context.Context, field
 			return ec.resolvers.Mutation().TriggerWorkflow(ctx, fc.Args["name"].(string), fc.Args["event"].(map[string]any))
 		},
 		nil,
-		ec.marshalNWorkflowResult2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowResult,
+		ec.marshalNWorkflowResult2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowResult,
 		true,
 		true,
 	)
@@ -7328,7 +7328,7 @@ func (ec *executionContext) _Mutation_createFhirSubscription(ctx context.Context
 			return ec.resolvers.Mutation().CreateFhirSubscription(ctx, fc.Args["input"].(model.CreateSubscriptionInput))
 		},
 		nil,
-		ec.marshalNFhirSubscription2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐFhirSubscription,
+		ec.marshalNFhirSubscription2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐFhirSubscription,
 		true,
 		true,
 	)
@@ -7426,7 +7426,7 @@ func (ec *executionContext) _Mutation_pauseFhirSubscription(ctx context.Context,
 			return ec.resolvers.Mutation().PauseFhirSubscription(ctx, fc.Args["id"].(string))
 		},
 		nil,
-		ec.marshalNFhirSubscription2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐFhirSubscription,
+		ec.marshalNFhirSubscription2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐFhirSubscription,
 		true,
 		true,
 	)
@@ -7483,7 +7483,7 @@ func (ec *executionContext) _Mutation_resumeFhirSubscription(ctx context.Context
 			return ec.resolvers.Mutation().ResumeFhirSubscription(ctx, fc.Args["id"].(string))
 		},
 		nil,
-		ec.marshalNFhirSubscription2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐFhirSubscription,
+		ec.marshalNFhirSubscription2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐFhirSubscription,
 		true,
 		true,
 	)
@@ -7684,7 +7684,7 @@ func (ec *executionContext) _ParseResult_events(ctx context.Context, field graph
 			return obj.Events, nil
 		},
 		nil,
-		ec.marshalNEvent2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventᚄ,
+		ec.marshalNEvent2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventᚄ,
 		true,
 		true,
 	)
@@ -7713,7 +7713,7 @@ func (ec *executionContext) _ParseResult_warnings(ctx context.Context, field gra
 			return obj.Warnings, nil
 		},
 		nil,
-		ec.marshalNParseWarning2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐParseWarningᚄ,
+		ec.marshalNParseWarning2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐParseWarningᚄ,
 		true,
 		true,
 	)
@@ -7926,7 +7926,7 @@ func (ec *executionContext) _Patient_identifiers(ctx context.Context, field grap
 			return obj.Identifiers, nil
 		},
 		nil,
-		ec.marshalNIdentifier2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIdentifierᚄ,
+		ec.marshalNIdentifier2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIdentifierᚄ,
 		true,
 		true,
 	)
@@ -8110,7 +8110,7 @@ func (ec *executionContext) _Patient_address(ctx context.Context, field graphql.
 			return obj.Address, nil
 		},
 		nil,
-		ec.marshalOAddress2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAddress,
+		ec.marshalOAddress2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAddress,
 		true,
 		false,
 	)
@@ -8240,7 +8240,7 @@ func (ec *executionContext) _PatientAdmitEvent_type(ctx context.Context, field g
 			return obj.Type, nil
 		},
 		nil,
-		ec.marshalNEventType2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType,
+		ec.marshalNEventType2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType,
 		true,
 		true,
 	)
@@ -8327,7 +8327,7 @@ func (ec *executionContext) _PatientAdmitEvent_sourceFormat(ctx context.Context,
 			return obj.SourceFormat, nil
 		},
 		nil,
-		ec.marshalOSourceFormat2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat,
+		ec.marshalOSourceFormat2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat,
 		true,
 		false,
 	)
@@ -8385,7 +8385,7 @@ func (ec *executionContext) _PatientAdmitEvent_patient(ctx context.Context, fiel
 			return obj.Patient, nil
 		},
 		nil,
-		ec.marshalNPatient2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient,
+		ec.marshalNPatient2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient,
 		true,
 		true,
 	)
@@ -8436,7 +8436,7 @@ func (ec *executionContext) _PatientAdmitEvent_encounter(ctx context.Context, fi
 			return obj.Encounter, nil
 		},
 		nil,
-		ec.marshalNEncounter2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEncounter,
+		ec.marshalNEncounter2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEncounter,
 		true,
 		true,
 	)
@@ -8481,7 +8481,7 @@ func (ec *executionContext) _PatientConnection_edges(ctx context.Context, field 
 			return obj.Edges, nil
 		},
 		nil,
-		ec.marshalNPatientEdge2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatientEdgeᚄ,
+		ec.marshalNPatientEdge2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatientEdgeᚄ,
 		true,
 		true,
 	)
@@ -8516,7 +8516,7 @@ func (ec *executionContext) _PatientConnection_pageInfo(ctx context.Context, fie
 			return obj.PageInfo, nil
 		},
 		nil,
-		ec.marshalNPageInfo2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPageInfo,
+		ec.marshalNPageInfo2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPageInfo,
 		true,
 		true,
 	)
@@ -8613,7 +8613,7 @@ func (ec *executionContext) _PatientDischargeEvent_type(ctx context.Context, fie
 			return obj.Type, nil
 		},
 		nil,
-		ec.marshalNEventType2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType,
+		ec.marshalNEventType2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType,
 		true,
 		true,
 	)
@@ -8700,7 +8700,7 @@ func (ec *executionContext) _PatientDischargeEvent_sourceFormat(ctx context.Cont
 			return obj.SourceFormat, nil
 		},
 		nil,
-		ec.marshalOSourceFormat2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat,
+		ec.marshalOSourceFormat2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat,
 		true,
 		false,
 	)
@@ -8758,7 +8758,7 @@ func (ec *executionContext) _PatientDischargeEvent_patient(ctx context.Context, 
 			return obj.Patient, nil
 		},
 		nil,
-		ec.marshalNPatient2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient,
+		ec.marshalNPatient2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient,
 		true,
 		true,
 	)
@@ -8809,7 +8809,7 @@ func (ec *executionContext) _PatientDischargeEvent_encounter(ctx context.Context
 			return obj.Encounter, nil
 		},
 		nil,
-		ec.marshalNEncounter2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEncounter,
+		ec.marshalNEncounter2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEncounter,
 		true,
 		true,
 	)
@@ -8883,7 +8883,7 @@ func (ec *executionContext) _PatientEdge_node(ctx context.Context, field graphql
 			return obj.Node, nil
 		},
 		nil,
-		ec.marshalNPatient2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient,
+		ec.marshalNPatient2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient,
 		true,
 		true,
 	)
@@ -8963,7 +8963,7 @@ func (ec *executionContext) _PatientTimeline_events(ctx context.Context, field g
 			return obj.Events, nil
 		},
 		nil,
-		ec.marshalNTimelineEvent2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTimelineEventᚄ,
+		ec.marshalNTimelineEvent2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTimelineEventᚄ,
 		true,
 		true,
 	)
@@ -9209,7 +9209,7 @@ func (ec *executionContext) _ProcedureEvent_type(ctx context.Context, field grap
 			return obj.Type, nil
 		},
 		nil,
-		ec.marshalNEventType2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType,
+		ec.marshalNEventType2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType,
 		true,
 		true,
 	)
@@ -9296,7 +9296,7 @@ func (ec *executionContext) _ProcedureEvent_sourceFormat(ctx context.Context, fi
 			return obj.SourceFormat, nil
 		},
 		nil,
-		ec.marshalOSourceFormat2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat,
+		ec.marshalOSourceFormat2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat,
 		true,
 		false,
 	)
@@ -9354,7 +9354,7 @@ func (ec *executionContext) _ProcedureEvent_patient(ctx context.Context, field g
 			return obj.Patient, nil
 		},
 		nil,
-		ec.marshalNPatient2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient,
+		ec.marshalNPatient2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient,
 		true,
 		true,
 	)
@@ -9405,7 +9405,7 @@ func (ec *executionContext) _ProcedureEvent_procedure(ctx context.Context, field
 			return obj.Procedure, nil
 		},
 		nil,
-		ec.marshalNProcedure2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProcedure,
+		ec.marshalNProcedure2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProcedure,
 		true,
 		true,
 	)
@@ -9793,7 +9793,7 @@ func (ec *executionContext) _Query_event(ctx context.Context, field graphql.Coll
 			return ec.resolvers.Query().Event(ctx, fc.Args["id"].(string))
 		},
 		nil,
-		ec.marshalOEvent2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEvent,
+		ec.marshalOEvent2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEvent,
 		true,
 		false,
 	)
@@ -9834,7 +9834,7 @@ func (ec *executionContext) _Query_events(ctx context.Context, field graphql.Col
 			return ec.resolvers.Query().Events(ctx, fc.Args["filter"].(*model.EventFilter), fc.Args["first"].(*int), fc.Args["after"].(*string), fc.Args["orderBy"].(*model.EventOrderBy))
 		},
 		nil,
-		ec.marshalNEventConnection2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventConnection,
+		ec.marshalNEventConnection2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventConnection,
 		true,
 		true,
 	)
@@ -9883,7 +9883,7 @@ func (ec *executionContext) _Query_patient(ctx context.Context, field graphql.Co
 			return ec.resolvers.Query().Patient(ctx, fc.Args["mrn"].(string))
 		},
 		nil,
-		ec.marshalOPatient2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient,
+		ec.marshalOPatient2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient,
 		true,
 		false,
 	)
@@ -9946,7 +9946,7 @@ func (ec *executionContext) _Query_patients(ctx context.Context, field graphql.C
 			return ec.resolvers.Query().Patients(ctx, fc.Args["filter"].(*model.PatientFilter), fc.Args["first"].(*int), fc.Args["after"].(*string))
 		},
 		nil,
-		ec.marshalNPatientConnection2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatientConnection,
+		ec.marshalNPatientConnection2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatientConnection,
 		true,
 		true,
 	)
@@ -9995,7 +9995,7 @@ func (ec *executionContext) _Query_workflow(ctx context.Context, field graphql.C
 			return ec.resolvers.Query().Workflow(ctx, fc.Args["name"].(string))
 		},
 		nil,
-		ec.marshalOWorkflowStatus2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowStatus,
+		ec.marshalOWorkflowStatus2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowStatus,
 		true,
 		false,
 	)
@@ -10049,7 +10049,7 @@ func (ec *executionContext) _Query_workflows(ctx context.Context, field graphql.
 			return ec.resolvers.Query().Workflows(ctx)
 		},
 		nil,
-		ec.marshalNWorkflowStatus2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowStatusᚄ,
+		ec.marshalNWorkflowStatus2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowStatusᚄ,
 		true,
 		true,
 	)
@@ -10092,7 +10092,7 @@ func (ec *executionContext) _Query_health(ctx context.Context, field graphql.Col
 			return ec.resolvers.Query().Health(ctx)
 		},
 		nil,
-		ec.marshalNHealthStatus2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐHealthStatus,
+		ec.marshalNHealthStatus2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐHealthStatus,
 		true,
 		true,
 	)
@@ -10132,7 +10132,7 @@ func (ec *executionContext) _Query_parsePreview(ctx context.Context, field graph
 			return ec.resolvers.Query().ParsePreview(ctx, fc.Args["format"].(model.SourceFormat), fc.Args["data"].(string), fc.Args["source"].(*string))
 		},
 		nil,
-		ec.marshalNParseResult2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐParseResult,
+		ec.marshalNParseResult2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐParseResult,
 		true,
 		true,
 	)
@@ -10183,7 +10183,7 @@ func (ec *executionContext) _Query_patientTimeline(ctx context.Context, field gr
 			return ec.resolvers.Query().PatientTimeline(ctx, fc.Args["mrn"].(string), fc.Args["fromTimestamp"].(*time.Time), fc.Args["toTimestamp"].(*time.Time), fc.Args["limit"].(*int))
 		},
 		nil,
-		ec.marshalOPatientTimeline2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatientTimeline,
+		ec.marshalOPatientTimeline2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatientTimeline,
 		true,
 		false,
 	)
@@ -10233,7 +10233,7 @@ func (ec *executionContext) _Query_eventStatistics(ctx context.Context, field gr
 			return ec.resolvers.Query().EventStatistics(ctx)
 		},
 		nil,
-		ec.marshalNEventStatistics2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventStatistics,
+		ec.marshalNEventStatistics2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventStatistics,
 		true,
 		true,
 	)
@@ -10271,7 +10271,7 @@ func (ec *executionContext) _Query_activeEncounters(ctx context.Context, field g
 			return ec.resolvers.Query().ActiveEncounters(ctx, fc.Args["location"].(*string), fc.Args["unit"].(*string), fc.Args["class"].(*string))
 		},
 		nil,
-		ec.marshalNActiveEncounter2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐActiveEncounterᚄ,
+		ec.marshalNActiveEncounter2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐActiveEncounterᚄ,
 		true,
 		true,
 	)
@@ -10336,7 +10336,7 @@ func (ec *executionContext) _Query_activeEncounter(ctx context.Context, field gr
 			return ec.resolvers.Query().ActiveEncounter(ctx, fc.Args["id"].(string))
 		},
 		nil,
-		ec.marshalOActiveEncounter2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐActiveEncounter,
+		ec.marshalOActiveEncounter2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐActiveEncounter,
 		true,
 		false,
 	)
@@ -10401,7 +10401,7 @@ func (ec *executionContext) _Query_activeEncounterByPatient(ctx context.Context,
 			return ec.resolvers.Query().ActiveEncounterByPatient(ctx, fc.Args["mrn"].(string))
 		},
 		nil,
-		ec.marshalOActiveEncounter2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐActiveEncounter,
+		ec.marshalOActiveEncounter2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐActiveEncounter,
 		true,
 		false,
 	)
@@ -10465,7 +10465,7 @@ func (ec *executionContext) _Query_projectionStatus(ctx context.Context, field g
 			return ec.resolvers.Query().ProjectionStatus(ctx)
 		},
 		nil,
-		ec.marshalNProjectionStatus2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProjectionStatusᚄ,
+		ec.marshalNProjectionStatus2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProjectionStatusᚄ,
 		true,
 		true,
 	)
@@ -10730,7 +10730,7 @@ func (ec *executionContext) _SubmitResult_warnings(ctx context.Context, field gr
 			return obj.Warnings, nil
 		},
 		nil,
-		ec.marshalNParseWarning2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐParseWarningᚄ,
+		ec.marshalNParseWarning2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐParseWarningᚄ,
 		true,
 		true,
 	)
@@ -10798,7 +10798,7 @@ func (ec *executionContext) _SubmitResult_workflowResults(ctx context.Context, f
 			return obj.WorkflowResults, nil
 		},
 		nil,
-		ec.marshalNWorkflowResult2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowResultᚄ,
+		ec.marshalNWorkflowResult2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowResultᚄ,
 		true,
 		true,
 	)
@@ -10840,7 +10840,7 @@ func (ec *executionContext) _Subscription_eventStream(ctx context.Context, field
 			return ec.resolvers.Subscription().EventStream(ctx, fc.Args["filter"].(*model.EventFilter))
 		},
 		nil,
-		ec.marshalNEvent2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEvent,
+		ec.marshalNEvent2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEvent,
 		true,
 		true,
 	)
@@ -10881,7 +10881,7 @@ func (ec *executionContext) _Subscription_workflowEvents(ctx context.Context, fi
 			return ec.resolvers.Subscription().WorkflowEvents(ctx, fc.Args["workflowName"].(string))
 		},
 		nil,
-		ec.marshalNWorkflowEventNotification2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowEventNotification,
+		ec.marshalNWorkflowEventNotification2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowEventNotification,
 		true,
 		true,
 	)
@@ -10934,7 +10934,7 @@ func (ec *executionContext) _Subscription_patientEvents(ctx context.Context, fie
 			return ec.resolvers.Subscription().PatientEvents(ctx, fc.Args["mrn"].(string))
 		},
 		nil,
-		ec.marshalNEvent2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEvent,
+		ec.marshalNEvent2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEvent,
 		true,
 		true,
 	)
@@ -11322,7 +11322,7 @@ func (ec *executionContext) _VitalSignEvent_type(ctx context.Context, field grap
 			return obj.Type, nil
 		},
 		nil,
-		ec.marshalNEventType2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType,
+		ec.marshalNEventType2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType,
 		true,
 		true,
 	)
@@ -11409,7 +11409,7 @@ func (ec *executionContext) _VitalSignEvent_sourceFormat(ctx context.Context, fi
 			return obj.SourceFormat, nil
 		},
 		nil,
-		ec.marshalOSourceFormat2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat,
+		ec.marshalOSourceFormat2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat,
 		true,
 		false,
 	)
@@ -11467,7 +11467,7 @@ func (ec *executionContext) _VitalSignEvent_patient(ctx context.Context, field g
 			return obj.Patient, nil
 		},
 		nil,
-		ec.marshalNPatient2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient,
+		ec.marshalNPatient2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient,
 		true,
 		true,
 	)
@@ -11518,7 +11518,7 @@ func (ec *executionContext) _VitalSignEvent_vitalSign(ctx context.Context, field
 			return obj.VitalSign, nil
 		},
 		nil,
-		ec.marshalNVitalSign2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐVitalSign,
+		ec.marshalNVitalSign2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐVitalSign,
 		true,
 		true,
 	)
@@ -11559,7 +11559,7 @@ func (ec *executionContext) _WorkflowEventNotification_event(ctx context.Context
 			return obj.Event, nil
 		},
 		nil,
-		ec.marshalNEvent2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEvent,
+		ec.marshalNEvent2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEvent,
 		true,
 		true,
 	)
@@ -13475,7 +13475,7 @@ func (ec *executionContext) unmarshalInputBatchEventItem(ctx context.Context, ob
 		switch k {
 		case "type":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("type"))
-			data, err := ec.unmarshalNEventType2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType(ctx, v)
+			data, err := ec.unmarshalNEventType2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -13530,7 +13530,7 @@ func (ec *executionContext) unmarshalInputBatchMessageItem(ctx context.Context, 
 		switch k {
 		case "format":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("format"))
-			data, err := ec.unmarshalNSourceFormat2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat(ctx, v)
+			data, err := ec.unmarshalNSourceFormat2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -13633,7 +13633,7 @@ func (ec *executionContext) unmarshalInputEventFilter(ctx context.Context, obj a
 		switch k {
 		case "types":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("types"))
-			data, err := ec.unmarshalOEventType2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventTypeᚄ(ctx, v)
+			data, err := ec.unmarshalOEventType2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventTypeᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -13695,14 +13695,14 @@ func (ec *executionContext) unmarshalInputEventOrderBy(ctx context.Context, obj 
 		switch k {
 		case "field":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("field"))
-			data, err := ec.unmarshalNEventOrderField2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventOrderField(ctx, v)
+			data, err := ec.unmarshalNEventOrderField2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventOrderField(ctx, v)
 			if err != nil {
 				return it, err
 			}
 			it.Field = data
 		case "direction":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("direction"))
-			data, err := ec.unmarshalNOrderDirection2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOrderDirection(ctx, v)
+			data, err := ec.unmarshalNOrderDirection2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOrderDirection(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -13777,14 +13777,14 @@ func (ec *executionContext) unmarshalInputSubmitBatchInput(ctx context.Context, 
 		switch k {
 		case "messages":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("messages"))
-			data, err := ec.unmarshalOBatchMessageItem2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchMessageItemᚄ(ctx, v)
+			data, err := ec.unmarshalOBatchMessageItem2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchMessageItemᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
 			it.Messages = data
 		case "events":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("events"))
-			data, err := ec.unmarshalOBatchEventItem2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchEventItemᚄ(ctx, v)
+			data, err := ec.unmarshalOBatchEventItem2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchEventItemᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -13825,7 +13825,7 @@ func (ec *executionContext) unmarshalInputSubmitEventInput(ctx context.Context, 
 		switch k {
 		case "type":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("type"))
-			data, err := ec.unmarshalNEventType2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType(ctx, v)
+			data, err := ec.unmarshalNEventType2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -13873,7 +13873,7 @@ func (ec *executionContext) unmarshalInputSubmitMessageInput(ctx context.Context
 		switch k {
 		case "format":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("format"))
-			data, err := ec.unmarshalNSourceFormat2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat(ctx, v)
+			data, err := ec.unmarshalNSourceFormat2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -17302,11 +17302,11 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 
 // region    ***************************** type.gotpl *****************************
 
-func (ec *executionContext) marshalNActiveEncounter2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐActiveEncounter(ctx context.Context, sel ast.SelectionSet, v model.ActiveEncounter) graphql.Marshaler {
+func (ec *executionContext) marshalNActiveEncounter2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐActiveEncounter(ctx context.Context, sel ast.SelectionSet, v model.ActiveEncounter) graphql.Marshaler {
 	return ec._ActiveEncounter(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNActiveEncounter2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐActiveEncounterᚄ(ctx context.Context, sel ast.SelectionSet, v []model.ActiveEncounter) graphql.Marshaler {
+func (ec *executionContext) marshalNActiveEncounter2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐActiveEncounterᚄ(ctx context.Context, sel ast.SelectionSet, v []model.ActiveEncounter) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -17330,7 +17330,7 @@ func (ec *executionContext) marshalNActiveEncounter2ᚕgithubᚗcomᚋcblevins�
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNActiveEncounter2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐActiveEncounter(ctx, sel, v[i])
+			ret[i] = ec.marshalNActiveEncounter2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐActiveEncounter(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -17350,20 +17350,20 @@ func (ec *executionContext) marshalNActiveEncounter2ᚕgithubᚗcomᚋcblevins�
 	return ret
 }
 
-func (ec *executionContext) marshalNAppointment2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAppointment(ctx context.Context, sel ast.SelectionSet, v model.Appointment) graphql.Marshaler {
+func (ec *executionContext) marshalNAppointment2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAppointment(ctx context.Context, sel ast.SelectionSet, v model.Appointment) graphql.Marshaler {
 	return ec._Appointment(ctx, sel, &v)
 }
 
-func (ec *executionContext) unmarshalNBatchEventItem2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchEventItem(ctx context.Context, v any) (model.BatchEventItem, error) {
+func (ec *executionContext) unmarshalNBatchEventItem2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchEventItem(ctx context.Context, v any) (model.BatchEventItem, error) {
 	res, err := ec.unmarshalInputBatchEventItem(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNBatchItemResult2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchItemResult(ctx context.Context, sel ast.SelectionSet, v model.BatchItemResult) graphql.Marshaler {
+func (ec *executionContext) marshalNBatchItemResult2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchItemResult(ctx context.Context, sel ast.SelectionSet, v model.BatchItemResult) graphql.Marshaler {
 	return ec._BatchItemResult(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNBatchItemResult2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchItemResultᚄ(ctx context.Context, sel ast.SelectionSet, v []model.BatchItemResult) graphql.Marshaler {
+func (ec *executionContext) marshalNBatchItemResult2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchItemResultᚄ(ctx context.Context, sel ast.SelectionSet, v []model.BatchItemResult) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -17387,7 +17387,7 @@ func (ec *executionContext) marshalNBatchItemResult2ᚕgithubᚗcomᚋcblevins�
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNBatchItemResult2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchItemResult(ctx, sel, v[i])
+			ret[i] = ec.marshalNBatchItemResult2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchItemResult(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -17407,16 +17407,16 @@ func (ec *executionContext) marshalNBatchItemResult2ᚕgithubᚗcomᚋcblevins�
 	return ret
 }
 
-func (ec *executionContext) unmarshalNBatchMessageItem2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchMessageItem(ctx context.Context, v any) (model.BatchMessageItem, error) {
+func (ec *executionContext) unmarshalNBatchMessageItem2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchMessageItem(ctx context.Context, v any) (model.BatchMessageItem, error) {
 	res, err := ec.unmarshalInputBatchMessageItem(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNBatchResult2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchResult(ctx context.Context, sel ast.SelectionSet, v model.BatchResult) graphql.Marshaler {
+func (ec *executionContext) marshalNBatchResult2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchResult(ctx context.Context, sel ast.SelectionSet, v model.BatchResult) graphql.Marshaler {
 	return ec._BatchResult(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNBatchResult2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchResult(ctx context.Context, sel ast.SelectionSet, v *model.BatchResult) graphql.Marshaler {
+func (ec *executionContext) marshalNBatchResult2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchResult(ctx context.Context, sel ast.SelectionSet, v *model.BatchResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -17442,11 +17442,11 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
-func (ec *executionContext) marshalNComponentHealth2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐComponentHealth(ctx context.Context, sel ast.SelectionSet, v model.ComponentHealth) graphql.Marshaler {
+func (ec *executionContext) marshalNComponentHealth2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐComponentHealth(ctx context.Context, sel ast.SelectionSet, v model.ComponentHealth) graphql.Marshaler {
 	return ec._ComponentHealth(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNComponentHealth2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐComponentHealthᚄ(ctx context.Context, sel ast.SelectionSet, v []model.ComponentHealth) graphql.Marshaler {
+func (ec *executionContext) marshalNComponentHealth2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐComponentHealthᚄ(ctx context.Context, sel ast.SelectionSet, v []model.ComponentHealth) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -17470,7 +17470,7 @@ func (ec *executionContext) marshalNComponentHealth2ᚕgithubᚗcomᚋcblevins�
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNComponentHealth2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐComponentHealth(ctx, sel, v[i])
+			ret[i] = ec.marshalNComponentHealth2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐComponentHealth(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -17490,11 +17490,11 @@ func (ec *executionContext) marshalNComponentHealth2ᚕgithubᚗcomᚋcblevins�
 	return ret
 }
 
-func (ec *executionContext) marshalNCondition2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐCondition(ctx context.Context, sel ast.SelectionSet, v model.Condition) graphql.Marshaler {
+func (ec *executionContext) marshalNCondition2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐCondition(ctx context.Context, sel ast.SelectionSet, v model.Condition) graphql.Marshaler {
 	return ec._Condition(ctx, sel, &v)
 }
 
-func (ec *executionContext) unmarshalNCreateSubscriptionInput2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐCreateSubscriptionInput(ctx context.Context, v any) (model.CreateSubscriptionInput, error) {
+func (ec *executionContext) unmarshalNCreateSubscriptionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐCreateSubscriptionInput(ctx context.Context, v any) (model.CreateSubscriptionInput, error) {
 	res, err := ec.unmarshalInputCreateSubscriptionInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
@@ -17515,11 +17515,11 @@ func (ec *executionContext) marshalNDateTime2timeᚐTime(ctx context.Context, se
 	return res
 }
 
-func (ec *executionContext) marshalNEncounter2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEncounter(ctx context.Context, sel ast.SelectionSet, v model.Encounter) graphql.Marshaler {
+func (ec *executionContext) marshalNEncounter2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEncounter(ctx context.Context, sel ast.SelectionSet, v model.Encounter) graphql.Marshaler {
 	return ec._Encounter(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNEvent2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEvent(ctx context.Context, sel ast.SelectionSet, v model.Event) graphql.Marshaler {
+func (ec *executionContext) marshalNEvent2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEvent(ctx context.Context, sel ast.SelectionSet, v model.Event) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -17529,7 +17529,7 @@ func (ec *executionContext) marshalNEvent2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋ
 	return ec._Event(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNEvent2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventᚄ(ctx context.Context, sel ast.SelectionSet, v []model.Event) graphql.Marshaler {
+func (ec *executionContext) marshalNEvent2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventᚄ(ctx context.Context, sel ast.SelectionSet, v []model.Event) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -17553,7 +17553,7 @@ func (ec *executionContext) marshalNEvent2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhir
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNEvent2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEvent(ctx, sel, v[i])
+			ret[i] = ec.marshalNEvent2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEvent(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -17573,11 +17573,11 @@ func (ec *executionContext) marshalNEvent2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhir
 	return ret
 }
 
-func (ec *executionContext) marshalNEventConnection2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventConnection(ctx context.Context, sel ast.SelectionSet, v model.EventConnection) graphql.Marshaler {
+func (ec *executionContext) marshalNEventConnection2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventConnection(ctx context.Context, sel ast.SelectionSet, v model.EventConnection) graphql.Marshaler {
 	return ec._EventConnection(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNEventConnection2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventConnection(ctx context.Context, sel ast.SelectionSet, v *model.EventConnection) graphql.Marshaler {
+func (ec *executionContext) marshalNEventConnection2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventConnection(ctx context.Context, sel ast.SelectionSet, v *model.EventConnection) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -17587,11 +17587,11 @@ func (ec *executionContext) marshalNEventConnection2ᚖgithubᚗcomᚋcblevins�
 	return ec._EventConnection(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNEventEdge2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventEdge(ctx context.Context, sel ast.SelectionSet, v model.EventEdge) graphql.Marshaler {
+func (ec *executionContext) marshalNEventEdge2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventEdge(ctx context.Context, sel ast.SelectionSet, v model.EventEdge) graphql.Marshaler {
 	return ec._EventEdge(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNEventEdge2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventEdgeᚄ(ctx context.Context, sel ast.SelectionSet, v []model.EventEdge) graphql.Marshaler {
+func (ec *executionContext) marshalNEventEdge2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventEdgeᚄ(ctx context.Context, sel ast.SelectionSet, v []model.EventEdge) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -17615,7 +17615,7 @@ func (ec *executionContext) marshalNEventEdge2ᚕgithubᚗcomᚋcblevinsᚋfiᚑ
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNEventEdge2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventEdge(ctx, sel, v[i])
+			ret[i] = ec.marshalNEventEdge2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventEdge(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -17635,21 +17635,21 @@ func (ec *executionContext) marshalNEventEdge2ᚕgithubᚗcomᚋcblevinsᚋfiᚑ
 	return ret
 }
 
-func (ec *executionContext) unmarshalNEventOrderField2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventOrderField(ctx context.Context, v any) (model.EventOrderField, error) {
+func (ec *executionContext) unmarshalNEventOrderField2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventOrderField(ctx context.Context, v any) (model.EventOrderField, error) {
 	var res model.EventOrderField
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNEventOrderField2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventOrderField(ctx context.Context, sel ast.SelectionSet, v model.EventOrderField) graphql.Marshaler {
+func (ec *executionContext) marshalNEventOrderField2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventOrderField(ctx context.Context, sel ast.SelectionSet, v model.EventOrderField) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) marshalNEventStatistics2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventStatistics(ctx context.Context, sel ast.SelectionSet, v model.EventStatistics) graphql.Marshaler {
+func (ec *executionContext) marshalNEventStatistics2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventStatistics(ctx context.Context, sel ast.SelectionSet, v model.EventStatistics) graphql.Marshaler {
 	return ec._EventStatistics(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNEventStatistics2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventStatistics(ctx context.Context, sel ast.SelectionSet, v *model.EventStatistics) graphql.Marshaler {
+func (ec *executionContext) marshalNEventStatistics2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventStatistics(ctx context.Context, sel ast.SelectionSet, v *model.EventStatistics) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -17659,21 +17659,21 @@ func (ec *executionContext) marshalNEventStatistics2ᚖgithubᚗcomᚋcblevins�
 	return ec._EventStatistics(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNEventType2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType(ctx context.Context, v any) (model.EventType, error) {
+func (ec *executionContext) unmarshalNEventType2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType(ctx context.Context, v any) (model.EventType, error) {
 	var res model.EventType
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNEventType2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType(ctx context.Context, sel ast.SelectionSet, v model.EventType) graphql.Marshaler {
+func (ec *executionContext) marshalNEventType2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType(ctx context.Context, sel ast.SelectionSet, v model.EventType) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) marshalNEventTypeCount2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventTypeCount(ctx context.Context, sel ast.SelectionSet, v model.EventTypeCount) graphql.Marshaler {
+func (ec *executionContext) marshalNEventTypeCount2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventTypeCount(ctx context.Context, sel ast.SelectionSet, v model.EventTypeCount) graphql.Marshaler {
 	return ec._EventTypeCount(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNEventTypeCount2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventTypeCountᚄ(ctx context.Context, sel ast.SelectionSet, v []model.EventTypeCount) graphql.Marshaler {
+func (ec *executionContext) marshalNEventTypeCount2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventTypeCountᚄ(ctx context.Context, sel ast.SelectionSet, v []model.EventTypeCount) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -17697,7 +17697,7 @@ func (ec *executionContext) marshalNEventTypeCount2ᚕgithubᚗcomᚋcblevinsᚋ
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNEventTypeCount2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventTypeCount(ctx, sel, v[i])
+			ret[i] = ec.marshalNEventTypeCount2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventTypeCount(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -17717,11 +17717,11 @@ func (ec *executionContext) marshalNEventTypeCount2ᚕgithubᚗcomᚋcblevinsᚋ
 	return ret
 }
 
-func (ec *executionContext) marshalNFhirSubscription2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐFhirSubscription(ctx context.Context, sel ast.SelectionSet, v model.FhirSubscription) graphql.Marshaler {
+func (ec *executionContext) marshalNFhirSubscription2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐFhirSubscription(ctx context.Context, sel ast.SelectionSet, v model.FhirSubscription) graphql.Marshaler {
 	return ec._FhirSubscription(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNFhirSubscription2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐFhirSubscription(ctx context.Context, sel ast.SelectionSet, v *model.FhirSubscription) graphql.Marshaler {
+func (ec *executionContext) marshalNFhirSubscription2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐFhirSubscription(ctx context.Context, sel ast.SelectionSet, v *model.FhirSubscription) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -17731,11 +17731,11 @@ func (ec *executionContext) marshalNFhirSubscription2ᚖgithubᚗcomᚋcblevins�
 	return ec._FhirSubscription(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNHealthStatus2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐHealthStatus(ctx context.Context, sel ast.SelectionSet, v model.HealthStatus) graphql.Marshaler {
+func (ec *executionContext) marshalNHealthStatus2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐHealthStatus(ctx context.Context, sel ast.SelectionSet, v model.HealthStatus) graphql.Marshaler {
 	return ec._HealthStatus(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNHealthStatus2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐHealthStatus(ctx context.Context, sel ast.SelectionSet, v *model.HealthStatus) graphql.Marshaler {
+func (ec *executionContext) marshalNHealthStatus2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐHealthStatus(ctx context.Context, sel ast.SelectionSet, v *model.HealthStatus) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -17761,11 +17761,11 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 	return res
 }
 
-func (ec *executionContext) marshalNIdentifier2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIdentifier(ctx context.Context, sel ast.SelectionSet, v model.Identifier) graphql.Marshaler {
+func (ec *executionContext) marshalNIdentifier2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIdentifier(ctx context.Context, sel ast.SelectionSet, v model.Identifier) graphql.Marshaler {
 	return ec._Identifier(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNIdentifier2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIdentifierᚄ(ctx context.Context, sel ast.SelectionSet, v []model.Identifier) graphql.Marshaler {
+func (ec *executionContext) marshalNIdentifier2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIdentifierᚄ(ctx context.Context, sel ast.SelectionSet, v []model.Identifier) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -17789,7 +17789,7 @@ func (ec *executionContext) marshalNIdentifier2ᚕgithubᚗcomᚋcblevinsᚋfi�
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNIdentifier2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIdentifier(ctx, sel, v[i])
+			ret[i] = ec.marshalNIdentifier2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIdentifier(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -17809,7 +17809,7 @@ func (ec *executionContext) marshalNIdentifier2ᚕgithubᚗcomᚋcblevinsᚋfi�
 	return ret
 }
 
-func (ec *executionContext) marshalNImmunization2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐImmunization(ctx context.Context, sel ast.SelectionSet, v model.Immunization) graphql.Marshaler {
+func (ec *executionContext) marshalNImmunization2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐImmunization(ctx context.Context, sel ast.SelectionSet, v model.Immunization) graphql.Marshaler {
 	return ec._Immunization(ctx, sel, &v)
 }
 
@@ -17851,33 +17851,33 @@ func (ec *executionContext) marshalNJSON2map(ctx context.Context, sel ast.Select
 	return res
 }
 
-func (ec *executionContext) marshalNLabResult2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLabResult(ctx context.Context, sel ast.SelectionSet, v model.LabResult) graphql.Marshaler {
+func (ec *executionContext) marshalNLabResult2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLabResult(ctx context.Context, sel ast.SelectionSet, v model.LabResult) graphql.Marshaler {
 	return ec._LabResult(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNLabTest2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLabTest(ctx context.Context, sel ast.SelectionSet, v model.LabTest) graphql.Marshaler {
+func (ec *executionContext) marshalNLabTest2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLabTest(ctx context.Context, sel ast.SelectionSet, v model.LabTest) graphql.Marshaler {
 	return ec._LabTest(ctx, sel, &v)
 }
 
-func (ec *executionContext) unmarshalNOrderDirection2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOrderDirection(ctx context.Context, v any) (model.OrderDirection, error) {
+func (ec *executionContext) unmarshalNOrderDirection2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOrderDirection(ctx context.Context, v any) (model.OrderDirection, error) {
 	var res model.OrderDirection
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNOrderDirection2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOrderDirection(ctx context.Context, sel ast.SelectionSet, v model.OrderDirection) graphql.Marshaler {
+func (ec *executionContext) marshalNOrderDirection2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOrderDirection(ctx context.Context, sel ast.SelectionSet, v model.OrderDirection) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) marshalNPageInfo2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPageInfo(ctx context.Context, sel ast.SelectionSet, v model.PageInfo) graphql.Marshaler {
+func (ec *executionContext) marshalNPageInfo2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPageInfo(ctx context.Context, sel ast.SelectionSet, v model.PageInfo) graphql.Marshaler {
 	return ec._PageInfo(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNParseResult2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐParseResult(ctx context.Context, sel ast.SelectionSet, v model.ParseResult) graphql.Marshaler {
+func (ec *executionContext) marshalNParseResult2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐParseResult(ctx context.Context, sel ast.SelectionSet, v model.ParseResult) graphql.Marshaler {
 	return ec._ParseResult(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNParseResult2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐParseResult(ctx context.Context, sel ast.SelectionSet, v *model.ParseResult) graphql.Marshaler {
+func (ec *executionContext) marshalNParseResult2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐParseResult(ctx context.Context, sel ast.SelectionSet, v *model.ParseResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -17887,11 +17887,11 @@ func (ec *executionContext) marshalNParseResult2ᚖgithubᚗcomᚋcblevinsᚋfi�
 	return ec._ParseResult(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNParseWarning2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐParseWarning(ctx context.Context, sel ast.SelectionSet, v model.ParseWarning) graphql.Marshaler {
+func (ec *executionContext) marshalNParseWarning2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐParseWarning(ctx context.Context, sel ast.SelectionSet, v model.ParseWarning) graphql.Marshaler {
 	return ec._ParseWarning(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNParseWarning2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐParseWarningᚄ(ctx context.Context, sel ast.SelectionSet, v []model.ParseWarning) graphql.Marshaler {
+func (ec *executionContext) marshalNParseWarning2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐParseWarningᚄ(ctx context.Context, sel ast.SelectionSet, v []model.ParseWarning) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -17915,7 +17915,7 @@ func (ec *executionContext) marshalNParseWarning2ᚕgithubᚗcomᚋcblevinsᚋfi
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNParseWarning2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐParseWarning(ctx, sel, v[i])
+			ret[i] = ec.marshalNParseWarning2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐParseWarning(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -17935,15 +17935,15 @@ func (ec *executionContext) marshalNParseWarning2ᚕgithubᚗcomᚋcblevinsᚋfi
 	return ret
 }
 
-func (ec *executionContext) marshalNPatient2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient(ctx context.Context, sel ast.SelectionSet, v model.Patient) graphql.Marshaler {
+func (ec *executionContext) marshalNPatient2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient(ctx context.Context, sel ast.SelectionSet, v model.Patient) graphql.Marshaler {
 	return ec._Patient(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNPatientConnection2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatientConnection(ctx context.Context, sel ast.SelectionSet, v model.PatientConnection) graphql.Marshaler {
+func (ec *executionContext) marshalNPatientConnection2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatientConnection(ctx context.Context, sel ast.SelectionSet, v model.PatientConnection) graphql.Marshaler {
 	return ec._PatientConnection(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNPatientConnection2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatientConnection(ctx context.Context, sel ast.SelectionSet, v *model.PatientConnection) graphql.Marshaler {
+func (ec *executionContext) marshalNPatientConnection2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatientConnection(ctx context.Context, sel ast.SelectionSet, v *model.PatientConnection) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -17953,11 +17953,11 @@ func (ec *executionContext) marshalNPatientConnection2ᚖgithubᚗcomᚋcblevins
 	return ec._PatientConnection(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNPatientEdge2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatientEdge(ctx context.Context, sel ast.SelectionSet, v model.PatientEdge) graphql.Marshaler {
+func (ec *executionContext) marshalNPatientEdge2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatientEdge(ctx context.Context, sel ast.SelectionSet, v model.PatientEdge) graphql.Marshaler {
 	return ec._PatientEdge(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNPatientEdge2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatientEdgeᚄ(ctx context.Context, sel ast.SelectionSet, v []model.PatientEdge) graphql.Marshaler {
+func (ec *executionContext) marshalNPatientEdge2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatientEdgeᚄ(ctx context.Context, sel ast.SelectionSet, v []model.PatientEdge) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -17981,7 +17981,7 @@ func (ec *executionContext) marshalNPatientEdge2ᚕgithubᚗcomᚋcblevinsᚋfi�
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNPatientEdge2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatientEdge(ctx, sel, v[i])
+			ret[i] = ec.marshalNPatientEdge2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatientEdge(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -18001,15 +18001,15 @@ func (ec *executionContext) marshalNPatientEdge2ᚕgithubᚗcomᚋcblevinsᚋfi�
 	return ret
 }
 
-func (ec *executionContext) marshalNProcedure2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProcedure(ctx context.Context, sel ast.SelectionSet, v model.Procedure) graphql.Marshaler {
+func (ec *executionContext) marshalNProcedure2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProcedure(ctx context.Context, sel ast.SelectionSet, v model.Procedure) graphql.Marshaler {
 	return ec._Procedure(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNProjectionStatus2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProjectionStatus(ctx context.Context, sel ast.SelectionSet, v model.ProjectionStatus) graphql.Marshaler {
+func (ec *executionContext) marshalNProjectionStatus2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProjectionStatus(ctx context.Context, sel ast.SelectionSet, v model.ProjectionStatus) graphql.Marshaler {
 	return ec._ProjectionStatus(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNProjectionStatus2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProjectionStatusᚄ(ctx context.Context, sel ast.SelectionSet, v []model.ProjectionStatus) graphql.Marshaler {
+func (ec *executionContext) marshalNProjectionStatus2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProjectionStatusᚄ(ctx context.Context, sel ast.SelectionSet, v []model.ProjectionStatus) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -18033,7 +18033,7 @@ func (ec *executionContext) marshalNProjectionStatus2ᚕgithubᚗcomᚋcblevins�
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNProjectionStatus2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProjectionStatus(ctx, sel, v[i])
+			ret[i] = ec.marshalNProjectionStatus2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProjectionStatus(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -18053,11 +18053,11 @@ func (ec *executionContext) marshalNProjectionStatus2ᚕgithubᚗcomᚋcblevins�
 	return ret
 }
 
-func (ec *executionContext) marshalNSourceCount2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceCount(ctx context.Context, sel ast.SelectionSet, v model.SourceCount) graphql.Marshaler {
+func (ec *executionContext) marshalNSourceCount2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceCount(ctx context.Context, sel ast.SelectionSet, v model.SourceCount) graphql.Marshaler {
 	return ec._SourceCount(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNSourceCount2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceCountᚄ(ctx context.Context, sel ast.SelectionSet, v []model.SourceCount) graphql.Marshaler {
+func (ec *executionContext) marshalNSourceCount2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceCountᚄ(ctx context.Context, sel ast.SelectionSet, v []model.SourceCount) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -18081,7 +18081,7 @@ func (ec *executionContext) marshalNSourceCount2ᚕgithubᚗcomᚋcblevinsᚋfi�
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNSourceCount2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceCount(ctx, sel, v[i])
+			ret[i] = ec.marshalNSourceCount2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceCount(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -18101,13 +18101,13 @@ func (ec *executionContext) marshalNSourceCount2ᚕgithubᚗcomᚋcblevinsᚋfi�
 	return ret
 }
 
-func (ec *executionContext) unmarshalNSourceFormat2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat(ctx context.Context, v any) (model.SourceFormat, error) {
+func (ec *executionContext) unmarshalNSourceFormat2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat(ctx context.Context, v any) (model.SourceFormat, error) {
 	var res model.SourceFormat
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNSourceFormat2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat(ctx context.Context, sel ast.SelectionSet, v model.SourceFormat) graphql.Marshaler {
+func (ec *executionContext) marshalNSourceFormat2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat(ctx context.Context, sel ast.SelectionSet, v model.SourceFormat) graphql.Marshaler {
 	return v
 }
 
@@ -18157,26 +18157,26 @@ func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel
 	return ret
 }
 
-func (ec *executionContext) unmarshalNSubmitBatchInput2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSubmitBatchInput(ctx context.Context, v any) (model.SubmitBatchInput, error) {
+func (ec *executionContext) unmarshalNSubmitBatchInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSubmitBatchInput(ctx context.Context, v any) (model.SubmitBatchInput, error) {
 	res, err := ec.unmarshalInputSubmitBatchInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNSubmitEventInput2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSubmitEventInput(ctx context.Context, v any) (model.SubmitEventInput, error) {
+func (ec *executionContext) unmarshalNSubmitEventInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSubmitEventInput(ctx context.Context, v any) (model.SubmitEventInput, error) {
 	res, err := ec.unmarshalInputSubmitEventInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNSubmitMessageInput2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSubmitMessageInput(ctx context.Context, v any) (model.SubmitMessageInput, error) {
+func (ec *executionContext) unmarshalNSubmitMessageInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSubmitMessageInput(ctx context.Context, v any) (model.SubmitMessageInput, error) {
 	res, err := ec.unmarshalInputSubmitMessageInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNSubmitResult2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSubmitResult(ctx context.Context, sel ast.SelectionSet, v model.SubmitResult) graphql.Marshaler {
+func (ec *executionContext) marshalNSubmitResult2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSubmitResult(ctx context.Context, sel ast.SelectionSet, v model.SubmitResult) graphql.Marshaler {
 	return ec._SubmitResult(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNSubmitResult2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSubmitResult(ctx context.Context, sel ast.SelectionSet, v *model.SubmitResult) graphql.Marshaler {
+func (ec *executionContext) marshalNSubmitResult2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSubmitResult(ctx context.Context, sel ast.SelectionSet, v *model.SubmitResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -18186,11 +18186,11 @@ func (ec *executionContext) marshalNSubmitResult2ᚖgithubᚗcomᚋcblevinsᚋfi
 	return ec._SubmitResult(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNTimelineEvent2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTimelineEvent(ctx context.Context, sel ast.SelectionSet, v model.TimelineEvent) graphql.Marshaler {
+func (ec *executionContext) marshalNTimelineEvent2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTimelineEvent(ctx context.Context, sel ast.SelectionSet, v model.TimelineEvent) graphql.Marshaler {
 	return ec._TimelineEvent(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNTimelineEvent2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTimelineEventᚄ(ctx context.Context, sel ast.SelectionSet, v []model.TimelineEvent) graphql.Marshaler {
+func (ec *executionContext) marshalNTimelineEvent2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTimelineEventᚄ(ctx context.Context, sel ast.SelectionSet, v []model.TimelineEvent) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -18214,7 +18214,7 @@ func (ec *executionContext) marshalNTimelineEvent2ᚕgithubᚗcomᚋcblevinsᚋf
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNTimelineEvent2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTimelineEvent(ctx, sel, v[i])
+			ret[i] = ec.marshalNTimelineEvent2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTimelineEvent(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -18234,15 +18234,15 @@ func (ec *executionContext) marshalNTimelineEvent2ᚕgithubᚗcomᚋcblevinsᚋf
 	return ret
 }
 
-func (ec *executionContext) marshalNVitalSign2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐVitalSign(ctx context.Context, sel ast.SelectionSet, v model.VitalSign) graphql.Marshaler {
+func (ec *executionContext) marshalNVitalSign2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐVitalSign(ctx context.Context, sel ast.SelectionSet, v model.VitalSign) graphql.Marshaler {
 	return ec._VitalSign(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNWorkflowEventNotification2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowEventNotification(ctx context.Context, sel ast.SelectionSet, v model.WorkflowEventNotification) graphql.Marshaler {
+func (ec *executionContext) marshalNWorkflowEventNotification2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowEventNotification(ctx context.Context, sel ast.SelectionSet, v model.WorkflowEventNotification) graphql.Marshaler {
 	return ec._WorkflowEventNotification(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNWorkflowEventNotification2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowEventNotification(ctx context.Context, sel ast.SelectionSet, v *model.WorkflowEventNotification) graphql.Marshaler {
+func (ec *executionContext) marshalNWorkflowEventNotification2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowEventNotification(ctx context.Context, sel ast.SelectionSet, v *model.WorkflowEventNotification) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -18252,11 +18252,11 @@ func (ec *executionContext) marshalNWorkflowEventNotification2ᚖgithubᚗcomᚋ
 	return ec._WorkflowEventNotification(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNWorkflowResult2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowResult(ctx context.Context, sel ast.SelectionSet, v model.WorkflowResult) graphql.Marshaler {
+func (ec *executionContext) marshalNWorkflowResult2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowResult(ctx context.Context, sel ast.SelectionSet, v model.WorkflowResult) graphql.Marshaler {
 	return ec._WorkflowResult(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNWorkflowResult2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowResultᚄ(ctx context.Context, sel ast.SelectionSet, v []model.WorkflowResult) graphql.Marshaler {
+func (ec *executionContext) marshalNWorkflowResult2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowResultᚄ(ctx context.Context, sel ast.SelectionSet, v []model.WorkflowResult) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -18280,7 +18280,7 @@ func (ec *executionContext) marshalNWorkflowResult2ᚕgithubᚗcomᚋcblevinsᚋ
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNWorkflowResult2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowResult(ctx, sel, v[i])
+			ret[i] = ec.marshalNWorkflowResult2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowResult(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -18300,7 +18300,7 @@ func (ec *executionContext) marshalNWorkflowResult2ᚕgithubᚗcomᚋcblevinsᚋ
 	return ret
 }
 
-func (ec *executionContext) marshalNWorkflowResult2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowResult(ctx context.Context, sel ast.SelectionSet, v *model.WorkflowResult) graphql.Marshaler {
+func (ec *executionContext) marshalNWorkflowResult2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowResult(ctx context.Context, sel ast.SelectionSet, v *model.WorkflowResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -18310,11 +18310,11 @@ func (ec *executionContext) marshalNWorkflowResult2ᚖgithubᚗcomᚋcblevinsᚋ
 	return ec._WorkflowResult(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNWorkflowStatus2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowStatus(ctx context.Context, sel ast.SelectionSet, v model.WorkflowStatus) graphql.Marshaler {
+func (ec *executionContext) marshalNWorkflowStatus2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowStatus(ctx context.Context, sel ast.SelectionSet, v model.WorkflowStatus) graphql.Marshaler {
 	return ec._WorkflowStatus(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNWorkflowStatus2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowStatusᚄ(ctx context.Context, sel ast.SelectionSet, v []model.WorkflowStatus) graphql.Marshaler {
+func (ec *executionContext) marshalNWorkflowStatus2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowStatusᚄ(ctx context.Context, sel ast.SelectionSet, v []model.WorkflowStatus) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -18338,7 +18338,7 @@ func (ec *executionContext) marshalNWorkflowStatus2ᚕgithubᚗcomᚋcblevinsᚋ
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNWorkflowStatus2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowStatus(ctx, sel, v[i])
+			ret[i] = ec.marshalNWorkflowStatus2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowStatus(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -18611,21 +18611,21 @@ func (ec *executionContext) marshalN__TypeKind2string(ctx context.Context, sel a
 	return res
 }
 
-func (ec *executionContext) marshalOActiveEncounter2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐActiveEncounter(ctx context.Context, sel ast.SelectionSet, v *model.ActiveEncounter) graphql.Marshaler {
+func (ec *executionContext) marshalOActiveEncounter2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐActiveEncounter(ctx context.Context, sel ast.SelectionSet, v *model.ActiveEncounter) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._ActiveEncounter(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOAddress2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAddress(ctx context.Context, sel ast.SelectionSet, v *model.Address) graphql.Marshaler {
+func (ec *executionContext) marshalOAddress2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAddress(ctx context.Context, sel ast.SelectionSet, v *model.Address) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._Address(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalOBatchEventItem2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchEventItemᚄ(ctx context.Context, v any) ([]model.BatchEventItem, error) {
+func (ec *executionContext) unmarshalOBatchEventItem2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchEventItemᚄ(ctx context.Context, v any) ([]model.BatchEventItem, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -18635,7 +18635,7 @@ func (ec *executionContext) unmarshalOBatchEventItem2ᚕgithubᚗcomᚋcblevins�
 	res := make([]model.BatchEventItem, len(vSlice))
 	for i := range vSlice {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNBatchEventItem2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchEventItem(ctx, vSlice[i])
+		res[i], err = ec.unmarshalNBatchEventItem2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchEventItem(ctx, vSlice[i])
 		if err != nil {
 			return nil, err
 		}
@@ -18643,7 +18643,7 @@ func (ec *executionContext) unmarshalOBatchEventItem2ᚕgithubᚗcomᚋcblevins�
 	return res, nil
 }
 
-func (ec *executionContext) unmarshalOBatchMessageItem2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchMessageItemᚄ(ctx context.Context, v any) ([]model.BatchMessageItem, error) {
+func (ec *executionContext) unmarshalOBatchMessageItem2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchMessageItemᚄ(ctx context.Context, v any) ([]model.BatchMessageItem, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -18653,7 +18653,7 @@ func (ec *executionContext) unmarshalOBatchMessageItem2ᚕgithubᚗcomᚋcblevin
 	res := make([]model.BatchMessageItem, len(vSlice))
 	for i := range vSlice {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNBatchMessageItem2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchMessageItem(ctx, vSlice[i])
+		res[i], err = ec.unmarshalNBatchMessageItem2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchMessageItem(ctx, vSlice[i])
 		if err != nil {
 			return nil, err
 		}
@@ -18709,14 +18709,14 @@ func (ec *executionContext) marshalODateTime2ᚖtimeᚐTime(ctx context.Context,
 	return res
 }
 
-func (ec *executionContext) marshalOEvent2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEvent(ctx context.Context, sel ast.SelectionSet, v model.Event) graphql.Marshaler {
+func (ec *executionContext) marshalOEvent2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEvent(ctx context.Context, sel ast.SelectionSet, v model.Event) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._Event(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalOEventFilter2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventFilter(ctx context.Context, v any) (*model.EventFilter, error) {
+func (ec *executionContext) unmarshalOEventFilter2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventFilter(ctx context.Context, v any) (*model.EventFilter, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -18724,7 +18724,7 @@ func (ec *executionContext) unmarshalOEventFilter2ᚖgithubᚗcomᚋcblevinsᚋf
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalOEventOrderBy2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventOrderBy(ctx context.Context, v any) (*model.EventOrderBy, error) {
+func (ec *executionContext) unmarshalOEventOrderBy2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventOrderBy(ctx context.Context, v any) (*model.EventOrderBy, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -18732,7 +18732,7 @@ func (ec *executionContext) unmarshalOEventOrderBy2ᚖgithubᚗcomᚋcblevinsᚋ
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalOEventType2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventTypeᚄ(ctx context.Context, v any) ([]model.EventType, error) {
+func (ec *executionContext) unmarshalOEventType2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventTypeᚄ(ctx context.Context, v any) ([]model.EventType, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -18742,7 +18742,7 @@ func (ec *executionContext) unmarshalOEventType2ᚕgithubᚗcomᚋcblevinsᚋfi�
 	res := make([]model.EventType, len(vSlice))
 	for i := range vSlice {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNEventType2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType(ctx, vSlice[i])
+		res[i], err = ec.unmarshalNEventType2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType(ctx, vSlice[i])
 		if err != nil {
 			return nil, err
 		}
@@ -18750,7 +18750,7 @@ func (ec *executionContext) unmarshalOEventType2ᚕgithubᚗcomᚋcblevinsᚋfi�
 	return res, nil
 }
 
-func (ec *executionContext) marshalOEventType2ᚕgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventTypeᚄ(ctx context.Context, sel ast.SelectionSet, v []model.EventType) graphql.Marshaler {
+func (ec *executionContext) marshalOEventType2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventTypeᚄ(ctx context.Context, sel ast.SelectionSet, v []model.EventType) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -18777,7 +18777,7 @@ func (ec *executionContext) marshalOEventType2ᚕgithubᚗcomᚋcblevinsᚋfiᚑ
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNEventType2githubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType(ctx, sel, v[i])
+			ret[i] = ec.marshalNEventType2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventType(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -18833,21 +18833,21 @@ func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.Sele
 	return res
 }
 
-func (ec *executionContext) marshalOLocation2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLocation(ctx context.Context, sel ast.SelectionSet, v *model.Location) graphql.Marshaler {
+func (ec *executionContext) marshalOLocation2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLocation(ctx context.Context, sel ast.SelectionSet, v *model.Location) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._Location(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOPatient2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient(ctx context.Context, sel ast.SelectionSet, v *model.Patient) graphql.Marshaler {
+func (ec *executionContext) marshalOPatient2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient(ctx context.Context, sel ast.SelectionSet, v *model.Patient) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._Patient(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalOPatientFilter2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatientFilter(ctx context.Context, v any) (*model.PatientFilter, error) {
+func (ec *executionContext) unmarshalOPatientFilter2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatientFilter(ctx context.Context, v any) (*model.PatientFilter, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -18855,21 +18855,21 @@ func (ec *executionContext) unmarshalOPatientFilter2ᚖgithubᚗcomᚋcblevins�
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalOPatientTimeline2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatientTimeline(ctx context.Context, sel ast.SelectionSet, v *model.PatientTimeline) graphql.Marshaler {
+func (ec *executionContext) marshalOPatientTimeline2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatientTimeline(ctx context.Context, sel ast.SelectionSet, v *model.PatientTimeline) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._PatientTimeline(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOProvider2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProvider(ctx context.Context, sel ast.SelectionSet, v *model.Provider) graphql.Marshaler {
+func (ec *executionContext) marshalOProvider2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProvider(ctx context.Context, sel ast.SelectionSet, v *model.Provider) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._Provider(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalOSourceFormat2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat(ctx context.Context, v any) (*model.SourceFormat, error) {
+func (ec *executionContext) unmarshalOSourceFormat2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat(ctx context.Context, v any) (*model.SourceFormat, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -18878,7 +18878,7 @@ func (ec *executionContext) unmarshalOSourceFormat2ᚖgithubᚗcomᚋcblevinsᚋ
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalOSourceFormat2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat(ctx context.Context, sel ast.SelectionSet, v *model.SourceFormat) graphql.Marshaler {
+func (ec *executionContext) marshalOSourceFormat2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat(ctx context.Context, sel ast.SelectionSet, v *model.SourceFormat) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -18939,7 +18939,7 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	return res
 }
 
-func (ec *executionContext) marshalOWorkflowStatus2ᚖgithubᚗcomᚋcblevinsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowStatus(ctx context.Context, sel ast.SelectionSet, v *model.WorkflowStatus) graphql.Marshaler {
+func (ec *executionContext) marshalOWorkflowStatus2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowStatus(ctx context.Context, sel ast.SelectionSet, v *model.WorkflowStatus) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}

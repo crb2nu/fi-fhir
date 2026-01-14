@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/crb2nu/fi-fhir/pkg/storage"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/storage"
 )
 
 func runStorage(args []string) error {

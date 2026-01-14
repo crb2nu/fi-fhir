@@ -5,9 +5,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/crb2nu/fi-fhir/internal/api/graphql/model"
-	"github.com/crb2nu/fi-fhir/pkg/eventsourcing"
-	"github.com/crb2nu/fi-fhir/pkg/eventsourcing/projections"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/eventsourcing"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/eventsourcing/projections"
 )
 
 // Service provides access to all projection read models.

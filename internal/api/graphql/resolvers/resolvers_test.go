@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/crb2nu/fi-fhir/internal/api/graphql/model"
-	"github.com/crb2nu/fi-fhir/internal/api/graphql/store"
-	"github.com/crb2nu/fi-fhir/internal/workflow"
-	"github.com/crb2nu/fi-fhir/pkg/events"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/store"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/workflow"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 )
 
 func TestQueryResolver_Health(t *testing.T) {

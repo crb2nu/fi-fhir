@@ -1,6 +1,6 @@
 package builtin
 
-import "github.com/crb2nu/fi-fhir/internal/parser/edi/companion"
+import "gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/edi/companion"
 
 // UnitedHealthcare returns a companion guide for UHC 837P claims.
 // This is a sample guide demonstrating common UHC variations.
