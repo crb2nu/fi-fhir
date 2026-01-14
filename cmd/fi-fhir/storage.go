@@ -11,6 +11,20 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/storage"
 )
 
+type storageProvider interface {
+	BucketExists(ctx context.Context, bucket string) (bool, error)
+	Delete(ctx context.Context, path string) error
+	Exists(ctx context.Context, path string) (bool, error)
+	ListRecursive(ctx context.Context, prefix string) ([]storage.FileInfo, error)
+	Open(ctx context.Context, path string) (io.ReadCloser, error)
+	Put(ctx context.Context, path string, r io.Reader, size int64) error
+	Stat(ctx context.Context, path string) (*storage.FileInfo, error)
+}
+
+var storageProviderFactory = func() (storageProvider, error) {
+	return createMinIOProvider()
+}
+
 func runStorage(args []string) error {
 	if len(args) == 0 {
 		printStorageUsage()
@@ -154,7 +168,7 @@ func runStorageList(args []string) error {
 		return fmt.Errorf("S3 URL required (s3://bucket/prefix/)")
 	}
 
-	provider, err := createMinIOProvider()
+	provider, err := storageProviderFactory()
 	if err != nil {
 		return err
 	}
@@ -196,7 +210,7 @@ func runStorageGet(args []string) (err error) {
 		return fmt.Errorf("first argument must be S3 URL (s3://bucket/key)")
 	}
 
-	provider, err := createMinIOProvider()
+	provider, err := storageProviderFactory()
 	if err != nil {
 		return err
 	}
@@ -266,7 +280,7 @@ func runStoragePut(args []string) (err error) {
 		return fmt.Errorf("cannot upload directory")
 	}
 
-	provider, err := createMinIOProvider()
+	provider, err := storageProviderFactory()
 	if err != nil {
 		return err
 	}
@@ -308,7 +322,7 @@ func runStorageDelete(args []string) error {
 		return fmt.Errorf("argument must be S3 URL (s3://bucket/key)")
 	}
 
-	provider, err := createMinIOProvider()
+	provider, err := storageProviderFactory()
 	if err != nil {
 		return err
 	}
@@ -345,7 +359,7 @@ func runStorageStat(args []string) error {
 		return fmt.Errorf("argument must be S3 URL (s3://bucket/key)")
 	}
 
-	provider, err := createMinIOProvider()
+	provider, err := storageProviderFactory()
 	if err != nil {
 		return err
 	}

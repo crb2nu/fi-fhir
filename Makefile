@@ -1,7 +1,7 @@
 .PHONY: build test clean run lint lint-fix test-e2e test-integration e2e-up e2e-down fmt setup-hooks dev-setup check-deps docs-mermaid
 
 # Tool versions (update these when upgrading)
-GOLANGCI_LINT_VERSION := v2.1.6
+GOLANGCI_LINT_VERSION := v2.8.0
 GO_MIN_VERSION := 1.21
 
 # Build the CLI
