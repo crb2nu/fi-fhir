@@ -472,7 +472,7 @@ func TestICD10Queries_Integration_Count(t *testing.T) {
 	}
 }
 
-func TestICD10CMCode_DisplayCode(t *testing.T) {
+func TestICD10CMCode_DisplayCode_Integration(t *testing.T) {
 	// Test DisplayCode helper
 	code := &ICD10CMCode{
 		Code: "E119",
