@@ -58,8 +58,23 @@ func loadDotEnv() {
 func TestIntegration_MinIO_Live(t *testing.T) {
 	requireEnv(t, "MINIO_ENDPOINT", "MINIO_ACCESS_KEY", "MINIO_SECRET_KEY")
 
+	endpoint := os.Getenv("MINIO_ENDPOINT")
+	hostPort := endpoint
+	if strings.Contains(endpoint, "://") {
+		u, err := urlpkg.Parse(endpoint)
+		if err == nil && u.Host != "" {
+			hostPort = u.Host
+		}
+	}
+	if !strings.Contains(hostPort, ":") {
+		hostPort += ":9000"
+	}
+	if _, err := net.DialTimeout("tcp", hostPort, 5*time.Second); err != nil {
+		t.Skipf("skipping: minio endpoint %s unreachable: %v", hostPort, err)
+	}
+
 	cfg := storage.MinIOConfig{
-		Endpoint:        os.Getenv("MINIO_ENDPOINT"),
+		Endpoint:        endpoint,
 		AccessKeyID:     os.Getenv("MINIO_ACCESS_KEY"),
 		SecretAccessKey: os.Getenv("MINIO_SECRET_KEY"),
 		UseSSL:          strings.ToLower(os.Getenv("MINIO_USE_SSL")) == "true",
