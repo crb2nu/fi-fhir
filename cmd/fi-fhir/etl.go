@@ -396,6 +396,10 @@ Examples:
 		i++
 	}
 
+	if !isSupportedETLLoadSource(sourceName) {
+		return fmt.Errorf("unknown source: %s (supported: umls, rxnorm, loinc, icd10cm)", sourceName)
+	}
+
 	if version == "" {
 		return fmt.Errorf("--version is required")
 	}
@@ -480,8 +484,6 @@ Examples:
 		result, err = pgSink.LoadLOINC(ctx, storagePath, version, progressReporter)
 	case "icd10cm":
 		result, err = pgSink.LoadICD10CM(ctx, storagePath, version, nil, progressReporter)
-	default:
-		return fmt.Errorf("unknown source: %s (supported: umls, rxnorm, loinc, icd10cm)", sourceName)
 	}
 
 	if err != nil {
@@ -504,6 +506,15 @@ Examples:
 	}
 
 	return nil
+}
+
+func isSupportedETLLoadSource(name string) bool {
+	switch name {
+	case "umls", "rxnorm", "loinc", "icd10cm":
+		return true
+	default:
+		return false
+	}
 }
 
 // cliProgressReporter returns a db.ProgressReporter that writes to stdout.
@@ -600,7 +611,7 @@ func runETLValidate(args []string) error {
 
 	// Check sources
 	fmt.Println("\nSource availability:")
-	sources := getConfiguredSources()
+	sources := sourcesProvider()
 	for name, src := range sources {
 		fmt.Printf("  %s: ", name)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -616,7 +627,7 @@ func runETLValidate(args []string) error {
 }
 
 func runETLSources(args []string) error {
-	sources := getConfiguredSources()
+	sources := sourcesProvider()
 
 	fmt.Printf("%-15s %-10s %s\n", "NAME", "TYPE", "DESCRIPTION")
 	fmt.Println(strings.Repeat("-", 60))
