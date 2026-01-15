@@ -16,6 +16,20 @@ import (
 
 var postgresDBNameSafe = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
 
+func writeRRFLine(t *testing.T, path string, expectedColumns int, fields []string) {
+	t.Helper()
+
+	if len(fields) != expectedColumns {
+		t.Fatalf("expected %d RRF columns, got %d", expectedColumns, len(fields))
+	}
+	if fields[len(fields)-1] == "" {
+		t.Fatalf("last RRF column must be non-empty (trailing pipe is trimmed on read)")
+	}
+
+	line := strings.Join(fields, "|") + "|\n"
+	assertNoError(t, os.WriteFile(path, []byte(line), 0o600))
+}
+
 func createEphemeralPostgresDB(t *testing.T, adminURL string) string {
 	t.Helper()
 
@@ -134,6 +148,149 @@ func TestTerminology_Live_Load_LOINC_And_ICD10CM(t *testing.T) {
 	stdout, _, err = runCLI(t, "terminology", "load", "icd10cm", icdPath, "--version", "0.0-test", "--date", "2026-01-14", "--db", dsn)
 	assertNoError(t, err)
 	assertContains(t, stdout, "ICD-10-CM load complete")
+}
+
+func TestTerminology_Live_Load_UMLS(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
+	requireEnv(t, "FI_FHIR_POSTGRES_ADMIN_URL")
+	dsn := createEphemeralPostgresDB(t, os.Getenv("FI_FHIR_POSTGRES_ADMIN_URL"))
+
+	metaDir := t.TempDir()
+
+	// MRCONSO: 18 columns
+	writeRRFLine(t, metaDir+"/MRCONSO.RRF", 18, []string{
+		"C0000005",     // CUI
+		"ENG",          // LAT
+		"P",            // TS
+		"L0000005",     // LUI
+		"PF",           // STT
+		"S0000005",     // SUI
+		"Y",            // ISPREF
+		"A0000005",     // AUI
+		"",             // SAUI
+		"",             // SCUI
+		"",             // SDUI
+		"SNOMEDCT_US",  // SAB
+		"PT",           // TTY
+		"12345",        // CODE
+		"Test concept", // STR
+		"0",            // SRL
+		"N",            // SUPPRESS
+		"0",            // CVF
+	})
+
+	// MRREL: 16 columns
+	writeRRFLine(t, metaDir+"/MRREL.RRF", 16, []string{
+		"C0000005", // CUI1
+		"",         // AUI1
+		"CUI",      // STYPE1
+		"RB",       // REL
+		"C0000006", // CUI2
+		"",         // AUI2
+		"CUI",      // STYPE2
+		"",         // RELA
+		"",         // RUI
+		"",         // SRUI
+		"SNOMEDCT_US",
+		"",  // SL
+		"",  // RG
+		"",  // DIR
+		"N", // SUPPRESS
+		"0", // CVF
+	})
+
+	// MRSTY: 6 columns
+	writeRRFLine(t, metaDir+"/MRSTY.RRF", 6, []string{
+		"C0000005",            // CUI
+		"T047",                // TUI
+		"1",                   // STN
+		"Disease or Syndrome", // STY
+		"",                    // ATUI
+		"0",                   // CVF
+	})
+
+	stdout, _, err := runCLI(t, "terminology", "load", "umls", metaDir, "--version", "0.0-test", "--date", "2026-01-14", "--db", dsn)
+	assertNoError(t, err)
+	assertContains(t, stdout, "UMLS load complete")
+	assertContains(t, stdout, "Concepts (MRCONSO):")
+	assertContains(t, stdout, "Relations (MRREL):")
+	assertContains(t, stdout, "Semantic Types (MRSTY):")
+}
+
+func TestTerminology_Live_Load_RxNorm(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
+	requireEnv(t, "FI_FHIR_POSTGRES_ADMIN_URL")
+	dsn := createEphemeralPostgresDB(t, os.Getenv("FI_FHIR_POSTGRES_ADMIN_URL"))
+
+	rrfDir := t.TempDir()
+
+	// RXNCONSO: 18 columns
+	writeRRFLine(t, rrfDir+"/RXNCONSO.RRF", 18, []string{
+		"316076",                // RXCUI
+		"ENG",                   // LAT
+		"P",                     // TS
+		"L0000001",              // LUI
+		"PF",                    // STT
+		"S0000001",              // SUI
+		"Y",                     // ISPREF
+		"RXA000001",             // RXAUI
+		"",                      // SAUI
+		"",                      // SCUI
+		"",                      // SDUI
+		"RXNORM",                // SAB
+		"SCD",                   // TTY
+		"123456",                // CODE
+		"Test drug 1 MG Tablet", // STR
+		"0",                     // SRL
+		"N",                     // SUPPRESS
+		"0",                     // CVF
+	})
+
+	// RXNREL: 16 columns
+	writeRRFLine(t, rrfDir+"/RXNREL.RRF", 16, []string{
+		"316076",    // RXCUI1
+		"RXA000001", // RXAUI1
+		"RXAUI",     // STYPE1
+		"RO",        // REL
+		"316077",    // RXCUI2
+		"RXA000002", // RXAUI2
+		"RXAUI",     // STYPE2
+		"",          // RELA
+		"",          // RUI
+		"",          // SRUI
+		"RXNORM",    // SAB
+		"",          // SL
+		"",          // RG
+		"",          // DIR
+		"N",         // SUPPRESS
+		"0",         // CVF
+	})
+
+	// RXNSAT: 13 columns (NDC attribute)
+	writeRRFLine(t, rrfDir+"/RXNSAT.RRF", 13, []string{
+		"316076",        // RXCUI
+		"",              // LUI
+		"",              // SUI
+		"RXA000001",     // RXAUI
+		"RXAUI",         // STYPE
+		"",              // CODE
+		"",              // ATUI
+		"",              // SATUI
+		"NDC",           // ATN
+		"RXNORM",        // SAB
+		"00002-3234-01", // ATV
+		"N",             // SUPPRESS
+		"0",             // CVF
+	})
+
+	stdout, _, err := runCLI(t, "terminology", "load", "rxnorm", rrfDir, "--version", "0.0-test", "--date", "2026-01-14", "--db", dsn)
+	assertNoError(t, err)
+	assertContains(t, stdout, "RxNorm load complete")
+	assertContains(t, stdout, "NDC Cross-refs:")
 }
 
 func TestEventStore_Live_Postgres(t *testing.T) {
