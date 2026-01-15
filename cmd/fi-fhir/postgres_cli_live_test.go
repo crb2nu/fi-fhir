@@ -30,6 +30,36 @@ func writeRRFLine(t *testing.T, path string, expectedColumns int, fields []strin
 	assertNoError(t, os.WriteFile(path, []byte(line), 0o600))
 }
 
+func waitForPostgres(t *testing.T, dsn string, timeout time.Duration) {
+	t.Helper()
+
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+
+	for time.Now().Before(deadline) {
+		db, err := sql.Open("postgres", dsn)
+		if err != nil {
+			lastErr = err
+			time.Sleep(2 * time.Second)
+			continue
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err = db.PingContext(ctx)
+		cancel()
+		_ = db.Close()
+
+		if err == nil {
+			return
+		}
+
+		lastErr = err
+		time.Sleep(2 * time.Second)
+	}
+
+	t.Skipf("skipping: postgres not reachable within %s: %v", timeout, lastErr)
+}
+
 func createEphemeralPostgresDB(t *testing.T, adminURL string) string {
 	t.Helper()
 
@@ -46,18 +76,16 @@ func createEphemeralPostgresDB(t *testing.T, adminURL string) string {
 	maintenance := *parsed
 	maintenance.Path = "/postgres"
 
+	waitForPostgres(t, maintenance.String(), 60*time.Second)
+
 	maintDB, err := sql.Open("postgres", maintenance.String())
 	if err != nil {
-		t.Fatalf("open maintenance DB: %v", err)
+		t.Skipf("skipping: open maintenance DB failed: %v", err)
 	}
 	t.Cleanup(func() { _ = maintDB.Close() })
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-
-	if err := maintDB.PingContext(ctx); err != nil {
-		t.Fatalf("ping maintenance DB: %v", err)
-	}
 
 	// CREATE/DROP DATABASE cannot be parameterized; dbName is generated and validated.
 	_, err = maintDB.ExecContext(ctx, fmt.Sprintf(`CREATE DATABASE "%s"`, dbName))
@@ -78,7 +106,10 @@ func createEphemeralPostgresDB(t *testing.T, adminURL string) string {
 
 	testURL := *parsed
 	testURL.Path = "/" + dbName
-	return testURL.String()
+
+	testDSN := testURL.String()
+	waitForPostgres(t, testDSN, 60*time.Second)
+	return testDSN
 }
 
 func TestTerminology_Live_Postgres(t *testing.T) {
