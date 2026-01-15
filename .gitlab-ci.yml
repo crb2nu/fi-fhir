@@ -176,7 +176,7 @@ test:unit:
   script:
     - apt-get update && apt-get install -y --no-install-recommends git ca-certificates build-essential && rm -rf /var/lib/apt/lists/*
     - go install github.com/boumenot/gocover-cobertura@latest
-    - go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+    - go test -tags=live -v -race -coverprofile=coverage.out -covermode=atomic ./...
     - go tool cover -func=coverage.out
     - gocover-cobertura < coverage.out > coverage.xml
   coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
