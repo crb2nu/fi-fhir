@@ -36,7 +36,10 @@ func TestETL_FetchTest_WritesToOutputDir(t *testing.T) {
 	// spot-check that a file with the payload exists somewhere under outDir.
 	foundPayload := false
 	_ = filepath.WalkDir(outDir, func(path string, d os.DirEntry, werr error) error {
-		if werr != nil || d.IsDir() {
+		if werr != nil {
+			return werr
+		}
+		if d.IsDir() {
 			return nil
 		}
 		b, rerr := os.ReadFile(path) //nolint:gosec // path is under t.TempDir()
