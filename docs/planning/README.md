@@ -176,7 +176,7 @@ The following items remain for full production readiness:
 
 | Area | Current Coverage | Target | Notes |
 |------|------------------|--------|-------|
-| CLI (`cmd/fi-fhir/`) | 41.0% | 80%+ | Improved with offline stubs; limited by external service deps (MinIO, PostgreSQL) |
+| CLI (`cmd/fi-fhir/`) | 48.7% | 80%+ | Improved with offline stubs + CI live tests (k3s MinIO/PostgreSQL via GitLab CI variables) |
 | Terminology (db) | 13.5% | 80%+ | Requires PostgreSQL testcontainers |
 | CDA Parser | 87.1% | 80%+ | ✅ Above target |
 | ✅ GraphQL Resolvers | 80.8% | 80%+ | |
