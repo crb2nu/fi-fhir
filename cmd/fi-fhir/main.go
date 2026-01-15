@@ -3329,6 +3329,11 @@ func runSubscriptionServe(args []string) error {
 		case "--help", "-h":
 			printSubscriptionServeUsage()
 			return nil
+		default:
+			if len(args[i]) > 0 && args[i][0] == '-' {
+				return fmt.Errorf("unknown flag: %s", args[i])
+			}
+			return fmt.Errorf("unexpected arg: %s", args[i])
 		}
 	}
 

@@ -71,6 +71,8 @@ func runCLI(t *testing.T, args ...string) (stdout, stderr string, err error) {
 	var capturedErr error
 	stdout, stderr = captureOutput(t, func() {
 		switch args[0] {
+		case "companion":
+			capturedErr = runCompanion(args[1:])
 		case "parse":
 			capturedErr = runParse(args[1:])
 		case "validate":
