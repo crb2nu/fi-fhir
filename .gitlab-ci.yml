@@ -23,6 +23,16 @@ variables:
       - .cache/go-build/
     policy: pull-push
 
+# Pull-only cache (avoids cache upload stalls if runner-cache backend is degraded)
+.go-cache-pull: &go-cache-pull
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}-go-${GO_VERSION}
+    paths:
+      - .go/pkg/mod/
+      - .go/bin/
+      - .cache/go-build/
+    policy: pull
+
 # Default Go image
 .go-image: &go-image
   image: golang:${GO_VERSION}-alpine
@@ -234,7 +244,7 @@ test:benchmark:
 security:govulncheck:
   stage: security
   <<: *go-image
-  <<: *go-cache
+  <<: *go-cache-pull
   script:
     - apk add --no-cache git
     - go install golang.org/x/vuln/cmd/govulncheck@latest
@@ -247,7 +257,7 @@ security:govulncheck:
 security:gosec:
   stage: security
   <<: *go-image
-  <<: *go-cache
+  <<: *go-cache-pull
   script:
     - apk add --no-cache git
     - go install github.com/securego/gosec/v2/cmd/gosec@latest
