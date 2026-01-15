@@ -176,7 +176,7 @@ The following items remain for full production readiness:
 
 | Area | Current Coverage | Target | Notes |
 |------|------------------|--------|-------|
-| CLI (`cmd/fi-fhir/`) | 48.7% | 80%+ | Improved with offline stubs + CI live tests (k3s MinIO/PostgreSQL via GitLab CI variables) |
+| CLI (`cmd/fi-fhir/`) | 51.2% | 80%+ | Improved with offline stubs + CI live tests (k3s MinIO/PostgreSQL via GitLab CI variables; live CLI tests run under `-tags=live` in `test:unit`) |
 | Terminology (db) | 13.5% | 80%+ | Requires PostgreSQL testcontainers |
 | CDA Parser | 87.1% | 80%+ | ✅ Above target |
 | ✅ GraphQL Resolvers | 80.8% | 80%+ | |
@@ -184,6 +184,12 @@ The following items remain for full production readiness:
 | ✅ Terminology (pkg) | 66.9% | 80%+ | Core pkg good, db layer needs work |
 | ✅ FHIR Parser | 92.5% | 80%+ | |
 | ✅ Workflow Engine | 79.5% | 80%+ | |
+
+#### P2 Next Steps (CLI Coverage)
+
+1. Add offline tests for low-coverage CLI commands: `companion`, `serve`, `subscription *`, `config show/env`.
+2. Add `-tags=live` CLI tests for untested terminology loaders: `terminology load snomed`, `terminology load icd10pcs` (minimal fixtures).
+3. Add remaining ETL CLI coverage (`etl fetch/load/validate`) and projection rebuild coverage, preferring stubs first and `-tags=live` where Postgres/MinIO are required.
 
 ### P3 - Future Enhancements
 
