@@ -337,6 +337,12 @@ func TestEventStore_Live_Postgres(t *testing.T) {
 	assertNoError(t, err)
 	assertContains(t, stdout, "Event store schema initialized successfully")
 
+	// Projection status before any events are appended.
+	stdout, _, err = runCLI(t, "projection", "status", "--db", dsn, "--table", table)
+	assertNoError(t, err)
+	assertContains(t, stdout, "Projection Status")
+	assertContains(t, stdout, "patient_timeline")
+
 	stdout, _, err = runCLI(t, "eventstore", "append",
 		"--db", dsn,
 		"--table", table,
@@ -365,4 +371,9 @@ func TestEventStore_Live_Postgres(t *testing.T) {
 	stdout, _, err = runCLI(t, "eventstore", "streams", "--db", dsn, "--table", table, "--limit", "10")
 	assertNoError(t, err)
 	assertContains(t, stdout, "STREAM ID")
+
+	// Run projections against the event store + checkpoint store.
+	stdout, _, err = runCLI(t, "projection", "run", "--db", dsn, "--table", table)
+	assertNoError(t, err)
+	assertContains(t, stdout, "Projections updated successfully")
 }
