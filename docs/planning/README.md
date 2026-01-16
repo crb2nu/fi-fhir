@@ -68,7 +68,7 @@ The backlog of remaining work is documented in the [Backlog section](#backlog-pr
 For AI assistant guidance, see [AGENTS.md](../../AGENTS.md).
 
 ### Completed
-- HL7v2 parsing (ADT, ORU, SIU messages)
+- HL7v2 parsing (ADT, ORU, SIU, MDM, DFT messages)
 - CSV parsing with schema inference
 - EDI X12 parsing (837P, 835)
 - Source Profile system
@@ -176,7 +176,7 @@ The following items remain for full production readiness:
 
 | Area | Current Coverage | Target | Notes |
 |------|------------------|--------|-------|
-| CLI (`cmd/fi-fhir/`) | 51.2% | 80%+ | Improved with offline stubs + CI live tests (k3s MinIO/PostgreSQL via GitLab CI variables; live CLI tests run under `-tags=live` in `test:unit`) |
+| CLI (`cmd/fi-fhir/`) | 68.8% | 80%+ | Improved with offline stubs + CI live tests (k3s MinIO/PostgreSQL via GitLab CI variables; live CLI tests run under `-tags=live` in `test:unit`) |
 | Terminology (db) | 13.5% | 80%+ | Requires PostgreSQL testcontainers |
 | CDA Parser | 87.1% | 80%+ | ✅ Above target |
 | ✅ GraphQL Resolvers | 80.8% | 80%+ | |
@@ -193,7 +193,7 @@ The following items remain for full production readiness:
 
 ### P3 - Future Enhancements
 
-- Additional HL7v2 message types (MDM, DFT)
+- ✅ Additional HL7v2 message types (MDM, DFT) - Implemented 2026-01-16
 - CDA/CCDA section expansion (Medications, Allergies, Social History)
 - Test data organization and edge case fixtures
 
