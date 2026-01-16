@@ -42,11 +42,30 @@
       mappingTargetSystem = m.targetSystem;
     } else {
       editingMappingIndex = null;
-      mappingId = `mapping_${Date.now()}`;
+      mappingId = '';
       mappingSourceSystem = '';
       mappingTargetSystem = '';
     }
     showMappingModal = true;
+  }
+
+  // Auto-generate ID from source system when empty
+  $: if (mappingSourceSystem && !mappingId && editingMappingIndex === null) {
+    mappingId = mappingSourceSystem.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  }
+
+  // Keyboard handler for mapping modal
+  function handleMappingKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter' && mappingId.trim() && mappingSourceSystem.trim() && mappingTargetSystem.trim()) {
+      saveMapping();
+    }
+  }
+
+  // Keyboard handler for entry modal
+  function handleEntryKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter' && entrySourceCode.trim() && entryTargetCode.trim()) {
+      saveEntry();
+    }
   }
 
   function saveMapping() {
@@ -226,6 +245,7 @@
         <div class="mapping-card">
           <div class="mapping-header">
             <div class="mapping-info">
+              <span class="mapping-id mono">{mapping.id}</span>
               <span class="mapping-source mono">{mapping.sourceSystem}</span>
               <span class="mapping-arrow">-></span>
               <span class="mapping-target mono">{mapping.targetSystem}</span>
@@ -280,7 +300,7 @@
 <!-- Mapping Table Modal -->
 {#if showMappingModal}
   <div class="modal-overlay" on:click={() => (showMappingModal = false)} role="button" tabindex="-1">
-    <div class="modal" on:click|stopPropagation role="dialog" aria-modal="true">
+    <div class="modal" on:click|stopPropagation on:keydown={handleMappingKeydown} role="dialog" aria-modal="true">
       <h3 class="modal-title">
         {editingMappingIndex !== null ? 'Edit Mapping Table' : 'Add Mapping Table'}
       </h3>
@@ -307,6 +327,7 @@
           <div class="quick-systems">
             {#each commonSystems as sys}
               <button
+                type="button"
                 class="system-chip"
                 class:active={mappingTargetSystem === sys.uri}
                 on:click={() => (mappingTargetSystem = sys.uri)}
@@ -316,12 +337,23 @@
             {/each}
           </div>
         </label>
+
+        <label class="label">
+          Mapping ID
+          <input
+            class="input mono"
+            type="text"
+            bind:value={mappingId}
+            placeholder="e.g., local_lab_to_loinc"
+          />
+          <span class="hint">Unique identifier for this mapping table (auto-generated from source)</span>
+        </label>
       </div>
       <div class="modal-actions">
         <Button variant="secondary" on:click={() => (showMappingModal = false)}>Cancel</Button>
         <Button
           on:click={saveMapping}
-          disabled={!mappingSourceSystem.trim() || !mappingTargetSystem.trim()}
+          disabled={!mappingId.trim() || !mappingSourceSystem.trim() || !mappingTargetSystem.trim()}
         >
           {editingMappingIndex !== null ? 'Update' : 'Create'}
         </Button>
@@ -333,7 +365,7 @@
 <!-- Entry Modal -->
 {#if showEntryModal && selectedMapping}
   <div class="modal-overlay" on:click={() => (showEntryModal = false)} role="button" tabindex="-1">
-    <div class="modal" on:click|stopPropagation role="dialog" aria-modal="true">
+    <div class="modal" on:click|stopPropagation on:keydown={handleEntryKeydown} role="dialog" aria-modal="true">
       <h3 class="modal-title">
         {editingEntryIndex !== null ? 'Edit Entry' : 'Add Entry'}
       </h3>
@@ -470,6 +502,16 @@
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
+  }
+
+  .mapping-id {
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(229, 231, 235, 0.6);
+    font-size: 0.8rem;
+    margin-right: 8px;
   }
 
   .mapping-source,
