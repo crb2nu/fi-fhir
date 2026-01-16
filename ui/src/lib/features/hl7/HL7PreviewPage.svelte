@@ -14,14 +14,25 @@
   import type { HL7Sample } from '$lib/features/hl7/samples/types';
   import { onMount } from 'svelte';
   import ProfileDraftPanel from '$lib/features/hl7/components/ProfileDraftPanel.svelte';
-  import { createHL7ProfileDraftStore } from '$lib/features/hl7/profile/profileDraftStore';
   import { suggestFixes } from '$lib/features/hl7/profile/fixes';
+  import { profileStore, selectedProfile } from '$lib/features/hl7/profile/profileStore.svelte';
+  import type { ProfileFix } from '$lib/features/hl7/profile/types';
 
   const store = createHL7PreviewStore();
+
+  // Track the profile ID and version used for the last parse
+  let lastUsedProfileId: string | null = null;
+  let lastUsedProfileVersion: string | null = null;
+
+  // Detect if profile has changed since last parse
+  $: profileChanged =
+    $state.result &&
+    $selectedProfile &&
+    (lastUsedProfileId !== $selectedProfile.id ||
+      lastUsedProfileVersion !== $selectedProfile.version);
   const { state, warningsByPhase, events, hl7 } = store;
   const samplesStore = createHL7SampleStore();
   const { samples, activeId, activeSample } = samplesStore;
-  const profileDraft = createHL7ProfileDraftStore();
 
   let activeTab: 'samples' | 'warnings' | 'events' | 'inspector' | 'profile' = 'warnings';
   let selectedPath: string | null = null;
@@ -40,9 +51,16 @@
     selectedPath = null;
     selectedLocation = null;
     const snapshot = getSnapshot();
+    const profileId = $selectedProfile?.id ?? null;
 
     try {
-      const result = await parseHL7Preview({ source: snapshot.source, data: snapshot.data });
+      const result = await parseHL7Preview({
+        source: snapshot.source,
+        data: snapshot.data,
+        profileId
+      });
+      lastUsedProfileId = profileId;
+      lastUsedProfileVersion = $selectedProfile?.version ?? null;
       state.update((s) => ({ ...s, loading: false, result }));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -71,7 +89,20 @@
     state.update((s) => ({ ...s, source: sample.source, data: sample.raw }));
   }
 
-  $: fixes = suggestFixes($state.result?.parsePreview.warnings ?? []);
+  // Generate fixes based on warnings and current profile
+  $: fixes = suggestFixes($state.result?.parsePreview.warnings ?? [], $selectedProfile);
+
+  // Apply a suggested fix to the current profile
+  function applyFix(fix: ProfileFix) {
+    if (!$selectedProfile) {
+      console.warn('Cannot apply fix: no profile selected');
+      return;
+    }
+    // Apply the changes to the local state
+    profileStore.updateLocal(fix.changes);
+    // Switch to the profile tab to show the changes
+    activeTab = 'profile';
+  }
 
   onMount(() => {
     const unsub = activeSample.subscribe((s) => {
@@ -123,6 +154,16 @@
         </div>
         <div class="pill">events: {$events.length}</div>
         <div class="pill">warnings: {$state.result.parsePreview.warnings.length}</div>
+        {#if lastUsedProfileId}
+          <div class="pill profile">profile: {lastUsedProfileId}</div>
+        {:else}
+          <div class="pill muted">no profile</div>
+        {/if}
+        {#if profileChanged}
+          <button class="pill stale" on:click={run} disabled={$state.loading}>
+            Profile changed - Re-test
+          </button>
+        {/if}
       </div>
 
       {#if $state.result.parsePreview.errors.length}
@@ -166,10 +207,8 @@
         <HL7Inspector message={$hl7} selected={selectedLocation} />
       {:else}
         <ProfileDraftPanel
-          bind:draft={$profileDraft}
           fixes={fixes}
-          onApplyFix={(fix) => profileDraft.update((d) => fix.apply(d))}
-          onReset={() => profileDraft.reset()}
+          onApplyFix={applyFix}
         />
       {/if}
     {/if}
@@ -276,6 +315,34 @@
   .pill.bad {
     border-color: rgba(239, 68, 68, 0.35);
     background: rgba(239, 68, 68, 0.12);
+  }
+
+  .pill.profile {
+    border-color: rgba(59, 130, 246, 0.35);
+    background: rgba(59, 130, 246, 0.12);
+    color: rgba(147, 197, 253, 0.95);
+  }
+
+  .pill.muted {
+    color: rgba(229, 231, 235, 0.5);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .pill.stale {
+    border-color: rgba(245, 158, 11, 0.45);
+    background: rgba(245, 158, 11, 0.15);
+    color: rgba(253, 230, 138, 0.95);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .pill.stale:hover:not(:disabled) {
+    background: rgba(245, 158, 11, 0.25);
+  }
+
+  .pill.stale:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .tabs {

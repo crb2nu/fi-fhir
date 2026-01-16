@@ -1,0 +1,162 @@
+# Profile management queries and mutations
+
+# Fragments for reuse
+fragment ProfileFields on SourceProfile {
+  id
+  name
+  version
+  createdAt
+  updatedAt
+  createdBy
+  isActive
+}
+
+fragment ToleranceFields on ToleranceConfig {
+  missingSegments
+  nteAnywhere
+  extraComponents
+  unknownSegments
+  nonStandardDelimiters
+}
+
+fragment HL7v2ConfigFields on HL7v2Config {
+  defaultVersion
+  timezone
+  tolerance {
+    ...ToleranceFields
+  }
+  eventClassifications {
+    messageType
+    condition
+    eventType
+    priority
+  }
+}
+
+fragment IdentifierConfigFields on IdentifierConfig {
+  assigningAuthorities {
+    code
+    system
+    name
+  }
+  primaryIdPreference {
+    type
+    assignerContains
+    priority
+  }
+  validation {
+    npi {
+      enabled
+      onInvalid
+    }
+    mbi {
+      enabled
+      onInvalid
+    }
+    ssn {
+      enabled
+      onInvalid
+    }
+  }
+  normalization {
+    ssnStripDashes
+    ssnRejectPatterns
+    phoneNormalize
+    phoneFormat
+  }
+}
+
+fragment TerminologyConfigFields on TerminologyConfig {
+  mappings {
+    id
+    sourceSystem
+    targetSystem
+    entries {
+      sourceCode
+      targetCode
+      display
+    }
+  }
+}
+
+fragment FullProfileFields on SourceProfile {
+  ...ProfileFields
+  hl7v2 {
+    ...HL7v2ConfigFields
+  }
+  identifiers {
+    ...IdentifierConfigFields
+  }
+  terminology {
+    ...TerminologyConfigFields
+  }
+}
+
+# Queries
+
+query ListProfiles($activeOnly: Boolean = true) {
+  profiles(activeOnly: $activeOnly) {
+    ...ProfileFields
+  }
+}
+
+query GetProfile($id: ID!) {
+  profile(id: $id) {
+    ...FullProfileFields
+  }
+}
+
+query GetProfileRevisions($id: ID!) {
+  profileRevisions(id: $id) {
+    version
+    createdAt
+    createdBy
+    changeSummary
+  }
+}
+
+query ParsePreviewWithProfile($format: SourceFormat!, $data: String!, $source: String, $profileId: ID) {
+  parsePreviewWithProfile(format: $format, data: $data, source: $source, profileId: $profileId) {
+    success
+    errors
+    events {
+      __typename
+      id
+      type
+      timestamp
+      source
+      sourceFormat
+      correlationId
+    }
+    warnings {
+      phase
+      code
+      message
+      path
+    }
+  }
+}
+
+# Mutations
+
+mutation CreateProfile($input: CreateProfileInput!) {
+  createProfile(input: $input) {
+    ...ProfileFields
+  }
+}
+
+mutation UpdateProfile($id: ID!, $input: UpdateProfileInput!) {
+  updateProfile(id: $id, input: $input) {
+    ...FullProfileFields
+  }
+}
+
+mutation DeleteProfile($id: ID!) {
+  deleteProfile(id: $id)
+}
+
+mutation DuplicateProfile($id: ID!, $newId: ID!, $newName: String!) {
+  duplicateProfile(id: $id, newId: $newId, newName: $newName) {
+    ...ProfileFields
+  }
+}

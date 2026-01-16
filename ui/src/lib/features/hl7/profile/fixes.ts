@@ -1,17 +1,22 @@
-import type { HL7ProfileDraft, ProfileFix } from './types';
+import type { ProfileFix } from './types';
 import type { WarningLike } from '$lib/domain/warnings';
+import type { SourceProfile, UpdateProfileInput } from '$lib/gen/graphql';
 
-function uniqSorted(xs: string[]): string[] {
-  return Array.from(new Set(xs)).sort((a, b) => a.localeCompare(b));
-}
-
-function addMissingSegment(draft: HL7ProfileDraft, seg: string): HL7ProfileDraft {
-  const next = uniqSorted([...draft.tolerate.missingSegments, seg]);
-  return { ...draft, tolerate: { ...draft.tolerate, missingSegments: next } };
-}
-
-export function suggestFixes(warnings: readonly WarningLike[]): ProfileFix[] {
+/**
+ * Suggest profile fixes based on warnings from parsing.
+ * Now returns fixes with UpdateProfileInput changes that can be applied via profileStore.updateLocal.
+ *
+ * @param warnings - Warnings from the parse result
+ * @param currentProfile - Optional current profile to merge changes with
+ */
+export function suggestFixes(
+  warnings: readonly WarningLike[],
+  currentProfile?: SourceProfile | null
+): ProfileFix[] {
   const fixes: ProfileFix[] = [];
+
+  // Get current missing segments if profile exists
+  const currentMissingSegments = currentProfile?.hl7v2?.tolerance?.missingSegments ?? [];
 
   // Missing segments (semantic warnings): code like MISSING_PV1, path like PV1
   for (const w of warnings) {
@@ -19,11 +24,23 @@ export function suggestFixes(warnings: readonly WarningLike[]): ProfileFix[] {
     const seg = m?.[1];
     if (!seg) continue;
 
+    // Skip if already tolerating this segment
+    if (currentMissingSegments.includes(seg)) continue;
+
+    const newMissingSegments = [...currentMissingSegments, seg].sort();
+
+    // Use type assertion for partial update - profileStore.updateLocal handles merging
     fixes.push({
       id: `tolerate-missing-${seg}`,
       title: `Tolerate missing ${seg}`,
       description: `Allow parsing to continue when ${seg} is absent (records a warning instead of failing).`,
-      apply: (draft) => addMissingSegment(draft, seg)
+      changes: {
+        hl7v2: {
+          tolerance: {
+            missingSegments: newMissingSegments
+          }
+        }
+      } as UpdateProfileInput
     });
   }
 
@@ -35,16 +52,13 @@ export function suggestFixes(warnings: readonly WarningLike[]): ProfileFix[] {
         id: 'idval-npi-warn',
         title: 'Enable NPI validation (warn)',
         description: 'Validate NPI values and record invalid NPIs as warnings (recommended default).',
-        apply: (draft) => ({
-          ...draft,
+        changes: {
           identifiers: {
-            ...draft.identifiers,
             validation: {
-              ...draft.identifiers.validation,
               npi: { enabled: true, onInvalid: 'warn' }
             }
           }
-        })
+        } as UpdateProfileInput
       });
     }
 
@@ -53,16 +67,13 @@ export function suggestFixes(warnings: readonly WarningLike[]): ProfileFix[] {
         id: 'idval-mbi-warn',
         title: 'Enable MBI validation (warn)',
         description: 'Validate MBI values and record invalid MBIs as warnings (recommended default).',
-        apply: (draft) => ({
-          ...draft,
+        changes: {
           identifiers: {
-            ...draft.identifiers,
             validation: {
-              ...draft.identifiers.validation,
               mbi: { enabled: true, onInvalid: 'warn' }
             }
           }
-        })
+        } as UpdateProfileInput
       });
     }
 
@@ -71,16 +82,13 @@ export function suggestFixes(warnings: readonly WarningLike[]): ProfileFix[] {
         id: 'idval-ssn-warn',
         title: 'Enable SSN validation (warn)',
         description: 'Validate SSNs and record invalid SSNs as warnings (recommended default).',
-        apply: (draft) => ({
-          ...draft,
+        changes: {
           identifiers: {
-            ...draft.identifiers,
             validation: {
-              ...draft.identifiers.validation,
               ssn: { enabled: true, onInvalid: 'warn' }
             }
           }
-        })
+        } as UpdateProfileInput
       });
     }
   }

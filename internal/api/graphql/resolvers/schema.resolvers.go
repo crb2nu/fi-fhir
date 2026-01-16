@@ -13,6 +13,7 @@ import (
 
 	graphql1 "gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/store"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/fhir/subscription"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/cda"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/csv"
@@ -491,6 +492,103 @@ func (r *mutationResolver) ResumeFhirSubscription(ctx context.Context, id string
 	}, nil
 }
 
+// CreateProfile is the resolver for the createProfile field.
+func (r *mutationResolver) CreateProfile(ctx context.Context, input model.CreateProfileInput) (*model.SourceProfile, error) {
+	if r.ProfileStore == nil {
+		return nil, fmt.Errorf("profile store not configured")
+	}
+
+	profile := &store.Profile{
+		ID:       input.ID,
+		Name:     input.Name,
+		Version:  "1.0.0",
+		Config:   []byte("{}"),
+		IsActive: true,
+	}
+
+	if err := r.ProfileStore.CreateProfile(ctx, profile); err != nil {
+		return nil, fmt.Errorf("create profile: %w", err)
+	}
+
+	// Fetch the created profile to get timestamps
+	created, err := r.ProfileStore.GetProfile(ctx, input.ID)
+	if err != nil {
+		return nil, fmt.Errorf("get created profile: %w", err)
+	}
+
+	return convertStoreProfileToGraphQL(created)
+}
+
+// UpdateProfile is the resolver for the updateProfile field.
+func (r *mutationResolver) UpdateProfile(ctx context.Context, id string, input model.UpdateProfileInput) (*model.SourceProfile, error) {
+	if r.ProfileStore == nil {
+		return nil, fmt.Errorf("profile store not configured")
+	}
+
+	// Get existing profile
+	existing, err := r.ProfileStore.GetProfile(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("get profile: %w", err)
+	}
+	if existing == nil {
+		return nil, fmt.Errorf("profile not found: %s", id)
+	}
+
+	// Update fields
+	if input.Name != nil {
+		existing.Name = *input.Name
+	}
+
+	// Convert GraphQL config to JSON
+	configJSON, err := convertGraphQLConfigToJSON(input)
+	if err != nil {
+		return nil, fmt.Errorf("convert config: %w", err)
+	}
+	existing.Config = configJSON
+
+	// Increment version
+	existing.Version = incrementVersion(existing.Version)
+
+	if err := r.ProfileStore.UpdateProfile(ctx, existing); err != nil {
+		return nil, fmt.Errorf("update profile: %w", err)
+	}
+
+	// Fetch updated profile
+	updated, err := r.ProfileStore.GetProfile(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("get updated profile: %w", err)
+	}
+
+	return convertStoreProfileToGraphQL(updated)
+}
+
+// DeleteProfile is the resolver for the deleteProfile field.
+func (r *mutationResolver) DeleteProfile(ctx context.Context, id string) (bool, error) {
+	if r.ProfileStore == nil {
+		return false, fmt.Errorf("profile store not configured")
+	}
+
+	if err := r.ProfileStore.DeleteProfile(ctx, id); err != nil {
+		return false, fmt.Errorf("delete profile: %w", err)
+	}
+
+	return true, nil
+}
+
+// DuplicateProfile is the resolver for the duplicateProfile field.
+func (r *mutationResolver) DuplicateProfile(ctx context.Context, id string, newID string, newName string) (*model.SourceProfile, error) {
+	if r.ProfileStore == nil {
+		return nil, fmt.Errorf("profile store not configured")
+	}
+
+	duplicated, err := r.ProfileStore.DuplicateProfile(ctx, id, newID, newName)
+	if err != nil {
+		return nil, fmt.Errorf("duplicate profile: %w", err)
+	}
+
+	return convertStoreProfileToGraphQL(duplicated)
+}
+
 // Event is the resolver for the event field.
 func (r *queryResolver) Event(ctx context.Context, id string) (model.Event, error) {
 	return r.Store.GetEvent(ctx, id)
@@ -747,6 +845,82 @@ func (r *queryResolver) ActiveEncounterByPatient(ctx context.Context, mrn string
 // ProjectionStatus is the resolver for the projectionStatus field.
 func (r *queryResolver) ProjectionStatus(ctx context.Context) ([]model.ProjectionStatus, error) {
 	return r.Projections.GetProjectionStatus()
+}
+
+// Profiles is the resolver for the profiles field.
+func (r *queryResolver) Profiles(ctx context.Context, activeOnly *bool) ([]model.SourceProfile, error) {
+	if r.ProfileStore == nil {
+		return []model.SourceProfile{}, nil
+	}
+
+	filterActive := true
+	if activeOnly != nil {
+		filterActive = *activeOnly
+	}
+
+	profiles, err := r.ProfileStore.ListProfiles(ctx, filterActive)
+	if err != nil {
+		return nil, fmt.Errorf("list profiles: %w", err)
+	}
+
+	result := make([]model.SourceProfile, 0, len(profiles))
+	for _, p := range profiles {
+		gqlProfile, err := convertStoreProfileToGraphQL(p)
+		if err != nil {
+			continue // Skip profiles that fail to convert
+		}
+		result = append(result, *gqlProfile)
+	}
+
+	return result, nil
+}
+
+// Profile is the resolver for the profile field.
+func (r *queryResolver) Profile(ctx context.Context, id string) (*model.SourceProfile, error) {
+	if r.ProfileStore == nil {
+		return nil, nil
+	}
+
+	profile, err := r.ProfileStore.GetProfile(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("get profile: %w", err)
+	}
+	if profile == nil {
+		return nil, nil
+	}
+
+	return convertStoreProfileToGraphQL(profile)
+}
+
+// ProfileRevisions is the resolver for the profileRevisions field.
+func (r *queryResolver) ProfileRevisions(ctx context.Context, id string) ([]model.ProfileRevision, error) {
+	if r.ProfileStore == nil {
+		return []model.ProfileRevision{}, nil
+	}
+
+	revisions, err := r.ProfileStore.GetProfileRevisions(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("get revisions: %w", err)
+	}
+
+	result := make([]model.ProfileRevision, 0, len(revisions))
+	for _, rev := range revisions {
+		result = append(result, model.ProfileRevision{
+			Version:       rev.Version,
+			CreatedAt:     rev.CreatedAt,
+			CreatedBy:     strPtrEmpty(rev.CreatedBy),
+			ChangeSummary: strPtrEmpty(rev.ChangeSummary),
+		})
+	}
+
+	return result, nil
+}
+
+// ParsePreviewWithProfile is the resolver for the parsePreviewWithProfile field.
+func (r *queryResolver) ParsePreviewWithProfile(ctx context.Context, format model.SourceFormat, data string, source *string, profileID *string) (*model.ParseResult, error) {
+	// For now, delegate to the standard parsePreview
+	// Profile-aware parsing will be added when profile integration is complete
+	return r.ParsePreview(ctx, format, data, source)
 }
 
 // EventStream is the resolver for the eventStream field.

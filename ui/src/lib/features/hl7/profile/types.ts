@@ -1,3 +1,6 @@
+import type { UpdateProfileInput, SourceProfile } from '$lib/gen/graphql';
+
+// Legacy type for compatibility
 export type HL7ProfileDraft = {
   id: string;
   name: string;
@@ -24,9 +27,23 @@ export type HL7ProfileDraft = {
   };
 };
 
+// New fix type that works with the backend-connected store
 export type ProfileFix = {
   id: string;
   title: string;
   description: string;
-  apply: (draft: HL7ProfileDraft) => HL7ProfileDraft;
+  /** The changes to apply to the profile */
+  changes: UpdateProfileInput;
+  /** Optional: legacy apply function for backward compatibility */
+  apply?: (draft: HL7ProfileDraft) => HL7ProfileDraft;
 };
+
+/** Helper to create a profile fix from a SourceProfile and changes */
+export function createFix(
+  id: string,
+  title: string,
+  description: string,
+  changes: UpdateProfileInput
+): ProfileFix {
+  return { id, title, description, changes };
+}

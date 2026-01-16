@@ -39,6 +39,9 @@ type Resolver struct {
 	// Store provides event and patient storage
 	Store store.EventStore
 
+	// ProfileStore provides source profile storage
+	ProfileStore store.ProfileStore
+
 	// WorkflowEngine executes workflow rules
 	WorkflowEngine *workflow.Engine
 
@@ -105,6 +108,13 @@ func WithVersion(v string) ResolverOption {
 func WithProjectionService(p *projections.Service) ResolverOption {
 	return func(r *Resolver) {
 		r.Projections = p
+	}
+}
+
+// WithProfileStore sets the profile store.
+func WithProfileStore(s store.ProfileStore) ResolverOption {
+	return func(r *Resolver) {
+		r.ProfileStore = s
 	}
 }
 

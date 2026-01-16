@@ -663,4 +663,258 @@ extend type Query {
 
   # Get projection status
   projectionStatus: [ProjectionStatus!]!
+
+  # =========================================================================
+  # Source Profile Queries
+  # =========================================================================
+
+  # List all source profiles
+  profiles(activeOnly: Boolean = true): [SourceProfile!]!
+
+  # Get a specific profile by ID
+  profile(id: ID!): SourceProfile
+
+  # Get revision history for a profile
+  profileRevisions(id: ID!): [ProfileRevision!]!
+}
+
+# =============================================================================
+# Source Profile Types (Semantic Mapping Configuration)
+# =============================================================================
+
+# Source profile for configuring parsing behavior
+type SourceProfile {
+  id: ID!
+  name: String!
+  version: String!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  createdBy: String
+  isActive: Boolean!
+
+  # Configuration sections
+  hl7v2: HL7v2Config
+  identifiers: IdentifierConfig
+  terminology: TerminologyConfig
+}
+
+# HL7v2 parsing configuration
+type HL7v2Config {
+  defaultVersion: String!
+  timezone: String!
+  tolerance: ToleranceConfig
+  eventClassifications: [EventClassificationRule!]!
+}
+
+# Tolerance configuration - what parsing anomalies to accept
+type ToleranceConfig {
+  missingSegments: [String!]!
+  nteAnywhere: Boolean!
+  extraComponents: Boolean!
+  unknownSegments: Boolean!
+  nonStandardDelimiters: Boolean!
+}
+
+# Event classification rule - maps message types to semantic events
+type EventClassificationRule {
+  messageType: String!
+  condition: String
+  eventType: String!
+  priority: Int!
+}
+
+# Identifier handling configuration
+type IdentifierConfig {
+  assigningAuthorities: [AssigningAuthority!]!
+  primaryIdPreference: [IDPreferenceRule!]!
+  validation: ValidationSettingsConfig
+  normalization: NormalizationSettingsConfig
+}
+
+# Assigning authority mapping
+type AssigningAuthority {
+  code: String!
+  system: String!
+  name: String
+}
+
+# Primary ID preference rule
+type IDPreferenceRule {
+  type: String!
+  assignerContains: String
+  priority: Int!
+}
+
+# Identifier validation settings
+type ValidationSettingsConfig {
+  npi: ValidatorSetting
+  mbi: ValidatorSetting
+  ssn: ValidatorSetting
+}
+
+# Single validator setting
+type ValidatorSetting {
+  enabled: Boolean!
+  onInvalid: String!
+}
+
+# Identifier normalization settings
+type NormalizationSettingsConfig {
+  ssnStripDashes: Boolean!
+  ssnRejectPatterns: [String!]!
+  phoneNormalize: Boolean!
+  phoneFormat: String
+}
+
+# Terminology mapping configuration
+type TerminologyConfig {
+  mappings: [TerminologyMappingTable!]!
+}
+
+# Terminology mapping table
+type TerminologyMappingTable {
+  id: ID!
+  sourceSystem: String!
+  targetSystem: String!
+  entries: [TerminologyMappingEntry!]!
+}
+
+# Single terminology mapping entry
+type TerminologyMappingEntry {
+  sourceCode: String!
+  targetCode: String!
+  display: String
+}
+
+# Profile revision (version history)
+type ProfileRevision {
+  version: String!
+  createdAt: DateTime!
+  createdBy: String
+  changeSummary: String
+}
+
+# =============================================================================
+# Source Profile Input Types
+# =============================================================================
+
+input CreateProfileInput {
+  id: ID!
+  name: String!
+}
+
+input UpdateProfileInput {
+  name: String
+  hl7v2: HL7v2ConfigInput
+  identifiers: IdentifierConfigInput
+  terminology: TerminologyConfigInput
+}
+
+input HL7v2ConfigInput {
+  defaultVersion: String
+  timezone: String
+  tolerance: ToleranceConfigInput
+  eventClassifications: [EventClassificationRuleInput!]
+}
+
+input ToleranceConfigInput {
+  missingSegments: [String!]
+  nteAnywhere: Boolean
+  extraComponents: Boolean
+  unknownSegments: Boolean
+  nonStandardDelimiters: Boolean
+}
+
+input EventClassificationRuleInput {
+  messageType: String!
+  condition: String
+  eventType: String!
+  priority: Int!
+}
+
+input IdentifierConfigInput {
+  assigningAuthorities: [AssigningAuthorityInput!]
+  primaryIdPreference: [IDPreferenceRuleInput!]
+  validation: ValidationSettingsInput
+  normalization: NormalizationSettingsInput
+}
+
+input AssigningAuthorityInput {
+  code: String!
+  system: String!
+  name: String
+}
+
+input IDPreferenceRuleInput {
+  type: String!
+  assignerContains: String
+  priority: Int!
+}
+
+input ValidationSettingsInput {
+  npi: ValidatorSettingInput
+  mbi: ValidatorSettingInput
+  ssn: ValidatorSettingInput
+}
+
+input ValidatorSettingInput {
+  enabled: Boolean!
+  onInvalid: String!
+}
+
+input NormalizationSettingsInput {
+  ssnStripDashes: Boolean
+  ssnRejectPatterns: [String!]
+  phoneNormalize: Boolean
+  phoneFormat: String
+}
+
+input TerminologyConfigInput {
+  mappings: [TerminologyMappingTableInput!]
+}
+
+input TerminologyMappingTableInput {
+  id: ID!
+  sourceSystem: String!
+  targetSystem: String!
+  entries: [TerminologyMappingEntryInput!]
+}
+
+input TerminologyMappingEntryInput {
+  sourceCode: String!
+  targetCode: String!
+  display: String
+}
+
+# =============================================================================
+# Source Profile Mutations
+# =============================================================================
+
+extend type Mutation {
+  # Create a new source profile
+  createProfile(input: CreateProfileInput!): SourceProfile!
+
+  # Update an existing profile
+  updateProfile(id: ID!, input: UpdateProfileInput!): SourceProfile!
+
+  # Delete a profile (soft delete)
+  deleteProfile(id: ID!): Boolean!
+
+  # Duplicate a profile
+  duplicateProfile(id: ID!, newId: ID!, newName: String!): SourceProfile!
+}
+
+# =============================================================================
+# parsePreview Extension for Profiles
+# =============================================================================
+
+# Extend parsePreview to accept an optional profile ID
+extend type Query {
+  # Parse preview with a specific profile applied
+  parsePreviewWithProfile(
+    format: SourceFormat!
+    data: String!
+    source: String
+    profileId: ID
+  ): ParseResult!
 }

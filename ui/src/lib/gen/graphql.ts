@@ -65,6 +65,19 @@ export type AppointmentEvent = Event & {
   type: EventType;
 };
 
+export type AssigningAuthority = {
+  __typename?: 'AssigningAuthority';
+  code: Scalars['String']['output'];
+  name: Maybe<Scalars['String']['output']>;
+  system: Scalars['String']['output'];
+};
+
+export type AssigningAuthorityInput = {
+  code: Scalars['String']['input'];
+  name: InputMaybe<Scalars['String']['input']>;
+  system: Scalars['String']['input'];
+};
+
 export type BatchEventItem = {
   correlationId: InputMaybe<Scalars['String']['input']>;
   data: Scalars['JSON']['input'];
@@ -129,6 +142,11 @@ export type ConditionEvent = Event & {
   type: EventType;
 };
 
+export type CreateProfileInput = {
+  id: Scalars['ID']['input'];
+  name: Scalars['String']['input'];
+};
+
 export type CreateSubscriptionInput = {
   criteria: Scalars['String']['input'];
   endpoint: Scalars['String']['input'];
@@ -167,6 +185,21 @@ export type Event = {
   sourceFormat: Maybe<SourceFormat>;
   timestamp: Scalars['DateTime']['output'];
   type: EventType;
+};
+
+export type EventClassificationRule = {
+  __typename?: 'EventClassificationRule';
+  condition: Maybe<Scalars['String']['output']>;
+  eventType: Scalars['String']['output'];
+  messageType: Scalars['String']['output'];
+  priority: Scalars['Int']['output'];
+};
+
+export type EventClassificationRuleInput = {
+  condition: InputMaybe<Scalars['String']['input']>;
+  eventType: Scalars['String']['input'];
+  messageType: Scalars['String']['input'];
+  priority: Scalars['Int']['input'];
 };
 
 export type EventConnection = {
@@ -243,6 +276,21 @@ export type FhirSubscription = {
   status: Scalars['String']['output'];
 };
 
+export type Hl7v2Config = {
+  __typename?: 'HL7v2Config';
+  defaultVersion: Scalars['String']['output'];
+  eventClassifications: Array<EventClassificationRule>;
+  timezone: Scalars['String']['output'];
+  tolerance: Maybe<ToleranceConfig>;
+};
+
+export type Hl7v2ConfigInput = {
+  defaultVersion: InputMaybe<Scalars['String']['input']>;
+  eventClassifications: InputMaybe<Array<EventClassificationRuleInput>>;
+  timezone: InputMaybe<Scalars['String']['input']>;
+  tolerance: InputMaybe<ToleranceConfigInput>;
+};
+
 export type HealthStatus = {
   __typename?: 'HealthStatus';
   components: Array<ComponentHealth>;
@@ -251,12 +299,40 @@ export type HealthStatus = {
   version: Scalars['String']['output'];
 };
 
+export type IdPreferenceRule = {
+  __typename?: 'IDPreferenceRule';
+  assignerContains: Maybe<Scalars['String']['output']>;
+  priority: Scalars['Int']['output'];
+  type: Scalars['String']['output'];
+};
+
+export type IdPreferenceRuleInput = {
+  assignerContains: InputMaybe<Scalars['String']['input']>;
+  priority: Scalars['Int']['input'];
+  type: Scalars['String']['input'];
+};
+
 export type Identifier = {
   __typename?: 'Identifier';
   assigner: Maybe<Scalars['String']['output']>;
   system: Maybe<Scalars['String']['output']>;
   type: Scalars['String']['output'];
   value: Scalars['String']['output'];
+};
+
+export type IdentifierConfig = {
+  __typename?: 'IdentifierConfig';
+  assigningAuthorities: Array<AssigningAuthority>;
+  normalization: Maybe<NormalizationSettingsConfig>;
+  primaryIdPreference: Array<IdPreferenceRule>;
+  validation: Maybe<ValidationSettingsConfig>;
+};
+
+export type IdentifierConfigInput = {
+  assigningAuthorities: InputMaybe<Array<AssigningAuthorityInput>>;
+  normalization: InputMaybe<NormalizationSettingsInput>;
+  primaryIdPreference: InputMaybe<Array<IdPreferenceRuleInput>>;
+  validation: InputMaybe<ValidationSettingsInput>;
 };
 
 export type Immunization = {
@@ -322,13 +398,17 @@ export type Location = {
 export type Mutation = {
   __typename?: 'Mutation';
   createFhirSubscription: FhirSubscription;
+  createProfile: SourceProfile;
   deleteFhirSubscription: Scalars['Boolean']['output'];
+  deleteProfile: Scalars['Boolean']['output'];
+  duplicateProfile: SourceProfile;
   pauseFhirSubscription: FhirSubscription;
   resumeFhirSubscription: FhirSubscription;
   submitBatch: BatchResult;
   submitEvent: SubmitResult;
   submitMessage: SubmitResult;
   triggerWorkflow: WorkflowResult;
+  updateProfile: SourceProfile;
 };
 
 
@@ -337,8 +417,25 @@ export type MutationCreateFhirSubscriptionArgs = {
 };
 
 
+export type MutationCreateProfileArgs = {
+  input: CreateProfileInput;
+};
+
+
 export type MutationDeleteFhirSubscriptionArgs = {
   id: Scalars['ID']['input'];
+};
+
+
+export type MutationDeleteProfileArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type MutationDuplicateProfileArgs = {
+  id: Scalars['ID']['input'];
+  newId: Scalars['ID']['input'];
+  newName: Scalars['String']['input'];
 };
 
 
@@ -370,6 +467,27 @@ export type MutationSubmitMessageArgs = {
 export type MutationTriggerWorkflowArgs = {
   event: Scalars['JSON']['input'];
   name: Scalars['String']['input'];
+};
+
+
+export type MutationUpdateProfileArgs = {
+  id: Scalars['ID']['input'];
+  input: UpdateProfileInput;
+};
+
+export type NormalizationSettingsConfig = {
+  __typename?: 'NormalizationSettingsConfig';
+  phoneFormat: Maybe<Scalars['String']['output']>;
+  phoneNormalize: Scalars['Boolean']['output'];
+  ssnRejectPatterns: Array<Scalars['String']['output']>;
+  ssnStripDashes: Scalars['Boolean']['output'];
+};
+
+export type NormalizationSettingsInput = {
+  phoneFormat: InputMaybe<Scalars['String']['input']>;
+  phoneNormalize: InputMaybe<Scalars['Boolean']['input']>;
+  ssnRejectPatterns: InputMaybe<Array<Scalars['String']['input']>>;
+  ssnStripDashes: InputMaybe<Scalars['Boolean']['input']>;
 };
 
 export type OrderDirection =
@@ -487,6 +605,14 @@ export type ProcedureEvent = Event & {
   type: EventType;
 };
 
+export type ProfileRevision = {
+  __typename?: 'ProfileRevision';
+  changeSummary: Maybe<Scalars['String']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  createdBy: Maybe<Scalars['String']['output']>;
+  version: Scalars['String']['output'];
+};
+
 export type ProjectionStatus = {
   __typename?: 'ProjectionStatus';
   behind: Scalars['Int']['output'];
@@ -516,9 +642,13 @@ export type Query = {
   events: EventConnection;
   health: HealthStatus;
   parsePreview: ParseResult;
+  parsePreviewWithProfile: ParseResult;
   patient: Maybe<Patient>;
   patientTimeline: Maybe<PatientTimeline>;
   patients: PatientConnection;
+  profile: Maybe<SourceProfile>;
+  profileRevisions: Array<ProfileRevision>;
+  profiles: Array<SourceProfile>;
   projectionStatus: Array<ProjectionStatus>;
   workflow: Maybe<WorkflowStatus>;
   workflows: Array<WorkflowStatus>;
@@ -562,6 +692,14 @@ export type QueryParsePreviewArgs = {
 };
 
 
+export type QueryParsePreviewWithProfileArgs = {
+  data: Scalars['String']['input'];
+  format: SourceFormat;
+  profileId: InputMaybe<Scalars['ID']['input']>;
+  source: InputMaybe<Scalars['String']['input']>;
+};
+
+
 export type QueryPatientArgs = {
   mrn: Scalars['ID']['input'];
 };
@@ -582,6 +720,21 @@ export type QueryPatientsArgs = {
 };
 
 
+export type QueryProfileArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryProfileRevisionsArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryProfilesArgs = {
+  activeOnly?: InputMaybe<Scalars['Boolean']['input']>;
+};
+
+
 export type QueryWorkflowArgs = {
   name: Scalars['String']['input'];
 };
@@ -599,6 +752,20 @@ export type SourceFormat =
   | 'EDI_837'
   | 'FHIR'
   | 'HL7V2';
+
+export type SourceProfile = {
+  __typename?: 'SourceProfile';
+  createdAt: Scalars['DateTime']['output'];
+  createdBy: Maybe<Scalars['String']['output']>;
+  hl7v2: Maybe<Hl7v2Config>;
+  id: Scalars['ID']['output'];
+  identifiers: Maybe<IdentifierConfig>;
+  isActive: Scalars['Boolean']['output'];
+  name: Scalars['String']['output'];
+  terminology: Maybe<TerminologyConfig>;
+  updatedAt: Scalars['DateTime']['output'];
+  version: Scalars['String']['output'];
+};
 
 export type SubmitBatchInput = {
   events: InputMaybe<Array<BatchEventItem>>;
@@ -652,6 +819,43 @@ export type SubscriptionWorkflowEventsArgs = {
   workflowName: Scalars['String']['input'];
 };
 
+export type TerminologyConfig = {
+  __typename?: 'TerminologyConfig';
+  mappings: Array<TerminologyMappingTable>;
+};
+
+export type TerminologyConfigInput = {
+  mappings: InputMaybe<Array<TerminologyMappingTableInput>>;
+};
+
+export type TerminologyMappingEntry = {
+  __typename?: 'TerminologyMappingEntry';
+  display: Maybe<Scalars['String']['output']>;
+  sourceCode: Scalars['String']['output'];
+  targetCode: Scalars['String']['output'];
+};
+
+export type TerminologyMappingEntryInput = {
+  display: InputMaybe<Scalars['String']['input']>;
+  sourceCode: Scalars['String']['input'];
+  targetCode: Scalars['String']['input'];
+};
+
+export type TerminologyMappingTable = {
+  __typename?: 'TerminologyMappingTable';
+  entries: Array<TerminologyMappingEntry>;
+  id: Scalars['ID']['output'];
+  sourceSystem: Scalars['String']['output'];
+  targetSystem: Scalars['String']['output'];
+};
+
+export type TerminologyMappingTableInput = {
+  entries: InputMaybe<Array<TerminologyMappingEntryInput>>;
+  id: Scalars['ID']['input'];
+  sourceSystem: Scalars['String']['input'];
+  targetSystem: Scalars['String']['input'];
+};
+
 export type TimelineEvent = {
   __typename?: 'TimelineEvent';
   eventType: Scalars['String']['output'];
@@ -660,6 +864,54 @@ export type TimelineEvent = {
   streamId: Scalars['String']['output'];
   summary: Scalars['String']['output'];
   timestamp: Scalars['DateTime']['output'];
+};
+
+export type ToleranceConfig = {
+  __typename?: 'ToleranceConfig';
+  extraComponents: Scalars['Boolean']['output'];
+  missingSegments: Array<Scalars['String']['output']>;
+  nonStandardDelimiters: Scalars['Boolean']['output'];
+  nteAnywhere: Scalars['Boolean']['output'];
+  unknownSegments: Scalars['Boolean']['output'];
+};
+
+export type ToleranceConfigInput = {
+  extraComponents: InputMaybe<Scalars['Boolean']['input']>;
+  missingSegments: InputMaybe<Array<Scalars['String']['input']>>;
+  nonStandardDelimiters: InputMaybe<Scalars['Boolean']['input']>;
+  nteAnywhere: InputMaybe<Scalars['Boolean']['input']>;
+  unknownSegments: InputMaybe<Scalars['Boolean']['input']>;
+};
+
+export type UpdateProfileInput = {
+  hl7v2: InputMaybe<Hl7v2ConfigInput>;
+  identifiers: InputMaybe<IdentifierConfigInput>;
+  name: InputMaybe<Scalars['String']['input']>;
+  terminology: InputMaybe<TerminologyConfigInput>;
+};
+
+export type ValidationSettingsConfig = {
+  __typename?: 'ValidationSettingsConfig';
+  mbi: Maybe<ValidatorSetting>;
+  npi: Maybe<ValidatorSetting>;
+  ssn: Maybe<ValidatorSetting>;
+};
+
+export type ValidationSettingsInput = {
+  mbi: InputMaybe<ValidatorSettingInput>;
+  npi: InputMaybe<ValidatorSettingInput>;
+  ssn: InputMaybe<ValidatorSettingInput>;
+};
+
+export type ValidatorSetting = {
+  __typename?: 'ValidatorSetting';
+  enabled: Scalars['Boolean']['output'];
+  onInvalid: Scalars['String']['output'];
+};
+
+export type ValidatorSettingInput = {
+  enabled: Scalars['Boolean']['input'];
+  onInvalid: Scalars['String']['input'];
 };
 
 export type VitalSign = {
@@ -725,6 +977,93 @@ export type ParsePreviewQueryVariables = Exact<{
 
 export type ParsePreviewQuery = { __typename?: 'Query', parsePreview: { __typename?: 'ParseResult', success: boolean, errors: Array<string>, events: Array<{ __typename: 'AppointmentEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename: 'ConditionEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename: 'DocumentEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename: 'ImmunizationEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename: 'LabResultEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename: 'PatientAdmitEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename: 'PatientDischargeEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename: 'ProcedureEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename: 'VitalSignEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null }>, warnings: Array<{ __typename?: 'ParseWarning', phase: string, code: string, message: string, path: string | null }> } };
 
+export type ParsePreviewWithProfileQueryVariables = Exact<{
+  format: SourceFormat;
+  data: Scalars['String']['input'];
+  source: InputMaybe<Scalars['String']['input']>;
+  profileId: InputMaybe<Scalars['ID']['input']>;
+}>;
 
+
+export type ParsePreviewWithProfileQuery = { __typename?: 'Query', parsePreviewWithProfile: { __typename?: 'ParseResult', success: boolean, errors: Array<string>, events: Array<{ __typename: 'AppointmentEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename: 'ConditionEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename: 'DocumentEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename: 'ImmunizationEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename: 'LabResultEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename: 'PatientAdmitEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename: 'PatientDischargeEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename: 'ProcedureEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename: 'VitalSignEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null }>, warnings: Array<{ __typename?: 'ParseWarning', phase: string, code: string, message: string, path: string | null }> } };
+
+export type ProfileFieldsFragment = { __typename?: 'SourceProfile', id: string, name: string, version: string, createdAt: string, updatedAt: string, createdBy: string | null, isActive: boolean };
+
+export type ToleranceFieldsFragment = { __typename?: 'ToleranceConfig', missingSegments: Array<string>, nteAnywhere: boolean, extraComponents: boolean, unknownSegments: boolean, nonStandardDelimiters: boolean };
+
+export type Hl7v2ConfigFieldsFragment = { __typename?: 'HL7v2Config', defaultVersion: string, timezone: string, tolerance: { __typename?: 'ToleranceConfig', missingSegments: Array<string>, nteAnywhere: boolean, extraComponents: boolean, unknownSegments: boolean, nonStandardDelimiters: boolean } | null, eventClassifications: Array<{ __typename?: 'EventClassificationRule', messageType: string, condition: string | null, eventType: string, priority: number }> };
+
+export type IdentifierConfigFieldsFragment = { __typename?: 'IdentifierConfig', assigningAuthorities: Array<{ __typename?: 'AssigningAuthority', code: string, system: string, name: string | null }>, primaryIdPreference: Array<{ __typename?: 'IDPreferenceRule', type: string, assignerContains: string | null, priority: number }>, validation: { __typename?: 'ValidationSettingsConfig', npi: { __typename?: 'ValidatorSetting', enabled: boolean, onInvalid: string } | null, mbi: { __typename?: 'ValidatorSetting', enabled: boolean, onInvalid: string } | null, ssn: { __typename?: 'ValidatorSetting', enabled: boolean, onInvalid: string } | null } | null, normalization: { __typename?: 'NormalizationSettingsConfig', ssnStripDashes: boolean, ssnRejectPatterns: Array<string>, phoneNormalize: boolean, phoneFormat: string | null } | null };
+
+export type TerminologyConfigFieldsFragment = { __typename?: 'TerminologyConfig', mappings: Array<{ __typename?: 'TerminologyMappingTable', id: string, sourceSystem: string, targetSystem: string, entries: Array<{ __typename?: 'TerminologyMappingEntry', sourceCode: string, targetCode: string, display: string | null }> }> };
+
+export type FullProfileFieldsFragment = { __typename?: 'SourceProfile', id: string, name: string, version: string, createdAt: string, updatedAt: string, createdBy: string | null, isActive: boolean, hl7v2: { __typename?: 'HL7v2Config', defaultVersion: string, timezone: string, tolerance: { __typename?: 'ToleranceConfig', missingSegments: Array<string>, nteAnywhere: boolean, extraComponents: boolean, unknownSegments: boolean, nonStandardDelimiters: boolean } | null, eventClassifications: Array<{ __typename?: 'EventClassificationRule', messageType: string, condition: string | null, eventType: string, priority: number }> } | null, identifiers: { __typename?: 'IdentifierConfig', assigningAuthorities: Array<{ __typename?: 'AssigningAuthority', code: string, system: string, name: string | null }>, primaryIdPreference: Array<{ __typename?: 'IDPreferenceRule', type: string, assignerContains: string | null, priority: number }>, validation: { __typename?: 'ValidationSettingsConfig', npi: { __typename?: 'ValidatorSetting', enabled: boolean, onInvalid: string } | null, mbi: { __typename?: 'ValidatorSetting', enabled: boolean, onInvalid: string } | null, ssn: { __typename?: 'ValidatorSetting', enabled: boolean, onInvalid: string } | null } | null, normalization: { __typename?: 'NormalizationSettingsConfig', ssnStripDashes: boolean, ssnRejectPatterns: Array<string>, phoneNormalize: boolean, phoneFormat: string | null } | null } | null, terminology: { __typename?: 'TerminologyConfig', mappings: Array<{ __typename?: 'TerminologyMappingTable', id: string, sourceSystem: string, targetSystem: string, entries: Array<{ __typename?: 'TerminologyMappingEntry', sourceCode: string, targetCode: string, display: string | null }> }> } | null };
+
+export type ListProfilesQueryVariables = Exact<{
+  activeOnly?: InputMaybe<Scalars['Boolean']['input']>;
+}>;
+
+
+export type ListProfilesQuery = { __typename?: 'Query', profiles: Array<{ __typename?: 'SourceProfile', id: string, name: string, version: string, createdAt: string, updatedAt: string, createdBy: string | null, isActive: boolean }> };
+
+export type GetProfileQueryVariables = Exact<{
+  id: Scalars['ID']['input'];
+}>;
+
+
+export type GetProfileQuery = { __typename?: 'Query', profile: { __typename?: 'SourceProfile', id: string, name: string, version: string, createdAt: string, updatedAt: string, createdBy: string | null, isActive: boolean, hl7v2: { __typename?: 'HL7v2Config', defaultVersion: string, timezone: string, tolerance: { __typename?: 'ToleranceConfig', missingSegments: Array<string>, nteAnywhere: boolean, extraComponents: boolean, unknownSegments: boolean, nonStandardDelimiters: boolean } | null, eventClassifications: Array<{ __typename?: 'EventClassificationRule', messageType: string, condition: string | null, eventType: string, priority: number }> } | null, identifiers: { __typename?: 'IdentifierConfig', assigningAuthorities: Array<{ __typename?: 'AssigningAuthority', code: string, system: string, name: string | null }>, primaryIdPreference: Array<{ __typename?: 'IDPreferenceRule', type: string, assignerContains: string | null, priority: number }>, validation: { __typename?: 'ValidationSettingsConfig', npi: { __typename?: 'ValidatorSetting', enabled: boolean, onInvalid: string } | null, mbi: { __typename?: 'ValidatorSetting', enabled: boolean, onInvalid: string } | null, ssn: { __typename?: 'ValidatorSetting', enabled: boolean, onInvalid: string } | null } | null, normalization: { __typename?: 'NormalizationSettingsConfig', ssnStripDashes: boolean, ssnRejectPatterns: Array<string>, phoneNormalize: boolean, phoneFormat: string | null } | null } | null, terminology: { __typename?: 'TerminologyConfig', mappings: Array<{ __typename?: 'TerminologyMappingTable', id: string, sourceSystem: string, targetSystem: string, entries: Array<{ __typename?: 'TerminologyMappingEntry', sourceCode: string, targetCode: string, display: string | null }> }> } | null } | null };
+
+export type GetProfileRevisionsQueryVariables = Exact<{
+  id: Scalars['ID']['input'];
+}>;
+
+
+export type GetProfileRevisionsQuery = { __typename?: 'Query', profileRevisions: Array<{ __typename?: 'ProfileRevision', version: string, createdAt: string, createdBy: string | null, changeSummary: string | null }> };
+
+export type CreateProfileMutationVariables = Exact<{
+  input: CreateProfileInput;
+}>;
+
+
+export type CreateProfileMutation = { __typename?: 'Mutation', createProfile: { __typename?: 'SourceProfile', id: string, name: string, version: string, createdAt: string, updatedAt: string, createdBy: string | null, isActive: boolean } };
+
+export type UpdateProfileMutationVariables = Exact<{
+  id: Scalars['ID']['input'];
+  input: UpdateProfileInput;
+}>;
+
+
+export type UpdateProfileMutation = { __typename?: 'Mutation', updateProfile: { __typename?: 'SourceProfile', id: string, name: string, version: string, createdAt: string, updatedAt: string, createdBy: string | null, isActive: boolean, hl7v2: { __typename?: 'HL7v2Config', defaultVersion: string, timezone: string, tolerance: { __typename?: 'ToleranceConfig', missingSegments: Array<string>, nteAnywhere: boolean, extraComponents: boolean, unknownSegments: boolean, nonStandardDelimiters: boolean } | null, eventClassifications: Array<{ __typename?: 'EventClassificationRule', messageType: string, condition: string | null, eventType: string, priority: number }> } | null, identifiers: { __typename?: 'IdentifierConfig', assigningAuthorities: Array<{ __typename?: 'AssigningAuthority', code: string, system: string, name: string | null }>, primaryIdPreference: Array<{ __typename?: 'IDPreferenceRule', type: string, assignerContains: string | null, priority: number }>, validation: { __typename?: 'ValidationSettingsConfig', npi: { __typename?: 'ValidatorSetting', enabled: boolean, onInvalid: string } | null, mbi: { __typename?: 'ValidatorSetting', enabled: boolean, onInvalid: string } | null, ssn: { __typename?: 'ValidatorSetting', enabled: boolean, onInvalid: string } | null } | null, normalization: { __typename?: 'NormalizationSettingsConfig', ssnStripDashes: boolean, ssnRejectPatterns: Array<string>, phoneNormalize: boolean, phoneFormat: string | null } | null } | null, terminology: { __typename?: 'TerminologyConfig', mappings: Array<{ __typename?: 'TerminologyMappingTable', id: string, sourceSystem: string, targetSystem: string, entries: Array<{ __typename?: 'TerminologyMappingEntry', sourceCode: string, targetCode: string, display: string | null }> }> } | null } };
+
+export type DeleteProfileMutationVariables = Exact<{
+  id: Scalars['ID']['input'];
+}>;
+
+
+export type DeleteProfileMutation = { __typename?: 'Mutation', deleteProfile: boolean };
+
+export type DuplicateProfileMutationVariables = Exact<{
+  id: Scalars['ID']['input'];
+  newId: Scalars['ID']['input'];
+  newName: Scalars['String']['input'];
+}>;
+
+
+export type DuplicateProfileMutation = { __typename?: 'Mutation', duplicateProfile: { __typename?: 'SourceProfile', id: string, name: string, version: string, createdAt: string, updatedAt: string, createdBy: string | null, isActive: boolean } };
+
+export const ProfileFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ProfileFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SourceProfile"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}},{"kind":"Field","name":{"kind":"Name","value":"isActive"}}]}}]} as unknown as DocumentNode<ProfileFieldsFragment, unknown>;
+export const ToleranceFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ToleranceFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"ToleranceConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"missingSegments"}},{"kind":"Field","name":{"kind":"Name","value":"nteAnywhere"}},{"kind":"Field","name":{"kind":"Name","value":"extraComponents"}},{"kind":"Field","name":{"kind":"Name","value":"unknownSegments"}},{"kind":"Field","name":{"kind":"Name","value":"nonStandardDelimiters"}}]}}]} as unknown as DocumentNode<ToleranceFieldsFragment, unknown>;
+export const Hl7v2ConfigFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"HL7v2ConfigFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"HL7v2Config"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"defaultVersion"}},{"kind":"Field","name":{"kind":"Name","value":"timezone"}},{"kind":"Field","name":{"kind":"Name","value":"tolerance"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ToleranceFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"eventClassifications"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"messageType"}},{"kind":"Field","name":{"kind":"Name","value":"condition"}},{"kind":"Field","name":{"kind":"Name","value":"eventType"}},{"kind":"Field","name":{"kind":"Name","value":"priority"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ToleranceFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"ToleranceConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"missingSegments"}},{"kind":"Field","name":{"kind":"Name","value":"nteAnywhere"}},{"kind":"Field","name":{"kind":"Name","value":"extraComponents"}},{"kind":"Field","name":{"kind":"Name","value":"unknownSegments"}},{"kind":"Field","name":{"kind":"Name","value":"nonStandardDelimiters"}}]}}]} as unknown as DocumentNode<Hl7v2ConfigFieldsFragment, unknown>;
+export const IdentifierConfigFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"IdentifierConfigFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"IdentifierConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"assigningAuthorities"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"system"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"primaryIdPreference"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"assignerContains"}},{"kind":"Field","name":{"kind":"Name","value":"priority"}}]}},{"kind":"Field","name":{"kind":"Name","value":"validation"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"npi"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"onInvalid"}}]}},{"kind":"Field","name":{"kind":"Name","value":"mbi"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"onInvalid"}}]}},{"kind":"Field","name":{"kind":"Name","value":"ssn"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"onInvalid"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"normalization"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"ssnStripDashes"}},{"kind":"Field","name":{"kind":"Name","value":"ssnRejectPatterns"}},{"kind":"Field","name":{"kind":"Name","value":"phoneNormalize"}},{"kind":"Field","name":{"kind":"Name","value":"phoneFormat"}}]}}]}}]} as unknown as DocumentNode<IdentifierConfigFieldsFragment, unknown>;
+export const TerminologyConfigFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"TerminologyConfigFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"TerminologyConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mappings"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"entries"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"sourceCode"}},{"kind":"Field","name":{"kind":"Name","value":"targetCode"}},{"kind":"Field","name":{"kind":"Name","value":"display"}}]}}]}}]}}]} as unknown as DocumentNode<TerminologyConfigFieldsFragment, unknown>;
+export const FullProfileFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"FullProfileFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SourceProfile"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProfileFields"}},{"kind":"Field","name":{"kind":"Name","value":"hl7v2"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"HL7v2ConfigFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"identifiers"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"IdentifierConfigFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"terminology"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"TerminologyConfigFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ToleranceFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"ToleranceConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"missingSegments"}},{"kind":"Field","name":{"kind":"Name","value":"nteAnywhere"}},{"kind":"Field","name":{"kind":"Name","value":"extraComponents"}},{"kind":"Field","name":{"kind":"Name","value":"unknownSegments"}},{"kind":"Field","name":{"kind":"Name","value":"nonStandardDelimiters"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ProfileFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SourceProfile"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}},{"kind":"Field","name":{"kind":"Name","value":"isActive"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"HL7v2ConfigFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"HL7v2Config"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"defaultVersion"}},{"kind":"Field","name":{"kind":"Name","value":"timezone"}},{"kind":"Field","name":{"kind":"Name","value":"tolerance"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ToleranceFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"eventClassifications"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"messageType"}},{"kind":"Field","name":{"kind":"Name","value":"condition"}},{"kind":"Field","name":{"kind":"Name","value":"eventType"}},{"kind":"Field","name":{"kind":"Name","value":"priority"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"IdentifierConfigFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"IdentifierConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"assigningAuthorities"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"system"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"primaryIdPreference"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"assignerContains"}},{"kind":"Field","name":{"kind":"Name","value":"priority"}}]}},{"kind":"Field","name":{"kind":"Name","value":"validation"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"npi"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"onInvalid"}}]}},{"kind":"Field","name":{"kind":"Name","value":"mbi"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"onInvalid"}}]}},{"kind":"Field","name":{"kind":"Name","value":"ssn"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"onInvalid"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"normalization"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"ssnStripDashes"}},{"kind":"Field","name":{"kind":"Name","value":"ssnRejectPatterns"}},{"kind":"Field","name":{"kind":"Name","value":"phoneNormalize"}},{"kind":"Field","name":{"kind":"Name","value":"phoneFormat"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"TerminologyConfigFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"TerminologyConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mappings"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"entries"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"sourceCode"}},{"kind":"Field","name":{"kind":"Name","value":"targetCode"}},{"kind":"Field","name":{"kind":"Name","value":"display"}}]}}]}}]}}]} as unknown as DocumentNode<FullProfileFieldsFragment, unknown>;
 export const HealthDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Health"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"health"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"version"}}]}}]}}]} as unknown as DocumentNode<HealthQuery, HealthQueryVariables>;
 export const ParsePreviewDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"ParsePreview"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"format"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"SourceFormat"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"data"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"source"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"parsePreview"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"format"},"value":{"kind":"Variable","name":{"kind":"Name","value":"format"}}},{"kind":"Argument","name":{"kind":"Name","value":"data"},"value":{"kind":"Variable","name":{"kind":"Name","value":"data"}}},{"kind":"Argument","name":{"kind":"Name","value":"source"},"value":{"kind":"Variable","name":{"kind":"Name","value":"source"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"success"}},{"kind":"Field","name":{"kind":"Name","value":"errors"}},{"kind":"Field","name":{"kind":"Name","value":"events"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"__typename"}},{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"source"}},{"kind":"Field","name":{"kind":"Name","value":"sourceFormat"}},{"kind":"Field","name":{"kind":"Name","value":"correlationId"}}]}},{"kind":"Field","name":{"kind":"Name","value":"warnings"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"phase"}},{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"message"}},{"kind":"Field","name":{"kind":"Name","value":"path"}}]}}]}}]}}]} as unknown as DocumentNode<ParsePreviewQuery, ParsePreviewQueryVariables>;
+export const ParsePreviewWithProfileDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"ParsePreviewWithProfile"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"format"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"SourceFormat"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"data"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"source"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"profileId"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"parsePreviewWithProfile"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"format"},"value":{"kind":"Variable","name":{"kind":"Name","value":"format"}}},{"kind":"Argument","name":{"kind":"Name","value":"data"},"value":{"kind":"Variable","name":{"kind":"Name","value":"data"}}},{"kind":"Argument","name":{"kind":"Name","value":"source"},"value":{"kind":"Variable","name":{"kind":"Name","value":"source"}}},{"kind":"Argument","name":{"kind":"Name","value":"profileId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"profileId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"success"}},{"kind":"Field","name":{"kind":"Name","value":"errors"}},{"kind":"Field","name":{"kind":"Name","value":"events"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"__typename"}},{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"source"}},{"kind":"Field","name":{"kind":"Name","value":"sourceFormat"}},{"kind":"Field","name":{"kind":"Name","value":"correlationId"}}]}},{"kind":"Field","name":{"kind":"Name","value":"warnings"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"phase"}},{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"message"}},{"kind":"Field","name":{"kind":"Name","value":"path"}}]}}]}}]}}]} as unknown as DocumentNode<ParsePreviewWithProfileQuery, ParsePreviewWithProfileQueryVariables>;
+export const ListProfilesDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"ListProfiles"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"activeOnly"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Boolean"}},"defaultValue":{"kind":"BooleanValue","value":true}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"profiles"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"activeOnly"},"value":{"kind":"Variable","name":{"kind":"Name","value":"activeOnly"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProfileFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ProfileFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SourceProfile"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}},{"kind":"Field","name":{"kind":"Name","value":"isActive"}}]}}]} as unknown as DocumentNode<ListProfilesQuery, ListProfilesQueryVariables>;
+export const GetProfileDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GetProfile"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"profile"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"FullProfileFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ProfileFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SourceProfile"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}},{"kind":"Field","name":{"kind":"Name","value":"isActive"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ToleranceFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"ToleranceConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"missingSegments"}},{"kind":"Field","name":{"kind":"Name","value":"nteAnywhere"}},{"kind":"Field","name":{"kind":"Name","value":"extraComponents"}},{"kind":"Field","name":{"kind":"Name","value":"unknownSegments"}},{"kind":"Field","name":{"kind":"Name","value":"nonStandardDelimiters"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"HL7v2ConfigFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"HL7v2Config"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"defaultVersion"}},{"kind":"Field","name":{"kind":"Name","value":"timezone"}},{"kind":"Field","name":{"kind":"Name","value":"tolerance"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ToleranceFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"eventClassifications"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"messageType"}},{"kind":"Field","name":{"kind":"Name","value":"condition"}},{"kind":"Field","name":{"kind":"Name","value":"eventType"}},{"kind":"Field","name":{"kind":"Name","value":"priority"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"IdentifierConfigFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"IdentifierConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"assigningAuthorities"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"system"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"primaryIdPreference"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"assignerContains"}},{"kind":"Field","name":{"kind":"Name","value":"priority"}}]}},{"kind":"Field","name":{"kind":"Name","value":"validation"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"npi"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"onInvalid"}}]}},{"kind":"Field","name":{"kind":"Name","value":"mbi"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"onInvalid"}}]}},{"kind":"Field","name":{"kind":"Name","value":"ssn"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"onInvalid"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"normalization"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"ssnStripDashes"}},{"kind":"Field","name":{"kind":"Name","value":"ssnRejectPatterns"}},{"kind":"Field","name":{"kind":"Name","value":"phoneNormalize"}},{"kind":"Field","name":{"kind":"Name","value":"phoneFormat"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"TerminologyConfigFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"TerminologyConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mappings"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"entries"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"sourceCode"}},{"kind":"Field","name":{"kind":"Name","value":"targetCode"}},{"kind":"Field","name":{"kind":"Name","value":"display"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"FullProfileFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SourceProfile"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProfileFields"}},{"kind":"Field","name":{"kind":"Name","value":"hl7v2"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"HL7v2ConfigFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"identifiers"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"IdentifierConfigFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"terminology"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"TerminologyConfigFields"}}]}}]}}]} as unknown as DocumentNode<GetProfileQuery, GetProfileQueryVariables>;
+export const GetProfileRevisionsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GetProfileRevisions"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"profileRevisions"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}},{"kind":"Field","name":{"kind":"Name","value":"changeSummary"}}]}}]}}]} as unknown as DocumentNode<GetProfileRevisionsQuery, GetProfileRevisionsQueryVariables>;
+export const CreateProfileDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"CreateProfile"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"CreateProfileInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"createProfile"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProfileFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ProfileFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SourceProfile"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}},{"kind":"Field","name":{"kind":"Name","value":"isActive"}}]}}]} as unknown as DocumentNode<CreateProfileMutation, CreateProfileMutationVariables>;
+export const UpdateProfileDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"UpdateProfile"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UpdateProfileInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"updateProfile"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}},{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"FullProfileFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ProfileFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SourceProfile"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}},{"kind":"Field","name":{"kind":"Name","value":"isActive"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ToleranceFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"ToleranceConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"missingSegments"}},{"kind":"Field","name":{"kind":"Name","value":"nteAnywhere"}},{"kind":"Field","name":{"kind":"Name","value":"extraComponents"}},{"kind":"Field","name":{"kind":"Name","value":"unknownSegments"}},{"kind":"Field","name":{"kind":"Name","value":"nonStandardDelimiters"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"HL7v2ConfigFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"HL7v2Config"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"defaultVersion"}},{"kind":"Field","name":{"kind":"Name","value":"timezone"}},{"kind":"Field","name":{"kind":"Name","value":"tolerance"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ToleranceFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"eventClassifications"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"messageType"}},{"kind":"Field","name":{"kind":"Name","value":"condition"}},{"kind":"Field","name":{"kind":"Name","value":"eventType"}},{"kind":"Field","name":{"kind":"Name","value":"priority"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"IdentifierConfigFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"IdentifierConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"assigningAuthorities"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"system"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"primaryIdPreference"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"assignerContains"}},{"kind":"Field","name":{"kind":"Name","value":"priority"}}]}},{"kind":"Field","name":{"kind":"Name","value":"validation"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"npi"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"onInvalid"}}]}},{"kind":"Field","name":{"kind":"Name","value":"mbi"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"onInvalid"}}]}},{"kind":"Field","name":{"kind":"Name","value":"ssn"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"onInvalid"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"normalization"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"ssnStripDashes"}},{"kind":"Field","name":{"kind":"Name","value":"ssnRejectPatterns"}},{"kind":"Field","name":{"kind":"Name","value":"phoneNormalize"}},{"kind":"Field","name":{"kind":"Name","value":"phoneFormat"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"TerminologyConfigFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"TerminologyConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mappings"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"entries"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"sourceCode"}},{"kind":"Field","name":{"kind":"Name","value":"targetCode"}},{"kind":"Field","name":{"kind":"Name","value":"display"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"FullProfileFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SourceProfile"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProfileFields"}},{"kind":"Field","name":{"kind":"Name","value":"hl7v2"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"HL7v2ConfigFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"identifiers"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"IdentifierConfigFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"terminology"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"TerminologyConfigFields"}}]}}]}}]} as unknown as DocumentNode<UpdateProfileMutation, UpdateProfileMutationVariables>;
+export const DeleteProfileDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DeleteProfile"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"deleteProfile"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}]}]}}]} as unknown as DocumentNode<DeleteProfileMutation, DeleteProfileMutationVariables>;
+export const DuplicateProfileDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DuplicateProfile"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"newId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"newName"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"duplicateProfile"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}},{"kind":"Argument","name":{"kind":"Name","value":"newId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"newId"}}},{"kind":"Argument","name":{"kind":"Name","value":"newName"},"value":{"kind":"Variable","name":{"kind":"Name","value":"newName"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProfileFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ProfileFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SourceProfile"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}},{"kind":"Field","name":{"kind":"Name","value":"isActive"}}]}}]} as unknown as DocumentNode<DuplicateProfileMutation, DuplicateProfileMutationVariables>;

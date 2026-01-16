@@ -19,3 +19,25 @@ query ParsePreview($format: SourceFormat!, $data: String!, $source: String) {
     }
   }
 }
+
+query ParsePreviewWithProfile($format: SourceFormat!, $data: String!, $source: String, $profileId: ID) {
+  parsePreviewWithProfile(format: $format, data: $data, source: $source, profileId: $profileId) {
+    success
+    errors
+    events {
+      __typename
+      id
+      type
+      timestamp
+      source
+      sourceFormat
+      correlationId
+    }
+    warnings {
+      phase
+      code
+      message
+      path
+    }
+  }
+}

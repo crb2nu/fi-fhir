@@ -2,11 +2,199 @@
 
 package model
 
+import (
+	"time"
+)
+
+type AssigningAuthority struct {
+	Code   string  `json:"code"`
+	System string  `json:"system"`
+	Name   *string `json:"name,omitempty"`
+}
+
+type AssigningAuthorityInput struct {
+	Code   string  `json:"code"`
+	System string  `json:"system"`
+	Name   *string `json:"name,omitempty"`
+}
+
+type CreateProfileInput struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type EventClassificationRule struct {
+	MessageType string  `json:"messageType"`
+	Condition   *string `json:"condition,omitempty"`
+	EventType   string  `json:"eventType"`
+	Priority    int     `json:"priority"`
+}
+
+type EventClassificationRuleInput struct {
+	MessageType string  `json:"messageType"`
+	Condition   *string `json:"condition,omitempty"`
+	EventType   string  `json:"eventType"`
+	Priority    int     `json:"priority"`
+}
+
+type HL7v2Config struct {
+	DefaultVersion       string                    `json:"defaultVersion"`
+	Timezone             string                    `json:"timezone"`
+	Tolerance            *ToleranceConfig          `json:"tolerance,omitempty"`
+	EventClassifications []EventClassificationRule `json:"eventClassifications"`
+}
+
+type HL7v2ConfigInput struct {
+	DefaultVersion       *string                        `json:"defaultVersion,omitempty"`
+	Timezone             *string                        `json:"timezone,omitempty"`
+	Tolerance            *ToleranceConfigInput          `json:"tolerance,omitempty"`
+	EventClassifications []EventClassificationRuleInput `json:"eventClassifications,omitempty"`
+}
+
+type IDPreferenceRule struct {
+	Type             string  `json:"type"`
+	AssignerContains *string `json:"assignerContains,omitempty"`
+	Priority         int     `json:"priority"`
+}
+
+type IDPreferenceRuleInput struct {
+	Type             string  `json:"type"`
+	AssignerContains *string `json:"assignerContains,omitempty"`
+	Priority         int     `json:"priority"`
+}
+
+type IdentifierConfig struct {
+	AssigningAuthorities []AssigningAuthority         `json:"assigningAuthorities"`
+	PrimaryIDPreference  []IDPreferenceRule           `json:"primaryIdPreference"`
+	Validation           *ValidationSettingsConfig    `json:"validation,omitempty"`
+	Normalization        *NormalizationSettingsConfig `json:"normalization,omitempty"`
+}
+
+type IdentifierConfigInput struct {
+	AssigningAuthorities []AssigningAuthorityInput   `json:"assigningAuthorities,omitempty"`
+	PrimaryIDPreference  []IDPreferenceRuleInput     `json:"primaryIdPreference,omitempty"`
+	Validation           *ValidationSettingsInput    `json:"validation,omitempty"`
+	Normalization        *NormalizationSettingsInput `json:"normalization,omitempty"`
+}
+
 type Mutation struct {
+}
+
+type NormalizationSettingsConfig struct {
+	SsnStripDashes    bool     `json:"ssnStripDashes"`
+	SsnRejectPatterns []string `json:"ssnRejectPatterns"`
+	PhoneNormalize    bool     `json:"phoneNormalize"`
+	PhoneFormat       *string  `json:"phoneFormat,omitempty"`
+}
+
+type NormalizationSettingsInput struct {
+	SsnStripDashes    *bool    `json:"ssnStripDashes,omitempty"`
+	SsnRejectPatterns []string `json:"ssnRejectPatterns,omitempty"`
+	PhoneNormalize    *bool    `json:"phoneNormalize,omitempty"`
+	PhoneFormat       *string  `json:"phoneFormat,omitempty"`
+}
+
+type ProfileRevision struct {
+	Version       string    `json:"version"`
+	CreatedAt     time.Time `json:"createdAt"`
+	CreatedBy     *string   `json:"createdBy,omitempty"`
+	ChangeSummary *string   `json:"changeSummary,omitempty"`
 }
 
 type Query struct {
 }
 
+type SourceProfile struct {
+	ID          string             `json:"id"`
+	Name        string             `json:"name"`
+	Version     string             `json:"version"`
+	CreatedAt   time.Time          `json:"createdAt"`
+	UpdatedAt   time.Time          `json:"updatedAt"`
+	CreatedBy   *string            `json:"createdBy,omitempty"`
+	IsActive    bool               `json:"isActive"`
+	Hl7v2       *HL7v2Config       `json:"hl7v2,omitempty"`
+	Identifiers *IdentifierConfig  `json:"identifiers,omitempty"`
+	Terminology *TerminologyConfig `json:"terminology,omitempty"`
+}
+
 type Subscription struct {
+}
+
+type TerminologyConfig struct {
+	Mappings []TerminologyMappingTable `json:"mappings"`
+}
+
+type TerminologyConfigInput struct {
+	Mappings []TerminologyMappingTableInput `json:"mappings,omitempty"`
+}
+
+type TerminologyMappingEntry struct {
+	SourceCode string  `json:"sourceCode"`
+	TargetCode string  `json:"targetCode"`
+	Display    *string `json:"display,omitempty"`
+}
+
+type TerminologyMappingEntryInput struct {
+	SourceCode string  `json:"sourceCode"`
+	TargetCode string  `json:"targetCode"`
+	Display    *string `json:"display,omitempty"`
+}
+
+type TerminologyMappingTable struct {
+	ID           string                    `json:"id"`
+	SourceSystem string                    `json:"sourceSystem"`
+	TargetSystem string                    `json:"targetSystem"`
+	Entries      []TerminologyMappingEntry `json:"entries"`
+}
+
+type TerminologyMappingTableInput struct {
+	ID           string                         `json:"id"`
+	SourceSystem string                         `json:"sourceSystem"`
+	TargetSystem string                         `json:"targetSystem"`
+	Entries      []TerminologyMappingEntryInput `json:"entries,omitempty"`
+}
+
+type ToleranceConfig struct {
+	MissingSegments       []string `json:"missingSegments"`
+	NteAnywhere           bool     `json:"nteAnywhere"`
+	ExtraComponents       bool     `json:"extraComponents"`
+	UnknownSegments       bool     `json:"unknownSegments"`
+	NonStandardDelimiters bool     `json:"nonStandardDelimiters"`
+}
+
+type ToleranceConfigInput struct {
+	MissingSegments       []string `json:"missingSegments,omitempty"`
+	NteAnywhere           *bool    `json:"nteAnywhere,omitempty"`
+	ExtraComponents       *bool    `json:"extraComponents,omitempty"`
+	UnknownSegments       *bool    `json:"unknownSegments,omitempty"`
+	NonStandardDelimiters *bool    `json:"nonStandardDelimiters,omitempty"`
+}
+
+type UpdateProfileInput struct {
+	Name        *string                 `json:"name,omitempty"`
+	Hl7v2       *HL7v2ConfigInput       `json:"hl7v2,omitempty"`
+	Identifiers *IdentifierConfigInput  `json:"identifiers,omitempty"`
+	Terminology *TerminologyConfigInput `json:"terminology,omitempty"`
+}
+
+type ValidationSettingsConfig struct {
+	Npi *ValidatorSetting `json:"npi,omitempty"`
+	Mbi *ValidatorSetting `json:"mbi,omitempty"`
+	Ssn *ValidatorSetting `json:"ssn,omitempty"`
+}
+
+type ValidationSettingsInput struct {
+	Npi *ValidatorSettingInput `json:"npi,omitempty"`
+	Mbi *ValidatorSettingInput `json:"mbi,omitempty"`
+	Ssn *ValidatorSettingInput `json:"ssn,omitempty"`
+}
+
+type ValidatorSetting struct {
+	Enabled   bool   `json:"enabled"`
+	OnInvalid string `json:"onInvalid"`
+}
+
+type ValidatorSettingInput struct {
+	Enabled   bool   `json:"enabled"`
+	OnInvalid string `json:"onInvalid"`
 }

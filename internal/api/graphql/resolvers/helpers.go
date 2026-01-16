@@ -4,10 +4,14 @@ package resolvers
 // These are separated from schema.resolvers.go so gqlgen doesn't try to manage them.
 
 import (
+	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/store"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 )
 
@@ -409,4 +413,340 @@ func extractBoolFromData(data map[string]interface{}, key string) bool {
 	}
 	v, _ := data[key].(bool)
 	return v
+}
+
+// =============================================================================
+// Profile Conversion Helpers
+// =============================================================================
+
+// strPtrEmpty returns a pointer to the string, or nil if empty.
+// Unlike strPtr, this always returns a non-nil pointer if the string is non-empty.
+func strPtrEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+// convertStoreProfileToGraphQL converts a store Profile to a GraphQL SourceProfile.
+func convertStoreProfileToGraphQL(p *store.Profile) (*model.SourceProfile, error) {
+	if p == nil {
+		return nil, nil
+	}
+
+	result := &model.SourceProfile{
+		ID:        p.ID,
+		Name:      p.Name,
+		Version:   p.Version,
+		CreatedAt: p.CreatedAt,
+		UpdatedAt: p.UpdatedAt,
+		CreatedBy: strPtrEmpty(p.CreatedBy),
+		IsActive:  p.IsActive,
+	}
+
+	// Parse config JSON
+	if len(p.Config) > 0 && string(p.Config) != "{}" {
+		var config store.ProfileConfig
+		if err := json.Unmarshal(p.Config, &config); err == nil {
+			// Convert HL7v2 config
+			if config.HL7v2 != nil {
+				result.Hl7v2 = convertHL7v2Config(config.HL7v2)
+			}
+			// Convert Identifier config
+			if config.Identifiers != nil {
+				result.Identifiers = convertIdentifierConfig(config.Identifiers)
+			}
+			// Convert Terminology config
+			if config.Terminology != nil {
+				result.Terminology = convertTerminologyConfig(config.Terminology)
+			}
+		}
+	}
+
+	return result, nil
+}
+
+func convertHL7v2Config(cfg *store.HL7v2Config) *model.HL7v2Config {
+	if cfg == nil {
+		return nil
+	}
+
+	result := &model.HL7v2Config{
+		DefaultVersion:       cfg.DefaultVersion,
+		Timezone:             cfg.Timezone,
+		EventClassifications: []model.EventClassificationRule{},
+	}
+
+	if cfg.Tolerance != nil {
+		result.Tolerance = &model.ToleranceConfig{
+			MissingSegments:       cfg.Tolerance.MissingSegments,
+			NteAnywhere:           cfg.Tolerance.NTEAnywhere,
+			ExtraComponents:       cfg.Tolerance.ExtraComponents,
+			UnknownSegments:       cfg.Tolerance.UnknownSegments,
+			NonStandardDelimiters: cfg.Tolerance.NonStandardDelimiters,
+		}
+		if result.Tolerance.MissingSegments == nil {
+			result.Tolerance.MissingSegments = []string{}
+		}
+	}
+
+	for _, rule := range cfg.EventClassifications {
+		result.EventClassifications = append(result.EventClassifications, model.EventClassificationRule{
+			MessageType: rule.MessageType,
+			Condition:   strPtrEmpty(rule.Condition),
+			EventType:   rule.EventType,
+			Priority:    rule.Priority,
+		})
+	}
+
+	return result
+}
+
+func convertIdentifierConfig(cfg *store.IdentifierConfig) *model.IdentifierConfig {
+	if cfg == nil {
+		return nil
+	}
+
+	result := &model.IdentifierConfig{
+		AssigningAuthorities: []model.AssigningAuthority{},
+		PrimaryIDPreference:  []model.IDPreferenceRule{},
+	}
+
+	for _, aa := range cfg.AssigningAuthorities {
+		result.AssigningAuthorities = append(result.AssigningAuthorities, model.AssigningAuthority{
+			Code:   aa.Code,
+			System: aa.System,
+			Name:   strPtrEmpty(aa.Name),
+		})
+	}
+
+	for _, pref := range cfg.PrimaryIDPreference {
+		result.PrimaryIDPreference = append(result.PrimaryIDPreference, model.IDPreferenceRule{
+			Type:             pref.Type,
+			AssignerContains: strPtrEmpty(pref.AssignerContains),
+			Priority:         pref.Priority,
+		})
+	}
+
+	if cfg.Validation != nil {
+		result.Validation = &model.ValidationSettingsConfig{}
+		if cfg.Validation.NPI != nil {
+			result.Validation.Npi = &model.ValidatorSetting{
+				Enabled:   cfg.Validation.NPI.Enabled,
+				OnInvalid: cfg.Validation.NPI.OnInvalid,
+			}
+		}
+		if cfg.Validation.MBI != nil {
+			result.Validation.Mbi = &model.ValidatorSetting{
+				Enabled:   cfg.Validation.MBI.Enabled,
+				OnInvalid: cfg.Validation.MBI.OnInvalid,
+			}
+		}
+		if cfg.Validation.SSN != nil {
+			result.Validation.Ssn = &model.ValidatorSetting{
+				Enabled:   cfg.Validation.SSN.Enabled,
+				OnInvalid: cfg.Validation.SSN.OnInvalid,
+			}
+		}
+	}
+
+	if cfg.Normalization != nil {
+		rejectPatterns := cfg.Normalization.SSNRejectPatterns
+		if rejectPatterns == nil {
+			rejectPatterns = []string{}
+		}
+		result.Normalization = &model.NormalizationSettingsConfig{
+			SsnStripDashes:    cfg.Normalization.SSNStripDashes,
+			SsnRejectPatterns: rejectPatterns,
+			PhoneNormalize:    cfg.Normalization.PhoneNormalize,
+			PhoneFormat:       strPtrEmpty(cfg.Normalization.PhoneFormat),
+		}
+	}
+
+	return result
+}
+
+func convertTerminologyConfig(cfg *store.TerminologyConfig) *model.TerminologyConfig {
+	if cfg == nil {
+		return nil
+	}
+
+	result := &model.TerminologyConfig{
+		Mappings: []model.TerminologyMappingTable{},
+	}
+
+	for _, mapping := range cfg.Mappings {
+		entries := make([]model.TerminologyMappingEntry, 0, len(mapping.Entries))
+		for _, entry := range mapping.Entries {
+			entries = append(entries, model.TerminologyMappingEntry{
+				SourceCode: entry.SourceCode,
+				TargetCode: entry.TargetCode,
+				Display:    strPtrEmpty(entry.Display),
+			})
+		}
+		result.Mappings = append(result.Mappings, model.TerminologyMappingTable{
+			ID:           mapping.ID,
+			SourceSystem: mapping.SourceSystem,
+			TargetSystem: mapping.TargetSystem,
+			Entries:      entries,
+		})
+	}
+
+	return result
+}
+
+// convertGraphQLConfigToJSON converts GraphQL input types to JSON for storage.
+func convertGraphQLConfigToJSON(input model.UpdateProfileInput) (json.RawMessage, error) {
+	config := store.ProfileConfig{}
+
+	if input.Hl7v2 != nil {
+		config.HL7v2 = &store.HL7v2Config{}
+		if input.Hl7v2.DefaultVersion != nil {
+			config.HL7v2.DefaultVersion = *input.Hl7v2.DefaultVersion
+		}
+		if input.Hl7v2.Timezone != nil {
+			config.HL7v2.Timezone = *input.Hl7v2.Timezone
+		}
+		if input.Hl7v2.Tolerance != nil {
+			config.HL7v2.Tolerance = &store.ToleranceConfig{}
+			if input.Hl7v2.Tolerance.MissingSegments != nil {
+				config.HL7v2.Tolerance.MissingSegments = input.Hl7v2.Tolerance.MissingSegments
+			}
+			if input.Hl7v2.Tolerance.NteAnywhere != nil {
+				config.HL7v2.Tolerance.NTEAnywhere = *input.Hl7v2.Tolerance.NteAnywhere
+			}
+			if input.Hl7v2.Tolerance.ExtraComponents != nil {
+				config.HL7v2.Tolerance.ExtraComponents = *input.Hl7v2.Tolerance.ExtraComponents
+			}
+			if input.Hl7v2.Tolerance.UnknownSegments != nil {
+				config.HL7v2.Tolerance.UnknownSegments = *input.Hl7v2.Tolerance.UnknownSegments
+			}
+			if input.Hl7v2.Tolerance.NonStandardDelimiters != nil {
+				config.HL7v2.Tolerance.NonStandardDelimiters = *input.Hl7v2.Tolerance.NonStandardDelimiters
+			}
+		}
+		if input.Hl7v2.EventClassifications != nil {
+			for _, rule := range input.Hl7v2.EventClassifications {
+				condition := ""
+				if rule.Condition != nil {
+					condition = *rule.Condition
+				}
+				config.HL7v2.EventClassifications = append(config.HL7v2.EventClassifications, store.EventClassRule{
+					MessageType: rule.MessageType,
+					Condition:   condition,
+					EventType:   rule.EventType,
+					Priority:    rule.Priority,
+				})
+			}
+		}
+	}
+
+	if input.Identifiers != nil {
+		config.Identifiers = &store.IdentifierConfig{}
+		if input.Identifiers.AssigningAuthorities != nil {
+			for _, aa := range input.Identifiers.AssigningAuthorities {
+				name := ""
+				if aa.Name != nil {
+					name = *aa.Name
+				}
+				config.Identifiers.AssigningAuthorities = append(config.Identifiers.AssigningAuthorities, store.AssigningAuthority{
+					Code:   aa.Code,
+					System: aa.System,
+					Name:   name,
+				})
+			}
+		}
+		if input.Identifiers.PrimaryIDPreference != nil {
+			for _, pref := range input.Identifiers.PrimaryIDPreference {
+				assigner := ""
+				if pref.AssignerContains != nil {
+					assigner = *pref.AssignerContains
+				}
+				config.Identifiers.PrimaryIDPreference = append(config.Identifiers.PrimaryIDPreference, store.IDPreferenceRule{
+					Type:             pref.Type,
+					AssignerContains: assigner,
+					Priority:         pref.Priority,
+				})
+			}
+		}
+		if input.Identifiers.Validation != nil {
+			config.Identifiers.Validation = &store.ValidationConfig{}
+			if input.Identifiers.Validation.Npi != nil {
+				config.Identifiers.Validation.NPI = &store.ValidatorSetting{
+					Enabled:   input.Identifiers.Validation.Npi.Enabled,
+					OnInvalid: input.Identifiers.Validation.Npi.OnInvalid,
+				}
+			}
+			if input.Identifiers.Validation.Mbi != nil {
+				config.Identifiers.Validation.MBI = &store.ValidatorSetting{
+					Enabled:   input.Identifiers.Validation.Mbi.Enabled,
+					OnInvalid: input.Identifiers.Validation.Mbi.OnInvalid,
+				}
+			}
+			if input.Identifiers.Validation.Ssn != nil {
+				config.Identifiers.Validation.SSN = &store.ValidatorSetting{
+					Enabled:   input.Identifiers.Validation.Ssn.Enabled,
+					OnInvalid: input.Identifiers.Validation.Ssn.OnInvalid,
+				}
+			}
+		}
+		if input.Identifiers.Normalization != nil {
+			config.Identifiers.Normalization = &store.NormalizationConfig{}
+			if input.Identifiers.Normalization.SsnStripDashes != nil {
+				config.Identifiers.Normalization.SSNStripDashes = *input.Identifiers.Normalization.SsnStripDashes
+			}
+			if input.Identifiers.Normalization.SsnRejectPatterns != nil {
+				config.Identifiers.Normalization.SSNRejectPatterns = input.Identifiers.Normalization.SsnRejectPatterns
+			}
+			if input.Identifiers.Normalization.PhoneNormalize != nil {
+				config.Identifiers.Normalization.PhoneNormalize = *input.Identifiers.Normalization.PhoneNormalize
+			}
+			if input.Identifiers.Normalization.PhoneFormat != nil {
+				config.Identifiers.Normalization.PhoneFormat = *input.Identifiers.Normalization.PhoneFormat
+			}
+		}
+	}
+
+	if input.Terminology != nil {
+		config.Terminology = &store.TerminologyConfig{}
+		if input.Terminology.Mappings != nil {
+			for _, mapping := range input.Terminology.Mappings {
+				entries := []store.TerminologyEntry{}
+				if mapping.Entries != nil {
+					for _, entry := range mapping.Entries {
+						display := ""
+						if entry.Display != nil {
+							display = *entry.Display
+						}
+						entries = append(entries, store.TerminologyEntry{
+							SourceCode: entry.SourceCode,
+							TargetCode: entry.TargetCode,
+							Display:    display,
+						})
+					}
+				}
+				config.Terminology.Mappings = append(config.Terminology.Mappings, store.TerminologyMapping{
+					ID:           mapping.ID,
+					SourceSystem: mapping.SourceSystem,
+					TargetSystem: mapping.TargetSystem,
+					Entries:      entries,
+				})
+			}
+		}
+	}
+
+	return json.Marshal(config)
+}
+
+// incrementVersion increments a semantic version string (e.g., "1.0.0" -> "1.0.1").
+func incrementVersion(version string) string {
+	parts := strings.Split(version, ".")
+	if len(parts) != 3 {
+		return "1.0.1"
+	}
+	patch, err := strconv.Atoi(parts[2])
+	if err != nil {
+		return "1.0.1"
+	}
+	return fmt.Sprintf("%s.%s.%d", parts[0], parts[1], patch+1)
 }

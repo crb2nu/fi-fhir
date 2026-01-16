@@ -93,6 +93,12 @@ type ComplexityRoot struct {
 		Type          func(childComplexity int) int
 	}
 
+	AssigningAuthority struct {
+		Code   func(childComplexity int) int
+		Name   func(childComplexity int) int
+		System func(childComplexity int) int
+	}
+
 	BatchItemResult struct {
 		Errors          func(childComplexity int) int
 		EventID         func(childComplexity int) int
@@ -158,6 +164,13 @@ type ComplexityRoot struct {
 		Status            func(childComplexity int) int
 	}
 
+	EventClassificationRule struct {
+		Condition   func(childComplexity int) int
+		EventType   func(childComplexity int) int
+		MessageType func(childComplexity int) int
+		Priority    func(childComplexity int) int
+	}
+
 	EventConnection struct {
 		Edges      func(childComplexity int) int
 		PageInfo   func(childComplexity int) int
@@ -190,6 +203,13 @@ type ComplexityRoot struct {
 		Status    func(childComplexity int) int
 	}
 
+	HL7v2Config struct {
+		DefaultVersion       func(childComplexity int) int
+		EventClassifications func(childComplexity int) int
+		Timezone             func(childComplexity int) int
+		Tolerance            func(childComplexity int) int
+	}
+
 	HealthStatus struct {
 		Components func(childComplexity int) int
 		Status     func(childComplexity int) int
@@ -197,11 +217,24 @@ type ComplexityRoot struct {
 		Version    func(childComplexity int) int
 	}
 
+	IDPreferenceRule struct {
+		AssignerContains func(childComplexity int) int
+		Priority         func(childComplexity int) int
+		Type             func(childComplexity int) int
+	}
+
 	Identifier struct {
 		Assigner func(childComplexity int) int
 		System   func(childComplexity int) int
 		Type     func(childComplexity int) int
 		Value    func(childComplexity int) int
+	}
+
+	IdentifierConfig struct {
+		AssigningAuthorities func(childComplexity int) int
+		Normalization        func(childComplexity int) int
+		PrimaryIDPreference  func(childComplexity int) int
+		Validation           func(childComplexity int) int
 	}
 
 	Immunization struct {
@@ -260,13 +293,24 @@ type ComplexityRoot struct {
 
 	Mutation struct {
 		CreateFhirSubscription func(childComplexity int, input model.CreateSubscriptionInput) int
+		CreateProfile          func(childComplexity int, input model.CreateProfileInput) int
 		DeleteFhirSubscription func(childComplexity int, id string) int
+		DeleteProfile          func(childComplexity int, id string) int
+		DuplicateProfile       func(childComplexity int, id string, newID string, newName string) int
 		PauseFhirSubscription  func(childComplexity int, id string) int
 		ResumeFhirSubscription func(childComplexity int, id string) int
 		SubmitBatch            func(childComplexity int, input model.SubmitBatchInput) int
 		SubmitEvent            func(childComplexity int, input model.SubmitEventInput) int
 		SubmitMessage          func(childComplexity int, input model.SubmitMessageInput) int
 		TriggerWorkflow        func(childComplexity int, name string, event map[string]any) int
+		UpdateProfile          func(childComplexity int, id string, input model.UpdateProfileInput) int
+	}
+
+	NormalizationSettingsConfig struct {
+		PhoneFormat       func(childComplexity int) int
+		PhoneNormalize    func(childComplexity int) int
+		SsnRejectPatterns func(childComplexity int) int
+		SsnStripDashes    func(childComplexity int) int
 	}
 
 	PageInfo struct {
@@ -362,6 +406,13 @@ type ComplexityRoot struct {
 		Type          func(childComplexity int) int
 	}
 
+	ProfileRevision struct {
+		ChangeSummary func(childComplexity int) int
+		CreatedAt     func(childComplexity int) int
+		CreatedBy     func(childComplexity int) int
+		Version       func(childComplexity int) int
+	}
+
 	ProjectionStatus struct {
 		Behind       func(childComplexity int) int
 		Checkpoint   func(childComplexity int) int
@@ -388,9 +439,13 @@ type ComplexityRoot struct {
 		Events                   func(childComplexity int, filter *model.EventFilter, first *int, after *string, orderBy *model.EventOrderBy) int
 		Health                   func(childComplexity int) int
 		ParsePreview             func(childComplexity int, format model.SourceFormat, data string, source *string) int
+		ParsePreviewWithProfile  func(childComplexity int, format model.SourceFormat, data string, source *string, profileID *string) int
 		Patient                  func(childComplexity int, mrn string) int
 		PatientTimeline          func(childComplexity int, mrn string, fromTimestamp *time.Time, toTimestamp *time.Time, limit *int) int
 		Patients                 func(childComplexity int, filter *model.PatientFilter, first *int, after *string) int
+		Profile                  func(childComplexity int, id string) int
+		ProfileRevisions         func(childComplexity int, id string) int
+		Profiles                 func(childComplexity int, activeOnly *bool) int
 		ProjectionStatus         func(childComplexity int) int
 		Workflow                 func(childComplexity int, name string) int
 		Workflows                func(childComplexity int) int
@@ -399,6 +454,19 @@ type ComplexityRoot struct {
 	SourceCount struct {
 		Count  func(childComplexity int) int
 		Source func(childComplexity int) int
+	}
+
+	SourceProfile struct {
+		CreatedAt   func(childComplexity int) int
+		CreatedBy   func(childComplexity int) int
+		Hl7v2       func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Identifiers func(childComplexity int) int
+		IsActive    func(childComplexity int) int
+		Name        func(childComplexity int) int
+		Terminology func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
+		Version     func(childComplexity int) int
 	}
 
 	SubmitResult struct {
@@ -415,6 +483,23 @@ type ComplexityRoot struct {
 		WorkflowEvents func(childComplexity int, workflowName string) int
 	}
 
+	TerminologyConfig struct {
+		Mappings func(childComplexity int) int
+	}
+
+	TerminologyMappingEntry struct {
+		Display    func(childComplexity int) int
+		SourceCode func(childComplexity int) int
+		TargetCode func(childComplexity int) int
+	}
+
+	TerminologyMappingTable struct {
+		Entries      func(childComplexity int) int
+		ID           func(childComplexity int) int
+		SourceSystem func(childComplexity int) int
+		TargetSystem func(childComplexity int) int
+	}
+
 	TimelineEvent struct {
 		EventType func(childComplexity int) int
 		Position  func(childComplexity int) int
@@ -422,6 +507,25 @@ type ComplexityRoot struct {
 		StreamID  func(childComplexity int) int
 		Summary   func(childComplexity int) int
 		Timestamp func(childComplexity int) int
+	}
+
+	ToleranceConfig struct {
+		ExtraComponents       func(childComplexity int) int
+		MissingSegments       func(childComplexity int) int
+		NonStandardDelimiters func(childComplexity int) int
+		NteAnywhere           func(childComplexity int) int
+		UnknownSegments       func(childComplexity int) int
+	}
+
+	ValidationSettingsConfig struct {
+		Mbi func(childComplexity int) int
+		Npi func(childComplexity int) int
+		Ssn func(childComplexity int) int
+	}
+
+	ValidatorSetting struct {
+		Enabled   func(childComplexity int) int
+		OnInvalid func(childComplexity int) int
 	}
 
 	VitalSign struct {
@@ -478,6 +582,10 @@ type MutationResolver interface {
 	DeleteFhirSubscription(ctx context.Context, id string) (bool, error)
 	PauseFhirSubscription(ctx context.Context, id string) (*model.FhirSubscription, error)
 	ResumeFhirSubscription(ctx context.Context, id string) (*model.FhirSubscription, error)
+	CreateProfile(ctx context.Context, input model.CreateProfileInput) (*model.SourceProfile, error)
+	UpdateProfile(ctx context.Context, id string, input model.UpdateProfileInput) (*model.SourceProfile, error)
+	DeleteProfile(ctx context.Context, id string) (bool, error)
+	DuplicateProfile(ctx context.Context, id string, newID string, newName string) (*model.SourceProfile, error)
 }
 type QueryResolver interface {
 	Event(ctx context.Context, id string) (model.Event, error)
@@ -494,6 +602,10 @@ type QueryResolver interface {
 	ActiveEncounter(ctx context.Context, id string) (*model.ActiveEncounter, error)
 	ActiveEncounterByPatient(ctx context.Context, mrn string) (*model.ActiveEncounter, error)
 	ProjectionStatus(ctx context.Context) ([]model.ProjectionStatus, error)
+	Profiles(ctx context.Context, activeOnly *bool) ([]model.SourceProfile, error)
+	Profile(ctx context.Context, id string) (*model.SourceProfile, error)
+	ProfileRevisions(ctx context.Context, id string) ([]model.ProfileRevision, error)
+	ParsePreviewWithProfile(ctx context.Context, format model.SourceFormat, data string, source *string, profileID *string) (*model.ParseResult, error)
 }
 type SubscriptionResolver interface {
 	EventStream(ctx context.Context, filter *model.EventFilter) (<-chan model.Event, error)
@@ -715,6 +827,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.AppointmentEvent.Type(childComplexity), true
+
+	case "AssigningAuthority.code":
+		if e.complexity.AssigningAuthority.Code == nil {
+			break
+		}
+
+		return e.complexity.AssigningAuthority.Code(childComplexity), true
+	case "AssigningAuthority.name":
+		if e.complexity.AssigningAuthority.Name == nil {
+			break
+		}
+
+		return e.complexity.AssigningAuthority.Name(childComplexity), true
+	case "AssigningAuthority.system":
+		if e.complexity.AssigningAuthority.System == nil {
+			break
+		}
+
+		return e.complexity.AssigningAuthority.System(childComplexity), true
 
 	case "BatchItemResult.errors":
 		if e.complexity.BatchItemResult.Errors == nil {
@@ -987,6 +1118,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Encounter.Status(childComplexity), true
 
+	case "EventClassificationRule.condition":
+		if e.complexity.EventClassificationRule.Condition == nil {
+			break
+		}
+
+		return e.complexity.EventClassificationRule.Condition(childComplexity), true
+	case "EventClassificationRule.eventType":
+		if e.complexity.EventClassificationRule.EventType == nil {
+			break
+		}
+
+		return e.complexity.EventClassificationRule.EventType(childComplexity), true
+	case "EventClassificationRule.messageType":
+		if e.complexity.EventClassificationRule.MessageType == nil {
+			break
+		}
+
+		return e.complexity.EventClassificationRule.MessageType(childComplexity), true
+	case "EventClassificationRule.priority":
+		if e.complexity.EventClassificationRule.Priority == nil {
+			break
+		}
+
+		return e.complexity.EventClassificationRule.Priority(childComplexity), true
+
 	case "EventConnection.edges":
 		if e.complexity.EventConnection.Edges == nil {
 			break
@@ -1094,6 +1250,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.FhirSubscription.Status(childComplexity), true
 
+	case "HL7v2Config.defaultVersion":
+		if e.complexity.HL7v2Config.DefaultVersion == nil {
+			break
+		}
+
+		return e.complexity.HL7v2Config.DefaultVersion(childComplexity), true
+	case "HL7v2Config.eventClassifications":
+		if e.complexity.HL7v2Config.EventClassifications == nil {
+			break
+		}
+
+		return e.complexity.HL7v2Config.EventClassifications(childComplexity), true
+	case "HL7v2Config.timezone":
+		if e.complexity.HL7v2Config.Timezone == nil {
+			break
+		}
+
+		return e.complexity.HL7v2Config.Timezone(childComplexity), true
+	case "HL7v2Config.tolerance":
+		if e.complexity.HL7v2Config.Tolerance == nil {
+			break
+		}
+
+		return e.complexity.HL7v2Config.Tolerance(childComplexity), true
+
 	case "HealthStatus.components":
 		if e.complexity.HealthStatus.Components == nil {
 			break
@@ -1119,6 +1300,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.HealthStatus.Version(childComplexity), true
 
+	case "IDPreferenceRule.assignerContains":
+		if e.complexity.IDPreferenceRule.AssignerContains == nil {
+			break
+		}
+
+		return e.complexity.IDPreferenceRule.AssignerContains(childComplexity), true
+	case "IDPreferenceRule.priority":
+		if e.complexity.IDPreferenceRule.Priority == nil {
+			break
+		}
+
+		return e.complexity.IDPreferenceRule.Priority(childComplexity), true
+	case "IDPreferenceRule.type":
+		if e.complexity.IDPreferenceRule.Type == nil {
+			break
+		}
+
+		return e.complexity.IDPreferenceRule.Type(childComplexity), true
+
 	case "Identifier.assigner":
 		if e.complexity.Identifier.Assigner == nil {
 			break
@@ -1143,6 +1343,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Identifier.Value(childComplexity), true
+
+	case "IdentifierConfig.assigningAuthorities":
+		if e.complexity.IdentifierConfig.AssigningAuthorities == nil {
+			break
+		}
+
+		return e.complexity.IdentifierConfig.AssigningAuthorities(childComplexity), true
+	case "IdentifierConfig.normalization":
+		if e.complexity.IdentifierConfig.Normalization == nil {
+			break
+		}
+
+		return e.complexity.IdentifierConfig.Normalization(childComplexity), true
+	case "IdentifierConfig.primaryIdPreference":
+		if e.complexity.IdentifierConfig.PrimaryIDPreference == nil {
+			break
+		}
+
+		return e.complexity.IdentifierConfig.PrimaryIDPreference(childComplexity), true
+	case "IdentifierConfig.validation":
+		if e.complexity.IdentifierConfig.Validation == nil {
+			break
+		}
+
+		return e.complexity.IdentifierConfig.Validation(childComplexity), true
 
 	case "Immunization.status":
 		if e.complexity.Immunization.Status == nil {
@@ -1377,6 +1602,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.CreateFhirSubscription(childComplexity, args["input"].(model.CreateSubscriptionInput)), true
+	case "Mutation.createProfile":
+		if e.complexity.Mutation.CreateProfile == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createProfile_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CreateProfile(childComplexity, args["input"].(model.CreateProfileInput)), true
 	case "Mutation.deleteFhirSubscription":
 		if e.complexity.Mutation.DeleteFhirSubscription == nil {
 			break
@@ -1388,6 +1624,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.DeleteFhirSubscription(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteProfile":
+		if e.complexity.Mutation.DeleteProfile == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteProfile_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DeleteProfile(childComplexity, args["id"].(string)), true
+	case "Mutation.duplicateProfile":
+		if e.complexity.Mutation.DuplicateProfile == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_duplicateProfile_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DuplicateProfile(childComplexity, args["id"].(string), args["newId"].(string), args["newName"].(string)), true
 	case "Mutation.pauseFhirSubscription":
 		if e.complexity.Mutation.PauseFhirSubscription == nil {
 			break
@@ -1454,6 +1712,42 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.TriggerWorkflow(childComplexity, args["name"].(string), args["event"].(map[string]any)), true
+	case "Mutation.updateProfile":
+		if e.complexity.Mutation.UpdateProfile == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateProfile_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UpdateProfile(childComplexity, args["id"].(string), args["input"].(model.UpdateProfileInput)), true
+
+	case "NormalizationSettingsConfig.phoneFormat":
+		if e.complexity.NormalizationSettingsConfig.PhoneFormat == nil {
+			break
+		}
+
+		return e.complexity.NormalizationSettingsConfig.PhoneFormat(childComplexity), true
+	case "NormalizationSettingsConfig.phoneNormalize":
+		if e.complexity.NormalizationSettingsConfig.PhoneNormalize == nil {
+			break
+		}
+
+		return e.complexity.NormalizationSettingsConfig.PhoneNormalize(childComplexity), true
+	case "NormalizationSettingsConfig.ssnRejectPatterns":
+		if e.complexity.NormalizationSettingsConfig.SsnRejectPatterns == nil {
+			break
+		}
+
+		return e.complexity.NormalizationSettingsConfig.SsnRejectPatterns(childComplexity), true
+	case "NormalizationSettingsConfig.ssnStripDashes":
+		if e.complexity.NormalizationSettingsConfig.SsnStripDashes == nil {
+			break
+		}
+
+		return e.complexity.NormalizationSettingsConfig.SsnStripDashes(childComplexity), true
 
 	case "PageInfo.endCursor":
 		if e.complexity.PageInfo.EndCursor == nil {
@@ -1826,6 +2120,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.ProcedureEvent.Type(childComplexity), true
 
+	case "ProfileRevision.changeSummary":
+		if e.complexity.ProfileRevision.ChangeSummary == nil {
+			break
+		}
+
+		return e.complexity.ProfileRevision.ChangeSummary(childComplexity), true
+	case "ProfileRevision.createdAt":
+		if e.complexity.ProfileRevision.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.ProfileRevision.CreatedAt(childComplexity), true
+	case "ProfileRevision.createdBy":
+		if e.complexity.ProfileRevision.CreatedBy == nil {
+			break
+		}
+
+		return e.complexity.ProfileRevision.CreatedBy(childComplexity), true
+	case "ProfileRevision.version":
+		if e.complexity.ProfileRevision.Version == nil {
+			break
+		}
+
+		return e.complexity.ProfileRevision.Version(childComplexity), true
+
 	case "ProjectionStatus.behind":
 		if e.complexity.ProjectionStatus.Behind == nil {
 			break
@@ -1972,6 +2291,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.ParsePreview(childComplexity, args["format"].(model.SourceFormat), args["data"].(string), args["source"].(*string)), true
+	case "Query.parsePreviewWithProfile":
+		if e.complexity.Query.ParsePreviewWithProfile == nil {
+			break
+		}
+
+		args, err := ec.field_Query_parsePreviewWithProfile_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.ParsePreviewWithProfile(childComplexity, args["format"].(model.SourceFormat), args["data"].(string), args["source"].(*string), args["profileId"].(*string)), true
 	case "Query.patient":
 		if e.complexity.Query.Patient == nil {
 			break
@@ -2005,6 +2335,39 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.Patients(childComplexity, args["filter"].(*model.PatientFilter), args["first"].(*int), args["after"].(*string)), true
+	case "Query.profile":
+		if e.complexity.Query.Profile == nil {
+			break
+		}
+
+		args, err := ec.field_Query_profile_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Profile(childComplexity, args["id"].(string)), true
+	case "Query.profileRevisions":
+		if e.complexity.Query.ProfileRevisions == nil {
+			break
+		}
+
+		args, err := ec.field_Query_profileRevisions_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.ProfileRevisions(childComplexity, args["id"].(string)), true
+	case "Query.profiles":
+		if e.complexity.Query.Profiles == nil {
+			break
+		}
+
+		args, err := ec.field_Query_profiles_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Profiles(childComplexity, args["activeOnly"].(*bool)), true
 	case "Query.projectionStatus":
 		if e.complexity.Query.ProjectionStatus == nil {
 			break
@@ -2041,6 +2404,67 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.SourceCount.Source(childComplexity), true
+
+	case "SourceProfile.createdAt":
+		if e.complexity.SourceProfile.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.SourceProfile.CreatedAt(childComplexity), true
+	case "SourceProfile.createdBy":
+		if e.complexity.SourceProfile.CreatedBy == nil {
+			break
+		}
+
+		return e.complexity.SourceProfile.CreatedBy(childComplexity), true
+	case "SourceProfile.hl7v2":
+		if e.complexity.SourceProfile.Hl7v2 == nil {
+			break
+		}
+
+		return e.complexity.SourceProfile.Hl7v2(childComplexity), true
+	case "SourceProfile.id":
+		if e.complexity.SourceProfile.ID == nil {
+			break
+		}
+
+		return e.complexity.SourceProfile.ID(childComplexity), true
+	case "SourceProfile.identifiers":
+		if e.complexity.SourceProfile.Identifiers == nil {
+			break
+		}
+
+		return e.complexity.SourceProfile.Identifiers(childComplexity), true
+	case "SourceProfile.isActive":
+		if e.complexity.SourceProfile.IsActive == nil {
+			break
+		}
+
+		return e.complexity.SourceProfile.IsActive(childComplexity), true
+	case "SourceProfile.name":
+		if e.complexity.SourceProfile.Name == nil {
+			break
+		}
+
+		return e.complexity.SourceProfile.Name(childComplexity), true
+	case "SourceProfile.terminology":
+		if e.complexity.SourceProfile.Terminology == nil {
+			break
+		}
+
+		return e.complexity.SourceProfile.Terminology(childComplexity), true
+	case "SourceProfile.updatedAt":
+		if e.complexity.SourceProfile.UpdatedAt == nil {
+			break
+		}
+
+		return e.complexity.SourceProfile.UpdatedAt(childComplexity), true
+	case "SourceProfile.version":
+		if e.complexity.SourceProfile.Version == nil {
+			break
+		}
+
+		return e.complexity.SourceProfile.Version(childComplexity), true
 
 	case "SubmitResult.errors":
 		if e.complexity.SubmitResult.Errors == nil {
@@ -2107,6 +2531,57 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Subscription.WorkflowEvents(childComplexity, args["workflowName"].(string)), true
 
+	case "TerminologyConfig.mappings":
+		if e.complexity.TerminologyConfig.Mappings == nil {
+			break
+		}
+
+		return e.complexity.TerminologyConfig.Mappings(childComplexity), true
+
+	case "TerminologyMappingEntry.display":
+		if e.complexity.TerminologyMappingEntry.Display == nil {
+			break
+		}
+
+		return e.complexity.TerminologyMappingEntry.Display(childComplexity), true
+	case "TerminologyMappingEntry.sourceCode":
+		if e.complexity.TerminologyMappingEntry.SourceCode == nil {
+			break
+		}
+
+		return e.complexity.TerminologyMappingEntry.SourceCode(childComplexity), true
+	case "TerminologyMappingEntry.targetCode":
+		if e.complexity.TerminologyMappingEntry.TargetCode == nil {
+			break
+		}
+
+		return e.complexity.TerminologyMappingEntry.TargetCode(childComplexity), true
+
+	case "TerminologyMappingTable.entries":
+		if e.complexity.TerminologyMappingTable.Entries == nil {
+			break
+		}
+
+		return e.complexity.TerminologyMappingTable.Entries(childComplexity), true
+	case "TerminologyMappingTable.id":
+		if e.complexity.TerminologyMappingTable.ID == nil {
+			break
+		}
+
+		return e.complexity.TerminologyMappingTable.ID(childComplexity), true
+	case "TerminologyMappingTable.sourceSystem":
+		if e.complexity.TerminologyMappingTable.SourceSystem == nil {
+			break
+		}
+
+		return e.complexity.TerminologyMappingTable.SourceSystem(childComplexity), true
+	case "TerminologyMappingTable.targetSystem":
+		if e.complexity.TerminologyMappingTable.TargetSystem == nil {
+			break
+		}
+
+		return e.complexity.TerminologyMappingTable.TargetSystem(childComplexity), true
+
 	case "TimelineEvent.eventType":
 		if e.complexity.TimelineEvent.EventType == nil {
 			break
@@ -2143,6 +2618,69 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.TimelineEvent.Timestamp(childComplexity), true
+
+	case "ToleranceConfig.extraComponents":
+		if e.complexity.ToleranceConfig.ExtraComponents == nil {
+			break
+		}
+
+		return e.complexity.ToleranceConfig.ExtraComponents(childComplexity), true
+	case "ToleranceConfig.missingSegments":
+		if e.complexity.ToleranceConfig.MissingSegments == nil {
+			break
+		}
+
+		return e.complexity.ToleranceConfig.MissingSegments(childComplexity), true
+	case "ToleranceConfig.nonStandardDelimiters":
+		if e.complexity.ToleranceConfig.NonStandardDelimiters == nil {
+			break
+		}
+
+		return e.complexity.ToleranceConfig.NonStandardDelimiters(childComplexity), true
+	case "ToleranceConfig.nteAnywhere":
+		if e.complexity.ToleranceConfig.NteAnywhere == nil {
+			break
+		}
+
+		return e.complexity.ToleranceConfig.NteAnywhere(childComplexity), true
+	case "ToleranceConfig.unknownSegments":
+		if e.complexity.ToleranceConfig.UnknownSegments == nil {
+			break
+		}
+
+		return e.complexity.ToleranceConfig.UnknownSegments(childComplexity), true
+
+	case "ValidationSettingsConfig.mbi":
+		if e.complexity.ValidationSettingsConfig.Mbi == nil {
+			break
+		}
+
+		return e.complexity.ValidationSettingsConfig.Mbi(childComplexity), true
+	case "ValidationSettingsConfig.npi":
+		if e.complexity.ValidationSettingsConfig.Npi == nil {
+			break
+		}
+
+		return e.complexity.ValidationSettingsConfig.Npi(childComplexity), true
+	case "ValidationSettingsConfig.ssn":
+		if e.complexity.ValidationSettingsConfig.Ssn == nil {
+			break
+		}
+
+		return e.complexity.ValidationSettingsConfig.Ssn(childComplexity), true
+
+	case "ValidatorSetting.enabled":
+		if e.complexity.ValidatorSetting.Enabled == nil {
+			break
+		}
+
+		return e.complexity.ValidatorSetting.Enabled(childComplexity), true
+	case "ValidatorSetting.onInvalid":
+		if e.complexity.ValidatorSetting.OnInvalid == nil {
+			break
+		}
+
+		return e.complexity.ValidatorSetting.OnInvalid(childComplexity), true
 
 	case "VitalSign.interpretation":
 		if e.complexity.VitalSign.Interpretation == nil {
@@ -2331,15 +2869,29 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := executionContext{opCtx, e, 0, 0, make(chan graphql.DeferredResult)}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputAssigningAuthorityInput,
 		ec.unmarshalInputBatchEventItem,
 		ec.unmarshalInputBatchMessageItem,
+		ec.unmarshalInputCreateProfileInput,
 		ec.unmarshalInputCreateSubscriptionInput,
+		ec.unmarshalInputEventClassificationRuleInput,
 		ec.unmarshalInputEventFilter,
 		ec.unmarshalInputEventOrderBy,
+		ec.unmarshalInputHL7v2ConfigInput,
+		ec.unmarshalInputIDPreferenceRuleInput,
+		ec.unmarshalInputIdentifierConfigInput,
+		ec.unmarshalInputNormalizationSettingsInput,
 		ec.unmarshalInputPatientFilter,
 		ec.unmarshalInputSubmitBatchInput,
 		ec.unmarshalInputSubmitEventInput,
 		ec.unmarshalInputSubmitMessageInput,
+		ec.unmarshalInputTerminologyConfigInput,
+		ec.unmarshalInputTerminologyMappingEntryInput,
+		ec.unmarshalInputTerminologyMappingTableInput,
+		ec.unmarshalInputToleranceConfigInput,
+		ec.unmarshalInputUpdateProfileInput,
+		ec.unmarshalInputValidationSettingsInput,
+		ec.unmarshalInputValidatorSettingInput,
 	)
 	first := true
 
@@ -2484,6 +3036,17 @@ func (ec *executionContext) field_Mutation_createFhirSubscription_args(ctx conte
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_createProfile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNCreateProfileInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐCreateProfileInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_deleteFhirSubscription_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -2492,6 +3055,38 @@ func (ec *executionContext) field_Mutation_deleteFhirSubscription_args(ctx conte
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteProfile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_duplicateProfile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "newId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["newId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "newName", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["newName"] = arg2
 	return args, nil
 }
 
@@ -2563,6 +3158,22 @@ func (ec *executionContext) field_Mutation_triggerWorkflow_args(ctx context.Cont
 		return nil, err
 	}
 	args["event"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateProfile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNUpdateProfileInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐUpdateProfileInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
 	return args, nil
 }
 
@@ -2657,6 +3268,32 @@ func (ec *executionContext) field_Query_events_args(ctx context.Context, rawArgs
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_parsePreviewWithProfile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "format", ec.unmarshalNSourceFormat2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat)
+	if err != nil {
+		return nil, err
+	}
+	args["format"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "data", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["data"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "source", ec.unmarshalOString2ᚖstring)
+	if err != nil {
+		return nil, err
+	}
+	args["source"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "profileId", ec.unmarshalOID2ᚖstring)
+	if err != nil {
+		return nil, err
+	}
+	args["profileId"] = arg3
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_parsePreview_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -2733,6 +3370,39 @@ func (ec *executionContext) field_Query_patients_args(ctx context.Context, rawAr
 		return nil, err
 	}
 	args["after"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_profileRevisions_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_profile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_profiles_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "activeOnly", ec.unmarshalOBoolean2ᚖbool)
+	if err != nil {
+		return nil, err
+	}
+	args["activeOnly"] = arg0
 	return args, nil
 }
 
@@ -3817,6 +4487,93 @@ func (ec *executionContext) fieldContext_AppointmentEvent_appointment(_ context.
 				return ec.fieldContext_Appointment_reason(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Appointment", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AssigningAuthority_code(ctx context.Context, field graphql.CollectedField, obj *model.AssigningAuthority) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AssigningAuthority_code,
+		func(ctx context.Context) (any, error) {
+			return obj.Code, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AssigningAuthority_code(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AssigningAuthority",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AssigningAuthority_system(ctx context.Context, field graphql.CollectedField, obj *model.AssigningAuthority) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AssigningAuthority_system,
+		func(ctx context.Context) (any, error) {
+			return obj.System, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AssigningAuthority_system(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AssigningAuthority",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AssigningAuthority_name(ctx context.Context, field graphql.CollectedField, obj *model.AssigningAuthority) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AssigningAuthority_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_AssigningAuthority_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AssigningAuthority",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -5212,6 +5969,122 @@ func (ec *executionContext) fieldContext_Encounter_attendingProvider(_ context.C
 	return fc, nil
 }
 
+func (ec *executionContext) _EventClassificationRule_messageType(ctx context.Context, field graphql.CollectedField, obj *model.EventClassificationRule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EventClassificationRule_messageType,
+		func(ctx context.Context) (any, error) {
+			return obj.MessageType, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_EventClassificationRule_messageType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EventClassificationRule",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EventClassificationRule_condition(ctx context.Context, field graphql.CollectedField, obj *model.EventClassificationRule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EventClassificationRule_condition,
+		func(ctx context.Context) (any, error) {
+			return obj.Condition, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_EventClassificationRule_condition(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EventClassificationRule",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EventClassificationRule_eventType(ctx context.Context, field graphql.CollectedField, obj *model.EventClassificationRule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EventClassificationRule_eventType,
+		func(ctx context.Context) (any, error) {
+			return obj.EventType, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_EventClassificationRule_eventType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EventClassificationRule",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EventClassificationRule_priority(ctx context.Context, field graphql.CollectedField, obj *model.EventClassificationRule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EventClassificationRule_priority,
+		func(ctx context.Context) (any, error) {
+			return obj.Priority, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_EventClassificationRule_priority(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EventClassificationRule",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _EventConnection_edges(ctx context.Context, field graphql.CollectedField, obj *model.EventConnection) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -5733,6 +6606,144 @@ func (ec *executionContext) fieldContext_FhirSubscription_createdAt(_ context.Co
 	return fc, nil
 }
 
+func (ec *executionContext) _HL7v2Config_defaultVersion(ctx context.Context, field graphql.CollectedField, obj *model.HL7v2Config) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_HL7v2Config_defaultVersion,
+		func(ctx context.Context) (any, error) {
+			return obj.DefaultVersion, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_HL7v2Config_defaultVersion(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "HL7v2Config",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _HL7v2Config_timezone(ctx context.Context, field graphql.CollectedField, obj *model.HL7v2Config) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_HL7v2Config_timezone,
+		func(ctx context.Context) (any, error) {
+			return obj.Timezone, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_HL7v2Config_timezone(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "HL7v2Config",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _HL7v2Config_tolerance(ctx context.Context, field graphql.CollectedField, obj *model.HL7v2Config) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_HL7v2Config_tolerance,
+		func(ctx context.Context) (any, error) {
+			return obj.Tolerance, nil
+		},
+		nil,
+		ec.marshalOToleranceConfig2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐToleranceConfig,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_HL7v2Config_tolerance(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "HL7v2Config",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "missingSegments":
+				return ec.fieldContext_ToleranceConfig_missingSegments(ctx, field)
+			case "nteAnywhere":
+				return ec.fieldContext_ToleranceConfig_nteAnywhere(ctx, field)
+			case "extraComponents":
+				return ec.fieldContext_ToleranceConfig_extraComponents(ctx, field)
+			case "unknownSegments":
+				return ec.fieldContext_ToleranceConfig_unknownSegments(ctx, field)
+			case "nonStandardDelimiters":
+				return ec.fieldContext_ToleranceConfig_nonStandardDelimiters(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ToleranceConfig", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _HL7v2Config_eventClassifications(ctx context.Context, field graphql.CollectedField, obj *model.HL7v2Config) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_HL7v2Config_eventClassifications,
+		func(ctx context.Context) (any, error) {
+			return obj.EventClassifications, nil
+		},
+		nil,
+		ec.marshalNEventClassificationRule2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventClassificationRuleᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_HL7v2Config_eventClassifications(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "HL7v2Config",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "messageType":
+				return ec.fieldContext_EventClassificationRule_messageType(ctx, field)
+			case "condition":
+				return ec.fieldContext_EventClassificationRule_condition(ctx, field)
+			case "eventType":
+				return ec.fieldContext_EventClassificationRule_eventType(ctx, field)
+			case "priority":
+				return ec.fieldContext_EventClassificationRule_priority(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type EventClassificationRule", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _HealthStatus_status(ctx context.Context, field graphql.CollectedField, obj *model.HealthStatus) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -5857,6 +6868,93 @@ func (ec *executionContext) fieldContext_HealthStatus_components(_ context.Conte
 	return fc, nil
 }
 
+func (ec *executionContext) _IDPreferenceRule_type(ctx context.Context, field graphql.CollectedField, obj *model.IDPreferenceRule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IDPreferenceRule_type,
+		func(ctx context.Context) (any, error) {
+			return obj.Type, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IDPreferenceRule_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IDPreferenceRule",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IDPreferenceRule_assignerContains(ctx context.Context, field graphql.CollectedField, obj *model.IDPreferenceRule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IDPreferenceRule_assignerContains,
+		func(ctx context.Context) (any, error) {
+			return obj.AssignerContains, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IDPreferenceRule_assignerContains(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IDPreferenceRule",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IDPreferenceRule_priority(ctx context.Context, field graphql.CollectedField, obj *model.IDPreferenceRule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IDPreferenceRule_priority,
+		func(ctx context.Context) (any, error) {
+			return obj.Priority, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IDPreferenceRule_priority(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IDPreferenceRule",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Identifier_value(ctx context.Context, field graphql.CollectedField, obj *model.Identifier) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -5968,6 +7066,156 @@ func (ec *executionContext) fieldContext_Identifier_assigner(_ context.Context, 
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IdentifierConfig_assigningAuthorities(ctx context.Context, field graphql.CollectedField, obj *model.IdentifierConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IdentifierConfig_assigningAuthorities,
+		func(ctx context.Context) (any, error) {
+			return obj.AssigningAuthorities, nil
+		},
+		nil,
+		ec.marshalNAssigningAuthority2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAssigningAuthorityᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IdentifierConfig_assigningAuthorities(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IdentifierConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "code":
+				return ec.fieldContext_AssigningAuthority_code(ctx, field)
+			case "system":
+				return ec.fieldContext_AssigningAuthority_system(ctx, field)
+			case "name":
+				return ec.fieldContext_AssigningAuthority_name(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type AssigningAuthority", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IdentifierConfig_primaryIdPreference(ctx context.Context, field graphql.CollectedField, obj *model.IdentifierConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IdentifierConfig_primaryIdPreference,
+		func(ctx context.Context) (any, error) {
+			return obj.PrimaryIDPreference, nil
+		},
+		nil,
+		ec.marshalNIDPreferenceRule2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIDPreferenceRuleᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IdentifierConfig_primaryIdPreference(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IdentifierConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "type":
+				return ec.fieldContext_IDPreferenceRule_type(ctx, field)
+			case "assignerContains":
+				return ec.fieldContext_IDPreferenceRule_assignerContains(ctx, field)
+			case "priority":
+				return ec.fieldContext_IDPreferenceRule_priority(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IDPreferenceRule", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IdentifierConfig_validation(ctx context.Context, field graphql.CollectedField, obj *model.IdentifierConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IdentifierConfig_validation,
+		func(ctx context.Context) (any, error) {
+			return obj.Validation, nil
+		},
+		nil,
+		ec.marshalOValidationSettingsConfig2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐValidationSettingsConfig,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IdentifierConfig_validation(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IdentifierConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "npi":
+				return ec.fieldContext_ValidationSettingsConfig_npi(ctx, field)
+			case "mbi":
+				return ec.fieldContext_ValidationSettingsConfig_mbi(ctx, field)
+			case "ssn":
+				return ec.fieldContext_ValidationSettingsConfig_ssn(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ValidationSettingsConfig", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IdentifierConfig_normalization(ctx context.Context, field graphql.CollectedField, obj *model.IdentifierConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IdentifierConfig_normalization,
+		func(ctx context.Context) (any, error) {
+			return obj.Normalization, nil
+		},
+		nil,
+		ec.marshalONormalizationSettingsConfig2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐNormalizationSettingsConfig,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IdentifierConfig_normalization(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IdentifierConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "ssnStripDashes":
+				return ec.fieldContext_NormalizationSettingsConfig_ssnStripDashes(ctx, field)
+			case "ssnRejectPatterns":
+				return ec.fieldContext_NormalizationSettingsConfig_ssnRejectPatterns(ctx, field)
+			case "phoneNormalize":
+				return ec.fieldContext_NormalizationSettingsConfig_phoneNormalize(ctx, field)
+			case "phoneFormat":
+				return ec.fieldContext_NormalizationSettingsConfig_phoneFormat(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type NormalizationSettingsConfig", field.Name)
 		},
 	}
 	return fc, nil
@@ -7525,6 +8773,352 @@ func (ec *executionContext) fieldContext_Mutation_resumeFhirSubscription(ctx con
 	if fc.Args, err = ec.field_Mutation_resumeFhirSubscription_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createProfile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_createProfile,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().CreateProfile(ctx, fc.Args["input"].(model.CreateProfileInput))
+		},
+		nil,
+		ec.marshalNSourceProfile2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceProfile,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_createProfile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SourceProfile_id(ctx, field)
+			case "name":
+				return ec.fieldContext_SourceProfile_name(ctx, field)
+			case "version":
+				return ec.fieldContext_SourceProfile_version(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_SourceProfile_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_SourceProfile_updatedAt(ctx, field)
+			case "createdBy":
+				return ec.fieldContext_SourceProfile_createdBy(ctx, field)
+			case "isActive":
+				return ec.fieldContext_SourceProfile_isActive(ctx, field)
+			case "hl7v2":
+				return ec.fieldContext_SourceProfile_hl7v2(ctx, field)
+			case "identifiers":
+				return ec.fieldContext_SourceProfile_identifiers(ctx, field)
+			case "terminology":
+				return ec.fieldContext_SourceProfile_terminology(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SourceProfile", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createProfile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateProfile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_updateProfile,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().UpdateProfile(ctx, fc.Args["id"].(string), fc.Args["input"].(model.UpdateProfileInput))
+		},
+		nil,
+		ec.marshalNSourceProfile2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceProfile,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_updateProfile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SourceProfile_id(ctx, field)
+			case "name":
+				return ec.fieldContext_SourceProfile_name(ctx, field)
+			case "version":
+				return ec.fieldContext_SourceProfile_version(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_SourceProfile_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_SourceProfile_updatedAt(ctx, field)
+			case "createdBy":
+				return ec.fieldContext_SourceProfile_createdBy(ctx, field)
+			case "isActive":
+				return ec.fieldContext_SourceProfile_isActive(ctx, field)
+			case "hl7v2":
+				return ec.fieldContext_SourceProfile_hl7v2(ctx, field)
+			case "identifiers":
+				return ec.fieldContext_SourceProfile_identifiers(ctx, field)
+			case "terminology":
+				return ec.fieldContext_SourceProfile_terminology(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SourceProfile", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateProfile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteProfile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_deleteProfile,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().DeleteProfile(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deleteProfile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteProfile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_duplicateProfile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_duplicateProfile,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().DuplicateProfile(ctx, fc.Args["id"].(string), fc.Args["newId"].(string), fc.Args["newName"].(string))
+		},
+		nil,
+		ec.marshalNSourceProfile2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceProfile,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_duplicateProfile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SourceProfile_id(ctx, field)
+			case "name":
+				return ec.fieldContext_SourceProfile_name(ctx, field)
+			case "version":
+				return ec.fieldContext_SourceProfile_version(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_SourceProfile_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_SourceProfile_updatedAt(ctx, field)
+			case "createdBy":
+				return ec.fieldContext_SourceProfile_createdBy(ctx, field)
+			case "isActive":
+				return ec.fieldContext_SourceProfile_isActive(ctx, field)
+			case "hl7v2":
+				return ec.fieldContext_SourceProfile_hl7v2(ctx, field)
+			case "identifiers":
+				return ec.fieldContext_SourceProfile_identifiers(ctx, field)
+			case "terminology":
+				return ec.fieldContext_SourceProfile_terminology(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SourceProfile", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_duplicateProfile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _NormalizationSettingsConfig_ssnStripDashes(ctx context.Context, field graphql.CollectedField, obj *model.NormalizationSettingsConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_NormalizationSettingsConfig_ssnStripDashes,
+		func(ctx context.Context) (any, error) {
+			return obj.SsnStripDashes, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_NormalizationSettingsConfig_ssnStripDashes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "NormalizationSettingsConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _NormalizationSettingsConfig_ssnRejectPatterns(ctx context.Context, field graphql.CollectedField, obj *model.NormalizationSettingsConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_NormalizationSettingsConfig_ssnRejectPatterns,
+		func(ctx context.Context) (any, error) {
+			return obj.SsnRejectPatterns, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_NormalizationSettingsConfig_ssnRejectPatterns(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "NormalizationSettingsConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _NormalizationSettingsConfig_phoneNormalize(ctx context.Context, field graphql.CollectedField, obj *model.NormalizationSettingsConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_NormalizationSettingsConfig_phoneNormalize,
+		func(ctx context.Context) (any, error) {
+			return obj.PhoneNormalize, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_NormalizationSettingsConfig_phoneNormalize(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "NormalizationSettingsConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _NormalizationSettingsConfig_phoneFormat(ctx context.Context, field graphql.CollectedField, obj *model.NormalizationSettingsConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_NormalizationSettingsConfig_phoneFormat,
+		func(ctx context.Context) (any, error) {
+			return obj.PhoneFormat, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_NormalizationSettingsConfig_phoneFormat(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "NormalizationSettingsConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
 	}
 	return fc, nil
 }
@@ -9463,6 +11057,122 @@ func (ec *executionContext) fieldContext_ProcedureEvent_performedDate(_ context.
 	return fc, nil
 }
 
+func (ec *executionContext) _ProfileRevision_version(ctx context.Context, field graphql.CollectedField, obj *model.ProfileRevision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProfileRevision_version,
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProfileRevision_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProfileRevision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProfileRevision_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.ProfileRevision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProfileRevision_createdAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProfileRevision_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProfileRevision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProfileRevision_createdBy(ctx context.Context, field graphql.CollectedField, obj *model.ProfileRevision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProfileRevision_createdBy,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedBy, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProfileRevision_createdBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProfileRevision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProfileRevision_changeSummary(ctx context.Context, field graphql.CollectedField, obj *model.ProfileRevision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProfileRevision_changeSummary,
+		func(ctx context.Context) (any, error) {
+			return obj.ChangeSummary, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProfileRevision_changeSummary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProfileRevision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ProjectionStatus_name(ctx context.Context, field graphql.CollectedField, obj *model.ProjectionStatus) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -10496,6 +12206,234 @@ func (ec *executionContext) fieldContext_Query_projectionStatus(_ context.Contex
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_profiles(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_profiles,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().Profiles(ctx, fc.Args["activeOnly"].(*bool))
+		},
+		nil,
+		ec.marshalNSourceProfile2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceProfileᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_profiles(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SourceProfile_id(ctx, field)
+			case "name":
+				return ec.fieldContext_SourceProfile_name(ctx, field)
+			case "version":
+				return ec.fieldContext_SourceProfile_version(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_SourceProfile_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_SourceProfile_updatedAt(ctx, field)
+			case "createdBy":
+				return ec.fieldContext_SourceProfile_createdBy(ctx, field)
+			case "isActive":
+				return ec.fieldContext_SourceProfile_isActive(ctx, field)
+			case "hl7v2":
+				return ec.fieldContext_SourceProfile_hl7v2(ctx, field)
+			case "identifiers":
+				return ec.fieldContext_SourceProfile_identifiers(ctx, field)
+			case "terminology":
+				return ec.fieldContext_SourceProfile_terminology(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SourceProfile", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_profiles_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_profile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_profile,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().Profile(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		ec.marshalOSourceProfile2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceProfile,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_profile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SourceProfile_id(ctx, field)
+			case "name":
+				return ec.fieldContext_SourceProfile_name(ctx, field)
+			case "version":
+				return ec.fieldContext_SourceProfile_version(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_SourceProfile_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_SourceProfile_updatedAt(ctx, field)
+			case "createdBy":
+				return ec.fieldContext_SourceProfile_createdBy(ctx, field)
+			case "isActive":
+				return ec.fieldContext_SourceProfile_isActive(ctx, field)
+			case "hl7v2":
+				return ec.fieldContext_SourceProfile_hl7v2(ctx, field)
+			case "identifiers":
+				return ec.fieldContext_SourceProfile_identifiers(ctx, field)
+			case "terminology":
+				return ec.fieldContext_SourceProfile_terminology(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SourceProfile", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_profile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_profileRevisions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_profileRevisions,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().ProfileRevisions(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		ec.marshalNProfileRevision2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProfileRevisionᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_profileRevisions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "version":
+				return ec.fieldContext_ProfileRevision_version(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_ProfileRevision_createdAt(ctx, field)
+			case "createdBy":
+				return ec.fieldContext_ProfileRevision_createdBy(ctx, field)
+			case "changeSummary":
+				return ec.fieldContext_ProfileRevision_changeSummary(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ProfileRevision", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_profileRevisions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_parsePreviewWithProfile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_parsePreviewWithProfile,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().ParsePreviewWithProfile(ctx, fc.Args["format"].(model.SourceFormat), fc.Args["data"].(string), fc.Args["source"].(*string), fc.Args["profileId"].(*string))
+		},
+		nil,
+		ec.marshalNParseResult2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐParseResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_parsePreviewWithProfile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "success":
+				return ec.fieldContext_ParseResult_success(ctx, field)
+			case "events":
+				return ec.fieldContext_ParseResult_events(ctx, field)
+			case "warnings":
+				return ec.fieldContext_ParseResult_warnings(ctx, field)
+			case "errors":
+				return ec.fieldContext_ParseResult_errors(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ParseResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_parsePreviewWithProfile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -10657,6 +12595,320 @@ func (ec *executionContext) fieldContext_SourceCount_count(_ context.Context, fi
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SourceProfile_id(ctx context.Context, field graphql.CollectedField, obj *model.SourceProfile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SourceProfile_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SourceProfile_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SourceProfile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SourceProfile_name(ctx context.Context, field graphql.CollectedField, obj *model.SourceProfile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SourceProfile_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SourceProfile_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SourceProfile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SourceProfile_version(ctx context.Context, field graphql.CollectedField, obj *model.SourceProfile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SourceProfile_version,
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SourceProfile_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SourceProfile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SourceProfile_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.SourceProfile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SourceProfile_createdAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SourceProfile_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SourceProfile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SourceProfile_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.SourceProfile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SourceProfile_updatedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SourceProfile_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SourceProfile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SourceProfile_createdBy(ctx context.Context, field graphql.CollectedField, obj *model.SourceProfile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SourceProfile_createdBy,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedBy, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_SourceProfile_createdBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SourceProfile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SourceProfile_isActive(ctx context.Context, field graphql.CollectedField, obj *model.SourceProfile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SourceProfile_isActive,
+		func(ctx context.Context) (any, error) {
+			return obj.IsActive, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SourceProfile_isActive(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SourceProfile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SourceProfile_hl7v2(ctx context.Context, field graphql.CollectedField, obj *model.SourceProfile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SourceProfile_hl7v2,
+		func(ctx context.Context) (any, error) {
+			return obj.Hl7v2, nil
+		},
+		nil,
+		ec.marshalOHL7v2Config2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐHL7v2Config,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_SourceProfile_hl7v2(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SourceProfile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "defaultVersion":
+				return ec.fieldContext_HL7v2Config_defaultVersion(ctx, field)
+			case "timezone":
+				return ec.fieldContext_HL7v2Config_timezone(ctx, field)
+			case "tolerance":
+				return ec.fieldContext_HL7v2Config_tolerance(ctx, field)
+			case "eventClassifications":
+				return ec.fieldContext_HL7v2Config_eventClassifications(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type HL7v2Config", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SourceProfile_identifiers(ctx context.Context, field graphql.CollectedField, obj *model.SourceProfile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SourceProfile_identifiers,
+		func(ctx context.Context) (any, error) {
+			return obj.Identifiers, nil
+		},
+		nil,
+		ec.marshalOIdentifierConfig2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIdentifierConfig,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_SourceProfile_identifiers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SourceProfile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "assigningAuthorities":
+				return ec.fieldContext_IdentifierConfig_assigningAuthorities(ctx, field)
+			case "primaryIdPreference":
+				return ec.fieldContext_IdentifierConfig_primaryIdPreference(ctx, field)
+			case "validation":
+				return ec.fieldContext_IdentifierConfig_validation(ctx, field)
+			case "normalization":
+				return ec.fieldContext_IdentifierConfig_normalization(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IdentifierConfig", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SourceProfile_terminology(ctx context.Context, field graphql.CollectedField, obj *model.SourceProfile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SourceProfile_terminology,
+		func(ctx context.Context) (any, error) {
+			return obj.Terminology, nil
+		},
+		nil,
+		ec.marshalOTerminologyConfig2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTerminologyConfig,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_SourceProfile_terminology(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SourceProfile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "mappings":
+				return ec.fieldContext_TerminologyConfig_mappings(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type TerminologyConfig", field.Name)
 		},
 	}
 	return fc, nil
@@ -10964,6 +13216,256 @@ func (ec *executionContext) fieldContext_Subscription_patientEvents(ctx context.
 	return fc, nil
 }
 
+func (ec *executionContext) _TerminologyConfig_mappings(ctx context.Context, field graphql.CollectedField, obj *model.TerminologyConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TerminologyConfig_mappings,
+		func(ctx context.Context) (any, error) {
+			return obj.Mappings, nil
+		},
+		nil,
+		ec.marshalNTerminologyMappingTable2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTerminologyMappingTableᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TerminologyConfig_mappings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TerminologyConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_TerminologyMappingTable_id(ctx, field)
+			case "sourceSystem":
+				return ec.fieldContext_TerminologyMappingTable_sourceSystem(ctx, field)
+			case "targetSystem":
+				return ec.fieldContext_TerminologyMappingTable_targetSystem(ctx, field)
+			case "entries":
+				return ec.fieldContext_TerminologyMappingTable_entries(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type TerminologyMappingTable", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TerminologyMappingEntry_sourceCode(ctx context.Context, field graphql.CollectedField, obj *model.TerminologyMappingEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TerminologyMappingEntry_sourceCode,
+		func(ctx context.Context) (any, error) {
+			return obj.SourceCode, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TerminologyMappingEntry_sourceCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TerminologyMappingEntry",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TerminologyMappingEntry_targetCode(ctx context.Context, field graphql.CollectedField, obj *model.TerminologyMappingEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TerminologyMappingEntry_targetCode,
+		func(ctx context.Context) (any, error) {
+			return obj.TargetCode, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TerminologyMappingEntry_targetCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TerminologyMappingEntry",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TerminologyMappingEntry_display(ctx context.Context, field graphql.CollectedField, obj *model.TerminologyMappingEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TerminologyMappingEntry_display,
+		func(ctx context.Context) (any, error) {
+			return obj.Display, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_TerminologyMappingEntry_display(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TerminologyMappingEntry",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TerminologyMappingTable_id(ctx context.Context, field graphql.CollectedField, obj *model.TerminologyMappingTable) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TerminologyMappingTable_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TerminologyMappingTable_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TerminologyMappingTable",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TerminologyMappingTable_sourceSystem(ctx context.Context, field graphql.CollectedField, obj *model.TerminologyMappingTable) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TerminologyMappingTable_sourceSystem,
+		func(ctx context.Context) (any, error) {
+			return obj.SourceSystem, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TerminologyMappingTable_sourceSystem(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TerminologyMappingTable",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TerminologyMappingTable_targetSystem(ctx context.Context, field graphql.CollectedField, obj *model.TerminologyMappingTable) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TerminologyMappingTable_targetSystem,
+		func(ctx context.Context) (any, error) {
+			return obj.TargetSystem, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TerminologyMappingTable_targetSystem(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TerminologyMappingTable",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TerminologyMappingTable_entries(ctx context.Context, field graphql.CollectedField, obj *model.TerminologyMappingTable) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TerminologyMappingTable_entries,
+		func(ctx context.Context) (any, error) {
+			return obj.Entries, nil
+		},
+		nil,
+		ec.marshalNTerminologyMappingEntry2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTerminologyMappingEntryᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TerminologyMappingTable_entries(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TerminologyMappingTable",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "sourceCode":
+				return ec.fieldContext_TerminologyMappingEntry_sourceCode(ctx, field)
+			case "targetCode":
+				return ec.fieldContext_TerminologyMappingEntry_targetCode(ctx, field)
+			case "display":
+				return ec.fieldContext_TerminologyMappingEntry_display(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type TerminologyMappingEntry", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _TimelineEvent_position(ctx context.Context, field graphql.CollectedField, obj *model.TimelineEvent) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -11128,6 +13630,314 @@ func (ec *executionContext) _TimelineEvent_source(ctx context.Context, field gra
 func (ec *executionContext) fieldContext_TimelineEvent_source(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "TimelineEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ToleranceConfig_missingSegments(ctx context.Context, field graphql.CollectedField, obj *model.ToleranceConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ToleranceConfig_missingSegments,
+		func(ctx context.Context) (any, error) {
+			return obj.MissingSegments, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ToleranceConfig_missingSegments(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ToleranceConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ToleranceConfig_nteAnywhere(ctx context.Context, field graphql.CollectedField, obj *model.ToleranceConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ToleranceConfig_nteAnywhere,
+		func(ctx context.Context) (any, error) {
+			return obj.NteAnywhere, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ToleranceConfig_nteAnywhere(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ToleranceConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ToleranceConfig_extraComponents(ctx context.Context, field graphql.CollectedField, obj *model.ToleranceConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ToleranceConfig_extraComponents,
+		func(ctx context.Context) (any, error) {
+			return obj.ExtraComponents, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ToleranceConfig_extraComponents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ToleranceConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ToleranceConfig_unknownSegments(ctx context.Context, field graphql.CollectedField, obj *model.ToleranceConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ToleranceConfig_unknownSegments,
+		func(ctx context.Context) (any, error) {
+			return obj.UnknownSegments, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ToleranceConfig_unknownSegments(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ToleranceConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ToleranceConfig_nonStandardDelimiters(ctx context.Context, field graphql.CollectedField, obj *model.ToleranceConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ToleranceConfig_nonStandardDelimiters,
+		func(ctx context.Context) (any, error) {
+			return obj.NonStandardDelimiters, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ToleranceConfig_nonStandardDelimiters(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ToleranceConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ValidationSettingsConfig_npi(ctx context.Context, field graphql.CollectedField, obj *model.ValidationSettingsConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ValidationSettingsConfig_npi,
+		func(ctx context.Context) (any, error) {
+			return obj.Npi, nil
+		},
+		nil,
+		ec.marshalOValidatorSetting2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐValidatorSetting,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ValidationSettingsConfig_npi(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ValidationSettingsConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "enabled":
+				return ec.fieldContext_ValidatorSetting_enabled(ctx, field)
+			case "onInvalid":
+				return ec.fieldContext_ValidatorSetting_onInvalid(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ValidatorSetting", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ValidationSettingsConfig_mbi(ctx context.Context, field graphql.CollectedField, obj *model.ValidationSettingsConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ValidationSettingsConfig_mbi,
+		func(ctx context.Context) (any, error) {
+			return obj.Mbi, nil
+		},
+		nil,
+		ec.marshalOValidatorSetting2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐValidatorSetting,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ValidationSettingsConfig_mbi(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ValidationSettingsConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "enabled":
+				return ec.fieldContext_ValidatorSetting_enabled(ctx, field)
+			case "onInvalid":
+				return ec.fieldContext_ValidatorSetting_onInvalid(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ValidatorSetting", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ValidationSettingsConfig_ssn(ctx context.Context, field graphql.CollectedField, obj *model.ValidationSettingsConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ValidationSettingsConfig_ssn,
+		func(ctx context.Context) (any, error) {
+			return obj.Ssn, nil
+		},
+		nil,
+		ec.marshalOValidatorSetting2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐValidatorSetting,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ValidationSettingsConfig_ssn(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ValidationSettingsConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "enabled":
+				return ec.fieldContext_ValidatorSetting_enabled(ctx, field)
+			case "onInvalid":
+				return ec.fieldContext_ValidatorSetting_onInvalid(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ValidatorSetting", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ValidatorSetting_enabled(ctx context.Context, field graphql.CollectedField, obj *model.ValidatorSetting) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ValidatorSetting_enabled,
+		func(ctx context.Context) (any, error) {
+			return obj.Enabled, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ValidatorSetting_enabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ValidatorSetting",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ValidatorSetting_onInvalid(ctx context.Context, field graphql.CollectedField, obj *model.ValidatorSetting) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ValidatorSetting_onInvalid,
+		func(ctx context.Context) (any, error) {
+			return obj.OnInvalid, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ValidatorSetting_onInvalid(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ValidatorSetting",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -13459,6 +16269,47 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputAssigningAuthorityInput(ctx context.Context, obj any) (model.AssigningAuthorityInput, error) {
+	var it model.AssigningAuthorityInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"code", "system", "name"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "code":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("code"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Code = data
+		case "system":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("system"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.System = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputBatchEventItem(ctx context.Context, obj any) (model.BatchEventItem, error) {
 	var it model.BatchEventItem
 	asMap := map[string]any{}
@@ -13569,6 +16420,40 @@ func (ec *executionContext) unmarshalInputBatchMessageItem(ctx context.Context, 
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputCreateProfileInput(ctx context.Context, obj any) (model.CreateProfileInput, error) {
+	var it model.CreateProfileInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "name"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputCreateSubscriptionInput(ctx context.Context, obj any) (model.CreateSubscriptionInput, error) {
 	var it model.CreateSubscriptionInput
 	asMap := map[string]any{}
@@ -13611,6 +16496,54 @@ func (ec *executionContext) unmarshalInputCreateSubscriptionInput(ctx context.Co
 				return it, err
 			}
 			it.Endpoint = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputEventClassificationRuleInput(ctx context.Context, obj any) (model.EventClassificationRuleInput, error) {
+	var it model.EventClassificationRuleInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"messageType", "condition", "eventType", "priority"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "messageType":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("messageType"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MessageType = data
+		case "condition":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("condition"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Condition = data
+		case "eventType":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("eventType"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EventType = data
+		case "priority":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("priority"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Priority = data
 		}
 	}
 
@@ -13707,6 +16640,191 @@ func (ec *executionContext) unmarshalInputEventOrderBy(ctx context.Context, obj 
 				return it, err
 			}
 			it.Direction = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputHL7v2ConfigInput(ctx context.Context, obj any) (model.HL7v2ConfigInput, error) {
+	var it model.HL7v2ConfigInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"defaultVersion", "timezone", "tolerance", "eventClassifications"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "defaultVersion":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("defaultVersion"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DefaultVersion = data
+		case "timezone":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("timezone"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Timezone = data
+		case "tolerance":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("tolerance"))
+			data, err := ec.unmarshalOToleranceConfigInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐToleranceConfigInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Tolerance = data
+		case "eventClassifications":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("eventClassifications"))
+			data, err := ec.unmarshalOEventClassificationRuleInput2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventClassificationRuleInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EventClassifications = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputIDPreferenceRuleInput(ctx context.Context, obj any) (model.IDPreferenceRuleInput, error) {
+	var it model.IDPreferenceRuleInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"type", "assignerContains", "priority"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "type":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("type"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Type = data
+		case "assignerContains":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("assignerContains"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AssignerContains = data
+		case "priority":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("priority"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Priority = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputIdentifierConfigInput(ctx context.Context, obj any) (model.IdentifierConfigInput, error) {
+	var it model.IdentifierConfigInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"assigningAuthorities", "primaryIdPreference", "validation", "normalization"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "assigningAuthorities":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("assigningAuthorities"))
+			data, err := ec.unmarshalOAssigningAuthorityInput2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAssigningAuthorityInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AssigningAuthorities = data
+		case "primaryIdPreference":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("primaryIdPreference"))
+			data, err := ec.unmarshalOIDPreferenceRuleInput2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIDPreferenceRuleInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PrimaryIDPreference = data
+		case "validation":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("validation"))
+			data, err := ec.unmarshalOValidationSettingsInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐValidationSettingsInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Validation = data
+		case "normalization":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("normalization"))
+			data, err := ec.unmarshalONormalizationSettingsInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐNormalizationSettingsInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Normalization = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputNormalizationSettingsInput(ctx context.Context, obj any) (model.NormalizationSettingsInput, error) {
+	var it model.NormalizationSettingsInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"ssnStripDashes", "ssnRejectPatterns", "phoneNormalize", "phoneFormat"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "ssnStripDashes":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("ssnStripDashes"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SsnStripDashes = data
+		case "ssnRejectPatterns":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("ssnRejectPatterns"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SsnRejectPatterns = data
+		case "phoneNormalize":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("phoneNormalize"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PhoneNormalize = data
+		case "phoneFormat":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("phoneFormat"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PhoneFormat = data
 		}
 	}
 
@@ -13899,6 +17017,300 @@ func (ec *executionContext) unmarshalInputSubmitMessageInput(ctx context.Context
 				return it, err
 			}
 			it.CorrelationID = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputTerminologyConfigInput(ctx context.Context, obj any) (model.TerminologyConfigInput, error) {
+	var it model.TerminologyConfigInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"mappings"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "mappings":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("mappings"))
+			data, err := ec.unmarshalOTerminologyMappingTableInput2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTerminologyMappingTableInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Mappings = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputTerminologyMappingEntryInput(ctx context.Context, obj any) (model.TerminologyMappingEntryInput, error) {
+	var it model.TerminologyMappingEntryInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"sourceCode", "targetCode", "display"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "sourceCode":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sourceCode"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SourceCode = data
+		case "targetCode":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("targetCode"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TargetCode = data
+		case "display":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("display"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Display = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputTerminologyMappingTableInput(ctx context.Context, obj any) (model.TerminologyMappingTableInput, error) {
+	var it model.TerminologyMappingTableInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "sourceSystem", "targetSystem", "entries"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "sourceSystem":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sourceSystem"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SourceSystem = data
+		case "targetSystem":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("targetSystem"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TargetSystem = data
+		case "entries":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("entries"))
+			data, err := ec.unmarshalOTerminologyMappingEntryInput2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTerminologyMappingEntryInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Entries = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputToleranceConfigInput(ctx context.Context, obj any) (model.ToleranceConfigInput, error) {
+	var it model.ToleranceConfigInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"missingSegments", "nteAnywhere", "extraComponents", "unknownSegments", "nonStandardDelimiters"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "missingSegments":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("missingSegments"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MissingSegments = data
+		case "nteAnywhere":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("nteAnywhere"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NteAnywhere = data
+		case "extraComponents":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("extraComponents"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ExtraComponents = data
+		case "unknownSegments":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("unknownSegments"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UnknownSegments = data
+		case "nonStandardDelimiters":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("nonStandardDelimiters"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NonStandardDelimiters = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateProfileInput(ctx context.Context, obj any) (model.UpdateProfileInput, error) {
+	var it model.UpdateProfileInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"name", "hl7v2", "identifiers", "terminology"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "hl7v2":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("hl7v2"))
+			data, err := ec.unmarshalOHL7v2ConfigInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐHL7v2ConfigInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Hl7v2 = data
+		case "identifiers":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("identifiers"))
+			data, err := ec.unmarshalOIdentifierConfigInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIdentifierConfigInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Identifiers = data
+		case "terminology":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("terminology"))
+			data, err := ec.unmarshalOTerminologyConfigInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTerminologyConfigInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Terminology = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputValidationSettingsInput(ctx context.Context, obj any) (model.ValidationSettingsInput, error) {
+	var it model.ValidationSettingsInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"npi", "mbi", "ssn"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "npi":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("npi"))
+			data, err := ec.unmarshalOValidatorSettingInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐValidatorSettingInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Npi = data
+		case "mbi":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("mbi"))
+			data, err := ec.unmarshalOValidatorSettingInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐValidatorSettingInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Mbi = data
+		case "ssn":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("ssn"))
+			data, err := ec.unmarshalOValidatorSettingInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐValidatorSettingInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Ssn = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputValidatorSettingInput(ctx context.Context, obj any) (model.ValidatorSettingInput, error) {
+	var it model.ValidatorSettingInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"enabled", "onInvalid"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "enabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("enabled"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Enabled = data
+		case "onInvalid":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("onInvalid"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.OnInvalid = data
 		}
 	}
 
@@ -14208,6 +17620,52 @@ func (ec *executionContext) _AppointmentEvent(ctx context.Context, sel ast.Selec
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var assigningAuthorityImplementors = []string{"AssigningAuthority"}
+
+func (ec *executionContext) _AssigningAuthority(ctx context.Context, sel ast.SelectionSet, obj *model.AssigningAuthority) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, assigningAuthorityImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AssigningAuthority")
+		case "code":
+			out.Values[i] = ec._AssigningAuthority_code(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "system":
+			out.Values[i] = ec._AssigningAuthority_system(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._AssigningAuthority_name(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -14635,6 +18093,57 @@ func (ec *executionContext) _Encounter(ctx context.Context, sel ast.SelectionSet
 	return out
 }
 
+var eventClassificationRuleImplementors = []string{"EventClassificationRule"}
+
+func (ec *executionContext) _EventClassificationRule(ctx context.Context, sel ast.SelectionSet, obj *model.EventClassificationRule) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, eventClassificationRuleImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EventClassificationRule")
+		case "messageType":
+			out.Values[i] = ec._EventClassificationRule_messageType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "condition":
+			out.Values[i] = ec._EventClassificationRule_condition(ctx, field, obj)
+		case "eventType":
+			out.Values[i] = ec._EventClassificationRule_eventType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "priority":
+			out.Values[i] = ec._EventClassificationRule_priority(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var eventConnectionImplementors = []string{"EventConnection"}
 
 func (ec *executionContext) _EventConnection(ctx context.Context, sel ast.SelectionSet, obj *model.EventConnection) graphql.Marshaler {
@@ -14890,6 +18399,57 @@ func (ec *executionContext) _FhirSubscription(ctx context.Context, sel ast.Selec
 	return out
 }
 
+var hL7v2ConfigImplementors = []string{"HL7v2Config"}
+
+func (ec *executionContext) _HL7v2Config(ctx context.Context, sel ast.SelectionSet, obj *model.HL7v2Config) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, hL7v2ConfigImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("HL7v2Config")
+		case "defaultVersion":
+			out.Values[i] = ec._HL7v2Config_defaultVersion(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "timezone":
+			out.Values[i] = ec._HL7v2Config_timezone(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "tolerance":
+			out.Values[i] = ec._HL7v2Config_tolerance(ctx, field, obj)
+		case "eventClassifications":
+			out.Values[i] = ec._HL7v2Config_eventClassifications(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var healthStatusImplementors = []string{"HealthStatus"}
 
 func (ec *executionContext) _HealthStatus(ctx context.Context, sel ast.SelectionSet, obj *model.HealthStatus) graphql.Marshaler {
@@ -14944,6 +18504,52 @@ func (ec *executionContext) _HealthStatus(ctx context.Context, sel ast.Selection
 	return out
 }
 
+var iDPreferenceRuleImplementors = []string{"IDPreferenceRule"}
+
+func (ec *executionContext) _IDPreferenceRule(ctx context.Context, sel ast.SelectionSet, obj *model.IDPreferenceRule) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, iDPreferenceRuleImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IDPreferenceRule")
+		case "type":
+			out.Values[i] = ec._IDPreferenceRule_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "assignerContains":
+			out.Values[i] = ec._IDPreferenceRule_assignerContains(ctx, field, obj)
+		case "priority":
+			out.Values[i] = ec._IDPreferenceRule_priority(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var identifierImplementors = []string{"Identifier"}
 
 func (ec *executionContext) _Identifier(ctx context.Context, sel ast.SelectionSet, obj *model.Identifier) graphql.Marshaler {
@@ -14969,6 +18575,54 @@ func (ec *executionContext) _Identifier(ctx context.Context, sel ast.SelectionSe
 			out.Values[i] = ec._Identifier_system(ctx, field, obj)
 		case "assigner":
 			out.Values[i] = ec._Identifier_assigner(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var identifierConfigImplementors = []string{"IdentifierConfig"}
+
+func (ec *executionContext) _IdentifierConfig(ctx context.Context, sel ast.SelectionSet, obj *model.IdentifierConfig) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, identifierConfigImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IdentifierConfig")
+		case "assigningAuthorities":
+			out.Values[i] = ec._IdentifierConfig_assigningAuthorities(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "primaryIdPreference":
+			out.Values[i] = ec._IdentifierConfig_primaryIdPreference(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "validation":
+			out.Values[i] = ec._IdentifierConfig_validation(ctx, field, obj)
+		case "normalization":
+			out.Values[i] = ec._IdentifierConfig_normalization(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -15394,6 +19048,85 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "createProfile":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createProfile(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateProfile":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateProfile(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteProfile":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteProfile(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "duplicateProfile":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_duplicateProfile(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var normalizationSettingsConfigImplementors = []string{"NormalizationSettingsConfig"}
+
+func (ec *executionContext) _NormalizationSettingsConfig(ctx context.Context, sel ast.SelectionSet, obj *model.NormalizationSettingsConfig) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, normalizationSettingsConfigImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("NormalizationSettingsConfig")
+		case "ssnStripDashes":
+			out.Values[i] = ec._NormalizationSettingsConfig_ssnStripDashes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ssnRejectPatterns":
+			out.Values[i] = ec._NormalizationSettingsConfig_ssnRejectPatterns(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "phoneNormalize":
+			out.Values[i] = ec._NormalizationSettingsConfig_phoneNormalize(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "phoneFormat":
+			out.Values[i] = ec._NormalizationSettingsConfig_phoneFormat(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -16034,6 +19767,54 @@ func (ec *executionContext) _ProcedureEvent(ctx context.Context, sel ast.Selecti
 	return out
 }
 
+var profileRevisionImplementors = []string{"ProfileRevision"}
+
+func (ec *executionContext) _ProfileRevision(ctx context.Context, sel ast.SelectionSet, obj *model.ProfileRevision) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, profileRevisionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProfileRevision")
+		case "version":
+			out.Values[i] = ec._ProfileRevision_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._ProfileRevision_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdBy":
+			out.Values[i] = ec._ProfileRevision_createdBy(ctx, field, obj)
+		case "changeSummary":
+			out.Values[i] = ec._ProfileRevision_changeSummary(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var projectionStatusImplementors = []string{"ProjectionStatus"}
 
 func (ec *executionContext) _ProjectionStatus(ctx context.Context, sel ast.SelectionSet, obj *model.ProjectionStatus) graphql.Marshaler {
@@ -16454,6 +20235,91 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "profiles":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_profiles(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "profile":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_profile(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "profileRevisions":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_profileRevisions(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "parsePreviewWithProfile":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_parsePreviewWithProfile(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -16506,6 +20372,78 @@ func (ec *executionContext) _SourceCount(ctx context.Context, sel ast.SelectionS
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var sourceProfileImplementors = []string{"SourceProfile"}
+
+func (ec *executionContext) _SourceProfile(ctx context.Context, sel ast.SelectionSet, obj *model.SourceProfile) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, sourceProfileImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SourceProfile")
+		case "id":
+			out.Values[i] = ec._SourceProfile_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._SourceProfile_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "version":
+			out.Values[i] = ec._SourceProfile_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._SourceProfile_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._SourceProfile_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdBy":
+			out.Values[i] = ec._SourceProfile_createdBy(ctx, field, obj)
+		case "isActive":
+			out.Values[i] = ec._SourceProfile_isActive(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "hl7v2":
+			out.Values[i] = ec._SourceProfile_hl7v2(ctx, field, obj)
+		case "identifiers":
+			out.Values[i] = ec._SourceProfile_identifiers(ctx, field, obj)
+		case "terminology":
+			out.Values[i] = ec._SourceProfile_terminology(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -16609,6 +20547,145 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 	}
 }
 
+var terminologyConfigImplementors = []string{"TerminologyConfig"}
+
+func (ec *executionContext) _TerminologyConfig(ctx context.Context, sel ast.SelectionSet, obj *model.TerminologyConfig) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, terminologyConfigImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TerminologyConfig")
+		case "mappings":
+			out.Values[i] = ec._TerminologyConfig_mappings(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var terminologyMappingEntryImplementors = []string{"TerminologyMappingEntry"}
+
+func (ec *executionContext) _TerminologyMappingEntry(ctx context.Context, sel ast.SelectionSet, obj *model.TerminologyMappingEntry) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, terminologyMappingEntryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TerminologyMappingEntry")
+		case "sourceCode":
+			out.Values[i] = ec._TerminologyMappingEntry_sourceCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "targetCode":
+			out.Values[i] = ec._TerminologyMappingEntry_targetCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "display":
+			out.Values[i] = ec._TerminologyMappingEntry_display(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var terminologyMappingTableImplementors = []string{"TerminologyMappingTable"}
+
+func (ec *executionContext) _TerminologyMappingTable(ctx context.Context, sel ast.SelectionSet, obj *model.TerminologyMappingTable) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, terminologyMappingTableImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TerminologyMappingTable")
+		case "id":
+			out.Values[i] = ec._TerminologyMappingTable_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sourceSystem":
+			out.Values[i] = ec._TerminologyMappingTable_sourceSystem(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "targetSystem":
+			out.Values[i] = ec._TerminologyMappingTable_targetSystem(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "entries":
+			out.Values[i] = ec._TerminologyMappingTable_entries(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var timelineEventImplementors = []string{"TimelineEvent"}
 
 func (ec *executionContext) _TimelineEvent(ctx context.Context, sel ast.SelectionSet, obj *model.TimelineEvent) graphql.Marshaler {
@@ -16647,6 +20724,149 @@ func (ec *executionContext) _TimelineEvent(ctx context.Context, sel ast.Selectio
 			}
 		case "source":
 			out.Values[i] = ec._TimelineEvent_source(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var toleranceConfigImplementors = []string{"ToleranceConfig"}
+
+func (ec *executionContext) _ToleranceConfig(ctx context.Context, sel ast.SelectionSet, obj *model.ToleranceConfig) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, toleranceConfigImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ToleranceConfig")
+		case "missingSegments":
+			out.Values[i] = ec._ToleranceConfig_missingSegments(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "nteAnywhere":
+			out.Values[i] = ec._ToleranceConfig_nteAnywhere(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "extraComponents":
+			out.Values[i] = ec._ToleranceConfig_extraComponents(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "unknownSegments":
+			out.Values[i] = ec._ToleranceConfig_unknownSegments(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "nonStandardDelimiters":
+			out.Values[i] = ec._ToleranceConfig_nonStandardDelimiters(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var validationSettingsConfigImplementors = []string{"ValidationSettingsConfig"}
+
+func (ec *executionContext) _ValidationSettingsConfig(ctx context.Context, sel ast.SelectionSet, obj *model.ValidationSettingsConfig) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, validationSettingsConfigImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ValidationSettingsConfig")
+		case "npi":
+			out.Values[i] = ec._ValidationSettingsConfig_npi(ctx, field, obj)
+		case "mbi":
+			out.Values[i] = ec._ValidationSettingsConfig_mbi(ctx, field, obj)
+		case "ssn":
+			out.Values[i] = ec._ValidationSettingsConfig_ssn(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var validatorSettingImplementors = []string{"ValidatorSetting"}
+
+func (ec *executionContext) _ValidatorSetting(ctx context.Context, sel ast.SelectionSet, obj *model.ValidatorSetting) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, validatorSettingImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ValidatorSetting")
+		case "enabled":
+			out.Values[i] = ec._ValidatorSetting_enabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "onInvalid":
+			out.Values[i] = ec._ValidatorSetting_onInvalid(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -17354,6 +21574,59 @@ func (ec *executionContext) marshalNAppointment2gitlabᚗflexinferᚗaiᚋlibs�
 	return ec._Appointment(ctx, sel, &v)
 }
 
+func (ec *executionContext) marshalNAssigningAuthority2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAssigningAuthority(ctx context.Context, sel ast.SelectionSet, v model.AssigningAuthority) graphql.Marshaler {
+	return ec._AssigningAuthority(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNAssigningAuthority2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAssigningAuthorityᚄ(ctx context.Context, sel ast.SelectionSet, v []model.AssigningAuthority) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNAssigningAuthority2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAssigningAuthority(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) unmarshalNAssigningAuthorityInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAssigningAuthorityInput(ctx context.Context, v any) (model.AssigningAuthorityInput, error) {
+	res, err := ec.unmarshalInputAssigningAuthorityInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNBatchEventItem2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchEventItem(ctx context.Context, v any) (model.BatchEventItem, error) {
 	res, err := ec.unmarshalInputBatchEventItem(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -17494,6 +21767,11 @@ func (ec *executionContext) marshalNCondition2gitlabᚗflexinferᚗaiᚋlibsᚋf
 	return ec._Condition(ctx, sel, &v)
 }
 
+func (ec *executionContext) unmarshalNCreateProfileInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐCreateProfileInput(ctx context.Context, v any) (model.CreateProfileInput, error) {
+	res, err := ec.unmarshalInputCreateProfileInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNCreateSubscriptionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐCreateSubscriptionInput(ctx context.Context, v any) (model.CreateSubscriptionInput, error) {
 	res, err := ec.unmarshalInputCreateSubscriptionInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -17571,6 +21849,59 @@ func (ec *executionContext) marshalNEvent2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfi
 	}
 
 	return ret
+}
+
+func (ec *executionContext) marshalNEventClassificationRule2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventClassificationRule(ctx context.Context, sel ast.SelectionSet, v model.EventClassificationRule) graphql.Marshaler {
+	return ec._EventClassificationRule(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNEventClassificationRule2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventClassificationRuleᚄ(ctx context.Context, sel ast.SelectionSet, v []model.EventClassificationRule) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNEventClassificationRule2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventClassificationRule(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) unmarshalNEventClassificationRuleInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventClassificationRuleInput(ctx context.Context, v any) (model.EventClassificationRuleInput, error) {
+	res, err := ec.unmarshalInputEventClassificationRuleInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNEventConnection2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventConnection(ctx context.Context, sel ast.SelectionSet, v model.EventConnection) graphql.Marshaler {
@@ -17759,6 +22090,59 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) marshalNIDPreferenceRule2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIDPreferenceRule(ctx context.Context, sel ast.SelectionSet, v model.IDPreferenceRule) graphql.Marshaler {
+	return ec._IDPreferenceRule(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNIDPreferenceRule2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIDPreferenceRuleᚄ(ctx context.Context, sel ast.SelectionSet, v []model.IDPreferenceRule) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNIDPreferenceRule2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIDPreferenceRule(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) unmarshalNIDPreferenceRuleInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIDPreferenceRuleInput(ctx context.Context, v any) (model.IDPreferenceRuleInput, error) {
+	res, err := ec.unmarshalInputIDPreferenceRuleInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNIdentifier2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIdentifier(ctx context.Context, sel ast.SelectionSet, v model.Identifier) graphql.Marshaler {
@@ -18005,6 +22389,54 @@ func (ec *executionContext) marshalNProcedure2gitlabᚗflexinferᚗaiᚋlibsᚋf
 	return ec._Procedure(ctx, sel, &v)
 }
 
+func (ec *executionContext) marshalNProfileRevision2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProfileRevision(ctx context.Context, sel ast.SelectionSet, v model.ProfileRevision) graphql.Marshaler {
+	return ec._ProfileRevision(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNProfileRevision2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProfileRevisionᚄ(ctx context.Context, sel ast.SelectionSet, v []model.ProfileRevision) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNProfileRevision2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProfileRevision(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) marshalNProjectionStatus2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProjectionStatus(ctx context.Context, sel ast.SelectionSet, v model.ProjectionStatus) graphql.Marshaler {
 	return ec._ProjectionStatus(ctx, sel, &v)
 }
@@ -18111,6 +22543,64 @@ func (ec *executionContext) marshalNSourceFormat2gitlabᚗflexinferᚗaiᚋlibs�
 	return v
 }
 
+func (ec *executionContext) marshalNSourceProfile2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceProfile(ctx context.Context, sel ast.SelectionSet, v model.SourceProfile) graphql.Marshaler {
+	return ec._SourceProfile(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNSourceProfile2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceProfileᚄ(ctx context.Context, sel ast.SelectionSet, v []model.SourceProfile) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNSourceProfile2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceProfile(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNSourceProfile2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceProfile(ctx context.Context, sel ast.SelectionSet, v *model.SourceProfile) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SourceProfile(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) (string, error) {
 	res, err := graphql.UnmarshalString(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -18186,6 +22676,112 @@ func (ec *executionContext) marshalNSubmitResult2ᚖgitlabᚗflexinferᚗaiᚋli
 	return ec._SubmitResult(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNTerminologyMappingEntry2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTerminologyMappingEntry(ctx context.Context, sel ast.SelectionSet, v model.TerminologyMappingEntry) graphql.Marshaler {
+	return ec._TerminologyMappingEntry(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNTerminologyMappingEntry2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTerminologyMappingEntryᚄ(ctx context.Context, sel ast.SelectionSet, v []model.TerminologyMappingEntry) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNTerminologyMappingEntry2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTerminologyMappingEntry(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) unmarshalNTerminologyMappingEntryInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTerminologyMappingEntryInput(ctx context.Context, v any) (model.TerminologyMappingEntryInput, error) {
+	res, err := ec.unmarshalInputTerminologyMappingEntryInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNTerminologyMappingTable2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTerminologyMappingTable(ctx context.Context, sel ast.SelectionSet, v model.TerminologyMappingTable) graphql.Marshaler {
+	return ec._TerminologyMappingTable(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNTerminologyMappingTable2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTerminologyMappingTableᚄ(ctx context.Context, sel ast.SelectionSet, v []model.TerminologyMappingTable) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNTerminologyMappingTable2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTerminologyMappingTable(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) unmarshalNTerminologyMappingTableInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTerminologyMappingTableInput(ctx context.Context, v any) (model.TerminologyMappingTableInput, error) {
+	res, err := ec.unmarshalInputTerminologyMappingTableInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNTimelineEvent2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTimelineEvent(ctx context.Context, sel ast.SelectionSet, v model.TimelineEvent) graphql.Marshaler {
 	return ec._TimelineEvent(ctx, sel, &v)
 }
@@ -18232,6 +22828,11 @@ func (ec *executionContext) marshalNTimelineEvent2ᚕgitlabᚗflexinferᚗaiᚋl
 	}
 
 	return ret
+}
+
+func (ec *executionContext) unmarshalNUpdateProfileInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐUpdateProfileInput(ctx context.Context, v any) (model.UpdateProfileInput, error) {
+	res, err := ec.unmarshalInputUpdateProfileInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNVitalSign2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐVitalSign(ctx context.Context, sel ast.SelectionSet, v model.VitalSign) graphql.Marshaler {
@@ -18625,6 +23226,24 @@ func (ec *executionContext) marshalOAddress2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋ
 	return ec._Address(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalOAssigningAuthorityInput2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAssigningAuthorityInputᚄ(ctx context.Context, v any) ([]model.AssigningAuthorityInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]model.AssigningAuthorityInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNAssigningAuthorityInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAssigningAuthorityInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
 func (ec *executionContext) unmarshalOBatchEventItem2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchEventItemᚄ(ctx context.Context, v any) ([]model.BatchEventItem, error) {
 	if v == nil {
 		return nil, nil
@@ -18716,6 +23335,24 @@ func (ec *executionContext) marshalOEvent2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑ
 	return ec._Event(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalOEventClassificationRuleInput2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventClassificationRuleInputᚄ(ctx context.Context, v any) ([]model.EventClassificationRuleInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]model.EventClassificationRuleInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNEventClassificationRuleInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventClassificationRuleInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
 func (ec *executionContext) unmarshalOEventFilter2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventFilter(ctx context.Context, v any) (*model.EventFilter, error) {
 	if v == nil {
 		return nil, nil
@@ -18797,6 +23434,21 @@ func (ec *executionContext) marshalOEventType2ᚕgitlabᚗflexinferᚗaiᚋlibs�
 	return ret
 }
 
+func (ec *executionContext) marshalOHL7v2Config2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐHL7v2Config(ctx context.Context, sel ast.SelectionSet, v *model.HL7v2Config) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._HL7v2Config(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOHL7v2ConfigInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐHL7v2ConfigInput(ctx context.Context, v any) (*model.HL7v2ConfigInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputHL7v2ConfigInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalOID2ᚖstring(ctx context.Context, v any) (*string, error) {
 	if v == nil {
 		return nil, nil
@@ -18813,6 +23465,39 @@ func (ec *executionContext) marshalOID2ᚖstring(ctx context.Context, sel ast.Se
 	_ = ctx
 	res := graphql.MarshalID(*v)
 	return res
+}
+
+func (ec *executionContext) unmarshalOIDPreferenceRuleInput2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIDPreferenceRuleInputᚄ(ctx context.Context, v any) ([]model.IDPreferenceRuleInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]model.IDPreferenceRuleInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNIDPreferenceRuleInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIDPreferenceRuleInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalOIdentifierConfig2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIdentifierConfig(ctx context.Context, sel ast.SelectionSet, v *model.IdentifierConfig) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._IdentifierConfig(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOIdentifierConfigInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIdentifierConfigInput(ctx context.Context, v any) (*model.IdentifierConfigInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputIdentifierConfigInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalOInt2ᚖint(ctx context.Context, v any) (*int, error) {
@@ -18838,6 +23523,21 @@ func (ec *executionContext) marshalOLocation2ᚖgitlabᚗflexinferᚗaiᚋlibs�
 		return graphql.Null
 	}
 	return ec._Location(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalONormalizationSettingsConfig2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐNormalizationSettingsConfig(ctx context.Context, sel ast.SelectionSet, v *model.NormalizationSettingsConfig) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._NormalizationSettingsConfig(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalONormalizationSettingsInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐNormalizationSettingsInput(ctx context.Context, v any) (*model.NormalizationSettingsInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputNormalizationSettingsInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalOPatient2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient(ctx context.Context, sel ast.SelectionSet, v *model.Patient) graphql.Marshaler {
@@ -18883,6 +23583,13 @@ func (ec *executionContext) marshalOSourceFormat2ᚖgitlabᚗflexinferᚗaiᚋli
 		return graphql.Null
 	}
 	return v
+}
+
+func (ec *executionContext) marshalOSourceProfile2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceProfile(ctx context.Context, sel ast.SelectionSet, v *model.SourceProfile) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._SourceProfile(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
@@ -18937,6 +23644,102 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	_ = ctx
 	res := graphql.MarshalString(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOTerminologyConfig2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTerminologyConfig(ctx context.Context, sel ast.SelectionSet, v *model.TerminologyConfig) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._TerminologyConfig(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOTerminologyConfigInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTerminologyConfigInput(ctx context.Context, v any) (*model.TerminologyConfigInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputTerminologyConfigInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalOTerminologyMappingEntryInput2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTerminologyMappingEntryInputᚄ(ctx context.Context, v any) ([]model.TerminologyMappingEntryInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]model.TerminologyMappingEntryInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNTerminologyMappingEntryInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTerminologyMappingEntryInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalOTerminologyMappingTableInput2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTerminologyMappingTableInputᚄ(ctx context.Context, v any) ([]model.TerminologyMappingTableInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]model.TerminologyMappingTableInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNTerminologyMappingTableInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTerminologyMappingTableInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalOToleranceConfig2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐToleranceConfig(ctx context.Context, sel ast.SelectionSet, v *model.ToleranceConfig) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._ToleranceConfig(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOToleranceConfigInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐToleranceConfigInput(ctx context.Context, v any) (*model.ToleranceConfigInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputToleranceConfigInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOValidationSettingsConfig2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐValidationSettingsConfig(ctx context.Context, sel ast.SelectionSet, v *model.ValidationSettingsConfig) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._ValidationSettingsConfig(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOValidationSettingsInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐValidationSettingsInput(ctx context.Context, v any) (*model.ValidationSettingsInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputValidationSettingsInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOValidatorSetting2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐValidatorSetting(ctx context.Context, sel ast.SelectionSet, v *model.ValidatorSetting) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._ValidatorSetting(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOValidatorSettingInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐValidatorSettingInput(ctx context.Context, v any) (*model.ValidatorSettingInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputValidatorSettingInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalOWorkflowStatus2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowStatus(ctx context.Context, sel ast.SelectionSet, v *model.WorkflowStatus) graphql.Marshaler {
