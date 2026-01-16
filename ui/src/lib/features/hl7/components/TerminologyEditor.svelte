@@ -71,11 +71,12 @@
   function saveMapping() {
     if (!mappingId.trim() || !mappingSourceSystem.trim() || !mappingTargetSystem.trim()) return;
 
+    const existingEntries = editingMappingIndex !== null ? mappings[editingMappingIndex]?.entries ?? [] : [];
     const newMapping = {
       id: mappingId.trim(),
       sourceSystem: mappingSourceSystem.trim(),
       targetSystem: mappingTargetSystem.trim(),
-      entries: editingMappingIndex !== null ? mappings[editingMappingIndex].entries : []
+      entries: existingEntries
     };
 
     let newMappings: typeof mappings;

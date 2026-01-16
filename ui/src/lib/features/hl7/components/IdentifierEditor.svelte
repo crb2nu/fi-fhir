@@ -6,10 +6,11 @@
   export let showAdvanced = false;
 
   $: identifiers = $selectedProfile?.identifiers;
-  $: validation = identifiers?.validation || {
-    npi: { enabled: false, onInvalid: 'pass' },
-    mbi: { enabled: false, onInvalid: 'pass' },
-    ssn: { enabled: false, onInvalid: 'pass' }
+  $: validationRaw = identifiers?.validation;
+  $: validation = {
+    npi: validationRaw?.npi ?? { enabled: false, onInvalid: 'pass' as const },
+    mbi: validationRaw?.mbi ?? { enabled: false, onInvalid: 'pass' as const },
+    ssn: validationRaw?.ssn ?? { enabled: false, onInvalid: 'pass' as const }
   };
   $: normalization = identifiers?.normalization || {
     ssnStripDashes: false,

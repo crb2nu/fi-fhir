@@ -10,14 +10,22 @@ echo "Running pre-commit checks..."
 STAGED_UI_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^ui/.*\.(svelte|ts|js)$' || true)
 
 if [ -n "$STAGED_UI_FILES" ]; then
-    echo "Checking UI files with ESLint..."
+    echo "Checking UI files..."
     if [ -f "ui/package.json" ]; then
         cd ui
         if [ -d "node_modules" ]; then
+            echo "  Running ESLint..."
             if ! npm run lint 2>&1; then
                 echo ""
                 echo "ESLint failed. Please fix the issues before committing."
                 echo "Run 'cd ui && npm run lint' to see all errors."
+                exit 1
+            fi
+            echo "  Running svelte-check..."
+            if ! npm run check 2>&1 | grep -q "found 0 errors"; then
+                echo ""
+                echo "TypeScript/Svelte check found errors. Please fix them before committing."
+                echo "Run 'cd ui && npm run check' to see all errors."
                 exit 1
             fi
         else
@@ -25,7 +33,7 @@ if [ -n "$STAGED_UI_FILES" ]; then
         fi
         cd ..
     fi
-    echo "UI lint check passed!"
+    echo "UI lint and type checks passed!"
 fi
 
 # Check if there are staged Go files

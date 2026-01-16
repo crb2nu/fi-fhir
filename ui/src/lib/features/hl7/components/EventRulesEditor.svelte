@@ -134,8 +134,8 @@
     if (targetIndex < 0 || targetIndex >= eventClassifications.length) return;
 
     const newRules = [...eventClassifications];
-    const temp = newRules[index];
-    newRules[index] = newRules[targetIndex];
+    const temp = newRules[index]!;
+    newRules[index] = newRules[targetIndex]!;
     newRules[targetIndex] = temp;
 
     // Update priorities to match new order
