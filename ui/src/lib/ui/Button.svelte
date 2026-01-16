@@ -3,7 +3,7 @@
   export let disabled = false;
 </script>
 
-<button class="btn {variant}" {disabled} {...$$restProps}>
+<button class="btn {variant}" {disabled} on:click {...$$restProps}>
   <slot />
 </button>
 
