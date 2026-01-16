@@ -518,10 +518,10 @@ func TestETL_Sources_Lists(t *testing.T) {
 
 func TestETL_Status_MissingDB(t *testing.T) {
 	oldVal := os.Getenv("FI_FHIR_DATABASE_URL")
-	os.Unsetenv("FI_FHIR_DATABASE_URL")
+	_ = os.Unsetenv("FI_FHIR_DATABASE_URL")
 	defer func() {
 		if oldVal != "" {
-			os.Setenv("FI_FHIR_DATABASE_URL", oldVal)
+			_ = os.Setenv("FI_FHIR_DATABASE_URL", oldVal)
 		}
 	}()
 
@@ -1642,25 +1642,25 @@ func TestStorage_Test_WithEnvVars(t *testing.T) {
 	oldAccessKey := os.Getenv("MINIO_ACCESS_KEY")
 	oldSecretKey := os.Getenv("MINIO_SECRET_KEY")
 
-	os.Setenv("MINIO_ENDPOINT", "http://localhost:9000")
-	os.Setenv("MINIO_ACCESS_KEY", "testaccess")
-	os.Setenv("MINIO_SECRET_KEY", "testsecret")
+	_ = os.Setenv("MINIO_ENDPOINT", "http://localhost:9000")
+	_ = os.Setenv("MINIO_ACCESS_KEY", "testaccess")
+	_ = os.Setenv("MINIO_SECRET_KEY", "testsecret")
 
 	defer func() {
 		if oldEndpoint != "" {
-			os.Setenv("MINIO_ENDPOINT", oldEndpoint)
+			_ = os.Setenv("MINIO_ENDPOINT", oldEndpoint)
 		} else {
-			os.Unsetenv("MINIO_ENDPOINT")
+			_ = os.Unsetenv("MINIO_ENDPOINT")
 		}
 		if oldAccessKey != "" {
-			os.Setenv("MINIO_ACCESS_KEY", oldAccessKey)
+			_ = os.Setenv("MINIO_ACCESS_KEY", oldAccessKey)
 		} else {
-			os.Unsetenv("MINIO_ACCESS_KEY")
+			_ = os.Unsetenv("MINIO_ACCESS_KEY")
 		}
 		if oldSecretKey != "" {
-			os.Setenv("MINIO_SECRET_KEY", oldSecretKey)
+			_ = os.Setenv("MINIO_SECRET_KEY", oldSecretKey)
 		} else {
-			os.Unsetenv("MINIO_SECRET_KEY")
+			_ = os.Unsetenv("MINIO_SECRET_KEY")
 		}
 	}()
 

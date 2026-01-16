@@ -122,12 +122,13 @@ linters-settings:
 issues:
   exclude-rules:
     # Exclude some linters from running on tests files
-    - path: ".*_test\\.go"
+    - path: _test\.go
       linters:
         - dupl
         - goconst
         - gosec
         - errcheck
+        - dogsled
 
     # RELA is a standard UMLS field name (Relationship Attribute), not a misspelling
     # Disable misspell for terminology/db since it has many UMLS-specific terms

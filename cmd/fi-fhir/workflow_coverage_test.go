@@ -1,4 +1,4 @@
-//nolint:errcheck,gosec // Test file - error/security checks relaxed for test setup
+//nolint:dogsled // Test file - runCLI returns are often ignored
 package main
 
 import (

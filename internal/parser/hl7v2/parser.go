@@ -1962,7 +1962,7 @@ func (p *Parser) extractFinancialTransaction(ft1 *Segment, msg *Message) (events
 
 	// FT1-1: Set ID
 	if v := p.getField(ft1, 1); v != "" {
-		fmt.Sscanf(v, "%d", &txn.SetID)
+		_, _ = fmt.Sscanf(v, "%d", &txn.SetID)
 	}
 
 	// FT1-2: Transaction ID
@@ -1997,17 +1997,17 @@ func (p *Parser) extractFinancialTransaction(ft1 *Segment, msg *Message) (events
 
 	// FT1-10: Transaction Quantity
 	if v := p.getField(ft1, 10); v != "" {
-		fmt.Sscanf(v, "%f", &txn.Quantity)
+		_, _ = fmt.Sscanf(v, "%f", &txn.Quantity)
 	}
 
 	// FT1-11: Transaction Amount - Extended
 	if v := p.getField(ft1, 11); v != "" {
-		fmt.Sscanf(v, "%f", &txn.Amount)
+		_, _ = fmt.Sscanf(v, "%f", &txn.Amount)
 	}
 
 	// FT1-12: Transaction Amount - Unit
 	if v := p.getField(ft1, 12); v != "" {
-		fmt.Sscanf(v, "%f", &txn.UnitAmount)
+		_, _ = fmt.Sscanf(v, "%f", &txn.UnitAmount)
 	}
 
 	// FT1-16: Patient Location (PL: unit^room^bed^facility)
@@ -2089,7 +2089,7 @@ func (p *Parser) extractDiagnoses(msg *Message) []events.Diagnosis {
 
 		// DG1-1: Set ID
 		if v := p.getField(dg1, 1); v != "" {
-			fmt.Sscanf(v, "%d", &dx.SetID)
+			_, _ = fmt.Sscanf(v, "%d", &dx.SetID)
 		}
 
 		// DG1-2: Diagnosis Coding Method (I9=ICD-9, I10=ICD-10)
@@ -2143,7 +2143,7 @@ func (p *Parser) extractProcedures(msg *Message) []events.ProcedureInfo {
 
 		// PR1-1: Set ID
 		if v := p.getField(pr1, 1); v != "" {
-			fmt.Sscanf(v, "%d", &proc.SetID)
+			_, _ = fmt.Sscanf(v, "%d", &proc.SetID)
 		}
 
 		// PR1-2: Procedure Coding Method
@@ -2173,7 +2173,7 @@ func (p *Parser) extractProcedures(msg *Message) []events.ProcedureInfo {
 
 		// PR1-7: Procedure Minutes
 		if v := p.getField(pr1, 7); v != "" {
-			fmt.Sscanf(v, "%d", &proc.ProcedureMinutes)
+			_, _ = fmt.Sscanf(v, "%d", &proc.ProcedureMinutes)
 		}
 
 		// PR1-8: Anesthesiologist (XCN)
@@ -2200,7 +2200,7 @@ func (p *Parser) extractInsuranceInfo(msg *Message) []events.InsuranceInfo {
 
 		// IN1-1: Set ID
 		if v := p.getField(in1, 1); v != "" {
-			fmt.Sscanf(v, "%d", &ins.SetID)
+			_, _ = fmt.Sscanf(v, "%d", &ins.SetID)
 		}
 		ins.CoordinationOrder = ins.SetID
 
