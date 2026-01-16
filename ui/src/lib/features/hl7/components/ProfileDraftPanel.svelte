@@ -8,6 +8,7 @@
   import IdentifierEditor from './IdentifierEditor.svelte';
   import TerminologyEditor from './TerminologyEditor.svelte';
   import { selectedProfile, profileError, isDirty } from '$lib/features/hl7/profile/profileStore.svelte';
+  import { toSourceProfileYAML } from '$lib/features/hl7/profile/yaml';
   import type { ProfileFix } from '$lib/features/hl7/profile/types';
 
   // Props
@@ -32,6 +33,23 @@
   // Handle profile change from selector
   function handleProfileChange(profileId: string | null) {
     onProfileChange?.(profileId);
+  }
+
+  // Export profile as YAML file
+  function exportYaml() {
+    if (!$selectedProfile) return;
+
+    const yaml = toSourceProfileYAML($selectedProfile);
+    const blob = new Blob([yaml], { type: 'text/yaml' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${$selectedProfile.id}.yaml`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 </script>
 
@@ -86,9 +104,12 @@
           <span class="profile-version">v{$selectedProfile.version}</span>
           <span class="profile-id mono">{$selectedProfile.id}</span>
         </div>
-        {#if $isDirty}
-          <span class="unsaved-badge">Unsaved changes</span>
-        {/if}
+        <div class="profile-actions">
+          {#if $isDirty}
+            <span class="unsaved-badge">Unsaved changes</span>
+          {/if}
+          <Button variant="secondary" on:click={exportYaml}>Export YAML</Button>
+        </div>
       </div>
 
       <div class="tabs-container">
@@ -214,6 +235,13 @@
   .mono {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
       'Courier New', monospace;
+  }
+
+  .profile-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
   }
 
   .unsaved-badge {
