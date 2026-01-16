@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { profileStore, selectedProfile } from '$lib/features/hl7/profile/profileStore.svelte';
+  import { profileStore, selectedProfile } from '$lib/features/hl7/profile/profileStore';
   import Button from '$lib/ui/Button.svelte';
   import ConfirmModal from '$lib/ui/ConfirmModal.svelte';
 

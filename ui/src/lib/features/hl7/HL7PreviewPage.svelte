@@ -16,7 +16,7 @@
   import { onMount } from 'svelte';
   import ProfileDraftPanel from '$lib/features/hl7/components/ProfileDraftPanel.svelte';
   import { suggestFixes } from '$lib/features/hl7/profile/fixes';
-  import { profileStore, selectedProfile } from '$lib/features/hl7/profile/profileStore.svelte';
+  import { profileStore, selectedProfile } from '$lib/features/hl7/profile/profileStore';
   import type { ProfileFix } from '$lib/features/hl7/profile/types';
 
   const store = createHL7PreviewStore();

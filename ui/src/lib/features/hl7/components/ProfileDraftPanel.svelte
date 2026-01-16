@@ -7,7 +7,7 @@
   import EventRulesEditor from './EventRulesEditor.svelte';
   import IdentifierEditor from './IdentifierEditor.svelte';
   import TerminologyEditor from './TerminologyEditor.svelte';
-  import { selectedProfile, profileError, isDirty } from '$lib/features/hl7/profile/profileStore.svelte';
+  import { selectedProfile, profileError, isDirty } from '$lib/features/hl7/profile/profileStore';
   import { toSourceProfileYAML } from '$lib/features/hl7/profile/yaml';
   import type { ProfileFix } from '$lib/features/hl7/profile/types';
 

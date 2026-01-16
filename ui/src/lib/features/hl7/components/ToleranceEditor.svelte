@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { profileStore, selectedProfile } from '$lib/features/hl7/profile/profileStore.svelte';
+  import { profileStore, selectedProfile } from '$lib/features/hl7/profile/profileStore';
 
   // Common missing segment options
   const commonSegments = ['PD1', 'PV2', 'NK1', 'GT1', 'IN1', 'IN2', 'DG1', 'PR1', 'AL1', 'ZPD'];

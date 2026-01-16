@@ -8,7 +8,7 @@
     isLoading,
     isSaving,
     isDirty
-  } from '$lib/features/hl7/profile/profileStore.svelte';
+  } from '$lib/features/hl7/profile/profileStore';
   import { onMount } from 'svelte';
 
   // Props
