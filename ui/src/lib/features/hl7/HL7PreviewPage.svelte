@@ -2,6 +2,7 @@
   import { createHL7PreviewStore } from '$lib/features/hl7/hl7PreviewStore';
   import { parseHL7Preview } from '$lib/features/hl7/hl7Preview';
   import Button from '$lib/ui/Button.svelte';
+  import JsonViewer from '$lib/ui/JsonViewer.svelte';
   import Panel from '$lib/ui/Panel.svelte';
   import Tabs from '$lib/ui/Tabs.svelte';
   import TextArea from '$lib/ui/TextArea.svelte';
@@ -203,7 +204,7 @@
       {:else if activeTab === 'warnings'}
         <WarningList groups={$warningsByPhase} {selectedPath} on:select={onSelectWarning} />
       {:else if activeTab === 'events'}
-        <pre class="json">{JSON.stringify($events, null, 2)}</pre>
+        <JsonViewer data={$events} />
       {:else if activeTab === 'inspector'}
         <HL7Inspector message={$hl7} selected={selectedLocation} />
       {:else}
@@ -348,17 +349,6 @@
 
   .tabs {
     margin: 12px 0;
-  }
-
-  .json {
-    margin: 0;
-    padding: 12px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.02);
-    color: rgba(229, 231, 235, 0.9);
-    overflow: auto;
-    max-height: 520px;
   }
 
   .errors {
