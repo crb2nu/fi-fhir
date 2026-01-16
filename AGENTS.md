@@ -170,14 +170,20 @@ event := &events.PatientAdmitEvent{
 - **ORU** (Observation Result Unsolicited): Lab results
 - **ORM** (Order Message): Lab/procedure orders
 - **SIU** (Scheduling): Appointments
-- **MDM** (Medical Document Management): Clinical documents
+- **MDM** (Medical Document Management): Clinical documents (T01-T11 variants)
+- **DFT** (Detail Financial Transaction): Billing/charge postings (P03, P11)
 
 ### Common Fields
 - **PID**: Patient identification (name, DOB, MRN, address)
 - **PV1**: Patient visit (encounter class, location, providers)
-- **OBX**: Observation (lab result values)
+- **OBX**: Observation (lab result values, document content in MDM)
 - **OBR**: Observation request (test orders)
 - **SCH**: Scheduling (appointments)
+- **TXA**: Transcription document header (MDM document metadata)
+- **FT1**: Financial transaction (charges, credits)
+- **DG1**: Diagnosis information
+- **PR1**: Procedure information
+- **IN1**: Insurance information
 
 ### Z-Segments
 Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mapping is configurable.
@@ -190,6 +196,8 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 - HL7v2 ADT messages (A01, A02, A03, A04, A08)
 - HL7v2 ORU^R01 with multiple OBX support
 - HL7v2 SIU messages (S12, S13, S14, S15, S26)
+- HL7v2 MDM messages (T01, T02, T03, T04, T05, T06, T08, T09, T10, T11) - Medical Document Management
+- HL7v2 DFT messages (P03, P11) - Detail Financial Transactions with FT1/DG1/PR1/IN1 support
 - Source Profile system with YAML configuration
 - Terminology mapping (LOCAL to LOINC/SNOMED)
 - FHIR R4 resource types and US Core mapper

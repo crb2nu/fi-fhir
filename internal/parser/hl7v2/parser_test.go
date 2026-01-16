@@ -1066,3 +1066,438 @@ AIS|1|A|CARDIO^Cardiology Department`
 		t.Errorf("Expected location 'Cardiology Department', got '%s'", event.Appointment.Location.Description)
 	}
 }
+
+// ========================================
+// MDM (Medical Document Management) Tests
+// ========================================
+
+func TestParseMDM_T02_OriginalDocument(t *testing.T) {
+	parser := NewParser("dictation_system", ParserConfig{})
+
+	msg := `MSH|^~\&|DICTATION|HOSPITAL|EMR|HOSPITAL|20240115120000||MDM^T02^MDM_T02|MSG00001|P|2.5|||AL|NE
+EVN|T02|20240115120000
+PID|1||123456789^^^HOSPITAL^MRN||DOE^JOHN^WILLIAM^^^MR||19800315|M|||123 MAIN ST^^ANYTOWN^VA^24101^USA
+PV1|1|I|ICU^101^A^HOSPITAL||||1234567890^SMITH^JANE^M^^^MD
+TXA|1|HP^History and Physical^HL70270||20240115100000|1234567890^SMITH^JANE^M^^^MD|20240115110000|20240115115000|||||DOC001||||History and Physical - John Doe|AU|||20240115120000|1234567890^SMITH^JANE^M^^^MD
+OBX|1|TX|HP^History and Physical||HISTORY AND PHYSICAL~~Date: January 15, 2024~~CHIEF COMPLAINT:~Chest pain and shortness of breath~~HISTORY OF PRESENT ILLNESS:~Patient is a 43-year-old male presenting with acute onset chest pain.||||||F`
+
+	result, err := parser.Parse(msg)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	event, ok := result.(*events.DocumentEvent)
+	if !ok {
+		t.Fatalf("Expected DocumentEvent, got %T", result)
+	}
+
+	// Check event metadata
+	if event.Type != events.EventDocumentOriginal {
+		t.Errorf("Expected event type %s, got %s", events.EventDocumentOriginal, event.Type)
+	}
+	if event.Source != "dictation_system" {
+		t.Errorf("Expected source 'dictation_system', got '%s'", event.Source)
+	}
+	if event.SourceFormat != events.FormatHL7v2 {
+		t.Errorf("Expected format HL7v2, got %s", event.SourceFormat)
+	}
+	if event.SourceMessageID != "MSG00001" {
+		t.Errorf("Expected message ID 'MSG00001', got '%s'", event.SourceMessageID)
+	}
+
+	// Check patient data
+	if event.Patient == nil {
+		t.Fatal("Expected patient to be set")
+	}
+	if event.Patient.MRN != "123456789" {
+		t.Errorf("Expected MRN '123456789', got '%s'", event.Patient.MRN)
+	}
+	if event.Patient.FamilyName != "DOE" {
+		t.Errorf("Expected family name 'DOE', got '%s'", event.Patient.FamilyName)
+	}
+
+	// Check TXA fields
+	if event.DocumentType != "HP" {
+		t.Errorf("Expected document type 'HP', got '%s'", event.DocumentType)
+	}
+	if event.Title != "History and Physical - John Doe" {
+		t.Errorf("Expected title 'History and Physical - John Doe', got '%s'", event.Title)
+	}
+	if event.UniqueDocumentNumber != "DOC001" {
+		t.Errorf("Expected unique document number 'DOC001', got '%s'", event.UniqueDocumentNumber)
+	}
+	if event.DocumentStatus != "authenticated" {
+		t.Errorf("Expected document status 'authenticated', got '%s'", event.DocumentStatus)
+	}
+
+	// Check author
+	if event.Author == nil {
+		t.Fatal("Expected author to be set")
+	}
+	if event.Author.ID != "1234567890" {
+		t.Errorf("Expected author ID '1234567890', got '%s'", event.Author.ID)
+	}
+	if event.Author.FamilyName != "SMITH" {
+		t.Errorf("Expected author family name 'SMITH', got '%s'", event.Author.FamilyName)
+	}
+
+	// Check content
+	if event.ContentType != "TX" {
+		t.Errorf("Expected content type 'TX', got '%s'", event.ContentType)
+	}
+	if event.Content == "" {
+		t.Error("Expected content to be set")
+	}
+	if event.ContentEncoding != "text" {
+		t.Errorf("Expected content encoding 'text', got '%s'", event.ContentEncoding)
+	}
+}
+
+func TestParseMDM_T03_StatusChange(t *testing.T) {
+	parser := NewParser("dictation_system", ParserConfig{})
+
+	msg := `MSH|^~\&|DICTATION|HOSPITAL|EMR|HOSPITAL|20240115140000||MDM^T03^MDM_T03|MSG00002|P|2.5|||AL|NE
+EVN|T03|20240115140000
+PID|1||123456789^^^HOSPITAL^MRN||DOE^JOHN^WILLIAM^^^MR||19800315|M|||123 MAIN ST^^ANYTOWN^VA^24101^USA
+TXA|1|HP^History and Physical^HL70270||20240115100000|1234567890^SMITH^JANE^M^^^MD|20240115110000|20240115130000|||||DOC001||||History and Physical - John Doe|LA|||20240115140000|1234567890^SMITH^JANE^M^^^MD`
+
+	result, err := parser.Parse(msg)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	event, ok := result.(*events.DocumentEvent)
+	if !ok {
+		t.Fatalf("Expected DocumentEvent, got %T", result)
+	}
+
+	// Check event type
+	if event.Type != events.EventDocumentStatusChange {
+		t.Errorf("Expected event type %s, got %s", events.EventDocumentStatusChange, event.Type)
+	}
+
+	// Check TXA fields
+	if event.UniqueDocumentNumber != "DOC001" {
+		t.Errorf("Expected unique document number 'DOC001', got '%s'", event.UniqueDocumentNumber)
+	}
+	if event.DocumentStatus != "legally_authenticated" {
+		t.Errorf("Expected document status 'legally_authenticated', got '%s'", event.DocumentStatus)
+	}
+}
+
+func TestParseMDM_T06_Addendum(t *testing.T) {
+	parser := NewParser("dictation_system", ParserConfig{})
+
+	msg := `MSH|^~\&|DICTATION|HOSPITAL|EMR|HOSPITAL|20240116080000||MDM^T06^MDM_T06|MSG00003|P|2.5|||AL|NE
+EVN|T06|20240116080000
+PID|1||123456789^^^HOSPITAL^MRN||DOE^JOHN^WILLIAM^^^MR||19800315|M
+PV1|1|I|ICU^101^A^HOSPITAL||||1234567890^SMITH^JANE^M^^^MD
+TXA|1|AD^Addendum^HL70270||20240116080000|1234567890^SMITH^JANE^M^^^MD|20240116080000||||||ADD001|DOC001||Addendum to H&P - Cardiology Results|AU|||20240116080000
+OBX|1|TX|AD^Addendum||ADDENDUM TO HISTORY AND PHYSICAL~~Date: January 16, 2024~~CARDIOLOGY CONSULTATION RESULTS:~- Troponin I: 0.02 ng/mL (normal)~- EKG: Normal sinus rhythm||||||F`
+
+	result, err := parser.Parse(msg)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	event, ok := result.(*events.DocumentEvent)
+	if !ok {
+		t.Fatalf("Expected DocumentEvent, got %T", result)
+	}
+
+	// Check event type
+	if event.Type != events.EventDocumentAddendum {
+		t.Errorf("Expected event type %s, got %s", events.EventDocumentAddendum, event.Type)
+	}
+
+	// Check TXA fields
+	if event.DocumentType != "AD" {
+		t.Errorf("Expected document type 'AD', got '%s'", event.DocumentType)
+	}
+	if event.UniqueDocumentNumber != "ADD001" {
+		t.Errorf("Expected unique document number 'ADD001', got '%s'", event.UniqueDocumentNumber)
+	}
+	if event.ParentDocumentNumber != "DOC001" {
+		t.Errorf("Expected parent document number 'DOC001', got '%s'", event.ParentDocumentNumber)
+	}
+
+	// Check content is present
+	if event.Content == "" {
+		t.Error("Expected content to be set for addendum")
+	}
+}
+
+func TestParseMDM_T10_Replacement(t *testing.T) {
+	parser := NewParser("dictation_system", ParserConfig{})
+
+	msg := `MSH|^~\&|DICTATION|HOSPITAL|EMR|HOSPITAL|20240117090000||MDM^T10^MDM_T10|MSG00004|P|2.5|||AL|NE
+EVN|T10|20240117090000
+PID|1||123456789^^^HOSPITAL^MRN||DOE^JOHN|||M
+TXA|1|HP^History and Physical^HL70270||20240117090000|1234567890^SMITH^JANE^M^^^MD|||||||DOC002|DOC001|||Corrected History and Physical|AU
+OBX|1|TX|HP^History and Physical||CORRECTED HISTORY AND PHYSICAL~~This document replaces the previous version.||||||F`
+
+	result, err := parser.Parse(msg)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	event, ok := result.(*events.DocumentEvent)
+	if !ok {
+		t.Fatalf("Expected DocumentEvent, got %T", result)
+	}
+
+	// Check event type
+	if event.Type != events.EventDocumentReplacement {
+		t.Errorf("Expected event type %s, got %s", events.EventDocumentReplacement, event.Type)
+	}
+
+	// Check parent reference
+	if event.ParentDocumentNumber != "DOC001" {
+		t.Errorf("Expected parent document number 'DOC001', got '%s'", event.ParentDocumentNumber)
+	}
+	if event.UniqueDocumentNumber != "DOC002" {
+		t.Errorf("Expected unique document number 'DOC002', got '%s'", event.UniqueDocumentNumber)
+	}
+}
+
+// ========================================
+// DFT (Detail Financial Transaction) Tests
+// ========================================
+
+func TestParseDFT_P03_SingleTransaction(t *testing.T) {
+	parser := NewParser("billing_system", ParserConfig{})
+
+	msg := `MSH|^~\&|BILLING|HOSPITAL|EMR|HOSPITAL|20240115150000||DFT^P03^DFT_P03|MSG00004|P|2.5|||AL|NE
+EVN|P03|20240115150000
+PID|1||123456789^^^HOSPITAL^MRN~999-88-7777^^^SSA^SS||DOE^JOHN^WILLIAM^^^MR||19800315|M|||123 MAIN ST^^ANYTOWN^VA^24101^USA||5551234567|||||ACCT001
+PV1|1|I|ICU^101^A^HOSPITAL||||1234567890^SMITH^JANE^M^^^MD|||MED||||||||V001
+FT1|1|TXN001||20240115|20240115|CG|99223^Initial Hospital Care High^CPT|Initial hospital care, high complexity|||350.00|350.00||||ICU^101^A^HOSPITAL|||J18.9^Pneumonia, unspecified organism^I10||1234567890^SMITH^JANE^M^^^MD||1234567890^SMITH^JANE^M^^^MD||ORD001||99223^Initial Hospital Care^CPT
+DG1|1|I10|J18.9^Pneumonia, unspecified organism^ICD10|Pneumonia|20240115|F|||||||||||1234567890^SMITH^JANE^M^^^MD
+IN1|1|BCBS001^Blue Cross Blue Shield|123456|Blue Cross Blue Shield of Virginia||||GRP12345|ACME Corporation|||20240101|20241231||||||||||||||||||||||SUB001`
+
+	result, err := parser.Parse(msg)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	event, ok := result.(*events.FinancialTransactionEvent)
+	if !ok {
+		t.Fatalf("Expected FinancialTransactionEvent, got %T", result)
+	}
+
+	// Check event metadata
+	if event.Type != events.EventFinancialTransaction {
+		t.Errorf("Expected event type %s, got %s", events.EventFinancialTransaction, event.Type)
+	}
+	if event.Source != "billing_system" {
+		t.Errorf("Expected source 'billing_system', got '%s'", event.Source)
+	}
+	if event.SourceFormat != events.FormatHL7v2 {
+		t.Errorf("Expected format HL7v2, got %s", event.SourceFormat)
+	}
+
+	// Check patient data
+	if event.Patient.MRN != "123456789" {
+		t.Errorf("Expected MRN '123456789', got '%s'", event.Patient.MRN)
+	}
+	if event.Patient.FamilyName != "DOE" {
+		t.Errorf("Expected family name 'DOE', got '%s'", event.Patient.FamilyName)
+	}
+
+	// Check account number
+	if event.AccountNumber != "ACCT001" {
+		t.Errorf("Expected account number 'ACCT001', got '%s'", event.AccountNumber)
+	}
+
+	// Check transactions
+	if len(event.Transactions) != 1 {
+		t.Fatalf("Expected 1 transaction, got %d", len(event.Transactions))
+	}
+
+	txn := event.Transactions[0]
+	if txn.TransactionID != "TXN001" {
+		t.Errorf("Expected transaction ID 'TXN001', got '%s'", txn.TransactionID)
+	}
+	if txn.TransactionType != "CG" {
+		t.Errorf("Expected transaction type 'CG', got '%s'", txn.TransactionType)
+	}
+	if len(txn.TransactionCode.Coding) == 0 || txn.TransactionCode.Coding[0].Code != "99223" {
+		t.Errorf("Expected transaction code '99223', got '%v'", txn.TransactionCode.Coding)
+	}
+	if txn.Amount != 350.00 {
+		t.Errorf("Expected amount 350.00, got %f", txn.Amount)
+	}
+
+	// Check diagnoses
+	if len(event.Transactions[0].Diagnoses) != 1 {
+		t.Fatalf("Expected 1 diagnosis, got %d", len(event.Transactions[0].Diagnoses))
+	}
+
+	diag := event.Transactions[0].Diagnoses[0]
+	if len(diag.Code.Coding) == 0 || diag.Code.Coding[0].Code != "J18.9" {
+		t.Errorf("Expected diagnosis code 'J18.9', got '%v'", diag.Code.Coding)
+	}
+
+	// Check insurance
+	if len(event.InsuranceInfo) != 1 {
+		t.Fatalf("Expected 1 insurance record, got %d", len(event.InsuranceInfo))
+	}
+	if event.InsuranceInfo[0].PlanID != "BCBS001" {
+		t.Errorf("Expected plan ID 'BCBS001', got '%s'", event.InsuranceInfo[0].PlanID)
+	}
+
+	// Check total charge amount
+	if event.TotalChargeAmount != 350.00 {
+		t.Errorf("Expected total charge 350.00, got %f", event.TotalChargeAmount)
+	}
+}
+
+func TestParseDFT_P03_MultipleFT1(t *testing.T) {
+	parser := NewParser("billing_system", ParserConfig{})
+
+	msg := `MSH|^~\&|BILLING|HOSPITAL|EMR|HOSPITAL|20240115160000||DFT^P03^DFT_P03|MSG00005|P|2.5|||AL|NE
+EVN|P03|20240115160000
+PID|1||987654321^^^HOSPITAL^MRN||SMITH^JANE^A^^^MS||19750420|F|||456 OAK AVE^^SPRINGFIELD^IL^62701^USA||5559876543|||||||ACCT002
+PV1|1|O|CLINIC^200^A^HOSPITAL||||2345678901^JONES^ROBERT^K^^^MD|||FAM||||||||V002
+FT1|1|TXN002||20240115|20240115|CG|99214^Office Visit Level 4^CPT|Established patient office visit|||150.00|150.00||||CLINIC^200^A|||E11.9^Type 2 diabetes mellitus without complications^I10||2345678901^JONES^ROBERT^K^^^MD||2345678901^JONES^ROBERT^K^^^MD||||99214^Office Visit^CPT|25
+FT1|2|TXN003||20240115|20240115|CG|36415^Venipuncture^CPT|Blood draw|||25.00|25.00||||CLINIC^200^A|||||||3456789012^TECH^LAB^A^^^RN||||36415^Venipuncture^CPT
+FT1|3|TXN004||20240115|20240115|CG|85025^CBC with Differential^CPT|Complete blood count|||35.00|35.00||||LAB^100^A|||||||||||85025^CBC^CPT
+DG1|1|I10|E11.9^Type 2 diabetes mellitus without complications^ICD10|Type 2 Diabetes|20240115|W|||||||||1|2345678901^JONES^ROBERT^K^^^MD
+DG1|2|I10|I10^Essential (primary) hypertension^ICD10|Hypertension|20240115|W|||||||||2|2345678901^JONES^ROBERT^K^^^MD
+PR1|1|C4|36415^Venipuncture^CPT|Blood Draw|20240115||5||3456789012^TECH^LAB^A^^^RN
+IN1|1|AETNA001^Aetna|789012|Aetna Health Insurance||||GRP67890|Beta Corporation|||20230601|20251231||||||||||||||||||||||SUB002
+IN1|2|MEDICAID^State Medicaid|456789|State Medicaid Program||||||||||||||||||||||||||||||SUB003`
+
+	result, err := parser.Parse(msg)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	event, ok := result.(*events.FinancialTransactionEvent)
+	if !ok {
+		t.Fatalf("Expected FinancialTransactionEvent, got %T", result)
+	}
+
+	// Check patient
+	if event.Patient.MRN != "987654321" {
+		t.Errorf("Expected MRN '987654321', got '%s'", event.Patient.MRN)
+	}
+	if event.Patient.FamilyName != "SMITH" {
+		t.Errorf("Expected family name 'SMITH', got '%s'", event.Patient.FamilyName)
+	}
+
+	// Check multiple transactions
+	if len(event.Transactions) != 3 {
+		t.Fatalf("Expected 3 transactions, got %d", len(event.Transactions))
+	}
+
+	// Verify transaction IDs
+	expectedTxnIDs := []string{"TXN002", "TXN003", "TXN004"}
+	for i, txn := range event.Transactions {
+		if txn.TransactionID != expectedTxnIDs[i] {
+			t.Errorf("Transaction %d: expected ID '%s', got '%s'", i, expectedTxnIDs[i], txn.TransactionID)
+		}
+	}
+
+	// Verify amounts
+	expectedAmounts := []float64{150.00, 25.00, 35.00}
+	for i, txn := range event.Transactions {
+		if txn.Amount != expectedAmounts[i] {
+			t.Errorf("Transaction %d: expected amount %f, got %f", i, expectedAmounts[i], txn.Amount)
+		}
+	}
+
+	// Check total charge amount
+	expectedTotal := 210.00 // 150 + 25 + 35
+	if event.TotalChargeAmount != expectedTotal {
+		t.Errorf("Expected total charge %f, got %f", expectedTotal, event.TotalChargeAmount)
+	}
+
+	// Check diagnoses (shared across transactions)
+	if len(event.Transactions[0].Diagnoses) != 2 {
+		t.Errorf("Expected 2 diagnoses on first transaction, got %d", len(event.Transactions[0].Diagnoses))
+	}
+
+	// Check procedures
+	if len(event.Transactions[0].Procedures) != 1 {
+		t.Errorf("Expected 1 procedure, got %d", len(event.Transactions[0].Procedures))
+	}
+	if len(event.Transactions[0].Procedures[0].Code.Coding) == 0 || event.Transactions[0].Procedures[0].Code.Coding[0].Code != "36415" {
+		t.Errorf("Expected procedure code '36415', got '%v'", event.Transactions[0].Procedures[0].Code.Coding)
+	}
+
+	// Check multiple insurance records
+	if len(event.InsuranceInfo) != 2 {
+		t.Fatalf("Expected 2 insurance records, got %d", len(event.InsuranceInfo))
+	}
+	if event.InsuranceInfo[0].PlanID != "AETNA001" {
+		t.Errorf("Expected plan ID 'AETNA001', got '%s'", event.InsuranceInfo[0].PlanID)
+	}
+	if event.InsuranceInfo[1].PlanID != "MEDICAID" {
+		t.Errorf("Expected plan ID 'MEDICAID', got '%s'", event.InsuranceInfo[1].PlanID)
+	}
+}
+
+func TestParseDFT_P03_WithProcedureModifiers(t *testing.T) {
+	parser := NewParser("billing_system", ParserConfig{})
+
+	msg := `MSH|^~\&|BILLING|HOSPITAL|EMR|HOSPITAL|20240115170000||DFT^P03^DFT_P03|MSG00006|P|2.5|||AL|NE
+EVN|P03|20240115170000
+PID|1||111222333^^^HOSPITAL^MRN||TEST^PATIENT|||M
+FT1|1|TXN005||20240115|20240115|CG|99214^Office Visit^CPT||||100.00|100.00|||||||||||||99214^Office Visit^CPT|25~59`
+
+	result, err := parser.Parse(msg)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	event, ok := result.(*events.FinancialTransactionEvent)
+	if !ok {
+		t.Fatalf("Expected FinancialTransactionEvent, got %T", result)
+	}
+
+	if len(event.Transactions) != 1 {
+		t.Fatalf("Expected 1 transaction, got %d", len(event.Transactions))
+	}
+
+	// Check procedure modifiers
+	txn := event.Transactions[0]
+	if len(txn.ProcedureModifiers) != 2 {
+		t.Fatalf("Expected 2 procedure modifiers, got %d", len(txn.ProcedureModifiers))
+	}
+	if txn.ProcedureModifiers[0] != "25" {
+		t.Errorf("Expected modifier '25', got '%s'", txn.ProcedureModifiers[0])
+	}
+	if txn.ProcedureModifiers[1] != "59" {
+		t.Errorf("Expected modifier '59', got '%s'", txn.ProcedureModifiers[1])
+	}
+}
+
+func TestParseDFT_P11(t *testing.T) {
+	parser := NewParser("billing_system", ParserConfig{})
+
+	// DFT^P11 is similar to P03 but for billing inquiries
+	msg := `MSH|^~\&|BILLING|HOSPITAL|EMR|HOSPITAL|20240115180000||DFT^P11^DFT_P11|MSG00007|P|2.5|||AL|NE
+EVN|P11|20240115180000
+PID|1||444555666^^^HOSPITAL^MRN||INQUIRY^TEST|||F
+FT1|1|TXN006||20240115|20240115|CG|99213^Office Visit Level 3^CPT||||75.00|75.00`
+
+	result, err := parser.Parse(msg)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	event, ok := result.(*events.FinancialTransactionEvent)
+	if !ok {
+		t.Fatalf("Expected FinancialTransactionEvent, got %T", result)
+	}
+
+	// DFT^P11 should use same event type
+	if event.Type != events.EventFinancialTransaction {
+		t.Errorf("Expected event type %s, got %s", events.EventFinancialTransaction, event.Type)
+	}
+
+	if len(event.Transactions) != 1 {
+		t.Fatalf("Expected 1 transaction, got %d", len(event.Transactions))
+	}
+}

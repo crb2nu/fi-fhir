@@ -55,6 +55,16 @@ const (
 	EventProcedure    EventType = "procedure"
 	EventImmunization EventType = "immunization"
 
+	// Document management events (MDM)
+	EventDocumentOriginal     EventType = "document_original"      // MDM^T01/T02
+	EventDocumentStatusChange EventType = "document_status_change" // MDM^T03/T04
+	EventDocumentAddendum     EventType = "document_addendum"      // MDM^T05/T06
+	EventDocumentEdit         EventType = "document_edit"          // MDM^T08/T09
+	EventDocumentReplacement  EventType = "document_replacement"   // MDM^T10/T11
+
+	// Financial transaction events (DFT)
+	EventFinancialTransaction EventType = "financial_transaction" // DFT^P03/P11
+
 	// Medications
 	EventMedicationRequest EventType = "medication_request"
 )
@@ -1251,16 +1261,30 @@ type AllergyIntoleranceEvent struct {
 	RawPayload         json.RawMessage    `json:"raw_payload,omitempty"`
 }
 
-// DocumentEvent is emitted for clinical document events.
+// DocumentEvent is emitted for clinical document events (including MDM messages).
 type DocumentEvent struct {
 	EventMeta
-	Patient      *Patient        `json:"patient,omitempty"`
-	DocumentType string          `json:"document_type"`
-	Title        string          `json:"title,omitempty"`
-	Author       *Provider       `json:"author,omitempty"`
-	Custodian    string          `json:"custodian,omitempty"`
-	Encounter    *Encounter      `json:"encounter,omitempty"`
-	RawPayload   json.RawMessage `json:"raw_payload,omitempty"`
+	Patient      *Patient   `json:"patient,omitempty"`
+	DocumentType string     `json:"document_type"`
+	Title        string     `json:"title,omitempty"`
+	Author       *Provider  `json:"author,omitempty"`
+	Custodian    string     `json:"custodian,omitempty"`
+	Encounter    *Encounter `json:"encounter,omitempty"`
+
+	// MDM-specific fields
+	UniqueDocumentNumber     string    `json:"unique_document_number,omitempty"`     // TXA-12
+	ParentDocumentNumber     string    `json:"parent_document_number,omitempty"`     // TXA-13 (for addendum/replacement)
+	DocumentStatus           string    `json:"document_status,omitempty"`            // TXA-17 code
+	DocumentCompletionStatus string    `json:"document_completion_status,omitempty"` // TXA-17 mapped to readable status
+	OriginationDateTime      time.Time `json:"origination_datetime,omitempty"`       // TXA-4
+	TranscriptionDateTime    time.Time `json:"transcription_datetime,omitempty"`     // TXA-6
+	EditDateTime             time.Time `json:"edit_datetime,omitempty"`              // TXA-7
+	AuthenticationDateTime   time.Time `json:"authentication_datetime,omitempty"`    // TXA-22
+	ContentType              string    `json:"content_type,omitempty"`               // OBX-2 value type (ED, TX, ST, FT)
+	Content                  string    `json:"content,omitempty"`                    // OBX-5 document content
+	ContentEncoding          string    `json:"content_encoding,omitempty"`           // "base64" or "text"
+
+	RawPayload json.RawMessage `json:"raw_payload,omitempty"`
 }
 
 // CarePlan represents a care plan for a patient.
@@ -2360,5 +2384,187 @@ type RelatedPersonEvent struct {
 	RelatedPerson RelatedPerson `json:"related_person"`
 
 	// RawPayload contains the original message if available
+	RawPayload json.RawMessage `json:"raw_payload,omitempty"`
+}
+
+// FinancialTransaction represents a financial transaction from DFT message (FT1 segment).
+type FinancialTransaction struct {
+	// SetID is the sequence number for this transaction (FT1-1)
+	SetID int `json:"set_id,omitempty"`
+
+	// TransactionID is the unique transaction identifier (FT1-2)
+	TransactionID string `json:"transaction_id,omitempty"`
+
+	// BatchID is the transaction batch identifier (FT1-3)
+	BatchID string `json:"batch_id,omitempty"`
+
+	// TransactionDate is when the transaction occurred (FT1-4)
+	TransactionDate time.Time `json:"transaction_date,omitempty"`
+
+	// PostingDate is when the transaction was posted (FT1-5)
+	PostingDate time.Time `json:"posting_date,omitempty"`
+
+	// TransactionType indicates the type: CG=Charge, CR=Credit, PA=Payment, etc. (FT1-6)
+	TransactionType string `json:"transaction_type"`
+
+	// TransactionCode is the charge/service code (FT1-7)
+	TransactionCode CodeableConcept `json:"transaction_code"`
+
+	// Quantity is the number of units (FT1-10)
+	Quantity float64 `json:"quantity,omitempty"`
+
+	// Amount is the extended transaction amount (FT1-11)
+	Amount float64 `json:"amount,omitempty"`
+
+	// UnitAmount is the per-unit amount (FT1-12)
+	UnitAmount float64 `json:"unit_amount,omitempty"`
+
+	// PatientLocation where service was performed (FT1-16)
+	PatientLocation *Location `json:"patient_location,omitempty"`
+
+	// DiagnosisCodes from FT1-19
+	DiagnosisCodes []CodeableConcept `json:"diagnosis_codes,omitempty"`
+
+	// PerformedBy is the provider who performed the service (FT1-20)
+	PerformedBy *Provider `json:"performed_by,omitempty"`
+
+	// OrderedBy is the provider who ordered the service (FT1-21)
+	OrderedBy *Provider `json:"ordered_by,omitempty"`
+
+	// FillerOrderNumber links to the order (FT1-23)
+	FillerOrderNumber string `json:"filler_order_number,omitempty"`
+
+	// EnteredBy is who entered the transaction (FT1-24)
+	EnteredBy *Provider `json:"entered_by,omitempty"`
+
+	// ProcedureCode is the CPT/HCPCS procedure code (FT1-25)
+	ProcedureCode *CodeableConcept `json:"procedure_code,omitempty"`
+
+	// ProcedureModifiers are CPT modifiers (FT1-26)
+	ProcedureModifiers []string `json:"procedure_modifiers,omitempty"`
+
+	// Diagnoses from associated DG1 segments
+	Diagnoses []Diagnosis `json:"diagnoses,omitempty"`
+
+	// Procedures from associated PR1 segments
+	Procedures []ProcedureInfo `json:"procedures,omitempty"`
+}
+
+// Diagnosis represents a diagnosis from DG1 segment.
+type Diagnosis struct {
+	// SetID is the sequence number (DG1-1)
+	SetID int `json:"set_id,omitempty"`
+
+	// CodingMethod indicates the coding system: I9=ICD-9, I10=ICD-10 (DG1-2)
+	CodingMethod string `json:"coding_method,omitempty"`
+
+	// Code is the diagnosis code (DG1-3)
+	Code CodeableConcept `json:"code"`
+
+	// Description is the diagnosis description (DG1-4)
+	Description string `json:"description,omitempty"`
+
+	// DiagnosisDate is when the diagnosis was made (DG1-5)
+	DiagnosisDate time.Time `json:"diagnosis_date,omitempty"`
+
+	// DiagnosisType indicates: A=Admitting, W=Working, F=Final (DG1-6)
+	DiagnosisType string `json:"diagnosis_type,omitempty"`
+
+	// DiagnosingClinician is who made the diagnosis (DG1-16)
+	DiagnosingClinician *Provider `json:"diagnosing_clinician,omitempty"`
+
+	// IsPrimary indicates if this is the primary diagnosis (DG1-15 = 1)
+	IsPrimary bool `json:"is_primary,omitempty"`
+}
+
+// ProcedureInfo represents a procedure from PR1 segment.
+type ProcedureInfo struct {
+	// SetID is the sequence number (PR1-1)
+	SetID int `json:"set_id,omitempty"`
+
+	// CodingMethod indicates the coding system (PR1-2)
+	CodingMethod string `json:"coding_method,omitempty"`
+
+	// Code is the procedure code (PR1-3)
+	Code CodeableConcept `json:"code"`
+
+	// Description is the procedure description (PR1-4)
+	Description string `json:"description,omitempty"`
+
+	// ProcedureDate is when the procedure was performed (PR1-5)
+	ProcedureDate time.Time `json:"procedure_date,omitempty"`
+
+	// FunctionalType indicates: A=Anesthesia, P=Procedure, I=Incision (PR1-6)
+	FunctionalType string `json:"functional_type,omitempty"`
+
+	// ProcedureMinutes is the duration in minutes (PR1-7)
+	ProcedureMinutes int `json:"procedure_minutes,omitempty"`
+
+	// Practitioner is who performed the procedure (PR1-8)
+	Practitioner *Provider `json:"practitioner,omitempty"`
+
+	// AnesthesiaCode is the anesthesia type code (PR1-9)
+	AnesthesiaCode string `json:"anesthesia_code,omitempty"`
+}
+
+// InsuranceInfo represents insurance information from IN1 segment.
+type InsuranceInfo struct {
+	// SetID is the sequence number indicating coordination order (IN1-1)
+	SetID int `json:"set_id,omitempty"`
+
+	// PlanID is the insurance plan identifier (IN1-2)
+	PlanID string `json:"plan_id,omitempty"`
+
+	// CompanyID is the insurance company identifier (IN1-3)
+	CompanyID string `json:"company_id,omitempty"`
+
+	// CompanyName is the insurance company name (IN1-4)
+	CompanyName string `json:"company_name,omitempty"`
+
+	// GroupNumber is the group/policy number (IN1-8)
+	GroupNumber string `json:"group_number,omitempty"`
+
+	// GroupName is the group name (IN1-9)
+	GroupName string `json:"group_name,omitempty"`
+
+	// PolicyNumber is the policy number (IN1-36)
+	PolicyNumber string `json:"policy_number,omitempty"`
+
+	// SubscriberID is the subscriber identifier (IN1-49)
+	SubscriberID string `json:"subscriber_id,omitempty"`
+
+	// CoordinationOrder indicates primary (1), secondary (2), etc.
+	CoordinationOrder int `json:"coordination_order,omitempty"`
+
+	// EffectiveDate is when coverage begins (IN1-12)
+	EffectiveDate time.Time `json:"effective_date,omitempty"`
+
+	// ExpirationDate is when coverage ends (IN1-13)
+	ExpirationDate time.Time `json:"expiration_date,omitempty"`
+}
+
+// FinancialTransactionEvent is emitted for DFT messages.
+type FinancialTransactionEvent struct {
+	EventMeta
+
+	// Patient is the patient associated with the transactions
+	Patient Patient `json:"patient"`
+
+	// Encounter is the associated visit/encounter
+	Encounter *Encounter `json:"encounter,omitempty"`
+
+	// Transactions contains all FT1 segments from the message
+	Transactions []FinancialTransaction `json:"transactions"`
+
+	// TotalChargeAmount is the sum of all transaction amounts
+	TotalChargeAmount float64 `json:"total_charge_amount,omitempty"`
+
+	// InsuranceInfo contains coverage from IN1 segments
+	InsuranceInfo []InsuranceInfo `json:"insurance_info,omitempty"`
+
+	// AccountNumber is the billing account (PID-18)
+	AccountNumber string `json:"account_number,omitempty"`
+
+	// RawPayload contains the original message
 	RawPayload json.RawMessage `json:"raw_payload,omitempty"`
 }

@@ -1,0 +1,6 @@
+MSH|^~\&|DICTATION|HOSPITAL|EMR|HOSPITAL|20240116080000||MDM^T06^MDM_T06|MSG00003|P|2.5|||AL|NE
+EVN|T06|20240116080000
+PID|1||123456789^^^HOSPITAL^MRN||DOE^JOHN^WILLIAM^^^MR||19800315|M
+PV1|1|I|ICU^101^A^HOSPITAL||||1234567890^SMITH^JANE^M^^^MD
+TXA|1|AD^Addendum^HL70270||20240116080000|1234567890^SMITH^JANE^M^^^MD|20240116080000|||||ADD001|DOC001|||Addendum to H\T\P - Cardiology Results|AU|||20240116080000
+OBX|1|TX|AD^Addendum||ADDENDUM TO HISTORY AND PHYSICAL~~Date: January 16, 2024~~CARDIOLOGY CONSULTATION RESULTS:~- Troponin I: 0.02 ng/mL (normal)~- EKG: Normal sinus rhythm, no ST changes~- Stress test scheduled for tomorrow~~UPDATED ASSESSMENT:~Atypical chest pain, low probability for ACS based on initial workup.~Continue observation and proceed with stress testing.~~Electronically signed by: Jane M. Smith, MD||||||F

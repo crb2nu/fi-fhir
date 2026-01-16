@@ -42,6 +42,22 @@ const (
 	MsgSIU_S14 = "SIU^S14" // Notification of appointment modification
 	MsgSIU_S15 = "SIU^S15" // Notification of appointment cancellation
 	MsgSIU_S26 = "SIU^S26" // Notification of patient no-show
+
+	// MDM - Medical Document Management
+	MsgMDM_T01 = "MDM^T01" // Original document notification
+	MsgMDM_T02 = "MDM^T02" // Original document notification and content
+	MsgMDM_T03 = "MDM^T03" // Document status change notification
+	MsgMDM_T04 = "MDM^T04" // Document status change notification and content
+	MsgMDM_T05 = "MDM^T05" // Document addendum notification
+	MsgMDM_T06 = "MDM^T06" // Document addendum notification and content
+	MsgMDM_T08 = "MDM^T08" // Document edit notification
+	MsgMDM_T09 = "MDM^T09" // Document edit notification and content
+	MsgMDM_T10 = "MDM^T10" // Document replacement notification
+	MsgMDM_T11 = "MDM^T11" // Document replacement notification and content
+
+	// DFT - Detail Financial Transaction
+	MsgDFT_P03 = "DFT^P03" // Post detail financial transaction
+	MsgDFT_P11 = "DFT^P11" // Post detail financial transaction (new)
 )
 
 // Parser parses HL7v2 messages into semantic events.
@@ -217,6 +233,20 @@ func (p *Parser) setEventWarnings(event interface{}) {
 		if p.profile != nil {
 			e.SourceProfileID = p.profile.ID
 		}
+	case *events.DocumentEvent:
+		if len(p.warnings) > 0 {
+			e.ParseWarnings = p.warnings
+		}
+		if p.profile != nil {
+			e.SourceProfileID = p.profile.ID
+		}
+	case *events.FinancialTransactionEvent:
+		if len(p.warnings) > 0 {
+			e.ParseWarnings = p.warnings
+		}
+		if p.profile != nil {
+			e.SourceProfileID = p.profile.ID
+		}
 	}
 }
 
@@ -329,6 +359,20 @@ func (p *Parser) toSemanticEvent(msg *Message) (interface{}, error) {
 		return p.parseSIU_S15(msg)
 	case strings.HasPrefix(msg.Type, "SIU^S26"):
 		return p.parseSIU_S26(msg)
+	// MDM - Medical Document Management
+	case strings.HasPrefix(msg.Type, "MDM^T01"), strings.HasPrefix(msg.Type, "MDM^T02"):
+		return p.parseMDM_Original(msg)
+	case strings.HasPrefix(msg.Type, "MDM^T03"), strings.HasPrefix(msg.Type, "MDM^T04"):
+		return p.parseMDM_StatusChange(msg)
+	case strings.HasPrefix(msg.Type, "MDM^T05"), strings.HasPrefix(msg.Type, "MDM^T06"):
+		return p.parseMDM_Addendum(msg)
+	case strings.HasPrefix(msg.Type, "MDM^T08"), strings.HasPrefix(msg.Type, "MDM^T09"):
+		return p.parseMDM_Edit(msg)
+	case strings.HasPrefix(msg.Type, "MDM^T10"), strings.HasPrefix(msg.Type, "MDM^T11"):
+		return p.parseMDM_Replacement(msg)
+	// DFT - Detail Financial Transaction
+	case strings.HasPrefix(msg.Type, "DFT^P03"), strings.HasPrefix(msg.Type, "DFT^P11"):
+		return p.parseDFT_P03(msg)
 	default:
 		return nil, fmt.Errorf("unsupported message type: %s", msg.Type)
 	}
@@ -1596,4 +1640,633 @@ func decodeHexEscape(hex string) string {
 		result = append(result, b)
 	}
 	return string(result)
+}
+
+// ============================================================================
+// MDM (Medical Document Management) Parsing
+// ============================================================================
+
+// TXAData holds extracted TXA segment data.
+type TXAData struct {
+	DocumentType           string
+	DocumentTitle          string
+	Author                 *events.Provider
+	UniqueDocumentNumber   string
+	ParentDocumentNumber   string
+	DocumentStatus         string
+	CompletionStatus       string
+	OriginationDateTime    time.Time
+	TranscriptionDateTime  time.Time
+	EditDateTime           time.Time
+	AuthenticationDateTime time.Time
+}
+
+// parseMDM_Original parses MDM^T01/T02 (original document notification).
+func (p *Parser) parseMDM_Original(msg *Message) (*events.DocumentEvent, error) {
+	return p.parseMDMCommon(msg, events.EventDocumentOriginal)
+}
+
+// parseMDM_StatusChange parses MDM^T03/T04 (document status change).
+func (p *Parser) parseMDM_StatusChange(msg *Message) (*events.DocumentEvent, error) {
+	return p.parseMDMCommon(msg, events.EventDocumentStatusChange)
+}
+
+// parseMDM_Addendum parses MDM^T05/T06 (document addendum).
+func (p *Parser) parseMDM_Addendum(msg *Message) (*events.DocumentEvent, error) {
+	return p.parseMDMCommon(msg, events.EventDocumentAddendum)
+}
+
+// parseMDM_Edit parses MDM^T08/T09 (document edit).
+func (p *Parser) parseMDM_Edit(msg *Message) (*events.DocumentEvent, error) {
+	return p.parseMDMCommon(msg, events.EventDocumentEdit)
+}
+
+// parseMDM_Replacement parses MDM^T10/T11 (document replacement).
+func (p *Parser) parseMDM_Replacement(msg *Message) (*events.DocumentEvent, error) {
+	return p.parseMDMCommon(msg, events.EventDocumentReplacement)
+}
+
+// parseMDMCommon contains shared MDM parsing logic.
+func (p *Parser) parseMDMCommon(msg *Message, eventType events.EventType) (*events.DocumentEvent, error) {
+	patient, err := p.extractPatient(msg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract patient: %w", err)
+	}
+
+	txa, err := p.extractTXA(msg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract TXA: %w", err)
+	}
+
+	// Extract document content from OBX if present (T02, T04, T06, T09, T11)
+	content, contentType, encoding := p.extractDocumentContent(msg)
+
+	// Extract encounter if PV1 present
+	encounter, _ := p.extractEncounterTolerant(msg, "PV1")
+
+	meta := events.NewEventMeta(eventType, p.source, events.FormatHL7v2)
+	meta.SourceMessageID = msg.ControlID
+
+	event := &events.DocumentEvent{
+		EventMeta:                meta,
+		Patient:                  &patient,
+		DocumentType:             txa.DocumentType,
+		Title:                    txa.DocumentTitle,
+		Author:                   txa.Author,
+		UniqueDocumentNumber:     txa.UniqueDocumentNumber,
+		ParentDocumentNumber:     txa.ParentDocumentNumber,
+		DocumentStatus:           txa.CompletionStatus, // Use human-readable status
+		DocumentCompletionStatus: txa.DocumentStatus,   // Store raw code for reference
+		OriginationDateTime:      txa.OriginationDateTime,
+		TranscriptionDateTime:    txa.TranscriptionDateTime,
+		EditDateTime:             txa.EditDateTime,
+		AuthenticationDateTime:   txa.AuthenticationDateTime,
+		ContentType:              contentType,
+		Content:                  content,
+		ContentEncoding:          encoding,
+	}
+
+	if encounter.ID != "" {
+		event.Encounter = &encounter
+	}
+
+	return event, nil
+}
+
+// extractTXA extracts data from the TXA (Transcription Document Header) segment.
+func (p *Parser) extractTXA(msg *Message) (*TXAData, error) {
+	txa := p.getSegment(msg, "TXA")
+	if txa == nil {
+		return nil, errors.New("TXA segment not found")
+	}
+
+	data := &TXAData{}
+
+	// TXA-2: Document Type (CE: code^text^coding system)
+	txa2 := p.getField(txa, 2)
+	data.DocumentType = p.getComponent(txa2, 0) // Use code (e.g., "HP", "AD")
+
+	// TXA-4: Activity Date/Time (origination)
+	if v := p.getField(txa, 4); v != "" {
+		data.OriginationDateTime, _ = p.parseHL7DateTime(v)
+	}
+
+	// TXA-5: Primary Activity Provider Code (author)
+	txa5 := p.getField(txa, 5)
+	if txa5 != "" {
+		data.Author = p.extractProviderFromXCN(txa5, msg.Delimiters)
+	}
+
+	// TXA-6: Transcription Date/Time
+	if v := p.getField(txa, 6); v != "" {
+		data.TranscriptionDateTime, _ = p.parseHL7DateTime(v)
+	}
+
+	// TXA-7: Edit Date/Time
+	if v := p.getField(txa, 7); v != "" {
+		data.EditDateTime, _ = p.parseHL7DateTime(v)
+	}
+
+	// TXA-12: Unique Document Number (required)
+	txa12 := p.getField(txa, 12)
+	data.UniqueDocumentNumber = p.getComponent(txa12, 0)
+
+	// TXA-13: Parent Document Number (for addendum/replacement)
+	txa13 := p.getField(txa, 13)
+	data.ParentDocumentNumber = p.getComponent(txa13, 0)
+
+	// TXA-16: Document Title (free text)
+	data.DocumentTitle = UnescapeHL7(p.getField(txa, 16), msg.Delimiters)
+
+	// TXA-17: Document Completion Status
+	// Values: DI=Dictated, DO=Documented, IP=In Progress, AU=Authenticated, LA=Legally Authenticated
+	data.DocumentStatus = p.getField(txa, 17)
+	data.CompletionStatus = p.mapDocumentCompletionStatus(data.DocumentStatus)
+
+	// TXA-22: Authentication Date/Time
+	if v := p.getField(txa, 22); v != "" {
+		data.AuthenticationDateTime, _ = p.parseHL7DateTime(v)
+	}
+
+	return data, nil
+}
+
+// extractDocumentContent extracts document content from OBX segments.
+// Returns content, contentType, and encoding ("base64" or "text").
+func (p *Parser) extractDocumentContent(msg *Message) (string, string, string) {
+	obxSegments := p.getAllSegments(msg, "OBX")
+	if len(obxSegments) == 0 {
+		return "", "", ""
+	}
+
+	var contents []string
+	var contentType string
+	var encoding string
+
+	for _, obx := range obxSegments {
+		// OBX-2: Value Type (ED=Encapsulated Data, ST=String, TX=Text, FT=Formatted Text)
+		valueType := p.getField(obx, 2)
+
+		// OBX-5: Observation Value
+		value := p.getField(obx, 5)
+
+		switch valueType {
+		case "ED":
+			// Encapsulated Data: source^type^encoding^data
+			// e.g., "Application^PDF^Base64^<base64 data>"
+			parts := strings.Split(value, "^")
+			if len(parts) >= 4 {
+				contentType = parts[1] // e.g., "PDF", "RTF", "HTML"
+				encoding = "base64"
+				contents = append(contents, parts[3]) // Base64 encoded data
+			}
+		case "ST", "TX", "FT":
+			// Text data - may contain ~ for line breaks
+			contentType = valueType
+			encoding = "text"
+			// Replace ~ with newlines for text content
+			textContent := strings.ReplaceAll(value, "~", "\n")
+			contents = append(contents, UnescapeHL7(textContent, msg.Delimiters))
+		}
+	}
+
+	return strings.Join(contents, "\n"), contentType, encoding
+}
+
+// mapDocumentCompletionStatus maps TXA-17 codes to human-readable status.
+func (p *Parser) mapDocumentCompletionStatus(code string) string {
+	switch code {
+	case "DI":
+		return "dictated"
+	case "DO":
+		return "documented"
+	case "IP":
+		return "in_progress"
+	case "AU":
+		return "authenticated"
+	case "LA":
+		return "legally_authenticated"
+	case "PA":
+		return "pre_authenticated"
+	default:
+		return code
+	}
+}
+
+// extractProviderFromXCN extracts provider data from an XCN field.
+func (p *Parser) extractProviderFromXCN(field string, delim Delimiters) *events.Provider {
+	if field == "" {
+		return nil
+	}
+
+	id := p.getComponent(field, 0)
+	family := p.getComponentUnescaped(field, 1, delim)
+	given := p.getComponentUnescaped(field, 2, delim)
+
+	if id == "" && family == "" && given == "" {
+		return nil
+	}
+
+	return &events.Provider{
+		ID:         id,
+		FamilyName: family,
+		GivenName:  given,
+		MiddleName: p.getComponentUnescaped(field, 3, delim),
+		Suffix:     p.getComponentUnescaped(field, 4, delim),
+		Prefix:     p.getComponentUnescaped(field, 5, delim),
+		Degree:     p.getComponentUnescaped(field, 6, delim),
+	}
+}
+
+// ============================================================================
+// DFT (Detail Financial Transaction) Parsing
+// ============================================================================
+
+// parseDFT_P03 parses DFT^P03 and DFT^P11 (detail financial transaction).
+func (p *Parser) parseDFT_P03(msg *Message) (*events.FinancialTransactionEvent, error) {
+	patient, err := p.extractPatient(msg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract patient: %w", err)
+	}
+
+	// Extract all FT1 segments
+	ft1Segments := p.getAllSegments(msg, "FT1")
+	if len(ft1Segments) == 0 {
+		return nil, errors.New("no FT1 segments found in DFT message")
+	}
+
+	var transactions []events.FinancialTransaction
+	var totalAmount float64
+
+	for _, ft1 := range ft1Segments {
+		txn, err := p.extractFinancialTransaction(ft1, msg)
+		if err != nil {
+			p.addWarning("semantic", "FT1_PARSE_ERROR", err.Error(), "FT1")
+			continue
+		}
+		transactions = append(transactions, txn)
+		totalAmount += txn.Amount
+	}
+
+	if len(transactions) == 0 {
+		return nil, errors.New("failed to extract any financial transactions")
+	}
+
+	// Extract diagnoses from DG1 segments
+	diagnoses := p.extractDiagnoses(msg)
+
+	// Extract procedures from PR1 segments
+	procedures := p.extractProcedures(msg)
+
+	// Associate diagnoses and procedures with transactions
+	for i := range transactions {
+		transactions[i].Diagnoses = diagnoses
+		transactions[i].Procedures = procedures
+	}
+
+	// Extract encounter if PV1 present
+	encounter, _ := p.extractEncounterTolerant(msg, "PV1")
+
+	// Extract insurance info from IN1 segments
+	insuranceInfo := p.extractInsuranceInfo(msg)
+
+	// Account number from PID-18
+	pid := p.getSegment(msg, "PID")
+	accountNumber := ""
+	if pid != nil {
+		accountNumber = p.getComponent(p.getField(pid, 18), 0)
+	}
+
+	meta := events.NewEventMeta(events.EventFinancialTransaction, p.source, events.FormatHL7v2)
+	meta.SourceMessageID = msg.ControlID
+
+	event := &events.FinancialTransactionEvent{
+		EventMeta:         meta,
+		Patient:           patient,
+		Transactions:      transactions,
+		TotalChargeAmount: totalAmount,
+		InsuranceInfo:     insuranceInfo,
+		AccountNumber:     accountNumber,
+	}
+
+	if encounter.ID != "" {
+		event.Encounter = &encounter
+	}
+
+	return event, nil
+}
+
+// extractFinancialTransaction extracts data from an FT1 segment.
+func (p *Parser) extractFinancialTransaction(ft1 *Segment, msg *Message) (events.FinancialTransaction, error) {
+	txn := events.FinancialTransaction{}
+
+	// FT1-1: Set ID
+	if v := p.getField(ft1, 1); v != "" {
+		fmt.Sscanf(v, "%d", &txn.SetID)
+	}
+
+	// FT1-2: Transaction ID
+	txn.TransactionID = p.getField(ft1, 2)
+
+	// FT1-3: Transaction Batch ID
+	txn.BatchID = p.getField(ft1, 3)
+
+	// FT1-4: Transaction Date
+	if v := p.getField(ft1, 4); v != "" {
+		txn.TransactionDate, _ = p.parseHL7DateTime(v)
+	}
+
+	// FT1-5: Transaction Posting Date
+	if v := p.getField(ft1, 5); v != "" {
+		txn.PostingDate, _ = p.parseHL7DateTime(v)
+	}
+
+	// FT1-6: Transaction Type (CG=Charge, CR=Credit, PA=Payment, etc.)
+	txn.TransactionType = p.getField(ft1, 6)
+
+	// FT1-7: Transaction Code (CE: code^text^system)
+	ft1_7 := p.getField(ft1, 7)
+	txn.TransactionCode = events.CodeableConcept{
+		Coding: []events.Coding{{
+			Code:    p.getComponent(ft1_7, 0),
+			Display: p.getComponentUnescaped(ft1_7, 1, msg.Delimiters),
+			System:  p.getComponent(ft1_7, 2),
+		}},
+		Text: p.getComponentUnescaped(ft1_7, 1, msg.Delimiters),
+	}
+
+	// FT1-10: Transaction Quantity
+	if v := p.getField(ft1, 10); v != "" {
+		fmt.Sscanf(v, "%f", &txn.Quantity)
+	}
+
+	// FT1-11: Transaction Amount - Extended
+	if v := p.getField(ft1, 11); v != "" {
+		fmt.Sscanf(v, "%f", &txn.Amount)
+	}
+
+	// FT1-12: Transaction Amount - Unit
+	if v := p.getField(ft1, 12); v != "" {
+		fmt.Sscanf(v, "%f", &txn.UnitAmount)
+	}
+
+	// FT1-16: Patient Location (PL: unit^room^bed^facility)
+	ft1_16 := p.getField(ft1, 16)
+	if ft1_16 != "" {
+		txn.PatientLocation = &events.Location{
+			Unit:     p.getComponent(ft1_16, 0),
+			Room:     p.getComponent(ft1_16, 1),
+			Bed:      p.getComponent(ft1_16, 2),
+			Facility: p.getComponent(ft1_16, 3),
+		}
+	}
+
+	// FT1-19: Diagnosis Code - FT1 (CE: code^text^system)
+	ft1_19 := p.getField(ft1, 19)
+	if ft1_19 != "" {
+		txn.DiagnosisCodes = append(txn.DiagnosisCodes, events.CodeableConcept{
+			Coding: []events.Coding{{
+				Code:    p.getComponent(ft1_19, 0),
+				Display: p.getComponentUnescaped(ft1_19, 1, msg.Delimiters),
+				System:  p.getComponent(ft1_19, 2),
+			}},
+			Text: p.getComponentUnescaped(ft1_19, 1, msg.Delimiters),
+		})
+	}
+
+	// FT1-20: Performed By Code (XCN)
+	if v := p.getField(ft1, 20); v != "" {
+		txn.PerformedBy = p.extractProviderFromXCN(v, msg.Delimiters)
+	}
+
+	// FT1-21: Ordered By Code (XCN)
+	if v := p.getField(ft1, 21); v != "" {
+		txn.OrderedBy = p.extractProviderFromXCN(v, msg.Delimiters)
+	}
+
+	// FT1-23: Filler Order Number
+	txn.FillerOrderNumber = p.getComponent(p.getField(ft1, 23), 0)
+
+	// FT1-24: Entered By Code (XCN)
+	if v := p.getField(ft1, 24); v != "" {
+		txn.EnteredBy = p.extractProviderFromXCN(v, msg.Delimiters)
+	}
+
+	// FT1-25: Procedure Code (CNE: code^text^system)
+	ft1_25 := p.getField(ft1, 25)
+	if ft1_25 != "" {
+		txn.ProcedureCode = &events.CodeableConcept{
+			Coding: []events.Coding{{
+				Code:    p.getComponent(ft1_25, 0),
+				Display: p.getComponentUnescaped(ft1_25, 1, msg.Delimiters),
+				System:  p.getComponent(ft1_25, 2),
+			}},
+			Text: p.getComponentUnescaped(ft1_25, 1, msg.Delimiters),
+		}
+	}
+
+	// FT1-26: Procedure Code Modifier (repeating field)
+	ft1_26 := p.getField(ft1, 26)
+	if ft1_26 != "" {
+		modifiers := strings.Split(ft1_26, "~")
+		for _, mod := range modifiers {
+			if code := p.getComponent(mod, 0); code != "" {
+				txn.ProcedureModifiers = append(txn.ProcedureModifiers, code)
+			}
+		}
+	}
+
+	return txn, nil
+}
+
+// extractDiagnoses extracts all DG1 segments from the message.
+func (p *Parser) extractDiagnoses(msg *Message) []events.Diagnosis {
+	dg1Segments := p.getAllSegments(msg, "DG1")
+	var diagnoses []events.Diagnosis
+
+	for _, dg1 := range dg1Segments {
+		dx := events.Diagnosis{}
+
+		// DG1-1: Set ID
+		if v := p.getField(dg1, 1); v != "" {
+			fmt.Sscanf(v, "%d", &dx.SetID)
+		}
+
+		// DG1-2: Diagnosis Coding Method (I9=ICD-9, I10=ICD-10)
+		dx.CodingMethod = p.getField(dg1, 2)
+
+		// DG1-3: Diagnosis Code (CE: code^text^system)
+		dg1_3 := p.getField(dg1, 3)
+		dx.Code = events.CodeableConcept{
+			Coding: []events.Coding{{
+				Code:    p.getComponent(dg1_3, 0),
+				Display: p.getComponentUnescaped(dg1_3, 1, msg.Delimiters),
+				System:  p.mapDiagnosisCodingSystem(dx.CodingMethod),
+			}},
+			Text: p.getComponentUnescaped(dg1_3, 1, msg.Delimiters),
+		}
+
+		// DG1-4: Diagnosis Description
+		dx.Description = UnescapeHL7(p.getField(dg1, 4), msg.Delimiters)
+
+		// DG1-5: Diagnosis Date/Time
+		if v := p.getField(dg1, 5); v != "" {
+			dx.DiagnosisDate, _ = p.parseHL7DateTime(v)
+		}
+
+		// DG1-6: Diagnosis Type (A=Admitting, W=Working, F=Final)
+		dx.DiagnosisType = p.getField(dg1, 6)
+
+		// DG1-15: Diagnosis Priority (1=Primary)
+		if v := p.getField(dg1, 15); v == "1" {
+			dx.IsPrimary = true
+		}
+
+		// DG1-16: Diagnosing Clinician (XCN)
+		if v := p.getField(dg1, 16); v != "" {
+			dx.DiagnosingClinician = p.extractProviderFromXCN(v, msg.Delimiters)
+		}
+
+		diagnoses = append(diagnoses, dx)
+	}
+
+	return diagnoses
+}
+
+// extractProcedures extracts all PR1 segments from the message.
+func (p *Parser) extractProcedures(msg *Message) []events.ProcedureInfo {
+	pr1Segments := p.getAllSegments(msg, "PR1")
+	var procedures []events.ProcedureInfo
+
+	for _, pr1 := range pr1Segments {
+		proc := events.ProcedureInfo{}
+
+		// PR1-1: Set ID
+		if v := p.getField(pr1, 1); v != "" {
+			fmt.Sscanf(v, "%d", &proc.SetID)
+		}
+
+		// PR1-2: Procedure Coding Method
+		proc.CodingMethod = p.getField(pr1, 2)
+
+		// PR1-3: Procedure Code (CE: code^text^system)
+		pr1_3 := p.getField(pr1, 3)
+		proc.Code = events.CodeableConcept{
+			Coding: []events.Coding{{
+				Code:    p.getComponent(pr1_3, 0),
+				Display: p.getComponentUnescaped(pr1_3, 1, msg.Delimiters),
+				System:  p.mapProcedureCodingSystem(proc.CodingMethod),
+			}},
+			Text: p.getComponentUnescaped(pr1_3, 1, msg.Delimiters),
+		}
+
+		// PR1-4: Procedure Description
+		proc.Description = UnescapeHL7(p.getField(pr1, 4), msg.Delimiters)
+
+		// PR1-5: Procedure Date/Time
+		if v := p.getField(pr1, 5); v != "" {
+			proc.ProcedureDate, _ = p.parseHL7DateTime(v)
+		}
+
+		// PR1-6: Procedure Functional Type (A=Anesthesia, P=Procedure, I=Incision)
+		proc.FunctionalType = p.getField(pr1, 6)
+
+		// PR1-7: Procedure Minutes
+		if v := p.getField(pr1, 7); v != "" {
+			fmt.Sscanf(v, "%d", &proc.ProcedureMinutes)
+		}
+
+		// PR1-8: Anesthesiologist (XCN)
+		if v := p.getField(pr1, 8); v != "" {
+			proc.Practitioner = p.extractProviderFromXCN(v, msg.Delimiters)
+		}
+
+		// PR1-9: Anesthesia Code
+		proc.AnesthesiaCode = p.getField(pr1, 9)
+
+		procedures = append(procedures, proc)
+	}
+
+	return procedures
+}
+
+// extractInsuranceInfo extracts insurance data from IN1 segments.
+func (p *Parser) extractInsuranceInfo(msg *Message) []events.InsuranceInfo {
+	in1Segments := p.getAllSegments(msg, "IN1")
+	var insuranceList []events.InsuranceInfo
+
+	for _, in1 := range in1Segments {
+		ins := events.InsuranceInfo{}
+
+		// IN1-1: Set ID
+		if v := p.getField(in1, 1); v != "" {
+			fmt.Sscanf(v, "%d", &ins.SetID)
+		}
+		ins.CoordinationOrder = ins.SetID
+
+		// IN1-2: Insurance Plan ID (CE)
+		ins.PlanID = p.getComponent(p.getField(in1, 2), 0)
+
+		// IN1-3: Insurance Company ID (CX)
+		ins.CompanyID = p.getComponent(p.getField(in1, 3), 0)
+
+		// IN1-4: Insurance Company Name (XON)
+		ins.CompanyName = p.getComponentUnescaped(p.getField(in1, 4), 0, msg.Delimiters)
+
+		// IN1-8: Group Number
+		ins.GroupNumber = p.getField(in1, 8)
+
+		// IN1-9: Group Name (XON)
+		ins.GroupName = p.getComponentUnescaped(p.getField(in1, 9), 0, msg.Delimiters)
+
+		// IN1-12: Plan Effective Date
+		if v := p.getField(in1, 12); v != "" {
+			ins.EffectiveDate, _ = p.parseHL7DateTime(v)
+		}
+
+		// IN1-13: Plan Expiration Date
+		if v := p.getField(in1, 13); v != "" {
+			ins.ExpirationDate, _ = p.parseHL7DateTime(v)
+		}
+
+		// IN1-36: Policy Number
+		ins.PolicyNumber = p.getField(in1, 36)
+
+		// IN1-49: Insured's ID Number (CX)
+		ins.SubscriberID = p.getComponent(p.getField(in1, 49), 0)
+
+		insuranceList = append(insuranceList, ins)
+	}
+
+	return insuranceList
+}
+
+// mapDiagnosisCodingSystem maps DG1-2 codes to FHIR code system URIs.
+func (p *Parser) mapDiagnosisCodingSystem(code string) string {
+	switch code {
+	case "I9", "ICD9":
+		return "http://hl7.org/fhir/sid/icd-9-cm"
+	case "I10", "ICD10":
+		return "http://hl7.org/fhir/sid/icd-10-cm"
+	case "SNM", "SNOMED":
+		return "http://snomed.info/sct"
+	default:
+		return code
+	}
+}
+
+// mapProcedureCodingSystem maps PR1-2 codes to FHIR code system URIs.
+func (p *Parser) mapProcedureCodingSystem(code string) string {
+	switch code {
+	case "C4", "CPT4", "CPT":
+		return "http://www.ama-assn.org/go/cpt"
+	case "I9", "ICD9":
+		return "http://hl7.org/fhir/sid/icd-9-cm"
+	case "I10", "ICD10PCS":
+		return "http://hl7.org/fhir/sid/icd-10-pcs"
+	case "HCPCS":
+		return "https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets"
+	default:
+		return code
+	}
 }
