@@ -325,7 +325,7 @@
             placeholder="e.g., http://loinc.org"
           />
           <div class="quick-systems">
-            {#each commonSystems as sys}
+            {#each commonSystems as sys (sys.id)}
               <button
                 type="button"
                 class="system-chip"

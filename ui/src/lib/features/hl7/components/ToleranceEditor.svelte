@@ -109,7 +109,7 @@
           value={hl7v2?.defaultVersion || '2.5.1'}
           on:change={(e) => updateDefaultVersion((e.target as HTMLSelectElement).value)}
         >
-          {#each hl7Versions as version}
+          {#each hl7Versions as version (version)}
             <option value={version}>{version}</option>
           {/each}
         </select>
@@ -121,7 +121,7 @@
           value={hl7v2?.timezone || 'UTC'}
           on:change={(e) => updateTimezone((e.target as HTMLSelectElement).value)}
         >
-          {#each timezones as tz}
+          {#each timezones as tz (tz)}
             <option value={tz}>{tz}</option>
           {/each}
         </select>
@@ -135,7 +135,7 @@
       Select segments that can be missing from messages without generating warnings.
     </p>
     <div class="segment-grid">
-      {#each commonSegments as segment}
+      {#each commonSegments as segment (segment)}
         <label class="segment-toggle">
           <input
             type="checkbox"
@@ -150,7 +150,7 @@
     {#if tolerance.missingSegments.length > 0}
       <div class="selected-segments">
         <span class="selected-label">Selected:</span>
-        {#each tolerance.missingSegments as segment}
+        {#each tolerance.missingSegments as segment (segment)}
           <button class="segment-chip" on:click={() => toggleMissingSegment(segment)}>
             {segment} <span class="remove">x</span>
           </button>

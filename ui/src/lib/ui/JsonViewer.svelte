@@ -65,6 +65,7 @@
       {/if}
     </button>
   </div>
+  <!-- eslint-disable-next-line svelte/no-at-html-tags -- Content is sanitized via HTML entity escaping in highlightJson -->
   <pre class="json-content" style="max-height: {maxHeight};">{@html highlighted}</pre>
 </div>
 

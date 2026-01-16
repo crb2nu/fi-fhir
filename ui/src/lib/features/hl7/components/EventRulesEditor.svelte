@@ -244,7 +244,7 @@
               placeholder="e.g., ADT^A01"
             />
             <div class="suggestions">
-              {#each commonMessageTypes.filter( (t) => t.toLowerCase().includes(ruleMessageType.toLowerCase()) && t !== ruleMessageType ) as suggestion}
+              {#each commonMessageTypes.filter( (t) => t.toLowerCase().includes(ruleMessageType.toLowerCase()) && t !== ruleMessageType ) as suggestion (suggestion)}
                 <button
                   class="suggestion"
                   on:click={() => (ruleMessageType = suggestion)}
@@ -278,7 +278,7 @@
               placeholder="e.g., inpatient_admit"
             />
             <div class="suggestions">
-              {#each commonEventTypes.filter( (t) => t.toLowerCase().includes(ruleEventType.toLowerCase()) && t !== ruleEventType ) as suggestion}
+              {#each commonEventTypes.filter( (t) => t.toLowerCase().includes(ruleEventType.toLowerCase()) && t !== ruleEventType ) as suggestion (suggestion)}
                 <button
                   class="suggestion"
                   on:click={() => (ruleEventType = suggestion)}

@@ -1,4 +1,4 @@
-import type { UpdateProfileInput, SourceProfile } from '$lib/gen/graphql';
+import type { UpdateProfileInput } from '$lib/gen/graphql';
 
 // Legacy type for compatibility
 export type HL7ProfileDraft = {
