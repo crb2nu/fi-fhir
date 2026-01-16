@@ -198,6 +198,7 @@
           }}
           on:remove={(e) => samplesStore.remove(e.detail.id)}
           on:clear={() => samplesStore.clear()}
+          on:loadExamples={() => samplesStore.loadDemoSamples()}
         />
       {:else if activeTab === 'warnings'}
         <WarningList groups={$warningsByPhase} {selectedPath} on:select={onSelectWarning} />

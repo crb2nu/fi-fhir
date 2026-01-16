@@ -1,0 +1,90 @@
+import type { NewHL7Sample } from './types';
+
+/**
+ * Demo HL7v2 samples for showcasing the parsing and preview functionality.
+ * These are realistic but synthetic messages for demonstration purposes.
+ */
+export const demoSamples: NewHL7Sample[] = [
+  {
+    name: 'ADT A01 - ICU Admission',
+    source: 'demo_epic_adt',
+    raw: `MSH|^~\\&|EPIC|HOSPITAL|FHIRENGINE|FLEXINFER|20260115143022||ADT^A01^ADT_A01|MSG00001|P|2.5.1|||AL|NE||UNICODE UTF-8
+EVN|A01|20260115143022||ADM^ADMISSION
+PID|1||MRN123456^^^HOSPITAL^MR~999-88-7777^^^SSA^SS||DOE^JANE^MARIE^^MS||19850315|F||2106-3^White^CDCREC|123 MAIN ST^^ANYTOWN^CA^90210^USA||^PRN^PH^^^555^5551234|^WPN^PH^^^555^5559876|ENG|M|CHR|ACCT789012|||N^Non-Hispanic^HL70189||||||||N
+PD1|||ANYTOWN FAMILY MEDICINE^^12345|NPI9876543^SMITH^ROBERT^J^^^MD
+NK1|1|DOE^JOHN^||123 MAIN ST^^ANYTOWN^CA^90210^USA|^PRN^PH^^^555^5551234||EC^Emergency Contact
+PV1|1|I|ICU^0101^01^HOSPITAL^^^^ICU||||ATT1234^JONES^SARAH^A^^^MD^ATTENDING|REF5678^WILLIAMS^MARY^B^^^MD^REFERRING||MED|||7|||ATT1234^JONES^SARAH^A^^^MD^ATTENDING|IP||AI|||||||||||||||||||HOSPITAL||A|||20260115143022
+PV2|||^Acute respiratory failure||||||20260115|5||||||||||||N|N
+DG1|1||J96.00^Acute respiratory failure, unspecified^ICD10CM|||A^Admitting
+DG1|2||I50.9^Heart failure, unspecified^ICD10CM|||W^Working
+IN1|1|BCBS001|BLUE CROSS BLUE SHIELD|PO BOX 12345^^CHICAGO^IL^60601|||||GRP12345||20250101|20261231|||DOE^JOHN^|18^Self|19800501|123 MAIN ST^^ANYTOWN^CA^90210||1|||||||||||||SUBID123456
+GT1|1||DOE^JANE^MARIE||123 MAIN ST^^ANYTOWN^CA^90210|^PRN^PH^^^555^5551234|19850315|F||SEL^Self`
+  },
+  {
+    name: 'ORU R01 - Lab Results (CBC)',
+    source: 'demo_labcorp',
+    raw: `MSH|^~\\&|LABCORP|LABCORP|FHIRENGINE|FLEXINFER|20260115160532||ORU^R01^ORU_R01|LAB20260115001|P|2.5.1|||AL|NE||UNICODE UTF-8
+PID|1||MRN654321^^^HOSPITAL^MR||SMITH^ROBERT^JAMES||19720218|M|||456 OAK AVE^^SPRINGFIELD^IL^62701^USA||^PRN^PH^^^217^5551111
+ORC|RE|ORD123456|FIL789012||CM||||20260115080000|||NPI1234567^JOHNSON^WILLIAM^T^^^MD
+OBR|1|ORD123456|FIL789012|CBC^Complete Blood Count^L|||20260115070000|||||||||NPI1234567^JOHNSON^WILLIAM^T^^^MD||||||20260115160000|||F
+OBX|1|NM|WBC^White Blood Cell Count^L||7.2|10*3/uL|4.5-11.0|N|||F|||20260115155500||AUTO^Automated Analyzer
+OBX|2|NM|RBC^Red Blood Cell Count^L||4.85|10*6/uL|4.50-5.90|N|||F|||20260115155500||AUTO^Automated Analyzer
+OBX|3|NM|HGB^Hemoglobin^L||14.2|g/dL|13.5-17.5|N|||F|||20260115155500||AUTO^Automated Analyzer
+OBX|4|NM|HCT^Hematocrit^L||42.1|%|38.8-50.0|N|||F|||20260115155500||AUTO^Automated Analyzer
+OBX|5|NM|PLT^Platelet Count^L||198|10*3/uL|150-400|N|||F|||20260115155500||AUTO^Automated Analyzer
+OBX|6|NM|MCV^Mean Corpuscular Volume^L||86.8|fL|80.0-100.0|N|||F|||20260115155500||AUTO^Automated Analyzer
+NTE|1||Results reviewed and verified by Dr. Johnson`
+  },
+  {
+    name: 'SIU S12 - Appointment Scheduled',
+    source: 'demo_nextgen',
+    raw: `MSH|^~\\&|NEXTGEN|CLINIC|FHIRENGINE|FLEXINFER|20260116091500||SIU^S12^SIU_S12|SCH20260116001|P|2.5.1|||AL|NE
+SCH|APT987654||||||CHECKUP^Annual Physical^L|30|MIN|^^30^20260125090000^20260125093000|||||NPI3456789^CHEN^LISA^M^^^MD|^WPN^PH^^^555^5552222|200 MEDICAL CENTER DR^^ANYTOWN^CA^90210|^PRN^PH^^^555^5553333||NPI3456789^CHEN^LISA^M^^^MD|N
+PID|1||MRN111222^^^CLINIC^MR||MARTINEZ^CARLOS^ANTONIO||19650720|M|||789 PINE ST^^ANYTOWN^CA^90210^USA||^PRN^PH^^^555^5554444
+PV1|1|O|CLINIC^EXAM1^01||||NPI3456789^CHEN^LISA^M^^^MD|||||||||||||||||||||||||||||||V
+RGS|1|A
+AIS|1|A|CHECKUP^Annual Physical^L|20260125090000|0|MIN|30|MIN
+AIP|1|A|NPI3456789^CHEN^LISA^M^^^MD|PROV|20260125090000`
+  },
+  {
+    name: 'ADT A03 - Discharge (with warnings)',
+    source: 'demo_cerner',
+    raw: `MSH|^~\\&|CERNER|HOSPITAL|FHIRENGINE|FLEXINFER|20260115180000||ADT^A03^ADT_A03|DC20260115001|P|2.3|||AL|NE
+EVN|A03|20260115180000
+PID|1||MRN999888^^^HOSPITAL^MR||WILSON^AMANDA^||19900410|F|||321 ELM ST^^RIVERSIDE^CA^92501
+PV1|1|I|MED^0205^02||||ATT9999^BROWN^MICHAEL^^^MD||||||||||||IP||||||||||||||||||||||A|||20260110120000|20260115180000
+DG1|1||I10^Essential hypertension^ICD10|||F
+DG1|2||E11.9^Type 2 diabetes mellitus without complications^ICD10|||F
+PR1|1||99213^Office visit, established patient^CPT|20260115|ATT9999^BROWN^MICHAEL^^^MD
+ZPM|1|HOME|20260116|Dr. Brown to see patient in 2 weeks||DISCHARGE INSTRUCTIONS PROVIDED`
+  },
+  {
+    name: 'ORM O01 - Lab Order',
+    source: 'demo_meditech',
+    raw: `MSH|^~\\&|MEDITECH|HOSPITAL|LABCORP|LAB|20260116102030||ORM^O01^ORM_O01|ORD20260116001|P|2.5.1|||AL|NE
+PID|1||MRN445566^^^HOSPITAL^MR||JOHNSON^PATRICIA^ANN||19781122|F|||555 CEDAR LN^^LAKEWOOD^CO^80228^USA||^PRN^PH^^^303^5556666
+PV1|1|O|OUTPT^OP1^01||||NPI2468135^PATEL^PRIYA^S^^^MD|||||||||||||||||||||||||||||||V
+ORC|NW|ORD20260116001||||||1|||NPI2468135^PATEL^PRIYA^S^^^MD|OUTPT^OP1^01|^PRN^PH^^^303^5557777|||20260116102030
+OBR|1|ORD20260116001||LIPID^Lipid Panel^L|||20260116||||||FASTING||NPI2468135^PATEL^PRIYA^S^^^MD||||||||LAB
+OBR|2|ORD20260116002||HBA1C^Hemoglobin A1c^L|||20260116||||||NOT FASTING||NPI2468135^PATEL^PRIYA^S^^^MD||||||||LAB
+DG1|1||E11.65^Type 2 diabetes with hyperglycemia^ICD10|||W
+NTE|1|L|Patient fasting for lipid panel since midnight. Last meal was at 8pm.`
+  },
+  {
+    name: 'MDM T02 - Document with Content',
+    source: 'demo_athena',
+    raw: `MSH|^~\\&|ATHENA|CLINIC|FHIRENGINE|FLEXINFER|20260116140000||MDM^T02^MDM_T02|DOC20260116001|P|2.5.1|||AL|NE
+EVN|T02|20260116140000
+PID|1||MRN778899^^^CLINIC^MR||LEE^JENNIFER^S||19920303|F|||888 MAPLE DR^^BOULDER^CO^80301^USA||^PRN^PH^^^720^5558888
+PV1|1|O|CLINIC^EXAM2^01||||NPI7654321^GARCIA^MARIA^L^^^MD
+TXA|1|HP^History and Physical^HL70270|TX|20260116135500|NPI7654321^GARCIA^MARIA^L^^^MD||20260116140000||||DOC123456789||||||AU^Authenticated^HL70273
+OBX|1|TX|HP^History and Physical^L||Chief Complaint: Patient presents with persistent headaches for 2 weeks.~History: Headaches described as bilateral, pressure-like, 6/10 severity. No nausea, vomiting, or visual changes.~Assessment: Tension-type headache~Plan: Start ibuprofen 400mg TID PRN. Follow up in 2 weeks if not improved.||||||F`
+  }
+];
+
+/**
+ * Get the count of demo samples available
+ */
+export function getDemoSampleCount(): number {
+  return demoSamples.length;
+}

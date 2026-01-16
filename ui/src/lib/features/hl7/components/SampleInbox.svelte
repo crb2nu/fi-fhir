@@ -15,6 +15,7 @@
     remove: { id: string };
     saveCurrent: { name?: string };
     clear: Record<string, never>;
+    loadExamples: Record<string, never>;
   }>();
 
   let name = '';
@@ -38,6 +39,9 @@
     </label>
     <div class="save-actions">
       <Button on:click={save} disabled={disabled || !currentRaw.trim()}>Save current</Button>
+      <Button variant="secondary" on:click={() => dispatch('loadExamples', {})} disabled={disabled}>
+        Load Examples
+      </Button>
       <Button variant="secondary" on:click={() => dispatch('clear', {})} disabled={disabled || samples.length === 0}>
         Clear
       </Button>
@@ -45,7 +49,12 @@
   </div>
 
   {#if samples.length === 0}
-    <div class="empty">No saved samples yet.</div>
+    <div class="empty-state">
+      <p class="empty">No saved samples yet.</p>
+      <Button variant="secondary" on:click={() => dispatch('loadExamples', {})} disabled={disabled}>
+        Load Example Messages
+      </Button>
+    </div>
   {:else}
     <ul class="list">
       {#each samples as s (s.id)}
@@ -133,8 +142,20 @@
     flex-wrap: wrap;
   }
 
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px dashed rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.02);
+  }
+
   .empty {
     color: rgba(229, 231, 235, 0.7);
+    margin: 0;
   }
 
   .list {

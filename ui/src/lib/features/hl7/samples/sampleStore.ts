@@ -2,6 +2,7 @@ import { browser } from '$app/environment';
 import { derived, writable } from 'svelte/store';
 import type { HL7Sample, NewHL7Sample } from './types';
 import { parseHL7Message } from '$lib/domain/hl7v2';
+import { demoSamples } from './demoSamples';
 
 type State = {
   samples: HL7Sample[];
@@ -106,6 +107,41 @@ export function createHL7SampleStore() {
 
     clear(): void {
       state.set({ samples: [], activeId: null });
+    },
+
+    loadDemoSamples(): void {
+      state.update((s) => {
+        // Add demo samples, avoiding duplicates by name
+        const existingNames = new Set(s.samples.map((x) => x.name));
+        const newSamples: HL7Sample[] = [];
+        for (const demo of demoSamples) {
+          if (!existingNames.has(demo.name ?? 'Untitled sample')) {
+            newSamples.push({
+              id: makeId(),
+              name: demo.name?.trim() || 'Demo sample',
+              source: demo.source.trim() || 'demo',
+              raw: demo.raw,
+              createdAt: nowIso(),
+              ...summarize(demo.raw)
+            });
+          }
+        }
+        const samples = [...newSamples, ...s.samples];
+        return {
+          ...s,
+          samples,
+          activeId: newSamples[0]?.id ?? s.activeId
+        };
+      });
+    },
+
+    hasDemoSamples(): boolean {
+      let has = false;
+      state.subscribe((s) => {
+        const demoNames = new Set(demoSamples.map((d) => d.name));
+        has = s.samples.some((x) => demoNames.has(x.name));
+      })();
+      return has;
     }
   };
 }
