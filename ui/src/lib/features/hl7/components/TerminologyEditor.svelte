@@ -1,6 +1,7 @@
 <script lang="ts">
   import { profileStore, selectedProfile } from '$lib/features/hl7/profile/profileStore.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import ConfirmModal from '$lib/ui/ConfirmModal.svelte';
 
   $: terminology = $selectedProfile?.terminology;
   $: mappings = terminology?.mappings || [];
@@ -8,6 +9,8 @@
   // Modal states
   let showMappingModal = false;
   let showEntryModal = false;
+  let showDeleteMappingConfirm = false;
+  let deletingMappingIndex: number | null = null;
   let editingMappingIndex: number | null = null;
   let editingEntryIndex: number | null = null;
 
@@ -81,10 +84,15 @@
     showMappingModal = false;
   }
 
-  function deleteMapping(index: number) {
-    if (!confirm('Delete this mapping table and all its entries?')) return;
+  function confirmDeleteMapping(index: number) {
+    deletingMappingIndex = index;
+    showDeleteMappingConfirm = true;
+  }
 
-    const newMappings = mappings.filter((_, i) => i !== index);
+  function handleDeleteMappingConfirm() {
+    if (deletingMappingIndex === null) return;
+
+    const newMappings = mappings.filter((_, i) => i !== deletingMappingIndex);
     profileStore.updateLocal({
       terminology: {
         mappings: newMappings.map((m) => ({
@@ -99,6 +107,7 @@
         }))
       }
     });
+    deletingMappingIndex = null;
   }
 
   // Selected mapping for editing entries
@@ -229,7 +238,7 @@
           <div class="mapping-actions">
             <Button variant="secondary" on:click={() => openEntryModal(idx)}>+ Add Entry</Button>
             <button class="action-btn" on:click={() => openMappingModal(idx)}>Edit</button>
-            <button class="action-btn danger" on:click={() => deleteMapping(idx)}>Delete</button>
+            <button class="action-btn danger" on:click={() => confirmDeleteMapping(idx)}>Delete</button>
           </div>
 
           {#if mapping.entries.length > 0}
@@ -377,6 +386,16 @@
     </div>
   </div>
 {/if}
+
+<!-- Delete Mapping Confirmation Modal -->
+<ConfirmModal
+  bind:open={showDeleteMappingConfirm}
+  title="Delete Mapping Table?"
+  message="Delete this mapping table and all its entries? This cannot be undone."
+  confirmText="Delete"
+  variant="danger"
+  on:confirm={handleDeleteMappingConfirm}
+/>
 
 <style>
   .editor {

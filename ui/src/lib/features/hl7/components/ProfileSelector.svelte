@@ -1,5 +1,6 @@
 <script lang="ts">
   import Button from '$lib/ui/Button.svelte';
+  import ConfirmModal from '$lib/ui/ConfirmModal.svelte';
   import {
     profileStore,
     profileList,
@@ -17,6 +18,8 @@
   let showNewModal = false;
   let showDeleteConfirm = false;
   let showDuplicateModal = false;
+  let showDiscardConfirm = false;
+  let pendingProfileId: string | null = null;
   let newProfileId = '';
   let newProfileName = '';
   let duplicateId = '';
@@ -33,15 +36,24 @@
     const value = target.value;
 
     if ($isDirty) {
-      if (!confirm('You have unsaved changes. Discard them?')) {
-        // Reset the select to the current value
-        target.value = $selectedProfile?.id || '';
-        return;
-      }
+      // Store the pending selection and show confirm modal
+      pendingProfileId = value || null;
+      // Reset the select to the current value while modal is shown
+      target.value = $selectedProfile?.id || '';
+      showDiscardConfirm = true;
+      return;
     }
 
     await profileStore.selectProfile(value || null);
     onProfileChange?.(value || null);
+  }
+
+  // Handle confirmed discard of changes
+  async function handleDiscardConfirm() {
+    showDiscardConfirm = false;
+    await profileStore.selectProfile(pendingProfileId);
+    onProfileChange?.(pendingProfileId);
+    pendingProfileId = null;
   }
 
   // Create new profile
@@ -264,6 +276,16 @@
     </div>
   </div>
 {/if}
+
+<!-- Discard Changes Confirmation Modal -->
+<ConfirmModal
+  bind:open={showDiscardConfirm}
+  title="Discard Changes?"
+  message="You have unsaved changes. Discard them and switch profiles?"
+  confirmText="Discard"
+  variant="danger"
+  on:confirm={handleDiscardConfirm}
+/>
 
 <style>
   .selector-row {
