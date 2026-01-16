@@ -3,6 +3,7 @@ stages:
   - test
   - security
   - build
+  - deploy
   - release
 
 variables:
@@ -340,6 +341,82 @@ build:docker:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_COMMIT_TAG
 
+build:docker-ui:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  variables:
+    DOCKER_HOST: tcp://localhost:2375
+    DOCKER_TLS_CERTDIR: ""
+  script:
+    - |
+      IMAGE_BASE="${CI_REGISTRY_IMAGE:-fi-fhir}-ui"
+      if [ -n "${CI_COMMIT_TAG}" ]; then
+        IMAGE_TAG="${IMAGE_BASE}:${CI_COMMIT_TAG}"
+      else
+        IMAGE_TAG="${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}"
+      fi
+    - docker build -t "${IMAGE_TAG}" ./ui
+    - docker save "${IMAGE_TAG}" > docker-ui-image.tar
+  artifacts:
+    paths:
+      - docker-ui-image.tar
+    expire_in: 1 day
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+    - changes:
+        - ui/**/*
+
+# =============================================================================
+# Deploy Stage (continuous deployment on main branch)
+# =============================================================================
+
+deploy:docker:
+  stage: deploy
+  image: docker:24
+  services:
+    - docker:24-dind
+  variables:
+    DOCKER_HOST: tcp://localhost:2375
+    DOCKER_TLS_CERTDIR: ""
+  needs:
+    - build:docker
+  before_script:
+    - docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+  script:
+    - docker load < docker-image.tar
+    - |
+      IMAGE_BASE="${CI_REGISTRY_IMAGE:-fi-fhir}"
+      docker tag "${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}" "${IMAGE_BASE}:main"
+      docker push "${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}"
+      docker push "${IMAGE_BASE}:main"
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+deploy:docker-ui:
+  stage: deploy
+  image: docker:24
+  services:
+    - docker:24-dind
+  variables:
+    DOCKER_HOST: tcp://localhost:2375
+    DOCKER_TLS_CERTDIR: ""
+  needs:
+    - build:docker-ui
+  before_script:
+    - docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+  script:
+    - docker load < docker-ui-image.tar
+    - |
+      IMAGE_BASE="${CI_REGISTRY_IMAGE:-fi-fhir}-ui"
+      docker tag "${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}" "${IMAGE_BASE}:main"
+      docker push "${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}"
+      docker push "${IMAGE_BASE}:main"
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
 # =============================================================================
 # Release Stage
 # =============================================================================
@@ -413,6 +490,41 @@ release:docker:
         -t "${IMAGE_BASE}:${MAJOR}" \
         -t "${IMAGE_BASE}:latest" \
         .
+
+      # Push all tags
+      docker push "${IMAGE_BASE}:${CI_COMMIT_TAG}"
+      docker push "${IMAGE_BASE}:${VERSION}"
+      docker push "${IMAGE_BASE}:${MINOR}"
+      docker push "${IMAGE_BASE}:${MAJOR}"
+      docker push "${IMAGE_BASE}:latest"
+  rules:
+    - if: $CI_COMMIT_TAG
+
+release:docker-ui:
+  stage: release
+  image: docker:24
+  services:
+    - docker:24-dind
+  variables:
+    DOCKER_HOST: tcp://localhost:2375
+    DOCKER_TLS_CERTDIR: ""
+  before_script:
+    - docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+  script:
+    - |
+      IMAGE_BASE="${CI_REGISTRY_IMAGE:-fi-fhir}-ui"
+      VERSION="${CI_COMMIT_TAG#v}"
+      MAJOR="${VERSION%%.*}"
+      MINOR="${VERSION%.*}"
+
+      # Build UI image
+      docker build \
+        -t "${IMAGE_BASE}:${CI_COMMIT_TAG}" \
+        -t "${IMAGE_BASE}:${VERSION}" \
+        -t "${IMAGE_BASE}:${MINOR}" \
+        -t "${IMAGE_BASE}:${MAJOR}" \
+        -t "${IMAGE_BASE}:latest" \
+        ./ui
 
       # Push all tags
       docker push "${IMAGE_BASE}:${CI_COMMIT_TAG}"
