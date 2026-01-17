@@ -62,6 +62,11 @@ type Resolver struct {
 	StartTime time.Time
 }
 
+// GetProfileStore exposes the profile store to non-GraphQL HTTP handlers in the graphql server.
+func (r *Resolver) GetProfileStore() store.ProfileStore {
+	return r.ProfileStore
+}
+
 // NewResolver creates a new resolver with all dependencies.
 func NewResolver(opts ...ResolverOption) *Resolver {
 	r := &Resolver{

@@ -129,6 +129,9 @@ func (s *Server) Start() error {
 	// WebSocket endpoint (same handler)
 	mux.Handle(s.config.WebSocketPath, s.handler)
 
+	// Profile YAML endpoints (best-effort; requires resolver to expose ProfileStore)
+	registerProfileYAMLEndpoints(mux, s.resolver, s.config.AllowedOrigins)
+
 	// Playground (if enabled)
 	if s.config.PlaygroundEnabled {
 		mux.Handle(s.config.PlaygroundPath, playground.Handler("fi-fhir GraphQL", s.config.Path))
