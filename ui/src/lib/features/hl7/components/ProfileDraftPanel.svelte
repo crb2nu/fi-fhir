@@ -7,8 +7,9 @@
   import EventRulesEditor from './EventRulesEditor.svelte';
   import IdentifierEditor from './IdentifierEditor.svelte';
   import TerminologyEditor from './TerminologyEditor.svelte';
-  import { selectedProfile, profileError, isDirty } from '$lib/features/hl7/profile/profileStore';
+  import { profileStore, selectedProfile, profileError, isDirty } from '$lib/features/hl7/profile/profileStore';
   import { toSourceProfileYAML } from '$lib/features/hl7/profile/yaml';
+  import { saveProfileYaml } from '$lib/features/hl7/profile/profileYamlApi';
   import type { ProfileFix } from '$lib/features/hl7/profile/types';
 
   // Props
@@ -50,6 +51,24 @@
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  let yamlSaving = false;
+  let yamlError: string | null = null;
+
+  async function saveYamlToApi() {
+    if (!$selectedProfile) return;
+    yamlSaving = true;
+    yamlError = null;
+    try {
+      const yaml = toSourceProfileYAML($selectedProfile);
+      await saveProfileYaml($selectedProfile.id, yaml);
+      await profileStore.selectProfile($selectedProfile.id);
+    } catch (e) {
+      yamlError = e instanceof Error ? e.message : 'Failed to save YAML';
+    } finally {
+      yamlSaving = false;
+    }
   }
 </script>
 
@@ -108,9 +127,18 @@
           {#if $isDirty}
             <span class="unsaved-badge">Unsaved changes</span>
           {/if}
+          <Button variant="secondary" on:click={saveYamlToApi} disabled={yamlSaving}>
+            {yamlSaving ? 'Saving YAML…' : 'Save YAML'}
+          </Button>
           <Button variant="secondary" on:click={exportYaml}>Export YAML</Button>
         </div>
       </div>
+
+      {#if yamlError}
+        <div class="error-banner">
+          {yamlError}
+        </div>
+      {/if}
 
       <div class="tabs-container">
         <Tabs {tabs} active={activeTab} onChange={handleTabChange} />
