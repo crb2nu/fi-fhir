@@ -1,4 +1,5 @@
-//go:build !short
+//go:build live
+// +build live
 
 package main
 
