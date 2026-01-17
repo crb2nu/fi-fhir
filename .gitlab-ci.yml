@@ -191,7 +191,9 @@ test:unit:
       status=$?
 
       if [ -f coverage.out ]; then
-        go tool cover -func=coverage.out || true
+        if [ "$status" -eq 0 ]; then
+          go tool cover -func=coverage.out || true
+        fi
         gocover-cobertura < coverage.out > coverage.xml || true
       fi
 
