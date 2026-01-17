@@ -406,14 +406,27 @@ deploy:docker:
   needs:
     - build:docker
   before_script:
-    - docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+    - |
+      if [ -n "${CI_REGISTRY}" ] && [ -n "${CI_REGISTRY_IMAGE}" ] && [ -n "${CI_REGISTRY_USER}" ] && [ -n "${CI_REGISTRY_PASSWORD}" ]; then
+        docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+      else
+        echo "CI_REGISTRY/CI_REGISTRY_IMAGE not set; skipping GitLab registry login."
+      fi
   script:
     - docker load < docker-image.tar
     - |
       IMAGE_BASE="${CI_REGISTRY_IMAGE:-fi-fhir}"
-      docker tag "${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}" "${IMAGE_BASE}:main"
-      docker push "${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}"
-      docker push "${IMAGE_BASE}:main"
+      published=0
+
+      # Publish to GitLab registry if configured (avoid pushing to Docker Hub accidentally).
+      if [ -n "${CI_REGISTRY}" ] && [ -n "${CI_REGISTRY_IMAGE}" ]; then
+        docker tag "${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}" "${IMAGE_BASE}:main"
+        docker push "${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}"
+        docker push "${IMAGE_BASE}:main"
+        published=1
+      else
+        echo "CI_REGISTRY/CI_REGISTRY_IMAGE not set; skipping GitLab registry publish."
+      fi
     - |
       # Optional: also publish to Harbor for in-cluster pulls (used by platform/gitops).
       if [ -n "${HARBOR_REGISTRY}" ] && [ -n "${HARBOR_USERNAME}" ] && [ -n "${HARBOR_PASSWORD}" ]; then
@@ -428,8 +441,14 @@ deploy:docker:
         docker push "${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}"
         docker push "${HARBOR_IMAGE}:main"
         docker push "${HARBOR_IMAGE}:${HARBOR_SEMVER_TAG}"
+        published=1
       else
         echo "Harbor registry creds not set; skipping Harbor publish."
+      fi
+
+      if [ "$published" -ne 1 ]; then
+        echo "No registry configured for deploy:docker (GitLab registry + Harbor both unavailable)" >&2
+        exit 1
       fi
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -445,14 +464,27 @@ deploy:docker-ui:
   needs:
     - build:docker-ui
   before_script:
-    - docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+    - |
+      if [ -n "${CI_REGISTRY}" ] && [ -n "${CI_REGISTRY_IMAGE}" ] && [ -n "${CI_REGISTRY_USER}" ] && [ -n "${CI_REGISTRY_PASSWORD}" ]; then
+        docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+      else
+        echo "CI_REGISTRY/CI_REGISTRY_IMAGE not set; skipping GitLab registry login."
+      fi
   script:
     - docker load < docker-ui-image.tar
     - |
       IMAGE_BASE="${CI_REGISTRY_IMAGE:-fi-fhir}-ui"
-      docker tag "${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}" "${IMAGE_BASE}:main"
-      docker push "${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}"
-      docker push "${IMAGE_BASE}:main"
+      published=0
+
+      # Publish to GitLab registry if configured (avoid pushing to Docker Hub accidentally).
+      if [ -n "${CI_REGISTRY}" ] && [ -n "${CI_REGISTRY_IMAGE}" ]; then
+        docker tag "${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}" "${IMAGE_BASE}:main"
+        docker push "${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}"
+        docker push "${IMAGE_BASE}:main"
+        published=1
+      else
+        echo "CI_REGISTRY/CI_REGISTRY_IMAGE not set; skipping GitLab registry publish."
+      fi
     - |
       # Optional: also publish to Harbor for in-cluster pulls (used by platform/gitops).
       if [ -n "${HARBOR_REGISTRY}" ] && [ -n "${HARBOR_USERNAME}" ] && [ -n "${HARBOR_PASSWORD}" ]; then
@@ -467,8 +499,14 @@ deploy:docker-ui:
         docker push "${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}"
         docker push "${HARBOR_IMAGE}:main"
         docker push "${HARBOR_IMAGE}:${HARBOR_SEMVER_TAG}"
+        published=1
       else
         echo "Harbor registry creds not set; skipping Harbor publish."
+      fi
+
+      if [ "$published" -ne 1 ]; then
+        echo "No registry configured for deploy:docker-ui (GitLab registry + Harbor both unavailable)" >&2
+        exit 1
       fi
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
