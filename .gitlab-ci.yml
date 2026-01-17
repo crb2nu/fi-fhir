@@ -185,11 +185,24 @@ test:unit:
   script:
     - apt-get update && apt-get install -y --no-install-recommends git ca-certificates build-essential && rm -rf /var/lib/apt/lists/*
     - go install github.com/boumenot/gocover-cobertura@latest
-    - go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
-    - go tool cover -func=coverage.out
-    - gocover-cobertura < coverage.out > coverage.xml
+    - |
+      set +e
+      go test -race -coverprofile=coverage.out -covermode=atomic ./...
+      status=$?
+
+      if [ -f coverage.out ]; then
+        go tool cover -func=coverage.out || true
+        gocover-cobertura < coverage.out > coverage.xml || true
+      fi
+
+      if [ ! -f coverage.xml ]; then
+        echo '<coverage line-rate="0" branch-rate="0" lines-covered="0" lines-valid="0" branches-covered="0" branches-valid="0" complexity="0" version="0" timestamp="0"></coverage>' > coverage.xml
+      fi
+
+      exit $status
   coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
   artifacts:
+    when: always
     reports:
       coverage_report:
         coverage_format: cobertura
