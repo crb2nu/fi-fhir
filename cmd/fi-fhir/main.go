@@ -3743,6 +3743,12 @@ func runServe(args []string) error {
 		resolvers.WithVersion(version),
 	}
 
+	if profileStore, err := initProfileStoreFromEnv(context.Background()); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: profile store disabled: %v\n", err)
+	} else if profileStore != nil {
+		resolverOpts = append(resolverOpts, resolvers.WithProfileStore(profileStore))
+	}
+
 	// Load workflow engine if specified
 	if workflowPath != "" {
 		w, err := workflow.LoadWorkflow(workflowPath)
