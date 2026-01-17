@@ -218,6 +218,7 @@ test:integration:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
   allow_failure: true
 
 test:benchmark:
@@ -234,6 +235,7 @@ test:benchmark:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
   allow_failure: true
 
 # =============================================================================
@@ -297,6 +299,8 @@ build:binary:
   stage: build
   <<: *go-image
   <<: *go-cache
+  needs:
+    - test:unit
   script:
     - apk add --no-cache git
     - |
@@ -317,6 +321,8 @@ build:docker:
   image: docker:24
   services:
     - docker:24-dind
+  needs:
+    - test:unit
   variables:
     DOCKER_HOST: tcp://localhost:2375
     DOCKER_TLS_CERTDIR: ""
@@ -344,6 +350,8 @@ build:docker-ui:
   image: docker:24
   services:
     - docker:24-dind
+  needs:
+    - test:unit
   variables:
     DOCKER_HOST: tcp://localhost:2375
     DOCKER_TLS_CERTDIR: ""
