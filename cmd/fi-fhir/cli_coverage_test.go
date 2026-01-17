@@ -2216,11 +2216,19 @@ func TestWorkflow_Loadtest_MissingArgs(t *testing.T) {
 // ===========================================================================
 
 func TestStorage_Test_MissingProvider(t *testing.T) {
+	// Ensure this test is stable even when CI injects MinIO credentials.
+	t.Setenv("MINIO_ACCESS_KEY", "")
+	t.Setenv("MINIO_SECRET_KEY", "")
+
 	_, _, err := runCLI(t, "storage", "test")
 	assertError(t, err)
 }
 
 func TestStorage_Test_InvalidProvider(t *testing.T) {
+	// Ensure this test is stable even when CI injects MinIO credentials.
+	t.Setenv("MINIO_ACCESS_KEY", "")
+	t.Setenv("MINIO_SECRET_KEY", "")
+
 	_, _, err := runCLI(t, "storage", "test", "--provider", "invalid")
 	assertError(t, err)
 }
