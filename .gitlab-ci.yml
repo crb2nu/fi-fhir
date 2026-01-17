@@ -17,7 +17,7 @@ variables:
 # Cache Go modules across jobs (pull-only to avoid cache upload stalls if runner-cache backend is degraded)
 .go-cache: &go-cache
   cache:
-    key: ${CI_COMMIT_REF_SLUG}-go-${GO_VERSION}
+    key: ${CI_COMMIT_REF_SLUG}-go-mod-${GO_VERSION}
     paths:
       - .go/pkg/mod/
       - .go/bin/
@@ -26,7 +26,7 @@ variables:
 # Pull-only cache (avoids cache upload stalls if runner-cache backend is degraded)
 .go-cache-pull: &go-cache-pull
   cache:
-    key: ${CI_COMMIT_REF_SLUG}-go-${GO_VERSION}
+    key: ${CI_COMMIT_REF_SLUG}-go-mod-${GO_VERSION}
     paths:
       - .go/pkg/mod/
       - .go/bin/
