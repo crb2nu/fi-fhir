@@ -14,20 +14,63 @@
     select: { id: string };
     remove: { id: string };
     saveCurrent: { name?: string };
+    importFiles: { files: File[] };
     clear: Record<string, never>;
     loadExamples: Record<string, never>;
   }>();
 
   let name = '';
+  let fileInputEl: HTMLInputElement | null = null;
+  let isDragging = false;
 
   function save() {
     const n = name.trim();
     dispatch('saveCurrent', n ? { name: n } : {});
     name = '';
   }
+
+  function triggerImport() {
+    fileInputEl?.click();
+  }
+
+  function onFileChange(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    const files = input.files ? Array.from(input.files) : [];
+    if (files.length) dispatch('importFiles', { files });
+    input.value = '';
+  }
+
+  function onDragOver(e: DragEvent) {
+    if (disabled) return;
+    if (!e.dataTransfer?.types?.includes('Files')) return;
+    e.preventDefault();
+    isDragging = true;
+  }
+
+  function onDragLeave() {
+    isDragging = false;
+  }
+
+  function onDrop(e: DragEvent) {
+    if (disabled) return;
+    const files = e.dataTransfer?.files ? Array.from(e.dataTransfer.files) : [];
+    if (!files.length) return;
+    e.preventDefault();
+    isDragging = false;
+    dispatch('importFiles', { files });
+  }
 </script>
 
 <Panel title="Samples (local)">
+  <div
+    class="dropzone"
+    class:dragging={isDragging}
+    on:dragover={onDragOver}
+    on:dragleave={onDragLeave}
+    on:drop={onDrop}
+    role="region"
+    aria-label="Samples inbox. Drag and drop HL7 files to import."
+  >
   <p class="note">
     Stored in <span class="mono">localStorage</span>. Don’t paste PHI unless you’re on an approved machine/profile.
   </p>
@@ -39,6 +82,18 @@
     </label>
     <div class="save-actions">
       <Button on:click={save} disabled={disabled || !currentRaw.trim()}>Save current</Button>
+      <input
+        class="file-input"
+        type="file"
+        multiple
+        accept=".hl7,.txt,.msg,.dat,text/plain"
+        bind:this={fileInputEl}
+        on:change={onFileChange}
+        disabled={disabled}
+      />
+      <Button variant="secondary" on:click={triggerImport} disabled={disabled}>
+        Import files
+      </Button>
       <Button variant="secondary" on:click={() => dispatch('loadExamples', {})} disabled={disabled}>
         Load Examples
       </Button>
@@ -96,11 +151,22 @@
       {/each}
     </ul>
   {/if}
+  </div>
 </Panel>
 
 <style>
   .mono {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  }
+
+  .file-input {
+    display: none;
+  }
+
+  .dropzone.dragging {
+    outline: 2px dashed rgba(59, 130, 246, 0.7);
+    outline-offset: 8px;
+    border-radius: 12px;
   }
 
   .note {

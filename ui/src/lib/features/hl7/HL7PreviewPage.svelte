@@ -18,10 +18,13 @@
   import { suggestFixes } from '$lib/features/hl7/profile/fixes';
   import { profileStore, selectedProfile } from '$lib/features/hl7/profile/profileStore';
   import type { ProfileFix } from '$lib/features/hl7/profile/types';
+  import type { NewHL7Sample } from '$lib/features/hl7/samples/types';
 
   const store = createHL7PreviewStore();
 
   let fileInputEl: HTMLInputElement | null = null;
+  let dragDepth = 0;
+  let isDragging = false;
 
   // Track the profile ID and version used for the last parse
   let lastUsedProfileId: string | null = null;
@@ -92,20 +95,71 @@
     state.update((s) => ({ ...s, source: sample.source, data: sample.raw }));
   }
 
+  function baseName(filename: string): string {
+    return filename.replace(/\.[^.]+$/, '');
+  }
+
+  async function filesToInputs(files: File[]): Promise<NewHL7Sample[]> {
+    const inputs: NewHL7Sample[] = [];
+    for (const f of files) {
+      const raw = await f.text();
+      const inferred = baseName(f.name);
+      inputs.push({
+        name: inferred,
+        source: inferred || ($state.source || 'ui_preview'),
+        raw
+      });
+    }
+    return inputs;
+  }
+
+  async function importFiles(files: File[], activate: 'first' | 'last' = 'first') {
+    if (!files.length) return;
+    const inputs = await filesToInputs(files);
+    samplesStore.addMany(inputs, activate);
+  }
+
   async function loadFromFile(e: Event) {
     const input = e.currentTarget as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
+    const files = input.files ? Array.from(input.files) : [];
+    if (!files.length) return;
 
-    const text = await file.text();
-    const inferredSource = file.name.replace(/\.[^.]+$/, '');
-    state.update((s) => ({
-      ...s,
-      data: text,
-      source: s.source && s.source !== 'ui_preview' ? s.source : inferredSource
-    }));
+    if (files.length === 1) {
+      const file = files[0]!;
+      const text = await file.text();
+      const inferredSource = baseName(file.name);
+      state.update((s) => ({
+        ...s,
+        data: text,
+        source: s.source && s.source !== 'ui_preview' ? s.source : inferredSource
+      }));
+    } else {
+      await importFiles(files, 'first');
+    }
 
     input.value = '';
+  }
+
+  function onDragEnter(e: DragEvent) {
+    if ($state.loading) return;
+    if (!e.dataTransfer?.types?.includes('Files')) return;
+    dragDepth += 1;
+    isDragging = true;
+  }
+
+  function onDragLeave() {
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) isDragging = false;
+  }
+
+  async function onDropFiles(e: DragEvent) {
+    if ($state.loading) return;
+    const files = e.dataTransfer?.files ? Array.from(e.dataTransfer.files) : [];
+    if (!files.length) return;
+    e.preventDefault();
+    dragDepth = 0;
+    isDragging = false;
+    await importFiles(files, 'first');
   }
 
   // Generate fixes based on warnings and current profile
@@ -153,6 +207,7 @@
         <input
           class="file-input"
           type="file"
+          multiple
           accept=".hl7,.txt,.msg,.dat,text/plain"
           bind:this={fileInputEl}
           on:change={loadFromFile}
@@ -171,7 +226,21 @@
       </div>
     </div>
 
-    <TextArea bind:value={$state.data} rows={12} disabled={$state.loading} />
+    <div
+      class="drop-target"
+      class:dragging={isDragging}
+      on:dragenter={onDragEnter}
+      on:dragleave={onDragLeave}
+      on:dragover|preventDefault
+      on:drop={onDropFiles}
+      role="region"
+      aria-label="HL7 input. Drag and drop HL7 files to import."
+    >
+      <TextArea bind:value={$state.data} rows={12} disabled={$state.loading} />
+      {#if isDragging}
+        <div class="drop-hint">Drop files to import into Samples</div>
+      {/if}
+    </div>
 
     {#if $state.error}
       <div class="error">{$state.error}</div>
@@ -220,6 +289,7 @@
           activeId={$activeId}
           disabled={$state.loading}
           currentRaw={$state.data}
+          on:importFiles={async (e) => importFiles(e.detail.files, 'first')}
           on:saveCurrent={(e) => {
             const n = e.detail.name;
             const input = n ? { name: n, source: $state.source, raw: $state.data } : { source: $state.source, raw: $state.data };
@@ -285,6 +355,29 @@
 
   .file-input {
     display: none;
+  }
+
+  .drop-target {
+    position: relative;
+  }
+
+  .drop-target.dragging {
+    outline: 2px dashed rgba(59, 130, 246, 0.7);
+    outline-offset: 8px;
+    border-radius: 12px;
+  }
+
+  .drop-hint {
+    position: absolute;
+    inset: 10px;
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    color: rgba(219, 234, 254, 0.95);
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    pointer-events: none;
   }
 
   .label {

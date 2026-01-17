@@ -93,6 +93,39 @@ export function createHL7SampleStore() {
       return sample;
     },
 
+    addMany(inputs: NewHL7Sample[], activate: 'first' | 'last' = 'first'): HL7Sample[] {
+      const normalized = inputs
+        .map((input) => ({
+          name: input.name?.trim() || 'Untitled sample',
+          source: input.source.trim() || 'unknown',
+          raw: input.raw
+        }))
+        .filter((x) => x.raw.trim().length > 0);
+
+      if (normalized.length === 0) return [];
+
+      const samplesToAdd: HL7Sample[] = normalized.map((input) => ({
+        id: makeId(),
+        name: input.name,
+        source: input.source,
+        raw: input.raw,
+        createdAt: nowIso(),
+        ...summarize(input.raw)
+      }));
+
+      state.update((s) => {
+        const activeId =
+          activate === 'first' ? samplesToAdd[0]!.id : samplesToAdd[samplesToAdd.length - 1]!.id;
+        return {
+          ...s,
+          activeId,
+          samples: [...samplesToAdd, ...s.samples]
+        };
+      });
+
+      return samplesToAdd;
+    },
+
     remove(id: string): void {
       state.update((s) => {
         const samples = s.samples.filter((x) => x.id !== id);
