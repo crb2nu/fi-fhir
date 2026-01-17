@@ -14,7 +14,7 @@ variables:
   DOCKER_DRIVER: overlay2
   DOCKER_TLS_CERTDIR: "/certs"
 
-# Cache Go modules across jobs
+# Cache Go modules across jobs (pull-only to avoid cache upload stalls if runner-cache backend is degraded)
 .go-cache: &go-cache
   cache:
     key: ${CI_COMMIT_REF_SLUG}-go-${GO_VERSION}
@@ -22,7 +22,7 @@ variables:
       - .go/pkg/mod/
       - .go/bin/
       - .cache/go-build/
-    policy: pull-push
+    policy: pull
 
 # Pull-only cache (avoids cache upload stalls if runner-cache backend is degraded)
 .go-cache-pull: &go-cache-pull
