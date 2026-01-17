@@ -9,7 +9,7 @@
     isSaving,
     isDirty
   } from '$lib/features/hl7/profile/profileStore';
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
 
   // Props
   export let onProfileChange: ((profileId: string | null) => void) | undefined = undefined;
@@ -24,6 +24,13 @@
   let newProfileName = '';
   let duplicateId = '';
   let duplicateName = '';
+
+  let newModalEl: HTMLDivElement | null = null;
+  let duplicateModalEl: HTMLDivElement | null = null;
+  let deleteModalEl: HTMLDivElement | null = null;
+  let wasNewModalOpen = false;
+  let wasDuplicateModalOpen = false;
+  let wasDeleteModalOpen = false;
 
   // Load profiles on mount
   onMount(() => {
@@ -120,7 +127,34 @@
   $: if (duplicateName && !duplicateId) {
     duplicateId = generateId(duplicateName);
   }
+
+  $: if (showNewModal && !wasNewModalOpen) {
+    tick().then(() => newModalEl?.focus());
+  }
+
+  $: wasNewModalOpen = showNewModal;
+
+  $: if (showDuplicateModal && !wasDuplicateModalOpen) {
+    tick().then(() => duplicateModalEl?.focus());
+  }
+
+  $: wasDuplicateModalOpen = showDuplicateModal;
+
+  $: if (showDeleteConfirm && !wasDeleteModalOpen) {
+    tick().then(() => deleteModalEl?.focus());
+  }
+
+  $: wasDeleteModalOpen = showDeleteConfirm;
+
+  function handleWindowKeydown(e: KeyboardEvent) {
+    if (e.key !== 'Escape') return;
+    if (showDeleteConfirm) showDeleteConfirm = false;
+    else if (showDuplicateModal) showDuplicateModal = false;
+    else if (showNewModal) showNewModal = false;
+  }
 </script>
+
+<svelte:window on:keydown={handleWindowKeydown} />
 
 <div class="selector-row">
   <div class="select-wrapper">
@@ -184,9 +218,23 @@
 
 <!-- New Profile Modal -->
 {#if showNewModal}
-  <div class="modal-overlay" on:click={() => (showNewModal = false)} role="button" tabindex="-1">
-    <div class="modal" on:click|stopPropagation role="dialog" aria-modal="true">
-      <h3 class="modal-title">Create New Profile</h3>
+  <div class="modal-overlay">
+    <button
+      type="button"
+      class="modal-backdrop"
+      tabindex="-1"
+      aria-label="Close dialog"
+      on:click={() => (showNewModal = false)}
+    ></button>
+    <div
+      class="modal"
+      bind:this={newModalEl}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="new-profile-modal-title"
+      tabindex="-1"
+    >
+      <h3 id="new-profile-modal-title" class="modal-title">Create New Profile</h3>
       <div class="modal-body">
         <label class="label">
           Profile Name
@@ -220,14 +268,23 @@
 
 <!-- Duplicate Modal -->
 {#if showDuplicateModal}
-  <div
-    class="modal-overlay"
-    on:click={() => (showDuplicateModal = false)}
-    role="button"
-    tabindex="-1"
-  >
-    <div class="modal" on:click|stopPropagation role="dialog" aria-modal="true">
-      <h3 class="modal-title">Duplicate Profile</h3>
+  <div class="modal-overlay">
+    <button
+      type="button"
+      class="modal-backdrop"
+      tabindex="-1"
+      aria-label="Close dialog"
+      on:click={() => (showDuplicateModal = false)}
+    ></button>
+    <div
+      class="modal"
+      bind:this={duplicateModalEl}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="duplicate-profile-modal-title"
+      tabindex="-1"
+    >
+      <h3 id="duplicate-profile-modal-title" class="modal-title">Duplicate Profile</h3>
       <div class="modal-body">
         <label class="label">
           New Profile Name
@@ -255,14 +312,23 @@
 
 <!-- Delete Confirmation Modal -->
 {#if showDeleteConfirm}
-  <div
-    class="modal-overlay"
-    on:click={() => (showDeleteConfirm = false)}
-    role="button"
-    tabindex="-1"
-  >
-    <div class="modal" on:click|stopPropagation role="dialog" aria-modal="true">
-      <h3 class="modal-title">Delete Profile</h3>
+  <div class="modal-overlay">
+    <button
+      type="button"
+      class="modal-backdrop"
+      tabindex="-1"
+      aria-label="Close dialog"
+      on:click={() => (showDeleteConfirm = false)}
+    ></button>
+    <div
+      class="modal"
+      bind:this={deleteModalEl}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-profile-modal-title"
+      tabindex="-1"
+    >
+      <h3 id="delete-profile-modal-title" class="modal-title">Delete Profile</h3>
       <div class="modal-body">
         <p>
           Are you sure you want to delete <strong>{$selectedProfile?.name}</strong>? This action
@@ -350,14 +416,24 @@
   .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.6);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
   }
 
+  .modal-backdrop {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    padding: 0;
+    background: rgba(0, 0, 0, 0.6);
+    cursor: default;
+  }
+
   .modal {
+    position: relative;
+    z-index: 1;
     background: #1f2937;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 16px;

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { profileStore, selectedProfile } from '$lib/features/hl7/profile/profileStore';
   import Button from '$lib/ui/Button.svelte';
+  import { tick } from 'svelte';
 
   $: hl7v2 = $selectedProfile?.hl7v2;
   $: eventClassifications = hl7v2?.eventClassifications || [];
@@ -41,6 +42,20 @@
   let ruleCondition = '';
   let ruleEventType = '';
   let rulePriority = 0;
+
+  let modalEl: HTMLDivElement | null = null;
+  let wasModalOpen = false;
+
+  $: if (showModal && !wasModalOpen) {
+    tick().then(() => modalEl?.focus());
+  }
+
+  $: wasModalOpen = showModal;
+
+  function handleWindowKeydown(e: KeyboardEvent) {
+    if (e.key !== 'Escape') return;
+    if (showModal) showModal = false;
+  }
 
   function openModal(index?: number) {
     if (index !== undefined && eventClassifications[index]) {
@@ -165,6 +180,8 @@
   }
 </script>
 
+<svelte:window on:keydown={handleWindowKeydown} />
+
 <div class="editor">
   <div class="header">
     <div>
@@ -228,9 +245,23 @@
 
 <!-- Rule Editor Modal -->
 {#if showModal}
-  <div class="modal-overlay" on:click={() => (showModal = false)} role="button" tabindex="-1">
-    <div class="modal" on:click|stopPropagation role="dialog" aria-modal="true">
-      <h3 class="modal-title">
+  <div class="modal-overlay">
+    <button
+      type="button"
+      class="modal-backdrop"
+      tabindex="-1"
+      aria-label="Close dialog"
+      on:click={() => (showModal = false)}
+    ></button>
+    <div
+      class="modal"
+      bind:this={modalEl}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="rule-editor-modal-title"
+      tabindex="-1"
+    >
+      <h3 id="rule-editor-modal-title" class="modal-title">
         {editingIndex !== null ? 'Edit Rule' : 'Add Rule'}
       </h3>
       <div class="modal-body">
@@ -475,14 +506,24 @@
   .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.6);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
   }
 
+  .modal-backdrop {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    padding: 0;
+    background: rgba(0, 0, 0, 0.6);
+    cursor: default;
+  }
+
   .modal {
+    position: relative;
+    z-index: 1;
     background: #1f2937;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 16px;

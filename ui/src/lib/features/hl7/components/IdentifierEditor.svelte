@@ -1,6 +1,7 @@
 <script lang="ts">
   import { profileStore, selectedProfile } from '$lib/features/hl7/profile/profileStore';
   import Button from '$lib/ui/Button.svelte';
+  import { tick } from 'svelte';
 
   // Props
   export let showAdvanced = false;
@@ -26,6 +27,20 @@
   let aaCode = '';
   let aaSystem = '';
   let aaName = '';
+
+  let aaModalEl: HTMLDivElement | null = null;
+  let wasAAModalOpen = false;
+
+  $: if (showAAModal && !wasAAModalOpen) {
+    tick().then(() => aaModalEl?.focus());
+  }
+
+  $: wasAAModalOpen = showAAModal;
+
+  function handleWindowKeydown(e: KeyboardEvent) {
+    if (e.key !== 'Escape') return;
+    if (showAAModal) showAAModal = false;
+  }
 
   // Update validation setting
   function updateValidation(
@@ -170,6 +185,8 @@
     });
   }
 </script>
+
+<svelte:window on:keydown={handleWindowKeydown} />
 
 <div class="editor">
   <div class="section">
@@ -346,9 +363,23 @@
 
 <!-- Assigning Authority Modal -->
 {#if showAAModal}
-  <div class="modal-overlay" on:click={() => (showAAModal = false)} role="button" tabindex="-1">
-    <div class="modal" on:click|stopPropagation role="dialog" aria-modal="true">
-      <h3 class="modal-title">
+  <div class="modal-overlay">
+    <button
+      type="button"
+      class="modal-backdrop"
+      tabindex="-1"
+      aria-label="Close dialog"
+      on:click={() => (showAAModal = false)}
+    ></button>
+    <div
+      class="modal"
+      bind:this={aaModalEl}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="assigning-authority-modal-title"
+      tabindex="-1"
+    >
+      <h3 id="assigning-authority-modal-title" class="modal-title">
         {editingAA ? 'Edit Assigning Authority' : 'Add Assigning Authority'}
       </h3>
       <div class="modal-body">
@@ -635,14 +666,24 @@
   .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.6);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
   }
 
+  .modal-backdrop {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    padding: 0;
+    background: rgba(0, 0, 0, 0.6);
+    cursor: default;
+  }
+
   .modal {
+    position: relative;
+    z-index: 1;
     background: #1f2937;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 16px;

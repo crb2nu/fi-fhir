@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, tick } from 'svelte';
   import Button from '$lib/ui/Button.svelte';
 
   export let open = false;
@@ -14,6 +14,15 @@
     cancel: void;
   }>();
 
+  let modalEl: HTMLDivElement | null = null;
+  let wasOpen = false;
+
+  $: if (open && !wasOpen) {
+    tick().then(() => modalEl?.focus());
+  }
+
+  $: wasOpen = open;
+
   function handleConfirm() {
     dispatch('confirm');
     open = false;
@@ -24,28 +33,37 @@
     open = false;
   }
 
-  function handleOverlayClick() {
-    handleCancel();
-  }
-
-  function handleKeydown(e: KeyboardEvent) {
+  function handleWindowKeydown(e: KeyboardEvent) {
     if (!open) return;
     if (e.key === 'Escape') {
       handleCancel();
-    } else if (e.key === 'Enter') {
-      handleConfirm();
     }
   }
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
+<svelte:window on:keydown={handleWindowKeydown} />
 
 {#if open}
-  <div class="modal-overlay" on:click={handleOverlayClick} role="button" tabindex="-1">
-    <div class="modal" on:click|stopPropagation role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div class="modal-overlay">
+    <button
+      type="button"
+      class="modal-backdrop"
+      tabindex="-1"
+      aria-label="Close dialog"
+      on:click={handleCancel}
+    ></button>
+    <div
+      class="modal"
+      bind:this={modalEl}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+      aria-describedby="modal-message"
+      tabindex="-1"
+    >
       <h3 id="modal-title" class="modal-title">{title}</h3>
       <div class="modal-body">
-        <p>{message}</p>
+        <p id="modal-message">{message}</p>
         <slot />
       </div>
       <div class="modal-actions">
@@ -60,14 +78,24 @@
   .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.6);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
   }
 
+  .modal-backdrop {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    padding: 0;
+    background: rgba(0, 0, 0, 0.6);
+    cursor: default;
+  }
+
   .modal {
+    position: relative;
+    z-index: 1;
     background: #1f2937;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 16px;

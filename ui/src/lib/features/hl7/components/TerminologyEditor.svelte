@@ -2,6 +2,7 @@
   import { profileStore, selectedProfile } from '$lib/features/hl7/profile/profileStore';
   import Button from '$lib/ui/Button.svelte';
   import ConfirmModal from '$lib/ui/ConfirmModal.svelte';
+  import { tick } from 'svelte';
 
   $: terminology = $selectedProfile?.terminology;
   $: mappings = terminology?.mappings || [];
@@ -13,6 +14,11 @@
   let deletingMappingIndex: number | null = null;
   let editingMappingIndex: number | null = null;
   let editingEntryIndex: number | null = null;
+
+  let mappingModalEl: HTMLDivElement | null = null;
+  let entryModalEl: HTMLDivElement | null = null;
+  let wasMappingModalOpen = false;
+  let wasEntryModalOpen = false;
 
   // Mapping form
   let mappingId = '';
@@ -66,6 +72,24 @@
     if (e.key === 'Enter' && entrySourceCode.trim() && entryTargetCode.trim()) {
       saveEntry();
     }
+  }
+
+  $: if (showMappingModal && !wasMappingModalOpen) {
+    tick().then(() => mappingModalEl?.focus());
+  }
+
+  $: wasMappingModalOpen = showMappingModal;
+
+  $: if (showEntryModal && !wasEntryModalOpen) {
+    tick().then(() => entryModalEl?.focus());
+  }
+
+  $: wasEntryModalOpen = showEntryModal;
+
+  function handleWindowKeydown(e: KeyboardEvent) {
+    if (e.key !== 'Escape') return;
+    if (showEntryModal) showEntryModal = false;
+    else if (showMappingModal) showMappingModal = false;
   }
 
   function saveMapping() {
@@ -222,6 +246,8 @@
   }
 </script>
 
+<svelte:window on:keydown={handleWindowKeydown} />
+
 <div class="editor">
   <div class="header">
     <div>
@@ -300,9 +326,24 @@
 
 <!-- Mapping Table Modal -->
 {#if showMappingModal}
-  <div class="modal-overlay" on:click={() => (showMappingModal = false)} role="button" tabindex="-1">
-    <div class="modal" on:click|stopPropagation on:keydown={handleMappingKeydown} role="dialog" aria-modal="true">
-      <h3 class="modal-title">
+  <div class="modal-overlay">
+    <button
+      type="button"
+      class="modal-backdrop"
+      tabindex="-1"
+      aria-label="Close dialog"
+      on:click={() => (showMappingModal = false)}
+    ></button>
+    <div
+      class="modal"
+      bind:this={mappingModalEl}
+      on:keydown={handleMappingKeydown}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="mapping-table-modal-title"
+      tabindex="-1"
+    >
+      <h3 id="mapping-table-modal-title" class="modal-title">
         {editingMappingIndex !== null ? 'Edit Mapping Table' : 'Add Mapping Table'}
       </h3>
       <div class="modal-body">
@@ -365,9 +406,24 @@
 
 <!-- Entry Modal -->
 {#if showEntryModal && selectedMapping}
-  <div class="modal-overlay" on:click={() => (showEntryModal = false)} role="button" tabindex="-1">
-    <div class="modal" on:click|stopPropagation on:keydown={handleEntryKeydown} role="dialog" aria-modal="true">
-      <h3 class="modal-title">
+  <div class="modal-overlay">
+    <button
+      type="button"
+      class="modal-backdrop"
+      tabindex="-1"
+      aria-label="Close dialog"
+      on:click={() => (showEntryModal = false)}
+    ></button>
+    <div
+      class="modal"
+      bind:this={entryModalEl}
+      on:keydown={handleEntryKeydown}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="mapping-entry-modal-title"
+      tabindex="-1"
+    >
+      <h3 id="mapping-entry-modal-title" class="modal-title">
         {editingEntryIndex !== null ? 'Edit Entry' : 'Add Entry'}
       </h3>
       <div class="modal-body">
@@ -645,14 +701,24 @@
   .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.6);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
   }
 
+  .modal-backdrop {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    padding: 0;
+    background: rgba(0, 0, 0, 0.6);
+    cursor: default;
+  }
+
   .modal {
+    position: relative;
+    z-index: 1;
     background: #1f2937;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 16px;
