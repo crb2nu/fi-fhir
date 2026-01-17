@@ -429,12 +429,15 @@ deploy:docker:
       fi
     - |
       # Optional: also publish to Harbor for in-cluster pulls (used by platform/gitops).
-      if [ -n "${HARBOR_REGISTRY}" ] && [ -n "${HARBOR_USERNAME}" ] && [ -n "${HARBOR_PASSWORD}" ]; then
+      # The GitLab runner mounts a Docker config secret ("harbor-creds") at /docker-secrets,
+      # and the pre_build_script copies it into /root/.docker/config.json. Prefer that over
+      # CI variables so publishing works without per-project secrets.
+      if [ -f /root/.docker/config.json ]; then
+        HARBOR_REGISTRY="${HARBOR_REGISTRY:-registry.harbor.lan}"
         HARBOR_PROJECT="${HARBOR_PROJECT:-library}"
         HARBOR_IMAGE="${HARBOR_REGISTRY}/${HARBOR_PROJECT}/fi-fhir"
         HARBOR_SEMVER_TAG="v0.1.${CI_PIPELINE_IID}"
         echo "Publishing fi-fhir to Harbor: ${HARBOR_IMAGE}:${HARBOR_SEMVER_TAG}"
-        docker login -u "${HARBOR_USERNAME}" -p "${HARBOR_PASSWORD}" "${HARBOR_REGISTRY}"
         docker tag "${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}" "${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}"
         docker tag "${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}" "${HARBOR_IMAGE}:main"
         docker tag "${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}" "${HARBOR_IMAGE}:${HARBOR_SEMVER_TAG}"
@@ -443,7 +446,7 @@ deploy:docker:
         docker push "${HARBOR_IMAGE}:${HARBOR_SEMVER_TAG}"
         published=1
       else
-        echo "Harbor registry creds not set; skipping Harbor publish."
+        echo "No Docker auth config found; skipping Harbor publish."
       fi
 
       if [ "$published" -ne 1 ]; then
@@ -487,12 +490,15 @@ deploy:docker-ui:
       fi
     - |
       # Optional: also publish to Harbor for in-cluster pulls (used by platform/gitops).
-      if [ -n "${HARBOR_REGISTRY}" ] && [ -n "${HARBOR_USERNAME}" ] && [ -n "${HARBOR_PASSWORD}" ]; then
+      # The GitLab runner mounts a Docker config secret ("harbor-creds") at /docker-secrets,
+      # and the pre_build_script copies it into /root/.docker/config.json. Prefer that over
+      # CI variables so publishing works without per-project secrets.
+      if [ -f /root/.docker/config.json ]; then
+        HARBOR_REGISTRY="${HARBOR_REGISTRY:-registry.harbor.lan}"
         HARBOR_PROJECT="${HARBOR_PROJECT:-library}"
         HARBOR_IMAGE="${HARBOR_REGISTRY}/${HARBOR_PROJECT}/fi-fhir-ui"
         HARBOR_SEMVER_TAG="v0.1.${CI_PIPELINE_IID}"
         echo "Publishing fi-fhir-ui to Harbor: ${HARBOR_IMAGE}:${HARBOR_SEMVER_TAG}"
-        docker login -u "${HARBOR_USERNAME}" -p "${HARBOR_PASSWORD}" "${HARBOR_REGISTRY}"
         docker tag "${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}" "${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}"
         docker tag "${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}" "${HARBOR_IMAGE}:main"
         docker tag "${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}" "${HARBOR_IMAGE}:${HARBOR_SEMVER_TAG}"
@@ -501,7 +507,7 @@ deploy:docker-ui:
         docker push "${HARBOR_IMAGE}:${HARBOR_SEMVER_TAG}"
         published=1
       else
-        echo "Harbor registry creds not set; skipping Harbor publish."
+        echo "No Docker auth config found; skipping Harbor publish."
       fi
 
       if [ "$published" -ne 1 ]; then
