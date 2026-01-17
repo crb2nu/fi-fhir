@@ -21,6 +21,8 @@
 
   const store = createHL7PreviewStore();
 
+  let fileInputEl: HTMLInputElement | null = null;
+
   // Track the profile ID and version used for the last parse
   let lastUsedProfileId: string | null = null;
   let lastUsedProfileVersion: string | null = null;
@@ -90,6 +92,22 @@
     state.update((s) => ({ ...s, source: sample.source, data: sample.raw }));
   }
 
+  async function loadFromFile(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    const text = await file.text();
+    const inferredSource = file.name.replace(/\.[^.]+$/, '');
+    state.update((s) => ({
+      ...s,
+      data: text,
+      source: s.source && s.source !== 'ui_preview' ? s.source : inferredSource
+    }));
+
+    input.value = '';
+  }
+
   // Generate fixes based on warnings and current profile
   $: fixes = suggestFixes($state.result?.parsePreview.warnings ?? [], $selectedProfile);
 
@@ -132,6 +150,21 @@
         />
       </label>
       <div class="actions">
+        <input
+          class="file-input"
+          type="file"
+          accept=".hl7,.txt,.msg,.dat,text/plain"
+          bind:this={fileInputEl}
+          on:change={loadFromFile}
+          disabled={$state.loading}
+        />
+        <Button
+          variant="secondary"
+          on:click={() => fileInputEl?.click()}
+          disabled={$state.loading}
+        >
+          Load file
+        </Button>
         <Button on:click={run} disabled={$state.loading || !$state.data.trim()}>
           {#if $state.loading}Running…{:else}Preview{/if}
         </Button>
@@ -248,6 +281,10 @@
     align-items: flex-end;
     justify-content: space-between;
     margin-bottom: 10px;
+  }
+
+  .file-input {
+    display: none;
   }
 
   .label {
