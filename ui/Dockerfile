@@ -20,37 +20,7 @@ FROM nginx:alpine
 COPY --from=builder /app/build /usr/share/nginx/html
 
 # Custom nginx config for SPA routing
-RUN cat > /etc/nginx/conf.d/default.conf << 'EOF'
-server {
-    listen 3000;
-    server_name _;
-    root /usr/share/nginx/html;
-    index index.html;
-
-    # SPA fallback - all routes go to index.html
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    # Cache static assets
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2)$ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-    }
-
-    # Health check endpoint
-    location /health {
-        access_log off;
-        return 200 "ok\n";
-        add_header Content-Type text/plain;
-    }
-
-    # Gzip compression
-    gzip on;
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml;
-    gzip_min_length 1000;
-}
-EOF
+COPY nginx/default.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 3000
 
