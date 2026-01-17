@@ -7,8 +7,9 @@ import (
 	"net/http"
 	"strings"
 
-	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/store"
 	"gopkg.in/yaml.v3"
+
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/store"
 )
 
 type yamlProfileDoc struct {
