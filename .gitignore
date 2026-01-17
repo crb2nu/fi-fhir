@@ -16,6 +16,10 @@ coverage.html
 # Dependency directories
 vendor/
 
+# Local build caches (CI + local)
+.go/
+.cache/
+
 # IDE
 .idea/
 .vscode/

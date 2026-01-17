@@ -21,7 +21,6 @@ variables:
     paths:
       - .go/pkg/mod/
       - .go/bin/
-      - .cache/go-build/
     policy: pull
 
 # Pull-only cache (avoids cache upload stalls if runner-cache backend is degraded)
@@ -31,7 +30,6 @@ variables:
     paths:
       - .go/pkg/mod/
       - .go/bin/
-      - .cache/go-build/
     policy: pull
 
 # Default Go image
