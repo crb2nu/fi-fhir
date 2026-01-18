@@ -29,6 +29,11 @@ variables:
   KUBERNETES_HELPER_CPU_LIMIT: "200m"
   KUBERNETES_HELPER_MEMORY_REQUEST: "128Mi"
   KUBERNETES_HELPER_MEMORY_LIMIT: "256Mi"
+  # Service containers (e.g. docker:dind) can also inherit very large default limits.
+  KUBERNETES_SERVICE_CPU_REQUEST: "200m"
+  KUBERNETES_SERVICE_CPU_LIMIT: "1"
+  KUBERNETES_SERVICE_MEMORY_REQUEST: "512Mi"
+  KUBERNETES_SERVICE_MEMORY_LIMIT: "2Gi"
 
 default:
   retry:
@@ -207,6 +212,8 @@ test:unit:
     DOCKER_TLS_CERTDIR: ""
     KUBERNETES_CPU_LIMIT: "2"
     KUBERNETES_MEMORY_LIMIT: "4Gi"
+    KUBERNETES_SERVICE_CPU_LIMIT: "2"
+    KUBERNETES_SERVICE_MEMORY_LIMIT: "4Gi"
   script:
     - apt-get update && apt-get install -y --no-install-recommends git ca-certificates build-essential && rm -rf /var/lib/apt/lists/*
     - go install github.com/boumenot/gocover-cobertura@latest
@@ -368,6 +375,8 @@ build:docker:
     DOCKER_TLS_CERTDIR: ""
     KUBERNETES_CPU_LIMIT: "2"
     KUBERNETES_MEMORY_LIMIT: "4Gi"
+    KUBERNETES_SERVICE_CPU_LIMIT: "2"
+    KUBERNETES_SERVICE_MEMORY_LIMIT: "6Gi"
   script:
     - |
       # Use CI_REGISTRY_IMAGE if set, otherwise default to fi-fhir
@@ -399,6 +408,8 @@ build:docker-ui:
     DOCKER_TLS_CERTDIR: ""
     KUBERNETES_CPU_LIMIT: "2"
     KUBERNETES_MEMORY_LIMIT: "4Gi"
+    KUBERNETES_SERVICE_CPU_LIMIT: "2"
+    KUBERNETES_SERVICE_MEMORY_LIMIT: "6Gi"
   script:
     - |
       IMAGE_BASE="${CI_REGISTRY_IMAGE:-fi-fhir}-ui"
@@ -441,6 +452,8 @@ deploy:docker:
     DOCKER_TLS_CERTDIR: ""
     KUBERNETES_CPU_LIMIT: "2"
     KUBERNETES_MEMORY_LIMIT: "4Gi"
+    KUBERNETES_SERVICE_CPU_LIMIT: "2"
+    KUBERNETES_SERVICE_MEMORY_LIMIT: "6Gi"
   needs:
     - build:docker
   before_script:
@@ -504,6 +517,8 @@ deploy:docker-ui:
     DOCKER_TLS_CERTDIR: ""
     KUBERNETES_CPU_LIMIT: "2"
     KUBERNETES_MEMORY_LIMIT: "4Gi"
+    KUBERNETES_SERVICE_CPU_LIMIT: "2"
+    KUBERNETES_SERVICE_MEMORY_LIMIT: "6Gi"
   needs:
     - build:docker-ui
   before_script:
