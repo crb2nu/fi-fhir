@@ -1,3 +1,9 @@
+include:
+  - project: platform/gitops
+    ref: main
+    file:
+      - /k3s/ci/caches/gitlab-ci-cache.yml
+
 stages:
   - lint
   - test
@@ -13,6 +19,23 @@ variables:
   CGO_ENABLED: "0"
   DOCKER_DRIVER: overlay2
   DOCKER_TLS_CERTDIR: "/certs"
+  # GitLab Kubernetes runner resources (avoid exceeding the ci-jobs namespace quota).
+  # Many repos in this workspace set these explicitly because runner defaults can be very large.
+  KUBERNETES_CPU_REQUEST: "200m"
+  KUBERNETES_CPU_LIMIT: "1"
+  KUBERNETES_MEMORY_REQUEST: "512Mi"
+  KUBERNETES_MEMORY_LIMIT: "2Gi"
+  KUBERNETES_HELPER_CPU_REQUEST: "50m"
+  KUBERNETES_HELPER_CPU_LIMIT: "200m"
+  KUBERNETES_HELPER_MEMORY_REQUEST: "128Mi"
+  KUBERNETES_HELPER_MEMORY_LIMIT: "256Mi"
+
+default:
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 # Cache Go modules across jobs (pull-only to avoid cache upload stalls if runner-cache backend is degraded)
 .go-cache: &go-cache
@@ -143,7 +166,7 @@ lint:ui:
   script:
     - apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
     - cd ui
-    - npm ci
+    - npm ci --no-audit --no-fund
     - npm run lint
     - npm run codegen:check
     - npm run check
@@ -182,6 +205,8 @@ test:unit:
     CGO_ENABLED: "1"
     DOCKER_HOST: tcp://localhost:2375
     DOCKER_TLS_CERTDIR: ""
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
   script:
     - apt-get update && apt-get install -y --no-install-recommends git ca-certificates build-essential && rm -rf /var/lib/apt/lists/*
     - go install github.com/boumenot/gocover-cobertura@latest
@@ -341,6 +366,8 @@ build:docker:
   variables:
     DOCKER_HOST: tcp://localhost:2375
     DOCKER_TLS_CERTDIR: ""
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
   script:
     - |
       # Use CI_REGISTRY_IMAGE if set, otherwise default to fi-fhir
@@ -370,6 +397,8 @@ build:docker-ui:
   variables:
     DOCKER_HOST: tcp://localhost:2375
     DOCKER_TLS_CERTDIR: ""
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
   script:
     - |
       IMAGE_BASE="${CI_REGISTRY_IMAGE:-fi-fhir}-ui"
@@ -410,6 +439,8 @@ deploy:docker:
   variables:
     DOCKER_HOST: tcp://localhost:2375
     DOCKER_TLS_CERTDIR: ""
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
   needs:
     - build:docker
   before_script:
@@ -471,6 +502,8 @@ deploy:docker-ui:
   variables:
     DOCKER_HOST: tcp://localhost:2375
     DOCKER_TLS_CERTDIR: ""
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
   needs:
     - build:docker-ui
   before_script:
