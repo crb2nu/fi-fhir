@@ -614,9 +614,11 @@ func TestWebhookActionWithRateLimitDenied(t *testing.T) {
 	defer server.Close()
 
 	config := map[string]string{
-		"url":              server.URL,
-		"rate_limit":       "true",
-		"rate_limit_rate":  "100",
+		"url":        server.URL,
+		"rate_limit": "true",
+		// Keep the refill rate extremely low so the second request can't regain a token
+		// during CI jitter/scheduling delays.
+		"rate_limit_rate":  "0.001",
 		"rate_limit_burst": "1",     // Only 1 token
 		"rate_limit_wait":  "false", // Fail fast, don't wait
 	}
