@@ -1,8 +1,10 @@
 package profile
 
 import (
+	"bytes"
 	"fmt"
 	"sort"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -27,11 +29,20 @@ func MarshalYAML(p *SourceProfile) ([]byte, error) {
 		marshalSourceProfileNode(p),
 	)
 
-	out, err := yaml.Marshal(root)
-	if err != nil {
+	var buf bytes.Buffer
+	enc := yaml.NewEncoder(&buf)
+	enc.SetIndent(2)
+	if err := enc.Encode(root); err != nil {
+		_ = enc.Close()
 		return nil, fmt.Errorf("failed to marshal profile YAML: %w", err)
 	}
-	return out, nil
+	if err := enc.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close YAML encoder: %w", err)
+	}
+
+	out := buf.String()
+	out = strings.TrimPrefix(out, "---\n")
+	return []byte(out), nil
 }
 
 func marshalSourceProfileNode(p *SourceProfile) *yaml.Node {

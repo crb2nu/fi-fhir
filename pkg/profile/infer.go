@@ -24,7 +24,10 @@ func InferHL7v2ProfileFromPaths(paths []string, opts InferHL7v2Options) (*Source
 	if err != nil {
 		return nil, nil, err
 	}
+	return InferHL7v2ProfileFromSamples(samples, used, opts)
+}
 
+func InferHL7v2ProfileFromSamples(samples []string, inputUsed []string, opts InferHL7v2Options) (*SourceProfile, *InferHL7v2Report, error) {
 	stats, err := AnalyzeHL7v2Samples(samples)
 	if err != nil {
 		return nil, nil, err
@@ -111,5 +114,5 @@ func InferHL7v2ProfileFromPaths(paths []string, opts InferHL7v2Options) (*Source
 		return nil, nil, fmt.Errorf("generated profile did not validate: %w", err)
 	}
 
-	return p, &InferHL7v2Report{Stats: stats, InputUsed: used}, nil
+	return p, &InferHL7v2Report{Stats: stats, InputUsed: inputUsed}, nil
 }

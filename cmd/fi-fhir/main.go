@@ -260,7 +260,42 @@ func runProfileInfer(args []string) error {
 
 	switch format {
 	case "hl7v2", "hl7":
-		p, report, err := profile.InferHL7v2ProfileFromPaths(inputs, profile.InferHL7v2Options{
+		var (
+			paths     []string
+			useStdin  bool
+			samples   []string
+			inputUsed []string
+		)
+		for _, in := range inputs {
+			if in == "-" {
+				useStdin = true
+				continue
+			}
+			paths = append(paths, in)
+		}
+
+		if len(paths) > 0 {
+			var err error
+			samples, inputUsed, err = profile.ReadHL7v2Samples(paths, profile.ReadHL7v2SamplesOptions{})
+			if err != nil {
+				return err
+			}
+		}
+
+		if useStdin {
+			data, err := io.ReadAll(os.Stdin)
+			if err != nil {
+				return fmt.Errorf("failed to read stdin: %w", err)
+			}
+			s := strings.TrimSpace(string(data))
+			if s == "" {
+				return fmt.Errorf("stdin sample is empty")
+			}
+			samples = append(samples, s)
+			inputUsed = append(inputUsed, "-")
+		}
+
+		p, report, err := profile.InferHL7v2ProfileFromSamples(samples, inputUsed, profile.InferHL7v2Options{
 			ID:       id,
 			Name:     name,
 			Version:  ver,
@@ -355,10 +390,30 @@ func runProfileLint(args []string) error {
 		return fmt.Errorf("no profile specified. Use --profile <file>")
 	}
 
+	var (
+		samples     []string
+		sampleFiles []string
+	)
+	if samplesPath == "-" {
+		data, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return fmt.Errorf("failed to read stdin: %w", err)
+		}
+		s := strings.TrimSpace(string(data))
+		if s == "" {
+			return fmt.Errorf("stdin sample is empty")
+		}
+		samples = []string{s}
+		sampleFiles = []string{"-"}
+		samplesPath = ""
+	}
+
 	report, err := profile.LintProfileFile(profilePath, profile.LintOptions{
 		Format:      format,
 		SamplesPath: samplesPath,
 		Verbose:     verbose,
+		Samples:     samples,
+		SampleFiles: sampleFiles,
 	})
 	if err != nil {
 		return err
@@ -432,6 +487,7 @@ Options:
 
 Examples:
   fi-fhir profile infer --id epic_adt --name "Epic ADT Feed" testdata/adt_a01_sample.hl7
+  cat testdata/adt_a01_sample.hl7 | fi-fhir profile infer --id epic_adt --name "Epic ADT Feed" -
   fi-fhir profile infer testdata/ --out profiles/inferred.yaml`)
 }
 
@@ -451,6 +507,7 @@ Options:
 
 Examples:
   fi-fhir profile lint profiles/epic_adt.yaml
+  cat testdata/adt_a01_sample.hl7 | fi-fhir profile lint profiles/epic_adt.yaml --samples -
   fi-fhir profile lint profiles/epic_adt.yaml --samples testdata/adt_a01_sample.hl7`)
 }
 

@@ -1,0 +1,27 @@
+source_profile:
+  id: inferred_adt_a01
+  name: Inferred ADT A01
+  version: 0.1.0
+  hl7v2:
+    default_version: "2.5"
+    timezone: UTC
+    encoding:
+      charset_default: UTF-8
+      charset_detection: true
+      line_ending_mode: tolerant
+    tolerate:
+      missing_segments:
+        - PV1
+        - PD1
+        - OBR
+      nte_anywhere: true
+      extra_components: true
+      unknown_segments: true
+      non_standard_delimiters: false
+    datatypes:
+      xcn_component_count: flexible
+      cx_component_count: flexible
+      xpn_component_count: flexible
+  z_segments:
+    preserve_raw: true
+    mappings: {}

@@ -13,6 +13,10 @@ type LintOptions struct {
 	Format      string
 	SamplesPath string
 	Verbose     bool
+
+	// Samples overrides SamplesPath when provided. This is primarily for CLIs that support stdin ("-").
+	Samples     []string
+	SampleFiles []string
 }
 
 type LintReport struct {
@@ -83,16 +87,21 @@ func LintProfileFile(profilePath string, opts LintOptions) (*LintReport, error) 
 		lintIdentifiers(p.Identifiers, addError, addWarning)
 	}
 
-	if opts.SamplesPath != "" {
+	if len(opts.Samples) > 0 || opts.SamplesPath != "" {
 		format := strings.TrimSpace(opts.Format)
 		if format == "" {
 			format = "hl7v2"
 		}
 		switch format {
 		case "hl7v2", "hl7":
-			samples, used, err := ReadHL7v2Samples([]string{opts.SamplesPath}, ReadHL7v2SamplesOptions{})
-			if err != nil {
-				return nil, err
+			samples := opts.Samples
+			used := opts.SampleFiles
+			if len(samples) == 0 && opts.SamplesPath != "" {
+				var err error
+				samples, used, err = ReadHL7v2Samples([]string{opts.SamplesPath}, ReadHL7v2SamplesOptions{})
+				if err != nil {
+					return nil, err
+				}
 			}
 			stats, err := AnalyzeHL7v2Samples(samples)
 			if err != nil {
