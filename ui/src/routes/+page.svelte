@@ -1,44 +1,112 @@
-<h1>Mapping Studio (WIP)</h1>
-<p>
-  This app will provide a non-developer-friendly interface for HL7 mapping and validation, backed by strictly typed
-  contracts (GraphQL + OpenAPI) enforced in CI.
+<script lang="ts">
+  import { resolve } from '$app/paths';
+  import Panel from '$lib/ui/Panel.svelte';
+</script>
+
+<h1>fi-fhir Mapping Studio</h1>
+<p class="sub">
+  A workbench for turning messy interface data into typed, testable semantic events (and eventually Source Profiles).
 </p>
 
-<div class="card">
-  <h2>Next</h2>
-  <ul>
-    <li>Upload sample HL7 messages</li>
-    <li>Preview canonical event extraction via <code>parsePreview</code></li>
-    <li>Generate Source Profile config from UI edits</li>
-  </ul>
+<div class="grid">
+  <Panel title="Tools">
+    <div class="tools">
+      <a class="cta" href={resolve('/hl7')}>HL7 Preview & Triage</a>
+      <div class="hint">
+        Paste or load sample HL7v2 messages, preview extraction, and review warnings by phase.
+      </div>
+    </div>
+  </Panel>
+
+  <Panel title="Next">
+    <ul class="list">
+      <li>Generate Source Profile YAML from UI edits</li>
+      <li>Track profile changes and re-run previews deterministically</li>
+      <li>Expand mapping helpers beyond HL7 (CSV, EDI)</li>
+    </ul>
+  </Panel>
+
+  <Panel title="Contracts">
+    <div class="contract">
+      <div class="label">API surface</div>
+      <div class="value">GraphQL + OpenAPI (generated client types, validated in CI)</div>
+    </div>
+  </Panel>
 </div>
 
 <style>
   h1 {
     color: #f9fafb;
-    margin: 0 0 10px;
+    margin: 0 0 8px;
   }
-  p,
-  li {
+
+  .sub {
+    color: rgba(229, 231, 235, 0.86);
+    line-height: 1.55;
+    margin: 0 0 16px;
+    max-width: 70ch;
+  }
+
+  .grid {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: 1fr;
+  }
+
+  @media (min-width: 980px) {
+    .grid {
+      grid-template-columns: 1.3fr 0.7fr;
+      align-items: start;
+    }
+  }
+
+  .tools {
+    display: grid;
+    gap: 10px;
+  }
+
+  .cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    background: rgba(59, 130, 246, 0.12);
+    color: rgba(219, 234, 254, 0.95);
+    text-decoration: none;
+    font-weight: 700;
+  }
+
+  .cta:hover {
+    background: rgba(59, 130, 246, 0.18);
+  }
+
+  .hint {
+    color: rgba(229, 231, 235, 0.8);
+    line-height: 1.55;
+  }
+
+  .list {
+    margin: 0;
+    padding-left: 18px;
     color: rgba(229, 231, 235, 0.86);
     line-height: 1.55;
   }
-  code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-    font-size: 0.95em;
-    color: #e5e7eb;
+
+  .contract {
+    display: grid;
+    gap: 6px;
   }
-  .card {
-    margin-top: 18px;
-    padding: 16px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.03);
+
+  .label {
+    color: rgba(229, 231, 235, 0.7);
+    font-size: 0.9rem;
+    font-weight: 700;
   }
-  .card h2 {
-    color: #f3f4f6;
-    margin: 0 0 8px;
-    font-size: 1.05rem;
+
+  .value {
+    color: rgba(229, 231, 235, 0.88);
+    line-height: 1.55;
   }
 </style>
-
