@@ -50,12 +50,19 @@ func LintProfileFile(profilePath string, opts LintOptions) (*LintReport, error) 
 	}
 	p := wrapper.SourceProfile
 
+	var doc yaml.Node
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return nil, fmt.Errorf("failed to parse profile YAML AST: %w", err)
+	}
+
 	addError := func(format string, args ...any) {
 		r.Errors = append(r.Errors, fmt.Sprintf(format, args...))
 	}
 	addWarning := func(format string, args ...any) {
 		r.Warnings = append(r.Warnings, fmt.Sprintf(format, args...))
 	}
+
+	lintUnknownKeys(&doc, addWarning)
 
 	if p == nil {
 		addError("missing source_profile root element")
@@ -119,6 +126,232 @@ func LintProfileFile(profilePath string, opts LintOptions) (*LintReport, error) 
 	sort.Strings(r.Errors)
 	sort.Strings(r.Warnings)
 	return r, nil
+}
+
+func lintUnknownKeys(doc *yaml.Node, addWarning func(string, ...any)) {
+	if doc == nil || doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 {
+		return
+	}
+	root := doc.Content[0]
+	if root == nil || root.Kind != yaml.MappingNode {
+		return
+	}
+
+	sourceProfileNode := mappingValue(root, "source_profile")
+	if sourceProfileNode == nil || sourceProfileNode.Kind != yaml.MappingNode {
+		return
+	}
+
+	allowedSourceProfile := map[string]bool{
+		"id": true, "name": true, "version": true,
+		"hl7v2": true, "edi": true, "z_segments": true,
+		"identifiers": true, "terminology": true, "quality": true,
+	}
+	warnUnknownKeysInMapping(sourceProfileNode, "source_profile", allowedSourceProfile, addWarning)
+
+	if n := mappingValue(sourceProfileNode, "hl7v2"); n != nil && n.Kind == yaml.MappingNode {
+		allowed := map[string]bool{
+			"default_version": true, "timezone": true,
+			"encoding": true, "tolerate": true, "datatypes": true, "event_classification": true,
+		}
+		warnUnknownKeysInMapping(n, "source_profile.hl7v2", allowed, addWarning)
+
+		if enc := mappingValue(n, "encoding"); enc != nil && enc.Kind == yaml.MappingNode {
+			warnUnknownKeysInMapping(enc, "source_profile.hl7v2.encoding", map[string]bool{
+				"charset_default": true, "charset_detection": true, "line_ending_mode": true,
+			}, addWarning)
+		}
+		if tol := mappingValue(n, "tolerate"); tol != nil && tol.Kind == yaml.MappingNode {
+			warnUnknownKeysInMapping(tol, "source_profile.hl7v2.tolerate", map[string]bool{
+				"missing_segments": true, "nte_anywhere": true, "extra_components": true, "unknown_segments": true, "non_standard_delimiters": true,
+			}, addWarning)
+		}
+		if dt := mappingValue(n, "datatypes"); dt != nil && dt.Kind == yaml.MappingNode {
+			warnUnknownKeysInMapping(dt, "source_profile.hl7v2.datatypes", map[string]bool{
+				"xcn_component_count": true, "cx_component_count": true, "xpn_component_count": true,
+			}, addWarning)
+		}
+		if ec := mappingValue(n, "event_classification"); ec != nil && ec.Kind == yaml.MappingNode {
+			warnUnknownKeysInMapping(ec, "source_profile.hl7v2.event_classification", map[string]bool{
+				"adt_a01": true, "adt_a04": true, "adt_a08": true,
+			}, addWarning)
+			warnUnknownKeysInEventRuleMapping(ec, "source_profile.hl7v2.event_classification", addWarning)
+		}
+	}
+
+	if n := mappingValue(sourceProfileNode, "edi"); n != nil && n.Kind == yaml.MappingNode {
+		warnUnknownKeysInMapping(n, "source_profile.edi", map[string]bool{
+			"companion_guide": true, "companion_guide_dir": true,
+		}, addWarning)
+	}
+
+	if n := mappingValue(sourceProfileNode, "z_segments"); n != nil && n.Kind == yaml.MappingNode {
+		warnUnknownKeysInMapping(n, "source_profile.z_segments", map[string]bool{
+			"preserve_raw": true, "mappings": true,
+		}, addWarning)
+		if m := mappingValue(n, "mappings"); m != nil && m.Kind == yaml.MappingNode {
+			for i := 0; i+1 < len(m.Content); i += 2 {
+				segKey := scalarString(m.Content[i])
+				seq := m.Content[i+1]
+				if segKey == "" || seq == nil || seq.Kind != yaml.SequenceNode {
+					continue
+				}
+				for j, item := range seq.Content {
+					if item == nil || item.Kind != yaml.MappingNode {
+						continue
+					}
+					warnUnknownKeysInMapping(item, fmt.Sprintf("source_profile.z_segments.mappings.%s[%d]", segKey, j), map[string]bool{
+						"field": true, "target": true, "type": true,
+					}, addWarning)
+				}
+			}
+		}
+	}
+
+	if n := mappingValue(sourceProfileNode, "identifiers"); n != nil && n.Kind == yaml.MappingNode {
+		warnUnknownKeysInMapping(n, "source_profile.identifiers", map[string]bool{
+			"assigning_authority_map": true, "primary_id_preference": true, "validation": true, "normalization": true,
+		}, addWarning)
+
+		if pref := mappingValue(n, "primary_id_preference"); pref != nil && pref.Kind == yaml.SequenceNode {
+			for i, item := range pref.Content {
+				if item == nil || item.Kind != yaml.MappingNode {
+					continue
+				}
+				warnUnknownKeysInMapping(item, fmt.Sprintf("source_profile.identifiers.primary_id_preference[%d]", i), map[string]bool{
+					"type": true, "assigner_contains": true, "assigner_equals": true,
+				}, addWarning)
+			}
+		}
+
+		if val := mappingValue(n, "validation"); val != nil && val.Kind == yaml.MappingNode {
+			for i := 0; i+1 < len(val.Content); i += 2 {
+				k := scalarString(val.Content[i])
+				item := val.Content[i+1]
+				if k == "" || item == nil || item.Kind != yaml.MappingNode {
+					continue
+				}
+				warnUnknownKeysInMapping(item, "source_profile.identifiers.validation."+k, map[string]bool{
+					"enabled": true, "on_invalid": true,
+				}, addWarning)
+			}
+		}
+
+		if norm := mappingValue(n, "normalization"); norm != nil && norm.Kind == yaml.MappingNode {
+			warnUnknownKeysInMapping(norm, "source_profile.identifiers.normalization", map[string]bool{
+				"ssn": true, "phone": true, "mrn": true,
+			}, addWarning)
+			if ssn := mappingValue(norm, "ssn"); ssn != nil && ssn.Kind == yaml.MappingNode {
+				warnUnknownKeysInMapping(ssn, "source_profile.identifiers.normalization.ssn", map[string]bool{
+					"strip_dashes": true, "reject_patterns": true,
+				}, addWarning)
+			}
+			if phone := mappingValue(norm, "phone"); phone != nil && phone.Kind == yaml.MappingNode {
+				warnUnknownKeysInMapping(phone, "source_profile.identifiers.normalization.phone", map[string]bool{
+					"strip_country_code": true, "normalize_to_digits": true,
+				}, addWarning)
+			}
+			if mrn := mappingValue(norm, "mrn"); mrn != nil && mrn.Kind == yaml.MappingNode {
+				warnUnknownKeysInMapping(mrn, "source_profile.identifiers.normalization.mrn", map[string]bool{
+					"strip_leading_zeros": true, "uppercase": true,
+				}, addWarning)
+			}
+		}
+	}
+
+	if n := mappingValue(sourceProfileNode, "terminology"); n != nil && n.Kind == yaml.MappingNode {
+		warnUnknownKeysInMapping(n, "source_profile.terminology", map[string]bool{
+			"strict_validation": true, "unknown_code_behavior": true, "versions": true, "mappings": true,
+		}, addWarning)
+		if m := mappingValue(n, "mappings"); m != nil && m.Kind == yaml.SequenceNode {
+			for i, item := range m.Content {
+				if item == nil || item.Kind != yaml.MappingNode {
+					continue
+				}
+				warnUnknownKeysInMapping(item, fmt.Sprintf("source_profile.terminology.mappings[%d]", i), map[string]bool{
+					"source_system": true, "target_system": true, "file": true,
+				}, addWarning)
+			}
+		}
+	}
+
+	if n := mappingValue(sourceProfileNode, "quality"); n != nil && n.Kind == yaml.MappingNode {
+		warnUnknownKeysInMapping(n, "source_profile.quality", map[string]bool{
+			"metrics": true, "alerts": true,
+		}, addWarning)
+		if a := mappingValue(n, "alerts"); a != nil && a.Kind == yaml.MappingNode {
+			for i := 0; i+1 < len(a.Content); i += 2 {
+				k := scalarString(a.Content[i])
+				item := a.Content[i+1]
+				if k == "" || item == nil || item.Kind != yaml.MappingNode {
+					continue
+				}
+				warnUnknownKeysInMapping(item, "source_profile.quality.alerts."+k, map[string]bool{
+					"threshold": true, "severity": true,
+				}, addWarning)
+			}
+		}
+	}
+}
+
+func warnUnknownKeysInEventRuleMapping(ec *yaml.Node, base string, addWarning func(string, ...any)) {
+	for i := 0; i+1 < len(ec.Content); i += 2 {
+		k := scalarString(ec.Content[i])
+		v := ec.Content[i+1]
+		if k == "" || v == nil || v.Kind != yaml.MappingNode {
+			continue
+		}
+		warnUnknownKeysInMapping(v, base+"."+k, map[string]bool{
+			"default": true, "rules": true,
+		}, addWarning)
+		rules := mappingValue(v, "rules")
+		if rules == nil || rules.Kind != yaml.SequenceNode {
+			continue
+		}
+		for j, item := range rules.Content {
+			if item == nil || item.Kind != yaml.MappingNode {
+				continue
+			}
+			warnUnknownKeysInMapping(item, fmt.Sprintf("%s.%s.rules[%d]", base, k, j), map[string]bool{
+				"condition": true, "event": true,
+			}, addWarning)
+		}
+	}
+}
+
+func warnUnknownKeysInMapping(n *yaml.Node, path string, allowed map[string]bool, addWarning func(string, ...any)) {
+	if n == nil || n.Kind != yaml.MappingNode {
+		return
+	}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		key := scalarString(n.Content[i])
+		if key == "" {
+			continue
+		}
+		if !allowed[key] {
+			addWarning("unknown key %q at %s", key, path)
+		}
+	}
+}
+
+func mappingValue(m *yaml.Node, key string) *yaml.Node {
+	if m == nil || m.Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i+1 < len(m.Content); i += 2 {
+		k := scalarString(m.Content[i])
+		if k == key {
+			return m.Content[i+1]
+		}
+	}
+	return nil
+}
+
+func scalarString(n *yaml.Node) string {
+	if n == nil || n.Kind != yaml.ScalarNode {
+		return ""
+	}
+	return n.Value
 }
 
 func lintHL7v2Config(c *HL7v2Config, addError func(string, ...any), addWarning func(string, ...any)) {
