@@ -10,6 +10,14 @@ RUN npm ci
 # Copy source code
 COPY . .
 
+# Optional UI build metadata (injected by CI)
+ARG VITE_BUILD_SHA
+ARG VITE_BUILD_TAG
+ARG VITE_BUILD_TIME
+ENV VITE_BUILD_SHA=$VITE_BUILD_SHA
+ENV VITE_BUILD_TAG=$VITE_BUILD_TAG
+ENV VITE_BUILD_TIME=$VITE_BUILD_TIME
+
 # Build the production bundle
 RUN npm run build
 

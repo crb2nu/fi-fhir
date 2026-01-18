@@ -1,6 +1,7 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
   import Panel from '$lib/ui/Panel.svelte';
+  import SystemStatusPanel from '$lib/features/system/SystemStatusPanel.svelte';
 </script>
 
 <h1>fi-fhir Mapping Studio</h1>
@@ -9,6 +10,8 @@
 </p>
 
 <div class="grid">
+  <SystemStatusPanel />
+
   <Panel title="Tools">
     <div class="tools">
       <a class="cta" href={resolve('/hl7')}>HL7 Preview & Triage</a>

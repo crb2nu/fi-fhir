@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { browser } from '$app/environment';
   import { createHL7PreviewStore } from '$lib/features/hl7/hl7PreviewStore';
   import { parseHL7Preview } from '$lib/features/hl7/hl7Preview';
   import Button from '$lib/ui/Button.svelte';
@@ -30,6 +31,10 @@
   let lastUsedProfileId: string | null = null;
   let lastUsedProfileVersion: string | null = null;
 
+  const RECENT_SOURCES_KEY = 'fi-fhir:hl7:recent-sources:v1';
+  const MAX_RECENT_SOURCES = 8;
+  let recentSources: string[] = [];
+
   // Detect if profile has changed since last parse
   $: profileChanged =
     $state.result &&
@@ -44,6 +49,8 @@
   let selectedPath: string | null = null;
   let selectedLocation: HL7PathLocation | null = null;
 
+  $: activeSampleModified = Boolean($activeSample && $activeSample.raw !== $state.data);
+
   const tabs = [
     { key: 'samples', label: 'Samples' },
     { key: 'warnings', label: 'Warnings' },
@@ -57,6 +64,7 @@
     selectedPath = null;
     selectedLocation = null;
     const snapshot = getSnapshot();
+    rememberSource(snapshot.source);
     const profileId = $selectedProfile?.id ?? null;
 
     try {
@@ -91,8 +99,38 @@
     return snapshot;
   }
 
+  function loadRecentSources(): void {
+    if (!browser) return;
+    try {
+      const raw = localStorage.getItem(RECENT_SOURCES_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) return;
+      recentSources = parsed.filter((x) => typeof x === 'string').slice(0, MAX_RECENT_SOURCES);
+    } catch {
+      // Ignore
+    }
+  }
+
+  function rememberSource(source: string): void {
+    const s = source.trim();
+    if (!s) return;
+    const next = [s, ...recentSources.filter((x) => x !== s)].slice(0, MAX_RECENT_SOURCES);
+    recentSources = next;
+    if (!browser) return;
+    localStorage.setItem(RECENT_SOURCES_KEY, JSON.stringify(next));
+  }
+
+  function setSource(source: string): void {
+    const s = source.trim();
+    if (!s) return;
+    state.update((st) => ({ ...st, source: s }));
+    rememberSource(s);
+  }
+
   function loadSample(sample: HL7Sample) {
     state.update((s) => ({ ...s, source: sample.source, data: sample.raw }));
+    rememberSource(sample.source);
   }
 
   function baseName(filename: string): string {
@@ -133,6 +171,7 @@
         data: text,
         source: s.source && s.source !== 'ui_preview' ? s.source : inferredSource
       }));
+      rememberSource(inferredSource);
     } else {
       await importFiles(files, 'first');
     }
@@ -178,10 +217,52 @@
   }
 
   onMount(() => {
+    loadRecentSources();
+
     const unsub = activeSample.subscribe((s) => {
       if (s) loadSample(s);
     });
-    return () => unsub();
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key === 'Enter') {
+        if ($state.loading) return;
+        if (!$state.data.trim()) return;
+        e.preventDefault();
+        void run();
+        return;
+      }
+
+      if (mod && (e.key === 'o' || e.key === 'O')) {
+        if ($state.loading) return;
+        e.preventDefault();
+        fileInputEl?.click();
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        if (selectedPath || selectedLocation) {
+          e.preventDefault();
+          selectedPath = null;
+          selectedLocation = null;
+          activeTab = 'warnings';
+          return;
+        }
+        if (activeTab !== 'warnings') {
+          e.preventDefault();
+          activeTab = 'warnings';
+        }
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      unsub();
+      window.removeEventListener('keydown', onKeyDown);
+    };
   });
 </script>
 
@@ -226,6 +307,42 @@
       </div>
     </div>
 
+    {#if $activeSample}
+      <div class="active-sample">
+        <span class="muted">active sample</span>
+        <span class="mono">{$activeSample.name}</span>
+        {#if activeSampleModified}
+          <span class="pill stale">modified</span>
+        {/if}
+        <button class="link" type="button" on:click={() => (activeTab = 'samples')} disabled={$state.loading}>
+          open samples
+        </button>
+      </div>
+    {/if}
+
+    {#if recentSources.length}
+      <div class="recent">
+        <div class="recent-label muted">recent sources</div>
+        <div class="chips">
+          {#each recentSources as src (src)}
+            <button
+              class="chip"
+              type="button"
+              on:click={() => setSource(src)}
+              disabled={$state.loading}
+              title="Set source"
+            >
+              {src}
+            </button>
+          {/each}
+        </div>
+      </div>
+    {/if}
+
+    <div class="hotkeys muted">
+      ⌘/Ctrl+Enter: preview • ⌘/Ctrl+O: load file • Esc: back to warnings
+    </div>
+
     <div
       class="drop-target"
       class:dragging={isDragging}
@@ -249,7 +366,11 @@
 
   <Panel title="Results" tone={$state.error ? 'error' : 'default'}>
     {#if !$state.result}
-      <div class="empty">Run a preview to see warnings and extracted events.</div>
+      {#if !$state.data.trim()}
+        <div class="empty">Paste an HL7v2 message to enable preview.</div>
+      {:else}
+        <div class="empty">Press Preview (⌘/Ctrl+Enter) to see warnings and extracted events.</div>
+      {/if}
     {:else}
       <div class="meta">
         <div class="pill {$state.result.parsePreview.success ? 'ok' : 'bad'}">
@@ -307,9 +428,17 @@
       {:else if activeTab === 'warnings'}
         <WarningList groups={$warningsByPhase} {selectedPath} on:select={onSelectWarning} />
       {:else if activeTab === 'events'}
-        <JsonViewer data={$events} />
+        {#if $events.length === 0}
+          <div class="empty">No semantic events extracted.</div>
+        {:else}
+          <JsonViewer data={$events} />
+        {/if}
       {:else if activeTab === 'inspector'}
-        <HL7Inspector message={$hl7} selected={selectedLocation} />
+        {#if !selectedLocation}
+          <div class="empty">Select a warning with a path to inspect the message.</div>
+        {:else}
+          <HL7Inspector message={$hl7} selected={selectedLocation} />
+        {/if}
       {:else}
         <ProfileDraftPanel
           fixes={fixes}
@@ -351,6 +480,79 @@
     align-items: flex-end;
     justify-content: space-between;
     margin-bottom: 10px;
+  }
+
+  .active-sample {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+
+  .recent {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .recent-label {
+    font-size: 0.9rem;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .chip {
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(229, 231, 235, 0.86);
+    cursor: pointer;
+    font-weight: 650;
+    font-size: 0.85rem;
+  }
+
+  .chip:hover:enabled {
+    background: rgba(255, 255, 255, 0.07);
+  }
+
+  .chip:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .hotkeys {
+    font-size: 0.85rem;
+    margin-bottom: 10px;
+  }
+
+  .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  }
+
+  .muted {
+    color: rgba(229, 231, 235, 0.65);
+  }
+
+  .link {
+    border: none;
+    background: transparent;
+    padding: 0;
+    color: rgba(147, 197, 253, 0.95);
+    cursor: pointer;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .link:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
   }
 
   .file-input {

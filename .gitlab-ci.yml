@@ -378,7 +378,14 @@ build:docker-ui:
       else
         IMAGE_TAG="${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}"
       fi
-    - docker build -t "${IMAGE_TAG}" ./ui
+    - |
+      BUILD_TAG="v0.1.${CI_PIPELINE_IID}"
+      docker build \
+        --build-arg VITE_BUILD_SHA="${CI_COMMIT_SHORT_SHA}" \
+        --build-arg VITE_BUILD_TAG="${BUILD_TAG}" \
+        --build-arg VITE_BUILD_TIME="${CI_PIPELINE_CREATED_AT}" \
+        -t "${IMAGE_TAG}" \
+        ./ui
     - docker save "${IMAGE_TAG}" > docker-ui-image.tar
   artifacts:
     paths:
