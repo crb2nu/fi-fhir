@@ -419,6 +419,18 @@ func runProfileLint(args []string) error {
 		return err
 	}
 
+	// When sample data is provided, also parse it with the profile to surface any parse warnings/errors.
+	if samplesPath != "" || len(samples) > 0 {
+		parseErrors, parseWarnings, err := lintHL7v2Samples(profilePath, samplesPath, samples, sampleFiles)
+		if err != nil {
+			return err
+		}
+		report.Errors = append(report.Errors, parseErrors...)
+		report.Warnings = append(report.Warnings, parseWarnings...)
+		sort.Strings(report.Errors)
+		sort.Strings(report.Warnings)
+	}
+
 	if verbose && report.SampleStats != nil {
 		stats := report.SampleStats
 		fmt.Fprintf(os.Stderr, "Sample stats (%d message(s)):\n", stats.MessageCount)
@@ -453,6 +465,65 @@ func runProfileLint(args []string) error {
 
 	fmt.Printf("Profile %s passed lint.\n", profilePath)
 	return nil
+}
+
+func lintHL7v2Samples(profilePath, samplesPath string, stdinSamples, stdinSampleFiles []string) ([]string, []string, error) {
+	var (
+		samples     []string
+		sampleFiles []string
+	)
+
+	if samplesPath != "" {
+		var err error
+		samples, sampleFiles, err = profile.ReadHL7v2Samples([]string{samplesPath}, profile.ReadHL7v2SamplesOptions{})
+		if err != nil {
+			return nil, nil, err
+		}
+	} else {
+		samples = stdinSamples
+		sampleFiles = stdinSampleFiles
+	}
+
+	if len(samples) == 0 {
+		return nil, nil, nil
+	}
+
+	reg := profile.NewRegistry()
+	p, err := reg.LoadFromFile(profilePath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to load profile: %w", err)
+	}
+
+	parser := hl7v2.NewParser("profile_lint", hl7v2.ParserConfig{})
+	parser.SetProfile(p)
+
+	var errs []string
+	var warns []string
+
+	for i, raw := range samples {
+		src := fmt.Sprintf("sample[%d]", i)
+		if i < len(sampleFiles) && sampleFiles[i] != "" {
+			src = sampleFiles[i]
+		}
+
+		res, parseErr := parser.ParseWithResult(raw)
+		if parseErr != nil {
+			errs = append(errs, fmt.Sprintf("%s: parse error: %v", src, parseErr))
+			continue
+		}
+		for _, w := range res.Warnings {
+			msg := fmt.Sprintf("%s: [%s] %s: %s (at %s)", src, w.Phase, w.Code, w.Message, w.Path)
+			if w.Severity == "error" {
+				errs = append(errs, msg)
+			} else {
+				warns = append(warns, msg)
+			}
+		}
+	}
+
+	sort.Strings(errs)
+	sort.Strings(warns)
+	return errs, warns, nil
 }
 
 func printProfileUsage() {

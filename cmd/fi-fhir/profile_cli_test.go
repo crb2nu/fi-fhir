@@ -43,3 +43,32 @@ func TestProfileInferAndLintCLI(t *testing.T) {
 		t.Fatalf("expected lint success output, got: %s", stdout)
 	}
 }
+
+func TestProfileLintFailsOnInvalidSample(t *testing.T) {
+	tmpDir := t.TempDir()
+	samplePath := filepath.Join(tmpDir, "bad.hl7")
+	profilePath := filepath.Join(tmpDir, "profile.yaml")
+
+	// Not an HL7 message (missing MSH).
+	if err := os.WriteFile(samplePath, []byte("NOTHL7\n"), 0o600); err != nil {
+		t.Fatalf("write sample: %v", err)
+	}
+
+	// Minimal valid profile.
+	profileYAML := `source_profile:
+  id: test
+  name: Test
+  version: "0.1.0"
+  hl7v2:
+    default_version: "2.5.1"
+    timezone: "UTC"
+`
+	if err := os.WriteFile(profilePath, []byte(profileYAML), 0o600); err != nil {
+		t.Fatalf("write profile: %v", err)
+	}
+
+	_, _, err := runCLI(t, "profile", "lint", "--profile", profilePath, "--samples", samplePath, "--strict")
+	if err == nil {
+		t.Fatalf("expected lint error")
+	}
+}
