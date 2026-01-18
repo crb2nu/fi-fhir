@@ -57,6 +57,11 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
+	case "profile":
+		if err := runProfile(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 	case "workflow":
 		if err := runWorkflow(os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -125,6 +130,7 @@ Commands:
   parse        Parse a healthcare message and output semantic event JSON
   companion    List/show/validate EDI companion guides
   validate     Validate Source Profile YAML files or messages
+  profile      Infer and lint Source Profiles from samples
   workflow     Run events through workflow routing and actions
   config       Manage application configuration
   subscription Manage FHIR subscriptions for bidirectional integration
@@ -150,6 +156,9 @@ Examples:
   # Validate a Source Profile
   fi-fhir validate --profile profiles/lab_interface.yaml
 
+  # Infer a Source Profile skeleton from HL7v2 samples
+  fi-fhir profile infer --id epic_adt --name "Epic ADT Feed" testdata/adt_a01_sample.hl7
+
   # List built-in EDI companion guides
   fi-fhir companion list
 
@@ -161,6 +170,302 @@ Examples:
   fi-fhir projection run --db "$DATABASE_URL"
 
 For more information, visit: https://gitlab.flexinfer.ai/libs/fi-fhir`)
+}
+
+func runProfile(args []string) error {
+	if len(args) == 0 {
+		printProfileUsage()
+		return nil
+	}
+
+	switch args[0] {
+	case "infer":
+		return runProfileInfer(args[1:])
+	case "lint":
+		return runProfileLint(args[1:])
+	case "help", "--help", "-h":
+		printProfileUsage()
+		return nil
+	default:
+		return fmt.Errorf("unknown profile subcommand: %s (use `fi-fhir profile --help`)", args[0])
+	}
+}
+
+func runProfileInfer(args []string) error {
+	var (
+		format   = "hl7v2"
+		id       = ""
+		name     = ""
+		ver      = ""
+		timezone = ""
+		outPath  = ""
+		verbose  = false
+		inputs   []string
+	)
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--format", "-f":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--format requires a value")
+			}
+			i++
+			format = args[i]
+		case "--id":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--id requires a value")
+			}
+			i++
+			id = args[i]
+		case "--name":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--name requires a value")
+			}
+			i++
+			name = args[i]
+		case "--version":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--version requires a value")
+			}
+			i++
+			ver = args[i]
+		case "--timezone":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--timezone requires a value")
+			}
+			i++
+			timezone = args[i]
+		case "--out", "-o":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--out requires a value")
+			}
+			i++
+			outPath = args[i]
+		case "--verbose", "-v":
+			verbose = true
+		case "--help", "-h":
+			printProfileInferUsage()
+			return nil
+		default:
+			if len(args[i]) > 0 && args[i][0] == '-' {
+				return fmt.Errorf("unknown flag: %s", args[i])
+			}
+			inputs = append(inputs, args[i])
+		}
+	}
+
+	if len(inputs) == 0 {
+		return fmt.Errorf("no samples provided (pass one or more HL7v2 files/directories)")
+	}
+
+	switch format {
+	case "hl7v2", "hl7":
+		p, report, err := profile.InferHL7v2ProfileFromPaths(inputs, profile.InferHL7v2Options{
+			ID:       id,
+			Name:     name,
+			Version:  ver,
+			Timezone: timezone,
+		})
+		if err != nil {
+			return err
+		}
+
+		yamlBytes, err := profile.MarshalYAML(p)
+		if err != nil {
+			return err
+		}
+
+		if outPath != "" {
+			if err := os.WriteFile(outPath, yamlBytes, 0600); err != nil {
+				return fmt.Errorf("failed to write %s: %w", outPath, err)
+			}
+		} else {
+			fmt.Print(string(yamlBytes))
+		}
+
+		if verbose && report != nil && report.Stats != nil {
+			stats := report.Stats
+			fmt.Fprintf(os.Stderr, "Inferred from %d sample(s)\n", stats.MessageCount)
+			if v, _ := profileMostCommon(stats.Versions); v != "" {
+				fmt.Fprintf(os.Stderr, "  HL7v2 version: %s\n", v)
+			}
+			if mt, _ := profileMostCommon(stats.MessageTypes); mt != "" {
+				fmt.Fprintf(os.Stderr, "  Common message type: %s\n", mt)
+			}
+			if len(stats.ZSegments) > 0 {
+				fmt.Fprintf(os.Stderr, "  Z-segments: %d\n", len(stats.ZSegments))
+			}
+		}
+
+		return nil
+	default:
+		return fmt.Errorf("unsupported format for infer: %s (expected hl7v2)", format)
+	}
+}
+
+func runProfileLint(args []string) error {
+	var (
+		profilePath = ""
+		format      = "hl7v2"
+		samplesPath = ""
+		strict      = false
+		verbose     = false
+	)
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--profile", "-p":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--profile requires a value")
+			}
+			i++
+			profilePath = args[i]
+		case "--samples":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--samples requires a value")
+			}
+			i++
+			samplesPath = args[i]
+		case "--format", "-f":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--format requires a value")
+			}
+			i++
+			format = args[i]
+		case "--strict":
+			strict = true
+		case "--verbose", "-v":
+			verbose = true
+		case "--help", "-h":
+			printProfileLintUsage()
+			return nil
+		default:
+			if len(args[i]) > 0 && args[i][0] == '-' {
+				return fmt.Errorf("unknown flag: %s", args[i])
+			}
+			if profilePath == "" {
+				profilePath = args[i]
+			} else {
+				return fmt.Errorf("unexpected argument: %s", args[i])
+			}
+		}
+	}
+
+	if profilePath == "" {
+		return fmt.Errorf("no profile specified. Use --profile <file>")
+	}
+
+	report, err := profile.LintProfileFile(profilePath, profile.LintOptions{
+		Format:      format,
+		SamplesPath: samplesPath,
+		Verbose:     verbose,
+	})
+	if err != nil {
+		return err
+	}
+
+	if verbose && report.SampleStats != nil {
+		stats := report.SampleStats
+		fmt.Fprintf(os.Stderr, "Sample stats (%d message(s)):\n", stats.MessageCount)
+		if v, _ := profileMostCommon(stats.Versions); v != "" {
+			fmt.Fprintf(os.Stderr, "  MSH-12 version: %s\n", v)
+		}
+		if mt, _ := profileMostCommon(stats.MessageTypes); mt != "" {
+			fmt.Fprintf(os.Stderr, "  MSH-9 message type: %s\n", mt)
+		}
+		if len(stats.ZSegments) > 0 {
+			fmt.Fprintf(os.Stderr, "  Z-segments: %d\n", len(stats.ZSegments))
+		}
+	}
+
+	if len(report.Errors) > 0 {
+		fmt.Fprintf(os.Stderr, "Lint failed with %d error(s):\n", len(report.Errors))
+		for _, e := range report.Errors {
+			fmt.Fprintf(os.Stderr, "  - %s\n", e)
+		}
+		return fmt.Errorf("profile lint failed")
+	}
+
+	if len(report.Warnings) > 0 {
+		fmt.Fprintf(os.Stderr, "Lint warnings (%d):\n", len(report.Warnings))
+		for _, w := range report.Warnings {
+			fmt.Fprintf(os.Stderr, "  - %s\n", w)
+		}
+		if strict {
+			return fmt.Errorf("profile lint failed (warnings treated as errors)")
+		}
+	}
+
+	fmt.Printf("Profile %s passed lint.\n", profilePath)
+	return nil
+}
+
+func printProfileUsage() {
+	fmt.Println(`fi-fhir profile - Infer and lint Source Profiles
+
+Usage:
+  fi-fhir profile <subcommand> [options]
+
+Subcommands:
+  infer   Infer a Source Profile skeleton from sample messages
+  lint    Lint a Source Profile (optionally against sample messages)
+
+Run:
+  fi-fhir profile <subcommand> --help`)
+}
+
+func printProfileInferUsage() {
+	fmt.Println(`fi-fhir profile infer - Infer a Source Profile skeleton
+
+Usage:
+  fi-fhir profile infer [options] <sample-path>...
+
+Options:
+  -f, --format <format>    Input format (default: hl7v2)
+      --id <id>            Profile id to set (default: inferred_profile)
+      --name <name>        Profile name to set (default: Inferred Profile)
+      --version <version>  Profile version to set (default: 0.1.0)
+      --timezone <tz>      HL7v2 timezone (default: UTC)
+  -o, --out <file>         Write YAML to a file instead of stdout
+  -v, --verbose            Print inference summary to stderr
+  -h, --help               Show this help message
+
+Examples:
+  fi-fhir profile infer --id epic_adt --name "Epic ADT Feed" testdata/adt_a01_sample.hl7
+  fi-fhir profile infer testdata/ --out profiles/inferred.yaml`)
+}
+
+func printProfileLintUsage() {
+	fmt.Println(`fi-fhir profile lint - Lint a Source Profile
+
+Usage:
+  fi-fhir profile lint [options] <profile-file>
+
+Options:
+  -p, --profile <file>   Source Profile YAML file to lint
+      --samples <path>   Optional sample file/dir to lint against
+  -f, --format <format>  Sample format (default: hl7v2)
+      --strict           Treat warnings as errors
+  -v, --verbose          Print sample stats (when --samples is provided)
+  -h, --help             Show this help message
+
+Examples:
+  fi-fhir profile lint profiles/epic_adt.yaml
+  fi-fhir profile lint profiles/epic_adt.yaml --samples testdata/adt_a01_sample.hl7`)
+}
+
+func profileMostCommon(m map[string]int) (string, int) {
+	var (
+		bestVal string
+		bestCnt int
+	)
+	for v, c := range m {
+		if c > bestCnt {
+			bestVal = v
+			bestCnt = c
+		}
+	}
+	return bestVal, bestCnt
 }
 
 func runParse(args []string) error {

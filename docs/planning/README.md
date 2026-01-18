@@ -10,7 +10,7 @@ This directory contains detailed planning and specification documents for the fi
 | [WORKFLOW-DSL.md](WORKFLOW-DSL.md) | Workflow routing, transforms, and actions | ⚠️ Core complete, email/file/custom actions pending |
 | [FHIR-PROFILES.md](FHIR-PROFILES.md) | FHIR R4 output with US Core mapping | ⚠️ 17+ resources, validation pending |
 | [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) | HL7 v2.x version differences and parsing edge cases | ⚠️ Core complete, vendor templates pending |
-| [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) | X12 EDI parsing (837P, 835, 270/271, 276/277) | ⚠️ Parsing complete, companion guide framework + samples shipped |
+| [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) | X12 EDI parsing (837P, 835, 270/271, 276/277) | ✅ Parsing + companion guide framework shipped |
 | [IDENTIFIERS.md](IDENTIFIERS.md) | Patient/provider identifier systems and validation | ✅ Complete (validators + matching engine) |
 | [TERMINOLOGY.md](TERMINOLOGY.md) | Healthcare code systems and mapping (LOINC, SNOMED, UMLS, ICD-10-CM) | ⚠️ Core complete, version tracking pending |
 | [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md) | TypeScript/JavaScript SDK | ⚠️ SDK complete, distribution pending |
@@ -67,7 +67,58 @@ Events flow through configurable routes with:
 The backlog of remaining work is documented in the [Backlog section](#backlog-prioritized) below.
 For AI assistant guidance, see [AGENTS.md](../../AGENTS.md).
 
-### Completed
+### Feature Builds (Roadmap)
+
+These are the remaining “big rocks” referenced by the Document Overview statuses above.
+
+| Build | Outcome | Status | Primary Docs |
+|-------|---------|--------|--------------|
+| FB-001 | Source Profile inference + linting | ⏳ Planned | [SOURCE-PROFILES.md](SOURCE-PROFILES.md) |
+| FB-002 | Workflow action pack (email/file/custom) | ⏳ Planned | [WORKFLOW-DSL.md](WORKFLOW-DSL.md) |
+| FB-003 | FHIR validation + conformance checks | ⏳ Planned | [FHIR-PROFILES.md](FHIR-PROFILES.md) |
+| FB-004 | Terminology version tracking | ⏳ Planned | [TERMINOLOGY.md](TERMINOLOGY.md) |
+| FB-005 | TypeScript SDK distribution | ⏳ Planned | [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md) |
+| FB-006 | HL7 vendor templates + fixtures | ⏳ Planned | [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) |
+
+#### FB-001: Source Profile Inference + Linting
+- [ ] Add `fi-fhir profile infer` to generate a profile skeleton from sample messages (delimiter/version/segment/Z-segment heuristics).
+- [ ] Add `fi-fhir profile lint` with schema validation plus opinionated warnings (unknown segments, missing mappings, unsafe tolerances).
+- [ ] Add fixtures + golden outputs for inference and linting (profiles + representative `testdata/` corpus).
+
+#### FB-002: Workflow Action Pack (Email/File/Custom)
+- [ ] Implement `email` action (SMTP/SES; templated subject/body; retries + circuit breaker parity with `webhook`).
+- [ ] Implement `file` action (write events to disk with templated paths; atomic writes; rotation/retention knobs).
+- [ ] Define a safe “custom action” extension point (e.g. `exec` action with allowlist + timeouts) and document it in `WORKFLOW-DSL.md`.
+
+#### FB-003: FHIR Validation + Conformance
+- [ ] Add a validation path for generated FHIR resources/bundles (US Core-focused), used by CLI and CI.
+- [ ] Add golden fixtures to validate the highest-volume resources (Patient/Encounter/Observation/DiagnosticReport/Claim).
+- [ ] Decide and document validator strategy (pure-Go structural checks vs external validator) and failure policy (warn vs error per profile).
+
+#### FB-004: Terminology Version Tracking
+- [ ] Implement version pinning in config (per code system) and plumb through mapper/loader APIs.
+- [ ] Add a lightweight “terminology registry/index” to track installed versions and effective dates.
+- [ ] Add version-aware validation modes: `pass` / `warn` / `error` (and surface them as `ParseWarning`s when tolerated).
+
+#### FB-005: TypeScript SDK Distribution
+- [ ] Decide packaging for the Go CLI dependency (download prebuilt binaries, user-provided path, or container-based runner).
+- [ ] Add publish-ready artifacts + CI for `sdk/typescript` (build, test, provenance, changelog/versioning).
+- [ ] Add usage docs and integration examples (Node service, serverless function, simple ETL).
+
+#### FB-006: HL7 Vendor Templates + Fixtures
+- [ ] Add vendor profile templates (Epic/Cerner/Meditech/Allscripts) with documented deviations and recommended tolerances.
+- [ ] Add real-world-ish fixtures (Z-segments, optionality drift, encoding/line ending variations) and map them to templates.
+- [ ] Add a “template selection” guide (how to fork a template into a feed-specific Source Profile).
+
+### Completed (Highlights)
+
+- Multi-format parsing (HL7v2, CSV, EDI X12, CDA/CCDA) into canonical events
+- Workflow engine (filters/transforms/actions) with observability, retry, and DLQ support
+- FHIR R4 mapping (US Core-focused), event sourcing, and GraphQL API layer
+
+<details>
+<summary>Full shipped feature list</summary>
+
 - HL7v2 parsing (ADT, ORU, SIU, MDM, DFT messages)
 - CSV parsing with schema inference
 - EDI X12 parsing (837P, 835)
@@ -147,30 +198,28 @@ For AI assistant guidance, see [AGENTS.md](../../AGENTS.md).
   - MPI interface abstraction with in-memory implementation
   - Batch matching with blocking keys
 
+</details>
+
 ---
 
 ## Backlog (Prioritized)
 
 The following items remain for full production readiness:
 
-### P0 - Critical (TODOs in Production Code)
+### P0 - Release Blockers
 
-✅ **All P0 items complete** (resolved 2026-01-10)
+✅ No P0 items currently tracked.
 
-| Location | Status |
-|----------|--------|
-| `internal/api/graphql/resolvers/schema.resolvers.go` | ✅ `triggerWorkflow` mutation implemented |
-| `internal/api/graphql/resolvers/schema.resolvers.go` | ✅ FHIR subscription CRUD mutations implemented |
-| `internal/api/graphql/resolvers/schema.resolvers.go` | ✅ Workflow event notifications via pub/sub |
-| `internal/fhir/subscription/mapper.go` | ✅ CEL expression evaluation using workflow.CELEvaluator |
-| `internal/fhir/subscription/router.go` | ✅ OAuth2 client credentials via OAuth2Auth provider |
+### P1 - Feature Builds
 
-### P1 - High Priority (Planned but Not Implemented)
+Work these in order unless a customer/production need pulls something forward:
 
-| Feature | Planned In | Notes |
-|---------|------------|-------|
-| ✅ Patient Matching Engine | [IDENTIFIERS.md](IDENTIFIERS.md) | Implemented in `pkg/matching/` (2026-01-10) |
-| ✅ EDI Companion Guide Framework | [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) | Implemented in `internal/parser/edi/companion/`; CLI support via `fi-fhir parse --edi-companion auto` |
+1. FB-001: Source Profile inference + linting
+2. FB-003: FHIR validation + conformance checks
+3. FB-002: Workflow action pack (email/file/custom)
+4. FB-004: Terminology version tracking
+5. FB-006: HL7 vendor templates + fixtures
+6. FB-005: TypeScript SDK distribution
 
 ### P2 - Test Coverage Gaps
 
@@ -181,9 +230,9 @@ The following items remain for full production readiness:
 | CDA Parser | 87.1% | 80%+ | ✅ Above target |
 | ✅ GraphQL Resolvers | 80.8% | 80%+ | |
 | ✅ FHIR Subscription | 84.7% | 80%+ | |
-| ✅ Terminology (pkg) | 66.9% | 80%+ | Core pkg good, db layer needs work |
+| Terminology (pkg) | 66.9% | 80%+ | Core pkg good, db layer needs work |
 | ✅ FHIR Parser | 92.5% | 80%+ | |
-| ✅ Workflow Engine | 79.5% | 80%+ | |
+| Workflow Engine | 79.5% | 80%+ | |
 
 #### P2 Next Steps (CLI Coverage)
 
