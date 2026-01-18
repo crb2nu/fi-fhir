@@ -215,7 +215,7 @@ func marshalZFieldMappingsNode(m []ZFieldMapping) *yaml.Node {
 func marshalIdentifiersNode(c *IdentifierConfig) *yaml.Node {
 	n := &yaml.Node{Kind: yaml.MappingNode}
 
-	if c.AssigningAuthorityMap != nil && len(c.AssigningAuthorityMap) > 0 {
+	if len(c.AssigningAuthorityMap) > 0 {
 		mn := &yaml.Node{Kind: yaml.MappingNode}
 		keys := make([]string, 0, len(c.AssigningAuthorityMap))
 		for k := range c.AssigningAuthorityMap {
@@ -244,7 +244,7 @@ func marshalIdentifiersNode(c *IdentifierConfig) *yaml.Node {
 		addNode(n, "primary_id_preference", seq)
 	}
 
-	if c.Validation != nil && len(c.Validation) > 0 {
+	if len(c.Validation) > 0 {
 		mn := &yaml.Node{Kind: yaml.MappingNode}
 		keys := make([]string, 0, len(c.Validation))
 		for k := range c.Validation {
@@ -304,7 +304,7 @@ func marshalTerminologyNode(c *TerminologyConfig) *yaml.Node {
 	if c.UnknownCodeBehavior != "" {
 		addScalar(n, "unknown_code_behavior", c.UnknownCodeBehavior)
 	}
-	if c.Versions != nil && len(c.Versions) > 0 {
+	if len(c.Versions) > 0 {
 		mn := &yaml.Node{Kind: yaml.MappingNode}
 		keys := make([]string, 0, len(c.Versions))
 		for k := range c.Versions {
@@ -335,7 +335,7 @@ func marshalQualityNode(c *QualityConfig) *yaml.Node {
 	if len(c.Metrics) > 0 {
 		addStringSeq(n, "metrics", c.Metrics)
 	}
-	if c.Alerts != nil && len(c.Alerts) > 0 {
+	if len(c.Alerts) > 0 {
 		mn := &yaml.Node{Kind: yaml.MappingNode}
 		keys := make([]string, 0, len(c.Alerts))
 		for k := range c.Alerts {

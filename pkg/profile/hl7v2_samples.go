@@ -239,13 +239,3 @@ func mostCommonString(m map[string]int) (value string, count int) {
 	}
 	return value, count
 }
-
-func mostCommonRune(m map[rune]int) (value rune, count int) {
-	for v, c := range m {
-		if c > count {
-			value = v
-			count = c
-		}
-	}
-	return value, count
-}
