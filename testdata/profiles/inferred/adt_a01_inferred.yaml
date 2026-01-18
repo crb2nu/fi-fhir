@@ -11,9 +11,10 @@ source_profile:
       line_ending_mode: tolerant
     tolerate:
       missing_segments:
-        - PV1
-        - PD1
+        - GT1
+        - NK1
         - OBR
+        - PD1
       nte_anywhere: true
       extra_components: true
       unknown_segments: true

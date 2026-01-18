@@ -73,6 +73,12 @@ func InferHL7v2ProfileFromSamples(samples []string, inputUsed []string, opts Inf
 		zMappings[zid] = []ZFieldMapping{}
 	}
 
+	// Heuristic: tolerate missing segments only for a small, curated set, and only if
+	// they appear in some (but not all) samples (or are entirely absent across samples).
+	//
+	// This avoids inferring an enormous missing_segments list from small sample sets.
+	missingSegments := inferMissingSegments(stats)
+
 	p := &SourceProfile{
 		ID:      id,
 		Name:    name,
@@ -86,7 +92,7 @@ func InferHL7v2ProfileFromSamples(samples []string, inputUsed []string, opts Inf
 				LineEndingMode:   "tolerant",
 			},
 			Tolerate: &ToleranceConfig{
-				MissingSegments:       []string{"PV1", "PD1", "OBR"},
+				MissingSegments:       missingSegments,
 				NTEAnywhere:           true,
 				ExtraComponents:       true,
 				UnknownSegments:       true,
@@ -115,4 +121,21 @@ func InferHL7v2ProfileFromSamples(samples []string, inputUsed []string, opts Inf
 	}
 
 	return p, &InferHL7v2Report{Stats: stats, InputUsed: inputUsed}, nil
+}
+
+func inferMissingSegments(stats *HL7v2SampleStats) []string {
+	if stats == nil || stats.MessageCount <= 0 {
+		return nil
+	}
+
+	candidates := []string{"PV1", "PD1", "OBR", "NK1", "GT1"}
+
+	var out []string
+	for _, seg := range candidates {
+		if stats.SegmentPresence[seg] < stats.MessageCount {
+			out = append(out, seg)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
