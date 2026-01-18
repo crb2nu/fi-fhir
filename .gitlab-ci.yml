@@ -35,6 +35,24 @@ variables:
   KUBERNETES_SERVICE_MEMORY_REQUEST: "512Mi"
   KUBERNETES_SERVICE_MEMORY_LIMIT: "2Gi"
 
+# Common change sets (use in rules:changes)
+.go-changes: &go-changes
+  - go.mod
+  - go.sum
+  - cmd/**/*
+  - internal/**/*
+  - pkg/**/*
+  - sdk/**/*
+  - Dockerfile
+  - .golangci.yml
+  - .golangci.yaml
+  - .golangci.toml
+
+.ui-changes: &ui-changes
+  - ui/**/*
+  - internal/api/graphql/schema.graphql
+  - api/openapi.yaml
+
 default:
   retry:
     max: 2
@@ -102,8 +120,12 @@ lint:go:
     - curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b "${GOPATH}/bin" ${GOLANGCI_LINT_VERSION}
     - golangci-lint run --timeout=5m ./...
   rules:
+    - if: $CI_COMMIT_TAG
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *go-changes
+    - when: never
 
 lint:fmt:
   stage: lint
@@ -131,8 +153,12 @@ lint:fmt:
         exit 1
       fi
   rules:
+    - if: $CI_COMMIT_TAG
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *go-changes
+    - when: never
 
 lint:vet:
   stage: lint
@@ -142,8 +168,12 @@ lint:vet:
     - apk add --no-cache git
     - go vet ./...
   rules:
+    - if: $CI_COMMIT_TAG
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *go-changes
+    - when: never
 
 lint:gqlgen:
   stage: lint
@@ -155,11 +185,16 @@ lint:gqlgen:
     - go run github.com/99designs/gqlgen generate --config gqlgen.yml
     - git diff --exit-code -- .
   rules:
+    - if: $CI_COMMIT_TAG
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-    - changes:
+      changes:
         - internal/api/graphql/**/*
         - ui/**/*
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - internal/api/graphql/**/*
+        - ui/**/*
+    - when: never
 
 lint:ui:
   stage: lint
@@ -177,12 +212,12 @@ lint:ui:
     - npm run check
     - npm run typecheck
   rules:
+    - if: $CI_COMMIT_TAG
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *ui-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-    - changes:
-        - ui/**/*
-        - internal/api/graphql/schema.graphql
-        - api/openapi.yaml
+      changes: *ui-changes
+    - when: never
 
 lint:helm:
   stage: lint
@@ -204,16 +239,10 @@ test:unit:
   stage: test
   <<: *go-image-debian
   <<: *go-cache
-  services:
-    - docker:24-dind
   variables:
     CGO_ENABLED: "1"
-    DOCKER_HOST: tcp://localhost:2375
-    DOCKER_TLS_CERTDIR: ""
     KUBERNETES_CPU_LIMIT: "2"
     KUBERNETES_MEMORY_LIMIT: "4Gi"
-    KUBERNETES_SERVICE_CPU_LIMIT: "2"
-    KUBERNETES_SERVICE_MEMORY_LIMIT: "4Gi"
   script:
     - apt-get update && apt-get install -y --no-install-recommends git ca-certificates build-essential && rm -rf /var/lib/apt/lists/*
     - go install github.com/boumenot/gocover-cobertura@latest
@@ -246,8 +275,12 @@ test:unit:
       - coverage.xml
     expire_in: 1 week
   rules:
+    - if: $CI_COMMIT_TAG
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *go-changes
+    - when: never
 
 test:integration:
   stage: test
@@ -263,9 +296,15 @@ test:integration:
     - apt-get update && apt-get install -y --no-install-recommends git ca-certificates build-essential && rm -rf /var/lib/apt/lists/*
     - go test -tags=integration -race ./...
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
       when: manual
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *go-changes
+      when: manual
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *go-changes
+      when: manual
+    - when: never
   allow_failure: true
 
 test:benchmark:
@@ -280,9 +319,15 @@ test:benchmark:
       - benchmark.txt
     expire_in: 1 month
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
       when: manual
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *go-changes
+      when: manual
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *go-changes
+      when: manual
+    - when: never
   allow_failure: true
 
 # =============================================================================
@@ -298,8 +343,12 @@ security:govulncheck:
     - go install golang.org/x/vuln/cmd/govulncheck@latest
     - govulncheck ./...
   rules:
+    - if: $CI_COMMIT_TAG
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *go-changes
+    - when: never
   allow_failure: true
 
 security:gosec:
@@ -315,8 +364,12 @@ security:gosec:
       sast: gosec-report.sarif
     when: always
   rules:
+    - if: $CI_COMMIT_TAG
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *go-changes
+    - when: never
   allow_failure: true
 
 security:trivy:
@@ -334,8 +387,14 @@ security:trivy:
       - trivy-report.sarif
     when: always
   rules:
+    - if: $CI_COMMIT_TAG
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "**/*"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - "**/*"
+    - when: never
   allow_failure: true
 
 # =============================================================================
@@ -359,9 +418,12 @@ build:binary:
       - bin/fi-fhir
     expire_in: 1 week
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *go-changes
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *go-changes
+    - when: never
 
 build:docker:
   stage: build
@@ -393,16 +455,16 @@ build:docker:
       - docker-image.tar
     expire_in: 1 day
   rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *go-changes
+    - when: never
 
 build:docker-ui:
   stage: build
   image: docker:24
   services:
     - docker:24-dind
-  needs:
-    - test:unit
   variables:
     DOCKER_HOST: tcp://localhost:2375
     DOCKER_TLS_CERTDIR: ""
@@ -432,11 +494,12 @@ build:docker-ui:
       - docker-ui-image.tar
     expire_in: 1 day
   rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_COMMIT_TAG
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes:
-        - ui/**/*
+      changes: *ui-changes
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *ui-changes
+    - when: never
 
 # =============================================================================
 # Deploy Stage (continuous deployment on main branch)
@@ -506,6 +569,8 @@ deploy:docker:
       fi
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *go-changes
+    - when: never
 
 deploy:docker-ui:
   stage: deploy
@@ -571,6 +636,8 @@ deploy:docker-ui:
       fi
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *ui-changes
+    - when: never
 
 # =============================================================================
 # Release Stage
