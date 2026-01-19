@@ -74,7 +74,7 @@ These are the remaining “big rocks” referenced by the Document Overview stat
 | Build | Outcome | Status | Primary Docs |
 |-------|---------|--------|--------------|
 | FB-001 | Source Profile inference + linting | ✅ Shipped | [SOURCE-PROFILES.md](SOURCE-PROFILES.md) |
-| FB-002 | Workflow action pack (email/file/custom) | ⏳ Planned | [WORKFLOW-DSL.md](WORKFLOW-DSL.md) |
+| FB-002 | Workflow action pack (email/file/custom) | 🚧 In progress | [WORKFLOW-DSL.md](WORKFLOW-DSL.md) |
 | FB-003 | FHIR validation + conformance checks | 🚧 In progress | [FHIR-PROFILES.md](FHIR-PROFILES.md) |
 | FB-004 | Terminology version tracking | ⏳ Planned | [TERMINOLOGY.md](TERMINOLOGY.md) |
 | FB-005 | TypeScript SDK distribution | ⏳ Planned | [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md) |
@@ -87,7 +87,7 @@ These are the remaining “big rocks” referenced by the Document Overview stat
 
 #### FB-002: Workflow Action Pack (Email/File/Custom)
 - [ ] Implement `email` action (SMTP/SES; templated subject/body; retries + circuit breaker parity with `webhook`).
-- [ ] Implement `file` action (write events to disk with templated paths; atomic writes; rotation/retention knobs).
+- [x] Implement `file` action (write events to disk with templated paths; atomic writes; rotation/retention knobs).
 - [ ] Define a safe “custom action” extension point (e.g. `exec` action with allowlist + timeouts) and document it in `WORKFLOW-DSL.md`.
 
 #### FB-003: FHIR Validation + Conformance
