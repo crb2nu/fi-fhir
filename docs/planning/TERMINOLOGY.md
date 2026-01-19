@@ -57,31 +57,32 @@ This document details healthcare code systems, version management, and the fi-fh
 
 ### Version Handling in fi-fhir
 
-```go
-// Terminology version configuration
-type TerminologyConfig struct {
-    // Version per code system
-    Versions map[string]string `yaml:"versions"`
+fi-fhir supports **pinning expected terminology release versions** and enforcing them at runtime.
 
-    // Whether to validate codes against version
-    StrictValidation bool `yaml:"strict_validation"`
-
-    // Fallback behavior for unknown codes
-    UnknownCodeBehavior string `yaml:"unknown_code_behavior"` // "error", "warn", "pass"
-}
-
-// Example config
-/*
+```yaml
 terminology:
-  versions:
-    icd10cm: "2024"      # FY2024 (Oct 2023 - Sep 2024)
-    cpt: "2024"          # Calendar year
-    loinc: "2.76"        # LOINC version
-    snomed: "2023-09-01" # US Edition date
-  strict_validation: false
-  unknown_code_behavior: "warn"
-*/
+  # PostgreSQL connection string for the terminology schema (terminology.* tables)
+  db_url: ${secret:TERMINOLOGY_DATABASE_URL}
+
+  # Pinned expected active versions per vocabulary.
+  # Keys are case-insensitive and accept common aliases (e.g. "snomed" -> SNOMEDCT_US).
+  pins:
+    loinc: "2.77"
+    icd10cm: "FY2024"
+    snomed: "2024-03-01"
+    rxnorm: "2024-01"
+
+  # Enforcement policy when pins do not match the active DB release:
+  # - pass: ignore
+  # - warn: emit ParseWarnings / startup warnings
+  # - error: fail startup / fail CLI command
+  policy: warn
 ```
+
+Equivalent environment variables:
+- `FI_FHIR_TERMINOLOGY_DB_URL`
+- `FI_FHIR_TERMINOLOGY_PINS` (e.g. `loinc=2.77,icd10cm=FY2024`)
+- `FI_FHIR_TERMINOLOGY_POLICY` (`pass|warn|error`)
 
 ## Code Normalization Pipeline
 
@@ -245,7 +246,7 @@ func GetICD10Version(serviceDate time.Time) string {
 - [x] Code system URIs (LOINC, SNOMED, ICD-10, CPT, etc.) - see `pkg/terminology/mapper.go`
 - [x] MappingEquivalence enum (equivalent, wider, narrower, inexact, unmatched)
 - [x] CodeMapping struct with full provenance fields
-- [ ] Version tracking per code system (in config only)
+- [x] Version tracking per code system (pins + pass/warn/error policy)
 
 ### Phase 2: LOINC Support ✅
 - [x] LOINC file loader (CSV from loinc.org) - see `pkg/terminology/loinc.go:LOINCLoader`

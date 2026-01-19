@@ -1205,6 +1205,17 @@ func runParse(args []string) error {
 		return fmt.Errorf("unknown format: %s (supported: hl7v2, csv, edi, cda, fhir)", format)
 	}
 
+	// Optionally validate terminology version pins (adds ParseWarnings or fails, depending on policy).
+	dbURL, pins, policy := loadTerminologyPinConfigFromEnv()
+	pinWarnings, err := checkTerminologyPins(context.Background(), dbURL, pins, policy)
+	if err != nil {
+		return err
+	}
+	if len(pinWarnings) > 0 {
+		warnings = append(warnings, pinWarnings...)
+		appendParseWarningsToOutputData(outputData, pinWarnings)
+	}
+
 	// Print warnings to stderr if requested
 	if showWarnings && len(warnings) > 0 {
 		fmt.Fprintf(os.Stderr, "Warnings (%d):\n", len(warnings))
@@ -3049,6 +3060,11 @@ func runConfigEnv(args []string) error {
 		{"fhir", "FI_FHIR_FHIR_OAUTH2_CLIENT_ID", "OAuth2 client ID", ""},
 		{"fhir", "FI_FHIR_FHIR_OAUTH2_CLIENT_SECRET", "OAuth2 client secret (use ${secret:KEY})", ""},
 
+		// Terminology
+		{"terminology", "FI_FHIR_TERMINOLOGY_DB_URL", "PostgreSQL connection string for terminology database", ""},
+		{"terminology", "FI_FHIR_TERMINOLOGY_PINS", "Terminology version pins (e.g. \"loinc=2.77,icd10cm=FY2024\")", ""},
+		{"terminology", "FI_FHIR_TERMINOLOGY_POLICY", "Pin enforcement policy (pass, warn, error)", "warn"},
+
 		// Database
 		{"database", "FI_FHIR_DATABASE_DRIVER", "Database driver (postgres, mysql, sqlite)", "postgres"},
 		{"database", "FI_FHIR_DATABASE_HOST", "Database host", ""},
@@ -4427,6 +4443,17 @@ func runServe(args []string) error {
 			if len(args[i]) > 0 && args[i][0] == '-' {
 				return fmt.Errorf("unknown flag: %s", args[i])
 			}
+		}
+	}
+
+	// Enforce terminology version pins (if configured)
+	dbURL, pins, policy := loadTerminologyPinConfigFromEnv()
+	if pinWarnings, err := checkTerminologyPins(context.Background(), dbURL, pins, policy); err != nil {
+		return err
+	} else if len(pinWarnings) > 0 {
+		fmt.Fprintf(os.Stderr, "Terminology pin warnings (%d):\n", len(pinWarnings))
+		for _, w := range pinWarnings {
+			fmt.Fprintf(os.Stderr, "  [%s] %s: %s\n", w.Phase, w.Code, w.Message)
 		}
 	}
 

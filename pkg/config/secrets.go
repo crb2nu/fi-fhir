@@ -293,6 +293,15 @@ func (c *Config) ApplySecrets(provider SecretProvider) error {
 		c.Database.Password = resolved
 	}
 
+	// Resolve terminology DB secrets (if using URL form)
+	if c.Terminology.DBURL != "" {
+		resolved, err := resolver.Resolve(c.Terminology.DBURL)
+		if err != nil {
+			return fmt.Errorf("failed to resolve terminology db_url: %w", err)
+		}
+		c.Terminology.DBURL = resolved
+	}
+
 	// Resolve queue secrets
 	if c.Queue.Password != "" {
 		resolved, err := resolver.Resolve(c.Queue.Password)

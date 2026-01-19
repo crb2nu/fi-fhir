@@ -48,6 +48,14 @@ func TestDefault(t *testing.T) {
 	if cfg.Observability.LogLevel != "info" {
 		t.Errorf("Expected log level info, got %s", cfg.Observability.LogLevel)
 	}
+
+	// Verify terminology defaults
+	if cfg.Terminology.Policy != "warn" {
+		t.Errorf("Expected terminology policy warn, got %s", cfg.Terminology.Policy)
+	}
+	if cfg.Terminology.Pins == nil {
+		t.Error("Expected terminology pins map to be initialized")
+	}
 }
 
 func TestParse(t *testing.T) {
@@ -146,6 +154,9 @@ func TestApplyEnv(t *testing.T) {
 		"FI_FHIR_LOG_LEVEL":                "warn",
 		"FI_FHIR_TRACING_SAMPLER":          "0.5",
 		"FI_FHIR_QUEUE_BROKERS":            "kafka1:9092,kafka2:9092",
+		"FI_FHIR_TERMINOLOGY_DB_URL":       "postgres://localhost:5432/terminology",
+		"FI_FHIR_TERMINOLOGY_POLICY":       "error",
+		"FI_FHIR_TERMINOLOGY_PINS":         "loinc=2.77,icd10cm=FY2024",
 	}
 
 	for k, v := range envVars {
@@ -182,6 +193,19 @@ func TestApplyEnv(t *testing.T) {
 	}
 	if len(cfg.Queue.Brokers) != 2 {
 		t.Errorf("Expected 2 brokers, got %d", len(cfg.Queue.Brokers))
+	}
+
+	if cfg.Terminology.DBURL != "postgres://localhost:5432/terminology" {
+		t.Errorf("Expected terminology DB URL to be set, got %q", cfg.Terminology.DBURL)
+	}
+	if cfg.Terminology.Policy != "error" {
+		t.Errorf("Expected terminology policy error, got %q", cfg.Terminology.Policy)
+	}
+	if cfg.Terminology.Pins["loinc"] != "2.77" {
+		t.Errorf("Expected terminology pin loinc=2.77, got %q", cfg.Terminology.Pins["loinc"])
+	}
+	if cfg.Terminology.Pins["icd10cm"] != "FY2024" {
+		t.Errorf("Expected terminology pin icd10cm=FY2024, got %q", cfg.Terminology.Pins["icd10cm"])
 	}
 }
 

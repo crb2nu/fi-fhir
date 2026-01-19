@@ -55,7 +55,7 @@ Subcommands:
   crosswalk Translate codes between vocabularies
 
 Options:
-  --db      PostgreSQL connection string (or FI_FHIR_DATABASE_URL env)
+  --db      PostgreSQL connection string (or FI_FHIR_TERMINOLOGY_DB_URL env)
 
 Examples:
   # Initialize terminology schema
@@ -90,14 +90,17 @@ func getTerminologyDBURL(args []string) string {
 			return args[i+1]
 		}
 	}
-	// Fall back to environment variable
+	// Fall back to environment variables (terminology-specific first, then legacy FI_FHIR_DATABASE_URL)
+	if v := os.Getenv("FI_FHIR_TERMINOLOGY_DB_URL"); v != "" {
+		return v
+	}
 	return os.Getenv("FI_FHIR_DATABASE_URL")
 }
 
 func runTerminologyInit(args []string) error {
 	dbURL := getTerminologyDBURL(args)
 	if dbURL == "" {
-		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_DATABASE_URL env var")
+		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_TERMINOLOGY_DB_URL env var")
 	}
 
 	conn, err := sql.Open("postgres", dbURL)
@@ -135,7 +138,7 @@ func runTerminologyInit(args []string) error {
 func runTerminologyStatus(args []string) error {
 	dbURL := getTerminologyDBURL(args)
 	if dbURL == "" {
-		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_DATABASE_URL env var")
+		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_TERMINOLOGY_DB_URL env var")
 	}
 
 	conn, err := sql.Open("postgres", dbURL)
@@ -190,6 +193,39 @@ func runTerminologyStatus(args []string) error {
 		}
 	}
 
+	// Optional: compare pinned versions (from env/config) to active releases
+	_, pins, policy := loadTerminologyPinConfigFromEnv()
+	if len(pins) > 0 {
+		pinStatuses, err := migrator.CheckPinnedReleases(ctx, pins)
+		if err != nil {
+			return fmt.Errorf("failed to check terminology pins: %w", err)
+		}
+
+		var mismatches int
+		fmt.Println("\nPinned Versions:")
+		fmt.Printf("%-15s %-15s %-15s %-10s\n", "VOCABULARY", "PINNED", "ACTIVE", "STATUS")
+		fmt.Println("---------------------------------------------------------------")
+		for _, ps := range pinStatuses {
+			status := "MISMATCH"
+			active := ps.ActiveVersion
+			if !ps.ActiveReleaseSet {
+				active = "(none)"
+				status = "NOT_LOADED"
+				mismatches++
+			} else if ps.Match {
+				status = "OK"
+			} else {
+				mismatches++
+			}
+			fmt.Printf("%-15s %-15s %-15s %-10s\n", ps.Vocabulary, ps.ExpectedVersion, active, status)
+		}
+
+		policy = strings.ToLower(strings.TrimSpace(policy))
+		if mismatches > 0 && policy == "error" {
+			return fmt.Errorf("terminology pins do not match active releases (%d issue(s))", mismatches)
+		}
+	}
+
 	return nil
 }
 
@@ -198,7 +234,7 @@ func runTerminologyUse(args []string) error {
 		fmt.Println(`Usage: fi-fhir terminology use <vocabulary> <version> [options]
 
 Options:
-  --db      PostgreSQL connection string (or FI_FHIR_DATABASE_URL env)
+  --db      PostgreSQL connection string (or FI_FHIR_TERMINOLOGY_DB_URL env)
 
 Examples:
   fi-fhir terminology use loinc 2.77 --db "$DATABASE_URL"`)
@@ -213,7 +249,7 @@ Examples:
 
 	dbURL := getTerminologyDBURL(args[2:])
 	if dbURL == "" {
-		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_DATABASE_URL env var")
+		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_TERMINOLOGY_DB_URL env var")
 	}
 
 	conn, err := sql.Open("postgres", dbURL)
@@ -237,7 +273,7 @@ Examples:
 func runTerminologyDrop(args []string) error {
 	dbURL := getTerminologyDBURL(args)
 	if dbURL == "" {
-		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_DATABASE_URL env var")
+		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_TERMINOLOGY_DB_URL env var")
 	}
 
 	// Check for --force flag
@@ -302,16 +338,9 @@ Examples:
 	// Parse remaining args
 	var version string
 	var dateStr string
-	dbURL := os.Getenv("FI_FHIR_DATABASE_URL")
 
 	for i := 2; i < len(args); {
 		switch args[i] { //nolint:gosec // guarded by loop bounds; gosec false positive
-		case "--db":
-			if i+1 < len(args) {
-				dbURL = args[i+1]
-				i += 2
-				continue
-			}
 		case "--version":
 			if i+1 < len(args) {
 				version = args[i+1]
@@ -328,8 +357,9 @@ Examples:
 		i++
 	}
 
+	dbURL := getTerminologyDBURL(args[2:])
 	if dbURL == "" {
-		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_DATABASE_URL env var")
+		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_TERMINOLOGY_DB_URL env var")
 	}
 
 	if version == "" {
@@ -546,7 +576,7 @@ Examples:
 
 	// Parse flags
 	var fromVocab, toVocab string
-	dbURL := os.Getenv("FI_FHIR_DATABASE_URL")
+	dbURL := getTerminologyDBURL(args[1:])
 
 	for i := 1; i < len(args); i++ {
 		switch args[i] {
@@ -560,16 +590,11 @@ Examples:
 				toVocab = args[i+1]
 				i++
 			}
-		case "--db":
-			if i+1 < len(args) {
-				dbURL = args[i+1]
-				i++
-			}
 		}
 	}
 
 	if dbURL == "" {
-		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_DATABASE_URL env var")
+		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_TERMINOLOGY_DB_URL env var")
 	}
 
 	if fromVocab == "" || toVocab == "" {

@@ -12,7 +12,7 @@ This directory contains detailed planning and specification documents for the fi
 | [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) | HL7 v2.x version differences and parsing edge cases | ⚠️ Core complete, vendor templates pending |
 | [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) | X12 EDI parsing (837P, 835, 270/271, 276/277) | ✅ Parsing + companion guide framework shipped |
 | [IDENTIFIERS.md](IDENTIFIERS.md) | Patient/provider identifier systems and validation | ✅ Complete (validators + matching engine) |
-| [TERMINOLOGY.md](TERMINOLOGY.md) | Healthcare code systems and mapping (LOINC, SNOMED, UMLS, ICD-10-CM) | ⚠️ Core complete, version tracking pending |
+| [TERMINOLOGY.md](TERMINOLOGY.md) | Healthcare code systems and mapping (LOINC, SNOMED, UMLS, ICD-10-CM) | ✅ Core + version tracking shipped |
 | [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md) | TypeScript/JavaScript SDK | ⚠️ SDK complete, distribution pending |
 | [CDA-CCDA.md](CDA-CCDA.md) | CDA/CCDA clinical document parsing | ✅ Complete |
 | [FHIR-SUBSCRIPTIONS.md](FHIR-SUBSCRIPTIONS.md) | FHIR R4 Subscriptions (bidirectional) | ✅ Complete |
@@ -76,7 +76,7 @@ These are the remaining “big rocks” referenced by the Document Overview stat
 | FB-001 | Source Profile inference + linting | ✅ Shipped | [SOURCE-PROFILES.md](SOURCE-PROFILES.md) |
 | FB-002 | Workflow action pack (email/file/custom) | ✅ Shipped | [WORKFLOW-DSL.md](WORKFLOW-DSL.md) |
 | FB-003 | FHIR validation + conformance checks | ✅ Shipped | [FHIR-PROFILES.md](FHIR-PROFILES.md) |
-| FB-004 | Terminology version tracking | 🚧 In progress | [TERMINOLOGY.md](TERMINOLOGY.md) |
+| FB-004 | Terminology version tracking | ✅ Shipped | [TERMINOLOGY.md](TERMINOLOGY.md) |
 | FB-005 | TypeScript SDK distribution | ⏳ Planned | [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md) |
 | FB-006 | HL7 vendor templates + fixtures | ⏳ Planned | [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) |
 
@@ -96,9 +96,9 @@ These are the remaining “big rocks” referenced by the Document Overview stat
 - [x] Decide and document validator strategy (pure-Go structural checks vs external validator) and failure policy (warn vs error per profile).
 
 #### FB-004: Terminology Version Tracking
-- [ ] Implement version pinning in config (per code system) and plumb through mapper/loader APIs.
+- [x] Implement version pinning in config (per code system) and plumb through mapper/loader APIs.
 - [x] Add a lightweight “terminology registry/index” to track installed versions and effective dates (`terminology.releases`, `fi-fhir terminology status`, `fi-fhir terminology use`).
-- [ ] Add version-aware validation modes: `pass` / `warn` / `error` (and surface them as `ParseWarning`s when tolerated).
+- [x] Add version-aware validation modes: `pass` / `warn` / `error` (and surface them as `ParseWarning`s when tolerated).
 
 #### FB-005: TypeScript SDK Distribution
 - [ ] Decide packaging for the Go CLI dependency (download prebuilt binaries, user-provided path, or container-based runner).

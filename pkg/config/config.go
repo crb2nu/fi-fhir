@@ -23,6 +23,9 @@ type Config struct {
 	// FHIR server configuration
 	FHIR FHIRConfig `yaml:"fhir" json:"fhir"`
 
+	// Terminology configuration (version pins, DB URL, enforcement policy)
+	Terminology TerminologyConfig `yaml:"terminology" json:"terminology"`
+
 	// Database configuration
 	Database DatabaseConfig `yaml:"database" json:"database"`
 
@@ -77,6 +80,19 @@ type OAuth2Config struct {
 	ClientID     string   `yaml:"client_id" json:"client_id"`
 	ClientSecret string   `yaml:"client_secret" json:"client_secret"` // Use secrets provider
 	Scopes       []string `yaml:"scopes" json:"scopes"`
+}
+
+// TerminologyConfig holds terminology DB and version enforcement settings.
+type TerminologyConfig struct {
+	// DBURL is a PostgreSQL connection string for the terminology database.
+	DBURL string `yaml:"db_url" json:"db_url"`
+
+	// Pins maps vocabulary -> expected active version (e.g. loinc: 2.77).
+	Pins map[string]string `yaml:"pins" json:"pins"`
+
+	// Policy controls behavior when pins do not match the active DB release:
+	// pass (ignore), warn (emit warnings), error (fail).
+	Policy string `yaml:"policy" json:"policy"`
 }
 
 // DatabaseConfig holds database connection settings.
@@ -148,6 +164,10 @@ func Default() *Config {
 		FHIR: FHIRConfig{
 			Timeout:  30 * time.Second,
 			AuthType: "none",
+		},
+		Terminology: TerminologyConfig{
+			Pins:   make(map[string]string),
+			Policy: "warn",
 		},
 		Database: DatabaseConfig{
 			Driver:          "postgres",
@@ -265,6 +285,13 @@ func (c *Config) ApplyEnv() {
 	c.FHIR.OAuth2Config.ClientID = getEnvString("FI_FHIR_FHIR_OAUTH2_CLIENT_ID", c.FHIR.OAuth2Config.ClientID)
 	c.FHIR.OAuth2Config.ClientSecret = getEnvString("FI_FHIR_FHIR_OAUTH2_CLIENT_SECRET", c.FHIR.OAuth2Config.ClientSecret)
 
+	// Terminology
+	c.Terminology.DBURL = getEnvString("FI_FHIR_TERMINOLOGY_DB_URL", c.Terminology.DBURL)
+	c.Terminology.Policy = getEnvString("FI_FHIR_TERMINOLOGY_POLICY", c.Terminology.Policy)
+	if pinsRaw := os.Getenv("FI_FHIR_TERMINOLOGY_PINS"); pinsRaw != "" {
+		c.Terminology.Pins = parseKeyValueList(pinsRaw)
+	}
+
 	// Database
 	c.Database.Driver = getEnvString("FI_FHIR_DATABASE_DRIVER", c.Database.Driver)
 	c.Database.Host = getEnvString("FI_FHIR_DATABASE_HOST", c.Database.Host)
@@ -329,6 +356,21 @@ func (c *Config) Validate() []error {
 	validAuthTypes := map[string]bool{"none": true, "basic": true, "bearer": true, "oauth2": true}
 	if !validAuthTypes[c.FHIR.AuthType] {
 		errs = append(errs, fmt.Errorf("fhir.auth_type must be one of: none, basic, bearer, oauth2"))
+	}
+
+	// Terminology validation
+	validPolicies := map[string]bool{"pass": true, "warn": true, "error": true, "": true}
+	if !validPolicies[c.Terminology.Policy] {
+		errs = append(errs, fmt.Errorf("terminology.policy must be one of: pass, warn, error"))
+	}
+	for vocab, ver := range c.Terminology.Pins {
+		if strings.TrimSpace(vocab) == "" {
+			errs = append(errs, fmt.Errorf("terminology.pins contains an empty vocabulary key"))
+			continue
+		}
+		if strings.TrimSpace(ver) == "" {
+			errs = append(errs, fmt.Errorf("terminology.pins.%s must be non-empty", strings.TrimSpace(vocab)))
+		}
 	}
 
 	// Database validation
@@ -416,6 +458,27 @@ func getEnvBool(key string, defaultVal bool) bool {
 		}
 	}
 	return defaultVal
+}
+
+func parseKeyValueList(raw string) map[string]string {
+	result := make(map[string]string)
+	for _, item := range strings.FieldsFunc(raw, func(r rune) bool { return r == ',' || r == ';' }) {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		k, v, ok := strings.Cut(item, "=")
+		if !ok {
+			continue
+		}
+		k = strings.TrimSpace(k)
+		v = strings.TrimSpace(v)
+		if k == "" || v == "" {
+			continue
+		}
+		result[k] = v
+	}
+	return result
 }
 
 func getEnvFloat(key string, defaultVal float64) float64 {
