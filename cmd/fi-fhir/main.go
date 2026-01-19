@@ -517,7 +517,7 @@ func runProfileLint(args []string) error {
 		format      = "hl7v2"
 		samplesPath = ""
 		jsonOut     = false
-		strict      = false
+		strict      = true
 		verbose     = false
 		maxFiles    = 200
 	)
@@ -546,6 +546,8 @@ func runProfileLint(args []string) error {
 			jsonOut = true
 		case "--strict":
 			strict = true
+		case "--allow-warnings":
+			strict = false
 		case "--verbose", "-v":
 			verbose = true
 		case "--max-files":
@@ -831,7 +833,8 @@ Options:
   -f, --format <format>  Sample format (default: hl7v2)
       --max-files <n>    Maximum files to read from directories (default: 200)
       --json             Print a machine-readable JSON report to stdout
-      --strict           Treat warnings as errors
+      --strict           Treat warnings as errors (default)
+      --allow-warnings   Do not fail lint on warnings
   -v, --verbose          Print sample stats (when --samples is provided)
   -h, --help             Show this help message
 

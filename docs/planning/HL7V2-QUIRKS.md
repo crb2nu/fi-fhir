@@ -188,6 +188,26 @@ ZPI - Patient Info Extension
 ZFI - Financial Info
 ```
 
+## Vendor Templates + Fixtures
+
+fi-fhir ships vendor-oriented **Source Profile templates** plus synthetic fixtures to exercise real-world drift.
+
+| Vendor | Template | Fixtures |
+|--------|----------|----------|
+| Epic | `profiles/templates/hl7v2/epic_adt.yaml` | `testdata/hl7v2/vendors/epic/` |
+| Cerner | `profiles/templates/hl7v2/cerner_adt.yaml` | `testdata/hl7v2/vendors/cerner/` |
+| Meditech | `profiles/templates/hl7v2/meditech_adt.yaml` | `testdata/hl7v2/vendors/meditech/` |
+| Allscripts | `profiles/templates/hl7v2/allscripts_adt.yaml` | `testdata/hl7v2/vendors/allscripts/` |
+
+### Template Selection Guide
+
+1. Copy the closest vendor template into `profiles/` and set a unique `source_profile.id` and `source_profile.name`.
+2. Update feed-specific knobs first: `hl7v2.timezone`, `identifiers.assigning_authority_map`, and any Z-segment `mappings`.
+3. Run lint with representative samples and iterate:
+   - `fi-fhir profile lint profiles/<your-feed>.yaml --samples testdata/hl7v2/vendors/<vendor>/`
+   - Use `--allow-warnings` to review drift without failing the command.
+4. Tighten tolerances once your feed is stable (reduce `missing_segments`, disable `non_standard_delimiters`, etc.).
+
 ### Generic Z-Segment Extraction
 
 ```go
@@ -487,7 +507,7 @@ ZPD|Y|STANDARD|GREEN|||
 - [x] Generic Z-segment extraction
 - [x] Raw field preservation
 - [x] Profile-based mapping configuration
-- [ ] Vendor-specific profile templates (Epic, Cerner, Meditech)
+- [x] Vendor-specific profile templates (Epic, Cerner, Meditech, Allscripts)
 
 ### Phase 4: Edge Case Handling ⚠️
 - [x] Escape sequence processing (\F\, \S\, \T\, \R\, \E\, \X..\)

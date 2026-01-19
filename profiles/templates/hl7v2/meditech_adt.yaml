@@ -1,0 +1,47 @@
+# Meditech ADT Template
+#
+# Meditech interfaces frequently emit older versions and may exhibit delimiter
+# drift (MSH-2) and varying encoding behavior. Start tolerant, then tighten.
+
+source_profile:
+  id: meditech_adt_template
+  name: Meditech ADT Template
+  version: "0.1.0"
+
+  hl7v2:
+    default_version: "2.3.1"
+    timezone: "UTC"
+
+    encoding:
+      charset_default: "UTF-8"
+      charset_detection: true
+      line_ending_mode: "tolerant"
+
+    tolerate:
+      missing_segments:
+        - "PV1"
+        - "PD1"
+      nte_anywhere: true
+      extra_components: true
+      unknown_segments: true
+      non_standard_delimiters: true
+
+    datatypes:
+      xcn_component_count: "flexible"
+      cx_component_count: "flexible"
+      xpn_component_count: "flexible"
+
+    event_classification:
+      adt_a01:
+        default: "patient_admit"
+      adt_a08:
+        default: "patient_update"
+
+  z_segments:
+    preserve_raw: true
+    mappings:
+      ZPI:
+        - field: 1
+          target: "patient.custom.financial_class"
+          type: "string"
+

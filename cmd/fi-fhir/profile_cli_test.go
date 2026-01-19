@@ -15,7 +15,7 @@ func TestProfileInferAndLintCLI(t *testing.T) {
 	msg := "MSH|^~\\&|SND|FAC|RCV|FAC|202601180930||ADT^A01|MSG0001|P|2.5.1\r" +
 		"EVN|A01|202601180930\r" +
 		"PID|1||12345^^^MRN||Doe^John\r" +
-		"ZPV|foo|bar\r"
+		"PV1|1|I|ER^1^A^FAC\r"
 	if err := os.WriteFile(samplePath, []byte(msg), 0o600); err != nil {
 		t.Fatalf("write sample: %v", err)
 	}
@@ -36,7 +36,7 @@ func TestProfileInferAndLintCLI(t *testing.T) {
 		t.Fatalf("write inferred profile: %v", err)
 	}
 
-	stdout, _, err = runCLI(t, "profile", "lint", "--profile", profilePath, "--samples", samplePath)
+	stdout, _, err = runCLI(t, "profile", "lint", "--profile", profilePath, "--samples", samplePath, "--allow-warnings")
 	if err != nil {
 		t.Fatalf("profile lint: %v", err)
 	}
@@ -99,7 +99,7 @@ func TestProfileLintJSONOutput(t *testing.T) {
 		t.Fatalf("write profile: %v", err)
 	}
 
-	stdout, _, err := runCLI(t, "profile", "lint", "--profile", profilePath, "--samples", samplePath, "--json")
+	stdout, _, err := runCLI(t, "profile", "lint", "--profile", profilePath, "--samples", samplePath, "--json", "--allow-warnings")
 	if err != nil {
 		t.Fatalf("profile lint --json: %v", err)
 	}

@@ -1,0 +1,44 @@
+# Allscripts ADT Template
+#
+# Allscripts feeds are often mediated by an interface engine and can contain
+# message/header variations. Keep delimiter tolerance enabled unless you have
+# strong guarantees.
+
+source_profile:
+  id: allscripts_adt_template
+  name: Allscripts ADT Template
+  version: "0.1.0"
+
+  hl7v2:
+    default_version: "2.5"
+    timezone: "UTC"
+
+    encoding:
+      charset_default: "UTF-8"
+      charset_detection: true
+      line_ending_mode: "tolerant"
+
+    tolerate:
+      missing_segments:
+        - "PV1"
+        - "PD1"
+        - "NK1"
+      nte_anywhere: true
+      extra_components: true
+      unknown_segments: true
+      non_standard_delimiters: true
+
+    datatypes:
+      xcn_component_count: "flexible"
+      cx_component_count: "flexible"
+      xpn_component_count: "flexible"
+
+    event_classification:
+      adt_a01:
+        default: "patient_admit"
+      adt_a08:
+        default: "patient_update"
+
+  z_segments:
+    preserve_raw: true
+

@@ -1,0 +1,101 @@
+# Epic ADT Template
+#
+# Use this as a baseline for Epic ADT feeds. Copy it into `profiles/` and then
+# adjust timezone, assigning authorities, Z-segment mappings, and tolerated drift
+# based on real traffic for your specific interface.
+
+source_profile:
+  id: epic_adt_template
+  name: Epic ADT Template
+  version: "0.1.0"
+
+  hl7v2:
+    default_version: "2.5.1"
+    timezone: "UTC"
+
+    encoding:
+      charset_default: "UTF-8"
+      charset_detection: true
+      line_ending_mode: "tolerant"
+
+    tolerate:
+      # Epic feeds are usually well-formed, but optionality drift is common across interfaces.
+      missing_segments:
+        - "PV1"
+        - "PD1"
+        - "NK1"
+        - "GT1"
+      nte_anywhere: true
+      extra_components: true
+      unknown_segments: true
+      non_standard_delimiters: false
+
+    datatypes:
+      xcn_component_count: "flexible"
+      cx_component_count: "flexible"
+      xpn_component_count: "flexible"
+
+    event_classification:
+      adt_a01:
+        default: "patient_admit"
+        rules:
+          - condition: "PV1.2 == 'I'"
+            event: "inpatient_admit"
+          - condition: "PV1.2 == 'O'"
+            event: "outpatient_registration"
+          - condition: "PV1.2 == 'E'"
+            event: "emergency_registration"
+          - condition: "PV1.2 == 'P'"
+            event: "preadmit"
+      adt_a04:
+        default: "outpatient_registration"
+      adt_a08:
+        default: "patient_update"
+
+  z_segments:
+    preserve_raw: true
+    mappings:
+      # Example only: map vendor-specific Z fields into canonical extensions you own.
+      ZPI:
+        - field: 1
+          target: "patient.custom.enterprise_id"
+          type: "string"
+      ZVN:
+        - field: 1
+          target: "encounter.custom.visit_id"
+          type: "string"
+
+  identifiers:
+    assigning_authority_map:
+      "EPIC": "urn:oid:1.2.840.114350.1.13"
+
+    primary_id_preference:
+      - type: "MR"
+        assigner_contains: "EPIC"
+      - type: "MR"
+
+    validation:
+      npi:
+        enabled: true
+        on_invalid: "warn"
+      mbi:
+        enabled: true
+        on_invalid: "warn"
+      ssn:
+        enabled: true
+        on_invalid: "warn"
+
+    normalization:
+      ssn:
+        strip_dashes: true
+        reject_patterns:
+          - "000000000"
+          - "123456789"
+          - "111111111"
+      phone:
+        strip_country_code: true
+        normalize_to_digits: true
+      mrn:
+        strip_leading_zeros: false
+        uppercase: true
+

@@ -9,7 +9,7 @@ This directory contains detailed planning and specification documents for the fi
 | [SOURCE-PROFILES.md](SOURCE-PROFILES.md) | Source Profile configuration system - the unit of scalability | ✅ Core + inference/lint shipped |
 | [WORKFLOW-DSL.md](WORKFLOW-DSL.md) | Workflow routing, transforms, and actions | ✅ Core + action pack shipped |
 | [FHIR-PROFILES.md](FHIR-PROFILES.md) | FHIR R4 output with US Core mapping | ✅ 17+ resources + validation shipped |
-| [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) | HL7 v2.x version differences and parsing edge cases | ⚠️ Core complete, vendor templates pending |
+| [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) | HL7 v2.x version differences and parsing edge cases | ✅ Core + vendor templates shipped |
 | [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) | X12 EDI parsing (837P, 835, 270/271, 276/277) | ✅ Parsing + companion guide framework shipped |
 | [IDENTIFIERS.md](IDENTIFIERS.md) | Patient/provider identifier systems and validation | ✅ Complete (validators + matching engine) |
 | [TERMINOLOGY.md](TERMINOLOGY.md) | Healthcare code systems and mapping (LOINC, SNOMED, UMLS, ICD-10-CM) | ✅ Core + version tracking shipped |
@@ -78,7 +78,7 @@ These are the remaining “big rocks” referenced by the Document Overview stat
 | FB-003 | FHIR validation + conformance checks | ✅ Shipped | [FHIR-PROFILES.md](FHIR-PROFILES.md) |
 | FB-004 | Terminology version tracking | ✅ Shipped | [TERMINOLOGY.md](TERMINOLOGY.md) |
 | FB-005 | TypeScript SDK distribution | ✅ Shipped | [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md) |
-| FB-006 | HL7 vendor templates + fixtures | ⏳ Planned | [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) |
+| FB-006 | HL7 vendor templates + fixtures | ✅ Shipped | [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) |
 
 #### FB-001: Source Profile Inference + Linting
 - [x] Add `fi-fhir profile infer` to generate a profile skeleton from sample messages (delimiter/version/segment/Z-segment heuristics).
@@ -106,9 +106,9 @@ These are the remaining “big rocks” referenced by the Document Overview stat
 - [x] Add usage docs and integration examples (Node service, serverless function, simple ETL).
 
 #### FB-006: HL7 Vendor Templates + Fixtures
-- [ ] Add vendor profile templates (Epic/Cerner/Meditech/Allscripts) with documented deviations and recommended tolerances.
-- [ ] Add real-world-ish fixtures (Z-segments, optionality drift, encoding/line ending variations) and map them to templates.
-- [ ] Add a “template selection” guide (how to fork a template into a feed-specific Source Profile).
+- [x] Add vendor profile templates (Epic/Cerner/Meditech/Allscripts) with documented deviations and recommended tolerances.
+- [x] Add real-world-ish fixtures (Z-segments, optionality drift, encoding/line ending variations) and map them to templates.
+- [x] Add a “template selection” guide (how to fork a template into a feed-specific Source Profile).
 
 ### Completed (Highlights)
 

@@ -12,6 +12,18 @@ This document defines the **Source Profile** system - the unit of scalability fo
 | **Key config sections** | `hl7v2`, `z_segments`, `identifiers`, `terminology`, `quality` |
 | **Implementation** | `pkg/profile/profile.go` - Registry, loader, and config types |
 
+## Starting From a Template
+
+When onboarding a new HL7v2 interface, start from a vendor template and then tighten it based on samples:
+
+- Templates: `profiles/templates/hl7v2/`
+- Example fixtures: `testdata/hl7v2/vendors/`
+
+Typical loop:
+1. Copy a template into `profiles/<feed>.yaml` and set `source_profile.id` + `source_profile.name`.
+2. Run `fi-fhir profile lint profiles/<feed>.yaml --samples <sample-dir>` and iterate.
+3. Reduce tolerances over time (prefer fewer `missing_segments`, disable `non_standard_delimiters` when possible).
+
 ## Core Technical Thesis
 
 > **The unit of scalability is a Source Profile (per interface / per feed), not "HL7v2 support" in general.**
