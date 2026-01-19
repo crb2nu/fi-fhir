@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/smtp"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -338,6 +339,140 @@ func buildEmailMessage(from string, to []string, subject string, body string, co
 		b.WriteString("\n")
 	}
 	return b.String()
+}
+
+// execAction runs an external command (no shell) for custom integrations.
+// This is intentionally strict: the command must be in an allowlist.
+//
+// Config options:
+//   - command: absolute path to executable (required)
+//   - allowlist: comma-separated absolute paths allowed to run (required)
+//   - args: command args as JSON array (e.g. ["--flag","x"]) or a whitespace-separated string
+//   - timeout: execution timeout (default: 30s)
+//   - stdin: json (default), none, template
+//   - stdin_template: used when stdin=template (supports templates)
+//   - env_*: environment variables to set for the process (e.g. env_FOO: "bar")
+func execAction(ctx context.Context, event interface{}, config map[string]string) error {
+	command := strings.TrimSpace(config["command"])
+	if command == "" {
+		return fmt.Errorf("exec action requires 'command' config")
+	}
+	if !filepath.IsAbs(command) {
+		return fmt.Errorf("exec action command must be an absolute path (got %q)", command)
+	}
+
+	allowlist := strings.TrimSpace(config["allowlist"])
+	if allowlist == "" {
+		return fmt.Errorf("exec action requires 'allowlist' config")
+	}
+	allowed := false
+	for _, item := range strings.Split(allowlist, ",") {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		if item == command {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return fmt.Errorf("exec action command %q is not in allowlist", command)
+	}
+
+	timeout := 30 * time.Second
+	if timeoutStr := strings.TrimSpace(config["timeout"]); timeoutStr != "" {
+		parsed, err := time.ParseDuration(timeoutStr)
+		if err != nil {
+			return fmt.Errorf("invalid exec timeout %q: %w", timeoutStr, err)
+		}
+		timeout = parsed
+	}
+
+	args, err := parseExecArgs(renderTemplate(config["args"], event))
+	if err != nil {
+		return err
+	}
+
+	stdinMode := strings.ToLower(strings.TrimSpace(config["stdin"]))
+	if stdinMode == "" {
+		stdinMode = "json"
+	}
+
+	var stdin []byte
+	switch stdinMode {
+	case "none":
+		stdin = nil
+	case "json":
+		stdin, err = json.Marshal(event)
+		if err != nil {
+			return fmt.Errorf("failed to marshal event for stdin: %w", err)
+		}
+	case "template":
+		stdin = []byte(renderTemplate(config["stdin_template"], event))
+	default:
+		return fmt.Errorf("invalid stdin mode %q (expected json, none, or template)", stdinMode)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, command, args...)
+	cmd.Env = append([]string{}, os.Environ()...)
+	for k, v := range config {
+		if !strings.HasPrefix(k, "env_") {
+			continue
+		}
+		key := strings.TrimPrefix(k, "env_")
+		if key == "" {
+			continue
+		}
+		cmd.Env = append(cmd.Env, key+"="+renderTemplate(v, event))
+	}
+	if len(stdin) > 0 {
+		cmd.Stdin = bytes.NewReader(stdin)
+	}
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		out := strings.TrimSpace(truncateForError(stdout.String(), 4096))
+		errOut := strings.TrimSpace(truncateForError(stderr.String(), 4096))
+		msg := "exec failed"
+		if out != "" {
+			msg += "; stdout: " + out
+		}
+		if errOut != "" {
+			msg += "; stderr: " + errOut
+		}
+		return fmt.Errorf("%s: %w", msg, err)
+	}
+
+	return nil
+}
+
+func parseExecArgs(raw string) ([]string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	if strings.HasPrefix(raw, "[") {
+		var arr []string
+		if err := json.Unmarshal([]byte(raw), &arr); err != nil {
+			return nil, fmt.Errorf("failed to parse args as JSON array: %w", err)
+		}
+		return arr, nil
+	}
+	return strings.Fields(raw), nil
+}
+
+func truncateForError(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "...(truncated)"
 }
 
 // webhookAction sends an event to an HTTP endpoint with rate limiting, retry, and circuit breaker support.

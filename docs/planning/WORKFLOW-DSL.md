@@ -142,6 +142,7 @@ transform:
 | `fhir` | ✅ Implemented | POST to FHIR R4 servers with US Core mapping |
 | `email` | ✅ Implemented | Send email notifications (SMTP) |
 | `file` | ✅ Implemented | Write events to local files (JSON/NDJSON) |
+| `exec` | ✅ Implemented | Run allowlisted commands (custom integrations) |
 | `database` | ✅ Implemented | Insert/upsert to PostgreSQL/MySQL/SQLite |
 | `queue` | ✅ Implemented | Publish to Kafka/RabbitMQ/NATS/SQS |
 | `event_store` | ✅ Implemented | Append to event sourcing store |
@@ -224,6 +225,32 @@ Send email notifications via SMTP:
 | `timeout` | No | Dial/send timeout (default `30s`) |
 
 **Implementation:** `internal/workflow/actions.go` (emailAction)
+
+#### Exec Action
+Run an allowlisted external command (no shell). Useful for tightly controlled custom integrations.
+
+```yaml
+- type: exec
+  command: /opt/fi-fhir/bin/handler
+  allowlist: /opt/fi-fhir/bin/handler,/opt/fi-fhir/bin/other_handler
+  args: '["--mode","notify"]'
+  stdin: json             # json (default), none, template
+  timeout: 30s
+  env_ENV: prod
+```
+
+**Config Options:**
+| Option | Required | Description |
+|--------|----------|-------------|
+| `command` | Yes | Absolute path to executable |
+| `allowlist` | Yes | Comma-separated absolute paths allowed to run |
+| `args` | No | JSON array (`["a","b"]`) or whitespace string |
+| `stdin` | No | `json` (default), `none`, or `template` |
+| `stdin_template` | With `stdin=template` | Template for stdin |
+| `timeout` | No | Execution timeout (default `30s`) |
+| `env_*` | No | Environment variables passed to the process |
+
+**Implementation:** `internal/workflow/actions.go` (execAction)
 
 #### File Action
 Write event payloads to disk:

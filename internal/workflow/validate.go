@@ -307,6 +307,8 @@ func (v *Validator) validateAction(action *Action, path string, result *Validati
 		v.validateFHIRAction(action, path, result)
 	case "email":
 		v.validateEmailAction(action, path, result)
+	case "exec":
+		v.validateExecAction(action, path, result)
 	case "file":
 		v.validateFileAction(action, path, result)
 	case "database":
@@ -320,6 +322,47 @@ func (v *Validator) validateAction(action *Action, path string, result *Validati
 			Severity: SeverityWarning,
 			Code:     "UNKNOWN_ACTION_TYPE",
 		})
+	}
+}
+
+func (v *Validator) validateExecAction(action *Action, path string, result *ValidationResult) {
+	if action.Config["command"] == "" {
+		result.Errors = append(result.Errors, ValidationError{
+			Path:     path + ".command",
+			Message:  "Exec action requires command",
+			Severity: SeverityError,
+			Code:     "MISSING_EXEC_COMMAND",
+		})
+	}
+	if action.Config["allowlist"] == "" {
+		result.Errors = append(result.Errors, ValidationError{
+			Path:     path + ".allowlist",
+			Message:  "Exec action requires allowlist",
+			Severity: SeverityError,
+			Code:     "MISSING_EXEC_ALLOWLIST",
+		})
+	}
+	if action.Config["timeout"] != "" {
+		if _, err := time.ParseDuration(action.Config["timeout"]); err != nil {
+			result.Errors = append(result.Errors, ValidationError{
+				Path:     path + ".timeout",
+				Message:  fmt.Sprintf("Invalid timeout '%s': %v", action.Config["timeout"], err),
+				Severity: SeverityError,
+				Code:     "INVALID_EXEC_TIMEOUT",
+			})
+		}
+	}
+	if stdin, ok := action.Config["stdin"]; ok && stdin != "" {
+		stdin = strings.ToLower(stdin)
+		valid := map[string]bool{"json": true, "none": true, "template": true}
+		if !valid[stdin] {
+			result.Errors = append(result.Errors, ValidationError{
+				Path:     path + ".stdin",
+				Message:  fmt.Sprintf("Invalid stdin mode '%s'; must be json, none, or template", stdin),
+				Severity: SeverityError,
+				Code:     "INVALID_EXEC_STDIN",
+			})
+		}
 	}
 }
 
