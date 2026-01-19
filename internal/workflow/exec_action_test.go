@@ -22,8 +22,11 @@ func TestExecAction_RunsAllowedCommand(t *testing.T) {
 read input
 echo "ok:$input"
 `
-	if err := os.WriteFile(scriptPath, []byte(script), 0o700); err != nil {
+	if err := os.WriteFile(scriptPath, []byte(script), 0o600); err != nil {
 		t.Fatalf("write script: %v", err)
+	}
+	if err := os.Chmod(scriptPath, 0o700); err != nil {
+		t.Fatalf("chmod script: %v", err)
 	}
 
 	cfg := map[string]string{
@@ -49,8 +52,11 @@ func TestExecAction_BlocksNonAllowlistedCommand(t *testing.T) {
 
 	dir := t.TempDir()
 	scriptPath := filepath.Join(dir, "noop.sh")
-	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\nexit 0\n"), 0o600); err != nil {
 		t.Fatalf("write script: %v", err)
+	}
+	if err := os.Chmod(scriptPath, 0o700); err != nil {
+		t.Fatalf("chmod script: %v", err)
 	}
 
 	cfg := map[string]string{

@@ -17,7 +17,7 @@ func TestEmailAction_SMTPHappyPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	var (
 		mu      sync.Mutex
@@ -31,7 +31,7 @@ func TestEmailAction_SMTPHappyPath(t *testing.T) {
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
 		r := bufio.NewReader(conn)
 		w := bufio.NewWriter(conn)

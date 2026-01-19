@@ -275,7 +275,7 @@ func sendSMTP(ctx context.Context, conn net.Conn, host string, config map[string
 			MinVersion: tls.VersionTLS12,
 		}
 		if strings.ToLower(strings.TrimSpace(config["tls_insecure"])) == "true" {
-			tlsConfig.InsecureSkipVerify = true //nolint:gosec // G402: explicit opt-in for local/dev TLS
+			tlsConfig.InsecureSkipVerify = true
 		}
 		if err := client.StartTLS(tlsConfig); err != nil {
 			return fmt.Errorf("failed to start TLS: %w", err)
