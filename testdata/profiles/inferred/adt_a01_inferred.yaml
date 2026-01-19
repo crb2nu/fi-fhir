@@ -23,6 +23,20 @@ source_profile:
       xcn_component_count: flexible
       cx_component_count: flexible
       xpn_component_count: flexible
+    event_classification:
+      adt_a01:
+        default: patient_admit
+        rules:
+          - condition: PV1.2 == 'I'
+            event: inpatient_admit
+          - condition: PV1.2 == 'O'
+            event: outpatient_registration
+          - condition: PV1.2 == 'E'
+            event: emergency_registration
+          - condition: PV1.2 == 'P'
+            event: preadmit
+          - condition: PV1.2 == 'R'
+            event: recurring_patient
   z_segments:
     preserve_raw: true
     mappings: {}

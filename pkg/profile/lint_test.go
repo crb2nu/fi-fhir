@@ -96,3 +96,31 @@ func TestLintProfileFile_WarnsUnknownKeys(t *testing.T) {
 		t.Fatalf("expected warnings, got none")
 	}
 }
+
+func TestLintProfileFile_TerminologyMappingFileMustExist(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilePath := filepath.Join(tmpDir, "profile.yaml")
+
+	yaml := `source_profile:
+  id: test
+  name: Test
+  version: "0.1.0"
+  terminology:
+    unknown_code_behavior: "warn"
+    mappings:
+      - source_system: "LOCAL"
+        target_system: "http://loinc.org"
+        file: "missing.csv"
+`
+	if err := os.WriteFile(profilePath, []byte(yaml), 0o600); err != nil {
+		t.Fatalf("write profile: %v", err)
+	}
+
+	report, err := LintProfileFile(profilePath, LintOptions{})
+	if err != nil {
+		t.Fatalf("LintProfileFile: %v", err)
+	}
+	if len(report.Errors) == 0 {
+		t.Fatalf("expected errors, got none")
+	}
+}

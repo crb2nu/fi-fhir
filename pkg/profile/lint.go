@@ -3,6 +3,7 @@ package profile
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -45,6 +46,8 @@ func LintProfileFile(profilePath string, opts LintOptions) (*LintReport, error) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to read profile: %w", err)
 	}
+
+	baseDir := filepath.Dir(profilePath)
 
 	var wrapper struct {
 		SourceProfile *SourceProfile `yaml:"source_profile"`
@@ -92,7 +95,7 @@ func LintProfileFile(profilePath string, opts LintOptions) (*LintReport, error) 
 		lintZSegments(p.ZSegments, addError, addWarning)
 	}
 	if p.Terminology != nil {
-		lintTerminology(p.Terminology, addError, addWarning)
+		lintTerminology(baseDir, p.Terminology, addError, addWarning)
 	}
 	if p.Identifiers != nil {
 		lintIdentifiers(p.Identifiers, addError, addWarning)
@@ -445,7 +448,7 @@ func lintZSegments(z *ZSegmentConfig, addError func(string, ...any), addWarning 
 	}
 }
 
-func lintTerminology(t *TerminologyConfig, addError func(string, ...any), addWarning func(string, ...any)) {
+func lintTerminology(baseDir string, t *TerminologyConfig, addError func(string, ...any), addWarning func(string, ...any)) {
 	if t.UnknownCodeBehavior != "" {
 		switch t.UnknownCodeBehavior {
 		case "pass", "warn", "error":
@@ -463,6 +466,14 @@ func lintTerminology(t *TerminologyConfig, addError func(string, ...any), addWar
 		}
 		if strings.TrimSpace(m.File) == "" {
 			addError("terminology.mappings[%d].file is required", i)
+		} else {
+			path := m.File
+			if !filepath.IsAbs(path) {
+				path = filepath.Join(baseDir, path)
+			}
+			if _, err := os.Stat(path); err != nil {
+				addError("terminology.mappings[%d].file not found: %s", i, m.File)
+			}
 		}
 	}
 

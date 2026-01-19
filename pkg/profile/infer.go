@@ -110,6 +110,9 @@ func InferHL7v2ProfileFromSamples(samples []string, inputUsed []string, opts Inf
 		},
 	}
 
+	// Provide an event classification skeleton when ADT message types appear in samples.
+	p.HL7v2.EventRules = inferEventRules(stats)
+
 	// Sanity check against the existing registry validator.
 	b, err := MarshalYAML(p)
 	if err != nil {
@@ -138,4 +141,36 @@ func inferMissingSegments(stats *HL7v2SampleStats) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func inferEventRules(stats *HL7v2SampleStats) *EventRulesConfig {
+	if stats == nil || stats.MessageCount <= 0 {
+		return nil
+	}
+
+	hasA01 := stats.MessageTypes["ADT^A01"] > 0
+	hasA04 := stats.MessageTypes["ADT^A04"] > 0
+	hasA08 := stats.MessageTypes["ADT^A08"] > 0
+
+	if !hasA01 && !hasA04 && !hasA08 {
+		return nil
+	}
+
+	rules := &EventRulesConfig{}
+	if hasA01 {
+		// Start from Default profile rule set for common ADT feeds.
+		rules.ADTA01 = Default().HL7v2.EventRules.ADTA01
+	}
+	if hasA04 {
+		rules.ADTA04 = Default().HL7v2.EventRules.ADTA04
+	}
+	if hasA08 {
+		// Provide a minimal A08 default; rules can be added per feed.
+		rules.ADTA08 = &EventRule{Default: "patient_update"}
+	}
+
+	if rules.ADTA01 == nil && rules.ADTA04 == nil && rules.ADTA08 == nil {
+		return nil
+	}
+	return rules
 }
