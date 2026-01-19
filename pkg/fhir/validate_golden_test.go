@@ -14,6 +14,7 @@ func TestValidateJSON_USCoreGoldenFixtures(t *testing.T) {
 		{name: "patient", path: filepath.Join("..", "..", "testdata", "fhir", "patient_uscore.json")},
 		{name: "encounter", path: filepath.Join("..", "..", "testdata", "fhir", "encounter_uscore.json")},
 		{name: "observation", path: filepath.Join("..", "..", "testdata", "fhir", "observation_uscore_lab.json")},
+		{name: "diagnosticreport", path: filepath.Join("..", "..", "testdata", "fhir", "diagnosticreport_uscore_note.json")},
 		{name: "bundle", path: filepath.Join("..", "..", "testdata", "fhir", "bundle_transaction_uscore.json")},
 	}
 

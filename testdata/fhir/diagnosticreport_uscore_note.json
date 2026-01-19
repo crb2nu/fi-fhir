@@ -1,0 +1,15 @@
+{
+  "resourceType": "DiagnosticReport",
+  "meta": {
+    "profile": [
+      "http://hl7.org/fhir/us/core/StructureDefinition/us-core-diagnosticreport-note"
+    ]
+  },
+  "status": "final",
+  "code": {
+    "text": "Lab report summary"
+  },
+  "subject": {
+    "reference": "Patient/123"
+  }
+}

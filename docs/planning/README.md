@@ -92,7 +92,7 @@ These are the remaining “big rocks” referenced by the Document Overview stat
 
 #### FB-003: FHIR Validation + Conformance
 - [x] Add a validation path for generated FHIR resources/bundles (US Core-focused), used by CLI and workflow (`fi-fhir fhir validate`, `fhir` action `validate_fhir`).
-- [x] Add golden fixtures to validate the highest-volume resources (Patient/Encounter/Observation/DiagnosticReport/Claim).
+- [x] Add golden fixtures to validate the highest-volume resources (Patient/Encounter/Observation/DiagnosticReport + bundle).
 - [ ] Decide and document validator strategy (pure-Go structural checks vs external validator) and failure policy (warn vs error per profile).
 
 #### FB-004: Terminology Version Tracking

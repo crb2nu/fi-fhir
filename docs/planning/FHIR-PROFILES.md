@@ -9,7 +9,7 @@ This document details US Core, Da Vinci, and other FHIR profile requirements for
 | **Patient** | us-core-patient | ✅ | `pkg/fhir/mapper.go:MapPatient()` |
 | **Encounter** | us-core-encounter | ✅ | `pkg/fhir/mapper.go:MapEncounter()` |
 | **Observation** | us-core-observation-lab | ✅ | `pkg/fhir/mapper.go:MapLabObservation()` |
-| **DiagnosticReport** | us-core-diagnosticreport-lab | ✅ | `pkg/fhir/mapper.go:MapLabResult()` |
+| **DiagnosticReport** | us-core-diagnosticreport-note | ✅ | `pkg/fhir/mapper.go:MapLabResult()` |
 | **Condition** | us-core-condition | ✅ | `pkg/fhir/mapper.go:MapCondition()` |
 | **Coverage** | us-core-coverage | ✅ | `pkg/fhir/mapper.go:MapCoverage()` |
 | **Claim** | (Da Vinci PAS) | ✅ | `pkg/fhir/mapper.go:MapClaim()` |
@@ -488,40 +488,30 @@ profiles:
 
 ### Validation Testing
 
-```go
-var usCorePatientsTestCases = []struct {
-    name    string
-    input   *events.Patient
-    valid   bool
-    errors  []string
-}{
-    {
-        name: "valid minimal patient",
-        input: &events.Patient{
-            MRN: "123",
-            FamilyName: "Doe",
-            GivenName: "John",
-            Gender: "M",
-            DateOfBirth: time.Date(1965, 3, 15, 0, 0, 0, 0, time.UTC),
-        },
-        valid: true,
-    },
-    {
-        name: "missing gender",
-        input: &events.Patient{
-            MRN: "123",
-            FamilyName: "Doe",
-            GivenName: "John",
-        },
-        valid: false,
-        errors: []string{"Patient.gender is required"},
-    },
-}
+fi-fhir includes a built-in validator (`pkg/fhir/validate.go`) that produces a FHIR `OperationOutcome`:
+- `mode=us-core`: lightweight “US Core-ish” checks (required fields + profile presence warnings)
+- `mode=none`: structural-only (valid JSON + `resourceType`, plus Bundle traversal)
+
+CLI usage (fails on warnings by default; opt out with `--allow-warnings`):
+```bash
+fi-fhir fhir validate --mode us-core patient.json
+fi-fhir fhir validate --mode us-core --allow-warnings patient.json
+fi-fhir fhir validate --mode none bundle.json
 ```
 
-### Profile Conformance
+Workflow usage (opt-in validation before sending to the FHIR server):
+```yaml
+actions:
+  - type: fhir
+    endpoint: https://fhir.example.com/fhir
+    validate_fhir: "true"
+    validate_mode: us-core   # or none
+    allow_warnings: "false"  # default
+```
 
-Use FHIR Validator:
+### External Profile Conformance (Optional)
+
+For deep IG conformance (terminology bindings, slicing, invariants), use the HL7 FHIR Validator CLI in CI or locally:
 ```bash
 java -jar validator_cli.jar patient.json \
   -ig hl7.fhir.us.core#6.1.0 \

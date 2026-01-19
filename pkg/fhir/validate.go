@@ -215,6 +215,8 @@ func expectedProfilesForResourceType(resourceType string) map[string]bool {
 		return map[string]bool{USCoreCareTeamProfile: true}
 	case "ServiceRequest":
 		return map[string]bool{USCoreServiceRequestProfile: true}
+	case "DiagnosticReport":
+		return map[string]bool{USCoreDiagnosticReportNoteProfile: true}
 	case "DocumentReference":
 		return map[string]bool{USCoreDocumentReferenceProfile: true}
 	case "Provenance":
