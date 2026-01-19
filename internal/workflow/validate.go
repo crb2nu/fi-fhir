@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // ValidationError represents a single validation issue.
@@ -304,6 +305,8 @@ func (v *Validator) validateAction(action *Action, path string, result *Validati
 		v.validateWebhookAction(action, path, result)
 	case "fhir":
 		v.validateFHIRAction(action, path, result)
+	case "email":
+		v.validateEmailAction(action, path, result)
 	case "file":
 		v.validateFileAction(action, path, result)
 	case "database":
@@ -317,6 +320,90 @@ func (v *Validator) validateAction(action *Action, path string, result *Validati
 			Severity: SeverityWarning,
 			Code:     "UNKNOWN_ACTION_TYPE",
 		})
+	}
+}
+
+func (v *Validator) validateEmailAction(action *Action, path string, result *ValidationResult) {
+	if action.Config["smtp_host"] == "" {
+		result.Errors = append(result.Errors, ValidationError{
+			Path:     path + ".smtp_host",
+			Message:  "Email action requires smtp_host",
+			Severity: SeverityError,
+			Code:     "MISSING_SMTP_HOST",
+		})
+	}
+	if action.Config["smtp_port"] == "" {
+		result.Errors = append(result.Errors, ValidationError{
+			Path:     path + ".smtp_port",
+			Message:  "Email action requires smtp_port",
+			Severity: SeverityError,
+			Code:     "MISSING_SMTP_PORT",
+		})
+	} else if _, err := strconv.Atoi(action.Config["smtp_port"]); err != nil {
+		result.Errors = append(result.Errors, ValidationError{
+			Path:     path + ".smtp_port",
+			Message:  fmt.Sprintf("Invalid smtp_port '%s'; expected integer", action.Config["smtp_port"]),
+			Severity: SeverityError,
+			Code:     "INVALID_SMTP_PORT",
+		})
+	}
+
+	if action.Config["from"] == "" {
+		result.Errors = append(result.Errors, ValidationError{
+			Path:     path + ".from",
+			Message:  "Email action requires from",
+			Severity: SeverityError,
+			Code:     "MISSING_EMAIL_FROM",
+		})
+	}
+	if action.Config["to"] == "" {
+		result.Errors = append(result.Errors, ValidationError{
+			Path:     path + ".to",
+			Message:  "Email action requires to",
+			Severity: SeverityError,
+			Code:     "MISSING_EMAIL_TO",
+		})
+	}
+	if action.Config["subject"] == "" {
+		result.Errors = append(result.Errors, ValidationError{
+			Path:     path + ".subject",
+			Message:  "Email action requires subject",
+			Severity: SeverityError,
+			Code:     "MISSING_EMAIL_SUBJECT",
+		})
+	}
+
+	if v, ok := action.Config["starttls"]; ok && v != "" {
+		v = strings.ToLower(v)
+		if v != "true" && v != "false" {
+			result.Warnings = append(result.Warnings, ValidationError{
+				Path:     path + ".starttls",
+				Message:  fmt.Sprintf("starttls should be true or false (got '%s')", v),
+				Severity: SeverityWarning,
+				Code:     "INVALID_STARTTLS",
+			})
+		}
+	}
+	if v, ok := action.Config["tls_insecure"]; ok && v != "" {
+		v = strings.ToLower(v)
+		if v != "true" && v != "false" {
+			result.Warnings = append(result.Warnings, ValidationError{
+				Path:     path + ".tls_insecure",
+				Message:  fmt.Sprintf("tls_insecure should be true or false (got '%s')", v),
+				Severity: SeverityWarning,
+				Code:     "INVALID_TLS_INSECURE",
+			})
+		}
+	}
+	if action.Config["timeout"] != "" {
+		if _, err := time.ParseDuration(action.Config["timeout"]); err != nil {
+			result.Errors = append(result.Errors, ValidationError{
+				Path:     path + ".timeout",
+				Message:  fmt.Sprintf("Invalid timeout '%s': %v", action.Config["timeout"], err),
+				Severity: SeverityError,
+				Code:     "INVALID_EMAIL_TIMEOUT",
+			})
+		}
 	}
 }
 

@@ -3,11 +3,14 @@ package workflow
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
+	"net/smtp"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -180,6 +183,161 @@ func atomicWriteFile(path string, data []byte, perm os.FileMode) error {
 		return fmt.Errorf("failed to move temp file into place: %w", err)
 	}
 	return nil
+}
+
+// emailAction sends an email notification (SMTP).
+// Config options:
+//   - smtp_host: SMTP hostname (required)
+//   - smtp_port: SMTP port (required)
+//   - starttls: "true" to use STARTTLS (default: false)
+//   - tls_insecure: "true" to skip TLS cert verification (default: false)
+//   - username/password: SMTP auth (optional; uses PLAIN)
+//   - from: From address (required, supports templates)
+//   - to: Comma-separated recipient list (required, supports templates)
+//   - subject: Email subject (required, supports templates)
+//   - body: Email body (optional, supports templates)
+//   - content_type: MIME content type (default: text/plain; charset=utf-8)
+//   - timeout: Dial/send timeout (default: 30s)
+func emailAction(ctx context.Context, event interface{}, config map[string]string) error {
+	host := strings.TrimSpace(config["smtp_host"])
+	port := strings.TrimSpace(config["smtp_port"])
+	if host == "" {
+		return fmt.Errorf("email action requires 'smtp_host' config")
+	}
+	if port == "" {
+		return fmt.Errorf("email action requires 'smtp_port' config")
+	}
+
+	timeout := 30 * time.Second
+	if timeoutStr := strings.TrimSpace(config["timeout"]); timeoutStr != "" {
+		if parsed, err := time.ParseDuration(timeoutStr); err == nil {
+			timeout = parsed
+		}
+	}
+
+	from := strings.TrimSpace(renderTemplate(config["from"], event))
+	to := strings.TrimSpace(renderTemplate(config["to"], event))
+	subject := renderTemplate(config["subject"], event)
+	body := renderTemplate(config["body"], event)
+	contentType := strings.TrimSpace(config["content_type"])
+	if contentType == "" {
+		contentType = "text/plain; charset=utf-8"
+	}
+
+	if from == "" {
+		return fmt.Errorf("email action requires 'from' config")
+	}
+	if to == "" {
+		return fmt.Errorf("email action requires 'to' config")
+	}
+	if strings.TrimSpace(subject) == "" {
+		return fmt.Errorf("email action requires 'subject' config")
+	}
+
+	var recipients []string
+	for _, r := range strings.Split(to, ",") {
+		r = strings.TrimSpace(r)
+		if r == "" {
+			continue
+		}
+		recipients = append(recipients, r)
+	}
+	if len(recipients) == 0 {
+		return fmt.Errorf("email action requires at least one recipient in 'to'")
+	}
+
+	addr := net.JoinHostPort(host, port)
+	dialer := &net.Dialer{Timeout: timeout}
+	conn, err := dialer.DialContext(ctx, "tcp", addr)
+	if err != nil {
+		return fmt.Errorf("failed to dial SMTP server %q: %w", addr, err)
+	}
+	defer func() { _ = conn.Close() }()
+	_ = conn.SetDeadline(time.Now().Add(timeout))
+
+	if err := sendSMTP(ctx, conn, host, config, from, recipients, subject, body, contentType); err != nil {
+		return err
+	}
+	return nil
+}
+
+func sendSMTP(ctx context.Context, conn net.Conn, host string, config map[string]string, from string, to []string, subject string, body string, contentType string) error {
+	client, err := smtp.NewClient(conn, host)
+	if err != nil {
+		return fmt.Errorf("failed to create SMTP client: %w", err)
+	}
+	defer func() { _ = client.Close() }()
+
+	if strings.ToLower(strings.TrimSpace(config["starttls"])) == "true" {
+		tlsConfig := &tls.Config{
+			ServerName: host,
+		}
+		if strings.ToLower(strings.TrimSpace(config["tls_insecure"])) == "true" {
+			tlsConfig.InsecureSkipVerify = true //nolint:gosec // G402: explicit config knob; default is secure
+		}
+		if err := client.StartTLS(tlsConfig); err != nil {
+			return fmt.Errorf("failed to start TLS: %w", err)
+		}
+	}
+
+	username := strings.TrimSpace(config["username"])
+	password := config["password"]
+	if username != "" {
+		if err := client.Auth(smtp.PlainAuth("", username, password, host)); err != nil {
+			return fmt.Errorf("SMTP auth failed: %w", err)
+		}
+	}
+
+	if err := client.Mail(from); err != nil {
+		return fmt.Errorf("SMTP MAIL FROM failed: %w", err)
+	}
+	for _, rcpt := range to {
+		if err := client.Rcpt(rcpt); err != nil {
+			return fmt.Errorf("SMTP RCPT TO %q failed: %w", rcpt, err)
+		}
+	}
+
+	w, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("SMTP DATA failed: %w", err)
+	}
+
+	msg := buildEmailMessage(from, to, subject, body, contentType)
+	_, writeErr := w.Write([]byte(msg))
+	closeErr := w.Close()
+
+	if writeErr != nil {
+		return fmt.Errorf("SMTP write failed: %w", writeErr)
+	}
+	if closeErr != nil {
+		return fmt.Errorf("SMTP DATA close failed: %w", closeErr)
+	}
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("SMTP send canceled: %w", ctx.Err())
+	default:
+	}
+
+	if err := client.Quit(); err != nil {
+		return fmt.Errorf("SMTP QUIT failed: %w", err)
+	}
+	return nil
+}
+
+func buildEmailMessage(from string, to []string, subject string, body string, contentType string) string {
+	var b strings.Builder
+	b.WriteString("From: " + from + "\r\n")
+	b.WriteString("To: " + strings.Join(to, ", ") + "\r\n")
+	b.WriteString("Subject: " + strings.TrimSpace(subject) + "\r\n")
+	b.WriteString("MIME-Version: 1.0\r\n")
+	b.WriteString("Content-Type: " + contentType + "\r\n")
+	b.WriteString("\r\n")
+	b.WriteString(body)
+	if !strings.HasSuffix(body, "\n") {
+		b.WriteString("\n")
+	}
+	return b.String()
 }
 
 // webhookAction sends an event to an HTTP endpoint with rate limiting, retry, and circuit breaker support.

@@ -140,6 +140,7 @@ transform:
 | `log` | ✅ Implemented | Log events with Go template messages |
 | `webhook` | ✅ Implemented | POST to REST endpoints with auth |
 | `fhir` | ✅ Implemented | POST to FHIR R4 servers with US Core mapping |
+| `email` | ✅ Implemented | Send email notifications (SMTP) |
 | `file` | ✅ Implemented | Write events to local files (JSON/NDJSON) |
 | `database` | ✅ Implemented | Insert/upsert to PostgreSQL/MySQL/SQLite |
 | `queue` | ✅ Implemented | Publish to Kafka/RabbitMQ/NATS/SQS |
@@ -184,6 +185,45 @@ Send to FHIR server:
 - Supports proactive refresh (fetches new token before expiry)
 
 **Implementation:** `internal/workflow/actions.go` (fhirAction), `internal/workflow/oauth.go` (OAuth2)
+
+#### Email Action
+Send email notifications via SMTP:
+
+```yaml
+- type: email
+  smtp_host: smtp.example.com
+  smtp_port: 587
+  starttls: "true"
+  # username/password are optional (PLAIN auth)
+  username: ${SMTP_USER}
+  password: ${SMTP_PASS}
+  from: alerts@example.com
+  to: ops@example.com, oncall@example.com
+  subject: "fi-fhir {{.Type}} {{.Patient.MRN}}"
+  body: |
+    Event={{.Type}}
+    Source={{.Source}}
+    MRN={{.Patient.MRN}}
+  timeout: 30s
+```
+
+**Config Options:**
+| Option | Required | Description |
+|--------|----------|-------------|
+| `smtp_host` | Yes | SMTP hostname |
+| `smtp_port` | Yes | SMTP port |
+| `starttls` | No | `"true"` to use STARTTLS |
+| `tls_insecure` | No | `"true"` to skip TLS verification (avoid in prod) |
+| `username` | No | SMTP username (PLAIN) |
+| `password` | With username | SMTP password |
+| `from` | Yes | From address (supports templates) |
+| `to` | Yes | Comma-separated recipients (supports templates) |
+| `subject` | Yes | Subject (supports templates) |
+| `body` | No | Body (supports templates) |
+| `content_type` | No | MIME type (default `text/plain; charset=utf-8`) |
+| `timeout` | No | Dial/send timeout (default `30s`) |
+
+**Implementation:** `internal/workflow/actions.go` (emailAction)
 
 #### File Action
 Write event payloads to disk:
