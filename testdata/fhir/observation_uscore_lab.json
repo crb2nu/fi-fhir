@@ -1,0 +1,15 @@
+{
+  "resourceType": "Observation",
+  "meta": {
+    "profile": [
+      "http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-lab"
+    ]
+  },
+  "status": "final",
+  "code": {
+    "text": "Sodium [Moles/volume] in Serum or Plasma"
+  },
+  "subject": {
+    "reference": "Patient/123"
+  }
+}
