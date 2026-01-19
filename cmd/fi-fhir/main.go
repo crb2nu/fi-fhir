@@ -30,6 +30,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/workflow"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/config"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
+	fhirpkg "gitlab.flexinfer.ai/libs/fi-fhir/pkg/fhir"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/profile"
 )
 
@@ -59,6 +60,11 @@ func main() {
 		}
 	case "profile":
 		if err := runProfile(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+	case "fhir":
+		if err := runFHIR(os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
@@ -131,6 +137,7 @@ Commands:
   companion    List/show/validate EDI companion guides
   validate     Validate Source Profile YAML files or messages
   profile      Infer and lint Source Profiles from samples
+  fhir         Validate FHIR JSON resources and bundles
   workflow     Run events through workflow routing and actions
   config       Manage application configuration
   subscription Manage FHIR subscriptions for bidirectional integration
@@ -158,6 +165,9 @@ Examples:
 
   # Infer a Source Profile skeleton from HL7v2 samples
   fi-fhir profile infer --id epic_adt --name "Epic ADT Feed" testdata/adt_a01_sample.hl7
+
+  # Validate a FHIR JSON resource or Bundle
+  fi-fhir fhir validate --mode us-core patient.json
 
   # List built-in EDI companion guides
   fi-fhir companion list
@@ -189,6 +199,152 @@ func runProfile(args []string) error {
 	default:
 		return fmt.Errorf("unknown profile subcommand: %s (use `fi-fhir profile --help`)", args[0])
 	}
+}
+
+func runFHIR(args []string) error {
+	if len(args) == 0 {
+		printFHIRUsage()
+		return nil
+	}
+
+	switch args[0] {
+	case "validate":
+		return runFHIRValidate(args[1:])
+	case "help", "--help", "-h":
+		printFHIRUsage()
+		return nil
+	default:
+		return fmt.Errorf("unknown fhir subcommand: %s (use `fi-fhir fhir --help`)", args[0])
+	}
+}
+
+func runFHIRValidate(args []string) error {
+	var (
+		mode    = "us-core"
+		jsonOut = false
+		strict  = false
+		input   = ""
+	)
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--mode":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--mode requires a value")
+			}
+			i++
+			mode = args[i]
+		case "--json":
+			jsonOut = true
+		case "--strict":
+			strict = true
+		case "--help", "-h":
+			printFHIRValidateUsage()
+			return nil
+		default:
+			if len(args[i]) > 0 && args[i][0] == '-' {
+				return fmt.Errorf("unknown flag: %s", args[i])
+			}
+			if input == "" {
+				input = args[i]
+			} else {
+				return fmt.Errorf("unexpected argument: %s", args[i])
+			}
+		}
+	}
+
+	if input == "" {
+		return fmt.Errorf("no input specified (pass a JSON file path or '-' for stdin)")
+	}
+
+	var data []byte
+	if input == "-" {
+		var err error
+		data, err = io.ReadAll(os.Stdin)
+		if err != nil {
+			return fmt.Errorf("failed to read stdin: %w", err)
+		}
+	} else {
+		var err error
+		data, err = os.ReadFile(input) //nolint:gosec // G304: CLI reads user-provided file
+		if err != nil {
+			return fmt.Errorf("failed to read %s: %w", input, err)
+		}
+	}
+
+	outcome, err := fhirpkg.ValidateJSON(data, fhirpkg.ValidationOptions{Mode: mode})
+	if err != nil {
+		return err
+	}
+
+	hasErrors := false
+	hasWarnings := false
+	for _, iss := range outcome.Issue {
+		switch iss.Severity {
+		case "error", "fatal":
+			hasErrors = true
+		case "warning":
+			hasWarnings = true
+		}
+	}
+
+	if jsonOut {
+		b, err := json.MarshalIndent(outcome, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal OperationOutcome: %w", err)
+		}
+		fmt.Println(string(b))
+	} else {
+		if hasErrors {
+			fmt.Printf("FHIR validation failed (%d issue(s)).\n", len(outcome.Issue))
+		} else if hasWarnings {
+			fmt.Printf("FHIR validation warnings (%d issue(s)).\n", len(outcome.Issue))
+		} else {
+			fmt.Printf("FHIR validation passed.\n")
+		}
+		for _, iss := range outcome.Issue {
+			loc := ""
+			if len(iss.Location) > 0 {
+				loc = " (" + strings.Join(iss.Location, ", ") + ")"
+			}
+			fmt.Printf("  - %s %s: %s%s\n", strings.ToUpper(iss.Severity), iss.Code, iss.Diagnostics, loc)
+		}
+	}
+
+	if hasErrors || (strict && hasWarnings) {
+		return fmt.Errorf("fhir validation failed")
+	}
+	return nil
+}
+
+func printFHIRUsage() {
+	fmt.Println(`fi-fhir fhir - FHIR utilities
+
+Usage:
+  fi-fhir fhir <subcommand> [options]
+
+Subcommands:
+  validate   Validate a FHIR JSON resource/Bundle
+
+Run:
+  fi-fhir fhir <subcommand> --help`)
+}
+
+func printFHIRValidateUsage() {
+	fmt.Println(`fi-fhir fhir validate - Validate FHIR JSON
+
+Usage:
+  fi-fhir fhir validate [options] <file|'-'>
+
+Options:
+      --mode <mode>   Validation mode: us-core (default) or none
+      --json          Print OperationOutcome JSON to stdout
+      --strict        Treat warnings as errors
+  -h, --help          Show this help message
+
+Examples:
+  fi-fhir fhir validate --mode us-core patient.json
+  cat bundle.json | fi-fhir fhir validate --json -`)
 }
 
 func runProfileInfer(args []string) error {

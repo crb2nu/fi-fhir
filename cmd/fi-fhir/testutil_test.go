@@ -79,6 +79,8 @@ func runCLI(t *testing.T, args ...string) (stdout, stderr string, err error) {
 			capturedErr = runValidate(args[1:])
 		case "profile":
 			capturedErr = runProfile(args[1:])
+		case "fhir":
+			capturedErr = runFHIR(args[1:])
 		case "workflow":
 			capturedErr = runWorkflow(args[1:])
 		case "config":
