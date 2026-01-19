@@ -17,6 +17,10 @@ type LintOptions struct {
 	// Samples overrides SamplesPath when provided. This is primarily for CLIs that support stdin ("-").
 	Samples     []string
 	SampleFiles []string
+
+	// MaxFiles limits how many files will be read when SamplesPath is a directory.
+	// If <= 0, defaults to ReadHL7v2SamplesOptions default (200).
+	MaxFiles int
 }
 
 type LintReport struct {
@@ -105,7 +109,9 @@ func LintProfileFile(profilePath string, opts LintOptions) (*LintReport, error) 
 			used := opts.SampleFiles
 			if len(samples) == 0 && opts.SamplesPath != "" {
 				var err error
-				samples, used, err = ReadHL7v2Samples([]string{opts.SamplesPath}, ReadHL7v2SamplesOptions{})
+				samples, used, err = ReadHL7v2Samples([]string{opts.SamplesPath}, ReadHL7v2SamplesOptions{
+					MaxFiles: opts.MaxFiles,
+				})
 				if err != nil {
 					return nil, err
 				}

@@ -200,6 +200,7 @@ func runProfileInfer(args []string) error {
 		timezone = ""
 		outPath  = ""
 		verbose  = false
+		maxFiles = 200
 		inputs   []string
 	)
 
@@ -243,6 +244,16 @@ func runProfileInfer(args []string) error {
 			outPath = args[i]
 		case "--verbose", "-v":
 			verbose = true
+		case "--max-files":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--max-files requires a value")
+			}
+			i++
+			n, err := strconv.Atoi(args[i])
+			if err != nil || n <= 0 {
+				return fmt.Errorf("--max-files must be a positive integer")
+			}
+			maxFiles = n
 		case "--help", "-h":
 			printProfileInferUsage()
 			return nil
@@ -276,7 +287,9 @@ func runProfileInfer(args []string) error {
 
 		if len(paths) > 0 {
 			var err error
-			samples, inputUsed, err = profile.ReadHL7v2Samples(paths, profile.ReadHL7v2SamplesOptions{})
+			samples, inputUsed, err = profile.ReadHL7v2Samples(paths, profile.ReadHL7v2SamplesOptions{
+				MaxFiles: maxFiles,
+			})
 			if err != nil {
 				return err
 			}
@@ -345,6 +358,7 @@ func runProfileLint(args []string) error {
 		samplesPath = ""
 		strict      = false
 		verbose     = false
+		maxFiles    = 200
 	)
 
 	for i := 0; i < len(args); i++ {
@@ -371,6 +385,16 @@ func runProfileLint(args []string) error {
 			strict = true
 		case "--verbose", "-v":
 			verbose = true
+		case "--max-files":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--max-files requires a value")
+			}
+			i++
+			n, err := strconv.Atoi(args[i])
+			if err != nil || n <= 0 {
+				return fmt.Errorf("--max-files must be a positive integer")
+			}
+			maxFiles = n
 		case "--help", "-h":
 			printProfileLintUsage()
 			return nil
@@ -414,6 +438,7 @@ func runProfileLint(args []string) error {
 		Verbose:     verbose,
 		Samples:     samples,
 		SampleFiles: sampleFiles,
+		MaxFiles:    maxFiles,
 	})
 	if err != nil {
 		return err
@@ -552,6 +577,7 @@ Options:
       --name <name>        Profile name to set (default: Inferred Profile)
       --version <version>  Profile version to set (default: 0.1.0)
       --timezone <tz>      HL7v2 timezone (default: UTC)
+      --max-files <n>      Maximum files to read from directories (default: 200)
   -o, --out <file>         Write YAML to a file instead of stdout
   -v, --verbose            Print inference summary to stderr
   -h, --help               Show this help message
@@ -572,6 +598,7 @@ Options:
   -p, --profile <file>   Source Profile YAML file to lint
       --samples <path>   Optional sample file/dir to lint against
   -f, --format <format>  Sample format (default: hl7v2)
+      --max-files <n>    Maximum files to read from directories (default: 200)
       --strict           Treat warnings as errors
   -v, --verbose          Print sample stats (when --samples is provided)
   -h, --help             Show this help message
