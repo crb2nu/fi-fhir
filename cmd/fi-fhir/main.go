@@ -356,6 +356,7 @@ func runProfileLint(args []string) error {
 		profilePath = ""
 		format      = "hl7v2"
 		samplesPath = ""
+		jsonOut     = false
 		strict      = false
 		verbose     = false
 		maxFiles    = 200
@@ -381,6 +382,8 @@ func runProfileLint(args []string) error {
 			}
 			i++
 			format = args[i]
+		case "--json":
+			jsonOut = true
 		case "--strict":
 			strict = true
 		case "--verbose", "-v":
@@ -471,25 +474,93 @@ func runProfileLint(args []string) error {
 	}
 
 	if len(report.Errors) > 0 {
-		fmt.Fprintf(os.Stderr, "Lint failed with %d error(s):\n", len(report.Errors))
-		for _, e := range report.Errors {
-			fmt.Fprintf(os.Stderr, "  - %s\n", e)
+		if !jsonOut {
+			fmt.Fprintf(os.Stderr, "Lint failed with %d error(s):\n", len(report.Errors))
+			for _, e := range report.Errors {
+				fmt.Fprintf(os.Stderr, "  - %s\n", e)
+			}
+		}
+		if jsonOut {
+			printProfileLintJSON(profilePath, format, report, strict)
 		}
 		return fmt.Errorf("profile lint failed")
 	}
 
 	if len(report.Warnings) > 0 {
-		fmt.Fprintf(os.Stderr, "Lint warnings (%d):\n", len(report.Warnings))
-		for _, w := range report.Warnings {
-			fmt.Fprintf(os.Stderr, "  - %s\n", w)
+		if !jsonOut {
+			fmt.Fprintf(os.Stderr, "Lint warnings (%d):\n", len(report.Warnings))
+			for _, w := range report.Warnings {
+				fmt.Fprintf(os.Stderr, "  - %s\n", w)
+			}
 		}
 		if strict {
+			if jsonOut {
+				printProfileLintJSON(profilePath, format, report, strict)
+			}
 			return fmt.Errorf("profile lint failed (warnings treated as errors)")
 		}
 	}
 
-	fmt.Printf("Profile %s passed lint.\n", profilePath)
+	if jsonOut {
+		printProfileLintJSON(profilePath, format, report, strict)
+	} else {
+		fmt.Printf("Profile %s passed lint.\n", profilePath)
+	}
 	return nil
+}
+
+type profileLintJSONSampleStats struct {
+	MessageCount int            `json:"message_count"`
+	Versions     map[string]int `json:"versions,omitempty"`
+	CharSets     map[string]int `json:"charsets,omitempty"`
+	MessageTypes map[string]int `json:"message_types,omitempty"`
+	ZSegments    map[string]int `json:"z_segments,omitempty"`
+	HasLF        bool           `json:"has_lf,omitempty"`
+	HasCR        bool           `json:"has_cr,omitempty"`
+}
+
+type profileLintJSONOutput struct {
+	Profile string `json:"profile"`
+	Format  string `json:"format,omitempty"`
+	OK      bool   `json:"ok"`
+
+	Errors   []string `json:"errors,omitempty"`
+	Warnings []string `json:"warnings,omitempty"`
+
+	SampleFiles []string                    `json:"sample_files,omitempty"`
+	SampleStats *profileLintJSONSampleStats `json:"sample_stats,omitempty"`
+}
+
+func printProfileLintJSON(profilePath, format string, report *profile.LintReport, strict bool) {
+	out := profileLintJSONOutput{
+		Profile: profilePath,
+		Format:  format,
+	}
+	if report != nil {
+		out.Errors = report.Errors
+		out.Warnings = report.Warnings
+		out.SampleFiles = report.SampleFiles
+		if report.SampleStats != nil {
+			out.SampleStats = &profileLintJSONSampleStats{
+				MessageCount: report.SampleStats.MessageCount,
+				Versions:     report.SampleStats.Versions,
+				CharSets:     report.SampleStats.CharSets,
+				MessageTypes: report.SampleStats.MessageTypes,
+				ZSegments:    report.SampleStats.ZSegments,
+				HasLF:        report.SampleStats.HasLF,
+				HasCR:        report.SampleStats.HasCR,
+			}
+		}
+	}
+
+	out.OK = len(out.Errors) == 0 && (!strict || len(out.Warnings) == 0)
+
+	b, err := json.MarshalIndent(out, "", "  ")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to marshal JSON: %v\n", err)
+		return
+	}
+	fmt.Println(string(b))
 }
 
 func lintHL7v2Samples(profilePath, samplesPath string, stdinSamples, stdinSampleFiles []string) ([]string, []string, error) {
@@ -599,6 +670,7 @@ Options:
       --samples <path>   Optional sample file/dir to lint against
   -f, --format <format>  Sample format (default: hl7v2)
       --max-files <n>    Maximum files to read from directories (default: 200)
+      --json             Print a machine-readable JSON report to stdout
       --strict           Treat warnings as errors
   -v, --verbose          Print sample stats (when --samples is provided)
   -h, --help             Show this help message

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -70,5 +71,44 @@ func TestProfileLintFailsOnInvalidSample(t *testing.T) {
 	_, _, err := runCLI(t, "profile", "lint", "--profile", profilePath, "--samples", samplePath, "--strict")
 	if err == nil {
 		t.Fatalf("expected lint error")
+	}
+}
+
+func TestProfileLintJSONOutput(t *testing.T) {
+	tmpDir := t.TempDir()
+	samplePath := filepath.Join(tmpDir, "sample.hl7")
+	profilePath := filepath.Join(tmpDir, "profile.yaml")
+
+	msg := "MSH|^~\\&|SND|FAC|RCV|FAC|202601180930||ADT^A01|MSG0001|P|2.5.1\r" +
+		"EVN|A01|202601180930\r" +
+		"PID|1||12345^^^MRN||Doe^John\r" +
+		"PV1|1|I\r"
+	if err := os.WriteFile(samplePath, []byte(msg), 0o600); err != nil {
+		t.Fatalf("write sample: %v", err)
+	}
+
+	profileYAML := `source_profile:
+  id: test
+  name: Test
+  version: "0.1.0"
+  hl7v2:
+    default_version: "2.5.1"
+    timezone: "UTC"
+`
+	if err := os.WriteFile(profilePath, []byte(profileYAML), 0o600); err != nil {
+		t.Fatalf("write profile: %v", err)
+	}
+
+	stdout, _, err := runCLI(t, "profile", "lint", "--profile", profilePath, "--samples", samplePath, "--json")
+	if err != nil {
+		t.Fatalf("profile lint --json: %v", err)
+	}
+
+	var got map[string]any
+	if jsonErr := json.Unmarshal([]byte(stdout), &got); jsonErr != nil {
+		t.Fatalf("invalid JSON output: %v\n%s", jsonErr, stdout)
+	}
+	if ok, _ := got["ok"].(bool); !ok {
+		t.Fatalf("expected ok=true, got: %v", got["ok"])
 	}
 }
