@@ -1764,7 +1764,7 @@ func validateMessage(profilePath, messagePath, format string, verbose bool) []st
 	}
 
 	// Read message
-	data, err := os.ReadFile(messagePath)
+	data, err := os.ReadFile(messagePath) //nolint:gosec // G304: CLI tool reads user-specified file
 	if err != nil {
 		return []string{fmt.Sprintf("failed to read message: %v", err)}
 	}
@@ -4263,7 +4263,7 @@ func runSubscriptionTest(args []string) error {
 	}
 
 	// Load resource
-	data, err := os.ReadFile(resourceFile)
+	data, err := os.ReadFile(resourceFile) //nolint:gosec // G304: CLI tool reads user-specified file
 	if err != nil {
 		return fmt.Errorf("read resource: %w", err)
 	}
