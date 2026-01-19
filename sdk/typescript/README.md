@@ -8,7 +8,8 @@ TypeScript SDK for the fi-fhir healthcare integration library.
 npm install @fi-fhir/sdk
 ```
 
-**Prerequisites:** The `fi-fhir` CLI must be installed and available in your PATH.
+`@fi-fhir/sdk` can use a system-installed `fi-fhir` binary (via PATH), or a platform-specific
+binary package installed as an optional dependency.
 
 ```bash
 # Install fi-fhir (from source)
@@ -191,6 +192,10 @@ try {
 
 - `FI_FHIR_PATH`: Path to fi-fhir binary (default: looks in PATH)
 
+## Examples
+
+Repo examples live in `sdk/typescript/examples/`.
+
 ## License
 
-MIT
+Apache-2.0

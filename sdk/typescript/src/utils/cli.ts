@@ -1,9 +1,57 @@
 import { spawn } from 'child_process';
+import { createRequire } from 'module';
+import { existsSync } from 'fs';
+import { isAbsolute, join, resolve } from 'path';
 
 /**
  * Path to the fi-fhir binary. Can be overridden via FI_FHIR_PATH env var.
  */
-const BINARY_PATH = process.env.FI_FHIR_PATH || 'fi-fhir';
+const requireFn = (() => {
+  // Prefer resolving from the consumer project root so optionalDependencies can be found
+  // regardless of whether the SDK is imported as CJS or ESM.
+  try {
+    return createRequire(join(process.cwd(), 'package.json'));
+  } catch {
+    // Fallback: best-effort local require. This may still fail in REPL-like contexts.
+    return createRequire(join(process.cwd(), 'index.js'));
+  }
+})();
+
+function platformPackageName(): string | null {
+  const { platform, arch } = process;
+
+  if (platform === 'darwin' && arch === 'arm64') return '@fi-fhir/fi-fhir-darwin-arm64';
+  if (platform === 'darwin' && arch === 'x64') return '@fi-fhir/fi-fhir-darwin-x64';
+
+  if (platform === 'linux' && arch === 'arm64') return '@fi-fhir/fi-fhir-linux-arm64';
+  if (platform === 'linux' && arch === 'x64') return '@fi-fhir/fi-fhir-linux-x64';
+
+  if (platform === 'win32' && arch === 'x64') return '@fi-fhir/fi-fhir-win32-x64';
+
+  return null;
+}
+
+function resolveFiFhirBinaryPath(): string {
+  const envPath = process.env.FI_FHIR_PATH?.trim();
+  if (envPath) {
+    const baseDir = process.env.INIT_CWD || process.cwd();
+    return isAbsolute(envPath) ? envPath : resolve(baseDir, envPath);
+  }
+
+  const pkgName = platformPackageName();
+  if (pkgName) {
+    try {
+      const mod = requireFn(pkgName) as { fiFhirPath?: string };
+      if (mod?.fiFhirPath && existsSync(mod.fiFhirPath)) {
+        return mod.fiFhirPath;
+      }
+    } catch {
+      // ignore; fall back to PATH lookup
+    }
+  }
+
+  return 'fi-fhir';
+}
 
 /**
  * Result from executing fi-fhir CLI
@@ -42,9 +90,10 @@ export async function execFiFhir(
   options: { timeout?: number } = {}
 ): Promise<ExecResult> {
   const timeout = options.timeout ?? 30000;
+  const binaryPath = resolveFiFhirBinaryPath();
 
   return new Promise((resolve, reject) => {
-    const proc = spawn(BINARY_PATH, args, {
+    const proc = spawn(binaryPath, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       timeout,
     });
@@ -64,8 +113,9 @@ export async function execFiFhir(
     proc.on('error', (error: NodeJS.ErrnoException) => {
       if (error.code === 'ENOENT') {
         reject(new FiFhirError(
-          `fi-fhir binary not found at "${BINARY_PATH}". ` +
-          'Make sure fi-fhir is installed and in your PATH, or set FI_FHIR_PATH environment variable.',
+          `fi-fhir binary not found at "${binaryPath}". ` +
+          'Install fi-fhir (or install @fi-fhir/sdk with a supported platform binary), ' +
+          'or set FI_FHIR_PATH environment variable.',
           -1,
           ''
         ));

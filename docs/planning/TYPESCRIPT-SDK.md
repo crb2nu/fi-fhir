@@ -321,19 +321,21 @@ Options for distributing the fi-fhir binary:
 2. **Bundled binaries** - Include all platform binaries in npm package
 3. **External dependency** - Require user to install fi-fhir separately
 
-Recommended: Option 1 with fallback to Option 3.
+Recommended: platform-specific npm packages (one per OS/arch) installed as optional dependencies.
 
 ```json
 {
-  "scripts": {
-    "postinstall": "node scripts/download-binary.js"
-  },
   "optionalDependencies": {
-    "@fi-fhir/binary-darwin-arm64": "^0.1.0",
-    "@fi-fhir/binary-linux-x64": "^0.1.0"
+    "@fi-fhir/fi-fhir-darwin-arm64": "0.1.0",
+    "@fi-fhir/fi-fhir-darwin-x64": "0.1.0",
+    "@fi-fhir/fi-fhir-linux-arm64": "0.1.0",
+    "@fi-fhir/fi-fhir-linux-x64": "0.1.0",
+    "@fi-fhir/fi-fhir-win32-x64": "0.1.0"
   }
 }
 ```
+
+CI publishes these packages on tags, using the binaries built by `release:binaries`.
 
 ## Testing Strategy
 
@@ -381,9 +383,9 @@ describe('parseCSV', () => {
 - [ ] Streaming API (future)
 
 ### Phase 3: Distribution 🔲
-- [ ] Binary download script
-- [ ] Platform-specific packages
-- [ ] npm publish workflow
+- [x] Platform-specific packages (optional dependencies)
+- [x] npm publish workflow (GitLab npm registry) on tags
+- [ ] Streaming API (future)
 
 > **Note**: SDK is functional but distribution automation is not yet implemented.
 

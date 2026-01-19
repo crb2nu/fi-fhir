@@ -13,7 +13,7 @@ This directory contains detailed planning and specification documents for the fi
 | [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) | X12 EDI parsing (837P, 835, 270/271, 276/277) | ✅ Parsing + companion guide framework shipped |
 | [IDENTIFIERS.md](IDENTIFIERS.md) | Patient/provider identifier systems and validation | ✅ Complete (validators + matching engine) |
 | [TERMINOLOGY.md](TERMINOLOGY.md) | Healthcare code systems and mapping (LOINC, SNOMED, UMLS, ICD-10-CM) | ✅ Core + version tracking shipped |
-| [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md) | TypeScript/JavaScript SDK | ⚠️ SDK complete, distribution pending |
+| [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md) | TypeScript/JavaScript SDK | ✅ SDK + distribution shipped |
 | [CDA-CCDA.md](CDA-CCDA.md) | CDA/CCDA clinical document parsing | ✅ Complete |
 | [FHIR-SUBSCRIPTIONS.md](FHIR-SUBSCRIPTIONS.md) | FHIR R4 Subscriptions (bidirectional) | ✅ Complete |
 | [GRAPHQL-API.md](GRAPHQL-API.md) | GraphQL API layer for events | ✅ Complete |
@@ -77,7 +77,7 @@ These are the remaining “big rocks” referenced by the Document Overview stat
 | FB-002 | Workflow action pack (email/file/custom) | ✅ Shipped | [WORKFLOW-DSL.md](WORKFLOW-DSL.md) |
 | FB-003 | FHIR validation + conformance checks | ✅ Shipped | [FHIR-PROFILES.md](FHIR-PROFILES.md) |
 | FB-004 | Terminology version tracking | ✅ Shipped | [TERMINOLOGY.md](TERMINOLOGY.md) |
-| FB-005 | TypeScript SDK distribution | ⏳ Planned | [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md) |
+| FB-005 | TypeScript SDK distribution | ✅ Shipped | [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md) |
 | FB-006 | HL7 vendor templates + fixtures | ⏳ Planned | [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) |
 
 #### FB-001: Source Profile Inference + Linting
@@ -101,9 +101,9 @@ These are the remaining “big rocks” referenced by the Document Overview stat
 - [x] Add version-aware validation modes: `pass` / `warn` / `error` (and surface them as `ParseWarning`s when tolerated).
 
 #### FB-005: TypeScript SDK Distribution
-- [ ] Decide packaging for the Go CLI dependency (download prebuilt binaries, user-provided path, or container-based runner).
-- [ ] Add publish-ready artifacts + CI for `sdk/typescript` (build, test, provenance, changelog/versioning).
-- [ ] Add usage docs and integration examples (Node service, serverless function, simple ETL).
+- [x] Decide packaging for the Go CLI dependency (platform-specific optional deps; `FI_FHIR_PATH` override).
+- [x] Add publish-ready artifacts + CI for `sdk/typescript` (build + test jobs; npm publish on tags).
+- [x] Add usage docs and integration examples (Node service, serverless function, simple ETL).
 
 #### FB-006: HL7 Vendor Templates + Fixtures
 - [ ] Add vendor profile templates (Epic/Cerner/Meditech/Allscripts) with documented deviations and recommended tolerances.

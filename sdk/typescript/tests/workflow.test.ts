@@ -1,17 +1,27 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { spawnSync } from 'child_process';
 import { writeFileSync, unlinkSync, mkdirSync } from 'fs';
-import { join } from 'path';
+import { isAbsolute, join, resolve } from 'path';
 import { tmpdir } from 'os';
-import { Workflow, isFiFhirAvailable } from '../src';
+import { Workflow } from '../src';
+
+function isFiFhirAvailableSync(): boolean {
+  const envPath = process.env.FI_FHIR_PATH?.trim();
+  const bin = envPath
+    ? (isAbsolute(envPath) ? envPath : resolve(process.cwd(), envPath))
+    : 'fi-fhir';
+
+  const result = spawnSync(bin, ['version'], { encoding: 'utf8' });
+  return result.status === 0;
+}
 
 describe('Workflow', () => {
-  let fiFhirAvailable: boolean;
+  const fiFhirAvailable = isFiFhirAvailableSync();
+  const itFiFhir = fiFhirAvailable ? it : it.skip;
   let tempDir: string;
   let workflowPath: string;
 
   beforeAll(async () => {
-    fiFhirAvailable = await isFiFhirAvailable();
-
     // Create temp workflow file
     tempDir = join(tmpdir(), 'fi-fhir-test-' + Date.now());
     try {
@@ -49,7 +59,7 @@ workflow:
   });
 
   describe('validate', () => {
-    it.skipIf(!fiFhirAvailable)('validates valid workflow', async () => {
+    itFiFhir('validates valid workflow', async () => {
       const workflow = new Workflow(workflowPath);
       const result = await workflow.validate();
 
@@ -60,7 +70,7 @@ workflow:
       expect(result.routes?.[0].name).toBe('patient_events');
     });
 
-    it.skipIf(!fiFhirAvailable)('returns error for invalid workflow', async () => {
+    itFiFhir('returns error for invalid workflow', async () => {
       const invalidPath = join(tempDir, 'invalid.yaml');
       writeFileSync(invalidPath, `
 workflow:
@@ -78,7 +88,7 @@ workflow:
   });
 
   describe('run', () => {
-    it.skipIf(!fiFhirAvailable)('processes events through workflow', async () => {
+    itFiFhir('processes events through workflow', async () => {
       const workflow = new Workflow(workflowPath);
 
       const events = [
@@ -100,7 +110,7 @@ workflow:
       expect(result.errors).toBe(0);
     });
 
-    it.skipIf(!fiFhirAvailable)('accepts JSON string input', async () => {
+    itFiFhir('accepts JSON string input', async () => {
       const workflow = new Workflow(workflowPath);
 
       const json = JSON.stringify([
@@ -122,7 +132,7 @@ workflow:
   });
 
   describe('dryRun', () => {
-    it.skipIf(!fiFhirAvailable)('shows which routes would match', async () => {
+    itFiFhir('shows which routes would match', async () => {
       const workflow = new Workflow(workflowPath);
 
       const events = [

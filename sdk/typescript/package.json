@@ -50,5 +50,12 @@
     "node": ">=18.0.0"
   },
   "peerDependencies": {},
-  "dependencies": {}
+  "dependencies": {},
+  "optionalDependencies": {
+    "@fi-fhir/fi-fhir-darwin-arm64": "file:packages/fi-fhir-darwin-arm64",
+    "@fi-fhir/fi-fhir-darwin-x64": "file:packages/fi-fhir-darwin-x64",
+    "@fi-fhir/fi-fhir-linux-arm64": "file:packages/fi-fhir-linux-arm64",
+    "@fi-fhir/fi-fhir-linux-x64": "file:packages/fi-fhir-linux-x64",
+    "@fi-fhir/fi-fhir-win32-x64": "file:packages/fi-fhir-win32-x64"
+  }
 }

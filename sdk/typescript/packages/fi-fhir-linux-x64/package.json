@@ -1,0 +1,17 @@
+{
+  "name": "@fi-fhir/fi-fhir-linux-x64",
+  "version": "0.1.0",
+  "description": "fi-fhir CLI binary for linux-x64",
+  "license": "Apache-2.0",
+  "os": ["linux"],
+  "cpu": ["x64"],
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": ["bin", "index.js", "index.d.ts", "README.md"],
+  "repository": {
+    "type": "git",
+    "url": "https://gitlab.flexinfer.ai/libs/fi-fhir.git",
+    "directory": "sdk/typescript/packages/fi-fhir-linux-x64"
+  }
+}
+

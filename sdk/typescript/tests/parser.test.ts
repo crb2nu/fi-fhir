@@ -1,15 +1,24 @@
-import { describe, it, expect, beforeAll } from 'vitest';
-import { parse, parseHL7, parseCSV, parseCSVWithSchema, FiFhirError, isFiFhirAvailable } from '../src';
+import { describe, it, expect } from 'vitest';
+import { spawnSync } from 'child_process';
+import { isAbsolute, resolve } from 'path';
+import { parse, parseHL7, parseCSV, parseCSVWithSchema, FiFhirError } from '../src';
+
+function isFiFhirAvailableSync(): boolean {
+  const envPath = process.env.FI_FHIR_PATH?.trim();
+  const bin = envPath
+    ? (isAbsolute(envPath) ? envPath : resolve(process.cwd(), envPath))
+    : 'fi-fhir';
+
+  const result = spawnSync(bin, ['version'], { encoding: 'utf8' });
+  return result.status === 0;
+}
 
 describe('Parser', () => {
-  let fiFhirAvailable: boolean;
-
-  beforeAll(async () => {
-    fiFhirAvailable = await isFiFhirAvailable();
-  });
+  const fiFhirAvailable = isFiFhirAvailableSync();
+  const itFiFhir = fiFhirAvailable ? it : it.skip;
 
   describe('parseHL7', () => {
-    it.skipIf(!fiFhirAvailable)('parses ADT^A01 message', async () => {
+    itFiFhir('parses ADT^A01 message', async () => {
       const message = `MSH|^~\\&|EPIC|HOSPITAL|DEST|DEST|20240115120000||ADT^A01|MSG001|P|2.5
 EVN|A01|20240115120000
 PID|1||123456^^^HOSP^MR||DOE^JOHN^W||19800315|M|||123 MAIN ST^^ANYTOWN^VA^24101||555-123-4567
@@ -29,7 +38,7 @@ PV1|1|I|ICU^101^A^HOSP||||12345^SMITH^ROBERT|||MED||||||||V123456^^^HOSP^VN|||||
       }
     });
 
-    it.skipIf(!fiFhirAvailable)('parses ORU^R01 lab result', async () => {
+    itFiFhir('parses ORU^R01 lab result', async () => {
       const message = `MSH|^~\\&|LAB|HOSPITAL|DEST|DEST|20240115140000||ORU^R01|MSG002|P|2.5
 PID|1||123456^^^HOSP^MR||DOE^JOHN
 OBR|1|ORD001|ACC001|CBC^Complete Blood Count|||20240115130000
@@ -49,7 +58,7 @@ OBX|1|NM|WBC^White Blood Cell Count||12.5|10*3/uL|4.5-11.0|H|||F`;
   });
 
   describe('parseCSV', () => {
-    it.skipIf(!fiFhirAvailable)('parses patient CSV', async () => {
+    itFiFhir('parses patient CSV', async () => {
       const csv = `mrn,first_name,last_name,dob,gender
 123456,John,Doe,1980-03-15,M
 789012,Jane,Smith,1992-07-22,F`;
@@ -66,7 +75,7 @@ OBX|1|NM|WBC^White Blood Cell Count||12.5|10*3/uL|4.5-11.0|H|||F`;
       }
     });
 
-    it.skipIf(!fiFhirAvailable)('parses lab result CSV', async () => {
+    itFiFhir('parses lab result CSV', async () => {
       const csv = `mrn,test_code,test_name,result,unit,interpretation
 123456,GLU,Glucose,95,mg/dL,N
 123456,HGB,Hemoglobin,14.2,g/dL,N`;
@@ -82,7 +91,7 @@ OBX|1|NM|WBC^White Blood Cell Count||12.5|10*3/uL|4.5-11.0|H|||F`;
       }
     });
 
-    it.skipIf(!fiFhirAvailable)('handles custom delimiter', async () => {
+    itFiFhir('handles custom delimiter', async () => {
       const tsv = `mrn\tfirst_name\tlast_name
 123456\tJohn\tDoe`;
 
@@ -99,7 +108,7 @@ OBX|1|NM|WBC^White Blood Cell Count||12.5|10*3/uL|4.5-11.0|H|||F`;
   });
 
   describe('parseCSVWithSchema', () => {
-    it.skipIf(!fiFhirAvailable)('infers schema from CSV', async () => {
+    itFiFhir('infers schema from CSV', async () => {
       const csv = `mrn,first_name,last_name,dob,gender,ssn,phone,email
 123456,John,Doe,1980-03-15,M,123-45-6789,555-123-4567,john@example.com
 789012,Jane,Smith,1992-07-22,F,987-65-4321,555-987-6543,jane@example.com`;
@@ -122,7 +131,7 @@ OBX|1|NM|WBC^White Blood Cell Count||12.5|10*3/uL|4.5-11.0|H|||F`;
   });
 
   describe('error handling', () => {
-    it.skipIf(!fiFhirAvailable)('throws FiFhirError for invalid input', async () => {
+    itFiFhir('throws FiFhirError for invalid input', async () => {
       await expect(parseCSV('', { eventType: 'patient' }))
         .rejects.toThrow(FiFhirError);
     });
