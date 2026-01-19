@@ -7,7 +7,7 @@ This directory contains detailed planning and specification documents for the fi
 | Document | Purpose | Status |
 |----------|---------|--------|
 | [SOURCE-PROFILES.md](SOURCE-PROFILES.md) | Source Profile configuration system - the unit of scalability | ✅ Core + inference/lint shipped |
-| [WORKFLOW-DSL.md](WORKFLOW-DSL.md) | Workflow routing, transforms, and actions | ⚠️ Core complete, email/file/custom actions pending |
+| [WORKFLOW-DSL.md](WORKFLOW-DSL.md) | Workflow routing, transforms, and actions | ✅ Core + action pack shipped |
 | [FHIR-PROFILES.md](FHIR-PROFILES.md) | FHIR R4 output with US Core mapping | ✅ 17+ resources + validation shipped |
 | [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) | HL7 v2.x version differences and parsing edge cases | ⚠️ Core complete, vendor templates pending |
 | [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) | X12 EDI parsing (837P, 835, 270/271, 276/277) | ✅ Parsing + companion guide framework shipped |
@@ -74,7 +74,7 @@ These are the remaining “big rocks” referenced by the Document Overview stat
 | Build | Outcome | Status | Primary Docs |
 |-------|---------|--------|--------------|
 | FB-001 | Source Profile inference + linting | ✅ Shipped | [SOURCE-PROFILES.md](SOURCE-PROFILES.md) |
-| FB-002 | Workflow action pack (email/file/custom) | 🚧 In progress | [WORKFLOW-DSL.md](WORKFLOW-DSL.md) |
+| FB-002 | Workflow action pack (email/file/custom) | ✅ Shipped | [WORKFLOW-DSL.md](WORKFLOW-DSL.md) |
 | FB-003 | FHIR validation + conformance checks | ✅ Shipped | [FHIR-PROFILES.md](FHIR-PROFILES.md) |
 | FB-004 | Terminology version tracking | ⏳ Planned | [TERMINOLOGY.md](TERMINOLOGY.md) |
 | FB-005 | TypeScript SDK distribution | ⏳ Planned | [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md) |
@@ -88,7 +88,7 @@ These are the remaining “big rocks” referenced by the Document Overview stat
 #### FB-002: Workflow Action Pack (Email/File/Custom)
 - [x] Implement `email` action (SMTP/SES; templated subject/body; retries + circuit breaker parity with `webhook`).
 - [x] Implement `file` action (write events to disk with templated paths; atomic writes; rotation/retention knobs).
-- [ ] Define a safe “custom action” extension point (e.g. `exec` action with allowlist + timeouts) and document it in `WORKFLOW-DSL.md`.
+- [x] Define a safe “custom action” extension point (e.g. `exec` action with allowlist + timeouts) and document it in `WORKFLOW-DSL.md`.
 
 #### FB-003: FHIR Validation + Conformance
 - [x] Add a validation path for generated FHIR resources/bundles (US Core-focused), used by CLI and workflow (`fi-fhir fhir validate`, `fhir` action `validate_fhir`).
