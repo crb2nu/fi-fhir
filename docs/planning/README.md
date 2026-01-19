@@ -6,9 +6,9 @@ This directory contains detailed planning and specification documents for the fi
 
 | Document | Purpose | Status |
 |----------|---------|--------|
-| [SOURCE-PROFILES.md](SOURCE-PROFILES.md) | Source Profile configuration system - the unit of scalability | ⚠️ Core complete, profile inference pending |
+| [SOURCE-PROFILES.md](SOURCE-PROFILES.md) | Source Profile configuration system - the unit of scalability | ✅ Core + inference/lint shipped |
 | [WORKFLOW-DSL.md](WORKFLOW-DSL.md) | Workflow routing, transforms, and actions | ⚠️ Core complete, email/file/custom actions pending |
-| [FHIR-PROFILES.md](FHIR-PROFILES.md) | FHIR R4 output with US Core mapping | ⚠️ 17+ resources, validation pending |
+| [FHIR-PROFILES.md](FHIR-PROFILES.md) | FHIR R4 output with US Core mapping | ⚠️ 17+ resources, validation in progress |
 | [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) | HL7 v2.x version differences and parsing edge cases | ⚠️ Core complete, vendor templates pending |
 | [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) | X12 EDI parsing (837P, 835, 270/271, 276/277) | ✅ Parsing + companion guide framework shipped |
 | [IDENTIFIERS.md](IDENTIFIERS.md) | Patient/provider identifier systems and validation | ✅ Complete (validators + matching engine) |
@@ -73,17 +73,17 @@ These are the remaining “big rocks” referenced by the Document Overview stat
 
 | Build | Outcome | Status | Primary Docs |
 |-------|---------|--------|--------------|
-| FB-001 | Source Profile inference + linting | ⏳ Planned | [SOURCE-PROFILES.md](SOURCE-PROFILES.md) |
+| FB-001 | Source Profile inference + linting | ✅ Shipped | [SOURCE-PROFILES.md](SOURCE-PROFILES.md) |
 | FB-002 | Workflow action pack (email/file/custom) | ⏳ Planned | [WORKFLOW-DSL.md](WORKFLOW-DSL.md) |
-| FB-003 | FHIR validation + conformance checks | ⏳ Planned | [FHIR-PROFILES.md](FHIR-PROFILES.md) |
+| FB-003 | FHIR validation + conformance checks | 🚧 In progress | [FHIR-PROFILES.md](FHIR-PROFILES.md) |
 | FB-004 | Terminology version tracking | ⏳ Planned | [TERMINOLOGY.md](TERMINOLOGY.md) |
 | FB-005 | TypeScript SDK distribution | ⏳ Planned | [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md) |
 | FB-006 | HL7 vendor templates + fixtures | ⏳ Planned | [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) |
 
 #### FB-001: Source Profile Inference + Linting
-- [ ] Add `fi-fhir profile infer` to generate a profile skeleton from sample messages (delimiter/version/segment/Z-segment heuristics).
-- [ ] Add `fi-fhir profile lint` with schema validation plus opinionated warnings (unknown segments, missing mappings, unsafe tolerances).
-- [ ] Add fixtures + golden outputs for inference and linting (profiles + representative `testdata/` corpus).
+- [x] Add `fi-fhir profile infer` to generate a profile skeleton from sample messages (delimiter/version/segment/Z-segment heuristics).
+- [x] Add `fi-fhir profile lint` with schema validation plus opinionated warnings (unknown segments, missing mappings, unsafe tolerances).
+- [x] Add fixtures + golden outputs for inference and linting (profiles + representative `testdata/` corpus).
 
 #### FB-002: Workflow Action Pack (Email/File/Custom)
 - [ ] Implement `email` action (SMTP/SES; templated subject/body; retries + circuit breaker parity with `webhook`).
@@ -91,7 +91,7 @@ These are the remaining “big rocks” referenced by the Document Overview stat
 - [ ] Define a safe “custom action” extension point (e.g. `exec` action with allowlist + timeouts) and document it in `WORKFLOW-DSL.md`.
 
 #### FB-003: FHIR Validation + Conformance
-- [ ] Add a validation path for generated FHIR resources/bundles (US Core-focused), used by CLI and CI.
+- [x] Add a validation path for generated FHIR resources/bundles (US Core-focused), used by CLI and workflow (`fi-fhir fhir validate`, `fhir` action `validate_fhir`).
 - [ ] Add golden fixtures to validate the highest-volume resources (Patient/Encounter/Observation/DiagnosticReport/Claim).
 - [ ] Decide and document validator strategy (pure-Go structural checks vs external validator) and failure policy (warn vs error per profile).
 
@@ -214,12 +214,11 @@ The following items remain for full production readiness:
 
 Work these in order unless a customer/production need pulls something forward:
 
-1. FB-001: Source Profile inference + linting
-2. FB-003: FHIR validation + conformance checks
-3. FB-002: Workflow action pack (email/file/custom)
-4. FB-004: Terminology version tracking
-5. FB-006: HL7 vendor templates + fixtures
-6. FB-005: TypeScript SDK distribution
+1. FB-003: FHIR validation + conformance checks
+2. FB-002: Workflow action pack (email/file/custom)
+3. FB-004: Terminology version tracking
+4. FB-006: HL7 vendor templates + fixtures
+5. FB-005: TypeScript SDK distribution
 
 ### P2 - Test Coverage Gaps
 
