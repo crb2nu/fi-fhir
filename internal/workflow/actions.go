@@ -225,6 +225,9 @@ func renderTemplate(tmplStr string, data interface{}) string {
 //   - resource: Resource type to create (Patient, Encounter, Observation) - auto-detected if not specified
 //   - operation: create, update, or upsert (default: create)
 //   - profile: us-core or base (default: us-core)
+//   - validate_fhir: "true" to validate generated JSON before sending (default: false)
+//   - validate_mode: "us-core" or "none" (default: derived from profile; falls back to us-core)
+//   - allow_warnings: "true" to allow warnings when validate_fhir=true (default: false)
 //   - token: Bearer token for authentication (static)
 //   - authorization: Custom Authorization header
 //   - token_url: OAuth2 token endpoint (enables OAuth2 client credentials)
@@ -416,6 +419,69 @@ func mapEventToFHIR(m map[string]interface{}, mapper *fhir.USCoreMapper, config 
 	}
 }
 
+func shouldValidateFHIR(config map[string]string) bool {
+	return strings.ToLower(strings.TrimSpace(config["validate_fhir"])) == "true" ||
+		strings.ToLower(strings.TrimSpace(config["validate"])) == "true"
+}
+
+func fhirValidationMode(config map[string]string) string {
+	if mode := strings.TrimSpace(config["validate_mode"]); mode != "" {
+		return mode
+	}
+
+	switch strings.ToLower(strings.TrimSpace(config["profile"])) {
+	case "base", "none":
+		return "none"
+	case "us-core", "uscore", "us_core":
+		return "us-core"
+	default:
+		return "us-core"
+	}
+}
+
+func allowFHIRWarnings(config map[string]string) bool {
+	return strings.ToLower(strings.TrimSpace(config["allow_warnings"])) == "true"
+}
+
+func validateFHIRPayload(body []byte, config map[string]string) error {
+	mode := fhirValidationMode(config)
+	outcome, err := fhir.ValidateJSON(body, fhir.ValidationOptions{Mode: mode})
+	if err != nil {
+		return fmt.Errorf("FHIR payload validation error: %w", err)
+	}
+
+	var errors, warnings int
+	for _, iss := range outcome.Issue {
+		switch iss.Severity {
+		case "fatal", "error":
+			errors++
+		case "warning":
+			warnings++
+		}
+	}
+
+	if errors == 0 && (warnings == 0 || allowFHIRWarnings(config)) {
+		return nil
+	}
+
+	var details []string
+	for _, iss := range outcome.Issue {
+		loc := ""
+		if len(iss.Location) > 0 {
+			loc = " (" + strings.Join(iss.Location, ", ") + ")"
+		}
+		details = append(details, fmt.Sprintf("%s %s: %s%s", strings.ToUpper(iss.Severity), iss.Code, iss.Diagnostics, loc))
+		if len(details) >= 3 {
+			break
+		}
+	}
+
+	if errors > 0 {
+		return fmt.Errorf("FHIR payload validation failed (%d error(s), %d warning(s), mode=%s): %s", errors, warnings, mode, strings.Join(details, "; "))
+	}
+	return fmt.Errorf("FHIR payload validation failed (%d warning(s), mode=%s): %s", warnings, mode, strings.Join(details, "; "))
+}
+
 // sendFHIRResource sends a single FHIR resource to the server with rate limiting, retry, and circuit breaker support.
 // Handles OAuth 401 by invalidating token cache and retrying with fresh token.
 func sendFHIRResource(ctx context.Context, client *http.Client, endpoint string, resource fhir.Resource, config map[string]string) error {
@@ -429,6 +495,12 @@ func sendFHIRResource(ctx context.Context, client *http.Client, endpoint string,
 	body, err := json.Marshal(resource)
 	if err != nil {
 		return fmt.Errorf("failed to marshal FHIR resource: %w", err)
+	}
+
+	if shouldValidateFHIR(config) {
+		if err := validateFHIRPayload(body, config); err != nil {
+			return err
+		}
 	}
 
 	// Build request URL and method
@@ -546,6 +618,12 @@ func sendFHIRBundle(ctx context.Context, client *http.Client, endpoint string, r
 	body, err := json.Marshal(bundle)
 	if err != nil {
 		return fmt.Errorf("failed to marshal FHIR bundle: %w", err)
+	}
+
+	if shouldValidateFHIR(config) {
+		if err := validateFHIRPayload(body, config); err != nil {
+			return err
+		}
 	}
 
 	// Build headers once (reused for retries)

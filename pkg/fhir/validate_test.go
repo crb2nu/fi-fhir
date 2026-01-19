@@ -57,3 +57,24 @@ func TestValidateJSON_PatientOKWithUSCoreWarningForMissingMetaProfile(t *testing
 		}
 	}
 }
+
+func TestValidateJSON_ModeNone_IsStructuralOnly(t *testing.T) {
+	data := []byte(`{
+  "resourceType": "Patient",
+  "identifier": [],
+  "name": [],
+  "gender": "",
+  "birthDate": ""
+}`)
+
+	outcome, err := ValidateJSON(data, ValidationOptions{Mode: "none"})
+	if err != nil {
+		t.Fatalf("ValidateJSON: %v", err)
+	}
+	if outcome == nil {
+		t.Fatalf("expected outcome")
+	}
+	if len(outcome.Issue) != 0 {
+		t.Fatalf("expected no issues in mode=none, got %d", len(outcome.Issue))
+	}
+}

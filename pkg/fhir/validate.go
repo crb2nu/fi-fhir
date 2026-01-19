@@ -104,7 +104,13 @@ func validateBundle(obj map[string]any, opts ValidationOptions, basePath string)
 func validateResource(obj map[string]any, resourceType string, opts ValidationOptions, basePath string) []OperationOutcomeIssue {
 	var issues []OperationOutcomeIssue
 
-	// Basic structural expectations
+	// "none" is intentionally minimal/structural-only: for non-Bundle resources, we
+	// accept unknown shapes as long as the payload is valid JSON and has resourceType.
+	if opts.Mode != "us-core" {
+		return nil
+	}
+
+	// US Core-ish expectations (kept intentionally small and evolving)
 	switch resourceType {
 	case "Patient":
 		issues = append(issues, requireNonEmptyArray(obj, "identifier", "Patient.identifier is required (US Core)", basePath)...)
@@ -139,9 +145,7 @@ func validateResource(obj map[string]any, resourceType string, opts ValidationOp
 		// Unknown resources are not an error for a generic validator.
 	}
 
-	if opts.Mode == "us-core" {
-		issues = append(issues, validateUSCoreProfilePresence(obj, resourceType, basePath)...)
-	}
+	issues = append(issues, validateUSCoreProfilePresence(obj, resourceType, basePath)...)
 
 	return issues
 }

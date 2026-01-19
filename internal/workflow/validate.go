@@ -470,6 +470,44 @@ func (v *Validator) validateFHIRAction(action *Action, path string, result *Vali
 			})
 		}
 	}
+
+	// Validate optional FHIR payload validation config
+	if mode, ok := action.Config["validate_mode"]; ok && mode != "" {
+		mode = strings.ToLower(mode)
+		validModes := map[string]bool{"us-core": true, "none": true}
+		if !validModes[mode] {
+			result.Errors = append(result.Errors, ValidationError{
+				Path:     path + ".validate_mode",
+				Message:  fmt.Sprintf("Invalid validate_mode '%s'; must be us-core or none", mode),
+				Severity: SeverityError,
+				Code:     "INVALID_FHIR_VALIDATE_MODE",
+			})
+		}
+	}
+
+	if v, ok := action.Config["validate_fhir"]; ok && v != "" {
+		v = strings.ToLower(v)
+		if v != "true" && v != "false" {
+			result.Warnings = append(result.Warnings, ValidationError{
+				Path:     path + ".validate_fhir",
+				Message:  fmt.Sprintf("validate_fhir should be true or false (got '%s')", v),
+				Severity: SeverityWarning,
+				Code:     "INVALID_FHIR_VALIDATE_FLAG",
+			})
+		}
+	}
+
+	if v, ok := action.Config["allow_warnings"]; ok && v != "" {
+		v = strings.ToLower(v)
+		if v != "true" && v != "false" {
+			result.Warnings = append(result.Warnings, ValidationError{
+				Path:     path + ".allow_warnings",
+				Message:  fmt.Sprintf("allow_warnings should be true or false (got '%s')", v),
+				Severity: SeverityWarning,
+				Code:     "INVALID_FHIR_ALLOW_WARNINGS",
+			})
+		}
+	}
 }
 
 func (v *Validator) validateDatabaseAction(action *Action, path string, result *ValidationResult) {

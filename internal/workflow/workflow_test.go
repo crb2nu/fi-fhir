@@ -602,6 +602,96 @@ func TestFHIRActionPatientAdmit(t *testing.T) {
 	}
 }
 
+func TestFHIRActionPatientAdmit_ValidationModeNone_AllowsMissingUSCoreFields(t *testing.T) {
+	// Create test FHIR server
+	var requestCount int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer server.Close()
+
+	event := &events.PatientAdmitEvent{
+		EventMeta: events.EventMeta{
+			Type:   events.EventPatientAdmit,
+			Source: "test",
+		},
+		Patient: events.Patient{
+			MRN:        "123456",
+			GivenName:  "John",
+			FamilyName: "Doe",
+			// Intentionally omit DateOfBirth and Identifiers.
+			Gender: "M",
+		},
+		Encounter: events.Encounter{
+			ID:    "enc-001",
+			Class: "I",
+		},
+	}
+
+	config := map[string]string{
+		"endpoint":       server.URL,
+		"validate_fhir":  "true",
+		"validate_mode":  "none",
+		"allow_warnings": "false",
+	}
+
+	err := fhirAction(context.Background(), event, config)
+	if err != nil {
+		t.Fatalf("fhirAction failed: %v", err)
+	}
+	if requestCount != 1 {
+		t.Errorf("Expected 1 request, got %d", requestCount)
+	}
+}
+
+func TestFHIRActionPatientAdmit_ValidationModeUSCore_PassesWithCompletePatient(t *testing.T) {
+	// Create test FHIR server
+	var requestCount int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer server.Close()
+
+	event := &events.PatientAdmitEvent{
+		EventMeta: events.EventMeta{
+			Type:   events.EventPatientAdmit,
+			Source: "test",
+		},
+		Patient: events.Patient{
+			MRN: "123456",
+			Identifiers: events.IdentifierSet{
+				Identifiers: []events.Identifier{
+					{Type: "MR", Value: "123456"},
+				},
+			},
+			GivenName:   "John",
+			FamilyName:  "Doe",
+			Gender:      "M",
+			DateOfBirth: time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC),
+		},
+		Encounter: events.Encounter{
+			ID:    "enc-001",
+			Class: "I",
+		},
+	}
+
+	config := map[string]string{
+		"endpoint":      server.URL,
+		"validate_fhir": "true",
+		"validate_mode": "us-core",
+	}
+
+	err := fhirAction(context.Background(), event, config)
+	if err != nil {
+		t.Fatalf("fhirAction failed: %v", err)
+	}
+	if requestCount != 1 {
+		t.Errorf("Expected 1 request, got %d", requestCount)
+	}
+}
+
 func TestFHIRActionLabResult(t *testing.T) {
 	var receivedBody []byte
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
