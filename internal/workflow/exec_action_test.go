@@ -25,6 +25,7 @@ echo "ok:$input"
 	if err := os.WriteFile(scriptPath, []byte(script), 0o600); err != nil {
 		t.Fatalf("write script: %v", err)
 	}
+	//nolint:gosec // G302: test fixture must be executable
 	if err := os.Chmod(scriptPath, 0o700); err != nil {
 		t.Fatalf("chmod script: %v", err)
 	}
@@ -55,6 +56,7 @@ func TestExecAction_BlocksNonAllowlistedCommand(t *testing.T) {
 	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\nexit 0\n"), 0o600); err != nil {
 		t.Fatalf("write script: %v", err)
 	}
+	//nolint:gosec // G302: test fixture must be executable
 	if err := os.Chmod(scriptPath, 0o700); err != nil {
 		t.Fatalf("chmod script: %v", err)
 	}
