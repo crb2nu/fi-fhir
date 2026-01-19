@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -303,6 +304,8 @@ func (v *Validator) validateAction(action *Action, path string, result *Validati
 		v.validateWebhookAction(action, path, result)
 	case "fhir":
 		v.validateFHIRAction(action, path, result)
+	case "file":
+		v.validateFileAction(action, path, result)
 	case "database":
 		v.validateDatabaseAction(action, path, result)
 	case "queue":
@@ -314,6 +317,41 @@ func (v *Validator) validateAction(action *Action, path string, result *Validati
 			Severity: SeverityWarning,
 			Code:     "UNKNOWN_ACTION_TYPE",
 		})
+	}
+}
+
+func (v *Validator) validateFileAction(action *Action, path string, result *ValidationResult) {
+	if action.Config["path"] == "" {
+		result.Errors = append(result.Errors, ValidationError{
+			Path:     path + ".path",
+			Message:  "File action requires path",
+			Severity: SeverityError,
+			Code:     "MISSING_FILE_PATH",
+		})
+	}
+
+	if format, ok := action.Config["format"]; ok && format != "" {
+		format = strings.ToLower(format)
+		validFormats := map[string]bool{"json": true, "pretty": true, "ndjson": true}
+		if !validFormats[format] {
+			result.Errors = append(result.Errors, ValidationError{
+				Path:     path + ".format",
+				Message:  fmt.Sprintf("Invalid file format '%s'; must be json, pretty, or ndjson", format),
+				Severity: SeverityError,
+				Code:     "INVALID_FILE_FORMAT",
+			})
+		}
+	}
+
+	if perm, ok := action.Config["perm"]; ok && perm != "" {
+		if _, err := strconv.ParseUint(perm, 8, 32); err != nil {
+			result.Errors = append(result.Errors, ValidationError{
+				Path:     path + ".perm",
+				Message:  fmt.Sprintf("Invalid file perm '%s'; expected octal like 0600", perm),
+				Severity: SeverityError,
+				Code:     "INVALID_FILE_PERM",
+			})
+		}
 	}
 }
 

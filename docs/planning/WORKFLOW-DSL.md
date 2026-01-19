@@ -140,6 +140,7 @@ transform:
 | `log` | ✅ Implemented | Log events with Go template messages |
 | `webhook` | ✅ Implemented | POST to REST endpoints with auth |
 | `fhir` | ✅ Implemented | POST to FHIR R4 servers with US Core mapping |
+| `file` | ✅ Implemented | Write events to local files (JSON/NDJSON) |
 | `database` | ✅ Implemented | Insert/upsert to PostgreSQL/MySQL/SQLite |
 | `queue` | ✅ Implemented | Publish to Kafka/RabbitMQ/NATS/SQS |
 | `event_store` | ✅ Implemented | Append to event sourcing store |
@@ -183,6 +184,27 @@ Send to FHIR server:
 - Supports proactive refresh (fetches new token before expiry)
 
 **Implementation:** `internal/workflow/actions.go` (fhirAction), `internal/workflow/oauth.go` (OAuth2)
+
+#### File Action
+Write event payloads to disk:
+
+```yaml
+- type: file
+  base_dir: /var/lib/fi-fhir/out
+  path: "{{.Type}}/{{.Patient.MRN}}.json"
+  format: pretty # json, pretty, ndjson
+  perm: "0600"
+```
+
+**Config Options:**
+| Option | Required | Description |
+|--------|----------|-------------|
+| `path` | Yes | Output path (supports Go templates) |
+| `base_dir` | No | If set, output is forced under this directory |
+| `format` | No | `json` (default), `pretty`, or `ndjson` |
+| `perm` | No | File permissions (octal string, default `0600`) |
+
+**Implementation:** `internal/workflow/actions.go` (fileAction)
 
 #### Webhook Action
 HTTP callback:

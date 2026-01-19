@@ -9,6 +9,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -50,6 +52,133 @@ func logAction(event interface{}, config map[string]string) error {
 		fmt.Println(output)
 	}
 
+	return nil
+}
+
+// fileAction writes an event to a local file (useful for debugging, archives, and simple ETL).
+// Config options:
+//   - path: output file path (required, supports templates)
+//   - base_dir: if set, path is resolved under this directory and cannot escape it
+//   - format: json (default), pretty, ndjson
+//   - perm: octal file mode (default: 0600)
+func fileAction(event interface{}, config map[string]string) error {
+	rawPath := strings.TrimSpace(config["path"])
+	if rawPath == "" {
+		return fmt.Errorf("file action requires 'path' config")
+	}
+
+	// Render path template
+	rawPath = renderTemplate(rawPath, event)
+
+	baseDir := strings.TrimSpace(config["base_dir"])
+	resolvedPath, err := resolvePathUnderBaseDir(baseDir, rawPath)
+	if err != nil {
+		return err
+	}
+
+	format := strings.ToLower(strings.TrimSpace(config["format"]))
+	if format == "" {
+		format = "json"
+	}
+
+	perm := os.FileMode(0o600)
+	if p := strings.TrimSpace(config["perm"]); p != "" {
+		parsed, err := strconv.ParseUint(p, 8, 32)
+		if err != nil {
+			return fmt.Errorf("invalid file perm %q (expected octal like 0600): %w", p, err)
+		}
+		perm = os.FileMode(parsed)
+	}
+
+	var data []byte
+	switch format {
+	case "json":
+		data, err = json.Marshal(event)
+	case "pretty":
+		data, err = json.MarshalIndent(event, "", "  ")
+	case "ndjson":
+		data, err = json.Marshal(event)
+		if err == nil {
+			data = append(data, '\n')
+		}
+	default:
+		return fmt.Errorf("invalid file format %q (expected json, pretty, or ndjson)", format)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to marshal event: %w", err)
+	}
+
+	dir := filepath.Dir(resolvedPath)
+	if err := os.MkdirAll(dir, 0o700); err != nil { //nolint:gosec // G301: non-sensitive dir; choose restrictive perms anyway
+		return fmt.Errorf("failed to create output dir %q: %w", dir, err)
+	}
+
+	if format == "ndjson" {
+		f, err := os.OpenFile(resolvedPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, perm) //nolint:gosec // G302: config-controlled; perm defaults to 0600
+		if err != nil {
+			return fmt.Errorf("failed to open output file %q: %w", resolvedPath, err)
+		}
+		defer func() { _ = f.Close() }()
+		if _, err := f.Write(data); err != nil {
+			return fmt.Errorf("failed to write output file %q: %w", resolvedPath, err)
+		}
+		return nil
+	}
+
+	if err := atomicWriteFile(resolvedPath, data, perm); err != nil {
+		return err
+	}
+	return nil
+}
+
+func resolvePathUnderBaseDir(baseDir, rawPath string) (string, error) {
+	cleanBase := filepath.Clean(baseDir)
+	if baseDir == "" {
+		return filepath.Clean(rawPath), nil
+	}
+
+	var resolved string
+	if filepath.IsAbs(rawPath) {
+		resolved = filepath.Clean(rawPath)
+	} else {
+		resolved = filepath.Clean(filepath.Join(cleanBase, rawPath))
+	}
+
+	rel, err := filepath.Rel(cleanBase, resolved)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve path %q under base_dir %q: %w", rawPath, baseDir, err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return "", fmt.Errorf("file action path %q escapes base_dir %q", rawPath, baseDir)
+	}
+	return resolved, nil
+}
+
+func atomicWriteFile(path string, data []byte, perm os.FileMode) error {
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, ".fi-fhir-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file in %q: %w", dir, err)
+	}
+	tmpName := tmp.Name()
+	defer func() {
+		_ = tmp.Close()
+		_ = os.Remove(tmpName)
+	}()
+
+	if err := tmp.Chmod(perm); err != nil {
+		return fmt.Errorf("failed to chmod temp file: %w", err)
+	}
+	if _, err := tmp.Write(data); err != nil {
+		return fmt.Errorf("failed to write temp file: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("failed to close temp file: %w", err)
+	}
+
+	if err := os.Rename(tmpName, path); err != nil {
+		return fmt.Errorf("failed to move temp file into place: %w", err)
+	}
 	return nil
 }
 
