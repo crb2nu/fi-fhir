@@ -113,7 +113,7 @@ func fileAction(event interface{}, config map[string]string) error {
 	}
 
 	dir := filepath.Dir(resolvedPath)
-	if err := os.MkdirAll(dir, 0o700); err != nil { //nolint:gosec // G301: non-sensitive dir; choose restrictive perms anyway
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("failed to create output dir %q: %w", dir, err)
 	}
 
@@ -272,9 +272,10 @@ func sendSMTP(ctx context.Context, conn net.Conn, host string, config map[string
 	if strings.ToLower(strings.TrimSpace(config["starttls"])) == "true" {
 		tlsConfig := &tls.Config{
 			ServerName: host,
+			MinVersion: tls.VersionTLS12,
 		}
 		if strings.ToLower(strings.TrimSpace(config["tls_insecure"])) == "true" {
-			tlsConfig.InsecureSkipVerify = true //nolint:gosec // G402: explicit config knob; default is secure
+			tlsConfig.InsecureSkipVerify = true //nolint:gosec // G402: explicit opt-in for local/dev TLS
 		}
 		if err := client.StartTLS(tlsConfig); err != nil {
 			return fmt.Errorf("failed to start TLS: %w", err)
@@ -417,7 +418,7 @@ func execAction(ctx context.Context, event interface{}, config map[string]string
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, command, args...)
+	cmd := exec.CommandContext(ctx, command, args...) //nolint:gosec // G204: command path validated (absolute + allowlist)
 	cmd.Env = append([]string{}, os.Environ()...)
 	for k, v := range config {
 		if !strings.HasPrefix(k, "env_") {
@@ -468,11 +469,11 @@ func parseExecArgs(raw string) ([]string, error) {
 	return strings.Fields(raw), nil
 }
 
-func truncateForError(s string, max int) string {
-	if len(s) <= max {
+func truncateForError(s string, limit int) string {
+	if len(s) <= limit {
 		return s
 	}
-	return s[:max] + "...(truncated)"
+	return s[:limit] + "...(truncated)"
 }
 
 // webhookAction sends an event to an HTTP endpoint with rate limiting, retry, and circuit breaker support.
