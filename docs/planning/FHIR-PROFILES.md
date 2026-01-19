@@ -468,9 +468,10 @@ profiles:
 ### Phase 3: Validation ⚠️
 - [x] Profile metadata injection (Meta.Profile set on all resources)
 - [x] Basic terminology system mapping (identifier type codes to URIs)
-- [ ] Full must-support element validation
+- [x] Built-in validator (OperationOutcome) + CLI/workflow integration (`pkg/fhir/validate.go`, `fi-fhir fhir validate`, workflow `fhir` action `validate_fhir`)
+- [ ] Full must-support element validation (beyond current “US Core-ish” checks)
 - [ ] Terminology binding strength validation
-- [ ] External FHIR Validator integration
+- [ ] External FHIR Validator integration (optional, for deep IG conformance)
 
 ### Phase 4: Da Vinci Support ✅
 - [x] PAS Claim/ClaimResponse (for 837P → FHIR) - see `pkg/fhir/mapper.go:MapClaim()`
@@ -508,6 +509,14 @@ actions:
     validate_mode: us-core   # or none
     allow_warnings: "false"  # default
 ```
+
+### Failure Policy
+
+- **Errors**: always fail validation.
+- **Warnings**:
+  - CLI `fi-fhir fhir validate`: fail by default; use `--allow-warnings` to allow warning-only payloads.
+  - Workflow `fhir` action: validation is opt-in (`validate_fhir: "true"`); when enabled, warnings fail by default unless `allow_warnings: "true"`.
+  - Library callers: `ValidateJSON` always returns an `OperationOutcome`; the caller decides how to treat warnings (CI should usually fail on warnings).
 
 ### External Profile Conformance (Optional)
 

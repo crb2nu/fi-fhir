@@ -8,7 +8,7 @@ This directory contains detailed planning and specification documents for the fi
 |----------|---------|--------|
 | [SOURCE-PROFILES.md](SOURCE-PROFILES.md) | Source Profile configuration system - the unit of scalability | ✅ Core + inference/lint shipped |
 | [WORKFLOW-DSL.md](WORKFLOW-DSL.md) | Workflow routing, transforms, and actions | ⚠️ Core complete, email/file/custom actions pending |
-| [FHIR-PROFILES.md](FHIR-PROFILES.md) | FHIR R4 output with US Core mapping | ⚠️ 17+ resources, validation in progress |
+| [FHIR-PROFILES.md](FHIR-PROFILES.md) | FHIR R4 output with US Core mapping | ✅ 17+ resources + validation shipped |
 | [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) | HL7 v2.x version differences and parsing edge cases | ⚠️ Core complete, vendor templates pending |
 | [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) | X12 EDI parsing (837P, 835, 270/271, 276/277) | ✅ Parsing + companion guide framework shipped |
 | [IDENTIFIERS.md](IDENTIFIERS.md) | Patient/provider identifier systems and validation | ✅ Complete (validators + matching engine) |
@@ -75,7 +75,7 @@ These are the remaining “big rocks” referenced by the Document Overview stat
 |-------|---------|--------|--------------|
 | FB-001 | Source Profile inference + linting | ✅ Shipped | [SOURCE-PROFILES.md](SOURCE-PROFILES.md) |
 | FB-002 | Workflow action pack (email/file/custom) | 🚧 In progress | [WORKFLOW-DSL.md](WORKFLOW-DSL.md) |
-| FB-003 | FHIR validation + conformance checks | 🚧 In progress | [FHIR-PROFILES.md](FHIR-PROFILES.md) |
+| FB-003 | FHIR validation + conformance checks | ✅ Shipped | [FHIR-PROFILES.md](FHIR-PROFILES.md) |
 | FB-004 | Terminology version tracking | ⏳ Planned | [TERMINOLOGY.md](TERMINOLOGY.md) |
 | FB-005 | TypeScript SDK distribution | ⏳ Planned | [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md) |
 | FB-006 | HL7 vendor templates + fixtures | ⏳ Planned | [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) |
@@ -93,7 +93,7 @@ These are the remaining “big rocks” referenced by the Document Overview stat
 #### FB-003: FHIR Validation + Conformance
 - [x] Add a validation path for generated FHIR resources/bundles (US Core-focused), used by CLI and workflow (`fi-fhir fhir validate`, `fhir` action `validate_fhir`).
 - [x] Add golden fixtures to validate the highest-volume resources (Patient/Encounter/Observation/DiagnosticReport + bundle).
-- [ ] Decide and document validator strategy (pure-Go structural checks vs external validator) and failure policy (warn vs error per profile).
+- [x] Decide and document validator strategy (pure-Go structural checks vs external validator) and failure policy (warn vs error per profile).
 
 #### FB-004: Terminology Version Tracking
 - [ ] Implement version pinning in config (per code system) and plumb through mapper/loader APIs.
