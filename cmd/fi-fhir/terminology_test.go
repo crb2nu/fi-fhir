@@ -16,6 +16,7 @@ func TestTerminology_Help(t *testing.T) {
 	assertContains(t, stdout, "fi-fhir terminology - Terminology Database Management")
 	assertContains(t, stdout, "init")
 	assertContains(t, stdout, "status")
+	assertContains(t, stdout, "use")
 	assertContains(t, stdout, "drop")
 	assertContains(t, stdout, "load")
 	assertContains(t, stdout, "crosswalk")
@@ -65,6 +66,21 @@ func TestTerminology_Status_MissingDBURL(t *testing.T) {
 	}()
 
 	_, _, err := runCLI(t, "terminology", "status")
+	assertError(t, err)
+	assertErrorContains(t, err, "database URL required")
+}
+
+func TestTerminology_Use_MissingDBURL(t *testing.T) {
+	// Unset env var for this test
+	oldURL := os.Getenv("FI_FHIR_DATABASE_URL")
+	os.Unsetenv("FI_FHIR_DATABASE_URL")
+	defer func() {
+		if oldURL != "" {
+			os.Setenv("FI_FHIR_DATABASE_URL", oldURL)
+		}
+	}()
+
+	_, _, err := runCLI(t, "terminology", "use", "loinc", "2.77")
 	assertError(t, err)
 	assertErrorContains(t, err, "database URL required")
 }

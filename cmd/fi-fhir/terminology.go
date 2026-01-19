@@ -24,6 +24,8 @@ func runTerminology(args []string) error {
 		return runTerminologyInit(args[1:])
 	case "status":
 		return runTerminologyStatus(args[1:])
+	case "use":
+		return runTerminologyUse(args[1:])
 	case "drop":
 		return runTerminologyDrop(args[1:])
 	case "load":
@@ -47,6 +49,7 @@ Usage:
 Subcommands:
   init      Initialize terminology schema in PostgreSQL
   status    Show terminology database status and loaded releases
+  use       Set active version for a vocabulary
   drop      Drop the terminology schema (WARNING: deletes all data)
   load      Load terminology data from files (LOINC, UMLS, SNOMED, etc.)
   crosswalk Translate codes between vocabularies
@@ -60,6 +63,9 @@ Examples:
 
   # Check status of loaded terminologies
   fi-fhir terminology status --db "$DATABASE_URL"
+
+  # Switch the active version for a vocabulary
+  fi-fhir terminology use loinc 2.77 --db "$DATABASE_URL"
 
   # Load LOINC codes
   fi-fhir terminology load loinc /path/to/LoincTable.csv --version 2.77
@@ -184,6 +190,47 @@ func runTerminologyStatus(args []string) error {
 		}
 	}
 
+	return nil
+}
+
+func runTerminologyUse(args []string) error {
+	if len(args) < 2 {
+		fmt.Println(`Usage: fi-fhir terminology use <vocabulary> <version> [options]
+
+Options:
+  --db      PostgreSQL connection string (or FI_FHIR_DATABASE_URL env)
+
+Examples:
+  fi-fhir terminology use loinc 2.77 --db "$DATABASE_URL"`)
+		return nil
+	}
+
+	vocab := strings.TrimSpace(args[0])
+	version := strings.TrimSpace(args[1])
+	if vocab == "" || version == "" {
+		return fmt.Errorf("vocabulary and version are required")
+	}
+
+	dbURL := getTerminologyDBURL(args[2:])
+	if dbURL == "" {
+		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_DATABASE_URL env var")
+	}
+
+	conn, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	migrator := db.NewMigrator(conn)
+	if err := migrator.SetActiveRelease(ctx, strings.ToUpper(vocab), version); err != nil {
+		return fmt.Errorf("failed to set active release: %w", err)
+	}
+
+	fmt.Printf("Set active release: %s %s\n", strings.ToUpper(vocab), version)
 	return nil
 }
 

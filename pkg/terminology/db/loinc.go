@@ -98,6 +98,10 @@ func (l *LOINCLoader) LoadLoincTable(ctx context.Context, path, version string, 
 		return nil, fmt.Errorf("failed to commit: %w", err)
 	}
 
+	if err := l.migrator.SetActiveRelease(ctx, VocabLOINC, version); err != nil {
+		return nil, fmt.Errorf("failed to set active release: %w", err)
+	}
+
 	result.Duration = time.Since(startTime)
 	return result, nil
 }
