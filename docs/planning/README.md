@@ -86,7 +86,7 @@ These are the remaining “big rocks” referenced by the Document Overview stat
 - [x] Add fixtures + golden outputs for inference and linting (profiles + representative `testdata/` corpus).
 
 #### FB-002: Workflow Action Pack (Email/File/Custom)
-- [ ] Implement `email` action (SMTP/SES; templated subject/body; retries + circuit breaker parity with `webhook`).
+- [x] Implement `email` action (SMTP/SES; templated subject/body; retries + circuit breaker parity with `webhook`).
 - [x] Implement `file` action (write events to disk with templated paths; atomic writes; rotation/retention knobs).
 - [ ] Define a safe “custom action” extension point (e.g. `exec` action with allowlist + timeouts) and document it in `WORKFLOW-DSL.md`.
 
