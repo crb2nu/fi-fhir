@@ -214,11 +214,11 @@ The following items remain for full production readiness:
 
 Work these in order unless a customer/production need pulls something forward:
 
-1. FB-003: FHIR validation + conformance checks
-2. FB-002: Workflow action pack (email/file/custom)
-3. FB-004: Terminology version tracking
-4. FB-006: HL7 vendor templates + fixtures
-5. FB-005: TypeScript SDK distribution
+✅ All current Feature Builds (FB-001..FB-006) are shipped.
+
+Next focus areas:
+- P2 test coverage gaps (especially CLI + terminology db)
+- Targeted P3 enhancements driven by real feed drift
 
 ### P2 - Test Coverage Gaps
 
