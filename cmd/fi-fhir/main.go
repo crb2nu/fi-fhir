@@ -268,7 +268,7 @@ func runFHIRValidate(args []string) error {
 		}
 	} else {
 		var err error
-		data, err = os.ReadFile(input) //nolint:gosec // G304: CLI reads user-provided file
+		data, err = os.ReadFile(input)
 		if err != nil {
 			return fmt.Errorf("failed to read %s: %w", input, err)
 		}
@@ -1764,7 +1764,7 @@ func validateMessage(profilePath, messagePath, format string, verbose bool) []st
 	}
 
 	// Read message
-	data, err := os.ReadFile(messagePath) //nolint:gosec // G304: CLI tool reads user-specified file
+	data, err := os.ReadFile(messagePath)
 	if err != nil {
 		return []string{fmt.Sprintf("failed to read message: %v", err)}
 	}
@@ -4263,7 +4263,7 @@ func runSubscriptionTest(args []string) error {
 	}
 
 	// Load resource
-	data, err := os.ReadFile(resourceFile) //nolint:gosec // G304: CLI tool reads user-specified file
+	data, err := os.ReadFile(resourceFile)
 	if err != nil {
 		return fmt.Errorf("read resource: %w", err)
 	}
