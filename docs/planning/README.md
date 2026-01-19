@@ -76,7 +76,7 @@ These are the remaining “big rocks” referenced by the Document Overview stat
 | FB-001 | Source Profile inference + linting | ✅ Shipped | [SOURCE-PROFILES.md](SOURCE-PROFILES.md) |
 | FB-002 | Workflow action pack (email/file/custom) | ✅ Shipped | [WORKFLOW-DSL.md](WORKFLOW-DSL.md) |
 | FB-003 | FHIR validation + conformance checks | ✅ Shipped | [FHIR-PROFILES.md](FHIR-PROFILES.md) |
-| FB-004 | Terminology version tracking | ⏳ Planned | [TERMINOLOGY.md](TERMINOLOGY.md) |
+| FB-004 | Terminology version tracking | 🚧 In progress | [TERMINOLOGY.md](TERMINOLOGY.md) |
 | FB-005 | TypeScript SDK distribution | ⏳ Planned | [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md) |
 | FB-006 | HL7 vendor templates + fixtures | ⏳ Planned | [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) |
 
@@ -97,7 +97,7 @@ These are the remaining “big rocks” referenced by the Document Overview stat
 
 #### FB-004: Terminology Version Tracking
 - [ ] Implement version pinning in config (per code system) and plumb through mapper/loader APIs.
-- [ ] Add a lightweight “terminology registry/index” to track installed versions and effective dates.
+- [x] Add a lightweight “terminology registry/index” to track installed versions and effective dates (`terminology.releases`, `fi-fhir terminology status`, `fi-fhir terminology use`).
 - [ ] Add version-aware validation modes: `pass` / `warn` / `error` (and surface them as `ParseWarning`s when tolerated).
 
 #### FB-005: TypeScript SDK Distribution
