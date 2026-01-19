@@ -23,7 +23,7 @@ func TestFHIRValidate_JSONOutput(t *testing.T) {
 		t.Fatalf("write: %v", err)
 	}
 
-	stdout, _, err := runCLI(t, "fhir", "validate", "--mode", "us-core", "--json", path)
+	stdout, _, err := runCLI(t, "fhir", "validate", "--mode", "us-core", "--allow-warnings", "--json", path)
 	if err != nil {
 		t.Fatalf("fhir validate: %v", err)
 	}

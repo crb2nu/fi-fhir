@@ -222,7 +222,7 @@ func runFHIRValidate(args []string) error {
 	var (
 		mode    = "us-core"
 		jsonOut = false
-		strict  = false
+		strict  = true
 		input   = ""
 	)
 
@@ -238,6 +238,8 @@ func runFHIRValidate(args []string) error {
 			jsonOut = true
 		case "--strict":
 			strict = true
+		case "--allow-warnings":
+			strict = false
 		case "--help", "-h":
 			printFHIRValidateUsage()
 			return nil
@@ -339,7 +341,9 @@ Usage:
 Options:
       --mode <mode>   Validation mode: us-core (default) or none
       --json          Print OperationOutcome JSON to stdout
-      --strict        Treat warnings as errors
+      --strict        Treat warnings as errors (default)
+      --allow-warnings
+                     Do not fail validation on warnings
   -h, --help          Show this help message
 
 Examples:
