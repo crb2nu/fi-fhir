@@ -129,3 +129,24 @@ func TestETLStatus_Offline_ListVersions(t *testing.T) {
 	assertContains(t, stdout, "FY2025")
 	assertContains(t, stdout, "synced")
 }
+
+func TestETLLoad_UnknownSource(t *testing.T) {
+	err := runETLLoad([]string{"nope"})
+	assertError(t, err)
+	assertErrorContains(t, err, "unknown source")
+}
+
+func TestETLLoad_MissingVersion(t *testing.T) {
+	err := runETLLoad([]string{"umls"})
+	assertError(t, err)
+	assertErrorContains(t, err, "--version is required")
+}
+
+func TestETLLoad_DryRun_MissingDBEnv(t *testing.T) {
+	t.Setenv("FI_FHIR_DATABASE_URL", "")
+	t.Setenv("DATABASE_URL", "")
+
+	err := runETLLoad([]string{"umls", "--version", "2024AB", "--dry-run"})
+	assertError(t, err)
+	assertErrorContains(t, err, "FI_FHIR_DATABASE_URL")
+}
