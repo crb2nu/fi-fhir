@@ -3983,8 +3983,10 @@ func runSubscriptionServe(args []string) error {
 		configPath        string
 		host              string
 		port              int
+		portSet           bool
 		certFile          string
 		keyFile           string
+		dryRun            bool
 	)
 
 	port = 8081 // default
@@ -4025,6 +4027,7 @@ func runSubscriptionServe(args []string) error {
 			if err != nil {
 				return fmt.Errorf("invalid port: %s", args[i])
 			}
+			portSet = true
 		case "--cert":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--cert requires a value")
@@ -4037,6 +4040,8 @@ func runSubscriptionServe(args []string) error {
 			}
 			i++
 			keyFile = args[i]
+		case "--dry-run":
+			dryRun = true
 		case "--help", "-h":
 			printSubscriptionServeUsage()
 			return nil
@@ -4052,10 +4057,9 @@ func runSubscriptionServe(args []string) error {
 		return fmt.Errorf("--subscriptions is required")
 	}
 
-	// Load subscription config
-	subConfig, err := subscription.LoadConfig(subscriptionsPath)
+	fullConfig, err := subscription.LoadFullConfig(subscriptionsPath, configPath)
 	if err != nil {
-		return fmt.Errorf("load subscriptions: %w", err)
+		return fmt.Errorf("load subscription config: %w", err)
 	}
 
 	// Create event router
@@ -4084,18 +4088,25 @@ func runSubscriptionServe(args []string) error {
 		fmt.Println("No workflow specified, using logging router")
 	}
 
-	// Create receiver
-	receiverOpts := &subscription.ReceiverOptions{
-		PathPrefix:    "/fhir/notify",
-		MaxBundleSize: 100,
+	pathPrefix := fullConfig.Receiver.PathPrefix
+	if pathPrefix == "" {
+		pathPrefix = "/fhir/notify"
 	}
-	// TODO: Load receiver config from configPath when config file support is implemented
-	_ = configPath
+	if !strings.HasPrefix(pathPrefix, "/") {
+		pathPrefix = "/" + pathPrefix
+	}
+
+	receiverOpts := &subscription.ReceiverOptions{
+		PathPrefix:     pathPrefix,
+		MaxBundleSize:  fullConfig.Receiver.MaxBundleSize,
+		AllowedSources: fullConfig.Receiver.AllowedSources,
+		VerifySource:   fullConfig.Receiver.VerifySource,
+	}
 
 	receiver := subscription.NewReceiver(router, receiverOpts)
 
 	// Register subscriptions
-	for _, sub := range subConfig.Subscriptions {
+	for _, sub := range fullConfig.Subscriptions {
 		receiver.RegisterSubscription(&subscription.SubscriptionConfig{
 			Name:         sub.Name,
 			EventMapping: sub.Mapping,
@@ -4105,7 +4116,49 @@ func runSubscriptionServe(args []string) error {
 
 	// Create server
 	if host == "" {
+		host = fullConfig.Receiver.Host
+	}
+	if host == "" {
 		host = "0.0.0.0"
+	}
+	if !portSet {
+		port = fullConfig.Receiver.Port
+	}
+	if port == 0 {
+		port = 8081
+	}
+
+	tlsCert := certFile
+	tlsKey := keyFile
+	if tlsCert == "" && tlsKey == "" && fullConfig.Receiver.TLS.Enabled {
+		tlsCert = fullConfig.Receiver.TLS.CertFile
+		tlsKey = fullConfig.Receiver.TLS.KeyFile
+	}
+	if (tlsCert == "") != (tlsKey == "") {
+		return fmt.Errorf("both TLS cert and key are required (use --cert/--key or set subscription_receiver.tls)")
+	}
+
+	if dryRun {
+		fmt.Println("Dry-run: subscription receiver config")
+		fmt.Printf("  Subscriptions: %s (%d)\n", subscriptionsPath, len(fullConfig.Subscriptions))
+		if configPath != "" {
+			fmt.Printf("  Config: %s\n", configPath)
+		}
+		fmt.Printf("  Bind: %s:%d\n", host, port)
+		fmt.Printf("  Path prefix: %s\n", pathPrefix)
+		fmt.Printf("  Max bundle size: %d\n", receiverOpts.MaxBundleSize)
+		fmt.Printf("  Verify source: %v\n", receiverOpts.VerifySource)
+		if tlsCert != "" && tlsKey != "" {
+			fmt.Printf("  TLS: enabled (cert=%s key=%s)\n", tlsCert, tlsKey)
+		} else {
+			fmt.Printf("  TLS: disabled\n")
+		}
+		if workflowPath != "" {
+			fmt.Printf("  Workflow: %s\n", workflowPath)
+		} else {
+			fmt.Printf("  Workflow: (none)\n")
+		}
+		return nil
 	}
 
 	server := subscription.NewServer(receiver, &subscription.ServerConfig{
@@ -4126,12 +4179,12 @@ func runSubscriptionServe(args []string) error {
 	}()
 
 	fmt.Printf("Starting subscription receiver on %s:%d\n", host, port)
-	fmt.Printf("Notification endpoint: http://%s:%d/fhir/notify/<subscription>\n", host, port)
+	fmt.Printf("Notification endpoint: http://%s:%d%s/<subscription>\n", host, port, pathPrefix)
 
 	var serveErr error
-	if certFile != "" && keyFile != "" {
+	if tlsCert != "" && tlsKey != "" {
 		fmt.Println("TLS enabled")
-		serveErr = server.Start(certFile, keyFile)
+		serveErr = server.Start(tlsCert, tlsKey)
 	} else {
 		fmt.Println("WARNING: TLS not enabled. Use --cert and --key for production.")
 		serveErr = server.Start("", "")
@@ -4158,6 +4211,7 @@ Options:
   -p, --port <port>           Listen port (default: 8081)
       --cert <file>           TLS certificate file
       --key <file>            TLS key file
+      --dry-run               Print effective receiver config and exit
   -h, --help                  Show this help message
 
 Description:
