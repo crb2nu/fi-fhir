@@ -4420,6 +4420,7 @@ func runServe(args []string) error {
 		maxDepth       = 10
 		maxComplexity  = 1000
 		timeout        = 30 * time.Second
+		dryRun         = false
 	)
 
 	// Parse flags
@@ -4493,6 +4494,8 @@ func runServe(args []string) error {
 			if err != nil {
 				return fmt.Errorf("invalid timeout: %s", args[i])
 			}
+		case "--dry-run":
+			dryRun = true
 		case "--help", "-h":
 			printServeUsage()
 			return nil
@@ -4501,6 +4504,83 @@ func runServe(args []string) error {
 				return fmt.Errorf("unknown flag: %s", args[i])
 			}
 		}
+	}
+
+	var (
+		loadedWorkflow *workflow.Workflow
+		workflowEngine *workflow.Engine
+	)
+
+	if workflowPath != "" {
+		w, err := workflow.LoadWorkflow(workflowPath)
+		if err != nil {
+			return fmt.Errorf("failed to load workflow: %w", err)
+		}
+		if errors := w.Validate(); len(errors) > 0 {
+			fmt.Fprintf(os.Stderr, "Workflow validation warnings:\n")
+			for _, e := range errors {
+				fmt.Fprintf(os.Stderr, "  - %v\n", e)
+			}
+		}
+		engine, err := workflow.NewEngine(w)
+		if err != nil {
+			return fmt.Errorf("failed to create workflow engine: %w", err)
+		}
+		loadedWorkflow = w
+		workflowEngine = engine
+	}
+
+	if dryRun {
+		type workflowInfo struct {
+			Path   string `json:"path"`
+			Name   string `json:"name"`
+			Routes int    `json:"routes"`
+		}
+		type serveDryRunOutput struct {
+			Host              string        `json:"host"`
+			Port              int           `json:"port"`
+			Path              string        `json:"path"`
+			PlaygroundPath    string        `json:"playground_path"`
+			PlaygroundEnabled bool          `json:"playground_enabled"`
+			WebSocketPath     string        `json:"websocket_path"`
+			MaxDepth          int           `json:"max_depth"`
+			MaxComplexity     int           `json:"max_complexity"`
+			Timeout           time.Duration `json:"-"`
+			TimeoutString     string        `json:"timeout"`
+			Introspection     bool          `json:"introspection"`
+			Workflow          *workflowInfo `json:"workflow,omitempty"`
+		}
+
+		var wf *workflowInfo
+		if loadedWorkflow != nil {
+			wf = &workflowInfo{
+				Path:   workflowPath,
+				Name:   loadedWorkflow.Name,
+				Routes: len(loadedWorkflow.Routes),
+			}
+		}
+
+		out := serveDryRunOutput{
+			Host:              host,
+			Port:              port,
+			Path:              path,
+			PlaygroundPath:    playgroundPath,
+			PlaygroundEnabled: playground,
+			WebSocketPath:     path + "/ws",
+			MaxDepth:          maxDepth,
+			MaxComplexity:     maxComplexity,
+			Timeout:           timeout,
+			TimeoutString:     timeout.String(),
+			Introspection:     introspection,
+			Workflow:          wf,
+		}
+
+		b, err := json.MarshalIndent(out, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to render dry-run output: %w", err)
+		}
+		fmt.Println(string(b))
+		return nil
 	}
 
 	// Enforce terminology version pins (if configured)
@@ -4526,23 +4606,9 @@ func runServe(args []string) error {
 	}
 
 	// Load workflow engine if specified
-	if workflowPath != "" {
-		w, err := workflow.LoadWorkflow(workflowPath)
-		if err != nil {
-			return fmt.Errorf("failed to load workflow: %w", err)
-		}
-		if errors := w.Validate(); len(errors) > 0 {
-			fmt.Fprintf(os.Stderr, "Workflow validation warnings:\n")
-			for _, e := range errors {
-				fmt.Fprintf(os.Stderr, "  - %v\n", e)
-			}
-		}
-		engine, err := workflow.NewEngine(w)
-		if err != nil {
-			return fmt.Errorf("failed to create workflow engine: %w", err)
-		}
-		resolverOpts = append(resolverOpts, resolvers.WithWorkflowEngine(engine))
-		fmt.Printf("Loaded workflow: %s (%d routes)\n", w.Name, len(w.Routes))
+	if workflowEngine != nil && loadedWorkflow != nil {
+		resolverOpts = append(resolverOpts, resolvers.WithWorkflowEngine(workflowEngine))
+		fmt.Printf("Loaded workflow: %s (%d routes)\n", loadedWorkflow.Name, len(loadedWorkflow.Routes))
 	}
 
 	// Create resolver
@@ -4614,6 +4680,7 @@ Options:
       --max-depth <n>       Maximum query depth (default: 10)
       --max-complexity <n>  Maximum query complexity (default: 1000)
       --timeout <duration>  Request timeout (default: 30s)
+      --dry-run             Print effective server config and exit
   -h, --help                Show this help message
 
 Endpoints:
