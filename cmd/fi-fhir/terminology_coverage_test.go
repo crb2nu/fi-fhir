@@ -18,7 +18,7 @@ func TestLoadSNOMED_PrintsNotImplemented(t *testing.T) {
 	// loadSNOMED is a stub that just prints "not yet implemented"
 	// It should return nil (no error) and print a message
 	stdout, _ := captureOutput(t, func() {
-		err := loadSNOMED(ctx, nil, nil, "/data/snomed", "2024-03", nil)
+		err := loadSNOMED(ctx, nil, nil, "/data/snomed", "2024-03", nil, false)
 		if err != nil {
 			t.Errorf("loadSNOMED should return nil (stub), got: %v", err)
 		}
@@ -35,7 +35,7 @@ func TestLoadICD10PCS_PrintsNotImplemented(t *testing.T) {
 
 	// loadICD10PCS is a stub that just prints "not yet implemented"
 	stdout, _ := captureOutput(t, func() {
-		err := loadICD10PCS(ctx, nil, nil, "/data/icd10pcs", "2024", nil)
+		err := loadICD10PCS(ctx, nil, nil, "/data/icd10pcs", "2024", nil, false)
 		if err != nil {
 			t.Errorf("loadICD10PCS should return nil (stub), got: %v", err)
 		}

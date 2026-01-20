@@ -537,6 +537,11 @@ func validateRxNormDirectory(path string) error {
 	return nil
 }
 
+// ValidateRxNormDirectory checks if a directory contains valid RxNorm RRF files.
+func ValidateRxNormDirectory(path string) error {
+	return validateRxNormDirectory(path)
+}
+
 // =============================================================================
 // RxNorm Query Functions
 // =============================================================================

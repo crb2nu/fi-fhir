@@ -324,6 +324,7 @@ Options:
   --db       Database connection URL
   --version  Release version (e.g., "2.77", "2024AB", "FY2024")
   --date     Release date (YYYY-MM-DD)
+  --dry-run  Validate inputs and print what would run (no DB required)
 
 Examples:
   fi-fhir terminology load loinc /data/loinc/LoincTable.csv --version 2.77
@@ -338,6 +339,7 @@ Examples:
 	// Parse remaining args
 	var version string
 	var dateStr string
+	var dryRun bool
 
 	for i := 2; i < len(args); {
 		switch args[i] { //nolint:gosec // guarded by loop bounds; gosec false positive
@@ -353,13 +355,12 @@ Examples:
 				i += 2
 				continue
 			}
+		case "--dry-run":
+			dryRun = true
+			i++
+			continue
 		}
 		i++
-	}
-
-	dbURL := getTerminologyDBURL(args[2:])
-	if dbURL == "" {
-		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_TERMINOLOGY_DB_URL env var")
 	}
 
 	if version == "" {
@@ -374,6 +375,30 @@ Examples:
 			return fmt.Errorf("invalid date format (use YYYY-MM-DD): %w", err)
 		}
 		releaseDate = &t
+	}
+
+	if dryRun {
+		switch vocab {
+		case "loinc":
+			return loadLOINC(context.Background(), nil, nil, path, version, releaseDate, true)
+		case "umls":
+			return loadUMLS(context.Background(), nil, nil, path, version, releaseDate, true)
+		case "rxnorm":
+			return loadRxNorm(context.Background(), nil, nil, path, version, releaseDate, true)
+		case "snomed":
+			return loadSNOMED(context.Background(), nil, nil, path, version, releaseDate, true)
+		case "icd10cm":
+			return loadICD10CM(context.Background(), nil, nil, path, version, releaseDate, true)
+		case "icd10pcs":
+			return loadICD10PCS(context.Background(), nil, nil, path, version, releaseDate, true)
+		default:
+			return fmt.Errorf("unknown vocabulary: %s", vocab)
+		}
+	}
+
+	dbURL := getTerminologyDBURL(args[2:])
+	if dbURL == "" {
+		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_TERMINOLOGY_DB_URL env var")
 	}
 
 	conn, err := sql.Open("postgres", dbURL)
@@ -393,25 +418,43 @@ Examples:
 
 	switch vocab {
 	case "loinc":
-		return loadLOINC(ctx, conn, migrator, path, version, releaseDate)
+		return loadLOINC(ctx, conn, migrator, path, version, releaseDate, false)
 	case "umls":
-		return loadUMLS(ctx, conn, migrator, path, version, releaseDate)
+		return loadUMLS(ctx, conn, migrator, path, version, releaseDate, false)
 	case "rxnorm":
-		return loadRxNorm(ctx, conn, migrator, path, version, releaseDate)
+		return loadRxNorm(ctx, conn, migrator, path, version, releaseDate, false)
 	case "snomed":
-		return loadSNOMED(ctx, conn, migrator, path, version, releaseDate)
+		return loadSNOMED(ctx, conn, migrator, path, version, releaseDate, false)
 	case "icd10cm":
-		return loadICD10CM(ctx, conn, migrator, path, version, releaseDate)
+		return loadICD10CM(ctx, conn, migrator, path, version, releaseDate, false)
 	case "icd10pcs":
-		return loadICD10PCS(ctx, conn, migrator, path, version, releaseDate)
+		return loadICD10PCS(ctx, conn, migrator, path, version, releaseDate, false)
 	default:
 		return fmt.Errorf("unknown vocabulary: %s", vocab)
 	}
 }
 
 // loadLOINC loads LOINC codes from LoincTable.csv into the database.
-func loadLOINC(ctx context.Context, conn *sql.DB, migrator *db.Migrator, path, version string, releaseDate *time.Time) error {
+func loadLOINC(ctx context.Context, conn *sql.DB, migrator *db.Migrator, path, version string, releaseDate *time.Time, dryRun bool) error {
 	fmt.Printf("Loading LOINC version %s from %s...\n", version, path)
+
+	if dryRun {
+		fi, err := os.Stat(path)
+		if err != nil {
+			return fmt.Errorf("invalid LOINC file: %w", err)
+		}
+		if fi.IsDir() {
+			return fmt.Errorf("invalid LOINC file: %s is a directory", path)
+		}
+
+		panelPath := strings.TrimSuffix(path, "LoincTable.csv") + "PanelHierarchy.csv"
+		if _, err := os.Stat(panelPath); err == nil {
+			fmt.Printf("DRY RUN: would load LOINC (%s) and PanelHierarchy.csv (%s)\n", path, panelPath)
+		} else {
+			fmt.Printf("DRY RUN: would load LOINC (%s)\n", path)
+		}
+		return nil
+	}
 
 	loader := db.NewLOINCLoader(conn)
 
@@ -445,12 +488,17 @@ func loadLOINC(ctx context.Context, conn *sql.DB, migrator *db.Migrator, path, v
 	return nil
 }
 
-func loadUMLS(ctx context.Context, conn *sql.DB, migrator *db.Migrator, path, version string, releaseDate *time.Time) error {
+func loadUMLS(ctx context.Context, conn *sql.DB, migrator *db.Migrator, path, version string, releaseDate *time.Time, dryRun bool) error {
 	fmt.Printf("Loading UMLS version %s from %s...\n", version, path)
 
 	// Validate directory
 	if err := db.ValidateUMLSDirectory(path); err != nil {
 		return fmt.Errorf("invalid UMLS META directory: %w", err)
+	}
+
+	if dryRun {
+		fmt.Printf("DRY RUN: would load UMLS META directory (%s)\n", path)
+		return nil
 	}
 
 	loader := db.NewUMLSLoader(conn)
@@ -485,8 +533,17 @@ func loadUMLS(ctx context.Context, conn *sql.DB, migrator *db.Migrator, path, ve
 	return nil
 }
 
-func loadRxNorm(ctx context.Context, conn *sql.DB, migrator *db.Migrator, path, version string, releaseDate *time.Time) error {
+func loadRxNorm(ctx context.Context, conn *sql.DB, migrator *db.Migrator, path, version string, releaseDate *time.Time, dryRun bool) error {
 	fmt.Printf("Loading RxNorm version %s from %s...\n", version, path)
+
+	if err := db.ValidateRxNormDirectory(path); err != nil {
+		return fmt.Errorf("invalid RxNorm directory: %w", err)
+	}
+
+	if dryRun {
+		fmt.Printf("DRY RUN: would load RxNorm RRF directory (%s)\n", path)
+		return nil
+	}
 
 	loader := db.NewRxNormLoader(conn)
 
@@ -515,14 +572,30 @@ func loadRxNorm(ctx context.Context, conn *sql.DB, migrator *db.Migrator, path, 
 	return nil
 }
 
-func loadSNOMED(ctx context.Context, conn *sql.DB, migrator *db.Migrator, path, version string, releaseDate *time.Time) error {
+func loadSNOMED(ctx context.Context, conn *sql.DB, migrator *db.Migrator, path, version string, releaseDate *time.Time, dryRun bool) error {
 	fmt.Printf("Loading SNOMED CT version %s from %s...\n", version, path)
+	if dryRun {
+		fmt.Printf("DRY RUN: would load SNOMED CT (not yet implemented)\n")
+		return nil
+	}
 	fmt.Println("SNOMED loader not yet implemented. Coming in Phase 4.")
 	return nil
 }
 
-func loadICD10CM(ctx context.Context, conn *sql.DB, migrator *db.Migrator, path, version string, releaseDate *time.Time) error {
+func loadICD10CM(ctx context.Context, conn *sql.DB, migrator *db.Migrator, path, version string, releaseDate *time.Time, dryRun bool) error {
 	fmt.Printf("Loading ICD-10-CM version %s from %s...\n", version, path)
+
+	if dryRun {
+		fi, err := os.Stat(path)
+		if err != nil {
+			return fmt.Errorf("invalid ICD-10-CM input: %w", err)
+		}
+		if fi.IsDir() {
+			return fmt.Errorf("invalid ICD-10-CM input: %s is a directory", path)
+		}
+		fmt.Printf("DRY RUN: would load ICD-10-CM (%s)\n", path)
+		return nil
+	}
 
 	loader := db.NewICD10Loader(conn)
 
@@ -550,8 +623,12 @@ func loadICD10CM(ctx context.Context, conn *sql.DB, migrator *db.Migrator, path,
 	return nil
 }
 
-func loadICD10PCS(ctx context.Context, conn *sql.DB, migrator *db.Migrator, path, version string, releaseDate *time.Time) error {
+func loadICD10PCS(ctx context.Context, conn *sql.DB, migrator *db.Migrator, path, version string, releaseDate *time.Time, dryRun bool) error {
 	fmt.Printf("Loading ICD-10-PCS version %s from %s...\n", version, path)
+	if dryRun {
+		fmt.Printf("DRY RUN: would load ICD-10-PCS (not yet implemented)\n")
+		return nil
+	}
 	fmt.Println("ICD-10-PCS loader not yet implemented. Coming in Phase 3.")
 	return nil
 }
