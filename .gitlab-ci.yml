@@ -583,6 +583,12 @@ deploy:docker:
   variables:
     DOCKER_HOST: tcp://localhost:2375
     DOCKER_TLS_CERTDIR: ""
+    # Publishing is opt-in when no GitLab registry is configured.
+    # Set PUBLISH_HARBOR=1 to also publish to Harbor (best-effort by default).
+    # Set REQUIRE_DOCKER_PUBLISH=1 to fail the job if nothing is published.
+    PUBLISH_HARBOR: "0"
+    REQUIRE_DOCKER_PUBLISH: "0"
+    REQUIRE_HARBOR_PUBLISH: "0"
     KUBERNETES_CPU_LIMIT: "2"
     KUBERNETES_MEMORY_LIMIT: "4Gi"
     KUBERNETES_SERVICE_CPU_LIMIT: "2"
@@ -601,6 +607,25 @@ deploy:docker:
     - |
       IMAGE_BASE="${CI_REGISTRY_IMAGE:-fi-fhir}"
       published=0
+      want_gitlab=0
+      want_harbor=0
+
+      if [ -n "${CI_REGISTRY}" ] && [ -n "${CI_REGISTRY_IMAGE}" ]; then
+        want_gitlab=1
+      fi
+
+      if [ "${PUBLISH_HARBOR}" = "1" ]; then
+        want_harbor=1
+      fi
+
+      if [ "$want_gitlab" -ne 1 ] && [ "$want_harbor" -ne 1 ]; then
+        echo "Skipping deploy:docker: no GitLab registry configured and PUBLISH_HARBOR!=1"
+        if [ "${REQUIRE_DOCKER_PUBLISH}" = "1" ]; then
+          echo "REQUIRE_DOCKER_PUBLISH=1 set; failing due to no configured publish target." >&2
+          exit 1
+        fi
+        exit 0
+      fi
 
       # Publish to GitLab registry if configured (avoid pushing to Docker Hub accidentally).
       if [ -n "${CI_REGISTRY}" ] && [ -n "${CI_REGISTRY_IMAGE}" ]; then
@@ -616,7 +641,9 @@ deploy:docker:
       # The GitLab runner mounts a Docker config secret ("harbor-creds") at /docker-secrets,
       # and the pre_build_script copies it into /root/.docker/config.json. Prefer that over
       # CI variables so publishing works without per-project secrets.
-      if [ -f /root/.docker/config.json ]; then
+      if [ "${PUBLISH_HARBOR}" != "1" ]; then
+        echo "PUBLISH_HARBOR!=1; skipping Harbor publish."
+      elif [ -f /root/.docker/config.json ]; then
         HARBOR_REGISTRY="${HARBOR_REGISTRY:-registry.harbor.lan}"
         HARBOR_PROJECT="${HARBOR_PROJECT:-library}"
         HARBOR_IMAGE="${HARBOR_REGISTRY}/${HARBOR_PROJECT}/fi-fhir"
@@ -625,17 +652,30 @@ deploy:docker:
         docker tag "${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}" "${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}"
         docker tag "${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}" "${HARBOR_IMAGE}:main"
         docker tag "${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}" "${HARBOR_IMAGE}:${HARBOR_SEMVER_TAG}"
-        docker push "${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}"
-        docker push "${HARBOR_IMAGE}:main"
-        docker push "${HARBOR_IMAGE}:${HARBOR_SEMVER_TAG}"
-        published=1
+        harbor_ok=0
+        if docker push "${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}" && docker push "${HARBOR_IMAGE}:main" && docker push "${HARBOR_IMAGE}:${HARBOR_SEMVER_TAG}"; then
+          harbor_ok=1
+        else
+          echo "Harbor publish failed." >&2
+        fi
+
+        if [ "$harbor_ok" -eq 1 ]; then
+          published=1
+        elif [ "${REQUIRE_HARBOR_PUBLISH}" = "1" ]; then
+          exit 1
+        fi
       else
         echo "No Docker auth config found; skipping Harbor publish."
+        if [ "${REQUIRE_HARBOR_PUBLISH}" = "1" ]; then
+          exit 1
+        fi
       fi
 
       if [ "$published" -ne 1 ]; then
-        echo "No registry configured for deploy:docker (GitLab registry + Harbor both unavailable)" >&2
-        exit 1
+        echo "No registry published for deploy:docker." >&2
+        if [ "${REQUIRE_DOCKER_PUBLISH}" = "1" ]; then
+          exit 1
+        fi
       fi
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -650,6 +690,12 @@ deploy:docker-ui:
   variables:
     DOCKER_HOST: tcp://localhost:2375
     DOCKER_TLS_CERTDIR: ""
+    # Publishing is opt-in when no GitLab registry is configured.
+    # Set PUBLISH_HARBOR=1 to also publish to Harbor (best-effort by default).
+    # Set REQUIRE_DOCKER_PUBLISH=1 to fail the job if nothing is published.
+    PUBLISH_HARBOR: "0"
+    REQUIRE_DOCKER_PUBLISH: "0"
+    REQUIRE_HARBOR_PUBLISH: "0"
     KUBERNETES_CPU_LIMIT: "2"
     KUBERNETES_MEMORY_LIMIT: "4Gi"
     KUBERNETES_SERVICE_CPU_LIMIT: "2"
@@ -668,6 +714,25 @@ deploy:docker-ui:
     - |
       IMAGE_BASE="${CI_REGISTRY_IMAGE:-fi-fhir}-ui"
       published=0
+      want_gitlab=0
+      want_harbor=0
+
+      if [ -n "${CI_REGISTRY}" ] && [ -n "${CI_REGISTRY_IMAGE}" ]; then
+        want_gitlab=1
+      fi
+
+      if [ "${PUBLISH_HARBOR}" = "1" ]; then
+        want_harbor=1
+      fi
+
+      if [ "$want_gitlab" -ne 1 ] && [ "$want_harbor" -ne 1 ]; then
+        echo "Skipping deploy:docker-ui: no GitLab registry configured and PUBLISH_HARBOR!=1"
+        if [ "${REQUIRE_DOCKER_PUBLISH}" = "1" ]; then
+          echo "REQUIRE_DOCKER_PUBLISH=1 set; failing due to no configured publish target." >&2
+          exit 1
+        fi
+        exit 0
+      fi
 
       # Publish to GitLab registry if configured (avoid pushing to Docker Hub accidentally).
       if [ -n "${CI_REGISTRY}" ] && [ -n "${CI_REGISTRY_IMAGE}" ]; then
@@ -683,7 +748,9 @@ deploy:docker-ui:
       # The GitLab runner mounts a Docker config secret ("harbor-creds") at /docker-secrets,
       # and the pre_build_script copies it into /root/.docker/config.json. Prefer that over
       # CI variables so publishing works without per-project secrets.
-      if [ -f /root/.docker/config.json ]; then
+      if [ "${PUBLISH_HARBOR}" != "1" ]; then
+        echo "PUBLISH_HARBOR!=1; skipping Harbor publish."
+      elif [ -f /root/.docker/config.json ]; then
         HARBOR_REGISTRY="${HARBOR_REGISTRY:-registry.harbor.lan}"
         HARBOR_PROJECT="${HARBOR_PROJECT:-library}"
         HARBOR_IMAGE="${HARBOR_REGISTRY}/${HARBOR_PROJECT}/fi-fhir-ui"
@@ -692,17 +759,30 @@ deploy:docker-ui:
         docker tag "${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}" "${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}"
         docker tag "${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}" "${HARBOR_IMAGE}:main"
         docker tag "${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}" "${HARBOR_IMAGE}:${HARBOR_SEMVER_TAG}"
-        docker push "${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}"
-        docker push "${HARBOR_IMAGE}:main"
-        docker push "${HARBOR_IMAGE}:${HARBOR_SEMVER_TAG}"
-        published=1
+        harbor_ok=0
+        if docker push "${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}" && docker push "${HARBOR_IMAGE}:main" && docker push "${HARBOR_IMAGE}:${HARBOR_SEMVER_TAG}"; then
+          harbor_ok=1
+        else
+          echo "Harbor publish failed." >&2
+        fi
+
+        if [ "$harbor_ok" -eq 1 ]; then
+          published=1
+        elif [ "${REQUIRE_HARBOR_PUBLISH}" = "1" ]; then
+          exit 1
+        fi
       else
         echo "No Docker auth config found; skipping Harbor publish."
+        if [ "${REQUIRE_HARBOR_PUBLISH}" = "1" ]; then
+          exit 1
+        fi
       fi
 
       if [ "$published" -ne 1 ]; then
-        echo "No registry configured for deploy:docker-ui (GitLab registry + Harbor both unavailable)" >&2
-        exit 1
+        echo "No registry published for deploy:docker-ui." >&2
+        if [ "${REQUIRE_DOCKER_PUBLISH}" = "1" ]; then
+          exit 1
+        fi
       fi
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
