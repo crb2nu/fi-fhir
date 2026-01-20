@@ -3,7 +3,8 @@
 
   const nav = [
     { href: '/', label: 'Home' },
-    { href: '/hl7', label: 'HL7 Mapping' }
+    { href: '/hl7', label: 'HL7 Mapping' },
+    { href: '/profiles', label: 'Profiles' }
   ] as const;
 </script>
 

@@ -18,6 +18,11 @@
       <div class="hint">
         Paste or load sample HL7v2 messages, preview extraction, and review warnings by phase.
       </div>
+
+      <a class="cta" href={resolve('/profiles')}>Profiles (YAML)</a>
+      <div class="hint">
+        Browse profiles and edit raw Source Profile YAML via the API.
+      </div>
     </div>
   </Panel>
 
