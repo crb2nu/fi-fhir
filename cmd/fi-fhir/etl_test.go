@@ -1,7 +1,10 @@
 package main
 
 import (
+	"strings"
 	"testing"
+
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/db"
 )
 
 // =============================================================================
@@ -67,4 +70,21 @@ func TestETL_Sources_ListsSources(t *testing.T) {
 	assertContains(t, stdout, "NAME")
 	assertContains(t, stdout, "TYPE")
 	assertContains(t, stdout, "icd10cm")
+}
+
+func TestETL_cliProgressReporter_Prints(t *testing.T) {
+	reporter := cliProgressReporter()
+
+	stdout, _ := captureOutput(t, func() {
+		reporter(db.LoadProgress{
+			Vocabulary: "loinc",
+			Phase:      "load",
+			RowsLoaded: 10,
+			RowsTotal:  100,
+		})
+	})
+
+	if !strings.Contains(stdout, "loinc") || !strings.Contains(stdout, "10 / 100") {
+		t.Fatalf("unexpected progress output: %q", stdout)
+	}
 }

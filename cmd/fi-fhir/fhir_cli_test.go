@@ -36,3 +36,17 @@ func TestFHIRValidate_JSONOutput(t *testing.T) {
 		t.Fatalf("resourceType=%v, want OperationOutcome", got["resourceType"])
 	}
 }
+
+func TestFHIR_NoArgs_PrintsUsage(t *testing.T) {
+	stdout, _, err := runCLI(t, "fhir")
+	assertNoError(t, err)
+	assertContains(t, stdout, "fi-fhir fhir")
+	assertContains(t, stdout, "validate")
+}
+
+func TestFHIRValidate_Help_PrintsUsage(t *testing.T) {
+	stdout, _, err := runCLI(t, "fhir", "validate", "--help")
+	assertNoError(t, err)
+	assertContains(t, stdout, "fi-fhir fhir validate")
+	assertContains(t, stdout, "--mode")
+}
