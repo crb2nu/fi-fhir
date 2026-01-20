@@ -3,7 +3,7 @@
   import Button from '$lib/ui/Button.svelte';
   import type { HL7Sample } from '$lib/features/hl7/samples/types';
   import type { HL7RedactionMode } from '$lib/domain/hl7Redact';
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, tick } from 'svelte';
 
   export let samples: readonly HL7Sample[];
   export let activeId: string | null;
@@ -16,6 +16,7 @@
     remove: { id: string };
     saveCurrent: { name?: string; source?: string; feed?: string; tags?: string[]; redactionMode?: HL7RedactionMode };
     importFiles: { files: File[]; source?: string; feed?: string; tags?: string[]; redactionMode?: HL7RedactionMode };
+    updateMeta: { id: string; name: string; source: string; feed: string; tags: string[] };
     clear: Record<string, never>;
     loadExamples: Record<string, never>;
   }>();
@@ -28,6 +29,15 @@
   let redactionMode: HL7RedactionMode = 'none';
   let fileInputEl: HTMLInputElement | null = null;
   let isDragging = false;
+
+  let showEditModal = false;
+  let editSampleId: string | null = null;
+  let editName = '';
+  let editSource = '';
+  let editFeed = '';
+  let editTags = '';
+  let editModalEl: HTMLDivElement | null = null;
+  let wasEditModalOpen = false;
 
   function save() {
     const n = name.trim();
@@ -108,6 +118,48 @@
     return uniq;
   }
 
+  function openEdit(sample: HL7Sample): void {
+    editSampleId = sample.id;
+    editName = sample.name;
+    editSource = sample.source;
+    editFeed = sample.feed ?? '';
+    editTags = (sample.tags ?? []).join(', ');
+    showEditModal = true;
+  }
+
+  function closeEdit(): void {
+    showEditModal = false;
+    editSampleId = null;
+  }
+
+  function saveEdit(): void {
+    if (!editSampleId) return;
+    const name = editName.trim();
+    const source = editSource.trim();
+    if (!name || !source) return;
+    const feed = editFeed.trim();
+    const tags = parseTags(editTags);
+    dispatch('updateMeta', {
+      id: editSampleId,
+      name,
+      source,
+      feed,
+      tags
+    });
+    closeEdit();
+  }
+
+  $: if (showEditModal && !wasEditModalOpen) {
+    tick().then(() => editModalEl?.focus());
+  }
+
+  $: wasEditModalOpen = showEditModal;
+
+  function handleWindowKeydown(e: KeyboardEvent) {
+    if (e.key !== 'Escape') return;
+    if (showEditModal) closeEdit();
+  }
+
   $: filtered = filter.trim()
     ? samples.filter((s) => {
         const q = filter.trim().toLowerCase();
@@ -125,6 +177,8 @@
       })
     : samples;
 </script>
+
+<svelte:window on:keydown={handleWindowKeydown} />
 
 <Panel title="Samples (local)">
   <div
@@ -250,18 +304,67 @@
               {/if}
             </div>
           </button>
-          <button
-            type="button"
-            class="trash"
-            title="Remove"
-            on:click={() => dispatch('remove', { id: s.id })}
-            disabled={disabled}
-          >
-            Remove
-          </button>
+          <div class="item-actions">
+            <Button variant="secondary" on:click={() => openEdit(s)} disabled={disabled}>Edit</Button>
+            <button
+              type="button"
+              class="trash"
+              title="Remove"
+              on:click={() => dispatch('remove', { id: s.id })}
+              disabled={disabled}
+            >
+              Remove
+            </button>
+          </div>
         </li>
       {/each}
     </ul>
+  {/if}
+
+  {#if showEditModal}
+    <div class="modal-overlay">
+      <button
+        type="button"
+        class="modal-backdrop"
+        tabindex="-1"
+        aria-label="Close dialog"
+        on:click={closeEdit}
+      ></button>
+      <div
+        class="modal"
+        bind:this={editModalEl}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="edit-sample-modal-title"
+        tabindex="-1"
+      >
+        <h3 id="edit-sample-modal-title" class="modal-title">Edit Sample</h3>
+        <div class="modal-body">
+          <label class="label">
+            Name
+            <input class="input" type="text" bind:value={editName} disabled={disabled} />
+          </label>
+          <label class="label">
+            Source
+            <input class="input" type="text" bind:value={editSource} disabled={disabled} />
+          </label>
+          <label class="label">
+            Feed (optional)
+            <input class="input" type="text" bind:value={editFeed} disabled={disabled} />
+          </label>
+          <label class="label">
+            Tags (comma-separated)
+            <input class="input" type="text" bind:value={editTags} disabled={disabled} />
+          </label>
+        </div>
+        <div class="modal-actions">
+          <Button variant="secondary" on:click={closeEdit}>Cancel</Button>
+          <Button on:click={saveEdit} disabled={!editName.trim() || !editSource.trim()}>
+            Save
+          </Button>
+        </div>
+      </div>
+    </div>
   {/if}
   </div>
 </Panel>
@@ -397,6 +500,13 @@
     align-items: start;
   }
 
+  .item-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: stretch;
+  }
+
   .item {
     width: 100%;
     text-align: left;
@@ -484,5 +594,54 @@
 
   .trash:hover:enabled {
     background: rgba(239, 68, 68, 0.14);
+  }
+
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+
+  .modal-backdrop {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    padding: 0;
+    background: rgba(0, 0, 0, 0.6);
+    cursor: default;
+  }
+
+  .modal {
+    position: relative;
+    z-index: 1;
+    background: #1f2937;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 24px;
+    min-width: 360px;
+    max-width: 520px;
+    width: calc(100vw - 32px);
+  }
+
+  .modal-title {
+    margin: 0 0 16px;
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: #f3f4f6;
+  }
+
+  .modal-body {
+    display: grid;
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
   }
 </style>

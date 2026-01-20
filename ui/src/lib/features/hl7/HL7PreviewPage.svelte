@@ -491,6 +491,21 @@
             };
             samplesStore.add(input);
           }}
+          on:updateMeta={(e) => {
+            const before = $activeSample;
+            samplesStore.updateMeta(e.detail.id, {
+              name: e.detail.name,
+              source: e.detail.source,
+              feed: e.detail.feed,
+              tags: e.detail.tags
+            });
+            if (before && before.id === e.detail.id && !activeSampleModified) {
+              state.update((s) => ({
+                ...s,
+                source: s.source === before.source ? e.detail.source : s.source
+              }));
+            }
+          }}
           on:select={(e) => {
             samplesStore.setActive(e.detail.id);
             const s = $samples.find((x) => x.id === e.detail.id);

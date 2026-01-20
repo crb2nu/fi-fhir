@@ -147,6 +147,52 @@ export function createHL7SampleStore() {
       });
     },
 
+    updateMeta(
+      id: string,
+      changes: Partial<Pick<HL7Sample, 'name' | 'source' | 'feed' | 'tags' | 'redactionMode'>>
+    ): void {
+      state.update((s) => {
+        const samples = s.samples.map((x) => {
+          if (x.id !== id) return x;
+
+          const hasName = 'name' in changes;
+          const hasSource = 'source' in changes;
+          const hasFeed = 'feed' in changes;
+          const hasTags = 'tags' in changes;
+          const hasRedactionMode = 'redactionMode' in changes;
+
+          const name = changes.name?.trim();
+          const source = changes.source?.trim();
+          const feed = changes.feed?.trim();
+          const tags = changes.tags?.map((t) => t.trim()).filter((t) => t.length > 0).slice(0, 12);
+          const redactionMode = changes.redactionMode;
+
+          const next: HL7Sample = {
+            ...x,
+            ...(hasName && name ? { name } : {}),
+            ...(hasSource && source ? { source } : {})
+          };
+
+          if (hasFeed) {
+            if (feed) next.feed = feed;
+            else delete next.feed;
+          }
+          if (hasTags) {
+            if (tags?.length) next.tags = tags;
+            else delete next.tags;
+          }
+          if (hasRedactionMode) {
+            if (redactionMode && redactionMode !== 'none') next.redactionMode = redactionMode;
+            else delete next.redactionMode;
+          }
+
+          return next;
+        });
+
+        return { ...s, samples };
+      });
+    },
+
     setActive(id: string): void {
       state.update((s) => ({ ...s, activeId: id }));
     },
