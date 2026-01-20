@@ -81,6 +81,11 @@ export function createHL7SampleStore() {
         id: makeId(),
         name: input.name?.trim() || 'Untitled sample',
         source: input.source.trim() || 'unknown',
+        ...(input.feed?.trim() ? { feed: input.feed.trim() } : {}),
+        ...(input.tags?.length ? { tags: input.tags } : {}),
+        ...(input.redactionMode && input.redactionMode !== 'none'
+          ? { redactionMode: input.redactionMode }
+          : {}),
         raw: input.raw,
         createdAt: nowIso(),
         ...summarize(input.raw)
@@ -98,6 +103,9 @@ export function createHL7SampleStore() {
         .map((input) => ({
           name: input.name?.trim() || 'Untitled sample',
           source: input.source.trim() || 'unknown',
+          feed: input.feed?.trim() || undefined,
+          tags: input.tags,
+          redactionMode: input.redactionMode,
           raw: input.raw
         }))
         .filter((x) => x.raw.trim().length > 0);
@@ -108,6 +116,11 @@ export function createHL7SampleStore() {
         id: makeId(),
         name: input.name,
         source: input.source,
+        ...(input.feed ? { feed: input.feed } : {}),
+        ...(input.tags?.length ? { tags: input.tags } : {}),
+        ...(input.redactionMode && input.redactionMode !== 'none'
+          ? { redactionMode: input.redactionMode }
+          : {}),
         raw: input.raw,
         createdAt: nowIso(),
         ...summarize(input.raw)

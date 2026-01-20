@@ -2,6 +2,7 @@
   import Panel from '$lib/ui/Panel.svelte';
   import Button from '$lib/ui/Button.svelte';
   import type { HL7Sample } from '$lib/features/hl7/samples/types';
+  import type { HL7RedactionMode } from '$lib/domain/hl7Redact';
   import { createEventDispatcher } from 'svelte';
 
   export let samples: readonly HL7Sample[];
@@ -13,19 +14,33 @@
   const dispatch = createEventDispatcher<{
     select: { id: string };
     remove: { id: string };
-    saveCurrent: { name?: string };
-    importFiles: { files: File[] };
+    saveCurrent: { name?: string; source?: string; feed?: string; tags?: string[]; redactionMode?: HL7RedactionMode };
+    importFiles: { files: File[]; source?: string; feed?: string; tags?: string[]; redactionMode?: HL7RedactionMode };
     clear: Record<string, never>;
     loadExamples: Record<string, never>;
   }>();
 
   let name = '';
+  let feed = '';
+  let tags = '';
+  let sourceOverride = '';
+  let filter = '';
+  let redactionMode: HL7RedactionMode = 'none';
   let fileInputEl: HTMLInputElement | null = null;
   let isDragging = false;
 
   function save() {
     const n = name.trim();
-    dispatch('saveCurrent', n ? { name: n } : {});
+    const so = sourceOverride.trim();
+    const f = feed.trim();
+    const parsedTags = parseTags(tags);
+    dispatch('saveCurrent', {
+      ...(n ? { name: n } : {}),
+      ...(so ? { source: so } : {}),
+      ...(f ? { feed: f } : {}),
+      ...(parsedTags.length ? { tags: parsedTags } : {}),
+      ...(redactionMode !== 'none' ? { redactionMode } : {})
+    });
     name = '';
   }
 
@@ -36,7 +51,18 @@
   function onFileChange(e: Event) {
     const input = e.currentTarget as HTMLInputElement;
     const files = input.files ? Array.from(input.files) : [];
-    if (files.length) dispatch('importFiles', { files });
+    if (files.length) {
+      const so = sourceOverride.trim();
+      const f = feed.trim();
+      const parsedTags = parseTags(tags);
+      dispatch('importFiles', {
+        files,
+        ...(so ? { source: so } : {}),
+        ...(f ? { feed: f } : {}),
+        ...(parsedTags.length ? { tags: parsedTags } : {}),
+        ...(redactionMode !== 'none' ? { redactionMode } : {})
+      });
+    }
     input.value = '';
   }
 
@@ -57,8 +83,47 @@
     if (!files.length) return;
     e.preventDefault();
     isDragging = false;
-    dispatch('importFiles', { files });
+    const so = sourceOverride.trim();
+    const f = feed.trim();
+    const parsedTags = parseTags(tags);
+    dispatch('importFiles', {
+      files,
+      ...(so ? { source: so } : {}),
+      ...(f ? { feed: f } : {}),
+      ...(parsedTags.length ? { tags: parsedTags } : {}),
+      ...(redactionMode !== 'none' ? { redactionMode } : {})
+    });
   }
+
+  function parseTags(raw: string): string[] {
+    const parts = raw
+      .split(',')
+      .map((x) => x.trim())
+      .filter((x) => x.length > 0);
+    const uniq: string[] = [];
+    for (const t of parts) {
+      if (!uniq.includes(t)) uniq.push(t);
+      if (uniq.length >= 12) break;
+    }
+    return uniq;
+  }
+
+  $: filtered = filter.trim()
+    ? samples.filter((s) => {
+        const q = filter.trim().toLowerCase();
+        const hay = [
+          s.name,
+          s.source,
+          s.feed ?? '',
+          s.messageType ?? '',
+          s.version ?? '',
+          ...(s.tags ?? [])
+        ]
+          .join(' ')
+          .toLowerCase();
+        return hay.includes(q);
+      })
+    : samples;
 </script>
 
 <Panel title="Samples (local)">
@@ -74,6 +139,30 @@
   <p class="note">
     Stored in <span class="mono">localStorage</span>. Don’t paste PHI unless you’re on an approved machine/profile.
   </p>
+
+  <div class="controls">
+    <label class="label">
+      Feed (optional)
+      <input class="input" type="text" bind:value={feed} placeholder="e.g., epic_adt_icu" disabled={disabled} />
+    </label>
+    <label class="label">
+      Tags (comma-separated)
+      <input class="input" type="text" bind:value={tags} placeholder="e.g., icu, admit, demo" disabled={disabled} />
+    </label>
+    <label class="label">
+      Source override (optional)
+      <input class="input" type="text" bind:value={sourceOverride} placeholder="defaults to current source / file name" disabled={disabled} />
+    </label>
+    <label class="label">
+      Redaction
+      <select class="select" bind:value={redactionMode} disabled={disabled}>
+        <option value="none">None</option>
+        <option value="mask_basic">Mask basic (PID/NK1/PV1)</option>
+        <option value="segment_sanitize">Sanitize segments (PID/NK1/IN*)</option>
+      </select>
+      <span class="hint">Best-effort; free-text fields may still contain PHI.</span>
+    </label>
+  </div>
 
   <div class="save">
     <label class="label">
@@ -111,8 +200,22 @@
       </Button>
     </div>
   {:else}
+    <div class="filter">
+      <input
+        class="input"
+        type="text"
+        bind:value={filter}
+        placeholder="Filter by name, source, feed, message type, tag…"
+        disabled={disabled}
+      />
+      {#if filter.trim()}
+        <Button variant="secondary" on:click={() => (filter = '')} disabled={disabled}>Clear</Button>
+      {/if}
+      <span class="count mono">{filtered.length}/{samples.length}</span>
+    </div>
+
     <ul class="list">
-      {#each samples as s (s.id)}
+      {#each filtered as s (s.id)}
         <li class="li">
           <button
             type="button"
@@ -126,6 +229,15 @@
               <div class="meta">
                 {#if s.messageType}<span class="pill mono">{s.messageType}</span>{/if}
                 {#if s.version}<span class="pill mono">{s.version}</span>{/if}
+                {#if s.feed}<span class="pill mono">feed:{s.feed}</span>{/if}
+                {#if s.tags?.length}
+                  {#each s.tags as t (t)}
+                    <span class="pill tag">{t}</span>
+                  {/each}
+                {/if}
+                {#if s.redactionMode && s.redactionMode !== 'none'}
+                  <span class="pill warn">redacted</span>
+                {/if}
               </div>
             </div>
             <div class="sub">
@@ -161,6 +273,38 @@
 
   .file-input {
     display: none;
+  }
+
+  .controls {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: 1fr;
+    margin-bottom: 14px;
+  }
+
+  @media (min-width: 980px) {
+    .controls {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  .hint {
+    font-size: 0.8rem;
+    color: rgba(229, 231, 235, 0.55);
+  }
+
+  .select {
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.03);
+    color: rgba(229, 231, 235, 0.92);
+    outline: none;
+  }
+
+  .select:focus {
+    border-color: rgba(59, 130, 246, 0.45);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
   }
 
   .dropzone.dragging {
@@ -222,6 +366,20 @@
   .empty {
     color: rgba(229, 231, 235, 0.7);
     margin: 0;
+  }
+
+  .filter {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+
+  .count {
+    color: rgba(229, 231, 235, 0.6);
+    font-size: 0.85rem;
+    font-weight: 700;
   }
 
   .list {
@@ -300,6 +458,18 @@
     color: rgba(229, 231, 235, 0.8);
     font-size: 0.85rem;
     font-weight: 650;
+  }
+
+  .pill.tag {
+    border-color: rgba(59, 130, 246, 0.28);
+    background: rgba(59, 130, 246, 0.10);
+    color: rgba(219, 234, 254, 0.92);
+  }
+
+  .pill.warn {
+    border-color: rgba(245, 158, 11, 0.35);
+    background: rgba(245, 158, 11, 0.12);
+    color: rgba(253, 230, 138, 0.95);
   }
 
   .trash {

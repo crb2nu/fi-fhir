@@ -20,6 +20,7 @@
   import { profileStore, selectedProfile } from '$lib/features/hl7/profile/profileStore';
   import type { ProfileFix } from '$lib/features/hl7/profile/types';
   import type { NewHL7Sample } from '$lib/features/hl7/samples/types';
+  import { redactHL7, type HL7RedactionMode } from '$lib/domain/hl7Redact';
 
   const store = createHL7PreviewStore();
 
@@ -151,10 +152,29 @@
     return inputs;
   }
 
-  async function importFiles(files: File[], activate: 'first' | 'last' = 'first') {
+  async function importFiles(
+    files: File[],
+    activate: 'first' | 'last' = 'first',
+    opts?: { source?: string; feed?: string; tags?: string[]; redactionMode?: HL7RedactionMode }
+  ) {
     if (!files.length) return;
     const inputs = await filesToInputs(files);
-    samplesStore.addMany(inputs, activate);
+    const sourceOverride = opts?.source?.trim() || '';
+    const feed = opts?.feed?.trim() || undefined;
+    const tags = opts?.tags;
+    const redactionMode = opts?.redactionMode ?? 'none';
+    const next = inputs.map((i) => {
+      const raw = redactionMode !== 'none' ? redactHL7(i.raw, redactionMode) : i.raw;
+      return {
+        ...i,
+        source: sourceOverride || i.source,
+        ...(feed ? { feed } : {}),
+        ...(tags?.length ? { tags } : {}),
+        ...(redactionMode !== 'none' ? { redactionMode } : {}),
+        raw
+      };
+    });
+    samplesStore.addMany(next, activate);
   }
 
   async function loadFromFile(e: Event) {
@@ -410,10 +430,20 @@
           activeId={$activeId}
           disabled={$state.loading}
           currentRaw={$state.data}
-          on:importFiles={async (e) => importFiles(e.detail.files, 'first')}
+          on:importFiles={async (e) => importFiles(e.detail.files, 'first', e.detail)}
           on:saveCurrent={(e) => {
             const n = e.detail.name;
-            const input = n ? { name: n, source: $state.source, raw: $state.data } : { source: $state.source, raw: $state.data };
+            const source = e.detail.source?.trim() || $state.source;
+            const redactionMode = e.detail.redactionMode ?? 'none';
+            const raw = redactionMode !== 'none' ? redactHL7($state.data, redactionMode) : $state.data;
+            const input: NewHL7Sample = {
+              ...(n ? { name: n } : {}),
+              source,
+              ...(e.detail.feed?.trim() ? { feed: e.detail.feed.trim() } : {}),
+              ...(e.detail.tags?.length ? { tags: e.detail.tags } : {}),
+              ...(redactionMode !== 'none' ? { redactionMode } : {}),
+              raw
+            };
             samplesStore.add(input);
           }}
           on:select={(e) => {
