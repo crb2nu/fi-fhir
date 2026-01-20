@@ -600,24 +600,24 @@ deploy:docker:
     KUBERNETES_SERVICE_MEMORY_LIMIT: "6Gi"
   needs:
     - build:docker
-	  before_script:
-	    - |
-	      HARBOR_REGISTRY="${HARBOR_REGISTRY:-registry.harbor.lan}"
-	      if [ -n "${HARBOR_REGISTRY_IP:-}" ]; then
-	        HARBOR_REGISTRY_RE="${HARBOR_REGISTRY//./\\.}"
-	        # Ensure our mapping wins even if an incorrect entry already exists.
-	        sed -i -E "/(^|[[:space:]])${HARBOR_REGISTRY_RE}([[:space:]]|$)/d" /etc/hosts
-	        echo "${HARBOR_REGISTRY_IP} ${HARBOR_REGISTRY}" >> /etc/hosts
-	        echo "Harbor host override: ${HARBOR_REGISTRY} -> ${HARBOR_REGISTRY_IP}"
-	        echo "Harbor hosts entry:"
-	        grep -n "${HARBOR_REGISTRY}" /etc/hosts || true
-	      fi
-	    - |
-	      if [ -n "${CI_REGISTRY}" ] && [ -n "${CI_REGISTRY_IMAGE}" ] && [ -n "${CI_REGISTRY_USER}" ] && [ -n "${CI_REGISTRY_PASSWORD}" ]; then
-	        docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
-	      else
-        echo "CI_REGISTRY/CI_REGISTRY_IMAGE not set; skipping GitLab registry login."
-      fi
+  before_script:
+    - |
+        HARBOR_REGISTRY="${HARBOR_REGISTRY:-registry.harbor.lan}"
+        if [ -n "${HARBOR_REGISTRY_IP:-}" ]; then
+          HARBOR_REGISTRY_RE="${HARBOR_REGISTRY//./\\.}"
+          # Ensure our mapping wins even if an incorrect entry already exists.
+          sed -i -E "/(^|[[:space:]])${HARBOR_REGISTRY_RE}([[:space:]]|$)/d" /etc/hosts
+          echo "${HARBOR_REGISTRY_IP} ${HARBOR_REGISTRY}" >> /etc/hosts
+          echo "Harbor host override: ${HARBOR_REGISTRY} -> ${HARBOR_REGISTRY_IP}"
+          echo "Harbor hosts entry:"
+          grep -n "${HARBOR_REGISTRY}" /etc/hosts || true
+        fi
+    - |
+        if [ -n "${CI_REGISTRY}" ] && [ -n "${CI_REGISTRY_IMAGE}" ] && [ -n "${CI_REGISTRY_USER}" ] && [ -n "${CI_REGISTRY_PASSWORD}" ]; then
+          docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+        else
+          echo "CI_REGISTRY/CI_REGISTRY_IMAGE not set; skipping GitLab registry login."
+        fi
   script:
     - docker load < docker-image.tar
     - |
@@ -702,24 +702,24 @@ deploy:docker-ui:
     KUBERNETES_SERVICE_MEMORY_LIMIT: "6Gi"
   needs:
     - build:docker-ui
-	  before_script:
-	    - |
-	      HARBOR_REGISTRY="${HARBOR_REGISTRY:-registry.harbor.lan}"
-	      if [ -n "${HARBOR_REGISTRY_IP:-}" ]; then
-	        HARBOR_REGISTRY_RE="${HARBOR_REGISTRY//./\\.}"
-	        # Ensure our mapping wins even if an incorrect entry already exists.
-	        sed -i -E "/(^|[[:space:]])${HARBOR_REGISTRY_RE}([[:space:]]|$)/d" /etc/hosts
-	        echo "${HARBOR_REGISTRY_IP} ${HARBOR_REGISTRY}" >> /etc/hosts
-	        echo "Harbor host override: ${HARBOR_REGISTRY} -> ${HARBOR_REGISTRY_IP}"
-	        echo "Harbor hosts entry:"
-	        grep -n "${HARBOR_REGISTRY}" /etc/hosts || true
-	      fi
-	    - |
-	      if [ -n "${CI_REGISTRY}" ] && [ -n "${CI_REGISTRY_IMAGE}" ] && [ -n "${CI_REGISTRY_USER}" ] && [ -n "${CI_REGISTRY_PASSWORD}" ]; then
-	        docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
-	      else
-        echo "CI_REGISTRY/CI_REGISTRY_IMAGE not set; skipping GitLab registry login."
-      fi
+  before_script:
+    - |
+        HARBOR_REGISTRY="${HARBOR_REGISTRY:-registry.harbor.lan}"
+        if [ -n "${HARBOR_REGISTRY_IP:-}" ]; then
+          HARBOR_REGISTRY_RE="${HARBOR_REGISTRY//./\\.}"
+          # Ensure our mapping wins even if an incorrect entry already exists.
+          sed -i -E "/(^|[[:space:]])${HARBOR_REGISTRY_RE}([[:space:]]|$)/d" /etc/hosts
+          echo "${HARBOR_REGISTRY_IP} ${HARBOR_REGISTRY}" >> /etc/hosts
+          echo "Harbor host override: ${HARBOR_REGISTRY} -> ${HARBOR_REGISTRY_IP}"
+          echo "Harbor hosts entry:"
+          grep -n "${HARBOR_REGISTRY}" /etc/hosts || true
+        fi
+    - |
+        if [ -n "${CI_REGISTRY}" ] && [ -n "${CI_REGISTRY_IMAGE}" ] && [ -n "${CI_REGISTRY_USER}" ] && [ -n "${CI_REGISTRY_PASSWORD}" ]; then
+          docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+        else
+          echo "CI_REGISTRY/CI_REGISTRY_IMAGE not set; skipping GitLab registry login."
+        fi
   script:
     - docker load < docker-ui-image.tar
     - |
