@@ -579,16 +579,19 @@ deploy:docker:
   stage: deploy
   image: docker:24
   services:
-    - docker:24-dind
+    - name: docker:24-dind
+      command:
+        - --insecure-registry=registry.harbor.lan
   variables:
     DOCKER_HOST: tcp://localhost:2375
     DOCKER_TLS_CERTDIR: ""
-    # Publishing is opt-in when no GitLab registry is configured.
-    # Set PUBLISH_HARBOR=1 to also publish to Harbor (best-effort by default).
-    # Set REQUIRE_DOCKER_PUBLISH=1 to fail the job if nothing is published.
-    PUBLISH_HARBOR: "0"
-    REQUIRE_DOCKER_PUBLISH: "0"
-    REQUIRE_HARBOR_PUBLISH: "0"
+    # Harbor publish is required on main branch (platform/gitops pulls from Harbor).
+    PUBLISH_HARBOR: "1"
+    REQUIRE_DOCKER_PUBLISH: "1"
+    REQUIRE_HARBOR_PUBLISH: "1"
+    # Cluster DNS currently resolves registry.harbor.lan incorrectly; override to the reachable IP.
+    # Set this at the group/project level if it ever changes.
+    HARBOR_REGISTRY_IP: "192.168.50.230"
     KUBERNETES_CPU_LIMIT: "2"
     KUBERNETES_MEMORY_LIMIT: "4Gi"
     KUBERNETES_SERVICE_CPU_LIMIT: "2"
@@ -596,6 +599,14 @@ deploy:docker:
   needs:
     - build:docker
   before_script:
+    - |
+      HARBOR_REGISTRY="${HARBOR_REGISTRY:-registry.harbor.lan}"
+      if [ -n "${HARBOR_REGISTRY_IP:-}" ]; then
+        if ! grep -qE "(^|\\s)${HARBOR_REGISTRY}(\\s|$)" /etc/hosts; then
+          echo "${HARBOR_REGISTRY_IP} ${HARBOR_REGISTRY}" >> /etc/hosts
+        fi
+        echo "Harbor host override: ${HARBOR_REGISTRY} -> ${HARBOR_REGISTRY_IP}"
+      fi
     - |
       if [ -n "${CI_REGISTRY}" ] && [ -n "${CI_REGISTRY_IMAGE}" ] && [ -n "${CI_REGISTRY_USER}" ] && [ -n "${CI_REGISTRY_PASSWORD}" ]; then
         docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
@@ -607,25 +618,6 @@ deploy:docker:
     - |
       IMAGE_BASE="${CI_REGISTRY_IMAGE:-fi-fhir}"
       published=0
-      want_gitlab=0
-      want_harbor=0
-
-      if [ -n "${CI_REGISTRY}" ] && [ -n "${CI_REGISTRY_IMAGE}" ]; then
-        want_gitlab=1
-      fi
-
-      if [ "${PUBLISH_HARBOR}" = "1" ]; then
-        want_harbor=1
-      fi
-
-      if [ "$want_gitlab" -ne 1 ] && [ "$want_harbor" -ne 1 ]; then
-        echo "Skipping deploy:docker: no GitLab registry configured and PUBLISH_HARBOR!=1"
-        if [ "${REQUIRE_DOCKER_PUBLISH}" = "1" ]; then
-          echo "REQUIRE_DOCKER_PUBLISH=1 set; failing due to no configured publish target." >&2
-          exit 1
-        fi
-        exit 0
-      fi
 
       # Publish to GitLab registry if configured (avoid pushing to Docker Hub accidentally).
       if [ -n "${CI_REGISTRY}" ] && [ -n "${CI_REGISTRY_IMAGE}" ]; then
@@ -686,16 +678,19 @@ deploy:docker-ui:
   stage: deploy
   image: docker:24
   services:
-    - docker:24-dind
+    - name: docker:24-dind
+      command:
+        - --insecure-registry=registry.harbor.lan
   variables:
     DOCKER_HOST: tcp://localhost:2375
     DOCKER_TLS_CERTDIR: ""
-    # Publishing is opt-in when no GitLab registry is configured.
-    # Set PUBLISH_HARBOR=1 to also publish to Harbor (best-effort by default).
-    # Set REQUIRE_DOCKER_PUBLISH=1 to fail the job if nothing is published.
-    PUBLISH_HARBOR: "0"
-    REQUIRE_DOCKER_PUBLISH: "0"
-    REQUIRE_HARBOR_PUBLISH: "0"
+    # Harbor publish is required on main branch (platform/gitops pulls from Harbor).
+    PUBLISH_HARBOR: "1"
+    REQUIRE_DOCKER_PUBLISH: "1"
+    REQUIRE_HARBOR_PUBLISH: "1"
+    # Cluster DNS currently resolves registry.harbor.lan incorrectly; override to the reachable IP.
+    # Set this at the group/project level if it ever changes.
+    HARBOR_REGISTRY_IP: "192.168.50.230"
     KUBERNETES_CPU_LIMIT: "2"
     KUBERNETES_MEMORY_LIMIT: "4Gi"
     KUBERNETES_SERVICE_CPU_LIMIT: "2"
@@ -703,6 +698,14 @@ deploy:docker-ui:
   needs:
     - build:docker-ui
   before_script:
+    - |
+      HARBOR_REGISTRY="${HARBOR_REGISTRY:-registry.harbor.lan}"
+      if [ -n "${HARBOR_REGISTRY_IP:-}" ]; then
+        if ! grep -qE "(^|\\s)${HARBOR_REGISTRY}(\\s|$)" /etc/hosts; then
+          echo "${HARBOR_REGISTRY_IP} ${HARBOR_REGISTRY}" >> /etc/hosts
+        fi
+        echo "Harbor host override: ${HARBOR_REGISTRY} -> ${HARBOR_REGISTRY_IP}"
+      fi
     - |
       if [ -n "${CI_REGISTRY}" ] && [ -n "${CI_REGISTRY_IMAGE}" ] && [ -n "${CI_REGISTRY_USER}" ] && [ -n "${CI_REGISTRY_PASSWORD}" ]; then
         docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
@@ -714,25 +717,6 @@ deploy:docker-ui:
     - |
       IMAGE_BASE="${CI_REGISTRY_IMAGE:-fi-fhir}-ui"
       published=0
-      want_gitlab=0
-      want_harbor=0
-
-      if [ -n "${CI_REGISTRY}" ] && [ -n "${CI_REGISTRY_IMAGE}" ]; then
-        want_gitlab=1
-      fi
-
-      if [ "${PUBLISH_HARBOR}" = "1" ]; then
-        want_harbor=1
-      fi
-
-      if [ "$want_gitlab" -ne 1 ] && [ "$want_harbor" -ne 1 ]; then
-        echo "Skipping deploy:docker-ui: no GitLab registry configured and PUBLISH_HARBOR!=1"
-        if [ "${REQUIRE_DOCKER_PUBLISH}" = "1" ]; then
-          echo "REQUIRE_DOCKER_PUBLISH=1 set; failing due to no configured publish target." >&2
-          exit 1
-        fi
-        exit 0
-      fi
 
       # Publish to GitLab registry if configured (avoid pushing to Docker Hub accidentally).
       if [ -n "${CI_REGISTRY}" ] && [ -n "${CI_REGISTRY_IMAGE}" ]; then
