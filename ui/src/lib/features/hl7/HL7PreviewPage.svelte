@@ -28,6 +28,10 @@
   let dragDepth = 0;
   let isDragging = false;
 
+  let editorRedactionMode: HL7RedactionMode = 'none';
+  let useRedactionForPreview = false;
+  let lastRunRedactionMode: HL7RedactionMode = 'none';
+
   // Track the profile ID and version used for the last parse
   let lastUsedProfileId: string | null = null;
   let lastUsedProfileVersion: string | null = null;
@@ -67,15 +71,21 @@
     const snapshot = getSnapshot();
     rememberSource(snapshot.source);
     const profileId = $selectedProfile?.id ?? null;
+    const data =
+      useRedactionForPreview && editorRedactionMode !== 'none'
+        ? redactHL7(snapshot.data, editorRedactionMode)
+        : snapshot.data;
 
     try {
       const result = await parseHL7Preview({
         source: snapshot.source,
-        data: snapshot.data,
+        data,
         profileId
       });
       lastUsedProfileId = profileId;
       lastUsedProfileVersion = $selectedProfile?.version ?? null;
+      lastRunRedactionMode =
+        useRedactionForPreview && editorRedactionMode !== 'none' ? editorRedactionMode : 'none';
       state.update((s) => ({ ...s, loading: false, result }));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -219,6 +229,14 @@
     dragDepth = 0;
     isDragging = false;
     await importFiles(files, 'first');
+  }
+
+  function applyRedactionToEditor(): void {
+    if ($state.loading) return;
+    if (editorRedactionMode === 'none') return;
+    if (!$state.data.trim()) return;
+    const redacted = redactHL7($state.data, editorRedactionMode);
+    state.update((s) => ({ ...s, data: redacted }));
   }
 
   // Generate fixes based on warnings and current profile
@@ -373,6 +391,30 @@
       role="region"
       aria-label="HL7 input. Drag and drop HL7 files to import."
     >
+      <div class="redaction">
+        <label class="label redaction-label">
+          Redaction
+          <select class="input" bind:value={editorRedactionMode} disabled={$state.loading}>
+            <option value="none">None</option>
+            <option value="mask_basic">Mask basic (PID/NK1/PV1)</option>
+            <option value="segment_sanitize">Sanitize segments (PID/NK1/IN*)</option>
+          </select>
+          <span class="hint">Best-effort; free-text fields may still contain PHI.</span>
+        </label>
+
+        <label class="checkbox">
+          <input type="checkbox" bind:checked={useRedactionForPreview} disabled={$state.loading} />
+          Use for preview
+        </label>
+
+        <Button
+          variant="secondary"
+          on:click={applyRedactionToEditor}
+          disabled={$state.loading || editorRedactionMode === 'none' || !$state.data.trim()}
+        >
+          Apply to editor
+        </Button>
+      </div>
       <TextArea bind:value={$state.data} rows={12} disabled={$state.loading} />
       {#if isDragging}
         <div class="drop-hint">Drop files to import into Samples</div>
@@ -402,6 +444,9 @@
           <div class="pill profile">profile: {lastUsedProfileId}</div>
         {:else}
           <div class="pill muted">no profile</div>
+        {/if}
+        {#if lastRunRedactionMode !== 'none'}
+          <div class="pill warn">redaction: {lastRunRedactionMode}</div>
         {/if}
         {#if profileChanged}
           <button class="pill stale" on:click={run} disabled={$state.loading}>
@@ -593,6 +638,35 @@
     position: relative;
   }
 
+  .redaction {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+
+  .redaction-label {
+    min-width: 320px;
+  }
+
+  .hint {
+    font-size: 0.8rem;
+    color: rgba(229, 231, 235, 0.55);
+  }
+
+  .checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: rgba(229, 231, 235, 0.8);
+    font-weight: 700;
+    font-size: 0.9rem;
+    user-select: none;
+    margin-bottom: 6px;
+  }
+
   .drop-target.dragging {
     outline: 2px dashed rgba(59, 130, 246, 0.7);
     outline-offset: 8px;
@@ -685,6 +759,12 @@
     border-color: rgba(59, 130, 246, 0.35);
     background: rgba(59, 130, 246, 0.12);
     color: rgba(147, 197, 253, 0.95);
+  }
+
+  .pill.warn {
+    border-color: rgba(245, 158, 11, 0.35);
+    background: rgba(245, 158, 11, 0.12);
+    color: rgba(253, 230, 138, 0.95);
   }
 
   .pill.muted {
