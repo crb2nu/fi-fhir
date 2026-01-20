@@ -13,8 +13,10 @@
 
   // Props
   export let onProfileChange: ((profileId: string | null) => void) | undefined = undefined;
+  export let externalDirty: boolean = false;
 
   // Local state
+  let activeOnly = true;
   let showNewModal = false;
   let showDeleteConfirm = false;
   let showDuplicateModal = false;
@@ -24,6 +26,7 @@
   let newProfileName = '';
   let duplicateId = '';
   let duplicateName = '';
+  let hasUnsavedChanges = false;
 
   let newModalEl: HTMLDivElement | null = null;
   let duplicateModalEl: HTMLDivElement | null = null;
@@ -34,7 +37,7 @@
 
   // Load profiles on mount
   onMount(() => {
-    profileStore.loadProfiles();
+    profileStore.loadProfiles(activeOnly);
   });
 
   // Handle selection change
@@ -42,7 +45,7 @@
     const target = event.target as HTMLSelectElement;
     const value = target.value;
 
-    if ($isDirty) {
+    if ($isDirty || externalDirty) {
       // Store the pending selection and show confirm modal
       pendingProfileId = value || null;
       // Reset the select to the current value while modal is shown
@@ -112,6 +115,8 @@
     await profileStore.discardChanges();
   }
 
+  $: hasUnsavedChanges = Boolean($isDirty || externalDirty);
+
   // Generate default ID from name
   function generateId(name: string): string {
     return name
@@ -174,8 +179,26 @@
     {/if}
   </div>
 
+  <label class="filter">
+    <input
+      type="checkbox"
+      bind:checked={activeOnly}
+      on:change={() => profileStore.loadProfiles(activeOnly)}
+      disabled={$isLoading}
+    />
+    Active only
+  </label>
+
   <div class="actions">
-    <Button variant="secondary" on:click={() => (showNewModal = true)} disabled={$isLoading}>
+    <Button variant="secondary" on:click={() => profileStore.loadProfiles(activeOnly)} disabled={$isLoading}>
+      Refresh
+    </Button>
+
+    <Button
+      variant="secondary"
+      on:click={() => (showNewModal = true)}
+      disabled={$isLoading || hasUnsavedChanges}
+    >
       + New
     </Button>
 
@@ -187,7 +210,7 @@
           duplicateName = $selectedProfile?.name + ' (Copy)';
           showDuplicateModal = true;
         }}
-        disabled={$isLoading}
+        disabled={$isLoading || hasUnsavedChanges}
       >
         Duplicate
       </Button>
@@ -205,7 +228,11 @@
         </Button>
       {/if}
 
-      <Button variant="danger" on:click={() => (showDeleteConfirm = true)} disabled={$isLoading}>
+      <Button
+        variant="danger"
+        on:click={() => (showDeleteConfirm = true)}
+        disabled={$isLoading || hasUnsavedChanges}
+      >
         Delete
       </Button>
     {/if}
@@ -366,6 +393,16 @@
     flex: 1;
     min-width: 200px;
     max-width: 400px;
+  }
+
+  .filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: rgba(229, 231, 235, 0.8);
+    font-weight: 700;
+    font-size: 0.9rem;
+    user-select: none;
   }
 
   .select {

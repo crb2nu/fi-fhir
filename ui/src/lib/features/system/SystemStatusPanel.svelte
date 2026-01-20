@@ -3,30 +3,38 @@
   import Button from '$lib/ui/Button.svelte';
   import Panel from '$lib/ui/Panel.svelte';
   import { selectedProfile } from '$lib/features/hl7/profile/profileStore';
+  import { graphqlFetch } from '$lib/graphql/client';
+  import { HealthDocument } from '$lib/gen/graphql';
 
-  type ApiHealth = {
+  type HttpHealth = {
     status?: string;
     service?: string;
   };
 
-  type ApiState =
+  type CheckState<TData> =
     | { state: 'idle' | 'loading' }
-    | { state: 'ok'; checkedAt: string; data: ApiHealth }
+    | { state: 'ok'; checkedAt: string; data: TData }
     | { state: 'error'; checkedAt: string; message: string };
+
+  type GraphQLHealth = {
+    status: string;
+    version: string;
+  };
 
   const build = {
     tag: (import.meta.env.VITE_BUILD_TAG as string | undefined) ?? null,
     sha: (import.meta.env.VITE_BUILD_SHA as string | undefined) ?? null
   };
 
-  let api: ApiState = { state: 'idle' };
+  let http: CheckState<HttpHealth> = { state: 'idle' };
+  let gql: CheckState<GraphQLHealth> = { state: 'idle' };
 
   function nowIso(): string {
     return new Date().toISOString();
   }
 
-  async function checkApi(): Promise<void> {
-    api = { state: 'loading' };
+  async function checkHttpHealth(): Promise<void> {
+    http = { state: 'loading' };
     try {
       const res = await fetch('/health', {
         headers: { Accept: 'application/json' },
@@ -34,45 +42,83 @@
       });
       const checkedAt = nowIso();
       if (!res.ok) {
-        api = { state: 'error', checkedAt, message: `HTTP ${res.status}` };
+        http = { state: 'error', checkedAt, message: `HTTP ${res.status}` };
         return;
       }
-      const data = (await res.json()) as ApiHealth;
-      api = { state: 'ok', checkedAt, data };
+      const data = (await res.json()) as HttpHealth;
+      http = { state: 'ok', checkedAt, data };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      api = { state: 'error', checkedAt: nowIso(), message: msg };
+      http = { state: 'error', checkedAt: nowIso(), message: msg };
     }
   }
 
+  async function checkGraphQLHealth(): Promise<void> {
+    gql = { state: 'loading' };
+    try {
+      const checkedAt = nowIso();
+      const data = await graphqlFetch(HealthDocument);
+      gql = { state: 'ok', checkedAt, data: data.health };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      gql = { state: 'error', checkedAt: nowIso(), message: msg };
+    }
+  }
+
+  function refresh(): void {
+    void checkHttpHealth();
+    void checkGraphQLHealth();
+  }
+
+  $: refreshing = http.state === 'loading' || gql.state === 'loading';
+
   onMount(() => {
-    void checkApi();
+    refresh();
   });
 </script>
 
 <Panel title="System status">
   <div class="grid">
     <div class="row">
-      <div class="label">API</div>
+      <div class="label">HTTP</div>
       <div class="value">
-        {#if api.state === 'idle' || api.state === 'loading'}
+        {#if http.state === 'idle' || http.state === 'loading'}
           <span class="pill muted">checking…</span>
-        {:else if api.state === 'ok'}
-          <span class="pill ok">{api.data.status ?? 'ok'}</span>
-          <span class="mono">{api.data.service ?? 'service'}</span>
-          <span class="meta">checked {new Date(api.checkedAt).toLocaleTimeString()}</span>
-        {:else if api.state === 'error'}
+        {:else if http.state === 'ok'}
+          <span class="pill ok">{http.data.status ?? 'ok'}</span>
+          <span class="mono">{http.data.service ?? 'service'}</span>
+          <span class="meta">checked {new Date(http.checkedAt).toLocaleTimeString()}</span>
+        {:else if http.state === 'error'}
           <span class="pill bad">unhealthy</span>
-          <span class="mono">{api.message}</span>
-          <span class="meta">checked {new Date(api.checkedAt).toLocaleTimeString()}</span>
+          <span class="mono">{http.message}</span>
+          <span class="meta">checked {new Date(http.checkedAt).toLocaleTimeString()}</span>
         {:else}
           <span class="pill muted">unknown</span>
         {/if}
       </div>
       <div class="actions">
-        <Button variant="secondary" on:click={checkApi} disabled={api.state === 'loading'}>
+        <Button variant="secondary" on:click={refresh} disabled={refreshing}>
           Refresh
         </Button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="label">GraphQL</div>
+      <div class="value">
+        {#if gql.state === 'idle' || gql.state === 'loading'}
+          <span class="pill muted">checking…</span>
+        {:else if gql.state === 'ok'}
+          <span class="pill ok">{gql.data.status ?? 'ok'}</span>
+          <span class="mono">{gql.data.version}</span>
+          <span class="meta">checked {new Date(gql.checkedAt).toLocaleTimeString()}</span>
+        {:else if gql.state === 'error'}
+          <span class="pill bad">unhealthy</span>
+          <span class="mono">{gql.message}</span>
+          <span class="meta">checked {new Date(gql.checkedAt).toLocaleTimeString()}</span>
+        {:else}
+          <span class="pill muted">unknown</span>
+        {/if}
       </div>
     </div>
 

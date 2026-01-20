@@ -31,6 +31,7 @@ export type ProfileState = {
   profiles: ProfileSummary[];
   selectedProfileId: string | null;
   selectedProfile: SourceProfile | null;
+  activeOnly: boolean;
   loading: boolean;
   saving: boolean;
   error: string | null;
@@ -42,6 +43,7 @@ const initialState: ProfileState = {
   profiles: [],
   selectedProfileId: null,
   selectedProfile: null,
+  activeOnly: true,
   loading: false,
   saving: false,
   error: null,
@@ -64,6 +66,7 @@ function createProfileStore() {
         const profiles = await listProfiles(activeOnly);
         update((s) => ({
           ...s,
+          activeOnly,
           profiles: profiles.map((p) => ({
             id: p.id,
             name: p.name,
@@ -122,7 +125,8 @@ function createProfileStore() {
       try {
         const created = await createProfile({ id, name });
         // Reload the list
-        const profiles = await listProfiles(true);
+        const state = get({ subscribe });
+        const profiles = await listProfiles(state.activeOnly);
         update((s) => ({
           ...s,
           profiles: profiles.map((p) => ({
@@ -199,7 +203,7 @@ function createProfileStore() {
         const updated = await updateProfileApi(state.selectedProfile.id, input);
 
         // Update the profile list with new version
-        const profiles = await listProfiles(true);
+        const profiles = await listProfiles(state.activeOnly);
 
         update((s) => ({
           ...s,
@@ -234,7 +238,7 @@ function createProfileStore() {
       update((s) => ({ ...s, saving: true, error: null }));
       try {
         await deleteProfileApi(state.selectedProfileId);
-        const profiles = await listProfiles(true);
+        const profiles = await listProfiles(state.activeOnly);
         update((s) => ({
           ...s,
           profiles: profiles.map((p) => ({
@@ -269,7 +273,7 @@ function createProfileStore() {
       update((s) => ({ ...s, saving: true, error: null }));
       try {
         const duplicated = await duplicateProfileApi(state.selectedProfileId, newId, newName);
-        const profiles = await listProfiles(true);
+        const profiles = await listProfiles(state.activeOnly);
         update((s) => ({
           ...s,
           profiles: profiles.map((p) => ({
