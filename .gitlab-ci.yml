@@ -44,6 +44,7 @@ variables:
   - pkg/**/*
   - sdk/**/*
   - Dockerfile
+  - .gitlab-ci.yml
   - .golangci.yml
   - .golangci.yaml
   - .golangci.toml
@@ -52,6 +53,7 @@ variables:
   - ui/**/*
   - internal/api/graphql/schema.graphql
   - api/openapi.yaml
+  - .gitlab-ci.yml
 
 .sdk-ts-changes: &sdk-ts-changes
   - sdk/typescript/**/*
