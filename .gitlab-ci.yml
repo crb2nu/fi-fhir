@@ -598,7 +598,7 @@ deploy:docker:
     - build:docker
   before_script:
     - |
-      set -eu
+      set -e
 
       # We can't reliably edit /etc/hosts in Kubernetes runner pods (it's a managed mount),
       # so route Harbor pushes to the IP directly when HARBOR_REGISTRY_IP is set.
@@ -637,7 +637,7 @@ deploy:docker:
       published=0
 
       # Publish to GitLab registry if configured (avoid pushing to Docker Hub accidentally).
-      if [ -n "${CI_REGISTRY}" ] && [ -n "${CI_REGISTRY_IMAGE}" ] && [ -n "${CI_REGISTRY_USER}" ] && [ -n "${CI_REGISTRY_PASSWORD}" ]; then
+      if [ -n "${CI_REGISTRY:-}" ] && [ -n "${CI_REGISTRY_IMAGE:-}" ] && [ -n "${CI_REGISTRY_USER:-}" ] && [ -n "${CI_REGISTRY_PASSWORD:-}" ]; then
         echo "${CI_REGISTRY_PASSWORD}" | crane auth login "${CI_REGISTRY}" --username "${CI_REGISTRY_USER}" --password-stdin
         crane push docker-image.tar "${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}"
         crane tag "${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}" main
@@ -710,7 +710,7 @@ deploy:docker-ui:
     - build:docker-ui
   before_script:
     - |
-      set -eu
+      set -e
 
       # We can't reliably edit /etc/hosts in Kubernetes runner pods (it's a managed mount),
       # so route Harbor pushes to the IP directly when HARBOR_REGISTRY_IP is set.
@@ -749,7 +749,7 @@ deploy:docker-ui:
       published=0
 
       # Publish to GitLab registry if configured (avoid pushing to Docker Hub accidentally).
-      if [ -n "${CI_REGISTRY}" ] && [ -n "${CI_REGISTRY_IMAGE}" ] && [ -n "${CI_REGISTRY_USER}" ] && [ -n "${CI_REGISTRY_PASSWORD}" ]; then
+      if [ -n "${CI_REGISTRY:-}" ] && [ -n "${CI_REGISTRY_IMAGE:-}" ] && [ -n "${CI_REGISTRY_USER:-}" ] && [ -n "${CI_REGISTRY_PASSWORD:-}" ]; then
         echo "${CI_REGISTRY_PASSWORD}" | crane auth login "${CI_REGISTRY}" --username "${CI_REGISTRY_USER}" --password-stdin
         crane push docker-ui-image.tar "${CI_REGISTRY_IMAGE}-ui:${CI_COMMIT_SHORT_SHA}"
         crane tag "${CI_REGISTRY_IMAGE}-ui:${CI_COMMIT_SHORT_SHA}" main
