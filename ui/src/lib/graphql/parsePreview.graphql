@@ -10,6 +10,93 @@ query ParsePreview($format: SourceFormat!, $data: String!, $source: String) {
       source
       sourceFormat
       correlationId
+      ... on PatientAdmitEvent {
+        patient {
+          mrn
+          familyName
+          givenName
+          dateOfBirth
+          gender
+        }
+        encounter {
+          class
+          location {
+            facility
+            unit
+            room
+            bed
+          }
+        }
+      }
+      ... on PatientDischargeEvent {
+        patient {
+          mrn
+          familyName
+          givenName
+          dateOfBirth
+          gender
+        }
+        encounter {
+          class
+          location {
+            facility
+            unit
+            room
+            bed
+          }
+        }
+      }
+      ... on LabResultEvent {
+        patient {
+          mrn
+          familyName
+          givenName
+          dateOfBirth
+          gender
+        }
+        test {
+          loincCode
+          localCode
+          description
+        }
+        result {
+          value
+          unit
+          status
+        }
+        isCritical
+      }
+      ... on AppointmentEvent {
+        patient {
+          mrn
+          familyName
+          givenName
+          dateOfBirth
+          gender
+        }
+        appointment {
+          id
+          status
+          startTime
+          endTime
+          reason
+          location {
+            facility
+            unit
+            room
+            bed
+          }
+          provider {
+            familyName
+            givenName
+            npi
+          }
+        }
+      }
+      ... on DocumentEvent {
+        documentType
+        title
+      }
     }
     warnings {
       phase
@@ -32,6 +119,93 @@ query ParsePreviewWithProfile($format: SourceFormat!, $data: String!, $source: S
       source
       sourceFormat
       correlationId
+      ... on PatientAdmitEvent {
+        patient {
+          mrn
+          familyName
+          givenName
+          dateOfBirth
+          gender
+        }
+        encounter {
+          class
+          location {
+            facility
+            unit
+            room
+            bed
+          }
+        }
+      }
+      ... on PatientDischargeEvent {
+        patient {
+          mrn
+          familyName
+          givenName
+          dateOfBirth
+          gender
+        }
+        encounter {
+          class
+          location {
+            facility
+            unit
+            room
+            bed
+          }
+        }
+      }
+      ... on LabResultEvent {
+        patient {
+          mrn
+          familyName
+          givenName
+          dateOfBirth
+          gender
+        }
+        test {
+          loincCode
+          localCode
+          description
+        }
+        result {
+          value
+          unit
+          status
+        }
+        isCritical
+      }
+      ... on AppointmentEvent {
+        patient {
+          mrn
+          familyName
+          givenName
+          dateOfBirth
+          gender
+        }
+        appointment {
+          id
+          status
+          startTime
+          endTime
+          reason
+          location {
+            facility
+            unit
+            room
+            bed
+          }
+          provider {
+            familyName
+            givenName
+            npi
+          }
+        }
+      }
+      ... on DocumentEvent {
+        documentType
+        title
+      }
     }
     warnings {
       phase

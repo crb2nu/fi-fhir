@@ -3,7 +3,6 @@
   import { createHL7PreviewStore } from '$lib/features/hl7/hl7PreviewStore';
   import { parseHL7Preview } from '$lib/features/hl7/hl7Preview';
   import Button from '$lib/ui/Button.svelte';
-  import JsonViewer from '$lib/ui/JsonViewer.svelte';
   import Panel from '$lib/ui/Panel.svelte';
   import Tabs from '$lib/ui/Tabs.svelte';
   import TextArea from '$lib/ui/TextArea.svelte';
@@ -11,6 +10,7 @@
   import HL7Inspector from '$lib/features/hl7/components/HL7Inspector.svelte';
   import { parseHL7Path } from '$lib/domain/hl7Path';
   import type { HL7PathLocation } from '$lib/domain/hl7Path';
+  import { getHL7Value, normalizeHL7Newlines } from '$lib/domain/hl7Access';
   import SampleInbox from '$lib/features/hl7/components/SampleInbox.svelte';
   import { createHL7SampleStore } from '$lib/features/hl7/samples/sampleStore';
   import type { HL7Sample } from '$lib/features/hl7/samples/types';
@@ -21,6 +21,7 @@
   import type { ProfileFix } from '$lib/features/hl7/profile/types';
   import type { NewHL7Sample } from '$lib/features/hl7/samples/types';
   import { redactHL7, type HL7RedactionMode } from '$lib/domain/hl7Redact';
+  import EventLineagePanel from '$lib/features/hl7/components/EventLineagePanel.svelte';
 
   const store = createHL7PreviewStore();
 
@@ -247,6 +248,22 @@
     state.update((s) => ({ ...s, data: redacted }));
   }
 
+  function normalizeEditorNewlines(): void {
+    if ($state.loading) return;
+    if (!$state.data.trim()) return;
+    state.update((s) => ({ ...s, data: normalizeHL7Newlines(s.data) }));
+  }
+
+  function inspectPath(path: string): void {
+    selectedPath = path;
+    selectedLocation = parseHL7Path(path);
+    activeTab = selectedLocation ? 'inspector' : 'warnings';
+  }
+
+  $: msh9 = getHL7Value($hl7, parseHL7Path('MSH-9'));
+  $: msh10 = getHL7Value($hl7, parseHL7Path('MSH-10'));
+  $: msh12 = getHL7Value($hl7, parseHL7Path('MSH-12'));
+
   // Generate fixes based on warnings and current profile
   $: fixes = suggestFixes($state.result?.parsePreview.warnings ?? [], $selectedProfile);
 
@@ -417,11 +434,26 @@
 
         <Button
           variant="secondary"
+          on:click={normalizeEditorNewlines}
+          disabled={$state.loading || !$state.data.trim()}
+        >
+          Normalize newlines
+        </Button>
+
+        <Button
+          variant="secondary"
           on:click={applyRedactionToEditor}
           disabled={$state.loading || editorRedactionMode === 'none' || !$state.data.trim()}
         >
           Apply to editor
         </Button>
+      </div>
+
+      <div class="stats muted">
+        <span class="pill">segments: {$hl7.segments.length}</span>
+        {#if msh9}<span class="pill mono">MSH-9={msh9}</span>{/if}
+        {#if msh10}<span class="pill mono">MSH-10={msh10}</span>{/if}
+        {#if msh12}<span class="pill mono">MSH-12={msh12}</span>{/if}
       </div>
       <TextArea bind:value={$state.data} rows={12} disabled={$state.loading} />
       {#if isDragging}
@@ -531,11 +563,7 @@
           on:inspect={onInspectWarning}
         />
       {:else if activeTab === 'events'}
-        {#if $events.length === 0}
-          <div class="empty">No semantic events extracted.</div>
-        {:else}
-          <JsonViewer data={$events} />
-        {/if}
+        <EventLineagePanel events={$events} message={$hl7} on:inspectPath={(e) => inspectPath(e.detail.path)} />
       {:else if activeTab === 'inspector'}
         {#if !selectedLocation}
           <div class="empty">Select a warning with a path to inspect the message.</div>
@@ -673,6 +701,13 @@
     justify-content: space-between;
     flex-wrap: wrap;
     margin-bottom: 10px;
+  }
+
+  .stats {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 0 0 10px;
   }
 
   .redaction-label {
