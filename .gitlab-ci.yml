@@ -430,7 +430,7 @@ security:gosec:
   script:
     - apk add --no-cache git
     - go install github.com/securego/gosec/v2/cmd/gosec@latest
-    - gosec -fmt sarif -out gosec-report.sarif -exclude-generated ./... || true
+    - gosec -fmt sarif -out gosec-report.sarif -exclude-generated ./cmd/... ./internal/... ./pkg/... ./sdk/... || true
   artifacts:
     reports:
       sast: gosec-report.sarif
