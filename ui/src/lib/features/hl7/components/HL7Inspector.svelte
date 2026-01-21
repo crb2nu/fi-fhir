@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { HL7Message, HL7Segment } from '$lib/domain/hl7v2';
   import type { HL7PathLocation } from '$lib/domain/hl7Path';
+  import { getHL7Value } from '$lib/domain/hl7Access';
+  import { browser } from '$app/environment';
   import { afterUpdate } from 'svelte';
 
   export let message: HL7Message;
@@ -8,6 +10,7 @@
 
   let root: HTMLElement | null = null;
   let lastKey = '';
+  let filter = '';
 
   function selectedSegmentId(): string | null {
     return selected ? selected.segmentId : null;
@@ -83,18 +86,60 @@
     const el = root?.querySelector<HTMLElement>(`[data-hl7-key="${CSS.escape(k)}"]`) ?? null;
     el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   });
+
+  $: selectedValue = getHL7Value(message, selected);
+
+  $: filteredSegments = filter.trim()
+    ? message.segments.filter((s) => {
+        const q = filter.trim().toLowerCase();
+        return s.id.toLowerCase().includes(q) || s.raw.toLowerCase().includes(q);
+      })
+    : message.segments;
+
+  async function copyText(text: string): Promise<void> {
+    if (!browser) return;
+    if (!text) return;
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  }
 </script>
 
 <div class="wrap" bind:this={root}>
   <div class="meta">
-    <div class="pill">segments: {message.segments.length}</div>
+    <div class="pill">segments: {filteredSegments.length}/{message.segments.length}</div>
     <div class="pill mono">
       delims: field={message.delimiters.field} comp={message.delimiters.component} rep={message.delimiters.repetition}
     </div>
+    <input class="search" type="text" bind:value={filter} placeholder="Filter segments…" />
   </div>
 
+  {#if selected}
+    <div class="selected">
+      <div class="pill mono">selected: {selectionKey()}</div>
+      {#if selectedValue !== null}
+        <div class="pill mono">value: {selectedValue || '∅'}</div>
+      {/if}
+      <button class="mini" type="button" on:click={() => copyText(selectionKey())}>Copy path</button>
+      {#if selectedValue !== null}
+        <button class="mini" type="button" on:click={() => copyText(selectedValue)}>Copy value</button>
+      {/if}
+    </div>
+  {:else}
+    <div class="note">Select a warning/path to highlight fields; or browse freely.</div>
+  {/if}
+
   <div class="segments">
-    {#each message.segments as seg, idx (idx)}
+    {#each filteredSegments as seg, idx (idx)}
       <details
         class="seg"
         open={idx < 3 || isSelected(seg)}
@@ -180,6 +225,7 @@
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
+    align-items: center;
   }
 
   .pill {
@@ -194,6 +240,49 @@
 
   .mono {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  }
+
+  .search {
+    flex: 1;
+    min-width: 220px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.03);
+    color: rgba(229, 231, 235, 0.92);
+    outline: none;
+  }
+
+  .search:focus {
+    border-color: rgba(59, 130, 246, 0.45);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  }
+
+  .selected {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .note {
+    color: rgba(229, 231, 235, 0.72);
+    font-size: 0.9rem;
+  }
+
+  .mini {
+    padding: 6px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(229, 231, 235, 0.86);
+    font-weight: 750;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .mini:hover {
+    background: rgba(255, 255, 255, 0.06);
   }
 
   .segments {

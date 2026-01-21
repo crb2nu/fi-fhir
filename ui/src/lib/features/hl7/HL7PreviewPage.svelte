@@ -480,6 +480,9 @@
         </div>
         <div class="pill">events: {$events.length}</div>
         <div class="pill">warnings: {$state.result.parsePreview.warnings.length}</div>
+        <button class="pill stale" on:click={() => (activeTab = 'inspector')} disabled={$state.loading}>
+          Inspect message
+        </button>
         {#if lastUsedProfileId}
           <div class="pill profile">profile: {lastUsedProfileId}</div>
         {:else}
@@ -565,11 +568,7 @@
       {:else if activeTab === 'events'}
         <EventLineagePanel events={$events} message={$hl7} on:inspectPath={(e) => inspectPath(e.detail.path)} />
       {:else if activeTab === 'inspector'}
-        {#if !selectedLocation}
-          <div class="empty">Select a warning with a path to inspect the message.</div>
-        {:else}
-          <HL7Inspector message={$hl7} selected={selectedLocation} />
-        {/if}
+        <HL7Inspector message={$hl7} selected={selectedLocation} />
       {:else}
         <ProfileDraftPanel
           fixes={fixes}
