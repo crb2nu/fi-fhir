@@ -598,16 +598,40 @@ deploy:docker:
     - build:docker
   before_script:
     - |
-      HARBOR_REGISTRY="${HARBOR_REGISTRY:-registry.harbor.lan}"
+      set -eu
+
+      # We can't reliably edit /etc/hosts in Kubernetes runner pods (it's a managed mount),
+      # so route Harbor pushes to the IP directly when HARBOR_REGISTRY_IP is set.
+      harbor_registry_host="${HARBOR_REGISTRY:-registry.harbor.lan}"
+      harbor_registry_push="${harbor_registry_host}"
       if [ -n "${HARBOR_REGISTRY_IP:-}" ]; then
-        HARBOR_REGISTRY_RE="${HARBOR_REGISTRY//./\\.}"
-        # Ensure our mapping wins even if an incorrect entry already exists.
-        sed -i -E "/(^|[[:space:]])${HARBOR_REGISTRY_RE}([[:space:]]|$)/d" /etc/hosts
-        echo "${HARBOR_REGISTRY_IP} ${HARBOR_REGISTRY}" >> /etc/hosts
-        echo "Harbor host override: ${HARBOR_REGISTRY} -> ${HARBOR_REGISTRY_IP}"
-        echo "Harbor hosts entry:"
-        grep -n "${HARBOR_REGISTRY}" /etc/hosts || true
+        echo "Harbor IP override enabled: ${harbor_registry_host} -> ${HARBOR_REGISTRY_IP}"
+        harbor_registry_push="${HARBOR_REGISTRY_IP}"
       fi
+
+      # Prefer explicit credentials if provided; otherwise, if pushing via IP, derive creds
+      # from the existing docker config entry for the hostname and log in to the IP.
+      if [ -n "${HARBOR_USERNAME:-}" ] && [ -n "${HARBOR_PASSWORD:-}" ]; then
+        printf '%s' "${HARBOR_PASSWORD}" | crane --insecure auth login "${harbor_registry_push}" --username "${HARBOR_USERNAME}" --password-stdin
+      elif [ "${harbor_registry_push}" != "${harbor_registry_host}" ] && [ -f /root/.docker/config.json ]; then
+        config_one_line="$(tr -d '\n' < /root/.docker/config.json)"
+        host_re="${harbor_registry_host//./\\.}"
+        auth_b64="$(printf '%s' "${config_one_line}" | sed -nE "s/.*\\\"(https:\\/\\/)?${host_re}\\\"[[:space:]]*:[[:space:]]*\\{[^}]*\\\"auth\\\"[[:space:]]*:[[:space:]]*\\\"([^\\\"]+)\\\".*/\\2/p" || true)"
+        if [ -n "${auth_b64:-}" ]; then
+          decoded="$(printf '%s' "${auth_b64}" | base64 -d 2>/dev/null || true)"
+          username="${decoded%%:*}"
+          password="${decoded#*:}"
+          if [ -n "${username:-}" ] && [ -n "${password:-}" ] && [ "${username}" != "${password}" ]; then
+            printf '%s' "${password}" | crane --insecure auth login "${harbor_registry_push}" --username "${username}" --password-stdin
+          else
+            echo "Failed to decode Harbor credentials from docker config; set HARBOR_USERNAME/HARBOR_PASSWORD." >&2
+          fi
+        else
+          echo "No auth entry found for ${harbor_registry_host} in docker config; Harbor publish may fail." >&2
+        fi
+      fi
+
+      export HARBOR_REGISTRY="${harbor_registry_push}"
   script:
     - |
       published=0
@@ -686,16 +710,40 @@ deploy:docker-ui:
     - build:docker-ui
   before_script:
     - |
-      HARBOR_REGISTRY="${HARBOR_REGISTRY:-registry.harbor.lan}"
+      set -eu
+
+      # We can't reliably edit /etc/hosts in Kubernetes runner pods (it's a managed mount),
+      # so route Harbor pushes to the IP directly when HARBOR_REGISTRY_IP is set.
+      harbor_registry_host="${HARBOR_REGISTRY:-registry.harbor.lan}"
+      harbor_registry_push="${harbor_registry_host}"
       if [ -n "${HARBOR_REGISTRY_IP:-}" ]; then
-        HARBOR_REGISTRY_RE="${HARBOR_REGISTRY//./\\.}"
-        # Ensure our mapping wins even if an incorrect entry already exists.
-        sed -i -E "/(^|[[:space:]])${HARBOR_REGISTRY_RE}([[:space:]]|$)/d" /etc/hosts
-        echo "${HARBOR_REGISTRY_IP} ${HARBOR_REGISTRY}" >> /etc/hosts
-        echo "Harbor host override: ${HARBOR_REGISTRY} -> ${HARBOR_REGISTRY_IP}"
-        echo "Harbor hosts entry:"
-        grep -n "${HARBOR_REGISTRY}" /etc/hosts || true
+        echo "Harbor IP override enabled: ${harbor_registry_host} -> ${HARBOR_REGISTRY_IP}"
+        harbor_registry_push="${HARBOR_REGISTRY_IP}"
       fi
+
+      # Prefer explicit credentials if provided; otherwise, if pushing via IP, derive creds
+      # from the existing docker config entry for the hostname and log in to the IP.
+      if [ -n "${HARBOR_USERNAME:-}" ] && [ -n "${HARBOR_PASSWORD:-}" ]; then
+        printf '%s' "${HARBOR_PASSWORD}" | crane --insecure auth login "${harbor_registry_push}" --username "${HARBOR_USERNAME}" --password-stdin
+      elif [ "${harbor_registry_push}" != "${harbor_registry_host}" ] && [ -f /root/.docker/config.json ]; then
+        config_one_line="$(tr -d '\n' < /root/.docker/config.json)"
+        host_re="${harbor_registry_host//./\\.}"
+        auth_b64="$(printf '%s' "${config_one_line}" | sed -nE "s/.*\\\"(https:\\/\\/)?${host_re}\\\"[[:space:]]*:[[:space:]]*\\{[^}]*\\\"auth\\\"[[:space:]]*:[[:space:]]*\\\"([^\\\"]+)\\\".*/\\2/p" || true)"
+        if [ -n "${auth_b64:-}" ]; then
+          decoded="$(printf '%s' "${auth_b64}" | base64 -d 2>/dev/null || true)"
+          username="${decoded%%:*}"
+          password="${decoded#*:}"
+          if [ -n "${username:-}" ] && [ -n "${password:-}" ] && [ "${username}" != "${password}" ]; then
+            printf '%s' "${password}" | crane --insecure auth login "${harbor_registry_push}" --username "${username}" --password-stdin
+          else
+            echo "Failed to decode Harbor credentials from docker config; set HARBOR_USERNAME/HARBOR_PASSWORD." >&2
+          fi
+        else
+          echo "No auth entry found for ${harbor_registry_host} in docker config; Harbor publish may fail." >&2
+        fi
+      fi
+
+      export HARBOR_REGISTRY="${harbor_registry_push}"
   script:
     - |
       published=0
