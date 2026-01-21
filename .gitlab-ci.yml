@@ -660,7 +660,7 @@ deploy:docker:
         HARBOR_SEMVER_TAG="v0.1.${CI_PIPELINE_IID}"
         echo "Publishing fi-fhir to Harbor: ${HARBOR_IMAGE}:${HARBOR_SEMVER_TAG}"
         harbor_ok=0
-        if crane --insecure push docker-image.tar "${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}" && crane --insecure tag "${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}" main && crane --insecure tag "${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}" "${HARBOR_SEMVER_TAG}"; then
+        if crane --insecure push docker-image.tar "${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}" && crane --insecure push docker-image.tar "${HARBOR_IMAGE}:main" && crane --insecure push docker-image.tar "${HARBOR_IMAGE}:${HARBOR_SEMVER_TAG}"; then
           harbor_ok=1
         else
           echo "Harbor publish failed." >&2
@@ -772,7 +772,7 @@ deploy:docker-ui:
         HARBOR_SEMVER_TAG="v0.1.${CI_PIPELINE_IID}"
         echo "Publishing fi-fhir-ui to Harbor: ${HARBOR_IMAGE}:${HARBOR_SEMVER_TAG}"
         harbor_ok=0
-        if crane --insecure push docker-ui-image.tar "${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}" && crane --insecure tag "${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}" main && crane --insecure tag "${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}" "${HARBOR_SEMVER_TAG}"; then
+        if crane --insecure push docker-ui-image.tar "${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}" && crane --insecure push docker-ui-image.tar "${HARBOR_IMAGE}:main" && crane --insecure push docker-ui-image.tar "${HARBOR_IMAGE}:${HARBOR_SEMVER_TAG}"; then
           harbor_ok=1
         else
           echo "Harbor publish failed." >&2
