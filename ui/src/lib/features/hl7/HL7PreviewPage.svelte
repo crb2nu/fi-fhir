@@ -98,6 +98,14 @@
   ) {
     selectedPath = e.detail.path ?? null;
     selectedLocation = parseHL7Path(selectedPath);
+    activeTab = 'warnings';
+  }
+
+  function onInspectWarning(
+    e: CustomEvent<{ phase: string; code: string; message: string; path?: string | null }>
+  ) {
+    selectedPath = e.detail.path ?? null;
+    selectedLocation = parseHL7Path(selectedPath);
     activeTab = selectedLocation ? 'inspector' : 'warnings';
   }
 
@@ -516,7 +524,12 @@
           on:loadExamples={() => samplesStore.loadDemoSamples()}
         />
       {:else if activeTab === 'warnings'}
-        <WarningList groups={$warningsByPhase} {selectedPath} on:select={onSelectWarning} />
+        <WarningList
+          groups={$warningsByPhase}
+          {selectedPath}
+          on:select={onSelectWarning}
+          on:inspect={onInspectWarning}
+        />
       {:else if activeTab === 'events'}
         {#if $events.length === 0}
           <div class="empty">No semantic events extracted.</div>

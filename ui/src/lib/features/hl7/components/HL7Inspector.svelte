@@ -37,6 +37,29 @@
     return false;
   }
 
+  function repetitionSelected(segId: string, fieldNumber: number, repetitionIndex: number): boolean {
+    if (!selected) return false;
+    if (selected.segmentId !== segId) return false;
+    if (selected.kind !== 'repetition' && selected.kind !== 'repetition_component') return false;
+    return selected.field === fieldNumber && selected.repetition === repetitionIndex;
+  }
+
+  function repetitionComponentSelected(
+    segId: string,
+    fieldNumber: number,
+    repetitionIndex: number,
+    componentNumber: number
+  ): boolean {
+    if (!selected) return false;
+    if (selected.segmentId !== segId) return false;
+    if (selected.kind !== 'repetition_component') return false;
+    return (
+      selected.field === fieldNumber &&
+      selected.repetition === repetitionIndex &&
+      selected.component === componentNumber
+    );
+  }
+
   function selectionKey(): string {
     if (!selected) return '';
     switch (selected.kind) {
@@ -95,7 +118,37 @@
                 <span class="mono value">{f.raw || '∅'}</span>
               </div>
 
-              {#if f.components.length > 1}
+              {#if f.repetitions.length > 1}
+                <div class="reps">
+                  {#each f.repetitions as r (r.index)}
+                    <div
+                      class="rep"
+                      class:selected={repetitionSelected(seg.id, f.number, r.index)}
+                      data-hl7-key={seg.id + '-' + f.number + '[' + r.index + ']'}
+                    >
+                      <div class="rep-head">
+                        <span class="mono rep-label">{seg.id}-{f.number}[{r.index}]</span>
+                        <span class="mono rep-value">{r.raw || '∅'}</span>
+                      </div>
+
+                      {#if r.components.length > 1}
+                        <div class="components">
+                          {#each r.components as c, i (i)}
+                            <div
+                              class="component"
+                              class:selected={repetitionComponentSelected(seg.id, f.number, r.index, i + 1)}
+                              data-hl7-key={seg.id + '-' + f.number + '[' + r.index + '].' + (i + 1)}
+                            >
+                              <span class="mono comp-label">{seg.id}-{f.number}[{r.index}].{i + 1}</span>
+                              <span class="mono comp-value">{c || '∅'}</span>
+                            </div>
+                          {/each}
+                        </div>
+                      {/if}
+                    </div>
+                  {/each}
+                </div>
+              {:else if f.components.length > 1}
                 <div class="components">
                   {#each f.components as c, i (i)}
                     <div
@@ -219,6 +272,44 @@
     gap: 6px;
     padding-top: 10px;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .reps {
+    margin-top: 10px;
+    display: grid;
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .rep {
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.02);
+    padding: 10px;
+  }
+
+  .rep.selected {
+    border-color: rgba(59, 130, 246, 0.5);
+    background: rgba(59, 130, 246, 0.12);
+  }
+
+  .rep-head {
+    display: grid;
+    gap: 6px;
+  }
+
+  .rep-label {
+    color: rgba(229, 231, 235, 0.78);
+    font-weight: 800;
+    font-size: 0.85rem;
+  }
+
+  .rep-value {
+    color: rgba(229, 231, 235, 0.82);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .component {

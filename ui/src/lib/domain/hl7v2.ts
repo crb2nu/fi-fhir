@@ -9,6 +9,13 @@ export type HL7Delimiters = {
 export type HL7Field = {
   number: number; // 1-based HL7 field number (MSH-1 is the field separator)
   raw: string;
+  repetitions: HL7Repetition[];
+  components: string[]; // Back-compat: first repetition components
+};
+
+export type HL7Repetition = {
+  index: number; // 0-based repetition index
+  raw: string;
   components: string[];
 };
 
@@ -79,16 +86,19 @@ function parseSegmentLine(line: string, d: HL7Delimiters): HL7Segment | null {
     fields.push({
       number: 1,
       raw: d.field,
+      repetitions: [{ index: 0, raw: d.field, components: [d.field] }],
       components: [d.field]
     });
 
     for (let i = 1; i < parts.length; i++) {
       const num = i + 1; // parts[1] => MSH-2
       const value = parts[i] ?? '';
+      const repetitions = splitRepetitions(value, d.repetition, d.component);
       fields.push({
         number: num,
         raw: value,
-        components: splitComponents(value, d.component)
+        repetitions,
+        components: repetitions[0]?.components ?? ['']
       });
     }
   } else {
@@ -96,15 +106,29 @@ function parseSegmentLine(line: string, d: HL7Delimiters): HL7Segment | null {
     for (let i = 1; i < parts.length; i++) {
       const num = i;
       const value = parts[i] ?? '';
+      const repetitions = splitRepetitions(value, d.repetition, d.component);
       fields.push({
         number: num,
         raw: value,
-        components: splitComponents(value, d.component)
+        repetitions,
+        components: repetitions[0]?.components ?? ['']
       });
     }
   }
 
   return { id, fields, raw: line };
+}
+
+function splitRepetitions(value: string, repetitionSep: string, componentSep: string): HL7Repetition[] {
+  if (!value) {
+    return [{ index: 0, raw: '', components: [''] }];
+  }
+  const reps = value.split(repetitionSep);
+  return reps.map((raw, idx) => ({
+    index: idx,
+    raw,
+    components: splitComponents(raw, componentSep)
+  }));
 }
 
 function splitComponents(value: string, componentSep: string): string[] {
