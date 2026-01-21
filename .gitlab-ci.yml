@@ -537,6 +537,8 @@ build:docker-ui:
   image: docker:24
   services:
     - docker:24-dind
+  needs:
+    - lint:ui
   variables:
     DOCKER_HOST: tcp://localhost:2375
     DOCKER_TLS_CERTDIR: ""
