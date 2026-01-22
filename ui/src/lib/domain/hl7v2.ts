@@ -21,6 +21,8 @@ export type HL7Repetition = {
 
 export type HL7Segment = {
   id: string;
+  index: number; // 0-based segment index in message
+  occurrence: number; // 0-based occurrence index for this segment ID
   fields: HL7Field[];
   raw: string;
 };
@@ -44,10 +46,14 @@ export function parseHL7Message(raw: string): HL7Message {
 
   const delimiters = parseDelimiters(lines[0] ?? '');
   const segments: HL7Segment[] = [];
+  const occurrences = new Map<string, number>();
 
-  for (const line of lines) {
+  for (const [index, line] of lines.entries()) {
     const seg = parseSegmentLine(line, delimiters);
-    if (seg) segments.push(seg);
+    if (!seg) continue;
+    const occ = occurrences.get(seg.id) ?? 0;
+    occurrences.set(seg.id, occ + 1);
+    segments.push({ ...seg, index, occurrence: occ });
   }
 
   return { delimiters, segments };
@@ -70,7 +76,7 @@ function parseDelimiters(mshLine: string): HL7Delimiters {
   };
 }
 
-function parseSegmentLine(line: string, d: HL7Delimiters): HL7Segment | null {
+function parseSegmentLine(line: string, d: HL7Delimiters): Omit<HL7Segment, 'index' | 'occurrence'> | null {
   if (line.length < 3) return null;
   const id = line.slice(0, 3);
   const parts = line.split(d.field);

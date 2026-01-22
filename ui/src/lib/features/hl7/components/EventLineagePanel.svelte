@@ -13,6 +13,45 @@
   function hl7(path: string): string | null {
     return getHL7Value(message, parseHL7Path(path));
   }
+
+  function compact(s: string | null, max = 56): string {
+    const v = (s ?? '').trim();
+    if (!v) return '∅';
+    if (v.length <= max) return v;
+    return v.slice(0, max - 1) + '…';
+  }
+
+  $: obxSegments = message.segments.filter((s) => s.id === 'OBX');
+  $: obrSegments = message.segments.filter((s) => s.id === 'OBR');
+  let obxOccurrence = 0;
+  let obrOccurrence = 0;
+
+  $: if (obxSegments.length && obxOccurrence >= obxSegments.length) obxOccurrence = 0;
+  $: if (obrSegments.length && obrOccurrence >= obrSegments.length) obrOccurrence = 0;
+
+  function obxPath(field: number, component?: number): string {
+    return component
+      ? `OBX[${obxOccurrence}]-${field}.${component}`
+      : `OBX[${obxOccurrence}]-${field}`;
+  }
+
+  function obrPath(field: number, component?: number): string {
+    return component
+      ? `OBR[${obrOccurrence}]-${field}.${component}`
+      : `OBR[${obrOccurrence}]-${field}`;
+  }
+
+  function obxLabel(idx: number): string {
+    const key = `OBX[${idx}]-3`;
+    const id = compact(hl7(key), 44);
+    const value = compact(hl7(`OBX[${idx}]-5`), 24);
+    return `#${idx} ${id} → ${value}`;
+  }
+
+  function obrLabel(idx: number): string {
+    const key = `OBR[${idx}]-4`;
+    return `#${idx} ${compact(hl7(key), 56)}`;
+  }
 </script>
 
 {#if events.length === 0}
@@ -80,21 +119,92 @@
           {:else if ev.__typename === 'LabResultEvent'}
             <div class="section">
               <div class="section-title">Common HL7 pointers (ORU)</div>
-              <div class="note">
-                ORU messages usually contain multiple <span class="mono">OBX</span> segments; this view currently shows
-                only general pointers.
-              </div>
+              {#if obxSegments.length > 0}
+                <div class="pickers">
+                  <label class="picker">
+                    OBR
+                    <select class="select" bind:value={obrOccurrence}>
+                      {#if obrSegments.length === 0}
+                        <option value={0}>no OBR</option>
+                      {:else}
+                        {#each obrSegments as s (s.index)}
+                          <option value={s.occurrence}>{obrLabel(s.occurrence)}</option>
+                        {/each}
+                      {/if}
+                    </select>
+                  </label>
+
+                  <label class="picker">
+                    OBX
+                    <select class="select" bind:value={obxOccurrence}>
+                      {#each obxSegments as s (s.index)}
+                        <option value={s.occurrence}>{obxLabel(s.occurrence)}</option>
+                      {/each}
+                    </select>
+                  </label>
+                </div>
+              {:else}
+                <div class="note">No <span class="mono">OBX</span> segments found in this message.</div>
+              {/if}
+
               <div class="grid">
                 <button class="row" type="button" on:click={() => dispatch('inspectPath', { path: 'PID-3[0].1' })}>
                   <span class="k mono">PID-3[0].1</span>
                   <span class="v">{hl7('PID-3[0].1') ?? '∅'}</span>
                   <span class="hint">MRN</span>
                 </button>
-                <button class="row" type="button" on:click={() => dispatch('inspectPath', { path: 'OBR-4' })}>
-                  <span class="k mono">OBR-4</span>
-                  <span class="v">{hl7('OBR-4') ?? '∅'}</span>
-                  <span class="hint">order / test code</span>
-                </button>
+
+                {#if obrSegments.length > 0}
+                  <button class="row" type="button" on:click={() => dispatch('inspectPath', { path: obrPath(4) })}>
+                    <span class="k mono">{obrPath(4)}</span>
+                    <span class="v">{compact(hl7(obrPath(4)))}</span>
+                    <span class="hint">order / test</span>
+                  </button>
+                {/if}
+
+                {#if obxSegments.length > 0}
+                  <button class="row" type="button" on:click={() => dispatch('inspectPath', { path: `OBX[${obxOccurrence}]` })}>
+                    <span class="k mono">OBX[{obxOccurrence}]</span>
+                    <span class="v">{compact(hl7(`OBX[${obxOccurrence}]`), 72)}</span>
+                    <span class="hint">segment</span>
+                  </button>
+
+                  <button class="row" type="button" on:click={() => dispatch('inspectPath', { path: obxPath(2) })}>
+                    <span class="k mono">{obxPath(2)}</span>
+                    <span class="v">{compact(hl7(obxPath(2)))}</span>
+                    <span class="hint">value type</span>
+                  </button>
+
+                  <button class="row" type="button" on:click={() => dispatch('inspectPath', { path: obxPath(3) })}>
+                    <span class="k mono">{obxPath(3)}</span>
+                    <span class="v">{compact(hl7(obxPath(3)))}</span>
+                    <span class="hint">obs id</span>
+                  </button>
+
+                  <button class="row" type="button" on:click={() => dispatch('inspectPath', { path: obxPath(5) })}>
+                    <span class="k mono">{obxPath(5)}</span>
+                    <span class="v">{compact(hl7(obxPath(5)))}</span>
+                    <span class="hint">value</span>
+                  </button>
+
+                  <button class="row" type="button" on:click={() => dispatch('inspectPath', { path: obxPath(6) })}>
+                    <span class="k mono">{obxPath(6)}</span>
+                    <span class="v">{compact(hl7(obxPath(6)))}</span>
+                    <span class="hint">units</span>
+                  </button>
+
+                  <button class="row" type="button" on:click={() => dispatch('inspectPath', { path: obxPath(11) })}>
+                    <span class="k mono">{obxPath(11)}</span>
+                    <span class="v">{compact(hl7(obxPath(11)))}</span>
+                    <span class="hint">status</span>
+                  </button>
+
+                  <button class="row" type="button" on:click={() => dispatch('inspectPath', { path: obxPath(14) })}>
+                    <span class="k mono">{obxPath(14)}</span>
+                    <span class="v">{compact(hl7(obxPath(14)))}</span>
+                    <span class="hint">obs time</span>
+                  </button>
+                {/if}
               </div>
             </div>
           {:else}
@@ -169,6 +279,36 @@
   .grid {
     display: grid;
     gap: 8px;
+  }
+
+  .pickers {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+
+  .picker {
+    display: grid;
+    gap: 6px;
+    color: rgba(229, 231, 235, 0.8);
+    font-size: 0.9rem;
+    font-weight: 750;
+    min-width: 260px;
+  }
+
+  .select {
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.03);
+    color: rgba(229, 231, 235, 0.92);
+    outline: none;
+  }
+
+  .select:focus {
+    border-color: rgba(59, 130, 246, 0.45);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
   }
 
   .row {

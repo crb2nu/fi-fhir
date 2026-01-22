@@ -12,25 +12,36 @@
   let lastKey = '';
   let filter = '';
 
+  function selectedSegmentOccurrence(): number {
+    return selected?.segmentOccurrence ?? 0;
+  }
+
   function selectedSegmentId(): string | null {
     return selected ? selected.segmentId : null;
   }
 
   function isSelected(seg: HL7Segment) {
     const segId = selectedSegmentId();
-    return segId !== null && seg.id === segId;
+    return segId !== null && seg.id === segId && seg.occurrence === selectedSegmentOccurrence();
   }
 
-  function fieldSelected(segId: string, fieldNumber: number): boolean {
+  function fieldSelected(segId: string, segOccurrence: number, fieldNumber: number): boolean {
     if (!selected) return false;
     if (selected.segmentId !== segId) return false;
+    if (selectedSegmentOccurrence() !== segOccurrence) return false;
     if (selected.kind === 'segment') return false;
     return selected.field === fieldNumber;
   }
 
-  function componentSelected(segId: string, fieldNumber: number, componentNumber: number): boolean {
+  function componentSelected(
+    segId: string,
+    segOccurrence: number,
+    fieldNumber: number,
+    componentNumber: number
+  ): boolean {
     if (!selected) return false;
     if (selected.segmentId !== segId) return false;
+    if (selectedSegmentOccurrence() !== segOccurrence) return false;
     if (selected.kind === 'component') {
       return selected.field === fieldNumber && selected.component === componentNumber;
     }
@@ -40,21 +51,29 @@
     return false;
   }
 
-  function repetitionSelected(segId: string, fieldNumber: number, repetitionIndex: number): boolean {
+  function repetitionSelected(
+    segId: string,
+    segOccurrence: number,
+    fieldNumber: number,
+    repetitionIndex: number
+  ): boolean {
     if (!selected) return false;
     if (selected.segmentId !== segId) return false;
+    if (selectedSegmentOccurrence() !== segOccurrence) return false;
     if (selected.kind !== 'repetition' && selected.kind !== 'repetition_component') return false;
     return selected.field === fieldNumber && selected.repetition === repetitionIndex;
   }
 
   function repetitionComponentSelected(
     segId: string,
+    segOccurrence: number,
     fieldNumber: number,
     repetitionIndex: number,
     componentNumber: number
   ): boolean {
     if (!selected) return false;
     if (selected.segmentId !== segId) return false;
+    if (selectedSegmentOccurrence() !== segOccurrence) return false;
     if (selected.kind !== 'repetition_component') return false;
     return (
       selected.field === fieldNumber &&
@@ -65,17 +84,18 @@
 
   function selectionKey(): string {
     if (!selected) return '';
+    const segOcc = selected.segmentOccurrence ?? 0;
     switch (selected.kind) {
       case 'segment':
-        return `${selected.segmentId}`;
+        return `${selected.segmentId}[${segOcc}]`;
       case 'field':
-        return `${selected.segmentId}-${selected.field}`;
+        return `${selected.segmentId}[${segOcc}]-${selected.field}`;
       case 'component':
-        return `${selected.segmentId}-${selected.field}.${selected.component}`;
+        return `${selected.segmentId}[${segOcc}]-${selected.field}.${selected.component}`;
       case 'repetition':
-        return `${selected.segmentId}-${selected.field}[${selected.repetition}]`;
+        return `${selected.segmentId}[${segOcc}]-${selected.field}[${selected.repetition}]`;
       case 'repetition_component':
-        return `${selected.segmentId}-${selected.field}[${selected.repetition}].${selected.component}`;
+        return `${selected.segmentId}[${segOcc}]-${selected.field}[${selected.repetition}].${selected.component}`;
     }
   }
 
@@ -139,24 +159,24 @@
   {/if}
 
   <div class="segments">
-    {#each filteredSegments as seg, idx (idx)}
+    {#each filteredSegments as seg, idx (seg.index)}
       <details
         class="seg"
         open={idx < 3 || isSelected(seg)}
         data-selected={isSelected(seg)}
-        data-hl7-key={seg.id}
+        data-hl7-key={seg.id + '[' + seg.occurrence + ']'}
       >
         <summary class="summary">
           <span class="id mono">{seg.id}</span>
-          <span class="hint">{seg.fields.length} fields</span>
+          <span class="hint">#{seg.occurrence} • {seg.fields.length} fields</span>
         </summary>
 
         <div class="fields">
           {#each seg.fields as f (f.number)}
             <div
               class="field"
-              class:selected={fieldSelected(seg.id, f.number)}
-              data-hl7-key={seg.id + '-' + f.number}
+              class:selected={fieldSelected(seg.id, seg.occurrence, f.number)}
+              data-hl7-key={seg.id + '[' + seg.occurrence + ']-' + f.number}
             >
               <div class="field-head">
                 <span class="mono label">{seg.id}-{f.number}</span>
@@ -168,8 +188,8 @@
                   {#each f.repetitions as r (r.index)}
                     <div
                       class="rep"
-                      class:selected={repetitionSelected(seg.id, f.number, r.index)}
-                      data-hl7-key={seg.id + '-' + f.number + '[' + r.index + ']'}
+                      class:selected={repetitionSelected(seg.id, seg.occurrence, f.number, r.index)}
+                      data-hl7-key={seg.id + '[' + seg.occurrence + ']-' + f.number + '[' + r.index + ']'}
                     >
                       <div class="rep-head">
                         <span class="mono rep-label">{seg.id}-{f.number}[{r.index}]</span>
@@ -181,8 +201,8 @@
                           {#each r.components as c, i (i)}
                             <div
                               class="component"
-                              class:selected={repetitionComponentSelected(seg.id, f.number, r.index, i + 1)}
-                              data-hl7-key={seg.id + '-' + f.number + '[' + r.index + '].' + (i + 1)}
+                              class:selected={repetitionComponentSelected(seg.id, seg.occurrence, f.number, r.index, i + 1)}
+                              data-hl7-key={seg.id + '[' + seg.occurrence + ']-' + f.number + '[' + r.index + '].' + (i + 1)}
                             >
                               <span class="mono comp-label">{seg.id}-{f.number}[{r.index}].{i + 1}</span>
                               <span class="mono comp-value">{c || '∅'}</span>
@@ -198,8 +218,8 @@
                   {#each f.components as c, i (i)}
                     <div
                       class="component"
-                      class:selected={componentSelected(seg.id, f.number, i + 1)}
-                      data-hl7-key={seg.id + '-' + f.number + '.' + (i + 1)}
+                      class:selected={componentSelected(seg.id, seg.occurrence, f.number, i + 1)}
+                      data-hl7-key={seg.id + '[' + seg.occurrence + ']-' + f.number + '.' + (i + 1)}
                     >
                       <span class="mono comp-label">{seg.id}-{f.number}.{i + 1}</span>
                       <span class="mono comp-value">{c || '∅'}</span>
