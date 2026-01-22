@@ -609,6 +609,14 @@ deploy:docker:
       if [ -n "${HARBOR_REGISTRY_IP:-}" ]; then
         echo "Harbor IP override enabled: ${harbor_registry_host} -> ${HARBOR_REGISTRY_IP}"
         harbor_registry_push="${HARBOR_REGISTRY_IP}"
+        HARBOR_REGISTRY_PORT="${HARBOR_REGISTRY_PORT:-443}"
+        case "${harbor_registry_push}" in
+          *:*)
+            ;;
+          *)
+            harbor_registry_push="${harbor_registry_push}:${HARBOR_REGISTRY_PORT}"
+            ;;
+        esac
       fi
 
       # Prefer explicit credentials if provided; otherwise, if pushing via IP, derive creds
@@ -662,7 +670,24 @@ deploy:docker:
         HARBOR_SEMVER_TAG="v0.1.${CI_PIPELINE_IID}"
         echo "Publishing fi-fhir to Harbor: ${HARBOR_IMAGE}:${HARBOR_SEMVER_TAG}"
         harbor_ok=0
-        if crane --insecure push docker-image.tar "${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}" && crane --insecure push docker-image.tar "${HARBOR_IMAGE}:main" && crane --insecure push docker-image.tar "${HARBOR_IMAGE}:${HARBOR_SEMVER_TAG}"; then
+        crane_retry() {
+          tries="$1"
+          shift
+          i=1
+          while [ "$i" -le "$tries" ]; do
+            if "$@"; then
+              return 0
+            fi
+            echo "crane failed (attempt ${i}/${tries}); retrying..." >&2
+            sleep $((i * 5))
+            i=$((i + 1))
+          done
+          return 1
+        }
+
+        if crane_retry 5 crane --insecure push docker-image.tar "${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}" \
+          && crane_retry 5 crane --insecure tag "${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}" main \
+          && crane_retry 5 crane --insecure tag "${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}" "${HARBOR_SEMVER_TAG}"; then
           harbor_ok=1
         else
           echo "Harbor publish failed." >&2
@@ -721,6 +746,14 @@ deploy:docker-ui:
       if [ -n "${HARBOR_REGISTRY_IP:-}" ]; then
         echo "Harbor IP override enabled: ${harbor_registry_host} -> ${HARBOR_REGISTRY_IP}"
         harbor_registry_push="${HARBOR_REGISTRY_IP}"
+        HARBOR_REGISTRY_PORT="${HARBOR_REGISTRY_PORT:-443}"
+        case "${harbor_registry_push}" in
+          *:*)
+            ;;
+          *)
+            harbor_registry_push="${harbor_registry_push}:${HARBOR_REGISTRY_PORT}"
+            ;;
+        esac
       fi
 
       # Prefer explicit credentials if provided; otherwise, if pushing via IP, derive creds
@@ -774,7 +807,24 @@ deploy:docker-ui:
         HARBOR_SEMVER_TAG="v0.1.${CI_PIPELINE_IID}"
         echo "Publishing fi-fhir-ui to Harbor: ${HARBOR_IMAGE}:${HARBOR_SEMVER_TAG}"
         harbor_ok=0
-        if crane --insecure push docker-ui-image.tar "${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}" && crane --insecure push docker-ui-image.tar "${HARBOR_IMAGE}:main" && crane --insecure push docker-ui-image.tar "${HARBOR_IMAGE}:${HARBOR_SEMVER_TAG}"; then
+        crane_retry() {
+          tries="$1"
+          shift
+          i=1
+          while [ "$i" -le "$tries" ]; do
+            if "$@"; then
+              return 0
+            fi
+            echo "crane failed (attempt ${i}/${tries}); retrying..." >&2
+            sleep $((i * 5))
+            i=$((i + 1))
+          done
+          return 1
+        }
+
+        if crane_retry 5 crane --insecure push docker-ui-image.tar "${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}" \
+          && crane_retry 5 crane --insecure tag "${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}" main \
+          && crane_retry 5 crane --insecure tag "${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}" "${HARBOR_SEMVER_TAG}"; then
           harbor_ok=1
         else
           echo "Harbor publish failed." >&2
