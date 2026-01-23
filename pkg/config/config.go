@@ -26,6 +26,9 @@ type Config struct {
 	// Terminology configuration (version pins, DB URL, enforcement policy)
 	Terminology TerminologyConfig `yaml:"terminology" json:"terminology"`
 
+	// LLM configuration for AI-powered features
+	LLM LLMConfig `yaml:"llm" json:"llm"`
+
 	// Database configuration
 	Database DatabaseConfig `yaml:"database" json:"database"`
 
@@ -142,6 +145,138 @@ type SecretsConfig struct {
 	Options  map[string]string `yaml:"options" json:"options"`
 }
 
+// LLMConfig holds LLM (Large Language Model) settings for AI-powered features.
+type LLMConfig struct {
+	// Enabled controls whether LLM features are active
+	Enabled bool `yaml:"enabled" json:"enabled"`
+
+	// BaseURL is the OpenAI-compatible API endpoint
+	BaseURL string `yaml:"base_url" json:"base_url"`
+
+	// APIKey for authenticating with the LLM service
+	APIKey string `yaml:"api_key" json:"api_key"`
+
+	// DefaultModel is the fast model for simple tasks (explanations, etc.)
+	DefaultModel string `yaml:"default_model" json:"default_model"`
+
+	// QualityModel is the higher-quality model for complex tasks (extraction, reasoning)
+	QualityModel string `yaml:"quality_model" json:"quality_model"`
+
+	// Timeout for LLM API calls
+	Timeout time.Duration `yaml:"timeout" json:"timeout"`
+
+	// MaxRetries for failed LLM calls
+	MaxRetries int `yaml:"max_retries" json:"max_retries"`
+
+	// Extraction settings for clinical entity extraction
+	Extraction LLMExtractionConfig `yaml:"extraction" json:"extraction"`
+
+	// ExplainWarnings settings for parse warning explanations
+	ExplainWarnings LLMExplainWarningsConfig `yaml:"explain_warnings" json:"explain_warnings"`
+
+	// DataQuality settings for data quality analysis
+	DataQuality LLMDataQualityConfig `yaml:"data_quality" json:"data_quality"`
+
+	// SemanticTerminology settings for embedding-based terminology features
+	SemanticTerminology LLMSemanticTerminologyConfig `yaml:"semantic_terminology" json:"semantic_terminology"`
+
+	// Copilot settings for workflow generation and CEL assistance
+	Copilot LLMCopilotConfig `yaml:"copilot" json:"copilot"`
+}
+
+// LLMExtractionConfig holds settings for clinical entity extraction.
+type LLMExtractionConfig struct {
+	// Enabled controls whether extraction is available
+	Enabled bool `yaml:"enabled" json:"enabled"`
+
+	// Model overrides the default model for extraction (uses QualityModel if empty)
+	Model string `yaml:"model" json:"model"`
+
+	// DocumentTypes to process for extraction
+	DocumentTypes []string `yaml:"document_types" json:"document_types"`
+
+	// MinConfidence threshold for extracted entities
+	MinConfidence float64 `yaml:"min_confidence" json:"min_confidence"`
+}
+
+// LLMExplainWarningsConfig holds settings for parse warning explanations.
+type LLMExplainWarningsConfig struct {
+	// Enabled controls whether warning explanation is available
+	Enabled bool `yaml:"enabled" json:"enabled"`
+
+	// Model overrides the default model (uses DefaultModel if empty)
+	Model string `yaml:"model" json:"model"`
+
+	// BatchSize for processing multiple warnings
+	BatchSize int `yaml:"batch_size" json:"batch_size"`
+
+	// CacheTTL for caching explanations of common warnings
+	CacheTTL time.Duration `yaml:"cache_ttl" json:"cache_ttl"`
+}
+
+// LLMDataQualityConfig holds settings for data quality analysis.
+type LLMDataQualityConfig struct {
+	// Enabled controls whether quality analysis is available
+	Enabled bool `yaml:"enabled" json:"enabled"`
+
+	// Model overrides the default model (uses QualityModel if empty)
+	Model string `yaml:"model" json:"model"`
+
+	// MinScore threshold for acceptable data quality
+	MinScore float64 `yaml:"min_score" json:"min_score"`
+}
+
+// LLMSemanticTerminologyConfig holds settings for embedding-based terminology features.
+type LLMSemanticTerminologyConfig struct {
+	// Enabled controls whether semantic terminology features are available
+	Enabled bool `yaml:"enabled" json:"enabled"`
+
+	// EmbeddingModel for generating embeddings
+	EmbeddingModel string `yaml:"embedding_model" json:"embedding_model"`
+
+	// EmbeddingBaseURL for the embedding service (if different from LLM BaseURL)
+	EmbeddingBaseURL string `yaml:"embedding_base_url" json:"embedding_base_url"`
+
+	// EmbeddingDimensions for the embedding model
+	EmbeddingDimensions int `yaml:"embedding_dimensions" json:"embedding_dimensions"`
+
+	// QdrantURL for the vector database
+	QdrantURL string `yaml:"qdrant_url" json:"qdrant_url"`
+
+	// QdrantAPIKey for authenticating with Qdrant
+	QdrantAPIKey string `yaml:"qdrant_api_key" json:"qdrant_api_key"`
+
+	// IndexOnStartup controls whether to build/verify indexes at startup
+	IndexOnStartup bool `yaml:"index_on_startup" json:"index_on_startup"`
+
+	// DefaultMinScore for semantic search results
+	DefaultMinScore float64 `yaml:"default_min_score" json:"default_min_score"`
+
+	// DefaultMaxResults for semantic search
+	DefaultMaxResults int `yaml:"default_max_results" json:"default_max_results"`
+
+	// EnableFeedbackLearning for code suggestion improvement
+	EnableFeedbackLearning bool `yaml:"enable_feedback_learning" json:"enable_feedback_learning"`
+
+	// FeedbackCollection name in Qdrant
+	FeedbackCollection string `yaml:"feedback_collection" json:"feedback_collection"`
+}
+
+// LLMCopilotConfig holds settings for workflow copilot and CEL assistance.
+type LLMCopilotConfig struct {
+	// Enabled controls whether copilot features are available
+	Enabled bool `yaml:"enabled" json:"enabled"`
+
+	// Model overrides the default model (uses DefaultModel if empty)
+	Model string `yaml:"model" json:"model"`
+
+	// MaxTokens for generated workflows
+	MaxTokens int `yaml:"max_tokens" json:"max_tokens"`
+
+	// Temperature for generation (lower = more deterministic)
+	Temperature float64 `yaml:"temperature" json:"temperature"`
+}
+
 // Default returns a Config with sensible defaults.
 func Default() *Config {
 	return &Config{
@@ -168,6 +303,42 @@ func Default() *Config {
 		Terminology: TerminologyConfig{
 			Pins:   make(map[string]string),
 			Policy: "warn",
+		},
+		LLM: LLMConfig{
+			Enabled:      false, // Disabled by default, enable explicitly
+			BaseURL:      "http://litellm.ai.svc.cluster.local:8000/v1",
+			DefaultModel: "qwen3-8b-fast",
+			QualityModel: "qwen3-14b-quality",
+			Timeout:      30 * time.Second,
+			MaxRetries:   3,
+			Extraction: LLMExtractionConfig{
+				Enabled:       true,
+				DocumentTypes: []string{"progress_note", "discharge_summary", "consult_note"},
+				MinConfidence: 0.7,
+			},
+			ExplainWarnings: LLMExplainWarningsConfig{
+				Enabled:   true,
+				BatchSize: 10,
+				CacheTTL:  24 * time.Hour,
+			},
+			DataQuality: LLMDataQualityConfig{
+				Enabled:  true,
+				MinScore: 0.6,
+			},
+			SemanticTerminology: LLMSemanticTerminologyConfig{
+				Enabled:             true,
+				EmbeddingModel:      "bge-large-embeddings",
+				EmbeddingDimensions: 1024,
+				QdrantURL:           "http://qdrant.ai.svc.cluster.local:6333",
+				DefaultMinScore:     0.7,
+				DefaultMaxResults:   10,
+				FeedbackCollection:  "fi_fhir_feedback",
+			},
+			Copilot: LLMCopilotConfig{
+				Enabled:     true,
+				MaxTokens:   2048,
+				Temperature: 0.2,
+			},
 		},
 		Database: DatabaseConfig{
 			Driver:          "postgres",
@@ -292,6 +463,50 @@ func (c *Config) ApplyEnv() {
 		c.Terminology.Pins = parseKeyValueList(pinsRaw)
 	}
 
+	// LLM
+	c.LLM.Enabled = getEnvBool("FI_FHIR_LLM_ENABLED", c.LLM.Enabled)
+	c.LLM.BaseURL = getEnvString("FI_FHIR_LLM_BASE_URL", c.LLM.BaseURL)
+	c.LLM.APIKey = getEnvString("FI_FHIR_LLM_API_KEY", c.LLM.APIKey)
+	c.LLM.DefaultModel = getEnvString("FI_FHIR_LLM_DEFAULT_MODEL", c.LLM.DefaultModel)
+	c.LLM.QualityModel = getEnvString("FI_FHIR_LLM_QUALITY_MODEL", c.LLM.QualityModel)
+	c.LLM.Timeout = getEnvDuration("FI_FHIR_LLM_TIMEOUT", c.LLM.Timeout)
+	c.LLM.MaxRetries = getEnvInt("FI_FHIR_LLM_MAX_RETRIES", c.LLM.MaxRetries)
+
+	// LLM Extraction
+	c.LLM.Extraction.Enabled = getEnvBool("FI_FHIR_LLM_EXTRACTION_ENABLED", c.LLM.Extraction.Enabled)
+	c.LLM.Extraction.Model = getEnvString("FI_FHIR_LLM_EXTRACTION_MODEL", c.LLM.Extraction.Model)
+	c.LLM.Extraction.MinConfidence = getEnvFloat("FI_FHIR_LLM_EXTRACTION_MIN_CONFIDENCE", c.LLM.Extraction.MinConfidence)
+
+	// LLM Warning Explanation
+	c.LLM.ExplainWarnings.Enabled = getEnvBool("FI_FHIR_LLM_EXPLAIN_WARNINGS_ENABLED", c.LLM.ExplainWarnings.Enabled)
+	c.LLM.ExplainWarnings.Model = getEnvString("FI_FHIR_LLM_EXPLAIN_WARNINGS_MODEL", c.LLM.ExplainWarnings.Model)
+	c.LLM.ExplainWarnings.BatchSize = getEnvInt("FI_FHIR_LLM_EXPLAIN_WARNINGS_BATCH_SIZE", c.LLM.ExplainWarnings.BatchSize)
+	c.LLM.ExplainWarnings.CacheTTL = getEnvDuration("FI_FHIR_LLM_EXPLAIN_WARNINGS_CACHE_TTL", c.LLM.ExplainWarnings.CacheTTL)
+
+	// LLM Data Quality
+	c.LLM.DataQuality.Enabled = getEnvBool("FI_FHIR_LLM_DATA_QUALITY_ENABLED", c.LLM.DataQuality.Enabled)
+	c.LLM.DataQuality.Model = getEnvString("FI_FHIR_LLM_DATA_QUALITY_MODEL", c.LLM.DataQuality.Model)
+	c.LLM.DataQuality.MinScore = getEnvFloat("FI_FHIR_LLM_DATA_QUALITY_MIN_SCORE", c.LLM.DataQuality.MinScore)
+
+	// LLM Semantic Terminology
+	c.LLM.SemanticTerminology.Enabled = getEnvBool("FI_FHIR_LLM_SEMANTIC_ENABLED", c.LLM.SemanticTerminology.Enabled)
+	c.LLM.SemanticTerminology.EmbeddingModel = getEnvString("FI_FHIR_LLM_EMBEDDING_MODEL", c.LLM.SemanticTerminology.EmbeddingModel)
+	c.LLM.SemanticTerminology.EmbeddingBaseURL = getEnvString("FI_FHIR_LLM_EMBEDDING_BASE_URL", c.LLM.SemanticTerminology.EmbeddingBaseURL)
+	c.LLM.SemanticTerminology.EmbeddingDimensions = getEnvInt("FI_FHIR_LLM_EMBEDDING_DIMENSIONS", c.LLM.SemanticTerminology.EmbeddingDimensions)
+	c.LLM.SemanticTerminology.QdrantURL = getEnvString("FI_FHIR_LLM_QDRANT_URL", c.LLM.SemanticTerminology.QdrantURL)
+	c.LLM.SemanticTerminology.QdrantAPIKey = getEnvString("FI_FHIR_LLM_QDRANT_API_KEY", c.LLM.SemanticTerminology.QdrantAPIKey)
+	c.LLM.SemanticTerminology.IndexOnStartup = getEnvBool("FI_FHIR_LLM_INDEX_ON_STARTUP", c.LLM.SemanticTerminology.IndexOnStartup)
+	c.LLM.SemanticTerminology.DefaultMinScore = getEnvFloat("FI_FHIR_LLM_SEMANTIC_MIN_SCORE", c.LLM.SemanticTerminology.DefaultMinScore)
+	c.LLM.SemanticTerminology.DefaultMaxResults = getEnvInt("FI_FHIR_LLM_SEMANTIC_MAX_RESULTS", c.LLM.SemanticTerminology.DefaultMaxResults)
+	c.LLM.SemanticTerminology.EnableFeedbackLearning = getEnvBool("FI_FHIR_LLM_FEEDBACK_LEARNING", c.LLM.SemanticTerminology.EnableFeedbackLearning)
+	c.LLM.SemanticTerminology.FeedbackCollection = getEnvString("FI_FHIR_LLM_FEEDBACK_COLLECTION", c.LLM.SemanticTerminology.FeedbackCollection)
+
+	// LLM Copilot
+	c.LLM.Copilot.Enabled = getEnvBool("FI_FHIR_LLM_COPILOT_ENABLED", c.LLM.Copilot.Enabled)
+	c.LLM.Copilot.Model = getEnvString("FI_FHIR_LLM_COPILOT_MODEL", c.LLM.Copilot.Model)
+	c.LLM.Copilot.MaxTokens = getEnvInt("FI_FHIR_LLM_COPILOT_MAX_TOKENS", c.LLM.Copilot.MaxTokens)
+	c.LLM.Copilot.Temperature = getEnvFloat("FI_FHIR_LLM_COPILOT_TEMPERATURE", c.LLM.Copilot.Temperature)
+
 	// Database
 	c.Database.Driver = getEnvString("FI_FHIR_DATABASE_DRIVER", c.Database.Driver)
 	c.Database.Host = getEnvString("FI_FHIR_DATABASE_HOST", c.Database.Host)
@@ -370,6 +585,67 @@ func (c *Config) Validate() []error {
 		}
 		if strings.TrimSpace(ver) == "" {
 			errs = append(errs, fmt.Errorf("terminology.pins.%s must be non-empty", strings.TrimSpace(vocab)))
+		}
+	}
+
+	// LLM validation
+	if c.LLM.Enabled {
+		if c.LLM.BaseURL == "" {
+			errs = append(errs, fmt.Errorf("llm.base_url is required when LLM is enabled"))
+		} else if !strings.HasPrefix(c.LLM.BaseURL, "http://") && !strings.HasPrefix(c.LLM.BaseURL, "https://") {
+			errs = append(errs, fmt.Errorf("llm.base_url must start with http:// or https://"))
+		}
+		if c.LLM.DefaultModel == "" {
+			errs = append(errs, fmt.Errorf("llm.default_model is required when LLM is enabled"))
+		}
+		if c.LLM.Timeout < 1*time.Second {
+			errs = append(errs, fmt.Errorf("llm.timeout must be at least 1 second"))
+		}
+		if c.LLM.MaxRetries < 0 {
+			errs = append(errs, fmt.Errorf("llm.max_retries cannot be negative"))
+		}
+
+		// Extraction validation
+		if c.LLM.Extraction.Enabled {
+			if c.LLM.Extraction.MinConfidence < 0 || c.LLM.Extraction.MinConfidence > 1 {
+				errs = append(errs, fmt.Errorf("llm.extraction.min_confidence must be between 0.0 and 1.0"))
+			}
+		}
+
+		// Data quality validation
+		if c.LLM.DataQuality.Enabled {
+			if c.LLM.DataQuality.MinScore < 0 || c.LLM.DataQuality.MinScore > 1 {
+				errs = append(errs, fmt.Errorf("llm.data_quality.min_score must be between 0.0 and 1.0"))
+			}
+		}
+
+		// Semantic terminology validation
+		if c.LLM.SemanticTerminology.Enabled {
+			if c.LLM.SemanticTerminology.QdrantURL == "" {
+				errs = append(errs, fmt.Errorf("llm.semantic_terminology.qdrant_url is required when semantic terminology is enabled"))
+			}
+			if c.LLM.SemanticTerminology.EmbeddingModel == "" {
+				errs = append(errs, fmt.Errorf("llm.semantic_terminology.embedding_model is required when semantic terminology is enabled"))
+			}
+			if c.LLM.SemanticTerminology.EmbeddingDimensions < 1 {
+				errs = append(errs, fmt.Errorf("llm.semantic_terminology.embedding_dimensions must be at least 1"))
+			}
+			if c.LLM.SemanticTerminology.DefaultMinScore < 0 || c.LLM.SemanticTerminology.DefaultMinScore > 1 {
+				errs = append(errs, fmt.Errorf("llm.semantic_terminology.default_min_score must be between 0.0 and 1.0"))
+			}
+			if c.LLM.SemanticTerminology.DefaultMaxResults < 1 {
+				errs = append(errs, fmt.Errorf("llm.semantic_terminology.default_max_results must be at least 1"))
+			}
+		}
+
+		// Copilot validation
+		if c.LLM.Copilot.Enabled {
+			if c.LLM.Copilot.Temperature < 0 || c.LLM.Copilot.Temperature > 2 {
+				errs = append(errs, fmt.Errorf("llm.copilot.temperature must be between 0.0 and 2.0"))
+			}
+			if c.LLM.Copilot.MaxTokens < 1 {
+				errs = append(errs, fmt.Errorf("llm.copilot.max_tokens must be at least 1"))
+			}
 		}
 	}
 
