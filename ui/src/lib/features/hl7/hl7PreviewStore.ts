@@ -1,5 +1,5 @@
 import { derived, writable } from 'svelte/store';
-import type { ParsePreviewQuery } from '$lib/gen/graphql';
+import type { ParsePreviewQuery, ExplainedWarning } from '$lib/gen/graphql';
 import { groupWarningsByPhase } from '$lib/domain/warnings';
 import { parseHL7Message } from '$lib/domain/hl7v2';
 
@@ -34,5 +34,37 @@ export function createHL7PreviewStore() {
 
   const hl7 = derived(state, ($s) => parseHL7Message($s.data));
 
-  return { state, warningsByPhase, events, hl7 };
+  /**
+   * Updates a warning in the store with explanation data from the LLM.
+   */
+  function updateWarningExplanation(code: string, explanation: ExplainedWarning) {
+    state.update((s) => {
+      if (!s.result?.parsePreview.warnings) return s;
+
+      const warnings = s.result.parsePreview.warnings.map((w) =>
+        w.code === code
+          ? {
+              ...w,
+              explanation: explanation.explanation,
+              fixSuggestion: explanation.fixSuggestion,
+              impact: explanation.impact,
+              fromCache: explanation.fromCache
+            }
+          : w
+      );
+
+      return {
+        ...s,
+        result: {
+          ...s.result,
+          parsePreview: {
+            ...s.result.parsePreview,
+            warnings
+          }
+        }
+      };
+    });
+  }
+
+  return { state, warningsByPhase, events, hl7, updateWarningExplanation };
 }

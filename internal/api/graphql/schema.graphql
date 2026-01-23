@@ -366,6 +366,30 @@ type ParseWarning {
   code: String!
   message: String!
   path: String
+  # LLM-generated fields (optional, populated on-demand or via explainWarnings query)
+  explanation: String
+  fixSuggestion: String
+  impact: String
+  severity: String          # "info", "warning", "error"
+  fromCache: Boolean
+}
+
+# Input type for requesting warning explanations
+input ParseWarningInput {
+  phase: String!
+  code: String!
+  message: String!
+  path: String
+  severity: String
+}
+
+# Result from explainWarnings query
+type ExplainedWarning {
+  code: String!
+  explanation: String!
+  fixSuggestion: String
+  impact: String
+  fromCache: Boolean!
 }
 
 type ParseResult {
@@ -917,4 +941,11 @@ extend type Query {
     source: String
     profileId: ID
   ): ParseResult!
+
+  # Explain warnings using LLM (with caching)
+  # Returns human-readable explanations for parse warnings
+  explainWarnings(
+    warnings: [ParseWarningInput!]!
+    format: SourceFormat!
+  ): [ExplainedWarning!]!
 }

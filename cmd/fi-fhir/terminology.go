@@ -32,6 +32,8 @@ func runTerminology(args []string) error {
 		return runTerminologyLoad(args[1:])
 	case "crosswalk":
 		return runTerminologyCrosswalk(args[1:])
+	case "search":
+		return runTerminologySearch(args[1:])
 	case "-h", "--help", "help":
 		printTerminologyUsage()
 		return nil
@@ -53,6 +55,7 @@ Subcommands:
   drop      Drop the terminology schema (WARNING: deletes all data)
   load      Load terminology data from files (LOINC, UMLS, SNOMED, etc.)
   crosswalk Translate codes between vocabularies
+  search    Semantic search for terminology codes (LLM embeddings)
 
 Options:
   --db      PostgreSQL connection string (or FI_FHIR_TERMINOLOGY_DB_URL env)
@@ -80,7 +83,10 @@ Examples:
   fi-fhir terminology load snomed /path/to/RF2/ --version 2024-03
 
   # Cross-walk a code between vocabularies
-  fi-fhir terminology crosswalk E11.9 --from ICD10CM --to SNOMEDCT_US`)
+  fi-fhir terminology crosswalk E11.9 --from ICD10CM --to SNOMEDCT_US
+
+  # Semantic search for terminology codes (requires Qdrant)
+  fi-fhir terminology search --query "blood glucose" --vocabulary loinc --limit 10`)
 }
 
 func getTerminologyDBURL(args []string) string {

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"reflect"
 	"time"
+
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm"
 )
 
 // Engine processes events through workflow routes.
@@ -18,6 +20,7 @@ type Engine struct {
 	metrics      Metrics
 	tracer       Tracer
 	logger       Logger
+	llmClient    llm.Client
 }
 
 // ActionHandler executes a specific action type.
@@ -189,6 +192,24 @@ func (e *Engine) GetDLQ() DeadLetterQueue {
 	return e.dlq
 }
 
+// SetLLMClient configures an LLM client for AI-powered actions.
+// When set, this enables the following actions:
+//   - llm_extract: Extract clinical entities from unstructured text
+//   - llm_quality_check: Perform data quality analysis
+func (e *Engine) SetLLMClient(client llm.Client) {
+	e.llmClient = client
+	if client != nil {
+		// Register LLM-powered actions
+		e.RegisterAction("llm_extract", makeLLMExtractAction(client))
+		e.RegisterAction("llm_quality_check", makeLLMQualityCheckAction(client))
+	}
+}
+
+// GetLLMClient returns the configured LLM client, or nil if not set.
+func (e *Engine) GetLLMClient() llm.Client {
+	return e.llmClient
+}
+
 // RegisterAction registers a custom action handler.
 func (e *Engine) RegisterAction(name string, handler ActionHandler) {
 	e.actions[name] = handler
@@ -255,7 +276,7 @@ func (e *Engine) ProcessWithContext(ctx context.Context, event interface{}) *Res
 		// Apply transforms
 		transformed := event
 		for i, transform := range route.Transforms {
-			_, transformSpan := e.tracer.StartSpan(routeCtx, SpanNameTransform,
+			transformCtx, transformSpan := e.tracer.StartSpan(routeCtx, SpanNameTransform,
 				WithAttributes(
 					Attr(AttrTransformType, getTransformType(transform)),
 					Attr("transform.index", i),
@@ -263,7 +284,7 @@ func (e *Engine) ProcessWithContext(ctx context.Context, event interface{}) *Res
 			)
 
 			var err error
-			transformed, err = e.transformer.Apply(transformed, transform)
+			transformed, err = e.transformer.ApplyWithContext(transformCtx, transformed, transform)
 			if err != nil {
 				transformSpan.RecordError(err)
 				transformSpan.SetStatus(SpanStatusError, err.Error())

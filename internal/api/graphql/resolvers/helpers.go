@@ -4,6 +4,7 @@ package resolvers
 // These are separated from schema.resolvers.go so gqlgen doesn't try to manage them.
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/store"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/explain"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 )
 
@@ -749,4 +751,63 @@ func incrementVersion(version string) string {
 		return "1.0.1"
 	}
 	return fmt.Sprintf("%s.%s.%d", parts[0], parts[1], patch+1)
+}
+
+// =============================================================================
+// LLM Warning Explainer Helpers
+// =============================================================================
+
+// derefStr dereferences a string pointer, returning empty string if nil.
+func derefStr(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+// parseWarningForExplain is an intermediate type for passing warnings to the explainer.
+type parseWarningForExplain struct {
+	Phase    string
+	Code     string
+	Message  string
+	Path     string
+	Severity string
+}
+
+// convertToEventsSourceFormat converts GraphQL SourceFormat to events.SourceFormat.
+func convertToEventsSourceFormat(format model.SourceFormat) events.SourceFormat {
+	switch format {
+	case model.SourceFormatHL7v2:
+		return events.FormatHL7v2
+	case model.SourceFormatFHIR:
+		return events.FormatFHIR
+	case model.SourceFormatCSV:
+		return events.FormatCSV
+	case model.SourceFormatEDI837:
+		return events.FormatEDI837
+	case model.SourceFormatEDI835:
+		return events.FormatEDI835
+	case model.SourceFormatCDA:
+		return events.FormatCDA
+	default:
+		return events.FormatHL7v2
+	}
+}
+
+// explainWarningsBatch calls the WarningExplainer to generate explanations for warnings.
+func (r *queryResolver) explainWarningsBatch(ctx context.Context, warnings []parseWarningForExplain, format events.SourceFormat) ([]explain.ExplainedWarning, error) {
+	// Convert to events.ParseWarning
+	eventWarnings := make([]events.ParseWarning, len(warnings))
+	for i, w := range warnings {
+		eventWarnings[i] = events.ParseWarning{
+			Phase:    w.Phase,
+			Code:     w.Code,
+			Message:  w.Message,
+			Path:     w.Path,
+			Severity: w.Severity,
+		}
+	}
+
+	// Call the explainer batch method
+	return r.WarningExplainer.ExplainBatch(ctx, eventWarnings, format)
 }

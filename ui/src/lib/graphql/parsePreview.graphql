@@ -103,6 +103,12 @@ query ParsePreview($format: SourceFormat!, $data: String!, $source: String) {
       code
       message
       path
+      # LLM-generated fields
+      explanation
+      fixSuggestion
+      impact
+      severity
+      fromCache
     }
   }
 }
@@ -212,6 +218,12 @@ query ParsePreviewWithProfile($format: SourceFormat!, $data: String!, $source: S
       code
       message
       path
+      # LLM-generated fields
+      explanation
+      fixSuggestion
+      impact
+      severity
+      fromCache
     }
   }
 }

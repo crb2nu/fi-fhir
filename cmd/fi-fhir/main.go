@@ -1874,6 +1874,12 @@ func runWorkflow(args []string) error {
 		return runWorkflowSimulate(args[1:])
 	case "loadtest":
 		return runWorkflowLoadtest(args[1:])
+	case "generate":
+		return runWorkflowGenerate(args[1:])
+	case "explain":
+		return runWorkflowExplain(args[1:])
+	case "cel":
+		return runWorkflowCEL(args[1:])
 	case "help", "--help", "-h":
 		printWorkflowUsage()
 		return nil
@@ -2623,6 +2629,9 @@ Subcommands:
   replay    Replay recorded events and compare results
   simulate  Process events with mock actions (no side effects)
   loadtest  Run load tests against workflow configuration
+  generate  Generate workflow YAML from natural language description (LLM)
+  explain   Explain workflow configuration in plain English (LLM)
+  cel       Generate CEL expressions from natural language (LLM)
 
 Options:
   -c, --config <file>   Workflow YAML configuration file
@@ -2651,7 +2660,16 @@ Examples:
   fi-fhir workflow simulate -c workflow.yaml -v events.json
 
   # Run load test with standard scenario
-  fi-fhir workflow loadtest -c workflow.yaml --scenario smoke`)
+  fi-fhir workflow loadtest -c workflow.yaml --scenario smoke
+
+  # Generate workflow from natural language (requires LLM)
+  fi-fhir workflow generate "Route critical labs to pager system"
+
+  # Explain what a workflow does in plain English (requires LLM)
+  fi-fhir workflow explain workflow.yaml
+
+  # Generate CEL expression from natural language (requires LLM)
+  fi-fhir workflow cel "patient is over 65 and has a critical lab result"`)
 }
 
 func runWorkflowLoadtest(args []string) error {

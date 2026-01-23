@@ -64,9 +64,10 @@ func (s StringOrSlice) Contains(value string) bool {
 
 // Transform modifies events before action execution.
 type Transform struct {
-	SetField       string          `yaml:"set_field,omitempty" json:"set_field,omitempty"`
-	MapTerminology *TerminologyMap `yaml:"map_terminology,omitempty" json:"map_terminology,omitempty"`
-	Redact         *RedactConfig   `yaml:"redact,omitempty" json:"redact,omitempty"`
+	SetField        string                 `yaml:"set_field,omitempty" json:"set_field,omitempty"`
+	MapTerminology  *TerminologyMap        `yaml:"map_terminology,omitempty" json:"map_terminology,omitempty"`
+	Redact          *RedactConfig          `yaml:"redact,omitempty" json:"redact,omitempty"`
+	ExplainWarnings *ExplainWarningsConfig `yaml:"explain_warnings,omitempty" json:"explain_warnings,omitempty"`
 }
 
 // TerminologyMap configures terminology translation.
@@ -79,6 +80,24 @@ type TerminologyMap struct {
 // RedactConfig specifies fields to redact.
 type RedactConfig struct {
 	Fields []string `yaml:"fields" json:"fields"`
+}
+
+// ExplainWarningsConfig configures the explain_warnings transform.
+type ExplainWarningsConfig struct {
+	// Model is the LLM model to use (optional).
+	Model string `yaml:"model,omitempty" json:"model,omitempty"`
+
+	// IncludeFix includes fix suggestions in the explanation.
+	IncludeFix bool `yaml:"include_fix,omitempty" json:"include_fix,omitempty"`
+
+	// EnableCache enables caching of explanations.
+	EnableCache bool `yaml:"enable_cache,omitempty" json:"enable_cache,omitempty"`
+
+	// CacheTTL is how long to cache explanations (e.g., "24h").
+	CacheTTL string `yaml:"cache_ttl,omitempty" json:"cache_ttl,omitempty"`
+
+	// WarningsField is the field path containing warnings (default: "warnings").
+	WarningsField string `yaml:"warnings_field,omitempty" json:"warnings_field,omitempty"`
 }
 
 // Action executes on matched events.

@@ -1,14 +1,30 @@
 <script lang="ts">
-  import type { WarningGroup } from '$lib/domain/warnings';
-  import type { WarningLike } from '$lib/domain/warnings';
+  import type { WarningGroup, WarningLike } from '$lib/domain/warnings';
   import { browser } from '$app/environment';
   import { createEventDispatcher } from 'svelte';
+  import { SvelteSet } from 'svelte/reactivity';
 
   export let groups: readonly WarningGroup[];
   export let selectedPath: string | null = null;
   export let enableControls = true;
+  export let explainLoading = false;
 
-  const dispatch = createEventDispatcher<{ select: WarningLike; inspect: WarningLike }>();
+  const dispatch = createEventDispatcher<{ select: WarningLike; inspect: WarningLike; explain: WarningLike }>();
+
+  // Track which explanations are expanded
+  let expandedExplanations = new SvelteSet<string>();
+
+  function toggleExplanation(warningKey: string) {
+    if (expandedExplanations.has(warningKey)) {
+      expandedExplanations.delete(warningKey);
+    } else {
+      expandedExplanations.add(warningKey);
+    }
+  }
+
+  function warningKey(w: WarningLike, idx: number): string {
+    return `${w.phase}:${w.code}:${idx}`;
+  }
 
   let query = '';
   let phase: string = 'all';
@@ -106,19 +122,65 @@
         </div>
         <ul class="list">
           {#each g.items as w, idx (w.phase + ':' + w.code + ':' + idx)}
+            {@const wKey = warningKey(w, idx)}
             <li class="li">
               <div class="item" data-selected={selectedPath !== null && w.path === selectedPath}>
-                <button class="main" on:click={() => dispatch('select', w)} type="button">
-                  <div class="top">
-                    <span class="code">{w.code}</span>
-                    {#if w.path}
-                      <span class="path" title={w.path}>{w.path}</span>
-                    {/if}
-                  </div>
-                  <div class="msg">{w.message}</div>
-                </button>
+                <div class="item-content">
+                  <button class="main" on:click={() => dispatch('select', w)} type="button">
+                    <div class="top">
+                      <span class="code">{w.code}</span>
+                      {#if w.path}
+                        <span class="path" title={w.path}>{w.path}</span>
+                      {/if}
+                    </div>
+                    <div class="msg">{w.message}</div>
+                  </button>
+
+                  {#if w.explanation}
+                    <div class="explanation">
+                      <button
+                        class="explain-toggle"
+                        type="button"
+                        on:click|stopPropagation={() => toggleExplanation(wKey)}
+                      >
+                        <span class="icon">💡</span>
+                        {#if w.fromCache}
+                          <span class="cache-badge">cached</span>
+                        {/if}
+                        {expandedExplanations.has(wKey) ? 'Hide' : 'View'} Explanation
+                      </button>
+                      {#if expandedExplanations.has(wKey)}
+                        <div class="explain-content">
+                          <p class="explain-text">{w.explanation}</p>
+                          {#if w.fixSuggestion}
+                            <div class="fix-suggestion">
+                              <strong>How to fix:</strong>
+                              <p>{w.fixSuggestion}</p>
+                            </div>
+                          {/if}
+                          {#if w.impact}
+                            <div class="impact">
+                              <strong>Impact:</strong> {w.impact}
+                            </div>
+                          {/if}
+                        </div>
+                      {/if}
+                    </div>
+                  {/if}
+                </div>
 
                 <div class="actions">
+                  {#if !w.explanation}
+                    <button
+                      class="mini explain-btn"
+                      type="button"
+                      title="Get LLM explanation"
+                      disabled={explainLoading}
+                      on:click|stopPropagation={() => dispatch('explain', w)}
+                    >
+                      {explainLoading ? '...' : 'Explain'}
+                    </button>
+                  {/if}
                   {#if w.path}
                     <button
                       class="mini"
@@ -300,6 +362,10 @@
     padding: 10px;
   }
 
+  .item-content {
+    min-width: 0;
+  }
+
   .main {
     width: 100%;
     text-align: left;
@@ -366,5 +432,101 @@
     margin-top: 6px;
     color: rgba(229, 231, 235, 0.82);
     line-height: 1.4;
+  }
+
+  /* LLM Explanation styles */
+  .explanation {
+    margin-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 10px;
+  }
+
+  .explain-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: rgba(129, 140, 248, 0.9);
+    font-weight: 600;
+    font-size: 0.9rem;
+    background: none;
+    border: none;
+    padding: 0;
+  }
+
+  .explain-toggle:hover {
+    color: rgba(129, 140, 248, 1);
+  }
+
+  .icon {
+    font-size: 1rem;
+  }
+
+  .cache-badge {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    background: rgba(34, 197, 94, 0.2);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    border-radius: 4px;
+    color: rgba(34, 197, 94, 0.9);
+    margin-left: 2px;
+  }
+
+  .explain-content {
+    margin-top: 10px;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .explain-text {
+    margin: 0;
+    color: rgba(229, 231, 235, 0.9);
+    line-height: 1.5;
+  }
+
+  .fix-suggestion {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .fix-suggestion strong {
+    color: rgba(251, 191, 36, 0.9);
+    font-weight: 700;
+  }
+
+  .fix-suggestion p {
+    margin: 6px 0 0;
+    color: rgba(229, 231, 235, 0.85);
+    line-height: 1.4;
+  }
+
+  .impact {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    color: rgba(229, 231, 235, 0.8);
+  }
+
+  .impact strong {
+    color: rgba(239, 68, 68, 0.9);
+    font-weight: 700;
+  }
+
+  .explain-btn {
+    border-color: rgba(129, 140, 248, 0.3);
+    color: rgba(129, 140, 248, 0.9);
+  }
+
+  .explain-btn:hover {
+    background: rgba(129, 140, 248, 0.1);
+    border-color: rgba(129, 140, 248, 0.5);
+  }
+
+  .explain-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 </style>

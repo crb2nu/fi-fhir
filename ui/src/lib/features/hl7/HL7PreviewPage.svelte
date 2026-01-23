@@ -22,6 +22,9 @@
   import type { NewHL7Sample } from '$lib/features/hl7/samples/types';
   import { redactHL7, type HL7RedactionMode } from '$lib/domain/hl7Redact';
   import EventLineagePanel from '$lib/features/hl7/components/EventLineagePanel.svelte';
+  import { graphqlFetch } from '$lib/graphql/client';
+  import { ExplainWarningsDocument, type ParseWarningInput, type SourceFormat } from '$lib/gen/graphql';
+  import type { WarningLike } from '$lib/domain/warnings';
 
   const store = createHL7PreviewStore();
 
@@ -47,8 +50,47 @@
     $selectedProfile &&
     (lastUsedProfileId !== $selectedProfile.id ||
       lastUsedProfileVersion !== $selectedProfile.version);
-  const { state, warningsByPhase, events, hl7 } = store;
+  const { state, warningsByPhase, events, hl7, updateWarningExplanation } = store;
   const samplesStore = createHL7SampleStore();
+
+  // LLM explanation state
+  let explainLoading = false;
+
+  /**
+   * Handles the explain event from WarningList.
+   * Calls the GraphQL API to get LLM-powered explanation for a warning.
+   */
+  async function onExplainWarning(e: CustomEvent<WarningLike>) {
+    const warning = e.detail;
+    explainLoading = true;
+
+    try {
+      const input: ParseWarningInput[] = [
+        {
+          phase: warning.phase,
+          code: warning.code,
+          message: warning.message,
+          path: warning.path ?? null,
+          severity: warning.severity ?? null
+        }
+      ];
+
+      const result = await graphqlFetch(ExplainWarningsDocument, {
+        warnings: input,
+        format: 'HL7V2' as SourceFormat
+      });
+
+      // Update the store with the explanation
+      const firstResult = result.explainWarnings[0];
+      if (firstResult) {
+        updateWarningExplanation(warning.code, firstResult);
+      }
+    } catch (err) {
+      console.error('Failed to get explanation:', err);
+    } finally {
+      explainLoading = false;
+    }
+  }
   const { samples, activeId, activeSample } = samplesStore;
 
   let activeTab: 'samples' | 'warnings' | 'events' | 'inspector' | 'profile' = 'warnings';
@@ -562,8 +604,10 @@
         <WarningList
           groups={$warningsByPhase}
           {selectedPath}
+          {explainLoading}
           on:select={onSelectWarning}
           on:inspect={onInspectWarning}
+          on:explain={onExplainWarning}
         />
       {:else if activeTab === 'events'}
         <EventLineagePanel events={$events} message={$hl7} on:inspectPath={(e) => inspectPath(e.detail.path)} />

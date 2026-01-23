@@ -923,6 +923,59 @@ func (r *queryResolver) ParsePreviewWithProfile(ctx context.Context, format mode
 	return r.ParsePreview(ctx, format, data, source)
 }
 
+// ExplainWarnings is the resolver for the explainWarnings field.
+// It generates LLM-powered explanations for parse warnings.
+func (r *queryResolver) ExplainWarnings(ctx context.Context, warnings []model.ParseWarningInput, format model.SourceFormat) ([]*model.ExplainedWarning, error) {
+	// Return empty if no explainer configured
+	if r.WarningExplainer == nil {
+		// Return empty explanations rather than error to allow graceful degradation
+		results := make([]*model.ExplainedWarning, len(warnings))
+		for i, w := range warnings {
+			results[i] = &model.ExplainedWarning{
+				Code:        w.Code,
+				Explanation: "LLM explanation not available (explainer not configured)",
+				FromCache:   false,
+			}
+		}
+		return results, nil
+	}
+
+	// Convert GraphQL model to events.ParseWarning
+	eventWarnings := make([]parseWarningForExplain, len(warnings))
+	for i, w := range warnings {
+		eventWarnings[i] = parseWarningForExplain{
+			Phase:    w.Phase,
+			Code:     w.Code,
+			Message:  w.Message,
+			Path:     derefStr(w.Path),
+			Severity: derefStr(w.Severity),
+		}
+	}
+
+	// Convert format to events.SourceFormat
+	evtFormat := convertToEventsSourceFormat(format)
+
+	// Call the explainer
+	explained, err := r.explainWarningsBatch(ctx, eventWarnings, evtFormat)
+	if err != nil {
+		return nil, fmt.Errorf("explain warnings: %w", err)
+	}
+
+	// Convert back to GraphQL model
+	results := make([]*model.ExplainedWarning, len(explained))
+	for i, e := range explained {
+		results[i] = &model.ExplainedWarning{
+			Code:          e.Warning.Code,
+			Explanation:   e.Explanation,
+			FixSuggestion: strPtrEmpty(e.FixSuggestion),
+			Impact:        strPtrEmpty(e.Impact),
+			FromCache:     e.FromCache,
+		}
+	}
+
+	return results, nil
+}
+
 // EventStream is the resolver for the eventStream field.
 func (r *subscriptionResolver) EventStream(ctx context.Context, filter *model.EventFilter) (<-chan model.Event, error) {
 	return r.Store.Subscribe(ctx, filter)

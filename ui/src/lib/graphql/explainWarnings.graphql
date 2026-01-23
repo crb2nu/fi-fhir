@@ -1,0 +1,12 @@
+# Query to request LLM-powered explanations for parse warnings.
+# This is called on-demand when the user clicks "Explain" on a warning.
+
+query ExplainWarnings($warnings: [ParseWarningInput!]!, $format: SourceFormat!) {
+  explainWarnings(warnings: $warnings, format: $format) {
+    code
+    explanation
+    fixSuggestion
+    impact
+    fromCache
+  }
+}

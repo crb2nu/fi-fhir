@@ -1,11 +1,53 @@
 export type ParsePhase = 'byte' | 'syntactic' | 'semantic' | 'edi_companion' | string;
 
+export type WarningSeverity = 'info' | 'warning' | 'error';
+
 export type WarningLike = {
   phase: string;
   code: string;
   message: string;
   path?: string | null;
+  // LLM-generated fields (optional, populated on-demand or via explainWarnings query)
+  explanation?: string | null;
+  fixSuggestion?: string | null;
+  impact?: string | null;
+  severity?: WarningSeverity | string | null;
+  fromCache?: boolean | null;
 };
+
+/**
+ * Checks if a warning has an LLM-generated explanation.
+ */
+export function hasExplanation(w: WarningLike): boolean {
+  return !!w.explanation;
+}
+
+/**
+ * Updates a warning in a list with explanation data.
+ * Returns a new list with the updated warning.
+ */
+export function updateWarningWithExplanation(
+  warnings: WarningLike[],
+  code: string,
+  explanation: {
+    explanation: string;
+    fixSuggestion?: string | null;
+    impact?: string | null;
+    fromCache: boolean;
+  }
+): WarningLike[] {
+  return warnings.map((w) =>
+    w.code === code
+      ? {
+          ...w,
+          explanation: explanation.explanation,
+          fixSuggestion: explanation.fixSuggestion ?? null,
+          impact: explanation.impact ?? null,
+          fromCache: explanation.fromCache
+        }
+      : w
+  );
+}
 
 export type WarningGroup = {
   phase: ParsePhase;

@@ -8,6 +8,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/projections"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/store"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/fhir/subscription"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/explain"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/workflow"
 )
 
@@ -47,6 +48,9 @@ type Resolver struct {
 
 	// Projections provides access to event sourcing projections
 	Projections *projections.Service
+
+	// WarningExplainer provides LLM-powered warning explanations
+	WarningExplainer *explain.WarningExplainer
 
 	// SubscriptionClients maps FHIR server URLs to clients
 	subscriptionClients map[string]*subscription.Client
@@ -120,6 +124,13 @@ func WithProjectionService(p *projections.Service) ResolverOption {
 func WithProfileStore(s store.ProfileStore) ResolverOption {
 	return func(r *Resolver) {
 		r.ProfileStore = s
+	}
+}
+
+// WithWarningExplainer sets the LLM-powered warning explainer.
+func WithWarningExplainer(e *explain.WarningExplainer) ResolverOption {
+	return func(r *Resolver) {
+		r.WarningExplainer = e
 	}
 }
 

@@ -287,6 +287,30 @@ type ParseWarning struct {
 	Code    string  `json:"code"`
 	Message string  `json:"message"`
 	Path    *string `json:"path,omitempty"`
+	// LLM-generated fields (optional, populated on-demand or via explainWarnings query)
+	Explanation   *string `json:"explanation,omitempty"`
+	FixSuggestion *string `json:"fixSuggestion,omitempty"`
+	Impact        *string `json:"impact,omitempty"`
+	Severity      *string `json:"severity,omitempty"`
+	FromCache     *bool   `json:"fromCache,omitempty"`
+}
+
+// ParseWarningInput is the input type for requesting warning explanations.
+type ParseWarningInput struct {
+	Phase    string  `json:"phase"`
+	Code     string  `json:"code"`
+	Message  string  `json:"message"`
+	Path     *string `json:"path,omitempty"`
+	Severity *string `json:"severity,omitempty"`
+}
+
+// ExplainedWarning is the result from explainWarnings query.
+type ExplainedWarning struct {
+	Code          string  `json:"code"`
+	Explanation   string  `json:"explanation"`
+	FixSuggestion *string `json:"fixSuggestion,omitempty"`
+	Impact        *string `json:"impact,omitempty"`
+	FromCache     bool    `json:"fromCache"`
 }
 
 type ParseResult struct {

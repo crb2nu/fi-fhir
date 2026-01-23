@@ -1,7 +1,11 @@
 package workflow
 
 import (
+	"context"
+	"strings"
 	"testing"
+
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 )
 
 // mockTerminologyMapper implements TerminologyMapperInterface for testing.
@@ -934,4 +938,322 @@ type mockMapperWithMap struct {
 
 func (m *mockMapperWithMap) Map(sourceSystem, sourceCode, targetSystem string) interface{} {
 	return m.result
+}
+
+// mockWarningExplainer implements WarningExplainerInterface for testing.
+type mockWarningExplainer struct {
+	explainFunc func(ctx context.Context, warning events.ParseWarning, format events.SourceFormat) (*ExplainedWarningResult, error)
+	calls       []events.ParseWarning
+}
+
+func (m *mockWarningExplainer) Explain(ctx context.Context, warning events.ParseWarning, format events.SourceFormat) (*ExplainedWarningResult, error) {
+	m.calls = append(m.calls, warning)
+	if m.explainFunc != nil {
+		return m.explainFunc(ctx, warning, format)
+	}
+	return &ExplainedWarningResult{
+		Explanation:   "Test explanation for " + warning.Code,
+		FixSuggestion: "Test fix for " + warning.Code,
+		Impact:        "Test impact for " + warning.Code,
+	}, nil
+}
+
+func TestTransformer_ApplyWithContext_ExplainWarnings(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("explains warnings successfully", func(t *testing.T) {
+		mock := &mockWarningExplainer{}
+		transformer := NewTransformer(nil)
+		transformer.SetWarningExplainer(mock)
+
+		event := map[string]interface{}{
+			"type": "patient_admit",
+			"warnings": []interface{}{
+				map[string]interface{}{
+					"code":     "INVALID_NPI",
+					"message":  "Invalid NPI format",
+					"path":     "PID-3",
+					"phase":    "validation",
+					"severity": "warning",
+				},
+			},
+		}
+
+		transform := Transform{
+			ExplainWarnings: &ExplainWarningsConfig{
+				IncludeFix: true,
+			},
+		}
+
+		result, err := transformer.ApplyWithContext(ctx, event, transform)
+		if err != nil {
+			t.Fatalf("ApplyWithContext error: %v", err)
+		}
+
+		resultMap := result.(map[string]interface{})
+		warnings := resultMap["warnings"].([]map[string]interface{})
+		if len(warnings) != 1 {
+			t.Fatalf("warnings length = %d, want 1", len(warnings))
+		}
+
+		w := warnings[0]
+		if w["explanation"] != "Test explanation for INVALID_NPI" {
+			t.Errorf("explanation = %v, want 'Test explanation for INVALID_NPI'", w["explanation"])
+		}
+		if w["fix_suggestion"] != "Test fix for INVALID_NPI" {
+			t.Errorf("fix_suggestion = %v, want 'Test fix for INVALID_NPI'", w["fix_suggestion"])
+		}
+		if w["impact"] != "Test impact for INVALID_NPI" {
+			t.Errorf("impact = %v, want 'Test impact for INVALID_NPI'", w["impact"])
+		}
+	})
+
+	t.Run("skips fix_suggestion when IncludeFix is false", func(t *testing.T) {
+		mock := &mockWarningExplainer{}
+		transformer := NewTransformer(nil)
+		transformer.SetWarningExplainer(mock)
+
+		event := map[string]interface{}{
+			"warnings": []interface{}{
+				map[string]interface{}{
+					"code":    "MISSING_PV1",
+					"message": "Missing PV1 segment",
+				},
+			},
+		}
+
+		transform := Transform{
+			ExplainWarnings: &ExplainWarningsConfig{
+				IncludeFix: false,
+			},
+		}
+
+		result, err := transformer.ApplyWithContext(ctx, event, transform)
+		if err != nil {
+			t.Fatalf("ApplyWithContext error: %v", err)
+		}
+
+		resultMap := result.(map[string]interface{})
+		warnings := resultMap["warnings"].([]map[string]interface{})
+		w := warnings[0]
+
+		if _, exists := w["fix_suggestion"]; exists {
+			t.Error("fix_suggestion should not be present when IncludeFix is false")
+		}
+	})
+
+	t.Run("uses custom warnings_field", func(t *testing.T) {
+		mock := &mockWarningExplainer{}
+		transformer := NewTransformer(nil)
+		transformer.SetWarningExplainer(mock)
+
+		event := map[string]interface{}{
+			"parse_warnings": []interface{}{
+				map[string]interface{}{
+					"code":    "INVALID_DATE",
+					"message": "Invalid date format",
+				},
+			},
+		}
+
+		transform := Transform{
+			ExplainWarnings: &ExplainWarningsConfig{
+				WarningsField: "parse_warnings",
+			},
+		}
+
+		result, err := transformer.ApplyWithContext(ctx, event, transform)
+		if err != nil {
+			t.Fatalf("ApplyWithContext error: %v", err)
+		}
+
+		resultMap := result.(map[string]interface{})
+		warnings := resultMap["parse_warnings"].([]map[string]interface{})
+		if len(warnings) != 1 {
+			t.Fatalf("parse_warnings length = %d, want 1", len(warnings))
+		}
+		if warnings[0]["explanation"] == nil {
+			t.Error("explanation should be present")
+		}
+	})
+
+	t.Run("no error when warnings field missing", func(t *testing.T) {
+		mock := &mockWarningExplainer{}
+		transformer := NewTransformer(nil)
+		transformer.SetWarningExplainer(mock)
+
+		event := map[string]interface{}{
+			"type": "patient_admit",
+		}
+
+		transform := Transform{
+			ExplainWarnings: &ExplainWarningsConfig{},
+		}
+
+		_, err := transformer.ApplyWithContext(ctx, event, transform)
+		if err != nil {
+			t.Fatalf("ApplyWithContext should not error when warnings missing: %v", err)
+		}
+
+		if len(mock.calls) != 0 {
+			t.Error("explainer should not be called when no warnings")
+		}
+	})
+
+	t.Run("error when explainer not configured", func(t *testing.T) {
+		transformer := NewTransformer(nil)
+		// Don't set warning explainer
+
+		event := map[string]interface{}{
+			"warnings": []interface{}{
+				map[string]interface{}{"code": "TEST"},
+			},
+		}
+
+		transform := Transform{
+			ExplainWarnings: &ExplainWarningsConfig{},
+		}
+
+		_, err := transformer.ApplyWithContext(ctx, event, transform)
+		if err == nil {
+			t.Fatal("expected error when explainer not configured")
+		}
+		if !strings.Contains(err.Error(), "explainer not configured") {
+			t.Errorf("error = %v, should contain 'explainer not configured'", err)
+		}
+	})
+}
+
+func TestToParseWarnings(t *testing.T) {
+	t.Run("converts []interface{} to ParseWarnings", func(t *testing.T) {
+		input := []interface{}{
+			map[string]interface{}{
+				"code":     "INVALID_NPI",
+				"message":  "Invalid NPI format",
+				"path":     "PID-3",
+				"phase":    "validation",
+				"severity": "warning",
+			},
+			map[string]interface{}{
+				"code":    "MISSING_PV1",
+				"message": "Missing segment",
+			},
+		}
+
+		result, err := toParseWarnings(input)
+		if err != nil {
+			t.Fatalf("toParseWarnings error: %v", err)
+		}
+
+		if len(result) != 2 {
+			t.Fatalf("result length = %d, want 2", len(result))
+		}
+
+		if result[0].Code != "INVALID_NPI" {
+			t.Errorf("result[0].Code = %v, want INVALID_NPI", result[0].Code)
+		}
+		if result[0].Severity != "warning" {
+			t.Errorf("result[0].Severity = %v, want warning", result[0].Severity)
+		}
+		if result[1].Code != "MISSING_PV1" {
+			t.Errorf("result[1].Code = %v, want MISSING_PV1", result[1].Code)
+		}
+	})
+
+	t.Run("returns error for unsupported type", func(t *testing.T) {
+		_, err := toParseWarnings("invalid")
+		if err == nil {
+			t.Error("expected error for unsupported type")
+		}
+	})
+}
+
+func TestDetectSourceFormat(t *testing.T) {
+	tests := []struct {
+		name     string
+		event    map[string]interface{}
+		expected events.SourceFormat
+	}{
+		{
+			name: "from meta.source_format",
+			event: map[string]interface{}{
+				"meta": map[string]interface{}{
+					"source_format": "hl7v2",
+				},
+			},
+			expected: events.SourceFormat("hl7v2"),
+		},
+		{
+			name: "from source field with HL7",
+			event: map[string]interface{}{
+				"source": "hl7v2-parser",
+			},
+			expected: events.FormatHL7v2,
+		},
+		{
+			name: "from source field with FHIR",
+			event: map[string]interface{}{
+				"source": "fhir-server",
+			},
+			expected: events.FormatFHIR,
+		},
+		{
+			name: "from source field with 835",
+			event: map[string]interface{}{
+				"source": "edi-835-processor",
+			},
+			expected: events.FormatEDI835,
+		},
+		{
+			name: "from source field with 837",
+			event: map[string]interface{}{
+				"source": "837-claims",
+			},
+			expected: events.FormatEDI837,
+		},
+		{
+			name: "returns unknown for unrecognized",
+			event: map[string]interface{}{
+				"source": "custom-source",
+			},
+			expected: events.FormatUnknown,
+		},
+		{
+			name:     "returns unknown for empty event",
+			event:    map[string]interface{}{},
+			expected: events.FormatUnknown,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := detectSourceFormat(tt.event)
+			if result != tt.expected {
+				t.Errorf("detectSourceFormat = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestGetString(t *testing.T) {
+	t.Run("returns string value", func(t *testing.T) {
+		m := map[string]interface{}{"key": "value"}
+		if getString(m, "key") != "value" {
+			t.Error("expected 'value'")
+		}
+	})
+
+	t.Run("returns empty for non-string", func(t *testing.T) {
+		m := map[string]interface{}{"key": 123}
+		if getString(m, "key") != "" {
+			t.Error("expected empty string for non-string value")
+		}
+	})
+
+	t.Run("returns empty for missing key", func(t *testing.T) {
+		m := map[string]interface{}{}
+		if getString(m, "key") != "" {
+			t.Error("expected empty string for missing key")
+		}
+	})
 }
