@@ -171,6 +171,17 @@ transform:
   - delete_field: patient.internal_id
 ```
 
+### explain_warnings
+
+Add LLM-powered explanations to parse warnings:
+
+```yaml
+transform:
+  - explain_warnings:
+      model: qwen3-8b-fast      # Optional: model override
+      include_fix: true          # Include fix suggestions
+```
+
 ## Actions
 
 Actions send events to destinations.
@@ -355,6 +366,42 @@ actions:
       - /usr/local/bin/audit-script
 ```
 
+### LLM Extract Action
+
+Extract clinical entities from document text using LLM:
+
+```yaml
+actions:
+  - type: llm_extract
+    config:
+      model: qwen3-14b-quality           # Model to use
+      document_type: progress_note       # Hint: progress_note, discharge_summary, consult_note
+      min_confidence: 0.7                # Minimum confidence threshold
+      text_field: document.content       # Field containing clinical text
+```
+
+Extracted entities are added to the event under `extracted_entities`:
+- Conditions (SNOMED CT, ICD-10)
+- Medications (RxNorm)
+- Vital Signs (LOINC)
+- Allergies, Procedures
+
+### LLM Quality Check Action
+
+Analyze data quality and optionally fail the route:
+
+```yaml
+actions:
+  - type: llm_quality_check
+    config:
+      model: qwen3-8b-fast
+      fail_below: 0.5                    # Fail route if score below threshold
+```
+
+Quality dimensions: completeness, accuracy, consistency, conformance, timeliness.
+
+Results are added to the event under `quality_score`.
+
 ## Template Functions
 
 Templates use Go text/template with additional functions:
@@ -534,3 +581,4 @@ fi-fhir workflow simulate --config workflow.yaml --events test_events.json
 - [Planning: WORKFLOW-DSL.md](../planning/WORKFLOW-DSL.md) - Complete DSL specification
 - [FHIR Output](fhir-output.md) - FHIR action details
 - [Core Concepts](core-concepts.md) - Architecture overview
+- [LLM-Powered Features](llm-features.md) - AI-assisted features and LLM configuration

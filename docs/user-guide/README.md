@@ -10,7 +10,8 @@ Welcome to fi-fhir, a format-agnostic healthcare integration platform that trans
 4. [Source Profiles](source-profiles.md)
 5. [Workflow Configuration](workflows.md)
 6. [FHIR Output](fhir-output.md)
-7. [Playground Tutorial](playground-tutorial.md)
+7. [LLM-Powered Features](llm-features.md)
+8. [Playground Tutorial](playground-tutorial.md)
 
 ## Quick Links
 
@@ -21,6 +22,8 @@ Welcome to fi-fhir, a format-agnostic healthcare integration platform that trans
 | Configure a source profile | [Source Profiles](source-profiles.md) |
 | Route events to multiple destinations | [Workflow Configuration](workflows.md) |
 | Generate FHIR resources | [FHIR Output](fhir-output.md) |
+| Get AI-powered warning explanations | [LLM-Powered Features](llm-features.md#warning-explanations) |
+| Generate workflows from natural language | [LLM-Powered Features](llm-features.md#workflow-generation) |
 | Try it in the browser | [Playground Tutorial](playground-tutorial.md) |
 
 ## What is fi-fhir?

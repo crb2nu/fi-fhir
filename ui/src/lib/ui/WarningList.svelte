@@ -7,9 +7,29 @@
   export let groups: readonly WarningGroup[];
   export let selectedPath: string | null = null;
   export let enableControls = true;
-  export let explainLoading = false;
+  /** Set of warning codes currently being explained */
+  export let explainLoadingCodes: SvelteSet<string> = new SvelteSet();
 
-  const dispatch = createEventDispatcher<{ select: WarningLike; inspect: WarningLike; explain: WarningLike }>();
+  const dispatch = createEventDispatcher<{
+    select: WarningLike;
+    inspect: WarningLike;
+    explain: WarningLike;
+    explainAll: void;
+  }>();
+
+  /** Check if a specific warning is loading */
+  function isWarningLoading(w: WarningLike): boolean {
+    return explainLoadingCodes.has(w.code);
+  }
+
+  /** Count of warnings without explanations */
+  $: unexplainedCount = groups.reduce(
+    (acc, g) => acc + g.items.filter((w) => !w.explanation).length,
+    0
+  );
+
+  /** Whether any explain operation is in progress */
+  $: anyLoading = explainLoadingCodes.size > 0;
 
   // Track which explanations are expanded
   let expandedExplanations = new SvelteSet<string>();
@@ -105,10 +125,27 @@
           {/each}
         </div>
 
-        <label class="checkbox">
-          <input type="checkbox" bind:checked={onlyWithPath} />
-          Has path
-        </label>
+        <div class="filter-actions">
+          <label class="checkbox">
+            <input type="checkbox" bind:checked={onlyWithPath} />
+            Has path
+          </label>
+
+          {#if unexplainedCount > 0}
+            <button
+              class="explain-all-btn"
+              type="button"
+              disabled={anyLoading}
+              on:click={() => dispatch('explainAll')}
+            >
+              {#if anyLoading}
+                Explaining...
+              {:else}
+                Explain All ({unexplainedCount})
+              {/if}
+            </button>
+          {/if}
+        </div>
       </div>
     </div>
   {/if}
@@ -171,14 +208,15 @@
 
                 <div class="actions">
                   {#if !w.explanation}
+                    {@const loading = isWarningLoading(w)}
                     <button
                       class="mini explain-btn"
                       type="button"
                       title="Get LLM explanation"
-                      disabled={explainLoading}
+                      disabled={loading}
                       on:click|stopPropagation={() => dispatch('explain', w)}
                     >
-                      {explainLoading ? '...' : 'Explain'}
+                      {loading ? '...' : 'Explain'}
                     </button>
                   {/if}
                   {#if w.path}
@@ -297,6 +335,35 @@
     color: rgba(229, 231, 235, 0.8);
     font-weight: 650;
     font-size: 0.9rem;
+  }
+
+  .filter-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .explain-all-btn {
+    padding: 6px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(129, 140, 248, 0.4);
+    background: rgba(129, 140, 248, 0.15);
+    color: rgba(129, 140, 248, 0.95);
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .explain-all-btn:hover:not(:disabled) {
+    background: rgba(129, 140, 248, 0.25);
+    border-color: rgba(129, 140, 248, 0.6);
+  }
+
+  .explain-all-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   .count {

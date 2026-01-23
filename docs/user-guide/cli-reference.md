@@ -56,6 +56,8 @@ fi-fhir parse [options] [FILE...]
 | `--pretty` | Pretty-print JSON output |
 | `--source NAME` | Source system name |
 | `--output FILE` | Output file (default: stdout) |
+| `--explain-warnings` | Add LLM-powered explanations to warnings |
+| `--extract-clinical` | Extract clinical entities from documents |
 
 ### Examples
 
@@ -77,6 +79,12 @@ fi-fhir parse --format cda --pretty clinical_doc.xml
 
 # Parse multiple files
 fi-fhir parse --format hl7v2 messages/*.hl7 > all_events.json
+
+# Parse with LLM warning explanations
+fi-fhir parse --format hl7v2 --explain-warnings --pretty message.hl7
+
+# Extract clinical entities from MDM document
+fi-fhir parse --format hl7v2 --extract-clinical mdm_message.hl7
 ```
 
 ---
@@ -136,6 +144,73 @@ Test workflow with simulated actions.
 
 ```bash
 fi-fhir workflow simulate --config FILE --events FILE
+```
+
+#### workflow generate
+
+Generate workflow YAML from natural language description using LLM.
+
+```bash
+fi-fhir workflow generate "DESCRIPTION"
+fi-fhir workflow generate --interactive "DESCRIPTION"
+```
+
+| Option | Description |
+|--------|-------------|
+| `--interactive` | Interactive mode for complex workflows |
+| `--model MODEL` | LLM model to use |
+| `--output FILE` | Output file (default: stdout) |
+
+```bash
+# Generate workflow from description
+fi-fhir workflow generate "Route critical lab results to the pager system"
+
+# Interactive mode
+fi-fhir workflow generate --interactive "Create a workflow for ADT events"
+
+# Save to file
+fi-fhir workflow generate "Alert on ICU admissions" --output icu_alerts.yaml
+```
+
+#### workflow explain
+
+Generate human-readable explanation of a workflow.
+
+```bash
+fi-fhir workflow explain FILE
+```
+
+| Option | Description |
+|--------|-------------|
+| `--format FORMAT` | Output format: `markdown`, `text`, `json` |
+
+```bash
+# Explain workflow in markdown
+fi-fhir workflow explain workflow.yaml
+
+# JSON output for programmatic use
+fi-fhir workflow explain --format json workflow.yaml
+```
+
+#### workflow cel
+
+Generate CEL filter expression from natural language.
+
+```bash
+fi-fhir workflow cel "DESCRIPTION"
+```
+
+| Option | Description |
+|--------|-------------|
+| `--test` | Test expression against sample event |
+| `--event FILE` | Sample event for testing |
+
+```bash
+# Generate CEL expression
+fi-fhir workflow cel "patient over 65 with abnormal lab results"
+
+# Test against sample event
+fi-fhir workflow cel --test --event sample.json "patient admitted to ICU"
 ```
 
 ---
@@ -426,6 +501,8 @@ fi-fhir terminology <subcommand> [options]
 | `load SYSTEM` | Load terminology (loinc, snomed, icd10) |
 | `status` | Show loaded terminologies |
 | `crosswalk` | Cross-reference codes between systems |
+| `search` | Semantic search for terminology codes |
+| `index` | Manage terminology embedding index |
 
 ```bash
 # Initialize database
@@ -439,6 +516,14 @@ fi-fhir terminology status
 
 # Cross-walk ICD-10 to SNOMED
 fi-fhir terminology crosswalk --from icd10 --to snomed E11.9
+
+# Semantic search (finds codes by meaning)
+fi-fhir terminology search --query "blood sugar" --vocabulary loinc --limit 10
+fi-fhir terminology search --query "chest pain" --vocabulary snomed
+
+# Build embedding index for fast semantic search
+fi-fhir terminology index build --vocabulary loinc --source ./data/LoincTable.csv
+fi-fhir terminology index status
 ```
 
 ---
@@ -537,6 +622,10 @@ fi-fhir companion validate --guide bcbs-837p claim.x12
 | `FI_FHIR_FHIR_ENDPOINT` | Default FHIR server endpoint |
 | `FI_FHIR_TRACING_ENABLED` | Enable distributed tracing |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OpenTelemetry collector endpoint |
+| `LLM_BASE_URL` | LLM API endpoint (OpenAI-compatible) |
+| `LLM_API_KEY` | LLM API authentication key |
+| `LLM_DEFAULT_MODEL` | Default model for LLM operations |
+| `LLM_QUALITY_MODEL` | Model for complex LLM tasks |
 
 ---
 
@@ -558,3 +647,4 @@ fi-fhir companion validate --guide bcbs-837p claim.x12
 - [Getting Started](getting-started.md) - Quick start tutorial
 - [Workflow Configuration](workflows.md) - Workflow DSL
 - [Source Profiles](source-profiles.md) - Profile configuration
+- [LLM-Powered Features](llm-features.md) - AI-assisted features

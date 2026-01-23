@@ -25,6 +25,7 @@
   import { graphqlFetch } from '$lib/graphql/client';
   import { ExplainWarningsDocument, type ParseWarningInput, type SourceFormat } from '$lib/gen/graphql';
   import type { WarningLike } from '$lib/domain/warnings';
+  import { SvelteSet } from 'svelte/reactivity';
 
   const store = createHL7PreviewStore();
 
@@ -53,8 +54,15 @@
   const { state, warningsByPhase, events, hl7, updateWarningExplanation } = store;
   const samplesStore = createHL7SampleStore();
 
-  // LLM explanation state
-  let explainLoading = false;
+  // LLM explanation state - tracks which warning codes are currently loading
+  let explainLoadingCodes = new SvelteSet<string>();
+
+  /**
+   * Creates a unique key for a warning (code is unique within a parse result).
+   */
+  function warningKey(w: WarningLike): string {
+    return w.code;
+  }
 
   /**
    * Handles the explain event from WarningList.
@@ -62,7 +70,8 @@
    */
   async function onExplainWarning(e: CustomEvent<WarningLike>) {
     const warning = e.detail;
-    explainLoading = true;
+    const key = warningKey(warning);
+    explainLoadingCodes.add(key);
 
     try {
       const input: ParseWarningInput[] = [
@@ -88,7 +97,50 @@
     } catch (err) {
       console.error('Failed to get explanation:', err);
     } finally {
-      explainLoading = false;
+      explainLoadingCodes.delete(key);
+    }
+  }
+
+  /**
+   * Explains all warnings that don't have explanations yet.
+   * Calls the GraphQL API in a single batch request.
+   */
+  async function onExplainAll() {
+    const warnings = $state.result?.parsePreview.warnings ?? [];
+    const unexplained = warnings.filter((w) => !w.explanation);
+
+    if (unexplained.length === 0) return;
+
+    // Mark all as loading
+    for (const w of unexplained) {
+      explainLoadingCodes.add(warningKey(w));
+    }
+
+    try {
+      const input: ParseWarningInput[] = unexplained.map((w) => ({
+        phase: w.phase,
+        code: w.code,
+        message: w.message,
+        path: w.path ?? null,
+        severity: w.severity ?? null
+      }));
+
+      const result = await graphqlFetch(ExplainWarningsDocument, {
+        warnings: input,
+        format: 'HL7V2' as SourceFormat
+      });
+
+      // Update each warning with its explanation
+      for (const explained of result.explainWarnings) {
+        updateWarningExplanation(explained.code, explained);
+      }
+    } catch (err) {
+      console.error('Failed to get explanations:', err);
+    } finally {
+      // Clear all loading states
+      for (const w of unexplained) {
+        explainLoadingCodes.delete(warningKey(w));
+      }
     }
   }
   const { samples, activeId, activeSample } = samplesStore;
@@ -604,10 +656,11 @@
         <WarningList
           groups={$warningsByPhase}
           {selectedPath}
-          {explainLoading}
+          {explainLoadingCodes}
           on:select={onSelectWarning}
           on:inspect={onInspectWarning}
           on:explain={onExplainWarning}
+          on:explainAll={onExplainAll}
         />
       {:else if activeTab === 'events'}
         <EventLineagePanel events={$events} message={$hl7} on:inspectPath={(e) => inspectPath(e.detail.path)} />

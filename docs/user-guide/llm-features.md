@@ -1,0 +1,509 @@
+# LLM-Powered Features
+
+fi-fhir integrates with Large Language Models (LLMs) to provide intelligent assistance for healthcare data integration tasks. This guide covers the AI-powered features available in the CLI and UI.
+
+## Overview
+
+LLM features enhance fi-fhir with:
+
+- **Warning Explanations**: Human-readable explanations for parse warnings
+- **Clinical Entity Extraction**: Extract structured data from clinical notes
+- **Data Quality Analysis**: Holistic data quality scoring with recommendations
+- **Workflow Generation**: Create workflows from natural language descriptions
+- **CEL Expression Assistance**: Generate filter expressions from plain English
+- **Semantic Terminology Search**: Find codes by meaning, not just string matching
+
+## Configuration
+
+LLM features require an OpenAI-compatible API endpoint. Configure in your config file or environment:
+
+```yaml
+llm:
+  enabled: true
+  base_url: "http://localhost:8000/v1"  # LiteLLM, vLLM, or OpenAI
+  api_key: "${LLM_API_KEY}"
+  default_model: "qwen3-8b-fast"        # Fast model for simple tasks
+  quality_model: "qwen3-14b-quality"    # Better model for complex tasks
+  timeout: 30s
+  max_retries: 3
+```
+
+Environment variables:
+```bash
+export LLM_BASE_URL="http://localhost:8000/v1"
+export LLM_API_KEY="your-api-key"
+export LLM_DEFAULT_MODEL="qwen3-8b-fast"
+```
+
+---
+
+## Warning Explanations
+
+Parse warnings like `INVALID_NPI` or `MISSING_PV1` require HL7v2 expertise to understand. LLM explanations help integration analysts fix issues without deep format knowledge.
+
+### CLI Usage
+
+```bash
+# Explain warnings during parsing
+fi-fhir parse --explain-warnings --format hl7v2 message.hl7
+
+# Output includes explanations
+{
+  "warnings": [
+    {
+      "code": "INVALID_NPI",
+      "message": "Invalid NPI checksum in PV1-7",
+      "path": "PV1.7.1",
+      "explanation": "The National Provider Identifier (NPI) failed checksum validation. NPIs are 10-digit numbers where the last digit is a Luhn check digit.",
+      "fix_suggestion": "Verify the NPI with the provider or check NPPES registry. Common issues include transposed digits or using a legacy provider ID.",
+      "impact": "Claims may be rejected. Patient attribution to provider will fail."
+    }
+  ]
+}
+```
+
+### UI Usage (Mapping Studio)
+
+In the Mapping Studio playground:
+
+1. Paste your HL7v2 message and click **Preview**
+2. Navigate to the **Warnings** tab
+3. Click **Explain** on any warning to get an LLM-powered explanation
+4. The explanation panel shows:
+   - **Explanation**: What the warning means in plain English
+   - **How to fix**: Actionable steps to resolve the issue
+   - **Impact**: What happens if the warning is not addressed
+
+Explanations are cached to reduce API calls and improve response time.
+
+### Batch Explanations
+
+Explain all warnings at once:
+
+```bash
+# Parse and explain all warnings
+fi-fhir parse --explain-warnings --format hl7v2 message.hl7
+
+# Or via workflow transform
+workflow:
+  routes:
+    - name: explain_and_log
+      transform:
+        - explain_warnings:
+            model: qwen3-8b-fast
+            include_fix: true
+      actions:
+        - type: log
+```
+
+---
+
+## Clinical Entity Extraction
+
+Extract structured clinical entities from free-text in MDM messages and CDA narrative sections.
+
+### CLI Usage
+
+```bash
+# Extract clinical entities from MDM document
+fi-fhir parse --extract-clinical --format hl7v2 mdm_message.hl7
+```
+
+### Extracted Entity Types
+
+| Entity | Code System | Example |
+|--------|-------------|---------|
+| Conditions | SNOMED CT, ICD-10 | "Type 2 diabetes mellitus" |
+| Medications | RxNorm | "Metformin 500mg BID" |
+| Vital Signs | LOINC | "BP 120/80 mmHg" |
+| Allergies | SNOMED CT | "Penicillin allergy" |
+| Procedures | CPT, SNOMED CT | "Colonoscopy performed" |
+
+### Workflow Action
+
+```yaml
+actions:
+  - type: llm_extract
+    config:
+      model: qwen3-14b-quality
+      document_type: progress_note    # progress_note, discharge_summary, consult_note
+      min_confidence: 0.7
+      text_field: document.content
+```
+
+### Output
+
+```json
+{
+  "extracted_entities": {
+    "conditions": [
+      {
+        "code": "E11.9",
+        "system": "ICD-10",
+        "display": "Type 2 diabetes mellitus without complications",
+        "confidence": 0.92,
+        "negated": false
+      }
+    ],
+    "medications": [
+      {
+        "code": "860975",
+        "system": "RxNorm",
+        "display": "Metformin 500 MG Oral Tablet",
+        "dosage": "500mg",
+        "frequency": "BID",
+        "confidence": 0.88
+      }
+    ],
+    "confidence": 0.90,
+    "extracted_at": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+---
+
+## Data Quality Analysis
+
+Get holistic data quality scoring with actionable recommendations.
+
+### Workflow Action
+
+```yaml
+actions:
+  - type: llm_quality_check
+    config:
+      model: qwen3-14b-quality
+      fail_below: 0.5    # Fail route if score below threshold
+```
+
+### Quality Dimensions
+
+| Dimension | Description |
+|-----------|-------------|
+| Completeness | Required fields populated |
+| Accuracy | Values match expected formats |
+| Consistency | Related fields are coherent |
+| Conformance | Adheres to HL7/FHIR standards |
+| Timeliness | Timestamps are reasonable |
+
+### Output
+
+```json
+{
+  "quality_score": {
+    "overall_score": 0.78,
+    "dimensions": {
+      "completeness": 0.85,
+      "accuracy": 0.72,
+      "consistency": 0.80,
+      "conformance": 0.75
+    },
+    "issues": [
+      {
+        "field": "PID.7",
+        "issue": "Date of birth is in future",
+        "severity": "error"
+      }
+    ],
+    "recommendations": [
+      "Validate NPI checksums before submission",
+      "Add missing patient phone number (PID-13)"
+    ],
+    "analyzed_at": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+---
+
+## Workflow Generation
+
+Generate workflow YAML from natural language descriptions.
+
+### CLI Usage
+
+```bash
+# Generate workflow from description
+fi-fhir workflow generate "Route critical lab results to the pager system"
+
+# Interactive mode for complex workflows
+fi-fhir workflow generate --interactive "Route ADT events to FHIR server"
+```
+
+### Example
+
+**Input:**
+```bash
+fi-fhir workflow generate "When a patient over 65 is admitted to the ICU, send an alert to the care coordinator"
+```
+
+**Output:**
+```yaml
+workflow:
+  name: icu_elderly_alerts
+  version: "1.0"
+
+  routes:
+    - name: elderly_icu_admission
+      filter:
+        event_type: patient_admit
+        condition: |
+          event.patient.age >= 65 &&
+          event.encounter.location.unit == "ICU"
+      actions:
+        - type: webhook
+          url: ${CARE_COORDINATOR_WEBHOOK}
+          headers:
+            Content-Type: application/json
+          body:
+            alert_type: "ELDERLY_ICU_ADMISSION"
+            patient_mrn: "{{.Patient.MRN}}"
+            patient_name: "{{.Patient.Name.Family}}, {{.Patient.Name.Given}}"
+            location: "{{.Encounter.Location.Unit}}"
+```
+
+---
+
+## Workflow Explanation
+
+Get human-readable explanations of existing workflows.
+
+### CLI Usage
+
+```bash
+fi-fhir workflow explain workflow.yaml
+```
+
+### Output
+
+```markdown
+# Workflow: hospital_integration
+
+## Overview
+This workflow routes healthcare events to multiple destinations based on
+priority and event type.
+
+## Routes
+
+### 1. critical_labs
+**Purpose:** Alert on-call staff when critical lab results arrive
+
+**Triggers when:**
+- Event type is `lab_result`
+- Lab interpretation is critical (HH, LL, or critical flag)
+
+**Actions:**
+1. Sends webhook to alert system
+2. Emails on-call team
+
+### 2. patients_to_fhir
+**Purpose:** Synchronize patient data to FHIR server
+
+**Triggers when:**
+- Event type is patient_admit, patient_discharge, or patient_update
+
+**Transforms:**
+- Redacts SSN before transmission
+
+**Actions:**
+1. Creates/updates FHIR Patient resource
+
+## Flow Diagram
+
+```mermaid
+graph TD
+    A[Event] --> B{Type?}
+    B -->|lab_result + critical| C[critical_labs]
+    B -->|patient_*| D[patients_to_fhir]
+    C --> E[Webhook]
+    C --> F[Email]
+    D --> G[Redact SSN]
+    G --> H[FHIR Server]
+```
+```
+
+---
+
+## CEL Expression Assistant
+
+Generate CEL filter expressions from natural language.
+
+### CLI Usage
+
+```bash
+fi-fhir workflow cel "patient over 65 with abnormal lab results"
+```
+
+### Output
+
+```
+Generated CEL expression:
+  event.patient.age >= 65 && event.observation.interpretation in ["abnormal", "A", "AA"]
+
+Explanation:
+  - event.patient.age >= 65: Matches patients 65 years or older
+  - event.observation.interpretation: Checks for abnormal result flags
+  - Common HL7 abnormal codes: A (abnormal), AA (critical abnormal)
+
+Test with sample event? [y/N]
+```
+
+---
+
+## Semantic Terminology Search
+
+Find terminology codes by meaning rather than string matching. "Blood sugar" finds glucose codes even though the strings don't match.
+
+### CLI Usage
+
+```bash
+# Search LOINC for blood glucose tests
+fi-fhir terminology search --query "blood sugar" --vocabulary loinc --limit 10
+
+# Search SNOMED for heart conditions
+fi-fhir terminology search --query "chest pain" --vocabulary snomed --limit 5
+```
+
+### Output
+
+```json
+{
+  "results": [
+    {
+      "code": "2345-7",
+      "system": "LOINC",
+      "display": "Glucose [Mass/volume] in Serum or Plasma",
+      "score": 0.94
+    },
+    {
+      "code": "2339-0",
+      "system": "LOINC",
+      "display": "Glucose [Mass/volume] in Blood",
+      "score": 0.91
+    },
+    {
+      "code": "41653-7",
+      "system": "LOINC",
+      "display": "Glucose [Mass/volume] in Capillary blood by Glucometer",
+      "score": 0.87
+    }
+  ]
+}
+```
+
+### Building the Index
+
+For fast semantic search, pre-build terminology embeddings:
+
+```bash
+# Build LOINC index
+fi-fhir terminology index build --vocabulary loinc --source ./data/LoincTable.csv
+
+# Build SNOMED index
+fi-fhir terminology index build --vocabulary snomed --source ./data/sct2_Description.txt
+
+# Check index status
+fi-fhir terminology index status
+```
+
+---
+
+## Workflow Actions Reference
+
+### llm_extract
+
+Extract clinical entities from document text.
+
+```yaml
+actions:
+  - type: llm_extract
+    config:
+      model: qwen3-14b-quality           # Model to use
+      document_type: progress_note       # Hint for extraction
+      min_confidence: 0.7                # Minimum confidence threshold
+      text_field: document.content       # Field containing text
+```
+
+### llm_quality_check
+
+Analyze data quality and optionally fail the route.
+
+```yaml
+actions:
+  - type: llm_quality_check
+    config:
+      model: qwen3-8b-fast
+      fail_below: 0.5                    # Fail if score below threshold
+```
+
+## Workflow Transforms Reference
+
+### explain_warnings
+
+Add LLM explanations to parse warnings.
+
+```yaml
+transform:
+  - explain_warnings:
+      model: qwen3-8b-fast               # Optional: model override
+      include_fix: true                  # Include fix suggestions
+```
+
+---
+
+## Best Practices
+
+### Performance
+
+1. **Use caching**: Warning explanations are cached by code. Repeated warnings resolve instantly.
+2. **Choose appropriate models**: Use fast models (8B) for simple tasks, quality models (14B+) for extraction.
+3. **Batch when possible**: The batch explain endpoint is more efficient than individual calls.
+
+### Security
+
+1. **Redact PHI before LLM calls**: Don't send patient identifiers to external LLM services.
+2. **Use local models for sensitive data**: Deploy local LLM (vLLM, Ollama) for on-premise compliance.
+3. **Audit LLM interactions**: Enable logging to track what data is sent to LLM endpoints.
+
+### Accuracy
+
+1. **Set confidence thresholds**: Don't accept low-confidence extractions automatically.
+2. **Human review for critical decisions**: Use LLM suggestions as assistance, not automation.
+3. **Validate extracted codes**: Cross-reference extracted codes against terminology databases.
+
+---
+
+## Troubleshooting
+
+### LLM Connection Issues
+
+```bash
+# Test LLM connectivity
+curl -X POST ${LLM_BASE_URL}/chat/completions \
+  -H "Authorization: Bearer ${LLM_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "qwen3-8b-fast", "messages": [{"role": "user", "content": "test"}]}'
+```
+
+### Slow Response Times
+
+- Check model size (larger models are slower)
+- Verify network latency to LLM endpoint
+- Enable caching for repeated queries
+- Consider local deployment for consistent latency
+
+### Poor Extraction Quality
+
+- Try a larger/better model
+- Provide more context in document_type hint
+- Check that text_field points to actual clinical text
+- Lower min_confidence and review results manually
+
+---
+
+## See Also
+
+- [CLI Reference](cli-reference.md) - Complete CLI documentation
+- [Workflow Configuration](workflows.md) - Workflow DSL reference
+- [Core Concepts](core-concepts.md) - Architecture overview
