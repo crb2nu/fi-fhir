@@ -25,10 +25,22 @@ The `ui/` app is a SvelteKit 5 “Mapping Studio” designed to make ETL approac
 
 See `ui/README.md` for the current UI roadmap and dev commands.
 
-## Docs
+## Documentation
 
-- Planning/specs: `docs/planning/README.md`
-- Generated architecture diagrams: `docs/diagrams/README.md`
+### Getting Started
+
+- **[User Guide](docs/user-guide/README.md)** - Tutorials, concepts, and CLI reference
+- **[Playground](https://flexinfer.ai/playground/fi-fhir)** - Interactive browser-based learning environment
+
+### Developer Resources
+
+- **[Developer Guide](docs/developer-guide/README.md)** - Architecture, contributing, and extension development
+- **[AGENTS.md](AGENTS.md)** - AI assistant guidance and comprehensive architecture reference
+
+### Reference
+
+- **[Planning Documents](docs/planning/README.md)** - Technical specifications and design docs
+- **[Architecture Diagrams](docs/diagrams/README.md)** - Generated package and call-graph diagrams
 
 ## Features
 
@@ -241,17 +253,30 @@ await workflow.validate();
 const output = await workflow.run([event]);
 ```
 
-## Documentation
+## All Documentation
 
 | Document | Description |
 |----------|-------------|
+| **User Guide** | |
+| [Getting Started](docs/user-guide/getting-started.md) | First-time setup and tutorials |
+| [Core Concepts](docs/user-guide/core-concepts.md) | Architecture and design philosophy |
+| [CLI Reference](docs/user-guide/cli-reference.md) | Complete command reference |
+| [Source Profiles](docs/user-guide/source-profiles.md) | Profile configuration guide |
+| [Workflows](docs/user-guide/workflows.md) | Workflow DSL reference |
+| [FHIR Output](docs/user-guide/fhir-output.md) | FHIR R4 mapping details |
+| [Playground Tutorial](docs/user-guide/playground-tutorial.md) | Interactive learning guide |
+| **Developer Guide** | |
+| [Architecture](docs/developer-guide/architecture.md) | System architecture overview |
+| [Development Setup](docs/developer-guide/development-setup.md) | Environment setup |
+| [Adding Parsers](docs/developer-guide/adding-parser.md) | Format parser development |
+| [Testing](docs/developer-guide/testing.md) | Testing guidelines |
+| **Operations** | |
+| [Production Hardening](docs/operations/PRODUCTION-HARDENING.md) | Security hardening guide |
+| [Operations Runbook](docs/operations/RUNBOOK.md) | Troubleshooting and operations |
+| **Reference** | |
 | [AGENTS.md](AGENTS.md) | AI assistant guidance and architecture |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
 | [API Reference](api/openapi.yaml) | OpenAPI 3.1 specification |
-| [Architecture Diagrams](docs/diagrams/README.md) | Generated package/call-graph diagrams |
-| [Workflow DSL](docs/planning/WORKFLOW-DSL.md) | Complete workflow reference |
-| [Production Hardening](docs/operations/PRODUCTION-HARDENING.md) | Security hardening guide |
-| [Operations Runbook](docs/operations/RUNBOOK.md) | Troubleshooting and operations |
 | [Example Workflows](examples/README.md) | Ready-to-use workflow templates |
 
 ## Development
