@@ -15,11 +15,14 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/store"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/fhir/subscription"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/extract"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/quality"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/cda"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/csv"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/edi"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/fhir"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/hl7v2"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm/copilot"
 )
 
 // SubmitMessage is the resolver for the submitMessage field.
@@ -589,6 +592,43 @@ func (r *mutationResolver) DuplicateProfile(ctx context.Context, id string, newI
 	return convertStoreProfileToGraphQL(duplicated)
 }
 
+// GenerateWorkflow generates a workflow from natural language description.
+func (r *mutationResolver) GenerateWorkflow(ctx context.Context, input model.GenerateWorkflowInput) (*model.GeneratedWorkflow, error) {
+	// Return graceful degradation if copilot not configured
+	if r.WorkflowCopilot == nil {
+		return &model.GeneratedWorkflow{
+			Yaml:        "# Workflow generation not available (copilot not configured)",
+			Explanation: "LLM workflow generation is not configured",
+			Warnings:    []string{"Workflow copilot service not available"},
+		}, nil
+	}
+
+	// Build generation request
+	req := copilot.GenerateRequest{
+		Description: input.Description,
+		EventTypes:  input.EventTypes,
+		ActionTypes: input.ActionTypes,
+	}
+
+	// Generate workflow
+	result, err := r.WorkflowCopilot.Generate(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("generate workflow: %w", err)
+	}
+
+	// Convert to GraphQL model
+	warnings := result.Warnings
+	if warnings == nil {
+		warnings = []string{}
+	}
+
+	return &model.GeneratedWorkflow{
+		Yaml:        result.YAML,
+		Explanation: result.Explanation,
+		Warnings:    warnings,
+	}, nil
+}
+
 // Event is the resolver for the event field.
 func (r *queryResolver) Event(ctx context.Context, id string) (model.Event, error) {
 	return r.Store.GetEvent(ctx, id)
@@ -925,13 +965,13 @@ func (r *queryResolver) ParsePreviewWithProfile(ctx context.Context, format mode
 
 // ExplainWarnings is the resolver for the explainWarnings field.
 // It generates LLM-powered explanations for parse warnings.
-func (r *queryResolver) ExplainWarnings(ctx context.Context, warnings []model.ParseWarningInput, format model.SourceFormat) ([]*model.ExplainedWarning, error) {
+func (r *queryResolver) ExplainWarnings(ctx context.Context, warnings []model.ParseWarningInput, format model.SourceFormat) ([]model.ExplainedWarning, error) {
 	// Return empty if no explainer configured
 	if r.WarningExplainer == nil {
 		// Return empty explanations rather than error to allow graceful degradation
-		results := make([]*model.ExplainedWarning, len(warnings))
+		results := make([]model.ExplainedWarning, len(warnings))
 		for i, w := range warnings {
-			results[i] = &model.ExplainedWarning{
+			results[i] = model.ExplainedWarning{
 				Code:        w.Code,
 				Explanation: "LLM explanation not available (explainer not configured)",
 				FromCache:   false,
@@ -962,9 +1002,9 @@ func (r *queryResolver) ExplainWarnings(ctx context.Context, warnings []model.Pa
 	}
 
 	// Convert back to GraphQL model
-	results := make([]*model.ExplainedWarning, len(explained))
+	results := make([]model.ExplainedWarning, len(explained))
 	for i, e := range explained {
-		results[i] = &model.ExplainedWarning{
+		results[i] = model.ExplainedWarning{
 			Code:          e.Warning.Code,
 			Explanation:   e.Explanation,
 			FixSuggestion: strPtrEmpty(e.FixSuggestion),
@@ -974,6 +1014,179 @@ func (r *queryResolver) ExplainWarnings(ctx context.Context, warnings []model.Pa
 	}
 
 	return results, nil
+}
+
+// ExtractEntities extracts clinical entities from unstructured text using LLM.
+func (r *queryResolver) ExtractEntities(ctx context.Context, input model.ExtractEntitiesInput) (*model.ExtractionResult, error) {
+	// Return graceful degradation if extractor not configured
+	if r.ClinicalExtractor == nil {
+		return &model.ExtractionResult{
+			Conditions:        []model.ExtractedCondition{},
+			Medications:       []model.ExtractedMedication{},
+			VitalSigns:        []model.ExtractedVitalSign{},
+			Allergies:         []model.ExtractedAllergy{},
+			Procedures:        []model.ExtractedProcedure{},
+			OverallConfidence: 0,
+			ProcessingTimeMs:  0,
+		}, nil
+	}
+
+	// Build extraction options from input
+	opts := extract.ExtractionOptions{
+		DocumentType:       derefStr(input.DocumentType),
+		ExtractConditions:  true,
+		ExtractMedications: true,
+		ExtractVitalSigns:  true,
+		ExtractAllergies:   true,
+		ExtractProcedures:  true,
+		IncludeNegated:     derefBool(input.IncludeNegated),
+	}
+
+	// Set patient context if provided
+	if input.PatientAge != nil {
+		opts.PatientAge = *input.PatientAge
+	}
+	if input.PatientGender != nil {
+		opts.PatientGender = *input.PatientGender
+	}
+
+	// Set minimum confidence threshold
+	if input.MinConfidence != nil {
+		opts.MinConfidence = *input.MinConfidence
+	} else {
+		opts.MinConfidence = 0.7 // Default
+	}
+
+	// Perform extraction
+	startTime := time.Now()
+	result, err := r.ClinicalExtractor.Extract(ctx, input.Text, opts)
+	if err != nil {
+		return nil, fmt.Errorf("extract entities: %w", err)
+	}
+
+	// Convert to GraphQL model
+	return convertExtractionResult(result, time.Since(startTime)), nil
+}
+
+// AnalyzeQuality analyzes data quality of an event using LLM.
+func (r *queryResolver) AnalyzeQuality(ctx context.Context, input model.AnalyzeQualityInput) (*model.DataQualityScore, error) {
+	// Return graceful degradation if analyzer not configured
+	if r.QualityAnalyzer == nil {
+		return &model.DataQualityScore{
+			OverallScore: 0.5,
+			Dimensions: &model.QualityDimensions{
+				Completeness: 0.5,
+				Accuracy:     0.5,
+				Consistency:  0.5,
+				Conformance:  0.5,
+				Timeliness:   0.5,
+			},
+			Issues:          []model.DataQualityIssue{},
+			Recommendations: []model.QualityRecommendation{},
+		}, nil
+	}
+
+	// Convert event type
+	eventType := convertToEventsEventType(input.EventType)
+
+	// Perform analysis
+	startTime := time.Now()
+	result, err := r.QualityAnalyzer.AnalyzeEvent(ctx, input.Event, eventType)
+	if err != nil {
+		return nil, fmt.Errorf("analyze quality: %w", err)
+	}
+
+	// Convert to GraphQL model
+	return convertQualityScore(result, time.Since(startTime)), nil
+}
+
+// QuickQualityScore performs a lightweight quality assessment without LLM.
+func (r *queryResolver) QuickQualityScore(ctx context.Context, event map[string]any) (*model.DataQualityScore, error) {
+	// Use the quick score function (no LLM needed)
+	result := quality.QuickScore(event)
+	return convertQualityScore(result, 0), nil
+}
+
+// ExplainWorkflow generates a human-readable explanation of a workflow.
+func (r *queryResolver) ExplainWorkflow(ctx context.Context, input model.ExplainWorkflowInput) (*model.WorkflowExplanation, error) {
+	// Return graceful degradation if explainer not configured
+	if r.WorkflowExplainer == nil {
+		return &model.WorkflowExplanation{
+			Summary:           "Workflow explanation not available",
+			Description:       "LLM workflow explanation is not configured",
+			RouteExplanations: []model.RouteExplanation{},
+			Warnings:          []string{"Workflow explainer service not available"},
+		}, nil
+	}
+
+	// Get explanation (with optional audience targeting)
+	var explResult *workflowExplanationResult
+	var err error
+
+	if input.Audience != nil && *input.Audience != "" {
+		result, explErr := r.WorkflowExplainer.ExplainForAudience(ctx, input.WorkflowYaml, *input.Audience)
+		if explErr != nil {
+			return nil, fmt.Errorf("explain workflow: %w", explErr)
+		}
+		explResult = convertExplainResult(result)
+	} else {
+		result, explErr := r.WorkflowExplainer.Explain(ctx, input.WorkflowYaml)
+		if explErr != nil {
+			return nil, fmt.Errorf("explain workflow: %w", explErr)
+		}
+		explResult = convertExplainResult(result)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("explain workflow: %w", err)
+	}
+
+	return convertWorkflowExplanation(explResult), nil
+}
+
+// ClassifyMessage classifies a message to suggest tags and event type.
+func (r *queryResolver) ClassifyMessage(ctx context.Context, input model.ClassifyMessageInput) (*model.MessageClassification, error) {
+	// For now, implement basic classification without LLM
+	// This can be enhanced with LLM support later
+
+	result := &model.MessageClassification{
+		MessageType:   "UNKNOWN",
+		SuggestedTags: []string{},
+		Confidence:    0.5,
+	}
+
+	// Basic message type detection based on format
+	switch input.Format {
+	case model.SourceFormatHL7v2:
+		result = classifyHL7v2Message(input.Data)
+	case model.SourceFormatFHIR:
+		result = classifyFHIRMessage(input.Data)
+	case model.SourceFormatEDI837:
+		result.MessageType = "837"
+		result.EventType = eventTypePtr(model.EventTypeClaimSubmitted)
+		result.SuggestedTags = []string{"claims", "professional", "edi"}
+		result.Confidence = 0.9
+		result.Summary = strPtrEmpty("Professional claim submission (837P)")
+	case model.SourceFormatEDI835:
+		result.MessageType = "835"
+		result.EventType = eventTypePtr(model.EventTypeClaimAdjudicated)
+		result.SuggestedTags = []string{"remittance", "payment", "edi"}
+		result.Confidence = 0.9
+		result.Summary = strPtrEmpty("Remittance advice (835)")
+	case model.SourceFormatCDA:
+		result.MessageType = "CDA"
+		result.EventType = eventTypePtr(model.EventTypeDocument)
+		result.SuggestedTags = []string{"clinical-document", "cda"}
+		result.Confidence = 0.8
+		result.Summary = strPtrEmpty("Clinical document")
+	case model.SourceFormatCSV:
+		result.MessageType = "CSV"
+		result.SuggestedTags = []string{"batch", "csv"}
+		result.Confidence = 0.7
+		result.Summary = strPtrEmpty("CSV batch data")
+	}
+
+	return result, nil
 }
 
 // EventStream is the resolver for the eventStream field.

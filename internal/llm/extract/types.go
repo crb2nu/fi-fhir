@@ -10,19 +10,19 @@ import (
 // ExtractionResult contains entities extracted from clinical text.
 type ExtractionResult struct {
 	// Conditions are medical conditions/diagnoses found in the text.
-	Conditions []events.Condition `json:"conditions,omitempty"`
+	Conditions []events.ExtractedCondition `json:"conditions,omitempty"`
 
 	// Medications are medications mentioned in the text.
-	Medications []events.Medication `json:"medications,omitempty"`
+	Medications []events.ExtractedMedication `json:"medications,omitempty"`
 
 	// VitalSigns are vital sign measurements found in the text.
-	VitalSigns []events.VitalSign `json:"vital_signs,omitempty"`
+	VitalSigns []events.ExtractedVitalSign `json:"vital_signs,omitempty"`
 
 	// Allergies are allergies/intolerances found in the text.
-	Allergies []events.AllergyIntolerance `json:"allergies,omitempty"`
+	Allergies []events.ExtractedAllergy `json:"allergies,omitempty"`
 
 	// Procedures are medical procedures mentioned in the text.
-	Procedures []events.Procedure `json:"procedures,omitempty"`
+	Procedures []events.ExtractedProcedure `json:"procedures,omitempty"`
 
 	// Confidence is the overall confidence score for the extraction (0.0-1.0).
 	Confidence float64 `json:"confidence"`

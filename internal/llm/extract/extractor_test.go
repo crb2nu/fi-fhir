@@ -178,8 +178,8 @@ func TestExtractor_Extract(t *testing.T) {
 		if result.Medications[0].Name != "Metformin" {
 			t.Errorf("Medications[0].Name = %v", result.Medications[0].Name)
 		}
-		if result.Medications[0].Strength != "500mg" {
-			t.Errorf("Medications[0].Strength = %v", result.Medications[0].Strength)
+		if result.Medications[0].Dosage != "500mg" {
+			t.Errorf("Medications[0].Dosage = %v", result.Medications[0].Dosage)
 		}
 	})
 
@@ -244,14 +244,11 @@ func TestExtractor_Extract(t *testing.T) {
 		if len(result.Allergies) != 1 {
 			t.Fatalf("len(Allergies) = %d, want 1", len(result.Allergies))
 		}
-		if result.Allergies[0].Name != "Penicillin" {
-			t.Errorf("Allergies[0].Name = %v", result.Allergies[0].Name)
+		if result.Allergies[0].Substance != "Penicillin" {
+			t.Errorf("Allergies[0].Substance = %v", result.Allergies[0].Substance)
 		}
-		if len(result.Allergies[0].Reactions) != 1 {
-			t.Fatalf("len(Allergies[0].Reactions) = %d, want 1", len(result.Allergies[0].Reactions))
-		}
-		if result.Allergies[0].Reactions[0].ManifestationText != "rash" {
-			t.Errorf("Allergies[0].Reactions[0].ManifestationText = %v", result.Allergies[0].Reactions[0].ManifestationText)
+		if result.Allergies[0].Reaction != "rash" {
+			t.Errorf("Allergies[0].Reaction = %v", result.Allergies[0].Reaction)
 		}
 	})
 

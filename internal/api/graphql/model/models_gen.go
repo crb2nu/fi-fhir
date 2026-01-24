@@ -6,6 +6,11 @@ import (
 	"time"
 )
 
+type AnalyzeQualityInput struct {
+	Event     map[string]any `json:"event"`
+	EventType EventType      `json:"eventType"`
+}
+
 type AssigningAuthority struct {
 	Code   string  `json:"code"`
 	System string  `json:"system"`
@@ -18,9 +23,32 @@ type AssigningAuthorityInput struct {
 	Name   *string `json:"name,omitempty"`
 }
 
+type ClassifyMessageInput struct {
+	Data   string       `json:"data"`
+	Format SourceFormat `json:"format"`
+}
+
 type CreateProfileInput struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
+}
+
+type DataQualityIssue struct {
+	Dimension     string  `json:"dimension"`
+	Severity      string  `json:"severity"`
+	Field         *string `json:"field,omitempty"`
+	Description   string  `json:"description"`
+	ActualValue   *string `json:"actualValue,omitempty"`
+	ExpectedValue *string `json:"expectedValue,omitempty"`
+}
+
+type DataQualityScore struct {
+	OverallScore     float64                 `json:"overallScore"`
+	Dimensions       *QualityDimensions      `json:"dimensions"`
+	Issues           []DataQualityIssue      `json:"issues"`
+	Recommendations  []QualityRecommendation `json:"recommendations"`
+	ProcessingTimeMs *int                    `json:"processingTimeMs,omitempty"`
+	Model            *string                 `json:"model,omitempty"`
 }
 
 type EventClassificationRule struct {
@@ -35,6 +63,96 @@ type EventClassificationRuleInput struct {
 	Condition   *string `json:"condition,omitempty"`
 	EventType   string  `json:"eventType"`
 	Priority    int     `json:"priority"`
+}
+
+type ExplainWorkflowInput struct {
+	WorkflowYaml string  `json:"workflowYaml"`
+	Audience     *string `json:"audience,omitempty"`
+}
+
+type ExtractEntitiesInput struct {
+	Text           string   `json:"text"`
+	DocumentType   *string  `json:"documentType,omitempty"`
+	PatientAge     *int     `json:"patientAge,omitempty"`
+	PatientGender  *string  `json:"patientGender,omitempty"`
+	MinConfidence  *float64 `json:"minConfidence,omitempty"`
+	IncludeNegated *bool    `json:"includeNegated,omitempty"`
+}
+
+type ExtractedAllergy struct {
+	Substance  string  `json:"substance"`
+	Code       *string `json:"code,omitempty"`
+	CodeSystem *string `json:"codeSystem,omitempty"`
+	Severity   *string `json:"severity,omitempty"`
+	Reaction   *string `json:"reaction,omitempty"`
+	Confidence float64 `json:"confidence"`
+	Negated    *bool   `json:"negated,omitempty"`
+	TextSpan   *string `json:"textSpan,omitempty"`
+}
+
+type ExtractedCondition struct {
+	Name       string  `json:"name"`
+	Code       *string `json:"code,omitempty"`
+	CodeSystem *string `json:"codeSystem,omitempty"`
+	Confidence float64 `json:"confidence"`
+	Negated    *bool   `json:"negated,omitempty"`
+	TextSpan   *string `json:"textSpan,omitempty"`
+	Status     *string `json:"status,omitempty"`
+}
+
+type ExtractedMedication struct {
+	Name       string  `json:"name"`
+	Code       *string `json:"code,omitempty"`
+	CodeSystem *string `json:"codeSystem,omitempty"`
+	Dose       *string `json:"dose,omitempty"`
+	Route      *string `json:"route,omitempty"`
+	Frequency  *string `json:"frequency,omitempty"`
+	Confidence float64 `json:"confidence"`
+	Negated    *bool   `json:"negated,omitempty"`
+	TextSpan   *string `json:"textSpan,omitempty"`
+}
+
+type ExtractedProcedure struct {
+	Name       string  `json:"name"`
+	Code       *string `json:"code,omitempty"`
+	CodeSystem *string `json:"codeSystem,omitempty"`
+	Status     *string `json:"status,omitempty"`
+	Confidence float64 `json:"confidence"`
+	Negated    *bool   `json:"negated,omitempty"`
+	TextSpan   *string `json:"textSpan,omitempty"`
+}
+
+type ExtractedVitalSign struct {
+	Name           string  `json:"name"`
+	LoincCode      *string `json:"loincCode,omitempty"`
+	Value          string  `json:"value"`
+	Unit           *string `json:"unit,omitempty"`
+	Confidence     float64 `json:"confidence"`
+	Interpretation *string `json:"interpretation,omitempty"`
+	TextSpan       *string `json:"textSpan,omitempty"`
+}
+
+type ExtractionResult struct {
+	Conditions        []ExtractedCondition  `json:"conditions"`
+	Medications       []ExtractedMedication `json:"medications"`
+	VitalSigns        []ExtractedVitalSign  `json:"vitalSigns"`
+	Allergies         []ExtractedAllergy    `json:"allergies"`
+	Procedures        []ExtractedProcedure  `json:"procedures"`
+	OverallConfidence float64               `json:"overallConfidence"`
+	ProcessingTimeMs  int                   `json:"processingTimeMs"`
+	Model             *string               `json:"model,omitempty"`
+}
+
+type GenerateWorkflowInput struct {
+	Description string   `json:"description"`
+	EventTypes  []string `json:"eventTypes,omitempty"`
+	ActionTypes []string `json:"actionTypes,omitempty"`
+}
+
+type GeneratedWorkflow struct {
+	Yaml        string   `json:"yaml"`
+	Explanation string   `json:"explanation"`
+	Warnings    []string `json:"warnings"`
 }
 
 type HL7v2Config struct {
@@ -77,6 +195,14 @@ type IdentifierConfigInput struct {
 	Normalization        *NormalizationSettingsInput `json:"normalization,omitempty"`
 }
 
+type MessageClassification struct {
+	MessageType   string     `json:"messageType"`
+	EventType     *EventType `json:"eventType,omitempty"`
+	SuggestedTags []string   `json:"suggestedTags"`
+	Confidence    float64    `json:"confidence"`
+	Summary       *string    `json:"summary,omitempty"`
+}
+
 type Mutation struct {
 }
 
@@ -101,7 +227,30 @@ type ProfileRevision struct {
 	ChangeSummary *string   `json:"changeSummary,omitempty"`
 }
 
+type QualityDimensions struct {
+	Completeness float64 `json:"completeness"`
+	Accuracy     float64 `json:"accuracy"`
+	Consistency  float64 `json:"consistency"`
+	Conformance  float64 `json:"conformance"`
+	Timeliness   float64 `json:"timeliness"`
+}
+
+type QualityRecommendation struct {
+	Priority    int     `json:"priority"`
+	Category    *string `json:"category,omitempty"`
+	Title       string  `json:"title"`
+	Description string  `json:"description"`
+	Impact      *string `json:"impact,omitempty"`
+}
+
 type Query struct {
+}
+
+type RouteExplanation struct {
+	Name        string   `json:"name"`
+	Trigger     string   `json:"trigger"`
+	Actions     []string `json:"actions"`
+	Description string   `json:"description"`
 }
 
 type SourceProfile struct {
@@ -197,4 +346,12 @@ type ValidatorSetting struct {
 type ValidatorSettingInput struct {
 	Enabled   bool   `json:"enabled"`
 	OnInvalid string `json:"onInvalid"`
+}
+
+type WorkflowExplanation struct {
+	Summary           string             `json:"summary"`
+	Description       string             `json:"description"`
+	RouteExplanations []RouteExplanation `json:"routeExplanations"`
+	Diagram           *string            `json:"diagram,omitempty"`
+	Warnings          []string           `json:"warnings"`
 }

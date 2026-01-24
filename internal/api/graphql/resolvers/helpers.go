@@ -14,6 +14,8 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/store"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/explain"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/extract"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/quality"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 )
 
@@ -810,4 +812,515 @@ func (r *queryResolver) explainWarningsBatch(ctx context.Context, warnings []par
 
 	// Call the explainer batch method
 	return r.WarningExplainer.ExplainBatch(ctx, eventWarnings, format)
+}
+
+// =============================================================================
+// LLM Extraction Helpers
+// =============================================================================
+
+// derefBool dereferences a bool pointer, returning false if nil.
+func derefBool(b *bool) bool {
+	if b == nil {
+		return false
+	}
+	return *b
+}
+
+// convertExtractionResult converts internal extraction result to GraphQL model.
+func convertExtractionResult(result *extract.ExtractionResult, duration time.Duration) *model.ExtractionResult {
+	if result == nil {
+		return &model.ExtractionResult{
+			Conditions:        []model.ExtractedCondition{},
+			Medications:       []model.ExtractedMedication{},
+			VitalSigns:        []model.ExtractedVitalSign{},
+			Allergies:         []model.ExtractedAllergy{},
+			Procedures:        []model.ExtractedProcedure{},
+			OverallConfidence: 0,
+			ProcessingTimeMs:  0,
+		}
+	}
+
+	gqlResult := &model.ExtractionResult{
+		Conditions:        make([]model.ExtractedCondition, 0, len(result.Conditions)),
+		Medications:       make([]model.ExtractedMedication, 0, len(result.Medications)),
+		VitalSigns:        make([]model.ExtractedVitalSign, 0, len(result.VitalSigns)),
+		Allergies:         make([]model.ExtractedAllergy, 0, len(result.Allergies)),
+		Procedures:        make([]model.ExtractedProcedure, 0, len(result.Procedures)),
+		OverallConfidence: result.Confidence,
+		ProcessingTimeMs:  int(duration.Milliseconds()),
+		Model:             strPtrEmpty(result.Model),
+	}
+
+	// Convert conditions
+	for _, c := range result.Conditions {
+		gqlResult.Conditions = append(gqlResult.Conditions, model.ExtractedCondition{
+			Name:       c.Name,
+			Code:       strPtrEmpty(c.Code),
+			CodeSystem: strPtrEmpty(c.CodeSystem),
+			Confidence: c.Confidence,
+			Negated:    boolPtr(c.Negated),
+			TextSpan:   strPtrEmpty(c.TextSpan),
+			Status:     strPtrEmpty(c.Status),
+		})
+	}
+
+	// Convert medications
+	for _, m := range result.Medications {
+		gqlResult.Medications = append(gqlResult.Medications, model.ExtractedMedication{
+			Name:       m.Name,
+			Code:       strPtrEmpty(m.Code),
+			CodeSystem: strPtrEmpty(m.CodeSystem),
+			Dose:       strPtrEmpty(m.Dosage),
+			Route:      strPtrEmpty(m.Route),
+			Frequency:  strPtrEmpty(m.Frequency),
+			Confidence: m.Confidence,
+			Negated:    nil, // Not tracked in events.ExtractedMedication
+			TextSpan:   strPtrEmpty(m.TextSpan),
+		})
+	}
+
+	// Convert vital signs
+	for _, v := range result.VitalSigns {
+		gqlResult.VitalSigns = append(gqlResult.VitalSigns, model.ExtractedVitalSign{
+			Name:           v.Name,
+			LoincCode:      strPtrEmpty(v.LOINCCode),
+			Value:          v.Value,
+			Unit:           strPtrEmpty(v.Unit),
+			Confidence:     v.Confidence,
+			Interpretation: strPtrEmpty(v.Interpretation),
+			TextSpan:       strPtrEmpty(v.TextSpan),
+		})
+	}
+
+	// Convert allergies
+	for _, a := range result.Allergies {
+		gqlResult.Allergies = append(gqlResult.Allergies, model.ExtractedAllergy{
+			Substance:  a.Substance,
+			Code:       strPtrEmpty(a.Code),
+			CodeSystem: strPtrEmpty(a.CodeSystem),
+			Severity:   strPtrEmpty(a.Severity),
+			Reaction:   strPtrEmpty(a.Reaction),
+			Confidence: a.Confidence,
+			Negated:    nil, // Not tracked in events.ExtractedAllergy
+			TextSpan:   strPtrEmpty(a.TextSpan),
+		})
+	}
+
+	// Convert procedures
+	for _, p := range result.Procedures {
+		gqlResult.Procedures = append(gqlResult.Procedures, model.ExtractedProcedure{
+			Name:       p.Name,
+			Code:       strPtrEmpty(p.Code),
+			CodeSystem: strPtrEmpty(p.CodeSystem),
+			Status:     strPtrEmpty(p.Status),
+			Confidence: p.Confidence,
+			Negated:    nil, // Not tracked in events.ExtractedProcedure
+			TextSpan:   strPtrEmpty(p.TextSpan),
+		})
+	}
+
+	return gqlResult
+}
+
+// boolPtr returns a pointer to a bool value.
+func boolPtr(b bool) *bool {
+	return &b
+}
+
+// =============================================================================
+// LLM Quality Helpers
+// =============================================================================
+
+// convertQualityScore converts internal quality score to GraphQL model.
+func convertQualityScore(result *quality.DataQualityScore, duration time.Duration) *model.DataQualityScore {
+	if result == nil {
+		return &model.DataQualityScore{
+			OverallScore: 0,
+			Dimensions: &model.QualityDimensions{
+				Completeness: 0,
+				Accuracy:     0,
+				Consistency:  0,
+				Conformance:  0,
+				Timeliness:   0,
+			},
+			Issues:          []model.DataQualityIssue{},
+			Recommendations: []model.QualityRecommendation{},
+		}
+	}
+
+	gqlResult := &model.DataQualityScore{
+		OverallScore: result.OverallScore,
+		Dimensions: &model.QualityDimensions{
+			Completeness: result.Dimensions[quality.DimensionCompleteness],
+			Accuracy:     result.Dimensions[quality.DimensionAccuracy],
+			Consistency:  result.Dimensions[quality.DimensionConsistency],
+			Conformance:  result.Dimensions[quality.DimensionConformance],
+			Timeliness:   result.Dimensions[quality.DimensionTimeliness],
+		},
+		Issues:          make([]model.DataQualityIssue, 0, len(result.Issues)),
+		Recommendations: make([]model.QualityRecommendation, 0, len(result.Recommendations)),
+	}
+
+	// Set processing time if duration is non-zero
+	if duration > 0 {
+		ms := int(duration.Milliseconds())
+		gqlResult.ProcessingTimeMs = &ms
+	}
+
+	// Set model if available
+	if result.Metadata.Model != "" {
+		gqlResult.Model = strPtrEmpty(result.Metadata.Model)
+	}
+
+	// Convert issues
+	for _, issue := range result.Issues {
+		gqlResult.Issues = append(gqlResult.Issues, model.DataQualityIssue{
+			Dimension:     issue.Dimension,
+			Severity:      issue.Severity,
+			Field:         strPtrEmpty(issue.Field),
+			Description:   issue.Description,
+			ActualValue:   strPtrEmpty(issue.ActualValue),
+			ExpectedValue: strPtrEmpty(issue.ExpectedValue),
+		})
+	}
+
+	// Convert recommendations
+	for _, rec := range result.Recommendations {
+		gqlResult.Recommendations = append(gqlResult.Recommendations, model.QualityRecommendation{
+			Priority:    rec.Priority,
+			Category:    strPtrEmpty(rec.Category),
+			Title:       rec.Title,
+			Description: rec.Description,
+			Impact:      strPtrEmpty(rec.Impact),
+		})
+	}
+
+	return gqlResult
+}
+
+// convertToEventsEventType converts GraphQL EventType to events.EventType.
+func convertToEventsEventType(et model.EventType) events.EventType {
+	switch et {
+	case model.EventTypePatientAdmit:
+		return events.EventPatientAdmit
+	case model.EventTypePatientDischarge:
+		return events.EventPatientDischarge
+	case model.EventTypePatientTransfer:
+		return events.EventPatientTransfer
+	case model.EventTypePatientUpdate:
+		return events.EventPatientUpdate
+	case model.EventTypeLabResult:
+		return events.EventLabResult
+	case model.EventTypeLabOrdered:
+		return events.EventLabOrdered
+	case model.EventTypeVitalSign:
+		return events.EventVitalSign
+	case model.EventTypeCondition:
+		return events.EventCondition
+	case model.EventTypeProcedure:
+		return events.EventProcedure
+	case model.EventTypeImmunization:
+		return events.EventImmunization
+	case model.EventTypeAppointmentScheduled:
+		return events.EventAppointmentScheduled
+	case model.EventTypeAppointmentCancelled:
+		return events.EventAppointmentCancelled
+	case model.EventTypeAppointmentNoshow:
+		return events.EventAppointmentNoShow
+	case model.EventTypeClaimSubmitted:
+		return events.EventClaimSubmitted
+	case model.EventTypeClaimAdjudicated:
+		return events.EventClaimAdjudicated
+	case model.EventTypeDocument:
+		return events.EventDocument
+	default:
+		return events.EventType(string(et))
+	}
+}
+
+// =============================================================================
+// LLM Workflow Explainer Helpers
+// =============================================================================
+
+// workflowExplanationResult is an intermediate type for workflow explanation conversion.
+type workflowExplanationResult struct {
+	Summary           string
+	Description       string
+	RouteExplanations []routeExplanationResult
+	Diagram           string
+	Warnings          []string
+}
+
+// routeExplanationResult is an intermediate type for route explanation conversion.
+type routeExplanationResult struct {
+	Name        string
+	Trigger     string
+	Actions     []string
+	Description string
+}
+
+// convertExplainResult converts internal workflow explanation to intermediate type.
+func convertExplainResult(result *explain.WorkflowExplanation) *workflowExplanationResult {
+	if result == nil {
+		return &workflowExplanationResult{
+			RouteExplanations: []routeExplanationResult{},
+			Warnings:          []string{},
+		}
+	}
+
+	routes := make([]routeExplanationResult, 0, len(result.RouteExplanations))
+	for _, r := range result.RouteExplanations {
+		actions := r.Actions
+		if actions == nil {
+			actions = []string{}
+		}
+		routes = append(routes, routeExplanationResult{
+			Name:        r.Name,
+			Trigger:     r.Trigger,
+			Actions:     actions,
+			Description: r.Description,
+		})
+	}
+
+	warnings := result.Warnings
+	if warnings == nil {
+		warnings = []string{}
+	}
+
+	return &workflowExplanationResult{
+		Summary:           result.Summary,
+		Description:       result.Description,
+		RouteExplanations: routes,
+		Diagram:           result.Diagram,
+		Warnings:          warnings,
+	}
+}
+
+// convertWorkflowExplanation converts intermediate type to GraphQL model.
+func convertWorkflowExplanation(result *workflowExplanationResult) *model.WorkflowExplanation {
+	if result == nil {
+		return &model.WorkflowExplanation{
+			Summary:           "",
+			Description:       "",
+			RouteExplanations: []model.RouteExplanation{},
+			Warnings:          []string{},
+		}
+	}
+
+	routes := make([]model.RouteExplanation, 0, len(result.RouteExplanations))
+	for _, r := range result.RouteExplanations {
+		actions := r.Actions
+		if actions == nil {
+			actions = []string{}
+		}
+		routes = append(routes, model.RouteExplanation{
+			Name:        r.Name,
+			Trigger:     r.Trigger,
+			Actions:     actions,
+			Description: r.Description,
+		})
+	}
+
+	warnings := result.Warnings
+	if warnings == nil {
+		warnings = []string{}
+	}
+
+	var diagram *string
+	if result.Diagram != "" {
+		diagram = &result.Diagram
+	}
+
+	return &model.WorkflowExplanation{
+		Summary:           result.Summary,
+		Description:       result.Description,
+		RouteExplanations: routes,
+		Diagram:           diagram,
+		Warnings:          warnings,
+	}
+}
+
+// =============================================================================
+// Message Classification Helpers
+// =============================================================================
+
+// eventTypePtr returns a pointer to an EventType value.
+func eventTypePtr(et model.EventType) *model.EventType {
+	return &et
+}
+
+// classifyHL7v2Message performs basic HL7v2 message classification.
+func classifyHL7v2Message(data string) *model.MessageClassification {
+	result := &model.MessageClassification{
+		MessageType:   "UNKNOWN",
+		SuggestedTags: []string{},
+		Confidence:    0.5,
+	}
+
+	// Simple message type detection from MSH segment
+	if len(data) < 20 {
+		return result
+	}
+
+	// Look for MSH segment and extract message type
+	lines := splitHL7Lines(data)
+	for _, line := range lines {
+		if len(line) > 3 && line[:3] == "MSH" {
+			fields := splitHL7Fields(line)
+			if len(fields) > 8 {
+				msgType := fields[8] // MSH-9
+				result.MessageType = msgType
+				result.Confidence = 0.9
+
+				// Classify based on message type
+				switch {
+				case contains(msgType, "ADT"):
+					result.SuggestedTags = []string{"adt", "patient-movement"}
+					if contains(msgType, "A01") {
+						result.EventType = eventTypePtr(model.EventTypePatientAdmit)
+						result.Summary = strPtrEmpty("Patient admission")
+					} else if contains(msgType, "A03") {
+						result.EventType = eventTypePtr(model.EventTypePatientDischarge)
+						result.Summary = strPtrEmpty("Patient discharge")
+					} else if contains(msgType, "A02") {
+						result.EventType = eventTypePtr(model.EventTypePatientTransfer)
+						result.Summary = strPtrEmpty("Patient transfer")
+					}
+				case contains(msgType, "ORU"):
+					result.SuggestedTags = []string{"oru", "results", "lab"}
+					result.EventType = eventTypePtr(model.EventTypeLabResult)
+					result.Summary = strPtrEmpty("Lab/observation result")
+				case contains(msgType, "ORM"):
+					result.SuggestedTags = []string{"orm", "orders"}
+					result.EventType = eventTypePtr(model.EventTypeLabOrdered)
+					result.Summary = strPtrEmpty("Order message")
+				case contains(msgType, "MDM"):
+					result.SuggestedTags = []string{"mdm", "document", "clinical-note"}
+					result.EventType = eventTypePtr(model.EventTypeDocument)
+					result.Summary = strPtrEmpty("Medical document/clinical note")
+				case contains(msgType, "SIU"):
+					result.SuggestedTags = []string{"siu", "scheduling", "appointment"}
+					result.EventType = eventTypePtr(model.EventTypeAppointmentScheduled)
+					result.Summary = strPtrEmpty("Scheduling message")
+				case contains(msgType, "DFT"):
+					result.SuggestedTags = []string{"dft", "billing", "financial"}
+					result.Summary = strPtrEmpty("Financial transaction")
+				case contains(msgType, "RDE"):
+					result.SuggestedTags = []string{"rde", "pharmacy", "medication"}
+					result.Summary = strPtrEmpty("Pharmacy/medication message")
+				}
+				break
+			}
+		}
+	}
+
+	return result
+}
+
+// classifyFHIRMessage performs basic FHIR message classification.
+func classifyFHIRMessage(data string) *model.MessageClassification {
+	result := &model.MessageClassification{
+		MessageType:   "FHIR",
+		SuggestedTags: []string{"fhir"},
+		Confidence:    0.7,
+	}
+
+	// Simple resource type detection
+	if contains(data, "\"resourceType\"") {
+		if contains(data, "\"Patient\"") {
+			result.MessageType = "Patient"
+			result.SuggestedTags = append(result.SuggestedTags, "patient")
+			result.Summary = strPtrEmpty("FHIR Patient resource")
+		} else if contains(data, "\"Observation\"") {
+			result.MessageType = "Observation"
+			result.SuggestedTags = append(result.SuggestedTags, "observation", "result")
+			result.EventType = eventTypePtr(model.EventTypeLabResult)
+			result.Summary = strPtrEmpty("FHIR Observation resource")
+		} else if contains(data, "\"Encounter\"") {
+			result.MessageType = "Encounter"
+			result.SuggestedTags = append(result.SuggestedTags, "encounter")
+			result.Summary = strPtrEmpty("FHIR Encounter resource")
+		} else if contains(data, "\"Condition\"") {
+			result.MessageType = "Condition"
+			result.SuggestedTags = append(result.SuggestedTags, "condition", "diagnosis")
+			result.EventType = eventTypePtr(model.EventTypeCondition)
+			result.Summary = strPtrEmpty("FHIR Condition resource")
+		} else if contains(data, "\"Procedure\"") {
+			result.MessageType = "Procedure"
+			result.SuggestedTags = append(result.SuggestedTags, "procedure")
+			result.EventType = eventTypePtr(model.EventTypeProcedure)
+			result.Summary = strPtrEmpty("FHIR Procedure resource")
+		} else if contains(data, "\"MedicationRequest\"") {
+			result.MessageType = "MedicationRequest"
+			result.SuggestedTags = append(result.SuggestedTags, "medication", "pharmacy")
+			result.Summary = strPtrEmpty("FHIR MedicationRequest resource")
+		} else if contains(data, "\"DocumentReference\"") {
+			result.MessageType = "DocumentReference"
+			result.SuggestedTags = append(result.SuggestedTags, "document")
+			result.EventType = eventTypePtr(model.EventTypeDocument)
+			result.Summary = strPtrEmpty("FHIR DocumentReference resource")
+		} else if contains(data, "\"Bundle\"") {
+			result.MessageType = "Bundle"
+			result.SuggestedTags = append(result.SuggestedTags, "bundle")
+			result.Summary = strPtrEmpty("FHIR Bundle resource")
+		}
+		result.Confidence = 0.85
+	}
+
+	return result
+}
+
+// splitHL7Lines splits HL7 message into lines.
+func splitHL7Lines(data string) []string {
+	var lines []string
+	start := 0
+	for i := 0; i < len(data); i++ {
+		if data[i] == '\r' || data[i] == '\n' {
+			if i > start {
+				lines = append(lines, data[start:i])
+			}
+			start = i + 1
+		}
+	}
+	if start < len(data) {
+		lines = append(lines, data[start:])
+	}
+	return lines
+}
+
+// splitHL7Fields splits an HL7 segment into fields.
+func splitHL7Fields(segment string) []string {
+	if len(segment) < 4 {
+		return nil
+	}
+	// Get field separator (usually |)
+	sep := segment[3:4]
+	var fields []string
+	start := 0
+	for i := 0; i < len(segment); i++ {
+		if string(segment[i]) == sep {
+			fields = append(fields, segment[start:i])
+			start = i + 1
+		}
+	}
+	if start < len(segment) {
+		fields = append(fields, segment[start:])
+	}
+	return fields
+}
+
+// contains checks if a string contains a substring.
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
+		(len(s) > 0 && len(substr) > 0 && findSubstring(s, substr) >= 0))
+}
+
+// findSubstring finds a substring in a string.
+func findSubstring(s, substr string) int {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
 }

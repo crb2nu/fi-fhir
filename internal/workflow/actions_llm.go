@@ -263,65 +263,12 @@ func addExtractedEntitiesToEvent(event interface{}, result *extract.ExtractionRe
 		Model:       result.Model,
 	}
 
-	// Convert conditions (events.Condition has flat fields)
-	for _, c := range result.Conditions {
-		extracted.Conditions = append(extracted.Conditions, events.ExtractedCondition{
-			Name:       c.Name,
-			Code:       c.Code,
-			CodeSystem: c.CodeSystem,
-			Status:     c.Category,        // Map category to status
-			Confidence: result.Confidence, // Use overall confidence
-		})
-	}
-
-	// Convert medications (events.Medication has flat fields)
-	for _, m := range result.Medications {
-		extracted.Medications = append(extracted.Medications, events.ExtractedMedication{
-			Name:       m.Name,
-			Code:       m.Code,
-			CodeSystem: m.CodeSystem,
-			Dosage:     m.Strength, // Map strength to dosage
-			Confidence: result.Confidence,
-		})
-	}
-
-	// Convert vital signs (events.VitalSign has flat fields)
-	for _, v := range result.VitalSigns {
-		extracted.VitalSigns = append(extracted.VitalSigns, events.ExtractedVitalSign{
-			Name:       v.Name,
-			LOINCCode:  v.LOINCCode,
-			Value:      v.Value,
-			Unit:       v.Unit,
-			Confidence: result.Confidence,
-		})
-	}
-
-	// Convert allergies (events.AllergyIntolerance has flat fields)
-	for _, a := range result.Allergies {
-		reaction := ""
-		if len(a.Reactions) > 0 {
-			reaction = a.Reactions[0].ManifestationText
-		}
-		extracted.Allergies = append(extracted.Allergies, events.ExtractedAllergy{
-			Substance:  a.Name,
-			Code:       a.Code,
-			CodeSystem: a.CodeSystem,
-			Reaction:   reaction,
-			Severity:   a.Criticality,
-			Confidence: result.Confidence,
-		})
-	}
-
-	// Convert procedures (events.Procedure has flat fields)
-	for _, p := range result.Procedures {
-		extracted.Procedures = append(extracted.Procedures, events.ExtractedProcedure{
-			Name:       p.Name,
-			Code:       p.Code,
-			CodeSystem: p.CodeSystem,
-			Status:     p.Status,
-			Confidence: result.Confidence,
-		})
-	}
+	// Copy extracted entities directly (result already uses events.Extracted* types)
+	extracted.Conditions = result.Conditions
+	extracted.Medications = result.Medications
+	extracted.VitalSigns = result.VitalSigns
+	extracted.Allergies = result.Allergies
+	extracted.Procedures = result.Procedures
 
 	// Add to event meta
 	if meta, ok := eventMap["meta"].(map[string]interface{}); ok {

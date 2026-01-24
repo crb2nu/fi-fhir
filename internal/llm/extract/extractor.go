@@ -214,11 +214,14 @@ func (e *Extractor) parseExtractionResponse(rawJSON json.RawMessage, opts Extrac
 		if c.Confidence < opts.MinConfidence {
 			continue
 		}
-		result.Conditions = append(result.Conditions, events.Condition{
+		result.Conditions = append(result.Conditions, events.ExtractedCondition{
 			Name:       c.Name,
 			Code:       c.Code,
 			CodeSystem: c.CodeSystem,
-			Category:   c.Status, // Map status to category
+			Confidence: c.Confidence,
+			Negated:    c.Negated,
+			Status:     c.Status,
+			TextSpan:   c.TextSpan,
 		})
 	}
 
@@ -230,12 +233,15 @@ func (e *Extractor) parseExtractionResponse(rawJSON json.RawMessage, opts Extrac
 		if m.Confidence < opts.MinConfidence {
 			continue
 		}
-		result.Medications = append(result.Medications, events.Medication{
+		result.Medications = append(result.Medications, events.ExtractedMedication{
 			Name:       m.Name,
 			Code:       m.Code,
 			CodeSystem: m.CodeSystem,
-			Strength:   m.Dose,  // Map dose to strength
-			Form:       m.Route, // Map route to form (approximation)
+			Confidence: m.Confidence,
+			Dosage:     m.Dose,
+			Frequency:  m.Frequency,
+			Route:      m.Route,
+			TextSpan:   m.TextSpan,
 		})
 	}
 
@@ -244,11 +250,13 @@ func (e *Extractor) parseExtractionResponse(rawJSON json.RawMessage, opts Extrac
 		if v.Confidence < opts.MinConfidence {
 			continue
 		}
-		result.VitalSigns = append(result.VitalSigns, events.VitalSign{
-			Name:      v.Name,
-			LOINCCode: v.LOINCCode,
-			Value:     v.Value,
-			Unit:      v.Unit,
+		result.VitalSigns = append(result.VitalSigns, events.ExtractedVitalSign{
+			Name:       v.Name,
+			LOINCCode:  v.LOINCCode,
+			Value:      v.Value,
+			Unit:       v.Unit,
+			Confidence: v.Confidence,
+			TextSpan:   v.TextSpan,
 		})
 	}
 
@@ -260,19 +268,15 @@ func (e *Extractor) parseExtractionResponse(rawJSON json.RawMessage, opts Extrac
 		if a.Confidence < opts.MinConfidence {
 			continue
 		}
-		allergy := events.AllergyIntolerance{
-			Name:        a.Name,
-			Code:        a.Code,
-			CodeSystem:  a.CodeSystem,
-			Type:        a.Type,
-			Criticality: a.Severity, // Map severity to criticality
-		}
-		if a.Reaction != "" {
-			allergy.Reactions = []events.AllergyReaction{
-				{ManifestationText: a.Reaction},
-			}
-		}
-		result.Allergies = append(result.Allergies, allergy)
+		result.Allergies = append(result.Allergies, events.ExtractedAllergy{
+			Substance:  a.Name,
+			Code:       a.Code,
+			CodeSystem: a.CodeSystem,
+			Reaction:   a.Reaction,
+			Severity:   a.Severity,
+			Confidence: a.Confidence,
+			TextSpan:   a.TextSpan,
+		})
 	}
 
 	// Convert procedures
@@ -283,11 +287,13 @@ func (e *Extractor) parseExtractionResponse(rawJSON json.RawMessage, opts Extrac
 		if p.Confidence < opts.MinConfidence {
 			continue
 		}
-		result.Procedures = append(result.Procedures, events.Procedure{
+		result.Procedures = append(result.Procedures, events.ExtractedProcedure{
 			Name:       p.Name,
 			Code:       p.Code,
 			CodeSystem: p.CodeSystem,
+			Confidence: p.Confidence,
 			Status:     p.Status,
+			TextSpan:   p.TextSpan,
 		})
 	}
 

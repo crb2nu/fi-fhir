@@ -42,6 +42,11 @@ export type Address = {
   state: Maybe<Scalars['String']['output']>;
 };
 
+export type AnalyzeQualityInput = {
+  event: Scalars['JSON']['input'];
+  eventType: EventType;
+};
+
 export type Appointment = {
   __typename?: 'Appointment';
   endTime: Maybe<Scalars['DateTime']['output']>;
@@ -113,6 +118,11 @@ export type BatchResult = {
   totalItems: Scalars['Int']['output'];
 };
 
+export type ClassifyMessageInput = {
+  data: Scalars['String']['input'];
+  format: SourceFormat;
+};
+
 export type ComponentHealth = {
   __typename?: 'ComponentHealth';
   message: Maybe<Scalars['String']['output']>;
@@ -152,6 +162,26 @@ export type CreateSubscriptionInput = {
   endpoint: Scalars['String']['input'];
   name: Scalars['String']['input'];
   server: Scalars['String']['input'];
+};
+
+export type DataQualityIssue = {
+  __typename?: 'DataQualityIssue';
+  actualValue: Maybe<Scalars['String']['output']>;
+  description: Scalars['String']['output'];
+  dimension: Scalars['String']['output'];
+  expectedValue: Maybe<Scalars['String']['output']>;
+  field: Maybe<Scalars['String']['output']>;
+  severity: Scalars['String']['output'];
+};
+
+export type DataQualityScore = {
+  __typename?: 'DataQualityScore';
+  dimensions: QualityDimensions;
+  issues: Array<DataQualityIssue>;
+  model: Maybe<Scalars['String']['output']>;
+  overallScore: Scalars['Float']['output'];
+  processingTimeMs: Maybe<Scalars['Int']['output']>;
+  recommendations: Array<QualityRecommendation>;
 };
 
 export type DocumentEvent = Event & {
@@ -265,6 +295,11 @@ export type EventTypeCount = {
   eventType: Scalars['String']['output'];
 };
 
+export type ExplainWorkflowInput = {
+  audience: InputMaybe<Scalars['String']['input']>;
+  workflowYaml: Scalars['String']['input'];
+};
+
 export type ExplainedWarning = {
   __typename?: 'ExplainedWarning';
   code: Scalars['String']['output'];
@@ -272,6 +307,85 @@ export type ExplainedWarning = {
   fixSuggestion: Maybe<Scalars['String']['output']>;
   fromCache: Scalars['Boolean']['output'];
   impact: Maybe<Scalars['String']['output']>;
+};
+
+export type ExtractEntitiesInput = {
+  documentType: InputMaybe<Scalars['String']['input']>;
+  includeNegated: InputMaybe<Scalars['Boolean']['input']>;
+  minConfidence: InputMaybe<Scalars['Float']['input']>;
+  patientAge: InputMaybe<Scalars['Int']['input']>;
+  patientGender: InputMaybe<Scalars['String']['input']>;
+  text: Scalars['String']['input'];
+};
+
+export type ExtractedAllergy = {
+  __typename?: 'ExtractedAllergy';
+  code: Maybe<Scalars['String']['output']>;
+  codeSystem: Maybe<Scalars['String']['output']>;
+  confidence: Scalars['Float']['output'];
+  negated: Maybe<Scalars['Boolean']['output']>;
+  reaction: Maybe<Scalars['String']['output']>;
+  severity: Maybe<Scalars['String']['output']>;
+  substance: Scalars['String']['output'];
+  textSpan: Maybe<Scalars['String']['output']>;
+};
+
+export type ExtractedCondition = {
+  __typename?: 'ExtractedCondition';
+  code: Maybe<Scalars['String']['output']>;
+  codeSystem: Maybe<Scalars['String']['output']>;
+  confidence: Scalars['Float']['output'];
+  name: Scalars['String']['output'];
+  negated: Maybe<Scalars['Boolean']['output']>;
+  status: Maybe<Scalars['String']['output']>;
+  textSpan: Maybe<Scalars['String']['output']>;
+};
+
+export type ExtractedMedication = {
+  __typename?: 'ExtractedMedication';
+  code: Maybe<Scalars['String']['output']>;
+  codeSystem: Maybe<Scalars['String']['output']>;
+  confidence: Scalars['Float']['output'];
+  dose: Maybe<Scalars['String']['output']>;
+  frequency: Maybe<Scalars['String']['output']>;
+  name: Scalars['String']['output'];
+  negated: Maybe<Scalars['Boolean']['output']>;
+  route: Maybe<Scalars['String']['output']>;
+  textSpan: Maybe<Scalars['String']['output']>;
+};
+
+export type ExtractedProcedure = {
+  __typename?: 'ExtractedProcedure';
+  code: Maybe<Scalars['String']['output']>;
+  codeSystem: Maybe<Scalars['String']['output']>;
+  confidence: Scalars['Float']['output'];
+  name: Scalars['String']['output'];
+  negated: Maybe<Scalars['Boolean']['output']>;
+  status: Maybe<Scalars['String']['output']>;
+  textSpan: Maybe<Scalars['String']['output']>;
+};
+
+export type ExtractedVitalSign = {
+  __typename?: 'ExtractedVitalSign';
+  confidence: Scalars['Float']['output'];
+  interpretation: Maybe<Scalars['String']['output']>;
+  loincCode: Maybe<Scalars['String']['output']>;
+  name: Scalars['String']['output'];
+  textSpan: Maybe<Scalars['String']['output']>;
+  unit: Maybe<Scalars['String']['output']>;
+  value: Scalars['String']['output'];
+};
+
+export type ExtractionResult = {
+  __typename?: 'ExtractionResult';
+  allergies: Array<ExtractedAllergy>;
+  conditions: Array<ExtractedCondition>;
+  medications: Array<ExtractedMedication>;
+  model: Maybe<Scalars['String']['output']>;
+  overallConfidence: Scalars['Float']['output'];
+  procedures: Array<ExtractedProcedure>;
+  processingTimeMs: Scalars['Int']['output'];
+  vitalSigns: Array<ExtractedVitalSign>;
 };
 
 export type FhirSubscription = {
@@ -283,6 +397,19 @@ export type FhirSubscription = {
   name: Scalars['String']['output'];
   server: Scalars['String']['output'];
   status: Scalars['String']['output'];
+};
+
+export type GenerateWorkflowInput = {
+  actionTypes: InputMaybe<Array<Scalars['String']['input']>>;
+  description: Scalars['String']['input'];
+  eventTypes: InputMaybe<Array<Scalars['String']['input']>>;
+};
+
+export type GeneratedWorkflow = {
+  __typename?: 'GeneratedWorkflow';
+  explanation: Scalars['String']['output'];
+  warnings: Array<Scalars['String']['output']>;
+  yaml: Scalars['String']['output'];
 };
 
 export type Hl7v2Config = {
@@ -404,6 +531,15 @@ export type Location = {
   unit: Maybe<Scalars['String']['output']>;
 };
 
+export type MessageClassification = {
+  __typename?: 'MessageClassification';
+  confidence: Scalars['Float']['output'];
+  eventType: Maybe<EventType>;
+  messageType: Scalars['String']['output'];
+  suggestedTags: Array<Scalars['String']['output']>;
+  summary: Maybe<Scalars['String']['output']>;
+};
+
 export type Mutation = {
   __typename?: 'Mutation';
   createFhirSubscription: FhirSubscription;
@@ -411,6 +547,7 @@ export type Mutation = {
   deleteFhirSubscription: Scalars['Boolean']['output'];
   deleteProfile: Scalars['Boolean']['output'];
   duplicateProfile: SourceProfile;
+  generateWorkflow: GeneratedWorkflow;
   pauseFhirSubscription: FhirSubscription;
   resumeFhirSubscription: FhirSubscription;
   submitBatch: BatchResult;
@@ -445,6 +582,11 @@ export type MutationDuplicateProfileArgs = {
   id: Scalars['ID']['input'];
   newId: Scalars['ID']['input'];
   newName: Scalars['String']['input'];
+};
+
+
+export type MutationGenerateWorkflowArgs = {
+  input: GenerateWorkflowInput;
 };
 
 
@@ -654,15 +796,37 @@ export type Provider = {
   specialty: Maybe<Scalars['String']['output']>;
 };
 
+export type QualityDimensions = {
+  __typename?: 'QualityDimensions';
+  accuracy: Scalars['Float']['output'];
+  completeness: Scalars['Float']['output'];
+  conformance: Scalars['Float']['output'];
+  consistency: Scalars['Float']['output'];
+  timeliness: Scalars['Float']['output'];
+};
+
+export type QualityRecommendation = {
+  __typename?: 'QualityRecommendation';
+  category: Maybe<Scalars['String']['output']>;
+  description: Scalars['String']['output'];
+  impact: Maybe<Scalars['String']['output']>;
+  priority: Scalars['Int']['output'];
+  title: Scalars['String']['output'];
+};
+
 export type Query = {
   __typename?: 'Query';
   activeEncounter: Maybe<ActiveEncounter>;
   activeEncounterByPatient: Maybe<ActiveEncounter>;
   activeEncounters: Array<ActiveEncounter>;
+  analyzeQuality: DataQualityScore;
+  classifyMessage: MessageClassification;
   event: Maybe<Event>;
   eventStatistics: EventStatistics;
   events: EventConnection;
   explainWarnings: Array<ExplainedWarning>;
+  explainWorkflow: WorkflowExplanation;
+  extractEntities: ExtractionResult;
   health: HealthStatus;
   parsePreview: ParseResult;
   parsePreviewWithProfile: ParseResult;
@@ -673,6 +837,7 @@ export type Query = {
   profileRevisions: Array<ProfileRevision>;
   profiles: Array<SourceProfile>;
   projectionStatus: Array<ProjectionStatus>;
+  quickQualityScore: DataQualityScore;
   workflow: Maybe<WorkflowStatus>;
   workflows: Array<WorkflowStatus>;
 };
@@ -695,6 +860,16 @@ export type QueryActiveEncountersArgs = {
 };
 
 
+export type QueryAnalyzeQualityArgs = {
+  input: AnalyzeQualityInput;
+};
+
+
+export type QueryClassifyMessageArgs = {
+  input: ClassifyMessageInput;
+};
+
+
 export type QueryEventArgs = {
   id: Scalars['ID']['input'];
 };
@@ -711,6 +886,16 @@ export type QueryEventsArgs = {
 export type QueryExplainWarningsArgs = {
   format: SourceFormat;
   warnings: Array<ParseWarningInput>;
+};
+
+
+export type QueryExplainWorkflowArgs = {
+  input: ExplainWorkflowInput;
+};
+
+
+export type QueryExtractEntitiesArgs = {
+  input: ExtractEntitiesInput;
 };
 
 
@@ -764,8 +949,21 @@ export type QueryProfilesArgs = {
 };
 
 
+export type QueryQuickQualityScoreArgs = {
+  event: Scalars['JSON']['input'];
+};
+
+
 export type QueryWorkflowArgs = {
   name: Scalars['String']['input'];
+};
+
+export type RouteExplanation = {
+  __typename?: 'RouteExplanation';
+  actions: Array<Scalars['String']['output']>;
+  description: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  trigger: Scalars['String']['output'];
 };
 
 export type SourceCount = {
@@ -973,6 +1171,15 @@ export type WorkflowEventNotification = {
   workflow: Scalars['String']['output'];
 };
 
+export type WorkflowExplanation = {
+  __typename?: 'WorkflowExplanation';
+  description: Scalars['String']['output'];
+  diagram: Maybe<Scalars['String']['output']>;
+  routeExplanations: Array<RouteExplanation>;
+  summary: Scalars['String']['output'];
+  warnings: Array<Scalars['String']['output']>;
+};
+
 export type WorkflowResult = {
   __typename?: 'WorkflowResult';
   actionsExecuted: Scalars['Int']['output'];
@@ -1004,6 +1211,41 @@ export type HealthQueryVariables = Exact<{ [key: string]: never; }>;
 
 
 export type HealthQuery = { __typename?: 'Query', health: { __typename?: 'HealthStatus', status: string, version: string } };
+
+export type ExtractEntitiesQueryVariables = Exact<{
+  input: ExtractEntitiesInput;
+}>;
+
+
+export type ExtractEntitiesQuery = { __typename?: 'Query', extractEntities: { __typename?: 'ExtractionResult', overallConfidence: number, processingTimeMs: number, model: string | null, conditions: Array<{ __typename?: 'ExtractedCondition', name: string, code: string | null, codeSystem: string | null, confidence: number, negated: boolean | null, textSpan: string | null, status: string | null }>, medications: Array<{ __typename?: 'ExtractedMedication', name: string, code: string | null, codeSystem: string | null, dose: string | null, route: string | null, frequency: string | null, confidence: number, negated: boolean | null, textSpan: string | null }>, vitalSigns: Array<{ __typename?: 'ExtractedVitalSign', name: string, loincCode: string | null, value: string, unit: string | null, confidence: number, interpretation: string | null, textSpan: string | null }>, allergies: Array<{ __typename?: 'ExtractedAllergy', substance: string, code: string | null, codeSystem: string | null, severity: string | null, reaction: string | null, confidence: number, negated: boolean | null, textSpan: string | null }>, procedures: Array<{ __typename?: 'ExtractedProcedure', name: string, code: string | null, codeSystem: string | null, status: string | null, confidence: number, negated: boolean | null, textSpan: string | null }> } };
+
+export type AnalyzeQualityQueryVariables = Exact<{
+  input: AnalyzeQualityInput;
+}>;
+
+
+export type AnalyzeQualityQuery = { __typename?: 'Query', analyzeQuality: { __typename?: 'DataQualityScore', overallScore: number, processingTimeMs: number | null, model: string | null, dimensions: { __typename?: 'QualityDimensions', completeness: number, accuracy: number, consistency: number, conformance: number, timeliness: number }, issues: Array<{ __typename?: 'DataQualityIssue', dimension: string, severity: string, field: string | null, description: string, actualValue: string | null, expectedValue: string | null }>, recommendations: Array<{ __typename?: 'QualityRecommendation', priority: number, category: string | null, title: string, description: string, impact: string | null }> } };
+
+export type GenerateWorkflowMutationVariables = Exact<{
+  input: GenerateWorkflowInput;
+}>;
+
+
+export type GenerateWorkflowMutation = { __typename?: 'Mutation', generateWorkflow: { __typename?: 'GeneratedWorkflow', yaml: string, explanation: string, warnings: Array<string> } };
+
+export type ExplainWorkflowQueryVariables = Exact<{
+  input: ExplainWorkflowInput;
+}>;
+
+
+export type ExplainWorkflowQuery = { __typename?: 'Query', explainWorkflow: { __typename?: 'WorkflowExplanation', summary: string, description: string, diagram: string | null, warnings: Array<string>, routeExplanations: Array<{ __typename?: 'RouteExplanation', name: string, trigger: string, actions: Array<string>, description: string }> } };
+
+export type ClassifyMessageQueryVariables = Exact<{
+  input: ClassifyMessageInput;
+}>;
+
+
+export type ClassifyMessageQuery = { __typename?: 'Query', classifyMessage: { __typename?: 'MessageClassification', messageType: string, eventType: EventType | null, suggestedTags: Array<string>, confidence: number, summary: string | null } };
 
 export type ParsePreviewQueryVariables = Exact<{
   format: SourceFormat;
@@ -1096,6 +1338,11 @@ export const TerminologyConfigFieldsFragmentDoc = {"kind":"Document","definition
 export const FullProfileFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"FullProfileFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SourceProfile"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProfileFields"}},{"kind":"Field","name":{"kind":"Name","value":"hl7v2"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"HL7v2ConfigFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"identifiers"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"IdentifierConfigFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"terminology"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"TerminologyConfigFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ToleranceFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"ToleranceConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"missingSegments"}},{"kind":"Field","name":{"kind":"Name","value":"nteAnywhere"}},{"kind":"Field","name":{"kind":"Name","value":"extraComponents"}},{"kind":"Field","name":{"kind":"Name","value":"unknownSegments"}},{"kind":"Field","name":{"kind":"Name","value":"nonStandardDelimiters"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ProfileFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SourceProfile"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}},{"kind":"Field","name":{"kind":"Name","value":"isActive"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"HL7v2ConfigFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"HL7v2Config"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"defaultVersion"}},{"kind":"Field","name":{"kind":"Name","value":"timezone"}},{"kind":"Field","name":{"kind":"Name","value":"tolerance"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ToleranceFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"eventClassifications"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"messageType"}},{"kind":"Field","name":{"kind":"Name","value":"condition"}},{"kind":"Field","name":{"kind":"Name","value":"eventType"}},{"kind":"Field","name":{"kind":"Name","value":"priority"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"IdentifierConfigFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"IdentifierConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"assigningAuthorities"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"system"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"primaryIdPreference"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"assignerContains"}},{"kind":"Field","name":{"kind":"Name","value":"priority"}}]}},{"kind":"Field","name":{"kind":"Name","value":"validation"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"npi"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"onInvalid"}}]}},{"kind":"Field","name":{"kind":"Name","value":"mbi"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"onInvalid"}}]}},{"kind":"Field","name":{"kind":"Name","value":"ssn"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"onInvalid"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"normalization"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"ssnStripDashes"}},{"kind":"Field","name":{"kind":"Name","value":"ssnRejectPatterns"}},{"kind":"Field","name":{"kind":"Name","value":"phoneNormalize"}},{"kind":"Field","name":{"kind":"Name","value":"phoneFormat"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"TerminologyConfigFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"TerminologyConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mappings"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"entries"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"sourceCode"}},{"kind":"Field","name":{"kind":"Name","value":"targetCode"}},{"kind":"Field","name":{"kind":"Name","value":"display"}}]}}]}}]}}]} as unknown as DocumentNode<FullProfileFieldsFragment, unknown>;
 export const ExplainWarningsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"ExplainWarnings"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"warnings"}},"type":{"kind":"NonNullType","type":{"kind":"ListType","type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ParseWarningInput"}}}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"format"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"SourceFormat"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"explainWarnings"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"warnings"},"value":{"kind":"Variable","name":{"kind":"Name","value":"warnings"}}},{"kind":"Argument","name":{"kind":"Name","value":"format"},"value":{"kind":"Variable","name":{"kind":"Name","value":"format"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"explanation"}},{"kind":"Field","name":{"kind":"Name","value":"fixSuggestion"}},{"kind":"Field","name":{"kind":"Name","value":"impact"}},{"kind":"Field","name":{"kind":"Name","value":"fromCache"}}]}}]}}]} as unknown as DocumentNode<ExplainWarningsQuery, ExplainWarningsQueryVariables>;
 export const HealthDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Health"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"health"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"version"}}]}}]}}]} as unknown as DocumentNode<HealthQuery, HealthQueryVariables>;
+export const ExtractEntitiesDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"ExtractEntities"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ExtractEntitiesInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"extractEntities"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"conditions"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"codeSystem"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"negated"}},{"kind":"Field","name":{"kind":"Name","value":"textSpan"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}},{"kind":"Field","name":{"kind":"Name","value":"medications"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"codeSystem"}},{"kind":"Field","name":{"kind":"Name","value":"dose"}},{"kind":"Field","name":{"kind":"Name","value":"route"}},{"kind":"Field","name":{"kind":"Name","value":"frequency"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"negated"}},{"kind":"Field","name":{"kind":"Name","value":"textSpan"}}]}},{"kind":"Field","name":{"kind":"Name","value":"vitalSigns"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"loincCode"}},{"kind":"Field","name":{"kind":"Name","value":"value"}},{"kind":"Field","name":{"kind":"Name","value":"unit"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"interpretation"}},{"kind":"Field","name":{"kind":"Name","value":"textSpan"}}]}},{"kind":"Field","name":{"kind":"Name","value":"allergies"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"substance"}},{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"codeSystem"}},{"kind":"Field","name":{"kind":"Name","value":"severity"}},{"kind":"Field","name":{"kind":"Name","value":"reaction"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"negated"}},{"kind":"Field","name":{"kind":"Name","value":"textSpan"}}]}},{"kind":"Field","name":{"kind":"Name","value":"procedures"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"codeSystem"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"negated"}},{"kind":"Field","name":{"kind":"Name","value":"textSpan"}}]}},{"kind":"Field","name":{"kind":"Name","value":"overallConfidence"}},{"kind":"Field","name":{"kind":"Name","value":"processingTimeMs"}},{"kind":"Field","name":{"kind":"Name","value":"model"}}]}}]}}]} as unknown as DocumentNode<ExtractEntitiesQuery, ExtractEntitiesQueryVariables>;
+export const AnalyzeQualityDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"AnalyzeQuality"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"AnalyzeQualityInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"analyzeQuality"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"overallScore"}},{"kind":"Field","name":{"kind":"Name","value":"dimensions"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"completeness"}},{"kind":"Field","name":{"kind":"Name","value":"accuracy"}},{"kind":"Field","name":{"kind":"Name","value":"consistency"}},{"kind":"Field","name":{"kind":"Name","value":"conformance"}},{"kind":"Field","name":{"kind":"Name","value":"timeliness"}}]}},{"kind":"Field","name":{"kind":"Name","value":"issues"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"dimension"}},{"kind":"Field","name":{"kind":"Name","value":"severity"}},{"kind":"Field","name":{"kind":"Name","value":"field"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"actualValue"}},{"kind":"Field","name":{"kind":"Name","value":"expectedValue"}}]}},{"kind":"Field","name":{"kind":"Name","value":"recommendations"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"priority"}},{"kind":"Field","name":{"kind":"Name","value":"category"}},{"kind":"Field","name":{"kind":"Name","value":"title"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"impact"}}]}},{"kind":"Field","name":{"kind":"Name","value":"processingTimeMs"}},{"kind":"Field","name":{"kind":"Name","value":"model"}}]}}]}}]} as unknown as DocumentNode<AnalyzeQualityQuery, AnalyzeQualityQueryVariables>;
+export const GenerateWorkflowDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"GenerateWorkflow"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"GenerateWorkflowInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"generateWorkflow"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"yaml"}},{"kind":"Field","name":{"kind":"Name","value":"explanation"}},{"kind":"Field","name":{"kind":"Name","value":"warnings"}}]}}]}}]} as unknown as DocumentNode<GenerateWorkflowMutation, GenerateWorkflowMutationVariables>;
+export const ExplainWorkflowDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"ExplainWorkflow"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ExplainWorkflowInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"explainWorkflow"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"summary"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"routeExplanations"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"trigger"}},{"kind":"Field","name":{"kind":"Name","value":"actions"}},{"kind":"Field","name":{"kind":"Name","value":"description"}}]}},{"kind":"Field","name":{"kind":"Name","value":"diagram"}},{"kind":"Field","name":{"kind":"Name","value":"warnings"}}]}}]}}]} as unknown as DocumentNode<ExplainWorkflowQuery, ExplainWorkflowQueryVariables>;
+export const ClassifyMessageDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"ClassifyMessage"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ClassifyMessageInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"classifyMessage"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"messageType"}},{"kind":"Field","name":{"kind":"Name","value":"eventType"}},{"kind":"Field","name":{"kind":"Name","value":"suggestedTags"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"summary"}}]}}]}}]} as unknown as DocumentNode<ClassifyMessageQuery, ClassifyMessageQueryVariables>;
 export const ParsePreviewDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"ParsePreview"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"format"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"SourceFormat"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"data"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"source"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"parsePreview"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"format"},"value":{"kind":"Variable","name":{"kind":"Name","value":"format"}}},{"kind":"Argument","name":{"kind":"Name","value":"data"},"value":{"kind":"Variable","name":{"kind":"Name","value":"data"}}},{"kind":"Argument","name":{"kind":"Name","value":"source"},"value":{"kind":"Variable","name":{"kind":"Name","value":"source"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"success"}},{"kind":"Field","name":{"kind":"Name","value":"errors"}},{"kind":"Field","name":{"kind":"Name","value":"events"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"__typename"}},{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"source"}},{"kind":"Field","name":{"kind":"Name","value":"sourceFormat"}},{"kind":"Field","name":{"kind":"Name","value":"correlationId"}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"PatientAdmitEvent"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"patient"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mrn"}},{"kind":"Field","name":{"kind":"Name","value":"familyName"}},{"kind":"Field","name":{"kind":"Name","value":"givenName"}},{"kind":"Field","name":{"kind":"Name","value":"dateOfBirth"}},{"kind":"Field","name":{"kind":"Name","value":"gender"}}]}},{"kind":"Field","name":{"kind":"Name","value":"encounter"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"class"}},{"kind":"Field","name":{"kind":"Name","value":"location"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"facility"}},{"kind":"Field","name":{"kind":"Name","value":"unit"}},{"kind":"Field","name":{"kind":"Name","value":"room"}},{"kind":"Field","name":{"kind":"Name","value":"bed"}}]}}]}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"PatientDischargeEvent"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"patient"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mrn"}},{"kind":"Field","name":{"kind":"Name","value":"familyName"}},{"kind":"Field","name":{"kind":"Name","value":"givenName"}},{"kind":"Field","name":{"kind":"Name","value":"dateOfBirth"}},{"kind":"Field","name":{"kind":"Name","value":"gender"}}]}},{"kind":"Field","name":{"kind":"Name","value":"encounter"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"class"}},{"kind":"Field","name":{"kind":"Name","value":"location"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"facility"}},{"kind":"Field","name":{"kind":"Name","value":"unit"}},{"kind":"Field","name":{"kind":"Name","value":"room"}},{"kind":"Field","name":{"kind":"Name","value":"bed"}}]}}]}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"LabResultEvent"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"patient"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mrn"}},{"kind":"Field","name":{"kind":"Name","value":"familyName"}},{"kind":"Field","name":{"kind":"Name","value":"givenName"}},{"kind":"Field","name":{"kind":"Name","value":"dateOfBirth"}},{"kind":"Field","name":{"kind":"Name","value":"gender"}}]}},{"kind":"Field","name":{"kind":"Name","value":"test"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"loincCode"}},{"kind":"Field","name":{"kind":"Name","value":"localCode"}},{"kind":"Field","name":{"kind":"Name","value":"description"}}]}},{"kind":"Field","name":{"kind":"Name","value":"result"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"value"}},{"kind":"Field","name":{"kind":"Name","value":"unit"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}},{"kind":"Field","name":{"kind":"Name","value":"isCritical"}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"AppointmentEvent"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"patient"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mrn"}},{"kind":"Field","name":{"kind":"Name","value":"familyName"}},{"kind":"Field","name":{"kind":"Name","value":"givenName"}},{"kind":"Field","name":{"kind":"Name","value":"dateOfBirth"}},{"kind":"Field","name":{"kind":"Name","value":"gender"}}]}},{"kind":"Field","name":{"kind":"Name","value":"appointment"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"startTime"}},{"kind":"Field","name":{"kind":"Name","value":"endTime"}},{"kind":"Field","name":{"kind":"Name","value":"reason"}},{"kind":"Field","name":{"kind":"Name","value":"location"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"facility"}},{"kind":"Field","name":{"kind":"Name","value":"unit"}},{"kind":"Field","name":{"kind":"Name","value":"room"}},{"kind":"Field","name":{"kind":"Name","value":"bed"}}]}},{"kind":"Field","name":{"kind":"Name","value":"provider"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"familyName"}},{"kind":"Field","name":{"kind":"Name","value":"givenName"}},{"kind":"Field","name":{"kind":"Name","value":"npi"}}]}}]}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"DocumentEvent"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"documentType"}},{"kind":"Field","name":{"kind":"Name","value":"title"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"warnings"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"phase"}},{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"message"}},{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"explanation"}},{"kind":"Field","name":{"kind":"Name","value":"fixSuggestion"}},{"kind":"Field","name":{"kind":"Name","value":"impact"}},{"kind":"Field","name":{"kind":"Name","value":"severity"}},{"kind":"Field","name":{"kind":"Name","value":"fromCache"}}]}}]}}]}}]} as unknown as DocumentNode<ParsePreviewQuery, ParsePreviewQueryVariables>;
 export const ParsePreviewWithProfileDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"ParsePreviewWithProfile"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"format"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"SourceFormat"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"data"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"source"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"profileId"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"parsePreviewWithProfile"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"format"},"value":{"kind":"Variable","name":{"kind":"Name","value":"format"}}},{"kind":"Argument","name":{"kind":"Name","value":"data"},"value":{"kind":"Variable","name":{"kind":"Name","value":"data"}}},{"kind":"Argument","name":{"kind":"Name","value":"source"},"value":{"kind":"Variable","name":{"kind":"Name","value":"source"}}},{"kind":"Argument","name":{"kind":"Name","value":"profileId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"profileId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"success"}},{"kind":"Field","name":{"kind":"Name","value":"errors"}},{"kind":"Field","name":{"kind":"Name","value":"events"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"__typename"}},{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"source"}},{"kind":"Field","name":{"kind":"Name","value":"sourceFormat"}},{"kind":"Field","name":{"kind":"Name","value":"correlationId"}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"PatientAdmitEvent"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"patient"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mrn"}},{"kind":"Field","name":{"kind":"Name","value":"familyName"}},{"kind":"Field","name":{"kind":"Name","value":"givenName"}},{"kind":"Field","name":{"kind":"Name","value":"dateOfBirth"}},{"kind":"Field","name":{"kind":"Name","value":"gender"}}]}},{"kind":"Field","name":{"kind":"Name","value":"encounter"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"class"}},{"kind":"Field","name":{"kind":"Name","value":"location"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"facility"}},{"kind":"Field","name":{"kind":"Name","value":"unit"}},{"kind":"Field","name":{"kind":"Name","value":"room"}},{"kind":"Field","name":{"kind":"Name","value":"bed"}}]}}]}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"PatientDischargeEvent"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"patient"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mrn"}},{"kind":"Field","name":{"kind":"Name","value":"familyName"}},{"kind":"Field","name":{"kind":"Name","value":"givenName"}},{"kind":"Field","name":{"kind":"Name","value":"dateOfBirth"}},{"kind":"Field","name":{"kind":"Name","value":"gender"}}]}},{"kind":"Field","name":{"kind":"Name","value":"encounter"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"class"}},{"kind":"Field","name":{"kind":"Name","value":"location"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"facility"}},{"kind":"Field","name":{"kind":"Name","value":"unit"}},{"kind":"Field","name":{"kind":"Name","value":"room"}},{"kind":"Field","name":{"kind":"Name","value":"bed"}}]}}]}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"LabResultEvent"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"patient"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mrn"}},{"kind":"Field","name":{"kind":"Name","value":"familyName"}},{"kind":"Field","name":{"kind":"Name","value":"givenName"}},{"kind":"Field","name":{"kind":"Name","value":"dateOfBirth"}},{"kind":"Field","name":{"kind":"Name","value":"gender"}}]}},{"kind":"Field","name":{"kind":"Name","value":"test"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"loincCode"}},{"kind":"Field","name":{"kind":"Name","value":"localCode"}},{"kind":"Field","name":{"kind":"Name","value":"description"}}]}},{"kind":"Field","name":{"kind":"Name","value":"result"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"value"}},{"kind":"Field","name":{"kind":"Name","value":"unit"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}},{"kind":"Field","name":{"kind":"Name","value":"isCritical"}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"AppointmentEvent"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"patient"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mrn"}},{"kind":"Field","name":{"kind":"Name","value":"familyName"}},{"kind":"Field","name":{"kind":"Name","value":"givenName"}},{"kind":"Field","name":{"kind":"Name","value":"dateOfBirth"}},{"kind":"Field","name":{"kind":"Name","value":"gender"}}]}},{"kind":"Field","name":{"kind":"Name","value":"appointment"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"startTime"}},{"kind":"Field","name":{"kind":"Name","value":"endTime"}},{"kind":"Field","name":{"kind":"Name","value":"reason"}},{"kind":"Field","name":{"kind":"Name","value":"location"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"facility"}},{"kind":"Field","name":{"kind":"Name","value":"unit"}},{"kind":"Field","name":{"kind":"Name","value":"room"}},{"kind":"Field","name":{"kind":"Name","value":"bed"}}]}},{"kind":"Field","name":{"kind":"Name","value":"provider"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"familyName"}},{"kind":"Field","name":{"kind":"Name","value":"givenName"}},{"kind":"Field","name":{"kind":"Name","value":"npi"}}]}}]}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"DocumentEvent"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"documentType"}},{"kind":"Field","name":{"kind":"Name","value":"title"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"warnings"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"phase"}},{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"message"}},{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"explanation"}},{"kind":"Field","name":{"kind":"Name","value":"fixSuggestion"}},{"kind":"Field","name":{"kind":"Name","value":"impact"}},{"kind":"Field","name":{"kind":"Name","value":"severity"}},{"kind":"Field","name":{"kind":"Name","value":"fromCache"}}]}}]}}]}}]} as unknown as DocumentNode<ParsePreviewWithProfileQuery, ParsePreviewWithProfileQueryVariables>;
 export const ListProfilesDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"ListProfiles"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"activeOnly"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Boolean"}},"defaultValue":{"kind":"BooleanValue","value":true}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"profiles"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"activeOnly"},"value":{"kind":"Variable","name":{"kind":"Name","value":"activeOnly"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProfileFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ProfileFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SourceProfile"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}},{"kind":"Field","name":{"kind":"Name","value":"isActive"}}]}}]} as unknown as DocumentNode<ListProfilesQuery, ListProfilesQueryVariables>;

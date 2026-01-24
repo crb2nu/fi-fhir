@@ -948,4 +948,242 @@ extend type Query {
     warnings: [ParseWarningInput!]!
     format: SourceFormat!
   ): [ExplainedWarning!]!
+
+  # =========================================================================
+  # LLM-Powered Clinical Extraction (Phase 7A)
+  # =========================================================================
+
+  # Extract clinical entities from unstructured text using LLM
+  extractEntities(input: ExtractEntitiesInput!): ExtractionResult!
+
+  # =========================================================================
+  # LLM-Powered Data Quality Analysis (Phase 7B)
+  # =========================================================================
+
+  # Analyze data quality of an event using LLM
+  analyzeQuality(input: AnalyzeQualityInput!): DataQualityScore!
+
+  # Quick quality score without LLM (rule-based)
+  quickQualityScore(event: JSON!): DataQualityScore!
+
+  # =========================================================================
+  # LLM-Powered Workflow Explanation (Phase 7C)
+  # =========================================================================
+
+  # Get human-readable explanation of a workflow
+  explainWorkflow(input: ExplainWorkflowInput!): WorkflowExplanation!
+
+  # =========================================================================
+  # LLM-Powered Message Classification (Phase 8C)
+  # =========================================================================
+
+  # Classify a message to suggest tags and event type
+  classifyMessage(input: ClassifyMessageInput!): MessageClassification!
+}
+
+# =============================================================================
+# LLM Clinical Entity Extraction Types (Phase 7A)
+# =============================================================================
+
+input ExtractEntitiesInput {
+  # The clinical text to extract entities from
+  text: String!
+  # Type of clinical document (progress_note, discharge_summary, etc.)
+  documentType: String
+  # Patient age for context
+  patientAge: Int
+  # Patient gender for context
+  patientGender: String
+  # Minimum confidence threshold (0.0-1.0, default 0.7)
+  minConfidence: Float = 0.7
+  # Include entities that were negated in the text
+  includeNegated: Boolean = false
+}
+
+type ExtractedCondition {
+  name: String!
+  code: String
+  codeSystem: String
+  confidence: Float!
+  negated: Boolean
+  textSpan: String
+  status: String
+}
+
+type ExtractedMedication {
+  name: String!
+  code: String
+  codeSystem: String
+  dose: String
+  route: String
+  frequency: String
+  confidence: Float!
+  negated: Boolean
+  textSpan: String
+}
+
+type ExtractedVitalSign {
+  name: String!
+  loincCode: String
+  value: String!
+  unit: String
+  confidence: Float!
+  interpretation: String
+  textSpan: String
+}
+
+type ExtractedAllergy {
+  substance: String!
+  code: String
+  codeSystem: String
+  severity: String
+  reaction: String
+  confidence: Float!
+  negated: Boolean
+  textSpan: String
+}
+
+type ExtractedProcedure {
+  name: String!
+  code: String
+  codeSystem: String
+  status: String
+  confidence: Float!
+  negated: Boolean
+  textSpan: String
+}
+
+type ExtractionResult {
+  conditions: [ExtractedCondition!]!
+  medications: [ExtractedMedication!]!
+  vitalSigns: [ExtractedVitalSign!]!
+  allergies: [ExtractedAllergy!]!
+  procedures: [ExtractedProcedure!]!
+  overallConfidence: Float!
+  processingTimeMs: Int!
+  model: String
+}
+
+# =============================================================================
+# LLM Data Quality Analysis Types (Phase 7B)
+# =============================================================================
+
+input AnalyzeQualityInput {
+  # The event data to analyze (as JSON)
+  event: JSON!
+  # The type of event being analyzed
+  eventType: EventType!
+}
+
+type DataQualityScore {
+  overallScore: Float!
+  dimensions: QualityDimensions!
+  issues: [DataQualityIssue!]!
+  recommendations: [QualityRecommendation!]!
+  processingTimeMs: Int
+  model: String
+}
+
+type QualityDimensions {
+  # Are all required fields present?
+  completeness: Float!
+  # Are values in correct format and valid?
+  accuracy: Float!
+  # Are related fields internally consistent?
+  consistency: Float!
+  # Does data follow HL7/FHIR/EDI standards?
+  conformance: Float!
+  # Is the data current and timestamps reasonable?
+  timeliness: Float!
+}
+
+type DataQualityIssue {
+  dimension: String!
+  severity: String!
+  field: String
+  description: String!
+  actualValue: String
+  expectedValue: String
+}
+
+type QualityRecommendation {
+  priority: Int!
+  category: String
+  title: String!
+  description: String!
+  impact: String
+}
+
+# =============================================================================
+# LLM Workflow Copilot Types (Phase 7C)
+# =============================================================================
+
+input GenerateWorkflowInput {
+  # Natural language description of what the workflow should do
+  description: String!
+  # Available event types for context
+  eventTypes: [String!]
+  # Available action types for context
+  actionTypes: [String!]
+}
+
+type GeneratedWorkflow {
+  yaml: String!
+  explanation: String!
+  warnings: [String!]!
+}
+
+input ExplainWorkflowInput {
+  # The workflow YAML to explain
+  workflowYaml: String!
+  # Target audience: technical, business, compliance, operations
+  audience: String
+}
+
+type WorkflowExplanation {
+  summary: String!
+  description: String!
+  routeExplanations: [RouteExplanation!]!
+  diagram: String
+  warnings: [String!]!
+}
+
+type RouteExplanation {
+  name: String!
+  trigger: String!
+  actions: [String!]!
+  description: String!
+}
+
+# =============================================================================
+# LLM Message Classification Types (Phase 8C)
+# =============================================================================
+
+input ClassifyMessageInput {
+  # The raw message data
+  data: String!
+  # The format of the message
+  format: SourceFormat!
+}
+
+type MessageClassification {
+  # Detected message type (e.g., ADT^A01, ORU^R01)
+  messageType: String!
+  # Suggested semantic event type
+  eventType: EventType
+  # Suggested tags for categorization
+  suggestedTags: [String!]!
+  # Confidence in the classification
+  confidence: Float!
+  # Brief description of what the message contains
+  summary: String
+}
+
+# =============================================================================
+# LLM Workflow Generation Mutation (Phase 7C)
+# =============================================================================
+
+extend type Mutation {
+  # Generate a workflow from natural language description
+  generateWorkflow(input: GenerateWorkflowInput!): GeneratedWorkflow!
 }

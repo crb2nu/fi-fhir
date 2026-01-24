@@ -9,7 +9,10 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/store"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/fhir/subscription"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/explain"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/extract"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/quality"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/workflow"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm/copilot"
 )
 
 // This file will not be regenerated automatically.
@@ -51,6 +54,18 @@ type Resolver struct {
 
 	// WarningExplainer provides LLM-powered warning explanations
 	WarningExplainer *explain.WarningExplainer
+
+	// ClinicalExtractor provides LLM-powered clinical entity extraction
+	ClinicalExtractor *extract.Extractor
+
+	// QualityAnalyzer provides LLM-powered data quality analysis
+	QualityAnalyzer *quality.Analyzer
+
+	// WorkflowCopilot provides LLM-powered workflow generation
+	WorkflowCopilot *copilot.WorkflowCopilot
+
+	// WorkflowExplainer provides LLM-powered workflow explanations
+	WorkflowExplainer *explain.WorkflowExplainer
 
 	// SubscriptionClients maps FHIR server URLs to clients
 	subscriptionClients map[string]*subscription.Client
@@ -131,6 +146,34 @@ func WithProfileStore(s store.ProfileStore) ResolverOption {
 func WithWarningExplainer(e *explain.WarningExplainer) ResolverOption {
 	return func(r *Resolver) {
 		r.WarningExplainer = e
+	}
+}
+
+// WithClinicalExtractor sets the LLM-powered clinical entity extractor.
+func WithClinicalExtractor(e *extract.Extractor) ResolverOption {
+	return func(r *Resolver) {
+		r.ClinicalExtractor = e
+	}
+}
+
+// WithQualityAnalyzer sets the LLM-powered data quality analyzer.
+func WithQualityAnalyzer(a *quality.Analyzer) ResolverOption {
+	return func(r *Resolver) {
+		r.QualityAnalyzer = a
+	}
+}
+
+// WithWorkflowCopilot sets the LLM-powered workflow copilot.
+func WithWorkflowCopilot(c *copilot.WorkflowCopilot) ResolverOption {
+	return func(r *Resolver) {
+		r.WorkflowCopilot = c
+	}
+}
+
+// WithWorkflowExplainer sets the LLM-powered workflow explainer.
+func WithWorkflowExplainer(e *explain.WorkflowExplainer) ResolverOption {
+	return func(r *Resolver) {
+		r.WorkflowExplainer = e
 	}
 }
 

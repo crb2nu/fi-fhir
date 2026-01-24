@@ -1,0 +1,136 @@
+# LLM-powered GraphQL operations
+
+# =============================================================================
+# Clinical Entity Extraction
+# =============================================================================
+
+query ExtractEntities($input: ExtractEntitiesInput!) {
+  extractEntities(input: $input) {
+    conditions {
+      name
+      code
+      codeSystem
+      confidence
+      negated
+      textSpan
+      status
+    }
+    medications {
+      name
+      code
+      codeSystem
+      dose
+      route
+      frequency
+      confidence
+      negated
+      textSpan
+    }
+    vitalSigns {
+      name
+      loincCode
+      value
+      unit
+      confidence
+      interpretation
+      textSpan
+    }
+    allergies {
+      substance
+      code
+      codeSystem
+      severity
+      reaction
+      confidence
+      negated
+      textSpan
+    }
+    procedures {
+      name
+      code
+      codeSystem
+      status
+      confidence
+      negated
+      textSpan
+    }
+    overallConfidence
+    processingTimeMs
+    model
+  }
+}
+
+# =============================================================================
+# Data Quality Analysis
+# =============================================================================
+
+query AnalyzeQuality($input: AnalyzeQualityInput!) {
+  analyzeQuality(input: $input) {
+    overallScore
+    dimensions {
+      completeness
+      accuracy
+      consistency
+      conformance
+      timeliness
+    }
+    issues {
+      dimension
+      severity
+      field
+      description
+      actualValue
+      expectedValue
+    }
+    recommendations {
+      priority
+      category
+      title
+      description
+      impact
+    }
+    processingTimeMs
+    model
+  }
+}
+
+# =============================================================================
+# Workflow Generation & Explanation
+# =============================================================================
+
+mutation GenerateWorkflow($input: GenerateWorkflowInput!) {
+  generateWorkflow(input: $input) {
+    yaml
+    explanation
+    warnings
+  }
+}
+
+query ExplainWorkflow($input: ExplainWorkflowInput!) {
+  explainWorkflow(input: $input) {
+    summary
+    description
+    routeExplanations {
+      name
+      trigger
+      actions
+      description
+    }
+    diagram
+    warnings
+  }
+}
+
+# =============================================================================
+# Message Classification
+# =============================================================================
+
+query ClassifyMessage($input: ClassifyMessageInput!) {
+  classifyMessage(input: $input) {
+    messageType
+    eventType
+    suggestedTags
+    confidence
+    summary
+  }
+}

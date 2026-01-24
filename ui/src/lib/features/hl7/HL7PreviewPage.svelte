@@ -22,8 +22,10 @@
   import type { NewHL7Sample } from '$lib/features/hl7/samples/types';
   import { redactHL7, type HL7RedactionMode } from '$lib/domain/hl7Redact';
   import EventLineagePanel from '$lib/features/hl7/components/EventLineagePanel.svelte';
+  import ExtractionPanel from '$lib/ui/ExtractionPanel.svelte';
+  import QualityBadge from '$lib/ui/QualityBadge.svelte';
   import { graphqlFetch } from '$lib/graphql/client';
-  import { ExplainWarningsDocument, type ParseWarningInput, type SourceFormat } from '$lib/gen/graphql';
+  import { ExplainWarningsDocument, type ParseWarningInput, type SourceFormat, type EventType } from '$lib/gen/graphql';
   import type { WarningLike } from '$lib/domain/warnings';
   import { SvelteSet } from 'svelte/reactivity';
 
@@ -145,7 +147,7 @@
   }
   const { samples, activeId, activeSample } = samplesStore;
 
-  let activeTab: 'samples' | 'warnings' | 'events' | 'inspector' | 'profile' = 'warnings';
+  let activeTab: 'samples' | 'warnings' | 'events' | 'extraction' | 'inspector' | 'profile' = 'warnings';
   let selectedPath: string | null = null;
   let selectedLocation: HL7PathLocation | null = null;
 
@@ -155,6 +157,7 @@
     { key: 'samples', label: 'Samples' },
     { key: 'warnings', label: 'Warnings' },
     { key: 'events', label: 'Events' },
+    { key: 'extraction', label: 'Extraction' },
     { key: 'inspector', label: 'Inspector' },
     { key: 'profile', label: 'Profile draft' }
   ] as const;
@@ -357,6 +360,24 @@
   $: msh9 = getHL7Value($hl7, parseHL7Path('MSH-9'));
   $: msh10 = getHL7Value($hl7, parseHL7Path('MSH-10'));
   $: msh12 = getHL7Value($hl7, parseHL7Path('MSH-12'));
+
+  // Infer event type from MSH-9 for quality analysis
+  function inferEventType(msh9Val: string | null): EventType {
+    if (!msh9Val) return 'LAB_RESULT';
+    const normalized = msh9Val.toUpperCase();
+    if (normalized.startsWith('ADT^A01')) return 'PATIENT_ADMIT';
+    if (normalized.startsWith('ADT^A02')) return 'PATIENT_TRANSFER';
+    if (normalized.startsWith('ADT^A03')) return 'PATIENT_DISCHARGE';
+    if (normalized.startsWith('ADT^A04')) return 'PATIENT_ADMIT'; // Registration -> admit
+    if (normalized.startsWith('ADT^A08')) return 'PATIENT_UPDATE';
+    if (normalized.startsWith('ORU')) return 'LAB_RESULT';
+    if (normalized.startsWith('ORM')) return 'LAB_ORDERED';
+    if (normalized.startsWith('MDM')) return 'DOCUMENT';
+    if (normalized.startsWith('SIU')) return 'APPOINTMENT_SCHEDULED';
+    if (normalized.startsWith('VXU')) return 'IMMUNIZATION';
+    return 'LAB_RESULT';
+  }
+  $: inferredEventType = inferEventType(msh9);
 
   // Generate fixes based on warnings and current profile
   $: fixes = suggestFixes($state.result?.parsePreview.warnings ?? [], $selectedProfile);
@@ -592,6 +613,13 @@
         {/if}
       </div>
 
+      <div class="quality-section">
+        <QualityBadge
+          event={$events[0] ?? { raw: $state.data, source: $state.source }}
+          eventType={inferredEventType}
+        />
+      </div>
+
       {#if $state.result.parsePreview.errors.length}
         <Panel title="Parse errors" tone="error">
           <ul class="errors">
@@ -664,6 +692,8 @@
         />
       {:else if activeTab === 'events'}
         <EventLineagePanel events={$events} message={$hl7} on:inspectPath={(e) => inspectPath(e.detail.path)} />
+      {:else if activeTab === 'extraction'}
+        <ExtractionPanel text={$state.data} />
       {:else if activeTab === 'inspector'}
         <HL7Inspector message={$hl7} selected={selectedLocation} />
       {:else}
@@ -956,5 +986,9 @@
     margin: 0;
     padding-left: 18px;
     color: rgba(254, 226, 226, 0.9);
+  }
+
+  .quality-section {
+    margin: 12px 0;
   }
 </style>
