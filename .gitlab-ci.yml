@@ -48,6 +48,9 @@ variables:
   - .golangci.yml
   - .golangci.yaml
   - .golangci.toml
+  # GraphQL schema changes require backend rebuild for resolver codegen
+  - internal/api/graphql/schema.graphql
+  - internal/api/graphql/gqlgen.yml
 
 .ui-changes: &ui-changes
   - ui/**/*
