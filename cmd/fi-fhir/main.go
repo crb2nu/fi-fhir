@@ -22,6 +22,9 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/resolvers"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/fhir/subscription"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/explain"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/extract"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/quality"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/cda"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/csv"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/edi"
@@ -32,6 +35,8 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/config"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 	fhirpkg "gitlab.flexinfer.ai/libs/fi-fhir/pkg/fhir"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm/copilot"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/profile"
 )
 
@@ -4628,6 +4633,60 @@ func runServe(args []string) error {
 	if workflowEngine != nil && loadedWorkflow != nil {
 		resolverOpts = append(resolverOpts, resolvers.WithWorkflowEngine(workflowEngine))
 		fmt.Printf("Loaded workflow: %s (%d routes)\n", loadedWorkflow.Name, len(loadedWorkflow.Routes))
+	}
+
+	// Initialize LLM-powered features (optional - gracefully disabled if unavailable)
+	llmCfg := llm.DefaultConfig().WithEnv()
+	if llmClient, err := llm.New(llmCfg); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: LLM features disabled: %v\n", err)
+	} else {
+		// Clinical entity extraction
+		if extractor, err := extract.NewExtractor(extract.Config{
+			Client:      llmClient,
+			Model:       llmCfg.QualityModel,
+			EnableCache: true,
+		}); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: clinical extraction disabled: %v\n", err)
+		} else {
+			resolverOpts = append(resolverOpts, resolvers.WithClinicalExtractor(extractor))
+		}
+
+		// Data quality analysis
+		if analyzer, err := quality.NewAnalyzer(quality.AnalyzerConfig{
+			Client: llmClient,
+			Model:  llmCfg.QualityModel,
+		}); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: quality analysis disabled: %v\n", err)
+		} else {
+			resolverOpts = append(resolverOpts, resolvers.WithQualityAnalyzer(analyzer))
+		}
+
+		// Workflow copilot
+		if workflowCopilot, err := copilot.NewWorkflowCopilot(copilot.CopilotConfig{
+			Client: llmClient,
+			Model:  llmCfg.QualityModel,
+		}); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: workflow copilot disabled: %v\n", err)
+		} else {
+			resolverOpts = append(resolverOpts, resolvers.WithWorkflowCopilot(workflowCopilot))
+		}
+
+		// Workflow explainer
+		workflowExplainer := explain.NewWorkflowExplainer(llmClient, llmCfg.QualityModel)
+		resolverOpts = append(resolverOpts, resolvers.WithWorkflowExplainer(workflowExplainer))
+
+		// Warning explainer
+		if warningExplainer, err := explain.NewWarningExplainer(explain.ExplainerConfig{
+			Client:      llmClient,
+			Model:       llmCfg.QualityModel,
+			EnableCache: true,
+		}); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: warning explainer disabled: %v\n", err)
+		} else {
+			resolverOpts = append(resolverOpts, resolvers.WithWarningExplainer(warningExplainer))
+		}
+
+		fmt.Println("LLM features enabled: extraction, quality, copilot, explainers")
 	}
 
 	// Create resolver
