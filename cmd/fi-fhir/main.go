@@ -1,5 +1,6 @@
 // fi-fhir is a healthcare integration CLI that transforms legacy formats
 // (HL7v2, flatfiles, EDI) into semantic events and FHIR resources.
+// Includes LLM-powered features: clinical extraction, quality analysis, and workflow generation.
 package main
 
 import (
