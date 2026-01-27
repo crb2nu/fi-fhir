@@ -9,8 +9,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	graphql1 "gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/store"
@@ -23,6 +26,8 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/fhir"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/hl7v2"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm/copilot"
+	termdb "gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/db"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/upload"
 )
 
 // SubmitMessage is the resolver for the submitMessage field.
@@ -631,22 +636,252 @@ func (r *mutationResolver) GenerateWorkflow(ctx context.Context, input model.Gen
 
 // UploadMappingCSV is the resolver for the uploadMappingCSV field.
 func (r *mutationResolver) UploadMappingCSV(ctx context.Context, input model.UploadMappingCSVInput) (*model.UploadMappingResult, error) {
-	panic(fmt.Errorf("not implemented: UploadMappingCSV - uploadMappingCSV"))
+	if r.MappingStore == nil {
+		return nil, fmt.Errorf("terminology mapping store not configured")
+	}
+
+	// Configure parser
+	opts := upload.ParseOptions{
+		MaxRows: 10000, // Reasonable limit for uploads
+	}
+	if input.DefaultSourceSystem != nil {
+		opts.DefaultSourceSystem = *input.DefaultSourceSystem
+	}
+	if input.DefaultTargetSystem != nil {
+		opts.DefaultTargetSystem = *input.DefaultTargetSystem
+	}
+
+	// Parse CSV
+	parser := upload.NewParser(opts)
+	parseResult, err := parser.Parse(strings.NewReader(input.CSV))
+	if err != nil {
+		return nil, fmt.Errorf("parsing CSV: %w", err)
+	}
+
+	// Convert validation errors
+	validationErrors := make([]model.UploadValidationError, 0, len(parseResult.Errors))
+	for _, e := range parseResult.Errors {
+		ve := model.UploadValidationError{
+			Row:     e.Row,
+			Message: e.Message,
+		}
+		if e.Column != "" {
+			ve.Column = &e.Column
+		}
+		validationErrors = append(validationErrors, ve)
+	}
+
+	// Build result
+	result := &model.UploadMappingResult{
+		MappingsCreated: 0,
+		MappingsSkipped: 0,
+		Preview:         []model.CodeMapping{},
+	}
+
+	// Dry run: just return preview without persisting
+	isDryRun := input.DryRun != nil && *input.DryRun
+	if isDryRun {
+		// Generate preview of first 100 valid rows
+		limit := 100
+		if len(parseResult.Rows) < limit {
+			limit = len(parseResult.Rows)
+		}
+		for i := 0; i < limit; i++ {
+			row := parseResult.Rows[i]
+			preview := model.CodeMapping{
+				ID:           fmt.Sprintf("preview-%d", i),
+				SourceSystem: row.SourceSystem,
+				SourceCode:   row.SourceCode,
+				TargetSystem: row.TargetSystem,
+				TargetCode:   row.TargetCode,
+				Equivalence:  toGraphQLEquivalence(row.Equivalence),
+				Origin:       model.MappingOriginCSVUpload,
+				CreatedAt:    time.Now(),
+			}
+			if row.SourceDisplay != "" {
+				preview.SourceDisplay = &row.SourceDisplay
+			}
+			if row.TargetDisplay != "" {
+				preview.TargetDisplay = &row.TargetDisplay
+			}
+			if row.Confidence != nil {
+				preview.Confidence = row.Confidence
+			}
+			if row.Comment != "" {
+				preview.Comment = &row.Comment
+			}
+			if input.ProfileID != nil {
+				preview.ProfileID = input.ProfileID
+			}
+			result.Preview = append(result.Preview, preview)
+		}
+
+		// Return dummy batch for preview
+		result.Batch = &model.UploadBatch{
+			ID:               "preview",
+			Filename:         input.Filename,
+			TotalRows:        parseResult.TotalRows,
+			ValidRows:        parseResult.ValidRows,
+			ErrorRows:        parseResult.ErrorRows,
+			DuplicateRows:    0,
+			UploadedAt:       time.Now(),
+			ValidationErrors: validationErrors,
+		}
+		if input.DefaultSourceSystem != nil {
+			result.Batch.SourceSystem = input.DefaultSourceSystem
+		}
+		if input.DefaultTargetSystem != nil {
+			result.Batch.TargetSystem = input.DefaultTargetSystem
+		}
+		if input.ProfileID != nil {
+			result.Batch.ProfileID = input.ProfileID
+		}
+
+		return result, nil
+	}
+
+	// Create batch record
+	batch := &termdb.UploadBatch{
+		Filename:  input.Filename,
+		TotalRows: parseResult.TotalRows,
+		ValidRows: parseResult.ValidRows,
+		ErrorRows: parseResult.ErrorRows,
+	}
+	if input.DefaultSourceSystem != nil {
+		batch.SourceSystem = *input.DefaultSourceSystem
+	}
+	if input.DefaultTargetSystem != nil {
+		batch.TargetSystem = *input.DefaultTargetSystem
+	}
+	if input.ProfileID != nil {
+		batch.ProfileID = *input.ProfileID
+	}
+	for _, e := range parseResult.Errors {
+		batch.ValidationErrors = append(batch.ValidationErrors, termdb.ValidationError{
+			Row:     e.Row,
+			Column:  e.Column,
+			Message: e.Message,
+		})
+	}
+
+	if err := r.MappingStore.CreateBatch(ctx, batch); err != nil {
+		return nil, fmt.Errorf("creating batch record: %w", err)
+	}
+
+	// Create mappings from valid rows
+	var mappings []*termdb.CustomMapping
+	for _, row := range parseResult.Rows {
+		m := &termdb.CustomMapping{
+			SourceSystem:  row.SourceSystem,
+			SourceCode:    row.SourceCode,
+			SourceDisplay: row.SourceDisplay,
+			TargetSystem:  row.TargetSystem,
+			TargetCode:    row.TargetCode,
+			TargetDisplay: row.TargetDisplay,
+			Equivalence:   row.Equivalence,
+			Confidence:    row.Confidence,
+			Comment:       row.Comment,
+			Origin:        termdb.OriginCSVUpload,
+			UploadBatchID: &batch.ID,
+		}
+		if input.ProfileID != nil {
+			m.ProfileID = *input.ProfileID
+		}
+		mappings = append(mappings, m)
+	}
+
+	created, skipped, err := r.MappingStore.CreateMappingsBatch(ctx, mappings)
+	if err != nil {
+		return nil, fmt.Errorf("creating mappings: %w", err)
+	}
+
+	// Update batch with duplicate count
+	batch.DuplicateRows = skipped
+
+	result.MappingsCreated = created
+	result.MappingsSkipped = skipped
+	result.Batch = toGraphQLBatch(batch)
+
+	return result, nil
 }
 
 // CreateMapping is the resolver for the createMapping field.
 func (r *mutationResolver) CreateMapping(ctx context.Context, input model.CreateMappingInput) (*model.CodeMapping, error) {
-	panic(fmt.Errorf("not implemented: CreateMapping - createMapping"))
+	if r.MappingStore == nil {
+		return nil, fmt.Errorf("terminology mapping store not configured")
+	}
+
+	mapping := &termdb.CustomMapping{
+		SourceSystem: input.SourceSystem,
+		SourceCode:   input.SourceCode,
+		TargetSystem: input.TargetSystem,
+		TargetCode:   input.TargetCode,
+		Origin:       termdb.OriginManual,
+		Equivalence:  termdb.EquivalenceEquivalent, // Default
+	}
+	if input.SourceDisplay != nil {
+		mapping.SourceDisplay = *input.SourceDisplay
+	}
+	if input.TargetDisplay != nil {
+		mapping.TargetDisplay = *input.TargetDisplay
+	}
+	if input.Equivalence != nil {
+		mapping.Equivalence = toDBEquivalence(*input.Equivalence)
+	}
+	if input.Comment != nil {
+		mapping.Comment = *input.Comment
+	}
+	if input.ProfileID != nil {
+		mapping.ProfileID = *input.ProfileID
+	}
+
+	if err := r.MappingStore.CreateMapping(ctx, mapping); err != nil {
+		return nil, fmt.Errorf("creating mapping: %w", err)
+	}
+
+	return toGraphQLMapping(mapping), nil
 }
 
 // DeleteMapping is the resolver for the deleteMapping field.
 func (r *mutationResolver) DeleteMapping(ctx context.Context, id string) (bool, error) {
-	panic(fmt.Errorf("not implemented: DeleteMapping - deleteMapping"))
+	if r.MappingStore == nil {
+		return false, fmt.Errorf("terminology mapping store not configured")
+	}
+
+	mappingID, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		return false, fmt.Errorf("invalid mapping ID: %w", err)
+	}
+
+	err = r.MappingStore.DeleteMapping(ctx, mappingID)
+	if err != nil {
+		// Check if it's a "not found" error
+		if strings.Contains(err.Error(), "not found") {
+			return false, nil
+		}
+		return false, fmt.Errorf("deleting mapping: %w", err)
+	}
+
+	return true, nil
 }
 
 // DeleteMappingBatch is the resolver for the deleteMappingBatch field.
 func (r *mutationResolver) DeleteMappingBatch(ctx context.Context, batchID string) (int, error) {
-	panic(fmt.Errorf("not implemented: DeleteMappingBatch - deleteMappingBatch"))
+	if r.MappingStore == nil {
+		return 0, fmt.Errorf("terminology mapping store not configured")
+	}
+
+	batchUUID, err := uuid.Parse(batchID)
+	if err != nil {
+		return 0, fmt.Errorf("invalid batch ID: %w", err)
+	}
+
+	count, err := r.MappingStore.DeleteMappingsByBatch(ctx, batchUUID)
+	if err != nil {
+		return 0, fmt.Errorf("deleting batch mappings: %w", err)
+	}
+
+	return int(count), nil
 }
 
 // Event is the resolver for the event field.
@@ -1211,22 +1446,131 @@ func (r *queryResolver) ClassifyMessage(ctx context.Context, input model.Classif
 
 // ListMappings is the resolver for the listMappings field.
 func (r *queryResolver) ListMappings(ctx context.Context, input *model.ListMappingsInput) (*model.CodeMappingConnection, error) {
-	panic(fmt.Errorf("not implemented: ListMappings - listMappings"))
+	if r.MappingStore == nil {
+		return nil, fmt.Errorf("terminology mapping store not configured")
+	}
+
+	// Build filter from input
+	filter := termdb.ListMappingsFilter{
+		Limit:  100,
+		Offset: 0,
+	}
+
+	if input != nil {
+		if input.SourceSystem != nil {
+			filter.SourceSystem = *input.SourceSystem
+		}
+		if input.TargetSystem != nil {
+			filter.TargetSystem = *input.TargetSystem
+		}
+		if input.ProfileID != nil {
+			filter.ProfileID = *input.ProfileID
+		}
+		if input.Origin != nil {
+			filter.Origin = toDBOrigin(*input.Origin)
+		}
+		if input.UploadBatchID != nil {
+			batchID, err := uuid.Parse(*input.UploadBatchID)
+			if err != nil {
+				return nil, fmt.Errorf("invalid batch ID: %w", err)
+			}
+			filter.UploadBatchID = &batchID
+		}
+		if input.First != nil && *input.First > 0 {
+			filter.Limit = *input.First
+		}
+		if input.Offset != nil && *input.Offset > 0 {
+			filter.Offset = *input.Offset
+		}
+	}
+
+	mappings, total, err := r.MappingStore.ListMappings(ctx, filter)
+	if err != nil {
+		return nil, fmt.Errorf("listing mappings: %w", err)
+	}
+
+	nodes := make([]model.CodeMapping, 0, len(mappings))
+	for _, m := range mappings {
+		nodes = append(nodes, *toGraphQLMapping(m))
+	}
+
+	hasNextPage := filter.Offset+len(mappings) < total
+	hasPrevPage := filter.Offset > 0
+
+	return &model.CodeMappingConnection{
+		Nodes:      nodes,
+		TotalCount: total,
+		PageInfo: &model.PageInfo{
+			HasNextPage:     hasNextPage,
+			HasPreviousPage: hasPrevPage,
+		},
+	}, nil
 }
 
 // GetMapping is the resolver for the getMapping field.
 func (r *queryResolver) GetMapping(ctx context.Context, id string) (*model.CodeMapping, error) {
-	panic(fmt.Errorf("not implemented: GetMapping - getMapping"))
+	if r.MappingStore == nil {
+		return nil, fmt.Errorf("terminology mapping store not configured")
+	}
+
+	mappingID, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid mapping ID: %w", err)
+	}
+
+	mapping, err := r.MappingStore.GetMapping(ctx, mappingID)
+	if err != nil {
+		return nil, fmt.Errorf("getting mapping: %w", err)
+	}
+	if mapping == nil {
+		return nil, nil // Not found
+	}
+
+	return toGraphQLMapping(mapping), nil
 }
 
 // LookupMapping is the resolver for the lookupMapping field.
 func (r *queryResolver) LookupMapping(ctx context.Context, sourceSystem string, sourceCode string, targetSystem string, profileID *string) (*model.CodeMapping, error) {
-	panic(fmt.Errorf("not implemented: LookupMapping - lookupMapping"))
+	if r.MappingStore == nil {
+		return nil, fmt.Errorf("terminology mapping store not configured")
+	}
+
+	profID := ""
+	if profileID != nil {
+		profID = *profileID
+	}
+
+	mapping, err := r.MappingStore.LookupMapping(ctx, sourceSystem, sourceCode, targetSystem, profID)
+	if err != nil {
+		return nil, fmt.Errorf("looking up mapping: %w", err)
+	}
+	if mapping == nil {
+		return nil, nil // Not found
+	}
+
+	return toGraphQLMapping(mapping), nil
 }
 
 // GetUploadBatch is the resolver for the getUploadBatch field.
 func (r *queryResolver) GetUploadBatch(ctx context.Context, id string) (*model.UploadBatch, error) {
-	panic(fmt.Errorf("not implemented: GetUploadBatch - getUploadBatch"))
+	if r.MappingStore == nil {
+		return nil, fmt.Errorf("terminology mapping store not configured")
+	}
+
+	batchID, err := uuid.Parse(id)
+	if err != nil {
+		return nil, fmt.Errorf("invalid batch ID: %w", err)
+	}
+
+	batch, err := r.MappingStore.GetBatch(ctx, batchID)
+	if err != nil {
+		return nil, fmt.Errorf("getting upload batch: %w", err)
+	}
+	if batch == nil {
+		return nil, nil // Not found
+	}
+
+	return toGraphQLBatch(batch), nil
 }
 
 // EventStream is the resolver for the eventStream field.
@@ -1265,3 +1609,143 @@ func (r *Resolver) Subscription() graphql1.SubscriptionResolver { return &subscr
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }
+
+// Terminology mapping conversion helpers
+
+// toGraphQLEquivalence converts database equivalence to GraphQL enum.
+func toGraphQLEquivalence(e termdb.MappingEquivalence) model.MappingEquivalence {
+	switch e {
+	case termdb.EquivalenceEquivalent:
+		return model.MappingEquivalenceEquivalent
+	case termdb.EquivalenceWider:
+		return model.MappingEquivalenceWider
+	case termdb.EquivalenceNarrower:
+		return model.MappingEquivalenceNarrower
+	case termdb.EquivalenceInexact:
+		return model.MappingEquivalenceInexact
+	default:
+		return model.MappingEquivalenceEquivalent
+	}
+}
+
+// toDBEquivalence converts GraphQL enum to database equivalence.
+func toDBEquivalence(e model.MappingEquivalence) termdb.MappingEquivalence {
+	switch e {
+	case model.MappingEquivalenceEquivalent:
+		return termdb.EquivalenceEquivalent
+	case model.MappingEquivalenceWider:
+		return termdb.EquivalenceWider
+	case model.MappingEquivalenceNarrower:
+		return termdb.EquivalenceNarrower
+	case model.MappingEquivalenceInexact:
+		return termdb.EquivalenceInexact
+	default:
+		return termdb.EquivalenceEquivalent
+	}
+}
+
+// toGraphQLOrigin converts database origin to GraphQL enum.
+func toGraphQLOrigin(o termdb.MappingOrigin) model.MappingOrigin {
+	switch o {
+	case termdb.OriginCSVUpload:
+		return model.MappingOriginCSVUpload
+	case termdb.OriginApprovedAutoroute:
+		return model.MappingOriginApprovedAutoroute
+	case termdb.OriginManual:
+		return model.MappingOriginManual
+	default:
+		return model.MappingOriginManual
+	}
+}
+
+// toDBOrigin converts GraphQL enum to database origin.
+func toDBOrigin(o model.MappingOrigin) termdb.MappingOrigin {
+	switch o {
+	case model.MappingOriginCSVUpload:
+		return termdb.OriginCSVUpload
+	case model.MappingOriginApprovedAutoroute:
+		return termdb.OriginApprovedAutoroute
+	case model.MappingOriginManual:
+		return termdb.OriginManual
+	default:
+		return termdb.OriginManual
+	}
+}
+
+// toGraphQLMapping converts a database mapping to a GraphQL model.
+func toGraphQLMapping(m *termdb.CustomMapping) *model.CodeMapping {
+	result := &model.CodeMapping{
+		ID:           strconv.FormatInt(m.ID, 10),
+		SourceSystem: m.SourceSystem,
+		SourceCode:   m.SourceCode,
+		TargetSystem: m.TargetSystem,
+		TargetCode:   m.TargetCode,
+		Equivalence:  toGraphQLEquivalence(m.Equivalence),
+		Origin:       toGraphQLOrigin(m.Origin),
+		CreatedAt:    m.CreatedAt,
+		Confidence:   m.Confidence,
+	}
+	if m.SourceDisplay != "" {
+		result.SourceDisplay = &m.SourceDisplay
+	}
+	if m.TargetDisplay != "" {
+		result.TargetDisplay = &m.TargetDisplay
+	}
+	if m.Comment != "" {
+		result.Comment = &m.Comment
+	}
+	if m.ProfileID != "" {
+		result.ProfileID = &m.ProfileID
+	}
+	if m.UploadBatchID != nil {
+		batchID := m.UploadBatchID.String()
+		result.UploadBatchID = &batchID
+	}
+	if m.CreatedBy != "" {
+		result.CreatedBy = &m.CreatedBy
+	}
+	if m.ApprovedAt != nil {
+		result.ApprovedAt = m.ApprovedAt
+	}
+	if m.ApprovedBy != "" {
+		result.ApprovedBy = &m.ApprovedBy
+	}
+	return result
+}
+
+// toGraphQLBatch converts a database upload batch to a GraphQL model.
+func toGraphQLBatch(b *termdb.UploadBatch) *model.UploadBatch {
+	result := &model.UploadBatch{
+		ID:               b.ID.String(),
+		Filename:         b.Filename,
+		TotalRows:        b.TotalRows,
+		ValidRows:        b.ValidRows,
+		DuplicateRows:    b.DuplicateRows,
+		ErrorRows:        b.ErrorRows,
+		UploadedAt:       b.UploadedAt,
+		ValidationErrors: make([]model.UploadValidationError, 0, len(b.ValidationErrors)),
+	}
+	if b.SourceSystem != "" {
+		result.SourceSystem = &b.SourceSystem
+	}
+	if b.TargetSystem != "" {
+		result.TargetSystem = &b.TargetSystem
+	}
+	if b.ProfileID != "" {
+		result.ProfileID = &b.ProfileID
+	}
+	if b.UploadedBy != "" {
+		result.UploadedBy = &b.UploadedBy
+	}
+	for _, e := range b.ValidationErrors {
+		ve := model.UploadValidationError{
+			Row:     e.Row,
+			Message: e.Message,
+		}
+		if e.Column != "" {
+			ve.Column = &e.Column
+		}
+		result.ValidationErrors = append(result.ValidationErrors, ve)
+	}
+	return result
+}

@@ -411,6 +411,49 @@ func (s *MappingStore) ListMappings(ctx context.Context, filter ListMappingsFilt
 	return mappings, total, nil
 }
 
+// GetMapping retrieves a single mapping by ID.
+func (s *MappingStore) GetMapping(ctx context.Context, id int64) (*CustomMapping, error) {
+	var m CustomMapping
+	var sourceDisplay, targetDisplay, comment, profileID, createdBy, approvedBy sql.NullString
+	var confidence sql.NullFloat64
+	var batchID *uuid.UUID
+	var approvedAt sql.NullTime
+
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id, source_system, source_code, source_display, target_system, target_code, target_display,
+		       equivalence, confidence, comment, origin, upload_batch_id, profile_id,
+		       created_at, created_by, approved_at, approved_by
+		FROM terminology.custom_mappings
+		WHERE id = $1
+	`, id).Scan(
+		&m.ID, &m.SourceSystem, &m.SourceCode, &sourceDisplay, &m.TargetSystem, &m.TargetCode, &targetDisplay,
+		&m.Equivalence, &confidence, &comment, &m.Origin, &batchID, &profileID,
+		&m.CreatedAt, &createdBy, &approvedAt, &approvedBy,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("getting mapping: %w", err)
+	}
+
+	m.SourceDisplay = sourceDisplay.String
+	m.TargetDisplay = targetDisplay.String
+	m.Comment = comment.String
+	m.ProfileID = profileID.String
+	m.CreatedBy = createdBy.String
+	m.ApprovedBy = approvedBy.String
+	if confidence.Valid {
+		m.Confidence = &confidence.Float64
+	}
+	m.UploadBatchID = batchID
+	if approvedAt.Valid {
+		m.ApprovedAt = &approvedAt.Time
+	}
+
+	return &m, nil
+}
+
 // DeleteMapping removes a custom mapping by ID.
 func (s *MappingStore) DeleteMapping(ctx context.Context, id int64) error {
 	result, err := s.db.ExecContext(ctx, `DELETE FROM terminology.custom_mappings WHERE id = $1`, id)

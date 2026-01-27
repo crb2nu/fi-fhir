@@ -13,6 +13,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/quality"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/workflow"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm/copilot"
+	termdb "gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/db"
 )
 
 // This file will not be regenerated automatically.
@@ -66,6 +67,9 @@ type Resolver struct {
 
 	// WorkflowExplainer provides LLM-powered workflow explanations
 	WorkflowExplainer *explain.WorkflowExplainer
+
+	// MappingStore provides custom terminology mapping storage
+	MappingStore *termdb.MappingStore
 
 	// SubscriptionClients maps FHIR server URLs to clients
 	subscriptionClients map[string]*subscription.Client
@@ -174,6 +178,13 @@ func WithWorkflowCopilot(c *copilot.WorkflowCopilot) ResolverOption {
 func WithWorkflowExplainer(e *explain.WorkflowExplainer) ResolverOption {
 	return func(r *Resolver) {
 		r.WorkflowExplainer = e
+	}
+}
+
+// WithMappingStore sets the terminology mapping store.
+func WithMappingStore(s *termdb.MappingStore) ResolverOption {
+	return func(r *Resolver) {
+		r.MappingStore = s
 	}
 }
 
