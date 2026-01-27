@@ -1,5 +1,6 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
+  import ToastContainer from '$lib/ui/ToastContainer.svelte';
 
   const nav = [
     { href: '/', label: 'Home' },
@@ -7,6 +8,8 @@
     { href: '/profiles', label: 'Profiles' }
   ] as const;
 </script>
+
+<ToastContainer />
 
 <div class="app">
   <header class="header">

@@ -22,6 +22,7 @@
   import type { NewHL7Sample } from '$lib/features/hl7/samples/types';
   import { redactHL7, type HL7RedactionMode } from '$lib/domain/hl7Redact';
   import EventLineagePanel from '$lib/features/hl7/components/EventLineagePanel.svelte';
+  import EventStreamPanel from '$lib/features/events/EventStreamPanel.svelte';
   import ExtractionPanel from '$lib/ui/ExtractionPanel.svelte';
   import QualityBadge from '$lib/ui/QualityBadge.svelte';
   import { graphqlFetch } from '$lib/graphql/client';
@@ -147,7 +148,7 @@
   }
   const { samples, activeId, activeSample } = samplesStore;
 
-  let activeTab: 'samples' | 'warnings' | 'events' | 'extraction' | 'inspector' | 'profile' = 'warnings';
+  let activeTab: 'samples' | 'warnings' | 'events' | 'extraction' | 'inspector' | 'profile' | 'live' = 'warnings';
   let selectedPath: string | null = null;
   let selectedLocation: HL7PathLocation | null = null;
 
@@ -159,7 +160,8 @@
     { key: 'events', label: 'Events' },
     { key: 'extraction', label: 'Extraction' },
     { key: 'inspector', label: 'Inspector' },
-    { key: 'profile', label: 'Profile draft' }
+    { key: 'profile', label: 'Profile draft' },
+    { key: 'live', label: 'Live Events' }
   ] as const;
 
   async function run() {
@@ -696,11 +698,13 @@
         <ExtractionPanel text={$state.data} />
       {:else if activeTab === 'inspector'}
         <HL7Inspector message={$hl7} selected={selectedLocation} />
-      {:else}
+      {:else if activeTab === 'profile'}
         <ProfileDraftPanel
           fixes={fixes}
           onApplyFix={applyFix}
         />
+      {:else if activeTab === 'live'}
+        <EventStreamPanel />
       {/if}
     {/if}
   </Panel>

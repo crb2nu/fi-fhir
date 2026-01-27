@@ -1,0 +1,41 @@
+# Real-time event streaming subscription.
+# Connects to backend WebSocket for live event notifications.
+
+subscription EventStream($filter: EventFilter) {
+  eventStream(filter: $filter) {
+    id
+    type
+    timestamp
+    source
+    sourceFormat
+    correlationId
+  }
+}
+
+# Workflow-specific event stream for monitoring workflow executions.
+subscription WorkflowEvents($workflowName: String!) {
+  workflowEvents(workflowName: $workflowName) {
+    event {
+      id
+      type
+      timestamp
+      source
+    }
+    workflow
+    routesMatched
+    actionsExecuted
+    duration
+  }
+}
+
+# Patient-specific event stream for monitoring a single patient's events.
+subscription PatientEvents($mrn: ID!) {
+  patientEvents(mrn: $mrn) {
+    id
+    type
+    timestamp
+    source
+    sourceFormat
+    correlationId
+  }
+}

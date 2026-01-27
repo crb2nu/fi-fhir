@@ -1,0 +1,427 @@
+<script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
+  import { subscribe as wsSubscribe } from '$lib/graphql/subscriptions';
+  import { EventStreamDocument, type EventStreamSubscription, type EventFilter, type EventType } from '$lib/gen/graphql';
+  import Button from '$lib/ui/Button.svelte';
+
+  /** Maximum number of events to display in the list */
+  export let maxEvents: number = 100;
+
+  type StreamEvent = EventStreamSubscription['eventStream'];
+
+  // Connection state
+  let connected = false;
+  let error: string | null = null;
+  let events: StreamEvent[] = [];
+  let unsubscribe: (() => void) | null = null;
+
+  // Filtering
+  let filterType: EventType | 'ALL' = 'ALL';
+  let filterSource: string = '';
+  let paused = false;
+
+  // Available event types for filter dropdown
+  const eventTypes: EventType[] = [
+    'PATIENT_ADMIT',
+    'PATIENT_DISCHARGE',
+    'PATIENT_TRANSFER',
+    'PATIENT_UPDATE',
+    'LAB_RESULT',
+    'LAB_ORDERED',
+    'APPOINTMENT_SCHEDULED',
+    'APPOINTMENT_CANCELLED',
+    'APPOINTMENT_NOSHOW',
+    'CLAIM_SUBMITTED',
+    'CLAIM_ADJUDICATED',
+    'VITAL_SIGN',
+    'CONDITION',
+    'PROCEDURE',
+    'IMMUNIZATION',
+    'DOCUMENT'
+  ];
+
+  function startSubscription() {
+    if (unsubscribe) {
+      unsubscribe();
+    }
+
+    error = null;
+    connected = false;
+
+    // Build filter based on current settings
+    const typeFilterValue = filterType !== 'ALL' ? filterType : null;
+    const sourceFilterValue = filterSource.trim() || null;
+    const filter: EventFilter | null = typeFilterValue || sourceFilterValue
+      ? {
+          types: typeFilterValue ? [typeFilterValue] : null,
+          sources: sourceFilterValue ? [sourceFilterValue] : null,
+          patientMrn: null,
+          correlationId: null,
+          fromTimestamp: null,
+          toTimestamp: null
+        }
+      : null;
+
+    unsubscribe = wsSubscribe(
+      EventStreamDocument,
+      { filter },
+      {
+        onData: (data) => {
+          connected = true;
+          if (!paused && data.eventStream) {
+            events = [data.eventStream, ...events].slice(0, maxEvents);
+          }
+        },
+        onError: (err) => {
+          error = err.message;
+          connected = false;
+        },
+        onComplete: () => {
+          connected = false;
+        }
+      }
+    );
+  }
+
+  function stopSubscription() {
+    if (unsubscribe) {
+      unsubscribe();
+      unsubscribe = null;
+    }
+    connected = false;
+  }
+
+  function clearEvents() {
+    events = [];
+  }
+
+  function togglePause() {
+    paused = !paused;
+  }
+
+  function formatTimestamp(ts: string): string {
+    try {
+      return new Date(ts).toLocaleTimeString();
+    } catch {
+      return ts;
+    }
+  }
+
+  function formatEventType(type: EventType): string {
+    return type.replace(/_/g, ' ');
+  }
+
+  function typeColor(type: EventType): string {
+    switch (type) {
+      case 'PATIENT_ADMIT':
+      case 'PATIENT_DISCHARGE':
+      case 'PATIENT_TRANSFER':
+      case 'PATIENT_UPDATE':
+        return 'adt';
+      case 'LAB_RESULT':
+      case 'LAB_ORDERED':
+        return 'lab';
+      case 'APPOINTMENT_SCHEDULED':
+      case 'APPOINTMENT_CANCELLED':
+      case 'APPOINTMENT_NOSHOW':
+        return 'appt';
+      case 'CLAIM_SUBMITTED':
+      case 'CLAIM_ADJUDICATED':
+        return 'claim';
+      default:
+        return 'default';
+    }
+  }
+
+  onMount(() => {
+    startSubscription();
+  });
+
+  onDestroy(() => {
+    stopSubscription();
+  });
+
+  // Restart subscription when filters change
+  $: if (filterType || filterSource !== undefined) {
+    // Only restart if already connected
+    if (unsubscribe) {
+      startSubscription();
+    }
+  }
+</script>
+
+<div class="panel">
+  <div class="controls">
+    <div class="status">
+      <span class="indicator" class:connected class:error={!!error}></span>
+      {#if error}
+        <span class="status-text error">{error}</span>
+      {:else if connected}
+        <span class="status-text">Connected</span>
+      {:else}
+        <span class="status-text">Connecting...</span>
+      {/if}
+    </div>
+
+    <div class="actions">
+      <Button variant="secondary" on:click={togglePause}>
+        {paused ? 'Resume' : 'Pause'}
+      </Button>
+      <Button variant="secondary" on:click={clearEvents}>
+        Clear
+      </Button>
+      <Button variant="secondary" on:click={startSubscription}>
+        Reconnect
+      </Button>
+    </div>
+  </div>
+
+  <div class="filters">
+    <label class="filter">
+      Event Type
+      <select class="select" bind:value={filterType}>
+        <option value="ALL">All Types</option>
+        {#each eventTypes as type (type)}
+          <option value={type}>{formatEventType(type)}</option>
+        {/each}
+      </select>
+    </label>
+
+    <label class="filter">
+      Source
+      <input
+        type="text"
+        class="input"
+        bind:value={filterSource}
+        placeholder="Filter by source..."
+      />
+    </label>
+  </div>
+
+  {#if events.length === 0}
+    <div class="empty">
+      {#if connected}
+        Waiting for events... Events will appear here as they stream in real-time.
+      {:else if error}
+        Unable to connect to event stream. Check that the backend is running.
+      {:else}
+        Connecting to event stream...
+      {/if}
+    </div>
+  {:else}
+    <div class="event-list">
+      {#each events as event (event.id)}
+        <div class="event-row">
+          <span class="time mono">{formatTimestamp(event.timestamp)}</span>
+          <span class="type-pill {typeColor(event.type)}">{formatEventType(event.type)}</span>
+          <span class="source mono">{event.source}</span>
+          <span class="id muted mono" title={event.id}>{event.id.slice(0, 8)}...</span>
+        </div>
+      {/each}
+    </div>
+
+    <div class="footer muted">
+      Showing {events.length} of {maxEvents} max events
+      {#if paused}
+        <span class="paused-badge">PAUSED</span>
+      {/if}
+    </div>
+  {/if}
+</div>
+
+<style>
+  .panel {
+    display: grid;
+    gap: 12px;
+  }
+
+  .controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(156, 163, 175, 0.5);
+    transition: background 0.2s ease;
+  }
+
+  .indicator.connected {
+    background: rgba(16, 185, 129, 0.85);
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+  }
+
+  .indicator.error {
+    background: rgba(239, 68, 68, 0.85);
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+  }
+
+  .status-text {
+    font-weight: 700;
+    color: rgba(229, 231, 235, 0.8);
+  }
+
+  .status-text.error {
+    color: rgba(254, 202, 202, 0.9);
+  }
+
+  .actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .filters {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .filter {
+    display: grid;
+    gap: 6px;
+    color: rgba(229, 231, 235, 0.8);
+    font-size: 0.9rem;
+    font-weight: 700;
+    min-width: 180px;
+  }
+
+  .select,
+  .input {
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.03);
+    color: rgba(229, 231, 235, 0.92);
+    outline: none;
+  }
+
+  .select:focus,
+  .input:focus {
+    border-color: rgba(59, 130, 246, 0.45);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  }
+
+  .empty {
+    color: rgba(229, 231, 235, 0.65);
+    padding: 24px;
+    text-align: center;
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+  }
+
+  .event-list {
+    display: grid;
+    gap: 6px;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  .event-row {
+    display: grid;
+    grid-template-columns: 80px auto 1fr auto;
+    gap: 12px;
+    align-items: center;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .event-row:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .time {
+    color: rgba(229, 231, 235, 0.7);
+    font-size: 0.85rem;
+  }
+
+  .type-pill {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .type-pill.adt {
+    background: rgba(59, 130, 246, 0.15);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    color: rgba(147, 197, 253, 0.95);
+  }
+
+  .type-pill.lab {
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: rgba(110, 231, 183, 0.95);
+  }
+
+  .type-pill.appt {
+    background: rgba(245, 158, 11, 0.15);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    color: rgba(253, 230, 138, 0.95);
+  }
+
+  .type-pill.claim {
+    background: rgba(168, 85, 247, 0.15);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    color: rgba(216, 180, 254, 0.95);
+  }
+
+  .type-pill.default {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: rgba(229, 231, 235, 0.86);
+  }
+
+  .source {
+    color: rgba(229, 231, 235, 0.85);
+    font-size: 0.85rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .id {
+    font-size: 0.8rem;
+  }
+
+  .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  }
+
+  .muted {
+    color: rgba(229, 231, 235, 0.55);
+  }
+
+  .footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .paused-badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(245, 158, 11, 0.2);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    color: rgba(253, 230, 138, 0.95);
+    font-weight: 700;
+    font-size: 0.75rem;
+  }
+</style>

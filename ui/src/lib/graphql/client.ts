@@ -1,31 +1,80 @@
 import type { TypedDocumentNode } from '@graphql-typed-document-node/core';
 import { print } from 'graphql';
+import { toasts } from '$lib/ui/toastStore';
 
 type GraphQLErrorResponse = {
   errors?: Array<{ message?: string }>;
 };
 
+export interface GraphQLFetchOptions {
+  /** Show error toast on failure. Default: true */
+  showErrorToast?: boolean;
+  /** Show success toast on completion. Default: false */
+  showSuccessToast?: boolean;
+  /** Custom success message. Default: 'Operation completed' */
+  successMessage?: string;
+}
+
+/**
+ * Fetches data from the GraphQL API with automatic error handling.
+ *
+ * By default, errors are shown as toast notifications. This behavior can be
+ * disabled via the options parameter for cases where you want custom error handling.
+ *
+ * @param document - The typed GraphQL document to execute
+ * @param variables - Variables to pass to the query/mutation
+ * @param options - Options for toast notifications
+ * @returns The data from the GraphQL response
+ * @throws Error if the request fails or returns GraphQL errors
+ */
 export async function graphqlFetch<TData, TVars>(
   document: TypedDocumentNode<TData, TVars>,
-  variables?: TVars
+  variables?: TVars,
+  options?: GraphQLFetchOptions
 ): Promise<TData> {
-  const res = await fetch('/graphql', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ query: print(document), variables })
-  });
+  const { showErrorToast = true, showSuccessToast = false, successMessage } = options ?? {};
 
-  if (!res.ok) {
-    throw new Error(`GraphQL HTTP ${res.status}`);
-  }
+  try {
+    const res = await fetch('/graphql', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ query: print(document), variables })
+    });
 
-  const json = (await res.json()) as { data?: TData } & GraphQLErrorResponse;
-  if (json.errors?.length) {
-    const msg = json.errors.map((e) => e.message ?? 'Unknown error').join('; ');
-    throw new Error(msg);
+    if (!res.ok) {
+      const error = new Error(`GraphQL HTTP ${res.status}`);
+      if (showErrorToast) {
+        toasts.error(`Request failed: HTTP ${res.status}`);
+      }
+      throw error;
+    }
+
+    const json = (await res.json()) as { data?: TData } & GraphQLErrorResponse;
+    if (json.errors?.length) {
+      const msg = json.errors.map((e) => e.message ?? 'Unknown error').join('; ');
+      if (showErrorToast) {
+        toasts.error(msg);
+      }
+      throw new Error(msg);
+    }
+    if (!json.data) {
+      const error = new Error('GraphQL response missing data');
+      if (showErrorToast) {
+        toasts.error('Unexpected response from server');
+      }
+      throw error;
+    }
+
+    if (showSuccessToast) {
+      toasts.success(successMessage ?? 'Operation completed');
+    }
+
+    return json.data;
+  } catch (err) {
+    // Re-throw after toast was already shown (for non-GraphQL errors like network failures)
+    if (err instanceof Error && showErrorToast && !err.message.startsWith('GraphQL')) {
+      toasts.error(`Network error: ${err.message}`);
+    }
+    throw err;
   }
-  if (!json.data) {
-    throw new Error('GraphQL response missing data');
-  }
-  return json.data;
 }
