@@ -74,13 +74,29 @@ func (m *Migrator) Initialize(ctx context.Context) (bool, error) {
 		return false, nil // Already up to date
 	}
 
-	// Execute schema creation
-	_, err = m.db.ExecContext(ctx, Schema)
-	if err != nil {
-		return false, fmt.Errorf("creating schema: %w", err)
+	// Fresh install: execute full schema
+	if currentVersion == 0 {
+		_, err = m.db.ExecContext(ctx, Schema)
+		if err != nil {
+			return false, fmt.Errorf("creating schema: %w", err)
+		}
+		// Apply v2 tables for fresh installs
+		_, err = m.db.ExecContext(ctx, SchemaV2Migration)
+		if err != nil {
+			return false, fmt.Errorf("applying v2 migration: %w", err)
+		}
+		return true, nil
 	}
 
-	return currentVersion == 0, nil
+	// Upgrade path: apply migrations incrementally
+	if currentVersion < 2 {
+		_, err = m.db.ExecContext(ctx, SchemaV2Migration)
+		if err != nil {
+			return false, fmt.Errorf("applying v2 migration: %w", err)
+		}
+	}
+
+	return false, nil
 }
 
 // MustInitialize creates the schema and panics on error.
@@ -125,6 +141,8 @@ func (m *Migrator) Stats(ctx context.Context) (*SchemaStats, error) {
 		"snomed_concepts", "snomed_descriptions", "snomed_relationships", "snomed_transitive_closure",
 		"loinc_codes", "loinc_panels", "loinc_hierarchy", "loinc_answers",
 		"icd10cm_codes", "icd10pcs_codes", "icd_crosswalk", "code_mappings",
+		// v2 tables
+		"upload_batches", "custom_mappings", "pending_autoroutes", "mapping_decisions",
 	}
 
 	for _, table := range tables {

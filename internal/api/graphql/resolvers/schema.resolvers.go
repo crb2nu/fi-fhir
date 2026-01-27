@@ -629,6 +629,26 @@ func (r *mutationResolver) GenerateWorkflow(ctx context.Context, input model.Gen
 	}, nil
 }
 
+// UploadMappingCSV is the resolver for the uploadMappingCSV field.
+func (r *mutationResolver) UploadMappingCSV(ctx context.Context, input model.UploadMappingCSVInput) (*model.UploadMappingResult, error) {
+	panic(fmt.Errorf("not implemented: UploadMappingCSV - uploadMappingCSV"))
+}
+
+// CreateMapping is the resolver for the createMapping field.
+func (r *mutationResolver) CreateMapping(ctx context.Context, input model.CreateMappingInput) (*model.CodeMapping, error) {
+	panic(fmt.Errorf("not implemented: CreateMapping - createMapping"))
+}
+
+// DeleteMapping is the resolver for the deleteMapping field.
+func (r *mutationResolver) DeleteMapping(ctx context.Context, id string) (bool, error) {
+	panic(fmt.Errorf("not implemented: DeleteMapping - deleteMapping"))
+}
+
+// DeleteMappingBatch is the resolver for the deleteMappingBatch field.
+func (r *mutationResolver) DeleteMappingBatch(ctx context.Context, batchID string) (int, error) {
+	panic(fmt.Errorf("not implemented: DeleteMappingBatch - deleteMappingBatch"))
+}
+
 // Event is the resolver for the event field.
 func (r *queryResolver) Event(ctx context.Context, id string) (model.Event, error) {
 	return r.Store.GetEvent(ctx, id)
@@ -1187,6 +1207,26 @@ func (r *queryResolver) ClassifyMessage(ctx context.Context, input model.Classif
 	}
 
 	return result, nil
+}
+
+// ListMappings is the resolver for the listMappings field.
+func (r *queryResolver) ListMappings(ctx context.Context, input *model.ListMappingsInput) (*model.CodeMappingConnection, error) {
+	panic(fmt.Errorf("not implemented: ListMappings - listMappings"))
+}
+
+// GetMapping is the resolver for the getMapping field.
+func (r *queryResolver) GetMapping(ctx context.Context, id string) (*model.CodeMapping, error) {
+	panic(fmt.Errorf("not implemented: GetMapping - getMapping"))
+}
+
+// LookupMapping is the resolver for the lookupMapping field.
+func (r *queryResolver) LookupMapping(ctx context.Context, sourceSystem string, sourceCode string, targetSystem string, profileID *string) (*model.CodeMapping, error) {
+	panic(fmt.Errorf("not implemented: LookupMapping - lookupMapping"))
+}
+
+// GetUploadBatch is the resolver for the getUploadBatch field.
+func (r *queryResolver) GetUploadBatch(ctx context.Context, id string) (*model.UploadBatch, error) {
+	panic(fmt.Errorf("not implemented: GetUploadBatch - getUploadBatch"))
 }
 
 // EventStream is the resolver for the eventStream field.

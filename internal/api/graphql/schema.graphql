@@ -1187,3 +1187,155 @@ extend type Mutation {
   # Generate a workflow from natural language description
   generateWorkflow(input: GenerateWorkflowInput!): GeneratedWorkflow!
 }
+
+# =============================================================================
+# Terminology Mapping Types (Phase: Custom Mapping Upload)
+# =============================================================================
+
+enum MappingEquivalence {
+  EQUIVALENT
+  WIDER
+  NARROWER
+  INEXACT
+}
+
+enum MappingOrigin {
+  CSV_UPLOAD
+  APPROVED_AUTOROUTE
+  MANUAL
+}
+
+# A custom code mapping
+type CodeMapping {
+  id: ID!
+  sourceSystem: String!
+  sourceCode: String!
+  sourceDisplay: String
+  targetSystem: String!
+  targetCode: String!
+  targetDisplay: String
+  equivalence: MappingEquivalence!
+  confidence: Float
+  comment: String
+  origin: MappingOrigin!
+  profileId: String
+  uploadBatchId: ID
+  createdAt: DateTime!
+  createdBy: String
+  approvedAt: DateTime
+  approvedBy: String
+}
+
+# Validation error in an upload
+type UploadValidationError {
+  row: Int!
+  column: String
+  message: String!
+}
+
+# Batch upload tracking
+type UploadBatch {
+  id: ID!
+  filename: String!
+  sourceSystem: String
+  targetSystem: String
+  profileId: String
+  totalRows: Int!
+  validRows: Int!
+  duplicateRows: Int!
+  errorRows: Int!
+  uploadedAt: DateTime!
+  uploadedBy: String
+  validationErrors: [UploadValidationError!]!
+}
+
+# Result of a mapping upload operation
+type UploadMappingResult {
+  batch: UploadBatch!
+  mappingsCreated: Int!
+  mappingsSkipped: Int!
+  preview: [CodeMapping!]!
+}
+
+# Paginated list of mappings
+type CodeMappingConnection {
+  nodes: [CodeMapping!]!
+  totalCount: Int!
+  pageInfo: PageInfo!
+}
+
+# =============================================================================
+# Terminology Mapping Inputs
+# =============================================================================
+
+input UploadMappingCSVInput {
+  # CSV content (can be raw string or base64 encoded)
+  csv: String!
+  filename: String!
+  # Default system if not specified in CSV columns
+  defaultSourceSystem: String
+  defaultTargetSystem: String
+  # Scope to a specific profile (optional)
+  profileId: String
+  # If true, only validate without persisting
+  dryRun: Boolean = false
+}
+
+input CreateMappingInput {
+  sourceSystem: String!
+  sourceCode: String!
+  sourceDisplay: String
+  targetSystem: String!
+  targetCode: String!
+  targetDisplay: String
+  equivalence: MappingEquivalence = EQUIVALENT
+  comment: String
+  profileId: String
+}
+
+input ListMappingsInput {
+  sourceSystem: String
+  targetSystem: String
+  profileId: String
+  origin: MappingOrigin
+  uploadBatchId: ID
+  first: Int = 50
+  offset: Int = 0
+}
+
+# =============================================================================
+# Terminology Mapping Queries & Mutations
+# =============================================================================
+
+extend type Query {
+  # List custom mappings with optional filters
+  listMappings(input: ListMappingsInput): CodeMappingConnection!
+
+  # Get a specific mapping by ID
+  getMapping(id: ID!): CodeMapping
+
+  # Look up a mapping by source code
+  lookupMapping(
+    sourceSystem: String!
+    sourceCode: String!
+    targetSystem: String!
+    profileId: String
+  ): CodeMapping
+
+  # Get an upload batch by ID
+  getUploadBatch(id: ID!): UploadBatch
+}
+
+extend type Mutation {
+  # Upload mappings from CSV
+  uploadMappingCSV(input: UploadMappingCSVInput!): UploadMappingResult!
+
+  # Create a single mapping manually
+  createMapping(input: CreateMappingInput!): CodeMapping!
+
+  # Delete a mapping by ID
+  deleteMapping(id: ID!): Boolean!
+
+  # Delete all mappings from an upload batch
+  deleteMappingBatch(batchId: ID!): Int!
+}

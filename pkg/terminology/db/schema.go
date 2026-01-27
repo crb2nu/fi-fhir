@@ -4,7 +4,7 @@
 package db
 
 // SchemaVersion tracks the current schema version for migrations.
-const SchemaVersion = 1
+const SchemaVersion = 2
 
 // Schema contains all SQL DDL statements for the terminology database.
 // Tables are organized in the 'terminology' schema to isolate from event sourcing tables.
@@ -527,6 +527,186 @@ ON CONFLICT (version) DO NOTHING;
 // DropSchema removes all terminology tables (use with caution).
 const DropSchema = `
 DROP SCHEMA IF EXISTS terminology CASCADE;
+`
+
+// SchemaV2Migration adds custom mapping tables for CSV upload, autorouting, and telemetry.
+// Applied when upgrading from v1 to v2.
+const SchemaV2Migration = `
+-- =============================================================================
+-- SCHEMA v2: Custom Mapping Tables
+-- =============================================================================
+-- Adds support for:
+-- - CSV mapping uploads (custom_mappings, upload_batches)
+-- - Autoroute suggestions (pending_autoroutes)
+-- - Decision telemetry (mapping_decisions)
+
+-- =============================================================================
+-- Upload Batch Tracking
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS terminology.upload_batches (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    filename        VARCHAR(255) NOT NULL,
+    source_system   VARCHAR(100),                       -- Default source system for batch
+    target_system   VARCHAR(255),                       -- Default target system for batch
+    profile_id      VARCHAR(100),                       -- Optional: scope to profile
+
+    -- Stats
+    total_rows      INT NOT NULL DEFAULT 0,
+    valid_rows      INT NOT NULL DEFAULT 0,
+    duplicate_rows  INT DEFAULT 0,
+    error_rows      INT DEFAULT 0,
+
+    -- Audit
+    uploaded_at     TIMESTAMPTZ DEFAULT NOW(),
+    uploaded_by     VARCHAR(100),
+
+    -- Validation results
+    validation_errors JSONB DEFAULT '[]'                -- Array of {row, column, error}
+);
+
+CREATE INDEX IF NOT EXISTS idx_upload_batches_uploaded_at
+    ON terminology.upload_batches(uploaded_at DESC);
+
+-- =============================================================================
+-- Custom Uploaded Mappings
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS terminology.custom_mappings (
+    id              BIGSERIAL PRIMARY KEY,
+
+    -- Source identification
+    source_system   VARCHAR(100) NOT NULL,
+    source_code     VARCHAR(100) NOT NULL,
+    source_display  TEXT,
+
+    -- Target mapping
+    target_system   VARCHAR(255) NOT NULL,
+    target_code     VARCHAR(100) NOT NULL,
+    target_display  TEXT,
+
+    -- Mapping metadata
+    equivalence     VARCHAR(20) DEFAULT 'equivalent',  -- equivalent, wider, narrower, inexact
+    confidence      FLOAT,                              -- NULL for manual uploads
+    comment         TEXT,
+
+    -- Provenance
+    origin          VARCHAR(30) NOT NULL DEFAULT 'csv_upload', -- 'csv_upload', 'approved_autoroute', 'manual'
+    upload_batch_id UUID REFERENCES terminology.upload_batches(id) ON DELETE SET NULL,
+    profile_id      VARCHAR(100),                       -- Optional: profile-scoped mapping
+
+    -- Audit
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    created_by      VARCHAR(100),
+    approved_at     TIMESTAMPTZ,
+    approved_by     VARCHAR(100),
+
+    -- For approved autoroutes: full decision context
+    decision_trace  JSONB,
+
+    UNIQUE(source_system, source_code, target_system, COALESCE(profile_id, ''))
+);
+
+CREATE INDEX IF NOT EXISTS idx_custom_mappings_lookup
+    ON terminology.custom_mappings(source_system, source_code, target_system);
+CREATE INDEX IF NOT EXISTS idx_custom_mappings_profile
+    ON terminology.custom_mappings(profile_id) WHERE profile_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_custom_mappings_batch
+    ON terminology.custom_mappings(upload_batch_id) WHERE upload_batch_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_custom_mappings_origin
+    ON terminology.custom_mappings(origin);
+
+-- =============================================================================
+-- Pending Autoroute Suggestions (for review workflow)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS terminology.pending_autoroutes (
+    id              BIGSERIAL PRIMARY KEY,
+
+    -- Request context
+    source_system   VARCHAR(100) NOT NULL,
+    source_code     VARCHAR(100) NOT NULL,
+    source_display  TEXT,
+    target_system   VARCHAR(255) NOT NULL,
+
+    -- Suggestion
+    suggested_code  VARCHAR(100) NOT NULL,
+    suggested_display TEXT,
+    confidence      FLOAT NOT NULL,
+    equivalence     VARCHAR(20),
+    reasoning       TEXT,
+
+    -- Full decision tree for auditability
+    decision_trace  JSONB NOT NULL DEFAULT '{}',
+
+    -- Alternatives considered
+    alternates      JSONB,                              -- Array of {code, confidence, reason}
+
+    -- Workflow state
+    status          VARCHAR(20) DEFAULT 'pending',      -- pending, approved, rejected, expired
+    reviewed_at     TIMESTAMPTZ,
+    reviewed_by     VARCHAR(100),
+    rejection_reason TEXT,
+
+    -- Timing
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    expires_at      TIMESTAMPTZ,                        -- Auto-expire old suggestions
+
+    UNIQUE(source_system, source_code, target_system, suggested_code)
+);
+
+CREATE INDEX IF NOT EXISTS idx_pending_autoroutes_status
+    ON terminology.pending_autoroutes(status) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_pending_autoroutes_confidence
+    ON terminology.pending_autoroutes(confidence DESC);
+CREATE INDEX IF NOT EXISTS idx_pending_autoroutes_created
+    ON terminology.pending_autoroutes(created_at DESC);
+
+-- =============================================================================
+-- Decision Audit Log (telemetry persistence)
+-- =============================================================================
+-- Note: For production, consider partitioning by month for efficient retention.
+-- This simple version works for small-medium deployments.
+CREATE TABLE IF NOT EXISTS terminology.mapping_decisions (
+    id              BIGSERIAL PRIMARY KEY,
+    trace_id        VARCHAR(64) NOT NULL,               -- OpenTelemetry trace ID
+
+    -- Request
+    source_system   VARCHAR(100),
+    source_code     VARCHAR(100),
+    source_display  TEXT,
+    target_system   VARCHAR(255),
+
+    -- Decision
+    decision_type   VARCHAR(30) NOT NULL,               -- PERSISTENT_HIT, AUTOROUTE_*, NO_MATCH
+    confidence      FLOAT,
+
+    -- Result
+    selected_code   VARCHAR(100),
+    selected_display TEXT,
+
+    -- Full decision tree
+    decision_tree   JSONB NOT NULL DEFAULT '{}',
+
+    -- Context
+    profile_id      VARCHAR(100),
+    request_source  VARCHAR(50),                        -- 'graphql', 'cli', 'workflow', 'batch'
+
+    -- Timing
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    duration_ms     INT
+);
+
+CREATE INDEX IF NOT EXISTS idx_mapping_decisions_trace
+    ON terminology.mapping_decisions(trace_id);
+CREATE INDEX IF NOT EXISTS idx_mapping_decisions_source
+    ON terminology.mapping_decisions(source_system, source_code);
+CREATE INDEX IF NOT EXISTS idx_mapping_decisions_created
+    ON terminology.mapping_decisions(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_mapping_decisions_type
+    ON terminology.mapping_decisions(decision_type);
+
+-- Record v2 migration
+INSERT INTO terminology.schema_version (version, description)
+VALUES (2, 'Custom mapping tables: upload_batches, custom_mappings, pending_autoroutes, mapping_decisions')
+ON CONFLICT (version) DO NOTHING;
 `
 
 // Vocabulary constants matching UMLS SAB (Source Abbreviation) codes.

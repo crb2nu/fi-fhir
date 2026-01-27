@@ -3,6 +3,10 @@
 package model
 
 import (
+	"bytes"
+	"fmt"
+	"io"
+	"strconv"
 	"time"
 )
 
@@ -26,6 +30,44 @@ type AssigningAuthorityInput struct {
 type ClassifyMessageInput struct {
 	Data   string       `json:"data"`
 	Format SourceFormat `json:"format"`
+}
+
+type CodeMapping struct {
+	ID            string             `json:"id"`
+	SourceSystem  string             `json:"sourceSystem"`
+	SourceCode    string             `json:"sourceCode"`
+	SourceDisplay *string            `json:"sourceDisplay,omitempty"`
+	TargetSystem  string             `json:"targetSystem"`
+	TargetCode    string             `json:"targetCode"`
+	TargetDisplay *string            `json:"targetDisplay,omitempty"`
+	Equivalence   MappingEquivalence `json:"equivalence"`
+	Confidence    *float64           `json:"confidence,omitempty"`
+	Comment       *string            `json:"comment,omitempty"`
+	Origin        MappingOrigin      `json:"origin"`
+	ProfileID     *string            `json:"profileId,omitempty"`
+	UploadBatchID *string            `json:"uploadBatchId,omitempty"`
+	CreatedAt     time.Time          `json:"createdAt"`
+	CreatedBy     *string            `json:"createdBy,omitempty"`
+	ApprovedAt    *time.Time         `json:"approvedAt,omitempty"`
+	ApprovedBy    *string            `json:"approvedBy,omitempty"`
+}
+
+type CodeMappingConnection struct {
+	Nodes      []CodeMapping `json:"nodes"`
+	TotalCount int           `json:"totalCount"`
+	PageInfo   *PageInfo     `json:"pageInfo"`
+}
+
+type CreateMappingInput struct {
+	SourceSystem  string              `json:"sourceSystem"`
+	SourceCode    string              `json:"sourceCode"`
+	SourceDisplay *string             `json:"sourceDisplay,omitempty"`
+	TargetSystem  string              `json:"targetSystem"`
+	TargetCode    string              `json:"targetCode"`
+	TargetDisplay *string             `json:"targetDisplay,omitempty"`
+	Equivalence   *MappingEquivalence `json:"equivalence,omitempty"`
+	Comment       *string             `json:"comment,omitempty"`
+	ProfileID     *string             `json:"profileId,omitempty"`
 }
 
 type CreateProfileInput struct {
@@ -195,6 +237,16 @@ type IdentifierConfigInput struct {
 	Normalization        *NormalizationSettingsInput `json:"normalization,omitempty"`
 }
 
+type ListMappingsInput struct {
+	SourceSystem  *string        `json:"sourceSystem,omitempty"`
+	TargetSystem  *string        `json:"targetSystem,omitempty"`
+	ProfileID     *string        `json:"profileId,omitempty"`
+	Origin        *MappingOrigin `json:"origin,omitempty"`
+	UploadBatchID *string        `json:"uploadBatchId,omitempty"`
+	First         *int           `json:"first,omitempty"`
+	Offset        *int           `json:"offset,omitempty"`
+}
+
 type MessageClassification struct {
 	MessageType   string     `json:"messageType"`
 	EventType     *EventType `json:"eventType,omitempty"`
@@ -326,6 +378,43 @@ type UpdateProfileInput struct {
 	Terminology *TerminologyConfigInput `json:"terminology,omitempty"`
 }
 
+type UploadBatch struct {
+	ID               string                  `json:"id"`
+	Filename         string                  `json:"filename"`
+	SourceSystem     *string                 `json:"sourceSystem,omitempty"`
+	TargetSystem     *string                 `json:"targetSystem,omitempty"`
+	ProfileID        *string                 `json:"profileId,omitempty"`
+	TotalRows        int                     `json:"totalRows"`
+	ValidRows        int                     `json:"validRows"`
+	DuplicateRows    int                     `json:"duplicateRows"`
+	ErrorRows        int                     `json:"errorRows"`
+	UploadedAt       time.Time               `json:"uploadedAt"`
+	UploadedBy       *string                 `json:"uploadedBy,omitempty"`
+	ValidationErrors []UploadValidationError `json:"validationErrors"`
+}
+
+type UploadMappingCSVInput struct {
+	CSV                 string  `json:"csv"`
+	Filename            string  `json:"filename"`
+	DefaultSourceSystem *string `json:"defaultSourceSystem,omitempty"`
+	DefaultTargetSystem *string `json:"defaultTargetSystem,omitempty"`
+	ProfileID           *string `json:"profileId,omitempty"`
+	DryRun              *bool   `json:"dryRun,omitempty"`
+}
+
+type UploadMappingResult struct {
+	Batch           *UploadBatch  `json:"batch"`
+	MappingsCreated int           `json:"mappingsCreated"`
+	MappingsSkipped int           `json:"mappingsSkipped"`
+	Preview         []CodeMapping `json:"preview"`
+}
+
+type UploadValidationError struct {
+	Row     int     `json:"row"`
+	Column  *string `json:"column,omitempty"`
+	Message string  `json:"message"`
+}
+
 type ValidationSettingsConfig struct {
 	Npi *ValidatorSetting `json:"npi,omitempty"`
 	Mbi *ValidatorSetting `json:"mbi,omitempty"`
@@ -354,4 +443,120 @@ type WorkflowExplanation struct {
 	RouteExplanations []RouteExplanation `json:"routeExplanations"`
 	Diagram           *string            `json:"diagram,omitempty"`
 	Warnings          []string           `json:"warnings"`
+}
+
+type MappingEquivalence string
+
+const (
+	MappingEquivalenceEquivalent MappingEquivalence = "EQUIVALENT"
+	MappingEquivalenceWider      MappingEquivalence = "WIDER"
+	MappingEquivalenceNarrower   MappingEquivalence = "NARROWER"
+	MappingEquivalenceInexact    MappingEquivalence = "INEXACT"
+)
+
+var AllMappingEquivalence = []MappingEquivalence{
+	MappingEquivalenceEquivalent,
+	MappingEquivalenceWider,
+	MappingEquivalenceNarrower,
+	MappingEquivalenceInexact,
+}
+
+func (e MappingEquivalence) IsValid() bool {
+	switch e {
+	case MappingEquivalenceEquivalent, MappingEquivalenceWider, MappingEquivalenceNarrower, MappingEquivalenceInexact:
+		return true
+	}
+	return false
+}
+
+func (e MappingEquivalence) String() string {
+	return string(e)
+}
+
+func (e *MappingEquivalence) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MappingEquivalence(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MappingEquivalence", str)
+	}
+	return nil
+}
+
+func (e MappingEquivalence) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MappingEquivalence) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MappingEquivalence) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type MappingOrigin string
+
+const (
+	MappingOriginCSVUpload         MappingOrigin = "CSV_UPLOAD"
+	MappingOriginApprovedAutoroute MappingOrigin = "APPROVED_AUTOROUTE"
+	MappingOriginManual            MappingOrigin = "MANUAL"
+)
+
+var AllMappingOrigin = []MappingOrigin{
+	MappingOriginCSVUpload,
+	MappingOriginApprovedAutoroute,
+	MappingOriginManual,
+}
+
+func (e MappingOrigin) IsValid() bool {
+	switch e {
+	case MappingOriginCSVUpload, MappingOriginApprovedAutoroute, MappingOriginManual:
+		return true
+	}
+	return false
+}
+
+func (e MappingOrigin) String() string {
+	return string(e)
+}
+
+func (e *MappingOrigin) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MappingOrigin(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MappingOrigin", str)
+	}
+	return nil
+}
+
+func (e MappingOrigin) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MappingOrigin) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MappingOrigin) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }
