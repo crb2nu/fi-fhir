@@ -520,3 +520,15 @@ classifiedType := p.profile.GetEventClassification(msgType, patientClass)
 | Canonical events | Decouple workflows from format specifics |
 | IdentifierSet first-class | PID-3 repetition is the norm, not exception |
 | Validators in pkg/validate | Reusable across parsers; clear API boundary |
+
+---
+
+## Documentation
+
+Docs are rendered on flexinfer.ai/docs/fi-fhir.
+
+To update the site after doc changes:
+1. Push changes to this repo
+2. In flexinfer-site: `pnpm sync:fi-fhir-docs && pnpm build`
+
+Navigation structure is defined in `flexinfer-site/content/fi-fhir-docs/nav.yaml`.
