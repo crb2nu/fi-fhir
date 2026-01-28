@@ -16,6 +16,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/explain"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/extract"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/quality"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/terminology/autoroute"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/db"
 )
@@ -1430,6 +1431,94 @@ func toGraphQLMapping(m *db.CustomMapping) *model.CodeMapping {
 	}
 
 	return result
+}
+
+// =============================================================================
+// Autoroute Conversion Helpers
+// =============================================================================
+
+// classifyAutorouteDecision converts confidence to decision type.
+func classifyAutorouteDecision(confidence float64) model.AutorouteDecision {
+	if confidence >= 0.90 {
+		return model.AutorouteDecisionAutorouteHighConf
+	}
+	if confidence >= 0.70 {
+		return model.AutorouteDecisionAutorouteMedConf
+	}
+	if confidence >= 0.50 {
+		return model.AutorouteDecisionAutorouteLowConf
+	}
+	return model.AutorouteDecisionNoMatch
+}
+
+// convertAutorouteCandidates converts autoroute result to GraphQL candidates.
+func convertAutorouteCandidates(result *autoroute.SuggestResult) []model.MappingCandidate {
+	if result == nil {
+		return []model.MappingCandidate{}
+	}
+
+	candidates := make([]model.MappingCandidate, 0)
+
+	// Add best match first
+	if result.BestMatch != nil {
+		candidates = append(candidates, model.MappingCandidate{
+			Code:        result.BestMatch.Code,
+			Display:     result.BestMatch.Display,
+			System:      result.BestMatch.System,
+			Confidence:  result.BestMatch.Confidence,
+			Equivalence: toGraphQLEquivalencePtr(result.BestMatch.Equivalence),
+			Reasoning:   strPtrEmpty(result.BestMatch.Reasoning),
+			Score:       &result.BestMatch.Score,
+		})
+	}
+
+	// Add alternates
+	for _, alt := range result.Alternates {
+		candidates = append(candidates, model.MappingCandidate{
+			Code:       alt.Code,
+			Display:    alt.Display,
+			System:     alt.System,
+			Confidence: alt.Confidence,
+			Reasoning:  strPtrEmpty(alt.Reasoning),
+			Score:      &alt.Score,
+		})
+	}
+
+	return candidates
+}
+
+// toGraphQLEquivalencePtr converts db.MappingEquivalence to pointer.
+func toGraphQLEquivalencePtr(eq db.MappingEquivalence) *model.MappingEquivalence {
+	result := toGraphQLEquivalence(eq)
+	return &result
+}
+
+// convertAutorouteTrace converts autoroute trace to GraphQL type.
+func convertAutorouteTrace(trace *autoroute.DecisionTrace) *model.AutorouteTrace {
+	if trace == nil {
+		return nil
+	}
+
+	steps := make([]model.AutorouteStep, 0, len(trace.Steps))
+	for _, s := range trace.Steps {
+		var metadata map[string]interface{}
+		if s.Metadata != nil {
+			metadata = s.Metadata
+		}
+		steps = append(steps, model.AutorouteStep{
+			Step:       s.Step,
+			Result:     s.Result,
+			DurationMs: int(s.DurationMs),
+			Metadata:   metadata,
+		})
+	}
+
+	return &model.AutorouteTrace{
+		TraceID:         trace.TraceID,
+		Timestamp:       trace.Timestamp,
+		Steps:           steps,
+		TotalDurationMs: int(trace.Duration.TotalMs),
+	}
 }
 
 // toGraphQLBatch converts db.UploadBatch to GraphQL model.UploadBatch.

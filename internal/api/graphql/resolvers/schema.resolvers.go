@@ -25,6 +25,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/edi"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/fhir"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/hl7v2"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/terminology/autoroute"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm/copilot"
 	termdb "gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/db"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/upload"
@@ -1575,12 +1576,147 @@ func (r *queryResolver) GetUploadBatch(ctx context.Context, id string) (*model.U
 
 // ResolveMapping is the resolver for the resolveMapping field.
 func (r *queryResolver) ResolveMapping(ctx context.Context, input model.ResolveMappingInput) (*model.ResolveMappingResult, error) {
-	panic(fmt.Errorf("not implemented: ResolveMapping - resolveMapping"))
+	start := time.Now()
+
+	// Step 1: Check persistent mappings first
+	if r.MappingStore != nil {
+		profileID := ""
+		if input.ProfileID != nil {
+			profileID = *input.ProfileID
+		}
+
+		existing, err := r.MappingStore.LookupMapping(ctx, input.SourceSystem, input.SourceCode, input.TargetSystem, profileID)
+		if err != nil {
+			return nil, fmt.Errorf("persistent lookup failed: %w", err)
+		}
+
+		if existing != nil {
+			// Found in persistent storage
+			return &model.ResolveMappingResult{
+				Found:      true,
+				Decision:   model.AutorouteDecisionPersistentHit,
+				Mapping:    toGraphQLMapping(existing),
+				Candidates: []model.MappingCandidate{},
+				Confidence: existing.Confidence,
+				DurationMs: int(time.Since(start).Milliseconds()),
+			}, nil
+		}
+	}
+
+	// Check if autoroute is disabled
+	if input.AllowAutoroute != nil && !*input.AllowAutoroute {
+		return &model.ResolveMappingResult{
+			Found:      false,
+			Decision:   model.AutorouteDecisionNoMatch,
+			Candidates: []model.MappingCandidate{},
+			DurationMs: int(time.Since(start).Milliseconds()),
+		}, nil
+	}
+
+	// Step 2: Use autoroute engine if available
+	if r.AutorouteEngine == nil {
+		return &model.ResolveMappingResult{
+			Found:      false,
+			Decision:   model.AutorouteDecisionNoMatch,
+			Candidates: []model.MappingCandidate{},
+			Reasoning:  strPtr("Autoroute engine not configured"),
+			DurationMs: int(time.Since(start).Milliseconds()),
+		}, nil
+	}
+
+	// Build autoroute request
+	sourceDisplay := ""
+	if input.SourceDisplay != nil {
+		sourceDisplay = *input.SourceDisplay
+	}
+	profileID := ""
+	if input.ProfileID != nil {
+		profileID = *input.ProfileID
+	}
+
+	result, err := r.AutorouteEngine.Suggest(ctx, autoroute.SuggestRequest{
+		SourceCode:    input.SourceCode,
+		SourceSystem:  input.SourceSystem,
+		SourceDisplay: sourceDisplay,
+		TargetSystem:  input.TargetSystem,
+		ProfileID:     profileID,
+		MaxCandidates: 5,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("autoroute failed: %w", err)
+	}
+
+	// Determine confidence threshold
+	minConfidence := 0.7
+	if input.MinConfidence != nil {
+		minConfidence = *input.MinConfidence
+	}
+
+	// Classify decision
+	decision := classifyAutorouteDecision(result.Confidence)
+
+	// Build response
+	response := &model.ResolveMappingResult{
+		Found:      result.BestMatch != nil && result.Confidence >= minConfidence,
+		Decision:   decision,
+		Candidates: convertAutorouteCandidates(result),
+		Confidence: &result.Confidence,
+		Reasoning:  strPtr(result.Reasoning),
+		DurationMs: int(time.Since(start).Milliseconds()),
+	}
+
+	// Include best match as mapping if confidence meets threshold
+	if result.BestMatch != nil && result.Confidence >= minConfidence {
+		response.Mapping = &model.CodeMapping{
+			ID:            "autoroute-suggestion",
+			SourceSystem:  input.SourceSystem,
+			SourceCode:    input.SourceCode,
+			TargetSystem:  result.BestMatch.System,
+			TargetCode:    result.BestMatch.Code,
+			TargetDisplay: strPtr(result.BestMatch.Display),
+			Equivalence:   toGraphQLEquivalence(result.BestMatch.Equivalence),
+			Confidence:    &result.Confidence,
+			Origin:        model.MappingOriginApprovedAutoroute,
+			CreatedAt:     time.Now(),
+		}
+	}
+
+	// Include trace if available
+	if result.Trace != nil {
+		response.Trace = convertAutorouteTrace(result.Trace)
+	}
+
+	return response, nil
 }
 
 // SuggestMappings is the resolver for the suggestMappings field.
 func (r *queryResolver) SuggestMappings(ctx context.Context, input model.SuggestMappingsInput) ([]model.MappingCandidate, error) {
-	panic(fmt.Errorf("not implemented: SuggestMappings - suggestMappings"))
+	if r.AutorouteEngine == nil {
+		return []model.MappingCandidate{}, nil
+	}
+
+	// Build autoroute request
+	sourceDisplay := ""
+	if input.SourceDisplay != nil {
+		sourceDisplay = *input.SourceDisplay
+	}
+	maxCandidates := 5
+	if input.MaxCandidates != nil {
+		maxCandidates = *input.MaxCandidates
+	}
+
+	result, err := r.AutorouteEngine.Suggest(ctx, autoroute.SuggestRequest{
+		SourceCode:    input.SourceCode,
+		SourceSystem:  input.SourceSystem,
+		SourceDisplay: sourceDisplay,
+		TargetSystem:  input.TargetSystem,
+		MaxCandidates: maxCandidates,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("autoroute suggestion failed: %w", err)
+	}
+
+	return convertAutorouteCandidates(result), nil
 }
 
 // EventStream is the resolver for the eventStream field.

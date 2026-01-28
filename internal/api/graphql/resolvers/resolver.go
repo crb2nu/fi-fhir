@@ -11,6 +11,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/explain"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/extract"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/quality"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/terminology/autoroute"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/workflow"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm/copilot"
 	termdb "gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/db"
@@ -70,6 +71,9 @@ type Resolver struct {
 
 	// MappingStore provides custom terminology mapping storage
 	MappingStore *termdb.MappingStore
+
+	// AutorouteEngine provides LLM-powered mapping suggestions
+	AutorouteEngine *autoroute.Engine
 
 	// SubscriptionClients maps FHIR server URLs to clients
 	subscriptionClients map[string]*subscription.Client
@@ -185,6 +189,13 @@ func WithWorkflowExplainer(e *explain.WorkflowExplainer) ResolverOption {
 func WithMappingStore(s *termdb.MappingStore) ResolverOption {
 	return func(r *Resolver) {
 		r.MappingStore = s
+	}
+}
+
+// WithAutorouteEngine sets the LLM-powered autoroute engine.
+func WithAutorouteEngine(e *autoroute.Engine) ResolverOption {
+	return func(r *Resolver) {
+		r.AutorouteEngine = e
 	}
 }
 
