@@ -205,7 +205,7 @@ func (r *Ranker) Rank(ctx context.Context, req RankRequest) (*RankResult, error)
 func buildRankingPrompt(req RankRequest) string {
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("## Source Code to Map\n"))
+	sb.WriteString("## Source Code to Map\n")
 	sb.WriteString(fmt.Sprintf("- **Code**: `%s`\n", req.SourceCode))
 	if req.SourceDisplay != "" {
 		sb.WriteString(fmt.Sprintf("- **Display**: %s\n", req.SourceDisplay))
