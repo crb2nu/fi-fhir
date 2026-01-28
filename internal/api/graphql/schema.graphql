@@ -1289,6 +1289,8 @@ input CreateMappingInput {
   targetCode: String!
   targetDisplay: String
   equivalence: MappingEquivalence = EQUIVALENT
+  confidence: Float
+  origin: MappingOrigin
   comment: String
   profileId: String
 }

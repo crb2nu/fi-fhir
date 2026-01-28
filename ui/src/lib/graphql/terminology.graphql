@@ -104,3 +104,52 @@ mutation DeleteMapping($id: ID!) {
 mutation DeleteMappingBatch($batchId: ID!) {
   deleteMappingBatch(batchId: $batchId)
 }
+
+# Autoroute (LLM-powered mapping suggestions)
+
+fragment CandidateFields on MappingCandidate {
+  code
+  display
+  system
+  confidence
+  equivalence
+  reasoning
+  score
+}
+
+fragment AutorouteTraceFields on AutorouteTrace {
+  traceId
+  timestamp
+  steps {
+    step
+    result
+    durationMs
+    metadata
+  }
+  totalDurationMs
+}
+
+query ResolveMapping($input: ResolveMappingInput!) {
+  resolveMapping(input: $input) {
+    found
+    decision
+    mapping {
+      ...MappingFields
+    }
+    candidates {
+      ...CandidateFields
+    }
+    confidence
+    reasoning
+    trace {
+      ...AutorouteTraceFields
+    }
+    durationMs
+  }
+}
+
+query SuggestMappings($input: SuggestMappingsInput!) {
+  suggestMappings(input: $input) {
+    ...CandidateFields
+  }
+}

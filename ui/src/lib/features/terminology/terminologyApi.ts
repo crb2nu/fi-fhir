@@ -11,15 +11,21 @@ import {
   CreateMappingDocument,
   DeleteMappingDocument,
   DeleteMappingBatchDocument,
+  ResolveMappingDocument,
+  SuggestMappingsDocument,
   type ListMappingsQuery,
   type GetMappingQuery,
   type LookupMappingQuery,
   type GetUploadBatchQuery,
   type UploadMappingCsvMutation,
   type CreateMappingMutation,
+  type ResolveMappingQuery,
+  type SuggestMappingsQuery,
   type ListMappingsInput,
   type UploadMappingCsvInput,
-  type CreateMappingInput
+  type CreateMappingInput,
+  type ResolveMappingInput,
+  type SuggestMappingsInput
 } from '$lib/gen/graphql';
 import { graphqlFetch } from '$lib/graphql/client';
 
@@ -101,4 +107,31 @@ export async function deleteMapping(id: string): Promise<boolean> {
 export async function deleteMappingBatch(batchId: string): Promise<number> {
   const result = await graphqlFetch(DeleteMappingBatchDocument, { batchId });
   return result.deleteMappingBatch;
+}
+
+// =============================================================================
+// Autoroute API - LLM-powered mapping suggestions
+// =============================================================================
+
+/**
+ * Resolve a mapping using persistent lookup + autoroute fallback.
+ * Returns a persistent mapping if found, otherwise uses LLM-powered semantic
+ * search to suggest candidates.
+ */
+export async function resolveMapping(
+  input: ResolveMappingInput
+): Promise<ResolveMappingQuery['resolveMapping']> {
+  const result = await graphqlFetch(ResolveMappingDocument, { input });
+  return result.resolveMapping;
+}
+
+/**
+ * Get LLM-powered mapping suggestions without checking persistent storage.
+ * Useful for exploring possible mappings or generating candidates for review.
+ */
+export async function suggestMappings(
+  input: SuggestMappingsInput
+): Promise<SuggestMappingsQuery['suggestMappings']> {
+  const result = await graphqlFetch(SuggestMappingsDocument, { input });
+  return result.suggestMappings;
 }

@@ -24011,7 +24011,7 @@ func (ec *executionContext) unmarshalInputCreateMappingInput(ctx context.Context
 		asMap["equivalence"] = "EQUIVALENT"
 	}
 
-	fieldsInOrder := [...]string{"sourceSystem", "sourceCode", "sourceDisplay", "targetSystem", "targetCode", "targetDisplay", "equivalence", "comment", "profileId"}
+	fieldsInOrder := [...]string{"sourceSystem", "sourceCode", "sourceDisplay", "targetSystem", "targetCode", "targetDisplay", "equivalence", "confidence", "origin", "comment", "profileId"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -24067,6 +24067,20 @@ func (ec *executionContext) unmarshalInputCreateMappingInput(ctx context.Context
 				return it, err
 			}
 			it.Equivalence = data
+		case "confidence":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("confidence"))
+			data, err := ec.unmarshalOFloat2ᚖfloat64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Confidence = data
+		case "origin":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("origin"))
+			data, err := ec.unmarshalOMappingOrigin2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐMappingOrigin(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Origin = data
 		case "comment":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("comment"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)

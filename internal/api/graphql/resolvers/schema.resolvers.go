@@ -829,6 +829,12 @@ func (r *mutationResolver) CreateMapping(ctx context.Context, input model.Create
 	if input.Equivalence != nil {
 		mapping.Equivalence = toDBEquivalence(*input.Equivalence)
 	}
+	if input.Confidence != nil {
+		mapping.Confidence = input.Confidence
+	}
+	if input.Origin != nil {
+		mapping.Origin = toDBOrigin(*input.Origin)
+	}
 	if input.Comment != nil {
 		mapping.Comment = *input.Comment
 	}

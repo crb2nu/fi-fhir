@@ -23,6 +23,11 @@
       <div class="hint">
         Browse profiles and edit raw Source Profile YAML via the API.
       </div>
+
+      <a class="cta" href={resolve('/terminology')}>Terminology Mapping</a>
+      <div class="hint">
+        Manage custom code mappings with LLM-powered autoroute suggestions.
+      </div>
     </div>
   </Panel>
 

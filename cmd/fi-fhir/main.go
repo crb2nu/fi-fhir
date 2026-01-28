@@ -6,6 +6,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,6 +32,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/edi/companion"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/edi/companion/builtin"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/hl7v2"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/terminology/autoroute"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/workflow"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/config"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
@@ -38,6 +40,8 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm/copilot"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/profile"
+	termdb "gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/db"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/semantic"
 )
 
 const version = "0.1.0"
@@ -4687,6 +4691,31 @@ func runServe(args []string) error {
 		}
 
 		fmt.Println("LLM features enabled: extraction, quality, copilot, explainers")
+
+		// Terminology autoroute engine (requires LLM + semantic search)
+		if dbURL != "" {
+			// Initialize mapping store from terminology database
+			if mappingDB, err := sql.Open("postgres", dbURL); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: mapping store disabled (db connection failed): %v\n", err)
+			} else if err := mappingDB.Ping(); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: mapping store disabled (db ping failed): %v\n", err)
+				_ = mappingDB.Close()
+			} else {
+				mappingStore := termdb.NewMappingStore(mappingDB)
+				resolverOpts = append(resolverOpts, resolvers.WithMappingStore(mappingStore))
+
+				// Initialize semantic searcher for autoroute
+				semanticCfg := semantic.DefaultSearchConfig().WithEnv()
+				if searcher, err := semantic.NewSearcher(semanticCfg); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: autoroute disabled (semantic search init failed): %v\n", err)
+				} else {
+					// Create autoroute engine with semantic search + LLM ranking
+					autorouteEngine := autoroute.NewEngine(searcher, llmClient, autoroute.DefaultConfig())
+					resolverOpts = append(resolverOpts, resolvers.WithAutorouteEngine(autorouteEngine))
+					fmt.Println("Terminology autoroute engine enabled")
+				}
+			}
+		}
 	}
 
 	// Create resolver

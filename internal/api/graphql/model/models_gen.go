@@ -80,6 +80,8 @@ type CreateMappingInput struct {
 	TargetCode    string              `json:"targetCode"`
 	TargetDisplay *string             `json:"targetDisplay,omitempty"`
 	Equivalence   *MappingEquivalence `json:"equivalence,omitempty"`
+	Confidence    *float64            `json:"confidence,omitempty"`
+	Origin        *MappingOrigin      `json:"origin,omitempty"`
 	Comment       *string             `json:"comment,omitempty"`
 	ProfileID     *string             `json:"profileId,omitempty"`
 }
