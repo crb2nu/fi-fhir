@@ -17,6 +17,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/extract"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/quality"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/db"
 )
 
 // strPtr returns a pointer to the string, or nil if empty.
@@ -1323,4 +1324,142 @@ func findSubstring(s, substr string) int {
 		}
 	}
 	return -1
+}
+
+// =============================================================================
+// Terminology Mapping Helpers
+// =============================================================================
+
+// toGraphQLEquivalence converts db.MappingEquivalence to GraphQL model.MappingEquivalence.
+func toGraphQLEquivalence(eq db.MappingEquivalence) model.MappingEquivalence {
+	switch eq {
+	case db.EquivalenceEquivalent:
+		return model.MappingEquivalenceEquivalent
+	case db.EquivalenceWider:
+		return model.MappingEquivalenceWider
+	case db.EquivalenceNarrower:
+		return model.MappingEquivalenceNarrower
+	case db.EquivalenceInexact:
+		return model.MappingEquivalenceInexact
+	default:
+		return model.MappingEquivalenceEquivalent
+	}
+}
+
+// toDBEquivalence converts GraphQL model.MappingEquivalence to db.MappingEquivalence.
+func toDBEquivalence(eq model.MappingEquivalence) db.MappingEquivalence {
+	switch eq {
+	case model.MappingEquivalenceEquivalent:
+		return db.EquivalenceEquivalent
+	case model.MappingEquivalenceWider:
+		return db.EquivalenceWider
+	case model.MappingEquivalenceNarrower:
+		return db.EquivalenceNarrower
+	case model.MappingEquivalenceInexact:
+		return db.EquivalenceInexact
+	default:
+		return db.EquivalenceEquivalent
+	}
+}
+
+// toGraphQLOrigin converts db.MappingOrigin to GraphQL model.MappingOrigin.
+func toGraphQLOrigin(origin db.MappingOrigin) model.MappingOrigin {
+	switch origin {
+	case db.OriginCSVUpload:
+		return model.MappingOriginCSVUpload
+	case db.OriginApprovedAutoroute:
+		return model.MappingOriginApprovedAutoroute
+	case db.OriginManual:
+		return model.MappingOriginManual
+	default:
+		return model.MappingOriginManual
+	}
+}
+
+// toDBOrigin converts GraphQL model.MappingOrigin to db.MappingOrigin.
+func toDBOrigin(origin model.MappingOrigin) db.MappingOrigin {
+	switch origin {
+	case model.MappingOriginCSVUpload:
+		return db.OriginCSVUpload
+	case model.MappingOriginApprovedAutoroute:
+		return db.OriginApprovedAutoroute
+	case model.MappingOriginManual:
+		return db.OriginManual
+	default:
+		return db.OriginManual
+	}
+}
+
+// toGraphQLMapping converts db.CustomMapping to GraphQL model.CodeMapping.
+func toGraphQLMapping(m *db.CustomMapping) *model.CodeMapping {
+	if m == nil {
+		return nil
+	}
+
+	result := &model.CodeMapping{
+		ID:            fmt.Sprintf("%d", m.ID),
+		SourceSystem:  m.SourceSystem,
+		SourceCode:    m.SourceCode,
+		SourceDisplay: strPtrEmpty(m.SourceDisplay),
+		TargetSystem:  m.TargetSystem,
+		TargetCode:    m.TargetCode,
+		TargetDisplay: strPtrEmpty(m.TargetDisplay),
+		Equivalence:   toGraphQLEquivalence(m.Equivalence),
+		Comment:       strPtrEmpty(m.Comment),
+		Origin:        toGraphQLOrigin(m.Origin),
+		ProfileID:     strPtrEmpty(m.ProfileID),
+		CreatedAt:     m.CreatedAt,
+		CreatedBy:     strPtrEmpty(m.CreatedBy),
+	}
+
+	if m.Confidence != nil {
+		result.Confidence = m.Confidence
+	}
+
+	if m.UploadBatchID != nil {
+		batchID := m.UploadBatchID.String()
+		result.UploadBatchID = &batchID
+	}
+
+	if m.ApprovedAt != nil {
+		result.ApprovedAt = m.ApprovedAt
+	}
+
+	if m.ApprovedBy != "" {
+		result.ApprovedBy = strPtrEmpty(m.ApprovedBy)
+	}
+
+	return result
+}
+
+// toGraphQLBatch converts db.UploadBatch to GraphQL model.UploadBatch.
+func toGraphQLBatch(b *db.UploadBatch) *model.UploadBatch {
+	if b == nil {
+		return nil
+	}
+
+	result := &model.UploadBatch{
+		ID:               b.ID.String(),
+		Filename:         b.Filename,
+		SourceSystem:     strPtrEmpty(b.SourceSystem),
+		TargetSystem:     strPtrEmpty(b.TargetSystem),
+		ProfileID:        strPtrEmpty(b.ProfileID),
+		TotalRows:        b.TotalRows,
+		ValidRows:        b.ValidRows,
+		DuplicateRows:    b.DuplicateRows,
+		ErrorRows:        b.ErrorRows,
+		UploadedAt:       b.UploadedAt,
+		UploadedBy:       strPtrEmpty(b.UploadedBy),
+		ValidationErrors: make([]model.UploadValidationError, 0, len(b.ValidationErrors)),
+	}
+
+	for _, e := range b.ValidationErrors {
+		result.ValidationErrors = append(result.ValidationErrors, model.UploadValidationError{
+			Row:     e.Row,
+			Column:  strPtrEmpty(e.Column),
+			Message: e.Message,
+		})
+	}
+
+	return result
 }

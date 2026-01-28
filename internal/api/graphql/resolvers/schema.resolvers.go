@@ -1573,6 +1573,16 @@ func (r *queryResolver) GetUploadBatch(ctx context.Context, id string) (*model.U
 	return toGraphQLBatch(batch), nil
 }
 
+// ResolveMapping is the resolver for the resolveMapping field.
+func (r *queryResolver) ResolveMapping(ctx context.Context, input model.ResolveMappingInput) (*model.ResolveMappingResult, error) {
+	panic(fmt.Errorf("not implemented: ResolveMapping - resolveMapping"))
+}
+
+// SuggestMappings is the resolver for the suggestMappings field.
+func (r *queryResolver) SuggestMappings(ctx context.Context, input model.SuggestMappingsInput) ([]model.MappingCandidate, error) {
+	panic(fmt.Errorf("not implemented: SuggestMappings - suggestMappings"))
+}
+
 // EventStream is the resolver for the eventStream field.
 func (r *subscriptionResolver) EventStream(ctx context.Context, filter *model.EventFilter) (<-chan model.Event, error) {
 	return r.Store.Subscribe(ctx, filter)
@@ -1609,143 +1619,3 @@ func (r *Resolver) Subscription() graphql1.SubscriptionResolver { return &subscr
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }
-
-// Terminology mapping conversion helpers
-
-// toGraphQLEquivalence converts database equivalence to GraphQL enum.
-func toGraphQLEquivalence(e termdb.MappingEquivalence) model.MappingEquivalence {
-	switch e {
-	case termdb.EquivalenceEquivalent:
-		return model.MappingEquivalenceEquivalent
-	case termdb.EquivalenceWider:
-		return model.MappingEquivalenceWider
-	case termdb.EquivalenceNarrower:
-		return model.MappingEquivalenceNarrower
-	case termdb.EquivalenceInexact:
-		return model.MappingEquivalenceInexact
-	default:
-		return model.MappingEquivalenceEquivalent
-	}
-}
-
-// toDBEquivalence converts GraphQL enum to database equivalence.
-func toDBEquivalence(e model.MappingEquivalence) termdb.MappingEquivalence {
-	switch e {
-	case model.MappingEquivalenceEquivalent:
-		return termdb.EquivalenceEquivalent
-	case model.MappingEquivalenceWider:
-		return termdb.EquivalenceWider
-	case model.MappingEquivalenceNarrower:
-		return termdb.EquivalenceNarrower
-	case model.MappingEquivalenceInexact:
-		return termdb.EquivalenceInexact
-	default:
-		return termdb.EquivalenceEquivalent
-	}
-}
-
-// toGraphQLOrigin converts database origin to GraphQL enum.
-func toGraphQLOrigin(o termdb.MappingOrigin) model.MappingOrigin {
-	switch o {
-	case termdb.OriginCSVUpload:
-		return model.MappingOriginCSVUpload
-	case termdb.OriginApprovedAutoroute:
-		return model.MappingOriginApprovedAutoroute
-	case termdb.OriginManual:
-		return model.MappingOriginManual
-	default:
-		return model.MappingOriginManual
-	}
-}
-
-// toDBOrigin converts GraphQL enum to database origin.
-func toDBOrigin(o model.MappingOrigin) termdb.MappingOrigin {
-	switch o {
-	case model.MappingOriginCSVUpload:
-		return termdb.OriginCSVUpload
-	case model.MappingOriginApprovedAutoroute:
-		return termdb.OriginApprovedAutoroute
-	case model.MappingOriginManual:
-		return termdb.OriginManual
-	default:
-		return termdb.OriginManual
-	}
-}
-
-// toGraphQLMapping converts a database mapping to a GraphQL model.
-func toGraphQLMapping(m *termdb.CustomMapping) *model.CodeMapping {
-	result := &model.CodeMapping{
-		ID:           strconv.FormatInt(m.ID, 10),
-		SourceSystem: m.SourceSystem,
-		SourceCode:   m.SourceCode,
-		TargetSystem: m.TargetSystem,
-		TargetCode:   m.TargetCode,
-		Equivalence:  toGraphQLEquivalence(m.Equivalence),
-		Origin:       toGraphQLOrigin(m.Origin),
-		CreatedAt:    m.CreatedAt,
-		Confidence:   m.Confidence,
-	}
-	if m.SourceDisplay != "" {
-		result.SourceDisplay = &m.SourceDisplay
-	}
-	if m.TargetDisplay != "" {
-		result.TargetDisplay = &m.TargetDisplay
-	}
-	if m.Comment != "" {
-		result.Comment = &m.Comment
-	}
-	if m.ProfileID != "" {
-		result.ProfileID = &m.ProfileID
-	}
-	if m.UploadBatchID != nil {
-		batchID := m.UploadBatchID.String()
-		result.UploadBatchID = &batchID
-	}
-	if m.CreatedBy != "" {
-		result.CreatedBy = &m.CreatedBy
-	}
-	if m.ApprovedAt != nil {
-		result.ApprovedAt = m.ApprovedAt
-	}
-	if m.ApprovedBy != "" {
-		result.ApprovedBy = &m.ApprovedBy
-	}
-	return result
-}
-
-// toGraphQLBatch converts a database upload batch to a GraphQL model.
-func toGraphQLBatch(b *termdb.UploadBatch) *model.UploadBatch {
-	result := &model.UploadBatch{
-		ID:               b.ID.String(),
-		Filename:         b.Filename,
-		TotalRows:        b.TotalRows,
-		ValidRows:        b.ValidRows,
-		DuplicateRows:    b.DuplicateRows,
-		ErrorRows:        b.ErrorRows,
-		UploadedAt:       b.UploadedAt,
-		ValidationErrors: make([]model.UploadValidationError, 0, len(b.ValidationErrors)),
-	}
-	if b.SourceSystem != "" {
-		result.SourceSystem = &b.SourceSystem
-	}
-	if b.TargetSystem != "" {
-		result.TargetSystem = &b.TargetSystem
-	}
-	if b.ProfileID != "" {
-		result.ProfileID = &b.ProfileID
-	}
-	if b.UploadedBy != "" {
-		result.UploadedBy = &b.UploadedBy
-	}
-	for _, e := range b.ValidationErrors {
-		ve := model.UploadValidationError{
-			Row:     e.Row,
-			Message: e.Message,
-		}
-		if e.Column != "" {
-			ve.Column = &e.Column
-		}
-		result.ValidationErrors = append(result.ValidationErrors, ve)
-	}
-	return result
-}

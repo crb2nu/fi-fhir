@@ -123,6 +123,34 @@ export type ClassifyMessageInput = {
   format: SourceFormat;
 };
 
+export type CodeMapping = {
+  __typename?: 'CodeMapping';
+  approvedAt: Maybe<Scalars['DateTime']['output']>;
+  approvedBy: Maybe<Scalars['String']['output']>;
+  comment: Maybe<Scalars['String']['output']>;
+  confidence: Maybe<Scalars['Float']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  createdBy: Maybe<Scalars['String']['output']>;
+  equivalence: MappingEquivalence;
+  id: Scalars['ID']['output'];
+  origin: MappingOrigin;
+  profileId: Maybe<Scalars['String']['output']>;
+  sourceCode: Scalars['String']['output'];
+  sourceDisplay: Maybe<Scalars['String']['output']>;
+  sourceSystem: Scalars['String']['output'];
+  targetCode: Scalars['String']['output'];
+  targetDisplay: Maybe<Scalars['String']['output']>;
+  targetSystem: Scalars['String']['output'];
+  uploadBatchId: Maybe<Scalars['ID']['output']>;
+};
+
+export type CodeMappingConnection = {
+  __typename?: 'CodeMappingConnection';
+  nodes: Array<CodeMapping>;
+  pageInfo: PageInfo;
+  totalCount: Scalars['Int']['output'];
+};
+
 export type ComponentHealth = {
   __typename?: 'ComponentHealth';
   message: Maybe<Scalars['String']['output']>;
@@ -150,6 +178,18 @@ export type ConditionEvent = Event & {
   sourceFormat: Maybe<SourceFormat>;
   timestamp: Scalars['DateTime']['output'];
   type: EventType;
+};
+
+export type CreateMappingInput = {
+  comment: InputMaybe<Scalars['String']['input']>;
+  equivalence: InputMaybe<MappingEquivalence>;
+  profileId: InputMaybe<Scalars['String']['input']>;
+  sourceCode: Scalars['String']['input'];
+  sourceDisplay: InputMaybe<Scalars['String']['input']>;
+  sourceSystem: Scalars['String']['input'];
+  targetCode: Scalars['String']['input'];
+  targetDisplay: InputMaybe<Scalars['String']['input']>;
+  targetSystem: Scalars['String']['input'];
 };
 
 export type CreateProfileInput = {
@@ -523,6 +563,16 @@ export type LabTest = {
   loincCode: Maybe<Scalars['String']['output']>;
 };
 
+export type ListMappingsInput = {
+  first: InputMaybe<Scalars['Int']['input']>;
+  offset: InputMaybe<Scalars['Int']['input']>;
+  origin: InputMaybe<MappingOrigin>;
+  profileId: InputMaybe<Scalars['String']['input']>;
+  sourceSystem: InputMaybe<Scalars['String']['input']>;
+  targetSystem: InputMaybe<Scalars['String']['input']>;
+  uploadBatchId: InputMaybe<Scalars['ID']['input']>;
+};
+
 export type Location = {
   __typename?: 'Location';
   bed: Maybe<Scalars['String']['output']>;
@@ -530,6 +580,17 @@ export type Location = {
   room: Maybe<Scalars['String']['output']>;
   unit: Maybe<Scalars['String']['output']>;
 };
+
+export type MappingEquivalence =
+  | 'EQUIVALENT'
+  | 'INEXACT'
+  | 'NARROWER'
+  | 'WIDER';
+
+export type MappingOrigin =
+  | 'APPROVED_AUTOROUTE'
+  | 'CSV_UPLOAD'
+  | 'MANUAL';
 
 export type MessageClassification = {
   __typename?: 'MessageClassification';
@@ -543,8 +604,11 @@ export type MessageClassification = {
 export type Mutation = {
   __typename?: 'Mutation';
   createFhirSubscription: FhirSubscription;
+  createMapping: CodeMapping;
   createProfile: SourceProfile;
   deleteFhirSubscription: Scalars['Boolean']['output'];
+  deleteMapping: Scalars['Boolean']['output'];
+  deleteMappingBatch: Scalars['Int']['output'];
   deleteProfile: Scalars['Boolean']['output'];
   duplicateProfile: SourceProfile;
   generateWorkflow: GeneratedWorkflow;
@@ -555,11 +619,17 @@ export type Mutation = {
   submitMessage: SubmitResult;
   triggerWorkflow: WorkflowResult;
   updateProfile: SourceProfile;
+  uploadMappingCSV: UploadMappingResult;
 };
 
 
 export type MutationCreateFhirSubscriptionArgs = {
   input: CreateSubscriptionInput;
+};
+
+
+export type MutationCreateMappingArgs = {
+  input: CreateMappingInput;
 };
 
 
@@ -570,6 +640,16 @@ export type MutationCreateProfileArgs = {
 
 export type MutationDeleteFhirSubscriptionArgs = {
   id: Scalars['ID']['input'];
+};
+
+
+export type MutationDeleteMappingArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type MutationDeleteMappingBatchArgs = {
+  batchId: Scalars['ID']['input'];
 };
 
 
@@ -624,6 +704,11 @@ export type MutationTriggerWorkflowArgs = {
 export type MutationUpdateProfileArgs = {
   id: Scalars['ID']['input'];
   input: UpdateProfileInput;
+};
+
+
+export type MutationUploadMappingCsvArgs = {
+  input: UploadMappingCsvInput;
 };
 
 export type NormalizationSettingsConfig = {
@@ -827,7 +912,11 @@ export type Query = {
   explainWarnings: Array<ExplainedWarning>;
   explainWorkflow: WorkflowExplanation;
   extractEntities: ExtractionResult;
+  getMapping: Maybe<CodeMapping>;
+  getUploadBatch: Maybe<UploadBatch>;
   health: HealthStatus;
+  listMappings: CodeMappingConnection;
+  lookupMapping: Maybe<CodeMapping>;
   parsePreview: ParseResult;
   parsePreviewWithProfile: ParseResult;
   patient: Maybe<Patient>;
@@ -896,6 +985,29 @@ export type QueryExplainWorkflowArgs = {
 
 export type QueryExtractEntitiesArgs = {
   input: ExtractEntitiesInput;
+};
+
+
+export type QueryGetMappingArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryGetUploadBatchArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryListMappingsArgs = {
+  input: InputMaybe<ListMappingsInput>;
+};
+
+
+export type QueryLookupMappingArgs = {
+  profileId: InputMaybe<Scalars['String']['input']>;
+  sourceCode: Scalars['String']['input'];
+  sourceSystem: Scalars['String']['input'];
+  targetSystem: Scalars['String']['input'];
 };
 
 
@@ -1115,6 +1227,46 @@ export type UpdateProfileInput = {
   identifiers: InputMaybe<IdentifierConfigInput>;
   name: InputMaybe<Scalars['String']['input']>;
   terminology: InputMaybe<TerminologyConfigInput>;
+};
+
+export type UploadBatch = {
+  __typename?: 'UploadBatch';
+  duplicateRows: Scalars['Int']['output'];
+  errorRows: Scalars['Int']['output'];
+  filename: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  profileId: Maybe<Scalars['String']['output']>;
+  sourceSystem: Maybe<Scalars['String']['output']>;
+  targetSystem: Maybe<Scalars['String']['output']>;
+  totalRows: Scalars['Int']['output'];
+  uploadedAt: Scalars['DateTime']['output'];
+  uploadedBy: Maybe<Scalars['String']['output']>;
+  validRows: Scalars['Int']['output'];
+  validationErrors: Array<UploadValidationError>;
+};
+
+export type UploadMappingCsvInput = {
+  csv: Scalars['String']['input'];
+  defaultSourceSystem: InputMaybe<Scalars['String']['input']>;
+  defaultTargetSystem: InputMaybe<Scalars['String']['input']>;
+  dryRun: InputMaybe<Scalars['Boolean']['input']>;
+  filename: Scalars['String']['input'];
+  profileId: InputMaybe<Scalars['String']['input']>;
+};
+
+export type UploadMappingResult = {
+  __typename?: 'UploadMappingResult';
+  batch: UploadBatch;
+  mappingsCreated: Scalars['Int']['output'];
+  mappingsSkipped: Scalars['Int']['output'];
+  preview: Array<CodeMapping>;
+};
+
+export type UploadValidationError = {
+  __typename?: 'UploadValidationError';
+  column: Maybe<Scalars['String']['output']>;
+  message: Scalars['String']['output'];
+  row: Scalars['Int']['output'];
 };
 
 export type ValidationSettingsConfig = {
@@ -1351,12 +1503,77 @@ export type DuplicateProfileMutationVariables = Exact<{
 
 export type DuplicateProfileMutation = { __typename?: 'Mutation', duplicateProfile: { __typename?: 'SourceProfile', id: string, name: string, version: string, createdAt: string, updatedAt: string, createdBy: string | null, isActive: boolean } };
 
+export type MappingFieldsFragment = { __typename?: 'CodeMapping', id: string, sourceSystem: string, sourceCode: string, sourceDisplay: string | null, targetSystem: string, targetCode: string, targetDisplay: string | null, equivalence: MappingEquivalence, confidence: number | null, comment: string | null, origin: MappingOrigin, profileId: string | null, uploadBatchId: string | null, createdAt: string, createdBy: string | null };
+
+export type BatchFieldsFragment = { __typename?: 'UploadBatch', id: string, filename: string, sourceSystem: string | null, targetSystem: string | null, profileId: string | null, totalRows: number, validRows: number, duplicateRows: number, errorRows: number, uploadedAt: string, uploadedBy: string | null, validationErrors: Array<{ __typename?: 'UploadValidationError', row: number, column: string | null, message: string }> };
+
+export type ListMappingsQueryVariables = Exact<{
+  input: InputMaybe<ListMappingsInput>;
+}>;
+
+
+export type ListMappingsQuery = { __typename?: 'Query', listMappings: { __typename?: 'CodeMappingConnection', totalCount: number, nodes: Array<{ __typename?: 'CodeMapping', id: string, sourceSystem: string, sourceCode: string, sourceDisplay: string | null, targetSystem: string, targetCode: string, targetDisplay: string | null, equivalence: MappingEquivalence, confidence: number | null, comment: string | null, origin: MappingOrigin, profileId: string | null, uploadBatchId: string | null, createdAt: string, createdBy: string | null }>, pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, hasPreviousPage: boolean } } };
+
+export type GetMappingQueryVariables = Exact<{
+  id: Scalars['ID']['input'];
+}>;
+
+
+export type GetMappingQuery = { __typename?: 'Query', getMapping: { __typename?: 'CodeMapping', id: string, sourceSystem: string, sourceCode: string, sourceDisplay: string | null, targetSystem: string, targetCode: string, targetDisplay: string | null, equivalence: MappingEquivalence, confidence: number | null, comment: string | null, origin: MappingOrigin, profileId: string | null, uploadBatchId: string | null, createdAt: string, createdBy: string | null } | null };
+
+export type LookupMappingQueryVariables = Exact<{
+  sourceSystem: Scalars['String']['input'];
+  sourceCode: Scalars['String']['input'];
+  targetSystem: Scalars['String']['input'];
+  profileId: InputMaybe<Scalars['String']['input']>;
+}>;
+
+
+export type LookupMappingQuery = { __typename?: 'Query', lookupMapping: { __typename?: 'CodeMapping', id: string, sourceSystem: string, sourceCode: string, sourceDisplay: string | null, targetSystem: string, targetCode: string, targetDisplay: string | null, equivalence: MappingEquivalence, confidence: number | null, comment: string | null, origin: MappingOrigin, profileId: string | null, uploadBatchId: string | null, createdAt: string, createdBy: string | null } | null };
+
+export type GetUploadBatchQueryVariables = Exact<{
+  id: Scalars['ID']['input'];
+}>;
+
+
+export type GetUploadBatchQuery = { __typename?: 'Query', getUploadBatch: { __typename?: 'UploadBatch', id: string, filename: string, sourceSystem: string | null, targetSystem: string | null, profileId: string | null, totalRows: number, validRows: number, duplicateRows: number, errorRows: number, uploadedAt: string, uploadedBy: string | null, validationErrors: Array<{ __typename?: 'UploadValidationError', row: number, column: string | null, message: string }> } | null };
+
+export type UploadMappingCsvMutationVariables = Exact<{
+  input: UploadMappingCsvInput;
+}>;
+
+
+export type UploadMappingCsvMutation = { __typename?: 'Mutation', uploadMappingCSV: { __typename?: 'UploadMappingResult', mappingsCreated: number, mappingsSkipped: number, batch: { __typename?: 'UploadBatch', id: string, filename: string, sourceSystem: string | null, targetSystem: string | null, profileId: string | null, totalRows: number, validRows: number, duplicateRows: number, errorRows: number, uploadedAt: string, uploadedBy: string | null, validationErrors: Array<{ __typename?: 'UploadValidationError', row: number, column: string | null, message: string }> }, preview: Array<{ __typename?: 'CodeMapping', id: string, sourceSystem: string, sourceCode: string, sourceDisplay: string | null, targetSystem: string, targetCode: string, targetDisplay: string | null, equivalence: MappingEquivalence, confidence: number | null, comment: string | null, origin: MappingOrigin, profileId: string | null, uploadBatchId: string | null, createdAt: string, createdBy: string | null }> } };
+
+export type CreateMappingMutationVariables = Exact<{
+  input: CreateMappingInput;
+}>;
+
+
+export type CreateMappingMutation = { __typename?: 'Mutation', createMapping: { __typename?: 'CodeMapping', id: string, sourceSystem: string, sourceCode: string, sourceDisplay: string | null, targetSystem: string, targetCode: string, targetDisplay: string | null, equivalence: MappingEquivalence, confidence: number | null, comment: string | null, origin: MappingOrigin, profileId: string | null, uploadBatchId: string | null, createdAt: string, createdBy: string | null } };
+
+export type DeleteMappingMutationVariables = Exact<{
+  id: Scalars['ID']['input'];
+}>;
+
+
+export type DeleteMappingMutation = { __typename?: 'Mutation', deleteMapping: boolean };
+
+export type DeleteMappingBatchMutationVariables = Exact<{
+  batchId: Scalars['ID']['input'];
+}>;
+
+
+export type DeleteMappingBatchMutation = { __typename?: 'Mutation', deleteMappingBatch: number };
+
 export const ProfileFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ProfileFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SourceProfile"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}},{"kind":"Field","name":{"kind":"Name","value":"isActive"}}]}}]} as unknown as DocumentNode<ProfileFieldsFragment, unknown>;
 export const ToleranceFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ToleranceFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"ToleranceConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"missingSegments"}},{"kind":"Field","name":{"kind":"Name","value":"nteAnywhere"}},{"kind":"Field","name":{"kind":"Name","value":"extraComponents"}},{"kind":"Field","name":{"kind":"Name","value":"unknownSegments"}},{"kind":"Field","name":{"kind":"Name","value":"nonStandardDelimiters"}}]}}]} as unknown as DocumentNode<ToleranceFieldsFragment, unknown>;
 export const Hl7v2ConfigFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"HL7v2ConfigFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"HL7v2Config"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"defaultVersion"}},{"kind":"Field","name":{"kind":"Name","value":"timezone"}},{"kind":"Field","name":{"kind":"Name","value":"tolerance"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ToleranceFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"eventClassifications"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"messageType"}},{"kind":"Field","name":{"kind":"Name","value":"condition"}},{"kind":"Field","name":{"kind":"Name","value":"eventType"}},{"kind":"Field","name":{"kind":"Name","value":"priority"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ToleranceFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"ToleranceConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"missingSegments"}},{"kind":"Field","name":{"kind":"Name","value":"nteAnywhere"}},{"kind":"Field","name":{"kind":"Name","value":"extraComponents"}},{"kind":"Field","name":{"kind":"Name","value":"unknownSegments"}},{"kind":"Field","name":{"kind":"Name","value":"nonStandardDelimiters"}}]}}]} as unknown as DocumentNode<Hl7v2ConfigFieldsFragment, unknown>;
 export const IdentifierConfigFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"IdentifierConfigFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"IdentifierConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"assigningAuthorities"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"system"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"primaryIdPreference"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"assignerContains"}},{"kind":"Field","name":{"kind":"Name","value":"priority"}}]}},{"kind":"Field","name":{"kind":"Name","value":"validation"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"npi"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"onInvalid"}}]}},{"kind":"Field","name":{"kind":"Name","value":"mbi"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"onInvalid"}}]}},{"kind":"Field","name":{"kind":"Name","value":"ssn"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"onInvalid"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"normalization"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"ssnStripDashes"}},{"kind":"Field","name":{"kind":"Name","value":"ssnRejectPatterns"}},{"kind":"Field","name":{"kind":"Name","value":"phoneNormalize"}},{"kind":"Field","name":{"kind":"Name","value":"phoneFormat"}}]}}]}}]} as unknown as DocumentNode<IdentifierConfigFieldsFragment, unknown>;
 export const TerminologyConfigFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"TerminologyConfigFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"TerminologyConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mappings"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"entries"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"sourceCode"}},{"kind":"Field","name":{"kind":"Name","value":"targetCode"}},{"kind":"Field","name":{"kind":"Name","value":"display"}}]}}]}}]}}]} as unknown as DocumentNode<TerminologyConfigFieldsFragment, unknown>;
 export const FullProfileFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"FullProfileFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SourceProfile"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProfileFields"}},{"kind":"Field","name":{"kind":"Name","value":"hl7v2"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"HL7v2ConfigFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"identifiers"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"IdentifierConfigFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"terminology"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"TerminologyConfigFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ToleranceFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"ToleranceConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"missingSegments"}},{"kind":"Field","name":{"kind":"Name","value":"nteAnywhere"}},{"kind":"Field","name":{"kind":"Name","value":"extraComponents"}},{"kind":"Field","name":{"kind":"Name","value":"unknownSegments"}},{"kind":"Field","name":{"kind":"Name","value":"nonStandardDelimiters"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ProfileFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SourceProfile"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}},{"kind":"Field","name":{"kind":"Name","value":"isActive"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"HL7v2ConfigFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"HL7v2Config"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"defaultVersion"}},{"kind":"Field","name":{"kind":"Name","value":"timezone"}},{"kind":"Field","name":{"kind":"Name","value":"tolerance"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ToleranceFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"eventClassifications"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"messageType"}},{"kind":"Field","name":{"kind":"Name","value":"condition"}},{"kind":"Field","name":{"kind":"Name","value":"eventType"}},{"kind":"Field","name":{"kind":"Name","value":"priority"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"IdentifierConfigFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"IdentifierConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"assigningAuthorities"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"system"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"primaryIdPreference"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"assignerContains"}},{"kind":"Field","name":{"kind":"Name","value":"priority"}}]}},{"kind":"Field","name":{"kind":"Name","value":"validation"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"npi"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"onInvalid"}}]}},{"kind":"Field","name":{"kind":"Name","value":"mbi"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"onInvalid"}}]}},{"kind":"Field","name":{"kind":"Name","value":"ssn"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"onInvalid"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"normalization"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"ssnStripDashes"}},{"kind":"Field","name":{"kind":"Name","value":"ssnRejectPatterns"}},{"kind":"Field","name":{"kind":"Name","value":"phoneNormalize"}},{"kind":"Field","name":{"kind":"Name","value":"phoneFormat"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"TerminologyConfigFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"TerminologyConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mappings"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"entries"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"sourceCode"}},{"kind":"Field","name":{"kind":"Name","value":"targetCode"}},{"kind":"Field","name":{"kind":"Name","value":"display"}}]}}]}}]}}]} as unknown as DocumentNode<FullProfileFieldsFragment, unknown>;
+export const MappingFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"MappingFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"CodeMapping"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"sourceCode"}},{"kind":"Field","name":{"kind":"Name","value":"sourceDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"targetCode"}},{"kind":"Field","name":{"kind":"Name","value":"targetDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"equivalence"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"comment"}},{"kind":"Field","name":{"kind":"Name","value":"origin"}},{"kind":"Field","name":{"kind":"Name","value":"profileId"}},{"kind":"Field","name":{"kind":"Name","value":"uploadBatchId"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}}]}}]} as unknown as DocumentNode<MappingFieldsFragment, unknown>;
+export const BatchFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"BatchFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"UploadBatch"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"filename"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"profileId"}},{"kind":"Field","name":{"kind":"Name","value":"totalRows"}},{"kind":"Field","name":{"kind":"Name","value":"validRows"}},{"kind":"Field","name":{"kind":"Name","value":"duplicateRows"}},{"kind":"Field","name":{"kind":"Name","value":"errorRows"}},{"kind":"Field","name":{"kind":"Name","value":"uploadedAt"}},{"kind":"Field","name":{"kind":"Name","value":"uploadedBy"}},{"kind":"Field","name":{"kind":"Name","value":"validationErrors"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"row"}},{"kind":"Field","name":{"kind":"Name","value":"column"}},{"kind":"Field","name":{"kind":"Name","value":"message"}}]}}]}}]} as unknown as DocumentNode<BatchFieldsFragment, unknown>;
 export const EventStreamDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"EventStream"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"filter"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"EventFilter"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"eventStream"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"filter"},"value":{"kind":"Variable","name":{"kind":"Name","value":"filter"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"source"}},{"kind":"Field","name":{"kind":"Name","value":"sourceFormat"}},{"kind":"Field","name":{"kind":"Name","value":"correlationId"}}]}}]}}]} as unknown as DocumentNode<EventStreamSubscription, EventStreamSubscriptionVariables>;
 export const WorkflowEventsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"WorkflowEvents"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"workflowName"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"workflowEvents"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"workflowName"},"value":{"kind":"Variable","name":{"kind":"Name","value":"workflowName"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"event"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"source"}}]}},{"kind":"Field","name":{"kind":"Name","value":"workflow"}},{"kind":"Field","name":{"kind":"Name","value":"routesMatched"}},{"kind":"Field","name":{"kind":"Name","value":"actionsExecuted"}},{"kind":"Field","name":{"kind":"Name","value":"duration"}}]}}]}}]} as unknown as DocumentNode<WorkflowEventsSubscription, WorkflowEventsSubscriptionVariables>;
 export const PatientEventsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"PatientEvents"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"mrn"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"patientEvents"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"mrn"},"value":{"kind":"Variable","name":{"kind":"Name","value":"mrn"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"source"}},{"kind":"Field","name":{"kind":"Name","value":"sourceFormat"}},{"kind":"Field","name":{"kind":"Name","value":"correlationId"}}]}}]}}]} as unknown as DocumentNode<PatientEventsSubscription, PatientEventsSubscriptionVariables>;
@@ -1376,3 +1593,11 @@ export const CreateProfileDocument = {"kind":"Document","definitions":[{"kind":"
 export const UpdateProfileDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"UpdateProfile"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UpdateProfileInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"updateProfile"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}},{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"FullProfileFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ProfileFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SourceProfile"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}},{"kind":"Field","name":{"kind":"Name","value":"isActive"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ToleranceFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"ToleranceConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"missingSegments"}},{"kind":"Field","name":{"kind":"Name","value":"nteAnywhere"}},{"kind":"Field","name":{"kind":"Name","value":"extraComponents"}},{"kind":"Field","name":{"kind":"Name","value":"unknownSegments"}},{"kind":"Field","name":{"kind":"Name","value":"nonStandardDelimiters"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"HL7v2ConfigFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"HL7v2Config"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"defaultVersion"}},{"kind":"Field","name":{"kind":"Name","value":"timezone"}},{"kind":"Field","name":{"kind":"Name","value":"tolerance"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ToleranceFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"eventClassifications"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"messageType"}},{"kind":"Field","name":{"kind":"Name","value":"condition"}},{"kind":"Field","name":{"kind":"Name","value":"eventType"}},{"kind":"Field","name":{"kind":"Name","value":"priority"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"IdentifierConfigFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"IdentifierConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"assigningAuthorities"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"system"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"primaryIdPreference"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"assignerContains"}},{"kind":"Field","name":{"kind":"Name","value":"priority"}}]}},{"kind":"Field","name":{"kind":"Name","value":"validation"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"npi"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"onInvalid"}}]}},{"kind":"Field","name":{"kind":"Name","value":"mbi"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"onInvalid"}}]}},{"kind":"Field","name":{"kind":"Name","value":"ssn"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"onInvalid"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"normalization"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"ssnStripDashes"}},{"kind":"Field","name":{"kind":"Name","value":"ssnRejectPatterns"}},{"kind":"Field","name":{"kind":"Name","value":"phoneNormalize"}},{"kind":"Field","name":{"kind":"Name","value":"phoneFormat"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"TerminologyConfigFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"TerminologyConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mappings"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"entries"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"sourceCode"}},{"kind":"Field","name":{"kind":"Name","value":"targetCode"}},{"kind":"Field","name":{"kind":"Name","value":"display"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"FullProfileFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SourceProfile"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProfileFields"}},{"kind":"Field","name":{"kind":"Name","value":"hl7v2"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"HL7v2ConfigFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"identifiers"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"IdentifierConfigFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"terminology"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"TerminologyConfigFields"}}]}}]}}]} as unknown as DocumentNode<UpdateProfileMutation, UpdateProfileMutationVariables>;
 export const DeleteProfileDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DeleteProfile"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"deleteProfile"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}]}]}}]} as unknown as DocumentNode<DeleteProfileMutation, DeleteProfileMutationVariables>;
 export const DuplicateProfileDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DuplicateProfile"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"newId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"newName"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"duplicateProfile"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}},{"kind":"Argument","name":{"kind":"Name","value":"newId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"newId"}}},{"kind":"Argument","name":{"kind":"Name","value":"newName"},"value":{"kind":"Variable","name":{"kind":"Name","value":"newName"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProfileFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ProfileFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SourceProfile"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}},{"kind":"Field","name":{"kind":"Name","value":"isActive"}}]}}]} as unknown as DocumentNode<DuplicateProfileMutation, DuplicateProfileMutationVariables>;
+export const ListMappingsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"ListMappings"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"ListMappingsInput"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"listMappings"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"nodes"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"MappingFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"totalCount"}},{"kind":"Field","name":{"kind":"Name","value":"pageInfo"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"hasNextPage"}},{"kind":"Field","name":{"kind":"Name","value":"hasPreviousPage"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"MappingFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"CodeMapping"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"sourceCode"}},{"kind":"Field","name":{"kind":"Name","value":"sourceDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"targetCode"}},{"kind":"Field","name":{"kind":"Name","value":"targetDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"equivalence"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"comment"}},{"kind":"Field","name":{"kind":"Name","value":"origin"}},{"kind":"Field","name":{"kind":"Name","value":"profileId"}},{"kind":"Field","name":{"kind":"Name","value":"uploadBatchId"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}}]}}]} as unknown as DocumentNode<ListMappingsQuery, ListMappingsQueryVariables>;
+export const GetMappingDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GetMapping"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"getMapping"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"MappingFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"MappingFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"CodeMapping"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"sourceCode"}},{"kind":"Field","name":{"kind":"Name","value":"sourceDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"targetCode"}},{"kind":"Field","name":{"kind":"Name","value":"targetDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"equivalence"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"comment"}},{"kind":"Field","name":{"kind":"Name","value":"origin"}},{"kind":"Field","name":{"kind":"Name","value":"profileId"}},{"kind":"Field","name":{"kind":"Name","value":"uploadBatchId"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}}]}}]} as unknown as DocumentNode<GetMappingQuery, GetMappingQueryVariables>;
+export const LookupMappingDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"LookupMapping"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"sourceSystem"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"sourceCode"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"targetSystem"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"profileId"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"lookupMapping"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"sourceSystem"},"value":{"kind":"Variable","name":{"kind":"Name","value":"sourceSystem"}}},{"kind":"Argument","name":{"kind":"Name","value":"sourceCode"},"value":{"kind":"Variable","name":{"kind":"Name","value":"sourceCode"}}},{"kind":"Argument","name":{"kind":"Name","value":"targetSystem"},"value":{"kind":"Variable","name":{"kind":"Name","value":"targetSystem"}}},{"kind":"Argument","name":{"kind":"Name","value":"profileId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"profileId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"MappingFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"MappingFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"CodeMapping"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"sourceCode"}},{"kind":"Field","name":{"kind":"Name","value":"sourceDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"targetCode"}},{"kind":"Field","name":{"kind":"Name","value":"targetDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"equivalence"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"comment"}},{"kind":"Field","name":{"kind":"Name","value":"origin"}},{"kind":"Field","name":{"kind":"Name","value":"profileId"}},{"kind":"Field","name":{"kind":"Name","value":"uploadBatchId"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}}]}}]} as unknown as DocumentNode<LookupMappingQuery, LookupMappingQueryVariables>;
+export const GetUploadBatchDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GetUploadBatch"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"getUploadBatch"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"BatchFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"BatchFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"UploadBatch"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"filename"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"profileId"}},{"kind":"Field","name":{"kind":"Name","value":"totalRows"}},{"kind":"Field","name":{"kind":"Name","value":"validRows"}},{"kind":"Field","name":{"kind":"Name","value":"duplicateRows"}},{"kind":"Field","name":{"kind":"Name","value":"errorRows"}},{"kind":"Field","name":{"kind":"Name","value":"uploadedAt"}},{"kind":"Field","name":{"kind":"Name","value":"uploadedBy"}},{"kind":"Field","name":{"kind":"Name","value":"validationErrors"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"row"}},{"kind":"Field","name":{"kind":"Name","value":"column"}},{"kind":"Field","name":{"kind":"Name","value":"message"}}]}}]}}]} as unknown as DocumentNode<GetUploadBatchQuery, GetUploadBatchQueryVariables>;
+export const UploadMappingCsvDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"UploadMappingCSV"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UploadMappingCSVInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"uploadMappingCSV"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"batch"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"BatchFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"mappingsCreated"}},{"kind":"Field","name":{"kind":"Name","value":"mappingsSkipped"}},{"kind":"Field","name":{"kind":"Name","value":"preview"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"MappingFields"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"BatchFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"UploadBatch"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"filename"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"profileId"}},{"kind":"Field","name":{"kind":"Name","value":"totalRows"}},{"kind":"Field","name":{"kind":"Name","value":"validRows"}},{"kind":"Field","name":{"kind":"Name","value":"duplicateRows"}},{"kind":"Field","name":{"kind":"Name","value":"errorRows"}},{"kind":"Field","name":{"kind":"Name","value":"uploadedAt"}},{"kind":"Field","name":{"kind":"Name","value":"uploadedBy"}},{"kind":"Field","name":{"kind":"Name","value":"validationErrors"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"row"}},{"kind":"Field","name":{"kind":"Name","value":"column"}},{"kind":"Field","name":{"kind":"Name","value":"message"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"MappingFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"CodeMapping"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"sourceCode"}},{"kind":"Field","name":{"kind":"Name","value":"sourceDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"targetCode"}},{"kind":"Field","name":{"kind":"Name","value":"targetDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"equivalence"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"comment"}},{"kind":"Field","name":{"kind":"Name","value":"origin"}},{"kind":"Field","name":{"kind":"Name","value":"profileId"}},{"kind":"Field","name":{"kind":"Name","value":"uploadBatchId"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}}]}}]} as unknown as DocumentNode<UploadMappingCsvMutation, UploadMappingCsvMutationVariables>;
+export const CreateMappingDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"CreateMapping"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"CreateMappingInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"createMapping"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"MappingFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"MappingFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"CodeMapping"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"sourceCode"}},{"kind":"Field","name":{"kind":"Name","value":"sourceDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"targetCode"}},{"kind":"Field","name":{"kind":"Name","value":"targetDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"equivalence"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"comment"}},{"kind":"Field","name":{"kind":"Name","value":"origin"}},{"kind":"Field","name":{"kind":"Name","value":"profileId"}},{"kind":"Field","name":{"kind":"Name","value":"uploadBatchId"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}}]}}]} as unknown as DocumentNode<CreateMappingMutation, CreateMappingMutationVariables>;
+export const DeleteMappingDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DeleteMapping"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"deleteMapping"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}]}]}}]} as unknown as DocumentNode<DeleteMappingMutation, DeleteMappingMutationVariables>;
+export const DeleteMappingBatchDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DeleteMappingBatch"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"batchId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"deleteMappingBatch"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"batchId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"batchId"}}}]}]}}]} as unknown as DocumentNode<DeleteMappingBatchMutation, DeleteMappingBatchMutationVariables>;

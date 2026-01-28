@@ -99,6 +99,20 @@ type ComplexityRoot struct {
 		System func(childComplexity int) int
 	}
 
+	AutorouteStep struct {
+		DurationMs func(childComplexity int) int
+		Metadata   func(childComplexity int) int
+		Result     func(childComplexity int) int
+		Step       func(childComplexity int) int
+	}
+
+	AutorouteTrace struct {
+		Steps           func(childComplexity int) int
+		Timestamp       func(childComplexity int) int
+		TotalDurationMs func(childComplexity int) int
+		TraceID         func(childComplexity int) int
+	}
+
 	BatchItemResult struct {
 		Errors          func(childComplexity int) int
 		EventID         func(childComplexity int) int
@@ -413,6 +427,16 @@ type ComplexityRoot struct {
 		Unit     func(childComplexity int) int
 	}
 
+	MappingCandidate struct {
+		Code        func(childComplexity int) int
+		Confidence  func(childComplexity int) int
+		Display     func(childComplexity int) int
+		Equivalence func(childComplexity int) int
+		Reasoning   func(childComplexity int) int
+		Score       func(childComplexity int) int
+		System      func(childComplexity int) int
+	}
+
 	MessageClassification struct {
 		Confidence    func(childComplexity int) int
 		EventType     func(childComplexity int) int
@@ -613,8 +637,21 @@ type ComplexityRoot struct {
 		Profiles                 func(childComplexity int, activeOnly *bool) int
 		ProjectionStatus         func(childComplexity int) int
 		QuickQualityScore        func(childComplexity int, event map[string]any) int
+		ResolveMapping           func(childComplexity int, input model.ResolveMappingInput) int
+		SuggestMappings          func(childComplexity int, input model.SuggestMappingsInput) int
 		Workflow                 func(childComplexity int, name string) int
 		Workflows                func(childComplexity int) int
+	}
+
+	ResolveMappingResult struct {
+		Candidates func(childComplexity int) int
+		Confidence func(childComplexity int) int
+		Decision   func(childComplexity int) int
+		DurationMs func(childComplexity int) int
+		Found      func(childComplexity int) int
+		Mapping    func(childComplexity int) int
+		Reasoning  func(childComplexity int) int
+		Trace      func(childComplexity int) int
 	}
 
 	RouteExplanation struct {
@@ -830,6 +867,8 @@ type QueryResolver interface {
 	GetMapping(ctx context.Context, id string) (*model.CodeMapping, error)
 	LookupMapping(ctx context.Context, sourceSystem string, sourceCode string, targetSystem string, profileID *string) (*model.CodeMapping, error)
 	GetUploadBatch(ctx context.Context, id string) (*model.UploadBatch, error)
+	ResolveMapping(ctx context.Context, input model.ResolveMappingInput) (*model.ResolveMappingResult, error)
+	SuggestMappings(ctx context.Context, input model.SuggestMappingsInput) ([]model.MappingCandidate, error)
 }
 type SubscriptionResolver interface {
 	EventStream(ctx context.Context, filter *model.EventFilter) (<-chan model.Event, error)
@@ -1070,6 +1109,56 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.AssigningAuthority.System(childComplexity), true
+
+	case "AutorouteStep.durationMs":
+		if e.complexity.AutorouteStep.DurationMs == nil {
+			break
+		}
+
+		return e.complexity.AutorouteStep.DurationMs(childComplexity), true
+	case "AutorouteStep.metadata":
+		if e.complexity.AutorouteStep.Metadata == nil {
+			break
+		}
+
+		return e.complexity.AutorouteStep.Metadata(childComplexity), true
+	case "AutorouteStep.result":
+		if e.complexity.AutorouteStep.Result == nil {
+			break
+		}
+
+		return e.complexity.AutorouteStep.Result(childComplexity), true
+	case "AutorouteStep.step":
+		if e.complexity.AutorouteStep.Step == nil {
+			break
+		}
+
+		return e.complexity.AutorouteStep.Step(childComplexity), true
+
+	case "AutorouteTrace.steps":
+		if e.complexity.AutorouteTrace.Steps == nil {
+			break
+		}
+
+		return e.complexity.AutorouteTrace.Steps(childComplexity), true
+	case "AutorouteTrace.timestamp":
+		if e.complexity.AutorouteTrace.Timestamp == nil {
+			break
+		}
+
+		return e.complexity.AutorouteTrace.Timestamp(childComplexity), true
+	case "AutorouteTrace.totalDurationMs":
+		if e.complexity.AutorouteTrace.TotalDurationMs == nil {
+			break
+		}
+
+		return e.complexity.AutorouteTrace.TotalDurationMs(childComplexity), true
+	case "AutorouteTrace.traceId":
+		if e.complexity.AutorouteTrace.TraceID == nil {
+			break
+		}
+
+		return e.complexity.AutorouteTrace.TraceID(childComplexity), true
 
 	case "BatchItemResult.errors":
 		if e.complexity.BatchItemResult.Errors == nil {
@@ -2343,6 +2432,49 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Location.Unit(childComplexity), true
 
+	case "MappingCandidate.code":
+		if e.complexity.MappingCandidate.Code == nil {
+			break
+		}
+
+		return e.complexity.MappingCandidate.Code(childComplexity), true
+	case "MappingCandidate.confidence":
+		if e.complexity.MappingCandidate.Confidence == nil {
+			break
+		}
+
+		return e.complexity.MappingCandidate.Confidence(childComplexity), true
+	case "MappingCandidate.display":
+		if e.complexity.MappingCandidate.Display == nil {
+			break
+		}
+
+		return e.complexity.MappingCandidate.Display(childComplexity), true
+	case "MappingCandidate.equivalence":
+		if e.complexity.MappingCandidate.Equivalence == nil {
+			break
+		}
+
+		return e.complexity.MappingCandidate.Equivalence(childComplexity), true
+	case "MappingCandidate.reasoning":
+		if e.complexity.MappingCandidate.Reasoning == nil {
+			break
+		}
+
+		return e.complexity.MappingCandidate.Reasoning(childComplexity), true
+	case "MappingCandidate.score":
+		if e.complexity.MappingCandidate.Score == nil {
+			break
+		}
+
+		return e.complexity.MappingCandidate.Score(childComplexity), true
+	case "MappingCandidate.system":
+		if e.complexity.MappingCandidate.System == nil {
+			break
+		}
+
+		return e.complexity.MappingCandidate.System(childComplexity), true
+
 	case "MessageClassification.confidence":
 		if e.complexity.MessageClassification.Confidence == nil {
 			break
@@ -3414,6 +3546,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.QuickQualityScore(childComplexity, args["event"].(map[string]any)), true
+	case "Query.resolveMapping":
+		if e.complexity.Query.ResolveMapping == nil {
+			break
+		}
+
+		args, err := ec.field_Query_resolveMapping_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.ResolveMapping(childComplexity, args["input"].(model.ResolveMappingInput)), true
+	case "Query.suggestMappings":
+		if e.complexity.Query.SuggestMappings == nil {
+			break
+		}
+
+		args, err := ec.field_Query_suggestMappings_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.SuggestMappings(childComplexity, args["input"].(model.SuggestMappingsInput)), true
 	case "Query.workflow":
 		if e.complexity.Query.Workflow == nil {
 			break
@@ -3431,6 +3585,55 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.Workflows(childComplexity), true
+
+	case "ResolveMappingResult.candidates":
+		if e.complexity.ResolveMappingResult.Candidates == nil {
+			break
+		}
+
+		return e.complexity.ResolveMappingResult.Candidates(childComplexity), true
+	case "ResolveMappingResult.confidence":
+		if e.complexity.ResolveMappingResult.Confidence == nil {
+			break
+		}
+
+		return e.complexity.ResolveMappingResult.Confidence(childComplexity), true
+	case "ResolveMappingResult.decision":
+		if e.complexity.ResolveMappingResult.Decision == nil {
+			break
+		}
+
+		return e.complexity.ResolveMappingResult.Decision(childComplexity), true
+	case "ResolveMappingResult.durationMs":
+		if e.complexity.ResolveMappingResult.DurationMs == nil {
+			break
+		}
+
+		return e.complexity.ResolveMappingResult.DurationMs(childComplexity), true
+	case "ResolveMappingResult.found":
+		if e.complexity.ResolveMappingResult.Found == nil {
+			break
+		}
+
+		return e.complexity.ResolveMappingResult.Found(childComplexity), true
+	case "ResolveMappingResult.mapping":
+		if e.complexity.ResolveMappingResult.Mapping == nil {
+			break
+		}
+
+		return e.complexity.ResolveMappingResult.Mapping(childComplexity), true
+	case "ResolveMappingResult.reasoning":
+		if e.complexity.ResolveMappingResult.Reasoning == nil {
+			break
+		}
+
+		return e.complexity.ResolveMappingResult.Reasoning(childComplexity), true
+	case "ResolveMappingResult.trace":
+		if e.complexity.ResolveMappingResult.Trace == nil {
+			break
+		}
+
+		return e.complexity.ResolveMappingResult.Trace(childComplexity), true
 
 	case "RouteExplanation.actions":
 		if e.complexity.RouteExplanation.Actions == nil {
@@ -4103,9 +4306,11 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputNormalizationSettingsInput,
 		ec.unmarshalInputParseWarningInput,
 		ec.unmarshalInputPatientFilter,
+		ec.unmarshalInputResolveMappingInput,
 		ec.unmarshalInputSubmitBatchInput,
 		ec.unmarshalInputSubmitEventInput,
 		ec.unmarshalInputSubmitMessageInput,
+		ec.unmarshalInputSuggestMappingsInput,
 		ec.unmarshalInputTerminologyConfigInput,
 		ec.unmarshalInputTerminologyMappingEntryInput,
 		ec.unmarshalInputTerminologyMappingTableInput,
@@ -4810,6 +5015,28 @@ func (ec *executionContext) field_Query_quickQualityScore_args(ctx context.Conte
 		return nil, err
 	}
 	args["event"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_resolveMapping_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNResolveMappingInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐResolveMappingInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_suggestMappings_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNSuggestMappingsInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSuggestMappingsInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -5981,6 +6208,248 @@ func (ec *executionContext) fieldContext_AssigningAuthority_name(_ context.Conte
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AutorouteStep_step(ctx context.Context, field graphql.CollectedField, obj *model.AutorouteStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AutorouteStep_step,
+		func(ctx context.Context) (any, error) {
+			return obj.Step, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AutorouteStep_step(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AutorouteStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AutorouteStep_result(ctx context.Context, field graphql.CollectedField, obj *model.AutorouteStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AutorouteStep_result,
+		func(ctx context.Context) (any, error) {
+			return obj.Result, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AutorouteStep_result(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AutorouteStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AutorouteStep_durationMs(ctx context.Context, field graphql.CollectedField, obj *model.AutorouteStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AutorouteStep_durationMs,
+		func(ctx context.Context) (any, error) {
+			return obj.DurationMs, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AutorouteStep_durationMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AutorouteStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AutorouteStep_metadata(ctx context.Context, field graphql.CollectedField, obj *model.AutorouteStep) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AutorouteStep_metadata,
+		func(ctx context.Context) (any, error) {
+			return obj.Metadata, nil
+		},
+		nil,
+		ec.marshalOJSON2map,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_AutorouteStep_metadata(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AutorouteStep",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type JSON does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AutorouteTrace_traceId(ctx context.Context, field graphql.CollectedField, obj *model.AutorouteTrace) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AutorouteTrace_traceId,
+		func(ctx context.Context) (any, error) {
+			return obj.TraceID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AutorouteTrace_traceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AutorouteTrace",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AutorouteTrace_timestamp(ctx context.Context, field graphql.CollectedField, obj *model.AutorouteTrace) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AutorouteTrace_timestamp,
+		func(ctx context.Context) (any, error) {
+			return obj.Timestamp, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AutorouteTrace_timestamp(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AutorouteTrace",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AutorouteTrace_steps(ctx context.Context, field graphql.CollectedField, obj *model.AutorouteTrace) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AutorouteTrace_steps,
+		func(ctx context.Context) (any, error) {
+			return obj.Steps, nil
+		},
+		nil,
+		ec.marshalNAutorouteStep2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAutorouteStepᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AutorouteTrace_steps(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AutorouteTrace",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "step":
+				return ec.fieldContext_AutorouteStep_step(ctx, field)
+			case "result":
+				return ec.fieldContext_AutorouteStep_result(ctx, field)
+			case "durationMs":
+				return ec.fieldContext_AutorouteStep_durationMs(ctx, field)
+			case "metadata":
+				return ec.fieldContext_AutorouteStep_metadata(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type AutorouteStep", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AutorouteTrace_totalDurationMs(ctx context.Context, field graphql.CollectedField, obj *model.AutorouteTrace) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AutorouteTrace_totalDurationMs,
+		func(ctx context.Context) (any, error) {
+			return obj.TotalDurationMs, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AutorouteTrace_totalDurationMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AutorouteTrace",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	return fc, nil
@@ -12434,6 +12903,209 @@ func (ec *executionContext) fieldContext_Location_bed(_ context.Context, field g
 	return fc, nil
 }
 
+func (ec *executionContext) _MappingCandidate_code(ctx context.Context, field graphql.CollectedField, obj *model.MappingCandidate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MappingCandidate_code,
+		func(ctx context.Context) (any, error) {
+			return obj.Code, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MappingCandidate_code(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MappingCandidate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MappingCandidate_display(ctx context.Context, field graphql.CollectedField, obj *model.MappingCandidate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MappingCandidate_display,
+		func(ctx context.Context) (any, error) {
+			return obj.Display, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MappingCandidate_display(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MappingCandidate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MappingCandidate_system(ctx context.Context, field graphql.CollectedField, obj *model.MappingCandidate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MappingCandidate_system,
+		func(ctx context.Context) (any, error) {
+			return obj.System, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MappingCandidate_system(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MappingCandidate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MappingCandidate_confidence(ctx context.Context, field graphql.CollectedField, obj *model.MappingCandidate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MappingCandidate_confidence,
+		func(ctx context.Context) (any, error) {
+			return obj.Confidence, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MappingCandidate_confidence(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MappingCandidate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MappingCandidate_equivalence(ctx context.Context, field graphql.CollectedField, obj *model.MappingCandidate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MappingCandidate_equivalence,
+		func(ctx context.Context) (any, error) {
+			return obj.Equivalence, nil
+		},
+		nil,
+		ec.marshalOMappingEquivalence2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐMappingEquivalence,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MappingCandidate_equivalence(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MappingCandidate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type MappingEquivalence does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MappingCandidate_reasoning(ctx context.Context, field graphql.CollectedField, obj *model.MappingCandidate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MappingCandidate_reasoning,
+		func(ctx context.Context) (any, error) {
+			return obj.Reasoning, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MappingCandidate_reasoning(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MappingCandidate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MappingCandidate_score(ctx context.Context, field graphql.CollectedField, obj *model.MappingCandidate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MappingCandidate_score,
+		func(ctx context.Context) (any, error) {
+			return obj.Score, nil
+		},
+		nil,
+		ec.marshalOFloat2ᚖfloat64,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MappingCandidate_score(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MappingCandidate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _MessageClassification_messageType(ctx context.Context, field graphql.CollectedField, obj *model.MessageClassification) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -17962,6 +18634,122 @@ func (ec *executionContext) fieldContext_Query_getUploadBatch(ctx context.Contex
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_resolveMapping(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_resolveMapping,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().ResolveMapping(ctx, fc.Args["input"].(model.ResolveMappingInput))
+		},
+		nil,
+		ec.marshalNResolveMappingResult2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐResolveMappingResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_resolveMapping(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "found":
+				return ec.fieldContext_ResolveMappingResult_found(ctx, field)
+			case "decision":
+				return ec.fieldContext_ResolveMappingResult_decision(ctx, field)
+			case "mapping":
+				return ec.fieldContext_ResolveMappingResult_mapping(ctx, field)
+			case "candidates":
+				return ec.fieldContext_ResolveMappingResult_candidates(ctx, field)
+			case "confidence":
+				return ec.fieldContext_ResolveMappingResult_confidence(ctx, field)
+			case "reasoning":
+				return ec.fieldContext_ResolveMappingResult_reasoning(ctx, field)
+			case "trace":
+				return ec.fieldContext_ResolveMappingResult_trace(ctx, field)
+			case "durationMs":
+				return ec.fieldContext_ResolveMappingResult_durationMs(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ResolveMappingResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_resolveMapping_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_suggestMappings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_suggestMappings,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().SuggestMappings(ctx, fc.Args["input"].(model.SuggestMappingsInput))
+		},
+		nil,
+		ec.marshalNMappingCandidate2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐMappingCandidateᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_suggestMappings(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "code":
+				return ec.fieldContext_MappingCandidate_code(ctx, field)
+			case "display":
+				return ec.fieldContext_MappingCandidate_display(ctx, field)
+			case "system":
+				return ec.fieldContext_MappingCandidate_system(ctx, field)
+			case "confidence":
+				return ec.fieldContext_MappingCandidate_confidence(ctx, field)
+			case "equivalence":
+				return ec.fieldContext_MappingCandidate_equivalence(ctx, field)
+			case "reasoning":
+				return ec.fieldContext_MappingCandidate_reasoning(ctx, field)
+			case "score":
+				return ec.fieldContext_MappingCandidate_score(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MappingCandidate", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_suggestMappings_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -18065,6 +18853,300 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 				return ec.fieldContext___Schema_directives(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type __Schema", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ResolveMappingResult_found(ctx context.Context, field graphql.CollectedField, obj *model.ResolveMappingResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ResolveMappingResult_found,
+		func(ctx context.Context) (any, error) {
+			return obj.Found, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ResolveMappingResult_found(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ResolveMappingResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ResolveMappingResult_decision(ctx context.Context, field graphql.CollectedField, obj *model.ResolveMappingResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ResolveMappingResult_decision,
+		func(ctx context.Context) (any, error) {
+			return obj.Decision, nil
+		},
+		nil,
+		ec.marshalNAutorouteDecision2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAutorouteDecision,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ResolveMappingResult_decision(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ResolveMappingResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type AutorouteDecision does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ResolveMappingResult_mapping(ctx context.Context, field graphql.CollectedField, obj *model.ResolveMappingResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ResolveMappingResult_mapping,
+		func(ctx context.Context) (any, error) {
+			return obj.Mapping, nil
+		},
+		nil,
+		ec.marshalOCodeMapping2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐCodeMapping,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ResolveMappingResult_mapping(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ResolveMappingResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_CodeMapping_id(ctx, field)
+			case "sourceSystem":
+				return ec.fieldContext_CodeMapping_sourceSystem(ctx, field)
+			case "sourceCode":
+				return ec.fieldContext_CodeMapping_sourceCode(ctx, field)
+			case "sourceDisplay":
+				return ec.fieldContext_CodeMapping_sourceDisplay(ctx, field)
+			case "targetSystem":
+				return ec.fieldContext_CodeMapping_targetSystem(ctx, field)
+			case "targetCode":
+				return ec.fieldContext_CodeMapping_targetCode(ctx, field)
+			case "targetDisplay":
+				return ec.fieldContext_CodeMapping_targetDisplay(ctx, field)
+			case "equivalence":
+				return ec.fieldContext_CodeMapping_equivalence(ctx, field)
+			case "confidence":
+				return ec.fieldContext_CodeMapping_confidence(ctx, field)
+			case "comment":
+				return ec.fieldContext_CodeMapping_comment(ctx, field)
+			case "origin":
+				return ec.fieldContext_CodeMapping_origin(ctx, field)
+			case "profileId":
+				return ec.fieldContext_CodeMapping_profileId(ctx, field)
+			case "uploadBatchId":
+				return ec.fieldContext_CodeMapping_uploadBatchId(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_CodeMapping_createdAt(ctx, field)
+			case "createdBy":
+				return ec.fieldContext_CodeMapping_createdBy(ctx, field)
+			case "approvedAt":
+				return ec.fieldContext_CodeMapping_approvedAt(ctx, field)
+			case "approvedBy":
+				return ec.fieldContext_CodeMapping_approvedBy(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CodeMapping", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ResolveMappingResult_candidates(ctx context.Context, field graphql.CollectedField, obj *model.ResolveMappingResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ResolveMappingResult_candidates,
+		func(ctx context.Context) (any, error) {
+			return obj.Candidates, nil
+		},
+		nil,
+		ec.marshalNMappingCandidate2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐMappingCandidateᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ResolveMappingResult_candidates(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ResolveMappingResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "code":
+				return ec.fieldContext_MappingCandidate_code(ctx, field)
+			case "display":
+				return ec.fieldContext_MappingCandidate_display(ctx, field)
+			case "system":
+				return ec.fieldContext_MappingCandidate_system(ctx, field)
+			case "confidence":
+				return ec.fieldContext_MappingCandidate_confidence(ctx, field)
+			case "equivalence":
+				return ec.fieldContext_MappingCandidate_equivalence(ctx, field)
+			case "reasoning":
+				return ec.fieldContext_MappingCandidate_reasoning(ctx, field)
+			case "score":
+				return ec.fieldContext_MappingCandidate_score(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MappingCandidate", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ResolveMappingResult_confidence(ctx context.Context, field graphql.CollectedField, obj *model.ResolveMappingResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ResolveMappingResult_confidence,
+		func(ctx context.Context) (any, error) {
+			return obj.Confidence, nil
+		},
+		nil,
+		ec.marshalOFloat2ᚖfloat64,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ResolveMappingResult_confidence(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ResolveMappingResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ResolveMappingResult_reasoning(ctx context.Context, field graphql.CollectedField, obj *model.ResolveMappingResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ResolveMappingResult_reasoning,
+		func(ctx context.Context) (any, error) {
+			return obj.Reasoning, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ResolveMappingResult_reasoning(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ResolveMappingResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ResolveMappingResult_trace(ctx context.Context, field graphql.CollectedField, obj *model.ResolveMappingResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ResolveMappingResult_trace,
+		func(ctx context.Context) (any, error) {
+			return obj.Trace, nil
+		},
+		nil,
+		ec.marshalOAutorouteTrace2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAutorouteTrace,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ResolveMappingResult_trace(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ResolveMappingResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "traceId":
+				return ec.fieldContext_AutorouteTrace_traceId(ctx, field)
+			case "timestamp":
+				return ec.fieldContext_AutorouteTrace_timestamp(ctx, field)
+			case "steps":
+				return ec.fieldContext_AutorouteTrace_steps(ctx, field)
+			case "totalDurationMs":
+				return ec.fieldContext_AutorouteTrace_totalDurationMs(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type AutorouteTrace", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ResolveMappingResult_durationMs(ctx context.Context, field graphql.CollectedField, obj *model.ResolveMappingResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ResolveMappingResult_durationMs,
+		func(ctx context.Context) (any, error) {
+			return obj.DurationMs, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ResolveMappingResult_durationMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ResolveMappingResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	return fc, nil
@@ -23739,6 +24821,82 @@ func (ec *executionContext) unmarshalInputPatientFilter(ctx context.Context, obj
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputResolveMappingInput(ctx context.Context, obj any) (model.ResolveMappingInput, error) {
+	var it model.ResolveMappingInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["allowAutoroute"]; !present {
+		asMap["allowAutoroute"] = true
+	}
+	if _, present := asMap["minConfidence"]; !present {
+		asMap["minConfidence"] = 0.700000
+	}
+
+	fieldsInOrder := [...]string{"sourceCode", "sourceSystem", "sourceDisplay", "targetSystem", "profileId", "allowAutoroute", "minConfidence"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "sourceCode":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sourceCode"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SourceCode = data
+		case "sourceSystem":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sourceSystem"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SourceSystem = data
+		case "sourceDisplay":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sourceDisplay"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SourceDisplay = data
+		case "targetSystem":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("targetSystem"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TargetSystem = data
+		case "profileId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("profileId"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProfileID = data
+		case "allowAutoroute":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("allowAutoroute"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AllowAutoroute = data
+		case "minConfidence":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("minConfidence"))
+			data, err := ec.unmarshalOFloat2ᚖfloat64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MinConfidence = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputSubmitBatchInput(ctx context.Context, obj any) (model.SubmitBatchInput, error) {
 	var it model.SubmitBatchInput
 	asMap := map[string]any{}
@@ -23877,6 +25035,65 @@ func (ec *executionContext) unmarshalInputSubmitMessageInput(ctx context.Context
 				return it, err
 			}
 			it.CorrelationID = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputSuggestMappingsInput(ctx context.Context, obj any) (model.SuggestMappingsInput, error) {
+	var it model.SuggestMappingsInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["maxCandidates"]; !present {
+		asMap["maxCandidates"] = 5
+	}
+
+	fieldsInOrder := [...]string{"sourceCode", "sourceSystem", "sourceDisplay", "targetSystem", "maxCandidates"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "sourceCode":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sourceCode"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SourceCode = data
+		case "sourceSystem":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sourceSystem"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SourceSystem = data
+		case "sourceDisplay":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sourceDisplay"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SourceDisplay = data
+		case "targetSystem":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("targetSystem"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TargetSystem = data
+		case "maxCandidates":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxCandidates"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxCandidates = data
 		}
 	}
 
@@ -24592,6 +25809,111 @@ func (ec *executionContext) _AssigningAuthority(ctx context.Context, sel ast.Sel
 			}
 		case "name":
 			out.Values[i] = ec._AssigningAuthority_name(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var autorouteStepImplementors = []string{"AutorouteStep"}
+
+func (ec *executionContext) _AutorouteStep(ctx context.Context, sel ast.SelectionSet, obj *model.AutorouteStep) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, autorouteStepImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AutorouteStep")
+		case "step":
+			out.Values[i] = ec._AutorouteStep_step(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "result":
+			out.Values[i] = ec._AutorouteStep_result(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "durationMs":
+			out.Values[i] = ec._AutorouteStep_durationMs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "metadata":
+			out.Values[i] = ec._AutorouteStep_metadata(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var autorouteTraceImplementors = []string{"AutorouteTrace"}
+
+func (ec *executionContext) _AutorouteTrace(ctx context.Context, sel ast.SelectionSet, obj *model.AutorouteTrace) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, autorouteTraceImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AutorouteTrace")
+		case "traceId":
+			out.Values[i] = ec._AutorouteTrace_traceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "timestamp":
+			out.Values[i] = ec._AutorouteTrace_timestamp(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "steps":
+			out.Values[i] = ec._AutorouteTrace_steps(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "totalDurationMs":
+			out.Values[i] = ec._AutorouteTrace_totalDurationMs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -26605,6 +27927,66 @@ func (ec *executionContext) _Location(ctx context.Context, sel ast.SelectionSet,
 	return out
 }
 
+var mappingCandidateImplementors = []string{"MappingCandidate"}
+
+func (ec *executionContext) _MappingCandidate(ctx context.Context, sel ast.SelectionSet, obj *model.MappingCandidate) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mappingCandidateImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MappingCandidate")
+		case "code":
+			out.Values[i] = ec._MappingCandidate_code(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "display":
+			out.Values[i] = ec._MappingCandidate_display(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "system":
+			out.Values[i] = ec._MappingCandidate_system(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "confidence":
+			out.Values[i] = ec._MappingCandidate_confidence(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "equivalence":
+			out.Values[i] = ec._MappingCandidate_equivalence(ctx, field, obj)
+		case "reasoning":
+			out.Values[i] = ec._MappingCandidate_reasoning(ctx, field, obj)
+		case "score":
+			out.Values[i] = ec._MappingCandidate_score(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var messageClassificationImplementors = []string{"MessageClassification"}
 
 func (ec *executionContext) _MessageClassification(ctx context.Context, sel ast.SelectionSet, obj *model.MessageClassification) graphql.Marshaler {
@@ -28373,6 +29755,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "resolveMapping":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_resolveMapping(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "suggestMappings":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_suggestMappings(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -28381,6 +29807,68 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___schema(ctx, field)
 			})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var resolveMappingResultImplementors = []string{"ResolveMappingResult"}
+
+func (ec *executionContext) _ResolveMappingResult(ctx context.Context, sel ast.SelectionSet, obj *model.ResolveMappingResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, resolveMappingResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ResolveMappingResult")
+		case "found":
+			out.Values[i] = ec._ResolveMappingResult_found(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "decision":
+			out.Values[i] = ec._ResolveMappingResult_decision(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "mapping":
+			out.Values[i] = ec._ResolveMappingResult_mapping(ctx, field, obj)
+		case "candidates":
+			out.Values[i] = ec._ResolveMappingResult_candidates(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "confidence":
+			out.Values[i] = ec._ResolveMappingResult_confidence(ctx, field, obj)
+		case "reasoning":
+			out.Values[i] = ec._ResolveMappingResult_reasoning(ctx, field, obj)
+		case "trace":
+			out.Values[i] = ec._ResolveMappingResult_trace(ctx, field, obj)
+		case "durationMs":
+			out.Values[i] = ec._ResolveMappingResult_durationMs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -29977,6 +31465,64 @@ func (ec *executionContext) unmarshalNAssigningAuthorityInput2gitlabᚗflexinfer
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNAutorouteDecision2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAutorouteDecision(ctx context.Context, v any) (model.AutorouteDecision, error) {
+	var res model.AutorouteDecision
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNAutorouteDecision2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAutorouteDecision(ctx context.Context, sel ast.SelectionSet, v model.AutorouteDecision) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNAutorouteStep2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAutorouteStep(ctx context.Context, sel ast.SelectionSet, v model.AutorouteStep) graphql.Marshaler {
+	return ec._AutorouteStep(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNAutorouteStep2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAutorouteStepᚄ(ctx context.Context, sel ast.SelectionSet, v []model.AutorouteStep) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNAutorouteStep2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAutorouteStep(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) unmarshalNBatchEventItem2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchEventItem(ctx context.Context, v any) (model.BatchEventItem, error) {
 	res, err := ec.unmarshalInputBatchEventItem(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -31084,6 +32630,54 @@ func (ec *executionContext) marshalNLabTest2gitlabᚗflexinferᚗaiᚋlibsᚋfi�
 	return ec._LabTest(ctx, sel, &v)
 }
 
+func (ec *executionContext) marshalNMappingCandidate2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐMappingCandidate(ctx context.Context, sel ast.SelectionSet, v model.MappingCandidate) graphql.Marshaler {
+	return ec._MappingCandidate(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMappingCandidate2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐMappingCandidateᚄ(ctx context.Context, sel ast.SelectionSet, v []model.MappingCandidate) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNMappingCandidate2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐMappingCandidate(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) unmarshalNMappingEquivalence2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐMappingEquivalence(ctx context.Context, v any) (model.MappingEquivalence, error) {
 	var res model.MappingEquivalence
 	err := res.UnmarshalGQL(v)
@@ -31448,6 +33042,25 @@ func (ec *executionContext) marshalNQualityRecommendation2ᚕgitlabᚗflexinfer�
 	return ret
 }
 
+func (ec *executionContext) unmarshalNResolveMappingInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐResolveMappingInput(ctx context.Context, v any) (model.ResolveMappingInput, error) {
+	res, err := ec.unmarshalInputResolveMappingInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNResolveMappingResult2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐResolveMappingResult(ctx context.Context, sel ast.SelectionSet, v model.ResolveMappingResult) graphql.Marshaler {
+	return ec._ResolveMappingResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNResolveMappingResult2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐResolveMappingResult(ctx context.Context, sel ast.SelectionSet, v *model.ResolveMappingResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ResolveMappingResult(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNRouteExplanation2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐRouteExplanation(ctx context.Context, sel ast.SelectionSet, v model.RouteExplanation) graphql.Marshaler {
 	return ec._RouteExplanation(ctx, sel, &v)
 }
@@ -31685,6 +33298,11 @@ func (ec *executionContext) marshalNSubmitResult2ᚖgitlabᚗflexinferᚗaiᚋli
 		return graphql.Null
 	}
 	return ec._SubmitResult(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNSuggestMappingsInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSuggestMappingsInput(ctx context.Context, v any) (model.SuggestMappingsInput, error) {
+	res, err := ec.unmarshalInputSuggestMappingsInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNTerminologyMappingEntry2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTerminologyMappingEntry(ctx context.Context, sel ast.SelectionSet, v model.TerminologyMappingEntry) graphql.Marshaler {
@@ -32346,6 +33964,13 @@ func (ec *executionContext) unmarshalOAssigningAuthorityInput2ᚕgitlabᚗflexin
 	return res, nil
 }
 
+func (ec *executionContext) marshalOAutorouteTrace2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAutorouteTrace(ctx context.Context, sel ast.SelectionSet, v *model.AutorouteTrace) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._AutorouteTrace(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalOBatchEventItem2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchEventItemᚄ(ctx context.Context, v any) ([]model.BatchEventItem, error) {
 	if v == nil {
 		return nil, nil
@@ -32657,6 +34282,24 @@ func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.Sele
 	_ = sel
 	_ = ctx
 	res := graphql.MarshalInt(*v)
+	return res
+}
+
+func (ec *executionContext) unmarshalOJSON2map(ctx context.Context, v any) (map[string]any, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalMap(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOJSON2map(ctx context.Context, sel ast.SelectionSet, v map[string]any) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalMap(v)
 	return res
 }
 

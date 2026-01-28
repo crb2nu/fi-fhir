@@ -1339,3 +1339,91 @@ extend type Mutation {
   # Delete all mappings from an upload batch
   deleteMappingBatch(batchId: ID!): Int!
 }
+
+# =============================================================================
+# Autoroute Types (LLM-Powered Mapping Suggestions)
+# =============================================================================
+
+enum AutorouteDecision {
+  PERSISTENT_HIT
+  AUTOROUTE_HIGH_CONF
+  AUTOROUTE_MED_CONF
+  AUTOROUTE_LOW_CONF
+  NO_MATCH
+}
+
+# A mapping candidate from autoroute
+type MappingCandidate {
+  code: String!
+  display: String!
+  system: String!
+  confidence: Float!
+  equivalence: MappingEquivalence
+  reasoning: String
+  score: Float
+}
+
+# Step in the decision-making process
+type AutorouteStep {
+  step: String!
+  result: String!
+  durationMs: Int!
+  metadata: JSON
+}
+
+# Full decision trace for auditability
+type AutorouteTrace {
+  traceId: String!
+  timestamp: DateTime!
+  steps: [AutorouteStep!]!
+  totalDurationMs: Int!
+}
+
+# Result from resolveMapping query
+type ResolveMappingResult {
+  found: Boolean!
+  decision: AutorouteDecision!
+  mapping: CodeMapping
+  candidates: [MappingCandidate!]!
+  confidence: Float
+  reasoning: String
+  trace: AutorouteTrace
+  durationMs: Int!
+}
+
+# =============================================================================
+# Autoroute Inputs
+# =============================================================================
+
+input ResolveMappingInput {
+  sourceCode: String!
+  sourceSystem: String!
+  sourceDisplay: String
+  targetSystem: String!
+  profileId: String
+  # Allow LLM-powered autorouting (default: true)
+  allowAutoroute: Boolean = true
+  # Minimum confidence for autoroute results (default: 0.7)
+  minConfidence: Float = 0.7
+}
+
+input SuggestMappingsInput {
+  sourceCode: String!
+  sourceSystem: String!
+  sourceDisplay: String
+  targetSystem: String!
+  # Maximum number of candidates to return (default: 5)
+  maxCandidates: Int = 5
+}
+
+# =============================================================================
+# Autoroute Queries
+# =============================================================================
+
+extend type Query {
+  # Resolve a mapping: checks persistent first, then uses LLM autoroute
+  resolveMapping(input: ResolveMappingInput!): ResolveMappingResult!
+
+  # Get autoroute suggestions only (for discovery/review)
+  suggestMappings(input: SuggestMappingsInput!): [MappingCandidate!]!
+}

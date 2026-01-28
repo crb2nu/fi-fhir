@@ -3,14 +3,20 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/terminology/autoroute"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/db"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/semantic"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/upload"
 )
 
 func runTerminology(args []string) error {
@@ -34,6 +40,8 @@ func runTerminology(args []string) error {
 		return runTerminologyCrosswalk(args[1:])
 	case "search":
 		return runTerminologySearch(args[1:])
+	case "mapping":
+		return runTerminologyMapping(args[1:])
 	case "-h", "--help", "help":
 		printTerminologyUsage()
 		return nil
@@ -56,6 +64,7 @@ Subcommands:
   load      Load terminology data from files (LOINC, UMLS, SNOMED, etc.)
   crosswalk Translate codes between vocabularies
   search    Semantic search for terminology codes (LLM embeddings)
+  mapping   Manage custom code mappings (upload, list, delete)
 
 Options:
   --db      PostgreSQL connection string (or FI_FHIR_TERMINOLOGY_DB_URL env)
@@ -686,5 +695,833 @@ Examples:
 
 	fmt.Printf("Cross-walk: %s (%s) -> %s\n", code, fromVocab, toVocab)
 	fmt.Println("Cross-walk queries not yet implemented. Coming in Phase 3.")
+	return nil
+}
+
+// ============================================================================
+// Mapping Subcommands
+// ============================================================================
+
+func runTerminologyMapping(args []string) error {
+	if len(args) == 0 {
+		printTerminologyMappingUsage()
+		return nil
+	}
+
+	switch args[0] {
+	case "upload":
+		return runTerminologyMappingUpload(args[1:])
+	case "list":
+		return runTerminologyMappingList(args[1:])
+	case "delete":
+		return runTerminologyMappingDelete(args[1:])
+	case "get":
+		return runTerminologyMappingGet(args[1:])
+	case "resolve":
+		return runTerminologyMappingResolve(args[1:])
+	case "-h", "--help", "help":
+		printTerminologyMappingUsage()
+		return nil
+	default:
+		return fmt.Errorf("unknown mapping subcommand: %s", args[0])
+	}
+}
+
+func printTerminologyMappingUsage() {
+	fmt.Println(`fi-fhir terminology mapping - Custom Code Mapping Management
+
+Usage:
+  fi-fhir terminology mapping <subcommand> [options]
+
+Subcommands:
+  upload    Upload mappings from a CSV file
+  list      List existing mappings with optional filters
+  get       Get details of a specific mapping or batch
+  delete    Delete mappings by ID or batch
+  resolve   Find mapping using persistent lookup + LLM autorouting
+
+Options:
+  --db      PostgreSQL connection string (or FI_FHIR_TERMINOLOGY_DB_URL env)
+
+Upload Command:
+  fi-fhir terminology mapping upload <file.csv> [options]
+    --source-system   Default source system if not in CSV
+    --target-system   Default target system if not in CSV
+    --profile         Profile ID to associate mappings with
+    --dry-run         Validate without persisting (preview mode)
+
+  CSV Format (standard):
+    source_system,source_code,source_display,target_system,target_code,target_display,equivalence,comment
+    epic_labs,GLU,Glucose,http://loinc.org,2345-7,Glucose [Mass/volume] in Serum,equivalent,Standard mapping
+
+  CSV Format (simple - requires --source-system and --target-system):
+    source_code,target_code
+    GLU,2345-7
+    HGB,718-7
+
+List Command:
+  fi-fhir terminology mapping list [options]
+    --source-system   Filter by source system
+    --target-system   Filter by target system
+    --profile         Filter by profile ID
+    --batch           Filter by upload batch ID
+    --limit           Maximum rows to return (default: 100)
+    --offset          Offset for pagination
+
+Get Command:
+  fi-fhir terminology mapping get <id>
+  fi-fhir terminology mapping get --batch <batch-id>
+
+Delete Command:
+  fi-fhir terminology mapping delete <id>
+  fi-fhir terminology mapping delete --batch <batch-id>
+    --force           Skip confirmation prompt
+
+Resolve Command:
+  fi-fhir terminology mapping resolve <code> [options]
+    --source-system   Source system URI (required)
+    --target-system   Target system URI (required)
+    --display         Human-readable description (improves accuracy)
+    --profile         Profile ID for scoped lookups
+    --no-autoroute    Disable LLM autorouting (persistent lookup only)
+    --json            Output as JSON
+
+Examples:
+  # Upload a CSV file with mappings
+  fi-fhir terminology mapping upload mappings.csv --db "$DATABASE_URL"
+
+  # Upload with defaults for simple format
+  fi-fhir terminology mapping upload simple.csv \
+    --source-system epic_labs \
+    --target-system http://loinc.org
+
+  # Preview upload without persisting
+  fi-fhir terminology mapping upload mappings.csv --dry-run
+
+  # List all mappings for a profile
+  fi-fhir terminology mapping list --profile my-profile
+
+  # Delete all mappings from a batch
+  fi-fhir terminology mapping delete --batch abc123 --force
+
+  # Resolve a mapping (checks persistent first, then uses LLM)
+  fi-fhir terminology mapping resolve GLU001 \
+    --source-system epic_labs \
+    --target-system http://loinc.org \
+    --display "Glucose Fasting"
+
+  # Persistent lookup only (no LLM)
+  fi-fhir terminology mapping resolve GLU001 \
+    --source-system epic_labs \
+    --target-system http://loinc.org \
+    --no-autoroute`)
+}
+
+func runTerminologyMappingUpload(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("CSV file path required")
+	}
+
+	filePath := args[0]
+	dbURL := getTerminologyDBURL(args)
+	if dbURL == "" {
+		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_TERMINOLOGY_DB_URL env var")
+	}
+
+	// Parse flags
+	var sourceSystem, targetSystem, profileID string
+	var dryRun bool
+
+	for i := 1; i < len(args); i++ {
+		switch args[i] {
+		case "--source-system":
+			if i+1 < len(args) {
+				sourceSystem = args[i+1]
+				i++
+			}
+		case "--target-system":
+			if i+1 < len(args) {
+				targetSystem = args[i+1]
+				i++
+			}
+		case "--profile":
+			if i+1 < len(args) {
+				profileID = args[i+1]
+				i++
+			}
+		case "--dry-run":
+			dryRun = true
+		}
+	}
+
+	// Open file
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+	defer func() { _ = file.Close() }()
+
+	// Parse CSV
+	parser := upload.NewParser(upload.ParseOptions{
+		DefaultSourceSystem: sourceSystem,
+		DefaultTargetSystem: targetSystem,
+		MaxRows:             50000,
+	})
+
+	parseResult, err := parser.Parse(file)
+	if err != nil {
+		return fmt.Errorf("failed to parse CSV: %w", err)
+	}
+
+	// Print parse summary
+	fmt.Printf("CSV Parse Results:\n")
+	fmt.Printf("  Format:     %s\n", parseResult.DetectedFormat)
+	fmt.Printf("  Total Rows: %d\n", parseResult.TotalRows)
+	fmt.Printf("  Valid Rows: %d\n", parseResult.ValidRows)
+	fmt.Printf("  Error Rows: %d\n", parseResult.ErrorRows)
+
+	if len(parseResult.Errors) > 0 {
+		fmt.Printf("\nValidation Errors (first 10):\n")
+		limit := 10
+		if len(parseResult.Errors) < limit {
+			limit = len(parseResult.Errors)
+		}
+		for i := 0; i < limit; i++ {
+			e := parseResult.Errors[i]
+			if e.Column != "" {
+				fmt.Printf("  Row %d, %s: %s\n", e.Row, e.Column, e.Message)
+			} else {
+				fmt.Printf("  Row %d: %s\n", e.Row, e.Message)
+			}
+		}
+		if len(parseResult.Errors) > 10 {
+			fmt.Printf("  ... and %d more errors\n", len(parseResult.Errors)-10)
+		}
+	}
+
+	if dryRun {
+		fmt.Println("\n[DRY RUN] No changes made to database.")
+		if len(parseResult.Rows) > 0 {
+			fmt.Printf("\nPreview (first 5 mappings):\n")
+			limit := 5
+			if len(parseResult.Rows) < limit {
+				limit = len(parseResult.Rows)
+			}
+			for i := 0; i < limit; i++ {
+				row := parseResult.Rows[i]
+				fmt.Printf("  %s:%s -> %s:%s (%s)\n",
+					row.SourceSystem, row.SourceCode,
+					row.TargetSystem, row.TargetCode,
+					row.Equivalence)
+			}
+		}
+		return nil
+	}
+
+	if parseResult.ValidRows == 0 {
+		return fmt.Errorf("no valid rows to upload")
+	}
+
+	// Connect to database
+	conn, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	store := db.NewMappingStore(conn)
+
+	// Create batch record
+	batch := &db.UploadBatch{
+		Filename:     filePath,
+		SourceSystem: sourceSystem,
+		TargetSystem: targetSystem,
+		ProfileID:    profileID,
+		TotalRows:    parseResult.TotalRows,
+		ValidRows:    parseResult.ValidRows,
+		ErrorRows:    parseResult.ErrorRows,
+	}
+	for _, e := range parseResult.Errors {
+		batch.ValidationErrors = append(batch.ValidationErrors, db.ValidationError{
+			Row:     e.Row,
+			Column:  e.Column,
+			Message: e.Message,
+		})
+	}
+
+	if err := store.CreateBatch(ctx, batch); err != nil {
+		return fmt.Errorf("failed to create batch: %w", err)
+	}
+
+	fmt.Printf("\nUpload Batch ID: %s\n", batch.ID)
+
+	// Create mappings
+	var mappings []*db.CustomMapping
+	for _, row := range parseResult.Rows {
+		m := &db.CustomMapping{
+			SourceSystem:  row.SourceSystem,
+			SourceCode:    row.SourceCode,
+			SourceDisplay: row.SourceDisplay,
+			TargetSystem:  row.TargetSystem,
+			TargetCode:    row.TargetCode,
+			TargetDisplay: row.TargetDisplay,
+			Equivalence:   row.Equivalence,
+			Confidence:    row.Confidence,
+			Comment:       row.Comment,
+			Origin:        db.OriginCSVUpload,
+			UploadBatchID: &batch.ID,
+			ProfileID:     profileID,
+		}
+		mappings = append(mappings, m)
+	}
+
+	created, duplicates, err := store.CreateMappingsBatch(ctx, mappings)
+	if err != nil {
+		return fmt.Errorf("failed to create mappings: %w", err)
+	}
+
+	fmt.Printf("Mappings Created:   %d\n", created)
+	fmt.Printf("Duplicates Skipped: %d\n", duplicates)
+
+	return nil
+}
+
+func runTerminologyMappingList(args []string) error {
+	dbURL := getTerminologyDBURL(args)
+	if dbURL == "" {
+		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_TERMINOLOGY_DB_URL env var")
+	}
+
+	// Parse flags
+	filter := db.ListMappingsFilter{
+		Limit:  100,
+		Offset: 0,
+	}
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--source-system":
+			if i+1 < len(args) {
+				filter.SourceSystem = args[i+1]
+				i++
+			}
+		case "--target-system":
+			if i+1 < len(args) {
+				filter.TargetSystem = args[i+1]
+				i++
+			}
+		case "--profile":
+			if i+1 < len(args) {
+				filter.ProfileID = args[i+1]
+				i++
+			}
+		case "--batch":
+			if i+1 < len(args) {
+				batchID, err := parseUUID(args[i+1])
+				if err != nil {
+					return fmt.Errorf("invalid batch ID: %w", err)
+				}
+				filter.UploadBatchID = &batchID
+				i++
+			}
+		case "--limit":
+			if i+1 < len(args) {
+				limit, err := parseInt(args[i+1])
+				if err != nil {
+					return fmt.Errorf("invalid limit: %w", err)
+				}
+				filter.Limit = limit
+				i++
+			}
+		case "--offset":
+			if i+1 < len(args) {
+				offset, err := parseInt(args[i+1])
+				if err != nil {
+					return fmt.Errorf("invalid offset: %w", err)
+				}
+				filter.Offset = offset
+				i++
+			}
+		}
+	}
+
+	conn, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	store := db.NewMappingStore(conn)
+	mappings, total, err := store.ListMappings(ctx, filter)
+	if err != nil {
+		return fmt.Errorf("failed to list mappings: %w", err)
+	}
+
+	fmt.Printf("Custom Mappings (%d total, showing %d-%d)\n", total, filter.Offset+1, filter.Offset+len(mappings))
+	fmt.Println(strings.Repeat("-", 100))
+	fmt.Printf("%-8s %-15s %-12s %-30s %-12s %-12s\n", "ID", "SOURCE_SYS", "SOURCE_CODE", "TARGET_SYS", "TARGET_CODE", "EQUIV")
+	fmt.Println(strings.Repeat("-", 100))
+
+	for _, m := range mappings {
+		targetSys := m.TargetSystem
+		if len(targetSys) > 28 {
+			targetSys = targetSys[:25] + "..."
+		}
+		fmt.Printf("%-8d %-15s %-12s %-30s %-12s %-12s\n",
+			m.ID,
+			truncate(m.SourceSystem, 15),
+			truncate(m.SourceCode, 12),
+			targetSys,
+			truncate(m.TargetCode, 12),
+			m.Equivalence)
+	}
+
+	if total > filter.Offset+len(mappings) {
+		fmt.Printf("\nShowing %d of %d. Use --offset %d for next page.\n",
+			len(mappings), total, filter.Offset+filter.Limit)
+	}
+
+	return nil
+}
+
+func runTerminologyMappingGet(args []string) error {
+	dbURL := getTerminologyDBURL(args)
+	if dbURL == "" {
+		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_TERMINOLOGY_DB_URL env var")
+	}
+
+	var batchID string
+	var mappingID int64
+
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--batch" {
+			if i+1 < len(args) {
+				batchID = args[i+1]
+				i++
+			}
+		} else if !strings.HasPrefix(args[i], "--") && !strings.HasPrefix(args[i], "-") {
+			id, err := parseInt(args[i])
+			if err == nil {
+				mappingID = int64(id)
+			}
+		}
+	}
+
+	conn, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	store := db.NewMappingStore(conn)
+
+	if batchID != "" {
+		batchUUID, err := parseUUID(batchID)
+		if err != nil {
+			return fmt.Errorf("invalid batch ID: %w", err)
+		}
+		batch, err := store.GetBatch(ctx, batchUUID)
+		if err != nil {
+			return fmt.Errorf("failed to get batch: %w", err)
+		}
+		if batch == nil {
+			return fmt.Errorf("batch not found: %s", batchID)
+		}
+
+		fmt.Printf("Upload Batch: %s\n", batch.ID)
+		fmt.Println(strings.Repeat("-", 50))
+		fmt.Printf("Filename:      %s\n", batch.Filename)
+		fmt.Printf("Source System: %s\n", batch.SourceSystem)
+		fmt.Printf("Target System: %s\n", batch.TargetSystem)
+		fmt.Printf("Profile ID:    %s\n", batch.ProfileID)
+		fmt.Printf("Total Rows:    %d\n", batch.TotalRows)
+		fmt.Printf("Valid Rows:    %d\n", batch.ValidRows)
+		fmt.Printf("Duplicates:    %d\n", batch.DuplicateRows)
+		fmt.Printf("Error Rows:    %d\n", batch.ErrorRows)
+		fmt.Printf("Uploaded At:   %s\n", batch.UploadedAt.Format(time.RFC3339))
+		fmt.Printf("Uploaded By:   %s\n", batch.UploadedBy)
+
+		if len(batch.ValidationErrors) > 0 {
+			fmt.Printf("\nValidation Errors (%d):\n", len(batch.ValidationErrors))
+			limit := 10
+			if len(batch.ValidationErrors) < limit {
+				limit = len(batch.ValidationErrors)
+			}
+			for i := 0; i < limit; i++ {
+				e := batch.ValidationErrors[i]
+				if e.Column != "" {
+					fmt.Printf("  Row %d, %s: %s\n", e.Row, e.Column, e.Message)
+				} else {
+					fmt.Printf("  Row %d: %s\n", e.Row, e.Message)
+				}
+			}
+		}
+		return nil
+	}
+
+	if mappingID > 0 {
+		mapping, err := store.GetMapping(ctx, mappingID)
+		if err != nil {
+			return fmt.Errorf("failed to get mapping: %w", err)
+		}
+		if mapping == nil {
+			return fmt.Errorf("mapping not found: %d", mappingID)
+		}
+
+		fmt.Printf("Mapping ID: %d\n", mapping.ID)
+		fmt.Println(strings.Repeat("-", 50))
+		fmt.Printf("Source System:  %s\n", mapping.SourceSystem)
+		fmt.Printf("Source Code:    %s\n", mapping.SourceCode)
+		fmt.Printf("Source Display: %s\n", mapping.SourceDisplay)
+		fmt.Printf("Target System:  %s\n", mapping.TargetSystem)
+		fmt.Printf("Target Code:    %s\n", mapping.TargetCode)
+		fmt.Printf("Target Display: %s\n", mapping.TargetDisplay)
+		fmt.Printf("Equivalence:    %s\n", mapping.Equivalence)
+		if mapping.Confidence != nil {
+			fmt.Printf("Confidence:     %.2f\n", *mapping.Confidence)
+		}
+		fmt.Printf("Comment:        %s\n", mapping.Comment)
+		fmt.Printf("Origin:         %s\n", mapping.Origin)
+		if mapping.UploadBatchID != nil {
+			fmt.Printf("Batch ID:       %s\n", mapping.UploadBatchID)
+		}
+		fmt.Printf("Profile ID:     %s\n", mapping.ProfileID)
+		fmt.Printf("Created At:     %s\n", mapping.CreatedAt.Format(time.RFC3339))
+		fmt.Printf("Created By:     %s\n", mapping.CreatedBy)
+		return nil
+	}
+
+	return fmt.Errorf("mapping ID or --batch required")
+}
+
+func runTerminologyMappingDelete(args []string) error {
+	dbURL := getTerminologyDBURL(args)
+	if dbURL == "" {
+		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_TERMINOLOGY_DB_URL env var")
+	}
+
+	var batchID string
+	var mappingID int64
+	var force bool
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--batch":
+			if i+1 < len(args) {
+				batchID = args[i+1]
+				i++
+			}
+		case "--force", "-f":
+			force = true
+		default:
+			if !strings.HasPrefix(args[i], "--") && !strings.HasPrefix(args[i], "-") {
+				id, err := parseInt(args[i])
+				if err == nil {
+					mappingID = int64(id)
+				}
+			}
+		}
+	}
+
+	conn, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	store := db.NewMappingStore(conn)
+
+	if batchID != "" {
+		batchUUID, err := parseUUID(batchID)
+		if err != nil {
+			return fmt.Errorf("invalid batch ID: %w", err)
+		}
+
+		if !force {
+			fmt.Printf("Delete all mappings from batch %s? [y/N]: ", batchID)
+			var response string
+			if _, err := fmt.Scanln(&response); err != nil || strings.ToLower(response) != "y" {
+				fmt.Println("Aborted.")
+				return nil
+			}
+		}
+
+		count, err := store.DeleteMappingsByBatch(ctx, batchUUID)
+		if err != nil {
+			return fmt.Errorf("failed to delete batch mappings: %w", err)
+		}
+		fmt.Printf("Deleted %d mappings from batch %s\n", count, batchID)
+		return nil
+	}
+
+	if mappingID > 0 {
+		if !force {
+			fmt.Printf("Delete mapping %d? [y/N]: ", mappingID)
+			var response string
+			if _, err := fmt.Scanln(&response); err != nil || strings.ToLower(response) != "y" {
+				fmt.Println("Aborted.")
+				return nil
+			}
+		}
+
+		err := store.DeleteMapping(ctx, mappingID)
+		if err != nil {
+			return fmt.Errorf("failed to delete mapping: %w", err)
+		}
+		fmt.Printf("Deleted mapping %d\n", mappingID)
+		return nil
+	}
+
+	return fmt.Errorf("mapping ID or --batch required")
+}
+
+// Helper functions for parsing
+func parseInt(s string) (int, error) {
+	var n int
+	_, err := fmt.Sscanf(s, "%d", &n)
+	return n, err
+}
+
+func parseUUID(s string) (uuid.UUID, error) {
+	return uuid.Parse(s)
+}
+
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-3] + "..."
+}
+
+func runTerminologyMappingResolve(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("source code required")
+	}
+
+	code := args[0]
+	dbURL := getTerminologyDBURL(args)
+	if dbURL == "" {
+		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_TERMINOLOGY_DB_URL env var")
+	}
+
+	// Parse flags
+	var sourceSystem, targetSystem, display, profileID string
+	var noAutoroute, jsonOutput bool
+
+	for i := 1; i < len(args); i++ {
+		switch args[i] {
+		case "--source-system":
+			if i+1 < len(args) {
+				sourceSystem = args[i+1]
+				i++
+			}
+		case "--target-system":
+			if i+1 < len(args) {
+				targetSystem = args[i+1]
+				i++
+			}
+		case "--display":
+			if i+1 < len(args) {
+				display = args[i+1]
+				i++
+			}
+		case "--profile":
+			if i+1 < len(args) {
+				profileID = args[i+1]
+				i++
+			}
+		case "--no-autoroute":
+			noAutoroute = true
+		case "--json":
+			jsonOutput = true
+		}
+	}
+
+	if sourceSystem == "" {
+		return fmt.Errorf("--source-system is required")
+	}
+	if targetSystem == "" {
+		return fmt.Errorf("--target-system is required")
+	}
+
+	// Connect to database
+	conn, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	store := db.NewMappingStore(conn)
+
+	// Step 1: Check persistent mappings first
+	existing, err := store.LookupMapping(ctx, sourceSystem, code, targetSystem, profileID)
+	if err != nil {
+		return fmt.Errorf("persistent lookup failed: %w", err)
+	}
+
+	if existing != nil {
+		// Found in persistent storage
+		if jsonOutput {
+			return printResolveResultJSON(existing, nil, "PERSISTENT_HIT")
+		}
+		fmt.Println("✓ Found in persistent mappings")
+		fmt.Println(strings.Repeat("-", 50))
+		fmt.Printf("Source:      %s:%s\n", existing.SourceSystem, existing.SourceCode)
+		fmt.Printf("Target:      %s:%s\n", existing.TargetSystem, existing.TargetCode)
+		fmt.Printf("Display:     %s\n", existing.TargetDisplay)
+		fmt.Printf("Equivalence: %s\n", existing.Equivalence)
+		fmt.Printf("Origin:      %s\n", existing.Origin)
+		if existing.Confidence != nil {
+			fmt.Printf("Confidence:  %.2f\n", *existing.Confidence)
+		}
+		return nil
+	}
+
+	if noAutoroute {
+		if jsonOutput {
+			return printResolveResultJSON(nil, nil, "NO_MATCH")
+		}
+		fmt.Println("✗ No mapping found (autoroute disabled)")
+		return nil
+	}
+
+	// Step 2: Use autoroute engine
+	fmt.Println("No persistent mapping found, trying autoroute...")
+
+	// Initialize semantic searcher
+	searchCfg := semantic.DefaultSearchConfig().WithEnv()
+	if err := searchCfg.Validate(); err != nil {
+		return fmt.Errorf("semantic search not configured: %w (set QDRANT_URL and LLM_EMBEDDING_BASE_URL)", err)
+	}
+
+	searcher, err := semantic.NewSearcher(searchCfg)
+	if err != nil {
+		return fmt.Errorf("failed to create searcher: %w", err)
+	}
+
+	// Initialize LLM client
+	llmCfg := llm.DefaultConfig().WithEnv()
+	llmClient, err := llm.New(llmCfg)
+	if err != nil {
+		return fmt.Errorf("failed to create LLM client: %w", err)
+	}
+
+	// Create autoroute engine
+	engine := autoroute.NewEngine(searcher, llmClient, autoroute.DefaultConfig())
+
+	// Request suggestion
+	result, err := engine.Suggest(ctx, autoroute.SuggestRequest{
+		SourceCode:    code,
+		SourceSystem:  sourceSystem,
+		SourceDisplay: display,
+		TargetSystem:  targetSystem,
+		ProfileID:     profileID,
+		MaxCandidates: 5,
+	})
+	if err != nil {
+		return fmt.Errorf("autoroute failed: %w", err)
+	}
+
+	// Classify decision
+	decision := result.Classify(0.90, 0.70)
+
+	if jsonOutput {
+		return printResolveResultJSON(nil, result, string(decision))
+	}
+
+	// Print results
+	if result.BestMatch == nil {
+		fmt.Println("✗ No mapping suggestions found")
+		return nil
+	}
+
+	fmt.Printf("✓ Autoroute suggestion (%s)\n", decision)
+	fmt.Println(strings.Repeat("-", 50))
+	fmt.Printf("Source:      %s:%s\n", sourceSystem, code)
+	fmt.Printf("Target:      %s:%s\n", result.BestMatch.System, result.BestMatch.Code)
+	fmt.Printf("Display:     %s\n", result.BestMatch.Display)
+	fmt.Printf("Confidence:  %.2f\n", result.Confidence)
+	fmt.Printf("Equivalence: %s\n", result.BestMatch.Equivalence)
+	fmt.Printf("Reasoning:   %s\n", result.BestMatch.Reasoning)
+	fmt.Printf("Duration:    %s\n", result.TotalDuration.Round(time.Millisecond))
+
+	if len(result.Alternates) > 0 {
+		fmt.Printf("\nAlternate candidates:\n")
+		for i, alt := range result.Alternates {
+			fmt.Printf("  %d. %s (%s) - confidence: %.2f\n",
+				i+1, alt.Code, alt.Display, alt.Confidence)
+		}
+	}
+
+	return nil
+}
+
+func printResolveResultJSON(persistent *db.CustomMapping, autorouted *autoroute.SuggestResult, decision string) error {
+	output := map[string]interface{}{
+		"decision": decision,
+	}
+
+	if persistent != nil {
+		output["mapping"] = map[string]interface{}{
+			"sourceSystem":  persistent.SourceSystem,
+			"sourceCode":    persistent.SourceCode,
+			"targetSystem":  persistent.TargetSystem,
+			"targetCode":    persistent.TargetCode,
+			"targetDisplay": persistent.TargetDisplay,
+			"equivalence":   persistent.Equivalence,
+			"origin":        persistent.Origin,
+		}
+		if persistent.Confidence != nil {
+			output["confidence"] = *persistent.Confidence
+		}
+	}
+
+	if autorouted != nil && autorouted.BestMatch != nil {
+		output["mapping"] = map[string]interface{}{
+			"sourceSystem":  autorouted.Trace.Request.SourceSystem,
+			"sourceCode":    autorouted.Trace.Request.SourceCode,
+			"targetSystem":  autorouted.BestMatch.System,
+			"targetCode":    autorouted.BestMatch.Code,
+			"targetDisplay": autorouted.BestMatch.Display,
+			"equivalence":   autorouted.BestMatch.Equivalence,
+			"origin":        "autoroute",
+		}
+		output["confidence"] = autorouted.Confidence
+		output["reasoning"] = autorouted.Reasoning
+		output["durationMs"] = autorouted.TotalDuration.Milliseconds()
+
+		if len(autorouted.Alternates) > 0 {
+			alts := make([]map[string]interface{}, len(autorouted.Alternates))
+			for i, alt := range autorouted.Alternates {
+				alts[i] = map[string]interface{}{
+					"code":       alt.Code,
+					"display":    alt.Display,
+					"confidence": alt.Confidence,
+				}
+			}
+			output["alternates"] = alts
+		}
+	}
+
+	data, err := json.MarshalIndent(output, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(data))
 	return nil
 }

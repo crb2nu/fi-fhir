@@ -1,0 +1,106 @@
+# Terminology Mapping Queries and Mutations
+
+fragment MappingFields on CodeMapping {
+  id
+  sourceSystem
+  sourceCode
+  sourceDisplay
+  targetSystem
+  targetCode
+  targetDisplay
+  equivalence
+  confidence
+  comment
+  origin
+  profileId
+  uploadBatchId
+  createdAt
+  createdBy
+}
+
+fragment BatchFields on UploadBatch {
+  id
+  filename
+  sourceSystem
+  targetSystem
+  profileId
+  totalRows
+  validRows
+  duplicateRows
+  errorRows
+  uploadedAt
+  uploadedBy
+  validationErrors {
+    row
+    column
+    message
+  }
+}
+
+query ListMappings($input: ListMappingsInput) {
+  listMappings(input: $input) {
+    nodes {
+      ...MappingFields
+    }
+    totalCount
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+}
+
+query GetMapping($id: ID!) {
+  getMapping(id: $id) {
+    ...MappingFields
+  }
+}
+
+query LookupMapping(
+  $sourceSystem: String!
+  $sourceCode: String!
+  $targetSystem: String!
+  $profileId: String
+) {
+  lookupMapping(
+    sourceSystem: $sourceSystem
+    sourceCode: $sourceCode
+    targetSystem: $targetSystem
+    profileId: $profileId
+  ) {
+    ...MappingFields
+  }
+}
+
+query GetUploadBatch($id: ID!) {
+  getUploadBatch(id: $id) {
+    ...BatchFields
+  }
+}
+
+mutation UploadMappingCSV($input: UploadMappingCSVInput!) {
+  uploadMappingCSV(input: $input) {
+    batch {
+      ...BatchFields
+    }
+    mappingsCreated
+    mappingsSkipped
+    preview {
+      ...MappingFields
+    }
+  }
+}
+
+mutation CreateMapping($input: CreateMappingInput!) {
+  createMapping(input: $input) {
+    ...MappingFields
+  }
+}
+
+mutation DeleteMapping($id: ID!) {
+  deleteMapping(id: $id)
+}
+
+mutation DeleteMappingBatch($batchId: ID!) {
+  deleteMappingBatch(batchId: $batchId)
+}

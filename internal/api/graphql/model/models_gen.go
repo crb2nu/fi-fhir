@@ -27,6 +27,20 @@ type AssigningAuthorityInput struct {
 	Name   *string `json:"name,omitempty"`
 }
 
+type AutorouteStep struct {
+	Step       string         `json:"step"`
+	Result     string         `json:"result"`
+	DurationMs int            `json:"durationMs"`
+	Metadata   map[string]any `json:"metadata,omitempty"`
+}
+
+type AutorouteTrace struct {
+	TraceID         string          `json:"traceId"`
+	Timestamp       time.Time       `json:"timestamp"`
+	Steps           []AutorouteStep `json:"steps"`
+	TotalDurationMs int             `json:"totalDurationMs"`
+}
+
 type ClassifyMessageInput struct {
 	Data   string       `json:"data"`
 	Format SourceFormat `json:"format"`
@@ -247,6 +261,16 @@ type ListMappingsInput struct {
 	Offset        *int           `json:"offset,omitempty"`
 }
 
+type MappingCandidate struct {
+	Code        string              `json:"code"`
+	Display     string              `json:"display"`
+	System      string              `json:"system"`
+	Confidence  float64             `json:"confidence"`
+	Equivalence *MappingEquivalence `json:"equivalence,omitempty"`
+	Reasoning   *string             `json:"reasoning,omitempty"`
+	Score       *float64            `json:"score,omitempty"`
+}
+
 type MessageClassification struct {
 	MessageType   string     `json:"messageType"`
 	EventType     *EventType `json:"eventType,omitempty"`
@@ -298,6 +322,27 @@ type QualityRecommendation struct {
 type Query struct {
 }
 
+type ResolveMappingInput struct {
+	SourceCode     string   `json:"sourceCode"`
+	SourceSystem   string   `json:"sourceSystem"`
+	SourceDisplay  *string  `json:"sourceDisplay,omitempty"`
+	TargetSystem   string   `json:"targetSystem"`
+	ProfileID      *string  `json:"profileId,omitempty"`
+	AllowAutoroute *bool    `json:"allowAutoroute,omitempty"`
+	MinConfidence  *float64 `json:"minConfidence,omitempty"`
+}
+
+type ResolveMappingResult struct {
+	Found      bool               `json:"found"`
+	Decision   AutorouteDecision  `json:"decision"`
+	Mapping    *CodeMapping       `json:"mapping,omitempty"`
+	Candidates []MappingCandidate `json:"candidates"`
+	Confidence *float64           `json:"confidence,omitempty"`
+	Reasoning  *string            `json:"reasoning,omitempty"`
+	Trace      *AutorouteTrace    `json:"trace,omitempty"`
+	DurationMs int                `json:"durationMs"`
+}
+
 type RouteExplanation struct {
 	Name        string   `json:"name"`
 	Trigger     string   `json:"trigger"`
@@ -319,6 +364,14 @@ type SourceProfile struct {
 }
 
 type Subscription struct {
+}
+
+type SuggestMappingsInput struct {
+	SourceCode    string  `json:"sourceCode"`
+	SourceSystem  string  `json:"sourceSystem"`
+	SourceDisplay *string `json:"sourceDisplay,omitempty"`
+	TargetSystem  string  `json:"targetSystem"`
+	MaxCandidates *int    `json:"maxCandidates,omitempty"`
 }
 
 type TerminologyConfig struct {
@@ -443,6 +496,67 @@ type WorkflowExplanation struct {
 	RouteExplanations []RouteExplanation `json:"routeExplanations"`
 	Diagram           *string            `json:"diagram,omitempty"`
 	Warnings          []string           `json:"warnings"`
+}
+
+type AutorouteDecision string
+
+const (
+	AutorouteDecisionPersistentHit     AutorouteDecision = "PERSISTENT_HIT"
+	AutorouteDecisionAutorouteHighConf AutorouteDecision = "AUTOROUTE_HIGH_CONF"
+	AutorouteDecisionAutorouteMedConf  AutorouteDecision = "AUTOROUTE_MED_CONF"
+	AutorouteDecisionAutorouteLowConf  AutorouteDecision = "AUTOROUTE_LOW_CONF"
+	AutorouteDecisionNoMatch           AutorouteDecision = "NO_MATCH"
+)
+
+var AllAutorouteDecision = []AutorouteDecision{
+	AutorouteDecisionPersistentHit,
+	AutorouteDecisionAutorouteHighConf,
+	AutorouteDecisionAutorouteMedConf,
+	AutorouteDecisionAutorouteLowConf,
+	AutorouteDecisionNoMatch,
+}
+
+func (e AutorouteDecision) IsValid() bool {
+	switch e {
+	case AutorouteDecisionPersistentHit, AutorouteDecisionAutorouteHighConf, AutorouteDecisionAutorouteMedConf, AutorouteDecisionAutorouteLowConf, AutorouteDecisionNoMatch:
+		return true
+	}
+	return false
+}
+
+func (e AutorouteDecision) String() string {
+	return string(e)
+}
+
+func (e *AutorouteDecision) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = AutorouteDecision(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid AutorouteDecision", str)
+	}
+	return nil
+}
+
+func (e AutorouteDecision) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AutorouteDecision) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AutorouteDecision) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }
 
 type MappingEquivalence string
