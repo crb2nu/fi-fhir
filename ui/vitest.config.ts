@@ -13,5 +13,8 @@ export default defineConfig({
       $lib: '/src/lib',
       $app: '/src/test/mocks/app'
     }
+  },
+  resolve: {
+    conditions: ['browser']
   }
 });
