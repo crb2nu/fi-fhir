@@ -33,6 +33,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/edi/companion/builtin"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/hl7v2"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/terminology/autoroute"
+	termworkflow "gitlab.flexinfer.ai/libs/fi-fhir/internal/terminology/workflow"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/workflow"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/config"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
@@ -42,6 +43,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/profile"
 	termdb "gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/db"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/semantic"
+	"go.temporal.io/sdk/client"
 )
 
 const version = "0.1.0"
@@ -4438,18 +4440,23 @@ Examples:
 
 func runServe(args []string) error {
 	var (
-		host           = "0.0.0.0"
-		port           = 8081
-		path           = "/graphql"
-		playgroundPath = "/"
-		playground     = true
-		introspection  = true
-		workflowPath   = ""
-		maxDepth       = 10
-		maxComplexity  = 1000
-		timeout        = 30 * time.Second
-		dryRun         = false
+		host              = "0.0.0.0"
+		port              = 8081
+		path              = "/graphql"
+		playgroundPath    = "/"
+		playground        = true
+		introspection     = true
+		workflowPath      = ""
+		maxDepth          = 10
+		maxComplexity     = 1000
+		timeout           = 30 * time.Second
+		dryRun            = false
+		temporalAddr      = os.Getenv("TEMPORAL_ADDRESS")   // default from env, e.g. "localhost:7233"
+		temporalNamespace = os.Getenv("TEMPORAL_NAMESPACE") // default from env, falls back to "terminology-mapping"
 	)
+	if temporalNamespace == "" {
+		temporalNamespace = "terminology-mapping"
+	}
 
 	// Parse flags
 	for i := 0; i < len(args); i++ {
@@ -4522,6 +4529,18 @@ func runServe(args []string) error {
 			if err != nil {
 				return fmt.Errorf("invalid timeout: %s", args[i])
 			}
+		case "--temporal":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--temporal requires a value")
+			}
+			i++
+			temporalAddr = args[i]
+		case "--temporal-namespace":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--temporal-namespace requires a value")
+			}
+			i++
+			temporalNamespace = args[i]
 		case "--dry-run":
 			dryRun = true
 		case "--help", "-h":
@@ -4639,6 +4658,10 @@ func runServe(args []string) error {
 		fmt.Printf("Loaded workflow: %s (%d routes)\n", loadedWorkflow.Name, len(loadedWorkflow.Routes))
 	}
 
+	// Temporal client and worker (declared here, initialized below)
+	var temporalClient client.Client
+	var temporalWorker *termworkflow.Worker
+
 	// Initialize LLM-powered features (optional - gracefully disabled if unavailable)
 	llmCfg := llm.DefaultConfig().WithEnv()
 	if llmClient, err := llm.New(llmCfg); err != nil {
@@ -4693,6 +4716,9 @@ func runServe(args []string) error {
 		fmt.Println("LLM features enabled: extraction, quality, copilot, explainers")
 
 		// Terminology autoroute engine (requires LLM + semantic search)
+		// Track these at higher scope for Temporal worker
+		var autorouteEngine *autoroute.Engine
+		var mappingStore *termdb.MappingStore
 		if dbURL != "" {
 			// Initialize mapping store from terminology database
 			if mappingDB, err := sql.Open("postgres", dbURL); err != nil {
@@ -4701,7 +4727,7 @@ func runServe(args []string) error {
 				fmt.Fprintf(os.Stderr, "Warning: mapping store disabled (db ping failed): %v\n", err)
 				_ = mappingDB.Close()
 			} else {
-				mappingStore := termdb.NewMappingStore(mappingDB)
+				mappingStore = termdb.NewMappingStore(mappingDB)
 				resolverOpts = append(resolverOpts, resolvers.WithMappingStore(mappingStore))
 
 				// Initialize semantic searcher for autoroute
@@ -4710,11 +4736,44 @@ func runServe(args []string) error {
 					fmt.Fprintf(os.Stderr, "Warning: autoroute disabled (semantic search init failed): %v\n", err)
 				} else {
 					// Create autoroute engine with semantic search + LLM ranking
-					autorouteEngine := autoroute.NewEngine(searcher, llmClient, autoroute.DefaultConfig())
+					autorouteEngine = autoroute.NewEngine(searcher, llmClient, autoroute.DefaultConfig())
 					resolverOpts = append(resolverOpts, resolvers.WithAutorouteEngine(autorouteEngine))
 					fmt.Println("Terminology autoroute engine enabled")
 				}
 			}
+		}
+
+		// Initialize Temporal worker for terminology workflows (requires autoroute engine + mapping store)
+		if temporalAddr != "" && autorouteEngine != nil && mappingStore != nil {
+			workerCfg := termworkflow.WorkerConfig{
+				HostPort:  temporalAddr,
+				Namespace: temporalNamespace,
+			}
+			worker, workerErr := termworkflow.NewWorker(context.Background(), workerCfg, autorouteEngine, mappingStore)
+			if workerErr != nil {
+				fmt.Fprintf(os.Stderr, "Warning: Temporal worker disabled: %v\n", workerErr)
+			} else if workerErr = worker.Start(); workerErr != nil {
+				fmt.Fprintf(os.Stderr, "Warning: Temporal worker failed to start: %v\n", workerErr)
+			} else {
+				temporalWorker = worker
+				resolverOpts = append(resolverOpts, resolvers.WithTemporalWorker(worker))
+				fmt.Println("Temporal terminology review worker started")
+			}
+		}
+	}
+
+	// Initialize Temporal client for GraphQL operations (separate from worker client)
+	if temporalAddr != "" && temporalClient == nil {
+		var err error
+		temporalClient, err = client.Dial(client.Options{
+			HostPort:  temporalAddr,
+			Namespace: temporalNamespace,
+		})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: Temporal client disabled: %v\n", err)
+		} else {
+			resolverOpts = append(resolverOpts, resolvers.WithTemporalClient(temporalClient))
+			fmt.Printf("Temporal client connected to %s\n", temporalAddr)
 		}
 	}
 
@@ -4753,10 +4812,30 @@ func runServe(args []string) error {
 	select {
 	case sig := <-sigCh:
 		fmt.Printf("\nReceived %v, shutting down...\n", sig)
+
+		// Stop Temporal worker first (allows in-flight workflows to complete)
+		if temporalWorker != nil {
+			fmt.Println("Stopping Temporal worker...")
+			temporalWorker.Stop()
+		}
+
+		// Close Temporal client
+		if temporalClient != nil {
+			temporalClient.Close()
+		}
+
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		return server.Shutdown(ctx)
 	case err := <-errCh:
+		// Clean up Temporal on error path too
+		if temporalWorker != nil {
+			temporalWorker.Stop()
+		}
+		if temporalClient != nil {
+			temporalClient.Close()
+		}
+
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			return err
 		}
@@ -4784,6 +4863,10 @@ Options:
       --no-playground       Disable GraphQL Playground
       --no-introspection    Disable GraphQL introspection
   -w, --workflow <file>     Workflow DSL file for event processing
+      --temporal <addr>     Temporal server address (e.g., localhost:7233)
+                            Also reads from TEMPORAL_ADDRESS env var
+      --temporal-namespace  Temporal namespace (default: terminology-mapping)
+                            Also reads from TEMPORAL_NAMESPACE env var
       --max-depth <n>       Maximum query depth (default: 10)
       --max-complexity <n>  Maximum query complexity (default: 1000)
       --timeout <duration>  Request timeout (default: 30s)

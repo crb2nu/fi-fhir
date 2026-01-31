@@ -4,6 +4,8 @@ import (
 	"sync"
 	"time"
 
+	"go.temporal.io/sdk/client"
+
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/projections"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/store"
@@ -12,6 +14,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/extract"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/quality"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/terminology/autoroute"
+	termworkflow "gitlab.flexinfer.ai/libs/fi-fhir/internal/terminology/workflow"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/workflow"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm/copilot"
 	termdb "gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/db"
@@ -74,6 +77,12 @@ type Resolver struct {
 
 	// AutorouteEngine provides LLM-powered mapping suggestions
 	AutorouteEngine *autoroute.Engine
+
+	// TemporalClient provides access to Temporal workflow orchestration
+	TemporalClient client.Client
+
+	// TemporalWorker manages the Temporal worker for terminology workflows
+	TemporalWorker *termworkflow.Worker
 
 	// SubscriptionClients maps FHIR server URLs to clients
 	subscriptionClients map[string]*subscription.Client
@@ -196,6 +205,20 @@ func WithMappingStore(s *termdb.MappingStore) ResolverOption {
 func WithAutorouteEngine(e *autoroute.Engine) ResolverOption {
 	return func(r *Resolver) {
 		r.AutorouteEngine = e
+	}
+}
+
+// WithTemporalClient sets the Temporal client for workflow orchestration.
+func WithTemporalClient(c client.Client) ResolverOption {
+	return func(r *Resolver) {
+		r.TemporalClient = c
+	}
+}
+
+// WithTemporalWorker sets the Temporal worker for terminology workflows.
+func WithTemporalWorker(w *termworkflow.Worker) ResolverOption {
+	return func(r *Resolver) {
+		r.TemporalWorker = w
 	}
 }
 

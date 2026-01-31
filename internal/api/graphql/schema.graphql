@@ -1429,3 +1429,271 @@ extend type Query {
   # Get autoroute suggestions only (for discovery/review)
   suggestMappings(input: SuggestMappingsInput!): [MappingCandidate!]!
 }
+
+# =============================================================================
+# Pending Autoroute Review Types
+# =============================================================================
+
+enum PendingAutorouteStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+# A pending autoroute suggestion awaiting human review
+type PendingAutoroute {
+  id: ID!
+  sourceSystem: String!
+  sourceCode: String!
+  sourceDisplay: String
+  targetSystem: String!
+  suggestedCode: String!
+  suggestedDisplay: String
+  confidence: Float!
+  equivalence: MappingEquivalence
+  reasoning: String
+  decisionTrace: AutorouteTrace
+  alternates: [MappingCandidate!]!
+  status: PendingAutorouteStatus!
+  createdAt: DateTime!
+  expiresAt: DateTime
+  reviewedAt: DateTime
+  reviewedBy: String
+  rejectionReason: String
+}
+
+# Paginated list of pending autoroutes
+type PendingAutorouteConnection {
+  nodes: [PendingAutoroute!]!
+  totalCount: Int!
+  pageInfo: PageInfo!
+}
+
+# Result of a bulk approval operation
+type BulkApproveResult {
+  approved: Int!
+  skipped: Int!
+  mappings: [CodeMapping!]!
+}
+
+# Statistics about pending autoroutes
+type PendingAutorouteStats {
+  pendingCount: Int!
+  approvedCount: Int!
+  rejectedCount: Int!
+  expiredCount: Int!
+  avgConfidence: Float
+}
+
+# =============================================================================
+# Pending Autoroute Inputs
+# =============================================================================
+
+input ListPendingAutoroutesInput {
+  status: PendingAutorouteStatus
+  minConfidence: Float
+  sourceSystem: String
+  targetSystem: String
+  first: Int = 50
+  offset: Int = 0
+}
+
+input ApprovePendingAutorouteInput {
+  id: ID!
+  # Optional override for equivalence
+  equivalence: MappingEquivalence
+  # Optional comment to add to the mapping
+  comment: String
+}
+
+input RejectPendingAutorouteInput {
+  id: ID!
+  reason: String!
+}
+
+input BulkApproveInput {
+  # Minimum confidence threshold (default: 0.95)
+  minConfidence: Float = 0.95
+  # Maximum number to approve (default: 100)
+  maxCount: Int = 100
+}
+
+# =============================================================================
+# Pending Autoroute Queries & Mutations
+# =============================================================================
+
+extend type Query {
+  # List pending autoroutes for review
+  listPendingAutoroutes(input: ListPendingAutoroutesInput): PendingAutorouteConnection!
+
+  # Get a specific pending autoroute by ID
+  getPendingAutoroute(id: ID!): PendingAutoroute
+
+  # Get statistics about pending autoroutes
+  pendingAutorouteStats: PendingAutorouteStats!
+}
+
+extend type Mutation {
+  # Approve a pending autoroute and create a persistent mapping
+  approvePendingAutoroute(input: ApprovePendingAutorouteInput!): CodeMapping!
+
+  # Reject a pending autoroute
+  rejectPendingAutoroute(input: RejectPendingAutorouteInput!): Boolean!
+
+  # Bulk approve high-confidence autoroutes
+  bulkApprovePendingAutoroutes(input: BulkApproveInput): BulkApproveResult!
+}
+
+# =============================================================================
+# Temporal Workflow Orchestration
+# =============================================================================
+
+# Status of a Temporal workflow execution
+enum TemporalWorkflowStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELED
+  TERMINATED
+  CONTINUED_AS_NEW
+  TIMED_OUT
+}
+
+# A Temporal workflow execution
+type TemporalWorkflow {
+  # Workflow execution ID
+  id: ID!
+
+  # Run ID (unique per execution attempt)
+  runId: String!
+
+  # Workflow type name
+  workflowType: String!
+
+  # Current status
+  status: TemporalWorkflowStatus!
+
+  # Task queue the workflow is running on
+  taskQueue: String!
+
+  # When the workflow started
+  startTime: DateTime!
+
+  # When the workflow completed (if finished)
+  closeTime: DateTime
+
+  # Workflow execution duration in milliseconds
+  durationMs: Int
+
+  # Input provided to the workflow (JSON)
+  input: JSON
+
+  # Result of the workflow (JSON, if completed)
+  result: JSON
+
+  # Error message if failed
+  error: String
+}
+
+# Connection type for paginated workflow list
+type TemporalWorkflowConnection {
+  nodes: [TemporalWorkflow!]!
+  totalCount: Int!
+  pageInfo: PageInfo!
+}
+
+# Input for starting a terminology review workflow
+input StartTerminologyReviewInput {
+  # Source code to map
+  sourceCode: String!
+
+  # Source system URI
+  sourceSystem: String!
+
+  # Human-readable source description (helps semantic matching)
+  sourceDisplay: String
+
+  # Target vocabulary URI (e.g., "http://loinc.org")
+  targetSystem: String!
+
+  # Optional profile context
+  profileId: String
+
+  # Confidence threshold for auto-approval (default: 0.95)
+  autoApproveThreshold: Float
+
+  # How long to wait for human review before expiring (default: 7 days)
+  reviewTimeoutDays: Int
+}
+
+# Result of starting a terminology review workflow
+type StartTerminologyReviewResult {
+  # Workflow execution ID
+  workflowId: String!
+
+  # Run ID
+  runId: String!
+
+  # Whether the workflow was started (false if already exists)
+  started: Boolean!
+}
+
+# Input for signaling a review decision
+input SignalReviewDecisionInput {
+  # Workflow ID to signal
+  workflowId: String!
+
+  # Whether to approve the mapping
+  approved: Boolean!
+
+  # Who made the decision
+  decidedBy: String!
+
+  # Override the equivalence (optional)
+  equivalenceOverride: MappingEquivalence
+
+  # Comment for approval
+  comment: String
+
+  # Reason for rejection
+  rejectionReason: String
+}
+
+# Filter for listing workflows
+input TemporalWorkflowFilter {
+  # Filter by workflow type
+  workflowType: String
+
+  # Filter by status
+  status: TemporalWorkflowStatus
+
+  # Filter by start time (after)
+  startTimeAfter: DateTime
+
+  # Filter by start time (before)
+  startTimeBefore: DateTime
+}
+
+extend type Query {
+  # Get a specific Temporal workflow by ID
+  temporalWorkflow(workflowId: String!, runId: String): TemporalWorkflow
+
+  # List Temporal workflows with optional filters
+  temporalWorkflows(
+    filter: TemporalWorkflowFilter
+    first: Int = 100
+    after: String
+  ): TemporalWorkflowConnection!
+}
+
+extend type Mutation {
+  # Start a terminology review workflow
+  startTerminologyReview(input: StartTerminologyReviewInput!): StartTerminologyReviewResult!
+
+  # Signal a review decision to a running workflow
+  signalReviewDecision(input: SignalReviewDecisionInput!): Boolean!
+
+  # Cancel a running workflow
+  cancelTemporalWorkflow(workflowId: String!, reason: String): Boolean!
+}

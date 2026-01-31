@@ -15,6 +15,12 @@ type AnalyzeQualityInput struct {
 	EventType EventType      `json:"eventType"`
 }
 
+type ApprovePendingAutorouteInput struct {
+	ID          string              `json:"id"`
+	Equivalence *MappingEquivalence `json:"equivalence,omitempty"`
+	Comment     *string             `json:"comment,omitempty"`
+}
+
 type AssigningAuthority struct {
 	Code   string  `json:"code"`
 	System string  `json:"system"`
@@ -39,6 +45,17 @@ type AutorouteTrace struct {
 	Timestamp       time.Time       `json:"timestamp"`
 	Steps           []AutorouteStep `json:"steps"`
 	TotalDurationMs int             `json:"totalDurationMs"`
+}
+
+type BulkApproveInput struct {
+	MinConfidence *float64 `json:"minConfidence,omitempty"`
+	MaxCount      *int     `json:"maxCount,omitempty"`
+}
+
+type BulkApproveResult struct {
+	Approved int           `json:"approved"`
+	Skipped  int           `json:"skipped"`
+	Mappings []CodeMapping `json:"mappings"`
 }
 
 type ClassifyMessageInput struct {
@@ -263,6 +280,15 @@ type ListMappingsInput struct {
 	Offset        *int           `json:"offset,omitempty"`
 }
 
+type ListPendingAutoroutesInput struct {
+	Status        *PendingAutorouteStatus `json:"status,omitempty"`
+	MinConfidence *float64                `json:"minConfidence,omitempty"`
+	SourceSystem  *string                 `json:"sourceSystem,omitempty"`
+	TargetSystem  *string                 `json:"targetSystem,omitempty"`
+	First         *int                    `json:"first,omitempty"`
+	Offset        *int                    `json:"offset,omitempty"`
+}
+
 type MappingCandidate struct {
 	Code        string              `json:"code"`
 	Display     string              `json:"display"`
@@ -298,6 +324,41 @@ type NormalizationSettingsInput struct {
 	PhoneFormat       *string  `json:"phoneFormat,omitempty"`
 }
 
+type PendingAutoroute struct {
+	ID               string                 `json:"id"`
+	SourceSystem     string                 `json:"sourceSystem"`
+	SourceCode       string                 `json:"sourceCode"`
+	SourceDisplay    *string                `json:"sourceDisplay,omitempty"`
+	TargetSystem     string                 `json:"targetSystem"`
+	SuggestedCode    string                 `json:"suggestedCode"`
+	SuggestedDisplay *string                `json:"suggestedDisplay,omitempty"`
+	Confidence       float64                `json:"confidence"`
+	Equivalence      *MappingEquivalence    `json:"equivalence,omitempty"`
+	Reasoning        *string                `json:"reasoning,omitempty"`
+	DecisionTrace    *AutorouteTrace        `json:"decisionTrace,omitempty"`
+	Alternates       []MappingCandidate     `json:"alternates"`
+	Status           PendingAutorouteStatus `json:"status"`
+	CreatedAt        time.Time              `json:"createdAt"`
+	ExpiresAt        *time.Time             `json:"expiresAt,omitempty"`
+	ReviewedAt       *time.Time             `json:"reviewedAt,omitempty"`
+	ReviewedBy       *string                `json:"reviewedBy,omitempty"`
+	RejectionReason  *string                `json:"rejectionReason,omitempty"`
+}
+
+type PendingAutorouteConnection struct {
+	Nodes      []PendingAutoroute `json:"nodes"`
+	TotalCount int                `json:"totalCount"`
+	PageInfo   *PageInfo          `json:"pageInfo"`
+}
+
+type PendingAutorouteStats struct {
+	PendingCount  int      `json:"pendingCount"`
+	ApprovedCount int      `json:"approvedCount"`
+	RejectedCount int      `json:"rejectedCount"`
+	ExpiredCount  int      `json:"expiredCount"`
+	AvgConfidence *float64 `json:"avgConfidence,omitempty"`
+}
+
 type ProfileRevision struct {
 	Version       string    `json:"version"`
 	CreatedAt     time.Time `json:"createdAt"`
@@ -322,6 +383,11 @@ type QualityRecommendation struct {
 }
 
 type Query struct {
+}
+
+type RejectPendingAutorouteInput struct {
+	ID     string `json:"id"`
+	Reason string `json:"reason"`
 }
 
 type ResolveMappingInput struct {
@@ -352,6 +418,15 @@ type RouteExplanation struct {
 	Description string   `json:"description"`
 }
 
+type SignalReviewDecisionInput struct {
+	WorkflowID          string              `json:"workflowId"`
+	Approved            bool                `json:"approved"`
+	DecidedBy           string              `json:"decidedBy"`
+	EquivalenceOverride *MappingEquivalence `json:"equivalenceOverride,omitempty"`
+	Comment             *string             `json:"comment,omitempty"`
+	RejectionReason     *string             `json:"rejectionReason,omitempty"`
+}
+
 type SourceProfile struct {
 	ID          string             `json:"id"`
 	Name        string             `json:"name"`
@@ -365,6 +440,22 @@ type SourceProfile struct {
 	Terminology *TerminologyConfig `json:"terminology,omitempty"`
 }
 
+type StartTerminologyReviewInput struct {
+	SourceCode           string   `json:"sourceCode"`
+	SourceSystem         string   `json:"sourceSystem"`
+	SourceDisplay        *string  `json:"sourceDisplay,omitempty"`
+	TargetSystem         string   `json:"targetSystem"`
+	ProfileID            *string  `json:"profileId,omitempty"`
+	AutoApproveThreshold *float64 `json:"autoApproveThreshold,omitempty"`
+	ReviewTimeoutDays    *int     `json:"reviewTimeoutDays,omitempty"`
+}
+
+type StartTerminologyReviewResult struct {
+	WorkflowID string `json:"workflowId"`
+	RunID      string `json:"runId"`
+	Started    bool   `json:"started"`
+}
+
 type Subscription struct {
 }
 
@@ -374,6 +465,33 @@ type SuggestMappingsInput struct {
 	SourceDisplay *string `json:"sourceDisplay,omitempty"`
 	TargetSystem  string  `json:"targetSystem"`
 	MaxCandidates *int    `json:"maxCandidates,omitempty"`
+}
+
+type TemporalWorkflow struct {
+	ID           string                 `json:"id"`
+	RunID        string                 `json:"runId"`
+	WorkflowType string                 `json:"workflowType"`
+	Status       TemporalWorkflowStatus `json:"status"`
+	TaskQueue    string                 `json:"taskQueue"`
+	StartTime    time.Time              `json:"startTime"`
+	CloseTime    *time.Time             `json:"closeTime,omitempty"`
+	DurationMs   *int                   `json:"durationMs,omitempty"`
+	Input        map[string]any         `json:"input,omitempty"`
+	Result       map[string]any         `json:"result,omitempty"`
+	Error        *string                `json:"error,omitempty"`
+}
+
+type TemporalWorkflowConnection struct {
+	Nodes      []TemporalWorkflow `json:"nodes"`
+	TotalCount int                `json:"totalCount"`
+	PageInfo   *PageInfo          `json:"pageInfo"`
+}
+
+type TemporalWorkflowFilter struct {
+	WorkflowType    *string                 `json:"workflowType,omitempty"`
+	Status          *TemporalWorkflowStatus `json:"status,omitempty"`
+	StartTimeAfter  *time.Time              `json:"startTimeAfter,omitempty"`
+	StartTimeBefore *time.Time              `json:"startTimeBefore,omitempty"`
 }
 
 type TerminologyConfig struct {
@@ -672,6 +790,130 @@ func (e *MappingOrigin) UnmarshalJSON(b []byte) error {
 }
 
 func (e MappingOrigin) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type PendingAutorouteStatus string
+
+const (
+	PendingAutorouteStatusPending  PendingAutorouteStatus = "PENDING"
+	PendingAutorouteStatusApproved PendingAutorouteStatus = "APPROVED"
+	PendingAutorouteStatusRejected PendingAutorouteStatus = "REJECTED"
+	PendingAutorouteStatusExpired  PendingAutorouteStatus = "EXPIRED"
+)
+
+var AllPendingAutorouteStatus = []PendingAutorouteStatus{
+	PendingAutorouteStatusPending,
+	PendingAutorouteStatusApproved,
+	PendingAutorouteStatusRejected,
+	PendingAutorouteStatusExpired,
+}
+
+func (e PendingAutorouteStatus) IsValid() bool {
+	switch e {
+	case PendingAutorouteStatusPending, PendingAutorouteStatusApproved, PendingAutorouteStatusRejected, PendingAutorouteStatusExpired:
+		return true
+	}
+	return false
+}
+
+func (e PendingAutorouteStatus) String() string {
+	return string(e)
+}
+
+func (e *PendingAutorouteStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = PendingAutorouteStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid PendingAutorouteStatus", str)
+	}
+	return nil
+}
+
+func (e PendingAutorouteStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *PendingAutorouteStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e PendingAutorouteStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type TemporalWorkflowStatus string
+
+const (
+	TemporalWorkflowStatusRunning        TemporalWorkflowStatus = "RUNNING"
+	TemporalWorkflowStatusCompleted      TemporalWorkflowStatus = "COMPLETED"
+	TemporalWorkflowStatusFailed         TemporalWorkflowStatus = "FAILED"
+	TemporalWorkflowStatusCanceled       TemporalWorkflowStatus = "CANCELED"
+	TemporalWorkflowStatusTerminated     TemporalWorkflowStatus = "TERMINATED"
+	TemporalWorkflowStatusContinuedAsNew TemporalWorkflowStatus = "CONTINUED_AS_NEW"
+	TemporalWorkflowStatusTimedOut       TemporalWorkflowStatus = "TIMED_OUT"
+)
+
+var AllTemporalWorkflowStatus = []TemporalWorkflowStatus{
+	TemporalWorkflowStatusRunning,
+	TemporalWorkflowStatusCompleted,
+	TemporalWorkflowStatusFailed,
+	TemporalWorkflowStatusCanceled,
+	TemporalWorkflowStatusTerminated,
+	TemporalWorkflowStatusContinuedAsNew,
+	TemporalWorkflowStatusTimedOut,
+}
+
+func (e TemporalWorkflowStatus) IsValid() bool {
+	switch e {
+	case TemporalWorkflowStatusRunning, TemporalWorkflowStatusCompleted, TemporalWorkflowStatusFailed, TemporalWorkflowStatusCanceled, TemporalWorkflowStatusTerminated, TemporalWorkflowStatusContinuedAsNew, TemporalWorkflowStatusTimedOut:
+		return true
+	}
+	return false
+}
+
+func (e TemporalWorkflowStatus) String() string {
+	return string(e)
+}
+
+func (e *TemporalWorkflowStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = TemporalWorkflowStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid TemporalWorkflowStatus", str)
+	}
+	return nil
+}
+
+func (e TemporalWorkflowStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *TemporalWorkflowStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e TemporalWorkflowStatus) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

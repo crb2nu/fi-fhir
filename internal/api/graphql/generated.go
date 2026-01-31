@@ -130,6 +130,12 @@ type ComplexityRoot struct {
 		TotalItems   func(childComplexity int) int
 	}
 
+	BulkApproveResult struct {
+		Approved func(childComplexity int) int
+		Mappings func(childComplexity int) int
+		Skipped  func(childComplexity int) int
+	}
+
 	CodeMapping struct {
 		ApprovedAt    func(childComplexity int) int
 		ApprovedBy    func(childComplexity int) int
@@ -446,23 +452,29 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		CreateFhirSubscription func(childComplexity int, input model.CreateSubscriptionInput) int
-		CreateMapping          func(childComplexity int, input model.CreateMappingInput) int
-		CreateProfile          func(childComplexity int, input model.CreateProfileInput) int
-		DeleteFhirSubscription func(childComplexity int, id string) int
-		DeleteMapping          func(childComplexity int, id string) int
-		DeleteMappingBatch     func(childComplexity int, batchID string) int
-		DeleteProfile          func(childComplexity int, id string) int
-		DuplicateProfile       func(childComplexity int, id string, newID string, newName string) int
-		GenerateWorkflow       func(childComplexity int, input model.GenerateWorkflowInput) int
-		PauseFhirSubscription  func(childComplexity int, id string) int
-		ResumeFhirSubscription func(childComplexity int, id string) int
-		SubmitBatch            func(childComplexity int, input model.SubmitBatchInput) int
-		SubmitEvent            func(childComplexity int, input model.SubmitEventInput) int
-		SubmitMessage          func(childComplexity int, input model.SubmitMessageInput) int
-		TriggerWorkflow        func(childComplexity int, name string, event map[string]any) int
-		UpdateProfile          func(childComplexity int, id string, input model.UpdateProfileInput) int
-		UploadMappingCSV       func(childComplexity int, input model.UploadMappingCSVInput) int
+		ApprovePendingAutoroute      func(childComplexity int, input model.ApprovePendingAutorouteInput) int
+		BulkApprovePendingAutoroutes func(childComplexity int, input *model.BulkApproveInput) int
+		CancelTemporalWorkflow       func(childComplexity int, workflowID string, reason *string) int
+		CreateFhirSubscription       func(childComplexity int, input model.CreateSubscriptionInput) int
+		CreateMapping                func(childComplexity int, input model.CreateMappingInput) int
+		CreateProfile                func(childComplexity int, input model.CreateProfileInput) int
+		DeleteFhirSubscription       func(childComplexity int, id string) int
+		DeleteMapping                func(childComplexity int, id string) int
+		DeleteMappingBatch           func(childComplexity int, batchID string) int
+		DeleteProfile                func(childComplexity int, id string) int
+		DuplicateProfile             func(childComplexity int, id string, newID string, newName string) int
+		GenerateWorkflow             func(childComplexity int, input model.GenerateWorkflowInput) int
+		PauseFhirSubscription        func(childComplexity int, id string) int
+		RejectPendingAutoroute       func(childComplexity int, input model.RejectPendingAutorouteInput) int
+		ResumeFhirSubscription       func(childComplexity int, id string) int
+		SignalReviewDecision         func(childComplexity int, input model.SignalReviewDecisionInput) int
+		StartTerminologyReview       func(childComplexity int, input model.StartTerminologyReviewInput) int
+		SubmitBatch                  func(childComplexity int, input model.SubmitBatchInput) int
+		SubmitEvent                  func(childComplexity int, input model.SubmitEventInput) int
+		SubmitMessage                func(childComplexity int, input model.SubmitMessageInput) int
+		TriggerWorkflow              func(childComplexity int, name string, event map[string]any) int
+		UpdateProfile                func(childComplexity int, id string, input model.UpdateProfileInput) int
+		UploadMappingCSV             func(childComplexity int, input model.UploadMappingCSVInput) int
 	}
 
 	NormalizationSettingsConfig struct {
@@ -551,6 +563,41 @@ type ComplexityRoot struct {
 		MRN         func(childComplexity int) int
 	}
 
+	PendingAutoroute struct {
+		Alternates       func(childComplexity int) int
+		Confidence       func(childComplexity int) int
+		CreatedAt        func(childComplexity int) int
+		DecisionTrace    func(childComplexity int) int
+		Equivalence      func(childComplexity int) int
+		ExpiresAt        func(childComplexity int) int
+		ID               func(childComplexity int) int
+		Reasoning        func(childComplexity int) int
+		RejectionReason  func(childComplexity int) int
+		ReviewedAt       func(childComplexity int) int
+		ReviewedBy       func(childComplexity int) int
+		SourceCode       func(childComplexity int) int
+		SourceDisplay    func(childComplexity int) int
+		SourceSystem     func(childComplexity int) int
+		Status           func(childComplexity int) int
+		SuggestedCode    func(childComplexity int) int
+		SuggestedDisplay func(childComplexity int) int
+		TargetSystem     func(childComplexity int) int
+	}
+
+	PendingAutorouteConnection struct {
+		Nodes      func(childComplexity int) int
+		PageInfo   func(childComplexity int) int
+		TotalCount func(childComplexity int) int
+	}
+
+	PendingAutorouteStats struct {
+		ApprovedCount func(childComplexity int) int
+		AvgConfidence func(childComplexity int) int
+		ExpiredCount  func(childComplexity int) int
+		PendingCount  func(childComplexity int) int
+		RejectedCount func(childComplexity int) int
+	}
+
 	Procedure struct {
 		Code       func(childComplexity int) int
 		CodeSystem func(childComplexity int) int
@@ -623,15 +670,18 @@ type ComplexityRoot struct {
 		ExplainWorkflow          func(childComplexity int, input model.ExplainWorkflowInput) int
 		ExtractEntities          func(childComplexity int, input model.ExtractEntitiesInput) int
 		GetMapping               func(childComplexity int, id string) int
+		GetPendingAutoroute      func(childComplexity int, id string) int
 		GetUploadBatch           func(childComplexity int, id string) int
 		Health                   func(childComplexity int) int
 		ListMappings             func(childComplexity int, input *model.ListMappingsInput) int
+		ListPendingAutoroutes    func(childComplexity int, input *model.ListPendingAutoroutesInput) int
 		LookupMapping            func(childComplexity int, sourceSystem string, sourceCode string, targetSystem string, profileID *string) int
 		ParsePreview             func(childComplexity int, format model.SourceFormat, data string, source *string) int
 		ParsePreviewWithProfile  func(childComplexity int, format model.SourceFormat, data string, source *string, profileID *string) int
 		Patient                  func(childComplexity int, mrn string) int
 		PatientTimeline          func(childComplexity int, mrn string, fromTimestamp *time.Time, toTimestamp *time.Time, limit *int) int
 		Patients                 func(childComplexity int, filter *model.PatientFilter, first *int, after *string) int
+		PendingAutorouteStats    func(childComplexity int) int
 		Profile                  func(childComplexity int, id string) int
 		ProfileRevisions         func(childComplexity int, id string) int
 		Profiles                 func(childComplexity int, activeOnly *bool) int
@@ -639,6 +689,8 @@ type ComplexityRoot struct {
 		QuickQualityScore        func(childComplexity int, event map[string]any) int
 		ResolveMapping           func(childComplexity int, input model.ResolveMappingInput) int
 		SuggestMappings          func(childComplexity int, input model.SuggestMappingsInput) int
+		TemporalWorkflow         func(childComplexity int, workflowID string, runID *string) int
+		TemporalWorkflows        func(childComplexity int, filter *model.TemporalWorkflowFilter, first *int, after *string) int
 		Workflow                 func(childComplexity int, name string) int
 		Workflows                func(childComplexity int) int
 	}
@@ -679,6 +731,12 @@ type ComplexityRoot struct {
 		Version     func(childComplexity int) int
 	}
 
+	StartTerminologyReviewResult struct {
+		RunID      func(childComplexity int) int
+		Started    func(childComplexity int) int
+		WorkflowID func(childComplexity int) int
+	}
+
 	SubmitResult struct {
 		Errors          func(childComplexity int) int
 		EventID         func(childComplexity int) int
@@ -691,6 +749,26 @@ type ComplexityRoot struct {
 		EventStream    func(childComplexity int, filter *model.EventFilter) int
 		PatientEvents  func(childComplexity int, mrn string) int
 		WorkflowEvents func(childComplexity int, workflowName string) int
+	}
+
+	TemporalWorkflow struct {
+		CloseTime    func(childComplexity int) int
+		DurationMs   func(childComplexity int) int
+		Error        func(childComplexity int) int
+		ID           func(childComplexity int) int
+		Input        func(childComplexity int) int
+		Result       func(childComplexity int) int
+		RunID        func(childComplexity int) int
+		StartTime    func(childComplexity int) int
+		Status       func(childComplexity int) int
+		TaskQueue    func(childComplexity int) int
+		WorkflowType func(childComplexity int) int
+	}
+
+	TemporalWorkflowConnection struct {
+		Nodes      func(childComplexity int) int
+		PageInfo   func(childComplexity int) int
+		TotalCount func(childComplexity int) int
 	}
 
 	TerminologyConfig struct {
@@ -837,6 +915,12 @@ type MutationResolver interface {
 	CreateMapping(ctx context.Context, input model.CreateMappingInput) (*model.CodeMapping, error)
 	DeleteMapping(ctx context.Context, id string) (bool, error)
 	DeleteMappingBatch(ctx context.Context, batchID string) (int, error)
+	ApprovePendingAutoroute(ctx context.Context, input model.ApprovePendingAutorouteInput) (*model.CodeMapping, error)
+	RejectPendingAutoroute(ctx context.Context, input model.RejectPendingAutorouteInput) (bool, error)
+	BulkApprovePendingAutoroutes(ctx context.Context, input *model.BulkApproveInput) (*model.BulkApproveResult, error)
+	StartTerminologyReview(ctx context.Context, input model.StartTerminologyReviewInput) (*model.StartTerminologyReviewResult, error)
+	SignalReviewDecision(ctx context.Context, input model.SignalReviewDecisionInput) (bool, error)
+	CancelTemporalWorkflow(ctx context.Context, workflowID string, reason *string) (bool, error)
 }
 type QueryResolver interface {
 	Event(ctx context.Context, id string) (model.Event, error)
@@ -869,6 +953,11 @@ type QueryResolver interface {
 	GetUploadBatch(ctx context.Context, id string) (*model.UploadBatch, error)
 	ResolveMapping(ctx context.Context, input model.ResolveMappingInput) (*model.ResolveMappingResult, error)
 	SuggestMappings(ctx context.Context, input model.SuggestMappingsInput) ([]model.MappingCandidate, error)
+	ListPendingAutoroutes(ctx context.Context, input *model.ListPendingAutoroutesInput) (*model.PendingAutorouteConnection, error)
+	GetPendingAutoroute(ctx context.Context, id string) (*model.PendingAutoroute, error)
+	PendingAutorouteStats(ctx context.Context) (*model.PendingAutorouteStats, error)
+	TemporalWorkflow(ctx context.Context, workflowID string, runID *string) (*model.TemporalWorkflow, error)
+	TemporalWorkflows(ctx context.Context, filter *model.TemporalWorkflowFilter, first *int, after *string) (*model.TemporalWorkflowConnection, error)
 }
 type SubscriptionResolver interface {
 	EventStream(ctx context.Context, filter *model.EventFilter) (<-chan model.Event, error)
@@ -1227,6 +1316,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.BatchResult.TotalItems(childComplexity), true
+
+	case "BulkApproveResult.approved":
+		if e.complexity.BulkApproveResult.Approved == nil {
+			break
+		}
+
+		return e.complexity.BulkApproveResult.Approved(childComplexity), true
+	case "BulkApproveResult.mappings":
+		if e.complexity.BulkApproveResult.Mappings == nil {
+			break
+		}
+
+		return e.complexity.BulkApproveResult.Mappings(childComplexity), true
+	case "BulkApproveResult.skipped":
+		if e.complexity.BulkApproveResult.Skipped == nil {
+			break
+		}
+
+		return e.complexity.BulkApproveResult.Skipped(childComplexity), true
 
 	case "CodeMapping.approvedAt":
 		if e.complexity.CodeMapping.ApprovedAt == nil {
@@ -2506,6 +2614,39 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.MessageClassification.Summary(childComplexity), true
 
+	case "Mutation.approvePendingAutoroute":
+		if e.complexity.Mutation.ApprovePendingAutoroute == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_approvePendingAutoroute_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.ApprovePendingAutoroute(childComplexity, args["input"].(model.ApprovePendingAutorouteInput)), true
+	case "Mutation.bulkApprovePendingAutoroutes":
+		if e.complexity.Mutation.BulkApprovePendingAutoroutes == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_bulkApprovePendingAutoroutes_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.BulkApprovePendingAutoroutes(childComplexity, args["input"].(*model.BulkApproveInput)), true
+	case "Mutation.cancelTemporalWorkflow":
+		if e.complexity.Mutation.CancelTemporalWorkflow == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_cancelTemporalWorkflow_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CancelTemporalWorkflow(childComplexity, args["workflowId"].(string), args["reason"].(*string)), true
 	case "Mutation.createFhirSubscription":
 		if e.complexity.Mutation.CreateFhirSubscription == nil {
 			break
@@ -2616,6 +2757,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.PauseFhirSubscription(childComplexity, args["id"].(string)), true
+	case "Mutation.rejectPendingAutoroute":
+		if e.complexity.Mutation.RejectPendingAutoroute == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_rejectPendingAutoroute_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.RejectPendingAutoroute(childComplexity, args["input"].(model.RejectPendingAutorouteInput)), true
 	case "Mutation.resumeFhirSubscription":
 		if e.complexity.Mutation.ResumeFhirSubscription == nil {
 			break
@@ -2627,6 +2779,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.ResumeFhirSubscription(childComplexity, args["id"].(string)), true
+	case "Mutation.signalReviewDecision":
+		if e.complexity.Mutation.SignalReviewDecision == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_signalReviewDecision_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.SignalReviewDecision(childComplexity, args["input"].(model.SignalReviewDecisionInput)), true
+	case "Mutation.startTerminologyReview":
+		if e.complexity.Mutation.StartTerminologyReview == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_startTerminologyReview_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.StartTerminologyReview(childComplexity, args["input"].(model.StartTerminologyReviewInput)), true
 	case "Mutation.submitBatch":
 		if e.complexity.Mutation.SubmitBatch == nil {
 			break
@@ -3040,6 +3214,165 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.PatientTimeline.MRN(childComplexity), true
 
+	case "PendingAutoroute.alternates":
+		if e.complexity.PendingAutoroute.Alternates == nil {
+			break
+		}
+
+		return e.complexity.PendingAutoroute.Alternates(childComplexity), true
+	case "PendingAutoroute.confidence":
+		if e.complexity.PendingAutoroute.Confidence == nil {
+			break
+		}
+
+		return e.complexity.PendingAutoroute.Confidence(childComplexity), true
+	case "PendingAutoroute.createdAt":
+		if e.complexity.PendingAutoroute.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.PendingAutoroute.CreatedAt(childComplexity), true
+	case "PendingAutoroute.decisionTrace":
+		if e.complexity.PendingAutoroute.DecisionTrace == nil {
+			break
+		}
+
+		return e.complexity.PendingAutoroute.DecisionTrace(childComplexity), true
+	case "PendingAutoroute.equivalence":
+		if e.complexity.PendingAutoroute.Equivalence == nil {
+			break
+		}
+
+		return e.complexity.PendingAutoroute.Equivalence(childComplexity), true
+	case "PendingAutoroute.expiresAt":
+		if e.complexity.PendingAutoroute.ExpiresAt == nil {
+			break
+		}
+
+		return e.complexity.PendingAutoroute.ExpiresAt(childComplexity), true
+	case "PendingAutoroute.id":
+		if e.complexity.PendingAutoroute.ID == nil {
+			break
+		}
+
+		return e.complexity.PendingAutoroute.ID(childComplexity), true
+	case "PendingAutoroute.reasoning":
+		if e.complexity.PendingAutoroute.Reasoning == nil {
+			break
+		}
+
+		return e.complexity.PendingAutoroute.Reasoning(childComplexity), true
+	case "PendingAutoroute.rejectionReason":
+		if e.complexity.PendingAutoroute.RejectionReason == nil {
+			break
+		}
+
+		return e.complexity.PendingAutoroute.RejectionReason(childComplexity), true
+	case "PendingAutoroute.reviewedAt":
+		if e.complexity.PendingAutoroute.ReviewedAt == nil {
+			break
+		}
+
+		return e.complexity.PendingAutoroute.ReviewedAt(childComplexity), true
+	case "PendingAutoroute.reviewedBy":
+		if e.complexity.PendingAutoroute.ReviewedBy == nil {
+			break
+		}
+
+		return e.complexity.PendingAutoroute.ReviewedBy(childComplexity), true
+	case "PendingAutoroute.sourceCode":
+		if e.complexity.PendingAutoroute.SourceCode == nil {
+			break
+		}
+
+		return e.complexity.PendingAutoroute.SourceCode(childComplexity), true
+	case "PendingAutoroute.sourceDisplay":
+		if e.complexity.PendingAutoroute.SourceDisplay == nil {
+			break
+		}
+
+		return e.complexity.PendingAutoroute.SourceDisplay(childComplexity), true
+	case "PendingAutoroute.sourceSystem":
+		if e.complexity.PendingAutoroute.SourceSystem == nil {
+			break
+		}
+
+		return e.complexity.PendingAutoroute.SourceSystem(childComplexity), true
+	case "PendingAutoroute.status":
+		if e.complexity.PendingAutoroute.Status == nil {
+			break
+		}
+
+		return e.complexity.PendingAutoroute.Status(childComplexity), true
+	case "PendingAutoroute.suggestedCode":
+		if e.complexity.PendingAutoroute.SuggestedCode == nil {
+			break
+		}
+
+		return e.complexity.PendingAutoroute.SuggestedCode(childComplexity), true
+	case "PendingAutoroute.suggestedDisplay":
+		if e.complexity.PendingAutoroute.SuggestedDisplay == nil {
+			break
+		}
+
+		return e.complexity.PendingAutoroute.SuggestedDisplay(childComplexity), true
+	case "PendingAutoroute.targetSystem":
+		if e.complexity.PendingAutoroute.TargetSystem == nil {
+			break
+		}
+
+		return e.complexity.PendingAutoroute.TargetSystem(childComplexity), true
+
+	case "PendingAutorouteConnection.nodes":
+		if e.complexity.PendingAutorouteConnection.Nodes == nil {
+			break
+		}
+
+		return e.complexity.PendingAutorouteConnection.Nodes(childComplexity), true
+	case "PendingAutorouteConnection.pageInfo":
+		if e.complexity.PendingAutorouteConnection.PageInfo == nil {
+			break
+		}
+
+		return e.complexity.PendingAutorouteConnection.PageInfo(childComplexity), true
+	case "PendingAutorouteConnection.totalCount":
+		if e.complexity.PendingAutorouteConnection.TotalCount == nil {
+			break
+		}
+
+		return e.complexity.PendingAutorouteConnection.TotalCount(childComplexity), true
+
+	case "PendingAutorouteStats.approvedCount":
+		if e.complexity.PendingAutorouteStats.ApprovedCount == nil {
+			break
+		}
+
+		return e.complexity.PendingAutorouteStats.ApprovedCount(childComplexity), true
+	case "PendingAutorouteStats.avgConfidence":
+		if e.complexity.PendingAutorouteStats.AvgConfidence == nil {
+			break
+		}
+
+		return e.complexity.PendingAutorouteStats.AvgConfidence(childComplexity), true
+	case "PendingAutorouteStats.expiredCount":
+		if e.complexity.PendingAutorouteStats.ExpiredCount == nil {
+			break
+		}
+
+		return e.complexity.PendingAutorouteStats.ExpiredCount(childComplexity), true
+	case "PendingAutorouteStats.pendingCount":
+		if e.complexity.PendingAutorouteStats.PendingCount == nil {
+			break
+		}
+
+		return e.complexity.PendingAutorouteStats.PendingCount(childComplexity), true
+	case "PendingAutorouteStats.rejectedCount":
+		if e.complexity.PendingAutorouteStats.RejectedCount == nil {
+			break
+		}
+
+		return e.complexity.PendingAutorouteStats.RejectedCount(childComplexity), true
+
 	case "Procedure.code":
 		if e.complexity.Procedure.Code == nil {
 			break
@@ -3402,6 +3735,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.GetMapping(childComplexity, args["id"].(string)), true
+	case "Query.getPendingAutoroute":
+		if e.complexity.Query.GetPendingAutoroute == nil {
+			break
+		}
+
+		args, err := ec.field_Query_getPendingAutoroute_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.GetPendingAutoroute(childComplexity, args["id"].(string)), true
 	case "Query.getUploadBatch":
 		if e.complexity.Query.GetUploadBatch == nil {
 			break
@@ -3430,6 +3774,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.ListMappings(childComplexity, args["input"].(*model.ListMappingsInput)), true
+	case "Query.listPendingAutoroutes":
+		if e.complexity.Query.ListPendingAutoroutes == nil {
+			break
+		}
+
+		args, err := ec.field_Query_listPendingAutoroutes_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.ListPendingAutoroutes(childComplexity, args["input"].(*model.ListPendingAutoroutesInput)), true
 	case "Query.lookupMapping":
 		if e.complexity.Query.LookupMapping == nil {
 			break
@@ -3496,6 +3851,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.Patients(childComplexity, args["filter"].(*model.PatientFilter), args["first"].(*int), args["after"].(*string)), true
+	case "Query.pendingAutorouteStats":
+		if e.complexity.Query.PendingAutorouteStats == nil {
+			break
+		}
+
+		return e.complexity.Query.PendingAutorouteStats(childComplexity), true
 	case "Query.profile":
 		if e.complexity.Query.Profile == nil {
 			break
@@ -3568,6 +3929,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.SuggestMappings(childComplexity, args["input"].(model.SuggestMappingsInput)), true
+	case "Query.temporalWorkflow":
+		if e.complexity.Query.TemporalWorkflow == nil {
+			break
+		}
+
+		args, err := ec.field_Query_temporalWorkflow_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.TemporalWorkflow(childComplexity, args["workflowId"].(string), args["runId"].(*string)), true
+	case "Query.temporalWorkflows":
+		if e.complexity.Query.TemporalWorkflows == nil {
+			break
+		}
+
+		args, err := ec.field_Query_temporalWorkflows_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.TemporalWorkflows(childComplexity, args["filter"].(*model.TemporalWorkflowFilter), args["first"].(*int), args["after"].(*string)), true
 	case "Query.workflow":
 		if e.complexity.Query.Workflow == nil {
 			break
@@ -3734,6 +4117,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.SourceProfile.Version(childComplexity), true
 
+	case "StartTerminologyReviewResult.runId":
+		if e.complexity.StartTerminologyReviewResult.RunID == nil {
+			break
+		}
+
+		return e.complexity.StartTerminologyReviewResult.RunID(childComplexity), true
+	case "StartTerminologyReviewResult.started":
+		if e.complexity.StartTerminologyReviewResult.Started == nil {
+			break
+		}
+
+		return e.complexity.StartTerminologyReviewResult.Started(childComplexity), true
+	case "StartTerminologyReviewResult.workflowId":
+		if e.complexity.StartTerminologyReviewResult.WorkflowID == nil {
+			break
+		}
+
+		return e.complexity.StartTerminologyReviewResult.WorkflowID(childComplexity), true
+
 	case "SubmitResult.errors":
 		if e.complexity.SubmitResult.Errors == nil {
 			break
@@ -3798,6 +4200,92 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Subscription.WorkflowEvents(childComplexity, args["workflowName"].(string)), true
+
+	case "TemporalWorkflow.closeTime":
+		if e.complexity.TemporalWorkflow.CloseTime == nil {
+			break
+		}
+
+		return e.complexity.TemporalWorkflow.CloseTime(childComplexity), true
+	case "TemporalWorkflow.durationMs":
+		if e.complexity.TemporalWorkflow.DurationMs == nil {
+			break
+		}
+
+		return e.complexity.TemporalWorkflow.DurationMs(childComplexity), true
+	case "TemporalWorkflow.error":
+		if e.complexity.TemporalWorkflow.Error == nil {
+			break
+		}
+
+		return e.complexity.TemporalWorkflow.Error(childComplexity), true
+	case "TemporalWorkflow.id":
+		if e.complexity.TemporalWorkflow.ID == nil {
+			break
+		}
+
+		return e.complexity.TemporalWorkflow.ID(childComplexity), true
+	case "TemporalWorkflow.input":
+		if e.complexity.TemporalWorkflow.Input == nil {
+			break
+		}
+
+		return e.complexity.TemporalWorkflow.Input(childComplexity), true
+	case "TemporalWorkflow.result":
+		if e.complexity.TemporalWorkflow.Result == nil {
+			break
+		}
+
+		return e.complexity.TemporalWorkflow.Result(childComplexity), true
+	case "TemporalWorkflow.runId":
+		if e.complexity.TemporalWorkflow.RunID == nil {
+			break
+		}
+
+		return e.complexity.TemporalWorkflow.RunID(childComplexity), true
+	case "TemporalWorkflow.startTime":
+		if e.complexity.TemporalWorkflow.StartTime == nil {
+			break
+		}
+
+		return e.complexity.TemporalWorkflow.StartTime(childComplexity), true
+	case "TemporalWorkflow.status":
+		if e.complexity.TemporalWorkflow.Status == nil {
+			break
+		}
+
+		return e.complexity.TemporalWorkflow.Status(childComplexity), true
+	case "TemporalWorkflow.taskQueue":
+		if e.complexity.TemporalWorkflow.TaskQueue == nil {
+			break
+		}
+
+		return e.complexity.TemporalWorkflow.TaskQueue(childComplexity), true
+	case "TemporalWorkflow.workflowType":
+		if e.complexity.TemporalWorkflow.WorkflowType == nil {
+			break
+		}
+
+		return e.complexity.TemporalWorkflow.WorkflowType(childComplexity), true
+
+	case "TemporalWorkflowConnection.nodes":
+		if e.complexity.TemporalWorkflowConnection.Nodes == nil {
+			break
+		}
+
+		return e.complexity.TemporalWorkflowConnection.Nodes(childComplexity), true
+	case "TemporalWorkflowConnection.pageInfo":
+		if e.complexity.TemporalWorkflowConnection.PageInfo == nil {
+			break
+		}
+
+		return e.complexity.TemporalWorkflowConnection.PageInfo(childComplexity), true
+	case "TemporalWorkflowConnection.totalCount":
+		if e.complexity.TemporalWorkflowConnection.TotalCount == nil {
+			break
+		}
+
+		return e.complexity.TemporalWorkflowConnection.TotalCount(childComplexity), true
 
 	case "TerminologyConfig.mappings":
 		if e.complexity.TerminologyConfig.Mappings == nil {
@@ -4286,9 +4774,11 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	ec := executionContext{opCtx, e, 0, 0, make(chan graphql.DeferredResult)}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputAnalyzeQualityInput,
+		ec.unmarshalInputApprovePendingAutorouteInput,
 		ec.unmarshalInputAssigningAuthorityInput,
 		ec.unmarshalInputBatchEventItem,
 		ec.unmarshalInputBatchMessageItem,
+		ec.unmarshalInputBulkApproveInput,
 		ec.unmarshalInputClassifyMessageInput,
 		ec.unmarshalInputCreateMappingInput,
 		ec.unmarshalInputCreateProfileInput,
@@ -4303,14 +4793,19 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputIDPreferenceRuleInput,
 		ec.unmarshalInputIdentifierConfigInput,
 		ec.unmarshalInputListMappingsInput,
+		ec.unmarshalInputListPendingAutoroutesInput,
 		ec.unmarshalInputNormalizationSettingsInput,
 		ec.unmarshalInputParseWarningInput,
 		ec.unmarshalInputPatientFilter,
+		ec.unmarshalInputRejectPendingAutorouteInput,
 		ec.unmarshalInputResolveMappingInput,
+		ec.unmarshalInputSignalReviewDecisionInput,
+		ec.unmarshalInputStartTerminologyReviewInput,
 		ec.unmarshalInputSubmitBatchInput,
 		ec.unmarshalInputSubmitEventInput,
 		ec.unmarshalInputSubmitMessageInput,
 		ec.unmarshalInputSuggestMappingsInput,
+		ec.unmarshalInputTemporalWorkflowFilter,
 		ec.unmarshalInputTerminologyConfigInput,
 		ec.unmarshalInputTerminologyMappingEntryInput,
 		ec.unmarshalInputTerminologyMappingTableInput,
@@ -4452,6 +4947,44 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 
 // region    ***************************** args.gotpl *****************************
 
+func (ec *executionContext) field_Mutation_approvePendingAutoroute_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNApprovePendingAutorouteInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐApprovePendingAutorouteInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_bulkApprovePendingAutoroutes_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalOBulkApproveInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBulkApproveInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_cancelTemporalWorkflow_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "workflowId", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["workflowId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "reason", ec.unmarshalOString2ᚖstring)
+	if err != nil {
+		return nil, err
+	}
+	args["reason"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createFhirSubscription_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -4572,6 +5105,17 @@ func (ec *executionContext) field_Mutation_pauseFhirSubscription_args(ctx contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_rejectPendingAutoroute_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNRejectPendingAutorouteInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐRejectPendingAutorouteInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_resumeFhirSubscription_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -4580,6 +5124,28 @@ func (ec *executionContext) field_Mutation_resumeFhirSubscription_args(ctx conte
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_signalReviewDecision_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNSignalReviewDecisionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSignalReviewDecisionInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_startTerminologyReview_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNStartTerminologyReviewInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐStartTerminologyReviewInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -4821,6 +5387,17 @@ func (ec *executionContext) field_Query_getMapping_args(ctx context.Context, raw
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_getPendingAutoroute_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_getUploadBatch_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -4836,6 +5413,17 @@ func (ec *executionContext) field_Query_listMappings_args(ctx context.Context, r
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalOListMappingsInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐListMappingsInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_listPendingAutoroutes_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalOListPendingAutoroutesInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐListPendingAutoroutesInput)
 	if err != nil {
 		return nil, err
 	}
@@ -5037,6 +5625,43 @@ func (ec *executionContext) field_Query_suggestMappings_args(ctx context.Context
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_temporalWorkflow_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "workflowId", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["workflowId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "runId", ec.unmarshalOString2ᚖstring)
+	if err != nil {
+		return nil, err
+	}
+	args["runId"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_temporalWorkflows_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "filter", ec.unmarshalOTemporalWorkflowFilter2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTemporalWorkflowFilter)
+	if err != nil {
+		return nil, err
+	}
+	args["filter"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "first", ec.unmarshalOInt2ᚖint)
+	if err != nil {
+		return nil, err
+	}
+	args["first"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "after", ec.unmarshalOString2ᚖstring)
+	if err != nil {
+		return nil, err
+	}
+	args["after"] = arg2
 	return args, nil
 }
 
@@ -6815,6 +7440,129 @@ func (ec *executionContext) fieldContext_BatchResult_durationMs(_ context.Contex
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BulkApproveResult_approved(ctx context.Context, field graphql.CollectedField, obj *model.BulkApproveResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BulkApproveResult_approved,
+		func(ctx context.Context) (any, error) {
+			return obj.Approved, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BulkApproveResult_approved(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BulkApproveResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BulkApproveResult_skipped(ctx context.Context, field graphql.CollectedField, obj *model.BulkApproveResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BulkApproveResult_skipped,
+		func(ctx context.Context) (any, error) {
+			return obj.Skipped, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BulkApproveResult_skipped(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BulkApproveResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BulkApproveResult_mappings(ctx context.Context, field graphql.CollectedField, obj *model.BulkApproveResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BulkApproveResult_mappings,
+		func(ctx context.Context) (any, error) {
+			return obj.Mappings, nil
+		},
+		nil,
+		ec.marshalNCodeMapping2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐCodeMappingᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BulkApproveResult_mappings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BulkApproveResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_CodeMapping_id(ctx, field)
+			case "sourceSystem":
+				return ec.fieldContext_CodeMapping_sourceSystem(ctx, field)
+			case "sourceCode":
+				return ec.fieldContext_CodeMapping_sourceCode(ctx, field)
+			case "sourceDisplay":
+				return ec.fieldContext_CodeMapping_sourceDisplay(ctx, field)
+			case "targetSystem":
+				return ec.fieldContext_CodeMapping_targetSystem(ctx, field)
+			case "targetCode":
+				return ec.fieldContext_CodeMapping_targetCode(ctx, field)
+			case "targetDisplay":
+				return ec.fieldContext_CodeMapping_targetDisplay(ctx, field)
+			case "equivalence":
+				return ec.fieldContext_CodeMapping_equivalence(ctx, field)
+			case "confidence":
+				return ec.fieldContext_CodeMapping_confidence(ctx, field)
+			case "comment":
+				return ec.fieldContext_CodeMapping_comment(ctx, field)
+			case "origin":
+				return ec.fieldContext_CodeMapping_origin(ctx, field)
+			case "profileId":
+				return ec.fieldContext_CodeMapping_profileId(ctx, field)
+			case "uploadBatchId":
+				return ec.fieldContext_CodeMapping_uploadBatchId(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_CodeMapping_createdAt(ctx, field)
+			case "createdBy":
+				return ec.fieldContext_CodeMapping_createdBy(ctx, field)
+			case "approvedAt":
+				return ec.fieldContext_CodeMapping_approvedAt(ctx, field)
+			case "approvedBy":
+				return ec.fieldContext_CodeMapping_approvedBy(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CodeMapping", field.Name)
 		},
 	}
 	return fc, nil
@@ -14164,6 +14912,304 @@ func (ec *executionContext) fieldContext_Mutation_deleteMappingBatch(ctx context
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_approvePendingAutoroute(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_approvePendingAutoroute,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().ApprovePendingAutoroute(ctx, fc.Args["input"].(model.ApprovePendingAutorouteInput))
+		},
+		nil,
+		ec.marshalNCodeMapping2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐCodeMapping,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_approvePendingAutoroute(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_CodeMapping_id(ctx, field)
+			case "sourceSystem":
+				return ec.fieldContext_CodeMapping_sourceSystem(ctx, field)
+			case "sourceCode":
+				return ec.fieldContext_CodeMapping_sourceCode(ctx, field)
+			case "sourceDisplay":
+				return ec.fieldContext_CodeMapping_sourceDisplay(ctx, field)
+			case "targetSystem":
+				return ec.fieldContext_CodeMapping_targetSystem(ctx, field)
+			case "targetCode":
+				return ec.fieldContext_CodeMapping_targetCode(ctx, field)
+			case "targetDisplay":
+				return ec.fieldContext_CodeMapping_targetDisplay(ctx, field)
+			case "equivalence":
+				return ec.fieldContext_CodeMapping_equivalence(ctx, field)
+			case "confidence":
+				return ec.fieldContext_CodeMapping_confidence(ctx, field)
+			case "comment":
+				return ec.fieldContext_CodeMapping_comment(ctx, field)
+			case "origin":
+				return ec.fieldContext_CodeMapping_origin(ctx, field)
+			case "profileId":
+				return ec.fieldContext_CodeMapping_profileId(ctx, field)
+			case "uploadBatchId":
+				return ec.fieldContext_CodeMapping_uploadBatchId(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_CodeMapping_createdAt(ctx, field)
+			case "createdBy":
+				return ec.fieldContext_CodeMapping_createdBy(ctx, field)
+			case "approvedAt":
+				return ec.fieldContext_CodeMapping_approvedAt(ctx, field)
+			case "approvedBy":
+				return ec.fieldContext_CodeMapping_approvedBy(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CodeMapping", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_approvePendingAutoroute_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_rejectPendingAutoroute(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_rejectPendingAutoroute,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().RejectPendingAutoroute(ctx, fc.Args["input"].(model.RejectPendingAutorouteInput))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_rejectPendingAutoroute(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_rejectPendingAutoroute_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_bulkApprovePendingAutoroutes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_bulkApprovePendingAutoroutes,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().BulkApprovePendingAutoroutes(ctx, fc.Args["input"].(*model.BulkApproveInput))
+		},
+		nil,
+		ec.marshalNBulkApproveResult2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBulkApproveResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_bulkApprovePendingAutoroutes(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "approved":
+				return ec.fieldContext_BulkApproveResult_approved(ctx, field)
+			case "skipped":
+				return ec.fieldContext_BulkApproveResult_skipped(ctx, field)
+			case "mappings":
+				return ec.fieldContext_BulkApproveResult_mappings(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type BulkApproveResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_bulkApprovePendingAutoroutes_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_startTerminologyReview(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_startTerminologyReview,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().StartTerminologyReview(ctx, fc.Args["input"].(model.StartTerminologyReviewInput))
+		},
+		nil,
+		ec.marshalNStartTerminologyReviewResult2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐStartTerminologyReviewResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_startTerminologyReview(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "workflowId":
+				return ec.fieldContext_StartTerminologyReviewResult_workflowId(ctx, field)
+			case "runId":
+				return ec.fieldContext_StartTerminologyReviewResult_runId(ctx, field)
+			case "started":
+				return ec.fieldContext_StartTerminologyReviewResult_started(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type StartTerminologyReviewResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_startTerminologyReview_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_signalReviewDecision(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_signalReviewDecision,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().SignalReviewDecision(ctx, fc.Args["input"].(model.SignalReviewDecisionInput))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_signalReviewDecision(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_signalReviewDecision_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_cancelTemporalWorkflow(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_cancelTemporalWorkflow,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().CancelTemporalWorkflow(ctx, fc.Args["workflowId"].(string), fc.Args["reason"].(*string))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_cancelTemporalWorkflow(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_cancelTemporalWorkflow_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _NormalizationSettingsConfig_ssnStripDashes(ctx context.Context, field graphql.CollectedField, obj *model.NormalizationSettingsConfig) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -15955,6 +17001,834 @@ func (ec *executionContext) fieldContext_PatientTimeline_eventCount(_ context.Co
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PendingAutoroute_id(ctx context.Context, field graphql.CollectedField, obj *model.PendingAutoroute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PendingAutoroute_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PendingAutoroute_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PendingAutoroute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PendingAutoroute_sourceSystem(ctx context.Context, field graphql.CollectedField, obj *model.PendingAutoroute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PendingAutoroute_sourceSystem,
+		func(ctx context.Context) (any, error) {
+			return obj.SourceSystem, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PendingAutoroute_sourceSystem(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PendingAutoroute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PendingAutoroute_sourceCode(ctx context.Context, field graphql.CollectedField, obj *model.PendingAutoroute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PendingAutoroute_sourceCode,
+		func(ctx context.Context) (any, error) {
+			return obj.SourceCode, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PendingAutoroute_sourceCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PendingAutoroute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PendingAutoroute_sourceDisplay(ctx context.Context, field graphql.CollectedField, obj *model.PendingAutoroute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PendingAutoroute_sourceDisplay,
+		func(ctx context.Context) (any, error) {
+			return obj.SourceDisplay, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_PendingAutoroute_sourceDisplay(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PendingAutoroute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PendingAutoroute_targetSystem(ctx context.Context, field graphql.CollectedField, obj *model.PendingAutoroute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PendingAutoroute_targetSystem,
+		func(ctx context.Context) (any, error) {
+			return obj.TargetSystem, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PendingAutoroute_targetSystem(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PendingAutoroute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PendingAutoroute_suggestedCode(ctx context.Context, field graphql.CollectedField, obj *model.PendingAutoroute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PendingAutoroute_suggestedCode,
+		func(ctx context.Context) (any, error) {
+			return obj.SuggestedCode, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PendingAutoroute_suggestedCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PendingAutoroute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PendingAutoroute_suggestedDisplay(ctx context.Context, field graphql.CollectedField, obj *model.PendingAutoroute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PendingAutoroute_suggestedDisplay,
+		func(ctx context.Context) (any, error) {
+			return obj.SuggestedDisplay, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_PendingAutoroute_suggestedDisplay(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PendingAutoroute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PendingAutoroute_confidence(ctx context.Context, field graphql.CollectedField, obj *model.PendingAutoroute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PendingAutoroute_confidence,
+		func(ctx context.Context) (any, error) {
+			return obj.Confidence, nil
+		},
+		nil,
+		ec.marshalNFloat2float64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PendingAutoroute_confidence(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PendingAutoroute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PendingAutoroute_equivalence(ctx context.Context, field graphql.CollectedField, obj *model.PendingAutoroute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PendingAutoroute_equivalence,
+		func(ctx context.Context) (any, error) {
+			return obj.Equivalence, nil
+		},
+		nil,
+		ec.marshalOMappingEquivalence2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐMappingEquivalence,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_PendingAutoroute_equivalence(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PendingAutoroute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type MappingEquivalence does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PendingAutoroute_reasoning(ctx context.Context, field graphql.CollectedField, obj *model.PendingAutoroute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PendingAutoroute_reasoning,
+		func(ctx context.Context) (any, error) {
+			return obj.Reasoning, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_PendingAutoroute_reasoning(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PendingAutoroute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PendingAutoroute_decisionTrace(ctx context.Context, field graphql.CollectedField, obj *model.PendingAutoroute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PendingAutoroute_decisionTrace,
+		func(ctx context.Context) (any, error) {
+			return obj.DecisionTrace, nil
+		},
+		nil,
+		ec.marshalOAutorouteTrace2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAutorouteTrace,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_PendingAutoroute_decisionTrace(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PendingAutoroute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "traceId":
+				return ec.fieldContext_AutorouteTrace_traceId(ctx, field)
+			case "timestamp":
+				return ec.fieldContext_AutorouteTrace_timestamp(ctx, field)
+			case "steps":
+				return ec.fieldContext_AutorouteTrace_steps(ctx, field)
+			case "totalDurationMs":
+				return ec.fieldContext_AutorouteTrace_totalDurationMs(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type AutorouteTrace", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PendingAutoroute_alternates(ctx context.Context, field graphql.CollectedField, obj *model.PendingAutoroute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PendingAutoroute_alternates,
+		func(ctx context.Context) (any, error) {
+			return obj.Alternates, nil
+		},
+		nil,
+		ec.marshalNMappingCandidate2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐMappingCandidateᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PendingAutoroute_alternates(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PendingAutoroute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "code":
+				return ec.fieldContext_MappingCandidate_code(ctx, field)
+			case "display":
+				return ec.fieldContext_MappingCandidate_display(ctx, field)
+			case "system":
+				return ec.fieldContext_MappingCandidate_system(ctx, field)
+			case "confidence":
+				return ec.fieldContext_MappingCandidate_confidence(ctx, field)
+			case "equivalence":
+				return ec.fieldContext_MappingCandidate_equivalence(ctx, field)
+			case "reasoning":
+				return ec.fieldContext_MappingCandidate_reasoning(ctx, field)
+			case "score":
+				return ec.fieldContext_MappingCandidate_score(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MappingCandidate", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PendingAutoroute_status(ctx context.Context, field graphql.CollectedField, obj *model.PendingAutoroute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PendingAutoroute_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNPendingAutorouteStatus2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPendingAutorouteStatus,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PendingAutoroute_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PendingAutoroute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type PendingAutorouteStatus does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PendingAutoroute_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.PendingAutoroute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PendingAutoroute_createdAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PendingAutoroute_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PendingAutoroute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PendingAutoroute_expiresAt(ctx context.Context, field graphql.CollectedField, obj *model.PendingAutoroute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PendingAutoroute_expiresAt,
+		func(ctx context.Context) (any, error) {
+			return obj.ExpiresAt, nil
+		},
+		nil,
+		ec.marshalODateTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_PendingAutoroute_expiresAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PendingAutoroute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PendingAutoroute_reviewedAt(ctx context.Context, field graphql.CollectedField, obj *model.PendingAutoroute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PendingAutoroute_reviewedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.ReviewedAt, nil
+		},
+		nil,
+		ec.marshalODateTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_PendingAutoroute_reviewedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PendingAutoroute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PendingAutoroute_reviewedBy(ctx context.Context, field graphql.CollectedField, obj *model.PendingAutoroute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PendingAutoroute_reviewedBy,
+		func(ctx context.Context) (any, error) {
+			return obj.ReviewedBy, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_PendingAutoroute_reviewedBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PendingAutoroute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PendingAutoroute_rejectionReason(ctx context.Context, field graphql.CollectedField, obj *model.PendingAutoroute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PendingAutoroute_rejectionReason,
+		func(ctx context.Context) (any, error) {
+			return obj.RejectionReason, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_PendingAutoroute_rejectionReason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PendingAutoroute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PendingAutorouteConnection_nodes(ctx context.Context, field graphql.CollectedField, obj *model.PendingAutorouteConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PendingAutorouteConnection_nodes,
+		func(ctx context.Context) (any, error) {
+			return obj.Nodes, nil
+		},
+		nil,
+		ec.marshalNPendingAutoroute2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPendingAutorouteᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PendingAutorouteConnection_nodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PendingAutorouteConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_PendingAutoroute_id(ctx, field)
+			case "sourceSystem":
+				return ec.fieldContext_PendingAutoroute_sourceSystem(ctx, field)
+			case "sourceCode":
+				return ec.fieldContext_PendingAutoroute_sourceCode(ctx, field)
+			case "sourceDisplay":
+				return ec.fieldContext_PendingAutoroute_sourceDisplay(ctx, field)
+			case "targetSystem":
+				return ec.fieldContext_PendingAutoroute_targetSystem(ctx, field)
+			case "suggestedCode":
+				return ec.fieldContext_PendingAutoroute_suggestedCode(ctx, field)
+			case "suggestedDisplay":
+				return ec.fieldContext_PendingAutoroute_suggestedDisplay(ctx, field)
+			case "confidence":
+				return ec.fieldContext_PendingAutoroute_confidence(ctx, field)
+			case "equivalence":
+				return ec.fieldContext_PendingAutoroute_equivalence(ctx, field)
+			case "reasoning":
+				return ec.fieldContext_PendingAutoroute_reasoning(ctx, field)
+			case "decisionTrace":
+				return ec.fieldContext_PendingAutoroute_decisionTrace(ctx, field)
+			case "alternates":
+				return ec.fieldContext_PendingAutoroute_alternates(ctx, field)
+			case "status":
+				return ec.fieldContext_PendingAutoroute_status(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_PendingAutoroute_createdAt(ctx, field)
+			case "expiresAt":
+				return ec.fieldContext_PendingAutoroute_expiresAt(ctx, field)
+			case "reviewedAt":
+				return ec.fieldContext_PendingAutoroute_reviewedAt(ctx, field)
+			case "reviewedBy":
+				return ec.fieldContext_PendingAutoroute_reviewedBy(ctx, field)
+			case "rejectionReason":
+				return ec.fieldContext_PendingAutoroute_rejectionReason(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PendingAutoroute", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PendingAutorouteConnection_totalCount(ctx context.Context, field graphql.CollectedField, obj *model.PendingAutorouteConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PendingAutorouteConnection_totalCount,
+		func(ctx context.Context) (any, error) {
+			return obj.TotalCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PendingAutorouteConnection_totalCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PendingAutorouteConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PendingAutorouteConnection_pageInfo(ctx context.Context, field graphql.CollectedField, obj *model.PendingAutorouteConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PendingAutorouteConnection_pageInfo,
+		func(ctx context.Context) (any, error) {
+			return obj.PageInfo, nil
+		},
+		nil,
+		ec.marshalNPageInfo2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPageInfo,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PendingAutorouteConnection_pageInfo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PendingAutorouteConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "hasNextPage":
+				return ec.fieldContext_PageInfo_hasNextPage(ctx, field)
+			case "hasPreviousPage":
+				return ec.fieldContext_PageInfo_hasPreviousPage(ctx, field)
+			case "startCursor":
+				return ec.fieldContext_PageInfo_startCursor(ctx, field)
+			case "endCursor":
+				return ec.fieldContext_PageInfo_endCursor(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PageInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PendingAutorouteStats_pendingCount(ctx context.Context, field graphql.CollectedField, obj *model.PendingAutorouteStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PendingAutorouteStats_pendingCount,
+		func(ctx context.Context) (any, error) {
+			return obj.PendingCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PendingAutorouteStats_pendingCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PendingAutorouteStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PendingAutorouteStats_approvedCount(ctx context.Context, field graphql.CollectedField, obj *model.PendingAutorouteStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PendingAutorouteStats_approvedCount,
+		func(ctx context.Context) (any, error) {
+			return obj.ApprovedCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PendingAutorouteStats_approvedCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PendingAutorouteStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PendingAutorouteStats_rejectedCount(ctx context.Context, field graphql.CollectedField, obj *model.PendingAutorouteStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PendingAutorouteStats_rejectedCount,
+		func(ctx context.Context) (any, error) {
+			return obj.RejectedCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PendingAutorouteStats_rejectedCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PendingAutorouteStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PendingAutorouteStats_expiredCount(ctx context.Context, field graphql.CollectedField, obj *model.PendingAutorouteStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PendingAutorouteStats_expiredCount,
+		func(ctx context.Context) (any, error) {
+			return obj.ExpiredCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PendingAutorouteStats_expiredCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PendingAutorouteStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PendingAutorouteStats_avgConfidence(ctx context.Context, field graphql.CollectedField, obj *model.PendingAutorouteStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PendingAutorouteStats_avgConfidence,
+		func(ctx context.Context) (any, error) {
+			return obj.AvgConfidence, nil
+		},
+		nil,
+		ec.marshalOFloat2ᚖfloat64,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_PendingAutorouteStats_avgConfidence(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PendingAutorouteStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
 		},
 	}
 	return fc, nil
@@ -18750,6 +20624,289 @@ func (ec *executionContext) fieldContext_Query_suggestMappings(ctx context.Conte
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_listPendingAutoroutes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_listPendingAutoroutes,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().ListPendingAutoroutes(ctx, fc.Args["input"].(*model.ListPendingAutoroutesInput))
+		},
+		nil,
+		ec.marshalNPendingAutorouteConnection2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPendingAutorouteConnection,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_listPendingAutoroutes(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "nodes":
+				return ec.fieldContext_PendingAutorouteConnection_nodes(ctx, field)
+			case "totalCount":
+				return ec.fieldContext_PendingAutorouteConnection_totalCount(ctx, field)
+			case "pageInfo":
+				return ec.fieldContext_PendingAutorouteConnection_pageInfo(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PendingAutorouteConnection", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_listPendingAutoroutes_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_getPendingAutoroute(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_getPendingAutoroute,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().GetPendingAutoroute(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		ec.marshalOPendingAutoroute2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPendingAutoroute,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_getPendingAutoroute(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_PendingAutoroute_id(ctx, field)
+			case "sourceSystem":
+				return ec.fieldContext_PendingAutoroute_sourceSystem(ctx, field)
+			case "sourceCode":
+				return ec.fieldContext_PendingAutoroute_sourceCode(ctx, field)
+			case "sourceDisplay":
+				return ec.fieldContext_PendingAutoroute_sourceDisplay(ctx, field)
+			case "targetSystem":
+				return ec.fieldContext_PendingAutoroute_targetSystem(ctx, field)
+			case "suggestedCode":
+				return ec.fieldContext_PendingAutoroute_suggestedCode(ctx, field)
+			case "suggestedDisplay":
+				return ec.fieldContext_PendingAutoroute_suggestedDisplay(ctx, field)
+			case "confidence":
+				return ec.fieldContext_PendingAutoroute_confidence(ctx, field)
+			case "equivalence":
+				return ec.fieldContext_PendingAutoroute_equivalence(ctx, field)
+			case "reasoning":
+				return ec.fieldContext_PendingAutoroute_reasoning(ctx, field)
+			case "decisionTrace":
+				return ec.fieldContext_PendingAutoroute_decisionTrace(ctx, field)
+			case "alternates":
+				return ec.fieldContext_PendingAutoroute_alternates(ctx, field)
+			case "status":
+				return ec.fieldContext_PendingAutoroute_status(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_PendingAutoroute_createdAt(ctx, field)
+			case "expiresAt":
+				return ec.fieldContext_PendingAutoroute_expiresAt(ctx, field)
+			case "reviewedAt":
+				return ec.fieldContext_PendingAutoroute_reviewedAt(ctx, field)
+			case "reviewedBy":
+				return ec.fieldContext_PendingAutoroute_reviewedBy(ctx, field)
+			case "rejectionReason":
+				return ec.fieldContext_PendingAutoroute_rejectionReason(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PendingAutoroute", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_getPendingAutoroute_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_pendingAutorouteStats(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_pendingAutorouteStats,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Query().PendingAutorouteStats(ctx)
+		},
+		nil,
+		ec.marshalNPendingAutorouteStats2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPendingAutorouteStats,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_pendingAutorouteStats(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "pendingCount":
+				return ec.fieldContext_PendingAutorouteStats_pendingCount(ctx, field)
+			case "approvedCount":
+				return ec.fieldContext_PendingAutorouteStats_approvedCount(ctx, field)
+			case "rejectedCount":
+				return ec.fieldContext_PendingAutorouteStats_rejectedCount(ctx, field)
+			case "expiredCount":
+				return ec.fieldContext_PendingAutorouteStats_expiredCount(ctx, field)
+			case "avgConfidence":
+				return ec.fieldContext_PendingAutorouteStats_avgConfidence(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PendingAutorouteStats", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_temporalWorkflow(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_temporalWorkflow,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().TemporalWorkflow(ctx, fc.Args["workflowId"].(string), fc.Args["runId"].(*string))
+		},
+		nil,
+		ec.marshalOTemporalWorkflow2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTemporalWorkflow,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_temporalWorkflow(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_TemporalWorkflow_id(ctx, field)
+			case "runId":
+				return ec.fieldContext_TemporalWorkflow_runId(ctx, field)
+			case "workflowType":
+				return ec.fieldContext_TemporalWorkflow_workflowType(ctx, field)
+			case "status":
+				return ec.fieldContext_TemporalWorkflow_status(ctx, field)
+			case "taskQueue":
+				return ec.fieldContext_TemporalWorkflow_taskQueue(ctx, field)
+			case "startTime":
+				return ec.fieldContext_TemporalWorkflow_startTime(ctx, field)
+			case "closeTime":
+				return ec.fieldContext_TemporalWorkflow_closeTime(ctx, field)
+			case "durationMs":
+				return ec.fieldContext_TemporalWorkflow_durationMs(ctx, field)
+			case "input":
+				return ec.fieldContext_TemporalWorkflow_input(ctx, field)
+			case "result":
+				return ec.fieldContext_TemporalWorkflow_result(ctx, field)
+			case "error":
+				return ec.fieldContext_TemporalWorkflow_error(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type TemporalWorkflow", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_temporalWorkflow_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_temporalWorkflows(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_temporalWorkflows,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().TemporalWorkflows(ctx, fc.Args["filter"].(*model.TemporalWorkflowFilter), fc.Args["first"].(*int), fc.Args["after"].(*string))
+		},
+		nil,
+		ec.marshalNTemporalWorkflowConnection2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTemporalWorkflowConnection,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_temporalWorkflows(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "nodes":
+				return ec.fieldContext_TemporalWorkflowConnection_nodes(ctx, field)
+			case "totalCount":
+				return ec.fieldContext_TemporalWorkflowConnection_totalCount(ctx, field)
+			case "pageInfo":
+				return ec.fieldContext_TemporalWorkflowConnection_pageInfo(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type TemporalWorkflowConnection", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_temporalWorkflows_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -19640,6 +21797,93 @@ func (ec *executionContext) fieldContext_SourceProfile_terminology(_ context.Con
 	return fc, nil
 }
 
+func (ec *executionContext) _StartTerminologyReviewResult_workflowId(ctx context.Context, field graphql.CollectedField, obj *model.StartTerminologyReviewResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_StartTerminologyReviewResult_workflowId,
+		func(ctx context.Context) (any, error) {
+			return obj.WorkflowID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_StartTerminologyReviewResult_workflowId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "StartTerminologyReviewResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _StartTerminologyReviewResult_runId(ctx context.Context, field graphql.CollectedField, obj *model.StartTerminologyReviewResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_StartTerminologyReviewResult_runId,
+		func(ctx context.Context) (any, error) {
+			return obj.RunID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_StartTerminologyReviewResult_runId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "StartTerminologyReviewResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _StartTerminologyReviewResult_started(ctx context.Context, field graphql.CollectedField, obj *model.StartTerminologyReviewResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_StartTerminologyReviewResult_started,
+		func(ctx context.Context) (any, error) {
+			return obj.Started, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_StartTerminologyReviewResult_started(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "StartTerminologyReviewResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _SubmitResult_success(ctx context.Context, field graphql.CollectedField, obj *model.SubmitResult) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -19948,6 +22192,446 @@ func (ec *executionContext) fieldContext_Subscription_patientEvents(ctx context.
 	if fc.Args, err = ec.field_Subscription_patientEvents_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemporalWorkflow_id(ctx context.Context, field graphql.CollectedField, obj *model.TemporalWorkflow) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemporalWorkflow_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemporalWorkflow_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemporalWorkflow",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemporalWorkflow_runId(ctx context.Context, field graphql.CollectedField, obj *model.TemporalWorkflow) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemporalWorkflow_runId,
+		func(ctx context.Context) (any, error) {
+			return obj.RunID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemporalWorkflow_runId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemporalWorkflow",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemporalWorkflow_workflowType(ctx context.Context, field graphql.CollectedField, obj *model.TemporalWorkflow) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemporalWorkflow_workflowType,
+		func(ctx context.Context) (any, error) {
+			return obj.WorkflowType, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemporalWorkflow_workflowType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemporalWorkflow",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemporalWorkflow_status(ctx context.Context, field graphql.CollectedField, obj *model.TemporalWorkflow) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemporalWorkflow_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNTemporalWorkflowStatus2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTemporalWorkflowStatus,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemporalWorkflow_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemporalWorkflow",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type TemporalWorkflowStatus does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemporalWorkflow_taskQueue(ctx context.Context, field graphql.CollectedField, obj *model.TemporalWorkflow) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemporalWorkflow_taskQueue,
+		func(ctx context.Context) (any, error) {
+			return obj.TaskQueue, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemporalWorkflow_taskQueue(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemporalWorkflow",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemporalWorkflow_startTime(ctx context.Context, field graphql.CollectedField, obj *model.TemporalWorkflow) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemporalWorkflow_startTime,
+		func(ctx context.Context) (any, error) {
+			return obj.StartTime, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemporalWorkflow_startTime(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemporalWorkflow",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemporalWorkflow_closeTime(ctx context.Context, field graphql.CollectedField, obj *model.TemporalWorkflow) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemporalWorkflow_closeTime,
+		func(ctx context.Context) (any, error) {
+			return obj.CloseTime, nil
+		},
+		nil,
+		ec.marshalODateTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemporalWorkflow_closeTime(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemporalWorkflow",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemporalWorkflow_durationMs(ctx context.Context, field graphql.CollectedField, obj *model.TemporalWorkflow) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemporalWorkflow_durationMs,
+		func(ctx context.Context) (any, error) {
+			return obj.DurationMs, nil
+		},
+		nil,
+		ec.marshalOInt2ᚖint,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemporalWorkflow_durationMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemporalWorkflow",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemporalWorkflow_input(ctx context.Context, field graphql.CollectedField, obj *model.TemporalWorkflow) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemporalWorkflow_input,
+		func(ctx context.Context) (any, error) {
+			return obj.Input, nil
+		},
+		nil,
+		ec.marshalOJSON2map,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemporalWorkflow_input(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemporalWorkflow",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type JSON does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemporalWorkflow_result(ctx context.Context, field graphql.CollectedField, obj *model.TemporalWorkflow) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemporalWorkflow_result,
+		func(ctx context.Context) (any, error) {
+			return obj.Result, nil
+		},
+		nil,
+		ec.marshalOJSON2map,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemporalWorkflow_result(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemporalWorkflow",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type JSON does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemporalWorkflow_error(ctx context.Context, field graphql.CollectedField, obj *model.TemporalWorkflow) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemporalWorkflow_error,
+		func(ctx context.Context) (any, error) {
+			return obj.Error, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemporalWorkflow_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemporalWorkflow",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemporalWorkflowConnection_nodes(ctx context.Context, field graphql.CollectedField, obj *model.TemporalWorkflowConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemporalWorkflowConnection_nodes,
+		func(ctx context.Context) (any, error) {
+			return obj.Nodes, nil
+		},
+		nil,
+		ec.marshalNTemporalWorkflow2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTemporalWorkflowᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemporalWorkflowConnection_nodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemporalWorkflowConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_TemporalWorkflow_id(ctx, field)
+			case "runId":
+				return ec.fieldContext_TemporalWorkflow_runId(ctx, field)
+			case "workflowType":
+				return ec.fieldContext_TemporalWorkflow_workflowType(ctx, field)
+			case "status":
+				return ec.fieldContext_TemporalWorkflow_status(ctx, field)
+			case "taskQueue":
+				return ec.fieldContext_TemporalWorkflow_taskQueue(ctx, field)
+			case "startTime":
+				return ec.fieldContext_TemporalWorkflow_startTime(ctx, field)
+			case "closeTime":
+				return ec.fieldContext_TemporalWorkflow_closeTime(ctx, field)
+			case "durationMs":
+				return ec.fieldContext_TemporalWorkflow_durationMs(ctx, field)
+			case "input":
+				return ec.fieldContext_TemporalWorkflow_input(ctx, field)
+			case "result":
+				return ec.fieldContext_TemporalWorkflow_result(ctx, field)
+			case "error":
+				return ec.fieldContext_TemporalWorkflow_error(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type TemporalWorkflow", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemporalWorkflowConnection_totalCount(ctx context.Context, field graphql.CollectedField, obj *model.TemporalWorkflowConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemporalWorkflowConnection_totalCount,
+		func(ctx context.Context) (any, error) {
+			return obj.TotalCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemporalWorkflowConnection_totalCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemporalWorkflowConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemporalWorkflowConnection_pageInfo(ctx context.Context, field graphql.CollectedField, obj *model.TemporalWorkflowConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemporalWorkflowConnection_pageInfo,
+		func(ctx context.Context) (any, error) {
+			return obj.PageInfo, nil
+		},
+		nil,
+		ec.marshalNPageInfo2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPageInfo,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemporalWorkflowConnection_pageInfo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemporalWorkflowConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "hasNextPage":
+				return ec.fieldContext_PageInfo_hasNextPage(ctx, field)
+			case "hasPreviousPage":
+				return ec.fieldContext_PageInfo_hasPreviousPage(ctx, field)
+			case "startCursor":
+				return ec.fieldContext_PageInfo_startCursor(ctx, field)
+			case "endCursor":
+				return ec.fieldContext_PageInfo_endCursor(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PageInfo", field.Name)
+		},
 	}
 	return fc, nil
 }
@@ -23815,6 +26499,47 @@ func (ec *executionContext) unmarshalInputAnalyzeQualityInput(ctx context.Contex
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputApprovePendingAutorouteInput(ctx context.Context, obj any) (model.ApprovePendingAutorouteInput, error) {
+	var it model.ApprovePendingAutorouteInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "equivalence", "comment"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "equivalence":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("equivalence"))
+			data, err := ec.unmarshalOMappingEquivalence2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐMappingEquivalence(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Equivalence = data
+		case "comment":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("comment"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Comment = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputAssigningAuthorityInput(ctx context.Context, obj any) (model.AssigningAuthorityInput, error) {
 	var it model.AssigningAuthorityInput
 	asMap := map[string]any{}
@@ -23960,6 +26685,47 @@ func (ec *executionContext) unmarshalInputBatchMessageItem(ctx context.Context, 
 				return it, err
 			}
 			it.Index = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputBulkApproveInput(ctx context.Context, obj any) (model.BulkApproveInput, error) {
+	var it model.BulkApproveInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["minConfidence"]; !present {
+		asMap["minConfidence"] = 0.950000
+	}
+	if _, present := asMap["maxCount"]; !present {
+		asMap["maxCount"] = 100
+	}
+
+	fieldsInOrder := [...]string{"minConfidence", "maxCount"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "minConfidence":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("minConfidence"))
+			data, err := ec.unmarshalOFloat2ᚖfloat64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MinConfidence = data
+		case "maxCount":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxCount"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxCount = data
 		}
 	}
 
@@ -24684,6 +27450,75 @@ func (ec *executionContext) unmarshalInputListMappingsInput(ctx context.Context,
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputListPendingAutoroutesInput(ctx context.Context, obj any) (model.ListPendingAutoroutesInput, error) {
+	var it model.ListPendingAutoroutesInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["first"]; !present {
+		asMap["first"] = 50
+	}
+	if _, present := asMap["offset"]; !present {
+		asMap["offset"] = 0
+	}
+
+	fieldsInOrder := [...]string{"status", "minConfidence", "sourceSystem", "targetSystem", "first", "offset"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "status":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("status"))
+			data, err := ec.unmarshalOPendingAutorouteStatus2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPendingAutorouteStatus(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Status = data
+		case "minConfidence":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("minConfidence"))
+			data, err := ec.unmarshalOFloat2ᚖfloat64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MinConfidence = data
+		case "sourceSystem":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sourceSystem"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SourceSystem = data
+		case "targetSystem":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("targetSystem"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TargetSystem = data
+		case "first":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("first"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.First = data
+		case "offset":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Offset = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputNormalizationSettingsInput(ctx context.Context, obj any) (model.NormalizationSettingsInput, error) {
 	var it model.NormalizationSettingsInput
 	asMap := map[string]any{}
@@ -24835,6 +27670,40 @@ func (ec *executionContext) unmarshalInputPatientFilter(ctx context.Context, obj
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputRejectPendingAutorouteInput(ctx context.Context, obj any) (model.RejectPendingAutorouteInput, error) {
+	var it model.RejectPendingAutorouteInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "reason"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "reason":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("reason"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Reason = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputResolveMappingInput(ctx context.Context, obj any) (model.ResolveMappingInput, error) {
 	var it model.ResolveMappingInput
 	asMap := map[string]any{}
@@ -24905,6 +27774,137 @@ func (ec *executionContext) unmarshalInputResolveMappingInput(ctx context.Contex
 				return it, err
 			}
 			it.MinConfidence = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputSignalReviewDecisionInput(ctx context.Context, obj any) (model.SignalReviewDecisionInput, error) {
+	var it model.SignalReviewDecisionInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"workflowId", "approved", "decidedBy", "equivalenceOverride", "comment", "rejectionReason"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "workflowId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("workflowId"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.WorkflowID = data
+		case "approved":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("approved"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Approved = data
+		case "decidedBy":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("decidedBy"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DecidedBy = data
+		case "equivalenceOverride":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("equivalenceOverride"))
+			data, err := ec.unmarshalOMappingEquivalence2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐMappingEquivalence(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EquivalenceOverride = data
+		case "comment":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("comment"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Comment = data
+		case "rejectionReason":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("rejectionReason"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RejectionReason = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputStartTerminologyReviewInput(ctx context.Context, obj any) (model.StartTerminologyReviewInput, error) {
+	var it model.StartTerminologyReviewInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"sourceCode", "sourceSystem", "sourceDisplay", "targetSystem", "profileId", "autoApproveThreshold", "reviewTimeoutDays"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "sourceCode":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sourceCode"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SourceCode = data
+		case "sourceSystem":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sourceSystem"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SourceSystem = data
+		case "sourceDisplay":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sourceDisplay"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SourceDisplay = data
+		case "targetSystem":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("targetSystem"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TargetSystem = data
+		case "profileId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("profileId"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProfileID = data
+		case "autoApproveThreshold":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("autoApproveThreshold"))
+			data, err := ec.unmarshalOFloat2ᚖfloat64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AutoApproveThreshold = data
+		case "reviewTimeoutDays":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("reviewTimeoutDays"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ReviewTimeoutDays = data
 		}
 	}
 
@@ -25108,6 +28108,54 @@ func (ec *executionContext) unmarshalInputSuggestMappingsInput(ctx context.Conte
 				return it, err
 			}
 			it.MaxCandidates = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputTemporalWorkflowFilter(ctx context.Context, obj any) (model.TemporalWorkflowFilter, error) {
+	var it model.TemporalWorkflowFilter
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"workflowType", "status", "startTimeAfter", "startTimeBefore"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "workflowType":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("workflowType"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.WorkflowType = data
+		case "status":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("status"))
+			data, err := ec.unmarshalOTemporalWorkflowStatus2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTemporalWorkflowStatus(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Status = data
+		case "startTimeAfter":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("startTimeAfter"))
+			data, err := ec.unmarshalODateTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.StartTimeAfter = data
+		case "startTimeBefore":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("startTimeBefore"))
+			data, err := ec.unmarshalODateTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.StartTimeBefore = data
 		}
 	}
 
@@ -26045,6 +29093,55 @@ func (ec *executionContext) _BatchResult(ctx context.Context, sel ast.SelectionS
 			}
 		case "durationMs":
 			out.Values[i] = ec._BatchResult_durationMs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var bulkApproveResultImplementors = []string{"BulkApproveResult"}
+
+func (ec *executionContext) _BulkApproveResult(ctx context.Context, sel ast.SelectionSet, obj *model.BulkApproveResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, bulkApproveResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("BulkApproveResult")
+		case "approved":
+			out.Values[i] = ec._BulkApproveResult_approved(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "skipped":
+			out.Values[i] = ec._BulkApproveResult_skipped(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "mappings":
+			out.Values[i] = ec._BulkApproveResult_mappings(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -28192,6 +31289,48 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "approvePendingAutoroute":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_approvePendingAutoroute(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rejectPendingAutoroute":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_rejectPendingAutoroute(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "bulkApprovePendingAutoroutes":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_bulkApprovePendingAutoroutes(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "startTerminologyReview":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_startTerminologyReview(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "signalReviewDecision":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_signalReviewDecision(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cancelTemporalWorkflow":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_cancelTemporalWorkflow(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -28755,6 +31894,208 @@ func (ec *executionContext) _PatientTimeline(ctx context.Context, sel ast.Select
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var pendingAutorouteImplementors = []string{"PendingAutoroute"}
+
+func (ec *executionContext) _PendingAutoroute(ctx context.Context, sel ast.SelectionSet, obj *model.PendingAutoroute) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, pendingAutorouteImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PendingAutoroute")
+		case "id":
+			out.Values[i] = ec._PendingAutoroute_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sourceSystem":
+			out.Values[i] = ec._PendingAutoroute_sourceSystem(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sourceCode":
+			out.Values[i] = ec._PendingAutoroute_sourceCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sourceDisplay":
+			out.Values[i] = ec._PendingAutoroute_sourceDisplay(ctx, field, obj)
+		case "targetSystem":
+			out.Values[i] = ec._PendingAutoroute_targetSystem(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "suggestedCode":
+			out.Values[i] = ec._PendingAutoroute_suggestedCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "suggestedDisplay":
+			out.Values[i] = ec._PendingAutoroute_suggestedDisplay(ctx, field, obj)
+		case "confidence":
+			out.Values[i] = ec._PendingAutoroute_confidence(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "equivalence":
+			out.Values[i] = ec._PendingAutoroute_equivalence(ctx, field, obj)
+		case "reasoning":
+			out.Values[i] = ec._PendingAutoroute_reasoning(ctx, field, obj)
+		case "decisionTrace":
+			out.Values[i] = ec._PendingAutoroute_decisionTrace(ctx, field, obj)
+		case "alternates":
+			out.Values[i] = ec._PendingAutoroute_alternates(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._PendingAutoroute_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._PendingAutoroute_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "expiresAt":
+			out.Values[i] = ec._PendingAutoroute_expiresAt(ctx, field, obj)
+		case "reviewedAt":
+			out.Values[i] = ec._PendingAutoroute_reviewedAt(ctx, field, obj)
+		case "reviewedBy":
+			out.Values[i] = ec._PendingAutoroute_reviewedBy(ctx, field, obj)
+		case "rejectionReason":
+			out.Values[i] = ec._PendingAutoroute_rejectionReason(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var pendingAutorouteConnectionImplementors = []string{"PendingAutorouteConnection"}
+
+func (ec *executionContext) _PendingAutorouteConnection(ctx context.Context, sel ast.SelectionSet, obj *model.PendingAutorouteConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, pendingAutorouteConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PendingAutorouteConnection")
+		case "nodes":
+			out.Values[i] = ec._PendingAutorouteConnection_nodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "totalCount":
+			out.Values[i] = ec._PendingAutorouteConnection_totalCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pageInfo":
+			out.Values[i] = ec._PendingAutorouteConnection_pageInfo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var pendingAutorouteStatsImplementors = []string{"PendingAutorouteStats"}
+
+func (ec *executionContext) _PendingAutorouteStats(ctx context.Context, sel ast.SelectionSet, obj *model.PendingAutorouteStats) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, pendingAutorouteStatsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PendingAutorouteStats")
+		case "pendingCount":
+			out.Values[i] = ec._PendingAutorouteStats_pendingCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "approvedCount":
+			out.Values[i] = ec._PendingAutorouteStats_approvedCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rejectedCount":
+			out.Values[i] = ec._PendingAutorouteStats_rejectedCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "expiredCount":
+			out.Values[i] = ec._PendingAutorouteStats_expiredCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "avgConfidence":
+			out.Values[i] = ec._PendingAutorouteStats_avgConfidence(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -29813,6 +33154,110 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "listPendingAutoroutes":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_listPendingAutoroutes(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "getPendingAutoroute":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_getPendingAutoroute(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "pendingAutorouteStats":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_pendingAutorouteStats(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "temporalWorkflow":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_temporalWorkflow(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "temporalWorkflows":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_temporalWorkflows(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -30076,6 +33521,55 @@ func (ec *executionContext) _SourceProfile(ctx context.Context, sel ast.Selectio
 	return out
 }
 
+var startTerminologyReviewResultImplementors = []string{"StartTerminologyReviewResult"}
+
+func (ec *executionContext) _StartTerminologyReviewResult(ctx context.Context, sel ast.SelectionSet, obj *model.StartTerminologyReviewResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, startTerminologyReviewResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("StartTerminologyReviewResult")
+		case "workflowId":
+			out.Values[i] = ec._StartTerminologyReviewResult_workflowId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "runId":
+			out.Values[i] = ec._StartTerminologyReviewResult_runId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "started":
+			out.Values[i] = ec._StartTerminologyReviewResult_started(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var submitResultImplementors = []string{"SubmitResult"}
 
 func (ec *executionContext) _SubmitResult(ctx context.Context, sel ast.SelectionSet, obj *model.SubmitResult) graphql.Marshaler {
@@ -30154,6 +33648,129 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
+}
+
+var temporalWorkflowImplementors = []string{"TemporalWorkflow"}
+
+func (ec *executionContext) _TemporalWorkflow(ctx context.Context, sel ast.SelectionSet, obj *model.TemporalWorkflow) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, temporalWorkflowImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TemporalWorkflow")
+		case "id":
+			out.Values[i] = ec._TemporalWorkflow_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "runId":
+			out.Values[i] = ec._TemporalWorkflow_runId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workflowType":
+			out.Values[i] = ec._TemporalWorkflow_workflowType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._TemporalWorkflow_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "taskQueue":
+			out.Values[i] = ec._TemporalWorkflow_taskQueue(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "startTime":
+			out.Values[i] = ec._TemporalWorkflow_startTime(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "closeTime":
+			out.Values[i] = ec._TemporalWorkflow_closeTime(ctx, field, obj)
+		case "durationMs":
+			out.Values[i] = ec._TemporalWorkflow_durationMs(ctx, field, obj)
+		case "input":
+			out.Values[i] = ec._TemporalWorkflow_input(ctx, field, obj)
+		case "result":
+			out.Values[i] = ec._TemporalWorkflow_result(ctx, field, obj)
+		case "error":
+			out.Values[i] = ec._TemporalWorkflow_error(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var temporalWorkflowConnectionImplementors = []string{"TemporalWorkflowConnection"}
+
+func (ec *executionContext) _TemporalWorkflowConnection(ctx context.Context, sel ast.SelectionSet, obj *model.TemporalWorkflowConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, temporalWorkflowConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TemporalWorkflowConnection")
+		case "nodes":
+			out.Values[i] = ec._TemporalWorkflowConnection_nodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "totalCount":
+			out.Values[i] = ec._TemporalWorkflowConnection_totalCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pageInfo":
+			out.Values[i] = ec._TemporalWorkflowConnection_pageInfo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
 }
 
 var terminologyConfigImplementors = []string{"TerminologyConfig"}
@@ -31426,6 +35043,11 @@ func (ec *executionContext) marshalNAppointment2gitlabᚗflexinferᚗaiᚋlibs�
 	return ec._Appointment(ctx, sel, &v)
 }
 
+func (ec *executionContext) unmarshalNApprovePendingAutorouteInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐApprovePendingAutorouteInput(ctx context.Context, v any) (model.ApprovePendingAutorouteInput, error) {
+	res, err := ec.unmarshalInputApprovePendingAutorouteInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNAssigningAuthority2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAssigningAuthority(ctx context.Context, sel ast.SelectionSet, v model.AssigningAuthority) graphql.Marshaler {
 	return ec._AssigningAuthority(ctx, sel, &v)
 }
@@ -31623,6 +35245,20 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) marshalNBulkApproveResult2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBulkApproveResult(ctx context.Context, sel ast.SelectionSet, v model.BulkApproveResult) graphql.Marshaler {
+	return ec._BulkApproveResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNBulkApproveResult2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBulkApproveResult(ctx context.Context, sel ast.SelectionSet, v *model.BulkApproveResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._BulkApproveResult(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNClassifyMessageInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐClassifyMessageInput(ctx context.Context, v any) (model.ClassifyMessageInput, error) {
@@ -32898,6 +36534,92 @@ func (ec *executionContext) marshalNPatientEdge2ᚕgitlabᚗflexinferᚗaiᚋlib
 	return ret
 }
 
+func (ec *executionContext) marshalNPendingAutoroute2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPendingAutoroute(ctx context.Context, sel ast.SelectionSet, v model.PendingAutoroute) graphql.Marshaler {
+	return ec._PendingAutoroute(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNPendingAutoroute2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPendingAutorouteᚄ(ctx context.Context, sel ast.SelectionSet, v []model.PendingAutoroute) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNPendingAutoroute2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPendingAutoroute(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNPendingAutorouteConnection2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPendingAutorouteConnection(ctx context.Context, sel ast.SelectionSet, v model.PendingAutorouteConnection) graphql.Marshaler {
+	return ec._PendingAutorouteConnection(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNPendingAutorouteConnection2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPendingAutorouteConnection(ctx context.Context, sel ast.SelectionSet, v *model.PendingAutorouteConnection) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PendingAutorouteConnection(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNPendingAutorouteStats2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPendingAutorouteStats(ctx context.Context, sel ast.SelectionSet, v model.PendingAutorouteStats) graphql.Marshaler {
+	return ec._PendingAutorouteStats(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNPendingAutorouteStats2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPendingAutorouteStats(ctx context.Context, sel ast.SelectionSet, v *model.PendingAutorouteStats) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PendingAutorouteStats(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNPendingAutorouteStatus2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPendingAutorouteStatus(ctx context.Context, v any) (model.PendingAutorouteStatus, error) {
+	var res model.PendingAutorouteStatus
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNPendingAutorouteStatus2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPendingAutorouteStatus(ctx context.Context, sel ast.SelectionSet, v model.PendingAutorouteStatus) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) marshalNProcedure2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProcedure(ctx context.Context, sel ast.SelectionSet, v model.Procedure) graphql.Marshaler {
 	return ec._Procedure(ctx, sel, &v)
 }
@@ -33056,6 +36778,11 @@ func (ec *executionContext) marshalNQualityRecommendation2ᚕgitlabᚗflexinfer�
 	return ret
 }
 
+func (ec *executionContext) unmarshalNRejectPendingAutorouteInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐRejectPendingAutorouteInput(ctx context.Context, v any) (model.RejectPendingAutorouteInput, error) {
+	res, err := ec.unmarshalInputRejectPendingAutorouteInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNResolveMappingInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐResolveMappingInput(ctx context.Context, v any) (model.ResolveMappingInput, error) {
 	res, err := ec.unmarshalInputResolveMappingInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -33121,6 +36848,11 @@ func (ec *executionContext) marshalNRouteExplanation2ᚕgitlabᚗflexinferᚗai�
 	}
 
 	return ret
+}
+
+func (ec *executionContext) unmarshalNSignalReviewDecisionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSignalReviewDecisionInput(ctx context.Context, v any) (model.SignalReviewDecisionInput, error) {
+	res, err := ec.unmarshalInputSignalReviewDecisionInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNSourceCount2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceCount(ctx context.Context, sel ast.SelectionSet, v model.SourceCount) graphql.Marshaler {
@@ -33239,6 +36971,25 @@ func (ec *executionContext) marshalNSourceProfile2ᚖgitlabᚗflexinferᚗaiᚋl
 	return ec._SourceProfile(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNStartTerminologyReviewInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐStartTerminologyReviewInput(ctx context.Context, v any) (model.StartTerminologyReviewInput, error) {
+	res, err := ec.unmarshalInputStartTerminologyReviewInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNStartTerminologyReviewResult2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐStartTerminologyReviewResult(ctx context.Context, sel ast.SelectionSet, v model.StartTerminologyReviewResult) graphql.Marshaler {
+	return ec._StartTerminologyReviewResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNStartTerminologyReviewResult2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐStartTerminologyReviewResult(ctx context.Context, sel ast.SelectionSet, v *model.StartTerminologyReviewResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._StartTerminologyReviewResult(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) (string, error) {
 	res, err := graphql.UnmarshalString(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -33317,6 +37068,78 @@ func (ec *executionContext) marshalNSubmitResult2ᚖgitlabᚗflexinferᚗaiᚋli
 func (ec *executionContext) unmarshalNSuggestMappingsInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSuggestMappingsInput(ctx context.Context, v any) (model.SuggestMappingsInput, error) {
 	res, err := ec.unmarshalInputSuggestMappingsInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNTemporalWorkflow2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTemporalWorkflow(ctx context.Context, sel ast.SelectionSet, v model.TemporalWorkflow) graphql.Marshaler {
+	return ec._TemporalWorkflow(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNTemporalWorkflow2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTemporalWorkflowᚄ(ctx context.Context, sel ast.SelectionSet, v []model.TemporalWorkflow) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNTemporalWorkflow2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTemporalWorkflow(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNTemporalWorkflowConnection2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTemporalWorkflowConnection(ctx context.Context, sel ast.SelectionSet, v model.TemporalWorkflowConnection) graphql.Marshaler {
+	return ec._TemporalWorkflowConnection(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNTemporalWorkflowConnection2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTemporalWorkflowConnection(ctx context.Context, sel ast.SelectionSet, v *model.TemporalWorkflowConnection) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._TemporalWorkflowConnection(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNTemporalWorkflowStatus2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTemporalWorkflowStatus(ctx context.Context, v any) (model.TemporalWorkflowStatus, error) {
+	var res model.TemporalWorkflowStatus
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNTemporalWorkflowStatus2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTemporalWorkflowStatus(ctx context.Context, sel ast.SelectionSet, v model.TemporalWorkflowStatus) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) marshalNTerminologyMappingEntry2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTerminologyMappingEntry(ctx context.Context, sel ast.SelectionSet, v model.TerminologyMappingEntry) graphql.Marshaler {
@@ -34051,6 +37874,14 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
+func (ec *executionContext) unmarshalOBulkApproveInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBulkApproveInput(ctx context.Context, v any) (*model.BulkApproveInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputBulkApproveInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalOCodeMapping2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐCodeMapping(ctx context.Context, sel ast.SelectionSet, v *model.CodeMapping) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -34325,6 +38156,14 @@ func (ec *executionContext) unmarshalOListMappingsInput2ᚖgitlabᚗflexinferᚗ
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalOListPendingAutoroutesInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐListPendingAutoroutesInput(ctx context.Context, v any) (*model.ListPendingAutoroutesInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputListPendingAutoroutesInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalOLocation2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLocation(ctx context.Context, sel ast.SelectionSet, v *model.Location) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -34399,6 +38238,29 @@ func (ec *executionContext) marshalOPatientTimeline2ᚖgitlabᚗflexinferᚗai�
 		return graphql.Null
 	}
 	return ec._PatientTimeline(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOPendingAutoroute2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPendingAutoroute(ctx context.Context, sel ast.SelectionSet, v *model.PendingAutoroute) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._PendingAutoroute(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOPendingAutorouteStatus2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPendingAutorouteStatus(ctx context.Context, v any) (*model.PendingAutorouteStatus, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.PendingAutorouteStatus)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOPendingAutorouteStatus2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPendingAutorouteStatus(ctx context.Context, sel ast.SelectionSet, v *model.PendingAutorouteStatus) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
 }
 
 func (ec *executionContext) marshalOProvider2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProvider(ctx context.Context, sel ast.SelectionSet, v *model.Provider) graphql.Marshaler {
@@ -34483,6 +38345,37 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	_ = ctx
 	res := graphql.MarshalString(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOTemporalWorkflow2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTemporalWorkflow(ctx context.Context, sel ast.SelectionSet, v *model.TemporalWorkflow) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._TemporalWorkflow(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOTemporalWorkflowFilter2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTemporalWorkflowFilter(ctx context.Context, v any) (*model.TemporalWorkflowFilter, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputTemporalWorkflowFilter(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalOTemporalWorkflowStatus2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTemporalWorkflowStatus(ctx context.Context, v any) (*model.TemporalWorkflowStatus, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.TemporalWorkflowStatus)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOTemporalWorkflowStatus2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTemporalWorkflowStatus(ctx context.Context, sel ast.SelectionSet, v *model.TemporalWorkflowStatus) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
 }
 
 func (ec *executionContext) marshalOTerminologyConfig2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐTerminologyConfig(ctx context.Context, sel ast.SelectionSet, v *model.TerminologyConfig) graphql.Marshaler {

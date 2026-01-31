@@ -19,6 +19,8 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/terminology/autoroute"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/db"
+	"go.temporal.io/api/enums/v1"
+	"go.temporal.io/api/workflow/v1"
 )
 
 // strPtr returns a pointer to the string, or nil if empty.
@@ -1551,4 +1553,154 @@ func toGraphQLBatch(b *db.UploadBatch) *model.UploadBatch {
 	}
 
 	return result
+}
+
+// =============================================================================
+// Pending Autoroute Conversion Helpers
+// =============================================================================
+
+// toDBPendingStatus converts GraphQL PendingAutorouteStatus to db.PendingStatus.
+func toDBPendingStatus(status model.PendingAutorouteStatus) db.PendingStatus {
+	switch status {
+	case model.PendingAutorouteStatusPending:
+		return db.StatusPending
+	case model.PendingAutorouteStatusApproved:
+		return db.StatusApproved
+	case model.PendingAutorouteStatusRejected:
+		return db.StatusRejected
+	case model.PendingAutorouteStatusExpired:
+		return db.StatusExpired
+	default:
+		return db.StatusPending
+	}
+}
+
+// toGraphQLPendingStatus converts db.PendingStatus to GraphQL PendingAutorouteStatus.
+func toGraphQLPendingStatus(status db.PendingStatus) model.PendingAutorouteStatus {
+	switch status {
+	case db.StatusPending:
+		return model.PendingAutorouteStatusPending
+	case db.StatusApproved:
+		return model.PendingAutorouteStatusApproved
+	case db.StatusRejected:
+		return model.PendingAutorouteStatusRejected
+	case db.StatusExpired:
+		return model.PendingAutorouteStatusExpired
+	default:
+		return model.PendingAutorouteStatusPending
+	}
+}
+
+// toGraphQLPendingAutoroute converts db.PendingAutoroute to GraphQL model.PendingAutoroute.
+func toGraphQLPendingAutoroute(p *db.PendingAutoroute) *model.PendingAutoroute {
+	if p == nil {
+		return nil
+	}
+
+	result := &model.PendingAutoroute{
+		ID:               fmt.Sprintf("%d", p.ID),
+		SourceSystem:     p.SourceSystem,
+		SourceCode:       p.SourceCode,
+		SourceDisplay:    strPtrEmpty(p.SourceDisplay),
+		TargetSystem:     p.TargetSystem,
+		SuggestedCode:    p.SuggestedCode,
+		SuggestedDisplay: strPtrEmpty(p.SuggestedDisplay),
+		Confidence:       p.Confidence,
+		Reasoning:        strPtrEmpty(p.Reasoning),
+		Status:           toGraphQLPendingStatus(p.Status),
+		CreatedAt:        p.CreatedAt,
+		Alternates:       []model.MappingCandidate{},
+	}
+
+	// Convert equivalence if present
+	if p.Equivalence != "" {
+		eq := toGraphQLEquivalence(db.MappingEquivalence(p.Equivalence))
+		result.Equivalence = &eq
+	}
+
+	// Convert decision trace if present
+	if len(p.DecisionTrace) > 0 {
+		var trace autoroute.DecisionTrace
+		if err := json.Unmarshal(p.DecisionTrace, &trace); err == nil {
+			result.DecisionTrace = convertAutorouteTrace(&trace)
+		}
+	}
+
+	// Convert alternates if present
+	if len(p.Alternates) > 0 {
+		var alts []db.Alternate
+		if err := json.Unmarshal(p.Alternates, &alts); err == nil {
+			for _, alt := range alts {
+				result.Alternates = append(result.Alternates, model.MappingCandidate{
+					Code:       alt.Code,
+					Display:    alt.Display,
+					System:     "", // Not stored in alternates
+					Confidence: alt.Confidence,
+					Reasoning:  strPtrEmpty(alt.Reasoning),
+				})
+			}
+		}
+	}
+
+	// Optional timestamps
+	result.ExpiresAt = p.ExpiresAt
+	result.ReviewedAt = p.ReviewedAt
+	result.ReviewedBy = strPtrEmpty(p.ReviewedBy)
+	result.RejectionReason = strPtrEmpty(p.RejectionReason)
+
+	return result
+}
+
+// =============================================================================
+// Temporal Workflow Helpers
+// =============================================================================
+
+// toGraphQLTemporalWorkflow converts a Temporal workflow execution info to GraphQL model.
+func toGraphQLTemporalWorkflow(info *workflow.WorkflowExecutionInfo) model.TemporalWorkflow {
+	if info == nil {
+		return model.TemporalWorkflow{}
+	}
+
+	result := model.TemporalWorkflow{
+		ID:           info.Execution.WorkflowId,
+		RunID:        info.Execution.RunId,
+		WorkflowType: info.Type.Name,
+		TaskQueue:    info.TaskQueue,
+		StartTime:    info.StartTime.AsTime(),
+	}
+
+	// Convert status
+	result.Status = toGraphQLTemporalStatus(info.Status)
+
+	// Close time (if finished)
+	if info.CloseTime != nil {
+		closeTime := info.CloseTime.AsTime()
+		result.CloseTime = &closeTime
+		duration := int(closeTime.Sub(result.StartTime).Milliseconds())
+		result.DurationMs = &duration
+	}
+
+	return result
+}
+
+// toGraphQLTemporalStatus converts Temporal workflow status to GraphQL enum.
+func toGraphQLTemporalStatus(status enums.WorkflowExecutionStatus) model.TemporalWorkflowStatus {
+	switch status {
+	case enums.WORKFLOW_EXECUTION_STATUS_RUNNING:
+		return model.TemporalWorkflowStatusRunning
+	case enums.WORKFLOW_EXECUTION_STATUS_COMPLETED:
+		return model.TemporalWorkflowStatusCompleted
+	case enums.WORKFLOW_EXECUTION_STATUS_FAILED:
+		return model.TemporalWorkflowStatusFailed
+	case enums.WORKFLOW_EXECUTION_STATUS_CANCELED:
+		return model.TemporalWorkflowStatusCanceled
+	case enums.WORKFLOW_EXECUTION_STATUS_TERMINATED:
+		return model.TemporalWorkflowStatusTerminated
+	case enums.WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW:
+		return model.TemporalWorkflowStatusContinuedAsNew
+	case enums.WORKFLOW_EXECUTION_STATUS_TIMED_OUT:
+		return model.TemporalWorkflowStatusTimedOut
+	default:
+		return model.TemporalWorkflowStatusRunning
+	}
 }

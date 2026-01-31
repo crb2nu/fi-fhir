@@ -13,6 +13,12 @@ import {
   DeleteMappingBatchDocument,
   ResolveMappingDocument,
   SuggestMappingsDocument,
+  ListPendingAutoroutesDocument,
+  GetPendingAutorouteDocument,
+  PendingAutorouteStatsDocument,
+  ApprovePendingAutorouteDocument,
+  RejectPendingAutorouteDocument,
+  BulkApprovePendingAutoroutesDocument,
   type ListMappingsQuery,
   type GetMappingQuery,
   type LookupMappingQuery,
@@ -21,11 +27,20 @@ import {
   type CreateMappingMutation,
   type ResolveMappingQuery,
   type SuggestMappingsQuery,
+  type ListPendingAutoroutesQuery,
+  type GetPendingAutorouteQuery,
+  type PendingAutorouteStatsQuery,
+  type ApprovePendingAutorouteMutation,
+  type BulkApprovePendingAutoroutesMutation,
   type ListMappingsInput,
   type UploadMappingCsvInput,
   type CreateMappingInput,
   type ResolveMappingInput,
-  type SuggestMappingsInput
+  type SuggestMappingsInput,
+  type ListPendingAutoroutesInput,
+  type ApprovePendingAutorouteInput,
+  type RejectPendingAutorouteInput,
+  type BulkApproveInput
 } from '$lib/gen/graphql';
 import { graphqlFetch } from '$lib/graphql/client';
 
@@ -134,4 +149,71 @@ export async function suggestMappings(
 ): Promise<SuggestMappingsQuery['suggestMappings']> {
   const result = await graphqlFetch(SuggestMappingsDocument, { input });
   return result.suggestMappings;
+}
+
+// =============================================================================
+// Pending Autoroute Review API
+// =============================================================================
+
+/**
+ * List pending autoroutes awaiting human review.
+ * Supports filtering by status, confidence, and system.
+ */
+export async function listPendingAutoroutes(
+  input?: ListPendingAutoroutesInput | null
+): Promise<ListPendingAutoroutesQuery['listPendingAutoroutes']> {
+  const result = await graphqlFetch(ListPendingAutoroutesDocument, { input: input ?? null });
+  return result.listPendingAutoroutes;
+}
+
+/**
+ * Get a single pending autoroute by ID
+ */
+export async function getPendingAutoroute(
+  id: string
+): Promise<GetPendingAutorouteQuery['getPendingAutoroute']> {
+  const result = await graphqlFetch(GetPendingAutorouteDocument, { id });
+  return result.getPendingAutoroute;
+}
+
+/**
+ * Get statistics about pending autoroutes (counts by status, avg confidence)
+ */
+export async function getPendingAutorouteStats(): Promise<
+  PendingAutorouteStatsQuery['pendingAutorouteStats']
+> {
+  const result = await graphqlFetch(PendingAutorouteStatsDocument, {});
+  return result.pendingAutorouteStats;
+}
+
+/**
+ * Approve a pending autoroute, creating a persistent mapping.
+ * Optionally override the equivalence or add a comment.
+ */
+export async function approvePendingAutoroute(
+  input: ApprovePendingAutorouteInput
+): Promise<ApprovePendingAutorouteMutation['approvePendingAutoroute']> {
+  const result = await graphqlFetch(ApprovePendingAutorouteDocument, { input });
+  return result.approvePendingAutoroute;
+}
+
+/**
+ * Reject a pending autoroute with a reason.
+ */
+export async function rejectPendingAutoroute(
+  input: RejectPendingAutorouteInput
+): Promise<boolean> {
+  const result = await graphqlFetch(RejectPendingAutorouteDocument, { input });
+  return result.rejectPendingAutoroute;
+}
+
+/**
+ * Bulk approve all pending autoroutes above a confidence threshold.
+ * Returns the number approved and the created mappings.
+ */
+export async function bulkApprovePendingAutoroutes(
+  input?: BulkApproveInput | null
+): Promise<BulkApprovePendingAutoroutesMutation['bulkApprovePendingAutoroutes']> {
+  const result = await graphqlFetch(BulkApprovePendingAutoroutesDocument, { input: input ?? null });
+  return result.bulkApprovePendingAutoroutes;
 }

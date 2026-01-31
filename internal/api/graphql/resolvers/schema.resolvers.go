@@ -26,9 +26,11 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/fhir"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/hl7v2"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/terminology/autoroute"
+	termworkflow "gitlab.flexinfer.ai/libs/fi-fhir/internal/terminology/workflow"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm/copilot"
 	termdb "gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/db"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/upload"
+	"go.temporal.io/api/workflowservice/v1"
 )
 
 // SubmitMessage is the resolver for the submitMessage field.
@@ -891,6 +893,174 @@ func (r *mutationResolver) DeleteMappingBatch(ctx context.Context, batchID strin
 	return int(count), nil
 }
 
+// ApprovePendingAutoroute is the resolver for the approvePendingAutoroute field.
+func (r *mutationResolver) ApprovePendingAutoroute(ctx context.Context, input model.ApprovePendingAutorouteInput) (*model.CodeMapping, error) {
+	if r.MappingStore == nil {
+		return nil, fmt.Errorf("terminology mapping store not configured")
+	}
+
+	pendingID, err := strconv.ParseInt(input.ID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid pending autoroute ID: %w", err)
+	}
+
+	equivalence := ""
+	if input.Equivalence != nil {
+		equivalence = string(*input.Equivalence)
+	}
+
+	comment := ""
+	if input.Comment != nil {
+		comment = *input.Comment
+	}
+
+	mapping, err := r.MappingStore.ApprovePendingAutoroute(ctx, pendingID, "", equivalence, comment)
+	if err != nil {
+		return nil, fmt.Errorf("approving pending autoroute: %w", err)
+	}
+
+	return toGraphQLMapping(mapping), nil
+}
+
+// RejectPendingAutoroute is the resolver for the rejectPendingAutoroute field.
+func (r *mutationResolver) RejectPendingAutoroute(ctx context.Context, input model.RejectPendingAutorouteInput) (bool, error) {
+	if r.MappingStore == nil {
+		return false, fmt.Errorf("terminology mapping store not configured")
+	}
+
+	pendingID, err := strconv.ParseInt(input.ID, 10, 64)
+	if err != nil {
+		return false, fmt.Errorf("invalid pending autoroute ID: %w", err)
+	}
+
+	err = r.MappingStore.RejectPendingAutoroute(ctx, pendingID, "", input.Reason)
+	if err != nil {
+		return false, fmt.Errorf("rejecting pending autoroute: %w", err)
+	}
+
+	return true, nil
+}
+
+// BulkApprovePendingAutoroutes is the resolver for the bulkApprovePendingAutoroutes field.
+func (r *mutationResolver) BulkApprovePendingAutoroutes(ctx context.Context, input *model.BulkApproveInput) (*model.BulkApproveResult, error) {
+	if r.MappingStore == nil {
+		return nil, fmt.Errorf("terminology mapping store not configured")
+	}
+
+	minConfidence := 0.95
+	maxCount := 100
+	if input != nil {
+		if input.MinConfidence != nil {
+			minConfidence = *input.MinConfidence
+		}
+		if input.MaxCount != nil {
+			maxCount = *input.MaxCount
+		}
+	}
+
+	approved, mappings, err := r.MappingStore.BulkApprovePendingAutoroutes(ctx, minConfidence, maxCount, "")
+	if err != nil {
+		return nil, fmt.Errorf("bulk approving pending autoroutes: %w", err)
+	}
+
+	gqlMappings := make([]model.CodeMapping, 0, len(mappings))
+	for _, m := range mappings {
+		gqlMappings = append(gqlMappings, *toGraphQLMapping(m))
+	}
+
+	return &model.BulkApproveResult{
+		Approved: approved,
+		Skipped:  maxCount - approved, // Approximation - could be more precise
+		Mappings: gqlMappings,
+	}, nil
+}
+
+// StartTerminologyReview is the resolver for the startTerminologyReview field.
+func (r *mutationResolver) StartTerminologyReview(ctx context.Context, input model.StartTerminologyReviewInput) (*model.StartTerminologyReviewResult, error) {
+	if r.TemporalWorker == nil {
+		return nil, fmt.Errorf("temporal worker not configured")
+	}
+
+	// Build workflow input
+	wfInput := termworkflow.TerminologyReviewInput{
+		SourceCode:   input.SourceCode,
+		SourceSystem: input.SourceSystem,
+		TargetSystem: input.TargetSystem,
+	}
+
+	if input.SourceDisplay != nil {
+		wfInput.SourceDisplay = *input.SourceDisplay
+	}
+	if input.ProfileID != nil {
+		wfInput.ProfileID = *input.ProfileID
+	}
+	if input.AutoApproveThreshold != nil {
+		wfInput.AutoApproveThreshold = *input.AutoApproveThreshold
+	}
+	if input.ReviewTimeoutDays != nil {
+		wfInput.ReviewTimeout = time.Duration(*input.ReviewTimeoutDays) * 24 * time.Hour
+	}
+
+	// Start the workflow
+	run, err := r.TemporalWorker.StartReviewWorkflow(ctx, wfInput)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start terminology review workflow: %w", err)
+	}
+
+	return &model.StartTerminologyReviewResult{
+		WorkflowID: run.GetID(),
+		RunID:      run.GetRunID(),
+		Started:    true,
+	}, nil
+}
+
+// SignalReviewDecision is the resolver for the signalReviewDecision field.
+func (r *mutationResolver) SignalReviewDecision(ctx context.Context, input model.SignalReviewDecisionInput) (bool, error) {
+	if r.TemporalWorker == nil {
+		return false, fmt.Errorf("temporal worker not configured")
+	}
+
+	decision := termworkflow.ReviewDecisionSignal{
+		Approved:  input.Approved,
+		DecidedBy: input.DecidedBy,
+	}
+
+	if input.EquivalenceOverride != nil {
+		decision.EquivalenceOverride = string(*input.EquivalenceOverride)
+	}
+	if input.Comment != nil {
+		decision.Comment = *input.Comment
+	}
+	if input.RejectionReason != nil {
+		decision.RejectionReason = *input.RejectionReason
+	}
+
+	if err := r.TemporalWorker.SignalReviewDecision(ctx, input.WorkflowID, decision); err != nil {
+		return false, fmt.Errorf("failed to signal review decision: %w", err)
+	}
+
+	return true, nil
+}
+
+// CancelTemporalWorkflow is the resolver for the cancelTemporalWorkflow field.
+func (r *mutationResolver) CancelTemporalWorkflow(ctx context.Context, workflowID string, reason *string) (bool, error) {
+	if r.TemporalClient == nil {
+		return false, fmt.Errorf("temporal client not configured")
+	}
+
+	cancelReason := "Canceled via GraphQL API"
+	if reason != nil {
+		cancelReason = *reason
+	}
+
+	if err := r.TemporalClient.CancelWorkflow(ctx, workflowID, ""); err != nil {
+		return false, fmt.Errorf("failed to cancel workflow: %w", err)
+	}
+
+	_ = cancelReason // Used for logging in production
+	return true, nil
+}
+
 // Event is the resolver for the event field.
 func (r *queryResolver) Event(ctx context.Context, id string) (model.Event, error) {
 	return r.Store.GetEvent(ctx, id)
@@ -1723,6 +1893,206 @@ func (r *queryResolver) SuggestMappings(ctx context.Context, input model.Suggest
 	}
 
 	return convertAutorouteCandidates(result), nil
+}
+
+// ListPendingAutoroutes is the resolver for the listPendingAutoroutes field.
+func (r *queryResolver) ListPendingAutoroutes(ctx context.Context, input *model.ListPendingAutoroutesInput) (*model.PendingAutorouteConnection, error) {
+	if r.MappingStore == nil {
+		return nil, fmt.Errorf("terminology mapping store not configured")
+	}
+
+	filter := termdb.ListPendingAutoroutesFilter{
+		Limit:  50,
+		Offset: 0,
+	}
+
+	if input != nil {
+		if input.Status != nil {
+			filter.Status = toDBPendingStatus(*input.Status)
+		}
+		if input.MinConfidence != nil {
+			filter.MinConfidence = input.MinConfidence
+		}
+		if input.SourceSystem != nil {
+			filter.SourceSystem = *input.SourceSystem
+		}
+		if input.TargetSystem != nil {
+			filter.TargetSystem = *input.TargetSystem
+		}
+		if input.First != nil && *input.First > 0 {
+			filter.Limit = *input.First
+		}
+		if input.Offset != nil && *input.Offset > 0 {
+			filter.Offset = *input.Offset
+		}
+	}
+
+	pending, total, err := r.MappingStore.ListPendingAutoroutes(ctx, filter)
+	if err != nil {
+		return nil, fmt.Errorf("listing pending autoroutes: %w", err)
+	}
+
+	nodes := make([]model.PendingAutoroute, 0, len(pending))
+	for _, p := range pending {
+		nodes = append(nodes, *toGraphQLPendingAutoroute(p))
+	}
+
+	hasNextPage := filter.Offset+len(pending) < total
+	hasPrevPage := filter.Offset > 0
+
+	return &model.PendingAutorouteConnection{
+		Nodes:      nodes,
+		TotalCount: total,
+		PageInfo: &model.PageInfo{
+			HasNextPage:     hasNextPage,
+			HasPreviousPage: hasPrevPage,
+		},
+	}, nil
+}
+
+// GetPendingAutoroute is the resolver for the getPendingAutoroute field.
+func (r *queryResolver) GetPendingAutoroute(ctx context.Context, id string) (*model.PendingAutoroute, error) {
+	if r.MappingStore == nil {
+		return nil, fmt.Errorf("terminology mapping store not configured")
+	}
+
+	pendingID, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid pending autoroute ID: %w", err)
+	}
+
+	pending, err := r.MappingStore.GetPendingAutoroute(ctx, pendingID)
+	if err != nil {
+		return nil, fmt.Errorf("getting pending autoroute: %w", err)
+	}
+	if pending == nil {
+		return nil, nil // Not found
+	}
+
+	return toGraphQLPendingAutoroute(pending), nil
+}
+
+// PendingAutorouteStats is the resolver for the pendingAutorouteStats field.
+func (r *queryResolver) PendingAutorouteStats(ctx context.Context) (*model.PendingAutorouteStats, error) {
+	if r.MappingStore == nil {
+		return &model.PendingAutorouteStats{
+			PendingCount:  0,
+			ApprovedCount: 0,
+			RejectedCount: 0,
+			ExpiredCount:  0,
+		}, nil
+	}
+
+	counts, err := r.MappingStore.CountPendingAutoroutes(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("counting pending autoroutes: %w", err)
+	}
+
+	return &model.PendingAutorouteStats{
+		PendingCount:  counts[termdb.StatusPending],
+		ApprovedCount: counts[termdb.StatusApproved],
+		RejectedCount: counts[termdb.StatusRejected],
+		ExpiredCount:  counts[termdb.StatusExpired],
+	}, nil
+}
+
+// TemporalWorkflow is the resolver for the temporalWorkflow field.
+func (r *queryResolver) TemporalWorkflow(ctx context.Context, workflowID string, runID *string) (*model.TemporalWorkflow, error) {
+	if r.TemporalClient == nil {
+		return nil, fmt.Errorf("temporal client not configured")
+	}
+
+	runIDStr := ""
+	if runID != nil {
+		runIDStr = *runID
+	}
+
+	desc, err := r.TemporalClient.DescribeWorkflowExecution(ctx, workflowID, runIDStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to describe workflow: %w", err)
+	}
+
+	info := desc.WorkflowExecutionInfo
+	workflow := toGraphQLTemporalWorkflow(info)
+	return &workflow, nil
+}
+
+// TemporalWorkflows is the resolver for the temporalWorkflows field.
+func (r *queryResolver) TemporalWorkflows(ctx context.Context, filter *model.TemporalWorkflowFilter, first *int, after *string) (*model.TemporalWorkflowConnection, error) {
+	if r.TemporalClient == nil {
+		return nil, fmt.Errorf("temporal client not configured")
+	}
+
+	// Build query string for Temporal's visibility API
+	query := ""
+	if filter != nil {
+		var conditions []string
+		if filter.WorkflowType != nil {
+			conditions = append(conditions, fmt.Sprintf("WorkflowType = '%s'", *filter.WorkflowType))
+		}
+		if filter.Status != nil {
+			conditions = append(conditions, fmt.Sprintf("ExecutionStatus = '%s'", *filter.Status))
+		}
+		if filter.StartTimeAfter != nil {
+			conditions = append(conditions, fmt.Sprintf("StartTime >= '%s'", filter.StartTimeAfter.Format(time.RFC3339)))
+		}
+		if filter.StartTimeBefore != nil {
+			conditions = append(conditions, fmt.Sprintf("StartTime <= '%s'", filter.StartTimeBefore.Format(time.RFC3339)))
+		}
+		if len(conditions) > 0 {
+			query = conditions[0]
+			for i := 1; i < len(conditions); i++ {
+				query += " AND " + conditions[i]
+			}
+		}
+	}
+
+	// Default to TaskQueue filter if no query
+	if query == "" {
+		query = fmt.Sprintf("TaskQueue = '%s'", termworkflow.TaskQueue)
+	}
+
+	pageSize := 100
+	if first != nil && *first > 0 && *first < pageSize {
+		pageSize = *first
+	}
+
+	var nextPageToken []byte
+	if after != nil && *after != "" {
+		nextPageToken = []byte(*after)
+	}
+
+	resp, err := r.TemporalClient.ListWorkflow(ctx, &workflowservice.ListWorkflowExecutionsRequest{
+		Query:         query,
+		PageSize:      int32(pageSize),
+		NextPageToken: nextPageToken,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list workflows: %w", err)
+	}
+
+	var workflows []model.TemporalWorkflow
+	for _, info := range resp.Executions {
+		workflows = append(workflows, toGraphQLTemporalWorkflow(info))
+	}
+
+	// Encode next page token for cursor-based pagination
+	var endCursor *string
+	hasNextPage := len(resp.NextPageToken) > 0
+	if hasNextPage {
+		cursor := string(resp.NextPageToken)
+		endCursor = &cursor
+	}
+
+	return &model.TemporalWorkflowConnection{
+		Nodes:      workflows,
+		TotalCount: len(workflows),
+		PageInfo: &model.PageInfo{
+			HasNextPage:     hasNextPage,
+			HasPreviousPage: after != nil && *after != "",
+			EndCursor:       endCursor,
+		},
+	}, nil
 }
 
 // EventStream is the resolver for the eventStream field.

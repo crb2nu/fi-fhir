@@ -1,0 +1,128 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Renovate configuration for fi-fhir - automated dependency updates",
+
+  // Extends common presets for sensible defaults
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    ":separateMajorReleases",
+    ":combinePatchMinorReleases",
+    "group:allNonMajor"
+  ],
+
+  // Labels for merge requests
+  "labels": ["dependencies", "automated"],
+
+  // Limit open MRs to avoid noise
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+
+  // Auto-merge patch updates that pass CI
+  "packageRules": [
+    {
+      // Go dependencies - group minor/patch updates
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "go dependencies (non-major)",
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash"
+    },
+    {
+      // Go major updates - require review
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "go dependencies (major)",
+      "automerge": false
+    },
+    {
+      // npm (UI) dependencies - group by type
+      "matchManagers": ["npm"],
+      "matchFileNames": ["ui/**"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "ui npm dependencies (non-major)",
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      // npm (SDK) dependencies
+      "matchManagers": ["npm"],
+      "matchFileNames": ["sdk/**"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "sdk npm dependencies (non-major)",
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      // Dockerfile base images - require review
+      "matchManagers": ["dockerfile"],
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "labels": ["dependencies", "docker", "requires-review"]
+    },
+    {
+      // Docker minor/patch - automerge
+      "matchManagers": ["dockerfile"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      // Security updates - priority handling
+      "matchCategories": ["security"],
+      "labels": ["dependencies", "security"],
+      "automerge": true,
+      "automergeType": "pr",
+      "prPriority": 10
+    },
+    {
+      // Temporal SDK - careful updates
+      "matchPackagePatterns": ["^go.temporal.io/"],
+      "automerge": false,
+      "labels": ["dependencies", "temporal", "requires-review"]
+    },
+    {
+      // FHIR libraries - careful updates
+      "matchPackagePatterns": ["^github.com/google/fhir", "^fhir"],
+      "automerge": false,
+      "labels": ["dependencies", "fhir", "requires-review"]
+    },
+    {
+      // Dev dependencies can automerge
+      "matchDepTypes": ["devDependencies"],
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      // Pin GitHub Actions (security best practice)
+      "matchManagers": ["github-actions"],
+      "enabled": false
+    }
+  ],
+
+  // Vulnerability alerts - create PRs immediately
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security", "vulnerability"]
+  },
+
+  // Schedule updates to reduce noise (weekly on Monday mornings)
+  "schedule": ["before 9am on monday"],
+
+  // For security updates, process immediately
+  "osvVulnerabilityAlerts": true,
+
+  // Ignore specific packages if needed
+  "ignoreDeps": [],
+
+  // Go-specific settings
+  "gomod": {
+    "postUpdateOptions": ["gomodTidy", "gomodUpdateImportPaths"]
+  },
+
+  // Commit message format
+  "commitMessagePrefix": "deps:",
+  "commitMessageAction": "update",
+  "commitMessageTopic": "{{depName}}"
+}

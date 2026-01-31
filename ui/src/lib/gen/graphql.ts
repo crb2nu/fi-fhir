@@ -70,6 +70,12 @@ export type AppointmentEvent = Event & {
   type: EventType;
 };
 
+export type ApprovePendingAutorouteInput = {
+  comment: InputMaybe<Scalars['String']['input']>;
+  equivalence: InputMaybe<MappingEquivalence>;
+  id: Scalars['ID']['input'];
+};
+
 export type AssigningAuthority = {
   __typename?: 'AssigningAuthority';
   code: Scalars['String']['output'];
@@ -139,6 +145,18 @@ export type BatchResult = {
   results: Array<BatchItemResult>;
   successCount: Scalars['Int']['output'];
   totalItems: Scalars['Int']['output'];
+};
+
+export type BulkApproveInput = {
+  maxCount: InputMaybe<Scalars['Int']['input']>;
+  minConfidence: InputMaybe<Scalars['Float']['input']>;
+};
+
+export type BulkApproveResult = {
+  __typename?: 'BulkApproveResult';
+  approved: Scalars['Int']['output'];
+  mappings: Array<CodeMapping>;
+  skipped: Scalars['Int']['output'];
 };
 
 export type ClassifyMessageInput = {
@@ -598,6 +616,15 @@ export type ListMappingsInput = {
   uploadBatchId: InputMaybe<Scalars['ID']['input']>;
 };
 
+export type ListPendingAutoroutesInput = {
+  first: InputMaybe<Scalars['Int']['input']>;
+  minConfidence: InputMaybe<Scalars['Float']['input']>;
+  offset: InputMaybe<Scalars['Int']['input']>;
+  sourceSystem: InputMaybe<Scalars['String']['input']>;
+  status: InputMaybe<PendingAutorouteStatus>;
+  targetSystem: InputMaybe<Scalars['String']['input']>;
+};
+
 export type Location = {
   __typename?: 'Location';
   bed: Maybe<Scalars['String']['output']>;
@@ -639,6 +666,8 @@ export type MessageClassification = {
 
 export type Mutation = {
   __typename?: 'Mutation';
+  approvePendingAutoroute: CodeMapping;
+  bulkApprovePendingAutoroutes: BulkApproveResult;
   createFhirSubscription: FhirSubscription;
   createMapping: CodeMapping;
   createProfile: SourceProfile;
@@ -649,6 +678,7 @@ export type Mutation = {
   duplicateProfile: SourceProfile;
   generateWorkflow: GeneratedWorkflow;
   pauseFhirSubscription: FhirSubscription;
+  rejectPendingAutoroute: Scalars['Boolean']['output'];
   resumeFhirSubscription: FhirSubscription;
   submitBatch: BatchResult;
   submitEvent: SubmitResult;
@@ -656,6 +686,16 @@ export type Mutation = {
   triggerWorkflow: WorkflowResult;
   updateProfile: SourceProfile;
   uploadMappingCSV: UploadMappingResult;
+};
+
+
+export type MutationApprovePendingAutorouteArgs = {
+  input: ApprovePendingAutorouteInput;
+};
+
+
+export type MutationBulkApprovePendingAutoroutesArgs = {
+  input: InputMaybe<BulkApproveInput>;
 };
 
 
@@ -708,6 +748,11 @@ export type MutationGenerateWorkflowArgs = {
 
 export type MutationPauseFhirSubscriptionArgs = {
   id: Scalars['ID']['input'];
+};
+
+
+export type MutationRejectPendingAutorouteArgs = {
+  input: RejectPendingAutorouteInput;
 };
 
 
@@ -869,6 +914,50 @@ export type PatientTimeline = {
   mrn: Scalars['ID']['output'];
 };
 
+export type PendingAutoroute = {
+  __typename?: 'PendingAutoroute';
+  alternates: Array<MappingCandidate>;
+  confidence: Scalars['Float']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  decisionTrace: Maybe<AutorouteTrace>;
+  equivalence: Maybe<MappingEquivalence>;
+  expiresAt: Maybe<Scalars['DateTime']['output']>;
+  id: Scalars['ID']['output'];
+  reasoning: Maybe<Scalars['String']['output']>;
+  rejectionReason: Maybe<Scalars['String']['output']>;
+  reviewedAt: Maybe<Scalars['DateTime']['output']>;
+  reviewedBy: Maybe<Scalars['String']['output']>;
+  sourceCode: Scalars['String']['output'];
+  sourceDisplay: Maybe<Scalars['String']['output']>;
+  sourceSystem: Scalars['String']['output'];
+  status: PendingAutorouteStatus;
+  suggestedCode: Scalars['String']['output'];
+  suggestedDisplay: Maybe<Scalars['String']['output']>;
+  targetSystem: Scalars['String']['output'];
+};
+
+export type PendingAutorouteConnection = {
+  __typename?: 'PendingAutorouteConnection';
+  nodes: Array<PendingAutoroute>;
+  pageInfo: PageInfo;
+  totalCount: Scalars['Int']['output'];
+};
+
+export type PendingAutorouteStats = {
+  __typename?: 'PendingAutorouteStats';
+  approvedCount: Scalars['Int']['output'];
+  avgConfidence: Maybe<Scalars['Float']['output']>;
+  expiredCount: Scalars['Int']['output'];
+  pendingCount: Scalars['Int']['output'];
+  rejectedCount: Scalars['Int']['output'];
+};
+
+export type PendingAutorouteStatus =
+  | 'APPROVED'
+  | 'EXPIRED'
+  | 'PENDING'
+  | 'REJECTED';
+
 export type Procedure = {
   __typename?: 'Procedure';
   code: Maybe<Scalars['String']['output']>;
@@ -949,15 +1038,18 @@ export type Query = {
   explainWorkflow: WorkflowExplanation;
   extractEntities: ExtractionResult;
   getMapping: Maybe<CodeMapping>;
+  getPendingAutoroute: Maybe<PendingAutoroute>;
   getUploadBatch: Maybe<UploadBatch>;
   health: HealthStatus;
   listMappings: CodeMappingConnection;
+  listPendingAutoroutes: PendingAutorouteConnection;
   lookupMapping: Maybe<CodeMapping>;
   parsePreview: ParseResult;
   parsePreviewWithProfile: ParseResult;
   patient: Maybe<Patient>;
   patientTimeline: Maybe<PatientTimeline>;
   patients: PatientConnection;
+  pendingAutorouteStats: PendingAutorouteStats;
   profile: Maybe<SourceProfile>;
   profileRevisions: Array<ProfileRevision>;
   profiles: Array<SourceProfile>;
@@ -1031,6 +1123,11 @@ export type QueryGetMappingArgs = {
 };
 
 
+export type QueryGetPendingAutorouteArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
 export type QueryGetUploadBatchArgs = {
   id: Scalars['ID']['input'];
 };
@@ -1038,6 +1135,11 @@ export type QueryGetUploadBatchArgs = {
 
 export type QueryListMappingsArgs = {
   input: InputMaybe<ListMappingsInput>;
+};
+
+
+export type QueryListPendingAutoroutesArgs = {
+  input: InputMaybe<ListPendingAutoroutesInput>;
 };
 
 
@@ -1116,6 +1218,11 @@ export type QuerySuggestMappingsArgs = {
 
 export type QueryWorkflowArgs = {
   name: Scalars['String']['input'];
+};
+
+export type RejectPendingAutorouteInput = {
+  id: Scalars['ID']['input'];
+  reason: Scalars['String']['input'];
 };
 
 export type ResolveMappingInput = {
@@ -1662,6 +1769,48 @@ export type SuggestMappingsQueryVariables = Exact<{
 
 export type SuggestMappingsQuery = { __typename?: 'Query', suggestMappings: Array<{ __typename?: 'MappingCandidate', code: string, display: string, system: string, confidence: number, equivalence: MappingEquivalence | null, reasoning: string | null, score: number | null }> };
 
+export type PendingAutorouteFieldsFragment = { __typename?: 'PendingAutoroute', id: string, sourceSystem: string, sourceCode: string, sourceDisplay: string | null, targetSystem: string, suggestedCode: string, suggestedDisplay: string | null, confidence: number, equivalence: MappingEquivalence | null, reasoning: string | null, status: PendingAutorouteStatus, createdAt: string, expiresAt: string | null, reviewedAt: string | null, reviewedBy: string | null, rejectionReason: string | null, alternates: Array<{ __typename?: 'MappingCandidate', code: string, display: string, system: string, confidence: number, equivalence: MappingEquivalence | null, reasoning: string | null, score: number | null }>, decisionTrace: { __typename?: 'AutorouteTrace', traceId: string, timestamp: string, totalDurationMs: number, steps: Array<{ __typename?: 'AutorouteStep', step: string, result: string, durationMs: number, metadata: unknown | null }> } | null };
+
+export type ListPendingAutoroutesQueryVariables = Exact<{
+  input: InputMaybe<ListPendingAutoroutesInput>;
+}>;
+
+
+export type ListPendingAutoroutesQuery = { __typename?: 'Query', listPendingAutoroutes: { __typename?: 'PendingAutorouteConnection', totalCount: number, nodes: Array<{ __typename?: 'PendingAutoroute', id: string, sourceSystem: string, sourceCode: string, sourceDisplay: string | null, targetSystem: string, suggestedCode: string, suggestedDisplay: string | null, confidence: number, equivalence: MappingEquivalence | null, reasoning: string | null, status: PendingAutorouteStatus, createdAt: string, expiresAt: string | null, reviewedAt: string | null, reviewedBy: string | null, rejectionReason: string | null, alternates: Array<{ __typename?: 'MappingCandidate', code: string, display: string, system: string, confidence: number, equivalence: MappingEquivalence | null, reasoning: string | null, score: number | null }>, decisionTrace: { __typename?: 'AutorouteTrace', traceId: string, timestamp: string, totalDurationMs: number, steps: Array<{ __typename?: 'AutorouteStep', step: string, result: string, durationMs: number, metadata: unknown | null }> } | null }>, pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, hasPreviousPage: boolean } } };
+
+export type GetPendingAutorouteQueryVariables = Exact<{
+  id: Scalars['ID']['input'];
+}>;
+
+
+export type GetPendingAutorouteQuery = { __typename?: 'Query', getPendingAutoroute: { __typename?: 'PendingAutoroute', id: string, sourceSystem: string, sourceCode: string, sourceDisplay: string | null, targetSystem: string, suggestedCode: string, suggestedDisplay: string | null, confidence: number, equivalence: MappingEquivalence | null, reasoning: string | null, status: PendingAutorouteStatus, createdAt: string, expiresAt: string | null, reviewedAt: string | null, reviewedBy: string | null, rejectionReason: string | null, alternates: Array<{ __typename?: 'MappingCandidate', code: string, display: string, system: string, confidence: number, equivalence: MappingEquivalence | null, reasoning: string | null, score: number | null }>, decisionTrace: { __typename?: 'AutorouteTrace', traceId: string, timestamp: string, totalDurationMs: number, steps: Array<{ __typename?: 'AutorouteStep', step: string, result: string, durationMs: number, metadata: unknown | null }> } | null } | null };
+
+export type PendingAutorouteStatsQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type PendingAutorouteStatsQuery = { __typename?: 'Query', pendingAutorouteStats: { __typename?: 'PendingAutorouteStats', pendingCount: number, approvedCount: number, rejectedCount: number, expiredCount: number, avgConfidence: number | null } };
+
+export type ApprovePendingAutorouteMutationVariables = Exact<{
+  input: ApprovePendingAutorouteInput;
+}>;
+
+
+export type ApprovePendingAutorouteMutation = { __typename?: 'Mutation', approvePendingAutoroute: { __typename?: 'CodeMapping', id: string, sourceSystem: string, sourceCode: string, sourceDisplay: string | null, targetSystem: string, targetCode: string, targetDisplay: string | null, equivalence: MappingEquivalence, confidence: number | null, comment: string | null, origin: MappingOrigin, profileId: string | null, uploadBatchId: string | null, createdAt: string, createdBy: string | null } };
+
+export type RejectPendingAutorouteMutationVariables = Exact<{
+  input: RejectPendingAutorouteInput;
+}>;
+
+
+export type RejectPendingAutorouteMutation = { __typename?: 'Mutation', rejectPendingAutoroute: boolean };
+
+export type BulkApprovePendingAutoroutesMutationVariables = Exact<{
+  input: InputMaybe<BulkApproveInput>;
+}>;
+
+
+export type BulkApprovePendingAutoroutesMutation = { __typename?: 'Mutation', bulkApprovePendingAutoroutes: { __typename?: 'BulkApproveResult', approved: number, skipped: number, mappings: Array<{ __typename?: 'CodeMapping', id: string, sourceSystem: string, sourceCode: string, sourceDisplay: string | null, targetSystem: string, targetCode: string, targetDisplay: string | null, equivalence: MappingEquivalence, confidence: number | null, comment: string | null, origin: MappingOrigin, profileId: string | null, uploadBatchId: string | null, createdAt: string, createdBy: string | null }> } };
+
 export const ProfileFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ProfileFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SourceProfile"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"version"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}},{"kind":"Field","name":{"kind":"Name","value":"isActive"}}]}}]} as unknown as DocumentNode<ProfileFieldsFragment, unknown>;
 export const ToleranceFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ToleranceFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"ToleranceConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"missingSegments"}},{"kind":"Field","name":{"kind":"Name","value":"nteAnywhere"}},{"kind":"Field","name":{"kind":"Name","value":"extraComponents"}},{"kind":"Field","name":{"kind":"Name","value":"unknownSegments"}},{"kind":"Field","name":{"kind":"Name","value":"nonStandardDelimiters"}}]}}]} as unknown as DocumentNode<ToleranceFieldsFragment, unknown>;
 export const Hl7v2ConfigFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"HL7v2ConfigFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"HL7v2Config"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"defaultVersion"}},{"kind":"Field","name":{"kind":"Name","value":"timezone"}},{"kind":"Field","name":{"kind":"Name","value":"tolerance"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ToleranceFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"eventClassifications"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"messageType"}},{"kind":"Field","name":{"kind":"Name","value":"condition"}},{"kind":"Field","name":{"kind":"Name","value":"eventType"}},{"kind":"Field","name":{"kind":"Name","value":"priority"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ToleranceFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"ToleranceConfig"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"missingSegments"}},{"kind":"Field","name":{"kind":"Name","value":"nteAnywhere"}},{"kind":"Field","name":{"kind":"Name","value":"extraComponents"}},{"kind":"Field","name":{"kind":"Name","value":"unknownSegments"}},{"kind":"Field","name":{"kind":"Name","value":"nonStandardDelimiters"}}]}}]} as unknown as DocumentNode<Hl7v2ConfigFieldsFragment, unknown>;
@@ -1672,6 +1821,7 @@ export const MappingFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind
 export const BatchFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"BatchFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"UploadBatch"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"filename"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"profileId"}},{"kind":"Field","name":{"kind":"Name","value":"totalRows"}},{"kind":"Field","name":{"kind":"Name","value":"validRows"}},{"kind":"Field","name":{"kind":"Name","value":"duplicateRows"}},{"kind":"Field","name":{"kind":"Name","value":"errorRows"}},{"kind":"Field","name":{"kind":"Name","value":"uploadedAt"}},{"kind":"Field","name":{"kind":"Name","value":"uploadedBy"}},{"kind":"Field","name":{"kind":"Name","value":"validationErrors"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"row"}},{"kind":"Field","name":{"kind":"Name","value":"column"}},{"kind":"Field","name":{"kind":"Name","value":"message"}}]}}]}}]} as unknown as DocumentNode<BatchFieldsFragment, unknown>;
 export const CandidateFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CandidateFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"MappingCandidate"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"display"}},{"kind":"Field","name":{"kind":"Name","value":"system"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"equivalence"}},{"kind":"Field","name":{"kind":"Name","value":"reasoning"}},{"kind":"Field","name":{"kind":"Name","value":"score"}}]}}]} as unknown as DocumentNode<CandidateFieldsFragment, unknown>;
 export const AutorouteTraceFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"AutorouteTraceFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"AutorouteTrace"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"traceId"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"steps"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"step"}},{"kind":"Field","name":{"kind":"Name","value":"result"}},{"kind":"Field","name":{"kind":"Name","value":"durationMs"}},{"kind":"Field","name":{"kind":"Name","value":"metadata"}}]}},{"kind":"Field","name":{"kind":"Name","value":"totalDurationMs"}}]}}]} as unknown as DocumentNode<AutorouteTraceFieldsFragment, unknown>;
+export const PendingAutorouteFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"PendingAutorouteFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"PendingAutoroute"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"sourceCode"}},{"kind":"Field","name":{"kind":"Name","value":"sourceDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"suggestedCode"}},{"kind":"Field","name":{"kind":"Name","value":"suggestedDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"equivalence"}},{"kind":"Field","name":{"kind":"Name","value":"reasoning"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"expiresAt"}},{"kind":"Field","name":{"kind":"Name","value":"reviewedAt"}},{"kind":"Field","name":{"kind":"Name","value":"reviewedBy"}},{"kind":"Field","name":{"kind":"Name","value":"rejectionReason"}},{"kind":"Field","name":{"kind":"Name","value":"alternates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"CandidateFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"decisionTrace"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"AutorouteTraceFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CandidateFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"MappingCandidate"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"display"}},{"kind":"Field","name":{"kind":"Name","value":"system"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"equivalence"}},{"kind":"Field","name":{"kind":"Name","value":"reasoning"}},{"kind":"Field","name":{"kind":"Name","value":"score"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"AutorouteTraceFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"AutorouteTrace"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"traceId"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"steps"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"step"}},{"kind":"Field","name":{"kind":"Name","value":"result"}},{"kind":"Field","name":{"kind":"Name","value":"durationMs"}},{"kind":"Field","name":{"kind":"Name","value":"metadata"}}]}},{"kind":"Field","name":{"kind":"Name","value":"totalDurationMs"}}]}}]} as unknown as DocumentNode<PendingAutorouteFieldsFragment, unknown>;
 export const EventStreamDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"EventStream"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"filter"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"EventFilter"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"eventStream"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"filter"},"value":{"kind":"Variable","name":{"kind":"Name","value":"filter"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"source"}},{"kind":"Field","name":{"kind":"Name","value":"sourceFormat"}},{"kind":"Field","name":{"kind":"Name","value":"correlationId"}}]}}]}}]} as unknown as DocumentNode<EventStreamSubscription, EventStreamSubscriptionVariables>;
 export const WorkflowEventsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"WorkflowEvents"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"workflowName"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"workflowEvents"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"workflowName"},"value":{"kind":"Variable","name":{"kind":"Name","value":"workflowName"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"event"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"source"}}]}},{"kind":"Field","name":{"kind":"Name","value":"workflow"}},{"kind":"Field","name":{"kind":"Name","value":"routesMatched"}},{"kind":"Field","name":{"kind":"Name","value":"actionsExecuted"}},{"kind":"Field","name":{"kind":"Name","value":"duration"}}]}}]}}]} as unknown as DocumentNode<WorkflowEventsSubscription, WorkflowEventsSubscriptionVariables>;
 export const PatientEventsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"PatientEvents"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"mrn"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"patientEvents"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"mrn"},"value":{"kind":"Variable","name":{"kind":"Name","value":"mrn"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"source"}},{"kind":"Field","name":{"kind":"Name","value":"sourceFormat"}},{"kind":"Field","name":{"kind":"Name","value":"correlationId"}}]}}]}}]} as unknown as DocumentNode<PatientEventsSubscription, PatientEventsSubscriptionVariables>;
@@ -1701,3 +1851,9 @@ export const DeleteMappingDocument = {"kind":"Document","definitions":[{"kind":"
 export const DeleteMappingBatchDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DeleteMappingBatch"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"batchId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"deleteMappingBatch"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"batchId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"batchId"}}}]}]}}]} as unknown as DocumentNode<DeleteMappingBatchMutation, DeleteMappingBatchMutationVariables>;
 export const ResolveMappingDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"ResolveMapping"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ResolveMappingInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"resolveMapping"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"found"}},{"kind":"Field","name":{"kind":"Name","value":"decision"}},{"kind":"Field","name":{"kind":"Name","value":"mapping"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"MappingFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"candidates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"CandidateFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"reasoning"}},{"kind":"Field","name":{"kind":"Name","value":"trace"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"AutorouteTraceFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"durationMs"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"MappingFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"CodeMapping"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"sourceCode"}},{"kind":"Field","name":{"kind":"Name","value":"sourceDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"targetCode"}},{"kind":"Field","name":{"kind":"Name","value":"targetDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"equivalence"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"comment"}},{"kind":"Field","name":{"kind":"Name","value":"origin"}},{"kind":"Field","name":{"kind":"Name","value":"profileId"}},{"kind":"Field","name":{"kind":"Name","value":"uploadBatchId"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CandidateFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"MappingCandidate"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"display"}},{"kind":"Field","name":{"kind":"Name","value":"system"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"equivalence"}},{"kind":"Field","name":{"kind":"Name","value":"reasoning"}},{"kind":"Field","name":{"kind":"Name","value":"score"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"AutorouteTraceFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"AutorouteTrace"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"traceId"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"steps"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"step"}},{"kind":"Field","name":{"kind":"Name","value":"result"}},{"kind":"Field","name":{"kind":"Name","value":"durationMs"}},{"kind":"Field","name":{"kind":"Name","value":"metadata"}}]}},{"kind":"Field","name":{"kind":"Name","value":"totalDurationMs"}}]}}]} as unknown as DocumentNode<ResolveMappingQuery, ResolveMappingQueryVariables>;
 export const SuggestMappingsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"SuggestMappings"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"SuggestMappingsInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"suggestMappings"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"CandidateFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CandidateFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"MappingCandidate"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"display"}},{"kind":"Field","name":{"kind":"Name","value":"system"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"equivalence"}},{"kind":"Field","name":{"kind":"Name","value":"reasoning"}},{"kind":"Field","name":{"kind":"Name","value":"score"}}]}}]} as unknown as DocumentNode<SuggestMappingsQuery, SuggestMappingsQueryVariables>;
+export const ListPendingAutoroutesDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"ListPendingAutoroutes"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"ListPendingAutoroutesInput"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"listPendingAutoroutes"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"nodes"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"PendingAutorouteFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"totalCount"}},{"kind":"Field","name":{"kind":"Name","value":"pageInfo"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"hasNextPage"}},{"kind":"Field","name":{"kind":"Name","value":"hasPreviousPage"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CandidateFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"MappingCandidate"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"display"}},{"kind":"Field","name":{"kind":"Name","value":"system"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"equivalence"}},{"kind":"Field","name":{"kind":"Name","value":"reasoning"}},{"kind":"Field","name":{"kind":"Name","value":"score"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"AutorouteTraceFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"AutorouteTrace"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"traceId"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"steps"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"step"}},{"kind":"Field","name":{"kind":"Name","value":"result"}},{"kind":"Field","name":{"kind":"Name","value":"durationMs"}},{"kind":"Field","name":{"kind":"Name","value":"metadata"}}]}},{"kind":"Field","name":{"kind":"Name","value":"totalDurationMs"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"PendingAutorouteFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"PendingAutoroute"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"sourceCode"}},{"kind":"Field","name":{"kind":"Name","value":"sourceDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"suggestedCode"}},{"kind":"Field","name":{"kind":"Name","value":"suggestedDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"equivalence"}},{"kind":"Field","name":{"kind":"Name","value":"reasoning"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"expiresAt"}},{"kind":"Field","name":{"kind":"Name","value":"reviewedAt"}},{"kind":"Field","name":{"kind":"Name","value":"reviewedBy"}},{"kind":"Field","name":{"kind":"Name","value":"rejectionReason"}},{"kind":"Field","name":{"kind":"Name","value":"alternates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"CandidateFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"decisionTrace"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"AutorouteTraceFields"}}]}}]}}]} as unknown as DocumentNode<ListPendingAutoroutesQuery, ListPendingAutoroutesQueryVariables>;
+export const GetPendingAutorouteDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GetPendingAutoroute"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"getPendingAutoroute"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"PendingAutorouteFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CandidateFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"MappingCandidate"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"display"}},{"kind":"Field","name":{"kind":"Name","value":"system"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"equivalence"}},{"kind":"Field","name":{"kind":"Name","value":"reasoning"}},{"kind":"Field","name":{"kind":"Name","value":"score"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"AutorouteTraceFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"AutorouteTrace"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"traceId"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"steps"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"step"}},{"kind":"Field","name":{"kind":"Name","value":"result"}},{"kind":"Field","name":{"kind":"Name","value":"durationMs"}},{"kind":"Field","name":{"kind":"Name","value":"metadata"}}]}},{"kind":"Field","name":{"kind":"Name","value":"totalDurationMs"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"PendingAutorouteFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"PendingAutoroute"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"sourceCode"}},{"kind":"Field","name":{"kind":"Name","value":"sourceDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"suggestedCode"}},{"kind":"Field","name":{"kind":"Name","value":"suggestedDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"equivalence"}},{"kind":"Field","name":{"kind":"Name","value":"reasoning"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"expiresAt"}},{"kind":"Field","name":{"kind":"Name","value":"reviewedAt"}},{"kind":"Field","name":{"kind":"Name","value":"reviewedBy"}},{"kind":"Field","name":{"kind":"Name","value":"rejectionReason"}},{"kind":"Field","name":{"kind":"Name","value":"alternates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"CandidateFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"decisionTrace"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"AutorouteTraceFields"}}]}}]}}]} as unknown as DocumentNode<GetPendingAutorouteQuery, GetPendingAutorouteQueryVariables>;
+export const PendingAutorouteStatsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"PendingAutorouteStats"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"pendingAutorouteStats"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"pendingCount"}},{"kind":"Field","name":{"kind":"Name","value":"approvedCount"}},{"kind":"Field","name":{"kind":"Name","value":"rejectedCount"}},{"kind":"Field","name":{"kind":"Name","value":"expiredCount"}},{"kind":"Field","name":{"kind":"Name","value":"avgConfidence"}}]}}]}}]} as unknown as DocumentNode<PendingAutorouteStatsQuery, PendingAutorouteStatsQueryVariables>;
+export const ApprovePendingAutorouteDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"ApprovePendingAutoroute"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ApprovePendingAutorouteInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"approvePendingAutoroute"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"MappingFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"MappingFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"CodeMapping"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"sourceCode"}},{"kind":"Field","name":{"kind":"Name","value":"sourceDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"targetCode"}},{"kind":"Field","name":{"kind":"Name","value":"targetDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"equivalence"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"comment"}},{"kind":"Field","name":{"kind":"Name","value":"origin"}},{"kind":"Field","name":{"kind":"Name","value":"profileId"}},{"kind":"Field","name":{"kind":"Name","value":"uploadBatchId"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}}]}}]} as unknown as DocumentNode<ApprovePendingAutorouteMutation, ApprovePendingAutorouteMutationVariables>;
+export const RejectPendingAutorouteDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"RejectPendingAutoroute"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"RejectPendingAutorouteInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"rejectPendingAutoroute"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}]}]}}]} as unknown as DocumentNode<RejectPendingAutorouteMutation, RejectPendingAutorouteMutationVariables>;
+export const BulkApprovePendingAutoroutesDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"BulkApprovePendingAutoroutes"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"BulkApproveInput"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"bulkApprovePendingAutoroutes"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"approved"}},{"kind":"Field","name":{"kind":"Name","value":"skipped"}},{"kind":"Field","name":{"kind":"Name","value":"mappings"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"MappingFields"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"MappingFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"CodeMapping"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"sourceCode"}},{"kind":"Field","name":{"kind":"Name","value":"sourceDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"targetCode"}},{"kind":"Field","name":{"kind":"Name","value":"targetDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"equivalence"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"comment"}},{"kind":"Field","name":{"kind":"Name","value":"origin"}},{"kind":"Field","name":{"kind":"Name","value":"profileId"}},{"kind":"Field","name":{"kind":"Name","value":"uploadBatchId"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}}]}}]} as unknown as DocumentNode<BulkApprovePendingAutoroutesMutation, BulkApprovePendingAutoroutesMutationVariables>;

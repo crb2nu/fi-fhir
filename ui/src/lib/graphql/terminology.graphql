@@ -153,3 +153,81 @@ query SuggestMappings($input: SuggestMappingsInput!) {
     ...CandidateFields
   }
 }
+
+# =============================================================================
+# Pending Autoroute Review
+# =============================================================================
+
+fragment PendingAutorouteFields on PendingAutoroute {
+  id
+  sourceSystem
+  sourceCode
+  sourceDisplay
+  targetSystem
+  suggestedCode
+  suggestedDisplay
+  confidence
+  equivalence
+  reasoning
+  status
+  createdAt
+  expiresAt
+  reviewedAt
+  reviewedBy
+  rejectionReason
+  alternates {
+    ...CandidateFields
+  }
+  decisionTrace {
+    ...AutorouteTraceFields
+  }
+}
+
+query ListPendingAutoroutes($input: ListPendingAutoroutesInput) {
+  listPendingAutoroutes(input: $input) {
+    nodes {
+      ...PendingAutorouteFields
+    }
+    totalCount
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+}
+
+query GetPendingAutoroute($id: ID!) {
+  getPendingAutoroute(id: $id) {
+    ...PendingAutorouteFields
+  }
+}
+
+query PendingAutorouteStats {
+  pendingAutorouteStats {
+    pendingCount
+    approvedCount
+    rejectedCount
+    expiredCount
+    avgConfidence
+  }
+}
+
+mutation ApprovePendingAutoroute($input: ApprovePendingAutorouteInput!) {
+  approvePendingAutoroute(input: $input) {
+    ...MappingFields
+  }
+}
+
+mutation RejectPendingAutoroute($input: RejectPendingAutorouteInput!) {
+  rejectPendingAutoroute(input: $input)
+}
+
+mutation BulkApprovePendingAutoroutes($input: BulkApproveInput) {
+  bulkApprovePendingAutoroutes(input: $input) {
+    approved
+    skipped
+    mappings {
+      ...MappingFields
+    }
+  }
+}
