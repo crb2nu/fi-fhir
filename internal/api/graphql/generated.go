@@ -473,6 +473,7 @@ type ComplexityRoot struct {
 		SubmitEvent                  func(childComplexity int, input model.SubmitEventInput) int
 		SubmitMessage                func(childComplexity int, input model.SubmitMessageInput) int
 		TriggerWorkflow              func(childComplexity int, name string, event map[string]any) int
+		UpdateMapping                func(childComplexity int, input model.UpdateMappingInput) int
 		UpdateProfile                func(childComplexity int, id string, input model.UpdateProfileInput) int
 		UploadMappingCSV             func(childComplexity int, input model.UploadMappingCSVInput) int
 	}
@@ -668,6 +669,7 @@ type ComplexityRoot struct {
 		Events                   func(childComplexity int, filter *model.EventFilter, first *int, after *string, orderBy *model.EventOrderBy) int
 		ExplainWarnings          func(childComplexity int, warnings []model.ParseWarningInput, format model.SourceFormat) int
 		ExplainWorkflow          func(childComplexity int, input model.ExplainWorkflowInput) int
+		ExportMappingsCSV        func(childComplexity int, input *model.ListMappingsInput) int
 		ExtractEntities          func(childComplexity int, input model.ExtractEntitiesInput) int
 		GetMapping               func(childComplexity int, id string) int
 		GetPendingAutoroute      func(childComplexity int, id string) int
@@ -913,6 +915,7 @@ type MutationResolver interface {
 	GenerateWorkflow(ctx context.Context, input model.GenerateWorkflowInput) (*model.GeneratedWorkflow, error)
 	UploadMappingCSV(ctx context.Context, input model.UploadMappingCSVInput) (*model.UploadMappingResult, error)
 	CreateMapping(ctx context.Context, input model.CreateMappingInput) (*model.CodeMapping, error)
+	UpdateMapping(ctx context.Context, input model.UpdateMappingInput) (*model.CodeMapping, error)
 	DeleteMapping(ctx context.Context, id string) (bool, error)
 	DeleteMappingBatch(ctx context.Context, batchID string) (int, error)
 	ApprovePendingAutoroute(ctx context.Context, input model.ApprovePendingAutorouteInput) (*model.CodeMapping, error)
@@ -951,6 +954,7 @@ type QueryResolver interface {
 	GetMapping(ctx context.Context, id string) (*model.CodeMapping, error)
 	LookupMapping(ctx context.Context, sourceSystem string, sourceCode string, targetSystem string, profileID *string) (*model.CodeMapping, error)
 	GetUploadBatch(ctx context.Context, id string) (*model.UploadBatch, error)
+	ExportMappingsCSV(ctx context.Context, input *model.ListMappingsInput) (string, error)
 	ResolveMapping(ctx context.Context, input model.ResolveMappingInput) (*model.ResolveMappingResult, error)
 	SuggestMappings(ctx context.Context, input model.SuggestMappingsInput) ([]model.MappingCandidate, error)
 	ListPendingAutoroutes(ctx context.Context, input *model.ListPendingAutoroutesInput) (*model.PendingAutorouteConnection, error)
@@ -2845,6 +2849,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.TriggerWorkflow(childComplexity, args["name"].(string), args["event"].(map[string]any)), true
+	case "Mutation.updateMapping":
+		if e.complexity.Mutation.UpdateMapping == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateMapping_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UpdateMapping(childComplexity, args["input"].(model.UpdateMappingInput)), true
 	case "Mutation.updateProfile":
 		if e.complexity.Mutation.UpdateProfile == nil {
 			break
@@ -3713,6 +3728,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.ExplainWorkflow(childComplexity, args["input"].(model.ExplainWorkflowInput)), true
+	case "Query.exportMappingsCSV":
+		if e.complexity.Query.ExportMappingsCSV == nil {
+			break
+		}
+
+		args, err := ec.field_Query_exportMappingsCSV_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.ExportMappingsCSV(childComplexity, args["input"].(*model.ListMappingsInput)), true
 	case "Query.extractEntities":
 		if e.complexity.Query.ExtractEntities == nil {
 			break
@@ -4810,6 +4836,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputTerminologyMappingEntryInput,
 		ec.unmarshalInputTerminologyMappingTableInput,
 		ec.unmarshalInputToleranceConfigInput,
+		ec.unmarshalInputUpdateMappingInput,
 		ec.unmarshalInputUpdateProfileInput,
 		ec.unmarshalInputUploadMappingCSVInput,
 		ec.unmarshalInputValidationSettingsInput,
@@ -5198,6 +5225,17 @@ func (ec *executionContext) field_Mutation_triggerWorkflow_args(ctx context.Cont
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_updateMapping_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNUpdateMappingInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐUpdateMappingInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_updateProfile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -5358,6 +5396,17 @@ func (ec *executionContext) field_Query_explainWorkflow_args(ctx context.Context
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNExplainWorkflowInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐExplainWorkflowInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_exportMappingsCSV_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalOListMappingsInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐListMappingsInput)
 	if err != nil {
 		return nil, err
 	}
@@ -14830,6 +14879,83 @@ func (ec *executionContext) fieldContext_Mutation_createMapping(ctx context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_updateMapping(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_updateMapping,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().UpdateMapping(ctx, fc.Args["input"].(model.UpdateMappingInput))
+		},
+		nil,
+		ec.marshalNCodeMapping2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐCodeMapping,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_updateMapping(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_CodeMapping_id(ctx, field)
+			case "sourceSystem":
+				return ec.fieldContext_CodeMapping_sourceSystem(ctx, field)
+			case "sourceCode":
+				return ec.fieldContext_CodeMapping_sourceCode(ctx, field)
+			case "sourceDisplay":
+				return ec.fieldContext_CodeMapping_sourceDisplay(ctx, field)
+			case "targetSystem":
+				return ec.fieldContext_CodeMapping_targetSystem(ctx, field)
+			case "targetCode":
+				return ec.fieldContext_CodeMapping_targetCode(ctx, field)
+			case "targetDisplay":
+				return ec.fieldContext_CodeMapping_targetDisplay(ctx, field)
+			case "equivalence":
+				return ec.fieldContext_CodeMapping_equivalence(ctx, field)
+			case "confidence":
+				return ec.fieldContext_CodeMapping_confidence(ctx, field)
+			case "comment":
+				return ec.fieldContext_CodeMapping_comment(ctx, field)
+			case "origin":
+				return ec.fieldContext_CodeMapping_origin(ctx, field)
+			case "profileId":
+				return ec.fieldContext_CodeMapping_profileId(ctx, field)
+			case "uploadBatchId":
+				return ec.fieldContext_CodeMapping_uploadBatchId(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_CodeMapping_createdAt(ctx, field)
+			case "createdBy":
+				return ec.fieldContext_CodeMapping_createdBy(ctx, field)
+			case "approvedAt":
+				return ec.fieldContext_CodeMapping_approvedAt(ctx, field)
+			case "approvedBy":
+				return ec.fieldContext_CodeMapping_approvedBy(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CodeMapping", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateMapping_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_deleteMapping(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -20502,6 +20628,47 @@ func (ec *executionContext) fieldContext_Query_getUploadBatch(ctx context.Contex
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_getUploadBatch_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_exportMappingsCSV(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_exportMappingsCSV,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().ExportMappingsCSV(ctx, fc.Args["input"].(*model.ListMappingsInput))
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_exportMappingsCSV(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_exportMappingsCSV_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -27388,7 +27555,7 @@ func (ec *executionContext) unmarshalInputListMappingsInput(ctx context.Context,
 		asMap["offset"] = 0
 	}
 
-	fieldsInOrder := [...]string{"sourceSystem", "targetSystem", "profileId", "origin", "uploadBatchId", "first", "offset"}
+	fieldsInOrder := [...]string{"sourceSystem", "targetSystem", "profileId", "origin", "uploadBatchId", "equivalence", "createdAfter", "createdBefore", "first", "offset"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -27430,6 +27597,27 @@ func (ec *executionContext) unmarshalInputListMappingsInput(ctx context.Context,
 				return it, err
 			}
 			it.UploadBatchID = data
+		case "equivalence":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("equivalence"))
+			data, err := ec.unmarshalOMappingEquivalence2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐMappingEquivalence(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Equivalence = data
+		case "createdAfter":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("createdAfter"))
+			data, err := ec.unmarshalODateTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CreatedAfter = data
+		case "createdBefore":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("createdBefore"))
+			data, err := ec.unmarshalODateTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CreatedBefore = data
 		case "first":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("first"))
 			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
@@ -28333,6 +28521,68 @@ func (ec *executionContext) unmarshalInputToleranceConfigInput(ctx context.Conte
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputUpdateMappingInput(ctx context.Context, obj any) (model.UpdateMappingInput, error) {
+	var it model.UpdateMappingInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "sourceDisplay", "targetDisplay", "equivalence", "confidence", "comment"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "sourceDisplay":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sourceDisplay"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SourceDisplay = data
+		case "targetDisplay":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("targetDisplay"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TargetDisplay = data
+		case "equivalence":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("equivalence"))
+			data, err := ec.unmarshalOMappingEquivalence2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐMappingEquivalence(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Equivalence = data
+		case "confidence":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("confidence"))
+			data, err := ec.unmarshalOFloat2ᚖfloat64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Confidence = data
+		case "comment":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("comment"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Comment = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateProfileInput(ctx context.Context, obj any) (model.UpdateProfileInput, error) {
 	var it model.UpdateProfileInput
 	asMap := map[string]any{}
@@ -28594,8 +28844,8 @@ func (ec *executionContext) _Event(ctx context.Context, sel ast.SelectionSet, ob
 		}
 		return ec._AppointmentEvent(ctx, sel, obj)
 	default:
-		if obj, ok := obj.(graphql.Marshaler); ok {
-			return obj
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
 		} else {
 			panic(fmt.Errorf("unexpected type %T; non-generated variants of Event must implement graphql.Marshaler", obj))
 		}
@@ -31275,6 +31525,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "updateMapping":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateMapping(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "deleteMapping":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteMapping(ctx, field)
@@ -33101,6 +33358,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_getUploadBatch(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "exportMappingsCSV":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_exportMappingsCSV(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
 				return res
 			}
 
@@ -37294,6 +37573,11 @@ func (ec *executionContext) marshalNTimelineEvent2ᚕgitlabᚗflexinferᚗaiᚋl
 	}
 
 	return ret
+}
+
+func (ec *executionContext) unmarshalNUpdateMappingInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐUpdateMappingInput(ctx context.Context, v any) (model.UpdateMappingInput, error) {
+	res, err := ec.unmarshalInputUpdateMappingInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNUpdateProfileInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐUpdateProfileInput(ctx context.Context, v any) (model.UpdateProfileInput, error) {

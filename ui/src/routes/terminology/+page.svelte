@@ -1,15 +1,50 @@
 <script lang="ts">
   import Panel from '$lib/ui/Panel.svelte';
+  import Tabs, { type TabItem } from '$lib/ui/Tabs.svelte';
   import AutorouteResolver from '$lib/features/terminology/AutorouteResolver.svelte';
   import MappingBrowser from '$lib/features/terminology/MappingBrowser.svelte';
   import MappingUploader from '$lib/features/terminology/MappingUploader.svelte';
+  import MappingEditor from '$lib/features/terminology/MappingEditor.svelte';
+  import PendingReviewList from '$lib/features/terminology/PendingReviewList.svelte';
+  import TemporalWorkflowList from '$lib/features/terminology/TemporalWorkflowList.svelte';
+  import type { ListMappingsQuery } from '$lib/gen/graphql';
 
-  let activeTab: 'resolve' | 'browse' | 'upload' = 'resolve';
+  type MappingNode = ListMappingsQuery['listMappings']['nodes'][number];
+
+  const tabs: readonly TabItem[] = [
+    { key: 'browse', label: 'Browse' },
+    { key: 'upload', label: 'Upload' },
+    { key: 'review', label: 'Review' },
+    { key: 'resolve', label: 'Resolver' },
+    { key: 'workflows', label: 'Workflows' }
+  ];
+
+  let activeTab = 'browse';
 
   // Trigger refresh when a mapping is approved or uploaded
   let browserKey = 0;
   function refreshBrowser() {
     browserKey++;
+  }
+
+  // Edit modal state
+  let editingMapping: MappingNode | null = null;
+  let showEditor = false;
+
+  function handleEditMapping(event: CustomEvent<{ mapping: MappingNode }>) {
+    editingMapping = event.detail.mapping;
+    showEditor = true;
+  }
+
+  function handleEditorClose() {
+    showEditor = false;
+    editingMapping = null;
+  }
+
+  function handleEditorSave() {
+    showEditor = false;
+    editingMapping = null;
+    refreshBrowser();
   }
 </script>
 
@@ -18,36 +53,18 @@
   Manage custom code mappings between source systems and standard terminologies (LOINC, SNOMED CT, ICD-10, etc.).
 </p>
 
-<div class="tabs">
-  <button class:active={activeTab === 'resolve'} on:click={() => (activeTab = 'resolve')}>
-    Autoroute Resolver
-  </button>
-  <button class:active={activeTab === 'browse'} on:click={() => (activeTab = 'browse')}>
-    Browse Mappings
-  </button>
-  <button class:active={activeTab === 'upload'} on:click={() => (activeTab = 'upload')}>
-    Upload CSV
-  </button>
+<div class="tabs-wrapper">
+  <Tabs {tabs} active={activeTab} onChange={(key) => (activeTab = key)} />
 </div>
 
 <Panel>
-  {#if activeTab === 'resolve'}
+  {#if activeTab === 'browse'}
     <div class="tab-content">
       <p class="description">
-        Enter a source code to find or suggest a mapping. The resolver first checks persistent
-        mappings, then falls back to LLM-powered semantic search if no match is found.
-      </p>
-      <AutorouteResolver
-        on:approved={refreshBrowser}
-      />
-    </div>
-  {:else if activeTab === 'browse'}
-    <div class="tab-content">
-      <p class="description">
-        Browse and manage existing code mappings. Filter by source system, target system, or profile.
+        Browse and manage existing code mappings. Filter by source system, target system, equivalence, or date.
       </p>
       {#key browserKey}
-        <MappingBrowser on:refresh={refreshBrowser} />
+        <MappingBrowser on:refresh={refreshBrowser} on:edit={handleEditMapping} />
       {/key}
     </div>
   {:else if activeTab === 'upload'}
@@ -58,8 +75,40 @@
       </p>
       <MappingUploader on:uploaded={refreshBrowser} />
     </div>
+  {:else if activeTab === 'review'}
+    <div class="tab-content">
+      <p class="description">
+        Review and approve LLM-suggested mappings. High-confidence suggestions can be bulk approved.
+      </p>
+      <PendingReviewList on:approve={refreshBrowser} on:refresh={refreshBrowser} />
+    </div>
+  {:else if activeTab === 'resolve'}
+    <div class="tab-content">
+      <p class="description">
+        Enter a source code to find or suggest a mapping. The resolver first checks persistent
+        mappings, then falls back to LLM-powered semantic search if no match is found.
+      </p>
+      <AutorouteResolver on:approved={refreshBrowser} />
+    </div>
+  {:else if activeTab === 'workflows'}
+    <div class="tab-content">
+      <p class="description">
+        Monitor Temporal workflows for terminology review processes. View status, cancel running workflows, or signal decisions.
+      </p>
+      <TemporalWorkflowList workflowType="TerminologyReviewWorkflow" />
+    </div>
   {/if}
 </Panel>
+
+<!-- Mapping Editor Modal -->
+{#if editingMapping}
+  <MappingEditor
+    mapping={editingMapping}
+    bind:open={showEditor}
+    on:close={handleEditorClose}
+    on:save={handleEditorSave}
+  />
+{/if}
 
 <style>
   h1 {
@@ -74,32 +123,8 @@
     max-width: 70ch;
   }
 
-  .tabs {
-    display: flex;
-    gap: 8px;
+  .tabs-wrapper {
     margin-bottom: 16px;
-  }
-
-  .tabs button {
-    padding: 8px 16px;
-    border-radius: 8px;
-    border: 1px solid rgba(75, 85, 99, 0.4);
-    background: rgba(31, 41, 55, 0.6);
-    color: rgba(229, 231, 235, 0.8);
-    cursor: pointer;
-    font-weight: 500;
-    transition: all 0.15s ease;
-  }
-
-  .tabs button:hover {
-    background: rgba(55, 65, 81, 0.7);
-    color: rgba(229, 231, 235, 0.95);
-  }
-
-  .tabs button.active {
-    background: rgba(59, 130, 246, 0.15);
-    border-color: rgba(59, 130, 246, 0.4);
-    color: rgba(219, 234, 254, 0.95);
   }
 
   .tab-content {

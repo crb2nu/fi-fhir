@@ -271,13 +271,16 @@ type IdentifierConfigInput struct {
 }
 
 type ListMappingsInput struct {
-	SourceSystem  *string        `json:"sourceSystem,omitempty"`
-	TargetSystem  *string        `json:"targetSystem,omitempty"`
-	ProfileID     *string        `json:"profileId,omitempty"`
-	Origin        *MappingOrigin `json:"origin,omitempty"`
-	UploadBatchID *string        `json:"uploadBatchId,omitempty"`
-	First         *int           `json:"first,omitempty"`
-	Offset        *int           `json:"offset,omitempty"`
+	SourceSystem  *string             `json:"sourceSystem,omitempty"`
+	TargetSystem  *string             `json:"targetSystem,omitempty"`
+	ProfileID     *string             `json:"profileId,omitempty"`
+	Origin        *MappingOrigin      `json:"origin,omitempty"`
+	UploadBatchID *string             `json:"uploadBatchId,omitempty"`
+	Equivalence   *MappingEquivalence `json:"equivalence,omitempty"`
+	CreatedAfter  *time.Time          `json:"createdAfter,omitempty"`
+	CreatedBefore *time.Time          `json:"createdBefore,omitempty"`
+	First         *int                `json:"first,omitempty"`
+	Offset        *int                `json:"offset,omitempty"`
 }
 
 type ListPendingAutoroutesInput struct {
@@ -542,6 +545,15 @@ type ToleranceConfigInput struct {
 	ExtraComponents       *bool    `json:"extraComponents,omitempty"`
 	UnknownSegments       *bool    `json:"unknownSegments,omitempty"`
 	NonStandardDelimiters *bool    `json:"nonStandardDelimiters,omitempty"`
+}
+
+type UpdateMappingInput struct {
+	ID            string              `json:"id"`
+	SourceDisplay *string             `json:"sourceDisplay,omitempty"`
+	TargetDisplay *string             `json:"targetDisplay,omitempty"`
+	Equivalence   *MappingEquivalence `json:"equivalence,omitempty"`
+	Confidence    *float64            `json:"confidence,omitempty"`
+	Comment       *string             `json:"comment,omitempty"`
 }
 
 type UpdateProfileInput struct {

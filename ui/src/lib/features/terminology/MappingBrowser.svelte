@@ -3,7 +3,7 @@
   import Button from '$lib/ui/Button.svelte';
   import ConfirmModal from '$lib/ui/ConfirmModal.svelte';
   import { toasts } from '$lib/ui/toastStore';
-  import { listMappings, deleteMapping, deleteMappingBatch } from './terminologyApi';
+  import { listMappings, deleteMapping, deleteMappingBatch, exportMappingsCSV } from './terminologyApi';
   import type { MappingEquivalence, MappingOrigin, ListMappingsQuery } from '$lib/gen/graphql';
 
   // Use the actual type returned from the query
@@ -17,6 +17,7 @@
   const dispatch = createEventDispatcher<{
     select: { mapping: MappingNode };
     delete: { id: string };
+    edit: { mapping: MappingNode };
     refresh: void;
   }>();
 
@@ -26,10 +27,15 @@
   let offset = 0;
   let loading = true;
   let error: string | null = null;
+  let exporting = false;
 
   // Filter state
   let filterSourceSystem = sourceSystem ?? '';
   let filterTargetSystem = targetSystem ?? '';
+  let filterOrigin: MappingOrigin | '' = '';
+  let filterEquivalence: MappingEquivalence | '' = '';
+  let filterCreatedAfter = '';
+  let filterCreatedBefore = '';
 
   // Delete confirmation
   let showDeleteConfirm = false;
@@ -51,7 +57,10 @@
         profileId: profileId ?? null,
         sourceSystem: filterSourceSystem || null,
         targetSystem: filterTargetSystem || null,
-        origin: null,
+        origin: filterOrigin || null,
+        equivalence: filterEquivalence || null,
+        createdAfter: filterCreatedAfter ? new Date(filterCreatedAfter).toISOString() : null,
+        createdBefore: filterCreatedBefore ? new Date(filterCreatedBefore).toISOString() : null,
         uploadBatchId: null
       });
       mappings = result.nodes;
@@ -72,8 +81,51 @@
   function clearFilters() {
     filterSourceSystem = '';
     filterTargetSystem = '';
+    filterOrigin = '';
+    filterEquivalence = '';
+    filterCreatedAfter = '';
+    filterCreatedBefore = '';
     offset = 0;
     loadMappings();
+  }
+
+  function editMapping(mapping: MappingNode) {
+    dispatch('edit', { mapping });
+  }
+
+  async function handleExport() {
+    exporting = true;
+    try {
+      const csv = await exportMappingsCSV({
+        first: null,
+        offset: null,
+        profileId: profileId ?? null,
+        sourceSystem: filterSourceSystem || null,
+        targetSystem: filterTargetSystem || null,
+        origin: filterOrigin || null,
+        equivalence: filterEquivalence || null,
+        createdAfter: filterCreatedAfter ? new Date(filterCreatedAfter).toISOString() : null,
+        createdBefore: filterCreatedBefore ? new Date(filterCreatedBefore).toISOString() : null,
+        uploadBatchId: null
+      });
+
+      // Download as file
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `mappings-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toasts.success('Mappings exported successfully');
+    } catch (err) {
+      toasts.error(err instanceof Error ? err.message : 'Export failed');
+    } finally {
+      exporting = false;
+    }
   }
 
   function prevPage() {
@@ -163,6 +215,21 @@
 </script>
 
 <div class="browser">
+  <!-- Header with Export -->
+  <div class="browser-header">
+    <div class="header-info">
+      <span class="total-count">{totalCount} mappings</span>
+    </div>
+    <Button
+      variant="secondary"
+      size="sm"
+      on:click={handleExport}
+      disabled={exporting || totalCount === 0}
+    >
+      {exporting ? 'Exporting...' : 'Export CSV'}
+    </Button>
+  </div>
+
   <!-- Filters -->
   <div class="filters">
     <div class="filter-row">
@@ -184,6 +251,43 @@
           bind:value={filterTargetSystem}
           placeholder="e.g., http://loinc.org"
           on:keydown={(e) => e.key === 'Enter' && applyFilters()}
+        />
+      </label>
+    </div>
+    <div class="filter-row">
+      <label class="filter-field filter-sm">
+        <span class="filter-label">Origin</span>
+        <select class="filter-select" bind:value={filterOrigin}>
+          <option value="">All</option>
+          <option value="CSV_UPLOAD">CSV Upload</option>
+          <option value="APPROVED_AUTOROUTE">Approved</option>
+          <option value="MANUAL">Manual</option>
+        </select>
+      </label>
+      <label class="filter-field filter-sm">
+        <span class="filter-label">Equivalence</span>
+        <select class="filter-select" bind:value={filterEquivalence}>
+          <option value="">All</option>
+          <option value="EQUIVALENT">Equivalent</option>
+          <option value="WIDER">Wider</option>
+          <option value="NARROWER">Narrower</option>
+          <option value="INEXACT">Inexact</option>
+        </select>
+      </label>
+      <label class="filter-field filter-sm">
+        <span class="filter-label">Created After</span>
+        <input
+          type="date"
+          class="filter-input"
+          bind:value={filterCreatedAfter}
+        />
+      </label>
+      <label class="filter-field filter-sm">
+        <span class="filter-label">Created Before</span>
+        <input
+          type="date"
+          class="filter-input"
+          bind:value={filterCreatedBefore}
         />
       </label>
       <div class="filter-actions">
@@ -256,6 +360,16 @@
             <span class="col-date">{formatDate(mapping.createdAt)}</span>
             <span class="col-actions">
               <button
+                class="icon-btn"
+                title="Edit mapping"
+                on:click|stopPropagation={() => editMapping(mapping)}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+              </button>
+              <button
                 class="icon-btn danger"
                 title="Delete mapping"
                 on:click|stopPropagation={() => confirmDelete(mapping.id)}
@@ -313,6 +427,24 @@
     gap: 16px;
   }
 
+  /* Header */
+  .browser-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .header-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .total-count {
+    font-size: 0.9rem;
+    color: rgba(229, 231, 235, 0.6);
+  }
+
   /* Filters */
   .filters {
     padding: 12px 16px;
@@ -332,6 +464,10 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
+  }
+
+  .filter-field.filter-sm {
+    flex: 0.7;
   }
 
   .filter-label {
@@ -357,6 +493,21 @@
     box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
   }
 
+  .filter-select {
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.03);
+    color: rgba(229, 231, 235, 0.9);
+    font-size: 0.9rem;
+    outline: none;
+  }
+
+  .filter-select:focus {
+    border-color: rgba(59, 130, 246, 0.5);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+  }
+
   .filter-actions {
     display: flex;
     gap: 8px;
@@ -371,7 +522,7 @@
 
   .table-header {
     display: grid;
-    grid-template-columns: 1.5fr 1.5fr 100px 100px 100px 40px;
+    grid-template-columns: 1.5fr 1.5fr 100px 100px 100px 70px;
     gap: 8px;
     padding: 10px 16px;
     background: rgba(255, 255, 255, 0.03);
@@ -384,7 +535,7 @@
 
   .table-row {
     display: grid;
-    grid-template-columns: 1.5fr 1.5fr 100px 100px 100px 40px;
+    grid-template-columns: 1.5fr 1.5fr 100px 100px 100px 70px;
     gap: 8px;
     padding: 10px 16px;
     border-top: 1px solid rgba(255, 255, 255, 0.04);
@@ -463,6 +614,7 @@
   .col-actions {
     display: flex;
     justify-content: flex-end;
+    gap: 4px;
   }
 
   .icon-btn {

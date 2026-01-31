@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -292,13 +293,16 @@ func (s *MappingStore) LookupMapping(ctx context.Context, sourceSystem, sourceCo
 	return &m, nil
 }
 
-// ListMappings returns mappings with optional filters.
+// ListMappingsFilter provides options for filtering mappings.
 type ListMappingsFilter struct {
 	SourceSystem  string
 	TargetSystem  string
 	ProfileID     string
 	Origin        MappingOrigin
 	UploadBatchID *uuid.UUID
+	Equivalence   MappingEquivalence
+	CreatedAfter  *time.Time
+	CreatedBefore *time.Time
 	Limit         int
 	Offset        int
 }
@@ -346,6 +350,24 @@ func (s *MappingStore) ListMappings(ctx context.Context, filter ListMappingsFilt
 		query += fmt.Sprintf(" AND upload_batch_id = $%d", argNum)
 		countQuery += fmt.Sprintf(" AND upload_batch_id = $%d", argNum)
 		args = append(args, *filter.UploadBatchID)
+		argNum++
+	}
+	if filter.Equivalence != "" {
+		query += fmt.Sprintf(" AND equivalence = $%d", argNum)
+		countQuery += fmt.Sprintf(" AND equivalence = $%d", argNum)
+		args = append(args, filter.Equivalence)
+		argNum++
+	}
+	if filter.CreatedAfter != nil {
+		query += fmt.Sprintf(" AND created_at >= $%d", argNum)
+		countQuery += fmt.Sprintf(" AND created_at >= $%d", argNum)
+		args = append(args, *filter.CreatedAfter)
+		argNum++
+	}
+	if filter.CreatedBefore != nil {
+		query += fmt.Sprintf(" AND created_at <= $%d", argNum)
+		countQuery += fmt.Sprintf(" AND created_at <= $%d", argNum)
+		args = append(args, *filter.CreatedBefore)
 		argNum++
 	}
 
@@ -452,6 +474,77 @@ func (s *MappingStore) GetMapping(ctx context.Context, id int64) (*CustomMapping
 	}
 
 	return &m, nil
+}
+
+// UpdateMappingInput contains the fields that can be updated on a mapping.
+type UpdateMappingInput struct {
+	ID            int64
+	SourceDisplay *string
+	TargetDisplay *string
+	Equivalence   *MappingEquivalence
+	Confidence    *float64
+	Comment       *string
+}
+
+// UpdateMapping updates an existing custom mapping.
+func (s *MappingStore) UpdateMapping(ctx context.Context, input UpdateMappingInput) (*CustomMapping, error) {
+	// Build dynamic update query
+	var setClauses []string
+	var args []interface{}
+	argNum := 1
+
+	if input.SourceDisplay != nil {
+		setClauses = append(setClauses, fmt.Sprintf("source_display = $%d", argNum))
+		args = append(args, nullIfEmpty(*input.SourceDisplay))
+		argNum++
+	}
+	if input.TargetDisplay != nil {
+		setClauses = append(setClauses, fmt.Sprintf("target_display = $%d", argNum))
+		args = append(args, nullIfEmpty(*input.TargetDisplay))
+		argNum++
+	}
+	if input.Equivalence != nil {
+		setClauses = append(setClauses, fmt.Sprintf("equivalence = $%d", argNum))
+		args = append(args, *input.Equivalence)
+		argNum++
+	}
+	if input.Confidence != nil {
+		setClauses = append(setClauses, fmt.Sprintf("confidence = $%d", argNum))
+		args = append(args, *input.Confidence)
+		argNum++
+	}
+	if input.Comment != nil {
+		setClauses = append(setClauses, fmt.Sprintf("comment = $%d", argNum))
+		args = append(args, nullIfEmpty(*input.Comment))
+		argNum++
+	}
+
+	if len(setClauses) == 0 {
+		// No fields to update, just return the existing mapping
+		return s.GetMapping(ctx, input.ID)
+	}
+
+	// Add the ID for the WHERE clause
+	args = append(args, input.ID)
+
+	query := fmt.Sprintf(`
+		UPDATE terminology.custom_mappings
+		SET %s
+		WHERE id = $%d
+		RETURNING id
+	`, strings.Join(setClauses, ", "), argNum)
+
+	var updatedID int64
+	err := s.db.QueryRowContext(ctx, query, args...).Scan(&updatedID)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("mapping not found: %d", input.ID)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("updating mapping: %w", err)
+	}
+
+	// Return the updated mapping
+	return s.GetMapping(ctx, updatedID)
 }
 
 // DeleteMapping removes a custom mapping by ID.

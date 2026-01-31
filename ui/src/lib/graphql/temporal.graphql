@@ -1,0 +1,42 @@
+# Temporal Workflow Queries and Mutations
+
+fragment TemporalWorkflowFields on TemporalWorkflow {
+  id
+  runId
+  workflowType
+  status
+  taskQueue
+  startTime
+  closeTime
+  durationMs
+}
+
+query ListTemporalWorkflows($filter: TemporalWorkflowFilter, $first: Int, $after: String) {
+  temporalWorkflows(filter: $filter, first: $first, after: $after) {
+    nodes {
+      ...TemporalWorkflowFields
+    }
+    totalCount
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      endCursor
+    }
+  }
+}
+
+query GetTemporalWorkflow($workflowId: String!, $runId: String) {
+  temporalWorkflow(workflowId: $workflowId, runId: $runId) {
+    ...TemporalWorkflowFields
+    input
+    result
+  }
+}
+
+mutation CancelTemporalWorkflow($workflowId: String!, $reason: String) {
+  cancelTemporalWorkflow(workflowId: $workflowId, reason: $reason)
+}
+
+mutation SignalReviewDecision($input: SignalReviewDecisionInput!) {
+  signalReviewDecision(input: $input)
+}

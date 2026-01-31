@@ -1301,8 +1301,20 @@ input ListMappingsInput {
   profileId: String
   origin: MappingOrigin
   uploadBatchId: ID
+  equivalence: MappingEquivalence
+  createdAfter: DateTime
+  createdBefore: DateTime
   first: Int = 50
   offset: Int = 0
+}
+
+input UpdateMappingInput {
+  id: ID!
+  sourceDisplay: String
+  targetDisplay: String
+  equivalence: MappingEquivalence
+  confidence: Float
+  comment: String
 }
 
 # =============================================================================
@@ -1326,6 +1338,9 @@ extend type Query {
 
   # Get an upload batch by ID
   getUploadBatch(id: ID!): UploadBatch
+
+  # Export mappings to CSV format
+  exportMappingsCSV(input: ListMappingsInput): String!
 }
 
 extend type Mutation {
@@ -1334,6 +1349,9 @@ extend type Mutation {
 
   # Create a single mapping manually
   createMapping(input: CreateMappingInput!): CodeMapping!
+
+  # Update an existing mapping
+  updateMapping(input: UpdateMappingInput!): CodeMapping!
 
   # Delete a mapping by ID
   deleteMapping(id: ID!): Boolean!

@@ -31,6 +31,21 @@ func strPtr(s string) *string {
 	return &s
 }
 
+// escapeCSV properly escapes a string for CSV output.
+// Fields containing commas, quotes, or newlines are wrapped in quotes.
+func escapeCSV(s string) string {
+	if s == "" {
+		return ""
+	}
+	needsQuotes := strings.ContainsAny(s, ",\"\n\r")
+	if needsQuotes {
+		// Double any existing quotes and wrap in quotes
+		escaped := strings.ReplaceAll(s, "\"", "\"\"")
+		return "\"" + escaped + "\""
+	}
+	return s
+}
+
 // convertToGraphQLEvent converts internal event types to GraphQL model types.
 func convertToGraphQLEvent(evt interface{}, source string, format model.SourceFormat, correlationID *string) model.Event {
 	switch e := evt.(type) {

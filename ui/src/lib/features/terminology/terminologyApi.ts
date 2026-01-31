@@ -11,6 +11,8 @@ import {
   CreateMappingDocument,
   DeleteMappingDocument,
   DeleteMappingBatchDocument,
+  UpdateMappingDocument,
+  ExportMappingsCsvDocument,
   ResolveMappingDocument,
   SuggestMappingsDocument,
   ListPendingAutoroutesDocument,
@@ -25,6 +27,7 @@ import {
   type GetUploadBatchQuery,
   type UploadMappingCsvMutation,
   type CreateMappingMutation,
+  type UpdateMappingMutation,
   type ResolveMappingQuery,
   type SuggestMappingsQuery,
   type ListPendingAutoroutesQuery,
@@ -35,6 +38,7 @@ import {
   type ListMappingsInput,
   type UploadMappingCsvInput,
   type CreateMappingInput,
+  type UpdateMappingInput,
   type ResolveMappingInput,
   type SuggestMappingsInput,
   type ListPendingAutoroutesInput,
@@ -122,6 +126,26 @@ export async function deleteMapping(id: string): Promise<boolean> {
 export async function deleteMappingBatch(batchId: string): Promise<number> {
   const result = await graphqlFetch(DeleteMappingBatchDocument, { batchId });
   return result.deleteMappingBatch;
+}
+
+/**
+ * Update an existing mapping
+ */
+export async function updateMapping(
+  input: UpdateMappingInput
+): Promise<UpdateMappingMutation['updateMapping']> {
+  const result = await graphqlFetch(UpdateMappingDocument, { input });
+  return result.updateMapping;
+}
+
+/**
+ * Export mappings to CSV format
+ */
+export async function exportMappingsCSV(
+  input?: ListMappingsInput | null
+): Promise<string> {
+  const result = await graphqlFetch(ExportMappingsCsvDocument, { input: input ?? null });
+  return result.exportMappingsCSV;
 }
 
 // =============================================================================

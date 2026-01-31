@@ -105,6 +105,16 @@ mutation DeleteMappingBatch($batchId: ID!) {
   deleteMappingBatch(batchId: $batchId)
 }
 
+mutation UpdateMapping($input: UpdateMappingInput!) {
+  updateMapping(input: $input) {
+    ...MappingFields
+  }
+}
+
+query ExportMappingsCSV($input: ListMappingsInput) {
+  exportMappingsCSV(input: $input)
+}
+
 # Autoroute (LLM-powered mapping suggestions)
 
 fragment CandidateFields on MappingCandidate {
