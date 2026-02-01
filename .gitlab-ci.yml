@@ -7,8 +7,9 @@ include:
 stages:
   - lint
   - test
-  - security
+  - security      # Pre-build security (govulncheck, gosec, trivy fs, npm audit, license check)
   - build
+  - scan          # Post-build security (trivy image scans)
   - deploy
   - release
 
@@ -507,7 +508,7 @@ security:npm-audit:
   allow_failure: true
 
 security:trivy-image:
-  stage: security
+  stage: scan
   image:
     name: aquasec/trivy:latest
     entrypoint: [""]
@@ -561,7 +562,7 @@ security:license-check:
   allow_failure: true
 
 security:trivy-ui-image:
-  stage: security
+  stage: scan
   image:
     name: aquasec/trivy:latest
     entrypoint: [""]
