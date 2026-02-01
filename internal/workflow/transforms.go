@@ -126,15 +126,15 @@ func (t *Transformer) applyExplainWarnings(ctx context.Context, event map[string
 	// Get warnings from the event
 	warningsVal, err := getNestedValue(event, warningsField)
 	if err != nil {
-		// No warnings field, nothing to explain
-		return nil
+		// No warnings field, nothing to explain - graceful skip
+		return nil //nolint:nilerr // Intentional: skip when warnings field is absent
 	}
 
 	// Convert warnings to []events.ParseWarning
 	warnings, err := toParseWarnings(warningsVal)
 	if err != nil {
-		// Not the expected type, skip silently
-		return nil
+		// Not the expected type - graceful skip
+		return nil //nolint:nilerr // Intentional: skip when warnings format is unexpected
 	}
 
 	if len(warnings) == 0 {

@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm"
@@ -19,7 +18,6 @@ type Builder struct {
 	qdrant          *QdrantClient
 	embeddingClient llm.EmbeddingClient
 	progressChan    chan BuildProgress
-	mu              sync.Mutex
 }
 
 // NewBuilder creates a new index builder.

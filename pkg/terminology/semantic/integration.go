@@ -106,8 +106,8 @@ func (h *HybridSearcher) SearchWithFallback(ctx context.Context, query string, f
 
 	semanticMatches, err := h.semantic.Search(ctx, query, semanticOpts)
 	if err != nil {
-		// On semantic search failure, return fuzzy matches
-		return fuzzyMatches, nil
+		// On semantic search failure, gracefully fall back to fuzzy matches
+		return fuzzyMatches, nil //nolint:nilerr // Intentional: semantic search is optional enhancement
 	}
 
 	// Combine results

@@ -17,7 +17,6 @@ type Searcher struct {
 	qdrant   *index.QdrantClient
 	config   *SearchConfig
 	cache    *searchCache
-	mu       sync.RWMutex
 }
 
 // NewSearcher creates a new semantic searcher.

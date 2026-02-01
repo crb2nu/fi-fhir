@@ -55,7 +55,6 @@ type Retryer struct {
 	// Circuit breaker config
 	failureThreshold int
 	resetTimeout     time.Duration
-	halfOpenRequests int
 }
 
 // NewRetryer creates a new Retryer with the given configuration.

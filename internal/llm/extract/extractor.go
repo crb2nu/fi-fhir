@@ -16,7 +16,6 @@ type Extractor struct {
 	client llm.Client
 	model  string
 	cache  *extractionCache
-	mu     sync.RWMutex
 }
 
 // Config configures the extractor.

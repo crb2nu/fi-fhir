@@ -14,7 +14,6 @@ type Manager struct {
 	config          IndexConfig
 	qdrant          *QdrantClient
 	embeddingClient llm.EmbeddingClient
-	mu              sync.RWMutex
 }
 
 // NewManager creates a new index manager.

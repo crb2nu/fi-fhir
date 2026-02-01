@@ -18,7 +18,6 @@ type WarningExplainer struct {
 	client llm.Client
 	model  string
 	cache  *explanationCache
-	mu     sync.RWMutex
 }
 
 // ExplainerConfig configures the warning explainer.

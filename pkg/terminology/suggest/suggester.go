@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sync"
 	"time"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm"
@@ -19,7 +18,6 @@ type Suggester struct {
 	llmClient        llm.Client
 	feedbackStore    *FeedbackStore
 	config           *SuggesterConfig
-	mu               sync.RWMutex
 }
 
 // NewSuggester creates a new code suggester.
