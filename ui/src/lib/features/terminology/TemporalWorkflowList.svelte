@@ -531,6 +531,8 @@
 
   .card:hover {
     border-color: var(--color-border-hover);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
   }
 
   .card.expanded {

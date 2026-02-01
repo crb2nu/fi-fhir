@@ -683,6 +683,8 @@
 
   .card:hover {
     border-color: var(--color-border-strong);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
   }
 
   .card.expanded {

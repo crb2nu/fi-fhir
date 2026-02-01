@@ -529,6 +529,8 @@
   .candidate:hover {
     background: var(--color-bg-hover);
     border-color: var(--color-border-strong);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
   }
 
   .candidate-main {

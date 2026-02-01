@@ -117,12 +117,14 @@
   .btn.primary:hover:not(:disabled) {
     background: var(--color-bg-hover);
     border-color: var(--color-primary-border);
-    transform: translateY(-1px);
+    transform: translateY(-1px) scale(1.02);
+    box-shadow: var(--shadow-md);
   }
 
   .btn.primary:active:not(:disabled) {
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
     background: var(--color-bg-active);
+    box-shadow: none;
   }
 
   /* Variant: Secondary */
@@ -135,10 +137,14 @@
   .btn.secondary:hover:not(:disabled) {
     background: var(--color-bg-hover);
     border-color: var(--color-border-strong);
+    transform: translateY(-1px) scale(1.02);
+    box-shadow: var(--shadow-sm);
   }
 
   .btn.secondary:active:not(:disabled) {
     background: var(--color-bg-active);
+    transform: translateY(0) scale(1);
+    box-shadow: none;
   }
 
   /* Variant: Danger */
@@ -151,10 +157,14 @@
   .btn.danger:hover:not(:disabled) {
     background: rgba(239, 68, 68, 0.18);
     border-color: rgba(239, 68, 68, 0.5);
+    transform: translateY(-1px) scale(1.02);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
   }
 
   .btn.danger:active:not(:disabled) {
     background: rgba(239, 68, 68, 0.25);
+    transform: translateY(0) scale(1);
+    box-shadow: none;
   }
 
   /* Variant: Ghost */
@@ -167,10 +177,12 @@
   .btn.ghost:hover:not(:disabled) {
     background: var(--color-bg-hover);
     color: var(--color-text-primary);
+    transform: scale(1.02);
   }
 
   .btn.ghost:active:not(:disabled) {
     background: var(--color-bg-active);
+    transform: scale(1);
   }
 
   /* Disabled state */
