@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { TabItem } from '$lib/ui/Tabs.svelte';
   import Tabs from '$lib/ui/Tabs.svelte';
+  import type { TabItem } from '$lib/ui/types';
   import Panel from '$lib/ui/Panel.svelte';
   import Button from '$lib/ui/Button.svelte';
   import TextArea from '$lib/ui/TextArea.svelte';

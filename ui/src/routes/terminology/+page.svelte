@@ -1,6 +1,7 @@
 <script lang="ts">
   import Panel from '$lib/ui/Panel.svelte';
-  import Tabs, { type TabItem } from '$lib/ui/Tabs.svelte';
+  import Tabs from '$lib/ui/Tabs.svelte';
+  import type { TabItem } from '$lib/ui/types';
   import AutorouteResolver from '$lib/features/terminology/AutorouteResolver.svelte';
   import MappingBrowser from '$lib/features/terminology/MappingBrowser.svelte';
   import MappingUploader from '$lib/features/terminology/MappingUploader.svelte';

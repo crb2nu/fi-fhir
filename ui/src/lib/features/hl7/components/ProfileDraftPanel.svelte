@@ -1,7 +1,8 @@
 <script lang="ts">
   import Panel from '$lib/ui/Panel.svelte';
   import Button from '$lib/ui/Button.svelte';
-  import Tabs, { type TabItem } from '$lib/ui/Tabs.svelte';
+  import Tabs from '$lib/ui/Tabs.svelte';
+  import type { TabItem } from '$lib/ui/types';
   import ProfileSelector from './ProfileSelector.svelte';
   import ToleranceEditor from './ToleranceEditor.svelte';
   import EventRulesEditor from './EventRulesEditor.svelte';

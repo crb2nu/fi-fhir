@@ -3,7 +3,8 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
-import Tabs, { type TabItem } from './Tabs.svelte';
+import Tabs from './Tabs.svelte';
+import type { TabItem } from './types';
 
 describe('Tabs', () => {
   const defaultTabs: TabItem[] = [

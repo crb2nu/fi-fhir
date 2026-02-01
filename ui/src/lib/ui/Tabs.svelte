@@ -1,14 +1,6 @@
-<script lang="ts" context="module">
-  export type TabItem = {
-    key: string;
-    label: string;
-    disabled?: boolean;
-    count?: number;
-    icon?: string;
-  };
-</script>
-
 <script lang="ts">
+  import type { TabItem } from './types';
+
   /**
    * Tabs Component
    *
