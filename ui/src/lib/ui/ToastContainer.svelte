@@ -1,4 +1,10 @@
 <script lang="ts">
+  /**
+   * ToastContainer Component
+   *
+   * Container for toast notifications with responsive positioning.
+   */
+
   import { toastList, toasts } from './toastStore';
   import Toast from './Toast.svelte';
 
@@ -8,7 +14,7 @@
 </script>
 
 {#if $toastList.length > 0}
-  <div class="toast-container" role="region" aria-label="Notifications">
+  <div class="toast-container" role="region" aria-label="Notifications" aria-live="polite">
     {#each $toastList as toast (toast.id)}
       <Toast
         id={toast.id}
@@ -24,13 +30,14 @@
 <style>
   .toast-container {
     position: fixed;
-    top: 16px;
-    right: 16px;
-    z-index: 9999;
+    top: var(--space-4);
+    right: var(--space-4);
+    z-index: var(--z-toast);
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: var(--space-3);
     pointer-events: none;
+    max-width: 400px;
   }
 
   .toast-container :global(.toast) {
@@ -39,11 +46,8 @@
 
   @media (max-width: 480px) {
     .toast-container {
-      left: 16px;
-      right: 16px;
-    }
-
-    .toast-container :global(.toast) {
+      left: var(--space-4);
+      right: var(--space-4);
       max-width: none;
     }
   }

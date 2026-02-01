@@ -244,7 +244,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: var(--z-modal);
+    padding: var(--space-4);
   }
 
   .modal-backdrop {
@@ -252,28 +253,35 @@
     inset: 0;
     border: 0;
     padding: 0;
-    background: rgba(0, 0, 0, 0.6);
+    background: var(--modal-backdrop);
     cursor: default;
+    animation: fadeIn var(--duration-fast) var(--ease-out);
   }
 
   .modal {
     position: relative;
     z-index: 1;
-    background: #1f2937;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px;
-    padding: 24px;
-    width: 90%;
-    max-width: 560px;
+    background: var(--color-bg-base);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--modal-radius);
+    padding: var(--space-6);
+    width: 100%;
+    max-width: var(--modal-width-md);
     max-height: 90vh;
     overflow-y: auto;
-    animation: slideIn 0.15s ease-out;
+    box-shadow: var(--shadow-xl);
+    animation: modalIn var(--duration-normal) var(--ease-out);
   }
 
-  @keyframes slideIn {
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes modalIn {
     from {
       opacity: 0;
-      transform: scale(0.95) translateY(-10px);
+      transform: scale(0.95) translateY(-8px);
     }
     to {
       opacity: 1;
@@ -282,24 +290,24 @@
   }
 
   .modal-title {
-    margin: 0 0 20px;
-    font-size: 1.1rem;
-    font-weight: 800;
-    color: #f3f4f6;
+    margin: 0 0 var(--space-5);
+    font-size: var(--text-lg);
+    font-weight: var(--font-bold);
+    color: var(--color-text-primary);
   }
 
   .modal-body {
-    margin-bottom: 20px;
+    margin-bottom: var(--space-5);
   }
 
   .divider {
     height: 1px;
-    background: rgba(255, 255, 255, 0.08);
-    margin: 16px 0;
+    background: var(--color-border-subtle);
+    margin: var(--space-4) 0;
   }
 
   .field-group {
-    margin-bottom: 12px;
+    margin-bottom: var(--space-3);
   }
 
   .field-group.full-width {
@@ -309,110 +317,118 @@
   .field-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 16px;
+    gap: var(--space-4);
   }
 
   .field-label {
     display: block;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: rgba(229, 231, 235, 0.6);
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    color: var(--color-text-tertiary);
     text-transform: uppercase;
-    letter-spacing: 0.02em;
-    margin-bottom: 4px;
+    letter-spacing: var(--tracking-wide);
+    margin-bottom: var(--space-1);
   }
 
   .field-value {
-    font-size: 0.9rem;
-    color: rgba(229, 231, 235, 0.9);
-    line-height: 1.5;
+    font-size: var(--text-sm);
+    color: var(--color-text-primary);
+    line-height: var(--leading-normal);
   }
 
   .field-value.readonly {
-    padding: 8px 12px;
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-bg-elevated);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border-subtle);
   }
 
   .field-value.mono {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-family: var(--font-mono);
   }
 
   .field-input,
   .field-select,
   .field-textarea {
     width: 100%;
-    padding: 8px 12px;
-    border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(229, 231, 235, 0.9);
-    font-size: 0.9rem;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-input);
+    color: var(--color-text-primary);
+    font-size: var(--text-sm);
     font-family: inherit;
     outline: none;
-    transition: border-color 0.15s, box-shadow 0.15s;
+    transition: var(--transition-all);
   }
 
   .field-input:focus,
   .field-select:focus,
   .field-textarea:focus {
-    border-color: rgba(59, 130, 246, 0.5);
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+    border-color: var(--color-border-focus);
+    box-shadow: var(--shadow-focus);
   }
 
   .field-textarea {
     resize: vertical;
-    min-height: 60px;
+    min-height: 80px;
   }
 
   .confidence-input {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: var(--space-3);
   }
 
   .confidence-input input[type="range"] {
     flex: 1;
-    accent-color: rgb(59, 130, 246);
+    accent-color: var(--color-primary);
+    height: 6px;
   }
 
   .confidence-value {
     min-width: 45px;
     text-align: right;
-    font-family: ui-monospace, monospace;
-    font-size: 0.9rem;
-    color: rgba(229, 231, 235, 0.8);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    color: var(--color-text-secondary);
   }
 
   .metadata-section {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px 24px;
+    gap: var(--space-2) var(--space-6);
   }
 
   .metadata-row {
     display: flex;
-    gap: 6px;
-    font-size: 0.8rem;
+    gap: var(--space-2);
+    font-size: var(--text-xs);
   }
 
   .meta-label {
-    color: rgba(229, 231, 235, 0.5);
+    color: var(--color-text-muted);
   }
 
   .meta-value {
-    color: rgba(229, 231, 235, 0.7);
+    color: var(--color-text-tertiary);
   }
 
   .meta-value.mono {
-    font-family: ui-monospace, monospace;
-    font-size: 0.75rem;
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
   }
 
   .modal-actions {
     display: flex;
-    gap: 10px;
+    gap: var(--space-3);
     justify-content: flex-end;
+  }
+
+  @media (max-width: 480px) {
+    .field-row {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

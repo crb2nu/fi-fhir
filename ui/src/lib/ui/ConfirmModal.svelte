@@ -1,4 +1,11 @@
 <script lang="ts">
+  /**
+   * ConfirmModal Component
+   *
+   * Confirmation dialog with customizable title, message, and actions.
+   * Includes focus trap and keyboard navigation support.
+   */
+
   import { createEventDispatcher, tick } from 'svelte';
   import Button from '$lib/ui/Button.svelte';
 
@@ -8,6 +15,7 @@
   export let confirmText = 'Confirm';
   export let cancelText = 'Cancel';
   export let variant: 'primary' | 'danger' = 'primary';
+  export let loading = false;
 
   const dispatch = createEventDispatcher<{
     confirm: void;
@@ -25,17 +33,20 @@
 
   function handleConfirm() {
     dispatch('confirm');
-    open = false;
+    if (!loading) {
+      open = false;
+    }
   }
 
   function handleCancel() {
+    if (loading) return;
     dispatch('cancel');
     open = false;
   }
 
   function handleWindowKeydown(e: KeyboardEvent) {
     if (!open) return;
-    if (e.key === 'Escape') {
+    if (e.key === 'Escape' && !loading) {
       handleCancel();
     }
   }
@@ -51,6 +62,7 @@
       tabindex="-1"
       aria-label="Close dialog"
       on:click={handleCancel}
+      disabled={loading}
     ></button>
     <div
       class="modal"
@@ -61,15 +73,23 @@
       aria-describedby="modal-message"
       tabindex="-1"
     >
-      <h3 id="modal-title" class="modal-title">{title}</h3>
+      <header class="modal-header">
+        <h3 id="modal-title" class="modal-title">{title}</h3>
+      </header>
+
       <div class="modal-body">
         <p id="modal-message">{message}</p>
         <slot />
       </div>
-      <div class="modal-actions">
-        <Button variant="secondary" on:click={handleCancel}>{cancelText}</Button>
-        <Button variant={variant} on:click={handleConfirm}>{confirmText}</Button>
-      </div>
+
+      <footer class="modal-actions">
+        <Button variant="secondary" on:click={handleCancel} disabled={loading}>
+          {cancelText}
+        </Button>
+        <Button {variant} on:click={handleConfirm} {loading}>
+          {confirmText}
+        </Button>
+      </footer>
     </div>
   </div>
 {/if}
@@ -81,7 +101,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: var(--z-modal);
+    padding: var(--space-4);
   }
 
   .modal-backdrop {
@@ -89,26 +110,41 @@
     inset: 0;
     border: 0;
     padding: 0;
-    background: rgba(0, 0, 0, 0.6);
+    background: var(--modal-backdrop);
     cursor: default;
+    animation: fadeIn var(--duration-fast) var(--ease-out);
+  }
+
+  .modal-backdrop:disabled {
+    cursor: not-allowed;
   }
 
   .modal {
     position: relative;
     z-index: 1;
-    background: #1f2937;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px;
-    padding: 24px;
-    min-width: 360px;
-    max-width: 480px;
-    animation: slideIn 0.15s ease-out;
+    background: var(--color-bg-base);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--modal-radius);
+    width: 100%;
+    max-width: var(--modal-width-sm);
+    box-shadow: var(--shadow-xl);
+    animation: modalIn var(--duration-normal) var(--ease-out);
+    outline: none;
   }
 
-  @keyframes slideIn {
+  .modal:focus {
+    outline: none;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes modalIn {
     from {
       opacity: 0;
-      transform: scale(0.95) translateY(-10px);
+      transform: scale(0.95) translateY(-8px);
     }
     to {
       opacity: 1;
@@ -116,26 +152,33 @@
     }
   }
 
+  .modal-header {
+    padding: var(--space-5) var(--space-5) 0;
+  }
+
   .modal-title {
-    margin: 0 0 16px;
-    font-size: 1.1rem;
-    font-weight: 800;
-    color: #f3f4f6;
+    margin: 0;
+    font-size: var(--text-lg);
+    font-weight: var(--font-bold);
+    color: var(--color-text-primary);
+    line-height: var(--leading-tight);
   }
 
   .modal-body {
-    margin-bottom: 20px;
+    padding: var(--space-4) var(--space-5);
   }
 
   .modal-body p {
-    color: rgba(229, 231, 235, 0.85);
-    line-height: 1.5;
+    color: var(--color-text-secondary);
+    line-height: var(--leading-relaxed);
     margin: 0;
+    font-size: var(--text-sm);
   }
 
   .modal-actions {
     display: flex;
-    gap: 10px;
+    gap: var(--space-3);
     justify-content: flex-end;
+    padding: 0 var(--space-5) var(--space-5);
   }
 </style>
