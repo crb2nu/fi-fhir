@@ -50,12 +50,53 @@ Each feature owns:
 - Stores/state machines
 - Minimal “feature services” that call the API layer
 
-### 5) Shared UI Components
+### 5) Design System
 
-Location: `ui/src/lib/ui/*` (to be added)
+Location: `ui/src/lib/styles/*`
 
-Reusable primitives:
-- `Panel`, `Button`, `Tabs`, `DataTable`, `WarningList`, `CodeEditor`, etc.
+The UI uses a **design tokens** system for consistent theming:
+
+**Token Files:**
+- `tokens.css` - CSS custom properties for colors, spacing, typography, shadows, transitions
+- `base.css` - Global styles, CSS reset, and utility classes
+
+**Token Categories:**
+- **Colors**: Semantic color system (`--color-primary`, `--color-text-*`, `--color-bg-*`, `--color-border-*`)
+- **Spacing**: 4px-based scale (`--space-1` through `--space-12`)
+- **Typography**: Font sizes, weights, and line heights (`--text-xs` through `--text-4xl`)
+- **Shadows**: Elevation system (`--shadow-sm`, `--shadow-md`, `--shadow-lg`, `--shadow-focus`)
+- **Radii**: Border radius tokens (`--radius-sm` through `--radius-full`)
+- **Transitions**: Animation timing (`--transition-fast`, `--transition-normal`, `--transition-colors`)
+
+### 6) Shared UI Components
+
+Location: `ui/src/lib/ui/*`
+
+Reusable primitives built on the design system:
+
+**Core Components:**
+- `Button` - Primary, secondary, ghost, danger variants with hover animations
+- `Badge` - Status indicators with color variants
+- `Input`, `Select`, `TextArea` - Form controls with validation states
+- `Tabs` - Tab navigation (pills and underline variants)
+- `Panel` - Content containers with headers
+
+**Feedback Components:**
+- `Toast`, `ToastContainer` - Notifications with auto-dismiss
+- `ConfirmModal` - Confirmation dialogs
+- `EmptyState` - Zero-state illustrations
+- `Skeleton` - Loading placeholders
+
+**Data Display:**
+- `WarningList` - Parse warning display with grouping
+- `ConfidenceBadge` - Confidence scores with progress bars
+- `QualityBadge` - Data quality indicators
+- `JsonViewer` - Syntax-highlighted JSON display
+
+**Micro-interactions:**
+- Button scale on hover (`transform: scale(1.02)`)
+- Card lift shadows on hover (`translateY(-2px)` + elevated shadow)
+- Smooth transitions via `--transition-all`
 
 ## Directory Conventions
 

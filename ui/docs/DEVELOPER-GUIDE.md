@@ -46,6 +46,51 @@ CI enforces that generated artifacts are committed and in sync with:
 - GraphQL schema: `internal/api/graphql/schema.graphql`
 - OpenAPI spec: `api/openapi.yaml`
 
+## Testing
+
+The UI uses **Vitest** with **@testing-library/svelte** for component testing.
+
+### Run all tests
+
+```bash
+cd ui
+npm test
+```
+
+### Watch mode (for development)
+
+```bash
+npm run test:watch
+```
+
+### Test coverage
+
+```bash
+npm run test:coverage
+```
+
+### Test conventions
+
+- Tests live alongside components: `Component.svelte` → `Component.test.ts`
+- Use `@testing-library/svelte` for rendering and querying
+- Use `@testing-library/jest-dom` for DOM assertions
+- Mock stores with `vi.mock()` when needed
+
+### Component test example
+
+```typescript
+import { render, screen } from '@testing-library/svelte';
+import { describe, it, expect } from 'vitest';
+import Badge from './Badge.svelte';
+
+describe('Badge', () => {
+  it('renders with default variant', () => {
+    render(Badge, { props: { variant: 'info' } });
+    expect(screen.getByRole('status')).toHaveClass('info');
+  });
+});
+```
+
 ## Build metadata
 
 The production image bakes build metadata into the UI via build args:
