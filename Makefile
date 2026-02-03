@@ -1,4 +1,10 @@
-.PHONY: build test clean run lint lint-fix test-e2e test-integration e2e-up e2e-down fmt setup-hooks dev-setup check-deps docs-mermaid
+.PHONY: build test clean run lint lint-fix test-e2e test-integration e2e-up e2e-down fmt setup-hooks dev-setup check-deps docs-mermaid \
+	vet lint-gqlgen lint-ui test-ui test-race \
+	security-vulncheck security-gosec security-npm-audit \
+	build-release docker-build-ui \
+	ci-lint ci-test ci-security ci-build ci-full ci-quick \
+	docker-push docker-push-ui docker-push-all \
+	deploy deploy-ui deploy-all deploy-status deploy-logs deploy-delete deploy-forward
 
 # Tool versions (update these when upgrading)
 GOLANGCI_LINT_VERSION := v2.8.0
@@ -118,16 +124,18 @@ dev-setup: check-deps setup-hooks tidy
 	@echo "✅ Development environment ready!"
 	@echo ""
 	@echo "Quick reference:"
-	@echo "  make install-tools - Install linters and helpers (golangci-lint, staticcheck, gci)"
-	@echo "  make lint          - Run linter"
-	@echo "  make lint-fix      - Run linter with auto-fix"
-	@echo "  make test          - Run all tests"
-	@echo "  make test-v        - Run tests with verbose output"
-	@echo "  make test-cover    - Run tests with coverage report"
 	@echo "  make build         - Build CLI binary"
-	@echo "  make bench         - Run benchmarks"
+	@echo "  make test          - Run all tests"
+	@echo "  make lint          - Run linter"
 	@echo "  make check         - Run lint + test"
-	@echo "  make ci            - Simulate CI locally"
+	@echo ""
+	@echo "CI simulation:"
+	@echo "  make ci-quick      - Quick CI (fmt, vet, lint, test)"
+	@echo "  make ci-lint       - Full lint stage (fmt, vet, lint, gqlgen, ui)"
+	@echo "  make ci-test       - Full test stage (race, coverage, ui tests)"
+	@echo "  make ci-security   - Security scans (govulncheck, gosec, npm audit)"
+	@echo "  make ci-build      - Build binaries + Docker images"
+	@echo "  make ci-full       - Run entire CI pipeline locally"
 	@echo ""
 	@echo "For IDE integration, also run: make install-lint"
 	@echo ""
@@ -164,6 +172,225 @@ check: lint test
 # Verify CI will pass locally
 ci: fmt-check lint test
 	@echo "✅ CI checks passed locally!"
+
+# =============================================================================
+# CI Simulation (mimics GitLab CI pipeline locally)
+# =============================================================================
+
+# Version for build info
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+SHA ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+
+# Run go vet (matches lint:vet in CI)
+vet:
+	go vet ./...
+
+# Regenerate and check gqlgen (matches lint:gqlgen in CI)
+lint-gqlgen:
+	@echo "Checking GraphQL codegen..."
+	cd internal/api/graphql && go run github.com/99designs/gqlgen generate --config gqlgen.yml
+	@if ! git diff --quiet -- internal/api/graphql/; then \
+		echo "❌ GraphQL generated code is out of sync. Run 'make lint-gqlgen' and commit."; \
+		git diff -- internal/api/graphql/; \
+		exit 1; \
+	fi
+	@echo "✓ GraphQL codegen is up to date"
+
+# Run UI lint and checks (matches lint:ui in CI)
+lint-ui:
+	@echo "Running UI lint and type checks..."
+	cd ui && npm install --no-audit --no-fund
+	cd ui && npm run lint
+	cd ui && npm run codegen:check
+	cd ui && npm run check
+	cd ui && npm run typecheck
+	@echo "✓ UI lint passed"
+
+# Run UI tests
+test-ui:
+	@echo "Running UI tests..."
+	cd ui && npm install --no-audit --no-fund
+	cd ui && npm test
+	@echo "✓ UI tests passed"
+
+# Run unit tests with race detection and coverage (matches test:unit in CI)
+test-race:
+	CGO_ENABLED=1 go test -race -coverprofile=coverage.out -covermode=atomic ./...
+	go tool cover -func=coverage.out
+
+# Security: govulncheck (matches security:govulncheck in CI)
+security-vulncheck:
+	@echo "Running govulncheck..."
+	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+	@echo "✓ No known vulnerabilities found"
+
+# Security: gosec (matches security:gosec in CI)
+security-gosec:
+	@echo "Running gosec..."
+	go run github.com/securego/gosec/v2/cmd/gosec@latest -fmt text -exclude-generated ./cmd/... ./internal/... ./pkg/... ./sdk/... || true
+	@echo "✓ gosec scan complete"
+
+# Security: npm audit (matches security:npm-audit in CI)
+security-npm-audit:
+	@echo "Running npm audit..."
+	cd ui && npm audit --audit-level=high || true
+	@echo "✓ npm audit complete"
+
+# Build with version info (matches build:binary in CI)
+build-release:
+	go build -ldflags="-s -w -X main.version=$(VERSION)" -o bin/fi-fhir ./cmd/fi-fhir
+	./bin/fi-fhir version
+
+# Build UI Docker image (matches build:docker-ui in CI)
+docker-build-ui:
+	docker build \
+		--build-arg VITE_BUILD_SHA=$(SHA) \
+		--build-arg VITE_BUILD_TAG=local-$(VERSION) \
+		--build-arg VITE_BUILD_TIME=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ") \
+		-t fi-fhir-ui:latest \
+		./ui
+
+# Full lint stage (matches CI lint stage)
+ci-lint: fmt-check vet lint lint-gqlgen lint-ui
+	@echo ""
+	@echo "✅ All lint checks passed!"
+
+# Full test stage (matches CI test stage)
+ci-test: test-race test-ui
+	@echo ""
+	@echo "✅ All tests passed!"
+
+# Full security stage (matches CI security stage)
+ci-security: security-vulncheck security-gosec security-npm-audit
+	@echo ""
+	@echo "✅ Security scans complete!"
+
+# Full build stage (matches CI build stage)
+ci-build: build-release docker-build docker-build-ui
+	@echo ""
+	@echo "✅ All builds complete!"
+	@echo "  - bin/fi-fhir (CLI binary)"
+	@echo "  - fi-fhir:latest (Docker image)"
+	@echo "  - fi-fhir-ui:latest (UI Docker image)"
+
+# Run full CI pipeline locally (all stages)
+ci-full: ci-lint ci-test ci-security ci-build
+	@echo ""
+	@echo "════════════════════════════════════════════════════════════════"
+	@echo "✅ Full CI pipeline passed locally!"
+	@echo "════════════════════════════════════════════════════════════════"
+
+# Quick CI check (lint + test only, skip security scans and docker builds)
+ci-quick: fmt-check vet lint test
+	@echo ""
+	@echo "✅ Quick CI checks passed!"
+
+# =============================================================================
+# Deployment (K3s via Harbor)
+# =============================================================================
+
+# Harbor registry configuration
+HARBOR_REGISTRY ?= registry.harbor.lan
+HARBOR_PROJECT ?= library
+KUBECONFIG ?= $(HOME)/workspace/platform/gitops/.kube/k3s.yaml
+NAMESPACE ?= fi-fhir
+RELEASE_NAME ?= fi-fhir
+
+# Build and push backend image to Harbor
+docker-push:
+	@echo "Building and pushing fi-fhir backend to Harbor..."
+	docker build -t $(HARBOR_REGISTRY)/$(HARBOR_PROJECT)/fi-fhir:$(SHA) .
+	docker tag $(HARBOR_REGISTRY)/$(HARBOR_PROJECT)/fi-fhir:$(SHA) $(HARBOR_REGISTRY)/$(HARBOR_PROJECT)/fi-fhir:dev
+	docker push $(HARBOR_REGISTRY)/$(HARBOR_PROJECT)/fi-fhir:$(SHA)
+	docker push $(HARBOR_REGISTRY)/$(HARBOR_PROJECT)/fi-fhir:dev
+	@echo "✓ Backend pushed: $(HARBOR_REGISTRY)/$(HARBOR_PROJECT)/fi-fhir:$(SHA)"
+
+# Build and push UI image to Harbor
+docker-push-ui:
+	@echo "Building and pushing fi-fhir-ui to Harbor..."
+	docker build \
+		--build-arg VITE_BUILD_SHA=$(SHA) \
+		--build-arg VITE_BUILD_TAG=dev-$(SHA) \
+		--build-arg VITE_BUILD_TIME=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ") \
+		-t $(HARBOR_REGISTRY)/$(HARBOR_PROJECT)/fi-fhir-ui:$(SHA) \
+		./ui
+	docker tag $(HARBOR_REGISTRY)/$(HARBOR_PROJECT)/fi-fhir-ui:$(SHA) $(HARBOR_REGISTRY)/$(HARBOR_PROJECT)/fi-fhir-ui:dev
+	docker push $(HARBOR_REGISTRY)/$(HARBOR_PROJECT)/fi-fhir-ui:$(SHA)
+	docker push $(HARBOR_REGISTRY)/$(HARBOR_PROJECT)/fi-fhir-ui:dev
+	@echo "✓ UI pushed: $(HARBOR_REGISTRY)/$(HARBOR_PROJECT)/fi-fhir-ui:$(SHA)"
+
+# Build and push all images
+docker-push-all: docker-push docker-push-ui
+	@echo ""
+	@echo "✅ All images pushed to Harbor"
+
+# Deploy to K3s using Helm
+deploy:
+	@echo "Deploying fi-fhir to K3s namespace $(NAMESPACE)..."
+	KUBECONFIG=$(KUBECONFIG) kubectl create namespace $(NAMESPACE) --dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG) kubectl apply -f -
+	KUBECONFIG=$(KUBECONFIG) helm upgrade --install $(RELEASE_NAME) ./deploy/helm/fi-fhir \
+		--namespace $(NAMESPACE) \
+		--set image.repository=$(HARBOR_REGISTRY)/$(HARBOR_PROJECT)/fi-fhir \
+		--set image.tag=$(SHA) \
+		--set replicaCount=1 \
+		--wait --timeout 5m
+	@echo "✓ Backend deployed"
+
+# Deploy UI to K3s (requires separate UI Helm chart or Kubernetes manifests)
+deploy-ui:
+	@echo "Deploying fi-fhir-ui to K3s namespace $(NAMESPACE)..."
+	KUBECONFIG=$(KUBECONFIG) kubectl create namespace $(NAMESPACE) --dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG) kubectl apply -f -
+	@if [ -f deploy/kubernetes/ui-deployment.yaml ]; then \
+		KUBECONFIG=$(KUBECONFIG) kubectl apply -f deploy/kubernetes/ui-deployment.yaml -n $(NAMESPACE); \
+	else \
+		echo "Creating UI deployment..."; \
+		KUBECONFIG=$(KUBECONFIG) kubectl create deployment fi-fhir-ui \
+			--image=$(HARBOR_REGISTRY)/$(HARBOR_PROJECT)/fi-fhir-ui:$(SHA) \
+			--port=3000 \
+			--replicas=1 \
+			-n $(NAMESPACE) --dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG) kubectl apply -f -; \
+		KUBECONFIG=$(KUBECONFIG) kubectl expose deployment fi-fhir-ui --port=80 --target-port=3000 -n $(NAMESPACE) --dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG) kubectl apply -f -; \
+	fi
+	@echo "✓ UI deployed"
+
+# Full deployment: build, push, deploy
+deploy-all: docker-push-all deploy deploy-ui
+	@echo ""
+	@echo "════════════════════════════════════════════════════════════════"
+	@echo "✅ Full deployment complete!"
+	@echo "════════════════════════════════════════════════════════════════"
+	@echo ""
+	KUBECONFIG=$(KUBECONFIG) kubectl get pods -n $(NAMESPACE)
+
+# Check deployment status
+deploy-status:
+	@echo "fi-fhir deployment status in namespace $(NAMESPACE):"
+	@echo ""
+	KUBECONFIG=$(KUBECONFIG) kubectl get pods -n $(NAMESPACE) -o wide
+	@echo ""
+	KUBECONFIG=$(KUBECONFIG) kubectl get svc -n $(NAMESPACE)
+
+# View logs
+deploy-logs:
+	KUBECONFIG=$(KUBECONFIG) kubectl logs -n $(NAMESPACE) -l app.kubernetes.io/name=fi-fhir --tail=100 -f
+
+# Delete deployment
+deploy-delete:
+	@echo "Deleting fi-fhir deployment from namespace $(NAMESPACE)..."
+	KUBECONFIG=$(KUBECONFIG) helm uninstall $(RELEASE_NAME) -n $(NAMESPACE) || true
+	KUBECONFIG=$(KUBECONFIG) kubectl delete deployment fi-fhir-ui -n $(NAMESPACE) || true
+	KUBECONFIG=$(KUBECONFIG) kubectl delete svc fi-fhir-ui -n $(NAMESPACE) || true
+	@echo "✓ Deployment deleted"
+
+# Port forward for local testing
+deploy-forward:
+	@echo "Port forwarding fi-fhir services..."
+	@echo "Backend: http://localhost:8080"
+	@echo "UI: http://localhost:3000"
+	@echo ""
+	@echo "Press Ctrl+C to stop"
+	KUBECONFIG=$(KUBECONFIG) kubectl port-forward -n $(NAMESPACE) svc/$(RELEASE_NAME) 8080:80 &
+	KUBECONFIG=$(KUBECONFIG) kubectl port-forward -n $(NAMESPACE) svc/fi-fhir-ui 3000:80
 
 # =============================================================================
 # Documentation
