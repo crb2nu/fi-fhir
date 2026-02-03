@@ -1,3 +1,4 @@
+//nolint:errorlint // Test file - error comparisons are intentionally direct for testing
 package llm
 
 import (

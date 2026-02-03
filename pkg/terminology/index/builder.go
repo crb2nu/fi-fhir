@@ -217,11 +217,11 @@ func (b *Builder) loadEntries(path string, vocabulary Vocabulary) ([]IndexEntry,
 
 // loadLOINCEntries loads LOINC entries from a CSV file.
 func (b *Builder) loadLOINCEntries(path string) ([]IndexEntry, error) {
-	f, err := os.Open(path) //nolint:gosec // G304: trusted caller
+	f, err := os.Open(path) //nolint:gosec // G304: path is from trusted caller
 	if err != nil {
 		return nil, fmt.Errorf("open file: %w", err)
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck // Best-effort close on read-only file
 
 	reader := csv.NewReader(f)
 	reader.TrimLeadingSpace = true
@@ -291,11 +291,11 @@ func (b *Builder) loadLOINCEntries(path string) ([]IndexEntry, error) {
 
 // loadSNOMEDEntries loads SNOMED CT entries from a file.
 func (b *Builder) loadSNOMEDEntries(path string) ([]IndexEntry, error) {
-	f, err := os.Open(path) //nolint:gosec // G304: trusted caller
+	f, err := os.Open(path) //nolint:gosec // G304: path is from trusted caller
 	if err != nil {
 		return nil, fmt.Errorf("open file: %w", err)
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck // Best-effort close on read-only file
 
 	reader := csv.NewReader(f)
 	reader.Comma = '\t' // SNOMED files are typically TSV
@@ -353,11 +353,11 @@ func (b *Builder) loadSNOMEDEntries(path string) ([]IndexEntry, error) {
 
 // loadICD10Entries loads ICD-10-CM entries from a file.
 func (b *Builder) loadICD10Entries(path string) ([]IndexEntry, error) {
-	f, err := os.Open(path) //nolint:gosec // G304: trusted caller
+	f, err := os.Open(path) //nolint:gosec // G304: path is from trusted caller
 	if err != nil {
 		return nil, fmt.Errorf("open file: %w", err)
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck // Best-effort close on read-only file
 
 	reader := csv.NewReader(f)
 	reader.TrimLeadingSpace = true

@@ -20,6 +20,8 @@ import (
 	"syscall"
 	"time"
 
+	"go.temporal.io/sdk/client"
+
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/resolvers"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/fhir/subscription"
@@ -43,7 +45,6 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/profile"
 	termdb "gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/db"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/semantic"
-	"go.temporal.io/sdk/client"
 )
 
 const version = "0.1.0"

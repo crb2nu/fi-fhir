@@ -128,7 +128,7 @@ func TestProfileInfer_OutputToFile(t *testing.T) {
 	}
 
 	// Output file should exist and contain valid YAML
-	data, err := os.ReadFile(outPath)
+	data, err := os.ReadFile(outPath) //nolint:gosec // G304: test file path is controlled
 	if err != nil {
 		t.Fatalf("read output file: %v", err)
 	}
@@ -216,7 +216,7 @@ func TestProfileInfer_MultipleSamples(t *testing.T) {
 func TestProfileInfer_DirectoryInput(t *testing.T) {
 	tmpDir := t.TempDir()
 	subDir := filepath.Join(tmpDir, "samples")
-	if err := os.MkdirAll(subDir, 0o755); err != nil {
+	if err := os.MkdirAll(subDir, 0o750); err != nil {
 		t.Fatalf("create subdir: %v", err)
 	}
 
@@ -263,7 +263,7 @@ func TestProfileInfer_ShortFlags(t *testing.T) {
 	assertNoError(t, err)
 	assertContains(t, stderr, "Inferred from")
 
-	data, err := os.ReadFile(outPath)
+	data, err := os.ReadFile(outPath) //nolint:gosec // G304: test file path is controlled
 	if err != nil {
 		t.Fatalf("read output: %v", err)
 	}
@@ -651,7 +651,7 @@ func TestProfileLint_DirectorySamples(t *testing.T) {
 	profilePath := filepath.Join(tmpDir, "profile.yaml")
 	samplesDir := filepath.Join(tmpDir, "samples")
 
-	if err := os.MkdirAll(samplesDir, 0o755); err != nil {
+	if err := os.MkdirAll(samplesDir, 0o750); err != nil {
 		t.Fatalf("create samples dir: %v", err)
 	}
 

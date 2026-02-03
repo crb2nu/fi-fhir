@@ -855,7 +855,7 @@ func runTerminologyMappingUpload(args []string) error {
 	}
 
 	// Open file
-	file, err := os.Open(filePath)
+	file, err := os.Open(filePath) //nolint:gosec // G304: CLI arg is trusted
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
 	}

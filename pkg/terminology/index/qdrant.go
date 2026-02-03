@@ -57,7 +57,7 @@ func (c *QdrantClient) CreateCollection(ctx context.Context, name string, dimens
 	if err != nil {
 		return fmt.Errorf("send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // Best-effort close after read
 
 	respBody, _ := io.ReadAll(resp.Body)
 
@@ -81,7 +81,7 @@ func (c *QdrantClient) DeleteCollection(ctx context.Context, name string) error 
 	if err != nil {
 		return fmt.Errorf("send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // Best-effort close after read
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
 		respBody, _ := io.ReadAll(resp.Body)
@@ -104,7 +104,7 @@ func (c *QdrantClient) CollectionExists(ctx context.Context, name string) (bool,
 	if err != nil {
 		return false, fmt.Errorf("send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // Best-effort close after read
 
 	if resp.StatusCode == http.StatusNotFound {
 		return false, nil
@@ -130,7 +130,7 @@ func (c *QdrantClient) GetCollectionInfo(ctx context.Context, name string) (*Col
 	if err != nil {
 		return nil, fmt.Errorf("send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // Best-effort close after read
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -188,7 +188,7 @@ func (c *QdrantClient) UpsertPoints(ctx context.Context, collection string, poin
 	if err != nil {
 		return fmt.Errorf("send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // Best-effort close after read
 
 	respBody, _ := io.ReadAll(resp.Body)
 
@@ -233,7 +233,7 @@ func (c *QdrantClient) Search(ctx context.Context, collection string, vector []f
 	if err != nil {
 		return nil, fmt.Errorf("send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // Best-effort close after read
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -285,7 +285,7 @@ func (c *QdrantClient) GetPoints(ctx context.Context, collection string, ids []s
 	if err != nil {
 		return nil, fmt.Errorf("send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // Best-effort close after read
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -328,7 +328,7 @@ func (c *QdrantClient) DeletePoints(ctx context.Context, collection string, ids 
 	if err != nil {
 		return fmt.Errorf("send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // Best-effort close after read
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
@@ -365,7 +365,7 @@ func (c *QdrantClient) ScrollPoints(ctx context.Context, collection string, limi
 	if err != nil {
 		return nil, fmt.Errorf("send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // Best-effort close after read
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -411,7 +411,7 @@ func (c *QdrantClient) Ping(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("ping failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // Best-effort close after read
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("ping failed with status %d", resp.StatusCode)

@@ -1,3 +1,4 @@
+//nolint:errcheck,errorlint,gosec // Test file - error checking omitted for brevity
 package llm
 
 import (
