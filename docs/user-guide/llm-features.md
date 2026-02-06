@@ -355,6 +355,16 @@ Test with sample event? [y/N]
 
 Find terminology codes by meaning rather than string matching. "Blood sugar" finds glucose codes even though the strings don't match.
 
+### How It Works
+
+Semantic search uses LLM embeddings to find codes with similar meaning:
+
+1. **Query embedding**: Your search query is converted to a vector embedding
+2. **Similarity search**: The vector is compared against pre-indexed terminology embeddings
+3. **Ranked results**: Codes are returned ranked by semantic similarity score
+
+This approach handles synonyms, abbreviations, and conceptual relationships that keyword search misses.
+
 ### CLI Usage
 
 ```bash
@@ -363,6 +373,12 @@ fi-fhir terminology search --query "blood sugar" --vocabulary loinc --limit 10
 
 # Search SNOMED for heart conditions
 fi-fhir terminology search --query "chest pain" --vocabulary snomed --limit 5
+
+# Search across all vocabularies
+fi-fhir terminology search --query "diabetes medication" --limit 20
+
+# Search with minimum confidence threshold
+fi-fhir terminology search --query "kidney function" --vocabulary loinc --min-score 0.8
 ```
 
 ### Output
@@ -372,23 +388,25 @@ fi-fhir terminology search --query "chest pain" --vocabulary snomed --limit 5
   "results": [
     {
       "code": "2345-7",
-      "system": "LOINC",
+      "system": "http://loinc.org",
       "display": "Glucose [Mass/volume] in Serum or Plasma",
       "score": 0.94
     },
     {
       "code": "2339-0",
-      "system": "LOINC",
+      "system": "http://loinc.org",
       "display": "Glucose [Mass/volume] in Blood",
       "score": 0.91
     },
     {
       "code": "41653-7",
-      "system": "LOINC",
+      "system": "http://loinc.org",
       "display": "Glucose [Mass/volume] in Capillary blood by Glucometer",
       "score": 0.87
     }
-  ]
+  ],
+  "query": "blood sugar",
+  "vocabulary": "loinc"
 }
 ```
 
@@ -403,9 +421,102 @@ fi-fhir terminology index build --vocabulary loinc --source ./data/LoincTable.cs
 # Build SNOMED index
 fi-fhir terminology index build --vocabulary snomed --source ./data/sct2_Description.txt
 
+# Build RxNorm index
+fi-fhir terminology index build --vocabulary rxnorm --source ./data/rxnorm/rrf/
+
 # Check index status
 fi-fhir terminology index status
 ```
+
+Index building requires:
+- Qdrant vector database running and accessible
+- LLM embedding endpoint configured
+- Sufficient memory for large vocabularies (SNOMED can be 500K+ concepts)
+
+---
+
+## Mapping Autoroute
+
+When custom code mappings don't have an exact match, autoroute uses LLM embeddings to suggest the most likely target code.
+
+### How Autoroute Works
+
+1. **Exact lookup**: First checks custom mapping tables for direct match
+2. **Fuzzy match**: Attempts string similarity matching if enabled
+3. **Semantic fallback**: Uses embedding similarity to find best match
+
+### CLI Usage
+
+```bash
+# Resolve with autoroute enabled
+fi-fhir terminology mapping resolve UNKNOWN_CODE \
+  --source-system hospital_lis \
+  --target-system http://loinc.org \
+  --autoroute
+
+# Output
+{
+  "source_code": "GLUC_RANDOM",
+  "source_system": "hospital_lis",
+  "target_code": "2345-7",
+  "target_system": "http://loinc.org",
+  "target_display": "Glucose [Mass/volume] in Serum or Plasma",
+  "confidence": 0.87,
+  "method": "semantic",
+  "alternatives": [
+    {
+      "code": "2339-0",
+      "display": "Glucose [Mass/volume] in Blood",
+      "score": 0.82
+    },
+    {
+      "code": "2340-8",
+      "display": "Glucose [Mass/volume] in Blood by Automated test strip",
+      "score": 0.79
+    }
+  ]
+}
+```
+
+### Workflow Integration
+
+Use autoroute in workflow transforms:
+
+```yaml
+transform:
+  - map_terminology:
+      field: observation.code
+      source_system: hospital_lis
+      target_system: http://loinc.org
+      autoroute: true
+      min_confidence: 0.8
+      fail_on_unmapped: false  # Log warning instead of failing
+```
+
+### Configuration
+
+```yaml
+terminology:
+  autoroute:
+    enabled: true
+    min_confidence: 0.7        # Minimum score to return match
+    max_alternatives: 3        # Alternatives to include
+    embedding_model: text-embedding-3-small
+```
+
+### When to Use Autoroute
+
+- **Initial mapping discovery**: Find candidate mappings for new source systems
+- **Graceful degradation**: Handle unmapped codes without failing pipelines
+- **Mapping suggestions**: Generate mapping candidates for human review
+
+### When NOT to Use Autoroute
+
+- **Production billing**: Require exact mappings for financial transactions
+- **Regulatory submissions**: Use verified mappings only
+- **Without human review**: Always validate autoroute suggestions
+
+See [Terminology Management](terminology.md) for comprehensive terminology documentation.
 
 ---
 
@@ -505,5 +616,6 @@ curl -X POST ${LLM_BASE_URL}/chat/completions \
 ## See Also
 
 - [CLI Reference](cli-reference.md) - Complete CLI documentation
+- [Terminology Management](terminology.md) - Vocabulary and mapping operations
 - [Workflow Configuration](workflows.md) - Workflow DSL reference
 - [Core Concepts](core-concepts.md) - Architecture overview

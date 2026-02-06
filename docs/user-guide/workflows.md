@@ -576,6 +576,213 @@ fi-fhir workflow run --dry-run --config workflow.yaml events.json
 fi-fhir workflow simulate --config workflow.yaml --events test_events.json
 ```
 
+---
+
+## Testing & Validation
+
+fi-fhir provides dedicated commands for testing workflows without affecting production systems, recording events for regression testing, and load testing workflow performance.
+
+### Dry-Run Mode
+
+Execute workflows without triggering actual side effects. Actions are simulated and their would-be outputs are logged.
+
+```bash
+# Dry-run from file
+fi-fhir workflow dry-run -c workflow.yaml events.json
+
+# Dry-run from stdin
+cat events.json | fi-fhir workflow dry-run -c workflow.yaml -
+
+# Verbose output showing route matching
+fi-fhir workflow dry-run -c workflow.yaml -v events.json
+```
+
+| Option | Description |
+|--------|-------------|
+| `-c, --config` | Workflow configuration file (required) |
+| `-v, --verbose` | Show detailed route matching information |
+
+Dry-run output shows which routes matched, transforms applied, and actions that would execute:
+
+```json
+{
+  "event_id": "evt_001",
+  "matched_routes": ["critical_labs", "all_events"],
+  "transforms_applied": 2,
+  "actions_simulated": [
+    {"route": "critical_labs", "action": "webhook", "url": "https://alerts.example.com"},
+    {"route": "all_events", "action": "database", "table": "events"}
+  ]
+}
+```
+
+### Recording Events
+
+Capture events and their workflow results for regression testing. Recordings create a baseline to compare against future workflow changes.
+
+```bash
+# Record events to JSON file
+fi-fhir workflow record -c workflow.yaml -o recordings.json events.json
+
+# Record from stdin
+cat events.json | fi-fhir workflow record -c workflow.yaml -o baseline.json -
+```
+
+| Option | Description |
+|--------|-------------|
+| `-c, --config` | Workflow configuration file (required) |
+| `-o, --output` | Output file for recordings (required) |
+
+Recording format captures the event, matched routes, and action outputs:
+
+```json
+{
+  "recorded_at": "2024-01-15T10:30:00Z",
+  "workflow_version": "2.0",
+  "events": [
+    {
+      "event": { "type": "lab_result", "..." },
+      "routes_matched": ["critical_labs"],
+      "action_results": [
+        {
+          "action": "webhook",
+          "status": 200,
+          "response_hash": "abc123..."
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Replay and Compare
+
+Replay recorded events through a workflow and compare results against the baseline. Essential for validating workflow changes don't break existing behavior.
+
+```bash
+# Basic replay with diff output
+fi-fhir workflow replay -c workflow.yaml -d recordings.json
+
+# Filter by event type
+fi-fhir workflow replay -c workflow.yaml -t patient_admit recordings.json
+
+# Filter by source system
+fi-fhir workflow replay -c workflow.yaml -s epic_adt recordings.json
+
+# Limit number of events
+fi-fhir workflow replay -c workflow.yaml -l 100 recordings.json
+
+# Save comparison results
+fi-fhir workflow replay -c workflow.yaml -o results.json recordings.json
+```
+
+| Option | Description |
+|--------|-------------|
+| `-c, --config` | Workflow configuration file (required) |
+| `-r, --recordings` | Recordings file to replay |
+| `-t, --event-type` | Filter by event type |
+| `-s, --source` | Filter by source system |
+| `-l, --limit` | Maximum events to replay |
+| `-d, --diffs` | Show diffs for mismatches |
+| `-o, --output` | Save comparison results to file |
+
+Replay output shows pass/fail status and differences:
+
+```
+Replaying 150 events...
+  ✓ 147 passed
+  ✗ 3 failed
+
+Failed events:
+  evt_042: Route mismatch
+    - Expected: [critical_labs, all_events]
+    + Actual:   [all_events]
+
+  evt_089: Action output changed
+    - webhook response: {"status": "sent"}
+    + webhook response: {"status": "queued"}
+```
+
+### Load Testing
+
+Performance test workflows under various load conditions. Identifies bottlenecks and validates throughput requirements.
+
+```bash
+# Quick smoke test
+fi-fhir workflow loadtest -c workflow.yaml -s smoke -v
+
+# Standard load test
+fi-fhir workflow loadtest -c workflow.yaml -s standard
+
+# Custom parameters
+fi-fhir workflow loadtest -c workflow.yaml -d 60s -r 2000 -w 8 -v
+
+# Stress test with JSON output
+fi-fhir workflow loadtest -c workflow.yaml -s stress --json
+```
+
+| Option | Description |
+|--------|-------------|
+| `-c, --config` | Workflow configuration file (required) |
+| `-s, --scenario` | Predefined scenario (see below) |
+| `-d, --duration` | Test duration (e.g., 30s, 5m) |
+| `-r, --rps` | Target requests per second |
+| `-w, --workers` | Number of concurrent workers |
+| `--warmup` | Warmup duration before measuring |
+| `-v, --verbose` | Show real-time metrics |
+| `--json` | Output results as JSON |
+
+#### Predefined Scenarios
+
+| Scenario | Duration | RPS | Workers | Purpose |
+|----------|----------|-----|---------|---------|
+| `smoke` | 10s | 100 | 2 | Quick validation after changes |
+| `standard` | 60s | 1000 | 4 | Normal production load simulation |
+| `stress` | 120s | 5000 | 8 | High load boundary testing |
+| `burst` | 30s | unlimited | 16 | Maximum throughput discovery |
+| `soak` | 5min | 500 | 4 | Memory leak and stability testing |
+
+#### Load Test Output
+
+```
+Load Test: workflow.yaml
+Scenario: standard (60s @ 1000 RPS)
+
+Running... ████████████████████████████████ 60s
+
+Results:
+  Total Requests:     59,847
+  Successful:         59,812 (99.94%)
+  Failed:             35 (0.06%)
+
+  Throughput:         997.5 req/s
+  Avg Latency:        12.3ms
+  P50 Latency:        8.2ms
+  P95 Latency:        34.1ms
+  P99 Latency:        89.7ms
+
+  Route Performance:
+    critical_labs:    2.1ms avg (1,203 matches)
+    patients_to_fhir: 15.4ms avg (18,402 matches)
+    data_warehouse:   8.7ms avg (59,847 matches)
+```
+
+### Testing Best Practices
+
+1. **Start with smoke tests**: Run `smoke` scenario after every workflow change
+2. **Build regression baselines**: Record production event samples for replay testing
+3. **Test in isolation**: Use dry-run mode before connecting to real systems
+4. **Version your recordings**: Store recordings alongside workflow configs in version control
+5. **Automate in CI/CD**: Include workflow validation and replay tests in pipelines
+
+```bash
+# Example CI/CD workflow
+fi-fhir workflow validate workflow.yaml
+fi-fhir workflow dry-run -c workflow.yaml test_events.json
+fi-fhir workflow replay -c workflow.yaml recordings/baseline.json
+fi-fhir workflow loadtest -c workflow.yaml -s smoke
+```
+
 ## See Also
 
 - [Planning: WORKFLOW-DSL.md](../planning/WORKFLOW-DSL.md) - Complete DSL specification
