@@ -9,9 +9,10 @@ Welcome to fi-fhir, a format-agnostic healthcare integration platform that trans
 3. [CLI Reference](cli-reference.md)
 4. [Source Profiles](source-profiles.md)
 5. [Workflow Configuration](workflows.md)
-6. [FHIR Output](fhir-output.md)
-7. [LLM-Powered Features](llm-features.md)
-8. [Playground Tutorial](playground-tutorial.md)
+6. [Terminology Management](terminology.md)
+7. [FHIR Output](fhir-output.md)
+8. [LLM-Powered Features](llm-features.md)
+9. [Playground Tutorial](playground-tutorial.md)
 
 ## Quick Links
 
@@ -21,9 +22,13 @@ Welcome to fi-fhir, a format-agnostic healthcare integration platform that trans
 | Understand the 3-phase pipeline | [Core Concepts](core-concepts.md#parsing-pipeline) |
 | Configure a source profile | [Source Profiles](source-profiles.md) |
 | Route events to multiple destinations | [Workflow Configuration](workflows.md) |
+| Test workflows without side effects | [Workflow Configuration](workflows.md#testing--validation) |
+| Load standard terminologies (LOINC, RxNorm) | [Terminology Management](terminology.md#loading-vocabularies) |
+| Map local codes to standard terminologies | [Terminology Management](terminology.md#custom-code-mappings) |
 | Generate FHIR resources | [FHIR Output](fhir-output.md) |
 | Get AI-powered warning explanations | [LLM-Powered Features](llm-features.md#warning-explanations) |
 | Generate workflows from natural language | [LLM-Powered Features](llm-features.md#workflow-generation) |
+| Search terminology by meaning | [LLM-Powered Features](llm-features.md#semantic-terminology-search) |
 | Try it in the browser | [Playground Tutorial](playground-tutorial.md) |
 
 ## What is fi-fhir?

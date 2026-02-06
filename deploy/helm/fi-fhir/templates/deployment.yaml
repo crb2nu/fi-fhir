@@ -35,6 +35,8 @@ spec:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/fi-fhir"]
+          args: ["serve"]
           ports:
             - name: http
               containerPort: {{ .Values.config.server.port }}
@@ -139,16 +141,18 @@ spec:
               readOnly: true
 
           livenessProbe:
-            exec:
-              command: ["/fi-fhir", "version"]
+            httpGet:
+              path: /health
+              port: http
             initialDelaySeconds: 10
             periodSeconds: 30
             timeoutSeconds: 5
             failureThreshold: 3
 
           readinessProbe:
-            exec:
-              command: ["/fi-fhir", "version"]
+            httpGet:
+              path: /health
+              port: http
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 3

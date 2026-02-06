@@ -4,10 +4,7 @@ formatters:
   enable:
     - gofmt
     - goimports
-  settings:
-    goimports:
-      local-prefixes:
-        - gitlab.flexinfer.ai/libs/fi-fhir
+  # Note: goimports local-prefixes disabled to avoid conflict with gqlgen import ordering
 
 run:
   timeout: 10m

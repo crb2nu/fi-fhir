@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -112,7 +113,7 @@ func runInteractiveWorkflowSession(ctx context.Context, cop *copilot.WorkflowCop
 		buf := make([]byte, 4096)
 		n, err := reader.Read(buf)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			return err
@@ -420,13 +421,13 @@ func runTerminologySearch(args []string) error {
 				return fmt.Errorf("--limit requires a value")
 			}
 			i++
-			fmt.Sscanf(args[i], "%d", &limit)
+			_, _ = fmt.Sscanf(args[i], "%d", &limit)
 		case "--min-score":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--min-score requires a value")
 			}
 			i++
-			fmt.Sscanf(args[i], "%f", &minScore)
+			_, _ = fmt.Sscanf(args[i], "%f", &minScore)
 		case "--json":
 			jsonOutput = true
 		case "--qdrant-url":

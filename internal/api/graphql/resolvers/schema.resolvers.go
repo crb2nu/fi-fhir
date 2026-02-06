@@ -27,6 +27,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/hl7v2"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/terminology/autoroute"
 	termworkflow "gitlab.flexinfer.ai/libs/fi-fhir/internal/terminology/workflow"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/workflow"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm/copilot"
 	termdb "gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/db"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/upload"
@@ -635,6 +636,77 @@ func (r *mutationResolver) GenerateWorkflow(ctx context.Context, input model.Gen
 		Explanation: result.Explanation,
 		Warnings:    warnings,
 	}, nil
+}
+
+// DryRunWorkflow is the resolver for the dryRunWorkflow field.
+func (r *mutationResolver) DryRunWorkflow(ctx context.Context, input model.DryRunWorkflowInput) (*model.DryRunResult, error) {
+	result := &model.DryRunResult{
+		RouteResults:     []model.DryRunRouteResult{},
+		Warnings:         []string{},
+		ValidationErrors: []string{},
+	}
+
+	// Parse the workflow YAML
+	wf, err := workflow.ParseWorkflow([]byte(input.Yaml))
+	if err != nil {
+		result.ValidationErrors = append(result.ValidationErrors, fmt.Sprintf("YAML parse error: %v", err))
+		return result, nil
+	}
+
+	// Validate
+	if errs := wf.Validate(); len(errs) > 0 {
+		for _, e := range errs {
+			result.ValidationErrors = append(result.ValidationErrors, e.Error())
+		}
+		return result, nil
+	}
+
+	// Create a temporary engine for dry-run
+	engine, err := workflow.NewEngine(wf)
+	if err != nil {
+		result.ValidationErrors = append(result.ValidationErrors, fmt.Sprintf("Engine init error: %v", err))
+		return result, nil
+	}
+
+	// Run dry-run for each event, aggregating route results
+	routeMatches := make(map[string]bool)
+	routeActionCounts := make(map[string]int)
+	routeSkipReasons := make(map[string]string)
+
+	for _, ev := range input.Events {
+		dryResult := engine.DryRun(ev)
+		for _, rr := range dryResult.RouteResults {
+			if rr.Matched {
+				routeMatches[rr.RouteName] = true
+				routeActionCounts[rr.RouteName] += rr.ActionsRun
+			}
+			if !routeMatches[rr.RouteName] && rr.SkipReason != "" {
+				routeSkipReasons[rr.RouteName] = rr.SkipReason
+			}
+		}
+	}
+
+	// Build per-route results
+	for _, route := range wf.Routes {
+		matched := routeMatches[route.Name]
+		rr := model.DryRunRouteResult{
+			RouteName:       route.Name,
+			Matched:         matched,
+			ActionsWouldRun: routeActionCounts[route.Name],
+		}
+		if !matched {
+			if reason, ok := routeSkipReasons[route.Name]; ok {
+				rr.SkipReason = &reason
+			}
+		}
+		result.RouteResults = append(result.RouteResults, rr)
+	}
+
+	if len(input.Events) == 0 {
+		result.Warnings = append(result.Warnings, "No events provided for dry-run")
+	}
+
+	return result, nil
 }
 
 // UploadMappingCSV is the resolver for the uploadMappingCSV field.
@@ -2188,7 +2260,7 @@ func (r *queryResolver) TemporalWorkflows(ctx context.Context, filter *model.Tem
 
 	resp, err := r.TemporalClient.ListWorkflow(ctx, &workflowservice.ListWorkflowExecutionsRequest{
 		Query:         query,
-		PageSize:      int32(pageSize),
+		PageSize:      int32(pageSize), //nolint:gosec // G115: pageSize bounded by API
 		NextPageToken: nextPageToken,
 	})
 	if err != nil {

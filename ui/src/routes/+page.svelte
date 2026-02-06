@@ -28,6 +28,11 @@
       <div class="hint">
         Manage custom code mappings with LLM-powered autoroute suggestions.
       </div>
+
+      <a class="cta" href={resolve('/workflows')}>Workflow Builder</a>
+      <div class="hint">
+        Design event routing workflows visually. Configure filters, actions, and dry-run against sample events.
+      </div>
     </div>
   </Panel>
 

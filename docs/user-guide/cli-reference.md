@@ -51,13 +51,15 @@ fi-fhir parse [options] [FILE...]
 
 | Option | Description |
 |--------|-------------|
-| `--format FORMAT` | Input format: `hl7v2`, `csv`, `edi`, `cda`, `fhir` |
+| `--format FORMAT` | Input format: `hl7v2`, `csv`, `edi`, `edi837p`, `edi835`, `cda`, `fhir` |
 | `--profile FILE` | Source profile to use |
 | `--pretty` | Pretty-print JSON output |
 | `--source NAME` | Source system name |
 | `--output FILE` | Output file (default: stdout) |
 | `--explain-warnings` | Add LLM-powered explanations to warnings |
 | `--extract-clinical` | Extract clinical entities from documents |
+| `--edi-companion` | EDI companion guide: `auto`, or path to guide YAML |
+| `--edi-companion-dir` | Directory containing companion guides |
 
 ### Examples
 
@@ -70,6 +72,15 @@ fi-fhir parse --format hl7v2 --profile epic_adt.yaml message.hl7
 
 # Parse EDI claim
 fi-fhir parse --format edi --pretty claim.x12
+
+# Parse EDI 837P with companion guide (auto-detect payer)
+fi-fhir parse -f edi837p claim.x12 --edi-companion auto
+
+# Parse EDI with specific companion guide
+fi-fhir parse -f edi837p claim.x12 --edi-companion /path/to/bcbs-guide.yaml
+
+# Parse EDI with companion guide directory
+fi-fhir parse -f edi837p claim.x12 --edi-companion-dir /guides/
 
 # Parse CSV file
 fi-fhir parse --format csv --pretty patients.csv
@@ -212,6 +223,98 @@ fi-fhir workflow cel "patient over 65 with abnormal lab results"
 # Test against sample event
 fi-fhir workflow cel --test --event sample.json "patient admitted to ICU"
 ```
+
+#### workflow dry-run
+
+Execute workflow without side effects. Actions are simulated and logged.
+
+```bash
+fi-fhir workflow dry-run -c FILE [EVENT_FILE]
+```
+
+| Option | Description |
+|--------|-------------|
+| `-c, --config` | Workflow configuration file (required) |
+| `-v, --verbose` | Show detailed route matching |
+
+```bash
+# Dry-run from file
+fi-fhir workflow dry-run -c workflow.yaml events.json
+
+# Dry-run from stdin
+cat events.json | fi-fhir workflow dry-run -c workflow.yaml -
+```
+
+#### workflow record
+
+Capture events and results for regression testing.
+
+```bash
+fi-fhir workflow record -c FILE -o FILE [EVENT_FILE]
+```
+
+| Option | Description |
+|--------|-------------|
+| `-c, --config` | Workflow configuration file (required) |
+| `-o, --output` | Output file for recordings (required) |
+
+```bash
+fi-fhir workflow record -c workflow.yaml -o recordings.json events.json
+```
+
+#### workflow replay
+
+Replay recorded events and compare against baseline.
+
+```bash
+fi-fhir workflow replay -c FILE [options] RECORDINGS_FILE
+```
+
+| Option | Description |
+|--------|-------------|
+| `-c, --config` | Workflow configuration file (required) |
+| `-t, --event-type` | Filter by event type |
+| `-s, --source` | Filter by source system |
+| `-l, --limit` | Maximum events to replay |
+| `-d, --diffs` | Show diffs for mismatches |
+| `-o, --output` | Save comparison results |
+
+```bash
+# Replay with diff output
+fi-fhir workflow replay -c workflow.yaml -d recordings.json
+
+# Filter by event type
+fi-fhir workflow replay -c workflow.yaml -t patient_admit recordings.json
+```
+
+#### workflow loadtest
+
+Performance test workflows under load.
+
+```bash
+fi-fhir workflow loadtest -c FILE [options]
+```
+
+| Option | Description |
+|--------|-------------|
+| `-c, --config` | Workflow configuration file (required) |
+| `-s, --scenario` | Predefined scenario: `smoke`, `standard`, `stress`, `burst`, `soak` |
+| `-d, --duration` | Test duration (e.g., 30s, 5m) |
+| `-r, --rps` | Target requests per second |
+| `-w, --workers` | Concurrent workers |
+| `--warmup` | Warmup duration |
+| `-v, --verbose` | Real-time metrics |
+| `--json` | JSON output |
+
+```bash
+# Quick smoke test
+fi-fhir workflow loadtest -c workflow.yaml -s smoke -v
+
+# Custom load test
+fi-fhir workflow loadtest -c workflow.yaml -d 60s -r 2000 -w 8
+```
+
+See [Workflow Configuration](workflows.md#testing--validation) for detailed testing documentation.
 
 ---
 
@@ -485,7 +588,7 @@ fi-fhir projection rebuild patient-timeline --from 2024-01-01
 
 ## terminology
 
-Terminology database operations.
+Terminology database operations for managing healthcare vocabularies, custom mappings, and semantic search.
 
 ### Usage
 
@@ -498,33 +601,84 @@ fi-fhir terminology <subcommand> [options]
 | Subcommand | Description |
 |------------|-------------|
 | `init` | Initialize terminology database |
-| `load SYSTEM` | Load terminology (loinc, snomed, icd10) |
-| `status` | Show loaded terminologies |
+| `status` | Show loaded terminologies and versions |
+| `load VOCAB` | Load vocabulary (rxnorm, loinc, umls, icd10cm) |
+| `use VOCAB VERSION` | Set active vocabulary version |
+| `drop` | Drop all terminology data |
 | `crosswalk` | Cross-reference codes between systems |
 | `search` | Semantic search for terminology codes |
 | `index` | Manage terminology embedding index |
+| `mapping` | Custom code mapping operations |
+
+### Database Management
 
 ```bash
-# Initialize database
-fi-fhir terminology init --driver postgres --dsn ${DATABASE_URL}
-
-# Load LOINC
-fi-fhir terminology load loinc --file loinc.csv
+# Initialize terminology database
+fi-fhir terminology init --db "$DATABASE_URL"
 
 # Check status
-fi-fhir terminology status
+fi-fhir terminology status --db "$DATABASE_URL"
 
-# Cross-walk ICD-10 to SNOMED
-fi-fhir terminology crosswalk --from icd10 --to snomed E11.9
+# Set active vocabulary version
+fi-fhir terminology use rxnorm 2024-01 --db "$DATABASE_URL"
 
+# Drop all data (destructive)
+fi-fhir terminology drop --force --db "$DATABASE_URL"
+```
+
+### Loading Vocabularies
+
+```bash
+# Load RxNorm from RRF directory
+fi-fhir terminology load rxnorm /path/to/rrf/ --version 2024-01
+
+# Load LOINC from CSV
+fi-fhir terminology load loinc /data/loinc/LoincTable.csv --version 2.77
+
+# Load UMLS Metathesaurus
+fi-fhir terminology load umls /data/umls/META/ --version 2024AB
+
+# Load ICD-10-CM
+fi-fhir terminology load icd10cm /data/icd10cm/codes.csv --version FY2024
+```
+
+### Custom Mappings
+
+```bash
+# Upload mappings from CSV
+fi-fhir terminology mapping upload mappings.csv \
+  --source-system epic_labs --target-system http://loinc.org
+
+# List mapping sets
+fi-fhir terminology mapping list --source-system epic_labs
+
+# Get mapping details
+fi-fhir terminology mapping get <mapping-id>
+
+# Delete mapping set
+fi-fhir terminology mapping delete <mapping-id> --force
+
+# Resolve a code (with optional LLM autoroute)
+fi-fhir terminology mapping resolve GLU001 \
+  --source-system epic_labs --target-system http://loinc.org
+```
+
+### Semantic Search & Crosswalk
+
+```bash
 # Semantic search (finds codes by meaning)
 fi-fhir terminology search --query "blood sugar" --vocabulary loinc --limit 10
 fi-fhir terminology search --query "chest pain" --vocabulary snomed
 
-# Build embedding index for fast semantic search
+# Cross-walk between vocabularies
+fi-fhir terminology crosswalk --from icd10cm --to snomed E11.9
+
+# Build embedding index for semantic search
 fi-fhir terminology index build --vocabulary loinc --source ./data/LoincTable.csv
 fi-fhir terminology index status
 ```
+
+See [Terminology Management](terminology.md) for comprehensive documentation.
 
 ---
 
@@ -645,6 +799,7 @@ fi-fhir companion validate --guide bcbs-837p claim.x12
 ## See Also
 
 - [Getting Started](getting-started.md) - Quick start tutorial
-- [Workflow Configuration](workflows.md) - Workflow DSL
+- [Workflow Configuration](workflows.md) - Workflow DSL and testing
+- [Terminology Management](terminology.md) - Vocabulary and mapping operations
 - [Source Profiles](source-profiles.md) - Profile configuration
 - [LLM-Powered Features](llm-features.md) - AI-assisted features

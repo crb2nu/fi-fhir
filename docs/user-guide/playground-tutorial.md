@@ -284,13 +284,39 @@ fi-fhir parse --format hl7v2 --profile my_profile.yaml message.hl7
 
 ## Integration with CLI
 
-The playground and CLI work together:
+The playground and CLI work together seamlessly. Use the playground for visual exploration and the CLI for automation and production.
 
-| Playground Tool | CLI Command |
-|-----------------|-------------|
-| Source Profile Editor | `fi-fhir validate profile` |
-| Pipeline Visualization | `fi-fhir parse --verbose` |
-| Mapping Visualizer | `fi-fhir fhir validate` |
+### Playground to CLI Mapping
+
+| Playground Tool | CLI Command | Description |
+|-----------------|-------------|-------------|
+| **Source Profile Editor** | `fi-fhir profile infer` | Generate profile from samples |
+| | `fi-fhir profile lint` | Validate profile best practices |
+| | `fi-fhir validate profile` | Schema validation |
+| **Pipeline Visualization** | `fi-fhir parse --verbose` | See parsing phases |
+| | `fi-fhir parse --explain-warnings` | Get LLM explanations |
+| **Mapping Visualizer** | `fi-fhir fhir validate` | Validate FHIR output |
+| | `fi-fhir fhir generate` | Generate FHIR from events |
+
+### CLI Commands for Common Tasks
+
+```bash
+# After designing a profile in the playground
+fi-fhir profile lint my_profile.yaml         # Check best practices
+fi-fhir validate profile my_profile.yaml     # Validate schema
+
+# Generate profile from sample messages
+fi-fhir profile infer --output inferred.yaml samples/*.hl7
+
+# Parse with verbose output (like Pipeline Visualization)
+fi-fhir parse --format hl7v2 --verbose message.hl7
+
+# Get LLM explanations for warnings
+fi-fhir parse --format hl7v2 --explain-warnings message.hl7
+
+# Validate FHIR output (like Mapping Visualizer)
+fi-fhir fhir validate --profile us-core patient.json
+```
 
 ### Export and Import
 

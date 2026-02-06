@@ -2,6 +2,7 @@ package llm
 
 import (
 	"context"
+	"errors"
 	"math"
 	"math/rand"
 	"sync"
@@ -91,8 +92,8 @@ func IsRetryable(err error) bool {
 	if err == nil {
 		return false
 	}
-	_, ok := err.(*RetryableError)
-	return ok
+	var re *RetryableError
+	return errors.As(err, &re)
 }
 
 // Do executes the given function with retries.
@@ -171,7 +172,7 @@ func (r *Retryer) backoffDelay(attempt int) time.Duration {
 
 	// Apply jitter
 	if r.config.Jitter > 0 {
-		jitter := delay * r.config.Jitter * (rand.Float64()*2 - 1)
+		jitter := delay * r.config.Jitter * (rand.Float64()*2 - 1) //nolint:gosec // G404: jitter doesn't need crypto
 		delay += jitter
 	}
 
@@ -272,7 +273,8 @@ func (r *Retryer) ResetCircuit() {
 // Helper functions
 
 func unwrapRetryable(err error) error {
-	if re, ok := err.(*RetryableError); ok {
+	var re *RetryableError
+	if errors.As(err, &re) {
 		return re.Err
 	}
 	return err

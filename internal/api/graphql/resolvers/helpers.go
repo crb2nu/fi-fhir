@@ -11,6 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"go.temporal.io/api/enums/v1"
+	"go.temporal.io/api/workflow/v1"
+
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/store"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/explain"
@@ -19,8 +22,6 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/terminology/autoroute"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/db"
-	"go.temporal.io/api/enums/v1"
-	"go.temporal.io/api/workflow/v1"
 )
 
 // strPtr returns a pointer to the string, or nil if empty.

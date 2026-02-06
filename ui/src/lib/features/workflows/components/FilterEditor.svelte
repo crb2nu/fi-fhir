@@ -1,0 +1,269 @@
+<script lang="ts">
+  import { createEventDispatcher } from 'svelte';
+  import {
+    EVENT_TYPE_CATEGORIES,
+    EVENT_TYPE_PRESETS,
+    type FilterDraft
+  } from '../workflowTypes';
+
+  export let filter: FilterDraft;
+
+  const dispatch = createEventDispatcher<{
+    change: FilterDraft;
+  }>();
+
+  let showCel = !!filter.condition;
+  let sourcesText = filter.sources.join(', ');
+
+  function toggleEventType(type: string) {
+    const types = filter.eventTypes.includes(type)
+      ? filter.eventTypes.filter((t) => t !== type)
+      : [...filter.eventTypes, type];
+    dispatch('change', { ...filter, eventTypes: types });
+  }
+
+  function applyPreset(types: string[]) {
+    dispatch('change', { ...filter, eventTypes: [...types] });
+  }
+
+  function clearEventTypes() {
+    dispatch('change', { ...filter, eventTypes: [] });
+  }
+
+  function handleSourcesBlur() {
+    const sources = sourcesText
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    dispatch('change', { ...filter, sources });
+  }
+
+  function handleConditionInput(e: Event) {
+    const target = e.target as HTMLInputElement;
+    dispatch('change', { ...filter, condition: target.value });
+  }
+</script>
+
+<div class="filter-editor">
+  <div class="section">
+    <div class="section-header">
+      <span class="section-label">Event Types</span>
+      <div class="preset-bar">
+        {#each EVENT_TYPE_PRESETS as preset (preset.label)}
+          <button class="preset-btn" on:click={() => applyPreset(preset.types)}>
+            {preset.label}
+          </button>
+        {/each}
+        {#if filter.eventTypes.length > 0}
+          <button class="preset-btn clear" on:click={clearEventTypes}>Clear</button>
+        {/if}
+      </div>
+    </div>
+
+    <div class="checkbox-groups">
+      {#each Object.entries(EVENT_TYPE_CATEGORIES) as [category, types] (category)}
+        <div class="checkbox-group">
+          <span class="group-label">{category}</span>
+          <div class="checkboxes">
+            {#each types as type (type)}
+              <label class="checkbox">
+                <input
+                  type="checkbox"
+                  checked={filter.eventTypes.includes(type)}
+                  on:change={() => toggleEventType(type)}
+                />
+                <span class="checkbox-label">{type.replace(/_/g, ' ')}</span>
+              </label>
+            {/each}
+          </div>
+        </div>
+      {/each}
+    </div>
+
+    {#if filter.eventTypes.length > 0}
+      <div class="selected-count">
+        {filter.eventTypes.length} event type{filter.eventTypes.length > 1 ? 's' : ''} selected
+      </div>
+    {/if}
+  </div>
+
+  <div class="section">
+    <label class="section-label">
+      Sources (comma-separated)
+      <input
+        type="text"
+        class="input"
+        bind:value={sourcesText}
+        on:blur={handleSourcesBlur}
+        placeholder="e.g. epic, cerner"
+      />
+    </label>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <span class="section-label">CEL Condition</span>
+      <button class="toggle-btn" on:click={() => (showCel = !showCel)}>
+        {showCel ? 'Hide' : 'Show'} Expert Mode
+      </button>
+    </div>
+    {#if showCel}
+      <input
+        type="text"
+        class="input mono"
+        value={filter.condition}
+        on:input={handleConditionInput}
+        placeholder='e.g. event.isCritical == true'
+      />
+      <div class="hint">
+        CEL expression evaluated against the event. Returns true to match.
+      </div>
+    {/if}
+  </div>
+</div>
+
+<style>
+  .filter-editor {
+    display: grid;
+    gap: 16px;
+  }
+
+  .section {
+    display: grid;
+    gap: 8px;
+  }
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .section-label {
+    color: rgba(229, 231, 235, 0.8);
+    font-size: 0.9rem;
+    font-weight: 700;
+    display: grid;
+    gap: 6px;
+  }
+
+  .preset-bar {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .preset-btn {
+    padding: 2px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.03);
+    color: rgba(229, 231, 235, 0.7);
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 600;
+    transition: all 0.15s ease;
+  }
+
+  .preset-btn:hover {
+    background: rgba(59, 130, 246, 0.12);
+    border-color: rgba(59, 130, 246, 0.35);
+    color: rgba(219, 234, 254, 0.95);
+  }
+
+  .preset-btn.clear {
+    border-color: rgba(239, 68, 68, 0.3);
+    color: rgba(254, 202, 202, 0.8);
+  }
+
+  .preset-btn.clear:hover {
+    background: rgba(239, 68, 68, 0.12);
+  }
+
+  .checkbox-groups {
+    display: grid;
+    gap: 10px;
+  }
+
+  .checkbox-group {
+    display: grid;
+    gap: 4px;
+  }
+
+  .group-label {
+    color: rgba(229, 231, 235, 0.55);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .checkboxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
+
+  .checkbox {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+
+  .checkbox input {
+    accent-color: rgba(59, 130, 246, 0.85);
+  }
+
+  .checkbox-label {
+    color: rgba(229, 231, 235, 0.85);
+    font-size: 0.85rem;
+  }
+
+  .selected-count {
+    color: rgba(147, 197, 253, 0.8);
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
+  .input {
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.03);
+    color: rgba(229, 231, 235, 0.92);
+    outline: none;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .input:focus {
+    border-color: rgba(59, 130, 246, 0.45);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  }
+
+  .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+
+  .toggle-btn {
+    padding: 2px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.03);
+    color: rgba(229, 231, 235, 0.6);
+    cursor: pointer;
+    font-size: 0.75rem;
+  }
+
+  .toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .hint {
+    color: rgba(229, 231, 235, 0.5);
+    font-size: 0.8rem;
+  }
+</style>

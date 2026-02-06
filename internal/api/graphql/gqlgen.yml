@@ -230,6 +230,17 @@ models:
     model:
       - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.BatchResult
 
+  # Dry-run types (MVP 3)
+  DryRunWorkflowInput:
+    model:
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.DryRunWorkflowInput
+  DryRunRouteResult:
+    model:
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.DryRunRouteResult
+  DryRunResult:
+    model:
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.DryRunResult
+
 # gqlgen features
 omit_slice_element_pointers: true
 omit_complexity: false

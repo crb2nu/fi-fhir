@@ -239,7 +239,7 @@ func (c *openAIClient) complete(ctx context.Context, req CompletionRequest, form
 		if err != nil {
 			return &RetryableError{Err: fmt.Errorf("send request: %w", err)}
 		}
-		defer httpResp.Body.Close()
+		defer httpResp.Body.Close() //nolint:errcheck // Best-effort close after read
 
 		respBody, err := io.ReadAll(httpResp.Body)
 		if err != nil {

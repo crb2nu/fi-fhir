@@ -105,12 +105,7 @@ func (p *Parser) Parse(r io.Reader) (*ParseResult, error) {
 
 	// Parse rows
 	rowNum := 1 // 1-indexed (header is row 0)
-	for {
-		// Check max rows before reading next
-		if p.opts.MaxRows > 0 && result.TotalRows >= p.opts.MaxRows {
-			break
-		}
-
+	for p.opts.MaxRows == 0 || result.TotalRows < p.opts.MaxRows {
 		rowNum++
 		record, err := reader.Read()
 		if err == io.EOF {
@@ -393,10 +388,11 @@ func isValidSystemName(s string) bool {
 	}
 	// Allow alphanumeric, underscores, dashes
 	for _, r := range s {
-		if !((r >= 'A' && r <= 'Z') ||
-			(r >= 'a' && r <= 'z') ||
-			(r >= '0' && r <= '9') ||
-			r == '_' || r == '-') {
+		isUpper := r >= 'A' && r <= 'Z'
+		isLower := r >= 'a' && r <= 'z'
+		isDigit := r >= '0' && r <= '9'
+		isAllowed := isUpper || isLower || isDigit || r == '_' || r == '-'
+		if !isAllowed {
 			return false
 		}
 	}

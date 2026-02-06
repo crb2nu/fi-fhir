@@ -1186,6 +1186,33 @@ type MessageClassification {
 extend type Mutation {
   # Generate a workflow from natural language description
   generateWorkflow(input: GenerateWorkflowInput!): GeneratedWorkflow!
+
+  # Dry-run a workflow YAML against sample events without executing actions
+  dryRunWorkflow(input: DryRunWorkflowInput!): DryRunResult!
+}
+
+# =============================================================================
+# Dry-Run Simulation Types (MVP 3)
+# =============================================================================
+
+input DryRunWorkflowInput {
+  # The workflow YAML to simulate
+  yaml: String!
+  # Sample events to test against (as JSON objects)
+  events: [JSON!]!
+}
+
+type DryRunRouteResult {
+  routeName: String!
+  matched: Boolean!
+  actionsWouldRun: Int!
+  skipReason: String
+}
+
+type DryRunResult {
+  routeResults: [DryRunRouteResult!]!
+  warnings: [String!]!
+  validationErrors: [String!]!
 }
 
 # =============================================================================

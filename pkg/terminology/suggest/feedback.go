@@ -145,7 +145,7 @@ func (s *FeedbackStore) Record(ctx context.Context, fb Feedback) error {
 	// Store in Qdrant
 	payload, _ := json.Marshal(fb)
 	var payloadMap map[string]interface{}
-	json.Unmarshal(payload, &payloadMap)
+	_ = json.Unmarshal(payload, &payloadMap)
 
 	point := index.Point{
 		ID:      fb.ID,

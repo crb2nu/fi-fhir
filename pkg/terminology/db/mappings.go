@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -133,7 +134,7 @@ func (s *MappingStore) GetBatch(ctx context.Context, id uuid.UUID) (*UploadBatch
 		&batch.TotalRows, &batch.ValidRows, &batch.DuplicateRows, &batch.ErrorRows,
 		&batch.UploadedAt, &uploadedBy, &errorsJSON,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -222,7 +223,7 @@ func (s *MappingStore) CreateMappingsBatch(ctx context.Context, mappings []*Cust
 			nullJSON(m.DecisionTrace),
 		).Scan(&id)
 
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			// ON CONFLICT DO NOTHING - duplicate
 			duplicates++
 		} else if err != nil {
@@ -267,7 +268,7 @@ func (s *MappingStore) LookupMapping(ctx context.Context, sourceSystem, sourceCo
 		&m.Equivalence, &confidence, &comment, &m.Origin, &batchID, &m.ProfileID,
 		&m.CreatedAt, &createdBy, &approvedAt, &approvedBy, &decisionTrace,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -368,7 +369,6 @@ func (s *MappingStore) ListMappings(ctx context.Context, filter ListMappingsFilt
 		query += fmt.Sprintf(" AND created_at <= $%d", argNum)
 		countQuery += fmt.Sprintf(" AND created_at <= $%d", argNum)
 		args = append(args, *filter.CreatedBefore)
-		argNum++
 	}
 
 	// Get total count
@@ -452,7 +452,7 @@ func (s *MappingStore) GetMapping(ctx context.Context, id int64) (*CustomMapping
 		&m.Equivalence, &confidence, &comment, &m.Origin, &batchID, &profileID,
 		&m.CreatedAt, &createdBy, &approvedAt, &approvedBy,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -527,6 +527,7 @@ func (s *MappingStore) UpdateMapping(ctx context.Context, input UpdateMappingInp
 	// Add the ID for the WHERE clause
 	args = append(args, input.ID)
 
+	//nolint:gosec // G201: setClauses are from controlled code
 	query := fmt.Sprintf(`
 		UPDATE terminology.custom_mappings
 		SET %s
@@ -536,7 +537,7 @@ func (s *MappingStore) UpdateMapping(ctx context.Context, input UpdateMappingInp
 
 	var updatedID int64
 	err := s.db.QueryRowContext(ctx, query, args...).Scan(&updatedID)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("mapping not found: %d", input.ID)
 	}
 	if err != nil {
@@ -692,7 +693,7 @@ func (s *MappingStore) GetPendingAutoroute(ctx context.Context, id int64) (*Pend
 		&decisionTrace, &alternates, &p.Status, &reviewedAt, &reviewedBy,
 		&rejectionReason, &p.CreatedAt, &expiresAt,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -769,7 +770,6 @@ func (s *MappingStore) ListPendingAutoroutes(ctx context.Context, filter ListPen
 		query += fmt.Sprintf(" AND target_system = $%d", argNum)
 		countQuery += fmt.Sprintf(" AND target_system = $%d", argNum)
 		args = append(args, filter.TargetSystem)
-		argNum++
 	}
 
 	// Get total count
@@ -866,7 +866,7 @@ func (s *MappingStore) ApprovePendingAutoroute(ctx context.Context, id int64, ap
 		&p.SuggestedCode, &suggestedDisplay, &p.Confidence, &equivalence, &reasoning,
 		&decisionTrace, &p.Status,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("pending autoroute not found: %d", id)
 	}
 	if err != nil {
@@ -1114,7 +1114,7 @@ func (s *MappingStore) GetMappingDecision(ctx context.Context, id int64) (*Mappi
 		&d.DecisionType, &confidence, &selectedCode, &selectedDisplay,
 		&decisionTree, &profileID, &requestSource, &d.CreatedAt, &d.DurationMs,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -1203,7 +1203,6 @@ func (s *MappingStore) ListMappingDecisions(ctx context.Context, filter ListMapp
 		query += fmt.Sprintf(" AND created_at <= $%d", argNum)
 		countQuery += fmt.Sprintf(" AND created_at <= $%d", argNum)
 		args = append(args, *filter.Until)
-		argNum++
 	}
 
 	// Get total count
