@@ -38,20 +38,29 @@
 </script>
 
 <div class="route-editor" class:expanded={route.expanded}>
-  <div class="route-header" on:click={() => dispatch('toggleExpand')} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && dispatch('toggleExpand')}>
-    <span class="collapse-icon" class:rotated={route.expanded}>&#9654;</span>
-    <span class="route-name">{route.name || 'Unnamed route'}</span>
-    {#if !route.expanded}
-      <span class="summary">
-        <span class="summary-filter">{filterSummary(route)}</span>
-        <span class="summary-sep">&rarr;</span>
-        <span class="summary-actions">{actionSummary(route)}</span>
-      </span>
-    {/if}
-    <div class="route-controls" on:click|stopPropagation role="presentation">
-      <button class="icon-btn" on:click={() => dispatch('moveRoute', 'up')} title="Move up">&uarr;</button>
-      <button class="icon-btn" on:click={() => dispatch('moveRoute', 'down')} title="Move down">&darr;</button>
-      <button class="icon-btn danger" on:click={() => dispatch('remove')} title="Remove route">&times;</button>
+  <div class="route-header-row">
+    <button class="route-header" on:click={() => dispatch('toggleExpand')} aria-expanded={route.expanded}>
+      <span class="collapse-icon" class:rotated={route.expanded}>&#9654;</span>
+      <span class="route-name">{route.name || 'Unnamed route'}</span>
+      {#if !route.expanded}
+        <span class="summary">
+          <span class="summary-filter">{filterSummary(route)}</span>
+          {#if route.transforms.length > 0}
+            <span class="summary-sep">&rarr;</span>
+            <span class="summary-transforms">{route.transforms.length} transform{route.transforms.length > 1 ? 's' : ''}</span>
+          {/if}
+          <span class="summary-sep">&rarr;</span>
+          <span class="summary-actions">{actionSummary(route)}</span>
+          {#if route.actions.length === 0}
+            <span class="summary-warn">needs actions</span>
+          {/if}
+        </span>
+      {/if}
+    </button>
+    <div class="route-controls">
+      <button class="icon-btn" on:click={() => dispatch('moveRoute', 'up')} aria-label="Move up" title="Move up">&uarr;</button>
+      <button class="icon-btn" on:click={() => dispatch('moveRoute', 'down')} aria-label="Move down" title="Move down">&darr;</button>
+      <button class="icon-btn danger" on:click={() => dispatch('remove')} aria-label="Remove route" title="Remove route">&times;</button>
     </div>
   </div>
 
@@ -110,17 +119,30 @@
     border-color: rgba(59, 130, 246, 0.2);
   }
 
+  .route-header-row {
+    display: flex;
+    align-items: center;
+    padding: 0 12px 0 0;
+    transition: background 0.15s ease;
+  }
+
+  .route-header-row:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
   .route-header {
     display: flex;
     align-items: center;
     gap: 10px;
     padding: 10px 12px;
     cursor: pointer;
-    transition: background 0.15s ease;
-  }
-
-  .route-header:hover {
-    background: rgba(255, 255, 255, 0.03);
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+    border: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
   }
 
   .collapse-icon {
@@ -157,19 +179,30 @@
     color: rgba(229, 231, 235, 0.3);
   }
 
+  .summary-transforms {
+    color: rgba(192, 132, 252, 0.7);
+  }
+
   .summary-actions {
     color: rgba(110, 231, 183, 0.7);
   }
 
+  .summary-warn {
+    color: rgba(245, 158, 11, 0.8);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
   .route-controls {
     display: flex;
-    gap: 4px;
-    margin-left: auto;
+    gap: 6px;
+    flex-shrink: 0;
   }
 
   .icon-btn {
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -182,12 +215,12 @@
     line-height: 1;
   }
 
-  .icon-btn:hover {
+  .icon-btn:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.06);
     color: rgba(229, 231, 235, 0.9);
   }
 
-  .icon-btn.danger:hover {
+  .icon-btn.danger:hover:not(:disabled) {
     background: rgba(239, 68, 68, 0.12);
     border-color: rgba(239, 68, 68, 0.3);
     color: rgba(254, 202, 202, 0.9);

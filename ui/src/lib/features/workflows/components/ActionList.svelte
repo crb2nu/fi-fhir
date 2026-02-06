@@ -24,6 +24,7 @@
             class="icon-btn"
             disabled={i === 0}
             on:click={() => dispatch('move', { actionKey: action._key, direction: 'up' })}
+            aria-label="Move up"
             title="Move up"
           >
             &uarr;
@@ -32,6 +33,7 @@
             class="icon-btn"
             disabled={i === actions.length - 1}
             on:click={() => dispatch('move', { actionKey: action._key, direction: 'down' })}
+            aria-label="Move down"
             title="Move down"
           >
             &darr;
@@ -39,6 +41,7 @@
           <button
             class="icon-btn danger"
             on:click={() => dispatch('remove', { actionKey: action._key })}
+            aria-label="Remove action"
             title="Remove action"
           >
             &times;
@@ -87,12 +90,13 @@
 
   .action-controls {
     display: flex;
-    gap: 4px;
+    gap: 6px;
   }
 
   .icon-btn {
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
     display: flex;
     align-items: center;
     justify-content: center;

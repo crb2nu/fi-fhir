@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import Button from '$lib/ui/Button.svelte';
   import {
     EVENT_TYPE_CATEGORIES,
     EVENT_TYPE_PRESETS,
@@ -50,12 +51,12 @@
       <span class="section-label">Event Types</span>
       <div class="preset-bar">
         {#each EVENT_TYPE_PRESETS as preset (preset.label)}
-          <button class="preset-btn" on:click={() => applyPreset(preset.types)}>
+          <Button variant="secondary" size="sm" on:click={() => applyPreset(preset.types)}>
             {preset.label}
-          </button>
+          </Button>
         {/each}
         {#if filter.eventTypes.length > 0}
-          <button class="preset-btn clear" on:click={clearEventTypes}>Clear</button>
+          <Button variant="danger" size="sm" on:click={clearEventTypes}>Clear</Button>
         {/if}
       </div>
     </div>
@@ -103,9 +104,9 @@
   <div class="section">
     <div class="section-header">
       <span class="section-label">CEL Condition</span>
-      <button class="toggle-btn" on:click={() => (showCel = !showCel)}>
+      <Button variant="ghost" size="sm" on:click={() => (showCel = !showCel)}>
         {showCel ? 'Hide' : 'Show'} Expert Mode
-      </button>
+      </Button>
     </div>
     {#if showCel}
       <input
@@ -153,33 +154,6 @@
     display: flex;
     gap: 4px;
     flex-wrap: wrap;
-  }
-
-  .preset-btn {
-    padding: 2px 8px;
-    border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(229, 231, 235, 0.7);
-    cursor: pointer;
-    font-size: 0.75rem;
-    font-weight: 600;
-    transition: all 0.15s ease;
-  }
-
-  .preset-btn:hover {
-    background: rgba(59, 130, 246, 0.12);
-    border-color: rgba(59, 130, 246, 0.35);
-    color: rgba(219, 234, 254, 0.95);
-  }
-
-  .preset-btn.clear {
-    border-color: rgba(239, 68, 68, 0.3);
-    color: rgba(254, 202, 202, 0.8);
-  }
-
-  .preset-btn.clear:hover {
-    background: rgba(239, 68, 68, 0.12);
   }
 
   .checkbox-groups {
@@ -248,22 +222,19 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   }
 
-  .toggle-btn {
-    padding: 2px 8px;
-    border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(229, 231, 235, 0.6);
-    cursor: pointer;
-    font-size: 0.75rem;
-  }
-
-  .toggle-btn:hover {
-    background: rgba(255, 255, 255, 0.06);
-  }
-
   .hint {
     color: rgba(229, 231, 235, 0.5);
     font-size: 0.8rem;
+  }
+
+  @media (max-width: 640px) {
+    .section-header {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .checkboxes {
+      gap: 6px 16px;
+    }
   }
 </style>
