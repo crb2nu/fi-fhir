@@ -52,7 +52,7 @@
         placeholder="Describe what you want the workflow to do, e.g.&#10;&#10;Route all patient admit and discharge events to a FHIR server, and log critical lab results to a webhook."
         rows="4"
       ></textarea>
-      <Button on:click={handleGenerate} disabled={generating || !description.trim()}>
+      <Button on:click={handleGenerate} loading={generating} disabled={!description.trim()}>
         {generating ? 'Generating...' : 'Generate Workflow'}
       </Button>
     </div>
@@ -67,7 +67,7 @@
         {/if}
 
         {#if generatedWarnings.length > 0}
-          <div class="warnings">
+          <div class="warnings" role="alert">
             {#each generatedWarnings as warn (warn)}
               <div class="warning-item">{warn}</div>
             {/each}

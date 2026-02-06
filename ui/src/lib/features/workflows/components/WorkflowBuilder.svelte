@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { slide } from 'svelte/transition';
   import Panel from '$lib/ui/Panel.svelte';
   import Button from '$lib/ui/Button.svelte';
   import RouteEditor from './RouteEditor.svelte';
@@ -108,15 +109,21 @@
   </div>
 
   {#if showPreview}
-    <WorkflowPreview />
+    <div transition:slide={{ duration: 200 }}>
+      <WorkflowPreview />
+    </div>
   {/if}
 
   {#if showDryRun}
-    <DryRunPanel />
+    <div transition:slide={{ duration: 200 }}>
+      <DryRunPanel />
+    </div>
   {/if}
 
   {#if showGenerate}
-    <GenerateFromDescription />
+    <div transition:slide={{ duration: 200 }}>
+      <GenerateFromDescription />
+    </div>
   {/if}
 </div>
 
@@ -175,5 +182,20 @@
 
   .spacer {
     flex: 1;
+  }
+
+  @media (max-width: 640px) {
+    .name-version {
+      grid-template-columns: 1fr;
+    }
+
+    .toolbar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .spacer {
+      display: none;
+    }
   }
 </style>

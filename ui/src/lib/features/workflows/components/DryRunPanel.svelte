@@ -85,9 +85,9 @@
     <div class="event-selector">
       <div class="selector-header">
         <span class="label">Sample Events</span>
-        <button class="toggle-btn" on:click={() => (useCustom = !useCustom)}>
+        <Button variant="ghost" size="sm" on:click={() => (useCustom = !useCustom)}>
           {useCustom ? 'Use Presets' : 'Custom JSON'}
-        </button>
+        </Button>
       </div>
 
       {#if useCustom}
@@ -113,7 +113,7 @@
         </div>
       {/if}
 
-      <Button on:click={handleRun} disabled={running}>
+      <Button on:click={handleRun} loading={running}>
         {running ? 'Running...' : 'Run Simulation'}
       </Button>
     </div>
@@ -121,7 +121,7 @@
     {#if result}
       <div class="results">
         {#if result.validationErrors.length > 0}
-          <div class="errors">
+          <div class="errors" role="alert">
             <h4 class="results-title">Validation Errors</h4>
             {#each result.validationErrors as err (err)}
               <div class="error-item">{err}</div>
@@ -130,7 +130,7 @@
         {/if}
 
         {#if result.warnings.length > 0}
-          <div class="warnings">
+          <div class="warnings" role="alert">
             <h4 class="results-title">Warnings</h4>
             {#each result.warnings as warn (warn)}
               <div class="warning-item">{warn}</div>
@@ -185,20 +185,6 @@
     color: rgba(229, 231, 235, 0.8);
     font-weight: 700;
     font-size: 0.9rem;
-  }
-
-  .toggle-btn {
-    padding: 2px 8px;
-    border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(229, 231, 235, 0.6);
-    cursor: pointer;
-    font-size: 0.75rem;
-  }
-
-  .toggle-btn:hover {
-    background: rgba(255, 255, 255, 0.06);
   }
 
   .textarea {
@@ -322,5 +308,17 @@
   .muted {
     color: rgba(229, 231, 235, 0.5);
     font-size: 0.85rem;
+  }
+
+  @media (max-width: 640px) {
+    .table-header,
+    .table-row {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .table-header span:nth-child(4),
+    .table-row span:nth-child(4) {
+      display: none;
+    }
   }
 </style>

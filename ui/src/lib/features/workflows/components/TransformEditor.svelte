@@ -44,6 +44,7 @@
           <input
             type="text"
             class="input"
+            aria-required={field.required || undefined}
             value={transform.config[field.key] ?? ''}
             placeholder={field.placeholder ?? ''}
             on:input={(e) => handleFieldChange(field.key, (e.target as HTMLInputElement).value)}
@@ -98,5 +99,11 @@
   .input:focus {
     border-color: rgba(59, 130, 246, 0.45);
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  }
+
+  @media (max-width: 640px) {
+    .config-fields {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

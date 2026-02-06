@@ -122,4 +122,15 @@
   .muted {
     color: rgba(229, 231, 235, 0.55);
   }
+
+  @media (max-width: 640px) {
+    .workflow-row {
+      grid-template-columns: 1fr;
+      gap: 6px;
+    }
+
+    .workflow-meta {
+      flex-wrap: wrap;
+    }
+  }
 </style>

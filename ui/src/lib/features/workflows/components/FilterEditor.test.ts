@@ -39,7 +39,10 @@ describe('FilterEditor', () => {
     const { container } = render(FilterEditor, {
       props: { filter: defaultFilter }
     });
-    const presetBtns = container.querySelectorAll('.preset-btn:not(.clear)');
+    const presetBar = container.querySelector('.preset-bar');
+    expect(presetBar).toBeTruthy();
+    // Preset bar contains one button per preset (no clear button when no types selected)
+    const presetBtns = presetBar!.querySelectorAll('button');
     expect(presetBtns.length).toBe(EVENT_TYPE_PRESETS.length);
   });
 
