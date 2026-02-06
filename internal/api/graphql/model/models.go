@@ -441,3 +441,28 @@ type ProjectionStatus struct {
 	Behind       int    `json:"behind"`
 	Status       string `json:"status"`
 }
+
+// =============================================================================
+// Dry-Run Simulation Types (MVP 3)
+// =============================================================================
+
+// DryRunWorkflowInput is the input for dry-running a workflow YAML against sample events.
+type DryRunWorkflowInput struct {
+	Yaml   string           `json:"yaml"`
+	Events []map[string]any `json:"events"`
+}
+
+// DryRunRouteResult represents the result of a single route during dry-run.
+type DryRunRouteResult struct {
+	RouteName       string  `json:"routeName"`
+	Matched         bool    `json:"matched"`
+	ActionsWouldRun int     `json:"actionsWouldRun"`
+	SkipReason      *string `json:"skipReason,omitempty"`
+}
+
+// DryRunResult is the overall result of a dry-run simulation.
+type DryRunResult struct {
+	RouteResults     []DryRunRouteResult `json:"routeResults"`
+	Warnings         []string            `json:"warnings"`
+	ValidationErrors []string            `json:"validationErrors"`
+}

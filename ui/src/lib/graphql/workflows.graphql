@@ -1,0 +1,82 @@
+query ListWorkflows {
+  workflows {
+    name
+    enabled
+    routeCount
+    eventsProcessed
+    lastEventTime
+    errors
+  }
+}
+
+query GetWorkflow($name: String!) {
+  workflow(name: $name) {
+    name
+    enabled
+    routeCount
+    eventsProcessed
+    lastEventTime
+    errors
+  }
+}
+
+mutation TriggerWorkflow($name: String!, $event: JSON!) {
+  triggerWorkflow(name: $name, event: $event) {
+    workflowName
+    routesMatched
+    actionsExecuted
+    errors
+    duration
+  }
+}
+
+mutation GenerateWorkflow($input: GenerateWorkflowInput!) {
+  generateWorkflow(input: $input) {
+    yaml
+    explanation
+    warnings
+  }
+}
+
+query ExplainWorkflow($input: ExplainWorkflowInput!) {
+  explainWorkflow(input: $input) {
+    summary
+    description
+    routeExplanations {
+      name
+      trigger
+      actions
+      description
+    }
+    diagram
+    warnings
+  }
+}
+
+mutation DryRunWorkflow($input: DryRunWorkflowInput!) {
+  dryRunWorkflow(input: $input) {
+    routeResults {
+      routeName
+      matched
+      actionsWouldRun
+      skipReason
+    }
+    warnings
+    validationErrors
+  }
+}
+
+subscription WorkflowEvents($workflowName: String!) {
+  workflowEvents(workflowName: $workflowName) {
+    event {
+      id
+      type
+      timestamp
+      source
+    }
+    workflow
+    routesMatched
+    actionsExecuted
+    duration
+  }
+}
