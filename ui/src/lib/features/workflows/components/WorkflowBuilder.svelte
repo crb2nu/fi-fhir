@@ -58,6 +58,13 @@
           workflowDraft.updateRoute(route._key, { name: e.detail })}
         on:updateFilter={(e) =>
           workflowDraft.updateRoute(route._key, { filter: e.detail })}
+        on:addTransform={() => workflowDraft.addTransform(route._key)}
+        on:removeTransform={(e) =>
+          workflowDraft.removeTransform(route._key, e.detail.transformKey)}
+        on:changeTransform={(e) =>
+          workflowDraft.updateTransform(route._key, e.detail.transformKey, e.detail.transform)}
+        on:moveTransform={(e) =>
+          workflowDraft.moveTransform(route._key, e.detail.transformKey, e.detail.direction)}
         on:addAction={() => workflowDraft.addAction(route._key)}
         on:removeAction={(e) =>
           workflowDraft.removeAction(route._key, e.detail.actionKey)}

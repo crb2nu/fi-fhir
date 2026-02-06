@@ -128,4 +128,52 @@ describe('workflowStore', () => {
       expect(get(routeCount)).toBe(2);
     });
   });
+
+  describe('transform operations', () => {
+    it('adds a transform to a route', () => {
+      const key = get(workflowDraft).routes[0]!._key;
+      workflowDraft.addTransform(key);
+      expect(get(workflowDraft).routes[0]!.transforms).toHaveLength(1);
+      expect(get(workflowDraft).routes[0]!.transforms[0]!.type).toBe('set_field');
+    });
+
+    it('removes a transform from a route', () => {
+      const key = get(workflowDraft).routes[0]!._key;
+      workflowDraft.addTransform(key);
+      const transformKey = get(workflowDraft).routes[0]!.transforms[0]!._key;
+      workflowDraft.removeTransform(key, transformKey);
+      expect(get(workflowDraft).routes[0]!.transforms).toHaveLength(0);
+    });
+
+    it('updates a transform type', () => {
+      const key = get(workflowDraft).routes[0]!._key;
+      workflowDraft.addTransform(key);
+      const transformKey = get(workflowDraft).routes[0]!.transforms[0]!._key;
+      workflowDraft.updateTransform(key, transformKey, { type: 'redact', config: { fields: 'ssn' } });
+      expect(get(workflowDraft).routes[0]!.transforms[0]!.type).toBe('redact');
+      expect(get(workflowDraft).routes[0]!.transforms[0]!.config.fields).toBe('ssn');
+    });
+
+    it('moves transforms up and down', () => {
+      const key = get(workflowDraft).routes[0]!._key;
+      workflowDraft.addTransform(key);
+      workflowDraft.addTransform(key);
+      const firstKey = get(workflowDraft).routes[0]!.transforms[0]!._key;
+      const secondKey = get(workflowDraft).routes[0]!.transforms[1]!._key;
+
+      workflowDraft.moveTransform(key, firstKey, 'down');
+      const after = get(workflowDraft);
+      expect(after.routes[0]!.transforms[0]!._key).toBe(secondKey);
+      expect(after.routes[0]!.transforms[1]!._key).toBe(firstKey);
+    });
+
+    it('does not move transform past boundaries', () => {
+      const key = get(workflowDraft).routes[0]!._key;
+      workflowDraft.addTransform(key);
+      const transformKey = get(workflowDraft).routes[0]!.transforms[0]!._key;
+
+      workflowDraft.moveTransform(key, transformKey, 'up');
+      expect(get(workflowDraft).routes[0]!.transforms[0]!._key).toBe(transformKey);
+    });
+  });
 });

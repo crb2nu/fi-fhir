@@ -1208,13 +1208,19 @@ func (r *queryResolver) Workflow(ctx context.Context, name string) (*model.Workf
 		return nil, fmt.Errorf("workflow engine not configured")
 	}
 
-	// Return basic workflow status
+	wf := r.WorkflowEngine.GetWorkflow()
+	if wf == nil || wf.Name != name {
+		return nil, nil
+	}
+
+	stats := r.WorkflowEngine.GetStats()
 	return &model.WorkflowStatus{
-		Name:            name,
+		Name:            wf.Name,
 		Enabled:         true,
-		RouteCount:      0,
-		EventsProcessed: 0,
-		Errors:          0,
+		RouteCount:      len(wf.Routes),
+		EventsProcessed: int(stats.EventsProcessed),
+		LastEventTime:   stats.LastEventTime,
+		Errors:          int(stats.Errors),
 	}, nil
 }
 
@@ -1224,8 +1230,22 @@ func (r *queryResolver) Workflows(ctx context.Context) ([]model.WorkflowStatus, 
 		return []model.WorkflowStatus{}, nil
 	}
 
-	// Return empty list - workflow listing not yet implemented
-	return []model.WorkflowStatus{}, nil
+	wf := r.WorkflowEngine.GetWorkflow()
+	if wf == nil {
+		return []model.WorkflowStatus{}, nil
+	}
+
+	stats := r.WorkflowEngine.GetStats()
+	return []model.WorkflowStatus{
+		{
+			Name:            wf.Name,
+			Enabled:         true,
+			RouteCount:      len(wf.Routes),
+			EventsProcessed: int(stats.EventsProcessed),
+			LastEventTime:   stats.LastEventTime,
+			Errors:          int(stats.Errors),
+		},
+	}, nil
 }
 
 // Health is the resolver for the health field.

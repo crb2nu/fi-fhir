@@ -4,10 +4,18 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sync"
 	"time"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm"
 )
+
+// WorkflowStats holds aggregate counters for the engine.
+type WorkflowStats struct {
+	EventsProcessed int64
+	Errors          int64
+	LastEventTime   *time.Time
+}
 
 // Engine processes events through workflow routes.
 type Engine struct {
@@ -21,6 +29,11 @@ type Engine struct {
 	tracer       Tracer
 	logger       Logger
 	llmClient    llm.Client
+
+	totalEventsProcessed int64
+	totalErrors          int64
+	lastEventTime        time.Time
+	statsMu              sync.RWMutex
 }
 
 // ActionHandler executes a specific action type.
@@ -210,6 +223,27 @@ func (e *Engine) GetLLMClient() llm.Client {
 	return e.llmClient
 }
 
+// GetWorkflow returns the workflow loaded into this engine.
+func (e *Engine) GetWorkflow() *Workflow {
+	return e.workflow
+}
+
+// GetStats returns aggregate processing statistics.
+func (e *Engine) GetStats() WorkflowStats {
+	e.statsMu.RLock()
+	defer e.statsMu.RUnlock()
+	var lastEvent *time.Time
+	if !e.lastEventTime.IsZero() {
+		t := e.lastEventTime
+		lastEvent = &t
+	}
+	return WorkflowStats{
+		EventsProcessed: e.totalEventsProcessed,
+		Errors:          e.totalErrors,
+		LastEventTime:   lastEvent,
+	}
+}
+
 // RegisterAction registers a custom action handler.
 func (e *Engine) RegisterAction(name string, handler ActionHandler) {
 	e.actions[name] = handler
@@ -369,6 +403,15 @@ func (e *Engine) ProcessWithContext(ctx context.Context, event interface{}) *Res
 	duration := time.Since(startTime)
 	success := !result.HasErrors()
 	e.metrics.EventProcessed(eventType, source, success, duration)
+
+	// Update aggregate stats
+	e.statsMu.Lock()
+	e.totalEventsProcessed++
+	e.lastEventTime = time.Now()
+	for _, rr := range result.RouteResults {
+		e.totalErrors += int64(len(rr.ActionErrors) + len(rr.TransformErrors))
+	}
+	e.statsMu.Unlock()
 
 	// Set root span status
 	if success {

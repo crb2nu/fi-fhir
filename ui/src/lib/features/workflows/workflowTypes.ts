@@ -27,11 +27,12 @@ export type FilterDraft = {
   condition: string;
 };
 
+export type TransformType = 'set_field' | 'map_terminology' | 'redact' | 'explain_warnings';
+
 export type TransformDraft = {
   _key: string;
-  setField: string;
-  mapTerminology?: { field: string; from: string; to: string };
-  redact?: { fields: string[] };
+  type: TransformType;
+  config: Record<string, string>;
 };
 
 export type ActionDraft = {
@@ -39,6 +40,32 @@ export type ActionDraft = {
   type: string;
   config: Record<string, string>;
 };
+
+// ─── Transform field registry ──────────────────────────────────────────────
+
+export const TRANSFORM_FIELDS: Record<TransformType, ActionFieldDef[]> = {
+  set_field: [
+    { key: 'expression', label: 'Expression', placeholder: 'event.status = "processed"', required: true }
+  ],
+  map_terminology: [
+    { key: 'field', label: 'Field', placeholder: 'code', required: true },
+    { key: 'from', label: 'From System', placeholder: 'ICD-10', required: true },
+    { key: 'to', label: 'To System', placeholder: 'SNOMED-CT', required: true }
+  ],
+  redact: [
+    { key: 'fields', label: 'Fields (comma-separated)', placeholder: 'ssn, dob, name', required: true }
+  ],
+  explain_warnings: [
+    { key: 'model', label: 'Model', placeholder: 'gpt-4' },
+    { key: 'warnings_field', label: 'Warnings Field', placeholder: 'warnings' },
+    { key: 'include_fix', label: 'Include Fix', placeholder: 'true' },
+    { key: 'enable_cache', label: 'Enable Cache', placeholder: 'true' },
+    { key: 'cache_ttl', label: 'Cache TTL', placeholder: '24h' }
+  ]
+};
+
+/** All available transform types. */
+export const TRANSFORM_TYPES = Object.keys(TRANSFORM_FIELDS) as TransformType[];
 
 // ─── Action field registry ─────────────────────────────────────────────────
 
@@ -158,6 +185,10 @@ export function createEmptyRoute(): RouteDraft {
     actions: [],
     expanded: true
   };
+}
+
+export function createEmptyTransform(): TransformDraft {
+  return { _key: genKey(), type: 'set_field', config: {} };
 }
 
 export function createEmptyAction(): ActionDraft {

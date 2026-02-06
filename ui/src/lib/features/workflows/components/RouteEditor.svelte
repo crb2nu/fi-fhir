@@ -1,8 +1,9 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import FilterEditor from './FilterEditor.svelte';
+  import TransformList from './TransformList.svelte';
   import ActionList from './ActionList.svelte';
-  import type { RouteDraft, FilterDraft, ActionDraft } from '../workflowTypes';
+  import type { RouteDraft, FilterDraft, ActionDraft, TransformDraft } from '../workflowTypes';
 
   export let route: RouteDraft;
 
@@ -11,6 +12,10 @@
     remove: void;
     updateName: string;
     updateFilter: FilterDraft;
+    addTransform: void;
+    removeTransform: { transformKey: string };
+    changeTransform: { transformKey: string; transform: TransformDraft };
+    moveTransform: { transformKey: string; direction: 'up' | 'down' };
     addAction: void;
     removeAction: { actionKey: string };
     changeAction: { actionKey: string; action: ActionDraft };
@@ -66,6 +71,17 @@
       <div class="section">
         <h4 class="section-title">Filter</h4>
         <FilterEditor filter={route.filter} on:change={(e) => dispatch('updateFilter', e.detail)} />
+      </div>
+
+      <div class="section">
+        <h4 class="section-title">Transforms</h4>
+        <TransformList
+          transforms={route.transforms}
+          on:add={() => dispatch('addTransform')}
+          on:remove={(e) => dispatch('removeTransform', e.detail)}
+          on:change={(e) => dispatch('changeTransform', e.detail)}
+          on:move={(e) => dispatch('moveTransform', e.detail)}
+        />
       </div>
 
       <div class="section">

@@ -1,7 +1,12 @@
 import { browser } from '$app/environment';
 import { writable, derived } from 'svelte/store';
-import type { WorkflowDraft, RouteDraft, ActionDraft } from './workflowTypes';
-import { createEmptyWorkflow, createEmptyRoute, createEmptyAction } from './workflowTypes';
+import type { WorkflowDraft, RouteDraft, ActionDraft, TransformDraft } from './workflowTypes';
+import {
+  createEmptyWorkflow,
+  createEmptyRoute,
+  createEmptyAction,
+  createEmptyTransform
+} from './workflowTypes';
 
 const STORAGE_KEY = 'fi-fhir:workflow:draft:v1';
 
@@ -128,6 +133,58 @@ function createWorkflowDraftStore() {
           const actions = [...r.actions];
           [actions[idx], actions[newIdx]] = [actions[newIdx]!, actions[idx]!];
           return { ...r, actions };
+        })
+      })),
+
+    // ── Transform operations within a route ────────────────────────────
+
+    addTransform: (routeKey: string) =>
+      store.update((d) => ({
+        ...d,
+        routes: d.routes.map((r) =>
+          r._key === routeKey
+            ? { ...r, transforms: [...r.transforms, createEmptyTransform()] }
+            : r
+        )
+      })),
+
+    removeTransform: (routeKey: string, transformKey: string) =>
+      store.update((d) => ({
+        ...d,
+        routes: d.routes.map((r) =>
+          r._key === routeKey
+            ? { ...r, transforms: r.transforms.filter((t) => t._key !== transformKey) }
+            : r
+        )
+      })),
+
+    updateTransform: (routeKey: string, transformKey: string, patch: Partial<TransformDraft>) =>
+      store.update((d) => ({
+        ...d,
+        routes: d.routes.map((r) =>
+          r._key === routeKey
+            ? {
+                ...r,
+                transforms: r.transforms.map((t) =>
+                  t._key === transformKey ? { ...t, ...patch } : t
+                )
+              }
+            : r
+        )
+      })),
+
+    moveTransform: (routeKey: string, transformKey: string, direction: 'up' | 'down') =>
+      store.update((d) => ({
+        ...d,
+        routes: d.routes.map((r) => {
+          if (r._key !== routeKey) return r;
+          const idx = r.transforms.findIndex((t) => t._key === transformKey);
+          if (idx < 0) return r;
+          const newIdx = direction === 'up' ? idx - 1 : idx + 1;
+          if (newIdx < 0 || newIdx >= r.transforms.length) return r;
+          const transforms = [...r.transforms];
+          [transforms[idx], transforms[newIdx]] = [transforms[newIdx]!, transforms[idx]!];
+          return { ...r, transforms };
         })
       })),
 
