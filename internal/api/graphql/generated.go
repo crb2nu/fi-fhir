@@ -218,6 +218,19 @@ type ComplexityRoot struct {
 		Type          func(childComplexity int) int
 	}
 
+	DryRunResult struct {
+		RouteResults     func(childComplexity int) int
+		ValidationErrors func(childComplexity int) int
+		Warnings         func(childComplexity int) int
+	}
+
+	DryRunRouteResult struct {
+		ActionsWouldRun func(childComplexity int) int
+		Matched         func(childComplexity int) int
+		RouteName       func(childComplexity int) int
+		SkipReason      func(childComplexity int) int
+	}
+
 	Encounter struct {
 		AdmitDateTime     func(childComplexity int) int
 		AttendingProvider func(childComplexity int) int
@@ -462,6 +475,7 @@ type ComplexityRoot struct {
 		DeleteMapping                func(childComplexity int, id string) int
 		DeleteMappingBatch           func(childComplexity int, batchID string) int
 		DeleteProfile                func(childComplexity int, id string) int
+		DryRunWorkflow               func(childComplexity int, input model.DryRunWorkflowInput) int
 		DuplicateProfile             func(childComplexity int, id string, newID string, newName string) int
 		GenerateWorkflow             func(childComplexity int, input model.GenerateWorkflowInput) int
 		PauseFhirSubscription        func(childComplexity int, id string) int
@@ -913,6 +927,7 @@ type MutationResolver interface {
 	DeleteProfile(ctx context.Context, id string) (bool, error)
 	DuplicateProfile(ctx context.Context, id string, newID string, newName string) (*model.SourceProfile, error)
 	GenerateWorkflow(ctx context.Context, input model.GenerateWorkflowInput) (*model.GeneratedWorkflow, error)
+	DryRunWorkflow(ctx context.Context, input model.DryRunWorkflowInput) (*model.DryRunResult, error)
 	UploadMappingCSV(ctx context.Context, input model.UploadMappingCSVInput) (*model.UploadMappingResult, error)
 	CreateMapping(ctx context.Context, input model.CreateMappingInput) (*model.CodeMapping, error)
 	UpdateMapping(ctx context.Context, input model.UpdateMappingInput) (*model.CodeMapping, error)
@@ -1695,6 +1710,50 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.DocumentEvent.Type(childComplexity), true
+
+	case "DryRunResult.routeResults":
+		if e.complexity.DryRunResult.RouteResults == nil {
+			break
+		}
+
+		return e.complexity.DryRunResult.RouteResults(childComplexity), true
+	case "DryRunResult.validationErrors":
+		if e.complexity.DryRunResult.ValidationErrors == nil {
+			break
+		}
+
+		return e.complexity.DryRunResult.ValidationErrors(childComplexity), true
+	case "DryRunResult.warnings":
+		if e.complexity.DryRunResult.Warnings == nil {
+			break
+		}
+
+		return e.complexity.DryRunResult.Warnings(childComplexity), true
+
+	case "DryRunRouteResult.actionsWouldRun":
+		if e.complexity.DryRunRouteResult.ActionsWouldRun == nil {
+			break
+		}
+
+		return e.complexity.DryRunRouteResult.ActionsWouldRun(childComplexity), true
+	case "DryRunRouteResult.matched":
+		if e.complexity.DryRunRouteResult.Matched == nil {
+			break
+		}
+
+		return e.complexity.DryRunRouteResult.Matched(childComplexity), true
+	case "DryRunRouteResult.routeName":
+		if e.complexity.DryRunRouteResult.RouteName == nil {
+			break
+		}
+
+		return e.complexity.DryRunRouteResult.RouteName(childComplexity), true
+	case "DryRunRouteResult.skipReason":
+		if e.complexity.DryRunRouteResult.SkipReason == nil {
+			break
+		}
+
+		return e.complexity.DryRunRouteResult.SkipReason(childComplexity), true
 
 	case "Encounter.admitDateTime":
 		if e.complexity.Encounter.AdmitDateTime == nil {
@@ -2728,6 +2787,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.DeleteProfile(childComplexity, args["id"].(string)), true
+	case "Mutation.dryRunWorkflow":
+		if e.complexity.Mutation.DryRunWorkflow == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_dryRunWorkflow_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DryRunWorkflow(childComplexity, args["input"].(model.DryRunWorkflowInput)), true
 	case "Mutation.duplicateProfile":
 		if e.complexity.Mutation.DuplicateProfile == nil {
 			break
@@ -4809,6 +4879,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCreateMappingInput,
 		ec.unmarshalInputCreateProfileInput,
 		ec.unmarshalInputCreateSubscriptionInput,
+		ec.unmarshalInputDryRunWorkflowInput,
 		ec.unmarshalInputEventClassificationRuleInput,
 		ec.unmarshalInputEventFilter,
 		ec.unmarshalInputEventOrderBy,
@@ -5086,6 +5157,17 @@ func (ec *executionContext) field_Mutation_deleteProfile_args(ctx context.Contex
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_dryRunWorkflow_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNDryRunWorkflowInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐDryRunWorkflowInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -9427,6 +9509,219 @@ func (ec *executionContext) _DocumentEvent_title(ctx context.Context, field grap
 func (ec *executionContext) fieldContext_DocumentEvent_title(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "DocumentEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DryRunResult_routeResults(ctx context.Context, field graphql.CollectedField, obj *model.DryRunResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DryRunResult_routeResults,
+		func(ctx context.Context) (any, error) {
+			return obj.RouteResults, nil
+		},
+		nil,
+		ec.marshalNDryRunRouteResult2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐDryRunRouteResultᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DryRunResult_routeResults(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DryRunResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "routeName":
+				return ec.fieldContext_DryRunRouteResult_routeName(ctx, field)
+			case "matched":
+				return ec.fieldContext_DryRunRouteResult_matched(ctx, field)
+			case "actionsWouldRun":
+				return ec.fieldContext_DryRunRouteResult_actionsWouldRun(ctx, field)
+			case "skipReason":
+				return ec.fieldContext_DryRunRouteResult_skipReason(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type DryRunRouteResult", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DryRunResult_warnings(ctx context.Context, field graphql.CollectedField, obj *model.DryRunResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DryRunResult_warnings,
+		func(ctx context.Context) (any, error) {
+			return obj.Warnings, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DryRunResult_warnings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DryRunResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DryRunResult_validationErrors(ctx context.Context, field graphql.CollectedField, obj *model.DryRunResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DryRunResult_validationErrors,
+		func(ctx context.Context) (any, error) {
+			return obj.ValidationErrors, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DryRunResult_validationErrors(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DryRunResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DryRunRouteResult_routeName(ctx context.Context, field graphql.CollectedField, obj *model.DryRunRouteResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DryRunRouteResult_routeName,
+		func(ctx context.Context) (any, error) {
+			return obj.RouteName, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DryRunRouteResult_routeName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DryRunRouteResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DryRunRouteResult_matched(ctx context.Context, field graphql.CollectedField, obj *model.DryRunRouteResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DryRunRouteResult_matched,
+		func(ctx context.Context) (any, error) {
+			return obj.Matched, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DryRunRouteResult_matched(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DryRunRouteResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DryRunRouteResult_actionsWouldRun(ctx context.Context, field graphql.CollectedField, obj *model.DryRunRouteResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DryRunRouteResult_actionsWouldRun,
+		func(ctx context.Context) (any, error) {
+			return obj.ActionsWouldRun, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DryRunRouteResult_actionsWouldRun(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DryRunRouteResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DryRunRouteResult_skipReason(ctx context.Context, field graphql.CollectedField, obj *model.DryRunRouteResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DryRunRouteResult_skipReason,
+		func(ctx context.Context) (any, error) {
+			return obj.SkipReason, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_DryRunRouteResult_skipReason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DryRunRouteResult",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -14745,6 +15040,55 @@ func (ec *executionContext) fieldContext_Mutation_generateWorkflow(ctx context.C
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_generateWorkflow_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_dryRunWorkflow(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_dryRunWorkflow,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().DryRunWorkflow(ctx, fc.Args["input"].(model.DryRunWorkflowInput))
+		},
+		nil,
+		ec.marshalNDryRunResult2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐDryRunResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_dryRunWorkflow(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "routeResults":
+				return ec.fieldContext_DryRunResult_routeResults(ctx, field)
+			case "warnings":
+				return ec.fieldContext_DryRunResult_warnings(ctx, field)
+			case "validationErrors":
+				return ec.fieldContext_DryRunResult_validationErrors(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type DryRunResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_dryRunWorkflow_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -27116,6 +27460,40 @@ func (ec *executionContext) unmarshalInputCreateSubscriptionInput(ctx context.Co
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputDryRunWorkflowInput(ctx context.Context, obj any) (model.DryRunWorkflowInput, error) {
+	var it model.DryRunWorkflowInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"yaml", "events"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "yaml":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("yaml"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Yaml = data
+		case "events":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("events"))
+			data, err := ec.unmarshalNJSON2ᚕmapᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Events = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputEventClassificationRuleInput(ctx context.Context, obj any) (model.EventClassificationRuleInput, error) {
 	var it model.EventClassificationRuleInput
 	asMap := map[string]any{}
@@ -29902,6 +30280,106 @@ func (ec *executionContext) _DocumentEvent(ctx context.Context, sel ast.Selectio
 	return out
 }
 
+var dryRunResultImplementors = []string{"DryRunResult"}
+
+func (ec *executionContext) _DryRunResult(ctx context.Context, sel ast.SelectionSet, obj *model.DryRunResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dryRunResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DryRunResult")
+		case "routeResults":
+			out.Values[i] = ec._DryRunResult_routeResults(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "warnings":
+			out.Values[i] = ec._DryRunResult_warnings(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "validationErrors":
+			out.Values[i] = ec._DryRunResult_validationErrors(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var dryRunRouteResultImplementors = []string{"DryRunRouteResult"}
+
+func (ec *executionContext) _DryRunRouteResult(ctx context.Context, sel ast.SelectionSet, obj *model.DryRunRouteResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dryRunRouteResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DryRunRouteResult")
+		case "routeName":
+			out.Values[i] = ec._DryRunRouteResult_routeName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "matched":
+			out.Values[i] = ec._DryRunRouteResult_matched(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "actionsWouldRun":
+			out.Values[i] = ec._DryRunRouteResult_actionsWouldRun(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "skipReason":
+			out.Values[i] = ec._DryRunRouteResult_skipReason(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var encounterImplementors = []string{"Encounter"}
 
 func (ec *executionContext) _Encounter(ctx context.Context, sel ast.SelectionSet, obj *model.Encounter) graphql.Marshaler {
@@ -31507,6 +31985,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "generateWorkflow":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_generateWorkflow(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "dryRunWorkflow":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_dryRunWorkflow(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -35762,6 +36247,73 @@ func (ec *executionContext) marshalNDateTime2timeᚐTime(ctx context.Context, se
 	return res
 }
 
+func (ec *executionContext) marshalNDryRunResult2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐDryRunResult(ctx context.Context, sel ast.SelectionSet, v model.DryRunResult) graphql.Marshaler {
+	return ec._DryRunResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNDryRunResult2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐDryRunResult(ctx context.Context, sel ast.SelectionSet, v *model.DryRunResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DryRunResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDryRunRouteResult2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐDryRunRouteResult(ctx context.Context, sel ast.SelectionSet, v model.DryRunRouteResult) graphql.Marshaler {
+	return ec._DryRunRouteResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNDryRunRouteResult2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐDryRunRouteResultᚄ(ctx context.Context, sel ast.SelectionSet, v []model.DryRunRouteResult) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNDryRunRouteResult2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐDryRunRouteResult(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) unmarshalNDryRunWorkflowInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐDryRunWorkflowInput(ctx context.Context, v any) (model.DryRunWorkflowInput, error) {
+	res, err := ec.unmarshalInputDryRunWorkflowInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNEncounter2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEncounter(ctx context.Context, sel ast.SelectionSet, v model.Encounter) graphql.Marshaler {
 	return ec._Encounter(ctx, sel, &v)
 }
@@ -36549,6 +37101,36 @@ func (ec *executionContext) marshalNJSON2map(ctx context.Context, sel ast.Select
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNJSON2ᚕmapᚄ(ctx context.Context, v any) ([]map[string]any, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]map[string]any, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNJSON2map(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNJSON2ᚕmapᚄ(ctx context.Context, sel ast.SelectionSet, v []map[string]any) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNJSON2map(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) marshalNLabResult2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLabResult(ctx context.Context, sel ast.SelectionSet, v model.LabResult) graphql.Marshaler {
