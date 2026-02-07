@@ -28,6 +28,29 @@ test-cover:
 	go test -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
 
+# Coverage with GOCOVERDIR (Go 1.20+) — avoids lib/pq goroutine leak issue
+test-cover-unit:
+	@rm -rf coverage/unit && mkdir -p coverage/unit
+	go test ./... -cover -args -test.gocoverdir=$(CURDIR)/coverage/unit
+	@go tool covdata percent -i=coverage/unit
+
+test-cover-integration:
+	@rm -rf coverage/integration && mkdir -p coverage/integration
+	go test -tags=integration ./cmd/fi-fhir/... -cover -timeout=120s \
+		-args -test.gocoverdir=$(CURDIR)/coverage/integration
+	@go tool covdata percent -i=coverage/integration
+
+test-cover-all: test-cover-unit test-cover-integration
+	@mkdir -p coverage/merged
+	go tool covdata merge -i=coverage/unit,coverage/integration -o=coverage/merged
+	go tool covdata percent -i=coverage/merged
+	go tool covdata textfmt -i=coverage/merged -o=coverage.out
+	@echo "Coverage report: coverage.out"
+
+test-cover-html: test-cover-all
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "HTML report: coverage.html"
+
 # Run E2E tests (no external deps required)
 test-e2e: build
 	go test -tags=e2e -v ./test/e2e/...

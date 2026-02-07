@@ -312,9 +312,11 @@ test:unit:
   script:
     - apt-get update && apt-get install -y --no-install-recommends git ca-certificates build-essential && rm -rf /var/lib/apt/lists/*
     - go install github.com/boumenot/gocover-cobertura@latest
+    - mkdir -p coverage/unit
     - |
       set +e
-      go test -race -coverprofile=coverage.out -covermode=atomic ./...
+      go test -race -coverprofile=coverage.out -covermode=atomic -cover ./... \
+        -args -test.gocoverdir=$PWD/coverage/unit
       status=$?
 
       if [ -f coverage.out ]; then
@@ -339,6 +341,7 @@ test:unit:
     paths:
       - coverage.out
       - coverage.xml
+      - coverage/unit/
     expire_in: 1 week
   rules:
     - if: $CI_COMMIT_TAG
@@ -400,23 +403,109 @@ test:integration:
   <<: *go-image-debian
   <<: *go-cache
   services:
-    - docker:24-dind
+    - name: postgres:16-alpine
+      alias: postgres
+    - name: bitnami/minio:latest
+      alias: minio
   variables:
     CGO_ENABLED: "1"
-    DOCKER_HOST: tcp://localhost:2375
-    DOCKER_TLS_CERTDIR: ""
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
+    # PostgreSQL service container
+    POSTGRES_DB: fi_fhir_test
+    POSTGRES_USER: testuser
+    POSTGRES_PASSWORD: testpass
+    POSTGRES_HOST_AUTH_METHOD: trust
+    FI_FHIR_DATABASE_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_test?sslmode=disable"
+    FI_FHIR_TERMINOLOGY_DB_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_test?sslmode=disable"
+    # MinIO service container (bitnami image uses these env vars)
+    MINIO_ROOT_USER: minioadmin
+    MINIO_ROOT_PASSWORD: minioadmin
+    MINIO_DEFAULT_BUCKETS: "terminology"
+    MINIO_ENDPOINT: "minio:9000"
+    MINIO_ACCESS_KEY: minioadmin
+    MINIO_SECRET_KEY: minioadmin
+    MINIO_USE_SSL: "false"
+    MINIO_BUCKET: "terminology"
+    # Also set FI_FHIR_MINIO_* variants for cli_integration_test.go helpers
+    FI_FHIR_MINIO_ENDPOINT: "minio:9000"
+    FI_FHIR_MINIO_ACCESS_KEY: minioadmin
+    FI_FHIR_MINIO_SECRET_KEY: minioadmin
   script:
     - apt-get update && apt-get install -y --no-install-recommends git ca-certificates build-essential && rm -rf /var/lib/apt/lists/*
-    - go test -tags=integration -race ./...
+    - mkdir -p coverage/integration
+    - go test -tags=integration -cover -timeout=120s ./cmd/fi-fhir/...
+        -args -test.gocoverdir=$PWD/coverage/integration
+    - go tool covdata percent -i=coverage/integration
+  artifacts:
+    paths:
+      - coverage/integration/
+    expire_in: 1 week
   rules:
     - if: $CI_COMMIT_TAG
-      when: manual
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *go-changes
-      when: manual
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes: *go-changes
-      when: manual
+    - when: never
+  allow_failure: true
+
+test:coverage-merge:
+  stage: test
+  <<: *go-image
+  <<: *go-cache
+  needs:
+    - job: test:unit
+      optional: true
+      artifacts: true
+    - job: test:integration
+      optional: true
+      artifacts: true
+  script:
+    - apk add --no-cache git
+    - mkdir -p coverage/merged
+    # Convert unit test coverprofile to covdata format
+    - |
+      if [ -f coverage.out ]; then
+        mkdir -p coverage/unit
+        go tool covdata textfmt -i=coverage/unit -o=/dev/null 2>/dev/null || true
+      fi
+    # Merge whatever coverage directories are available
+    - |
+      dirs=""
+      for d in coverage/unit coverage/integration; do
+        if [ -d "$d" ] && [ "$(ls -A "$d" 2>/dev/null)" ]; then
+          dirs="${dirs:+${dirs},}$d"
+        fi
+      done
+      if [ -z "$dirs" ]; then
+        echo "No coverage data to merge"
+        exit 0
+      fi
+      go tool covdata merge -i="$dirs" -o=coverage/merged
+      go tool covdata percent -i=coverage/merged
+      go tool covdata textfmt -i=coverage/merged -o=coverage-merged.out
+    # Generate Cobertura XML for MR visualization
+    - go install github.com/boumenot/gocover-cobertura@latest
+    - gocover-cobertura < coverage-merged.out > coverage-merged.xml || true
+  coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
+  artifacts:
+    when: always
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage-merged.xml
+    paths:
+      - coverage-merged.out
+      - coverage-merged.xml
+      - coverage/merged/
+    expire_in: 1 week
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *go-changes
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *go-changes
     - when: never
   allow_failure: true
 

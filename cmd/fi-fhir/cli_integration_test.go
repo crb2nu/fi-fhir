@@ -39,11 +39,13 @@ func requireEnv(t *testing.T, key string) string {
 
 func getDatabaseURL(t *testing.T) string {
 	t.Helper()
+	setupTestInfra(t) // provisions containers on first call (no-op if env already set)
 	return requireEnv(t, "FI_FHIR_DATABASE_URL")
 }
 
 func getMinioConfig(t *testing.T) (endpoint, accessKey, secretKey string) {
 	t.Helper()
+	setupTestInfra(t) // provisions containers on first call (no-op if env already set)
 	endpoint = requireEnv(t, "FI_FHIR_MINIO_ENDPOINT")
 	accessKey = requireEnv(t, "FI_FHIR_MINIO_ACCESS_KEY")
 	secretKey = requireEnv(t, "FI_FHIR_MINIO_SECRET_KEY")
