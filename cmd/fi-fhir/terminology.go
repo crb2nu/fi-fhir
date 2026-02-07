@@ -13,6 +13,7 @@ import (
 	_ "github.com/lib/pq"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/terminology/autoroute"
+	termworkflow "gitlab.flexinfer.ai/libs/fi-fhir/internal/terminology/workflow"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/db"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/semantic"
@@ -42,6 +43,8 @@ func runTerminology(args []string) error {
 		return runTerminologySearch(args[1:])
 	case "mapping":
 		return runTerminologyMapping(args[1:])
+	case "autoroute":
+		return runTerminologyAutoroute(args[1:])
 	case "-h", "--help", "help":
 		printTerminologyUsage()
 		return nil
@@ -65,6 +68,7 @@ Subcommands:
   crosswalk Translate codes between vocabularies
   search    Semantic search for terminology codes (LLM embeddings)
   mapping   Manage custom code mappings (upload, list, delete)
+  autoroute Run autoroute engine for a source code (optionally via Temporal workflow)
 
 Options:
   --db      PostgreSQL connection string (or FI_FHIR_TERMINOLOGY_DB_URL env)
@@ -719,6 +723,12 @@ func runTerminologyMapping(args []string) error {
 		return runTerminologyMappingGet(args[1:])
 	case "resolve":
 		return runTerminologyMappingResolve(args[1:])
+	case "pending":
+		return runTerminologyMappingPending(args[1:])
+	case "approve":
+		return runTerminologyMappingApprove(args[1:])
+	case "reject":
+		return runTerminologyMappingReject(args[1:])
 	case "-h", "--help", "help":
 		printTerminologyMappingUsage()
 		return nil
@@ -739,6 +749,9 @@ Subcommands:
   get       Get details of a specific mapping or batch
   delete    Delete mappings by ID or batch
   resolve   Find mapping using persistent lookup + LLM autorouting
+  pending   List pending autoroute suggestions awaiting review
+  approve   Approve a pending autoroute suggestion
+  reject    Reject a pending autoroute suggestion
 
 Options:
   --db      PostgreSQL connection string (or FI_FHIR_TERMINOLOGY_DB_URL env)
@@ -1465,6 +1478,517 @@ func runTerminologyMappingResolve(args []string) error {
 		for i, alt := range result.Alternates {
 			fmt.Printf("  %d. %s (%s) - confidence: %.2f\n",
 				i+1, alt.Code, alt.Display, alt.Confidence)
+		}
+	}
+
+	return nil
+}
+
+// ============================================================================
+// Pending / Approve / Reject Subcommands
+// ============================================================================
+
+func runTerminologyMappingPending(args []string) error {
+	dbURL := getTerminologyDBURL(args)
+	if dbURL == "" {
+		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_TERMINOLOGY_DB_URL env var")
+	}
+
+	// Parse flags
+	filter := db.ListPendingAutoroutesFilter{
+		Status: db.StatusPending,
+		Limit:  100,
+		Offset: 0,
+	}
+	var jsonOutput bool
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--status":
+			if i+1 < len(args) {
+				filter.Status = db.PendingStatus(args[i+1])
+				i++
+			}
+		case "--min-confidence":
+			if i+1 < len(args) {
+				var val float64
+				if _, err := fmt.Sscanf(args[i+1], "%f", &val); err == nil {
+					filter.MinConfidence = &val
+				}
+				i++
+			}
+		case "--source-system":
+			if i+1 < len(args) {
+				filter.SourceSystem = args[i+1]
+				i++
+			}
+		case "--target-system":
+			if i+1 < len(args) {
+				filter.TargetSystem = args[i+1]
+				i++
+			}
+		case "--limit":
+			if i+1 < len(args) {
+				limit, err := parseInt(args[i+1])
+				if err != nil {
+					return fmt.Errorf("invalid limit: %w", err)
+				}
+				filter.Limit = limit
+				i++
+			}
+		case "--offset":
+			if i+1 < len(args) {
+				offset, err := parseInt(args[i+1])
+				if err != nil {
+					return fmt.Errorf("invalid offset: %w", err)
+				}
+				filter.Offset = offset
+				i++
+			}
+		case "--json":
+			jsonOutput = true
+		}
+	}
+
+	conn, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	store := db.NewMappingStore(conn)
+	pending, total, err := store.ListPendingAutoroutes(ctx, filter)
+	if err != nil {
+		return fmt.Errorf("failed to list pending autoroutes: %w", err)
+	}
+
+	if jsonOutput {
+		data, err := json.MarshalIndent(map[string]interface{}{
+			"total":   total,
+			"offset":  filter.Offset,
+			"limit":   filter.Limit,
+			"pending": pending,
+		}, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(data))
+		return nil
+	}
+
+	fmt.Printf("Pending Autoroutes (%d total, showing %d-%d)\n", total, filter.Offset+1, filter.Offset+len(pending))
+	fmt.Println(strings.Repeat("-", 120))
+	fmt.Printf("%-6s %-15s %-12s %-15s %-12s %-10s %-10s %s\n",
+		"ID", "SOURCE_SYS", "SOURCE_CODE", "TARGET_SYS", "SUGGESTED", "CONF", "STATUS", "CREATED")
+	fmt.Println(strings.Repeat("-", 120))
+
+	for _, p := range pending {
+		fmt.Printf("%-6d %-15s %-12s %-15s %-12s %-10.2f %-10s %s\n",
+			p.ID,
+			truncate(p.SourceSystem, 15),
+			truncate(p.SourceCode, 12),
+			truncate(p.TargetSystem, 15),
+			truncate(p.SuggestedCode, 12),
+			p.Confidence,
+			string(p.Status),
+			p.CreatedAt.Format("2006-01-02"))
+	}
+
+	if total > filter.Offset+len(pending) {
+		fmt.Printf("\nShowing %d of %d. Use --offset %d for next page.\n",
+			len(pending), total, filter.Offset+filter.Limit)
+	}
+
+	return nil
+}
+
+func runTerminologyMappingApprove(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("pending autoroute ID required")
+	}
+
+	pendingID, err := parseInt(args[0])
+	if err != nil {
+		return fmt.Errorf("invalid pending ID: %w", err)
+	}
+
+	dbURL := getTerminologyDBURL(args)
+	if dbURL == "" {
+		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_TERMINOLOGY_DB_URL env var")
+	}
+
+	// Parse flags
+	approvedBy := fmt.Sprintf("cli:%s", os.Getenv("USER"))
+	var equivalence, comment string
+	var jsonOutput bool
+
+	for i := 1; i < len(args); i++ {
+		switch args[i] {
+		case "--by":
+			if i+1 < len(args) {
+				approvedBy = args[i+1]
+				i++
+			}
+		case "--equivalence":
+			if i+1 < len(args) {
+				equivalence = args[i+1]
+				i++
+			}
+		case "--comment":
+			if i+1 < len(args) {
+				comment = args[i+1]
+				i++
+			}
+		case "--json":
+			jsonOutput = true
+		}
+	}
+
+	conn, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	store := db.NewMappingStore(conn)
+	mapping, err := store.ApprovePendingAutoroute(ctx, int64(pendingID), approvedBy, equivalence, comment)
+	if err != nil {
+		return fmt.Errorf("failed to approve pending autoroute: %w", err)
+	}
+
+	if jsonOutput {
+		data, err := json.MarshalIndent(mapping, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(data))
+		return nil
+	}
+
+	fmt.Printf("✓ Approved pending autoroute %d\n", pendingID)
+	fmt.Println(strings.Repeat("-", 50))
+	fmt.Printf("Created Mapping ID: %d\n", mapping.ID)
+	fmt.Printf("Source:  %s:%s\n", mapping.SourceSystem, mapping.SourceCode)
+	fmt.Printf("Target:  %s:%s\n", mapping.TargetSystem, mapping.TargetCode)
+	fmt.Printf("Approved By: %s\n", approvedBy)
+
+	return nil
+}
+
+func runTerminologyMappingReject(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("pending autoroute ID required")
+	}
+
+	pendingID, err := parseInt(args[0])
+	if err != nil {
+		return fmt.Errorf("invalid pending ID: %w", err)
+	}
+
+	dbURL := getTerminologyDBURL(args)
+	if dbURL == "" {
+		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_TERMINOLOGY_DB_URL env var")
+	}
+
+	// Parse flags
+	rejectedBy := fmt.Sprintf("cli:%s", os.Getenv("USER"))
+	var reason string
+	var jsonOutput bool
+
+	for i := 1; i < len(args); i++ {
+		switch args[i] {
+		case "--by":
+			if i+1 < len(args) {
+				rejectedBy = args[i+1]
+				i++
+			}
+		case "--reason":
+			if i+1 < len(args) {
+				reason = args[i+1]
+				i++
+			}
+		case "--json":
+			jsonOutput = true
+		}
+	}
+
+	if reason == "" {
+		return fmt.Errorf("--reason is required for rejection")
+	}
+
+	conn, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	store := db.NewMappingStore(conn)
+	if err := store.RejectPendingAutoroute(ctx, int64(pendingID), rejectedBy, reason); err != nil {
+		return fmt.Errorf("failed to reject pending autoroute: %w", err)
+	}
+
+	if jsonOutput {
+		data, err := json.MarshalIndent(map[string]interface{}{
+			"status":      "rejected",
+			"pending_id":  pendingID,
+			"rejected_by": rejectedBy,
+			"reason":      reason,
+		}, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(data))
+		return nil
+	}
+
+	fmt.Printf("✗ Rejected pending autoroute %d\n", pendingID)
+	fmt.Printf("Reason: %s\n", reason)
+
+	return nil
+}
+
+// ============================================================================
+// Autoroute Subcommand
+// ============================================================================
+
+func runTerminologyAutoroute(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("source code required")
+	}
+
+	code := args[0]
+	dbURL := getTerminologyDBURL(args)
+	if dbURL == "" {
+		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_TERMINOLOGY_DB_URL env var")
+	}
+
+	// Parse flags
+	var sourceSystem, targetSystem, display string
+	var temporalAddr, temporalNamespace string
+	var autoApproveThreshold float64 = 0.95
+	var reviewTimeoutDays int = 7
+	var waitForResult, jsonOutput bool
+
+	for i := 1; i < len(args); i++ {
+		switch args[i] {
+		case "--source-system":
+			if i+1 < len(args) {
+				sourceSystem = args[i+1]
+				i++
+			}
+		case "--target-system":
+			if i+1 < len(args) {
+				targetSystem = args[i+1]
+				i++
+			}
+		case "--display":
+			if i+1 < len(args) {
+				display = args[i+1]
+				i++
+			}
+		case "--temporal":
+			if i+1 < len(args) {
+				temporalAddr = args[i+1]
+				i++
+			}
+		case "--temporal-namespace":
+			if i+1 < len(args) {
+				temporalNamespace = args[i+1]
+				i++
+			}
+		case "--auto-approve-threshold":
+			if i+1 < len(args) {
+				if _, err := fmt.Sscanf(args[i+1], "%f", &autoApproveThreshold); err != nil {
+					return fmt.Errorf("invalid threshold: %s", args[i+1])
+				}
+				i++
+			}
+		case "--review-timeout-days":
+			if i+1 < len(args) {
+				n, err := parseInt(args[i+1])
+				if err != nil {
+					return fmt.Errorf("invalid timeout days: %w", err)
+				}
+				reviewTimeoutDays = n
+				i++
+			}
+		case "--wait":
+			waitForResult = true
+		case "--json":
+			jsonOutput = true
+		}
+	}
+
+	if sourceSystem == "" {
+		return fmt.Errorf("--source-system is required")
+	}
+	if targetSystem == "" {
+		return fmt.Errorf("--target-system is required")
+	}
+
+	// Connect to database
+	conn, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	mappingStore := db.NewMappingStore(conn)
+
+	if temporalAddr != "" {
+		// Use Temporal workflow path
+		return runAutorouteViaWorkflow(code, sourceSystem, targetSystem, display,
+			temporalAddr, temporalNamespace, autoApproveThreshold, reviewTimeoutDays,
+			waitForResult, jsonOutput, mappingStore)
+	}
+
+	// Direct autoroute engine call (no Temporal)
+	return runAutoroute(code, sourceSystem, targetSystem, display, jsonOutput)
+}
+
+func runAutorouteViaWorkflow(code, sourceSystem, targetSystem, display string,
+	temporalAddr, temporalNamespace string,
+	autoApproveThreshold float64, reviewTimeoutDays int,
+	waitForResult, jsonOutput bool,
+	mappingStore *db.MappingStore) error {
+
+	if temporalNamespace == "" {
+		temporalNamespace = "terminology-mapping"
+	}
+
+	// Create a Temporal worker (we only need the client, but Worker provides StartReviewWorkflow)
+	workerCfg := termworkflow.WorkerConfig{
+		HostPort:  temporalAddr,
+		Namespace: temporalNamespace,
+	}
+
+	// Initialize autoroute engine for the worker
+	searcher, err := semantic.NewSearcher(semantic.DefaultSearchConfig().WithEnv())
+	if err != nil {
+		return fmt.Errorf("failed to create semantic searcher: %w", err)
+	}
+	llmClient, err := llm.New(llm.DefaultConfig().WithEnv())
+	if err != nil {
+		return fmt.Errorf("failed to create LLM client: %w", err)
+	}
+	engine := autoroute.NewEngine(searcher, llmClient, autoroute.DefaultConfig())
+
+	worker, err := termworkflow.NewWorker(context.Background(), workerCfg, engine, mappingStore)
+	if err != nil {
+		return fmt.Errorf("failed to create Temporal worker: %w", err)
+	}
+	defer worker.Stop()
+
+	input := termworkflow.TerminologyReviewInput{
+		SourceCode:           code,
+		SourceSystem:         sourceSystem,
+		SourceDisplay:        display,
+		TargetSystem:         targetSystem,
+		AutoApproveThreshold: autoApproveThreshold,
+		ReviewTimeout:        time.Duration(reviewTimeoutDays) * 24 * time.Hour,
+	}
+
+	run, err := worker.StartReviewWorkflow(context.Background(), input)
+	if err != nil {
+		return fmt.Errorf("failed to start workflow: %w", err)
+	}
+
+	if !jsonOutput {
+		fmt.Printf("Started terminology review workflow: %s\n", run.GetID())
+	}
+
+	if waitForResult {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(reviewTimeoutDays+1)*24*time.Hour)
+		defer cancel()
+
+		result, err := worker.GetWorkflowResult(ctx, run)
+		if err != nil {
+			return fmt.Errorf("workflow failed: %w", err)
+		}
+
+		if jsonOutput {
+			data, err := json.MarshalIndent(result, "", "  ")
+			if err != nil {
+				return err
+			}
+			fmt.Println(string(data))
+		} else {
+			fmt.Printf("Workflow completed: %s\n", result.Status)
+			if result.FinalCode != "" {
+				fmt.Printf("Result: %s (%s)\n", result.FinalCode, result.FinalDisplay)
+			}
+			if result.MappingID > 0 {
+				fmt.Printf("Mapping ID: %d\n", result.MappingID)
+			}
+		}
+	} else if jsonOutput {
+		data, err := json.MarshalIndent(map[string]string{
+			"workflow_id": run.GetID(),
+			"run_id":      run.GetRunID(),
+			"status":      "started",
+		}, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(data))
+	}
+
+	return nil
+}
+
+func runAutoroute(code, sourceSystem, targetSystem, display string, jsonOutput bool) error {
+	// Initialize autoroute engine directly
+	searcher, err := semantic.NewSearcher(semantic.DefaultSearchConfig().WithEnv())
+	if err != nil {
+		return fmt.Errorf("failed to create semantic searcher: %w", err)
+	}
+	llmClient, err := llm.New(llm.DefaultConfig().WithEnv())
+	if err != nil {
+		return fmt.Errorf("failed to create LLM client: %w", err)
+	}
+	engine := autoroute.NewEngine(searcher, llmClient, autoroute.DefaultConfig())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	result, err := engine.Suggest(ctx, autoroute.SuggestRequest{
+		SourceCode:    code,
+		SourceSystem:  sourceSystem,
+		SourceDisplay: display,
+		TargetSystem:  targetSystem,
+		MaxCandidates: 5,
+	})
+	if err != nil {
+		return fmt.Errorf("autoroute failed: %w", err)
+	}
+
+	decision := result.Classify(0.90, 0.70)
+
+	if jsonOutput {
+		return printResolveResultJSON(nil, result, string(decision))
+	}
+
+	fmt.Printf("Autoroute result (%s)\n", decision)
+	fmt.Println(strings.Repeat("-", 50))
+	if result.BestMatch != nil {
+		fmt.Printf("Best Match: %s:%s (%s)\n", result.BestMatch.System, result.BestMatch.Code, result.BestMatch.Display)
+	}
+	fmt.Printf("Confidence: %.2f\n", result.Confidence)
+	fmt.Printf("Reasoning:  %s\n", result.Reasoning)
+
+	if len(result.Alternates) > 0 {
+		fmt.Printf("\nAlternates:\n")
+		for i, alt := range result.Alternates {
+			fmt.Printf("  %d. %s (%s) - %.2f\n", i+1, alt.Code, alt.Display, alt.Confidence)
 		}
 	}
 

@@ -97,6 +97,16 @@ func (w *Worker) Start() error {
 	return w.worker.Run(worker.InterruptCh())
 }
 
+// StartAsync starts the worker in non-blocking mode.
+// Returns a channel that will receive the error when the worker stops.
+func (w *Worker) StartAsync() <-chan error {
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- w.worker.Run(worker.InterruptCh())
+	}()
+	return errCh
+}
+
 // Stop gracefully stops the worker.
 func (w *Worker) Stop() {
 	w.worker.Stop()

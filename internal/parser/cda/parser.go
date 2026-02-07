@@ -66,6 +66,11 @@ func NewParser(source string, config *ParserConfig) *Parser {
 		sectionParsers: make(map[string]SectionParser),
 	}
 
+	// Register default section parsers
+	p.RegisterSectionParser(&MedicationsSectionParser{})
+	p.RegisterSectionParser(&AllergiesSectionParser{})
+	p.RegisterSectionParser(&SocialHistorySectionParser{})
+
 	return p
 }
 

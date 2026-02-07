@@ -67,6 +67,12 @@ const (
 
 	// Medications
 	EventMedicationRequest EventType = "medication_request"
+
+	// Allergies
+	EventAllergyIntolerance EventType = "allergy_intolerance"
+
+	// Social History
+	EventSocialHistory EventType = "social_history"
 )
 
 // SourceFormat indicates the original format of the data.
@@ -1480,6 +1486,42 @@ type AllergyIntoleranceEvent struct {
 	Recorder           *Provider          `json:"recorder,omitempty"`
 	Encounter          *Encounter         `json:"encounter,omitempty"`
 	RawPayload         json.RawMessage    `json:"raw_payload,omitempty"`
+}
+
+// SocialHistoryObservation represents a social history observation (smoking, alcohol, etc.).
+type SocialHistoryObservation struct {
+	// Code is the observation code (SNOMED, LOINC)
+	Code string `json:"code,omitempty"`
+
+	// CodeSystem is the code system for the observation code
+	CodeSystem string `json:"code_system,omitempty"`
+
+	// Name is the display name of the observation
+	Name string `json:"name,omitempty"`
+
+	// Value is the observation value (e.g., "Current every day smoker")
+	Value string `json:"value,omitempty"`
+
+	// ValueCode is the coded value (e.g., SNOMED code for smoking status)
+	ValueCode string `json:"value_code,omitempty"`
+
+	// Category is the inferred category (smoking-status, tobacco-use, alcohol-use, drug-use, etc.)
+	Category string `json:"category,omitempty"`
+
+	// EffectiveDate is when this observation was recorded
+	EffectiveDate string `json:"effective_date,omitempty"`
+
+	// Status is the observation status
+	Status string `json:"status,omitempty"`
+}
+
+// SocialHistoryEvent is emitted for social history observations.
+type SocialHistoryEvent struct {
+	EventMeta
+	Patient     *Patient                 `json:"patient,omitempty"`
+	Observation SocialHistoryObservation `json:"observation"`
+	Encounter   *Encounter               `json:"encounter,omitempty"`
+	RawPayload  json.RawMessage          `json:"raw_payload,omitempty"`
 }
 
 // DocumentEvent is emitted for clinical document events (including MDM messages).
