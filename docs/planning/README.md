@@ -13,7 +13,7 @@ This directory contains detailed planning and specification documents for the fi
 | [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) | X12 EDI parsing (837P, 835, 270/271, 276/277) | ✅ Parsing + companion guide framework shipped |
 | [IDENTIFIERS.md](IDENTIFIERS.md) | Patient/provider identifier systems and validation | ✅ Complete (validators + matching engine) |
 | [TERMINOLOGY.md](TERMINOLOGY.md) | Healthcare code systems and mapping (LOINC, SNOMED, UMLS, ICD-10-CM) | ✅ Core + version tracking shipped |
-| [TERMINOLOGY-MAPPING.md](TERMINOLOGY-MAPPING.md) | Mapping upload, LLM autorouting, and decision telemetry | 🔲 Planned |
+| [TERMINOLOGY-MAPPING.md](TERMINOLOGY-MAPPING.md) | Mapping upload, LLM autorouting, and decision telemetry | 🟡 Partial — autoroute engine + upload shipped; approval workflow planned |
 | [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md) | TypeScript/JavaScript SDK | ✅ SDK + distribution shipped |
 | [CDA-CCDA.md](CDA-CCDA.md) | CDA/CCDA clinical document parsing | ✅ Complete |
 | [FHIR-SUBSCRIPTIONS.md](FHIR-SUBSCRIPTIONS.md) | FHIR R4 Subscriptions (bidirectional) | ✅ Complete |
@@ -223,16 +223,18 @@ Next focus areas:
 
 ### P2 - Test Coverage Gaps
 
+> **Last refreshed**: 2026-02-06. Run `make docs-status` for latest numbers. See `docs/STATUS.md` for full component matrix.
+
 | Area | Current Coverage | Target | Notes |
 |------|------------------|--------|-------|
-| CLI (`cmd/fi-fhir/`) | 68.8% | 80%+ | Improved with offline stubs + CI live tests (k3s MinIO/PostgreSQL via GitLab CI variables; live CLI tests run under `-tags=live` in `test:unit`) |
-| Terminology (db) | 13.5% | 80%+ | Requires PostgreSQL testcontainers |
-| CDA Parser | 87.1% | 80%+ | ✅ Above target |
+| CLI (`cmd/fi-fhir/`) | 70.2% | 80%+ | Improved with offline stubs + CI live tests (k3s MinIO/PostgreSQL via GitLab CI variables; live CLI tests run under `-tags=live` in `test:unit`) |
+| Terminology (db) | 22.6% | 80%+ | Requires PostgreSQL testcontainers |
+| ✅ CDA Parser | 90.8% | 80%+ | ✅ Above target |
 | ✅ GraphQL Resolvers | 80.8% | 80%+ | |
-| ✅ FHIR Subscription | 84.7% | 80%+ | |
-| Terminology (pkg) | 66.9% | 80%+ | Core pkg good, db layer needs work |
-| ✅ FHIR Parser | 92.5% | 80%+ | |
-| Workflow Engine | 79.5% | 80%+ | |
+| ✅ FHIR Subscription | 83.8% | 80%+ | |
+| Terminology (pkg) | 84.2% | 80%+ | ✅ Core pkg above target; db/index/semantic/suggest still low |
+| ✅ FHIR Parser | 95.2% | 80%+ | |
+| Workflow Engine | 78.9% | 80%+ | Close to target |
 
 #### P2 Next Steps (CLI Coverage)
 
@@ -242,9 +244,17 @@ Next focus areas:
 
 ### P3 - Future Enhancements
 
-- ✅ Additional HL7v2 message types (MDM, DFT) - Implemented 2026-01-16
+- ✅ Additional HL7v2 message types (MDM, DFT) — Implemented 2026-01-16
 - CDA/CCDA section expansion (Medications, Allergies, Social History)
 - Test data organization and edge case fixtures
+- UI enhancements: dark mode, keyboard shortcuts, bulk operations, accessibility audit
+- ETL expansion: additional source/sink providers, scheduling, incremental sync
+- LLM feature expansion: multi-model routing, prompt versioning, evaluation framework
+- Terminology approval workflow (human-in-the-loop review for autoroute suggestions)
+- Additional FHIR Implementation Guides (USCDI v3, Bulk Data, SMART App Launch)
+- Terminology index and semantic search test coverage (currently 0%)
+- LLM copilot test coverage (currently 0%)
+- Storage provider test expansion (S3/MinIO integration tests)
 
 ---
 

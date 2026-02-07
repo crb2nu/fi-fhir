@@ -190,124 +190,23 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 
 ## Roadmap Context
 
-**Current State**: Multi-format parsing (HL7v2, CSV, EDI X12) with workflow routing operational. TypeScript SDK available. FHIR R4 output with US Core mapper implemented. FHIR action in workflow engine complete.
+**Current State**: fi-fhir is a production-capable healthcare integration platform with 35+ components spanning multi-format parsing, FHIR R4 mapping, event sourcing, workflow orchestration, terminology management, LLM-powered features, and a full UI. All core phases (1–7) and Feature Builds (FB-001–FB-006) are shipped.
 
-**Completed**:
-- HL7v2 ADT messages (A01, A02, A03, A04, A08)
-- HL7v2 ORU^R01 with multiple OBX support
-- HL7v2 SIU messages (S12, S13, S14, S15, S26)
-- HL7v2 MDM messages (T01, T02, T03, T04, T05, T06, T08, T09, T10, T11) - Medical Document Management
-- HL7v2 DFT messages (P03, P11) - Detail Financial Transactions with FT1/DG1/PR1/IN1 support
-- Source Profile system with YAML configuration
-- Terminology mapping (LOCAL to LOINC/SNOMED)
-- FHIR R4 resource types and US Core mapper
-- Identifier validation (SSN, NPI, MBI)
-- Z-segment extraction
-- HL7v2 escape sequence handling
-- CLI with parse, validate, workflow, and config commands
-- CSV adapter with schema inference (patient, lab result parsing)
-- Workflow DSL engine (routing, log/webhook/fhir actions, dry-run)
-- CEL condition evaluation in workflow filters
-- Transform pipeline (set_field, map_terminology, redact)
-- UUID v4 generation for event IDs
-- TypeScript SDK with CLI wrapper (parse, workflow, type definitions)
-- EDI X12 parser (837P claims, 835 remittance, 270/271 eligibility, envelope/loop parsing)
-- FHIR action in workflow (POST Patient, Encounter, Observation, DiagnosticReport to FHIR servers)
-- OAuth2 client credentials flow for FHIR action (token caching, automatic refresh)
-- Database action in workflow (PostgreSQL, MySQL, SQLite; insert/upsert; field mapping)
-- Queue action in workflow (driver registry pattern; topic templates; message keys)
+**Major Capability Areas**:
+- **Format Adapters** — HL7v2 (ADT/ORU/SIU/MDM/DFT), CSV, EDI X12 (837/835/270/271/276/277 + companion guides), CDA/CCDA, FHIR R4
+- **FHIR Output** — 24+ US Core resource mappers, validation, Da Vinci PAS, PDex EOB
+- **Event Sourcing** — Append-only store (Postgres), projections, snapshots, sagas, outbox, archival
+- **GraphQL API** — Schema with queries/mutations/subscriptions, WebSocket, dataloaders, batch submission
+- **Workflow Engine** — CEL filters, transform pipeline, 7 action types (webhook/FHIR/DB/queue/email/file/exec), DLQ, circuit breaker, replay/simulation
+- **Terminology** — LOINC/ICD-10/RxNorm/UMLS, fuzzy matching, semantic search, autoroute engine, version tracking
+- **LLM Integration** — Multi-provider client, explain/extract/quality analyzers, copilot, LLM workflow actions
+- **Patient Matching** — Deterministic + probabilistic scoring, MPI interface, batch matching
+- **UI / Mapping Studio** — SvelteKit 5 with HL7 inspector, workflow builder, terminology editor, event streaming
+- **Observability** — Prometheus, OpenTelemetry, Grafana dashboards, alerting rules, health checks
 
-**Completed**:
-- EDI X12 276/277 claim status transactions (see `Map276ToEvents()`, `Map277ToEvents()`)
-- Retry/error handling with exponential backoff (`internal/workflow/retry.go`)
-- OAuth2 token refresh with 401 handling (`internal/workflow/oauth.go`)
-- Circuit breaker pattern for failing external services (`internal/workflow/circuit_breaker.go`)
-- Dead letter queue for failed events (`internal/workflow/dlq.go`)
-- Rate limiting for high-volume event streams (`internal/workflow/ratelimit.go`)
-- Metrics/observability instrumentation (`internal/workflow/metrics.go`)
-- Prometheus metrics adapter (`internal/workflow/metrics_prometheus.go`)
-- Distributed tracing with OpenTelemetry (`internal/workflow/tracing.go`, `tracing_otel.go`)
-- Grafana dashboard templates (`dashboards/grafana/`)
-- Log correlation with trace IDs (`internal/workflow/logging.go`, `logging_test.go`)
-- Alerting rule templates (`dashboards/alerting/workflow-alerts.yaml`, `workflow-alerts-k8s.yaml`)
-- Health check endpoints (`internal/workflow/health.go`)
-- Configuration validation (`internal/workflow/validate.go`)
-- Event replay/simulation tooling (`internal/workflow/replay.go`, `simulation.go`)
-- Performance benchmarking (`internal/workflow/benchmark_test.go`, `benchmark_util.go`)
-- Load testing utilities (`internal/workflow/loadtest.go`, `loadtest_test.go`)
+**Active Work** — See `docs/planning/README.md` for prioritized backlog (P2 coverage gaps + P3 enhancements).
 
-**Phase 6 (Testing Infrastructure) Complete!**:
-- ~~Workflow testing framework (CLI integration)~~ ✓
-- ~~Performance benchmarking~~ ✓
-- ~~Load testing utilities~~ ✓
-
-**Phase 7 (Production Readiness) - Complete!**:
-- ~~Configuration management~~ ✓ (`pkg/config/`, CLI `config` command)
-- ~~Deployment examples~~ ✓ (Dockerfile, docker-compose, Kubernetes manifests)
-- ~~Helm chart~~ ✓ (`deploy/helm/fi-fhir/` with full templating)
-- ~~CI/CD pipelines~~ ✓ (GitLab CI)
-- ~~Production documentation~~ ✓ (`docs/operations/` - hardening guide, runbook)
-- Production monitoring dashboards (Grafana dashboards exist in `dashboards/grafana/`)
-
-**Core Phases Complete** - See `docs/planning/README.md` for detailed backlog of remaining items.
-
-**Post-v1.0 Additions**:
-- ~~API documentation~~ ✓ (`api/openapi.yaml` - OpenAPI 3.1 spec)
-- ~~End-to-end tests~~ ✓ (`test/e2e/` - CLI tests, integration tests with Docker)
-- ~~Example workflows~~ ✓ (`examples/workflows/` - ADT, labs, claims, appointments)
-- ~~CHANGELOG~~ ✓ (`CHANGELOG.md` - release history)
-
-**Bidirectional FHIR Subscriptions** ⚠️
-- FHIR R4 Subscription client for managing subscriptions on FHIR servers
-- Notification receiver (webhook server) for incoming notifications
-- FHIR-to-canonical event mapper (Patient, Encounter, Observation, Appointment)
-- Workflow integration for routing received events
-- CLI commands: `subscription list|status|create|delete|pause|resume|serve|validate|test`
-- Design document: `docs/planning/FHIR-SUBSCRIPTIONS.md`
-- CEL-based event mapping - `mapper.go` (uses workflow.CELEvaluator)
-- OAuth2 client credentials - `router.go` (OAuth2Auth provider)
-
-**Event Sourcing / CQRS - Complete!** 🎉
-- Event store interface with append-only semantics (`pkg/eventsourcing/store.go`)
-- In-memory store for testing (`pkg/eventsourcing/memory_store.go`)
-- PostgreSQL store for production (`pkg/eventsourcing/postgres_store.go`)
-- Projection framework with checkpointing (`pkg/eventsourcing/projection.go`)
-- Snapshot support for large projections (`pkg/eventsourcing/snapshot.go`)
-- Healthcare projections (patient timeline, event statistics, active encounters)
-- GraphQL projection resolvers with service layer (`internal/api/graphql/resolvers/`)
-- PostgreSQL-backed snapshot store (`pkg/eventsourcing/postgres_snapshot.go`)
-- Event replay tooling with ProjectionRebuilder (`pkg/eventsourcing/rebuild.go`)
-- Time range queries for point-in-time recovery (`pkg/eventsourcing/time_range.go`)
-- PostgreSQL integration tests with testcontainers (`pkg/eventsourcing/postgres_integration_test.go`)
-- Event archival and retention policies (`pkg/eventsourcing/archive.go`)
-- Event stream compaction (`pkg/eventsourcing/compaction.go`)
-- Saga orchestration for multi-step transactions (`pkg/eventsourcing/saga.go`)
-- Outbox pattern for reliable event publishing (`pkg/eventsourcing/outbox.go`)
-- CLI commands: `eventstore init|stats|streams|read|append` and `projection list|status|run|rebuild`
-- Design document: `docs/planning/EVENT-SOURCING.md`
-
-**Future Enhancements** (Core Complete, see backlog for details):
-  1. ~~Bidirectional FHIR subscriptions~~ ✓
-  2. ~~Additional format adapters (CDA, CCDA)~~ ✓
-  3. ~~GraphQL API layer~~ ✓
-  4. ~~Event sourcing / CQRS patterns~~ ✓
-  5. ~~Workflow action for event store integration~~ ✓
-  6. ~~GraphQL queries for projections~~ ✓
-  7. ~~Wire projection resolvers to actual projection stores~~ ✓
-  8. ~~PostgreSQL-backed snapshot store~~ ✓
-  9. ~~Event replay tooling for projection rebuilds~~ ✓
-  10. ~~Event archival and retention policies (HIPAA-aware)~~ ✓
-  11. ~~Event stream compaction (aggregate snapshots)~~ ✓
-  12. ~~Saga orchestration (multi-step transactions)~~ ✓
-  13. ~~Outbox pattern for reliable event publishing~~ ✓
-  14. ~~UMLS API integration~~ ✓ (`pkg/terminology/umls.go`)
-
-**Remaining Backlog** (see `docs/planning/README.md`):
-- Patient matching engine / MPI interface
-- EDI companion guide framework
-- GraphQL mutations: triggerWorkflow, createFHIRSubscription
-- WebSocket real-time notifications
-- Test coverage gaps (CLI, workflow engine core)
+**Component Details** — See `docs/STATUS.md` for per-component maturity, test coverage, and freshness.
 
 ## Testing Strategy
 

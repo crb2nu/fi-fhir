@@ -4,7 +4,8 @@
 	build-release docker-build-ui \
 	ci-lint ci-test ci-security ci-build ci-full ci-quick \
 	docker-push docker-push-ui docker-push-all \
-	deploy deploy-ui deploy-all deploy-status deploy-logs deploy-delete deploy-forward
+	deploy deploy-ui deploy-all deploy-status deploy-logs deploy-delete deploy-forward \
+	docs-status docs-status-quick docs-validate docs-all
 
 # Tool versions (update these when upgrading)
 GOLANGCI_LINT_VERSION := v2.8.0
@@ -406,3 +407,31 @@ docs-mermaid:
 	@npx -y @mermaid-js/mermaid-cli@latest -c docs/mermaid/config.json -b transparent -i docs/mermaid/cli-flow.mmd -o docs/mermaid/cli-flow.svg -q
 	@npx -y @mermaid-js/mermaid-cli@latest -c docs/mermaid/config.json -b transparent -i docs/mermaid/ui-mapping-flow.mmd -o docs/mermaid/ui-mapping-flow.svg -q
 	@echo "✓ Done"
+
+# Generate status data from coverage + git (re-runs tests for fresh coverage)
+docs-status: test-cover
+	@echo "Generating component status data..."
+	bash scripts/docs-status.sh
+	@echo ""
+	@echo "✓ Status data generated. Review and update docs/STATUS.md as needed."
+
+# Generate status data using existing coverage.out (no test re-run)
+docs-status-quick:
+	@if [ ! -f coverage.out ]; then \
+		echo "❌ coverage.out not found. Run 'make test-cover' first, or use 'make docs-status'."; \
+		exit 1; \
+	fi
+	@echo "Generating component status data (using existing coverage.out)..."
+	bash scripts/docs-status.sh --check-stale
+	@echo ""
+	@echo "✓ Status data generated."
+
+# Check documentation consistency
+docs-validate:
+	@echo "Validating documentation..."
+	bash scripts/validate-docs.sh
+
+# Full documentation maintenance (mermaid diagrams + status + validation)
+docs-all: docs-mermaid docs-status docs-validate
+	@echo ""
+	@echo "✅ Full documentation maintenance complete!"

@@ -1,0 +1,98 @@
+# fi-fhir Component Status Matrix
+
+> **Single source of truth** for component maturity, test coverage, and freshness.
+> Refresh with `make docs-status` after significant merges.
+
+## Summary
+
+| Maturity | Count | Description |
+|----------|-------|-------------|
+| **Production** | 18 | Stable, tested, deployed |
+| **Beta** | 10 | Feature-complete, needs coverage or hardening |
+| **Alpha** | 5 | Functional but limited testing or scope |
+| **Planned** | 2 | Designed but not yet implemented |
+
+---
+
+## Parsers (`internal/parser/*`)
+
+| Component | Path | Maturity | Coverage | Notes | Last Updated |
+|-----------|------|----------|----------|-------|--------------|
+| HL7v2 Parser | `internal/parser/hl7v2/` | Production | 78.7% | ADT, ORU, SIU, MDM, DFT; profile-driven | 2026-01-16 |
+| CSV Parser | `internal/parser/csv/` | Production | 82.1% | Schema inference for patient/lab records | 2026-01-14 |
+| EDI X12 Parser | `internal/parser/edi/` | Production | 73.9% | 837P, 835, 270/271, 276/277; loop parsing | 2026-01-14 |
+| EDI Companion Guides | `internal/parser/edi/companion/` | Production | 89.1% | Medicare, BlueCross, United built-in guides | 2026-01-14 |
+| CDA/CCDA Parser | `internal/parser/cda/` | Production | 90.8% | Namespace-aware XML, section handlers | 2026-01-14 |
+| FHIR Parser | `internal/parser/fhir/` | Production | 95.2% | FHIR R4 resource ingestion | 2026-01-14 |
+
+## Core Libraries (`pkg/*`)
+
+| Component | Path | Maturity | Coverage | Notes | Last Updated |
+|-----------|------|----------|----------|-------|--------------|
+| Events (canonical model) | `pkg/events/` | Production | 80.5% | Immutable semantic event types | 2026-01-23 |
+| Event Sourcing | `pkg/eventsourcing/` | Production | 72.7% | Store, projections, snapshots, sagas, outbox | 2026-01-14 |
+| ES Projections | `pkg/eventsourcing/projections/` | Production | 88.9% | Patient timeline, stats, active encounters | 2026-01-14 |
+| Config | `pkg/config/` | Production | 89.3% | Layered loading (defaults → file → env), secrets | 2026-01-23 |
+| Source Profiles | `pkg/profile/` | Beta | 64.2% | Inference, linting, vendor templates | 2026-01-18 |
+| Validators | `pkg/validate/` | Production | 98.2% | NPI, MBI, SSN, DEA; Luhn/checksum | 2026-01-09 |
+| FHIR Mapper | `pkg/fhir/` | Production | 75.2% | 24+ US Core resources, validation | 2026-01-19 |
+| ETL Pipeline | `pkg/etl/` | Beta | 41.7% | Source/sink framework, CLI commands | 2026-01-14 |
+| Storage | `pkg/storage/` | Beta | 31.6% | Abstraction layer for file/S3/MinIO | 2026-01-12 |
+| Terminology (core) | `pkg/terminology/` | Production | 84.2% | LOINC, ICD-10, fuzzy matching, UMLS | 2026-02-03 |
+| Terminology DB | `pkg/terminology/db/` | Beta | 22.6% | PostgreSQL loaders; needs testcontainers | 2026-02-03 |
+| Terminology Upload | `pkg/terminology/upload/` | Beta | 85.8% | Mapping file upload pipeline | 2026-02-03 |
+| Terminology Suggest | `pkg/terminology/suggest/` | Alpha | 0.0% | Suggestion engine; needs test coverage | 2026-02-03 |
+| Terminology Semantic | `pkg/terminology/semantic/` | Alpha | 0.0% | Embedding-based semantic search | 2026-02-01 |
+| Terminology Index | `pkg/terminology/index/` | Alpha | 0.0% | Full-text indexing; needs test coverage | 2026-02-03 |
+| Patient Matching | `pkg/matching/` | Production | 85.4% | Deterministic + probabilistic, MPI, batch | 2026-01-11 |
+| LLM Client | `pkg/llm/` | Production | 70.5% | Multi-provider client, retry, embeddings | 2026-02-03 |
+| LLM Copilot | `pkg/llm/copilot/` | Alpha | 0.0% | CEL-based copilot actions; needs tests | 2026-01-23 |
+
+## Internal Services (`internal/*`)
+
+| Component | Path | Maturity | Coverage | Notes | Last Updated |
+|-----------|------|----------|----------|-------|--------------|
+| Workflow Engine | `internal/workflow/` | Production | 78.9% | CEL filters, actions, replay, simulation, DLQ | 2026-02-06 |
+| GraphQL API | `internal/api/graphql/` | Production | 2.6%* | Schema, resolvers, dataloaders, WebSocket | 2026-02-06 |
+| FHIR Subscriptions | `internal/fhir/subscription/` | Production | 83.8% | Bidirectional; client + webhook receiver | 2026-01-14 |
+| Terminology Autoroute | `internal/terminology/autoroute/` | Beta | 83.2% | Automatic code-system routing engine | 2026-01-30 |
+| Terminology Workflow | `internal/terminology/workflow/` | Alpha | 0.0% | Temporal workflow activities; needs tests | 2026-01-31 |
+| LLM Explain | `internal/llm/explain/` | Beta | 60.8% | Natural language explanation generation | 2026-02-01 |
+| LLM Extract | `internal/llm/extract/` | Production | 80.7% | Structured data extraction from documents | 2026-02-01 |
+| LLM Quality | `internal/llm/quality/` | Production | 93.9% | Data quality analysis | 2026-01-23 |
+
+> \* GraphQL coverage is low because gqlgen generates ~2000 resolver stubs; actual hand-written resolver logic is well-tested (80.8% in `resolvers/` sub-package).
+
+## Infrastructure
+
+| Component | Path | Maturity | Coverage | Notes | Last Updated |
+|-----------|------|----------|----------|-------|--------------|
+| CLI | `cmd/fi-fhir/` | Production | 70.2% | parse, workflow, config, etl, terminology, eventstore, subscription | 2026-02-03 |
+| TypeScript SDK | `sdk/typescript/` | Production | — | CLI wrapper + type definitions; npm publishable | 2026-01-19 |
+| UI / Mapping Studio | `ui/src/` | Production | — | SvelteKit 5; HL7 inspector, workflow builder, terminology editor | 2026-02-06 |
+| Helm Chart | `deploy/helm/fi-fhir/` | Production | — | Full templating; HPA, PDB, ServiceMonitor | 2026-02-03 |
+| Kubernetes Manifests | `deploy/kubernetes/` | Production | — | Kustomize base + production overlay | 2026-02-03 |
+| CI/CD Pipeline | `.gitlab-ci.yml` | Production | — | 7 lint + 5 test + 7 security + 4 build + 6 release jobs | 2026-02-06 |
+| Grafana Dashboards | `dashboards/grafana/` | Production | — | Workflow overview dashboard | 2026-01-14 |
+| Alerting Rules | `dashboards/alerting/` | Production | — | Prometheus rules + K8s PrometheusRule CRD | 2026-01-14 |
+| OpenAPI Spec | `api/openapi.yaml` | Production | — | REST API documentation | 2026-01-14 |
+| Docker | `Dockerfile` | Production | — | Multi-stage distroless build | 2026-01-14 |
+
+---
+
+## Coverage Legend
+
+| Range | Indicator |
+|-------|-----------|
+| ≥ 80% | ✅ Good |
+| 60–79% | ⚠️ Acceptable |
+| < 60% | ❌ Needs work |
+
+## Refreshing This Document
+
+```bash
+make docs-status        # Re-run tests + generate fresh data
+make docs-status-quick  # Use existing coverage.out (faster)
+```
+
+The `scripts/docs-status.sh` script outputs structured data that can be compared against this file to flag stale entries.
