@@ -64,6 +64,9 @@ func (m *Mapper) registerDefaultMappers() {
 	m.sectionMappers[TemplateSectionProblems] = &ProblemsSectionMapper{}
 	m.sectionMappers[TemplateSectionProcedures] = &ProceduresSectionMapper{}
 	m.sectionMappers[TemplateSectionImmunizations] = &ImmunizationsSectionMapper{}
+	m.sectionMappers[TemplateSectionMedications] = &MedicationsSectionMapper{}
+	m.sectionMappers[TemplateSectionAllergies] = &AllergiesSectionMapper{}
+	m.sectionMappers[TemplateSectionSocialHistory] = &SocialHistorySectionMapper{}
 }
 
 // MapResult contains mapped events and any issues.
@@ -557,6 +560,317 @@ func mapImmunizationEntry(entry *Entry, patient *events.Patient, docTime time.Ti
 			event.AdministeredDate = entry.EffectiveTime.Value.Format("2006-01-02")
 		} else if entry.EffectiveTime.Low != nil {
 			event.AdministeredDate = entry.EffectiveTime.Low.Format("2006-01-02")
+		}
+	}
+
+	return event
+}
+
+// MedicationsSectionMapper maps Medications section to medication request events.
+type MedicationsSectionMapper struct{}
+
+func (m *MedicationsSectionMapper) TemplateOID() string {
+	return TemplateSectionMedications
+}
+
+func (m *MedicationsSectionMapper) MapSection(section *Section, patient *events.Patient, docTime time.Time) ([]interface{}, error) {
+	var results []interface{}
+
+	for _, entry := range section.Entries {
+		if entry.TypeCode == "substanceAdministration" {
+			event := mapMedicationEntry(&entry, patient, docTime)
+			if event != nil {
+				results = append(results, event)
+			}
+		}
+	}
+
+	return results, nil
+}
+
+func mapMedicationEntry(entry *Entry, patient *events.Patient, docTime time.Time) *events.MedicationRequestEvent {
+	event := &events.MedicationRequestEvent{
+		EventMeta: events.EventMeta{
+			ID:           entry.ID,
+			Type:         events.EventMedicationRequest,
+			Timestamp:    docTime,
+			SourceFormat: events.FormatCDA,
+		},
+		MedicationRequest: events.MedicationRequest{
+			Status: mapStatusCode(entry.StatusCode),
+			Intent: "order",
+		},
+	}
+	if patient != nil {
+		event.Patient = patient
+	}
+
+	// Drug code
+	if entry.Code.Code != "" {
+		event.MedicationRequest.Medication = events.Medication{
+			Code: entry.Code.Code,
+			Name: entry.Code.DisplayName,
+		}
+		if system, ok := OIDToFHIRSystem[entry.Code.CodeSystem]; ok {
+			event.MedicationRequest.Medication.CodeSystem = system
+		} else {
+			event.MedicationRequest.Medication.CodeSystem = entry.Code.CodeSystem
+		}
+	}
+
+	// Dose quantity
+	if entry.Value != nil && entry.Value.Type == "PQ" {
+		event.MedicationRequest.DoseQuantity = entry.Value.Value
+		event.MedicationRequest.DoseUnit = entry.Value.Unit
+	}
+
+	// Effective time → authored date
+	if entry.EffectiveTime != nil {
+		if entry.EffectiveTime.Low != nil {
+			event.MedicationRequest.AuthoredOn = entry.EffectiveTime.Low.Format("2006-01-02")
+			event.Timestamp = *entry.EffectiveTime.Low
+		} else if entry.EffectiveTime.Value != nil {
+			event.MedicationRequest.AuthoredOn = entry.EffectiveTime.Value.Format("2006-01-02")
+			event.Timestamp = *entry.EffectiveTime.Value
+		}
+	}
+
+	// MoodCode → intent
+	switch entry.MoodCode {
+	case "INT":
+		event.MedicationRequest.Intent = "plan"
+	case "RQO":
+		event.MedicationRequest.Intent = "order"
+	case "PRMS":
+		event.MedicationRequest.Intent = "order"
+	case "PRP":
+		event.MedicationRequest.Intent = "proposal"
+	}
+
+	return event
+}
+
+// AllergiesSectionMapper maps Allergies section to allergy intolerance events.
+type AllergiesSectionMapper struct{}
+
+func (m *AllergiesSectionMapper) TemplateOID() string {
+	return TemplateSectionAllergies
+}
+
+func (m *AllergiesSectionMapper) MapSection(section *Section, patient *events.Patient, docTime time.Time) ([]interface{}, error) {
+	var results []interface{}
+
+	for _, entry := range section.Entries {
+		// Allergies are wrapped in Allergy Concern Acts
+		if entry.TypeCode == "act" {
+			for _, obs := range entry.EntryRelationships {
+				if obs.TypeCode == "observation" {
+					event := mapAllergyObservation(&obs, &entry, patient, docTime)
+					if event != nil {
+						results = append(results, event)
+					}
+				}
+			}
+		}
+	}
+
+	return results, nil
+}
+
+func mapAllergyObservation(obs *Entry, act *Entry, patient *events.Patient, docTime time.Time) *events.AllergyIntoleranceEvent {
+	// Skip negated observations ("no known allergies")
+	if obs.Text == "negated" {
+		return nil
+	}
+
+	event := &events.AllergyIntoleranceEvent{
+		EventMeta: events.EventMeta{
+			ID:           obs.ID,
+			Type:         events.EventAllergyIntolerance,
+			Timestamp:    docTime,
+			SourceFormat: events.FormatCDA,
+		},
+		AllergyIntolerance: events.AllergyIntolerance{
+			ClinicalStatus: mapAllergyClinicalStatus(act.StatusCode),
+		},
+	}
+	if patient != nil {
+		event.Patient = patient
+	}
+
+	// Extract allergen from participant
+	if len(obs.Participants) > 0 {
+		part := obs.Participants[0]
+		if part.ParticipantRole != nil && part.ParticipantRole.PlayingEntity != nil {
+			pe := part.ParticipantRole.PlayingEntity
+			if pe.Code != nil {
+				event.AllergyIntolerance.Code = pe.Code.Code
+				event.AllergyIntolerance.Name = pe.Code.DisplayName
+				if system, ok := OIDToFHIRSystem[pe.Code.CodeSystem]; ok {
+					event.AllergyIntolerance.CodeSystem = system
+				} else {
+					event.AllergyIntolerance.CodeSystem = pe.Code.CodeSystem
+				}
+			}
+			if len(pe.Names) > 0 && event.AllergyIntolerance.Name == "" {
+				event.AllergyIntolerance.Name = pe.Names[0]
+			}
+		}
+	}
+
+	// Fallback: use observation value for allergen code
+	if event.AllergyIntolerance.Code == "" && obs.Value != nil {
+		event.AllergyIntolerance.Code = obs.Value.Code
+		event.AllergyIntolerance.Name = obs.Value.DisplayName
+		if system, ok := OIDToFHIRSystem[obs.Value.CodeSystem]; ok {
+			event.AllergyIntolerance.CodeSystem = system
+		} else {
+			event.AllergyIntolerance.CodeSystem = obs.Value.CodeSystem
+		}
+	}
+
+	// Onset date
+	if obs.EffectiveTime != nil && obs.EffectiveTime.Low != nil {
+		event.AllergyIntolerance.OnsetDate = obs.EffectiveTime.Low.Format("2006-01-02")
+	}
+
+	// Extract reactions and severity from nested observations
+	for _, rel := range obs.EntryRelationships {
+		if rel.TypeCode == "observation" && rel.Value != nil {
+			switch rel.Text {
+			case "MFST":
+				// Reaction manifestation
+				reaction := events.AllergyReaction{
+					Manifestation:     rel.Value.Code,
+					ManifestationText: rel.Value.DisplayName,
+				}
+				event.AllergyIntolerance.Reactions = append(event.AllergyIntolerance.Reactions, reaction)
+			default:
+				// Check if this is a severity observation
+				if rel.Value.Code != "" && isSeverityCode(rel.Value.Code) {
+					// Apply severity to last reaction or set as overall
+					severity := mapSeverity(rel.Value.Code)
+					if len(event.AllergyIntolerance.Reactions) > 0 {
+						last := len(event.AllergyIntolerance.Reactions) - 1
+						event.AllergyIntolerance.Reactions[last].Severity = severity
+					}
+				}
+			}
+		}
+	}
+
+	return event
+}
+
+func mapAllergyClinicalStatus(actStatus string) string {
+	switch actStatus {
+	case "active":
+		return "active"
+	case "completed":
+		return "resolved"
+	case "suspended":
+		return "inactive"
+	default:
+		return actStatus
+	}
+}
+
+func isSeverityCode(code string) bool {
+	// SNOMED severity codes
+	switch code {
+	case "255604002", // Mild
+		"6736007",  // Moderate
+		"24484000": // Severe
+		return true
+	}
+	return false
+}
+
+func mapSeverity(code string) string {
+	switch code {
+	case "255604002":
+		return "mild"
+	case "6736007":
+		return "moderate"
+	case "24484000":
+		return "severe"
+	default:
+		return code
+	}
+}
+
+// SocialHistorySectionMapper maps Social History section to social history events.
+type SocialHistorySectionMapper struct{}
+
+func (m *SocialHistorySectionMapper) TemplateOID() string {
+	return TemplateSectionSocialHistory
+}
+
+func (m *SocialHistorySectionMapper) MapSection(section *Section, patient *events.Patient, docTime time.Time) ([]interface{}, error) {
+	var results []interface{}
+
+	for _, entry := range section.Entries {
+		if entry.TypeCode == "observation" {
+			event := mapSocialHistoryObservation(&entry, patient, docTime)
+			if event != nil {
+				results = append(results, event)
+			}
+		}
+	}
+
+	return results, nil
+}
+
+func mapSocialHistoryObservation(obs *Entry, patient *events.Patient, docTime time.Time) *events.SocialHistoryEvent {
+	event := &events.SocialHistoryEvent{
+		EventMeta: events.EventMeta{
+			ID:           obs.ID,
+			Type:         events.EventSocialHistory,
+			Timestamp:    docTime,
+			SourceFormat: events.FormatCDA,
+		},
+		Observation: events.SocialHistoryObservation{
+			Name:     obs.Code.DisplayName,
+			Status:   mapStatusCode(obs.StatusCode),
+			Category: obs.Text, // Category was inferred during parsing
+		},
+	}
+	if patient != nil {
+		event.Patient = patient
+	}
+
+	// Set observation code
+	if obs.Code.Code != "" {
+		event.Observation.Code = obs.Code.Code
+		if system, ok := OIDToFHIRSystem[obs.Code.CodeSystem]; ok {
+			event.Observation.CodeSystem = system
+		} else {
+			event.Observation.CodeSystem = obs.Code.CodeSystem
+		}
+	}
+
+	// Set value
+	if obs.Value != nil {
+		switch obs.Value.Type {
+		case "CD", "CE", "CV":
+			event.Observation.Value = obs.Value.DisplayName
+			event.Observation.ValueCode = obs.Value.Code
+			if event.Observation.Value == "" {
+				event.Observation.Value = obs.Value.Code
+			}
+		default:
+			event.Observation.Value = obs.Value.Value
+		}
+	}
+
+	// Set effective date
+	if obs.EffectiveTime != nil {
+		if obs.EffectiveTime.Value != nil {
+			event.Observation.EffectiveDate = obs.EffectiveTime.Value.Format("2006-01-02")
+			event.Timestamp = *obs.EffectiveTime.Value
+		} else if obs.EffectiveTime.Low != nil {
+			event.Observation.EffectiveDate = obs.EffectiveTime.Low.Format("2006-01-02")
+			event.Timestamp = *obs.EffectiveTime.Low
 		}
 	}
 

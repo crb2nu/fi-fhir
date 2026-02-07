@@ -4753,9 +4753,13 @@ func runServe(args []string) error {
 			worker, workerErr := termworkflow.NewWorker(context.Background(), workerCfg, autorouteEngine, mappingStore)
 			if workerErr != nil {
 				fmt.Fprintf(os.Stderr, "Warning: Temporal worker disabled: %v\n", workerErr)
-			} else if workerErr = worker.Start(); workerErr != nil {
-				fmt.Fprintf(os.Stderr, "Warning: Temporal worker failed to start: %v\n", workerErr)
 			} else {
+				errCh := worker.StartAsync()
+				go func() {
+					if err := <-errCh; err != nil {
+						fmt.Fprintf(os.Stderr, "Warning: Temporal worker stopped: %v\n", err)
+					}
+				}()
 				temporalWorker = worker
 				resolverOpts = append(resolverOpts, resolvers.WithTemporalWorker(worker))
 				fmt.Println("Temporal terminology review worker started")

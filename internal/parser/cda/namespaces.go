@@ -69,6 +69,10 @@ const (
 	TemplateEntryProcedureActivity    = "2.16.840.1.113883.10.20.22.4.14" // Procedure Activity Procedure
 	TemplateEntryEncounterActivity    = "2.16.840.1.113883.10.20.22.4.49" // Encounter Activity
 	TemplateEntryImmunizationActivity = "2.16.840.1.113883.10.20.22.4.52" // Immunization Activity
+	TemplateEntryAllergyConcern       = "2.16.840.1.113883.10.20.22.4.30" // Allergy Concern Act
+	TemplateEntrySocialHistoryObs     = "2.16.840.1.113883.10.20.22.4.38" // Social History Observation
+	TemplateEntrySmokingStatus        = "2.16.840.1.113883.10.20.22.4.78" // Smoking Status - Meaningful Use
+	TemplateEntryTobaccoUse           = "2.16.840.1.113883.10.20.22.4.85" // Tobacco Use
 )
 
 // Common Code System OIDs.
