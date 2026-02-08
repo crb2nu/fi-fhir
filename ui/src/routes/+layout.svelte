@@ -1,5 +1,6 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
+  import { page } from '$app/stores';
   import ToastContainer from '$lib/ui/ToastContainer.svelte';
 
   // Import global design tokens and base styles
@@ -13,16 +14,29 @@
     { href: '/terminology', label: 'Terminology' },
     { href: '/workflows', label: 'Workflows' }
   ] as const;
+
+  function isActive(href: string, pathname: string): boolean {
+    if (href === '/') return pathname === '/';
+    return pathname === href || pathname.startsWith(href + '/');
+  }
 </script>
 
 <ToastContainer />
 
 <div class="app">
   <header class="header">
-    <div class="brand">fi-fhir</div>
+    <a class="brand" href={resolve('/')}>fi-fhir</a>
     <nav class="nav">
       {#each nav as item (item.href)}
-        <a class="nav-link" href={resolve(item.href)}>{item.label}</a>
+        {@const active = isActive(item.href, $page.url.pathname)}
+        <a
+          class="nav-link"
+          class:active
+          aria-current={active ? 'page' : undefined}
+          href={resolve(item.href)}
+        >
+          {item.label}
+        </a>
       {/each}
     </nav>
   </header>
@@ -58,11 +72,14 @@
     font-weight: var(--font-bold);
     font-size: var(--text-lg);
     letter-spacing: var(--tracking-tight);
+    text-decoration: none;
   }
 
   .nav {
     display: flex;
     gap: var(--space-3);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .nav-link {
@@ -75,11 +92,18 @@
     font-size: var(--text-sm);
     font-weight: var(--font-medium);
     transition: var(--transition-all);
+    flex: 0 0 auto;
   }
 
   .nav-link:hover {
     background: var(--color-bg-hover);
     border-color: var(--color-border-strong);
+  }
+
+  .nav-link.active {
+    color: var(--color-text-primary);
+    background: rgba(59, 130, 246, 0.14);
+    border-color: rgba(59, 130, 246, 0.38);
   }
 
   .nav-link:focus-visible {
