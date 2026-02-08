@@ -1255,12 +1255,15 @@ func TestQueryResolver_Workflow_WithEngine(t *testing.T) {
 
 	ctx := context.Background()
 
-	status, err := queryResolver.Workflow(ctx, "test-workflow")
+	status, err := queryResolver.Workflow(ctx, "test")
 	if err != nil {
 		t.Fatalf("Workflow query failed: %v", err)
 	}
-	if status.Name != "test-workflow" {
-		t.Errorf("Expected name 'test-workflow', got '%s'", status.Name)
+	if status == nil {
+		t.Fatal("Expected non-nil status for matching workflow name")
+	}
+	if status.Name != "test" {
+		t.Errorf("Expected name 'test', got '%s'", status.Name)
 	}
 	if !status.Enabled {
 		t.Error("Expected workflow to be enabled")
