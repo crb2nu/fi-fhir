@@ -22,11 +22,11 @@ let wsClient: Client | null = null;
 function getClient(): Client {
   if (!wsClient) {
     // Construct WebSocket URL from current origin
-    // In development: ws://localhost:5173/graphql (proxied to backend)
-    // In production: wss://your-domain.com/graphql
+    // In development: ws://localhost:5173/graphql/ws (proxied to backend)
+    // In production: wss://your-domain.com/graphql/ws
     const protocol = browser && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = browser ? window.location.host : 'localhost:5173';
-    const url = `${protocol}//${host}/graphql`;
+    const url = `${protocol}//${host}/graphql/ws`;
 
     wsClient = createClient({
       url,

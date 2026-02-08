@@ -24,11 +24,15 @@ RUN npm run build
 # Production stage - lightweight nginx to serve static files
 FROM nginx:alpine
 
+# Default backend origin for reverse-proxying API routes from the UI container.
+# Override at runtime to match your deployment.
+ENV FI_FHIR_UI_API_ORIGIN=http://fi-fhir
+
 # Copy built assets
 COPY --from=builder /app/build /usr/share/nginx/html
 
-# Custom nginx config for SPA routing
-COPY nginx/default.conf /etc/nginx/conf.d/default.conf
+# Custom nginx config template (rendered via nginx entrypoint envsubst)
+COPY nginx/default.conf.template /etc/nginx/templates/default.conf.template
 
 EXPOSE 3000
 
