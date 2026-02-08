@@ -16,6 +16,24 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/semantic"
 )
 
+// llmClientFactory creates an LLM client. Tests override to inject mocks.
+var llmClientFactory = func() (llm.Client, error) {
+	return llm.NewWithDefaults()
+}
+
+// stdinReader is the reader for interactive input. Tests override to inject test input.
+var stdinReader io.Reader = os.Stdin
+
+// terminologySearcher abstracts semantic search for testability.
+type terminologySearcher interface {
+	Search(ctx context.Context, query string, opts semantic.SearchOptions) ([]semantic.SemanticMatch, error)
+}
+
+// terminologySearchFactory creates a semantic searcher. Tests override to inject mocks.
+var terminologySearchFactory = func(cfg semantic.SearchConfig) (terminologySearcher, error) {
+	return semantic.NewSearcher(cfg)
+}
+
 // runWorkflowGenerate generates a workflow from natural language description.
 func runWorkflowGenerate(args []string) error {
 	var (
@@ -48,7 +66,7 @@ func runWorkflowGenerate(args []string) error {
 	}
 
 	// Create LLM client
-	llmClient, err := llm.NewWithDefaults()
+	llmClient, err := llmClientFactory()
 	if err != nil {
 		return fmt.Errorf("create LLM client: %w", err)
 	}
@@ -105,7 +123,7 @@ func runInteractiveWorkflowSession(ctx context.Context, cop *copilot.WorkflowCop
 	fmt.Println("Interactive workflow builder started. Type 'quit' to exit.")
 	fmt.Println()
 
-	reader := os.Stdin
+	reader := stdinReader
 
 	for {
 		fmt.Print("> ")
@@ -211,7 +229,7 @@ func runWorkflowExplain(args []string) error {
 	}
 
 	// Create LLM client
-	llmClient, err := llm.NewWithDefaults()
+	llmClient, err := llmClientFactory()
 	if err != nil {
 		return fmt.Errorf("create LLM client: %w", err)
 	}
@@ -318,7 +336,7 @@ func runWorkflowCEL(args []string) error {
 	}
 
 	// Create LLM client
-	llmClient, err := llm.NewWithDefaults()
+	llmClient, err := llmClientFactory()
 	if err != nil {
 		return fmt.Errorf("create LLM client: %w", err)
 	}
@@ -486,7 +504,7 @@ func runTerminologySearch(args []string) error {
 	}
 
 	// Create searcher
-	searcher, err := semantic.NewSearcher(semantic.SearchConfig{
+	searcher, err := terminologySearchFactory(semantic.SearchConfig{
 		QdrantURL:           qdrantURL,
 		QdrantAPIKey:        os.Getenv("FI_FHIR_QDRANT_API_KEY"),
 		EmbeddingBaseURL:    embedURL,
