@@ -1,4 +1,4 @@
-//nolint:errcheck,gosec // Test file — error/security checks relaxed for test setup
+//nolint:gosec // Test file — security checks relaxed for test setup
 package main
 
 import (
@@ -262,10 +262,9 @@ func TestRunWorkflowLoadtest_CustomShortDuration(t *testing.T) {
 		// May or may not pass performance thresholds
 		_ = err
 	})
-	// Should have run and produced some output
-	if !strings.Contains(stdout, "Load Test") && !strings.Contains(stdout, "Events:") {
-		// The output format depends on whether it ran or errored early
-		// Just verify it didn't panic
+	// Should have run and produced some output — verify it didn't panic silently
+	if stdout == "" {
+		t.Error("expected some output from loadtest, got empty string")
 	}
 }
 

@@ -1,4 +1,4 @@
-//nolint:errcheck,gosec // Test file - error checking intentionally relaxed
+//nolint:gosec // Test file - security checks relaxed for test setup
 package main
 
 import (
