@@ -15,7 +15,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "codegen:graphql": "graphql-codegen --config codegen.yml",
+    "codegen:graphql": "node scripts/graphql-codegen.cjs --config codegen.yml",
     "codegen:openapi": "openapi-typescript ../api/openapi.yaml -o src/lib/gen/openapi.ts",
     "codegen": "npm run codegen:openapi && npm run codegen:graphql",
     "codegen:check": "npm run codegen && git diff --exit-code -- src/lib/gen"
