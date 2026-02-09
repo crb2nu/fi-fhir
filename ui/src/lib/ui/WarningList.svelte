@@ -182,9 +182,10 @@
                       <button
                         class="explain-toggle"
                         type="button"
+                        aria-expanded={expandedExplanations.has(wKey)}
                         on:click|stopPropagation={() => toggleExplanation(wKey)}
                       >
-                        <span class="icon">💡</span>
+                        <span class="icon" aria-hidden="true">💡</span>
                         {#if w.fromCache}
                           <span class="cache-badge">cached</span>
                         {/if}

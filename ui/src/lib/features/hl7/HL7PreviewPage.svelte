@@ -897,6 +897,9 @@
       ⌘/Ctrl+Enter: preview • ⌘/Ctrl+O: load file • Esc: back to warnings
     </div>
 
+    <p id="hl7-drop-hint" class="sr-only">
+      Drag and drop HL7 files to import into Samples. Use the Load file button to open the file picker.
+    </p>
     <div
       class="drop-target"
       class:dragging={isDragging}
@@ -906,10 +909,11 @@
       on:drop={onDropFiles}
       role="region"
       aria-label="HL7 input. Drag and drop HL7 files to import."
+      aria-describedby="hl7-drop-hint"
     >
-    <div class="redaction">
-      <label class="label redaction-label">
-        Redaction
+      <div class="redaction">
+        <label class="label redaction-label">
+          Redaction
           <select class="input" bind:value={editorRedactionMode} disabled={$state.loading}>
             <option value="none">None</option>
             <option value="mask_basic">Mask basic (PID/NK1/PV1)</option>
