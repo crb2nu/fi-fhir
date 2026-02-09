@@ -2116,20 +2116,22 @@ func runWorkflowRecord(args []string) error {
 		input      = ""
 	)
 
-	for i := 0; i < len(args); i++ {
+	for i := 0; i < len(args); {
 		switch args[i] {
 		case "--config", "-c":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--config requires a value")
 			}
-			i++
-			configPath = args[i]
+			configPath = args[i+1]
+			i += 2
+			continue
 		case "--output", "-o":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--output requires a value")
 			}
-			i++
-			outputPath = args[i]
+			outputPath = args[i+1]
+			i += 2
+			continue
 		case "--help", "-h":
 			printWorkflowRecordUsage()
 			return nil
@@ -2142,6 +2144,7 @@ func runWorkflowRecord(args []string) error {
 				input = args[i]
 			}
 		}
+		i++
 	}
 
 	if configPath == "" {
@@ -2697,60 +2700,66 @@ func runWorkflowLoadtest(args []string) error {
 		jsonOutput   = false
 	)
 
-	for i := 0; i < len(args); i++ {
+	for i := 0; i < len(args); {
 		switch args[i] {
 		case "-c", "--config":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--config requires a file path")
 			}
-			i++
-			configPath = args[i]
+			configPath = args[i+1]
+			i += 2
+			continue
 		case "-s", "--scenario":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--scenario requires a name")
 			}
-			i++
-			scenarioName = args[i]
+			scenarioName = args[i+1]
+			i += 2
+			continue
 		case "-d", "--duration":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--duration requires a value")
 			}
-			i++
-			d, err := time.ParseDuration(args[i])
+			d, err := time.ParseDuration(args[i+1])
 			if err != nil {
 				return fmt.Errorf("invalid duration: %w", err)
 			}
 			duration = d
+			i += 2
+			continue
 		case "-r", "--rps":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--rps requires a value")
 			}
-			i++
-			r, err := strconv.Atoi(args[i])
+			r, err := strconv.Atoi(args[i+1])
 			if err != nil {
 				return fmt.Errorf("invalid rps: %w", err)
 			}
 			rps = r
+			i += 2
+			continue
 		case "-w", "--workers":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--workers requires a value")
 			}
-			i++
-			w, err := strconv.Atoi(args[i])
+			w, err := strconv.Atoi(args[i+1])
 			if err != nil {
 				return fmt.Errorf("invalid workers: %w", err)
 			}
 			workers = w
+			i += 2
+			continue
 		case "--warmup":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--warmup requires a value")
 			}
-			i++
-			w, err := time.ParseDuration(args[i])
+			w, err := time.ParseDuration(args[i+1])
 			if err != nil {
 				return fmt.Errorf("invalid warmup: %w", err)
 			}
 			warmup = w
+			i += 2
+			continue
 		case "-v", "--verbose":
 			verbose = true
 		case "--json":
@@ -2769,6 +2778,7 @@ func runWorkflowLoadtest(args []string) error {
 				return fmt.Errorf("unknown flag: %s", args[i])
 			}
 		}
+		i++
 	}
 
 	if configPath == "" {

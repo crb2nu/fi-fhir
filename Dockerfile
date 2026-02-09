@@ -1,5 +1,6 @@
 # Build stage
-FROM golang:1.25-alpine AS builder
+ARG GO_IMAGE=golang:1.25-alpine
+FROM ${GO_IMAGE} AS builder
 
 # Install git for go mod download and ca-certificates for HTTPS
 RUN apk add --no-cache git ca-certificates tzdata

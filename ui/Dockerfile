@@ -1,5 +1,6 @@
 # Build stage
-FROM node:22-alpine AS builder
+ARG NODE_IMAGE=node:22-alpine
+FROM ${NODE_IMAGE} AS builder
 
 WORKDIR /app
 
@@ -22,7 +23,8 @@ ENV VITE_BUILD_TIME=$VITE_BUILD_TIME
 RUN npm run build
 
 # Production stage - lightweight nginx to serve static files
-FROM nginx:alpine
+ARG NGINX_IMAGE=nginx:alpine
+FROM ${NGINX_IMAGE}
 
 # Default backend origin for reverse-proxying API routes from the UI container.
 # Override at runtime to match your deployment.

@@ -266,7 +266,11 @@ Examples:
 		return fmt.Errorf("vocabulary and version are required")
 	}
 
-	dbURL := getTerminologyDBURL(args[2:])
+	extraArgs := []string{}
+	if len(args) > 2 {
+		extraArgs = args[2:]
+	}
+	dbURL := getTerminologyDBURL(extraArgs)
 	if dbURL == "" {
 		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_TERMINOLOGY_DB_URL env var")
 	}
@@ -845,26 +849,30 @@ func runTerminologyMappingUpload(args []string) error {
 	var sourceSystem, targetSystem, profileID string
 	var dryRun bool
 
-	for i := 1; i < len(args); i++ {
+	for i := 1; i < len(args); {
 		switch args[i] {
 		case "--source-system":
 			if i+1 < len(args) {
 				sourceSystem = args[i+1]
-				i++
+				i += 2
+				continue
 			}
 		case "--target-system":
 			if i+1 < len(args) {
 				targetSystem = args[i+1]
-				i++
+				i += 2
+				continue
 			}
 		case "--profile":
 			if i+1 < len(args) {
 				profileID = args[i+1]
-				i++
+				i += 2
+				continue
 			}
 		case "--dry-run":
 			dryRun = true
 		}
+		i++
 	}
 
 	// Open file
@@ -1112,11 +1120,12 @@ func runTerminologyMappingGet(args []string) error {
 	var batchID string
 	var mappingID int64
 
-	for i := 0; i < len(args); i++ {
+	for i := 0; i < len(args); {
 		if args[i] == "--batch" {
 			if i+1 < len(args) {
 				batchID = args[i+1]
-				i++
+				i += 2
+				continue
 			}
 		} else if !strings.HasPrefix(args[i], "--") && !strings.HasPrefix(args[i], "-") {
 			id, err := parseInt(args[i])
@@ -1124,6 +1133,7 @@ func runTerminologyMappingGet(args []string) error {
 				mappingID = int64(id)
 			}
 		}
+		i++
 	}
 
 	conn, err := sql.Open("postgres", dbURL)
@@ -1226,12 +1236,13 @@ func runTerminologyMappingDelete(args []string) error {
 	var mappingID int64
 	var force bool
 
-	for i := 0; i < len(args); i++ {
+	for i := 0; i < len(args); {
 		switch args[i] {
 		case "--batch":
 			if i+1 < len(args) {
 				batchID = args[i+1]
-				i++
+				i += 2
+				continue
 			}
 		case "--force", "-f":
 			force = true
@@ -1243,6 +1254,7 @@ func runTerminologyMappingDelete(args []string) error {
 				}
 			}
 		}
+		i++
 	}
 
 	conn, err := sql.Open("postgres", dbURL)
@@ -1333,33 +1345,38 @@ func runTerminologyMappingResolve(args []string) error {
 	var sourceSystem, targetSystem, display, profileID string
 	var noAutoroute, jsonOutput bool
 
-	for i := 1; i < len(args); i++ {
+	for i := 1; i < len(args); {
 		switch args[i] {
 		case "--source-system":
 			if i+1 < len(args) {
 				sourceSystem = args[i+1]
-				i++
+				i += 2
+				continue
 			}
 		case "--target-system":
 			if i+1 < len(args) {
 				targetSystem = args[i+1]
-				i++
+				i += 2
+				continue
 			}
 		case "--display":
 			if i+1 < len(args) {
 				display = args[i+1]
-				i++
+				i += 2
+				continue
 			}
 		case "--profile":
 			if i+1 < len(args) {
 				profileID = args[i+1]
-				i++
+				i += 2
+				continue
 			}
 		case "--no-autoroute":
 			noAutoroute = true
 		case "--json":
 			jsonOutput = true
 		}
+		i++
 	}
 
 	if sourceSystem == "" {
@@ -1774,8 +1791,8 @@ func runTerminologyAutoroute(args []string) error {
 	// Parse flags
 	var sourceSystem, targetSystem, display string
 	var temporalAddr, temporalNamespace string
-	var autoApproveThreshold float64 = 0.95
-	var reviewTimeoutDays int = 7
+	autoApproveThreshold := 0.95
+	reviewTimeoutDays := 7
 	var waitForResult, jsonOutput bool
 
 	for i := 1; i < len(args); i++ {
@@ -1860,7 +1877,6 @@ func runAutorouteViaWorkflow(code, sourceSystem, targetSystem, display string,
 	autoApproveThreshold float64, reviewTimeoutDays int,
 	waitForResult, jsonOutput bool,
 	mappingStore *db.MappingStore) error {
-
 	if temporalNamespace == "" {
 		temporalNamespace = "terminology-mapping"
 	}

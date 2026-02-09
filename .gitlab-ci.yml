@@ -408,7 +408,7 @@ test:integration:
   services:
     - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
       alias: postgres
-    - name: ${DOCKERHUB_CACHE_PREFIX}/bitnami/minio:latest
+    - name: ${DOCKERHUB_CACHE_PREFIX}/minio/minio:latest
       alias: minio
   variables:
     CGO_ENABLED: "1"
@@ -758,6 +758,16 @@ build:docker:
     KUBERNETES_SERVICE_MEMORY_LIMIT: "6Gi"
   script:
     - |
+      # Ensure the docker client can auth to Harbor (so docker builds can pull base images via the Harbor cache).
+      # The GitLab K8s runner mounts a docker config secret ("harbor-creds") at /docker-secrets.
+      if [ -f /docker-secrets/config.json ]; then
+        mkdir -p /root/.docker
+        cp /docker-secrets/config.json /root/.docker/config.json
+      elif [ -f /docker-secrets/.dockerconfigjson ]; then
+        mkdir -p /root/.docker
+        cp /docker-secrets/.dockerconfigjson /root/.docker/config.json
+      fi
+    - |
       # Use CI_REGISTRY_IMAGE if set, otherwise default to fi-fhir
       IMAGE_BASE="${CI_REGISTRY_IMAGE:-fi-fhir}"
       if [ -n "${CI_COMMIT_TAG}" ]; then
@@ -765,7 +775,11 @@ build:docker:
       else
         IMAGE_TAG="${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}"
       fi
-    - docker build --build-arg VERSION="${CI_COMMIT_TAG:-${CI_COMMIT_SHORT_SHA}}" -t "${IMAGE_TAG}" .
+    - docker build \
+        --build-arg GO_IMAGE="${DOCKERHUB_CACHE_PREFIX}/library/golang:${GO_VERSION}-alpine" \
+        --build-arg VERSION="${CI_COMMIT_TAG:-${CI_COMMIT_SHORT_SHA}}" \
+        -t "${IMAGE_TAG}" \
+        .
     - docker save "${IMAGE_TAG}" > docker-image.tar
   artifacts:
     paths:
@@ -794,6 +808,16 @@ build:docker-ui:
     KUBERNETES_SERVICE_MEMORY_LIMIT: "6Gi"
   script:
     - |
+      # Ensure the docker client can auth to Harbor (so docker builds can pull base images via the Harbor cache).
+      # The GitLab K8s runner mounts a docker config secret ("harbor-creds") at /docker-secrets.
+      if [ -f /docker-secrets/config.json ]; then
+        mkdir -p /root/.docker
+        cp /docker-secrets/config.json /root/.docker/config.json
+      elif [ -f /docker-secrets/.dockerconfigjson ]; then
+        mkdir -p /root/.docker
+        cp /docker-secrets/.dockerconfigjson /root/.docker/config.json
+      fi
+    - |
       IMAGE_BASE="${CI_REGISTRY_IMAGE:-fi-fhir}-ui"
       if [ -n "${CI_COMMIT_TAG}" ]; then
         IMAGE_TAG="${IMAGE_BASE}:${CI_COMMIT_TAG}"
@@ -803,6 +827,8 @@ build:docker-ui:
     - |
       BUILD_TAG="v0.1.${CI_PIPELINE_IID}"
       docker build \
+        --build-arg NODE_IMAGE="${DOCKERHUB_CACHE_PREFIX}/library/node:${NODE_VERSION}-alpine" \
+        --build-arg NGINX_IMAGE="${DOCKERHUB_CACHE_PREFIX}/library/nginx:alpine" \
         --build-arg VITE_BUILD_SHA="${CI_COMMIT_SHORT_SHA}" \
         --build-arg VITE_BUILD_TAG="${BUILD_TAG}" \
         --build-arg VITE_BUILD_TIME="${CI_PIPELINE_CREATED_AT}" \
@@ -1169,6 +1195,7 @@ release:docker:
 
       # Build image
       docker build \
+        --build-arg GO_IMAGE="${DOCKERHUB_CACHE_PREFIX}/library/golang:${GO_VERSION}-alpine" \
         --build-arg VERSION="${CI_COMMIT_TAG}" \
         -t "${IMAGE_BASE}:${CI_COMMIT_TAG}" \
         -t "${IMAGE_BASE}:${VERSION}" \
@@ -1205,6 +1232,8 @@ release:docker-ui:
 
       # Build UI image
       docker build \
+        --build-arg NODE_IMAGE="${DOCKERHUB_CACHE_PREFIX}/library/node:${NODE_VERSION}-alpine" \
+        --build-arg NGINX_IMAGE="${DOCKERHUB_CACHE_PREFIX}/library/nginx:alpine" \
         -t "${IMAGE_BASE}:${CI_COMMIT_TAG}" \
         -t "${IMAGE_BASE}:${VERSION}" \
         -t "${IMAGE_BASE}:${MINOR}" \
