@@ -98,6 +98,7 @@ linters-settings:
       - G115  # Integer overflow conversion - handled by bounds
       - G404  # Weak random is fine for non-crypto uses (load testing)
       - G101  # False positives on hardcoded credentials in tests
+      - G602  # False positives on bounded CLI arg parsing loops (switch/args[i])
 
   misspell:
     locale: US
