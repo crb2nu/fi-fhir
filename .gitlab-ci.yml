@@ -89,7 +89,7 @@ default:
 
 # Default Go image
 .go-image: &go-image
-  image: golang:${GO_VERSION}-alpine
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/golang:${GO_VERSION}-alpine
   before_script:
     - export GOPATH="${CI_PROJECT_DIR}/.go"
     - export GOCACHE="${CI_PROJECT_DIR}/.cache/go-build"
@@ -99,7 +99,7 @@ default:
 
 # Debian-based Go image for jobs that need `-race` and/or dockerized integration tests.
 .go-image-debian: &go-image-debian
-  image: golang:${GO_VERSION}
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/golang:${GO_VERSION}
   before_script:
     - export GOPATH="${CI_PROJECT_DIR}/.go"
     - export GOCACHE="${CI_PROJECT_DIR}/.cache/go-build"
@@ -109,7 +109,7 @@ default:
 
 # Default Node image (for ui/ and OpenAPI/GraphQL client codegen)
 .node-image: &node-image
-  image: node:${NODE_VERSION}-bookworm
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/node:${NODE_VERSION}-bookworm
   before_script:
     - node --version
     - npm --version
@@ -255,7 +255,7 @@ lint:sdk-typescript:
 
 lint:helm:
   stage: lint
-  image: alpine/helm:latest
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/alpine/helm:latest
   script:
     - helm lint deploy/helm/fi-fhir/
     - helm template fi-fhir deploy/helm/fi-fhir/ > /dev/null
@@ -403,9 +403,9 @@ test:integration:
   <<: *go-image-debian
   <<: *go-cache
   services:
-    - name: postgres:16-alpine
+    - name: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/postgres:16-alpine
       alias: postgres
-    - name: bitnami/minio:latest
+    - name: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/bitnami/minio:latest
       alias: minio
   variables:
     CGO_ENABLED: "1"
@@ -577,7 +577,7 @@ security:gosec:
 security:trivy:
   stage: security
   image:
-    name: aquasec/trivy:latest
+    name: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/aquasec/trivy:latest
     entrypoint: [""]
   script:
     - trivy fs --exit-code 0 --severity HIGH,CRITICAL --format sarif -o trivy-report.sarif .
@@ -631,7 +631,7 @@ security:npm-audit:
 security:trivy-image:
   stage: scan
   image:
-    name: aquasec/trivy:latest
+    name: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/aquasec/trivy:latest
     entrypoint: [""]
   needs:
     - job: build:docker
@@ -685,7 +685,7 @@ security:license-check:
 security:trivy-ui-image:
   stage: scan
   image:
-    name: aquasec/trivy:latest
+    name: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/aquasec/trivy:latest
     entrypoint: [""]
   needs:
     - job: build:docker-ui
@@ -740,9 +740,9 @@ build:binary:
 
 build:docker:
   stage: build
-  image: docker:24
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:24
   services:
-    - docker:24-dind
+    - ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:24-dind
   needs:
     - job: test:unit
       optional: true
@@ -776,9 +776,9 @@ build:docker:
 
 build:docker-ui:
   stage: build
-  image: docker:24
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:24
   services:
-    - docker:24-dind
+    - ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:24-dind
   needs:
     - job: lint:ui
       optional: true
@@ -1148,9 +1148,9 @@ release:binaries:
 
 release:docker:
   stage: release
-  image: docker:24
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:24
   services:
-    - docker:24-dind
+    - ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:24-dind
   variables:
     DOCKER_HOST: tcp://localhost:2375
     DOCKER_TLS_CERTDIR: ""
@@ -1185,9 +1185,9 @@ release:docker:
 
 release:docker-ui:
   stage: release
-  image: docker:24
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:24
   services:
-    - docker:24-dind
+    - ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:24-dind
   variables:
     DOCKER_HOST: tcp://localhost:2375
     DOCKER_TLS_CERTDIR: ""
@@ -1220,7 +1220,7 @@ release:docker-ui:
 
 release:helm:
   stage: release
-  image: alpine/helm:latest
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/alpine/helm:latest
   script:
     - |
       VERSION="${CI_COMMIT_TAG#v}"
