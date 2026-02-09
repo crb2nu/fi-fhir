@@ -94,7 +94,7 @@
       </div>
     </div>
 
-    <div class="status">
+    <div class="status" role="status" aria-live="polite">
       <span class="indicator" class:connected class:error={!!error}></span>
       {#if error}
         <span class="status-text error">{error}</span>
@@ -149,7 +149,7 @@
   .field {
     display: grid;
     gap: 6px;
-    color: rgba(229, 231, 235, 0.8);
+    color: var(--color-text-tertiary);
     font-size: 0.9rem;
     font-weight: 700;
     min-width: 200px;
@@ -158,15 +158,24 @@
   .input {
     padding: 8px 12px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(229, 231, 235, 0.92);
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-input);
+    color: var(--color-text-primary);
     outline: none;
+    transition: var(--transition-all);
+  }
+
+  .input::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  .input:hover:not(:disabled):not(:focus) {
+    border-color: var(--color-border-strong);
   }
 
   .input:focus {
-    border-color: rgba(59, 130, 246, 0.45);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    border-color: var(--color-border-focus);
+    box-shadow: var(--shadow-focus);
   }
 
   .actions {
@@ -200,7 +209,7 @@
 
   .status-text {
     font-weight: 700;
-    color: rgba(229, 231, 235, 0.8);
+    color: var(--color-text-secondary);
   }
 
   .status-text.error {
@@ -208,10 +217,10 @@
   }
 
   .empty {
-    color: rgba(229, 231, 235, 0.65);
+    color: var(--color-text-tertiary);
     padding: 24px;
     text-align: center;
-    border: 1px dashed rgba(255, 255, 255, 0.1);
+    border: 1px dashed var(--color-border-subtle);
     border-radius: 12px;
   }
 
@@ -229,16 +238,16 @@
     align-items: center;
     padding: 8px 12px;
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-surface);
   }
 
   .event-row:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--color-bg-hover);
   }
 
   .time {
-    color: rgba(229, 231, 235, 0.7);
+    color: var(--color-text-tertiary);
     font-size: 0.85rem;
   }
 
@@ -255,7 +264,7 @@
   }
 
   .routes {
-    color: rgba(229, 231, 235, 0.85);
+    color: var(--color-text-secondary);
     font-size: 0.85rem;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -263,7 +272,7 @@
   }
 
   .actions-col {
-    color: rgba(229, 231, 235, 0.7);
+    color: var(--color-text-tertiary);
     font-size: 0.85rem;
     white-space: nowrap;
   }
@@ -278,7 +287,7 @@
   }
 
   .muted {
-    color: rgba(229, 231, 235, 0.55);
+    color: var(--color-text-muted);
   }
 
   .footer {
@@ -287,7 +296,7 @@
     align-items: center;
     font-size: 0.85rem;
     padding-top: 8px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    border-top: 1px solid var(--color-border-subtle);
   }
 
   .paused-badge {

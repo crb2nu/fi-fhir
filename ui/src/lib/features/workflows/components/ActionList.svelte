@@ -69,8 +69,8 @@
   .action-item {
     padding: 10px 12px;
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-elevated);
   }
 
   .action-header {
@@ -81,7 +81,7 @@
   }
 
   .action-index {
-    color: rgba(229, 231, 235, 0.55);
+    color: var(--color-text-muted);
     font-size: 0.8rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -101,17 +101,18 @@
     align-items: center;
     justify-content: center;
     border-radius: 4px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--color-border-default);
     background: transparent;
-    color: rgba(229, 231, 235, 0.6);
+    color: var(--color-text-tertiary);
     cursor: pointer;
     font-size: 0.85rem;
     line-height: 1;
+    transition: var(--transition-all);
   }
 
   .icon-btn:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.06);
-    color: rgba(229, 231, 235, 0.9);
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
   }
 
   .icon-btn:disabled {

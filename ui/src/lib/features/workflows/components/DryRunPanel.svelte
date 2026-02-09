@@ -94,6 +94,7 @@
         <textarea
           class="textarea mono"
           bind:value={customEventJson}
+          aria-label="Custom events JSON"
           placeholder={'[\n  { "type": "PATIENT_ADMIT", "source": "epic" }\n]'}
           rows="5"
         ></textarea>
@@ -182,7 +183,7 @@
   }
 
   .label {
-    color: rgba(229, 231, 235, 0.8);
+    color: var(--color-text-tertiary);
     font-weight: 700;
     font-size: 0.9rem;
   }
@@ -190,18 +191,27 @@
   .textarea {
     padding: 8px 12px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(229, 231, 235, 0.92);
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-input);
+    color: var(--color-text-primary);
     outline: none;
     resize: vertical;
     width: 100%;
     box-sizing: border-box;
+    transition: var(--transition-all);
+  }
+
+  .textarea::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  .textarea:hover:not(:disabled):not(:focus) {
+    border-color: var(--color-border-strong);
   }
 
   .textarea:focus {
-    border-color: rgba(59, 130, 246, 0.45);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    border-color: var(--color-border-focus);
+    box-shadow: var(--shadow-focus);
   }
 
   .mono {
@@ -226,12 +236,12 @@
   }
 
   .sample-label {
-    color: rgba(229, 231, 235, 0.85);
+    color: var(--color-text-secondary);
     font-size: 0.9rem;
   }
 
   .sample-type {
-    color: rgba(229, 231, 235, 0.5);
+    color: var(--color-text-muted);
     font-size: 0.8rem;
   }
 
@@ -241,7 +251,7 @@
   }
 
   .results-title {
-    color: rgba(229, 231, 235, 0.8);
+    color: var(--color-text-tertiary);
     font-size: 0.85rem;
     font-weight: 700;
     margin: 0;
@@ -255,9 +265,9 @@
   .error-item {
     padding: 6px 10px;
     border-radius: 6px;
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.25);
-    color: rgba(254, 202, 202, 0.9);
+    background: var(--color-danger-bg);
+    border: 1px solid var(--color-danger-border);
+    color: var(--color-text-primary);
     font-size: 0.85rem;
   }
 
@@ -269,9 +279,9 @@
   .warning-item {
     padding: 6px 10px;
     border-radius: 6px;
-    background: rgba(245, 158, 11, 0.1);
-    border: 1px solid rgba(245, 158, 11, 0.25);
-    color: rgba(253, 230, 138, 0.9);
+    background: var(--color-warning-bg);
+    border: 1px solid var(--color-warning-border);
+    color: var(--color-text-primary);
     font-size: 0.85rem;
   }
 
@@ -285,7 +295,7 @@
     grid-template-columns: 1fr 80px 80px 1fr;
     gap: 12px;
     padding: 6px 10px;
-    color: rgba(229, 231, 235, 0.55);
+    color: var(--color-text-muted);
     font-size: 0.75rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -298,15 +308,15 @@
     gap: 12px;
     padding: 8px 10px;
     border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-surface);
     align-items: center;
     font-size: 0.9rem;
-    color: rgba(229, 231, 235, 0.85);
+    color: var(--color-text-secondary);
   }
 
   .muted {
-    color: rgba(229, 231, 235, 0.5);
+    color: var(--color-text-muted);
     font-size: 0.85rem;
   }
 

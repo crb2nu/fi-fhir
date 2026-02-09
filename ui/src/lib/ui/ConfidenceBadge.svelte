@@ -67,7 +67,7 @@
   .bar {
     width: 40px;
     height: 4px;
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--color-border-subtle);
     border-radius: var(--radius-full);
     overflow: hidden;
   }

@@ -345,7 +345,7 @@
 
   .stats {
     font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--color-text-tertiary);
   }
 
   .error {
@@ -364,7 +364,7 @@
   .tabs-container {
     display: flex;
     gap: 4px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid var(--color-border-default);
     padding-bottom: 8px;
     margin-bottom: 12px;
     overflow-x: auto;
@@ -378,33 +378,33 @@
     background: transparent;
     border: 1px solid transparent;
     border-radius: 6px;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--color-text-tertiary);
     font-size: 0.85rem;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: var(--transition-all);
     white-space: nowrap;
   }
 
   .tab:hover {
-    color: rgba(255, 255, 255, 0.9);
-    background: rgba(255, 255, 255, 0.05);
+    color: var(--color-text-primary);
+    background: var(--color-bg-hover);
   }
 
   .tab.active {
-    color: white;
-    background: rgba(59, 130, 246, 0.2);
-    border-color: rgba(59, 130, 246, 0.3);
+    color: var(--color-text-primary);
+    background: var(--color-primary-muted);
+    border-color: var(--color-primary-border);
   }
 
   .count {
     padding: 2px 6px;
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--color-bg-surface);
     border-radius: 10px;
     font-size: 0.75rem;
   }
 
   .tab.active .count {
-    background: rgba(59, 130, 246, 0.3);
+    background: var(--color-primary-border);
   }
 
   .tab-content {
@@ -423,8 +423,8 @@
 
   .entity {
     padding: 10px 12px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border-subtle);
     border-radius: 6px;
   }
 
@@ -437,7 +437,7 @@
 
   .entity-name {
     font-weight: 500;
-    color: #f3f4f6;
+    color: var(--color-text-primary);
   }
 
   .tag {
@@ -507,23 +507,23 @@
   .entity-detail {
     margin-top: 4px;
     font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--color-text-muted);
   }
 
   .text-span {
     margin-top: 6px;
     padding: 6px 10px;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--color-bg-elevated);
     border-radius: 4px;
     font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--color-text-tertiary);
     font-style: italic;
   }
 
   .empty {
     padding: 20px;
     text-align: center;
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--color-text-muted);
     font-size: 0.9rem;
   }
 </style>

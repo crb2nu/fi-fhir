@@ -49,6 +49,7 @@
       <textarea
         class="textarea"
         bind:value={description}
+        aria-label="Workflow description"
         placeholder="Describe what you want the workflow to do, e.g.&#10;&#10;Route all patient admit and discharge events to a FHIR server, and log critical lab results to a webhook."
         rows="4"
       ></textarea>
@@ -102,19 +103,28 @@
   .textarea {
     padding: 10px 12px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(229, 231, 235, 0.92);
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-input);
+    color: var(--color-text-primary);
     outline: none;
     resize: vertical;
     width: 100%;
     box-sizing: border-box;
     line-height: 1.5;
+    transition: var(--transition-all);
+  }
+
+  .textarea::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  .textarea:hover:not(:disabled):not(:focus) {
+    border-color: var(--color-border-strong);
   }
 
   .textarea:focus {
-    border-color: rgba(59, 130, 246, 0.45);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    border-color: var(--color-border-focus);
+    box-shadow: var(--shadow-focus);
   }
 
   .result {
@@ -125,19 +135,19 @@
   .explanation {
     padding: 12px 16px;
     border-radius: 8px;
-    border: 1px solid rgba(59, 130, 246, 0.2);
-    background: rgba(59, 130, 246, 0.05);
+    border: 1px solid var(--color-primary-border);
+    background: var(--color-primary-muted);
   }
 
   .explanation-title {
-    color: rgba(147, 197, 253, 0.9);
+    color: var(--color-primary);
     font-size: 0.85rem;
     font-weight: 700;
     margin: 0 0 8px;
   }
 
   .explanation-text {
-    color: rgba(229, 231, 235, 0.85);
+    color: var(--color-text-secondary);
     font-size: 0.9rem;
     line-height: 1.55;
     white-space: pre-wrap;
@@ -151,9 +161,9 @@
   .warning-item {
     padding: 6px 10px;
     border-radius: 6px;
-    background: rgba(245, 158, 11, 0.1);
-    border: 1px solid rgba(245, 158, 11, 0.25);
-    color: rgba(253, 230, 138, 0.9);
+    background: var(--color-warning-bg);
+    border: 1px solid var(--color-warning-border);
+    color: var(--color-text-primary);
     font-size: 0.85rem;
   }
 
@@ -169,7 +179,7 @@
   }
 
   .yaml-title {
-    color: rgba(229, 231, 235, 0.8);
+    color: var(--color-text-tertiary);
     font-size: 0.85rem;
     font-weight: 700;
     margin: 0;
@@ -178,9 +188,9 @@
   .yaml-output {
     padding: 12px 16px;
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(0, 0, 0, 0.3);
-    color: rgba(229, 231, 235, 0.92);
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-surface);
+    color: var(--color-text-primary);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-size: 0.85rem;
     line-height: 1.5;

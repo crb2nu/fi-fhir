@@ -259,7 +259,7 @@
     font-size: var(--text-2xs);
     color: var(--color-text-tertiary);
     border: 1px solid var(--color-border-subtle);
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--color-bg-elevated);
     padding: 2px 6px;
     border-radius: var(--radius-sm);
   }
@@ -274,7 +274,7 @@
     padding: 10px 12px;
     border-radius: var(--radius-xl);
     border: 1px solid var(--color-border-default);
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--color-bg-input);
     color: var(--color-text-primary);
     outline: none;
     transition: var(--transition-all);

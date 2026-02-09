@@ -109,14 +109,14 @@
 
 <style>
   .route-editor {
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--color-border-default);
     border-radius: 10px;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--color-bg-elevated);
     overflow: hidden;
   }
 
   .route-editor.expanded {
-    border-color: rgba(59, 130, 246, 0.2);
+    border-color: var(--color-primary-border);
   }
 
   .route-header-row {
@@ -127,7 +127,7 @@
   }
 
   .route-header-row:hover {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--color-bg-hover);
   }
 
   .route-header {
@@ -146,7 +146,7 @@
   }
 
   .collapse-icon {
-    color: rgba(229, 231, 235, 0.5);
+    color: var(--color-text-muted);
     font-size: 0.7rem;
     transition: transform 0.2s ease;
     flex-shrink: 0;
@@ -158,7 +158,7 @@
 
   .route-name {
     font-weight: 700;
-    color: rgba(229, 231, 235, 0.92);
+    color: var(--color-text-primary);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   }
 
@@ -172,23 +172,23 @@
   }
 
   .summary-filter {
-    color: rgba(147, 197, 253, 0.7);
+    color: var(--color-primary);
   }
 
   .summary-sep {
-    color: rgba(229, 231, 235, 0.3);
+    color: var(--color-text-muted);
   }
 
   .summary-transforms {
-    color: rgba(192, 132, 252, 0.7);
+    color: var(--color-text-secondary);
   }
 
   .summary-actions {
-    color: rgba(110, 231, 183, 0.7);
+    color: var(--color-success);
   }
 
   .summary-warn {
-    color: rgba(245, 158, 11, 0.8);
+    color: var(--color-warning);
     font-size: 0.75rem;
     font-weight: 600;
   }
@@ -207,17 +207,18 @@
     align-items: center;
     justify-content: center;
     border-radius: 4px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--color-border-default);
     background: transparent;
-    color: rgba(229, 231, 235, 0.6);
+    color: var(--color-text-tertiary);
     cursor: pointer;
     font-size: 0.85rem;
     line-height: 1;
+    transition: var(--transition-all);
   }
 
   .icon-btn:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.06);
-    color: rgba(229, 231, 235, 0.9);
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
   }
 
   .icon-btn.danger:hover:not(:disabled) {
@@ -228,7 +229,7 @@
 
   .route-body {
     padding: 12px 16px 16px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    border-top: 1px solid var(--color-border-subtle);
     display: grid;
     gap: 16px;
   }
@@ -236,7 +237,7 @@
   .field-label {
     display: grid;
     gap: 4px;
-    color: rgba(229, 231, 235, 0.8);
+    color: var(--color-text-tertiary);
     font-size: 0.85rem;
     font-weight: 600;
   }
@@ -244,17 +245,26 @@
   .input {
     padding: 8px 12px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(229, 231, 235, 0.92);
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-input);
+    color: var(--color-text-primary);
     outline: none;
     width: 100%;
     box-sizing: border-box;
+    transition: var(--transition-all);
+  }
+
+  .input::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  .input:hover:not(:disabled):not(:focus) {
+    border-color: var(--color-border-strong);
   }
 
   .input:focus {
-    border-color: rgba(59, 130, 246, 0.45);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    border-color: var(--color-border-focus);
+    box-shadow: var(--shadow-focus);
   }
 
   .section {
@@ -263,7 +273,7 @@
   }
 
   .section-title {
-    color: rgba(229, 231, 235, 0.7);
+    color: var(--color-text-tertiary);
     font-size: 0.85rem;
     font-weight: 700;
     margin: 0;

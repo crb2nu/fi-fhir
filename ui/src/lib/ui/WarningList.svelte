@@ -253,7 +253,7 @@
 
 <style>
   .empty {
-    color: rgba(229, 231, 235, 0.7);
+    color: var(--color-text-tertiary);
   }
 
   .controls {
@@ -274,29 +274,39 @@
     min-width: 240px;
     padding: 10px 12px;
     border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(229, 231, 235, 0.92);
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-input);
+    color: var(--color-text-primary);
     outline: none;
+    transition: var(--transition-all);
+  }
+
+  .input::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  .input:hover:not(:disabled):not(:focus) {
+    border-color: var(--color-border-strong);
   }
 
   .input:focus {
-    border-color: rgba(59, 130, 246, 0.45);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    border-color: var(--color-border-focus);
+    box-shadow: var(--shadow-focus);
   }
 
   .clear {
     padding: 8px 10px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.04);
-    color: rgba(229, 231, 235, 0.86);
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-elevated);
+    color: var(--color-text-secondary);
     font-weight: 700;
     cursor: pointer;
+    transition: var(--transition-all);
   }
 
   .clear:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--color-bg-hover);
   }
 
   .filters {
@@ -316,27 +326,28 @@
   .chip {
     padding: 6px 10px;
     border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.04);
-    color: rgba(229, 231, 235, 0.85);
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-elevated);
+    color: var(--color-text-secondary);
     font-weight: 750;
     cursor: pointer;
+    transition: var(--transition-all);
   }
 
   .chip:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--color-bg-hover);
   }
 
   .chip.active {
-    border-color: rgba(59, 130, 246, 0.45);
-    background: rgba(59, 130, 246, 0.12);
+    border-color: var(--color-primary-border);
+    background: var(--color-primary-muted);
   }
 
   .checkbox {
     display: flex;
     align-items: center;
     gap: 8px;
-    color: rgba(229, 231, 235, 0.8);
+    color: var(--color-text-secondary);
     font-weight: 650;
     font-size: 0.9rem;
   }
@@ -370,12 +381,6 @@
     cursor: not-allowed;
   }
 
-  .count {
-    color: rgba(229, 231, 235, 0.6);
-    font-weight: 750;
-    font-size: 0.85rem;
-  }
-
   .groups {
     display: grid;
     gap: 12px;
@@ -383,8 +388,8 @@
 
   .group {
     border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-elevated);
     padding: 10px 12px;
   }
 
@@ -393,7 +398,7 @@
     align-items: center;
     justify-content: space-between;
     margin-bottom: 8px;
-    color: rgba(243, 244, 246, 0.95);
+    color: var(--color-text-primary);
     font-weight: 700;
   }
 
@@ -405,9 +410,9 @@
   .count {
     padding: 2px 8px;
     border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.04);
-    color: rgba(229, 231, 235, 0.88);
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-surface);
+    color: var(--color-text-secondary);
     font-size: 0.85rem;
   }
 
@@ -425,8 +430,8 @@
 
   .item {
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-surface);
     display: grid;
     grid-template-columns: 1fr auto;
     gap: 10px;
@@ -465,16 +470,17 @@
   .mini {
     padding: 6px 10px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.04);
-    color: rgba(229, 231, 235, 0.86);
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-elevated);
+    color: var(--color-text-secondary);
     font-weight: 750;
     cursor: pointer;
     white-space: nowrap;
+    transition: var(--transition-all);
   }
 
   .mini:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--color-bg-hover);
   }
 
   .top {
@@ -486,13 +492,13 @@
 
   .code {
     font-weight: 800;
-    color: rgba(229, 231, 235, 0.92);
+    color: var(--color-text-primary);
   }
 
   .path {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
     font-size: 0.85rem;
-    color: rgba(229, 231, 235, 0.7);
+    color: var(--color-text-tertiary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -501,14 +507,14 @@
 
   .msg {
     margin-top: 6px;
-    color: rgba(229, 231, 235, 0.82);
+    color: var(--color-text-secondary);
     line-height: 1.4;
   }
 
   /* LLM Explanation styles */
   .explanation {
     margin-top: 10px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 1px solid var(--color-border-subtle);
     padding-top: 10px;
   }
 
@@ -546,21 +552,21 @@
   .explain-content {
     margin-top: 10px;
     padding: 12px;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--color-bg-surface);
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--color-border-subtle);
   }
 
   .explain-text {
     margin: 0;
-    color: rgba(229, 231, 235, 0.9);
+    color: var(--color-text-secondary);
     line-height: 1.5;
   }
 
   .fix-suggestion {
     margin-top: 10px;
     padding-top: 10px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    border-top: 1px solid var(--color-border-subtle);
   }
 
   .fix-suggestion strong {
@@ -570,15 +576,15 @@
 
   .fix-suggestion p {
     margin: 6px 0 0;
-    color: rgba(229, 231, 235, 0.85);
+    color: var(--color-text-secondary);
     line-height: 1.4;
   }
 
   .impact {
     margin-top: 10px;
     padding-top: 10px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-    color: rgba(229, 231, 235, 0.8);
+    border-top: 1px solid var(--color-border-subtle);
+    color: var(--color-text-secondary);
   }
 
   .impact strong {

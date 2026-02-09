@@ -77,9 +77,9 @@
   .yaml-output {
     padding: 12px 16px;
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(0, 0, 0, 0.3);
-    color: rgba(229, 231, 235, 0.92);
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-surface);
+    color: var(--color-text-primary);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-size: 0.85rem;
     line-height: 1.5;
@@ -92,19 +92,19 @@
     margin-top: 12px;
     padding: 12px 16px;
     border-radius: 8px;
-    border: 1px solid rgba(59, 130, 246, 0.2);
-    background: rgba(59, 130, 246, 0.05);
+    border: 1px solid var(--color-primary-border);
+    background: var(--color-primary-muted);
   }
 
   .explanation-title {
-    color: rgba(147, 197, 253, 0.9);
+    color: var(--color-primary);
     font-size: 0.85rem;
     font-weight: 700;
     margin: 0 0 8px;
   }
 
   .explanation-text {
-    color: rgba(229, 231, 235, 0.85);
+    color: var(--color-text-secondary);
     font-size: 0.9rem;
     line-height: 1.55;
     white-space: pre-wrap;

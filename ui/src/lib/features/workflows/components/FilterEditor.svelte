@@ -143,7 +143,7 @@
   }
 
   .section-label {
-    color: rgba(229, 231, 235, 0.8);
+    color: var(--color-text-tertiary);
     font-size: 0.9rem;
     font-weight: 700;
     display: grid;
@@ -167,7 +167,7 @@
   }
 
   .group-label {
-    color: rgba(229, 231, 235, 0.55);
+    color: var(--color-text-muted);
     font-size: 0.75rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -192,7 +192,7 @@
   }
 
   .checkbox-label {
-    color: rgba(229, 231, 235, 0.85);
+    color: var(--color-text-secondary);
     font-size: 0.85rem;
   }
 
@@ -205,17 +205,26 @@
   .input {
     padding: 8px 12px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(229, 231, 235, 0.92);
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-input);
+    color: var(--color-text-primary);
     outline: none;
     width: 100%;
     box-sizing: border-box;
+    transition: var(--transition-all);
+  }
+
+  .input::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  .input:hover:not(:disabled):not(:focus) {
+    border-color: var(--color-border-strong);
   }
 
   .input:focus {
-    border-color: rgba(59, 130, 246, 0.45);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    border-color: var(--color-border-focus);
+    box-shadow: var(--shadow-focus);
   }
 
   .mono {
@@ -223,7 +232,7 @@
   }
 
   .hint {
-    color: rgba(229, 231, 235, 0.5);
+    color: var(--color-text-muted);
     font-size: 0.8rem;
   }
 

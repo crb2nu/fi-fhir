@@ -89,17 +89,17 @@
     align-items: center;
     padding: 10px 12px;
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-surface);
   }
 
   .workflow-row:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--color-bg-hover);
   }
 
   .workflow-name {
     font-weight: 700;
-    color: rgba(229, 231, 235, 0.92);
+    color: var(--color-text-primary);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   }
 
@@ -110,7 +110,7 @@
   }
 
   .stat {
-    color: rgba(229, 231, 235, 0.6);
+    color: var(--color-text-tertiary);
     font-size: 0.85rem;
   }
 
@@ -120,7 +120,7 @@
   }
 
   .muted {
-    color: rgba(229, 231, 235, 0.55);
+    color: var(--color-text-muted);
   }
 
   @media (max-width: 640px) {

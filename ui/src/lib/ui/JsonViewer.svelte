@@ -57,7 +57,13 @@
 <div class="json-viewer">
   <div class="toolbar">
     <span class="label">JSON</span>
-    <button class="copy-btn" on:click={copyToClipboard} title="Copy to clipboard">
+    <button
+      class="copy-btn"
+      type="button"
+      on:click={copyToClipboard}
+      title="Copy to clipboard"
+      aria-label="Copy JSON to clipboard"
+    >
       {#if copied}
         <span class="copied">Copied!</span>
       {:else}
@@ -72,8 +78,8 @@
 <style>
   .json-viewer {
     border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-surface);
     overflow: hidden;
   }
 
@@ -82,8 +88,8 @@
     justify-content: space-between;
     align-items: center;
     padding: 8px 12px;
-    background: rgba(255, 255, 255, 0.03);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    background: var(--color-bg-elevated);
+    border-bottom: 1px solid var(--color-border-subtle);
   }
 
   .label {
@@ -91,35 +97,35 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: rgba(229, 231, 235, 0.5);
+    color: var(--color-text-muted);
   }
 
   .copy-btn {
     padding: 4px 10px;
     border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.04);
-    color: rgba(229, 231, 235, 0.8);
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-elevated);
+    color: var(--color-text-secondary);
     font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: var(--transition-all);
   }
 
   .copy-btn:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.18);
+    background: var(--color-bg-hover);
+    border-color: var(--color-border-strong);
   }
 
   .copied {
-    color: rgba(16, 185, 129, 0.95);
+    color: var(--color-success);
   }
 
   .json-content {
     margin: 0;
     padding: 12px;
     overflow: auto;
-    color: rgba(229, 231, 235, 0.9);
+    color: var(--color-text-primary);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
       'Courier New', monospace;
     font-size: 0.85rem;
