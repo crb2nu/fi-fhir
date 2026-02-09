@@ -161,15 +161,14 @@
 
   {#if !showPreview}
     <!-- Drop Zone -->
-    <div
+    <button
+      type="button"
       class="drop-zone"
       on:dragover={handleDragOver}
       on:dragleave={handleDragLeave}
       on:drop={handleDrop}
-      role="button"
-      tabindex="0"
       on:click={triggerFileSelect}
-      on:keydown={(e) => e.key === 'Enter' && triggerFileSelect()}
+      disabled={disabled || isUploading}
     >
       <div class="drop-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -182,7 +181,7 @@
         <span class="drop-primary">Drop CSV file here</span>
         <span class="drop-secondary">or click to browse</span>
       </div>
-    </div>
+    </button>
 
     <!-- Format Help -->
     <div class="format-help">
@@ -295,12 +294,21 @@
     background: var(--color-bg-surface);
     cursor: pointer;
     transition: var(--transition-all);
+    color: inherit;
+    font: inherit;
+    text-align: center;
   }
 
   .drop-zone:hover,
   .uploader.dragging .drop-zone {
     border-color: var(--color-primary);
     background: var(--color-primary-subtle);
+  }
+
+  .drop-zone:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+    border-color: var(--color-border-focus);
   }
 
   .uploader.dragging .drop-zone {

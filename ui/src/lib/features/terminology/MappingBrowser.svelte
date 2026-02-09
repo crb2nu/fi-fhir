@@ -334,35 +334,38 @@
         </div>
 
         {#each mappings as mapping (mapping.id)}
-          <div
-            class="table-row"
-            on:click={() => selectMapping(mapping)}
-            on:keydown={(e) => e.key === 'Enter' && selectMapping(mapping)}
-            role="button"
-            tabindex="0"
-          >
-            <span class="col-source">
-              <span class="system-label">{truncateSystem(mapping.sourceSystem)}</span>
-              <span class="code-value">{mapping.sourceCode}</span>
-            </span>
-            <span class="col-target">
-              <span class="system-label">{truncateSystem(mapping.targetSystem)}</span>
-              <span class="code-value">{mapping.targetCode}</span>
-            </span>
-            <span class="col-equiv">
-              <span class="equiv-badge equiv-{mapping.equivalence.toLowerCase()}">
-                {formatEquivalence(mapping.equivalence)}
+          <div class="table-row">
+            <button
+              type="button"
+              class="row-main"
+              on:click={() => selectMapping(mapping)}
+              aria-label="Select mapping {truncateSystem(mapping.sourceSystem)} {mapping.sourceCode} to {truncateSystem(mapping.targetSystem)} {mapping.targetCode}"
+            >
+              <span class="col-source">
+                <span class="system-label">{truncateSystem(mapping.sourceSystem)}</span>
+                <span class="code-value">{mapping.sourceCode}</span>
               </span>
-            </span>
-            <span class="col-origin">
-              <span class="origin-badge">{formatOrigin(mapping.origin)}</span>
-            </span>
-            <span class="col-date">{formatDate(mapping.createdAt)}</span>
+              <span class="col-target">
+                <span class="system-label">{truncateSystem(mapping.targetSystem)}</span>
+                <span class="code-value">{mapping.targetCode}</span>
+              </span>
+              <span class="col-equiv">
+                <span class="equiv-badge equiv-{mapping.equivalence.toLowerCase()}">
+                  {formatEquivalence(mapping.equivalence)}
+                </span>
+              </span>
+              <span class="col-origin">
+                <span class="origin-badge">{formatOrigin(mapping.origin)}</span>
+              </span>
+              <span class="col-date">{formatDate(mapping.createdAt)}</span>
+            </button>
             <span class="col-actions">
               <button
+                type="button"
                 class="icon-btn"
+                aria-label="Edit mapping"
                 title="Edit mapping"
-                on:click|stopPropagation={() => editMapping(mapping)}
+                on:click={() => editMapping(mapping)}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
@@ -370,9 +373,11 @@
                 </svg>
               </button>
               <button
+                type="button"
                 class="icon-btn danger"
+                aria-label="Delete mapping"
                 title="Delete mapping"
-                on:click|stopPropagation={() => confirmDelete(mapping.id)}
+                on:click={() => confirmDelete(mapping.id)}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
@@ -550,7 +555,6 @@
     border-top: 1px solid var(--color-border-subtle);
     font-size: var(--text-sm);
     color: var(--color-text-secondary);
-    cursor: pointer;
     transition: var(--transition-colors);
   }
 
@@ -558,7 +562,23 @@
     background: var(--color-bg-hover);
   }
 
-  .table-row:focus-visible {
+  .row-main {
+    grid-column: 1 / span 5;
+    display: grid;
+    grid-template-columns: 1.5fr 1.5fr 100px 100px 100px;
+    gap: var(--space-2);
+    align-items: center;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .row-main:focus-visible {
     outline: none;
     background: var(--color-bg-hover);
     box-shadow: inset 0 0 0 2px var(--color-primary-border);
