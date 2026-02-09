@@ -364,21 +364,20 @@
 
 <style>
   h1 {
-    color: #f9fafb;
+    color: var(--color-text-primary);
     margin: 0 0 8px;
   }
 
   .sub {
-    color: rgba(229, 231, 235, 0.86);
+    color: var(--color-text-secondary);
     line-height: 1.55;
     margin: 0 0 16px;
     max-width: 90ch;
   }
 
   .mono {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
-      'Courier New', monospace;
-    color: rgba(229, 231, 235, 0.9);
+    font-family: var(--font-mono);
+    color: var(--color-text-primary);
   }
 
   .grid {
@@ -420,7 +419,7 @@
   }
 
   .hint {
-    color: rgba(229, 231, 235, 0.6);
+    color: var(--color-text-muted);
     font-size: 0.85rem;
     font-weight: 700;
   }
@@ -435,15 +434,15 @@
   .pill {
     padding: 3px 10px;
     border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.04);
-    color: rgba(229, 231, 235, 0.86);
+    border: 1px solid var(--color-border-strong);
+    background: var(--color-bg-surface);
+    color: var(--color-text-secondary);
     font-weight: 800;
     font-size: 0.85rem;
   }
 
   .pill.muted {
-    color: rgba(229, 231, 235, 0.6);
+    color: var(--color-text-muted);
   }
 
   .pill.warn {
@@ -458,7 +457,7 @@
   }
 
   .empty {
-    color: rgba(229, 231, 235, 0.7);
+    color: var(--color-text-tertiary);
     line-height: 1.5;
     padding: 6px 0;
   }
@@ -480,7 +479,7 @@
   }
 
   .muted {
-    color: rgba(229, 231, 235, 0.6);
+    color: var(--color-text-muted);
     font-size: 0.85rem;
   }
 
@@ -498,18 +497,18 @@
   }
 
   .rev-head {
-    color: rgba(229, 231, 235, 0.75);
+    color: var(--color-text-tertiary);
     font-weight: 800;
     font-size: 0.9rem;
     padding-bottom: 6px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--color-border-default);
   }
 
   .rev-row {
     padding: 8px 10px;
     border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-elevated);
   }
 
   @media (max-width: 720px) {

@@ -393,8 +393,8 @@
     right: 0;
     margin-top: 8px;
     width: 260px;
-    background: #1e293b;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--color-bg-base);
+    border: 1px solid var(--color-border-default);
     border-radius: 8px;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
     z-index: 100;
@@ -407,19 +407,19 @@
     align-items: center;
     margin-bottom: 12px;
     font-weight: 600;
-    color: #f3f4f6;
+    color: var(--color-text-primary);
   }
 
   .close-btn {
     background: none;
     border: none;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--color-text-muted);
     cursor: pointer;
     font-size: 0.8rem;
   }
 
   .close-btn:hover {
-    color: white;
+    color: var(--color-text-primary);
   }
 
   .dimensions-grid {
@@ -435,7 +435,7 @@
   }
 
   .dim-label {
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--color-text-muted);
   }
 
   .dim-value {
@@ -449,9 +449,9 @@
   .issues-summary {
     margin-top: 12px;
     padding-top: 8px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid var(--color-border-default);
     font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--color-text-muted);
   }
 
   /* Full panel styles */
@@ -493,7 +493,7 @@
   .spinner {
     width: 14px;
     height: 14px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
+    border: 2px solid rgba(59, 130, 246, 0.25);
     border-top-color: white;
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
@@ -505,7 +505,7 @@
 
   .stats {
     font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--color-text-muted);
   }
 
   .error {
@@ -570,7 +570,7 @@
 
   .score-title {
     font-size: 0.9rem;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--color-text-muted);
   }
 
   .dimensions h4,
@@ -578,7 +578,7 @@
   .recommendations h4 {
     margin: 0 0 12px 0;
     font-size: 0.9rem;
-    color: #f3f4f6;
+    color: var(--color-text-primary);
   }
 
   .dimension-bars {
@@ -596,12 +596,12 @@
 
   .dim-name {
     font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--color-text-tertiary);
   }
 
   .bar-track {
     height: 6px;
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--color-bg-active);
     border-radius: 3px;
     overflow: hidden;
   }
@@ -620,7 +620,7 @@
     font-size: 0.8rem;
     font-weight: 600;
     text-align: right;
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--color-text-secondary);
   }
 
   .issue-list,
@@ -677,21 +677,21 @@
 
   .issue-dimension {
     font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--color-text-muted);
   }
 
   .issue-field {
     padding: 2px 6px;
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--color-bg-surface);
     border-radius: 4px;
     font-size: 0.75rem;
     font-family: monospace;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--color-text-secondary);
   }
 
   .issue-description {
     font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--color-text-secondary);
   }
 
   .issue-values {
@@ -699,7 +699,7 @@
     display: flex;
     gap: 12px;
     font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--color-text-muted);
   }
 
   .issue-values code {
@@ -710,8 +710,8 @@
 
   .rec {
     padding: 10px 12px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border-default);
     border-radius: 6px;
   }
 
@@ -733,23 +733,23 @@
 
   .rec-category {
     font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--color-text-muted);
   }
 
   .rec-title {
     font-weight: 500;
-    color: #f3f4f6;
+    color: var(--color-text-primary);
   }
 
   .rec-description {
     font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--color-text-tertiary);
   }
 
   .rec-impact {
     margin-top: 6px;
     font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--color-text-muted);
     font-style: italic;
   }
 </style>

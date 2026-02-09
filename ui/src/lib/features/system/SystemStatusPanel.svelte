@@ -168,7 +168,7 @@
   }
 
   .label {
-    color: rgba(229, 231, 235, 0.7);
+    color: var(--color-text-tertiary);
     font-size: 0.9rem;
     font-weight: 800;
   }
@@ -185,22 +185,22 @@
   }
 
   .mono {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-    color: rgba(229, 231, 235, 0.88);
+    font-family: var(--font-mono);
+    color: var(--color-text-secondary);
     font-size: 0.9rem;
   }
 
   .meta {
-    color: rgba(229, 231, 235, 0.6);
+    color: var(--color-text-muted);
     font-size: 0.85rem;
   }
 
   .pill {
     padding: 3px 10px;
     border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.04);
-    color: rgba(229, 231, 235, 0.86);
+    border: 1px solid var(--color-border-strong);
+    background: var(--color-bg-surface);
+    color: var(--color-text-secondary);
     font-weight: 700;
     font-size: 0.85rem;
   }
@@ -222,8 +222,8 @@
   }
 
   .pill.muted {
-    color: rgba(229, 231, 235, 0.55);
-    border-color: rgba(255, 255, 255, 0.08);
+    color: var(--color-text-muted);
+    border-color: var(--color-border-default);
   }
 
   @media (max-width: 640px) {

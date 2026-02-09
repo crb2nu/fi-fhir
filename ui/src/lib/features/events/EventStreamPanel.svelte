@@ -294,7 +294,7 @@
 
   .status-text {
     font-weight: 700;
-    color: rgba(229, 231, 235, 0.8);
+    color: var(--color-text-secondary);
   }
 
   .status-text.error {
@@ -315,7 +315,7 @@
   .filter {
     display: grid;
     gap: 6px;
-    color: rgba(229, 231, 235, 0.8);
+    color: var(--color-text-secondary);
     font-size: 0.9rem;
     font-weight: 700;
     min-width: 180px;
@@ -325,23 +325,23 @@
   .input {
     padding: 8px 12px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(229, 231, 235, 0.92);
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-input);
+    color: var(--color-text-primary);
     outline: none;
   }
 
   .select:focus,
   .input:focus {
-    border-color: rgba(59, 130, 246, 0.45);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    border-color: var(--color-border-focus);
+    box-shadow: var(--shadow-focus);
   }
 
   .empty {
-    color: rgba(229, 231, 235, 0.65);
+    color: var(--color-text-tertiary);
     padding: 24px;
     text-align: center;
-    border: 1px dashed rgba(255, 255, 255, 0.1);
+    border: 1px dashed var(--color-border-strong);
     border-radius: 12px;
   }
 
@@ -359,16 +359,16 @@
     align-items: center;
     padding: 8px 12px;
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-elevated);
   }
 
   .event-row:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--color-bg-hover);
   }
 
   .time {
-    color: rgba(229, 231, 235, 0.7);
+    color: var(--color-text-tertiary);
     font-size: 0.85rem;
   }
 
@@ -406,13 +406,13 @@
   }
 
   .type-pill.default {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    color: rgba(229, 231, 235, 0.86);
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border-strong);
+    color: var(--color-text-secondary);
   }
 
   .source {
-    color: rgba(229, 231, 235, 0.85);
+    color: var(--color-text-secondary);
     font-size: 0.85rem;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -431,11 +431,11 @@
   }
 
   .mono {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    font-family: var(--font-mono);
   }
 
   .muted {
-    color: rgba(229, 231, 235, 0.55);
+    color: var(--color-text-muted);
   }
 
   .footer {
@@ -444,7 +444,7 @@
     align-items: center;
     font-size: 0.85rem;
     padding-top: 8px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    border-top: 1px solid var(--color-border-default);
   }
 
   .paused-badge {
