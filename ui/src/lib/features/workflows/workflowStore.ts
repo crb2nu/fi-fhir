@@ -10,8 +10,19 @@ import {
 
 const STORAGE_KEY = 'fi-fhir:workflow:draft:v1';
 
+function hasLocalStorage(): boolean {
+  if (!browser) return false;
+  const ls = globalThis.localStorage as Storage | undefined;
+  return Boolean(
+    ls &&
+      typeof ls.getItem === 'function' &&
+      typeof ls.setItem === 'function' &&
+      typeof ls.removeItem === 'function'
+  );
+}
+
 function load(): WorkflowDraft {
-  if (!browser) return createEmptyWorkflow();
+  if (!hasLocalStorage()) return createEmptyWorkflow();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return createEmptyWorkflow();
@@ -26,7 +37,7 @@ function load(): WorkflowDraft {
 }
 
 function save(draft: WorkflowDraft): void {
-  if (!browser) return;
+  if (!hasLocalStorage()) return;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
 }
 

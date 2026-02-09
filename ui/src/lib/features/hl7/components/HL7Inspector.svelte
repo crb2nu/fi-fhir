@@ -257,35 +257,35 @@
     align-items: center;
   }
 
-  .pill {
-    padding: 4px 10px;
-    border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.04);
-    color: rgba(229, 231, 235, 0.86);
-    font-weight: 650;
-    font-size: 0.85rem;
-  }
+	  .pill {
+	    padding: 4px 10px;
+	    border-radius: 999px;
+	    border: 1px solid var(--color-border-strong);
+	    background: var(--color-bg-surface);
+	    color: var(--color-text-secondary);
+	    font-weight: 650;
+	    font-size: 0.85rem;
+	  }
 
-  .mono {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-  }
+	  .mono {
+	    font-family: var(--font-mono);
+	  }
 
-  .search {
-    flex: 1;
-    min-width: 220px;
-    padding: 10px 12px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(229, 231, 235, 0.92);
-    outline: none;
-  }
+	  .search {
+	    flex: 1;
+	    min-width: 220px;
+	    padding: 10px 12px;
+	    border-radius: var(--radius-xl);
+	    border: 1px solid var(--color-border-default);
+	    background: var(--color-bg-input);
+	    color: var(--color-text-primary);
+	    outline: none;
+	  }
 
-  .search:focus {
-    border-color: rgba(59, 130, 246, 0.45);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
-  }
+	  .search:focus {
+	    border-color: var(--color-border-focus);
+	    box-shadow: var(--shadow-focus);
+	  }
 
   .selected {
     display: flex;
@@ -294,73 +294,73 @@
     align-items: center;
   }
 
-  .note {
-    color: rgba(229, 231, 235, 0.72);
-    font-size: 0.9rem;
-  }
+	  .note {
+	    color: var(--color-text-tertiary);
+	    font-size: 0.9rem;
+	  }
 
-  .mini {
-    padding: 6px 10px;
-    border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.04);
-    color: rgba(229, 231, 235, 0.86);
-    font-weight: 750;
-    cursor: pointer;
-    white-space: nowrap;
-  }
+	  .mini {
+	    padding: 6px 10px;
+	    border-radius: 10px;
+	    border: 1px solid var(--color-border-strong);
+	    background: var(--color-bg-surface);
+	    color: var(--color-text-secondary);
+	    font-weight: 750;
+	    cursor: pointer;
+	    white-space: nowrap;
+	  }
 
-  .mini:hover {
-    background: rgba(255, 255, 255, 0.06);
-  }
+	  .mini:hover {
+	    background: var(--color-bg-hover);
+	  }
 
   .segments {
     display: grid;
     gap: 10px;
   }
 
-  .seg {
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.02);
-    overflow: hidden;
-  }
+	  .seg {
+	    border-radius: 12px;
+	    border: 1px solid var(--color-border-default);
+	    background: var(--color-bg-elevated);
+	    overflow: hidden;
+	  }
 
   .seg[data-selected='true'] {
     border-color: rgba(59, 130, 246, 0.45);
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
   }
 
-  .summary {
+	  .summary {
     padding: 10px 12px;
     cursor: pointer;
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     gap: 10px;
-    color: rgba(243, 244, 246, 0.95);
-    font-weight: 800;
-  }
+	    color: var(--color-text-primary);
+	    font-weight: 800;
+	  }
 
-  .hint {
-    color: rgba(229, 231, 235, 0.7);
-    font-weight: 650;
-    font-size: 0.85rem;
-  }
+	  .hint {
+	    color: var(--color-text-tertiary);
+	    font-weight: 650;
+	    font-size: 0.85rem;
+	  }
 
-  .fields {
-    padding: 10px 12px 12px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-    display: grid;
-    gap: 10px;
-  }
+	  .fields {
+	    padding: 10px 12px 12px;
+	    border-top: 1px solid var(--color-border-default);
+	    display: grid;
+	    gap: 10px;
+	  }
 
-  .field {
-    border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.03);
-    padding: 10px;
-  }
+	  .field {
+	    border-radius: 10px;
+	    border: 1px solid var(--color-border-default);
+	    background: var(--color-bg-elevated);
+	    padding: 10px;
+	  }
 
   .field.selected {
     border-color: rgba(59, 130, 246, 0.5);
@@ -372,40 +372,40 @@
     gap: 6px;
   }
 
-  .label {
-    color: rgba(229, 231, 235, 0.9);
-    font-weight: 800;
-  }
+	  .label {
+	    color: var(--color-text-primary);
+	    font-weight: 800;
+	  }
 
-  .value {
-    color: rgba(229, 231, 235, 0.82);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+	  .value {
+	    color: var(--color-text-secondary);
+	    overflow: hidden;
+	    text-overflow: ellipsis;
+	    white-space: nowrap;
+	  }
 
-  .components {
+	  .components {
     margin-top: 10px;
     display: grid;
     gap: 6px;
     padding-top: 10px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-  }
+	    border-top: 1px solid var(--color-border-default);
+	  }
 
-  .reps {
+	  .reps {
     margin-top: 10px;
     display: grid;
     gap: 8px;
     padding-top: 10px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-  }
+	    border-top: 1px solid var(--color-border-default);
+	  }
 
-  .rep {
-    border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.02);
-    padding: 10px;
-  }
+	  .rep {
+	    border-radius: 10px;
+	    border: 1px solid var(--color-border-default);
+	    background: var(--color-bg-elevated);
+	    padding: 10px;
+	  }
 
   .rep.selected {
     border-color: rgba(59, 130, 246, 0.5);
@@ -417,18 +417,18 @@
     gap: 6px;
   }
 
-  .rep-label {
-    color: rgba(229, 231, 235, 0.78);
-    font-weight: 800;
-    font-size: 0.85rem;
-  }
+	  .rep-label {
+	    color: var(--color-text-secondary);
+	    font-weight: 800;
+	    font-size: 0.85rem;
+	  }
 
-  .rep-value {
-    color: rgba(229, 231, 235, 0.82);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+	  .rep-value {
+	    color: var(--color-text-secondary);
+	    overflow: hidden;
+	    text-overflow: ellipsis;
+	    white-space: nowrap;
+	  }
 
   .component {
     display: flex;
@@ -444,17 +444,17 @@
     border: 1px solid rgba(59, 130, 246, 0.22);
   }
 
-  .comp-label {
-    color: rgba(229, 231, 235, 0.75);
-    font-weight: 700;
-    font-size: 0.85rem;
-  }
+	  .comp-label {
+	    color: var(--color-text-tertiary);
+	    font-weight: 700;
+	    font-size: 0.85rem;
+	  }
 
-  .comp-value {
-    color: rgba(229, 231, 235, 0.8);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 70%;
-  }
+	  .comp-value {
+	    color: var(--color-text-secondary);
+	    overflow: hidden;
+	    text-overflow: ellipsis;
+	    white-space: nowrap;
+	    max-width: 70%;
+	  }
 </style>

@@ -217,21 +217,21 @@
 {/if}
 
 <style>
-  .empty {
-    color: rgba(229, 231, 235, 0.7);
-  }
+	  .empty {
+	    color: var(--color-text-tertiary);
+	  }
 
   .stack {
     display: grid;
     gap: 12px;
   }
 
-  .card {
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.02);
-    padding: 10px 12px;
-  }
+	  .card {
+	    border-radius: 12px;
+	    border: 1px solid var(--color-border-default);
+	    background: var(--color-bg-elevated);
+	    padding: 10px 12px;
+	  }
 
   .head {
     display: flex;
@@ -241,10 +241,10 @@
     margin-bottom: 8px;
   }
 
-  .title {
-    color: rgba(243, 244, 246, 0.95);
-    font-weight: 850;
-  }
+	  .title {
+	    color: var(--color-text-primary);
+	    font-weight: 850;
+	  }
 
   .meta {
     display: flex;
@@ -253,28 +253,28 @@
     justify-content: flex-end;
   }
 
-  .pill {
+	  .pill {
     padding: 2px 8px;
     border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.04);
-    color: rgba(229, 231, 235, 0.88);
-    font-size: 0.85rem;
-  }
+	    border: 1px solid var(--color-border-strong);
+	    background: var(--color-bg-surface);
+	    color: var(--color-text-secondary);
+	    font-size: 0.85rem;
+	  }
 
-  .mono {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-  }
+	  .mono {
+	    font-family: var(--font-mono);
+	  }
 
   .section {
     margin-top: 10px;
   }
 
-  .section-title {
-    color: rgba(243, 244, 246, 0.9);
-    font-weight: 800;
-    margin-bottom: 10px;
-  }
+	  .section-title {
+	    color: var(--color-text-primary);
+	    font-weight: 800;
+	    margin-bottom: 10px;
+	  }
 
   .grid {
     display: grid;
@@ -288,69 +288,69 @@
     margin-bottom: 10px;
   }
 
-  .picker {
+	  .picker {
     display: grid;
     gap: 6px;
-    color: rgba(229, 231, 235, 0.8);
-    font-size: 0.9rem;
-    font-weight: 750;
-    min-width: 260px;
-  }
+	    color: var(--color-text-secondary);
+	    font-size: 0.9rem;
+	    font-weight: 750;
+	    min-width: 260px;
+	  }
 
-  .select {
-    padding: 10px 12px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(229, 231, 235, 0.92);
-    outline: none;
-  }
+	  .select {
+	    padding: 10px 12px;
+	    border-radius: var(--radius-xl);
+	    border: 1px solid var(--color-border-default);
+	    background: var(--color-bg-input);
+	    color: var(--color-text-primary);
+	    outline: none;
+	  }
 
-  .select:focus {
-    border-color: rgba(59, 130, 246, 0.45);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
-  }
+	  .select:focus {
+	    border-color: var(--color-border-focus);
+	    box-shadow: var(--shadow-focus);
+	  }
 
-  .row {
+	  .row {
     width: 100%;
     text-align: left;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.03);
-    padding: 10px;
-    cursor: pointer;
+	    border: 1px solid var(--color-border-default);
+	    background: var(--color-bg-elevated);
+	    padding: 10px;
+	    cursor: pointer;
     display: grid;
     grid-template-columns: 120px 1fr auto;
     gap: 10px;
     align-items: baseline;
   }
 
-  .row:hover {
-    background: rgba(255, 255, 255, 0.05);
-  }
+	  .row:hover {
+	    background: var(--color-bg-hover);
+	  }
 
-  .k {
-    color: rgba(229, 231, 235, 0.92);
-    font-weight: 850;
-  }
+	  .k {
+	    color: var(--color-text-primary);
+	    font-weight: 850;
+	  }
 
-  .v {
-    color: rgba(229, 231, 235, 0.85);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+	  .v {
+	    color: var(--color-text-secondary);
+	    overflow: hidden;
+	    text-overflow: ellipsis;
+	    white-space: nowrap;
+	  }
 
-  .hint {
-    color: rgba(229, 231, 235, 0.6);
-    font-size: 0.85rem;
-    font-weight: 700;
-    white-space: nowrap;
-  }
+	  .hint {
+	    color: var(--color-text-muted);
+	    font-size: 0.85rem;
+	    font-weight: 700;
+	    white-space: nowrap;
+	  }
 
-  .note {
-    color: rgba(229, 231, 235, 0.72);
-    line-height: 1.45;
-    margin-bottom: 10px;
-  }
+	  .note {
+	    color: var(--color-text-tertiary);
+	    line-height: 1.45;
+	    margin-bottom: 10px;
+	  }
 </style>

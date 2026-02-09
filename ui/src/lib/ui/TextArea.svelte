@@ -18,6 +18,7 @@
   {disabled}
   readonly={readOnly}
   on:input={onInput}
+  {...$$restProps}
 ></textarea>
 
 <style>
@@ -26,18 +27,18 @@
     resize: vertical;
     min-height: 160px;
     padding: 10px 12px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(229, 231, 235, 0.92);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-input);
+    color: var(--color-text-primary);
+    font-family: var(--font-mono);
     line-height: 1.45;
     outline: none;
   }
 
   .ta:focus {
-    border-color: rgba(59, 130, 246, 0.45);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    border-color: var(--color-border-focus);
+    box-shadow: var(--shadow-focus);
   }
 
   .ta:disabled {

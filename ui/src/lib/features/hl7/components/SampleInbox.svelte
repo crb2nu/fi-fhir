@@ -1,10 +1,12 @@
 <script lang="ts">
   import Panel from '$lib/ui/Panel.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import ConfirmModal from '$lib/ui/ConfirmModal.svelte';
   import type { HL7Sample } from '$lib/features/hl7/samples/types';
   import type { HL7RedactionMode } from '$lib/domain/hl7Redact';
   import { afterUpdate, createEventDispatcher, tick } from 'svelte';
   import { createDialogFocusController } from '$lib/domain/a11yDialog';
+  import { SvelteSet } from 'svelte/reactivity';
 
   export let samples: readonly HL7Sample[];
   export let activeId: string | null;
@@ -17,7 +19,16 @@
     remove: { id: string };
     saveCurrent: { name?: string; source?: string; feed?: string; tags?: string[]; redactionMode?: HL7RedactionMode };
     importFiles: { files: File[]; source?: string; feed?: string; tags?: string[]; redactionMode?: HL7RedactionMode };
-    updateMeta: { id: string; name: string; source: string; feed: string; tags: string[] };
+    updateMeta: {
+      id: string;
+      name: string;
+      source: string;
+      feed: string;
+      tags: string[];
+      redactionMode?: HL7RedactionMode;
+    };
+    bulkRemove: { ids: string[] };
+    bulkUpdateMeta: { ids: string[]; changes: { tags?: string[]; redactionMode?: HL7RedactionMode } };
     clear: Record<string, never>;
     loadExamples: Record<string, never>;
   }>();
@@ -40,6 +51,62 @@
   let editModalEl: HTMLDivElement | null = null;
   let wasEditModalOpen = false;
   let editFocusCtl: ReturnType<typeof createDialogFocusController> | null = null;
+
+  let selectionMode = false;
+  let selectedIds = new SvelteSet<string>();
+  let bulkDeleteOpen = false;
+
+  function toggleSelectionMode(): void {
+    selectionMode = !selectionMode;
+    if (!selectionMode) selectedIds.clear();
+  }
+
+  function toggleSelected(id: string): void {
+    if (selectedIds.has(id)) selectedIds.delete(id);
+    else selectedIds.add(id);
+  }
+
+  function clearSelected(): void {
+    selectedIds.clear();
+  }
+
+  function selectAllFiltered(): void {
+    selectedIds.clear();
+    for (const s of filtered) selectedIds.add(s.id);
+  }
+
+  function requestBulkDelete(): void {
+    if (selectedIds.size === 0) return;
+    bulkDeleteOpen = true;
+  }
+
+  function confirmBulkDelete(): void {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    dispatch('bulkRemove', { ids });
+    selectedIds.clear();
+    bulkDeleteOpen = false;
+  }
+
+  function applyTagsToSelected(): void {
+    const parsedTags = parseTags(tags);
+    if (parsedTags.length === 0) return;
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    dispatch('bulkUpdateMeta', { ids, changes: { tags: parsedTags } });
+  }
+
+  function clearTagsOnSelected(): void {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    dispatch('bulkUpdateMeta', { ids, changes: { tags: [] } });
+  }
+
+  function applyRedactionToSelected(mode: HL7RedactionMode): void {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    dispatch('bulkUpdateMeta', { ids, changes: { redactionMode: mode } });
+  }
 
   function save() {
     const n = name.trim();
@@ -193,6 +260,15 @@
         return hay.includes(q);
       })
     : samples;
+
+  $: if (!selectionMode && selectedIds.size) selectedIds.clear();
+
+  $: {
+    const valid = new Set(samples.map((s) => s.id));
+    for (const id of selectedIds) {
+      if (!valid.has(id)) selectedIds.delete(id);
+    }
+  }
 </script>
 
 <svelte:window on:keydown={handleWindowKeydown} />
@@ -271,32 +347,107 @@
       </Button>
     </div>
   {:else}
-    <div class="filter">
-      <input
-        class="input"
-        type="text"
-        bind:value={filter}
-        placeholder="Filter by name, source, feed, message type, tag…"
-        disabled={disabled}
-      />
-      {#if filter.trim()}
-        <Button variant="secondary" on:click={() => (filter = '')} disabled={disabled}>Clear</Button>
-      {/if}
-      <span class="count mono">{filtered.length}/{samples.length}</span>
-    </div>
+	    <div class="filter">
+	      <input
+	        class="input"
+	        type="text"
+	        bind:value={filter}
+	        placeholder="Filter by name, source, feed, message type, tag…"
+	        disabled={disabled}
+	      />
+	      {#if filter.trim()}
+	        <Button variant="secondary" on:click={() => (filter = '')} disabled={disabled}>Clear</Button>
+	      {/if}
+	      <span class="count mono">{filtered.length}/{samples.length}</span>
+	      <Button variant="secondary" on:click={toggleSelectionMode} disabled={disabled}>
+	        {selectionMode ? 'Done' : 'Select'}
+	      </Button>
+	    </div>
 
-    <ul class="list">
-      {#each filtered as s (s.id)}
-        <li class="li">
-          <button
-            type="button"
-            class="item"
-            class:active={activeId === s.id}
-            on:click={() => dispatch('select', { id: s.id })}
-            disabled={disabled}
-          >
-            <div class="top">
-              <div class="title">{s.name}</div>
+	    {#if selectionMode}
+	      <div class="bulk-bar" aria-label="Bulk actions">
+	        <div class="bulk-left">
+	          <span class="mono">{selectedIds.size} selected</span>
+	        </div>
+	        <div class="bulk-actions">
+	          <Button variant="secondary" size="sm" on:click={selectAllFiltered} disabled={disabled || filtered.length === 0}>
+	            Select all
+	          </Button>
+	          <Button variant="secondary" size="sm" on:click={clearSelected} disabled={disabled || selectedIds.size === 0}>
+	            Clear selected
+	          </Button>
+	          <Button variant="danger" size="sm" on:click={requestBulkDelete} disabled={disabled || selectedIds.size === 0}>
+	            Delete selected
+	          </Button>
+	        </div>
+	      </div>
+
+	      <div class="bulk-bar" aria-label="Bulk apply metadata">
+	        <div class="bulk-left">
+	          <span class="muted">Apply to selected</span>
+	        </div>
+	        <div class="bulk-actions">
+	          <Button
+	            variant="secondary"
+	            size="sm"
+	            on:click={applyTagsToSelected}
+	            disabled={disabled || selectedIds.size === 0 || parseTags(tags).length === 0}
+	            title="Uses Tags field above"
+	          >
+	            Apply tags
+	          </Button>
+	          <Button
+	            variant="secondary"
+	            size="sm"
+	            on:click={clearTagsOnSelected}
+	            disabled={disabled || selectedIds.size === 0}
+	          >
+	            Clear tags
+	          </Button>
+	          <Button
+	            variant="secondary"
+	            size="sm"
+	            on:click={() => applyRedactionToSelected(redactionMode)}
+	            disabled={disabled || selectedIds.size === 0}
+	            title="Uses Redaction selector above"
+	          >
+	            Set redaction
+	          </Button>
+	          <Button
+	            variant="secondary"
+	            size="sm"
+	            on:click={() => applyRedactionToSelected('none')}
+	            disabled={disabled || selectedIds.size === 0}
+	          >
+	            Clear redaction
+	          </Button>
+	        </div>
+	      </div>
+	    {/if}
+
+	    <ul class="list" class:selection={selectionMode}>
+	      {#each filtered as s (s.id)}
+	        <li class="li">
+	          {#if selectionMode}
+	            <label class="check">
+	              <input
+	                type="checkbox"
+	                checked={selectedIds.has(s.id)}
+	                on:change={() => toggleSelected(s.id)}
+	                disabled={disabled}
+	              />
+	              <span class="sr-only">Select {s.name}</span>
+	            </label>
+	          {/if}
+	          <button
+	            type="button"
+	            class="item"
+	            class:active={activeId === s.id}
+	            on:click={() => (selectionMode ? toggleSelected(s.id) : dispatch('select', { id: s.id }))}
+	            disabled={disabled}
+	          >
+	            <div class="top">
+	              <div class="title">{s.name}</div>
               <div class="meta">
                 {#if s.messageType}<span class="pill mono">{s.messageType}</span>{/if}
                 {#if s.version}<span class="pill mono">{s.version}</span>{/if}
@@ -320,13 +471,18 @@
                 <span class="mono">MSH-10={s.controlId}</span>
               {/if}
             </div>
-          </button>
-          <div class="item-actions">
-            <Button variant="secondary" on:click={() => openEdit(s)} disabled={disabled}>Edit</Button>
-            <button
-              type="button"
-              class="trash"
-              title="Remove"
+	          </button>
+	          <div class="item-actions">
+	            {#if selectionMode}
+	              <Button variant="secondary" on:click={() => dispatch('select', { id: s.id })} disabled={disabled}>
+	                Open
+	              </Button>
+	            {/if}
+	            <Button variant="secondary" on:click={() => openEdit(s)} disabled={disabled}>Edit</Button>
+	            <button
+	              type="button"
+	              class="trash"
+	              title="Remove"
               on:click={() => dispatch('remove', { id: s.id })}
               disabled={disabled}
             >
@@ -335,13 +491,24 @@
           </div>
         </li>
       {/each}
-    </ul>
-  {/if}
+	    </ul>
+	  {/if}
 
-  {#if showEditModal}
-    <div class="modal-overlay">
-      <button
-        type="button"
+	  <ConfirmModal
+	    bind:open={bulkDeleteOpen}
+	    title="Delete selected samples?"
+	    message={`This will remove ${selectedIds.size} sample(s) from localStorage.`}
+	    confirmText="Delete"
+	    cancelText="Cancel"
+	    variant="danger"
+	    on:confirm={confirmBulkDelete}
+	    on:cancel={() => (bulkDeleteOpen = false)}
+	  />
+
+	  {#if showEditModal}
+	    <div class="modal-overlay">
+	      <button
+	        type="button"
         class="modal-backdrop"
         tabindex="-1"
         aria-label="Close dialog"
@@ -408,24 +575,24 @@
     }
   }
 
-  .hint {
-    font-size: 0.8rem;
-    color: rgba(229, 231, 235, 0.55);
-  }
+	  .hint {
+	    font-size: 0.8rem;
+	    color: var(--color-text-muted);
+	  }
 
-  .select {
-    padding: 10px 12px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(229, 231, 235, 0.92);
-    outline: none;
-  }
+	  .select {
+	    padding: 10px 12px;
+	    border-radius: var(--radius-xl);
+	    border: 1px solid var(--color-border-default);
+	    background: var(--color-bg-input);
+	    color: var(--color-text-primary);
+	    outline: none;
+	  }
 
-  .select:focus {
-    border-color: rgba(59, 130, 246, 0.45);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
-  }
+	  .select:focus {
+	    border-color: var(--color-border-focus);
+	    box-shadow: var(--shadow-focus);
+	  }
 
   .dropzone.dragging {
     outline: 2px dashed rgba(59, 130, 246, 0.7);
@@ -433,11 +600,11 @@
     border-radius: 12px;
   }
 
-  .note {
-    margin: 0 0 12px;
-    color: rgba(229, 231, 235, 0.78);
-    line-height: 1.45;
-  }
+	  .note {
+	    margin: 0 0 12px;
+	    color: var(--color-text-secondary);
+	    line-height: 1.45;
+	  }
 
   .save {
     display: grid;
@@ -445,26 +612,26 @@
     margin-bottom: 14px;
   }
 
-  .label {
-    display: grid;
-    gap: 6px;
-    color: rgba(229, 231, 235, 0.8);
-    font-size: 0.9rem;
-  }
+	  .label {
+	    display: grid;
+	    gap: 6px;
+	    color: var(--color-text-secondary);
+	    font-size: 0.9rem;
+	  }
 
-  .input {
-    padding: 10px 12px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(229, 231, 235, 0.92);
-    outline: none;
-  }
+	  .input {
+	    padding: 10px 12px;
+	    border-radius: var(--radius-xl);
+	    border: 1px solid var(--color-border-default);
+	    background: var(--color-bg-input);
+	    color: var(--color-text-primary);
+	    outline: none;
+	  }
 
-  .input:focus {
-    border-color: rgba(59, 130, 246, 0.45);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
-  }
+	  .input:focus {
+	    border-color: var(--color-border-focus);
+	    box-shadow: var(--shadow-focus);
+	  }
 
   .save-actions {
     display: flex;
@@ -472,21 +639,21 @@
     flex-wrap: wrap;
   }
 
-  .empty-state {
+	  .empty-state {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 12px;
     padding: 20px;
     border-radius: 12px;
-    border: 1px dashed rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.02);
-  }
+	    border: 1px dashed var(--color-border-default);
+	    background: var(--color-bg-elevated);
+	  }
 
-  .empty {
-    color: rgba(229, 231, 235, 0.7);
-    margin: 0;
-  }
+	  .empty {
+	    color: var(--color-text-tertiary);
+	    margin: 0;
+	  }
 
   .filter {
     display: flex;
@@ -496,11 +663,44 @@
     margin-bottom: 12px;
   }
 
-  .count {
-    color: rgba(229, 231, 235, 0.6);
-    font-size: 0.85rem;
-    font-weight: 700;
+	  .bulk-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    border-radius: 12px;
+	    border: 1px solid var(--color-border-default);
+	    background: var(--color-bg-elevated);
+	  }
+
+  .bulk-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
+
+  .bulk-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+	  .muted {
+	    color: var(--color-text-tertiary);
+	    font-size: 0.9rem;
+	    font-weight: 650;
+	  }
+
+	  .count {
+	    color: var(--color-text-muted);
+	    font-size: 0.85rem;
+	    font-weight: 700;
+	  }
 
   .list {
     padding: 0;
@@ -517,6 +717,22 @@
     align-items: start;
   }
 
+  .list.selection .li {
+    grid-template-columns: auto 1fr auto;
+  }
+
+  .check {
+    display: flex;
+    align-items: start;
+    padding-top: 12px;
+  }
+
+  .check input {
+    width: 16px;
+    height: 16px;
+    accent-color: rgba(59, 130, 246, 0.85);
+  }
+
   .item-actions {
     display: flex;
     flex-direction: column;
@@ -524,20 +740,20 @@
     align-items: stretch;
   }
 
-  .item {
+	  .item {
     width: 100%;
     text-align: left;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.02);
-    padding: 12px;
-    cursor: pointer;
-    color: rgba(229, 231, 235, 0.9);
-  }
+	    border-radius: var(--radius-xl);
+	    border: 1px solid var(--color-border-default);
+	    background: var(--color-bg-elevated);
+	    padding: 12px;
+	    cursor: pointer;
+	    color: var(--color-text-primary);
+	  }
 
-  .item:hover:enabled {
-    background: rgba(255, 255, 255, 0.04);
-  }
+	  .item:hover:enabled {
+	    background: var(--color-bg-hover);
+	  }
 
   .item.active {
     border-color: rgba(59, 130, 246, 0.45);
@@ -551,24 +767,24 @@
     gap: 10px;
   }
 
-  .title {
-    font-weight: 800;
-    color: rgba(243, 244, 246, 0.95);
-  }
+	  .title {
+	    font-weight: 800;
+	    color: var(--color-text-primary);
+	  }
 
-  .sub {
-    margin-top: 8px;
-    color: rgba(229, 231, 235, 0.72);
-    font-size: 0.9rem;
+	  .sub {
+	    margin-top: 8px;
+	    color: var(--color-text-tertiary);
+	    font-size: 0.9rem;
     display: flex;
     align-items: baseline;
     gap: 8px;
     flex-wrap: wrap;
   }
 
-  .dot {
-    color: rgba(229, 231, 235, 0.5);
-  }
+	  .dot {
+	    color: var(--color-text-muted);
+	  }
 
   .meta {
     display: flex;
@@ -577,15 +793,15 @@
     justify-content: flex-end;
   }
 
-  .pill {
-    padding: 2px 8px;
-    border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.04);
-    color: rgba(229, 231, 235, 0.8);
-    font-size: 0.85rem;
-    font-weight: 650;
-  }
+	  .pill {
+	    padding: 2px 8px;
+	    border-radius: 999px;
+	    border: 1px solid var(--color-border-strong);
+	    background: var(--color-bg-surface);
+	    color: var(--color-text-secondary);
+	    font-size: 0.85rem;
+	    font-weight: 650;
+	  }
 
   .pill.tag {
     border-color: rgba(59, 130, 246, 0.28);
@@ -622,33 +838,33 @@
     z-index: 1000;
   }
 
-  .modal-backdrop {
+	  .modal-backdrop {
     position: absolute;
     inset: 0;
     border: 0;
     padding: 0;
-    background: rgba(0, 0, 0, 0.6);
-    cursor: default;
-  }
+	    background: var(--modal-backdrop);
+	    cursor: default;
+	  }
+	
+	  .modal {
+	    position: relative;
+	    z-index: 1;
+	    background: var(--color-bg-base);
+	    border: 1px solid var(--color-border-default);
+	    border-radius: var(--modal-radius);
+	    padding: 24px;
+	    min-width: 360px;
+	    max-width: 520px;
+	    width: calc(100vw - 32px);
+	  }
 
-  .modal {
-    position: relative;
-    z-index: 1;
-    background: #1f2937;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px;
-    padding: 24px;
-    min-width: 360px;
-    max-width: 520px;
-    width: calc(100vw - 32px);
-  }
-
-  .modal-title {
+	  .modal-title {
     margin: 0 0 16px;
     font-size: 1.1rem;
     font-weight: 800;
-    color: #f3f4f6;
-  }
+	    color: var(--color-text-primary);
+	  }
 
   .modal-body {
     display: grid;

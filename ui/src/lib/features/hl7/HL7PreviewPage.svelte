@@ -204,6 +204,35 @@
     el?.focus();
   }
 
+  function clearSelection(): void {
+    selectedPath = null;
+    selectedLocation = null;
+    activeTab = 'warnings';
+  }
+
+  async function previewFromPalette(): Promise<void> {
+    if ($state.loading) return;
+    if (!$state.data.trim()) return;
+    await run();
+  }
+
+  async function processFromPalette(): Promise<void> {
+    if ($state.loading) return;
+    if (!$state.data.trim()) return;
+    await processMessage();
+  }
+
+  function loadFileFromPalette(): void {
+    if ($state.loading) return;
+    fileInputEl?.click();
+  }
+
+  async function copyRawFromPalette(): Promise<void> {
+    const data = normalizeHL7Newlines(getSnapshot().data);
+    if (!data.trim()) return;
+    await copyText(data);
+  }
+
   function selectWarningRelative(delta: number): void {
     const warnings = $state.result?.parsePreview.warnings ?? [];
     const withPath = warnings.filter((w) => Boolean(w.path));
@@ -513,6 +542,90 @@
   $: paletteCommands = (() => {
     const cmds: PaletteCommand[] = [
       {
+        id: 'preview',
+        label: 'Preview (parse)',
+        hint: 'Cmd/Ctrl+Enter',
+        keywords: ['run', 'parse', 'preview'],
+        run: previewFromPalette
+      },
+      {
+        id: 'process',
+        label: 'Process message',
+        hint: 'Submit to pipeline',
+        keywords: ['submit', 'process', 'workflow'],
+        run: processFromPalette
+      },
+      {
+        id: 'load-file',
+        label: 'Load HL7 file…',
+        hint: 'Cmd/Ctrl+O',
+        keywords: ['open', 'file', 'upload'],
+        run: loadFileFromPalette
+      },
+      {
+        id: 'open-samples',
+        label: 'Open samples',
+        hint: 'Browse inbox',
+        keywords: ['samples', 'inbox'],
+        run: () => {
+          activeTab = 'samples';
+        }
+      },
+      {
+        id: 'go-warnings',
+        label: 'Go to warnings',
+        hint: 'Tab',
+        keywords: ['warnings', 'phase'],
+        run: () => {
+          activeTab = 'warnings';
+        }
+      },
+      {
+        id: 'go-events',
+        label: 'Go to events',
+        hint: 'Tab',
+        keywords: ['events', 'canonical'],
+        run: () => {
+          activeTab = 'events';
+        }
+      },
+      {
+        id: 'go-extraction',
+        label: 'Go to extraction',
+        hint: 'Tab',
+        keywords: ['extraction', 'fields'],
+        run: () => {
+          activeTab = 'extraction';
+        }
+      },
+      {
+        id: 'go-inspector',
+        label: 'Go to inspector',
+        hint: 'Tab',
+        keywords: ['inspector', 'hl7', 'segments'],
+        run: () => {
+          activeTab = 'inspector';
+        }
+      },
+      {
+        id: 'go-profile',
+        label: 'Go to profile draft',
+        hint: 'Tab',
+        keywords: ['profile', 'draft', 'fix'],
+        run: () => {
+          activeTab = 'profile';
+        }
+      },
+      {
+        id: 'go-process',
+        label: 'Go to process',
+        hint: 'Tab',
+        keywords: ['process', 'submit'],
+        run: () => {
+          activeTab = 'process';
+        }
+      },
+      {
         id: 'focus-warnings-filter',
         label: 'Focus warnings filter',
         hint: 'Jump to warnings search',
@@ -545,8 +658,54 @@
         hint: 'Alt+ArrowUp',
         keywords: ['warnings', 'previous'],
         run: () => selectWarningRelative(-1)
+      },
+      {
+        id: 'clear-selection',
+        label: 'Clear selection',
+        hint: 'Esc',
+        keywords: ['clear', 'selection', 'reset'],
+        run: clearSelection
       }
     ];
+
+    const raw = ($state.data ?? '').trim();
+    if (raw) {
+      cmds.unshift({
+        id: 'copy-raw',
+        label: 'Copy raw HL7',
+        hint: 'Editor contents',
+        keywords: ['copy', 'raw', 'message'],
+        run: copyRawFromPalette
+      });
+    }
+
+    if (msh9) {
+      cmds.unshift({
+        id: 'copy-msh-9',
+        label: 'Copy MSH-9 (message type)',
+        hint: 'ADT^A01',
+        keywords: ['copy', 'msh', 'type', 'event'],
+        run: () => copyText(msh9)
+      });
+    }
+    if (msh10) {
+      cmds.unshift({
+        id: 'copy-msh-10',
+        label: 'Copy MSH-10 (control ID)',
+        hint: 'Correlation ID',
+        keywords: ['copy', 'msh', 'id', 'control'],
+        run: () => copyText(msh10)
+      });
+    }
+    if (msh12) {
+      cmds.unshift({
+        id: 'copy-msh-12',
+        label: 'Copy MSH-12 (version)',
+        hint: '2.5.1',
+        keywords: ['copy', 'msh', 'version'],
+        run: () => copyText(msh12)
+      });
+    }
 
     const path = selectedPath;
     if (path) {
@@ -792,7 +951,7 @@
         {#if msh10}<span class="pill mono">MSH-10={msh10}</span>{/if}
         {#if msh12}<span class="pill mono">MSH-12={msh12}</span>{/if}
       </div>
-      <TextArea bind:value={$state.data} rows={12} disabled={$state.loading} />
+      <TextArea aria-label="HL7v2 message" bind:value={$state.data} rows={12} disabled={$state.loading} />
       {#if isDragging}
         <div class="drop-hint">Drop files to import into Samples</div>
       {/if}
@@ -890,12 +1049,14 @@
           }}
           on:updateMeta={(e) => {
             const before = $activeSample;
-            samplesStore.updateMeta(e.detail.id, {
+            const changes = {
               name: e.detail.name,
               source: e.detail.source,
               feed: e.detail.feed,
-              tags: e.detail.tags
-            });
+              tags: e.detail.tags,
+              ...(e.detail.redactionMode !== undefined ? { redactionMode: e.detail.redactionMode } : {})
+            };
+            samplesStore.updateMeta(e.detail.id, changes);
             if (before && before.id === e.detail.id && !activeSampleModified) {
               state.update((s) => ({
                 ...s,
@@ -909,6 +1070,12 @@
             if (s) loadSample(s);
           }}
           on:remove={(e) => samplesStore.remove(e.detail.id)}
+          on:bulkRemove={(e) => {
+            for (const id of e.detail.ids) samplesStore.remove(id);
+          }}
+          on:bulkUpdateMeta={(e) => {
+            for (const id of e.detail.ids) samplesStore.updateMeta(id, e.detail.changes);
+          }}
           on:clear={() => samplesStore.clear()}
           on:loadExamples={() => samplesStore.loadDemoSamples()}
         />
@@ -1008,17 +1175,17 @@
   </Panel>
 </div>
 
-<style>
-  h1 {
-    color: #f9fafb;
-    margin: 0 0 8px;
-  }
-
-  .sub {
-    color: rgba(229, 231, 235, 0.86);
-    line-height: 1.55;
-    margin: 0 0 16px;
-  }
+	<style>
+	  h1 {
+	    color: var(--color-text-primary);
+	    margin: 0 0 8px;
+	  }
+	
+	  .sub {
+	    color: var(--color-text-secondary);
+	    line-height: 1.55;
+	    margin: 0 0 16px;
+	  }
 
   .grid {
     display: grid;
@@ -1065,20 +1232,20 @@
     gap: 8px;
   }
 
-  .chip {
-    padding: 4px 10px;
-    border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.04);
-    color: rgba(229, 231, 235, 0.86);
-    cursor: pointer;
-    font-weight: 650;
-    font-size: 0.85rem;
-  }
-
-  .chip:hover:enabled {
-    background: rgba(255, 255, 255, 0.07);
-  }
+	  .chip {
+	    padding: 4px 10px;
+	    border-radius: 999px;
+	    border: 1px solid var(--color-border-strong);
+	    background: var(--color-bg-surface);
+	    color: var(--color-text-secondary);
+	    cursor: pointer;
+	    font-weight: 650;
+	    font-size: 0.85rem;
+	  }
+	
+	  .chip:hover:enabled {
+	    background: var(--color-bg-hover);
+	  }
 
   .chip:disabled {
     opacity: 0.55;
@@ -1090,13 +1257,13 @@
     margin-bottom: 10px;
   }
 
-  .mono {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-  }
-
-  .muted {
-    color: rgba(229, 231, 235, 0.65);
-  }
+	  .mono {
+	    font-family: var(--font-mono);
+	  }
+	
+	  .muted {
+	    color: var(--color-text-tertiary);
+	  }
 
   .link {
     border: none;
@@ -1142,21 +1309,21 @@
     min-width: 320px;
   }
 
-  .hint {
-    font-size: 0.8rem;
-    color: rgba(229, 231, 235, 0.55);
-  }
-
-  .checkbox {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    color: rgba(229, 231, 235, 0.8);
-    font-weight: 700;
-    font-size: 0.9rem;
-    user-select: none;
-    margin-bottom: 6px;
-  }
+	  .hint {
+	    font-size: 0.8rem;
+	    color: var(--color-text-muted);
+	  }
+	
+	  .checkbox {
+	    display: inline-flex;
+	    align-items: center;
+	    gap: 8px;
+	    color: var(--color-text-secondary);
+	    font-weight: 700;
+	    font-size: 0.9rem;
+	    user-select: none;
+	    margin-bottom: 6px;
+	  }
 
   .drop-target.dragging {
     outline: 2px dashed rgba(59, 130, 246, 0.7);
@@ -1177,28 +1344,28 @@
     pointer-events: none;
   }
 
-  .label {
-    display: grid;
-    gap: 6px;
-    color: rgba(229, 231, 235, 0.8);
-    font-size: 0.9rem;
-    min-width: 260px;
-    flex: 1;
-  }
-
-  .input {
-    padding: 10px 12px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(229, 231, 235, 0.92);
-    outline: none;
-  }
-
-  .input:focus {
-    border-color: rgba(59, 130, 246, 0.45);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
-  }
+	  .label {
+	    display: grid;
+	    gap: 6px;
+	    color: var(--color-text-secondary);
+	    font-size: 0.9rem;
+	    min-width: 260px;
+	    flex: 1;
+	  }
+	
+	  .input {
+	    padding: 10px 12px;
+	    border-radius: var(--radius-xl);
+	    border: 1px solid var(--color-border-default);
+	    background: var(--color-bg-input);
+	    color: var(--color-text-primary);
+	    outline: none;
+	  }
+	
+	  .input:focus {
+	    border-color: var(--color-border-focus);
+	    box-shadow: var(--shadow-focus);
+	  }
 
   .actions {
     display: flex;
@@ -1215,9 +1382,9 @@
     color: rgba(254, 226, 226, 0.9);
   }
 
-  .empty {
-    color: rgba(229, 231, 235, 0.7);
-  }
+	  .empty {
+	    color: var(--color-text-tertiary);
+	  }
 
   .meta {
     display: flex;
@@ -1226,15 +1393,15 @@
     margin-bottom: 12px;
   }
 
-  .pill {
-    padding: 4px 10px;
-    border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.04);
-    color: rgba(229, 231, 235, 0.86);
-    font-weight: 650;
-    font-size: 0.85rem;
-  }
+	  .pill {
+	    padding: 4px 10px;
+	    border-radius: 999px;
+	    border: 1px solid var(--color-border-strong);
+	    background: var(--color-bg-surface);
+	    color: var(--color-text-secondary);
+	    font-weight: 650;
+	    font-size: 0.85rem;
+	  }
 
   .pill.ok {
     border-color: rgba(16, 185, 129, 0.35);
@@ -1258,10 +1425,10 @@
     color: rgba(253, 230, 138, 0.95);
   }
 
-  .pill.muted {
-    color: rgba(229, 231, 235, 0.5);
-    border-color: rgba(255, 255, 255, 0.08);
-  }
+	  .pill.muted {
+	    color: var(--color-text-muted);
+	    border-color: var(--color-border-default);
+	  }
 
   .pill.stale {
     border-color: rgba(245, 158, 11, 0.45);

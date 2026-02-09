@@ -236,26 +236,26 @@
     gap: 20px;
   }
 
-  .section {
-    padding: 16px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.02);
-  }
+	  .section {
+	    padding: 16px;
+	    border-radius: 12px;
+	    border: 1px solid var(--color-border-default);
+	    background: var(--color-bg-elevated);
+	  }
 
-  .section-title {
+	  .section-title {
     margin: 0 0 8px;
     font-size: 0.95rem;
     font-weight: 800;
-    color: rgba(243, 244, 246, 0.95);
-  }
+	    color: var(--color-text-primary);
+	  }
 
-  .section-desc {
+	  .section-desc {
     margin: 0 0 14px;
     font-size: 0.85rem;
-    color: rgba(229, 231, 235, 0.65);
-    line-height: 1.4;
-  }
+	    color: var(--color-text-tertiary);
+	    line-height: 1.4;
+	  }
 
   .form-row {
     display: grid;
@@ -269,26 +269,26 @@
     }
   }
 
-  .label {
-    display: grid;
-    gap: 6px;
-    color: rgba(229, 231, 235, 0.8);
-    font-size: 0.9rem;
-  }
+	  .label {
+	    display: grid;
+	    gap: 6px;
+	    color: var(--color-text-secondary);
+	    font-size: 0.9rem;
+	  }
 
-  .select {
-    padding: 10px 12px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(229, 231, 235, 0.92);
-    outline: none;
-  }
+	  .select {
+	    padding: 10px 12px;
+	    border-radius: 12px;
+	    border: 1px solid var(--color-border-default);
+	    background: var(--color-bg-input);
+	    color: var(--color-text-primary);
+	    outline: none;
+	  }
 
-  .select:focus {
-    border-color: rgba(59, 130, 246, 0.45);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
-  }
+	  .select:focus {
+	    border-color: var(--color-border-focus);
+	    box-shadow: var(--shadow-focus);
+	  }
 
   .segment-grid {
     display: grid;
@@ -296,31 +296,30 @@
     gap: 8px;
   }
 
-  .segment-toggle {
+	  .segment-toggle {
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 8px 10px;
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(255, 255, 255, 0.02);
-    cursor: pointer;
-  }
+	    border: 1px solid var(--color-border-strong);
+	    background: var(--color-bg-elevated);
+	    cursor: pointer;
+	  }
 
-  .segment-toggle:hover {
-    background: rgba(255, 255, 255, 0.05);
-  }
+	  .segment-toggle:hover {
+	    background: var(--color-bg-hover);
+	  }
 
   .segment-toggle input:checked + span {
     color: rgba(59, 130, 246, 0.95);
   }
 
-  .mono {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
-      'Courier New', monospace;
-    color: rgba(229, 231, 235, 0.85);
-    font-weight: 600;
-  }
+	  .mono {
+	    font-family: var(--font-mono);
+	    color: var(--color-text-secondary);
+	    font-weight: 600;
+	  }
 
   .selected-segments {
     margin-top: 12px;
@@ -330,12 +329,12 @@
     align-items: center;
   }
 
-  .selected-label {
-    font-size: 0.85rem;
-    color: rgba(229, 231, 235, 0.6);
-  }
+	  .selected-label {
+	    font-size: 0.85rem;
+	    color: var(--color-text-muted);
+	  }
 
-  .segment-chip {
+	  .segment-chip {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -346,10 +345,9 @@
     color: rgba(59, 130, 246, 0.95);
     font-size: 0.85rem;
     font-weight: 600;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
-      'Courier New', monospace;
-    cursor: pointer;
-  }
+	    font-family: var(--font-mono);
+	    cursor: pointer;
+	  }
 
   .segment-chip:hover {
     background: rgba(59, 130, 246, 0.25);
@@ -365,36 +363,36 @@
     gap: 8px;
   }
 
-  .input {
+	  .input {
     flex: 1;
     max-width: 240px;
     padding: 8px 12px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(229, 231, 235, 0.92);
-    outline: none;
-    text-transform: uppercase;
-  }
+	    border: 1px solid var(--color-border-default);
+	    background: var(--color-bg-input);
+	    color: var(--color-text-primary);
+	    outline: none;
+	    text-transform: uppercase;
+	  }
 
-  .input:focus {
-    border-color: rgba(59, 130, 246, 0.45);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
-  }
+	  .input:focus {
+	    border-color: var(--color-border-focus);
+	    box-shadow: var(--shadow-focus);
+	  }
 
-  .add-btn {
+	  .add-btn {
     padding: 8px 14px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(255, 255, 255, 0.06);
-    color: #f3f4f6;
-    font-weight: 600;
-    cursor: pointer;
-  }
+	    border: 1px solid var(--color-border-strong);
+	    background: var(--color-bg-surface);
+	    color: var(--color-text-primary);
+	    font-weight: 600;
+	    cursor: pointer;
+	  }
 
-  .add-btn:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.1);
-  }
+	  .add-btn:hover:not(:disabled) {
+	    background: var(--color-bg-hover);
+	  }
 
   .add-btn:disabled {
     opacity: 0.5;
@@ -406,20 +404,20 @@
     gap: 10px;
   }
 
-  .option-toggle {
+	  .option-toggle {
     display: flex;
     align-items: flex-start;
     gap: 12px;
     padding: 12px 14px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.015);
-    cursor: pointer;
-  }
+	    border: 1px solid var(--color-border-default);
+	    background: var(--color-bg-elevated);
+	    cursor: pointer;
+	  }
 
-  .option-toggle:hover {
-    background: rgba(255, 255, 255, 0.04);
-  }
+	  .option-toggle:hover {
+	    background: var(--color-bg-hover);
+	  }
 
   .option-toggle input {
     margin-top: 2px;
@@ -430,14 +428,14 @@
     gap: 2px;
   }
 
-  .option-label {
-    color: rgba(229, 231, 235, 0.9);
-    font-weight: 650;
-  }
+	  .option-label {
+	    color: var(--color-text-primary);
+	    font-weight: 650;
+	  }
 
-  .option-desc {
-    font-size: 0.85rem;
-    color: rgba(229, 231, 235, 0.55);
-    line-height: 1.35;
-  }
+	  .option-desc {
+	    font-size: 0.85rem;
+	    color: var(--color-text-muted);
+	    line-height: 1.35;
+	  }
 </style>

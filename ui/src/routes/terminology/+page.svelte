@@ -113,12 +113,12 @@
 
 <style>
   h1 {
-    color: #f9fafb;
+    color: var(--color-text-primary);
     margin: 0 0 8px;
   }
 
   .sub {
-    color: rgba(229, 231, 235, 0.86);
+    color: var(--color-text-secondary);
     line-height: 1.55;
     margin: 0 0 16px;
     max-width: 70ch;
@@ -133,7 +133,7 @@
   }
 
   .description {
-    color: rgba(229, 231, 235, 0.7);
+    color: var(--color-text-tertiary);
     font-size: 0.9rem;
     line-height: 1.55;
     margin: 0 0 16px;

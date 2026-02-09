@@ -429,44 +429,44 @@
     max-width: 400px;
   }
 
-  .filter {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    color: rgba(229, 231, 235, 0.8);
-    font-weight: 700;
-    font-size: 0.9rem;
-    user-select: none;
-  }
+	  .filter {
+	    display: inline-flex;
+	    align-items: center;
+	    gap: 8px;
+	    color: var(--color-text-secondary);
+	    font-weight: 700;
+	    font-size: 0.9rem;
+	    user-select: none;
+	  }
 
-  .select {
-    width: 100%;
-    padding: 10px 12px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(229, 231, 235, 0.92);
-    outline: none;
-    font-size: 0.95rem;
-  }
+	  .select {
+	    width: 100%;
+	    padding: 10px 12px;
+	    border-radius: var(--radius-xl);
+	    border: 1px solid var(--color-border-default);
+	    background: var(--color-bg-input);
+	    color: var(--color-text-primary);
+	    outline: none;
+	    font-size: 0.95rem;
+	  }
 
-  .select:focus {
-    border-color: rgba(59, 130, 246, 0.45);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
-  }
+	  .select:focus {
+	    border-color: var(--color-border-focus);
+	    box-shadow: var(--shadow-focus);
+	  }
 
   .select:disabled {
     opacity: 0.6;
   }
 
-  .loading-indicator {
+	  .loading-indicator {
     position: absolute;
     right: 40px;
     top: 50%;
-    transform: translateY(-50%);
-    font-size: 0.8rem;
-    color: rgba(229, 231, 235, 0.6);
-  }
+	    transform: translateY(-50%);
+	    font-size: 0.8rem;
+	    color: var(--color-text-muted);
+	  }
 
   .actions {
     display: flex;
@@ -493,32 +493,32 @@
     z-index: 1000;
   }
 
-  .modal-backdrop {
+	  .modal-backdrop {
     position: absolute;
     inset: 0;
     border: 0;
     padding: 0;
-    background: rgba(0, 0, 0, 0.6);
-    cursor: default;
-  }
+	    background: var(--modal-backdrop);
+	    cursor: default;
+	  }
 
-  .modal {
-    position: relative;
-    z-index: 1;
-    background: #1f2937;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px;
-    padding: 24px;
-    min-width: 360px;
-    max-width: 480px;
-  }
+	  .modal {
+	    position: relative;
+	    z-index: 1;
+	    background: var(--color-bg-base);
+	    border: 1px solid var(--color-border-default);
+	    border-radius: var(--modal-radius);
+	    padding: 24px;
+	    min-width: 360px;
+	    max-width: 480px;
+	  }
 
-  .modal-title {
+	  .modal-title {
     margin: 0 0 16px;
     font-size: 1.1rem;
     font-weight: 800;
-    color: #f3f4f6;
-  }
+	    color: var(--color-text-primary);
+	  }
 
   .modal-body {
     display: grid;
@@ -526,10 +526,10 @@
     margin-bottom: 20px;
   }
 
-  .modal-body p {
-    color: rgba(229, 231, 235, 0.85);
-    line-height: 1.5;
-  }
+	  .modal-body p {
+	    color: var(--color-text-secondary);
+	    line-height: 1.5;
+	  }
 
   .modal-actions {
     display: flex;
@@ -537,34 +537,33 @@
     justify-content: flex-end;
   }
 
-  .label {
-    display: grid;
-    gap: 6px;
-    color: rgba(229, 231, 235, 0.8);
-    font-size: 0.9rem;
-  }
+	  .label {
+	    display: grid;
+	    gap: 6px;
+	    color: var(--color-text-secondary);
+	    font-size: 0.9rem;
+	  }
 
-  .input {
-    padding: 10px 12px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(229, 231, 235, 0.92);
-    outline: none;
-  }
+	  .input {
+	    padding: 10px 12px;
+	    border-radius: var(--radius-xl);
+	    border: 1px solid var(--color-border-default);
+	    background: var(--color-bg-input);
+	    color: var(--color-text-primary);
+	    outline: none;
+	  }
 
-  .input:focus {
-    border-color: rgba(59, 130, 246, 0.45);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
-  }
+	  .input:focus {
+	    border-color: var(--color-border-focus);
+	    box-shadow: var(--shadow-focus);
+	  }
 
-  .mono {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
-      'Courier New', monospace;
-  }
+	  .mono {
+	    font-family: var(--font-mono);
+	  }
 
-  .hint {
-    font-size: 0.8rem;
-    color: rgba(229, 231, 235, 0.55);
-  }
+	  .hint {
+	    font-size: 0.8rem;
+	    color: var(--color-text-muted);
+	  }
 </style>

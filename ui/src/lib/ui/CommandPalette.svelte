@@ -11,6 +11,7 @@
 <script lang="ts">
   import { afterUpdate, createEventDispatcher, tick } from 'svelte';
   import { createDialogFocusController } from '$lib/domain/a11yDialog';
+  import { toasts } from '$lib/ui/toastStore';
 
   export let open = false;
   export let title = 'Command palette';
@@ -20,15 +21,21 @@
 
   let rootEl: HTMLDivElement | null = null;
   let inputEl: HTMLInputElement | null = null;
+  let listEl: HTMLDivElement | null = null;
   let wasOpen = false;
   let focusCtl: ReturnType<typeof createDialogFocusController> | null = null;
 
   let query = '';
   let activeIndex = 0;
+  let lastScrollIndex = -1;
 
   function close(): void {
     open = false;
     dispatch('close');
+  }
+
+  function onQueryInput(): void {
+    activeIndex = 0;
   }
 
   function norm(s: string): string {
@@ -51,8 +58,10 @@
     if (!cmd) return;
     try {
       await cmd.run();
-    } finally {
       close();
+    } catch (err) {
+      console.error('Command palette command failed:', cmd.id, err);
+      toasts.error(`Command failed: ${cmd.label}`);
     }
   }
 
@@ -94,6 +103,7 @@
     if (open && !wasOpen) {
       query = '';
       activeIndex = 0;
+      lastScrollIndex = -1;
       tick().then(() => {
         if (!rootEl) return;
         focusCtl = createDialogFocusController(rootEl, { initialFocus: inputEl });
@@ -103,6 +113,13 @@
     if (!open && wasOpen) {
       focusCtl?.restoreFocus();
       focusCtl = null;
+    }
+    if (open && lastScrollIndex !== activeIndex) {
+      lastScrollIndex = activeIndex;
+      tick().then(() => {
+        const active = listEl?.querySelector<HTMLElement>('.item.active');
+        active?.scrollIntoView({ block: 'nearest' });
+      });
     }
     wasOpen = open;
   });
@@ -146,12 +163,13 @@
           class="input"
           type="text"
           bind:value={query}
+          on:input={onQueryInput}
           placeholder="Type to filter commands…"
           autocomplete="off"
         />
       </div>
 
-      <div class="list" role="listbox" aria-label="Commands">
+      <div class="list" bind:this={listEl} role="listbox" aria-label="Commands">
         {#if filtered.length === 0}
           <div class="empty">No matches</div>
         {:else}

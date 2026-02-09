@@ -201,28 +201,28 @@
     gap: 10px;
   }
 
-  .fix {
+	  .fix {
     display: grid;
     grid-template-columns: 1fr auto;
     gap: 12px;
     align-items: start;
     padding: 10px;
     border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.02);
-  }
+	    border: 1px solid var(--color-border-default);
+	    background: var(--color-bg-elevated);
+	  }
 
-  .fix-title {
-    font-weight: 800;
-    color: rgba(243, 244, 246, 0.95);
-  }
+	  .fix-title {
+	    font-weight: 800;
+	    color: var(--color-text-primary);
+	  }
 
-  .fix-desc {
-    margin-top: 4px;
-    color: rgba(229, 231, 235, 0.78);
-    line-height: 1.4;
-    font-size: 0.9rem;
-  }
+	  .fix-desc {
+	    margin-top: 4px;
+	    color: var(--color-text-secondary);
+	    line-height: 1.4;
+	    font-size: 0.9rem;
+	  }
 
   .profile-header {
     display: flex;
@@ -240,11 +240,11 @@
     flex-wrap: wrap;
   }
 
-  .profile-name {
-    font-weight: 800;
-    color: rgba(243, 244, 246, 0.95);
-    font-size: 1.05rem;
-  }
+	  .profile-name {
+	    font-weight: 800;
+	    color: var(--color-text-primary);
+	    font-size: 1.05rem;
+	  }
 
   .profile-version {
     padding: 3px 8px;
@@ -256,15 +256,14 @@
     font-weight: 600;
   }
 
-  .profile-id {
-    color: rgba(229, 231, 235, 0.5);
-    font-size: 0.85rem;
-  }
+	  .profile-id {
+	    color: var(--color-text-muted);
+	    font-size: 0.85rem;
+	  }
 
-  .mono {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
-      'Courier New', monospace;
-  }
+	  .mono {
+	    font-family: var(--font-mono);
+	  }
 
   .profile-actions {
     display: flex;
@@ -291,25 +290,25 @@
     min-height: 200px;
   }
 
-  .no-profile {
+	  .no-profile {
     padding: 24px;
     text-align: center;
     border-radius: 12px;
-    border: 1px dashed rgba(255, 255, 255, 0.15);
-  }
+	    border: 1px dashed var(--color-border-strong);
+	  }
 
-  .no-profile p {
-    margin: 0;
-    color: rgba(229, 231, 235, 0.7);
-  }
+	  .no-profile p {
+	    margin: 0;
+	    color: var(--color-text-tertiary);
+	  }
 
-  .no-profile .hint {
+	  .no-profile .hint {
     margin-top: 10px;
     font-size: 0.85rem;
-    color: rgba(229, 231, 235, 0.5);
-    max-width: 400px;
-    margin-left: auto;
-    margin-right: auto;
-    line-height: 1.5;
-  }
+	    color: var(--color-text-muted);
+	    max-width: 400px;
+	    margin-left: auto;
+	    margin-right: auto;
+	    line-height: 1.5;
+	  }
 </style>

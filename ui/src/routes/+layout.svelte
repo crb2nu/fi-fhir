@@ -1,7 +1,10 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
   import { page } from '$app/stores';
+  import { onMount } from 'svelte';
   import ToastContainer from '$lib/ui/ToastContainer.svelte';
+  import ThemeToggle from '$lib/theme/ThemeToggle.svelte';
+  import { initTheme } from '$lib/theme/theme';
 
   // Import global design tokens and base styles
   import '$lib/styles/tokens.css';
@@ -19,6 +22,10 @@
     if (href === '/') return pathname === '/';
     return pathname === href || pathname.startsWith(href + '/');
   }
+
+  onMount(() => {
+    initTheme();
+  });
 </script>
 
 <ToastContainer />
@@ -39,6 +46,9 @@
         </a>
       {/each}
     </nav>
+    <div class="actions">
+      <ThemeToggle />
+    </div>
   </header>
 
   <main class="main">
@@ -80,6 +90,12 @@
     gap: var(--space-3);
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+  }
+
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
   }
 
   .nav-link {
@@ -124,6 +140,10 @@
 
     .nav {
       gap: var(--space-2);
+    }
+
+    .actions {
+      gap: var(--space-1);
     }
 
     .nav-link {

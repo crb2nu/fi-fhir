@@ -54,12 +54,12 @@
 
 <style>
   h1 {
-    color: #f9fafb;
+    color: var(--color-text-primary);
     margin: 0 0 8px;
   }
 
   .sub {
-    color: rgba(229, 231, 235, 0.86);
+    color: var(--color-text-secondary);
     line-height: 1.55;
     margin: 0 0 16px;
     max-width: 70ch;
@@ -89,26 +89,26 @@
     justify-content: center;
     padding: 10px 12px;
     border-radius: 10px;
-    border: 1px solid rgba(59, 130, 246, 0.35);
-    background: rgba(59, 130, 246, 0.12);
-    color: rgba(219, 234, 254, 0.95);
+    border: 1px solid var(--color-primary-border);
+    background: var(--color-primary-muted);
+    color: var(--color-primary);
     text-decoration: none;
     font-weight: 700;
   }
 
   .cta:hover {
-    background: rgba(59, 130, 246, 0.18);
+    background: rgba(59, 130, 246, 0.22);
   }
 
   .hint {
-    color: rgba(229, 231, 235, 0.8);
+    color: var(--color-text-tertiary);
     line-height: 1.55;
   }
 
   .list {
     margin: 0;
     padding-left: 18px;
-    color: rgba(229, 231, 235, 0.86);
+    color: var(--color-text-secondary);
     line-height: 1.55;
   }
 
@@ -118,13 +118,13 @@
   }
 
   .label {
-    color: rgba(229, 231, 235, 0.7);
+    color: var(--color-text-tertiary);
     font-size: 0.9rem;
     font-weight: 700;
   }
 
   .value {
-    color: rgba(229, 231, 235, 0.88);
+    color: var(--color-text-secondary);
     line-height: 1.55;
   }
 </style>

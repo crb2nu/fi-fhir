@@ -374,54 +374,54 @@
     flex-wrap: wrap;
   }
 
-  .title {
+	  .title {
     margin: 0 0 4px;
     font-size: 0.95rem;
     font-weight: 800;
-    color: rgba(243, 244, 246, 0.95);
-  }
+	    color: var(--color-text-primary);
+	  }
 
-  .desc {
+	  .desc {
     margin: 0;
     font-size: 0.85rem;
-    color: rgba(229, 231, 235, 0.65);
-    line-height: 1.4;
-    max-width: 480px;
-  }
+	    color: var(--color-text-tertiary);
+	    line-height: 1.4;
+	    max-width: 480px;
+	  }
 
-  .empty {
+	  .empty {
     padding: 24px;
     text-align: center;
     border-radius: 12px;
-    border: 1px dashed rgba(255, 255, 255, 0.15);
-    color: rgba(229, 231, 235, 0.7);
-  }
+	    border: 1px dashed var(--color-border-strong);
+	    color: var(--color-text-tertiary);
+	  }
 
   .empty p {
     margin: 0;
   }
 
-  .empty-hint {
+	  .empty-hint {
     margin-top: 8px !important;
     font-size: 0.85rem;
-    color: rgba(229, 231, 235, 0.5);
-  }
+	    color: var(--color-text-muted);
+	  }
 
   .rules-list {
     display: grid;
     gap: 8px;
   }
 
-  .rule-item {
+	  .rule-item {
     display: grid;
     grid-template-columns: auto 1fr auto;
     gap: 12px;
     align-items: center;
     padding: 12px 14px;
     border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.02);
-  }
+	    border: 1px solid var(--color-border-default);
+	    background: var(--color-bg-elevated);
+	  }
 
   @media (max-width: 600px) {
     .rule-item {
@@ -437,28 +437,28 @@
     gap: 2px;
   }
 
-  .order-btn {
+	  .order-btn {
     padding: 2px 6px;
     border: none;
     background: transparent;
-    color: rgba(229, 231, 235, 0.5);
-    font-size: 0.75rem;
-    cursor: pointer;
-  }
+	    color: var(--color-text-muted);
+	    font-size: 0.75rem;
+	    cursor: pointer;
+	  }
 
-  .order-btn:hover:not(:disabled) {
-    color: rgba(229, 231, 235, 0.85);
-  }
+	  .order-btn:hover:not(:disabled) {
+	    color: var(--color-text-secondary);
+	  }
 
   .order-btn:disabled {
     opacity: 0.3;
     cursor: not-allowed;
   }
 
-  .priority {
-    font-size: 0.75rem;
-    color: rgba(229, 231, 235, 0.4);
-  }
+	  .priority {
+	    font-size: 0.75rem;
+	    color: var(--color-text-muted);
+	  }
 
   .rule-content {
     display: flex;
@@ -472,10 +472,9 @@
     color: rgba(59, 130, 246, 0.95);
   }
 
-  .mono {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
-      'Courier New', monospace;
-  }
+	  .mono {
+	    font-family: var(--font-mono);
+	  }
 
   .rule-cond {
     font-size: 0.85rem;
@@ -484,9 +483,9 @@
       'Courier New', monospace;
   }
 
-  .rule-arrow {
-    color: rgba(229, 231, 235, 0.4);
-  }
+	  .rule-arrow {
+	    color: var(--color-text-muted);
+	  }
 
   .rule-event {
     font-weight: 600;
@@ -498,19 +497,19 @@
     gap: 6px;
   }
 
-  .action-btn {
+	  .action-btn {
     padding: 4px 10px;
     border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: transparent;
-    color: rgba(229, 231, 235, 0.7);
-    font-size: 0.8rem;
-    cursor: pointer;
-  }
+	    border: 1px solid var(--color-border-strong);
+	    background: transparent;
+	    color: var(--color-text-tertiary);
+	    font-size: 0.8rem;
+	    cursor: pointer;
+	  }
 
-  .action-btn:hover {
-    background: rgba(255, 255, 255, 0.06);
-  }
+	  .action-btn:hover {
+	    background: var(--color-bg-hover);
+	  }
 
   .action-btn.danger {
     color: rgba(239, 68, 68, 0.8);
@@ -529,32 +528,32 @@
     z-index: 1000;
   }
 
-  .modal-backdrop {
+	  .modal-backdrop {
     position: absolute;
     inset: 0;
     border: 0;
     padding: 0;
-    background: rgba(0, 0, 0, 0.6);
-    cursor: default;
-  }
+	    background: var(--modal-backdrop);
+	    cursor: default;
+	  }
 
-  .modal {
+	  .modal {
     position: relative;
     z-index: 1;
-    background: #1f2937;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px;
-    padding: 24px;
-    min-width: 400px;
-    max-width: 520px;
-  }
+	    background: var(--color-bg-base);
+	    border: 1px solid var(--color-border-default);
+	    border-radius: var(--modal-radius);
+	    padding: 24px;
+	    min-width: 400px;
+	    max-width: 520px;
+	  }
 
-  .modal-title {
+	  .modal-title {
     margin: 0 0 16px;
     font-size: 1.1rem;
     font-weight: 800;
-    color: #f3f4f6;
-  }
+	    color: var(--color-text-primary);
+	  }
 
   .modal-body {
     display: grid;
@@ -568,32 +567,32 @@
     justify-content: flex-end;
   }
 
-  .label {
-    display: grid;
-    gap: 6px;
-    color: rgba(229, 231, 235, 0.8);
-    font-size: 0.9rem;
-  }
+	  .label {
+	    display: grid;
+	    gap: 6px;
+	    color: var(--color-text-secondary);
+	    font-size: 0.9rem;
+	  }
 
   .input-with-suggestions {
     position: relative;
   }
 
-  .input {
+	  .input {
     width: 100%;
     padding: 10px 12px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(229, 231, 235, 0.92);
-    outline: none;
-    box-sizing: border-box;
-  }
+	    border-radius: var(--radius-xl);
+	    border: 1px solid var(--color-border-default);
+	    background: var(--color-bg-input);
+	    color: var(--color-text-primary);
+	    outline: none;
+	    box-sizing: border-box;
+	  }
 
-  .input:focus {
-    border-color: rgba(59, 130, 246, 0.45);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
-  }
+	  .input:focus {
+	    border-color: var(--color-border-focus);
+	    box-shadow: var(--shadow-focus);
+	  }
 
   .suggestions {
     display: flex;
@@ -602,23 +601,23 @@
     margin-top: 6px;
   }
 
-  .suggestion {
+	  .suggestion {
     padding: 4px 8px;
     border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(229, 231, 235, 0.75);
-    font-size: 0.8rem;
-    cursor: pointer;
-  }
+	    border: 1px solid var(--color-border-strong);
+	    background: var(--color-bg-elevated);
+	    color: var(--color-text-tertiary);
+	    font-size: 0.8rem;
+	    cursor: pointer;
+	  }
 
-  .suggestion:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: rgba(229, 231, 235, 0.9);
-  }
+	  .suggestion:hover {
+	    background: var(--color-bg-hover);
+	    color: var(--color-text-primary);
+	  }
 
-  .hint {
-    font-size: 0.8rem;
-    color: rgba(229, 231, 235, 0.55);
-  }
+	  .hint {
+	    font-size: 0.8rem;
+	    color: var(--color-text-muted);
+	  }
 </style>
