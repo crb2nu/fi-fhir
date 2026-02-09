@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 'use strict';
 
+/* eslint-disable @typescript-eslint/no-require-imports */
+
 const os = require('os');
 
 // graphql-codegen CLI uses os.cpus().length to set its internal task concurrency.
