@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { afterUpdate, createEventDispatcher, tick } from 'svelte';
   import Button from '$lib/ui/Button.svelte';
   import { toasts } from '$lib/ui/toastStore';
   import { updateMapping } from './terminologyApi';
   import type { MappingEquivalence, ListMappingsQuery } from '$lib/gen/graphql';
+  import { createDialogFocusController } from '$lib/domain/a11yDialog';
 
   // Use the actual type returned from the query
   type MappingNode = ListMappingsQuery['listMappings']['nodes'][number];
@@ -21,6 +22,10 @@
   let editTargetDisplay = mapping.targetDisplay ?? '';
   let editComment = mapping.comment ?? '';
   let editConfidence = mapping.confidence ?? 0;
+
+  let modalEl: HTMLDivElement | null = null;
+  let wasOpen = false;
+  let focusCtl: ReturnType<typeof createDialogFocusController> | null = null;
 
   let saving = false;
 
@@ -71,6 +76,10 @@
     if (!open) return;
     if (e.key === 'Escape') {
       handleClose();
+      return;
+    }
+    if (e.key === 'Tab') {
+      focusCtl?.onKeydown(e);
     }
   }
 
@@ -93,6 +102,21 @@
       minute: '2-digit'
     });
   }
+
+  afterUpdate(() => {
+    if (open && !wasOpen) {
+      tick().then(() => {
+        if (!modalEl) return;
+        focusCtl = createDialogFocusController(modalEl);
+        focusCtl.focusInitial();
+      });
+    }
+    if (!open && wasOpen) {
+      focusCtl?.restoreFocus();
+      focusCtl = null;
+    }
+    wasOpen = open;
+  });
 </script>
 
 <svelte:window on:keydown={handleWindowKeydown} />
@@ -108,9 +132,11 @@
     ></button>
     <div
       class="modal"
+      bind:this={modalEl}
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-title"
+      tabindex="-1"
     >
       <h3 id="modal-title" class="modal-title">Edit Mapping</h3>
 

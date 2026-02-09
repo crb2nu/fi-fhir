@@ -2,7 +2,8 @@
   import { profileStore, selectedProfile } from '$lib/features/hl7/profile/profileStore';
   import Button from '$lib/ui/Button.svelte';
   import ConfirmModal from '$lib/ui/ConfirmModal.svelte';
-  import { tick } from 'svelte';
+  import { afterUpdate, tick } from 'svelte';
+  import { createDialogFocusController } from '$lib/domain/a11yDialog';
 
   $: terminology = $selectedProfile?.terminology;
   $: mappings = terminology?.mappings || [];
@@ -19,6 +20,8 @@
   let entryModalEl: HTMLDivElement | null = null;
   let wasMappingModalOpen = false;
   let wasEntryModalOpen = false;
+  let mappingFocusCtl: ReturnType<typeof createDialogFocusController> | null = null;
+  let entryFocusCtl: ReturnType<typeof createDialogFocusController> | null = null;
 
   // Mapping form
   let mappingId = '';
@@ -74,22 +77,44 @@
     }
   }
 
-  $: if (showMappingModal && !wasMappingModalOpen) {
-    tick().then(() => mappingModalEl?.focus());
-  }
+  afterUpdate(() => {
+    if (showMappingModal && !wasMappingModalOpen) {
+      tick().then(() => {
+        if (!mappingModalEl) return;
+        mappingFocusCtl = createDialogFocusController(mappingModalEl);
+        mappingFocusCtl.focusInitial();
+      });
+    }
+    if (!showMappingModal && wasMappingModalOpen) {
+      mappingFocusCtl?.restoreFocus();
+      mappingFocusCtl = null;
+    }
+    wasMappingModalOpen = showMappingModal;
 
-  $: wasMappingModalOpen = showMappingModal;
-
-  $: if (showEntryModal && !wasEntryModalOpen) {
-    tick().then(() => entryModalEl?.focus());
-  }
-
-  $: wasEntryModalOpen = showEntryModal;
+    if (showEntryModal && !wasEntryModalOpen) {
+      tick().then(() => {
+        if (!entryModalEl) return;
+        entryFocusCtl = createDialogFocusController(entryModalEl);
+        entryFocusCtl.focusInitial();
+      });
+    }
+    if (!showEntryModal && wasEntryModalOpen) {
+      entryFocusCtl?.restoreFocus();
+      entryFocusCtl = null;
+    }
+    wasEntryModalOpen = showEntryModal;
+  });
 
   function handleWindowKeydown(e: KeyboardEvent) {
-    if (e.key !== 'Escape') return;
-    if (showEntryModal) showEntryModal = false;
-    else if (showMappingModal) showMappingModal = false;
+    if (e.key === 'Escape') {
+      if (showEntryModal) showEntryModal = false;
+      else if (showMappingModal) showMappingModal = false;
+      return;
+    }
+    if (e.key === 'Tab') {
+      if (showEntryModal) entryFocusCtl?.onKeydown(e);
+      else if (showMappingModal) mappingFocusCtl?.onKeydown(e);
+    }
   }
 
   function saveMapping() {

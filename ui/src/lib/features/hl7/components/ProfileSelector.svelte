@@ -9,7 +9,8 @@
     isSaving,
     isDirty
   } from '$lib/features/hl7/profile/profileStore';
-  import { onMount, tick } from 'svelte';
+  import { afterUpdate, onMount, tick } from 'svelte';
+  import { createDialogFocusController } from '$lib/domain/a11yDialog';
 
   // Props
   export let onProfileChange: ((profileId: string | null) => void) | undefined = undefined;
@@ -34,6 +35,9 @@
   let wasNewModalOpen = false;
   let wasDuplicateModalOpen = false;
   let wasDeleteModalOpen = false;
+  let newFocusCtl: ReturnType<typeof createDialogFocusController> | null = null;
+  let duplicateFocusCtl: ReturnType<typeof createDialogFocusController> | null = null;
+  let deleteFocusCtl: ReturnType<typeof createDialogFocusController> | null = null;
 
   // Load profiles on mount
   onMount(() => {
@@ -133,29 +137,59 @@
     duplicateId = generateId(duplicateName);
   }
 
-  $: if (showNewModal && !wasNewModalOpen) {
-    tick().then(() => newModalEl?.focus());
-  }
+  afterUpdate(() => {
+    if (showNewModal && !wasNewModalOpen) {
+      tick().then(() => {
+        if (!newModalEl) return;
+        newFocusCtl = createDialogFocusController(newModalEl);
+        newFocusCtl.focusInitial();
+      });
+    }
+    if (!showNewModal && wasNewModalOpen) {
+      newFocusCtl?.restoreFocus();
+      newFocusCtl = null;
+    }
+    wasNewModalOpen = showNewModal;
 
-  $: wasNewModalOpen = showNewModal;
+    if (showDuplicateModal && !wasDuplicateModalOpen) {
+      tick().then(() => {
+        if (!duplicateModalEl) return;
+        duplicateFocusCtl = createDialogFocusController(duplicateModalEl);
+        duplicateFocusCtl.focusInitial();
+      });
+    }
+    if (!showDuplicateModal && wasDuplicateModalOpen) {
+      duplicateFocusCtl?.restoreFocus();
+      duplicateFocusCtl = null;
+    }
+    wasDuplicateModalOpen = showDuplicateModal;
 
-  $: if (showDuplicateModal && !wasDuplicateModalOpen) {
-    tick().then(() => duplicateModalEl?.focus());
-  }
-
-  $: wasDuplicateModalOpen = showDuplicateModal;
-
-  $: if (showDeleteConfirm && !wasDeleteModalOpen) {
-    tick().then(() => deleteModalEl?.focus());
-  }
-
-  $: wasDeleteModalOpen = showDeleteConfirm;
+    if (showDeleteConfirm && !wasDeleteModalOpen) {
+      tick().then(() => {
+        if (!deleteModalEl) return;
+        deleteFocusCtl = createDialogFocusController(deleteModalEl);
+        deleteFocusCtl.focusInitial();
+      });
+    }
+    if (!showDeleteConfirm && wasDeleteModalOpen) {
+      deleteFocusCtl?.restoreFocus();
+      deleteFocusCtl = null;
+    }
+    wasDeleteModalOpen = showDeleteConfirm;
+  });
 
   function handleWindowKeydown(e: KeyboardEvent) {
-    if (e.key !== 'Escape') return;
-    if (showDeleteConfirm) showDeleteConfirm = false;
-    else if (showDuplicateModal) showDuplicateModal = false;
-    else if (showNewModal) showNewModal = false;
+    if (e.key === 'Escape') {
+      if (showDeleteConfirm) showDeleteConfirm = false;
+      else if (showDuplicateModal) showDuplicateModal = false;
+      else if (showNewModal) showNewModal = false;
+      return;
+    }
+    if (e.key === 'Tab') {
+      if (showDeleteConfirm) deleteFocusCtl?.onKeydown(e);
+      else if (showDuplicateModal) duplicateFocusCtl?.onKeydown(e);
+      else if (showNewModal) newFocusCtl?.onKeydown(e);
+    }
   }
 </script>
 

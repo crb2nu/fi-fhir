@@ -3,7 +3,8 @@
   import Button from '$lib/ui/Button.svelte';
   import type { HL7Sample } from '$lib/features/hl7/samples/types';
   import type { HL7RedactionMode } from '$lib/domain/hl7Redact';
-  import { createEventDispatcher, tick } from 'svelte';
+  import { afterUpdate, createEventDispatcher, tick } from 'svelte';
+  import { createDialogFocusController } from '$lib/domain/a11yDialog';
 
   export let samples: readonly HL7Sample[];
   export let activeId: string | null;
@@ -38,6 +39,7 @@
   let editTags = '';
   let editModalEl: HTMLDivElement | null = null;
   let wasEditModalOpen = false;
+  let editFocusCtl: ReturnType<typeof createDialogFocusController> | null = null;
 
   function save() {
     const n = name.trim();
@@ -149,15 +151,30 @@
     closeEdit();
   }
 
-  $: if (showEditModal && !wasEditModalOpen) {
-    tick().then(() => editModalEl?.focus());
-  }
-
-  $: wasEditModalOpen = showEditModal;
+  afterUpdate(() => {
+    if (showEditModal && !wasEditModalOpen) {
+      tick().then(() => {
+        if (!editModalEl) return;
+        editFocusCtl = createDialogFocusController(editModalEl);
+        editFocusCtl.focusInitial();
+      });
+    }
+    if (!showEditModal && wasEditModalOpen) {
+      editFocusCtl?.restoreFocus();
+      editFocusCtl = null;
+    }
+    wasEditModalOpen = showEditModal;
+  });
 
   function handleWindowKeydown(e: KeyboardEvent) {
-    if (e.key !== 'Escape') return;
-    if (showEditModal) closeEdit();
+    if (!showEditModal) return;
+    if (e.key === 'Escape') {
+      closeEdit();
+      return;
+    }
+    if (e.key === 'Tab') {
+      editFocusCtl?.onKeydown(e);
+    }
   }
 
   $: filtered = filter.trim()

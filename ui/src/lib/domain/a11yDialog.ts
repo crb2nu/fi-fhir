@@ -12,6 +12,9 @@ function isFocusable(el: Focusable): boolean {
   if (isHidden(el)) return false;
   if ((el as HTMLInputElement).type === 'hidden') return false;
   if ('disabled' in el && Boolean(el.disabled)) return false;
+  // We want tabbable elements (not just programmatically focusable).
+  // This prevents modal backdrops with tabindex="-1" from entering the trap cycle.
+  if (el.tabIndex < 0) return false;
   return true;
 }
 
@@ -94,4 +97,3 @@ export function createDialogFocusController(
 
   return { focusInitial, onKeydown, restoreFocus };
 }
-

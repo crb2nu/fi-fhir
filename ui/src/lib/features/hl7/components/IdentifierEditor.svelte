@@ -1,7 +1,8 @@
 <script lang="ts">
   import { profileStore, selectedProfile } from '$lib/features/hl7/profile/profileStore';
   import Button from '$lib/ui/Button.svelte';
-  import { tick } from 'svelte';
+  import { afterUpdate, tick } from 'svelte';
+  import { createDialogFocusController } from '$lib/domain/a11yDialog';
 
   // Props
   export let showAdvanced = false;
@@ -30,16 +31,32 @@
 
   let aaModalEl: HTMLDivElement | null = null;
   let wasAAModalOpen = false;
+  let aaFocusCtl: ReturnType<typeof createDialogFocusController> | null = null;
 
-  $: if (showAAModal && !wasAAModalOpen) {
-    tick().then(() => aaModalEl?.focus());
-  }
-
-  $: wasAAModalOpen = showAAModal;
+  afterUpdate(() => {
+    if (showAAModal && !wasAAModalOpen) {
+      tick().then(() => {
+        if (!aaModalEl) return;
+        aaFocusCtl = createDialogFocusController(aaModalEl);
+        aaFocusCtl.focusInitial();
+      });
+    }
+    if (!showAAModal && wasAAModalOpen) {
+      aaFocusCtl?.restoreFocus();
+      aaFocusCtl = null;
+    }
+    wasAAModalOpen = showAAModal;
+  });
 
   function handleWindowKeydown(e: KeyboardEvent) {
-    if (e.key !== 'Escape') return;
-    if (showAAModal) showAAModal = false;
+    if (!showAAModal) return;
+    if (e.key === 'Escape') {
+      showAAModal = false;
+      return;
+    }
+    if (e.key === 'Tab') {
+      aaFocusCtl?.onKeydown(e);
+    }
   }
 
   // Update validation setting

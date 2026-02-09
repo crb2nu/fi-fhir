@@ -1,7 +1,8 @@
 <script lang="ts">
   import { profileStore, selectedProfile } from '$lib/features/hl7/profile/profileStore';
   import Button from '$lib/ui/Button.svelte';
-  import { tick } from 'svelte';
+  import { afterUpdate, tick } from 'svelte';
+  import { createDialogFocusController } from '$lib/domain/a11yDialog';
 
   $: hl7v2 = $selectedProfile?.hl7v2;
   $: eventClassifications = hl7v2?.eventClassifications || [];
@@ -45,16 +46,32 @@
 
   let modalEl: HTMLDivElement | null = null;
   let wasModalOpen = false;
+  let focusCtl: ReturnType<typeof createDialogFocusController> | null = null;
 
-  $: if (showModal && !wasModalOpen) {
-    tick().then(() => modalEl?.focus());
-  }
-
-  $: wasModalOpen = showModal;
+  afterUpdate(() => {
+    if (showModal && !wasModalOpen) {
+      tick().then(() => {
+        if (!modalEl) return;
+        focusCtl = createDialogFocusController(modalEl);
+        focusCtl.focusInitial();
+      });
+    }
+    if (!showModal && wasModalOpen) {
+      focusCtl?.restoreFocus();
+      focusCtl = null;
+    }
+    wasModalOpen = showModal;
+  });
 
   function handleWindowKeydown(e: KeyboardEvent) {
-    if (e.key !== 'Escape') return;
-    if (showModal) showModal = false;
+    if (!showModal) return;
+    if (e.key === 'Escape') {
+      showModal = false;
+      return;
+    }
+    if (e.key === 'Tab') {
+      focusCtl?.onKeydown(e);
+    }
   }
 
   function openModal(index?: number) {
