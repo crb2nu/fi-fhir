@@ -1132,7 +1132,7 @@ func runTerminologyMappingGet(args []string) error {
 				continue
 			}
 		} else if !strings.HasPrefix(args[i], "--") && !strings.HasPrefix(args[i], "-") {
-			id, err := parseInt(args[i])
+			id, err := parseInt(args[i]) //nolint:gosec // G602: i is bounded by loop condition
 			if err == nil {
 				mappingID = int64(id)
 			}
@@ -1251,7 +1251,7 @@ func runTerminologyMappingDelete(args []string) error {
 		case "--force", "-f":
 			force = true
 		default:
-			if !strings.HasPrefix(args[i], "--") && !strings.HasPrefix(args[i], "-") {
+			if !strings.HasPrefix(args[i], "--") && !strings.HasPrefix(args[i], "-") { //nolint:gosec // G602: i is bounded by loop condition
 				id, err := parseInt(args[i])
 				if err == nil {
 					mappingID = int64(id)

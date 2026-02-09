@@ -53,7 +53,7 @@ func runWorkflowGenerate(args []string) error {
 			return nil
 		default:
 			if len(args[i]) > 0 && args[i][0] == '-' {
-				return fmt.Errorf("unknown flag: %s", args[i])
+				return fmt.Errorf("unknown flag: %s", args[i]) //nolint:gosec // G602: i is bounded by loop condition
 			}
 			if description == "" {
 				description = args[i]
@@ -322,7 +322,7 @@ func runWorkflowCEL(args []string) error {
 			printWorkflowCELUsage()
 			return nil
 		default:
-			if len(args[i]) > 0 && args[i][0] == '-' {
+			if len(args[i]) > 0 && args[i][0] == '-' { //nolint:gosec // G602: i is bounded by loop condition
 				return fmt.Errorf("unknown flag: %s", args[i])
 			}
 			if description == "" {

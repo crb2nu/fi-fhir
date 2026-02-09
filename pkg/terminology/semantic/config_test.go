@@ -99,19 +99,33 @@ func TestSearchConfig_WithEnv(t *testing.T) {
 	t.Cleanup(func() {
 		for _, k := range envVars {
 			if saved[k] != "" {
-				os.Setenv(k, saved[k])
+				if err := os.Setenv(k, saved[k]); err != nil {
+					t.Errorf("restore %s: %v", k, err)
+				}
 			} else {
-				os.Unsetenv(k)
+				if err := os.Unsetenv(k); err != nil {
+					t.Errorf("unset %s: %v", k, err)
+				}
 			}
 		}
 	})
 
 	// Set test values
-	os.Setenv("QDRANT_URL", "http://custom-qdrant:6333")
-	os.Setenv("QDRANT_API_KEY", "test-api-key")
-	os.Setenv("EMBEDDING_BASE_URL", "http://custom-embeddings:8000")
-	os.Setenv("EMBEDDING_API_KEY", "emb-key-123")
-	os.Setenv("EMBEDDING_MODEL", "custom-model")
+	if err := os.Setenv("QDRANT_URL", "http://custom-qdrant:6333"); err != nil {
+		t.Fatalf("set QDRANT_URL: %v", err)
+	}
+	if err := os.Setenv("QDRANT_API_KEY", "test-api-key"); err != nil {
+		t.Fatalf("set QDRANT_API_KEY: %v", err)
+	}
+	if err := os.Setenv("EMBEDDING_BASE_URL", "http://custom-embeddings:8000"); err != nil {
+		t.Fatalf("set EMBEDDING_BASE_URL: %v", err)
+	}
+	if err := os.Setenv("EMBEDDING_API_KEY", "emb-key-123"); err != nil {
+		t.Fatalf("set EMBEDDING_API_KEY: %v", err)
+	}
+	if err := os.Setenv("EMBEDDING_MODEL", "custom-model"); err != nil {
+		t.Fatalf("set EMBEDDING_MODEL: %v", err)
+	}
 
 	cfg := DefaultSearchConfig().WithEnv()
 
@@ -138,12 +152,16 @@ func TestSearchConfig_WithEnv_NoOverrideIfUnset(t *testing.T) {
 	saved := make(map[string]string)
 	for _, k := range envVars {
 		saved[k] = os.Getenv(k)
-		os.Unsetenv(k)
+		if err := os.Unsetenv(k); err != nil {
+			t.Fatalf("unset %s: %v", k, err)
+		}
 	}
 	t.Cleanup(func() {
 		for _, k := range envVars {
 			if saved[k] != "" {
-				os.Setenv(k, saved[k])
+				if err := os.Setenv(k, saved[k]); err != nil {
+					t.Errorf("restore %s: %v", k, err)
+				}
 			}
 		}
 	})

@@ -229,12 +229,20 @@ func TestStorageTest_MissingSecretKey(t *testing.T) {
 	oldAccess := os.Getenv("MINIO_ACCESS_KEY")
 	oldSecret := os.Getenv("MINIO_SECRET_KEY")
 	t.Cleanup(func() {
-		os.Setenv("MINIO_ACCESS_KEY", oldAccess)
-		os.Setenv("MINIO_SECRET_KEY", oldSecret)
+		if err := os.Setenv("MINIO_ACCESS_KEY", oldAccess); err != nil {
+			t.Errorf("restore MINIO_ACCESS_KEY: %v", err)
+		}
+		if err := os.Setenv("MINIO_SECRET_KEY", oldSecret); err != nil {
+			t.Errorf("restore MINIO_SECRET_KEY: %v", err)
+		}
 	})
 
-	os.Setenv("MINIO_ACCESS_KEY", "testkey")
-	os.Setenv("MINIO_SECRET_KEY", "testsecret")
+	if err := os.Setenv("MINIO_ACCESS_KEY", "testkey"); err != nil {
+		t.Fatalf("set MINIO_ACCESS_KEY: %v", err)
+	}
+	if err := os.Setenv("MINIO_SECRET_KEY", "testsecret"); err != nil {
+		t.Fatalf("set MINIO_SECRET_KEY: %v", err)
+	}
 
 	// With both keys set, it should try to connect and fail (no MinIO server)
 	err := runStorageTest([]string{})

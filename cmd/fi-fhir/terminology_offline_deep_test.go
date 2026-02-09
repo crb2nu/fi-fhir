@@ -241,7 +241,9 @@ func TestLoadLOINC_DryRun_NonexistentFile(t *testing.T) {
 func TestLoadLOINC_DryRun_NoPanelHierarchy(t *testing.T) {
 	dir := t.TempDir()
 	loincPath := filepath.Join(dir, "LoincTable.csv")
-	os.WriteFile(loincPath, []byte("LOINC_NUM,COMPONENT\n1234-5,Example\n"), 0o600)
+	if err := os.WriteFile(loincPath, []byte("LOINC_NUM,COMPONENT\n1234-5,Example\n"), 0o600); err != nil {
+		t.Fatalf("write loinc table: %v", err)
+	}
 
 	stdout, _ := captureOutput(t, func() {
 		err := loadLOINC(context.Background(), nil, nil, loincPath, "2.77", nil, true)

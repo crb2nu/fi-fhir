@@ -1908,7 +1908,7 @@ func runWorkflowRun(args []string) error {
 	)
 
 	for i := 0; i < len(args); i++ {
-		switch args[i] {
+		switch args[i] { //nolint:gosec // G602: i is bounded by loop condition
 		case "--config", "-c":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--config requires a value")
@@ -1920,11 +1920,11 @@ func runWorkflowRun(args []string) error {
 			return nil
 		default:
 			if args[i] == "-" {
-				input = args[i]
-			} else if len(args[i]) > 0 && args[i][0] == '-' {
+				input = args[i] //nolint:gosec // G602: i is bounded by loop condition
+			} else if len(args[i]) > 0 && args[i][0] == '-' { //nolint:gosec // G602: i is bounded by loop condition
 				return fmt.Errorf("unknown flag: %s", args[i])
 			} else {
-				input = args[i]
+				input = args[i] //nolint:gosec // G602: i is bounded by loop condition
 			}
 		}
 	}
@@ -2043,7 +2043,7 @@ func runWorkflowDryRun(args []string) error {
 	)
 
 	for i := 0; i < len(args); i++ {
-		switch args[i] {
+		switch args[i] { //nolint:gosec // G602: i is bounded by loop condition
 		case "--config", "-c":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--config requires a value")
@@ -2055,11 +2055,11 @@ func runWorkflowDryRun(args []string) error {
 			return nil
 		default:
 			if args[i] == "-" {
-				input = args[i]
-			} else if len(args[i]) > 0 && args[i][0] == '-' {
+				input = args[i] //nolint:gosec // G602: i is bounded by loop condition
+			} else if len(args[i]) > 0 && args[i][0] == '-' { //nolint:gosec // G602: i is bounded by loop condition
 				return fmt.Errorf("unknown flag: %s", args[i])
 			} else {
-				input = args[i]
+				input = args[i] //nolint:gosec // G602: i is bounded by loop condition
 			}
 		}
 	}
@@ -2267,8 +2267,8 @@ func runWorkflowReplay(args []string) error {
 			printWorkflowReplayUsage()
 			return nil
 		default:
-			if len(args[i]) > 0 && args[i][0] == '-' {
-				return fmt.Errorf("unknown flag: %s", args[i])
+			if len(args[i]) > 0 && args[i][0] == '-' { //nolint:gosec // G602: i is bounded by loop condition
+				return fmt.Errorf("unknown flag: %s", args[i]) //nolint:gosec // G602: i is bounded by loop condition
 			}
 			if recordingsPath == "" {
 				recordingsPath = args[i]
@@ -2774,8 +2774,8 @@ func runWorkflowLoadtest(args []string) error {
 			}
 			return nil
 		default:
-			if strings.HasPrefix(args[i], "-") {
-				return fmt.Errorf("unknown flag: %s", args[i])
+			if strings.HasPrefix(args[i], "-") { //nolint:gosec // G602: i is bounded by loop condition
+				return fmt.Errorf("unknown flag: %s", args[i]) //nolint:gosec // G602: i is bounded by loop condition
 			}
 		}
 		i++
