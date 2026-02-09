@@ -200,6 +200,7 @@
     <label class="filter">
       Source
       <input
+        aria-label="Filter by source"
         type="text"
         class="input"
         bind:value={filterSource}
@@ -210,6 +211,7 @@
     <label class="filter">
       Correlation ID
       <input
+        aria-label="Filter by correlation ID"
         type="text"
         class="input"
         bind:value={filterCorrelationId}

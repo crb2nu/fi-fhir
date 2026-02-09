@@ -140,7 +140,16 @@
     <div class="pill mono">
       delims: field={message.delimiters.field} comp={message.delimiters.component} rep={message.delimiters.repetition}
     </div>
-    <input class="search" type="text" bind:value={filter} placeholder="Filter segments…" />
+    <label class="sr-only" for="hl7-inspector-filter">
+      Filter HL7 segments
+    </label>
+    <input
+      id="hl7-inspector-filter"
+      class="search"
+      type="text"
+      bind:value={filter}
+      placeholder="Filter segments…"
+    />
   </div>
 
   {#if selected}

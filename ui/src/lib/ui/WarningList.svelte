@@ -91,7 +91,11 @@
   {#if enableControls}
     <div class="controls">
       <div class="search">
+        <label class="sr-only" for="warning-filter">
+          Filter warnings
+        </label>
         <input
+          id="warning-filter"
           class="input"
           type="text"
           bind:value={query}
