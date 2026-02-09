@@ -6,8 +6,9 @@
    * Includes focus trap and keyboard navigation support.
    */
 
-  import { createEventDispatcher, tick } from 'svelte';
+  import { afterUpdate, createEventDispatcher, tick } from 'svelte';
   import Button from '$lib/ui/Button.svelte';
+  import { createDialogFocusController } from '$lib/domain/a11yDialog';
 
   export let open = false;
   export let title = 'Confirm';
@@ -24,12 +25,22 @@
 
   let modalEl: HTMLDivElement | null = null;
   let wasOpen = false;
+  let focusCtl: ReturnType<typeof createDialogFocusController> | null = null;
 
-  $: if (open && !wasOpen) {
-    tick().then(() => modalEl?.focus());
-  }
-
-  $: wasOpen = open;
+  afterUpdate(() => {
+    if (open && !wasOpen) {
+      tick().then(() => {
+        if (!modalEl) return;
+        focusCtl = createDialogFocusController(modalEl);
+        focusCtl.focusInitial();
+      });
+    }
+    if (!open && wasOpen) {
+      focusCtl?.restoreFocus();
+      focusCtl = null;
+    }
+    wasOpen = open;
+  });
 
   function handleConfirm() {
     dispatch('confirm');
@@ -48,6 +59,9 @@
     if (!open) return;
     if (e.key === 'Escape' && !loading) {
       handleCancel();
+    }
+    if (e.key === 'Tab') {
+      focusCtl?.onKeydown(e);
     }
   }
 </script>

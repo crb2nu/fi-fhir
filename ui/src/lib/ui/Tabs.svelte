@@ -14,6 +14,52 @@
   export let variant: 'pills' | 'underline' = 'pills';
   export let size: 'sm' | 'md' = 'md';
   export let fullWidth = false;
+
+  // WAI-ARIA tabs keyboard support: roving tabindex + arrow/Home/End navigation.
+  // We intentionally keep this logic local to avoid a "frameworky" abstraction.
+  let tabButtons: Array<HTMLButtonElement | null> = [];
+
+  function enabledTabs(): Array<{ tab: TabItem; index: number }> {
+    return tabs
+      .map((tab, index) => ({ tab, index }))
+      .filter(({ tab }) => !tab.disabled);
+  }
+
+  function focusEnabledByEnabledIndex(enabledIndex: number): void {
+    const enabled = enabledTabs();
+    if (enabled.length === 0) return;
+    const clamped = ((enabledIndex % enabled.length) + enabled.length) % enabled.length;
+    const idx = enabled[clamped]?.index;
+    if (idx === undefined) return;
+    tabButtons[idx]?.focus();
+  }
+
+  function onKeydown(e: KeyboardEvent, fromIndex: number): void {
+    const key = e.key;
+    const enabled = enabledTabs();
+    if (enabled.length === 0) return;
+
+    const isPrev = key === 'ArrowLeft' || key === 'ArrowUp';
+    const isNext = key === 'ArrowRight' || key === 'ArrowDown';
+    const isHome = key === 'Home';
+    const isEnd = key === 'End';
+    if (!isPrev && !isNext && !isHome && !isEnd) return;
+
+    const current = enabled.findIndex(({ index }) => index === fromIndex);
+    if (current < 0) return;
+
+    e.preventDefault();
+
+    if (isHome) {
+      focusEnabledByEnabledIndex(0);
+      return;
+    }
+    if (isEnd) {
+      focusEnabledByEnabledIndex(enabled.length - 1);
+      return;
+    }
+    focusEnabledByEnabledIndex(current + (isNext ? 1 : -1));
+  }
 </script>
 
 <div
@@ -22,7 +68,7 @@
   class:sm={size === 'sm'}
   role="tablist"
 >
-  {#each tabs as tab (tab.key)}
+  {#each tabs as tab, i (tab.key)}
     <button
       class="tab"
       class:active={tab.key === active}
@@ -31,6 +77,8 @@
       aria-selected={tab.key === active}
       tabindex={tab.key === active ? 0 : -1}
       on:click={() => onChange(tab.key)}
+      on:keydown={(e) => onKeydown(e, i)}
+      bind:this={tabButtons[i]}
     >
       <span class="tab-label">{tab.label}</span>
       {#if tab.count !== undefined}

@@ -146,4 +146,62 @@ describe('Tabs', () => {
       expect(screen.getByRole('tab', { name: 'Only Tab' })).toHaveClass('active');
     });
   });
+
+  describe('keyboard navigation', () => {
+    it('should move focus with ArrowRight/ArrowLeft without selecting', async () => {
+      const onChange = vi.fn();
+      render(Tabs, { props: { tabs: defaultTabs, active: 'tab1', onChange } });
+
+      const first = screen.getByRole('tab', { name: 'First Tab' });
+      const second = screen.getByRole('tab', { name: 'Second Tab' });
+
+      first.focus();
+      expect(document.activeElement).toBe(first);
+
+      await fireEvent.keyDown(first, { key: 'ArrowRight' });
+      expect(document.activeElement).toBe(second);
+      expect(onChange).not.toHaveBeenCalled();
+
+      await fireEvent.keyDown(second, { key: 'ArrowLeft' });
+      expect(document.activeElement).toBe(first);
+      expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it('should support Home/End to jump focus', async () => {
+      const onChange = vi.fn();
+      render(Tabs, { props: { tabs: defaultTabs, active: 'tab2', onChange } });
+
+      const first = screen.getByRole('tab', { name: 'First Tab' });
+      const second = screen.getByRole('tab', { name: 'Second Tab' });
+      const third = screen.getByRole('tab', { name: 'Third Tab' });
+
+      second.focus();
+      expect(document.activeElement).toBe(second);
+
+      await fireEvent.keyDown(second, { key: 'End' });
+      expect(document.activeElement).toBe(third);
+
+      await fireEvent.keyDown(third, { key: 'Home' });
+      expect(document.activeElement).toBe(first);
+    });
+
+    it('should skip disabled tabs when moving focus', async () => {
+      const tabsWithDisabled: TabItem[] = [
+        { key: 'tab1', label: 'First Tab' },
+        { key: 'tab2', label: 'Second Tab', disabled: true },
+        { key: 'tab3', label: 'Third Tab' }
+      ];
+      const onChange = vi.fn();
+
+      render(Tabs, { props: { tabs: tabsWithDisabled, active: 'tab1', onChange } });
+
+      const first = screen.getByRole('tab', { name: 'First Tab' });
+      const third = screen.getByRole('tab', { name: 'Third Tab' });
+
+      first.focus();
+      await fireEvent.keyDown(first, { key: 'ArrowRight' });
+      expect(document.activeElement).toBe(third);
+      expect(onChange).not.toHaveBeenCalled();
+    });
+  });
 });
