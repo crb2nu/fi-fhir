@@ -6,6 +6,10 @@
 
   /** Maximum number of events to display in the list */
   export let maxEvents: number = 100;
+  /** Optional initial source filter value */
+  export let initialSource: string = '';
+  /** Optional initial correlationId filter value */
+  export let initialCorrelationId: string = '';
 
   type StreamEvent = EventStreamSubscription['eventStream'];
 
@@ -17,7 +21,8 @@
 
   // Filtering
   let filterType: EventType | 'ALL' = 'ALL';
-  let filterSource: string = '';
+  let filterSource: string = initialSource;
+  let filterCorrelationId: string = initialCorrelationId;
   let paused = false;
 
   // Available event types for filter dropdown
@@ -51,12 +56,13 @@
     // Build filter based on current settings
     const typeFilterValue = filterType !== 'ALL' ? filterType : null;
     const sourceFilterValue = filterSource.trim() || null;
-    const filter: EventFilter | null = typeFilterValue || sourceFilterValue
+    const correlationIdValue = filterCorrelationId.trim() || null;
+    const filter: EventFilter | null = typeFilterValue || sourceFilterValue || correlationIdValue
       ? {
           types: typeFilterValue ? [typeFilterValue] : null,
           sources: sourceFilterValue ? [sourceFilterValue] : null,
           patientMrn: null,
-          correlationId: null,
+          correlationId: correlationIdValue,
           fromTimestamp: null,
           toTimestamp: null
         }
@@ -134,6 +140,8 @@
   }
 
   onMount(() => {
+    // Prevent an immediate resubscribe after the initial connect.
+    lastFilterKey = `${filterType}|${filterSource.trim()}|${filterCorrelationId.trim()}`;
     startSubscription();
   });
 
@@ -142,9 +150,11 @@
   });
 
   // Restart subscription when filters change
-  $: if (filterType || filterSource !== undefined) {
-    // Only restart if already connected
-    if (unsubscribe) {
+  let lastFilterKey = '';
+  $: {
+    const key = `${filterType}|${filterSource.trim()}|${filterCorrelationId.trim()}`;
+    if (unsubscribe && key !== lastFilterKey) {
+      lastFilterKey = key;
       startSubscription();
     }
   }
@@ -196,6 +206,16 @@
         placeholder="Filter by source..."
       />
     </label>
+
+    <label class="filter">
+      Correlation ID
+      <input
+        type="text"
+        class="input"
+        bind:value={filterCorrelationId}
+        placeholder="Filter by correlationId..."
+      />
+    </label>
   </div>
 
   {#if events.length === 0}
@@ -215,6 +235,9 @@
           <span class="time mono">{formatTimestamp(event.timestamp)}</span>
           <span class="type-pill {typeColor(event.type)}">{formatEventType(event.type)}</span>
           <span class="source mono">{event.source}</span>
+          <span class="corr muted mono" title={event.correlationId ?? ''}>
+            {event.correlationId ? `${event.correlationId.slice(0, 10)}…` : '-'}
+          </span>
           <span class="id muted mono" title={event.id}>{event.id.slice(0, 8)}...</span>
         </div>
       {/each}
@@ -329,7 +352,7 @@
 
   .event-row {
     display: grid;
-    grid-template-columns: 80px auto 1fr auto;
+    grid-template-columns: 80px auto 1fr 140px auto;
     gap: 12px;
     align-items: center;
     padding: 8px 12px;
@@ -392,6 +415,13 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .corr {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.85rem;
   }
 
   .id {

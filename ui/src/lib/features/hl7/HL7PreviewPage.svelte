@@ -28,6 +28,7 @@
   import { graphqlFetch } from '$lib/graphql/client';
   import { ExplainWarningsDocument, type ParseWarningInput, type SourceFormat, type EventType } from '$lib/gen/graphql';
   import type { WarningLike } from '$lib/domain/warnings';
+  import { submitHL7Message } from '$lib/features/hl7/hl7Submit';
   import { SvelteSet } from 'svelte/reactivity';
 
   const store = createHL7PreviewStore();
@@ -39,6 +40,8 @@
   let editorRedactionMode: HL7RedactionMode = 'none';
   let useRedactionForPreview = false;
   let lastRunRedactionMode: HL7RedactionMode = 'none';
+  let useRedactionForProcess = false;
+  let lastProcessRedactionMode: HL7RedactionMode = 'none';
 
   // Track the profile ID and version used for the last parse
   let lastUsedProfileId: string | null = null;
@@ -148,7 +151,15 @@
   }
   const { samples, activeId, activeSample } = samplesStore;
 
-  let activeTab: 'samples' | 'warnings' | 'events' | 'extraction' | 'inspector' | 'profile' | 'live' = 'warnings';
+  let activeTab:
+    | 'samples'
+    | 'warnings'
+    | 'events'
+    | 'extraction'
+    | 'inspector'
+    | 'profile'
+    | 'process'
+    | 'live' = 'warnings';
   let selectedPath: string | null = null;
   let selectedLocation: HL7PathLocation | null = null;
 
@@ -161,8 +172,58 @@
     { key: 'extraction', label: 'Extraction' },
     { key: 'inspector', label: 'Inspector' },
     { key: 'profile', label: 'Profile draft' },
+    { key: 'process', label: 'Process' },
     { key: 'live', label: 'Live Events' }
   ] as const;
+
+  type ProcessState =
+    | { state: 'idle' }
+    | { state: 'running'; correlationId: string }
+    | { state: 'error'; correlationId: string; message: string }
+    | { state: 'done'; correlationId: string; result: Awaited<ReturnType<typeof submitHL7Message>> };
+
+  let processState: ProcessState = { state: 'idle' };
+  let lastProcessedSource: string | null = null;
+
+  function makeCorrelationId(): string {
+    const fromMsg = (msh10 ?? '').trim();
+    if (fromMsg) return fromMsg;
+    if (browser && typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+      return (crypto as Crypto).randomUUID();
+    }
+    return `ui-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
+  async function processMessage(): Promise<void> {
+    if ($state.loading) return;
+    if (!($state.data ?? '').trim()) return;
+
+    const snapshot = getSnapshot();
+    const correlationId = makeCorrelationId();
+    const data =
+      useRedactionForProcess && editorRedactionMode !== 'none'
+        ? redactHL7(snapshot.data, editorRedactionMode)
+        : snapshot.data;
+    lastProcessRedactionMode =
+      useRedactionForProcess && editorRedactionMode !== 'none' ? editorRedactionMode : 'none';
+
+    processState = { state: 'running', correlationId };
+    lastProcessedSource = snapshot.source;
+
+    try {
+      const result = await submitHL7Message({
+        source: snapshot.source,
+        data,
+        correlationId
+      });
+      processState = { state: 'done', correlationId, result };
+      activeTab = 'process';
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      processState = { state: 'error', correlationId, message: msg };
+      activeTab = 'process';
+    }
+  }
 
   async function run() {
     state.update((s) => ({ ...s, loading: true, error: null, result: null }));
@@ -484,6 +545,9 @@
         <Button on:click={run} disabled={$state.loading || !$state.data.trim()}>
           {#if $state.loading}Running…{:else}Preview{/if}
         </Button>
+        <Button variant="secondary" on:click={processMessage} disabled={$state.loading || !$state.data.trim()}>
+          {#if processState.state === 'running'}Processing…{:else}Process{/if}
+        </Button>
       </div>
     </div>
 
@@ -533,9 +597,9 @@
       role="region"
       aria-label="HL7 input. Drag and drop HL7 files to import."
     >
-      <div class="redaction">
-        <label class="label redaction-label">
-          Redaction
+    <div class="redaction">
+      <label class="label redaction-label">
+        Redaction
           <select class="input" bind:value={editorRedactionMode} disabled={$state.loading}>
             <option value="none">None</option>
             <option value="mask_basic">Mask basic (PID/NK1/PV1)</option>
@@ -544,16 +608,21 @@
           <span class="hint">Best-effort; free-text fields may still contain PHI.</span>
         </label>
 
-        <label class="checkbox">
-          <input type="checkbox" bind:checked={useRedactionForPreview} disabled={$state.loading} />
-          Use for preview
-        </label>
+      <label class="checkbox">
+        <input type="checkbox" bind:checked={useRedactionForPreview} disabled={$state.loading} />
+        Use for preview
+      </label>
 
-        <Button
-          variant="secondary"
-          on:click={normalizeEditorNewlines}
-          disabled={$state.loading || !$state.data.trim()}
-        >
+      <label class="checkbox">
+        <input type="checkbox" bind:checked={useRedactionForProcess} disabled={$state.loading} />
+        Use for process
+      </label>
+
+      <Button
+        variant="secondary"
+        on:click={normalizeEditorNewlines}
+        disabled={$state.loading || !$state.data.trim()}
+      >
           Normalize newlines
         </Button>
 
@@ -597,6 +666,13 @@
         </div>
         <div class="pill">events: {$events.length}</div>
         <div class="pill">warnings: {$state.result.parsePreview.warnings.length}</div>
+        {#if processState.state !== 'idle'}
+          <div
+            class="pill {processState.state === 'done' ? (processState.result.success ? 'ok' : 'bad') : processState.state === 'error' ? 'bad' : 'muted'}"
+          >
+            process: {processState.state}
+          </div>
+        {/if}
         <button class="pill stale" on:click={() => (activeTab = 'inspector')} disabled={$state.loading}>
           Inspect message
         </button>
@@ -607,6 +683,9 @@
         {/if}
         {#if lastRunRedactionMode !== 'none'}
           <div class="pill warn">redaction: {lastRunRedactionMode}</div>
+        {/if}
+        {#if lastProcessRedactionMode !== 'none'}
+          <div class="pill warn">process redaction: {lastProcessRedactionMode}</div>
         {/if}
         {#if profileChanged}
           <button class="pill stale" on:click={run} disabled={$state.loading}>
@@ -703,8 +782,76 @@
           fixes={fixes}
           onApplyFix={applyFix}
         />
+      {:else if activeTab === 'process'}
+        {#if processState.state === 'idle'}
+          <div class="empty">Press Process to submit this message to the backend pipeline.</div>
+        {:else if processState.state === 'running'}
+          <div class="empty mono">Submitting… correlationId={processState.correlationId}</div>
+        {:else if processState.state === 'error'}
+          <Panel title="Submit error" tone="error">
+            <div class="mono">correlationId={processState.correlationId}</div>
+            <div class="error">{processState.message}</div>
+          </Panel>
+        {:else if processState.state === 'done'}
+          <Panel title="Submit result" tone={processState.result.success ? 'default' : 'error'}>
+            <div class="meta">
+              <div class="pill {processState.result.success ? 'ok' : 'bad'}">
+                {processState.result.success ? 'success' : 'failed'}
+              </div>
+              {#if processState.result.eventId}
+                <div class="pill mono">eventId={processState.result.eventId}</div>
+              {/if}
+              <div class="pill mono">correlationId={processState.correlationId}</div>
+              {#if lastProcessedSource}
+                <div class="pill mono">source={lastProcessedSource}</div>
+              {/if}
+              <div class="pill">workflows: {processState.result.workflowResults.length}</div>
+              <div class="pill">warnings: {processState.result.warnings.length}</div>
+              <div class="pill">errors: {processState.result.errors.length}</div>
+              <button class="pill stale" type="button" on:click={() => (activeTab = 'live')} disabled={$state.loading}>
+                view live events
+              </button>
+            </div>
+
+            {#if processState.result.errors.length}
+              <ul class="errors">
+                {#each processState.result.errors as err (err)}
+                  <li>{err}</li>
+                {/each}
+              </ul>
+            {/if}
+
+            {#if processState.result.workflowResults.length}
+              <div class="wf-table">
+                <div class="wf-head">
+                  <div>Workflow</div>
+                  <div>Routes</div>
+                  <div>Actions</div>
+                  <div>Errors</div>
+                  <div>Ms</div>
+                </div>
+                {#each processState.result.workflowResults as wf, idx (wf.workflowName + ':' + idx)}
+                  <div class="wf-row">
+                    <div class="mono">{wf.workflowName}</div>
+                    <div class="mono">{wf.routesMatched}</div>
+                    <div class="mono">{wf.actionsExecuted}</div>
+                    <div class="mono">{wf.errors.length}</div>
+                    <div class="mono">{wf.duration}</div>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          </Panel>
+        {/if}
       {:else if activeTab === 'live'}
-        <EventStreamPanel />
+        <EventStreamPanel
+          initialSource={lastProcessedSource ?? $state.source}
+          initialCorrelationId={
+            processState.state === 'running' || processState.state === 'error' || processState.state === 'done'
+              ? processState.correlationId
+              : ''
+          }
+        />
       {/if}
     {/if}
   </Panel>

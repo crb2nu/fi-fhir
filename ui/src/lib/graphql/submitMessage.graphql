@@ -1,0 +1,22 @@
+mutation SubmitMessage($input: SubmitMessageInput!) {
+  submitMessage(input: $input) {
+    success
+    eventId
+    errors
+    warnings {
+      phase
+      code
+      message
+      path
+      severity
+    }
+    workflowResults {
+      workflowName
+      routesMatched
+      actionsExecuted
+      errors
+      duration
+    }
+  }
+}
+
