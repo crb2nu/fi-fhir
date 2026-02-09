@@ -25,6 +25,7 @@
   import EventStreamPanel from '$lib/features/events/EventStreamPanel.svelte';
   import ExtractionPanel from '$lib/ui/ExtractionPanel.svelte';
   import QualityBadge from '$lib/ui/QualityBadge.svelte';
+  import CommandPalette, { type PaletteCommand } from '$lib/ui/CommandPalette.svelte';
   import { graphqlFetch } from '$lib/graphql/client';
   import { ExplainWarningsDocument, type ParseWarningInput, type SourceFormat, type EventType } from '$lib/gen/graphql';
   import type { WarningLike } from '$lib/domain/warnings';
@@ -164,6 +165,58 @@
   let selectedLocation: HL7PathLocation | null = null;
 
   $: activeSampleModified = Boolean($activeSample && $activeSample.raw !== $state.data);
+  $: selectedValue = selectedLocation ? getHL7Value($hl7, selectedLocation) : null;
+
+  let paletteOpen = false;
+
+  function isEditableTarget(t: EventTarget | null): boolean {
+    const el = t as HTMLElement | null;
+    if (!el) return false;
+    const tag = el.tagName?.toLowerCase?.() ?? '';
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
+    return Boolean(el.isContentEditable);
+  }
+
+  async function copyText(text: string): Promise<void> {
+    if (!browser) return;
+    if (!text) return;
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  }
+
+  function focusWarningFilter(): void {
+    const el = document.getElementById('warning-filter') as HTMLInputElement | null;
+    el?.focus();
+  }
+
+  function focusInspectorFilter(): void {
+    const el = document.getElementById('hl7-inspector-filter') as HTMLInputElement | null;
+    el?.focus();
+  }
+
+  function selectWarningRelative(delta: number): void {
+    const warnings = $state.result?.parsePreview.warnings ?? [];
+    const withPath = warnings.filter((w) => Boolean(w.path));
+    if (!withPath.length) return;
+    const current = selectedPath ? withPath.findIndex((w) => w.path === selectedPath) : -1;
+    const start = current >= 0 ? current : 0;
+    const next = ((start + delta) % withPath.length + withPath.length) % withPath.length;
+    const w = withPath[next];
+    if (!w) return;
+    selectedPath = w.path ?? null;
+    selectedLocation = parseHL7Path(selectedPath);
+    activeTab = 'warnings';
+  }
 
   const tabs = [
     { key: 'samples', label: 'Samples' },
@@ -457,6 +510,68 @@
     activeTab = 'profile';
   }
 
+  $: paletteCommands = (() => {
+    const cmds: PaletteCommand[] = [
+      {
+        id: 'focus-warnings-filter',
+        label: 'Focus warnings filter',
+        hint: 'Jump to warnings search',
+        keywords: ['warnings', 'search', 'filter'],
+        run: () => {
+          activeTab = 'warnings';
+          focusWarningFilter();
+        }
+      },
+      {
+        id: 'focus-inspector-filter',
+        label: 'Focus inspector filter',
+        hint: 'Jump to segment filter',
+        keywords: ['inspector', 'segments', 'search'],
+        run: () => {
+          activeTab = 'inspector';
+          focusInspectorFilter();
+        }
+      },
+      {
+        id: 'next-warning',
+        label: 'Next warning (with path)',
+        hint: 'Alt+ArrowDown',
+        keywords: ['warnings', 'next'],
+        run: () => selectWarningRelative(1)
+      },
+      {
+        id: 'prev-warning',
+        label: 'Previous warning (with path)',
+        hint: 'Alt+ArrowUp',
+        keywords: ['warnings', 'previous'],
+        run: () => selectWarningRelative(-1)
+      }
+    ];
+
+    const path = selectedPath;
+    if (path) {
+      cmds.unshift({
+        id: 'copy-path',
+        label: 'Copy selected path',
+        hint: 'Cmd/Ctrl+Shift+C',
+        keywords: ['copy', 'path'],
+        run: () => copyText(path)
+      });
+    }
+    const value = selectedValue;
+    if (value) {
+      cmds.unshift({
+        id: 'copy-value',
+        label: 'Copy selected value',
+        hint: 'Cmd/Ctrl+Shift+X',
+        keywords: ['copy', 'value'],
+        run: () => copyText(value)
+      });
+    }
+
+    return cmds;
+  })();
+
   onMount(() => {
     loadRecentSources();
 
@@ -466,8 +581,11 @@
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
+      if (paletteOpen) return;
+      if (isEditableTarget(e.target)) return;
 
       const mod = e.metaKey || e.ctrlKey;
+      const shift = e.shiftKey;
       if (mod && e.key === 'Enter') {
         if ($state.loading) return;
         if (!$state.data.trim()) return;
@@ -480,6 +598,37 @@
         if ($state.loading) return;
         e.preventDefault();
         fileInputEl?.click();
+        return;
+      }
+
+      if (mod && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        paletteOpen = true;
+        return;
+      }
+
+      if (e.altKey && e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectWarningRelative(1);
+        return;
+      }
+      if (e.altKey && e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectWarningRelative(-1);
+        return;
+      }
+
+      if (mod && shift && (e.key === 'c' || e.key === 'C')) {
+        if (!selectedPath) return;
+        e.preventDefault();
+        void copyText(selectedPath);
+        return;
+      }
+
+      if (mod && shift && (e.key === 'x' || e.key === 'X')) {
+        if (!selectedValue) return;
+        e.preventDefault();
+        void copyText(selectedValue);
         return;
       }
 
@@ -513,6 +662,8 @@
 </p>
 
 <div class="grid">
+  <CommandPalette bind:open={paletteOpen} title="HL7 commands" commands={paletteCommands} />
+
   <Panel title="Sample HL7v2">
     <div class="row">
       <label class="label">
