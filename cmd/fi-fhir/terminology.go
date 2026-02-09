@@ -419,7 +419,11 @@ Examples:
 		}
 	}
 
-	dbURL := getTerminologyDBURL(args[2:])
+	extraArgs := []string{}
+	if len(args) > 2 {
+		extraArgs = args[2:]
+	}
+	dbURL := getTerminologyDBURL(extraArgs)
 	if dbURL == "" {
 		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_TERMINOLOGY_DB_URL env var")
 	}

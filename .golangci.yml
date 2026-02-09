@@ -119,7 +119,7 @@ linters-settings:
 issues:
   exclude-rules:
     # Exclude some linters from running on tests files
-    - path: _test\.go
+    - path: ".*_test\\.go$"
       linters:
         - dupl
         - goconst
@@ -173,6 +173,12 @@ issues:
     - linters:
         - gosec
       text: "G115"
+
+    # gosec: CLI arg parsing loops in cmd/fi-fhir trigger false-positive bounds checks
+    - path: "cmd/fi-fhir/.*"
+      linters:
+        - gosec
+      text: "G602"
 
     # gosec: False positives for hardcoded credentials in tests
     - linters:
