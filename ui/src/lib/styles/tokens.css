@@ -22,8 +22,8 @@
   /* Text Colors */
   --color-text-primary: #f9fafb;
   --color-text-secondary: rgba(229, 231, 235, 0.85);
-  --color-text-tertiary: rgba(229, 231, 235, 0.6);
-  --color-text-muted: rgba(229, 231, 235, 0.45);
+  --color-text-tertiary: rgba(229, 231, 235, 0.66);
+  --color-text-muted: rgba(229, 231, 235, 0.52);
   --color-text-inverse: #111827;
 
   /* Brand Colors */
@@ -31,7 +31,7 @@
   --color-primary-hover: #2563eb;
   --color-primary-muted: rgba(59, 130, 246, 0.18);
   --color-primary-border: rgba(59, 130, 246, 0.35);
-  --color-primary-glow: rgba(59, 130, 246, 0.15);
+  --color-primary-glow: rgba(59, 130, 246, 0.22);
 
   /* Semantic Colors - Success */
   --color-success: #10b981;
@@ -61,7 +61,7 @@
   --color-border-subtle: rgba(255, 255, 255, 0.06);
   --color-border-default: rgba(255, 255, 255, 0.08);
   --color-border-strong: rgba(255, 255, 255, 0.12);
-  --color-border-focus: rgba(59, 130, 246, 0.5);
+  --color-border-focus: rgba(59, 130, 246, 0.62);
 
   /* ═══════════════════════════════════════════════════════════════════════════
    * SPACING SCALE
@@ -138,8 +138,8 @@
   --shadow-xl: 0 20px 50px rgba(0, 0, 0, 0.45);
 
   /* Focus ring */
-  --shadow-focus: 0 0 0 2px var(--color-primary-glow);
-  --shadow-focus-danger: 0 0 0 2px rgba(239, 68, 68, 0.15);
+  --shadow-focus: 0 0 0 3px var(--color-primary-glow);
+  --shadow-focus-danger: 0 0 0 3px rgba(239, 68, 68, 0.20);
 
   /* Glow effects */
   --shadow-glow-primary: 0 0 20px rgba(59, 130, 246, 0.2);
