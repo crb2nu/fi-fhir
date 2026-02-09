@@ -364,12 +364,12 @@
 	      </Button>
 	    </div>
 
-	    {#if selectionMode}
-	      <div class="bulk-bar" aria-label="Bulk actions">
-	        <div class="bulk-left">
-	          <span class="mono">{selectedIds.size} selected</span>
-	        </div>
-	        <div class="bulk-actions">
+		    {#if selectionMode}
+		      <div class="bulk-bar" role="toolbar" aria-label="Bulk actions">
+		        <div class="bulk-left">
+		          <span class="mono">{selectedIds.size} selected</span>
+		        </div>
+		        <div class="bulk-actions">
 	          <Button variant="secondary" size="sm" on:click={selectAllFiltered} disabled={disabled || filtered.length === 0}>
 	            Select all
 	          </Button>
@@ -379,14 +379,14 @@
 	          <Button variant="danger" size="sm" on:click={requestBulkDelete} disabled={disabled || selectedIds.size === 0}>
 	            Delete selected
 	          </Button>
-	        </div>
-	      </div>
+		        </div>
+		      </div>
 
-	      <div class="bulk-bar" aria-label="Bulk apply metadata">
-	        <div class="bulk-left">
-	          <span class="muted">Apply to selected</span>
-	        </div>
-	        <div class="bulk-actions">
+		      <div class="bulk-bar" role="toolbar" aria-label="Bulk apply metadata">
+		        <div class="bulk-left">
+		          <span class="muted">Apply to selected</span>
+		        </div>
+		        <div class="bulk-actions">
 	          <Button
 	            variant="secondary"
 	            size="sm"
