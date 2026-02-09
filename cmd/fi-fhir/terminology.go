@@ -683,7 +683,7 @@ Examples:
 	dbURL := getTerminologyDBURL(args[1:])
 
 	for i := 1; i < len(args); i++ {
-		switch args[i] {
+		switch args[i] { //nolint:gosec // G602: i is bounded by loop condition
 		case "--from":
 			if i+1 < len(args) {
 				fromVocab = args[i+1]
@@ -1027,7 +1027,7 @@ func runTerminologyMappingList(args []string) error {
 	}
 
 	for i := 0; i < len(args); i++ {
-		switch args[i] {
+		switch args[i] { //nolint:gosec // G602: i is bounded by loop condition
 		case "--source-system":
 			if i+1 < len(args) {
 				filter.SourceSystem = args[i+1]
@@ -1524,7 +1524,7 @@ func runTerminologyMappingPending(args []string) error {
 	var jsonOutput bool
 
 	for i := 0; i < len(args); i++ {
-		switch args[i] {
+		switch args[i] { //nolint:gosec // G602: i is bounded by loop condition
 		case "--status":
 			if i+1 < len(args) {
 				filter.Status = db.PendingStatus(args[i+1])

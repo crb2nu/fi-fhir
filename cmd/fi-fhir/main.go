@@ -2006,7 +2006,7 @@ func runWorkflowValidate(args []string) error {
 			printWorkflowUsage()
 			return nil
 		default:
-			if len(args[i]) > 0 && args[i][0] != '-' {
+			if len(args[i]) > 0 && args[i][0] != '-' { //nolint:gosec // G602: i is bounded by loop condition
 				configPath = args[i]
 			}
 		}
@@ -2117,7 +2117,7 @@ func runWorkflowRecord(args []string) error {
 	)
 
 	for i := 0; i < len(args); {
-		switch args[i] {
+		switch args[i] { //nolint:gosec // G602: i is bounded by loop condition
 		case "--config", "-c":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--config requires a value")
@@ -2701,7 +2701,7 @@ func runWorkflowLoadtest(args []string) error {
 	)
 
 	for i := 0; i < len(args); {
-		switch args[i] {
+		switch args[i] { //nolint:gosec // G602: i is bounded by loop condition
 		case "-c", "--config":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--config requires a file path")
