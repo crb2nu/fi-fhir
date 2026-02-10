@@ -23,6 +23,9 @@ variables:
   # GitLab dependency proxy is currently returning 429s from upstream pulls.
   # Use the Harbor pull-through cache for Docker Hub images instead.
   DOCKERHUB_CACHE_PREFIX: "registry.harbor.lan/dockerhub-cache"
+  # CI includes set GOPROXY to Athens. When Athens is unhealthy, Go only falls back on 404/410 with ','.
+  # Use '|' to fall back on any error (e.g. connection refused).
+  GOPROXY: "http://athens.ci.svc.cluster.local:3000|https://proxy.golang.org|direct"
   # GitLab Kubernetes runner resources (avoid exceeding the ci-jobs namespace quota).
   # Many repos in this workspace set these explicitly because runner defaults can be very large.
   KUBERNETES_CPU_REQUEST: "200m"
