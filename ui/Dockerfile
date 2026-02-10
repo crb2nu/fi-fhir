@@ -1,5 +1,9 @@
 # Build stage
+#
+# NOTE: build args used in `FROM ...` must be declared before the first `FROM`
+# to be available for all stages.
 ARG NODE_IMAGE=node:22-alpine
+ARG NGINX_IMAGE=nginx:alpine
 FROM ${NODE_IMAGE} AS builder
 
 WORKDIR /app
@@ -23,7 +27,6 @@ ENV VITE_BUILD_TIME=$VITE_BUILD_TIME
 RUN npm run build
 
 # Production stage - lightweight nginx to serve static files
-ARG NGINX_IMAGE=nginx:alpine
 FROM ${NGINX_IMAGE}
 
 # Default backend origin for reverse-proxying API routes from the UI container.
