@@ -12,13 +12,15 @@
   import { draftToYaml, yamlToDraft } from '../workflowYaml';
   import {
     createWorkflowDefinition,
+    fetchWorkflowApprovalRequests,
     fetchWorkflowVersionById,
     fetchWorkflowVersions,
     publishWorkflowVersion,
     requestWorkflowApproval,
     saveWorkflowVersion
   } from '../workflowApi';
-  import type { GetWorkflowVersionsQuery } from '$lib/gen/graphql';
+  import { WORKFLOW_TEMPLATES } from '../workflowTemplates';
+  import type { GetWorkflowVersionsQuery, ListWorkflowApprovalRequestsQuery } from '$lib/gen/graphql';
   import { toasts } from '$lib/ui/toastStore';
 
   type ManagedSelection = {
@@ -29,6 +31,7 @@
     versionNumber: number | null;
   };
   type WorkflowVersionItem = GetWorkflowVersionsQuery['workflowVersions'][number];
+  type WorkflowApprovalItem = ListWorkflowApprovalRequestsQuery['workflowApprovalRequests'][number];
 
   export let managedSelection: ManagedSelection | null = null;
 
@@ -53,6 +56,11 @@
   let requestingApproval = false;
   let lifecycleError: string | null = null;
   let selectionSyncKey = '';
+  let selectedTemplateId = WORKFLOW_TEMPLATES[0]?.id ?? '';
+  let templateOverrideName = '';
+  let approvalStateByVersion: WorkflowApprovalItem[] = [];
+  let loadingApprovalState = false;
+  let approvalStateError: string | null = null;
 
   $: if (managedSelection) {
     const nextKey = `${managedSelection.workflowId}:${managedSelection.versionId ?? ''}`;
@@ -60,6 +68,61 @@
       selectionSyncKey = nextKey;
       void syncFromManagedSelection(managedSelection);
     }
+  }
+
+  function getSelectedVersionRecord(): WorkflowVersionItem | null {
+    return versionHistory.find((version) => version.id === selectedVersionId) ?? null;
+  }
+
+  function hasApprovedProductionRequest(): boolean {
+    return approvalStateByVersion.some((item) => item.status === 'approved');
+  }
+
+  function hasPendingProductionRequest(): boolean {
+    return approvalStateByVersion.some((item) => item.status === 'pending');
+  }
+
+  function getReadinessItems(workflowValid: boolean): Array<{ key: string; label: string; ready: boolean }> {
+    const selectedVersion = getSelectedVersionRecord();
+    return [
+      {
+        key: 'definition',
+        label: 'Managed definition linked',
+        ready: !!linkedWorkflowId
+      },
+      {
+        key: 'version-selected',
+        label: 'Version selected',
+        ready: !!selectedVersionId
+      },
+      {
+        key: 'draft-valid',
+        label: 'Current draft is structurally valid',
+        ready: workflowValid
+      },
+      {
+        key: 'version-valid',
+        label: 'Selected server version passed validation',
+        ready: !!selectedVersion?.validation.valid
+      },
+      {
+        key: 'production-approval',
+        label:
+          publishEnvironment === 'production'
+            ? 'Production approval is approved'
+            : 'Production approval not required for non-production publish',
+        ready: publishEnvironment === 'production' ? hasApprovedProductionRequest() : true
+      }
+    ];
+  }
+
+  async function refreshApprovalStateIfNeeded() {
+    if (publishEnvironment === 'production' && linkedWorkflowId && selectedVersionId) {
+      await loadApprovalState();
+      return;
+    }
+    approvalStateByVersion = [];
+    approvalStateError = null;
   }
 
   async function syncFromManagedSelection(selection: ManagedSelection) {
@@ -74,6 +137,65 @@
     if (selection.versionId) {
       await loadVersionIntoBuilder(selection.versionId);
     }
+    await refreshApprovalStateIfNeeded();
+  }
+
+  function applyTemplate() {
+    const template = WORKFLOW_TEMPLATES.find((item) => item.id === selectedTemplateId);
+    if (!template) {
+      toasts.error('Select a workflow template first');
+      return;
+    }
+
+    try {
+      const draft = yamlToDraft(template.yaml);
+      if (templateOverrideName.trim()) {
+        draft.name = templateOverrideName.trim();
+      }
+      workflowDraft.loadDraft(draft);
+
+      if (!linkedWorkflowId) {
+        linkedWorkflowName = draft.name;
+      }
+
+      toasts.success(`Loaded template: ${template.name}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load template';
+      toasts.error(message);
+    }
+  }
+
+  async function loadApprovalState() {
+    if (!linkedWorkflowId || !selectedVersionId || publishEnvironment !== 'production') {
+      approvalStateByVersion = [];
+      approvalStateError = null;
+      return;
+    }
+
+    loadingApprovalState = true;
+    approvalStateError = null;
+    try {
+      const data = await fetchWorkflowApprovalRequests({
+        filter: {
+          workflowId: linkedWorkflowId,
+          environment: publishEnvironment,
+          status: null
+        },
+        paging: {
+          limit: 200,
+          offset: 0
+        }
+      });
+      approvalStateByVersion = data.workflowApprovalRequests.filter(
+        (item) => item.targetVersionId === selectedVersionId
+      );
+    } catch (err) {
+      approvalStateError =
+        err instanceof Error ? err.message : 'Failed to load approval request state';
+      approvalStateByVersion = [];
+    } finally {
+      loadingApprovalState = false;
+    }
   }
 
   async function loadVersionHistory(workflowId: string, preferredVersionId?: string) {
@@ -86,6 +208,7 @@
 
       const fallbackVersionId = data.workflowVersions[0]?.id ?? '';
       selectedVersionId = preferredVersionId && preferredVersionId.trim() ? preferredVersionId : fallbackVersionId;
+      await refreshApprovalStateIfNeeded();
     } catch (err) {
       lifecycleError = err instanceof Error ? err.message : 'Failed to load workflow versions';
       toasts.error(lifecycleError);
@@ -182,6 +305,7 @@
       selectedVersionId = data.workflowVersion.id;
       loadedVersionNumber = data.workflowVersion.versionNumber;
       linkedWorkflowId = data.workflowVersion.workflowId;
+      await refreshApprovalStateIfNeeded();
       toasts.success(`Loaded v${data.workflowVersion.versionNumber} into builder`);
     } catch (err) {
       lifecycleError = err instanceof Error ? err.message : 'Failed to load workflow version';
@@ -198,6 +322,10 @@
     }
     if (!selectedVersionId) {
       toasts.error('Select a version to publish');
+      return;
+    }
+    if (publishEnvironment === 'production' && !hasApprovedProductionRequest()) {
+      toasts.error('Production publish is blocked until an approval request is approved');
       return;
     }
 
@@ -238,6 +366,7 @@
         environment: publishEnvironment,
         comment: versionNotes.trim() || null
       });
+      await loadApprovalState();
       toasts.success(`Approval requested (${data.requestWorkflowApproval.status})`);
     } catch (err) {
       lifecycleError = err instanceof Error ? err.message : 'Failed to request approval';
@@ -250,6 +379,7 @@
   async function refreshVersionHistory() {
     if (!linkedWorkflowId) return;
     await loadVersionHistory(linkedWorkflowId, selectedVersionId || undefined);
+    await refreshApprovalStateIfNeeded();
   }
 
   function unlinkManagedDefinition() {
@@ -260,6 +390,8 @@
     loadedVersionNumber = null;
     lifecycleError = null;
     selectionSyncKey = '';
+    approvalStateByVersion = [];
+    approvalStateError = null;
   }
 </script>
 
@@ -307,6 +439,29 @@
         />
       </label>
 
+      <div class="template-row">
+        <label class="field-label">
+          Workflow Template
+          <select class="input" bind:value={selectedTemplateId}>
+            {#each WORKFLOW_TEMPLATES as template (template.id)}
+              <option value={template.id}>{template.name} - {template.description}</option>
+            {/each}
+          </select>
+        </label>
+        <label class="field-label">
+          Template Name Override
+          <input
+            type="text"
+            class="input"
+            bind:value={templateOverrideName}
+            placeholder="Optional name override before loading template"
+          />
+        </label>
+        <div class="template-actions">
+          <Button variant="secondary" size="sm" on:click={applyTemplate}>Create from Template</Button>
+        </div>
+      </div>
+
       <div class="managed-row">
         <div class="managed-summary">
           <div class="managed-label">Managed Definition</div>
@@ -323,6 +478,9 @@
           <select
             class="input"
             bind:value={selectedVersionId}
+            on:change={() => {
+              void refreshApprovalStateIfNeeded();
+            }}
             disabled={loadingVersionHistory || versionHistory.length === 0}
           >
             {#if versionHistory.length === 0}
@@ -339,7 +497,13 @@
 
         <label class="field-label">
           Publish Env
-          <select class="input" bind:value={publishEnvironment}>
+          <select
+            class="input"
+            bind:value={publishEnvironment}
+            on:change={() => {
+              void refreshApprovalStateIfNeeded();
+            }}
+          >
             <option value="staging">staging</option>
             <option value="production">production</option>
           </select>
@@ -420,7 +584,37 @@
           Production publish is gated. Request approval first, then publish after approval is
           granted.
         </div>
+        {#if loadingApprovalState}
+          <div class="checklist-note muted">Checking approval state...</div>
+        {:else if hasApprovedProductionRequest()}
+          <div class="checklist-note success">
+            Approval is granted for the selected version in production.
+          </div>
+        {:else if hasPendingProductionRequest()}
+          <div class="checklist-note warning">
+            Approval request is pending review for the selected version.
+          </div>
+        {:else}
+          <div class="checklist-note warning">
+            No approval request found for the selected version in production.
+          </div>
+        {/if}
       {/if}
+
+      <div class="readiness">
+        <div class="managed-label">Pre-Publish Readiness Checklist</div>
+        <div class="readiness-list">
+          {#each getReadinessItems($isWorkflowValid) as item (item.key)}
+            <div class="readiness-item" class:ready={item.ready}>
+              <span class="readiness-icon" aria-hidden="true">{item.ready ? '✓' : '○'}</span>
+              <span>{item.label}</span>
+            </div>
+          {/each}
+        </div>
+        {#if approvalStateError}
+          <div class="lifecycle-error" role="alert">{approvalStateError}</div>
+        {/if}
+      </div>
 
       {#if loadedVersionNumber !== null}
         <div class="loaded-version muted">Loaded version: v{loadedVersionNumber}</div>
@@ -577,6 +771,20 @@
     align-items: end;
   }
 
+  .template-row {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr auto;
+    gap: 10px;
+    align-items: end;
+  }
+
+  .template-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 2px;
+  }
+
   .managed-summary {
     padding: 8px 10px;
     border: 1px solid var(--color-border-subtle);
@@ -616,6 +824,41 @@
     font-size: 0.85rem;
   }
 
+  .readiness {
+    display: grid;
+    gap: 6px;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-surface);
+  }
+
+  .readiness-list {
+    display: grid;
+    gap: 5px;
+  }
+
+  .readiness-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--color-text-secondary);
+    font-size: 0.84rem;
+  }
+
+  .readiness-item.ready {
+    color: rgba(187, 247, 208, 0.95);
+  }
+
+  .readiness-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    min-width: 16px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+
   .gate-hint {
     padding: 8px 10px;
     border-radius: 8px;
@@ -623,6 +866,19 @@
     background: rgba(245, 158, 11, 0.14);
     color: rgba(253, 230, 138, 0.95);
     font-size: 0.82rem;
+  }
+
+  .checklist-note {
+    font-size: 0.82rem;
+    padding: 6px 0;
+  }
+
+  .checklist-note.success {
+    color: rgba(187, 247, 208, 0.95);
+  }
+
+  .checklist-note.warning {
+    color: rgba(253, 230, 138, 0.95);
   }
 
   .lifecycle-error {
@@ -659,6 +915,7 @@
   }
 
   @media (max-width: 1080px) {
+    .template-row,
     .managed-row {
       grid-template-columns: 1fr;
     }
