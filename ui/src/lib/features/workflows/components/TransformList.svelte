@@ -21,28 +21,31 @@
         <span class="transform-index">Transform {i + 1}</span>
         <div class="transform-controls">
           <button
+            type="button"
             class="icon-btn"
             disabled={i === 0}
             on:click={() => dispatch('move', { transformKey: transform._key, direction: 'up' })}
-            aria-label="Move up"
-            title="Move up"
+            aria-label={`Move transform ${i + 1} up`}
+            title={`Move transform ${i + 1} up`}
           >
             &uarr;
           </button>
           <button
+            type="button"
             class="icon-btn"
             disabled={i === transforms.length - 1}
             on:click={() => dispatch('move', { transformKey: transform._key, direction: 'down' })}
-            aria-label="Move down"
-            title="Move down"
+            aria-label={`Move transform ${i + 1} down`}
+            title={`Move transform ${i + 1} down`}
           >
             &darr;
           </button>
           <button
+            type="button"
             class="icon-btn danger"
             on:click={() => dispatch('remove', { transformKey: transform._key })}
-            aria-label="Remove transform"
-            title="Remove transform"
+            aria-label={`Remove transform ${i + 1}`}
+            title={`Remove transform ${i + 1}`}
           >
             &times;
           </button>

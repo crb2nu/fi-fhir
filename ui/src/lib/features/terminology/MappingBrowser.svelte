@@ -396,6 +396,7 @@
       </div>
       <div class="pagination-controls">
         <button
+          type="button"
           class="page-btn"
           on:click={prevPage}
           disabled={offset === 0}
@@ -403,6 +404,7 @@
           Previous
         </button>
         <button
+          type="button"
           class="page-btn"
           on:click={nextPage}
           disabled={offset + pageSize >= totalCount}

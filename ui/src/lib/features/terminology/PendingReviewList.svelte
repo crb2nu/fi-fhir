@@ -558,9 +558,13 @@
             </span>
             <span class="date-label">{formatDate(item.createdAt)}</span>
             <button
+              type="button"
               class="expand-btn"
               on:click={() => toggleExpand(item.id)}
-              title={isExpanded ? 'Collapse' : 'Expand'}
+              title={isExpanded ? 'Collapse details' : 'Expand details'}
+              aria-label={isExpanded ? 'Collapse suggestion details' : 'Expand suggestion details'}
+              aria-expanded={isExpanded}
+              aria-controls={`pending-details-${item.id}`}
             >
               <svg
                 viewBox="0 0 24 24"
@@ -581,7 +585,7 @@
           {/if}
 
           {#if isExpanded}
-            <div class="card-details">
+            <div class="card-details" id={`pending-details-${item.id}`}>
               {#if item.alternates && item.alternates.length > 0}
                 <div class="alternates">
                   <div class="detail-heading">Alternatives Considered</div>
@@ -648,10 +652,10 @@
         Showing {offset + 1}–{Math.min(offset + pending.length, totalCount)} of {totalCount}
       </div>
       <div class="pagination-controls">
-        <button class="page-btn" on:click={prevPage} disabled={offset === 0}>
+        <button type="button" class="page-btn" on:click={prevPage} disabled={offset === 0}>
           Previous
         </button>
-        <button class="page-btn" on:click={nextPage} disabled={offset + pageSize >= totalCount}>
+        <button type="button" class="page-btn" on:click={nextPage} disabled={offset + pageSize >= totalCount}>
           Next
         </button>
       </div>

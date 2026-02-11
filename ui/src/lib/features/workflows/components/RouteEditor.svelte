@@ -39,7 +39,13 @@
 
 <div class="route-editor" class:expanded={route.expanded}>
   <div class="route-header-row">
-    <button class="route-header" on:click={() => dispatch('toggleExpand')} aria-expanded={route.expanded}>
+    <button
+      type="button"
+      class="route-header"
+      on:click={() => dispatch('toggleExpand')}
+      aria-expanded={route.expanded}
+      aria-controls={`route-body-${route._key}`}
+    >
       <span class="collapse-icon" class:rotated={route.expanded}>&#9654;</span>
       <span class="route-name">{route.name || 'Unnamed route'}</span>
       {#if !route.expanded}
@@ -58,14 +64,32 @@
       {/if}
     </button>
     <div class="route-controls">
-      <button class="icon-btn" on:click={() => dispatch('moveRoute', 'up')} aria-label="Move up" title="Move up">&uarr;</button>
-      <button class="icon-btn" on:click={() => dispatch('moveRoute', 'down')} aria-label="Move down" title="Move down">&darr;</button>
-      <button class="icon-btn danger" on:click={() => dispatch('remove')} aria-label="Remove route" title="Remove route">&times;</button>
+      <button
+        type="button"
+        class="icon-btn"
+        on:click={() => dispatch('moveRoute', 'up')}
+        aria-label="Move route up"
+        title="Move route up"
+      >&uarr;</button>
+      <button
+        type="button"
+        class="icon-btn"
+        on:click={() => dispatch('moveRoute', 'down')}
+        aria-label="Move route down"
+        title="Move route down"
+      >&darr;</button>
+      <button
+        type="button"
+        class="icon-btn danger"
+        on:click={() => dispatch('remove')}
+        aria-label="Remove route"
+        title="Remove route"
+      >&times;</button>
     </div>
   </div>
 
   {#if route.expanded}
-    <div class="route-body">
+    <div class="route-body" id={`route-body-${route._key}`}>
       <label class="field-label">
         Route Name
         <input

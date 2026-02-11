@@ -332,9 +332,13 @@
               Duration: {formatDuration(wf.durationMs)}
             </span>
             <button
+              type="button"
               class="expand-btn"
               on:click={() => toggleExpand(wf.id)}
-              title={isExpanded ? 'Collapse' : 'Expand'}
+              title={isExpanded ? 'Collapse details' : 'Expand details'}
+              aria-label={isExpanded ? 'Collapse workflow details' : 'Expand workflow details'}
+              aria-expanded={isExpanded}
+              aria-controls={`workflow-details-${wf.id}`}
             >
               <svg
                 viewBox="0 0 24 24"
@@ -349,7 +353,7 @@
           </div>
 
           {#if isExpanded}
-            <div class="card-details">
+            <div class="card-details" id={`workflow-details-${wf.id}`}>
               <div class="detail-row">
                 <span class="detail-label">Workflow ID:</span>
                 <span class="detail-value mono">{wf.id}</span>

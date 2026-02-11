@@ -21,28 +21,31 @@
         <span class="action-index">Action {i + 1}</span>
         <div class="action-controls">
           <button
+            type="button"
             class="icon-btn"
             disabled={i === 0}
             on:click={() => dispatch('move', { actionKey: action._key, direction: 'up' })}
-            aria-label="Move up"
-            title="Move up"
+            aria-label={`Move action ${i + 1} up`}
+            title={`Move action ${i + 1} up`}
           >
             &uarr;
           </button>
           <button
+            type="button"
             class="icon-btn"
             disabled={i === actions.length - 1}
             on:click={() => dispatch('move', { actionKey: action._key, direction: 'down' })}
-            aria-label="Move down"
-            title="Move down"
+            aria-label={`Move action ${i + 1} down`}
+            title={`Move action ${i + 1} down`}
           >
             &darr;
           </button>
           <button
+            type="button"
             class="icon-btn danger"
             on:click={() => dispatch('remove', { actionKey: action._key })}
-            aria-label="Remove action"
-            title="Remove action"
+            aria-label={`Remove action ${i + 1}`}
+            title={`Remove action ${i + 1}`}
           >
             &times;
           </button>
