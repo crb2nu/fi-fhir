@@ -1,26 +1,58 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
   import Panel from '$lib/ui/Panel.svelte';
   import Button from '$lib/ui/Button.svelte';
   import Badge from '$lib/ui/Badge.svelte';
   import EmptyState from '$lib/ui/EmptyState.svelte';
   import Skeleton from '$lib/ui/Skeleton.svelte';
-  import { fetchWorkflows, triggerWorkflow } from '../workflowApi';
-  import type { ListWorkflowsQuery, TriggerWorkflowMutation } from '$lib/gen/graphql';
+  import {
+    fetchWorkflowDefinitions,
+    fetchWorkflowVersions,
+    publishWorkflowVersion,
+    rollbackWorkflowVersion,
+    triggerWorkflow
+  } from '../workflowApi';
+  import type {
+    GetWorkflowVersionsQuery,
+    ListWorkflowDefinitionsQuery,
+    TriggerWorkflowMutation
+  } from '$lib/gen/graphql';
   import { toasts } from '$lib/ui/toastStore';
 
-  type WorkflowItem = ListWorkflowsQuery['workflows'][number];
+  type WorkflowItem = ListWorkflowDefinitionsQuery['workflowDefinitions'][number];
+  type WorkflowVersionItem = GetWorkflowVersionsQuery['workflowVersions'][number];
   type TriggerResult = TriggerWorkflowMutation['triggerWorkflow'];
+  type OpenBuilderPayload = {
+    workflowId: string;
+    name: string;
+    description: string | null;
+    versionId: string | null;
+    versionNumber: number | null;
+  };
+
+  const dispatch = createEventDispatcher<{
+    openBuilder: OpenBuilderPayload;
+  }>();
 
   let workflows: WorkflowItem[] = [];
   let loading = true;
   let error: string | null = null;
+
   let runningWorkflowName: string | null = null;
-  let expandedRunnerWorkflow: string | null = null;
+  let expandedWorkflowId: string | null = null;
 
   let eventJsonByWorkflow: Record<string, string> = {};
   let runResultByWorkflow: Record<string, TriggerResult | undefined> = {};
   let runErrorByWorkflow: Record<string, string | undefined> = {};
+
+  let versionsByWorkflowId: Record<string, WorkflowVersionItem[] | undefined> = {};
+  let loadingVersionsByWorkflowId: Record<string, boolean> = {};
+  let versionErrorByWorkflowId: Record<string, string | undefined> = {};
+
+  let selectedVersionByWorkflowId: Record<string, string | undefined> = {};
+  let selectedEnvByWorkflowId: Record<string, string | undefined> = {};
+  let publishingByWorkflowId: Record<string, boolean> = {};
+  let rollingBackByWorkflowId: Record<string, boolean> = {};
 
   onMount(() => {
     void loadWorkflows();
@@ -30,8 +62,13 @@
     loading = true;
     error = null;
     try {
-      const data = await fetchWorkflows();
-      workflows = data.workflows;
+      const data = await fetchWorkflowDefinitions({
+        paging: {
+          limit: 100,
+          offset: 0
+        }
+      });
+      workflows = data.workflowDefinitions;
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to load workflows';
     } finally {
@@ -39,13 +76,44 @@
     }
   }
 
-  function formatTime(ts: string | null): string {
-    if (!ts) return 'Never';
+  async function ensureWorkflowVersions(workflow: WorkflowItem) {
+    if (loadingVersionsByWorkflowId[workflow.id]) return;
+    if (versionsByWorkflowId[workflow.id]) return;
+
+    loadingVersionsByWorkflowId = { ...loadingVersionsByWorkflowId, [workflow.id]: true };
+    versionErrorByWorkflowId = { ...versionErrorByWorkflowId, [workflow.id]: undefined };
+
     try {
-      return new Date(ts).toLocaleString();
-    } catch {
-      return ts;
+      const data = await fetchWorkflowVersions(workflow.id, { limit: 100, offset: 0 });
+      versionsByWorkflowId = {
+        ...versionsByWorkflowId,
+        [workflow.id]: data.workflowVersions
+      };
+
+      const publishedProd = getPublishedVersionId(workflow, 'production');
+      const preferredVersionId =
+        publishedProd ?? workflow.latestVersion?.id ?? data.workflowVersions[0]?.id;
+      selectedVersionByWorkflowId = {
+        ...selectedVersionByWorkflowId,
+        [workflow.id]: preferredVersionId
+      };
+      selectedEnvByWorkflowId = {
+        ...selectedEnvByWorkflowId,
+        [workflow.id]: selectedEnvByWorkflowId[workflow.id] ?? 'staging'
+      };
+    } catch (err) {
+      versionErrorByWorkflowId = {
+        ...versionErrorByWorkflowId,
+        [workflow.id]: err instanceof Error ? err.message : 'Failed to load versions'
+      };
+    } finally {
+      loadingVersionsByWorkflowId = { ...loadingVersionsByWorkflowId, [workflow.id]: false };
     }
+  }
+
+  async function refreshWorkflowVersions(workflow: WorkflowItem) {
+    versionsByWorkflowId = { ...versionsByWorkflowId, [workflow.id]: undefined };
+    await ensureWorkflowVersions(workflow);
   }
 
   function getDefaultEventJson(workflowName: string): string {
@@ -72,23 +140,97 @@
     );
   }
 
-  function toggleRunner(workflowName: string) {
-    if (expandedRunnerWorkflow === workflowName) {
-      expandedRunnerWorkflow = null;
+  function toggleWorkflowPanel(workflow: WorkflowItem) {
+    if (expandedWorkflowId === workflow.id) {
+      expandedWorkflowId = null;
       return;
     }
 
-    expandedRunnerWorkflow = workflowName;
+    expandedWorkflowId = workflow.id;
 
-    if (!eventJsonByWorkflow[workflowName]) {
+    if (!eventJsonByWorkflow[workflow.name]) {
       eventJsonByWorkflow = {
         ...eventJsonByWorkflow,
-        [workflowName]: getDefaultEventJson(workflowName)
+        [workflow.name]: getDefaultEventJson(workflow.name)
       };
+    }
+
+    if (!selectedEnvByWorkflowId[workflow.id]) {
+      selectedEnvByWorkflowId = {
+        ...selectedEnvByWorkflowId,
+        [workflow.id]: 'staging'
+      };
+    }
+
+    void ensureWorkflowVersions(workflow);
+  }
+
+  function setSampleEvent(workflowName: string) {
+    eventJsonByWorkflow = {
+      ...eventJsonByWorkflow,
+      [workflowName]: getDefaultEventJson(workflowName)
+    };
+  }
+
+  function parsePublishedVersions(raw: unknown): Record<string, string> {
+    if (!raw || typeof raw !== 'object') return {};
+
+    const asRecord = raw as Record<string, unknown>;
+    const out: Record<string, string> = {};
+    for (const [environment, value] of Object.entries(asRecord)) {
+      if (typeof value !== 'string' || !value.trim()) continue;
+      out[environment] = value;
+    }
+    return out;
+  }
+
+  function getPublishedVersionId(workflow: WorkflowItem, environment: string): string | undefined {
+    const published = parsePublishedVersions(workflow.publishedVersionsByEnv);
+    return published[environment];
+  }
+
+  function summarizePublishedVersions(workflow: WorkflowItem): string {
+    const published = parsePublishedVersions(workflow.publishedVersionsByEnv);
+    const entries = Object.entries(published);
+    if (entries.length === 0) return 'No published environments';
+    return entries
+      .map(([env, versionId]) => `${env}: ${versionId.slice(0, 12)}`)
+      .join(' · ');
+  }
+
+  function formatTime(ts: string | null): string {
+    if (!ts) return 'Never';
+    try {
+      return new Date(ts).toLocaleString();
+    } catch {
+      return ts;
     }
   }
 
-  async function runWorkflow(workflowName: string) {
+  function getSelectedEnvironment(workflowId: string): string {
+    return selectedEnvByWorkflowId[workflowId] ?? 'staging';
+  }
+
+  function getSelectedVersionId(workflow: WorkflowItem): string | undefined {
+    return (
+      selectedVersionByWorkflowId[workflow.id] ??
+      getPublishedVersionId(workflow, 'production') ??
+      workflow.latestVersion?.id ??
+      versionsByWorkflowId[workflow.id]?.[0]?.id
+    );
+  }
+
+  function emitOpenBuilder(workflow: WorkflowItem) {
+    dispatch('openBuilder', {
+      workflowId: workflow.id,
+      name: workflow.name,
+      description: workflow.description ?? null,
+      versionId: getSelectedVersionId(workflow) ?? null,
+      versionNumber: workflow.latestVersion?.versionNumber ?? null
+    });
+  }
+
+  async function runWorkflow(workflowId: string, workflowName: string) {
     if (runningWorkflowName) return;
 
     const eventJson = eventJsonByWorkflow[workflowName]?.trim() ?? '';
@@ -122,7 +264,9 @@
     runErrorByWorkflow = { ...runErrorByWorkflow, [workflowName]: undefined };
 
     try {
-      const data = await triggerWorkflow(workflowName, parsedEvent);
+      const data = await triggerWorkflow(workflowName, parsedEvent, {
+        environment: getSelectedEnvironment(workflowId)
+      });
       runResultByWorkflow = {
         ...runResultByWorkflow,
         [workflowName]: data.triggerWorkflow
@@ -149,17 +293,62 @@
     }
   }
 
-  function setSampleEvent(workflowName: string) {
-    eventJsonByWorkflow = {
-      ...eventJsonByWorkflow,
-      [workflowName]: getDefaultEventJson(workflowName)
-    };
+  async function publishSelectedVersion(workflow: WorkflowItem) {
+    const workflowId = workflow.id;
+    const versionId = getSelectedVersionId(workflow);
+    if (!versionId) {
+      toasts.error('Select a version to publish');
+      return;
+    }
+    const environment = getSelectedEnvironment(workflowId);
+    publishingByWorkflowId = { ...publishingByWorkflowId, [workflowId]: true };
+
+    try {
+      await publishWorkflowVersion({
+        workflowId,
+        versionId,
+        environment
+      });
+      await loadWorkflows();
+      await refreshWorkflowVersions(workflow);
+      toasts.success(`Published ${workflow.name} to ${environment}`);
+    } catch (err) {
+      toasts.error(err instanceof Error ? err.message : 'Failed to publish workflow');
+    } finally {
+      publishingByWorkflowId = { ...publishingByWorkflowId, [workflowId]: false };
+    }
+  }
+
+  async function rollbackToSelectedVersion(workflow: WorkflowItem) {
+    const workflowId = workflow.id;
+    const versionId = getSelectedVersionId(workflow);
+    if (!versionId) {
+      toasts.error('Select a version to roll back to');
+      return;
+    }
+    const environment = getSelectedEnvironment(workflowId);
+    rollingBackByWorkflowId = { ...rollingBackByWorkflowId, [workflowId]: true };
+
+    try {
+      await rollbackWorkflowVersion({
+        workflowId,
+        targetVersionId: versionId,
+        environment
+      });
+      await loadWorkflows();
+      await refreshWorkflowVersions(workflow);
+      toasts.success(`Rolled back ${workflow.name} in ${environment}`);
+    } catch (err) {
+      toasts.error(err instanceof Error ? err.message : 'Failed to roll back workflow');
+    } finally {
+      rollingBackByWorkflowId = { ...rollingBackByWorkflowId, [workflowId]: false };
+    }
   }
 </script>
 
 <Panel>
   <div class="list-header">
-    <div class="list-title">Workflow Registry</div>
+    <div class="list-title">Managed Workflows</div>
     <Button variant="secondary" size="sm" on:click={loadWorkflows} disabled={loading}>
       {loading ? 'Refreshing...' : 'Refresh'}
     </Button>
@@ -176,91 +365,198 @@
   {:else if workflows.length === 0}
     <EmptyState
       icon="inbox"
-      title="No workflows found"
-      description="Workflows defined in YAML will appear here. Switch to the Builder tab to create one."
+      title="No managed workflows found"
+      description="Switch to Builder and create a managed definition to start versioning and publishing."
     />
   {:else}
     <div class="workflow-list">
-      {#each workflows as wf (wf.name)}
-        {@const isRunnerOpen = expandedRunnerWorkflow === wf.name}
+      {#each workflows as wf (wf.id)}
+        {@const isPanelOpen = expandedWorkflowId === wf.id}
         {@const isRunning = runningWorkflowName === wf.name}
         {@const runResult = runResultByWorkflow[wf.name]}
         {@const runError = runErrorByWorkflow[wf.name]}
+        {@const workflowVersions = versionsByWorkflowId[wf.id] ?? []}
+        {@const selectedEnv = getSelectedEnvironment(wf.id)}
+        {@const selectedVersion = getSelectedVersionId(wf)}
+        {@const selectedPublishedVersion = getPublishedVersionId(wf, selectedEnv)}
 
-        <div class="workflow-row" class:expanded={isRunnerOpen}>
+        <div class="workflow-row" class:expanded={isPanelOpen}>
           <div class="workflow-name">{wf.name}</div>
           <div class="workflow-meta">
-            <Badge variant={wf.enabled ? 'success' : 'default'} size="sm">
-              {wf.enabled ? 'Active' : 'Inactive'}
+            <Badge variant={wf.status === 'archived' ? 'danger' : 'success'} size="sm">
+              {wf.status}
             </Badge>
-            <span class="stat">{wf.routeCount} routes</span>
-            <span class="stat">{wf.eventsProcessed} events</span>
-            {#if wf.errors > 0}
-              <Badge variant="danger" size="sm">{wf.errors} errors</Badge>
+            {#if wf.latestVersion}
+              <span class="stat">v{wf.latestVersion.versionNumber}</span>
+            {:else}
+              <span class="stat">No versions</span>
             {/if}
+            <span class="stat">{summarizePublishedVersions(wf)}</span>
           </div>
-          <div class="workflow-time muted">{formatTime(wf.lastEventTime)}</div>
+          <div class="workflow-time muted">{formatTime(wf.updatedAt)}</div>
           <div class="workflow-actions">
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={!wf.enabled}
-              on:click={() => toggleRunner(wf.name)}
-            >
-              {isRunnerOpen ? 'Hide Runner' : 'Trigger'}
+            <Button variant="secondary" size="sm" on:click={() => emitOpenBuilder(wf)}>
+              Open in Builder
+            </Button>
+            <Button variant="secondary" size="sm" on:click={() => toggleWorkflowPanel(wf)}>
+              {isPanelOpen ? 'Hide' : 'Manage'}
             </Button>
           </div>
 
-          {#if isRunnerOpen}
-            <div class="runner">
-              <label class="runner-label" for={`event-${wf.name}`}>
-                Event JSON
-              </label>
-              <textarea
-                id={`event-${wf.name}`}
-                class="runner-input mono"
-                rows="7"
-                bind:value={eventJsonByWorkflow[wf.name]}
-                placeholder={'{"type":"PATIENT_ADMIT","source":"ui-manual"}'}
-                spellcheck="false"
-              ></textarea>
+          {#if isPanelOpen}
+            <div class="panel-content">
+              <div class="publish-controls">
+                <label class="field-label">
+                  Environment
+                  <select
+                    class="input"
+                    value={selectedEnv}
+                    on:change={(e) => {
+                      selectedEnvByWorkflowId = {
+                        ...selectedEnvByWorkflowId,
+                        [wf.id]: (e.target as HTMLSelectElement).value
+                      };
+                    }}
+                  >
+                    <option value="staging">staging</option>
+                    <option value="production">production</option>
+                  </select>
+                </label>
 
-              <div class="runner-actions">
-                <Button variant="secondary" size="sm" on:click={() => setSampleEvent(wf.name)}>
-                  Reset Sample
-                </Button>
-                <Button size="sm" loading={isRunning} on:click={() => runWorkflow(wf.name)}>
-                  {isRunning ? 'Running...' : 'Run Event'}
-                </Button>
+                <label class="field-label">
+                  Version
+                  <select
+                    class="input"
+                    value={selectedVersion ?? ''}
+                    on:change={(e) => {
+                      selectedVersionByWorkflowId = {
+                        ...selectedVersionByWorkflowId,
+                        [wf.id]: (e.target as HTMLSelectElement).value
+                      };
+                    }}
+                    disabled={loadingVersionsByWorkflowId[wf.id]}
+                  >
+                    {#if workflowVersions.length === 0}
+                      <option value="">No saved versions</option>
+                    {:else}
+                      {#each workflowVersions as version (version.id)}
+                        <option value={version.id}>
+                          v{version.versionNumber} · {new Date(version.createdAt).toLocaleString()}
+                        </option>
+                      {/each}
+                    {/if}
+                  </select>
+                </label>
+
+                <div class="publish-actions">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    on:click={() => refreshWorkflowVersions(wf)}
+                    disabled={!!loadingVersionsByWorkflowId[wf.id]}
+                  >
+                    {loadingVersionsByWorkflowId[wf.id] ? 'Loading...' : 'Reload Versions'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    loading={!!publishingByWorkflowId[wf.id]}
+                    on:click={() => publishSelectedVersion(wf)}
+                    disabled={!selectedVersion || wf.status === 'archived'}
+                  >
+                    {publishingByWorkflowId[wf.id] ? 'Publishing...' : 'Publish'}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    loading={!!rollingBackByWorkflowId[wf.id]}
+                    on:click={() => rollbackToSelectedVersion(wf)}
+                    disabled={!selectedVersion || wf.status === 'archived'}
+                  >
+                    {rollingBackByWorkflowId[wf.id] ? 'Rolling Back...' : 'Rollback'}
+                  </Button>
+                </div>
               </div>
 
-              {#if runError}
-                <div class="runner-error" role="alert">{runError}</div>
+              {#if versionErrorByWorkflowId[wf.id]}
+                <div class="runner-error" role="alert">{versionErrorByWorkflowId[wf.id]}</div>
               {/if}
 
-              {#if runResult}
-                <div class="runner-result">
-                  <div class="result-row">
-                    <span class="muted">Matched Routes</span>
-                    <span class="mono">{runResult.routesMatched}</span>
-                  </div>
-                  <div class="result-row">
-                    <span class="muted">Executed Actions</span>
-                    <span class="mono">{runResult.actionsExecuted}</span>
-                  </div>
-                  <div class="result-row">
-                    <span class="muted">Duration</span>
-                    <span class="mono">{runResult.duration.toFixed(2)} ms</span>
-                  </div>
-                  {#if runResult.errors.length > 0}
-                    <div class="result-errors" role="alert">
-                      {#each runResult.errors as err, idx (idx)}
-                        <div class="result-error-item">{err}</div>
-                      {/each}
-                    </div>
-                  {/if}
+              <div class="published-summary muted">
+                {#if selectedPublishedVersion}
+                  Current {selectedEnv} version: <span class="mono">{selectedPublishedVersion}</span>
+                {:else}
+                  No version currently published to {selectedEnv}
+                {/if}
+              </div>
+
+              <div class="runner">
+                <label class="runner-label" for={`event-${wf.name}`}>
+                  Event JSON
+                </label>
+                <textarea
+                  id={`event-${wf.name}`}
+                  class="runner-input mono"
+                  rows="7"
+                  bind:value={eventJsonByWorkflow[wf.name]}
+                  placeholder={'{"type":"PATIENT_ADMIT","source":"ui-manual"}'}
+                  spellcheck="false"
+                ></textarea>
+
+                <div class="runner-actions">
+                  <Button variant="secondary" size="sm" on:click={() => setSampleEvent(wf.name)}>
+                    Reset Sample
+                  </Button>
+                  <Button size="sm" loading={isRunning} on:click={() => runWorkflow(wf.id, wf.name)}>
+                    {isRunning ? 'Running...' : 'Run Event'}
+                  </Button>
                 </div>
-              {/if}
+
+                {#if runError}
+                  <div class="runner-error" role="alert">{runError}</div>
+                {/if}
+
+                {#if runResult}
+                  <div class="runner-result">
+                    <div class="result-row">
+                      <span class="muted">Matched Routes</span>
+                      <span class="mono">{runResult.routesMatched}</span>
+                    </div>
+                    <div class="result-row">
+                      <span class="muted">Executed Actions</span>
+                      <span class="mono">{runResult.actionsExecuted}</span>
+                    </div>
+                    <div class="result-row">
+                      <span class="muted">Duration</span>
+                      <span class="mono">{runResult.duration.toFixed(2)} ms</span>
+                    </div>
+                    {#if runResult.runId}
+                      <div class="result-row">
+                        <span class="muted">Run ID</span>
+                        <span class="mono">{runResult.runId}</span>
+                      </div>
+                    {/if}
+                    {#if runResult.environment}
+                      <div class="result-row">
+                        <span class="muted">Environment</span>
+                        <span class="mono">{runResult.environment}</span>
+                      </div>
+                    {/if}
+                    {#if runResult.versionId}
+                      <div class="result-row">
+                        <span class="muted">Version</span>
+                        <span class="mono">{runResult.versionId}</span>
+                      </div>
+                    {/if}
+                    {#if runResult.errors.length > 0}
+                      <div class="result-errors" role="alert">
+                        {#each runResult.errors as err, idx (idx)}
+                          <div class="result-error-item">{err}</div>
+                        {/each}
+                      </div>
+                    {/if}
+                  </div>
+                {/if}
+              </div>
             </div>
           {/if}
         </div>
@@ -326,6 +622,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-wrap: wrap;
   }
 
   .stat {
@@ -341,13 +638,68 @@
   .workflow-actions {
     display: flex;
     justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
   }
 
-  .runner {
+  .panel-content {
     grid-column: 1 / -1;
     display: grid;
     gap: 8px;
     padding-top: 10px;
+    border-top: 1px solid var(--color-border-subtle);
+  }
+
+  .publish-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(180px, 220px)) 1fr;
+    gap: 10px;
+    align-items: end;
+  }
+
+  .publish-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .field-label {
+    display: grid;
+    gap: 4px;
+    color: var(--color-text-tertiary);
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  .input {
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-input);
+    color: var(--color-text-primary);
+    outline: none;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .input:hover:not(:disabled):not(:focus) {
+    border-color: var(--color-border-strong);
+  }
+
+  .input:focus {
+    border-color: var(--color-border-focus);
+    box-shadow: var(--shadow-focus);
+  }
+
+  .published-summary {
+    font-size: 0.85rem;
+  }
+
+  .runner {
+    display: grid;
+    gap: 8px;
+    padding-top: 6px;
     border-top: 1px solid var(--color-border-subtle);
   }
 
@@ -425,6 +777,12 @@
 
   .mono {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+
+  @media (max-width: 960px) {
+    .publish-controls {
+      grid-template-columns: 1fr;
+    }
   }
 
   @media (max-width: 640px) {

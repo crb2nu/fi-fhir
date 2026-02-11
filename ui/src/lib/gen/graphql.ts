@@ -76,6 +76,17 @@ export type ApprovePendingAutorouteInput = {
   id: Scalars['ID']['input'];
 };
 
+export type ApproveWorkflowVersionInput = {
+  approvalRequestId: Scalars['ID']['input'];
+  comment: InputMaybe<Scalars['String']['input']>;
+  reviewedBy: InputMaybe<Scalars['String']['input']>;
+};
+
+export type ArchiveWorkflowDefinitionInput = {
+  archivedBy: InputMaybe<Scalars['String']['input']>;
+  workflowId: Scalars['ID']['input'];
+};
+
 export type AssigningAuthority = {
   __typename?: 'AssigningAuthority';
   code: Scalars['String']['output'];
@@ -245,6 +256,12 @@ export type CreateSubscriptionInput = {
   endpoint: Scalars['String']['input'];
   name: Scalars['String']['input'];
   server: Scalars['String']['input'];
+};
+
+export type CreateWorkflowDefinitionInput = {
+  createdBy: InputMaybe<Scalars['String']['input']>;
+  description: InputMaybe<Scalars['String']['input']>;
+  name: Scalars['String']['input'];
 };
 
 export type DataQualityIssue = {
@@ -690,11 +707,14 @@ export type MessageClassification = {
 export type Mutation = {
   __typename?: 'Mutation';
   approvePendingAutoroute: CodeMapping;
+  approveWorkflowVersion: WorkflowApprovalRequest;
+  archiveWorkflowDefinition: WorkflowDefinition;
   bulkApprovePendingAutoroutes: BulkApproveResult;
   cancelTemporalWorkflow: Scalars['Boolean']['output'];
   createFhirSubscription: FhirSubscription;
   createMapping: CodeMapping;
   createProfile: SourceProfile;
+  createWorkflowDefinition: WorkflowDefinition;
   deleteFhirSubscription: Scalars['Boolean']['output'];
   deleteMapping: Scalars['Boolean']['output'];
   deleteMappingBatch: Scalars['Int']['output'];
@@ -703,8 +723,13 @@ export type Mutation = {
   duplicateProfile: SourceProfile;
   generateWorkflow: GeneratedWorkflow;
   pauseFhirSubscription: FhirSubscription;
+  publishWorkflowVersion: WorkflowRelease;
   rejectPendingAutoroute: Scalars['Boolean']['output'];
+  rejectWorkflowVersion: WorkflowApprovalRequest;
+  requestWorkflowApproval: WorkflowApprovalRequest;
   resumeFhirSubscription: FhirSubscription;
+  rollbackWorkflowVersion: WorkflowRelease;
+  saveWorkflowVersion: WorkflowVersion;
   signalReviewDecision: Scalars['Boolean']['output'];
   startTerminologyReview: StartTerminologyReviewResult;
   submitBatch: BatchResult;
@@ -713,12 +738,23 @@ export type Mutation = {
   triggerWorkflow: WorkflowResult;
   updateMapping: CodeMapping;
   updateProfile: SourceProfile;
+  updateWorkflowDefinition: WorkflowDefinition;
   uploadMappingCSV: UploadMappingResult;
 };
 
 
 export type MutationApprovePendingAutorouteArgs = {
   input: ApprovePendingAutorouteInput;
+};
+
+
+export type MutationApproveWorkflowVersionArgs = {
+  input: ApproveWorkflowVersionInput;
+};
+
+
+export type MutationArchiveWorkflowDefinitionArgs = {
+  input: ArchiveWorkflowDefinitionInput;
 };
 
 
@@ -745,6 +781,11 @@ export type MutationCreateMappingArgs = {
 
 export type MutationCreateProfileArgs = {
   input: CreateProfileInput;
+};
+
+
+export type MutationCreateWorkflowDefinitionArgs = {
+  input: CreateWorkflowDefinitionInput;
 };
 
 
@@ -790,13 +831,38 @@ export type MutationPauseFhirSubscriptionArgs = {
 };
 
 
+export type MutationPublishWorkflowVersionArgs = {
+  input: PublishWorkflowVersionInput;
+};
+
+
 export type MutationRejectPendingAutorouteArgs = {
   input: RejectPendingAutorouteInput;
 };
 
 
+export type MutationRejectWorkflowVersionArgs = {
+  input: RejectWorkflowVersionInput;
+};
+
+
+export type MutationRequestWorkflowApprovalArgs = {
+  input: RequestWorkflowApprovalInput;
+};
+
+
 export type MutationResumeFhirSubscriptionArgs = {
   id: Scalars['ID']['input'];
+};
+
+
+export type MutationRollbackWorkflowVersionArgs = {
+  input: RollbackWorkflowVersionInput;
+};
+
+
+export type MutationSaveWorkflowVersionArgs = {
+  input: SaveWorkflowVersionInput;
 };
 
 
@@ -826,8 +892,10 @@ export type MutationSubmitMessageArgs = {
 
 
 export type MutationTriggerWorkflowArgs = {
+  environment: InputMaybe<Scalars['String']['input']>;
   event: Scalars['JSON']['input'];
   name: Scalars['String']['input'];
+  versionId: InputMaybe<Scalars['String']['input']>;
 };
 
 
@@ -839,6 +907,11 @@ export type MutationUpdateMappingArgs = {
 export type MutationUpdateProfileArgs = {
   id: Scalars['ID']['input'];
   input: UpdateProfileInput;
+};
+
+
+export type MutationUpdateWorkflowDefinitionArgs = {
+  input: UpdateWorkflowDefinitionInput;
 };
 
 
@@ -871,6 +944,11 @@ export type PageInfo = {
   hasNextPage: Scalars['Boolean']['output'];
   hasPreviousPage: Scalars['Boolean']['output'];
   startCursor: Maybe<Scalars['String']['output']>;
+};
+
+export type PagingInput = {
+  limit: InputMaybe<Scalars['Int']['input']>;
+  offset: InputMaybe<Scalars['Int']['input']>;
 };
 
 export type ParseResult = {
@@ -1060,6 +1138,13 @@ export type Provider = {
   specialty: Maybe<Scalars['String']['output']>;
 };
 
+export type PublishWorkflowVersionInput = {
+  environment: Scalars['String']['input'];
+  publishedBy: InputMaybe<Scalars['String']['input']>;
+  versionId: Scalars['ID']['input'];
+  workflowId: Scalars['ID']['input'];
+};
+
 export type QualityDimensions = {
   __typename?: 'QualityDimensions';
   accuracy: Scalars['Float']['output'];
@@ -1115,6 +1200,13 @@ export type Query = {
   temporalWorkflow: Maybe<TemporalWorkflow>;
   temporalWorkflows: TemporalWorkflowConnection;
   workflow: Maybe<WorkflowStatus>;
+  workflowApprovalRequests: Array<WorkflowApprovalRequest>;
+  workflowDefinition: Maybe<WorkflowDefinition>;
+  workflowDefinitions: Array<WorkflowDefinition>;
+  workflowRun: Maybe<WorkflowRun>;
+  workflowRuns: Array<WorkflowRun>;
+  workflowVersion: Maybe<WorkflowVersion>;
+  workflowVersions: Array<WorkflowVersion>;
   workflows: Array<WorkflowStatus>;
 };
 
@@ -1295,9 +1387,62 @@ export type QueryWorkflowArgs = {
   name: Scalars['String']['input'];
 };
 
+
+export type QueryWorkflowApprovalRequestsArgs = {
+  filter: InputMaybe<WorkflowApprovalRequestFilter>;
+  paging: InputMaybe<PagingInput>;
+};
+
+
+export type QueryWorkflowDefinitionArgs = {
+  nameOrId: Scalars['String']['input'];
+};
+
+
+export type QueryWorkflowDefinitionsArgs = {
+  filter: InputMaybe<WorkflowDefinitionFilter>;
+  paging: InputMaybe<PagingInput>;
+};
+
+
+export type QueryWorkflowRunArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryWorkflowRunsArgs = {
+  filter: InputMaybe<WorkflowRunFilter>;
+  paging: InputMaybe<PagingInput>;
+};
+
+
+export type QueryWorkflowVersionArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryWorkflowVersionsArgs = {
+  paging: InputMaybe<PagingInput>;
+  workflowId: Scalars['ID']['input'];
+};
+
 export type RejectPendingAutorouteInput = {
   id: Scalars['ID']['input'];
   reason: Scalars['String']['input'];
+};
+
+export type RejectWorkflowVersionInput = {
+  approvalRequestId: Scalars['ID']['input'];
+  comment: InputMaybe<Scalars['String']['input']>;
+  reviewedBy: InputMaybe<Scalars['String']['input']>;
+};
+
+export type RequestWorkflowApprovalInput = {
+  comment: InputMaybe<Scalars['String']['input']>;
+  environment: Scalars['String']['input'];
+  requestedBy: InputMaybe<Scalars['String']['input']>;
+  targetVersionId: Scalars['ID']['input'];
+  workflowId: Scalars['ID']['input'];
 };
 
 export type ResolveMappingInput = {
@@ -1322,12 +1467,26 @@ export type ResolveMappingResult = {
   trace: Maybe<AutorouteTrace>;
 };
 
+export type RollbackWorkflowVersionInput = {
+  environment: Scalars['String']['input'];
+  publishedBy: InputMaybe<Scalars['String']['input']>;
+  targetVersionId: Scalars['ID']['input'];
+  workflowId: Scalars['ID']['input'];
+};
+
 export type RouteExplanation = {
   __typename?: 'RouteExplanation';
   actions: Array<Scalars['String']['output']>;
   description: Scalars['String']['output'];
   name: Scalars['String']['output'];
   trigger: Scalars['String']['output'];
+};
+
+export type SaveWorkflowVersionInput = {
+  createdBy: InputMaybe<Scalars['String']['input']>;
+  notes: InputMaybe<Scalars['String']['input']>;
+  workflowId: Scalars['ID']['input'];
+  yaml: Scalars['String']['input'];
 };
 
 export type SignalReviewDecisionInput = {
@@ -1562,6 +1721,14 @@ export type UpdateProfileInput = {
   terminology: InputMaybe<TerminologyConfigInput>;
 };
 
+export type UpdateWorkflowDefinitionInput = {
+  description: InputMaybe<Scalars['String']['input']>;
+  id: Scalars['ID']['input'];
+  name: InputMaybe<Scalars['String']['input']>;
+  status: InputMaybe<Scalars['String']['input']>;
+  updatedBy: InputMaybe<Scalars['String']['input']>;
+};
+
 export type UploadBatch = {
   __typename?: 'UploadBatch';
   duplicateRows: Scalars['Int']['output'];
@@ -1647,6 +1814,42 @@ export type VitalSignEvent = Event & {
   vitalSign: VitalSign;
 };
 
+export type WorkflowApprovalRequest = {
+  __typename?: 'WorkflowApprovalRequest';
+  comment: Maybe<Scalars['String']['output']>;
+  environment: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  requestedBy: Scalars['String']['output'];
+  reviewedAt: Maybe<Scalars['DateTime']['output']>;
+  reviewedBy: Maybe<Scalars['String']['output']>;
+  status: Scalars['String']['output'];
+  targetVersionId: Scalars['ID']['output'];
+  workflowId: Scalars['ID']['output'];
+};
+
+export type WorkflowApprovalRequestFilter = {
+  environment: InputMaybe<Scalars['String']['input']>;
+  status: InputMaybe<Scalars['String']['input']>;
+  workflowId: InputMaybe<Scalars['ID']['input']>;
+};
+
+export type WorkflowDefinition = {
+  __typename?: 'WorkflowDefinition';
+  createdAt: Scalars['DateTime']['output'];
+  description: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  latestVersion: Maybe<WorkflowVersion>;
+  name: Scalars['String']['output'];
+  publishedVersionsByEnv: Scalars['JSON']['output'];
+  status: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+};
+
+export type WorkflowDefinitionFilter = {
+  name: InputMaybe<Scalars['String']['input']>;
+  status: InputMaybe<Scalars['String']['input']>;
+};
+
 export type WorkflowEventNotification = {
   __typename?: 'WorkflowEventNotification';
   actionsExecuted: Array<Scalars['String']['output']>;
@@ -1665,13 +1868,50 @@ export type WorkflowExplanation = {
   warnings: Array<Scalars['String']['output']>;
 };
 
+export type WorkflowRelease = {
+  __typename?: 'WorkflowRelease';
+  environment: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  publishedAt: Scalars['DateTime']['output'];
+  publishedBy: Scalars['String']['output'];
+  rollbackFromReleaseId: Maybe<Scalars['ID']['output']>;
+  versionId: Scalars['ID']['output'];
+  workflowId: Scalars['ID']['output'];
+};
+
 export type WorkflowResult = {
   __typename?: 'WorkflowResult';
   actionsExecuted: Scalars['Int']['output'];
   duration: Scalars['Int']['output'];
+  environment: Maybe<Scalars['String']['output']>;
   errors: Array<Scalars['String']['output']>;
   routesMatched: Scalars['Int']['output'];
+  runId: Maybe<Scalars['ID']['output']>;
+  versionId: Maybe<Scalars['ID']['output']>;
   workflowName: Scalars['String']['output'];
+};
+
+export type WorkflowRun = {
+  __typename?: 'WorkflowRun';
+  actionsExecuted: Scalars['Int']['output'];
+  durationMs: Scalars['Int']['output'];
+  environment: Scalars['String']['output'];
+  errors: Array<Scalars['String']['output']>;
+  eventId: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  routesMatched: Scalars['Int']['output'];
+  startedAt: Scalars['DateTime']['output'];
+  status: Scalars['String']['output'];
+  versionId: Maybe<Scalars['ID']['output']>;
+  workflowName: Scalars['String']['output'];
+};
+
+export type WorkflowRunFilter = {
+  environment: InputMaybe<Scalars['String']['input']>;
+  fromStartedAt: InputMaybe<Scalars['DateTime']['input']>;
+  status: InputMaybe<Scalars['String']['input']>;
+  toStartedAt: InputMaybe<Scalars['DateTime']['input']>;
+  workflowName: InputMaybe<Scalars['String']['input']>;
 };
 
 export type WorkflowStatus = {
@@ -1682,6 +1922,26 @@ export type WorkflowStatus = {
   lastEventTime: Maybe<Scalars['DateTime']['output']>;
   name: Scalars['String']['output'];
   routeCount: Scalars['Int']['output'];
+};
+
+export type WorkflowValidation = {
+  __typename?: 'WorkflowValidation';
+  errors: Array<Scalars['String']['output']>;
+  info: Array<Scalars['String']['output']>;
+  valid: Scalars['Boolean']['output'];
+  warnings: Array<Scalars['String']['output']>;
+};
+
+export type WorkflowVersion = {
+  __typename?: 'WorkflowVersion';
+  createdAt: Scalars['DateTime']['output'];
+  createdBy: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  notes: Maybe<Scalars['String']['output']>;
+  validation: WorkflowValidation;
+  versionNumber: Scalars['Int']['output'];
+  workflowId: Scalars['ID']['output'];
+  yaml: Scalars['String']['output'];
 };
 
 export type EventStreamSubscriptionVariables = Exact<{
@@ -2019,6 +2279,29 @@ export type ListWorkflowsQueryVariables = Exact<{ [key: string]: never; }>;
 
 export type ListWorkflowsQuery = { __typename?: 'Query', workflows: Array<{ __typename?: 'WorkflowStatus', name: string, enabled: boolean, routeCount: number, eventsProcessed: number, lastEventTime: string | null, errors: number }> };
 
+export type ListWorkflowDefinitionsQueryVariables = Exact<{
+  filter: InputMaybe<WorkflowDefinitionFilter>;
+  paging: InputMaybe<PagingInput>;
+}>;
+
+
+export type ListWorkflowDefinitionsQuery = { __typename?: 'Query', workflowDefinitions: Array<{ __typename?: 'WorkflowDefinition', id: string, name: string, description: string | null, status: string, createdAt: string, updatedAt: string, publishedVersionsByEnv: unknown, latestVersion: { __typename?: 'WorkflowVersion', id: string, workflowId: string, versionNumber: number, createdAt: string, createdBy: string, notes: string | null, validation: { __typename?: 'WorkflowValidation', valid: boolean, errors: Array<string>, warnings: Array<string>, info: Array<string> } } | null }> };
+
+export type GetWorkflowVersionsQueryVariables = Exact<{
+  workflowId: Scalars['ID']['input'];
+  paging: InputMaybe<PagingInput>;
+}>;
+
+
+export type GetWorkflowVersionsQuery = { __typename?: 'Query', workflowVersions: Array<{ __typename?: 'WorkflowVersion', id: string, workflowId: string, versionNumber: number, yaml: string, createdBy: string, createdAt: string, notes: string | null, validation: { __typename?: 'WorkflowValidation', valid: boolean, errors: Array<string>, warnings: Array<string>, info: Array<string> } }> };
+
+export type GetWorkflowVersionByIdQueryVariables = Exact<{
+  id: Scalars['ID']['input'];
+}>;
+
+
+export type GetWorkflowVersionByIdQuery = { __typename?: 'Query', workflowVersion: { __typename?: 'WorkflowVersion', id: string, workflowId: string, versionNumber: number, yaml: string, createdBy: string, createdAt: string, notes: string | null, validation: { __typename?: 'WorkflowValidation', valid: boolean, errors: Array<string>, warnings: Array<string>, info: Array<string> } } | null };
+
 export type GetWorkflowQueryVariables = Exact<{
   name: Scalars['String']['input'];
 }>;
@@ -2026,13 +2309,50 @@ export type GetWorkflowQueryVariables = Exact<{
 
 export type GetWorkflowQuery = { __typename?: 'Query', workflow: { __typename?: 'WorkflowStatus', name: string, enabled: boolean, routeCount: number, eventsProcessed: number, lastEventTime: string | null, errors: number } | null };
 
-export type TriggerWorkflowMutationVariables = Exact<{
-  name: Scalars['String']['input'];
-  event: Scalars['JSON']['input'];
+export type CreateWorkflowDefinitionMutationVariables = Exact<{
+  input: CreateWorkflowDefinitionInput;
 }>;
 
 
-export type TriggerWorkflowMutation = { __typename?: 'Mutation', triggerWorkflow: { __typename?: 'WorkflowResult', workflowName: string, routesMatched: number, actionsExecuted: number, errors: Array<string>, duration: number } };
+export type CreateWorkflowDefinitionMutation = { __typename?: 'Mutation', createWorkflowDefinition: { __typename?: 'WorkflowDefinition', id: string, name: string, description: string | null, status: string, createdAt: string, updatedAt: string, publishedVersionsByEnv: unknown, latestVersion: { __typename?: 'WorkflowVersion', id: string, workflowId: string, versionNumber: number, createdAt: string, createdBy: string, notes: string | null, validation: { __typename?: 'WorkflowValidation', valid: boolean, errors: Array<string>, warnings: Array<string>, info: Array<string> } } | null } };
+
+export type SaveWorkflowVersionMutationVariables = Exact<{
+  input: SaveWorkflowVersionInput;
+}>;
+
+
+export type SaveWorkflowVersionMutation = { __typename?: 'Mutation', saveWorkflowVersion: { __typename?: 'WorkflowVersion', id: string, workflowId: string, versionNumber: number, yaml: string, createdBy: string, createdAt: string, notes: string | null, validation: { __typename?: 'WorkflowValidation', valid: boolean, errors: Array<string>, warnings: Array<string>, info: Array<string> } } };
+
+export type PublishWorkflowVersionMutationVariables = Exact<{
+  input: PublishWorkflowVersionInput;
+}>;
+
+
+export type PublishWorkflowVersionMutation = { __typename?: 'Mutation', publishWorkflowVersion: { __typename?: 'WorkflowRelease', id: string, workflowId: string, environment: string, versionId: string, publishedBy: string, publishedAt: string, rollbackFromReleaseId: string | null } };
+
+export type RollbackWorkflowVersionMutationVariables = Exact<{
+  input: RollbackWorkflowVersionInput;
+}>;
+
+
+export type RollbackWorkflowVersionMutation = { __typename?: 'Mutation', rollbackWorkflowVersion: { __typename?: 'WorkflowRelease', id: string, workflowId: string, environment: string, versionId: string, publishedBy: string, publishedAt: string, rollbackFromReleaseId: string | null } };
+
+export type RequestWorkflowApprovalMutationVariables = Exact<{
+  input: RequestWorkflowApprovalInput;
+}>;
+
+
+export type RequestWorkflowApprovalMutation = { __typename?: 'Mutation', requestWorkflowApproval: { __typename?: 'WorkflowApprovalRequest', id: string, workflowId: string, targetVersionId: string, environment: string, status: string, requestedBy: string, reviewedBy: string | null, reviewedAt: string | null, comment: string | null } };
+
+export type TriggerWorkflowMutationVariables = Exact<{
+  name: Scalars['String']['input'];
+  event: Scalars['JSON']['input'];
+  environment: InputMaybe<Scalars['String']['input']>;
+  versionId: InputMaybe<Scalars['String']['input']>;
+}>;
+
+
+export type TriggerWorkflowMutation = { __typename?: 'Mutation', triggerWorkflow: { __typename?: 'WorkflowResult', workflowName: string, routesMatched: number, actionsExecuted: number, errors: Array<string>, duration: number, runId: string | null, environment: string | null, versionId: string | null } };
 
 export type DryRunWorkflowMutationVariables = Exact<{
   input: DryRunWorkflowInput;
@@ -2096,6 +2416,14 @@ export const ApprovePendingAutorouteDocument = {"kind":"Document","definitions":
 export const RejectPendingAutorouteDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"RejectPendingAutoroute"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"RejectPendingAutorouteInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"rejectPendingAutoroute"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}]}]}}]} as unknown as DocumentNode<RejectPendingAutorouteMutation, RejectPendingAutorouteMutationVariables>;
 export const BulkApprovePendingAutoroutesDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"BulkApprovePendingAutoroutes"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"BulkApproveInput"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"bulkApprovePendingAutoroutes"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"approved"}},{"kind":"Field","name":{"kind":"Name","value":"skipped"}},{"kind":"Field","name":{"kind":"Name","value":"mappings"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"MappingFields"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"MappingFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"CodeMapping"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"sourceCode"}},{"kind":"Field","name":{"kind":"Name","value":"sourceDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"targetCode"}},{"kind":"Field","name":{"kind":"Name","value":"targetDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"equivalence"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"comment"}},{"kind":"Field","name":{"kind":"Name","value":"origin"}},{"kind":"Field","name":{"kind":"Name","value":"profileId"}},{"kind":"Field","name":{"kind":"Name","value":"uploadBatchId"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}}]}}]} as unknown as DocumentNode<BulkApprovePendingAutoroutesMutation, BulkApprovePendingAutoroutesMutationVariables>;
 export const ListWorkflowsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"ListWorkflows"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"workflows"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"routeCount"}},{"kind":"Field","name":{"kind":"Name","value":"eventsProcessed"}},{"kind":"Field","name":{"kind":"Name","value":"lastEventTime"}},{"kind":"Field","name":{"kind":"Name","value":"errors"}}]}}]}}]} as unknown as DocumentNode<ListWorkflowsQuery, ListWorkflowsQueryVariables>;
+export const ListWorkflowDefinitionsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"ListWorkflowDefinitions"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"filter"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"WorkflowDefinitionFilter"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"paging"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"PagingInput"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"workflowDefinitions"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"filter"},"value":{"kind":"Variable","name":{"kind":"Name","value":"filter"}}},{"kind":"Argument","name":{"kind":"Name","value":"paging"},"value":{"kind":"Variable","name":{"kind":"Name","value":"paging"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"latestVersion"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workflowId"}},{"kind":"Field","name":{"kind":"Name","value":"versionNumber"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}},{"kind":"Field","name":{"kind":"Name","value":"notes"}},{"kind":"Field","name":{"kind":"Name","value":"validation"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"valid"}},{"kind":"Field","name":{"kind":"Name","value":"errors"}},{"kind":"Field","name":{"kind":"Name","value":"warnings"}},{"kind":"Field","name":{"kind":"Name","value":"info"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"publishedVersionsByEnv"}}]}}]}}]} as unknown as DocumentNode<ListWorkflowDefinitionsQuery, ListWorkflowDefinitionsQueryVariables>;
+export const GetWorkflowVersionsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GetWorkflowVersions"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"workflowId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"paging"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"PagingInput"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"workflowVersions"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"workflowId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"workflowId"}}},{"kind":"Argument","name":{"kind":"Name","value":"paging"},"value":{"kind":"Variable","name":{"kind":"Name","value":"paging"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workflowId"}},{"kind":"Field","name":{"kind":"Name","value":"versionNumber"}},{"kind":"Field","name":{"kind":"Name","value":"yaml"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"notes"}},{"kind":"Field","name":{"kind":"Name","value":"validation"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"valid"}},{"kind":"Field","name":{"kind":"Name","value":"errors"}},{"kind":"Field","name":{"kind":"Name","value":"warnings"}},{"kind":"Field","name":{"kind":"Name","value":"info"}}]}}]}}]}}]} as unknown as DocumentNode<GetWorkflowVersionsQuery, GetWorkflowVersionsQueryVariables>;
+export const GetWorkflowVersionByIdDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GetWorkflowVersionById"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"workflowVersion"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workflowId"}},{"kind":"Field","name":{"kind":"Name","value":"versionNumber"}},{"kind":"Field","name":{"kind":"Name","value":"yaml"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"notes"}},{"kind":"Field","name":{"kind":"Name","value":"validation"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"valid"}},{"kind":"Field","name":{"kind":"Name","value":"errors"}},{"kind":"Field","name":{"kind":"Name","value":"warnings"}},{"kind":"Field","name":{"kind":"Name","value":"info"}}]}}]}}]}}]} as unknown as DocumentNode<GetWorkflowVersionByIdQuery, GetWorkflowVersionByIdQueryVariables>;
 export const GetWorkflowDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GetWorkflow"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"name"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"workflow"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"name"},"value":{"kind":"Variable","name":{"kind":"Name","value":"name"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"routeCount"}},{"kind":"Field","name":{"kind":"Name","value":"eventsProcessed"}},{"kind":"Field","name":{"kind":"Name","value":"lastEventTime"}},{"kind":"Field","name":{"kind":"Name","value":"errors"}}]}}]}}]} as unknown as DocumentNode<GetWorkflowQuery, GetWorkflowQueryVariables>;
-export const TriggerWorkflowDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"TriggerWorkflow"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"name"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"event"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"JSON"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"triggerWorkflow"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"name"},"value":{"kind":"Variable","name":{"kind":"Name","value":"name"}}},{"kind":"Argument","name":{"kind":"Name","value":"event"},"value":{"kind":"Variable","name":{"kind":"Name","value":"event"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"workflowName"}},{"kind":"Field","name":{"kind":"Name","value":"routesMatched"}},{"kind":"Field","name":{"kind":"Name","value":"actionsExecuted"}},{"kind":"Field","name":{"kind":"Name","value":"errors"}},{"kind":"Field","name":{"kind":"Name","value":"duration"}}]}}]}}]} as unknown as DocumentNode<TriggerWorkflowMutation, TriggerWorkflowMutationVariables>;
+export const CreateWorkflowDefinitionDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"CreateWorkflowDefinition"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"CreateWorkflowDefinitionInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"createWorkflowDefinition"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"latestVersion"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workflowId"}},{"kind":"Field","name":{"kind":"Name","value":"versionNumber"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}},{"kind":"Field","name":{"kind":"Name","value":"notes"}},{"kind":"Field","name":{"kind":"Name","value":"validation"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"valid"}},{"kind":"Field","name":{"kind":"Name","value":"errors"}},{"kind":"Field","name":{"kind":"Name","value":"warnings"}},{"kind":"Field","name":{"kind":"Name","value":"info"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"publishedVersionsByEnv"}}]}}]}}]} as unknown as DocumentNode<CreateWorkflowDefinitionMutation, CreateWorkflowDefinitionMutationVariables>;
+export const SaveWorkflowVersionDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"SaveWorkflowVersion"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"SaveWorkflowVersionInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"saveWorkflowVersion"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workflowId"}},{"kind":"Field","name":{"kind":"Name","value":"versionNumber"}},{"kind":"Field","name":{"kind":"Name","value":"yaml"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"notes"}},{"kind":"Field","name":{"kind":"Name","value":"validation"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"valid"}},{"kind":"Field","name":{"kind":"Name","value":"errors"}},{"kind":"Field","name":{"kind":"Name","value":"warnings"}},{"kind":"Field","name":{"kind":"Name","value":"info"}}]}}]}}]}}]} as unknown as DocumentNode<SaveWorkflowVersionMutation, SaveWorkflowVersionMutationVariables>;
+export const PublishWorkflowVersionDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"PublishWorkflowVersion"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"PublishWorkflowVersionInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"publishWorkflowVersion"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workflowId"}},{"kind":"Field","name":{"kind":"Name","value":"environment"}},{"kind":"Field","name":{"kind":"Name","value":"versionId"}},{"kind":"Field","name":{"kind":"Name","value":"publishedBy"}},{"kind":"Field","name":{"kind":"Name","value":"publishedAt"}},{"kind":"Field","name":{"kind":"Name","value":"rollbackFromReleaseId"}}]}}]}}]} as unknown as DocumentNode<PublishWorkflowVersionMutation, PublishWorkflowVersionMutationVariables>;
+export const RollbackWorkflowVersionDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"RollbackWorkflowVersion"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"RollbackWorkflowVersionInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"rollbackWorkflowVersion"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workflowId"}},{"kind":"Field","name":{"kind":"Name","value":"environment"}},{"kind":"Field","name":{"kind":"Name","value":"versionId"}},{"kind":"Field","name":{"kind":"Name","value":"publishedBy"}},{"kind":"Field","name":{"kind":"Name","value":"publishedAt"}},{"kind":"Field","name":{"kind":"Name","value":"rollbackFromReleaseId"}}]}}]}}]} as unknown as DocumentNode<RollbackWorkflowVersionMutation, RollbackWorkflowVersionMutationVariables>;
+export const RequestWorkflowApprovalDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"RequestWorkflowApproval"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"RequestWorkflowApprovalInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"requestWorkflowApproval"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workflowId"}},{"kind":"Field","name":{"kind":"Name","value":"targetVersionId"}},{"kind":"Field","name":{"kind":"Name","value":"environment"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"requestedBy"}},{"kind":"Field","name":{"kind":"Name","value":"reviewedBy"}},{"kind":"Field","name":{"kind":"Name","value":"reviewedAt"}},{"kind":"Field","name":{"kind":"Name","value":"comment"}}]}}]}}]} as unknown as DocumentNode<RequestWorkflowApprovalMutation, RequestWorkflowApprovalMutationVariables>;
+export const TriggerWorkflowDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"TriggerWorkflow"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"name"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"event"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"JSON"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"environment"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"versionId"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"triggerWorkflow"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"name"},"value":{"kind":"Variable","name":{"kind":"Name","value":"name"}}},{"kind":"Argument","name":{"kind":"Name","value":"event"},"value":{"kind":"Variable","name":{"kind":"Name","value":"event"}}},{"kind":"Argument","name":{"kind":"Name","value":"environment"},"value":{"kind":"Variable","name":{"kind":"Name","value":"environment"}}},{"kind":"Argument","name":{"kind":"Name","value":"versionId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"versionId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"workflowName"}},{"kind":"Field","name":{"kind":"Name","value":"routesMatched"}},{"kind":"Field","name":{"kind":"Name","value":"actionsExecuted"}},{"kind":"Field","name":{"kind":"Name","value":"errors"}},{"kind":"Field","name":{"kind":"Name","value":"duration"}},{"kind":"Field","name":{"kind":"Name","value":"runId"}},{"kind":"Field","name":{"kind":"Name","value":"environment"}},{"kind":"Field","name":{"kind":"Name","value":"versionId"}}]}}]}}]} as unknown as DocumentNode<TriggerWorkflowMutation, TriggerWorkflowMutationVariables>;
 export const DryRunWorkflowDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DryRunWorkflow"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"DryRunWorkflowInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"dryRunWorkflow"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"routeResults"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"routeName"}},{"kind":"Field","name":{"kind":"Name","value":"matched"}},{"kind":"Field","name":{"kind":"Name","value":"actionsWouldRun"}},{"kind":"Field","name":{"kind":"Name","value":"skipReason"}}]}},{"kind":"Field","name":{"kind":"Name","value":"warnings"}},{"kind":"Field","name":{"kind":"Name","value":"validationErrors"}}]}}]}}]} as unknown as DocumentNode<DryRunWorkflowMutation, DryRunWorkflowMutationVariables>;

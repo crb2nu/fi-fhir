@@ -339,6 +339,30 @@ input PatientFilter {
   dateOfBirth: DateTime
 }
 
+input PagingInput {
+  limit: Int = 50
+  offset: Int = 0
+}
+
+input WorkflowDefinitionFilter {
+  name: String
+  status: String
+}
+
+input WorkflowRunFilter {
+  workflowName: String
+  environment: String
+  status: String
+  fromStartedAt: DateTime
+  toStartedAt: DateTime
+}
+
+input WorkflowApprovalRequestFilter {
+  workflowId: ID
+  environment: String
+  status: String
+}
+
 type WorkflowStatus {
   name: String!
   enabled: Boolean!
@@ -346,6 +370,71 @@ type WorkflowStatus {
   eventsProcessed: Int!
   lastEventTime: DateTime
   errors: Int!
+}
+
+type WorkflowValidation {
+  valid: Boolean!
+  errors: [String!]!
+  warnings: [String!]!
+  info: [String!]!
+}
+
+type WorkflowDefinition {
+  id: ID!
+  name: String!
+  description: String
+  status: String!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  latestVersion: WorkflowVersion
+  publishedVersionsByEnv: JSON!
+}
+
+type WorkflowVersion {
+  id: ID!
+  workflowId: ID!
+  versionNumber: Int!
+  yaml: String!
+  validation: WorkflowValidation!
+  createdBy: String!
+  createdAt: DateTime!
+  notes: String
+}
+
+type WorkflowRelease {
+  id: ID!
+  workflowId: ID!
+  environment: String!
+  versionId: ID!
+  publishedBy: String!
+  publishedAt: DateTime!
+  rollbackFromReleaseId: ID
+}
+
+type WorkflowRun {
+  id: ID!
+  workflowName: String!
+  environment: String!
+  versionId: ID
+  eventId: String
+  routesMatched: Int!
+  actionsExecuted: Int!
+  errors: [String!]!
+  durationMs: Int!
+  startedAt: DateTime!
+  status: String!
+}
+
+type WorkflowApprovalRequest {
+  id: ID!
+  workflowId: ID!
+  targetVersionId: ID!
+  environment: String!
+  status: String!
+  requestedBy: String!
+  reviewedBy: String
+  reviewedAt: DateTime
+  comment: String
 }
 
 type ComponentHealth {
@@ -426,6 +515,15 @@ type Query {
 
   # List all workflows
   workflows: [WorkflowStatus!]!
+
+  # Managed workflow lifecycle
+  workflowDefinitions(filter: WorkflowDefinitionFilter, paging: PagingInput): [WorkflowDefinition!]!
+  workflowDefinition(nameOrId: String!): WorkflowDefinition
+  workflowVersions(workflowId: ID!, paging: PagingInput): [WorkflowVersion!]!
+  workflowVersion(id: ID!): WorkflowVersion
+  workflowRuns(filter: WorkflowRunFilter, paging: PagingInput): [WorkflowRun!]!
+  workflowRun(id: ID!): WorkflowRun
+  workflowApprovalRequests(filter: WorkflowApprovalRequestFilter, paging: PagingInput): [WorkflowApprovalRequest!]!
 
   # Health check
   health: HealthStatus!
@@ -520,6 +618,9 @@ type WorkflowResult {
   actionsExecuted: Int!
   errors: [String!]!
   duration: Int!
+  runId: ID
+  environment: String
+  versionId: ID
 }
 
 type SubmitResult {
@@ -535,6 +636,66 @@ input CreateSubscriptionInput {
   server: String!
   criteria: String!
   endpoint: String!
+}
+
+input CreateWorkflowDefinitionInput {
+  name: String!
+  description: String
+  createdBy: String
+}
+
+input UpdateWorkflowDefinitionInput {
+  id: ID!
+  name: String
+  description: String
+  status: String
+  updatedBy: String
+}
+
+input SaveWorkflowVersionInput {
+  workflowId: ID!
+  yaml: String!
+  notes: String
+  createdBy: String
+}
+
+input PublishWorkflowVersionInput {
+  workflowId: ID!
+  versionId: ID!
+  environment: String!
+  publishedBy: String
+}
+
+input RollbackWorkflowVersionInput {
+  workflowId: ID!
+  targetVersionId: ID!
+  environment: String!
+  publishedBy: String
+}
+
+input ArchiveWorkflowDefinitionInput {
+  workflowId: ID!
+  archivedBy: String
+}
+
+input RequestWorkflowApprovalInput {
+  workflowId: ID!
+  targetVersionId: ID!
+  environment: String!
+  requestedBy: String
+  comment: String
+}
+
+input ApproveWorkflowVersionInput {
+  approvalRequestId: ID!
+  reviewedBy: String
+  comment: String
+}
+
+input RejectWorkflowVersionInput {
+  approvalRequestId: ID!
+  reviewedBy: String
+  comment: String
 }
 
 type FhirSubscription {
@@ -563,7 +724,20 @@ type Mutation {
   triggerWorkflow(
     name: String!
     event: JSON!
+    environment: String
+    versionId: String
   ): WorkflowResult!
+
+  # Workflow lifecycle management
+  createWorkflowDefinition(input: CreateWorkflowDefinitionInput!): WorkflowDefinition!
+  updateWorkflowDefinition(input: UpdateWorkflowDefinitionInput!): WorkflowDefinition!
+  saveWorkflowVersion(input: SaveWorkflowVersionInput!): WorkflowVersion!
+  publishWorkflowVersion(input: PublishWorkflowVersionInput!): WorkflowRelease!
+  rollbackWorkflowVersion(input: RollbackWorkflowVersionInput!): WorkflowRelease!
+  archiveWorkflowDefinition(input: ArchiveWorkflowDefinitionInput!): WorkflowDefinition!
+  requestWorkflowApproval(input: RequestWorkflowApprovalInput!): WorkflowApprovalRequest!
+  approveWorkflowVersion(input: ApproveWorkflowVersionInput!): WorkflowApprovalRequest!
+  rejectWorkflowVersion(input: RejectWorkflowVersionInput!): WorkflowApprovalRequest!
 
   # FHIR subscription management
   createFhirSubscription(input: CreateSubscriptionInput!): FhirSubscription!

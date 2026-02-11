@@ -1,6 +1,7 @@
 package resolvers
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -54,6 +55,13 @@ type Resolver struct {
 	// WorkflowEngine executes workflow rules
 	WorkflowEngine *workflow.Engine
 
+	// WorkflowLifecycleStore provides managed workflow definitions/versions/releases.
+	WorkflowLifecycleStore store.WorkflowLifecycleStore
+
+	// Parsed workflow engines by immutable workflow version ID.
+	workflowVersionEngines map[string]*workflow.Engine
+	workflowVersionMu      sync.RWMutex
+
 	// Projections provides access to event sourcing projections
 	Projections *projections.Service
 
@@ -106,12 +114,14 @@ func (r *Resolver) GetProfileStore() store.ProfileStore {
 // NewResolver creates a new resolver with all dependencies.
 func NewResolver(opts ...ResolverOption) *Resolver {
 	r := &Resolver{
-		Store:               store.NewMemoryStore(),
-		Projections:         projections.NewService(nil), // In-memory projections by default
-		subscriptionClients: make(map[string]*subscription.Client),
-		subscriptionRecords: make(map[string]*SubscriptionRecord),
-		Version:             "0.1.0",
-		StartTime:           time.Now(),
+		Store:                  store.NewMemoryStore(),
+		WorkflowLifecycleStore: store.NewMemoryWorkflowLifecycleStore(),
+		workflowVersionEngines: make(map[string]*workflow.Engine),
+		Projections:            projections.NewService(nil), // In-memory projections by default
+		subscriptionClients:    make(map[string]*subscription.Client),
+		subscriptionRecords:    make(map[string]*SubscriptionRecord),
+		Version:                "0.1.0",
+		StartTime:              time.Now(),
 	}
 
 	for _, opt := range opts {
@@ -135,6 +145,13 @@ func WithStore(s store.EventStore) ResolverOption {
 func WithWorkflowEngine(e *workflow.Engine) ResolverOption {
 	return func(r *Resolver) {
 		r.WorkflowEngine = e
+	}
+}
+
+// WithWorkflowLifecycleStore sets the workflow lifecycle store.
+func WithWorkflowLifecycleStore(s store.WorkflowLifecycleStore) ResolverOption {
+	return func(r *Resolver) {
+		r.WorkflowLifecycleStore = s
 	}
 }
 
@@ -330,4 +347,30 @@ func (r *Resolver) broadcastWorkflowEvent(notification *model.WorkflowEventNotif
 			}
 		}
 	}
+}
+
+// getOrBuildVersionEngine returns a cached workflow engine for a saved workflow version.
+func (r *Resolver) getOrBuildVersionEngine(versionID, yamlContent string) (*workflow.Engine, error) {
+	r.workflowVersionMu.RLock()
+	engine, ok := r.workflowVersionEngines[versionID]
+	r.workflowVersionMu.RUnlock()
+	if ok {
+		return engine, nil
+	}
+
+	parsed, err := workflow.ParseWorkflow([]byte(yamlContent))
+	if err != nil {
+		return nil, fmt.Errorf("parse workflow version yaml: %w", err)
+	}
+
+	engine, err = workflow.NewEngine(parsed)
+	if err != nil {
+		return nil, fmt.Errorf("create workflow engine from version %s: %w", versionID, err)
+	}
+
+	r.workflowVersionMu.Lock()
+	r.workflowVersionEngines[versionID] = engine
+	r.workflowVersionMu.Unlock()
+
+	return engine, nil
 }

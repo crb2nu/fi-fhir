@@ -328,6 +328,9 @@ type WorkflowResult struct {
 	ActionsExecuted int      `json:"actionsExecuted"`
 	Errors          []string `json:"errors"`
 	Duration        int      `json:"duration"`
+	RunID           *string  `json:"runId,omitempty"`
+	Environment     *string  `json:"environment,omitempty"`
+	VersionID       *string  `json:"versionId,omitempty"`
 }
 
 type SubmitResult struct {

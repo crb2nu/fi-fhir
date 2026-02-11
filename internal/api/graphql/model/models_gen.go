@@ -21,6 +21,17 @@ type ApprovePendingAutorouteInput struct {
 	Comment     *string             `json:"comment,omitempty"`
 }
 
+type ApproveWorkflowVersionInput struct {
+	ApprovalRequestID string  `json:"approvalRequestId"`
+	ReviewedBy        *string `json:"reviewedBy,omitempty"`
+	Comment           *string `json:"comment,omitempty"`
+}
+
+type ArchiveWorkflowDefinitionInput struct {
+	WorkflowID string  `json:"workflowId"`
+	ArchivedBy *string `json:"archivedBy,omitempty"`
+}
+
 type AssigningAuthority struct {
 	Code   string  `json:"code"`
 	System string  `json:"system"`
@@ -106,6 +117,12 @@ type CreateMappingInput struct {
 type CreateProfileInput struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
+}
+
+type CreateWorkflowDefinitionInput struct {
+	Name        string  `json:"name"`
+	Description *string `json:"description,omitempty"`
+	CreatedBy   *string `json:"createdBy,omitempty"`
 }
 
 type DataQualityIssue struct {
@@ -327,6 +344,11 @@ type NormalizationSettingsInput struct {
 	PhoneFormat       *string  `json:"phoneFormat,omitempty"`
 }
 
+type PagingInput struct {
+	Limit  *int `json:"limit,omitempty"`
+	Offset *int `json:"offset,omitempty"`
+}
+
 type PendingAutoroute struct {
 	ID               string                 `json:"id"`
 	SourceSystem     string                 `json:"sourceSystem"`
@@ -369,6 +391,13 @@ type ProfileRevision struct {
 	ChangeSummary *string   `json:"changeSummary,omitempty"`
 }
 
+type PublishWorkflowVersionInput struct {
+	WorkflowID  string  `json:"workflowId"`
+	VersionID   string  `json:"versionId"`
+	Environment string  `json:"environment"`
+	PublishedBy *string `json:"publishedBy,omitempty"`
+}
+
 type QualityDimensions struct {
 	Completeness float64 `json:"completeness"`
 	Accuracy     float64 `json:"accuracy"`
@@ -393,6 +422,20 @@ type RejectPendingAutorouteInput struct {
 	Reason string `json:"reason"`
 }
 
+type RejectWorkflowVersionInput struct {
+	ApprovalRequestID string  `json:"approvalRequestId"`
+	ReviewedBy        *string `json:"reviewedBy,omitempty"`
+	Comment           *string `json:"comment,omitempty"`
+}
+
+type RequestWorkflowApprovalInput struct {
+	WorkflowID      string  `json:"workflowId"`
+	TargetVersionID string  `json:"targetVersionId"`
+	Environment     string  `json:"environment"`
+	RequestedBy     *string `json:"requestedBy,omitempty"`
+	Comment         *string `json:"comment,omitempty"`
+}
+
 type ResolveMappingInput struct {
 	SourceCode     string   `json:"sourceCode"`
 	SourceSystem   string   `json:"sourceSystem"`
@@ -414,11 +457,25 @@ type ResolveMappingResult struct {
 	DurationMs int                `json:"durationMs"`
 }
 
+type RollbackWorkflowVersionInput struct {
+	WorkflowID      string  `json:"workflowId"`
+	TargetVersionID string  `json:"targetVersionId"`
+	Environment     string  `json:"environment"`
+	PublishedBy     *string `json:"publishedBy,omitempty"`
+}
+
 type RouteExplanation struct {
 	Name        string   `json:"name"`
 	Trigger     string   `json:"trigger"`
 	Actions     []string `json:"actions"`
 	Description string   `json:"description"`
+}
+
+type SaveWorkflowVersionInput struct {
+	WorkflowID string  `json:"workflowId"`
+	Yaml       string  `json:"yaml"`
+	Notes      *string `json:"notes,omitempty"`
+	CreatedBy  *string `json:"createdBy,omitempty"`
 }
 
 type SignalReviewDecisionInput struct {
@@ -563,6 +620,14 @@ type UpdateProfileInput struct {
 	Terminology *TerminologyConfigInput `json:"terminology,omitempty"`
 }
 
+type UpdateWorkflowDefinitionInput struct {
+	ID          string  `json:"id"`
+	Name        *string `json:"name,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Status      *string `json:"status,omitempty"`
+	UpdatedBy   *string `json:"updatedBy,omitempty"`
+}
+
 type UploadBatch struct {
 	ID               string                  `json:"id"`
 	Filename         string                  `json:"filename"`
@@ -622,12 +687,96 @@ type ValidatorSettingInput struct {
 	OnInvalid string `json:"onInvalid"`
 }
 
+type WorkflowApprovalRequest struct {
+	ID              string     `json:"id"`
+	WorkflowID      string     `json:"workflowId"`
+	TargetVersionID string     `json:"targetVersionId"`
+	Environment     string     `json:"environment"`
+	Status          string     `json:"status"`
+	RequestedBy     string     `json:"requestedBy"`
+	ReviewedBy      *string    `json:"reviewedBy,omitempty"`
+	ReviewedAt      *time.Time `json:"reviewedAt,omitempty"`
+	Comment         *string    `json:"comment,omitempty"`
+}
+
+type WorkflowApprovalRequestFilter struct {
+	WorkflowID  *string `json:"workflowId,omitempty"`
+	Environment *string `json:"environment,omitempty"`
+	Status      *string `json:"status,omitempty"`
+}
+
+type WorkflowDefinition struct {
+	ID                     string           `json:"id"`
+	Name                   string           `json:"name"`
+	Description            *string          `json:"description,omitempty"`
+	Status                 string           `json:"status"`
+	CreatedAt              time.Time        `json:"createdAt"`
+	UpdatedAt              time.Time        `json:"updatedAt"`
+	LatestVersion          *WorkflowVersion `json:"latestVersion,omitempty"`
+	PublishedVersionsByEnv map[string]any   `json:"publishedVersionsByEnv"`
+}
+
+type WorkflowDefinitionFilter struct {
+	Name   *string `json:"name,omitempty"`
+	Status *string `json:"status,omitempty"`
+}
+
 type WorkflowExplanation struct {
 	Summary           string             `json:"summary"`
 	Description       string             `json:"description"`
 	RouteExplanations []RouteExplanation `json:"routeExplanations"`
 	Diagram           *string            `json:"diagram,omitempty"`
 	Warnings          []string           `json:"warnings"`
+}
+
+type WorkflowRelease struct {
+	ID                    string    `json:"id"`
+	WorkflowID            string    `json:"workflowId"`
+	Environment           string    `json:"environment"`
+	VersionID             string    `json:"versionId"`
+	PublishedBy           string    `json:"publishedBy"`
+	PublishedAt           time.Time `json:"publishedAt"`
+	RollbackFromReleaseID *string   `json:"rollbackFromReleaseId,omitempty"`
+}
+
+type WorkflowRun struct {
+	ID              string    `json:"id"`
+	WorkflowName    string    `json:"workflowName"`
+	Environment     string    `json:"environment"`
+	VersionID       *string   `json:"versionId,omitempty"`
+	EventID         *string   `json:"eventId,omitempty"`
+	RoutesMatched   int       `json:"routesMatched"`
+	ActionsExecuted int       `json:"actionsExecuted"`
+	Errors          []string  `json:"errors"`
+	DurationMs      int       `json:"durationMs"`
+	StartedAt       time.Time `json:"startedAt"`
+	Status          string    `json:"status"`
+}
+
+type WorkflowRunFilter struct {
+	WorkflowName  *string    `json:"workflowName,omitempty"`
+	Environment   *string    `json:"environment,omitempty"`
+	Status        *string    `json:"status,omitempty"`
+	FromStartedAt *time.Time `json:"fromStartedAt,omitempty"`
+	ToStartedAt   *time.Time `json:"toStartedAt,omitempty"`
+}
+
+type WorkflowValidation struct {
+	Valid    bool     `json:"valid"`
+	Errors   []string `json:"errors"`
+	Warnings []string `json:"warnings"`
+	Info     []string `json:"info"`
+}
+
+type WorkflowVersion struct {
+	ID            string              `json:"id"`
+	WorkflowID    string              `json:"workflowId"`
+	VersionNumber int                 `json:"versionNumber"`
+	Yaml          string              `json:"yaml"`
+	Validation    *WorkflowValidation `json:"validation"`
+	CreatedBy     string              `json:"createdBy"`
+	CreatedAt     time.Time           `json:"createdAt"`
+	Notes         *string             `json:"notes,omitempty"`
 }
 
 type AutorouteDecision string

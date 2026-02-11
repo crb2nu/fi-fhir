@@ -4670,6 +4670,11 @@ func runServe(args []string) error {
 	} else if profileStore != nil {
 		resolverOpts = append(resolverOpts, resolvers.WithProfileStore(profileStore))
 	}
+	if workflowLifecycleStore, err := initWorkflowLifecycleStoreFromEnv(context.Background()); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: workflow lifecycle store disabled: %v\n", err)
+	} else if workflowLifecycleStore != nil {
+		resolverOpts = append(resolverOpts, resolvers.WithWorkflowLifecycleStore(workflowLifecycleStore))
+	}
 
 	// Load workflow engine if specified
 	if workflowEngine != nil && loadedWorkflow != nil {

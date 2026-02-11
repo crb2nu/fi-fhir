@@ -9,6 +9,68 @@ query ListWorkflows {
   }
 }
 
+query ListWorkflowDefinitions($filter: WorkflowDefinitionFilter, $paging: PagingInput) {
+  workflowDefinitions(filter: $filter, paging: $paging) {
+    id
+    name
+    description
+    status
+    createdAt
+    updatedAt
+    latestVersion {
+      id
+      workflowId
+      versionNumber
+      createdAt
+      createdBy
+      notes
+      validation {
+        valid
+        errors
+        warnings
+        info
+      }
+    }
+    publishedVersionsByEnv
+  }
+}
+
+query GetWorkflowVersions($workflowId: ID!, $paging: PagingInput) {
+  workflowVersions(workflowId: $workflowId, paging: $paging) {
+    id
+    workflowId
+    versionNumber
+    yaml
+    createdBy
+    createdAt
+    notes
+    validation {
+      valid
+      errors
+      warnings
+      info
+    }
+  }
+}
+
+query GetWorkflowVersionById($id: ID!) {
+  workflowVersion(id: $id) {
+    id
+    workflowId
+    versionNumber
+    yaml
+    createdBy
+    createdAt
+    notes
+    validation {
+      valid
+      errors
+      warnings
+      info
+    }
+  }
+}
+
 query GetWorkflow($name: String!) {
   workflow(name: $name) {
     name
@@ -20,13 +82,108 @@ query GetWorkflow($name: String!) {
   }
 }
 
-mutation TriggerWorkflow($name: String!, $event: JSON!) {
-  triggerWorkflow(name: $name, event: $event) {
+mutation CreateWorkflowDefinition($input: CreateWorkflowDefinitionInput!) {
+  createWorkflowDefinition(input: $input) {
+    id
+    name
+    description
+    status
+    createdAt
+    updatedAt
+    latestVersion {
+      id
+      workflowId
+      versionNumber
+      createdAt
+      createdBy
+      notes
+      validation {
+        valid
+        errors
+        warnings
+        info
+      }
+    }
+    publishedVersionsByEnv
+  }
+}
+
+mutation SaveWorkflowVersion($input: SaveWorkflowVersionInput!) {
+  saveWorkflowVersion(input: $input) {
+    id
+    workflowId
+    versionNumber
+    yaml
+    createdBy
+    createdAt
+    notes
+    validation {
+      valid
+      errors
+      warnings
+      info
+    }
+  }
+}
+
+mutation PublishWorkflowVersion($input: PublishWorkflowVersionInput!) {
+  publishWorkflowVersion(input: $input) {
+    id
+    workflowId
+    environment
+    versionId
+    publishedBy
+    publishedAt
+    rollbackFromReleaseId
+  }
+}
+
+mutation RollbackWorkflowVersion($input: RollbackWorkflowVersionInput!) {
+  rollbackWorkflowVersion(input: $input) {
+    id
+    workflowId
+    environment
+    versionId
+    publishedBy
+    publishedAt
+    rollbackFromReleaseId
+  }
+}
+
+mutation RequestWorkflowApproval($input: RequestWorkflowApprovalInput!) {
+  requestWorkflowApproval(input: $input) {
+    id
+    workflowId
+    targetVersionId
+    environment
+    status
+    requestedBy
+    reviewedBy
+    reviewedAt
+    comment
+  }
+}
+
+mutation TriggerWorkflow(
+  $name: String!
+  $event: JSON!
+  $environment: String
+  $versionId: String
+) {
+  triggerWorkflow(
+    name: $name
+    event: $event
+    environment: $environment
+    versionId: $versionId
+  ) {
     workflowName
     routesMatched
     actionsExecuted
     errors
     duration
+    runId
+    environment
+    versionId
   }
 }
 

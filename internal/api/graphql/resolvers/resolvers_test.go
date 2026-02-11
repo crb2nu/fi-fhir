@@ -271,7 +271,7 @@ func TestMutationResolver_TriggerWorkflow_NoEngine(t *testing.T) {
 
 	ctx := context.Background()
 
-	_, err := mutationResolver.TriggerWorkflow(ctx, "test-workflow", nil)
+	_, err := mutationResolver.TriggerWorkflow(ctx, "test-workflow", nil, nil, nil)
 	if err == nil {
 		t.Error("Expected error when workflow engine is not configured")
 	}
@@ -953,7 +953,7 @@ func TestMutationResolver_TriggerWorkflow_WithEngine(t *testing.T) {
 		},
 	}
 
-	result, err := mutationResolver.TriggerWorkflow(ctx, "test-workflow", event)
+	result, err := mutationResolver.TriggerWorkflow(ctx, "test-workflow", event, nil, nil)
 	if err != nil {
 		t.Fatalf("TriggerWorkflow failed: %v", err)
 	}
@@ -1000,7 +1000,7 @@ func TestMutationResolver_TriggerWorkflow_NoMatchingRoute(t *testing.T) {
 		"type": "lab_result", // Won't match the claim_submitted filter
 	}
 
-	result, err := mutationResolver.TriggerWorkflow(ctx, "test-workflow", event)
+	result, err := mutationResolver.TriggerWorkflow(ctx, "test-workflow", event, nil, nil)
 	if err != nil {
 		t.Fatalf("TriggerWorkflow failed: %v", err)
 	}

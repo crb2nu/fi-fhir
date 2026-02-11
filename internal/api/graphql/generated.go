@@ -43,6 +43,7 @@ type ResolverRoot interface {
 	Mutation() MutationResolver
 	Query() QueryResolver
 	Subscription() SubscriptionResolver
+	WorkflowResult() WorkflowResultResolver
 }
 
 type DirectiveRoot struct {
@@ -466,11 +467,14 @@ type ComplexityRoot struct {
 
 	Mutation struct {
 		ApprovePendingAutoroute      func(childComplexity int, input model.ApprovePendingAutorouteInput) int
+		ApproveWorkflowVersion       func(childComplexity int, input model.ApproveWorkflowVersionInput) int
+		ArchiveWorkflowDefinition    func(childComplexity int, input model.ArchiveWorkflowDefinitionInput) int
 		BulkApprovePendingAutoroutes func(childComplexity int, input *model.BulkApproveInput) int
 		CancelTemporalWorkflow       func(childComplexity int, workflowID string, reason *string) int
 		CreateFhirSubscription       func(childComplexity int, input model.CreateSubscriptionInput) int
 		CreateMapping                func(childComplexity int, input model.CreateMappingInput) int
 		CreateProfile                func(childComplexity int, input model.CreateProfileInput) int
+		CreateWorkflowDefinition     func(childComplexity int, input model.CreateWorkflowDefinitionInput) int
 		DeleteFhirSubscription       func(childComplexity int, id string) int
 		DeleteMapping                func(childComplexity int, id string) int
 		DeleteMappingBatch           func(childComplexity int, batchID string) int
@@ -479,16 +483,22 @@ type ComplexityRoot struct {
 		DuplicateProfile             func(childComplexity int, id string, newID string, newName string) int
 		GenerateWorkflow             func(childComplexity int, input model.GenerateWorkflowInput) int
 		PauseFhirSubscription        func(childComplexity int, id string) int
+		PublishWorkflowVersion       func(childComplexity int, input model.PublishWorkflowVersionInput) int
 		RejectPendingAutoroute       func(childComplexity int, input model.RejectPendingAutorouteInput) int
+		RejectWorkflowVersion        func(childComplexity int, input model.RejectWorkflowVersionInput) int
+		RequestWorkflowApproval      func(childComplexity int, input model.RequestWorkflowApprovalInput) int
 		ResumeFhirSubscription       func(childComplexity int, id string) int
+		RollbackWorkflowVersion      func(childComplexity int, input model.RollbackWorkflowVersionInput) int
+		SaveWorkflowVersion          func(childComplexity int, input model.SaveWorkflowVersionInput) int
 		SignalReviewDecision         func(childComplexity int, input model.SignalReviewDecisionInput) int
 		StartTerminologyReview       func(childComplexity int, input model.StartTerminologyReviewInput) int
 		SubmitBatch                  func(childComplexity int, input model.SubmitBatchInput) int
 		SubmitEvent                  func(childComplexity int, input model.SubmitEventInput) int
 		SubmitMessage                func(childComplexity int, input model.SubmitMessageInput) int
-		TriggerWorkflow              func(childComplexity int, name string, event map[string]any) int
+		TriggerWorkflow              func(childComplexity int, name string, event map[string]any, environment *string, versionID *string) int
 		UpdateMapping                func(childComplexity int, input model.UpdateMappingInput) int
 		UpdateProfile                func(childComplexity int, id string, input model.UpdateProfileInput) int
+		UpdateWorkflowDefinition     func(childComplexity int, input model.UpdateWorkflowDefinitionInput) int
 		UploadMappingCSV             func(childComplexity int, input model.UploadMappingCSVInput) int
 	}
 
@@ -708,6 +718,13 @@ type ComplexityRoot struct {
 		TemporalWorkflow         func(childComplexity int, workflowID string, runID *string) int
 		TemporalWorkflows        func(childComplexity int, filter *model.TemporalWorkflowFilter, first *int, after *string) int
 		Workflow                 func(childComplexity int, name string) int
+		WorkflowApprovalRequests func(childComplexity int, filter *model.WorkflowApprovalRequestFilter, paging *model.PagingInput) int
+		WorkflowDefinition       func(childComplexity int, nameOrID string) int
+		WorkflowDefinitions      func(childComplexity int, filter *model.WorkflowDefinitionFilter, paging *model.PagingInput) int
+		WorkflowRun              func(childComplexity int, id string) int
+		WorkflowRuns             func(childComplexity int, filter *model.WorkflowRunFilter, paging *model.PagingInput) int
+		WorkflowVersion          func(childComplexity int, id string) int
+		WorkflowVersions         func(childComplexity int, workflowID string, paging *model.PagingInput) int
 		Workflows                func(childComplexity int) int
 	}
 
@@ -879,6 +896,29 @@ type ComplexityRoot struct {
 		VitalSign     func(childComplexity int) int
 	}
 
+	WorkflowApprovalRequest struct {
+		Comment         func(childComplexity int) int
+		Environment     func(childComplexity int) int
+		ID              func(childComplexity int) int
+		RequestedBy     func(childComplexity int) int
+		ReviewedAt      func(childComplexity int) int
+		ReviewedBy      func(childComplexity int) int
+		Status          func(childComplexity int) int
+		TargetVersionID func(childComplexity int) int
+		WorkflowID      func(childComplexity int) int
+	}
+
+	WorkflowDefinition struct {
+		CreatedAt              func(childComplexity int) int
+		Description            func(childComplexity int) int
+		ID                     func(childComplexity int) int
+		LatestVersion          func(childComplexity int) int
+		Name                   func(childComplexity int) int
+		PublishedVersionsByEnv func(childComplexity int) int
+		Status                 func(childComplexity int) int
+		UpdatedAt              func(childComplexity int) int
+	}
+
 	WorkflowEventNotification struct {
 		ActionsExecuted func(childComplexity int) int
 		Duration        func(childComplexity int) int
@@ -895,11 +935,38 @@ type ComplexityRoot struct {
 		Warnings          func(childComplexity int) int
 	}
 
+	WorkflowRelease struct {
+		Environment           func(childComplexity int) int
+		ID                    func(childComplexity int) int
+		PublishedAt           func(childComplexity int) int
+		PublishedBy           func(childComplexity int) int
+		RollbackFromReleaseID func(childComplexity int) int
+		VersionID             func(childComplexity int) int
+		WorkflowID            func(childComplexity int) int
+	}
+
 	WorkflowResult struct {
 		ActionsExecuted func(childComplexity int) int
 		Duration        func(childComplexity int) int
+		Environment     func(childComplexity int) int
 		Errors          func(childComplexity int) int
 		RoutesMatched   func(childComplexity int) int
+		RunID           func(childComplexity int) int
+		VersionID       func(childComplexity int) int
+		WorkflowName    func(childComplexity int) int
+	}
+
+	WorkflowRun struct {
+		ActionsExecuted func(childComplexity int) int
+		DurationMs      func(childComplexity int) int
+		Environment     func(childComplexity int) int
+		Errors          func(childComplexity int) int
+		EventID         func(childComplexity int) int
+		ID              func(childComplexity int) int
+		RoutesMatched   func(childComplexity int) int
+		StartedAt       func(childComplexity int) int
+		Status          func(childComplexity int) int
+		VersionID       func(childComplexity int) int
 		WorkflowName    func(childComplexity int) int
 	}
 
@@ -911,13 +978,40 @@ type ComplexityRoot struct {
 		Name            func(childComplexity int) int
 		RouteCount      func(childComplexity int) int
 	}
+
+	WorkflowValidation struct {
+		Errors   func(childComplexity int) int
+		Info     func(childComplexity int) int
+		Valid    func(childComplexity int) int
+		Warnings func(childComplexity int) int
+	}
+
+	WorkflowVersion struct {
+		CreatedAt     func(childComplexity int) int
+		CreatedBy     func(childComplexity int) int
+		ID            func(childComplexity int) int
+		Notes         func(childComplexity int) int
+		Validation    func(childComplexity int) int
+		VersionNumber func(childComplexity int) int
+		WorkflowID    func(childComplexity int) int
+		Yaml          func(childComplexity int) int
+	}
 }
 
 type MutationResolver interface {
 	SubmitMessage(ctx context.Context, input model.SubmitMessageInput) (*model.SubmitResult, error)
 	SubmitEvent(ctx context.Context, input model.SubmitEventInput) (*model.SubmitResult, error)
 	SubmitBatch(ctx context.Context, input model.SubmitBatchInput) (*model.BatchResult, error)
-	TriggerWorkflow(ctx context.Context, name string, event map[string]any) (*model.WorkflowResult, error)
+	TriggerWorkflow(ctx context.Context, name string, event map[string]any, environment *string, versionID *string) (*model.WorkflowResult, error)
+	CreateWorkflowDefinition(ctx context.Context, input model.CreateWorkflowDefinitionInput) (*model.WorkflowDefinition, error)
+	UpdateWorkflowDefinition(ctx context.Context, input model.UpdateWorkflowDefinitionInput) (*model.WorkflowDefinition, error)
+	SaveWorkflowVersion(ctx context.Context, input model.SaveWorkflowVersionInput) (*model.WorkflowVersion, error)
+	PublishWorkflowVersion(ctx context.Context, input model.PublishWorkflowVersionInput) (*model.WorkflowRelease, error)
+	RollbackWorkflowVersion(ctx context.Context, input model.RollbackWorkflowVersionInput) (*model.WorkflowRelease, error)
+	ArchiveWorkflowDefinition(ctx context.Context, input model.ArchiveWorkflowDefinitionInput) (*model.WorkflowDefinition, error)
+	RequestWorkflowApproval(ctx context.Context, input model.RequestWorkflowApprovalInput) (*model.WorkflowApprovalRequest, error)
+	ApproveWorkflowVersion(ctx context.Context, input model.ApproveWorkflowVersionInput) (*model.WorkflowApprovalRequest, error)
+	RejectWorkflowVersion(ctx context.Context, input model.RejectWorkflowVersionInput) (*model.WorkflowApprovalRequest, error)
 	CreateFhirSubscription(ctx context.Context, input model.CreateSubscriptionInput) (*model.FhirSubscription, error)
 	DeleteFhirSubscription(ctx context.Context, id string) (bool, error)
 	PauseFhirSubscription(ctx context.Context, id string) (*model.FhirSubscription, error)
@@ -947,6 +1041,13 @@ type QueryResolver interface {
 	Patients(ctx context.Context, filter *model.PatientFilter, first *int, after *string) (*model.PatientConnection, error)
 	Workflow(ctx context.Context, name string) (*model.WorkflowStatus, error)
 	Workflows(ctx context.Context) ([]model.WorkflowStatus, error)
+	WorkflowDefinitions(ctx context.Context, filter *model.WorkflowDefinitionFilter, paging *model.PagingInput) ([]model.WorkflowDefinition, error)
+	WorkflowDefinition(ctx context.Context, nameOrID string) (*model.WorkflowDefinition, error)
+	WorkflowVersions(ctx context.Context, workflowID string, paging *model.PagingInput) ([]model.WorkflowVersion, error)
+	WorkflowVersion(ctx context.Context, id string) (*model.WorkflowVersion, error)
+	WorkflowRuns(ctx context.Context, filter *model.WorkflowRunFilter, paging *model.PagingInput) ([]model.WorkflowRun, error)
+	WorkflowRun(ctx context.Context, id string) (*model.WorkflowRun, error)
+	WorkflowApprovalRequests(ctx context.Context, filter *model.WorkflowApprovalRequestFilter, paging *model.PagingInput) ([]model.WorkflowApprovalRequest, error)
 	Health(ctx context.Context) (*model.HealthStatus, error)
 	ParsePreview(ctx context.Context, format model.SourceFormat, data string, source *string) (*model.ParseResult, error)
 	PatientTimeline(ctx context.Context, mrn string, fromTimestamp *time.Time, toTimestamp *time.Time, limit *int) (*model.PatientTimeline, error)
@@ -982,6 +1083,11 @@ type SubscriptionResolver interface {
 	EventStream(ctx context.Context, filter *model.EventFilter) (<-chan model.Event, error)
 	WorkflowEvents(ctx context.Context, workflowName string) (<-chan *model.WorkflowEventNotification, error)
 	PatientEvents(ctx context.Context, mrn string) (<-chan model.Event, error)
+}
+type WorkflowResultResolver interface {
+	RunID(ctx context.Context, obj *model.WorkflowResult) (*string, error)
+	Environment(ctx context.Context, obj *model.WorkflowResult) (*string, error)
+	VersionID(ctx context.Context, obj *model.WorkflowResult) (*string, error)
 }
 
 type executableSchema struct {
@@ -2688,6 +2794,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.ApprovePendingAutoroute(childComplexity, args["input"].(model.ApprovePendingAutorouteInput)), true
+	case "Mutation.approveWorkflowVersion":
+		if e.complexity.Mutation.ApproveWorkflowVersion == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_approveWorkflowVersion_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.ApproveWorkflowVersion(childComplexity, args["input"].(model.ApproveWorkflowVersionInput)), true
+	case "Mutation.archiveWorkflowDefinition":
+		if e.complexity.Mutation.ArchiveWorkflowDefinition == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_archiveWorkflowDefinition_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.ArchiveWorkflowDefinition(childComplexity, args["input"].(model.ArchiveWorkflowDefinitionInput)), true
 	case "Mutation.bulkApprovePendingAutoroutes":
 		if e.complexity.Mutation.BulkApprovePendingAutoroutes == nil {
 			break
@@ -2743,6 +2871,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.CreateProfile(childComplexity, args["input"].(model.CreateProfileInput)), true
+	case "Mutation.createWorkflowDefinition":
+		if e.complexity.Mutation.CreateWorkflowDefinition == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createWorkflowDefinition_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CreateWorkflowDefinition(childComplexity, args["input"].(model.CreateWorkflowDefinitionInput)), true
 	case "Mutation.deleteFhirSubscription":
 		if e.complexity.Mutation.DeleteFhirSubscription == nil {
 			break
@@ -2831,6 +2970,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.PauseFhirSubscription(childComplexity, args["id"].(string)), true
+	case "Mutation.publishWorkflowVersion":
+		if e.complexity.Mutation.PublishWorkflowVersion == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_publishWorkflowVersion_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.PublishWorkflowVersion(childComplexity, args["input"].(model.PublishWorkflowVersionInput)), true
 	case "Mutation.rejectPendingAutoroute":
 		if e.complexity.Mutation.RejectPendingAutoroute == nil {
 			break
@@ -2842,6 +2992,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.RejectPendingAutoroute(childComplexity, args["input"].(model.RejectPendingAutorouteInput)), true
+	case "Mutation.rejectWorkflowVersion":
+		if e.complexity.Mutation.RejectWorkflowVersion == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_rejectWorkflowVersion_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.RejectWorkflowVersion(childComplexity, args["input"].(model.RejectWorkflowVersionInput)), true
+	case "Mutation.requestWorkflowApproval":
+		if e.complexity.Mutation.RequestWorkflowApproval == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_requestWorkflowApproval_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.RequestWorkflowApproval(childComplexity, args["input"].(model.RequestWorkflowApprovalInput)), true
 	case "Mutation.resumeFhirSubscription":
 		if e.complexity.Mutation.ResumeFhirSubscription == nil {
 			break
@@ -2853,6 +3025,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.ResumeFhirSubscription(childComplexity, args["id"].(string)), true
+	case "Mutation.rollbackWorkflowVersion":
+		if e.complexity.Mutation.RollbackWorkflowVersion == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_rollbackWorkflowVersion_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.RollbackWorkflowVersion(childComplexity, args["input"].(model.RollbackWorkflowVersionInput)), true
+	case "Mutation.saveWorkflowVersion":
+		if e.complexity.Mutation.SaveWorkflowVersion == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_saveWorkflowVersion_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.SaveWorkflowVersion(childComplexity, args["input"].(model.SaveWorkflowVersionInput)), true
 	case "Mutation.signalReviewDecision":
 		if e.complexity.Mutation.SignalReviewDecision == nil {
 			break
@@ -2918,7 +3112,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.TriggerWorkflow(childComplexity, args["name"].(string), args["event"].(map[string]any)), true
+		return e.complexity.Mutation.TriggerWorkflow(childComplexity, args["name"].(string), args["event"].(map[string]any), args["environment"].(*string), args["versionId"].(*string)), true
 	case "Mutation.updateMapping":
 		if e.complexity.Mutation.UpdateMapping == nil {
 			break
@@ -2941,6 +3135,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.UpdateProfile(childComplexity, args["id"].(string), args["input"].(model.UpdateProfileInput)), true
+	case "Mutation.updateWorkflowDefinition":
+		if e.complexity.Mutation.UpdateWorkflowDefinition == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateWorkflowDefinition_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UpdateWorkflowDefinition(childComplexity, args["input"].(model.UpdateWorkflowDefinitionInput)), true
 	case "Mutation.uploadMappingCSV":
 		if e.complexity.Mutation.UploadMappingCSV == nil {
 			break
@@ -4058,6 +4263,83 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.Workflow(childComplexity, args["name"].(string)), true
+	case "Query.workflowApprovalRequests":
+		if e.complexity.Query.WorkflowApprovalRequests == nil {
+			break
+		}
+
+		args, err := ec.field_Query_workflowApprovalRequests_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.WorkflowApprovalRequests(childComplexity, args["filter"].(*model.WorkflowApprovalRequestFilter), args["paging"].(*model.PagingInput)), true
+	case "Query.workflowDefinition":
+		if e.complexity.Query.WorkflowDefinition == nil {
+			break
+		}
+
+		args, err := ec.field_Query_workflowDefinition_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.WorkflowDefinition(childComplexity, args["nameOrId"].(string)), true
+	case "Query.workflowDefinitions":
+		if e.complexity.Query.WorkflowDefinitions == nil {
+			break
+		}
+
+		args, err := ec.field_Query_workflowDefinitions_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.WorkflowDefinitions(childComplexity, args["filter"].(*model.WorkflowDefinitionFilter), args["paging"].(*model.PagingInput)), true
+	case "Query.workflowRun":
+		if e.complexity.Query.WorkflowRun == nil {
+			break
+		}
+
+		args, err := ec.field_Query_workflowRun_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.WorkflowRun(childComplexity, args["id"].(string)), true
+	case "Query.workflowRuns":
+		if e.complexity.Query.WorkflowRuns == nil {
+			break
+		}
+
+		args, err := ec.field_Query_workflowRuns_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.WorkflowRuns(childComplexity, args["filter"].(*model.WorkflowRunFilter), args["paging"].(*model.PagingInput)), true
+	case "Query.workflowVersion":
+		if e.complexity.Query.WorkflowVersion == nil {
+			break
+		}
+
+		args, err := ec.field_Query_workflowVersion_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.WorkflowVersion(childComplexity, args["id"].(string)), true
+	case "Query.workflowVersions":
+		if e.complexity.Query.WorkflowVersions == nil {
+			break
+		}
+
+		args, err := ec.field_Query_workflowVersions_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.WorkflowVersions(childComplexity, args["workflowId"].(string), args["paging"].(*model.PagingInput)), true
 	case "Query.workflows":
 		if e.complexity.Query.Workflows == nil {
 			break
@@ -4731,6 +5013,110 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.VitalSignEvent.VitalSign(childComplexity), true
 
+	case "WorkflowApprovalRequest.comment":
+		if e.complexity.WorkflowApprovalRequest.Comment == nil {
+			break
+		}
+
+		return e.complexity.WorkflowApprovalRequest.Comment(childComplexity), true
+	case "WorkflowApprovalRequest.environment":
+		if e.complexity.WorkflowApprovalRequest.Environment == nil {
+			break
+		}
+
+		return e.complexity.WorkflowApprovalRequest.Environment(childComplexity), true
+	case "WorkflowApprovalRequest.id":
+		if e.complexity.WorkflowApprovalRequest.ID == nil {
+			break
+		}
+
+		return e.complexity.WorkflowApprovalRequest.ID(childComplexity), true
+	case "WorkflowApprovalRequest.requestedBy":
+		if e.complexity.WorkflowApprovalRequest.RequestedBy == nil {
+			break
+		}
+
+		return e.complexity.WorkflowApprovalRequest.RequestedBy(childComplexity), true
+	case "WorkflowApprovalRequest.reviewedAt":
+		if e.complexity.WorkflowApprovalRequest.ReviewedAt == nil {
+			break
+		}
+
+		return e.complexity.WorkflowApprovalRequest.ReviewedAt(childComplexity), true
+	case "WorkflowApprovalRequest.reviewedBy":
+		if e.complexity.WorkflowApprovalRequest.ReviewedBy == nil {
+			break
+		}
+
+		return e.complexity.WorkflowApprovalRequest.ReviewedBy(childComplexity), true
+	case "WorkflowApprovalRequest.status":
+		if e.complexity.WorkflowApprovalRequest.Status == nil {
+			break
+		}
+
+		return e.complexity.WorkflowApprovalRequest.Status(childComplexity), true
+	case "WorkflowApprovalRequest.targetVersionId":
+		if e.complexity.WorkflowApprovalRequest.TargetVersionID == nil {
+			break
+		}
+
+		return e.complexity.WorkflowApprovalRequest.TargetVersionID(childComplexity), true
+	case "WorkflowApprovalRequest.workflowId":
+		if e.complexity.WorkflowApprovalRequest.WorkflowID == nil {
+			break
+		}
+
+		return e.complexity.WorkflowApprovalRequest.WorkflowID(childComplexity), true
+
+	case "WorkflowDefinition.createdAt":
+		if e.complexity.WorkflowDefinition.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.WorkflowDefinition.CreatedAt(childComplexity), true
+	case "WorkflowDefinition.description":
+		if e.complexity.WorkflowDefinition.Description == nil {
+			break
+		}
+
+		return e.complexity.WorkflowDefinition.Description(childComplexity), true
+	case "WorkflowDefinition.id":
+		if e.complexity.WorkflowDefinition.ID == nil {
+			break
+		}
+
+		return e.complexity.WorkflowDefinition.ID(childComplexity), true
+	case "WorkflowDefinition.latestVersion":
+		if e.complexity.WorkflowDefinition.LatestVersion == nil {
+			break
+		}
+
+		return e.complexity.WorkflowDefinition.LatestVersion(childComplexity), true
+	case "WorkflowDefinition.name":
+		if e.complexity.WorkflowDefinition.Name == nil {
+			break
+		}
+
+		return e.complexity.WorkflowDefinition.Name(childComplexity), true
+	case "WorkflowDefinition.publishedVersionsByEnv":
+		if e.complexity.WorkflowDefinition.PublishedVersionsByEnv == nil {
+			break
+		}
+
+		return e.complexity.WorkflowDefinition.PublishedVersionsByEnv(childComplexity), true
+	case "WorkflowDefinition.status":
+		if e.complexity.WorkflowDefinition.Status == nil {
+			break
+		}
+
+		return e.complexity.WorkflowDefinition.Status(childComplexity), true
+	case "WorkflowDefinition.updatedAt":
+		if e.complexity.WorkflowDefinition.UpdatedAt == nil {
+			break
+		}
+
+		return e.complexity.WorkflowDefinition.UpdatedAt(childComplexity), true
+
 	case "WorkflowEventNotification.actionsExecuted":
 		if e.complexity.WorkflowEventNotification.ActionsExecuted == nil {
 			break
@@ -4793,6 +5179,49 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.WorkflowExplanation.Warnings(childComplexity), true
 
+	case "WorkflowRelease.environment":
+		if e.complexity.WorkflowRelease.Environment == nil {
+			break
+		}
+
+		return e.complexity.WorkflowRelease.Environment(childComplexity), true
+	case "WorkflowRelease.id":
+		if e.complexity.WorkflowRelease.ID == nil {
+			break
+		}
+
+		return e.complexity.WorkflowRelease.ID(childComplexity), true
+	case "WorkflowRelease.publishedAt":
+		if e.complexity.WorkflowRelease.PublishedAt == nil {
+			break
+		}
+
+		return e.complexity.WorkflowRelease.PublishedAt(childComplexity), true
+	case "WorkflowRelease.publishedBy":
+		if e.complexity.WorkflowRelease.PublishedBy == nil {
+			break
+		}
+
+		return e.complexity.WorkflowRelease.PublishedBy(childComplexity), true
+	case "WorkflowRelease.rollbackFromReleaseId":
+		if e.complexity.WorkflowRelease.RollbackFromReleaseID == nil {
+			break
+		}
+
+		return e.complexity.WorkflowRelease.RollbackFromReleaseID(childComplexity), true
+	case "WorkflowRelease.versionId":
+		if e.complexity.WorkflowRelease.VersionID == nil {
+			break
+		}
+
+		return e.complexity.WorkflowRelease.VersionID(childComplexity), true
+	case "WorkflowRelease.workflowId":
+		if e.complexity.WorkflowRelease.WorkflowID == nil {
+			break
+		}
+
+		return e.complexity.WorkflowRelease.WorkflowID(childComplexity), true
+
 	case "WorkflowResult.actionsExecuted":
 		if e.complexity.WorkflowResult.ActionsExecuted == nil {
 			break
@@ -4805,6 +5234,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.WorkflowResult.Duration(childComplexity), true
+	case "WorkflowResult.environment":
+		if e.complexity.WorkflowResult.Environment == nil {
+			break
+		}
+
+		return e.complexity.WorkflowResult.Environment(childComplexity), true
 	case "WorkflowResult.errors":
 		if e.complexity.WorkflowResult.Errors == nil {
 			break
@@ -4817,12 +5252,91 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.WorkflowResult.RoutesMatched(childComplexity), true
+	case "WorkflowResult.runId":
+		if e.complexity.WorkflowResult.RunID == nil {
+			break
+		}
+
+		return e.complexity.WorkflowResult.RunID(childComplexity), true
+	case "WorkflowResult.versionId":
+		if e.complexity.WorkflowResult.VersionID == nil {
+			break
+		}
+
+		return e.complexity.WorkflowResult.VersionID(childComplexity), true
 	case "WorkflowResult.workflowName":
 		if e.complexity.WorkflowResult.WorkflowName == nil {
 			break
 		}
 
 		return e.complexity.WorkflowResult.WorkflowName(childComplexity), true
+
+	case "WorkflowRun.actionsExecuted":
+		if e.complexity.WorkflowRun.ActionsExecuted == nil {
+			break
+		}
+
+		return e.complexity.WorkflowRun.ActionsExecuted(childComplexity), true
+	case "WorkflowRun.durationMs":
+		if e.complexity.WorkflowRun.DurationMs == nil {
+			break
+		}
+
+		return e.complexity.WorkflowRun.DurationMs(childComplexity), true
+	case "WorkflowRun.environment":
+		if e.complexity.WorkflowRun.Environment == nil {
+			break
+		}
+
+		return e.complexity.WorkflowRun.Environment(childComplexity), true
+	case "WorkflowRun.errors":
+		if e.complexity.WorkflowRun.Errors == nil {
+			break
+		}
+
+		return e.complexity.WorkflowRun.Errors(childComplexity), true
+	case "WorkflowRun.eventId":
+		if e.complexity.WorkflowRun.EventID == nil {
+			break
+		}
+
+		return e.complexity.WorkflowRun.EventID(childComplexity), true
+	case "WorkflowRun.id":
+		if e.complexity.WorkflowRun.ID == nil {
+			break
+		}
+
+		return e.complexity.WorkflowRun.ID(childComplexity), true
+	case "WorkflowRun.routesMatched":
+		if e.complexity.WorkflowRun.RoutesMatched == nil {
+			break
+		}
+
+		return e.complexity.WorkflowRun.RoutesMatched(childComplexity), true
+	case "WorkflowRun.startedAt":
+		if e.complexity.WorkflowRun.StartedAt == nil {
+			break
+		}
+
+		return e.complexity.WorkflowRun.StartedAt(childComplexity), true
+	case "WorkflowRun.status":
+		if e.complexity.WorkflowRun.Status == nil {
+			break
+		}
+
+		return e.complexity.WorkflowRun.Status(childComplexity), true
+	case "WorkflowRun.versionId":
+		if e.complexity.WorkflowRun.VersionID == nil {
+			break
+		}
+
+		return e.complexity.WorkflowRun.VersionID(childComplexity), true
+	case "WorkflowRun.workflowName":
+		if e.complexity.WorkflowRun.WorkflowName == nil {
+			break
+		}
+
+		return e.complexity.WorkflowRun.WorkflowName(childComplexity), true
 
 	case "WorkflowStatus.enabled":
 		if e.complexity.WorkflowStatus.Enabled == nil {
@@ -4861,6 +5375,80 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.WorkflowStatus.RouteCount(childComplexity), true
 
+	case "WorkflowValidation.errors":
+		if e.complexity.WorkflowValidation.Errors == nil {
+			break
+		}
+
+		return e.complexity.WorkflowValidation.Errors(childComplexity), true
+	case "WorkflowValidation.info":
+		if e.complexity.WorkflowValidation.Info == nil {
+			break
+		}
+
+		return e.complexity.WorkflowValidation.Info(childComplexity), true
+	case "WorkflowValidation.valid":
+		if e.complexity.WorkflowValidation.Valid == nil {
+			break
+		}
+
+		return e.complexity.WorkflowValidation.Valid(childComplexity), true
+	case "WorkflowValidation.warnings":
+		if e.complexity.WorkflowValidation.Warnings == nil {
+			break
+		}
+
+		return e.complexity.WorkflowValidation.Warnings(childComplexity), true
+
+	case "WorkflowVersion.createdAt":
+		if e.complexity.WorkflowVersion.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.WorkflowVersion.CreatedAt(childComplexity), true
+	case "WorkflowVersion.createdBy":
+		if e.complexity.WorkflowVersion.CreatedBy == nil {
+			break
+		}
+
+		return e.complexity.WorkflowVersion.CreatedBy(childComplexity), true
+	case "WorkflowVersion.id":
+		if e.complexity.WorkflowVersion.ID == nil {
+			break
+		}
+
+		return e.complexity.WorkflowVersion.ID(childComplexity), true
+	case "WorkflowVersion.notes":
+		if e.complexity.WorkflowVersion.Notes == nil {
+			break
+		}
+
+		return e.complexity.WorkflowVersion.Notes(childComplexity), true
+	case "WorkflowVersion.validation":
+		if e.complexity.WorkflowVersion.Validation == nil {
+			break
+		}
+
+		return e.complexity.WorkflowVersion.Validation(childComplexity), true
+	case "WorkflowVersion.versionNumber":
+		if e.complexity.WorkflowVersion.VersionNumber == nil {
+			break
+		}
+
+		return e.complexity.WorkflowVersion.VersionNumber(childComplexity), true
+	case "WorkflowVersion.workflowId":
+		if e.complexity.WorkflowVersion.WorkflowID == nil {
+			break
+		}
+
+		return e.complexity.WorkflowVersion.WorkflowID(childComplexity), true
+	case "WorkflowVersion.yaml":
+		if e.complexity.WorkflowVersion.Yaml == nil {
+			break
+		}
+
+		return e.complexity.WorkflowVersion.Yaml(childComplexity), true
+
 	}
 	return 0, false
 }
@@ -4871,6 +5459,8 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputAnalyzeQualityInput,
 		ec.unmarshalInputApprovePendingAutorouteInput,
+		ec.unmarshalInputApproveWorkflowVersionInput,
+		ec.unmarshalInputArchiveWorkflowDefinitionInput,
 		ec.unmarshalInputAssigningAuthorityInput,
 		ec.unmarshalInputBatchEventItem,
 		ec.unmarshalInputBatchMessageItem,
@@ -4879,6 +5469,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCreateMappingInput,
 		ec.unmarshalInputCreateProfileInput,
 		ec.unmarshalInputCreateSubscriptionInput,
+		ec.unmarshalInputCreateWorkflowDefinitionInput,
 		ec.unmarshalInputDryRunWorkflowInput,
 		ec.unmarshalInputEventClassificationRuleInput,
 		ec.unmarshalInputEventFilter,
@@ -4892,10 +5483,16 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputListMappingsInput,
 		ec.unmarshalInputListPendingAutoroutesInput,
 		ec.unmarshalInputNormalizationSettingsInput,
+		ec.unmarshalInputPagingInput,
 		ec.unmarshalInputParseWarningInput,
 		ec.unmarshalInputPatientFilter,
+		ec.unmarshalInputPublishWorkflowVersionInput,
 		ec.unmarshalInputRejectPendingAutorouteInput,
+		ec.unmarshalInputRejectWorkflowVersionInput,
+		ec.unmarshalInputRequestWorkflowApprovalInput,
 		ec.unmarshalInputResolveMappingInput,
+		ec.unmarshalInputRollbackWorkflowVersionInput,
+		ec.unmarshalInputSaveWorkflowVersionInput,
 		ec.unmarshalInputSignalReviewDecisionInput,
 		ec.unmarshalInputStartTerminologyReviewInput,
 		ec.unmarshalInputSubmitBatchInput,
@@ -4909,9 +5506,13 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputToleranceConfigInput,
 		ec.unmarshalInputUpdateMappingInput,
 		ec.unmarshalInputUpdateProfileInput,
+		ec.unmarshalInputUpdateWorkflowDefinitionInput,
 		ec.unmarshalInputUploadMappingCSVInput,
 		ec.unmarshalInputValidationSettingsInput,
 		ec.unmarshalInputValidatorSettingInput,
+		ec.unmarshalInputWorkflowApprovalRequestFilter,
+		ec.unmarshalInputWorkflowDefinitionFilter,
+		ec.unmarshalInputWorkflowRunFilter,
 	)
 	first := true
 
@@ -5056,6 +5657,28 @@ func (ec *executionContext) field_Mutation_approvePendingAutoroute_args(ctx cont
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_approveWorkflowVersion_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNApproveWorkflowVersionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐApproveWorkflowVersionInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_archiveWorkflowDefinition_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNArchiveWorkflowDefinitionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐArchiveWorkflowDefinitionInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_bulkApprovePendingAutoroutes_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -5109,6 +5732,17 @@ func (ec *executionContext) field_Mutation_createProfile_args(ctx context.Contex
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNCreateProfileInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐCreateProfileInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createWorkflowDefinition_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNCreateWorkflowDefinitionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐCreateWorkflowDefinitionInput)
 	if err != nil {
 		return nil, err
 	}
@@ -5214,10 +5848,43 @@ func (ec *executionContext) field_Mutation_pauseFhirSubscription_args(ctx contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_publishWorkflowVersion_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNPublishWorkflowVersionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPublishWorkflowVersionInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_rejectPendingAutoroute_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNRejectPendingAutorouteInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐRejectPendingAutorouteInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_rejectWorkflowVersion_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNRejectWorkflowVersionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐRejectWorkflowVersionInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_requestWorkflowApproval_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNRequestWorkflowApprovalInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐRequestWorkflowApprovalInput)
 	if err != nil {
 		return nil, err
 	}
@@ -5233,6 +5900,28 @@ func (ec *executionContext) field_Mutation_resumeFhirSubscription_args(ctx conte
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_rollbackWorkflowVersion_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNRollbackWorkflowVersionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐRollbackWorkflowVersionInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_saveWorkflowVersion_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNSaveWorkflowVersionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSaveWorkflowVersionInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -5304,6 +5993,16 @@ func (ec *executionContext) field_Mutation_triggerWorkflow_args(ctx context.Cont
 		return nil, err
 	}
 	args["event"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "environment", ec.unmarshalOString2ᚖstring)
+	if err != nil {
+		return nil, err
+	}
+	args["environment"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "versionId", ec.unmarshalOString2ᚖstring)
+	if err != nil {
+		return nil, err
+	}
+	args["versionId"] = arg3
 	return args, nil
 }
 
@@ -5331,6 +6030,17 @@ func (ec *executionContext) field_Mutation_updateProfile_args(ctx context.Contex
 		return nil, err
 	}
 	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateWorkflowDefinition_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNUpdateWorkflowDefinitionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐUpdateWorkflowDefinitionInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -5793,6 +6503,103 @@ func (ec *executionContext) field_Query_temporalWorkflows_args(ctx context.Conte
 		return nil, err
 	}
 	args["after"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_workflowApprovalRequests_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "filter", ec.unmarshalOWorkflowApprovalRequestFilter2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowApprovalRequestFilter)
+	if err != nil {
+		return nil, err
+	}
+	args["filter"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "paging", ec.unmarshalOPagingInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPagingInput)
+	if err != nil {
+		return nil, err
+	}
+	args["paging"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_workflowDefinition_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "nameOrId", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["nameOrId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_workflowDefinitions_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "filter", ec.unmarshalOWorkflowDefinitionFilter2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowDefinitionFilter)
+	if err != nil {
+		return nil, err
+	}
+	args["filter"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "paging", ec.unmarshalOPagingInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPagingInput)
+	if err != nil {
+		return nil, err
+	}
+	args["paging"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_workflowRun_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_workflowRuns_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "filter", ec.unmarshalOWorkflowRunFilter2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowRunFilter)
+	if err != nil {
+		return nil, err
+	}
+	args["filter"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "paging", ec.unmarshalOPagingInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPagingInput)
+	if err != nil {
+		return nil, err
+	}
+	args["paging"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_workflowVersion_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_workflowVersions_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "workflowId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["workflowId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "paging", ec.unmarshalOPagingInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPagingInput)
+	if err != nil {
+		return nil, err
+	}
+	args["paging"] = arg1
 	return args, nil
 }
 
@@ -7410,6 +8217,12 @@ func (ec *executionContext) fieldContext_BatchItemResult_workflowResults(_ conte
 				return ec.fieldContext_WorkflowResult_errors(ctx, field)
 			case "duration":
 				return ec.fieldContext_WorkflowResult_duration(ctx, field)
+			case "runId":
+				return ec.fieldContext_WorkflowResult_runId(ctx, field)
+			case "environment":
+				return ec.fieldContext_WorkflowResult_environment(ctx, field)
+			case "versionId":
+				return ec.fieldContext_WorkflowResult_versionId(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type WorkflowResult", field.Name)
 		},
@@ -14510,7 +15323,7 @@ func (ec *executionContext) _Mutation_triggerWorkflow(ctx context.Context, field
 		ec.fieldContext_Mutation_triggerWorkflow,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Mutation().TriggerWorkflow(ctx, fc.Args["name"].(string), fc.Args["event"].(map[string]any))
+			return ec.resolvers.Mutation().TriggerWorkflow(ctx, fc.Args["name"].(string), fc.Args["event"].(map[string]any), fc.Args["environment"].(*string), fc.Args["versionId"].(*string))
 		},
 		nil,
 		ec.marshalNWorkflowResult2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowResult,
@@ -14537,6 +15350,12 @@ func (ec *executionContext) fieldContext_Mutation_triggerWorkflow(ctx context.Co
 				return ec.fieldContext_WorkflowResult_errors(ctx, field)
 			case "duration":
 				return ec.fieldContext_WorkflowResult_duration(ctx, field)
+			case "runId":
+				return ec.fieldContext_WorkflowResult_runId(ctx, field)
+			case "environment":
+				return ec.fieldContext_WorkflowResult_environment(ctx, field)
+			case "versionId":
+				return ec.fieldContext_WorkflowResult_versionId(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type WorkflowResult", field.Name)
 		},
@@ -14549,6 +15368,539 @@ func (ec *executionContext) fieldContext_Mutation_triggerWorkflow(ctx context.Co
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_triggerWorkflow_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createWorkflowDefinition(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_createWorkflowDefinition,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().CreateWorkflowDefinition(ctx, fc.Args["input"].(model.CreateWorkflowDefinitionInput))
+		},
+		nil,
+		ec.marshalNWorkflowDefinition2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowDefinition,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_createWorkflowDefinition(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_WorkflowDefinition_id(ctx, field)
+			case "name":
+				return ec.fieldContext_WorkflowDefinition_name(ctx, field)
+			case "description":
+				return ec.fieldContext_WorkflowDefinition_description(ctx, field)
+			case "status":
+				return ec.fieldContext_WorkflowDefinition_status(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_WorkflowDefinition_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_WorkflowDefinition_updatedAt(ctx, field)
+			case "latestVersion":
+				return ec.fieldContext_WorkflowDefinition_latestVersion(ctx, field)
+			case "publishedVersionsByEnv":
+				return ec.fieldContext_WorkflowDefinition_publishedVersionsByEnv(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowDefinition", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createWorkflowDefinition_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateWorkflowDefinition(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_updateWorkflowDefinition,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().UpdateWorkflowDefinition(ctx, fc.Args["input"].(model.UpdateWorkflowDefinitionInput))
+		},
+		nil,
+		ec.marshalNWorkflowDefinition2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowDefinition,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_updateWorkflowDefinition(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_WorkflowDefinition_id(ctx, field)
+			case "name":
+				return ec.fieldContext_WorkflowDefinition_name(ctx, field)
+			case "description":
+				return ec.fieldContext_WorkflowDefinition_description(ctx, field)
+			case "status":
+				return ec.fieldContext_WorkflowDefinition_status(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_WorkflowDefinition_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_WorkflowDefinition_updatedAt(ctx, field)
+			case "latestVersion":
+				return ec.fieldContext_WorkflowDefinition_latestVersion(ctx, field)
+			case "publishedVersionsByEnv":
+				return ec.fieldContext_WorkflowDefinition_publishedVersionsByEnv(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowDefinition", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateWorkflowDefinition_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_saveWorkflowVersion(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_saveWorkflowVersion,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().SaveWorkflowVersion(ctx, fc.Args["input"].(model.SaveWorkflowVersionInput))
+		},
+		nil,
+		ec.marshalNWorkflowVersion2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowVersion,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_saveWorkflowVersion(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_WorkflowVersion_id(ctx, field)
+			case "workflowId":
+				return ec.fieldContext_WorkflowVersion_workflowId(ctx, field)
+			case "versionNumber":
+				return ec.fieldContext_WorkflowVersion_versionNumber(ctx, field)
+			case "yaml":
+				return ec.fieldContext_WorkflowVersion_yaml(ctx, field)
+			case "validation":
+				return ec.fieldContext_WorkflowVersion_validation(ctx, field)
+			case "createdBy":
+				return ec.fieldContext_WorkflowVersion_createdBy(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_WorkflowVersion_createdAt(ctx, field)
+			case "notes":
+				return ec.fieldContext_WorkflowVersion_notes(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowVersion", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_saveWorkflowVersion_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_publishWorkflowVersion(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_publishWorkflowVersion,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().PublishWorkflowVersion(ctx, fc.Args["input"].(model.PublishWorkflowVersionInput))
+		},
+		nil,
+		ec.marshalNWorkflowRelease2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowRelease,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_publishWorkflowVersion(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_WorkflowRelease_id(ctx, field)
+			case "workflowId":
+				return ec.fieldContext_WorkflowRelease_workflowId(ctx, field)
+			case "environment":
+				return ec.fieldContext_WorkflowRelease_environment(ctx, field)
+			case "versionId":
+				return ec.fieldContext_WorkflowRelease_versionId(ctx, field)
+			case "publishedBy":
+				return ec.fieldContext_WorkflowRelease_publishedBy(ctx, field)
+			case "publishedAt":
+				return ec.fieldContext_WorkflowRelease_publishedAt(ctx, field)
+			case "rollbackFromReleaseId":
+				return ec.fieldContext_WorkflowRelease_rollbackFromReleaseId(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowRelease", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_publishWorkflowVersion_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_rollbackWorkflowVersion(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_rollbackWorkflowVersion,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().RollbackWorkflowVersion(ctx, fc.Args["input"].(model.RollbackWorkflowVersionInput))
+		},
+		nil,
+		ec.marshalNWorkflowRelease2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowRelease,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_rollbackWorkflowVersion(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_WorkflowRelease_id(ctx, field)
+			case "workflowId":
+				return ec.fieldContext_WorkflowRelease_workflowId(ctx, field)
+			case "environment":
+				return ec.fieldContext_WorkflowRelease_environment(ctx, field)
+			case "versionId":
+				return ec.fieldContext_WorkflowRelease_versionId(ctx, field)
+			case "publishedBy":
+				return ec.fieldContext_WorkflowRelease_publishedBy(ctx, field)
+			case "publishedAt":
+				return ec.fieldContext_WorkflowRelease_publishedAt(ctx, field)
+			case "rollbackFromReleaseId":
+				return ec.fieldContext_WorkflowRelease_rollbackFromReleaseId(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowRelease", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_rollbackWorkflowVersion_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_archiveWorkflowDefinition(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_archiveWorkflowDefinition,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().ArchiveWorkflowDefinition(ctx, fc.Args["input"].(model.ArchiveWorkflowDefinitionInput))
+		},
+		nil,
+		ec.marshalNWorkflowDefinition2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowDefinition,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_archiveWorkflowDefinition(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_WorkflowDefinition_id(ctx, field)
+			case "name":
+				return ec.fieldContext_WorkflowDefinition_name(ctx, field)
+			case "description":
+				return ec.fieldContext_WorkflowDefinition_description(ctx, field)
+			case "status":
+				return ec.fieldContext_WorkflowDefinition_status(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_WorkflowDefinition_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_WorkflowDefinition_updatedAt(ctx, field)
+			case "latestVersion":
+				return ec.fieldContext_WorkflowDefinition_latestVersion(ctx, field)
+			case "publishedVersionsByEnv":
+				return ec.fieldContext_WorkflowDefinition_publishedVersionsByEnv(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowDefinition", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_archiveWorkflowDefinition_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_requestWorkflowApproval(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_requestWorkflowApproval,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().RequestWorkflowApproval(ctx, fc.Args["input"].(model.RequestWorkflowApprovalInput))
+		},
+		nil,
+		ec.marshalNWorkflowApprovalRequest2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowApprovalRequest,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_requestWorkflowApproval(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_WorkflowApprovalRequest_id(ctx, field)
+			case "workflowId":
+				return ec.fieldContext_WorkflowApprovalRequest_workflowId(ctx, field)
+			case "targetVersionId":
+				return ec.fieldContext_WorkflowApprovalRequest_targetVersionId(ctx, field)
+			case "environment":
+				return ec.fieldContext_WorkflowApprovalRequest_environment(ctx, field)
+			case "status":
+				return ec.fieldContext_WorkflowApprovalRequest_status(ctx, field)
+			case "requestedBy":
+				return ec.fieldContext_WorkflowApprovalRequest_requestedBy(ctx, field)
+			case "reviewedBy":
+				return ec.fieldContext_WorkflowApprovalRequest_reviewedBy(ctx, field)
+			case "reviewedAt":
+				return ec.fieldContext_WorkflowApprovalRequest_reviewedAt(ctx, field)
+			case "comment":
+				return ec.fieldContext_WorkflowApprovalRequest_comment(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowApprovalRequest", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_requestWorkflowApproval_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_approveWorkflowVersion(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_approveWorkflowVersion,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().ApproveWorkflowVersion(ctx, fc.Args["input"].(model.ApproveWorkflowVersionInput))
+		},
+		nil,
+		ec.marshalNWorkflowApprovalRequest2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowApprovalRequest,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_approveWorkflowVersion(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_WorkflowApprovalRequest_id(ctx, field)
+			case "workflowId":
+				return ec.fieldContext_WorkflowApprovalRequest_workflowId(ctx, field)
+			case "targetVersionId":
+				return ec.fieldContext_WorkflowApprovalRequest_targetVersionId(ctx, field)
+			case "environment":
+				return ec.fieldContext_WorkflowApprovalRequest_environment(ctx, field)
+			case "status":
+				return ec.fieldContext_WorkflowApprovalRequest_status(ctx, field)
+			case "requestedBy":
+				return ec.fieldContext_WorkflowApprovalRequest_requestedBy(ctx, field)
+			case "reviewedBy":
+				return ec.fieldContext_WorkflowApprovalRequest_reviewedBy(ctx, field)
+			case "reviewedAt":
+				return ec.fieldContext_WorkflowApprovalRequest_reviewedAt(ctx, field)
+			case "comment":
+				return ec.fieldContext_WorkflowApprovalRequest_comment(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowApprovalRequest", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_approveWorkflowVersion_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_rejectWorkflowVersion(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_rejectWorkflowVersion,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().RejectWorkflowVersion(ctx, fc.Args["input"].(model.RejectWorkflowVersionInput))
+		},
+		nil,
+		ec.marshalNWorkflowApprovalRequest2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowApprovalRequest,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_rejectWorkflowVersion(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_WorkflowApprovalRequest_id(ctx, field)
+			case "workflowId":
+				return ec.fieldContext_WorkflowApprovalRequest_workflowId(ctx, field)
+			case "targetVersionId":
+				return ec.fieldContext_WorkflowApprovalRequest_targetVersionId(ctx, field)
+			case "environment":
+				return ec.fieldContext_WorkflowApprovalRequest_environment(ctx, field)
+			case "status":
+				return ec.fieldContext_WorkflowApprovalRequest_status(ctx, field)
+			case "requestedBy":
+				return ec.fieldContext_WorkflowApprovalRequest_requestedBy(ctx, field)
+			case "reviewedBy":
+				return ec.fieldContext_WorkflowApprovalRequest_reviewedBy(ctx, field)
+			case "reviewedAt":
+				return ec.fieldContext_WorkflowApprovalRequest_reviewedAt(ctx, field)
+			case "comment":
+				return ec.fieldContext_WorkflowApprovalRequest_comment(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowApprovalRequest", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_rejectWorkflowVersion_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -19738,6 +21090,433 @@ func (ec *executionContext) fieldContext_Query_workflows(_ context.Context, fiel
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_workflowDefinitions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_workflowDefinitions,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().WorkflowDefinitions(ctx, fc.Args["filter"].(*model.WorkflowDefinitionFilter), fc.Args["paging"].(*model.PagingInput))
+		},
+		nil,
+		ec.marshalNWorkflowDefinition2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowDefinitionᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_workflowDefinitions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_WorkflowDefinition_id(ctx, field)
+			case "name":
+				return ec.fieldContext_WorkflowDefinition_name(ctx, field)
+			case "description":
+				return ec.fieldContext_WorkflowDefinition_description(ctx, field)
+			case "status":
+				return ec.fieldContext_WorkflowDefinition_status(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_WorkflowDefinition_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_WorkflowDefinition_updatedAt(ctx, field)
+			case "latestVersion":
+				return ec.fieldContext_WorkflowDefinition_latestVersion(ctx, field)
+			case "publishedVersionsByEnv":
+				return ec.fieldContext_WorkflowDefinition_publishedVersionsByEnv(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowDefinition", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_workflowDefinitions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_workflowDefinition(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_workflowDefinition,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().WorkflowDefinition(ctx, fc.Args["nameOrId"].(string))
+		},
+		nil,
+		ec.marshalOWorkflowDefinition2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowDefinition,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_workflowDefinition(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_WorkflowDefinition_id(ctx, field)
+			case "name":
+				return ec.fieldContext_WorkflowDefinition_name(ctx, field)
+			case "description":
+				return ec.fieldContext_WorkflowDefinition_description(ctx, field)
+			case "status":
+				return ec.fieldContext_WorkflowDefinition_status(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_WorkflowDefinition_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_WorkflowDefinition_updatedAt(ctx, field)
+			case "latestVersion":
+				return ec.fieldContext_WorkflowDefinition_latestVersion(ctx, field)
+			case "publishedVersionsByEnv":
+				return ec.fieldContext_WorkflowDefinition_publishedVersionsByEnv(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowDefinition", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_workflowDefinition_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_workflowVersions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_workflowVersions,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().WorkflowVersions(ctx, fc.Args["workflowId"].(string), fc.Args["paging"].(*model.PagingInput))
+		},
+		nil,
+		ec.marshalNWorkflowVersion2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowVersionᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_workflowVersions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_WorkflowVersion_id(ctx, field)
+			case "workflowId":
+				return ec.fieldContext_WorkflowVersion_workflowId(ctx, field)
+			case "versionNumber":
+				return ec.fieldContext_WorkflowVersion_versionNumber(ctx, field)
+			case "yaml":
+				return ec.fieldContext_WorkflowVersion_yaml(ctx, field)
+			case "validation":
+				return ec.fieldContext_WorkflowVersion_validation(ctx, field)
+			case "createdBy":
+				return ec.fieldContext_WorkflowVersion_createdBy(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_WorkflowVersion_createdAt(ctx, field)
+			case "notes":
+				return ec.fieldContext_WorkflowVersion_notes(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowVersion", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_workflowVersions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_workflowVersion(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_workflowVersion,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().WorkflowVersion(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		ec.marshalOWorkflowVersion2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowVersion,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_workflowVersion(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_WorkflowVersion_id(ctx, field)
+			case "workflowId":
+				return ec.fieldContext_WorkflowVersion_workflowId(ctx, field)
+			case "versionNumber":
+				return ec.fieldContext_WorkflowVersion_versionNumber(ctx, field)
+			case "yaml":
+				return ec.fieldContext_WorkflowVersion_yaml(ctx, field)
+			case "validation":
+				return ec.fieldContext_WorkflowVersion_validation(ctx, field)
+			case "createdBy":
+				return ec.fieldContext_WorkflowVersion_createdBy(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_WorkflowVersion_createdAt(ctx, field)
+			case "notes":
+				return ec.fieldContext_WorkflowVersion_notes(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowVersion", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_workflowVersion_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_workflowRuns(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_workflowRuns,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().WorkflowRuns(ctx, fc.Args["filter"].(*model.WorkflowRunFilter), fc.Args["paging"].(*model.PagingInput))
+		},
+		nil,
+		ec.marshalNWorkflowRun2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowRunᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_workflowRuns(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_WorkflowRun_id(ctx, field)
+			case "workflowName":
+				return ec.fieldContext_WorkflowRun_workflowName(ctx, field)
+			case "environment":
+				return ec.fieldContext_WorkflowRun_environment(ctx, field)
+			case "versionId":
+				return ec.fieldContext_WorkflowRun_versionId(ctx, field)
+			case "eventId":
+				return ec.fieldContext_WorkflowRun_eventId(ctx, field)
+			case "routesMatched":
+				return ec.fieldContext_WorkflowRun_routesMatched(ctx, field)
+			case "actionsExecuted":
+				return ec.fieldContext_WorkflowRun_actionsExecuted(ctx, field)
+			case "errors":
+				return ec.fieldContext_WorkflowRun_errors(ctx, field)
+			case "durationMs":
+				return ec.fieldContext_WorkflowRun_durationMs(ctx, field)
+			case "startedAt":
+				return ec.fieldContext_WorkflowRun_startedAt(ctx, field)
+			case "status":
+				return ec.fieldContext_WorkflowRun_status(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowRun", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_workflowRuns_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_workflowRun(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_workflowRun,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().WorkflowRun(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		ec.marshalOWorkflowRun2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowRun,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_workflowRun(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_WorkflowRun_id(ctx, field)
+			case "workflowName":
+				return ec.fieldContext_WorkflowRun_workflowName(ctx, field)
+			case "environment":
+				return ec.fieldContext_WorkflowRun_environment(ctx, field)
+			case "versionId":
+				return ec.fieldContext_WorkflowRun_versionId(ctx, field)
+			case "eventId":
+				return ec.fieldContext_WorkflowRun_eventId(ctx, field)
+			case "routesMatched":
+				return ec.fieldContext_WorkflowRun_routesMatched(ctx, field)
+			case "actionsExecuted":
+				return ec.fieldContext_WorkflowRun_actionsExecuted(ctx, field)
+			case "errors":
+				return ec.fieldContext_WorkflowRun_errors(ctx, field)
+			case "durationMs":
+				return ec.fieldContext_WorkflowRun_durationMs(ctx, field)
+			case "startedAt":
+				return ec.fieldContext_WorkflowRun_startedAt(ctx, field)
+			case "status":
+				return ec.fieldContext_WorkflowRun_status(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowRun", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_workflowRun_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_workflowApprovalRequests(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_workflowApprovalRequests,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().WorkflowApprovalRequests(ctx, fc.Args["filter"].(*model.WorkflowApprovalRequestFilter), fc.Args["paging"].(*model.PagingInput))
+		},
+		nil,
+		ec.marshalNWorkflowApprovalRequest2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowApprovalRequestᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_workflowApprovalRequests(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_WorkflowApprovalRequest_id(ctx, field)
+			case "workflowId":
+				return ec.fieldContext_WorkflowApprovalRequest_workflowId(ctx, field)
+			case "targetVersionId":
+				return ec.fieldContext_WorkflowApprovalRequest_targetVersionId(ctx, field)
+			case "environment":
+				return ec.fieldContext_WorkflowApprovalRequest_environment(ctx, field)
+			case "status":
+				return ec.fieldContext_WorkflowApprovalRequest_status(ctx, field)
+			case "requestedBy":
+				return ec.fieldContext_WorkflowApprovalRequest_requestedBy(ctx, field)
+			case "reviewedBy":
+				return ec.fieldContext_WorkflowApprovalRequest_reviewedBy(ctx, field)
+			case "reviewedAt":
+				return ec.fieldContext_WorkflowApprovalRequest_reviewedAt(ctx, field)
+			case "comment":
+				return ec.fieldContext_WorkflowApprovalRequest_comment(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowApprovalRequest", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_workflowApprovalRequests_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_health(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -22565,6 +24344,12 @@ func (ec *executionContext) fieldContext_SubmitResult_workflowResults(_ context.
 				return ec.fieldContext_WorkflowResult_errors(ctx, field)
 			case "duration":
 				return ec.fieldContext_WorkflowResult_duration(ctx, field)
+			case "runId":
+				return ec.fieldContext_WorkflowResult_runId(ctx, field)
+			case "environment":
+				return ec.fieldContext_WorkflowResult_environment(ctx, field)
+			case "versionId":
+				return ec.fieldContext_WorkflowResult_versionId(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type WorkflowResult", field.Name)
 		},
@@ -24911,6 +26696,517 @@ func (ec *executionContext) fieldContext_VitalSignEvent_vitalSign(_ context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _WorkflowApprovalRequest_id(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowApprovalRequest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowApprovalRequest_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowApprovalRequest_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowApprovalRequest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowApprovalRequest_workflowId(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowApprovalRequest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowApprovalRequest_workflowId,
+		func(ctx context.Context) (any, error) {
+			return obj.WorkflowID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowApprovalRequest_workflowId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowApprovalRequest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowApprovalRequest_targetVersionId(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowApprovalRequest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowApprovalRequest_targetVersionId,
+		func(ctx context.Context) (any, error) {
+			return obj.TargetVersionID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowApprovalRequest_targetVersionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowApprovalRequest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowApprovalRequest_environment(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowApprovalRequest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowApprovalRequest_environment,
+		func(ctx context.Context) (any, error) {
+			return obj.Environment, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowApprovalRequest_environment(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowApprovalRequest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowApprovalRequest_status(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowApprovalRequest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowApprovalRequest_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowApprovalRequest_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowApprovalRequest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowApprovalRequest_requestedBy(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowApprovalRequest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowApprovalRequest_requestedBy,
+		func(ctx context.Context) (any, error) {
+			return obj.RequestedBy, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowApprovalRequest_requestedBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowApprovalRequest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowApprovalRequest_reviewedBy(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowApprovalRequest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowApprovalRequest_reviewedBy,
+		func(ctx context.Context) (any, error) {
+			return obj.ReviewedBy, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowApprovalRequest_reviewedBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowApprovalRequest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowApprovalRequest_reviewedAt(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowApprovalRequest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowApprovalRequest_reviewedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.ReviewedAt, nil
+		},
+		nil,
+		ec.marshalODateTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowApprovalRequest_reviewedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowApprovalRequest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowApprovalRequest_comment(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowApprovalRequest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowApprovalRequest_comment,
+		func(ctx context.Context) (any, error) {
+			return obj.Comment, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowApprovalRequest_comment(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowApprovalRequest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowDefinition_id(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowDefinition_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowDefinition_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowDefinition_name(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowDefinition_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowDefinition_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowDefinition_description(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowDefinition_description,
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowDefinition_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowDefinition_status(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowDefinition_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowDefinition_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowDefinition_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowDefinition_createdAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowDefinition_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowDefinition_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowDefinition_updatedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowDefinition_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowDefinition_latestVersion(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowDefinition_latestVersion,
+		func(ctx context.Context) (any, error) {
+			return obj.LatestVersion, nil
+		},
+		nil,
+		ec.marshalOWorkflowVersion2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowVersion,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowDefinition_latestVersion(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_WorkflowVersion_id(ctx, field)
+			case "workflowId":
+				return ec.fieldContext_WorkflowVersion_workflowId(ctx, field)
+			case "versionNumber":
+				return ec.fieldContext_WorkflowVersion_versionNumber(ctx, field)
+			case "yaml":
+				return ec.fieldContext_WorkflowVersion_yaml(ctx, field)
+			case "validation":
+				return ec.fieldContext_WorkflowVersion_validation(ctx, field)
+			case "createdBy":
+				return ec.fieldContext_WorkflowVersion_createdBy(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_WorkflowVersion_createdAt(ctx, field)
+			case "notes":
+				return ec.fieldContext_WorkflowVersion_notes(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowVersion", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowDefinition_publishedVersionsByEnv(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowDefinition_publishedVersionsByEnv,
+		func(ctx context.Context) (any, error) {
+			return obj.PublishedVersionsByEnv, nil
+		},
+		nil,
+		ec.marshalNJSON2map,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowDefinition_publishedVersionsByEnv(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type JSON does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _WorkflowEventNotification_event(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowEventNotification) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -25211,6 +27507,209 @@ func (ec *executionContext) fieldContext_WorkflowExplanation_warnings(_ context.
 	return fc, nil
 }
 
+func (ec *executionContext) _WorkflowRelease_id(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowRelease) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowRelease_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowRelease_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowRelease",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowRelease_workflowId(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowRelease) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowRelease_workflowId,
+		func(ctx context.Context) (any, error) {
+			return obj.WorkflowID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowRelease_workflowId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowRelease",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowRelease_environment(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowRelease) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowRelease_environment,
+		func(ctx context.Context) (any, error) {
+			return obj.Environment, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowRelease_environment(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowRelease",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowRelease_versionId(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowRelease) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowRelease_versionId,
+		func(ctx context.Context) (any, error) {
+			return obj.VersionID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowRelease_versionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowRelease",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowRelease_publishedBy(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowRelease) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowRelease_publishedBy,
+		func(ctx context.Context) (any, error) {
+			return obj.PublishedBy, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowRelease_publishedBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowRelease",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowRelease_publishedAt(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowRelease) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowRelease_publishedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.PublishedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowRelease_publishedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowRelease",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowRelease_rollbackFromReleaseId(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowRelease) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowRelease_rollbackFromReleaseId,
+		func(ctx context.Context) (any, error) {
+			return obj.RollbackFromReleaseID, nil
+		},
+		nil,
+		ec.marshalOID2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowRelease_rollbackFromReleaseId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowRelease",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _WorkflowResult_workflowName(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowResult) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -25351,6 +27850,412 @@ func (ec *executionContext) fieldContext_WorkflowResult_duration(_ context.Conte
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowResult_runId(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowResult_runId,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.WorkflowResult().RunID(ctx, obj)
+		},
+		nil,
+		ec.marshalOID2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowResult_runId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowResult",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowResult_environment(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowResult_environment,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.WorkflowResult().Environment(ctx, obj)
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowResult_environment(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowResult",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowResult_versionId(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowResult_versionId,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.WorkflowResult().VersionID(ctx, obj)
+		},
+		nil,
+		ec.marshalOID2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowResult_versionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowResult",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowRun_id(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowRun_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowRun_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowRun",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowRun_workflowName(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowRun_workflowName,
+		func(ctx context.Context) (any, error) {
+			return obj.WorkflowName, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowRun_workflowName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowRun",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowRun_environment(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowRun_environment,
+		func(ctx context.Context) (any, error) {
+			return obj.Environment, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowRun_environment(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowRun",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowRun_versionId(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowRun_versionId,
+		func(ctx context.Context) (any, error) {
+			return obj.VersionID, nil
+		},
+		nil,
+		ec.marshalOID2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowRun_versionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowRun",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowRun_eventId(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowRun_eventId,
+		func(ctx context.Context) (any, error) {
+			return obj.EventID, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowRun_eventId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowRun",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowRun_routesMatched(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowRun_routesMatched,
+		func(ctx context.Context) (any, error) {
+			return obj.RoutesMatched, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowRun_routesMatched(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowRun",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowRun_actionsExecuted(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowRun_actionsExecuted,
+		func(ctx context.Context) (any, error) {
+			return obj.ActionsExecuted, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowRun_actionsExecuted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowRun",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowRun_errors(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowRun_errors,
+		func(ctx context.Context) (any, error) {
+			return obj.Errors, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowRun_errors(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowRun",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowRun_durationMs(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowRun_durationMs,
+		func(ctx context.Context) (any, error) {
+			return obj.DurationMs, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowRun_durationMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowRun",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowRun_startedAt(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowRun_startedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.StartedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowRun_startedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowRun",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowRun_status(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowRun_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowRun_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowRun",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -25525,6 +28430,364 @@ func (ec *executionContext) fieldContext_WorkflowStatus_errors(_ context.Context
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowValidation_valid(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowValidation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowValidation_valid,
+		func(ctx context.Context) (any, error) {
+			return obj.Valid, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowValidation_valid(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowValidation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowValidation_errors(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowValidation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowValidation_errors,
+		func(ctx context.Context) (any, error) {
+			return obj.Errors, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowValidation_errors(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowValidation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowValidation_warnings(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowValidation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowValidation_warnings,
+		func(ctx context.Context) (any, error) {
+			return obj.Warnings, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowValidation_warnings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowValidation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowValidation_info(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowValidation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowValidation_info,
+		func(ctx context.Context) (any, error) {
+			return obj.Info, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowValidation_info(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowValidation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowVersion_id(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowVersion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowVersion_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowVersion_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowVersion",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowVersion_workflowId(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowVersion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowVersion_workflowId,
+		func(ctx context.Context) (any, error) {
+			return obj.WorkflowID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowVersion_workflowId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowVersion",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowVersion_versionNumber(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowVersion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowVersion_versionNumber,
+		func(ctx context.Context) (any, error) {
+			return obj.VersionNumber, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowVersion_versionNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowVersion",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowVersion_yaml(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowVersion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowVersion_yaml,
+		func(ctx context.Context) (any, error) {
+			return obj.Yaml, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowVersion_yaml(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowVersion",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowVersion_validation(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowVersion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowVersion_validation,
+		func(ctx context.Context) (any, error) {
+			return obj.Validation, nil
+		},
+		nil,
+		ec.marshalNWorkflowValidation2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowValidation,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowVersion_validation(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowVersion",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "valid":
+				return ec.fieldContext_WorkflowValidation_valid(ctx, field)
+			case "errors":
+				return ec.fieldContext_WorkflowValidation_errors(ctx, field)
+			case "warnings":
+				return ec.fieldContext_WorkflowValidation_warnings(ctx, field)
+			case "info":
+				return ec.fieldContext_WorkflowValidation_info(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowValidation", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowVersion_createdBy(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowVersion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowVersion_createdBy,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedBy, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowVersion_createdBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowVersion",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowVersion_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowVersion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowVersion_createdAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowVersion_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowVersion",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowVersion_notes(ctx context.Context, field graphql.CollectedField, obj *model.WorkflowVersion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowVersion_notes,
+		func(ctx context.Context) (any, error) {
+			return obj.Notes, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowVersion_notes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowVersion",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -27051,6 +30314,81 @@ func (ec *executionContext) unmarshalInputApprovePendingAutorouteInput(ctx conte
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputApproveWorkflowVersionInput(ctx context.Context, obj any) (model.ApproveWorkflowVersionInput, error) {
+	var it model.ApproveWorkflowVersionInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"approvalRequestId", "reviewedBy", "comment"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "approvalRequestId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("approvalRequestId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ApprovalRequestID = data
+		case "reviewedBy":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("reviewedBy"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ReviewedBy = data
+		case "comment":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("comment"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Comment = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputArchiveWorkflowDefinitionInput(ctx context.Context, obj any) (model.ArchiveWorkflowDefinitionInput, error) {
+	var it model.ArchiveWorkflowDefinitionInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"workflowId", "archivedBy"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "workflowId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("workflowId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.WorkflowID = data
+		case "archivedBy":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("archivedBy"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ArchivedBy = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputAssigningAuthorityInput(ctx context.Context, obj any) (model.AssigningAuthorityInput, error) {
 	var it model.AssigningAuthorityInput
 	asMap := map[string]any{}
@@ -27454,6 +30792,47 @@ func (ec *executionContext) unmarshalInputCreateSubscriptionInput(ctx context.Co
 				return it, err
 			}
 			it.Endpoint = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputCreateWorkflowDefinitionInput(ctx context.Context, obj any) (model.CreateWorkflowDefinitionInput, error) {
+	var it model.CreateWorkflowDefinitionInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"name", "description", "createdBy"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "createdBy":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("createdBy"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CreatedBy = data
 		}
 	}
 
@@ -28133,6 +31512,47 @@ func (ec *executionContext) unmarshalInputNormalizationSettingsInput(ctx context
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputPagingInput(ctx context.Context, obj any) (model.PagingInput, error) {
+	var it model.PagingInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["limit"]; !present {
+		asMap["limit"] = 50
+	}
+	if _, present := asMap["offset"]; !present {
+		asMap["offset"] = 0
+	}
+
+	fieldsInOrder := [...]string{"limit", "offset"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "limit":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Limit = data
+		case "offset":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Offset = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputParseWarningInput(ctx context.Context, obj any) (model.ParseWarningInput, error) {
 	var it model.ParseWarningInput
 	asMap := map[string]any{}
@@ -28236,6 +31656,54 @@ func (ec *executionContext) unmarshalInputPatientFilter(ctx context.Context, obj
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputPublishWorkflowVersionInput(ctx context.Context, obj any) (model.PublishWorkflowVersionInput, error) {
+	var it model.PublishWorkflowVersionInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"workflowId", "versionId", "environment", "publishedBy"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "workflowId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("workflowId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.WorkflowID = data
+		case "versionId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("versionId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.VersionID = data
+		case "environment":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("environment"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Environment = data
+		case "publishedBy":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("publishedBy"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PublishedBy = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputRejectPendingAutorouteInput(ctx context.Context, obj any) (model.RejectPendingAutorouteInput, error) {
 	var it model.RejectPendingAutorouteInput
 	asMap := map[string]any{}
@@ -28264,6 +31732,102 @@ func (ec *executionContext) unmarshalInputRejectPendingAutorouteInput(ctx contex
 				return it, err
 			}
 			it.Reason = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputRejectWorkflowVersionInput(ctx context.Context, obj any) (model.RejectWorkflowVersionInput, error) {
+	var it model.RejectWorkflowVersionInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"approvalRequestId", "reviewedBy", "comment"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "approvalRequestId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("approvalRequestId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ApprovalRequestID = data
+		case "reviewedBy":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("reviewedBy"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ReviewedBy = data
+		case "comment":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("comment"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Comment = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputRequestWorkflowApprovalInput(ctx context.Context, obj any) (model.RequestWorkflowApprovalInput, error) {
+	var it model.RequestWorkflowApprovalInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"workflowId", "targetVersionId", "environment", "requestedBy", "comment"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "workflowId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("workflowId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.WorkflowID = data
+		case "targetVersionId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("targetVersionId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TargetVersionID = data
+		case "environment":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("environment"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Environment = data
+		case "requestedBy":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("requestedBy"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RequestedBy = data
+		case "comment":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("comment"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Comment = data
 		}
 	}
 
@@ -28340,6 +31904,102 @@ func (ec *executionContext) unmarshalInputResolveMappingInput(ctx context.Contex
 				return it, err
 			}
 			it.MinConfidence = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputRollbackWorkflowVersionInput(ctx context.Context, obj any) (model.RollbackWorkflowVersionInput, error) {
+	var it model.RollbackWorkflowVersionInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"workflowId", "targetVersionId", "environment", "publishedBy"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "workflowId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("workflowId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.WorkflowID = data
+		case "targetVersionId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("targetVersionId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TargetVersionID = data
+		case "environment":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("environment"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Environment = data
+		case "publishedBy":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("publishedBy"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PublishedBy = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputSaveWorkflowVersionInput(ctx context.Context, obj any) (model.SaveWorkflowVersionInput, error) {
+	var it model.SaveWorkflowVersionInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"workflowId", "yaml", "notes", "createdBy"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "workflowId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("workflowId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.WorkflowID = data
+		case "yaml":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("yaml"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Yaml = data
+		case "notes":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("notes"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Notes = data
+		case "createdBy":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("createdBy"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CreatedBy = data
 		}
 	}
 
@@ -29009,6 +32669,61 @@ func (ec *executionContext) unmarshalInputUpdateProfileInput(ctx context.Context
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputUpdateWorkflowDefinitionInput(ctx context.Context, obj any) (model.UpdateWorkflowDefinitionInput, error) {
+	var it model.UpdateWorkflowDefinitionInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "name", "description", "status", "updatedBy"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "status":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("status"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Status = data
+		case "updatedBy":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("updatedBy"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UpdatedBy = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUploadMappingCSVInput(ctx context.Context, obj any) (model.UploadMappingCSVInput, error) {
 	var it model.UploadMappingCSVInput
 	asMap := map[string]any{}
@@ -29144,6 +32859,136 @@ func (ec *executionContext) unmarshalInputValidatorSettingInput(ctx context.Cont
 				return it, err
 			}
 			it.OnInvalid = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputWorkflowApprovalRequestFilter(ctx context.Context, obj any) (model.WorkflowApprovalRequestFilter, error) {
+	var it model.WorkflowApprovalRequestFilter
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"workflowId", "environment", "status"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "workflowId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("workflowId"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.WorkflowID = data
+		case "environment":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("environment"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Environment = data
+		case "status":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("status"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Status = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputWorkflowDefinitionFilter(ctx context.Context, obj any) (model.WorkflowDefinitionFilter, error) {
+	var it model.WorkflowDefinitionFilter
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"name", "status"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "status":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("status"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Status = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputWorkflowRunFilter(ctx context.Context, obj any) (model.WorkflowRunFilter, error) {
+	var it model.WorkflowRunFilter
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"workflowName", "environment", "status", "fromStartedAt", "toStartedAt"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "workflowName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("workflowName"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.WorkflowName = data
+		case "environment":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("environment"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Environment = data
+		case "status":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("status"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Status = data
+		case "fromStartedAt":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("fromStartedAt"))
+			data, err := ec.unmarshalODateTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.FromStartedAt = data
+		case "toStartedAt":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("toStartedAt"))
+			data, err := ec.unmarshalODateTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ToStartedAt = data
 		}
 	}
 
@@ -31926,6 +35771,69 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "createWorkflowDefinition":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createWorkflowDefinition(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateWorkflowDefinition":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateWorkflowDefinition(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "saveWorkflowVersion":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_saveWorkflowVersion(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "publishWorkflowVersion":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_publishWorkflowVersion(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rollbackWorkflowVersion":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_rollbackWorkflowVersion(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "archiveWorkflowDefinition":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_archiveWorkflowDefinition(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "requestWorkflowApproval":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_requestWorkflowApproval(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "approveWorkflowVersion":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_approveWorkflowVersion(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rejectWorkflowVersion":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_rejectWorkflowVersion(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createFhirSubscription":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createFhirSubscription(ctx, field)
@@ -33377,6 +37285,151 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_workflows(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "workflowDefinitions":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_workflowDefinitions(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "workflowDefinition":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_workflowDefinition(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "workflowVersions":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_workflowVersions(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "workflowVersion":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_workflowVersion(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "workflowRuns":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_workflowRuns(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "workflowRun":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_workflowRun(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "workflowApprovalRequests":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_workflowApprovalRequests(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -35180,6 +39233,144 @@ func (ec *executionContext) _VitalSignEvent(ctx context.Context, sel ast.Selecti
 	return out
 }
 
+var workflowApprovalRequestImplementors = []string{"WorkflowApprovalRequest"}
+
+func (ec *executionContext) _WorkflowApprovalRequest(ctx context.Context, sel ast.SelectionSet, obj *model.WorkflowApprovalRequest) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, workflowApprovalRequestImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("WorkflowApprovalRequest")
+		case "id":
+			out.Values[i] = ec._WorkflowApprovalRequest_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workflowId":
+			out.Values[i] = ec._WorkflowApprovalRequest_workflowId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "targetVersionId":
+			out.Values[i] = ec._WorkflowApprovalRequest_targetVersionId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "environment":
+			out.Values[i] = ec._WorkflowApprovalRequest_environment(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._WorkflowApprovalRequest_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "requestedBy":
+			out.Values[i] = ec._WorkflowApprovalRequest_requestedBy(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reviewedBy":
+			out.Values[i] = ec._WorkflowApprovalRequest_reviewedBy(ctx, field, obj)
+		case "reviewedAt":
+			out.Values[i] = ec._WorkflowApprovalRequest_reviewedAt(ctx, field, obj)
+		case "comment":
+			out.Values[i] = ec._WorkflowApprovalRequest_comment(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var workflowDefinitionImplementors = []string{"WorkflowDefinition"}
+
+func (ec *executionContext) _WorkflowDefinition(ctx context.Context, sel ast.SelectionSet, obj *model.WorkflowDefinition) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, workflowDefinitionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("WorkflowDefinition")
+		case "id":
+			out.Values[i] = ec._WorkflowDefinition_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._WorkflowDefinition_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "description":
+			out.Values[i] = ec._WorkflowDefinition_description(ctx, field, obj)
+		case "status":
+			out.Values[i] = ec._WorkflowDefinition_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._WorkflowDefinition_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._WorkflowDefinition_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "latestVersion":
+			out.Values[i] = ec._WorkflowDefinition_latestVersion(ctx, field, obj)
+		case "publishedVersionsByEnv":
+			out.Values[i] = ec._WorkflowDefinition_publishedVersionsByEnv(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var workflowEventNotificationImplementors = []string{"WorkflowEventNotification"}
 
 func (ec *executionContext) _WorkflowEventNotification(ctx context.Context, sel ast.SelectionSet, obj *model.WorkflowEventNotification) graphql.Marshaler {
@@ -35295,6 +39486,72 @@ func (ec *executionContext) _WorkflowExplanation(ctx context.Context, sel ast.Se
 	return out
 }
 
+var workflowReleaseImplementors = []string{"WorkflowRelease"}
+
+func (ec *executionContext) _WorkflowRelease(ctx context.Context, sel ast.SelectionSet, obj *model.WorkflowRelease) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, workflowReleaseImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("WorkflowRelease")
+		case "id":
+			out.Values[i] = ec._WorkflowRelease_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workflowId":
+			out.Values[i] = ec._WorkflowRelease_workflowId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "environment":
+			out.Values[i] = ec._WorkflowRelease_environment(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "versionId":
+			out.Values[i] = ec._WorkflowRelease_versionId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "publishedBy":
+			out.Values[i] = ec._WorkflowRelease_publishedBy(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "publishedAt":
+			out.Values[i] = ec._WorkflowRelease_publishedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rollbackFromReleaseId":
+			out.Values[i] = ec._WorkflowRelease_rollbackFromReleaseId(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var workflowResultImplementors = []string{"WorkflowResult"}
 
 func (ec *executionContext) _WorkflowResult(ctx context.Context, sel ast.SelectionSet, obj *model.WorkflowResult) graphql.Marshaler {
@@ -35309,25 +39566,207 @@ func (ec *executionContext) _WorkflowResult(ctx context.Context, sel ast.Selecti
 		case "workflowName":
 			out.Values[i] = ec._WorkflowResult_workflowName(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "routesMatched":
 			out.Values[i] = ec._WorkflowResult_routesMatched(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "actionsExecuted":
 			out.Values[i] = ec._WorkflowResult_actionsExecuted(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "errors":
 			out.Values[i] = ec._WorkflowResult_errors(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "duration":
 			out.Values[i] = ec._WorkflowResult_duration(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "runId":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._WorkflowResult_runId(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "environment":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._WorkflowResult_environment(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "versionId":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._WorkflowResult_versionId(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var workflowRunImplementors = []string{"WorkflowRun"}
+
+func (ec *executionContext) _WorkflowRun(ctx context.Context, sel ast.SelectionSet, obj *model.WorkflowRun) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, workflowRunImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("WorkflowRun")
+		case "id":
+			out.Values[i] = ec._WorkflowRun_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workflowName":
+			out.Values[i] = ec._WorkflowRun_workflowName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "environment":
+			out.Values[i] = ec._WorkflowRun_environment(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "versionId":
+			out.Values[i] = ec._WorkflowRun_versionId(ctx, field, obj)
+		case "eventId":
+			out.Values[i] = ec._WorkflowRun_eventId(ctx, field, obj)
+		case "routesMatched":
+			out.Values[i] = ec._WorkflowRun_routesMatched(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "actionsExecuted":
+			out.Values[i] = ec._WorkflowRun_actionsExecuted(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "errors":
+			out.Values[i] = ec._WorkflowRun_errors(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "durationMs":
+			out.Values[i] = ec._WorkflowRun_durationMs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "startedAt":
+			out.Values[i] = ec._WorkflowRun_startedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._WorkflowRun_status(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -35392,6 +39831,131 @@ func (ec *executionContext) _WorkflowStatus(ctx context.Context, sel ast.Selecti
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var workflowValidationImplementors = []string{"WorkflowValidation"}
+
+func (ec *executionContext) _WorkflowValidation(ctx context.Context, sel ast.SelectionSet, obj *model.WorkflowValidation) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, workflowValidationImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("WorkflowValidation")
+		case "valid":
+			out.Values[i] = ec._WorkflowValidation_valid(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "errors":
+			out.Values[i] = ec._WorkflowValidation_errors(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "warnings":
+			out.Values[i] = ec._WorkflowValidation_warnings(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "info":
+			out.Values[i] = ec._WorkflowValidation_info(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var workflowVersionImplementors = []string{"WorkflowVersion"}
+
+func (ec *executionContext) _WorkflowVersion(ctx context.Context, sel ast.SelectionSet, obj *model.WorkflowVersion) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, workflowVersionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("WorkflowVersion")
+		case "id":
+			out.Values[i] = ec._WorkflowVersion_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workflowId":
+			out.Values[i] = ec._WorkflowVersion_workflowId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "versionNumber":
+			out.Values[i] = ec._WorkflowVersion_versionNumber(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "yaml":
+			out.Values[i] = ec._WorkflowVersion_yaml(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "validation":
+			out.Values[i] = ec._WorkflowVersion_validation(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdBy":
+			out.Values[i] = ec._WorkflowVersion_createdBy(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._WorkflowVersion_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "notes":
+			out.Values[i] = ec._WorkflowVersion_notes(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -35812,6 +40376,16 @@ func (ec *executionContext) unmarshalNApprovePendingAutorouteInput2gitlabᚗflex
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNApproveWorkflowVersionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐApproveWorkflowVersionInput(ctx context.Context, v any) (model.ApproveWorkflowVersionInput, error) {
+	res, err := ec.unmarshalInputApproveWorkflowVersionInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNArchiveWorkflowDefinitionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐArchiveWorkflowDefinitionInput(ctx context.Context, v any) (model.ArchiveWorkflowDefinitionInput, error) {
+	res, err := ec.unmarshalInputArchiveWorkflowDefinitionInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNAssigningAuthority2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAssigningAuthority(ctx context.Context, sel ast.SelectionSet, v model.AssigningAuthority) graphql.Marshaler {
 	return ec._AssigningAuthority(ctx, sel, &v)
 }
@@ -36166,6 +40740,11 @@ func (ec *executionContext) unmarshalNCreateProfileInput2gitlabᚗflexinferᚗai
 
 func (ec *executionContext) unmarshalNCreateSubscriptionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐCreateSubscriptionInput(ctx context.Context, v any) (model.CreateSubscriptionInput, error) {
 	res, err := ec.unmarshalInputCreateSubscriptionInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNCreateWorkflowDefinitionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐCreateWorkflowDefinitionInput(ctx context.Context, v any) (model.CreateWorkflowDefinitionInput, error) {
+	res, err := ec.unmarshalInputCreateWorkflowDefinitionInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
@@ -37581,6 +42160,11 @@ func (ec *executionContext) marshalNProjectionStatus2ᚕgitlabᚗflexinferᚗai�
 	return ret
 }
 
+func (ec *executionContext) unmarshalNPublishWorkflowVersionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPublishWorkflowVersionInput(ctx context.Context, v any) (model.PublishWorkflowVersionInput, error) {
+	res, err := ec.unmarshalInputPublishWorkflowVersionInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNQualityDimensions2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐQualityDimensions(ctx context.Context, sel ast.SelectionSet, v *model.QualityDimensions) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -37644,6 +42228,16 @@ func (ec *executionContext) unmarshalNRejectPendingAutorouteInput2gitlabᚗflexi
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNRejectWorkflowVersionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐRejectWorkflowVersionInput(ctx context.Context, v any) (model.RejectWorkflowVersionInput, error) {
+	res, err := ec.unmarshalInputRejectWorkflowVersionInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNRequestWorkflowApprovalInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐRequestWorkflowApprovalInput(ctx context.Context, v any) (model.RequestWorkflowApprovalInput, error) {
+	res, err := ec.unmarshalInputRequestWorkflowApprovalInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNResolveMappingInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐResolveMappingInput(ctx context.Context, v any) (model.ResolveMappingInput, error) {
 	res, err := ec.unmarshalInputResolveMappingInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -37661,6 +42255,11 @@ func (ec *executionContext) marshalNResolveMappingResult2ᚖgitlabᚗflexinfer�
 		return graphql.Null
 	}
 	return ec._ResolveMappingResult(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNRollbackWorkflowVersionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐRollbackWorkflowVersionInput(ctx context.Context, v any) (model.RollbackWorkflowVersionInput, error) {
+	res, err := ec.unmarshalInputRollbackWorkflowVersionInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNRouteExplanation2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐRouteExplanation(ctx context.Context, sel ast.SelectionSet, v model.RouteExplanation) graphql.Marshaler {
@@ -37709,6 +42308,11 @@ func (ec *executionContext) marshalNRouteExplanation2ᚕgitlabᚗflexinferᚗai�
 	}
 
 	return ret
+}
+
+func (ec *executionContext) unmarshalNSaveWorkflowVersionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSaveWorkflowVersionInput(ctx context.Context, v any) (model.SaveWorkflowVersionInput, error) {
+	res, err := ec.unmarshalInputSaveWorkflowVersionInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNSignalReviewDecisionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSignalReviewDecisionInput(ctx context.Context, v any) (model.SignalReviewDecisionInput, error) {
@@ -38167,6 +42771,11 @@ func (ec *executionContext) unmarshalNUpdateProfileInput2gitlabᚗflexinferᚗai
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNUpdateWorkflowDefinitionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐUpdateWorkflowDefinitionInput(ctx context.Context, v any) (model.UpdateWorkflowDefinitionInput, error) {
+	res, err := ec.unmarshalInputUpdateWorkflowDefinitionInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNUploadBatch2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐUploadBatch(ctx context.Context, sel ast.SelectionSet, v *model.UploadBatch) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -38248,6 +42857,122 @@ func (ec *executionContext) marshalNVitalSign2gitlabᚗflexinferᚗaiᚋlibsᚋf
 	return ec._VitalSign(ctx, sel, &v)
 }
 
+func (ec *executionContext) marshalNWorkflowApprovalRequest2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowApprovalRequest(ctx context.Context, sel ast.SelectionSet, v model.WorkflowApprovalRequest) graphql.Marshaler {
+	return ec._WorkflowApprovalRequest(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNWorkflowApprovalRequest2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowApprovalRequestᚄ(ctx context.Context, sel ast.SelectionSet, v []model.WorkflowApprovalRequest) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNWorkflowApprovalRequest2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowApprovalRequest(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNWorkflowApprovalRequest2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowApprovalRequest(ctx context.Context, sel ast.SelectionSet, v *model.WorkflowApprovalRequest) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._WorkflowApprovalRequest(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNWorkflowDefinition2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowDefinition(ctx context.Context, sel ast.SelectionSet, v model.WorkflowDefinition) graphql.Marshaler {
+	return ec._WorkflowDefinition(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNWorkflowDefinition2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowDefinitionᚄ(ctx context.Context, sel ast.SelectionSet, v []model.WorkflowDefinition) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNWorkflowDefinition2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowDefinition(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNWorkflowDefinition2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowDefinition(ctx context.Context, sel ast.SelectionSet, v *model.WorkflowDefinition) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._WorkflowDefinition(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNWorkflowEventNotification2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowEventNotification(ctx context.Context, sel ast.SelectionSet, v model.WorkflowEventNotification) graphql.Marshaler {
 	return ec._WorkflowEventNotification(ctx, sel, &v)
 }
@@ -38274,6 +42999,20 @@ func (ec *executionContext) marshalNWorkflowExplanation2ᚖgitlabᚗflexinferᚗ
 		return graphql.Null
 	}
 	return ec._WorkflowExplanation(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNWorkflowRelease2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowRelease(ctx context.Context, sel ast.SelectionSet, v model.WorkflowRelease) graphql.Marshaler {
+	return ec._WorkflowRelease(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNWorkflowRelease2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowRelease(ctx context.Context, sel ast.SelectionSet, v *model.WorkflowRelease) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._WorkflowRelease(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNWorkflowResult2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowResult(ctx context.Context, sel ast.SelectionSet, v model.WorkflowResult) graphql.Marshaler {
@@ -38334,6 +43073,54 @@ func (ec *executionContext) marshalNWorkflowResult2ᚖgitlabᚗflexinferᚗaiᚋ
 	return ec._WorkflowResult(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNWorkflowRun2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowRun(ctx context.Context, sel ast.SelectionSet, v model.WorkflowRun) graphql.Marshaler {
+	return ec._WorkflowRun(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNWorkflowRun2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowRunᚄ(ctx context.Context, sel ast.SelectionSet, v []model.WorkflowRun) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNWorkflowRun2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowRun(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) marshalNWorkflowStatus2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowStatus(ctx context.Context, sel ast.SelectionSet, v model.WorkflowStatus) graphql.Marshaler {
 	return ec._WorkflowStatus(ctx, sel, &v)
 }
@@ -38380,6 +43167,74 @@ func (ec *executionContext) marshalNWorkflowStatus2ᚕgitlabᚗflexinferᚗaiᚋ
 	}
 
 	return ret
+}
+
+func (ec *executionContext) marshalNWorkflowValidation2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowValidation(ctx context.Context, sel ast.SelectionSet, v *model.WorkflowValidation) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._WorkflowValidation(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNWorkflowVersion2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowVersion(ctx context.Context, sel ast.SelectionSet, v model.WorkflowVersion) graphql.Marshaler {
+	return ec._WorkflowVersion(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNWorkflowVersion2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowVersionᚄ(ctx context.Context, sel ast.SelectionSet, v []model.WorkflowVersion) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNWorkflowVersion2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowVersion(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNWorkflowVersion2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowVersion(ctx context.Context, sel ast.SelectionSet, v *model.WorkflowVersion) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._WorkflowVersion(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalN__Directive2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐDirective(ctx context.Context, sel ast.SelectionSet, v introspection.Directive) graphql.Marshaler {
@@ -39084,6 +43939,14 @@ func (ec *executionContext) unmarshalONormalizationSettingsInput2ᚖgitlabᚗfle
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalOPagingInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPagingInput(ctx context.Context, v any) (*model.PagingInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputPagingInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalOPatient2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPatient(ctx context.Context, sel ast.SelectionSet, v *model.Patient) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -39347,11 +44210,56 @@ func (ec *executionContext) unmarshalOValidatorSettingInput2ᚖgitlabᚗflexinfe
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalOWorkflowApprovalRequestFilter2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowApprovalRequestFilter(ctx context.Context, v any) (*model.WorkflowApprovalRequestFilter, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputWorkflowApprovalRequestFilter(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOWorkflowDefinition2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowDefinition(ctx context.Context, sel ast.SelectionSet, v *model.WorkflowDefinition) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._WorkflowDefinition(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOWorkflowDefinitionFilter2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowDefinitionFilter(ctx context.Context, v any) (*model.WorkflowDefinitionFilter, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputWorkflowDefinitionFilter(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOWorkflowRun2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowRun(ctx context.Context, sel ast.SelectionSet, v *model.WorkflowRun) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._WorkflowRun(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOWorkflowRunFilter2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowRunFilter(ctx context.Context, v any) (*model.WorkflowRunFilter, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputWorkflowRunFilter(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalOWorkflowStatus2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowStatus(ctx context.Context, sel ast.SelectionSet, v *model.WorkflowStatus) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._WorkflowStatus(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOWorkflowVersion2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐWorkflowVersion(ctx context.Context, sel ast.SelectionSet, v *model.WorkflowVersion) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._WorkflowVersion(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalO__EnumValue2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐEnumValueᚄ(ctx context.Context, sel ast.SelectionSet, v []introspection.EnumValue) graphql.Marshaler {

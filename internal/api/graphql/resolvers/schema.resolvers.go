@@ -309,59 +309,516 @@ func (r *mutationResolver) SubmitBatch(ctx context.Context, input model.SubmitBa
 }
 
 // TriggerWorkflow is the resolver for the triggerWorkflow field.
-func (r *mutationResolver) TriggerWorkflow(ctx context.Context, name string, event map[string]any) (*model.WorkflowResult, error) {
-	if r.WorkflowEngine == nil {
-		return nil, fmt.Errorf("workflow engine not configured")
+func (r *mutationResolver) TriggerWorkflow(ctx context.Context, name string, event map[string]any, environment *string, versionID *string) (*model.WorkflowResult, error) {
+	env := "production"
+	if environment != nil && strings.TrimSpace(*environment) != "" {
+		env = strings.TrimSpace(*environment)
 	}
 
-	// Process the event through the workflow engine
-	// The engine accepts interface{}, so we can pass the map directly
-	startTime := time.Now()
-	wfResult := r.WorkflowEngine.ProcessWithContext(ctx, event)
-	duration := time.Since(startTime).Milliseconds()
+	workflowName := name
+	var workflowID string
+	var resolvedVersionID *string
+	var engine *workflow.Engine
+	lifecycleDefinitionFound := false
 
-	// Collect matched routes and actions
-	routesMatchedCount := 0
-	actionsExecutedCount := 0
-	var errors []string
-	var routeNames []string
-	var actionsSummary []string
+	if r.WorkflowLifecycleStore != nil {
+		definition, err := r.WorkflowLifecycleStore.GetWorkflowDefinitionByName(ctx, name)
+		if err != nil {
+			return nil, fmt.Errorf("resolve workflow definition: %w", err)
+		}
 
-	for _, rr := range wfResult.RouteResults {
-		if rr.Matched {
-			routesMatchedCount++
-			routeNames = append(routeNames, rr.RouteName)
-			actionsExecutedCount += rr.ActionsRun
-			// Record how many actions ran for this route
-			if rr.ActionsRun > 0 {
-				actionsSummary = append(actionsSummary, fmt.Sprintf("%s:%d", rr.RouteName, rr.ActionsRun))
+		if definition != nil {
+			lifecycleDefinitionFound = true
+		}
+
+		if definition != nil && !strings.EqualFold(definition.Status, store.WorkflowDefinitionStatusArchived) {
+			workflowID = definition.ID
+			workflowName = definition.Name
+
+			var version *store.WorkflowVersionRecord
+			if versionID != nil && strings.TrimSpace(*versionID) != "" {
+				version, err = r.WorkflowLifecycleStore.GetWorkflowVersion(ctx, strings.TrimSpace(*versionID))
+				if err != nil {
+					return nil, fmt.Errorf("resolve workflow version: %w", err)
+				}
+				if version == nil {
+					return nil, fmt.Errorf("workflow version not found: %s", strings.TrimSpace(*versionID))
+				}
+				if version.WorkflowID != definition.ID {
+					return nil, fmt.Errorf("workflow version %s does not belong to workflow %s", version.ID, definition.ID)
+				}
+			} else {
+				release, err := r.WorkflowLifecycleStore.GetPublishedWorkflowRelease(ctx, definition.ID, env)
+				if err != nil {
+					return nil, fmt.Errorf("resolve published workflow release: %w", err)
+				}
+				if release != nil {
+					version, err = r.WorkflowLifecycleStore.GetWorkflowVersion(ctx, release.VersionID)
+					if err != nil {
+						return nil, fmt.Errorf("resolve published workflow version: %w", err)
+					}
+				}
 			}
-			for _, err := range rr.ActionErrors {
-				errors = append(errors, err.Error())
+
+			if version != nil {
+				versionIDCopy := version.ID
+				resolvedVersionID = &versionIDCopy
+				engine, err = r.getOrBuildVersionEngine(version.ID, version.Yaml)
+				if err != nil {
+					return nil, err
+				}
 			}
-			for _, err := range rr.TransformErrors {
-				errors = append(errors, err.Error())
-			}
+		} else if definition != nil && strings.EqualFold(definition.Status, store.WorkflowDefinitionStatusArchived) {
+			return nil, fmt.Errorf("workflow definition %q is archived", definition.Name)
 		}
 	}
 
-	// Broadcast to workflow event subscribers
-	notification := &model.WorkflowEventNotification{
+	if engine == nil {
+		if lifecycleDefinitionFound {
+			return nil, fmt.Errorf("no published version found for workflow %q in environment %q", workflowName, env)
+		}
+		if r.WorkflowEngine == nil {
+			if resolvedVersionID == nil {
+				return nil, fmt.Errorf("workflow engine not configured and no published version available for workflow %q in environment %q", name, env)
+			}
+			return nil, fmt.Errorf("workflow engine not configured")
+		}
+		engine = r.WorkflowEngine
+	}
+
+	startTime := time.Now()
+	wfResult := engine.ProcessWithContext(ctx, event)
+	duration := time.Since(startTime).Milliseconds()
+
+	routesMatchedCount, actionsExecutedCount, errors, routeNames, actionsSummary := summarizeWorkflowResult(wfResult)
+
+	var runID *string
+	if r.WorkflowLifecycleStore != nil {
+		var eventID *string
+		if rawID, ok := event["id"]; ok {
+			if id, ok := rawID.(string); ok && strings.TrimSpace(id) != "" {
+				trimmedID := strings.TrimSpace(id)
+				eventID = &trimmedID
+			}
+		}
+
+		run, err := r.WorkflowLifecycleStore.CreateWorkflowRun(ctx, &store.WorkflowRunRecord{
+			WorkflowID:      workflowID,
+			WorkflowName:    workflowName,
+			Environment:     env,
+			VersionID:       resolvedVersionID,
+			EventID:         eventID,
+			RoutesMatched:   routesMatchedCount,
+			ActionsExecuted: actionsExecutedCount,
+			Errors:          errors,
+			DurationMs:      int(duration),
+			StartedAt:       startTime,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("record workflow run: %w", err)
+		}
+		if run != nil {
+			runID = &run.ID
+		}
+	}
+
+	r.broadcastWorkflowEvent(&model.WorkflowEventNotification{
 		Event:           nil, // Raw map can't be converted to Event interface
-		Workflow:        name,
+		Workflow:        workflowName,
 		RoutesMatched:   routeNames,
 		ActionsExecuted: actionsSummary,
 		Duration:        int(duration),
-	}
-	r.broadcastWorkflowEvent(notification)
+	})
 
 	return &model.WorkflowResult{
-		WorkflowName:    name,
+		WorkflowName:    workflowName,
 		RoutesMatched:   routesMatchedCount,
 		ActionsExecuted: actionsExecutedCount,
 		Errors:          errors,
 		Duration:        int(duration),
+		RunID:           runID,
+		Environment:     &env,
+		VersionID:       resolvedVersionID,
 	}, nil
+}
+
+// CreateWorkflowDefinition is the resolver for the createWorkflowDefinition field.
+func (r *mutationResolver) CreateWorkflowDefinition(ctx context.Context, input model.CreateWorkflowDefinitionInput) (*model.WorkflowDefinition, error) {
+	if r.WorkflowLifecycleStore == nil {
+		return nil, fmt.Errorf("workflow lifecycle store not configured")
+	}
+
+	actor := actorOrDefault(input.CreatedBy)
+	definition, err := r.WorkflowLifecycleStore.CreateWorkflowDefinition(ctx, &store.WorkflowDefinitionRecord{
+		Name:        input.Name,
+		Description: strings.TrimSpace(ptrToString(input.Description)),
+		Status:      store.WorkflowDefinitionStatusDraft,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create workflow definition: %w", err)
+	}
+
+	if err := r.appendWorkflowAudit(ctx, definition.ID, "workflow_definition_created", actor, map[string]any{
+		"name": definition.Name,
+	}); err != nil {
+		return nil, err
+	}
+
+	return r.toGraphQLWorkflowDefinition(ctx, definition)
+}
+
+// UpdateWorkflowDefinition is the resolver for the updateWorkflowDefinition field.
+func (r *mutationResolver) UpdateWorkflowDefinition(ctx context.Context, input model.UpdateWorkflowDefinitionInput) (*model.WorkflowDefinition, error) {
+	if r.WorkflowLifecycleStore == nil {
+		return nil, fmt.Errorf("workflow lifecycle store not configured")
+	}
+
+	current, err := r.WorkflowLifecycleStore.GetWorkflowDefinitionByID(ctx, input.ID)
+	if err != nil {
+		return nil, fmt.Errorf("get workflow definition: %w", err)
+	}
+	if current == nil {
+		return nil, fmt.Errorf("workflow definition not found: %s", input.ID)
+	}
+
+	if input.Name != nil {
+		current.Name = strings.TrimSpace(*input.Name)
+	}
+	if input.Description != nil {
+		current.Description = strings.TrimSpace(*input.Description)
+	}
+	if input.Status != nil {
+		current.Status = strings.ToLower(strings.TrimSpace(*input.Status))
+	}
+
+	updated, err := r.WorkflowLifecycleStore.UpdateWorkflowDefinition(ctx, current)
+	if err != nil {
+		return nil, fmt.Errorf("update workflow definition: %w", err)
+	}
+
+	actor := actorOrDefault(input.UpdatedBy)
+	if err := r.appendWorkflowAudit(ctx, updated.ID, "workflow_definition_updated", actor, map[string]any{
+		"name":   updated.Name,
+		"status": updated.Status,
+	}); err != nil {
+		return nil, err
+	}
+
+	return r.toGraphQLWorkflowDefinition(ctx, updated)
+}
+
+// SaveWorkflowVersion is the resolver for the saveWorkflowVersion field.
+func (r *mutationResolver) SaveWorkflowVersion(ctx context.Context, input model.SaveWorkflowVersionInput) (*model.WorkflowVersion, error) {
+	if r.WorkflowLifecycleStore == nil {
+		return nil, fmt.Errorf("workflow lifecycle store not configured")
+	}
+
+	definition, err := r.WorkflowLifecycleStore.GetWorkflowDefinitionByID(ctx, input.WorkflowID)
+	if err != nil {
+		return nil, fmt.Errorf("get workflow definition: %w", err)
+	}
+	if definition == nil {
+		return nil, fmt.Errorf("workflow definition not found: %s", input.WorkflowID)
+	}
+	if strings.EqualFold(definition.Status, store.WorkflowDefinitionStatusArchived) {
+		return nil, fmt.Errorf("workflow definition %s is archived", input.WorkflowID)
+	}
+
+	_, validation, err := validateWorkflowYAML(input.Yaml, definition.Name)
+	if err != nil {
+		return nil, err
+	}
+	if !validation.Valid {
+		return nil, fmt.Errorf("workflow validation failed: %s", strings.Join(validation.Errors, "; "))
+	}
+
+	version, err := r.WorkflowLifecycleStore.SaveWorkflowVersion(ctx, &store.WorkflowVersionRecord{
+		WorkflowID: input.WorkflowID,
+		Yaml:       input.Yaml,
+		Validation: validation,
+		CreatedBy:  actorOrDefault(input.CreatedBy),
+		Notes:      strings.TrimSpace(ptrToString(input.Notes)),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("save workflow version: %w", err)
+	}
+
+	if err := r.appendWorkflowAudit(ctx, input.WorkflowID, "workflow_version_saved", actorOrDefault(input.CreatedBy), map[string]any{
+		"version_id":     version.ID,
+		"version_number": version.VersionNumber,
+	}); err != nil {
+		return nil, err
+	}
+
+	return toGraphQLWorkflowVersion(version), nil
+}
+
+// PublishWorkflowVersion is the resolver for the publishWorkflowVersion field.
+func (r *mutationResolver) PublishWorkflowVersion(ctx context.Context, input model.PublishWorkflowVersionInput) (*model.WorkflowRelease, error) {
+	if r.WorkflowLifecycleStore == nil {
+		return nil, fmt.Errorf("workflow lifecycle store not configured")
+	}
+
+	definition, err := r.WorkflowLifecycleStore.GetWorkflowDefinitionByID(ctx, input.WorkflowID)
+	if err != nil {
+		return nil, fmt.Errorf("get workflow definition: %w", err)
+	}
+	if definition == nil {
+		return nil, fmt.Errorf("workflow definition not found: %s", input.WorkflowID)
+	}
+	if strings.EqualFold(definition.Status, store.WorkflowDefinitionStatusArchived) {
+		return nil, fmt.Errorf("workflow definition %s is archived", input.WorkflowID)
+	}
+
+	version, err := r.WorkflowLifecycleStore.GetWorkflowVersion(ctx, input.VersionID)
+	if err != nil {
+		return nil, fmt.Errorf("get workflow version: %w", err)
+	}
+	if version == nil {
+		return nil, fmt.Errorf("workflow version not found: %s", input.VersionID)
+	}
+	if version.WorkflowID != input.WorkflowID {
+		return nil, fmt.Errorf("workflow version %s does not belong to workflow %s", input.VersionID, input.WorkflowID)
+	}
+
+	env := strings.TrimSpace(input.Environment)
+	if strings.EqualFold(env, "production") {
+		approved, err := approvalForTarget(ctx, r.WorkflowLifecycleStore, input.WorkflowID, input.VersionID, env, store.WorkflowApprovalStatusApproved)
+		if err != nil {
+			return nil, fmt.Errorf("check workflow approval status: %w", err)
+		}
+		if !approved {
+			return nil, fmt.Errorf("publishing to production requires an approved workflow approval request")
+		}
+	}
+
+	release, err := r.WorkflowLifecycleStore.PublishWorkflowVersion(ctx, &store.WorkflowReleaseRecord{
+		WorkflowID:  input.WorkflowID,
+		Environment: env,
+		VersionID:   input.VersionID,
+		PublishedBy: actorOrDefault(input.PublishedBy),
+		PublishedAt: nowUTC(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("publish workflow version: %w", err)
+	}
+
+	if err := r.appendWorkflowAudit(ctx, input.WorkflowID, "workflow_version_published", actorOrDefault(input.PublishedBy), map[string]any{
+		"version_id":  input.VersionID,
+		"environment": env,
+		"release_id":  release.ID,
+	}); err != nil {
+		return nil, err
+	}
+
+	return toGraphQLWorkflowRelease(release), nil
+}
+
+// RollbackWorkflowVersion is the resolver for the rollbackWorkflowVersion field.
+func (r *mutationResolver) RollbackWorkflowVersion(ctx context.Context, input model.RollbackWorkflowVersionInput) (*model.WorkflowRelease, error) {
+	if r.WorkflowLifecycleStore == nil {
+		return nil, fmt.Errorf("workflow lifecycle store not configured")
+	}
+
+	version, err := r.WorkflowLifecycleStore.GetWorkflowVersion(ctx, input.TargetVersionID)
+	if err != nil {
+		return nil, fmt.Errorf("get rollback target workflow version: %w", err)
+	}
+	if version == nil {
+		return nil, fmt.Errorf("workflow version not found: %s", input.TargetVersionID)
+	}
+	if version.WorkflowID != input.WorkflowID {
+		return nil, fmt.Errorf("workflow version %s does not belong to workflow %s", input.TargetVersionID, input.WorkflowID)
+	}
+
+	env := strings.TrimSpace(input.Environment)
+	currentRelease, err := r.WorkflowLifecycleStore.GetPublishedWorkflowRelease(ctx, input.WorkflowID, env)
+	if err != nil {
+		return nil, fmt.Errorf("get current published workflow release: %w", err)
+	}
+	if currentRelease == nil {
+		return nil, fmt.Errorf("no published version found for workflow %s in environment %s", input.WorkflowID, env)
+	}
+
+	release, err := r.WorkflowLifecycleStore.PublishWorkflowVersion(ctx, &store.WorkflowReleaseRecord{
+		WorkflowID:            input.WorkflowID,
+		Environment:           env,
+		VersionID:             input.TargetVersionID,
+		PublishedBy:           actorOrDefault(input.PublishedBy),
+		PublishedAt:           nowUTC(),
+		RollbackFromReleaseID: &currentRelease.ID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("rollback workflow version: %w", err)
+	}
+
+	if err := r.appendWorkflowAudit(ctx, input.WorkflowID, "workflow_version_rolled_back", actorOrDefault(input.PublishedBy), map[string]any{
+		"environment":              env,
+		"target_version_id":        input.TargetVersionID,
+		"rollback_from_release_id": currentRelease.ID,
+		"new_release_id":           release.ID,
+	}); err != nil {
+		return nil, err
+	}
+
+	return toGraphQLWorkflowRelease(release), nil
+}
+
+// ArchiveWorkflowDefinition is the resolver for the archiveWorkflowDefinition field.
+func (r *mutationResolver) ArchiveWorkflowDefinition(ctx context.Context, input model.ArchiveWorkflowDefinitionInput) (*model.WorkflowDefinition, error) {
+	if r.WorkflowLifecycleStore == nil {
+		return nil, fmt.Errorf("workflow lifecycle store not configured")
+	}
+
+	archived, err := r.WorkflowLifecycleStore.ArchiveWorkflowDefinition(ctx, input.WorkflowID)
+	if err != nil {
+		return nil, fmt.Errorf("archive workflow definition: %w", err)
+	}
+
+	if err := r.appendWorkflowAudit(ctx, input.WorkflowID, "workflow_definition_archived", actorOrDefault(input.ArchivedBy), map[string]any{
+		"workflow_id": input.WorkflowID,
+	}); err != nil {
+		return nil, err
+	}
+
+	return r.toGraphQLWorkflowDefinition(ctx, archived)
+}
+
+// RequestWorkflowApproval is the resolver for the requestWorkflowApproval field.
+func (r *mutationResolver) RequestWorkflowApproval(ctx context.Context, input model.RequestWorkflowApprovalInput) (*model.WorkflowApprovalRequest, error) {
+	if r.WorkflowLifecycleStore == nil {
+		return nil, fmt.Errorf("workflow lifecycle store not configured")
+	}
+
+	definition, err := r.WorkflowLifecycleStore.GetWorkflowDefinitionByID(ctx, input.WorkflowID)
+	if err != nil {
+		return nil, fmt.Errorf("get workflow definition: %w", err)
+	}
+	if definition == nil {
+		return nil, fmt.Errorf("workflow definition not found: %s", input.WorkflowID)
+	}
+
+	version, err := r.WorkflowLifecycleStore.GetWorkflowVersion(ctx, input.TargetVersionID)
+	if err != nil {
+		return nil, fmt.Errorf("get workflow version: %w", err)
+	}
+	if version == nil {
+		return nil, fmt.Errorf("workflow version not found: %s", input.TargetVersionID)
+	}
+	if version.WorkflowID != input.WorkflowID {
+		return nil, fmt.Errorf("workflow version %s does not belong to workflow %s", input.TargetVersionID, input.WorkflowID)
+	}
+
+	env := strings.TrimSpace(input.Environment)
+	pending, err := approvalForTarget(ctx, r.WorkflowLifecycleStore, input.WorkflowID, input.TargetVersionID, env, store.WorkflowApprovalStatusPending)
+	if err != nil {
+		return nil, fmt.Errorf("check existing workflow approvals: %w", err)
+	}
+	if pending {
+		return nil, fmt.Errorf("a pending workflow approval request already exists for this version/environment")
+	}
+
+	req, err := r.WorkflowLifecycleStore.CreateWorkflowApprovalRequest(ctx, &store.WorkflowApprovalRequestRecord{
+		WorkflowID:      input.WorkflowID,
+		TargetVersionID: input.TargetVersionID,
+		Environment:     env,
+		Status:          store.WorkflowApprovalStatusPending,
+		RequestedBy:     actorOrDefault(input.RequestedBy),
+		Comment:         input.Comment,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create workflow approval request: %w", err)
+	}
+
+	if err := r.appendWorkflowAudit(ctx, input.WorkflowID, "workflow_approval_requested", actorOrDefault(input.RequestedBy), map[string]any{
+		"approval_request_id": req.ID,
+		"version_id":          input.TargetVersionID,
+		"environment":         env,
+	}); err != nil {
+		return nil, err
+	}
+
+	return toGraphQLWorkflowApprovalRequest(req), nil
+}
+
+// ApproveWorkflowVersion is the resolver for the approveWorkflowVersion field.
+func (r *mutationResolver) ApproveWorkflowVersion(ctx context.Context, input model.ApproveWorkflowVersionInput) (*model.WorkflowApprovalRequest, error) {
+	if r.WorkflowLifecycleStore == nil {
+		return nil, fmt.Errorf("workflow lifecycle store not configured")
+	}
+
+	req, err := r.WorkflowLifecycleStore.GetWorkflowApprovalRequest(ctx, input.ApprovalRequestID)
+	if err != nil {
+		return nil, fmt.Errorf("get workflow approval request: %w", err)
+	}
+	if req == nil {
+		return nil, fmt.Errorf("workflow approval request not found: %s", input.ApprovalRequestID)
+	}
+	if !strings.EqualFold(req.Status, store.WorkflowApprovalStatusPending) {
+		return nil, fmt.Errorf("workflow approval request %s is not pending", input.ApprovalRequestID)
+	}
+
+	now := nowUTC()
+	req.Status = store.WorkflowApprovalStatusApproved
+	reviewer := actorOrDefault(input.ReviewedBy)
+	req.ReviewedBy = &reviewer
+	req.ReviewedAt = &now
+	req.Comment = input.Comment
+
+	updated, err := r.WorkflowLifecycleStore.UpdateWorkflowApprovalRequest(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("approve workflow version: %w", err)
+	}
+
+	if err := r.appendWorkflowAudit(ctx, req.WorkflowID, "workflow_approval_approved", reviewer, map[string]any{
+		"approval_request_id": req.ID,
+		"version_id":          req.TargetVersionID,
+		"environment":         req.Environment,
+	}); err != nil {
+		return nil, err
+	}
+
+	return toGraphQLWorkflowApprovalRequest(updated), nil
+}
+
+// RejectWorkflowVersion is the resolver for the rejectWorkflowVersion field.
+func (r *mutationResolver) RejectWorkflowVersion(ctx context.Context, input model.RejectWorkflowVersionInput) (*model.WorkflowApprovalRequest, error) {
+	if r.WorkflowLifecycleStore == nil {
+		return nil, fmt.Errorf("workflow lifecycle store not configured")
+	}
+
+	req, err := r.WorkflowLifecycleStore.GetWorkflowApprovalRequest(ctx, input.ApprovalRequestID)
+	if err != nil {
+		return nil, fmt.Errorf("get workflow approval request: %w", err)
+	}
+	if req == nil {
+		return nil, fmt.Errorf("workflow approval request not found: %s", input.ApprovalRequestID)
+	}
+	if !strings.EqualFold(req.Status, store.WorkflowApprovalStatusPending) {
+		return nil, fmt.Errorf("workflow approval request %s is not pending", input.ApprovalRequestID)
+	}
+
+	now := nowUTC()
+	req.Status = store.WorkflowApprovalStatusRejected
+	reviewer := actorOrDefault(input.ReviewedBy)
+	req.ReviewedBy = &reviewer
+	req.ReviewedAt = &now
+	req.Comment = input.Comment
+
+	updated, err := r.WorkflowLifecycleStore.UpdateWorkflowApprovalRequest(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("reject workflow version: %w", err)
+	}
+
+	if err := r.appendWorkflowAudit(ctx, req.WorkflowID, "workflow_approval_rejected", reviewer, map[string]any{
+		"approval_request_id": req.ID,
+		"version_id":          req.TargetVersionID,
+		"environment":         req.Environment,
+	}); err != nil {
+		return nil, err
+	}
+
+	return toGraphQLWorkflowApprovalRequest(updated), nil
 }
 
 // CreateFhirSubscription is the resolver for the createFhirSubscription field.
@@ -1246,6 +1703,162 @@ func (r *queryResolver) Workflows(ctx context.Context) ([]model.WorkflowStatus, 
 			Errors:          int(stats.Errors),
 		},
 	}, nil
+}
+
+// WorkflowDefinitions is the resolver for the workflowDefinitions field.
+func (r *queryResolver) WorkflowDefinitions(ctx context.Context, filter *model.WorkflowDefinitionFilter, paging *model.PagingInput) ([]model.WorkflowDefinition, error) {
+	if r.WorkflowLifecycleStore == nil {
+		return []model.WorkflowDefinition{}, nil
+	}
+
+	storeFilter := store.WorkflowDefinitionListFilter{}
+	if filter != nil {
+		storeFilter.Name = filter.Name
+		storeFilter.Status = filter.Status
+	}
+
+	definitions, err := r.WorkflowLifecycleStore.ListWorkflowDefinitions(ctx, storeFilter, pagingFromInput(paging))
+	if err != nil {
+		return nil, fmt.Errorf("list workflow definitions: %w", err)
+	}
+
+	results := make([]model.WorkflowDefinition, 0, len(definitions))
+	for _, definition := range definitions {
+		gqlDefinition, err := r.toGraphQLWorkflowDefinition(ctx, definition)
+		if err != nil {
+			return nil, err
+		}
+		if gqlDefinition != nil {
+			results = append(results, *gqlDefinition)
+		}
+	}
+
+	return results, nil
+}
+
+// WorkflowDefinition is the resolver for the workflowDefinition field.
+func (r *queryResolver) WorkflowDefinition(ctx context.Context, nameOrID string) (*model.WorkflowDefinition, error) {
+	if r.WorkflowLifecycleStore == nil {
+		return nil, nil
+	}
+
+	definition, err := r.WorkflowLifecycleStore.GetWorkflowDefinitionByID(ctx, nameOrID)
+	if err != nil {
+		return nil, fmt.Errorf("get workflow definition by id: %w", err)
+	}
+	if definition == nil {
+		definition, err = r.WorkflowLifecycleStore.GetWorkflowDefinitionByName(ctx, nameOrID)
+		if err != nil {
+			return nil, fmt.Errorf("get workflow definition by name: %w", err)
+		}
+	}
+	return r.toGraphQLWorkflowDefinition(ctx, definition)
+}
+
+// WorkflowVersions is the resolver for the workflowVersions field.
+func (r *queryResolver) WorkflowVersions(ctx context.Context, workflowID string, paging *model.PagingInput) ([]model.WorkflowVersion, error) {
+	if r.WorkflowLifecycleStore == nil {
+		return []model.WorkflowVersion{}, nil
+	}
+
+	versions, err := r.WorkflowLifecycleStore.ListWorkflowVersions(ctx, workflowID, pagingFromInput(paging))
+	if err != nil {
+		return nil, fmt.Errorf("list workflow versions: %w", err)
+	}
+
+	results := make([]model.WorkflowVersion, 0, len(versions))
+	for _, version := range versions {
+		gqlVersion := toGraphQLWorkflowVersion(version)
+		if gqlVersion != nil {
+			results = append(results, *gqlVersion)
+		}
+	}
+
+	return results, nil
+}
+
+// WorkflowVersion is the resolver for the workflowVersion field.
+func (r *queryResolver) WorkflowVersion(ctx context.Context, id string) (*model.WorkflowVersion, error) {
+	if r.WorkflowLifecycleStore == nil {
+		return nil, nil
+	}
+
+	version, err := r.WorkflowLifecycleStore.GetWorkflowVersion(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("get workflow version: %w", err)
+	}
+	return toGraphQLWorkflowVersion(version), nil
+}
+
+// WorkflowRuns is the resolver for the workflowRuns field.
+func (r *queryResolver) WorkflowRuns(ctx context.Context, filter *model.WorkflowRunFilter, paging *model.PagingInput) ([]model.WorkflowRun, error) {
+	if r.WorkflowLifecycleStore == nil {
+		return []model.WorkflowRun{}, nil
+	}
+
+	storeFilter := store.WorkflowRunListFilter{}
+	if filter != nil {
+		storeFilter.WorkflowName = filter.WorkflowName
+		storeFilter.Environment = filter.Environment
+		storeFilter.Status = filter.Status
+		storeFilter.FromStartedAt = filter.FromStartedAt
+		storeFilter.ToStartedAt = filter.ToStartedAt
+	}
+
+	runs, err := r.WorkflowLifecycleStore.ListWorkflowRuns(ctx, storeFilter, pagingFromInput(paging))
+	if err != nil {
+		return nil, fmt.Errorf("list workflow runs: %w", err)
+	}
+
+	results := make([]model.WorkflowRun, 0, len(runs))
+	for _, run := range runs {
+		gqlRun := toGraphQLWorkflowRun(run)
+		if gqlRun != nil {
+			results = append(results, *gqlRun)
+		}
+	}
+	return results, nil
+}
+
+// WorkflowRun is the resolver for the workflowRun field.
+func (r *queryResolver) WorkflowRun(ctx context.Context, id string) (*model.WorkflowRun, error) {
+	if r.WorkflowLifecycleStore == nil {
+		return nil, nil
+	}
+
+	run, err := r.WorkflowLifecycleStore.GetWorkflowRun(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("get workflow run: %w", err)
+	}
+	return toGraphQLWorkflowRun(run), nil
+}
+
+// WorkflowApprovalRequests is the resolver for the workflowApprovalRequests field.
+func (r *queryResolver) WorkflowApprovalRequests(ctx context.Context, filter *model.WorkflowApprovalRequestFilter, paging *model.PagingInput) ([]model.WorkflowApprovalRequest, error) {
+	if r.WorkflowLifecycleStore == nil {
+		return []model.WorkflowApprovalRequest{}, nil
+	}
+
+	storeFilter := store.WorkflowApprovalRequestListFilter{}
+	if filter != nil {
+		storeFilter.WorkflowID = filter.WorkflowID
+		storeFilter.Environment = filter.Environment
+		storeFilter.Status = filter.Status
+	}
+
+	requests, err := r.WorkflowLifecycleStore.ListWorkflowApprovalRequests(ctx, storeFilter, pagingFromInput(paging))
+	if err != nil {
+		return nil, fmt.Errorf("list workflow approval requests: %w", err)
+	}
+
+	results := make([]model.WorkflowApprovalRequest, 0, len(requests))
+	for _, req := range requests {
+		gqlReq := toGraphQLWorkflowApprovalRequest(req)
+		if gqlReq != nil {
+			results = append(results, *gqlReq)
+		}
+	}
+	return results, nil
 }
 
 // Health is the resolver for the health field.
@@ -2335,6 +2948,21 @@ func (r *subscriptionResolver) PatientEvents(ctx context.Context, mrn string) (<
 	return r.Store.SubscribePatient(ctx, mrn)
 }
 
+// RunID is the resolver for the runId field.
+func (r *workflowResultResolver) RunID(ctx context.Context, obj *model.WorkflowResult) (*string, error) {
+	panic(fmt.Errorf("not implemented: RunID - runId"))
+}
+
+// Environment is the resolver for the environment field.
+func (r *workflowResultResolver) Environment(ctx context.Context, obj *model.WorkflowResult) (*string, error) {
+	panic(fmt.Errorf("not implemented: Environment - environment"))
+}
+
+// VersionID is the resolver for the versionId field.
+func (r *workflowResultResolver) VersionID(ctx context.Context, obj *model.WorkflowResult) (*string, error) {
+	panic(fmt.Errorf("not implemented: VersionID - versionId"))
+}
+
 // Mutation returns graphql1.MutationResolver implementation.
 func (r *Resolver) Mutation() graphql1.MutationResolver { return &mutationResolver{r} }
 
@@ -2344,6 +2972,12 @@ func (r *Resolver) Query() graphql1.QueryResolver { return &queryResolver{r} }
 // Subscription returns graphql1.SubscriptionResolver implementation.
 func (r *Resolver) Subscription() graphql1.SubscriptionResolver { return &subscriptionResolver{r} }
 
+// WorkflowResult returns graphql1.WorkflowResultResolver implementation.
+func (r *Resolver) WorkflowResult() graphql1.WorkflowResultResolver {
+	return &workflowResultResolver{r}
+}
+
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }
+type workflowResultResolver struct{ *Resolver }
