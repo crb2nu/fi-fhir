@@ -1,5 +1,5 @@
 import { browser } from '$app/environment';
-import { writable, derived } from 'svelte/store';
+import { writable, derived, get } from 'svelte/store';
 import type { WorkflowDraft, RouteDraft, ActionDraft, TransformDraft } from './workflowTypes';
 import {
   createEmptyWorkflow,
@@ -9,6 +9,15 @@ import {
 } from './workflowTypes';
 
 const STORAGE_KEY = 'fi-fhir:workflow:draft:v1';
+const SAVED_DRAFTS_KEY = 'fi-fhir:workflow:drafts:v1';
+const MAX_SAVED_DRAFTS = 25;
+
+export type SavedWorkflowDraft = {
+  id: string;
+  name: string;
+  savedAt: string;
+  draft: WorkflowDraft;
+};
 
 function hasLocalStorage(): boolean {
   if (!browser) return false;
@@ -41,9 +50,45 @@ function save(draft: WorkflowDraft): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
 }
 
+function cloneDraft(draft: WorkflowDraft): WorkflowDraft {
+  if (typeof globalThis.structuredClone === 'function') {
+    return globalThis.structuredClone(draft);
+  }
+  return JSON.parse(JSON.stringify(draft)) as WorkflowDraft;
+}
+
+function loadSavedDrafts(): SavedWorkflowDraft[] {
+  if (!hasLocalStorage()) return [];
+  try {
+    const raw = localStorage.getItem(SAVED_DRAFTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as SavedWorkflowDraft[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item) =>
+        item &&
+        typeof item.id === 'string' &&
+        typeof item.name === 'string' &&
+        typeof item.savedAt === 'string' &&
+        item.draft &&
+        typeof item.draft === 'object' &&
+        Array.isArray(item.draft.routes)
+    );
+  } catch {
+    return [];
+  }
+}
+
+function saveSavedDrafts(items: SavedWorkflowDraft[]): void {
+  if (!hasLocalStorage()) return;
+  localStorage.setItem(SAVED_DRAFTS_KEY, JSON.stringify(items));
+}
+
 function createWorkflowDraftStore() {
   const store = writable<WorkflowDraft>(load());
-  if (browser) store.subscribe((d) => save(d));
+  store.subscribe((d) => {
+    if (browser) save(d);
+  });
 
   return {
     subscribe: store.subscribe,
@@ -234,6 +279,55 @@ function createWorkflowDraftStore() {
 }
 
 export const workflowDraft = createWorkflowDraftStore();
+const savedDraftsStore = writable<SavedWorkflowDraft[]>(loadSavedDrafts());
+
+savedDraftsStore.subscribe((items) => {
+  if (browser) saveSavedDrafts(items);
+});
+
+function normalizeDraftName(name?: string): string {
+  const trimmed = (name ?? '').trim();
+  if (trimmed) return trimmed;
+  const current = get(workflowDraft);
+  if (current.name.trim()) return current.name.trim();
+  const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+  return `Draft ${stamp}`;
+}
+
+export const workflowSavedDrafts = {
+  subscribe: savedDraftsStore.subscribe,
+
+  saveCurrent: (name?: string): SavedWorkflowDraft => {
+    const entry: SavedWorkflowDraft = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+      name: normalizeDraftName(name),
+      savedAt: new Date().toISOString(),
+      draft: cloneDraft(get(workflowDraft))
+    };
+
+    savedDraftsStore.update((items) => {
+      const withoutSameName = items.filter((i) => i.name !== entry.name);
+      return [entry, ...withoutSameName].slice(0, MAX_SAVED_DRAFTS);
+    });
+
+    return entry;
+  },
+
+  loadIntoBuilder: (id: string): SavedWorkflowDraft | null => {
+    const entry = get(savedDraftsStore).find((i) => i.id === id) ?? null;
+    if (!entry) return null;
+    workflowDraft.loadDraft(cloneDraft(entry.draft));
+    return entry;
+  },
+
+  deleteSnapshot: (id: string): void => {
+    savedDraftsStore.update((items) => items.filter((i) => i.id !== id));
+  },
+
+  clear: (): void => {
+    savedDraftsStore.set([]);
+  }
+};
 
 /** Derived store: is the workflow valid enough to preview? */
 export const isWorkflowValid = derived(workflowDraft, ($d) => {

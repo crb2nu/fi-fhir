@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { get } from 'svelte/store';
-import { workflowDraft, isWorkflowValid, routeCount } from './workflowStore';
+import { workflowDraft, workflowSavedDrafts, isWorkflowValid, routeCount } from './workflowStore';
 
 describe('workflowStore', () => {
   beforeEach(() => {
     workflowDraft.reset();
+    workflowSavedDrafts.clear();
   });
 
   it('starts with a default empty workflow', () => {
@@ -174,6 +175,39 @@ describe('workflowStore', () => {
 
       workflowDraft.moveTransform(key, transformKey, 'up');
       expect(get(workflowDraft).routes[0]!.transforms[0]!._key).toBe(transformKey);
+    });
+  });
+
+  describe('saved drafts', () => {
+    it('saves the current draft snapshot', () => {
+      workflowDraft.update((d) => ({ ...d, name: 'draft-a' }));
+      const saved = workflowSavedDrafts.saveCurrent();
+      const all = get(workflowSavedDrafts);
+      expect(saved.name).toBe('draft-a');
+      expect(all).toHaveLength(1);
+      expect(all[0]!.name).toBe('draft-a');
+    });
+
+    it('loads a saved snapshot into builder', () => {
+      const key = get(workflowDraft).routes[0]!._key;
+      workflowDraft.update((d) => ({ ...d, name: 'original' }));
+      workflowDraft.updateRoute(key, { name: 'route-original' });
+      const saved = workflowSavedDrafts.saveCurrent('snapshot-1');
+
+      workflowDraft.reset();
+      expect(get(workflowDraft).name).toBe('');
+
+      const loaded = workflowSavedDrafts.loadIntoBuilder(saved.id);
+      expect(loaded).not.toBeNull();
+      expect(get(workflowDraft).name).toBe('original');
+      expect(get(workflowDraft).routes[0]!.name).toBe('route-original');
+    });
+
+    it('deletes a saved snapshot', () => {
+      const saved = workflowSavedDrafts.saveCurrent('to-delete');
+      expect(get(workflowSavedDrafts)).toHaveLength(1);
+      workflowSavedDrafts.deleteSnapshot(saved.id);
+      expect(get(workflowSavedDrafts)).toHaveLength(0);
     });
   });
 });

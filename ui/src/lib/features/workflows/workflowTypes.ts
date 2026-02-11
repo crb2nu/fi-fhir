@@ -136,6 +136,71 @@ export const ACTION_FIELDS: Record<string, ActionFieldDef[]> = {
 /** All available action types. */
 export const ACTION_TYPES = Object.keys(ACTION_FIELDS);
 
+/**
+ * Validate a workflow draft for import/edit execution readiness.
+ * Returns a list of human-readable issues; empty means valid.
+ */
+export function validateWorkflowDraft(draft: WorkflowDraft): string[] {
+  const issues: string[] = [];
+
+  if (!draft.name.trim()) {
+    issues.push('Workflow name is required');
+  }
+
+  if (draft.routes.length === 0) {
+    issues.push('At least one route is required');
+  }
+
+  for (let i = 0; i < draft.routes.length; i += 1) {
+    const route = draft.routes[i]!;
+    const routeLabel = route.name.trim() || `Route ${i + 1}`;
+
+    if (!route.name.trim()) {
+      issues.push(`${routeLabel}: route name is required`);
+    }
+
+    if (route.actions.length === 0) {
+      issues.push(`${routeLabel}: at least one action is required`);
+    }
+
+    for (let j = 0; j < route.transforms.length; j += 1) {
+      const transform = route.transforms[j]!;
+      const transformLabel = `${routeLabel}, transform ${j + 1}`;
+      if (transform.type === 'set_field' && !(transform.config.expression ?? '').trim()) {
+        issues.push(`${transformLabel}: expression is required`);
+      }
+      if (transform.type === 'map_terminology') {
+        if (!(transform.config.field ?? '').trim()) issues.push(`${transformLabel}: field is required`);
+        if (!(transform.config.from ?? '').trim()) issues.push(`${transformLabel}: from system is required`);
+        if (!(transform.config.to ?? '').trim()) issues.push(`${transformLabel}: to system is required`);
+      }
+      if (transform.type === 'redact' && !(transform.config.fields ?? '').trim()) {
+        issues.push(`${transformLabel}: fields are required`);
+      }
+    }
+
+    for (let j = 0; j < route.actions.length; j += 1) {
+      const action = route.actions[j]!;
+      const actionLabel = `${routeLabel}, action ${j + 1}`;
+      if (!action.type.trim()) {
+        issues.push(`${actionLabel}: action type is required`);
+        continue;
+      }
+
+      const defs = ACTION_FIELDS[action.type] ?? [];
+      for (const def of defs) {
+        if (!def.required) continue;
+        const value = action.config[def.key] ?? '';
+        if (!value.trim()) {
+          issues.push(`${actionLabel}: ${def.label} is required`);
+        }
+      }
+    }
+  }
+
+  return issues;
+}
+
 // ─── Event type presets ────────────────────────────────────────────────────
 
 export type EventTypePreset = {

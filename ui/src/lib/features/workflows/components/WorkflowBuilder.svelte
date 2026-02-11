@@ -6,6 +6,7 @@
   import WorkflowPreview from './WorkflowPreview.svelte';
   import DryRunPanel from './DryRunPanel.svelte';
   import GenerateFromDescription from './GenerateFromDescription.svelte';
+  import WorkflowDraftLibrary from './WorkflowDraftLibrary.svelte';
   import { workflowDraft, isWorkflowValid } from '../workflowStore';
 
   let showPreview = false;
@@ -107,6 +108,8 @@
       Reset
     </Button>
   </div>
+
+  <WorkflowDraftLibrary />
 
   {#if showPreview}
     <div transition:slide={{ duration: 200 }}>
