@@ -21,6 +21,7 @@
   ] as const;
 
   let paletteOpen = false;
+  let shortcutLabel = 'Ctrl+K';
 
   function isActive(href: string, pathname: string): boolean {
     if (href === '/') return pathname === '/';
@@ -34,6 +35,15 @@
     return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
   }
 
+  function isHL7Route(pathname: string): boolean {
+    return pathname.startsWith('/hl7');
+  }
+
+  function openPalette(): void {
+    if (isHL7Route($page.url.pathname)) return;
+    paletteOpen = true;
+  }
+
   const paletteCommands: PaletteCommand[] = nav.map((item) => ({
     id: `nav:${item.href}`,
     label: `Go to ${item.label}`,
@@ -44,17 +54,18 @@
 
   onMount(() => {
     initTheme();
+    shortcutLabel = navigator.platform.toUpperCase().includes('MAC') ? 'Cmd+K' : 'Ctrl+K';
 
     const onKeydown = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
       if (paletteOpen) return;
       if (isEditableTarget(e.target)) return;
       // HL7 page has a richer page-specific command palette.
-      if ($page.url.pathname.startsWith('/hl7')) return;
+      if (isHL7Route($page.url.pathname)) return;
       const mod = e.metaKey || e.ctrlKey;
       if (mod && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
-        paletteOpen = true;
+        openPalette();
       }
     };
 
@@ -83,6 +94,22 @@
       {/each}
     </nav>
     <div class="actions">
+      {#if !isHL7Route($page.url.pathname)}
+        <button
+          type="button"
+          class="command-link"
+          aria-label="Open navigation commands"
+          title={`Open commands (${shortcutLabel})`}
+          on:click={openPalette}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-3.4-3.4" />
+          </svg>
+          <span class="command-text">Commands</span>
+          <span class="command-kbd">{shortcutLabel}</span>
+        </button>
+      {/if}
       <ThemeToggle />
     </div>
   </header>
@@ -147,6 +174,46 @@
     flex: 0 0 auto;
   }
 
+  .command-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-text-secondary);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-elevated);
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    transition: var(--transition-all);
+  }
+
+  .command-link svg {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 auto;
+  }
+
+  .command-link:hover {
+    background: var(--color-bg-hover);
+    border-color: var(--color-border-strong);
+  }
+
+  .command-link:focus-visible {
+    box-shadow: var(--shadow-focus);
+    border-color: var(--color-border-focus);
+  }
+
+  .command-kbd {
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    color: var(--color-text-tertiary);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 2px 6px;
+    line-height: 1.2;
+  }
+
   .nav-link:hover {
     background: var(--color-bg-hover);
     border-color: var(--color-border-strong);
@@ -185,6 +252,16 @@
     .nav-link {
       padding: var(--space-2);
       font-size: var(--text-xs);
+    }
+
+    .command-link {
+      padding: var(--space-2);
+      font-size: var(--text-xs);
+    }
+
+    .command-text,
+    .command-kbd {
+      display: none;
     }
 
     .main {
