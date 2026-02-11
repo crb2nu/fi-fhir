@@ -7,7 +7,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -116,6 +118,13 @@ func provisionInfra(t *testing.T) (*TestInfra, error) {
 		if b := os.Getenv("FI_FHIR_MINIO_BUCKET"); b != "" {
 			infra.MinioBucket = b
 		}
+	} else if ep := os.Getenv("MINIO_ENDPOINT"); ep != "" {
+		infra.MinioEndpoint = ep
+		infra.MinioAccess = os.Getenv("MINIO_ACCESS_KEY")
+		infra.MinioSecret = os.Getenv("MINIO_SECRET_KEY")
+		if b := os.Getenv("MINIO_BUCKET"); b != "" {
+			infra.MinioBucket = b
+		}
 	} else {
 		ep, user, pass, err := startMinioContainer(t)
 		if err != nil {
@@ -129,11 +138,17 @@ func provisionInfra(t *testing.T) (*TestInfra, error) {
 	// Inject env vars so production code and existing helpers pick them up.
 	os.Setenv("FI_FHIR_DATABASE_URL", infra.DatabaseURL)
 	os.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", infra.DatabaseURL)
+	minioEndpoint, minioSecure := normalizeMinIOEndpoint(infra.MinioEndpoint)
+	infra.MinioEndpoint = minioEndpoint
 	os.Setenv("MINIO_ENDPOINT", infra.MinioEndpoint)
 	os.Setenv("MINIO_ACCESS_KEY", infra.MinioAccess)
 	os.Setenv("MINIO_SECRET_KEY", infra.MinioSecret)
 	os.Setenv("MINIO_BUCKET", infra.MinioBucket)
-	os.Setenv("MINIO_USE_SSL", "false")
+	if minioSecure {
+		os.Setenv("MINIO_USE_SSL", "true")
+	} else {
+		os.Setenv("MINIO_USE_SSL", "false")
+	}
 
 	// Also set the FI_FHIR_MINIO_* variants used by cli_integration_test.go helpers.
 	os.Setenv("FI_FHIR_MINIO_ENDPOINT", infra.MinioEndpoint)
@@ -141,10 +156,110 @@ func provisionInfra(t *testing.T) (*TestInfra, error) {
 	os.Setenv("FI_FHIR_MINIO_SECRET_KEY", infra.MinioSecret)
 	os.Setenv("FI_FHIR_MINIO_BUCKET", infra.MinioBucket)
 
+	// CI service containers can take a few seconds to become ready; wait here to
+	// reduce integration test flake.
+	if err := waitForPostgres(infra.DatabaseURL, 30*time.Second); err != nil {
+		return nil, fmt.Errorf("postgres not ready: %w", err)
+	}
+	if err := ensureMinioBucket(infra, 30*time.Second); err != nil {
+		return nil, fmt.Errorf("minio not ready: %w", err)
+	}
+
 	// Create the MinIO bucket used by tests (best-effort, may already exist in CI).
-	createMinioBucket(infra)
+	// (ensureMinioBucket already did this)
 
 	return infra, nil
+}
+
+func normalizeMinIOEndpoint(endpoint string) (hostPort string, secure bool) {
+	endpoint = strings.TrimSpace(endpoint)
+	if endpoint == "" {
+		return "", false
+	}
+
+	// minio-go expects host:port (no scheme). Some environments use URL-ish env vars.
+	if strings.Contains(endpoint, "://") {
+		u, err := url.Parse(endpoint)
+		if err == nil && u.Host != "" {
+			return u.Host, u.Scheme == "https"
+		}
+	}
+	return endpoint, false
+}
+
+func waitForPostgres(dsn string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+
+	for time.Now().Before(deadline) {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		db, err := sql.Open("postgres", dsn)
+		if err == nil {
+			err = db.PingContext(ctx)
+			_ = db.Close()
+		}
+		cancel()
+
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	if lastErr == nil {
+		lastErr = errors.New("timeout waiting for postgres")
+	}
+	return lastErr
+}
+
+func ensureMinioBucket(infra *TestInfra, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+
+	for time.Now().Before(deadline) {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+
+		client, err := minioClient.New(infra.MinioEndpoint, &minioClient.Options{
+			Creds:  credentials.NewStaticV4(infra.MinioAccess, infra.MinioSecret, ""),
+			Secure: strings.ToLower(os.Getenv("MINIO_USE_SSL")) == "true",
+		})
+		if err == nil {
+			exists, existsErr := client.BucketExists(ctx, infra.MinioBucket)
+			if existsErr == nil && exists {
+				cancel()
+				return nil
+			}
+			if existsErr == nil && !exists {
+				err = client.MakeBucket(ctx, infra.MinioBucket, minioClient.MakeBucketOptions{})
+				if err == nil {
+					cancel()
+					return nil
+				}
+				errResp := minioClient.ToErrorResponse(err)
+				if errResp.Code == "BucketAlreadyOwnedByYou" || errResp.Code == "BucketAlreadyExists" {
+					cancel()
+					return nil
+				}
+			} else if existsErr != nil {
+				err = existsErr
+			}
+		}
+
+		cancel()
+
+		if err == nil {
+			// Shouldn't happen, but avoid infinite loop.
+			return nil
+		}
+		lastErr = err
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	if lastErr == nil {
+		lastErr = errors.New("timeout waiting for minio")
+	}
+	return lastErr
 }
 
 // startPostgresContainer starts a PostgreSQL testcontainer.
@@ -234,25 +349,4 @@ func startMinioContainer(t *testing.T) (endpoint, user, password string, err err
 	}
 
 	return ep, container.Username, container.Password, nil
-}
-
-// createMinioBucket creates the test bucket in MinIO (best-effort).
-// Uses the minio-go client already in the project's dependency tree.
-func createMinioBucket(infra *TestInfra) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	client, err := minioClient.New(infra.MinioEndpoint, &minioClient.Options{
-		Creds:  credentials.NewStaticV4(infra.MinioAccess, infra.MinioSecret, ""),
-		Secure: false,
-	})
-	if err != nil {
-		return // best-effort
-	}
-
-	exists, err := client.BucketExists(ctx, infra.MinioBucket)
-	if err != nil || exists {
-		return
-	}
-	_ = client.MakeBucket(ctx, infra.MinioBucket, minioClient.MakeBucketOptions{})
 }
