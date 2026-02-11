@@ -119,6 +119,9 @@ default:
   before_script:
     - node --version
     - npm --version
+    # Work around occasional npm v10.9.4 failures in k8s CI ("Exit handler never called!").
+    - npm i -g npm@10.9.3
+    - npm --version
     - npm config set cache "${CI_PROJECT_DIR}/ui/.npm" --global
 
 # =============================================================================
