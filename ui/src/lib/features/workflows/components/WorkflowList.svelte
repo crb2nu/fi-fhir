@@ -32,6 +32,7 @@
 
   const dispatch = createEventDispatcher<{
     openBuilder: OpenBuilderPayload;
+    openMonitor: { workflowName: string };
   }>();
 
   let workflows: WorkflowItem[] = [];
@@ -230,6 +231,10 @@
     });
   }
 
+  function emitOpenMonitor(workflowName: string) {
+    dispatch('openMonitor', { workflowName });
+  }
+
   async function runWorkflow(workflowId: string, workflowName: string) {
     if (runningWorkflowName) return;
 
@@ -397,6 +402,9 @@
           <div class="workflow-actions">
             <Button variant="secondary" size="sm" on:click={() => emitOpenBuilder(wf)}>
               Open in Builder
+            </Button>
+            <Button variant="secondary" size="sm" on:click={() => emitOpenMonitor(wf.name)}>
+              View Runs
             </Button>
             <Button variant="secondary" size="sm" on:click={() => toggleWorkflowPanel(wf)}>
               {isPanelOpen ? 'Hide' : 'Manage'}

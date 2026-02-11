@@ -21,6 +21,7 @@
         versionNumber: number | null;
       }
     | null = null;
+  let monitorWorkflowSelection: string | null = null;
 
   function handleOpenBuilder(
     event: CustomEvent<{
@@ -33,6 +34,11 @@
   ) {
     builderSelection = event.detail;
     activeTab = 'builder';
+  }
+
+  function handleOpenMonitor(event: CustomEvent<{ workflowName: string }>) {
+    monitorWorkflowSelection = event.detail.workflowName;
+    activeTab = 'monitor';
   }
 </script>
 
@@ -47,11 +53,11 @@
 </div>
 
 {#if activeTab === 'list'}
-  <WorkflowList on:openBuilder={handleOpenBuilder} />
+  <WorkflowList on:openBuilder={handleOpenBuilder} on:openMonitor={handleOpenMonitor} />
 {:else if activeTab === 'builder'}
   <WorkflowBuilder managedSelection={builderSelection} />
 {:else if activeTab === 'monitor'}
-  <WorkflowMonitor />
+  <WorkflowMonitor initialWorkflowName={monitorWorkflowSelection} />
 {/if}
 
 <style>

@@ -71,6 +71,38 @@ query GetWorkflowVersionById($id: ID!) {
   }
 }
 
+query ListWorkflowRuns($filter: WorkflowRunFilter, $paging: PagingInput) {
+  workflowRuns(filter: $filter, paging: $paging) {
+    id
+    workflowName
+    environment
+    versionId
+    eventId
+    routesMatched
+    actionsExecuted
+    errors
+    durationMs
+    startedAt
+    status
+  }
+}
+
+query GetWorkflowRun($id: ID!) {
+  workflowRun(id: $id) {
+    id
+    workflowName
+    environment
+    versionId
+    eventId
+    routesMatched
+    actionsExecuted
+    errors
+    durationMs
+    startedAt
+    status
+  }
+}
+
 query GetWorkflow($name: String!) {
   workflow(name: $name) {
     name

@@ -4,6 +4,8 @@ import {
   ListWorkflowDefinitionsDocument,
   GetWorkflowVersionsDocument,
   GetWorkflowVersionByIdDocument,
+  ListWorkflowRunsDocument,
+  GetWorkflowRunDocument,
   GetWorkflowDocument,
   CreateWorkflowDefinitionDocument,
   SaveWorkflowVersionDocument,
@@ -21,6 +23,10 @@ import {
   type GetWorkflowVersionsQueryVariables,
   type GetWorkflowVersionByIdQuery,
   type GetWorkflowVersionByIdQueryVariables,
+  type ListWorkflowRunsQuery,
+  type ListWorkflowRunsQueryVariables,
+  type GetWorkflowRunQuery,
+  type GetWorkflowRunQueryVariables,
   type GetWorkflowQuery,
   type GetWorkflowQueryVariables,
   type CreateWorkflowDefinitionMutation,
@@ -75,6 +81,25 @@ export function fetchWorkflowVersionById(id: string): Promise<GetWorkflowVersion
     GetWorkflowVersionByIdDocument,
     { id }
   );
+}
+
+export function fetchWorkflowRuns(options?: {
+  filter?: ListWorkflowRunsQueryVariables['filter'];
+  paging?: ListWorkflowRunsQueryVariables['paging'];
+}): Promise<ListWorkflowRunsQuery> {
+  return graphqlFetch<ListWorkflowRunsQuery, ListWorkflowRunsQueryVariables>(
+    ListWorkflowRunsDocument,
+    {
+      filter: options?.filter ?? null,
+      paging: options?.paging ?? null
+    }
+  );
+}
+
+export function fetchWorkflowRun(id: string): Promise<GetWorkflowRunQuery> {
+  return graphqlFetch<GetWorkflowRunQuery, GetWorkflowRunQueryVariables>(GetWorkflowRunDocument, {
+    id
+  });
 }
 
 export function fetchWorkflow(name: string): Promise<GetWorkflowQuery> {
