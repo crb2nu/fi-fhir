@@ -31,7 +31,7 @@ FROM ${NGINX_IMAGE}
 
 # Default backend origin for reverse-proxying API routes from the UI container.
 # Override at runtime to match your deployment.
-ENV FI_FHIR_UI_API_ORIGIN=http://fi-fhir
+ENV FI_FHIR_UI_API_ORIGIN=http://fi-fhir-api:8081
 
 # Copy built assets
 COPY --from=builder /app/build /usr/share/nginx/html
