@@ -58,10 +58,28 @@
   let rejectingId: string | null = null;
   let rejectReason = '';
   let bulkMinConfidence = 0.95;
+  let bulkApprovingSelected = false;
+  let selectAllPendingEl: HTMLInputElement | null = null;
   let processingIds = new SvelteSet<string>();
+  let selectedIds = new SvelteSet<string>();
+
+  let visiblePendingIds: string[] = [];
+  let selectedVisiblePendingIds: string[] = [];
+  let allVisiblePendingSelected = false;
+  let someVisiblePendingSelected = false;
 
   // Expanded rows for showing alternates/trace
   let expandedIds = new SvelteSet<string>();
+
+  $: visiblePendingIds = pending.filter((item) => item.status === 'PENDING').map((item) => item.id);
+  $: selectedVisiblePendingIds = visiblePendingIds.filter((id) => selectedIds.has(id));
+  $: allVisiblePendingSelected =
+    visiblePendingIds.length > 0 && selectedVisiblePendingIds.length === visiblePendingIds.length;
+  $: someVisiblePendingSelected =
+    selectedVisiblePendingIds.length > 0 && !allVisiblePendingSelected;
+  $: if (selectAllPendingEl) {
+    selectAllPendingEl.indeterminate = someVisiblePendingSelected;
+  }
 
   onMount(() => {
     loadPending();
@@ -83,6 +101,7 @@
       });
       pending = result.nodes;
       totalCount = result.totalCount;
+      syncSelectedWithVisiblePending();
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to load pending autoroutes';
       toasts.error(error);
@@ -132,6 +151,39 @@
       expandedIds.delete(id);
     } else {
       expandedIds.add(id);
+    }
+  }
+
+  function toggleSelected(id: string) {
+    if (selectedIds.has(id)) {
+      selectedIds.delete(id);
+    } else {
+      selectedIds.add(id);
+    }
+  }
+
+  function toggleSelectAllVisiblePending(event: Event) {
+    const checked = (event.currentTarget as HTMLInputElement | null)?.checked ?? false;
+    for (const id of visiblePendingIds) {
+      if (checked) selectedIds.add(id);
+      else selectedIds.delete(id);
+    }
+  }
+
+  function clearSelected() {
+    for (const id of selectedVisiblePendingIds) {
+      selectedIds.delete(id);
+    }
+  }
+
+  function syncSelectedWithVisiblePending() {
+    const visiblePendingSet = new Set(
+      pending.filter((item) => item.status === 'PENDING').map((item) => item.id)
+    );
+    for (const id of selectedIds) {
+      if (!visiblePendingSet.has(id)) {
+        selectedIds.delete(id);
+      }
     }
   }
 
@@ -202,6 +254,50 @@
       toasts.error(err instanceof Error ? err.message : 'Bulk approval failed');
     } finally {
       showBulkApproveModal = false;
+    }
+  }
+
+  async function handleApproveSelected() {
+    const ids = [...selectedVisiblePendingIds];
+    if (ids.length === 0) return;
+
+    bulkApprovingSelected = true;
+    let approved = 0;
+    let failed = 0;
+
+    for (const id of ids) {
+      processingIds.add(id);
+    }
+
+    try {
+      for (const id of ids) {
+        try {
+          await approvePendingAutoroute({
+            id,
+            equivalence: null,
+            comment: null
+          });
+          approved += 1;
+          selectedIds.delete(id);
+        } catch {
+          failed += 1;
+        } finally {
+          processingIds.delete(id);
+        }
+      }
+
+      if (approved > 0) {
+        toasts.success(`Approved ${approved} selected suggestion${approved === 1 ? '' : 's'}`);
+        dispatch('refresh');
+      }
+      if (failed > 0) {
+        toasts.error(`Failed to approve ${failed} selected suggestion${failed === 1 ? '' : 's'}`);
+      }
+
+      await loadPending();
+      await loadStats();
+    } finally {
+      bulkApprovingSelected = false;
     }
   }
 
@@ -372,12 +468,61 @@
       </div>
     </div>
   {:else}
+    {#if visiblePendingIds.length > 0}
+      <div class="bulk-toolbar" role="toolbar" aria-label="Bulk review actions">
+        <div class="bulk-toolbar-left">
+          <label class="bulk-select">
+            <input
+              bind:this={selectAllPendingEl}
+              type="checkbox"
+              checked={allVisiblePendingSelected}
+              on:change={toggleSelectAllVisiblePending}
+              disabled={bulkApprovingSelected}
+            />
+            <span>Select page</span>
+          </label>
+          <span class="bulk-count">
+            {selectedVisiblePendingIds.length} selected
+          </span>
+        </div>
+        <div class="bulk-toolbar-actions">
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={selectedVisiblePendingIds.length === 0 || bulkApprovingSelected}
+            on:click={clearSelected}
+          >
+            Clear Selected
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={selectedVisiblePendingIds.length === 0 || bulkApprovingSelected}
+            on:click={handleApproveSelected}
+          >
+            {bulkApprovingSelected ? 'Approving...' : 'Approve Selected'}
+          </Button>
+        </div>
+      </div>
+    {/if}
+
     <div class="cards">
       {#each pending as item (item.id)}
         {@const isExpanded = expandedIds.has(item.id)}
         {@const isProcessing = processingIds.has(item.id)}
         <div class="card" class:expanded={isExpanded}>
           <div class="card-header">
+            {#if item.status === 'PENDING'}
+              <label class="card-select">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(item.id)}
+                  on:change={() => toggleSelected(item.id)}
+                  disabled={isProcessing || bulkApprovingSelected}
+                />
+                <span class="sr-only">Select suggestion {item.sourceCode} to {item.suggestedCode}</span>
+              </label>
+            {/if}
             <div class="card-source">
               <span class="system-label">{truncateSystem(item.sourceSystem)}</span>
               <span class="code-value">{item.sourceCode}</span>
@@ -474,7 +619,7 @@
               <Button
                 variant="secondary"
                 size="sm"
-                disabled={isProcessing}
+                disabled={isProcessing || bulkApprovingSelected}
                 on:click={() => confirmReject(item.id)}
               >
                 Reject
@@ -482,7 +627,7 @@
               <Button
                 variant="primary"
                 size="sm"
-                disabled={isProcessing}
+                disabled={isProcessing || bulkApprovingSelected}
                 on:click={() => handleApprove(item)}
               >
                 {isProcessing ? 'Processing...' : 'Approve'}
@@ -673,6 +818,53 @@
     gap: var(--space-3);
   }
 
+  .bulk-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-elevated);
+  }
+
+  .bulk-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+
+  .bulk-toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .bulk-select {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+  }
+
+  .bulk-select input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--color-primary);
+  }
+
+  .bulk-count {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+  }
+
   .card {
     padding: var(--space-4);
     border-radius: var(--radius-lg);
@@ -696,6 +888,19 @@
     display: flex;
     align-items: center;
     gap: var(--space-4);
+  }
+
+  .card-select {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: var(--space-1);
+  }
+
+  .card-select input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--color-primary);
   }
 
   .card-source,
