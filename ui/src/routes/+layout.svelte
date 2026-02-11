@@ -1,7 +1,9 @@
 <script lang="ts">
+  import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
+  import CommandPalette, { type PaletteCommand } from '$lib/ui/CommandPalette.svelte';
   import ToastContainer from '$lib/ui/ToastContainer.svelte';
   import ThemeToggle from '$lib/theme/ThemeToggle.svelte';
   import { initTheme } from '$lib/theme/theme';
@@ -18,17 +20,51 @@
     { href: '/workflows', label: 'Workflows' }
   ] as const;
 
+  let paletteOpen = false;
+
   function isActive(href: string, pathname: string): boolean {
     if (href === '/') return pathname === '/';
     return pathname === href || pathname.startsWith(href + '/');
   }
 
+  function isEditableTarget(target: EventTarget | null): boolean {
+    const el = target as HTMLElement | null;
+    if (!el) return false;
+    const tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+  }
+
+  const paletteCommands: PaletteCommand[] = nav.map((item) => ({
+    id: `nav:${item.href}`,
+    label: `Go to ${item.label}`,
+    hint: resolve(item.href),
+    keywords: ['navigate', 'route', item.label.toLowerCase()],
+    run: () => goto(resolve(item.href))
+  }));
+
   onMount(() => {
     initTheme();
+
+    const onKeydown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      if (paletteOpen) return;
+      if (isEditableTarget(e.target)) return;
+      // HL7 page has a richer page-specific command palette.
+      if ($page.url.pathname.startsWith('/hl7')) return;
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        paletteOpen = true;
+      }
+    };
+
+    window.addEventListener('keydown', onKeydown);
+    return () => window.removeEventListener('keydown', onKeydown);
   });
 </script>
 
 <ToastContainer />
+<CommandPalette bind:open={paletteOpen} title="Navigate" commands={paletteCommands} />
 
 <div class="app">
   <header class="header">
