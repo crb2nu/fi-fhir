@@ -5,7 +5,7 @@
 #   bash scripts/docs-status.sh                  # Output structured data
 #   bash scripts/docs-status.sh --check-stale    # Also flag STATUS.md drift
 #
-# Requires: coverage.out in project root (run `make test-cover` first)
+# Requires: coverage.out in project root (run `make test-cover-all` or `make test-cover` first)
 
 set -euo pipefail
 
@@ -23,8 +23,8 @@ fi
 COMPONENTS=(
     "HL7v2 Parser|internal/parser/hl7v2|internal/parser/hl7v2"
     "CSV Parser|internal/parser/csv|internal/parser/csv"
-    "EDI X12 Parser|internal/parser/edi|internal/parser/edi"
     "EDI Companion Guides|internal/parser/edi/companion|internal/parser/edi/companion"
+    "EDI X12 Parser|internal/parser/edi|internal/parser/edi"
     "CDA/CCDA Parser|internal/parser/cda|internal/parser/cda"
     "FHIR Parser|internal/parser/fhir|internal/parser/fhir"
     "Events|pkg/events|pkg/events"
@@ -35,18 +35,18 @@ COMPONENTS=(
     "FHIR Mapper|pkg/fhir|pkg/fhir"
     "ETL Pipeline|pkg/etl|pkg/etl"
     "Storage|pkg/storage|pkg/storage"
-    "Terminology (core)|pkg/terminology|pkg/terminology"
     "Terminology DB|pkg/terminology/db|pkg/terminology/db"
     "Terminology Upload|pkg/terminology/upload|pkg/terminology/upload"
     "Terminology Suggest|pkg/terminology/suggest|pkg/terminology/suggest"
     "Terminology Semantic|pkg/terminology/semantic|pkg/terminology/semantic"
     "Terminology Index|pkg/terminology/index|pkg/terminology/index"
+    "Terminology (core)|pkg/terminology|pkg/terminology"
     "Patient Matching|pkg/matching|pkg/matching"
     "LLM Client|pkg/llm|pkg/llm"
     "LLM Copilot|pkg/llm/copilot|pkg/llm/copilot"
     "Workflow Engine|internal/workflow|internal/workflow"
     "GraphQL API|internal/api/graphql|internal/api/graphql"
-    "FHIR Subscriptions|internal/fhir/subscription|internal/fhir"
+    "FHIR Subscriptions|internal/fhir/subscription|internal/fhir/subscription"
     "Terminology Autoroute|internal/terminology/autoroute|internal/terminology/autoroute"
     "Terminology Workflow|internal/terminology/workflow|internal/terminology/workflow"
     "LLM Explain|internal/llm/explain|internal/llm/explain"
@@ -57,7 +57,7 @@ COMPONENTS=(
 
 # ─── Check coverage file ─────────────────────────────────────────────────────
 if [[ ! -f "${COVERAGE_FILE}" ]]; then
-    echo "ERROR: ${COVERAGE_FILE} not found. Run 'make test-cover' first." >&2
+    echo "ERROR: ${COVERAGE_FILE} not found. Run 'make test-cover-all' (preferred) or 'make test-cover' first." >&2
     exit 1
 fi
 

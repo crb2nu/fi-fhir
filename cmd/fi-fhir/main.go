@@ -1807,11 +1807,12 @@ func validateMessage(profilePath, messagePath, format string, verbose bool) []st
 			return errors
 		}
 
-		// Report warnings as potential issues
+		// Report warnings as validation issues.
+		// HL7v2 parsing is intentionally tolerant; this command is for surfacing
+		// anomalies that should be reviewed, even if parsing can proceed.
 		for _, w := range result.Warnings {
-			if w.Severity == "error" {
-				errors = append(errors, fmt.Sprintf("[%s] %s: %s (at %s)", w.Phase, w.Code, w.Message, w.Path))
-			} else if verbose {
+			errors = append(errors, fmt.Sprintf("[%s] %s: %s (at %s)", w.Phase, w.Code, w.Message, w.Path))
+			if verbose {
 				fmt.Printf("  Warning: [%s] %s: %s (at %s)\n", w.Phase, w.Code, w.Message, w.Path)
 			}
 		}
@@ -4210,9 +4211,16 @@ func runSubscriptionServe(args []string) error {
 	// Setup signal handling
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigChan)
+	shutdownCh := make(chan struct{})
+	defer close(shutdownCh)
 
 	go func() {
-		<-sigChan
+		select {
+		case <-sigChan:
+		case <-shutdownCh:
+			return
+		}
 		fmt.Println("\nShutting down...")
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -4816,6 +4824,7 @@ func runServe(args []string) error {
 	// Set up signal handling for graceful shutdown
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
 
 	// Start server in goroutine
 	errCh := make(chan error, 1)

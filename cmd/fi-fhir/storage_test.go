@@ -129,6 +129,21 @@ func TestStorage_Test_MissingCredentials(t *testing.T) {
 	assertErrorContains(t, err, "MINIO_ACCESS_KEY")
 }
 
+func TestStorage_Test_SucceedsWithoutBucketCheck(t *testing.T) {
+	// Provide credentials but no default bucket, so the command does not attempt
+	// a networked BucketExists check and remains an offline test.
+	t.Setenv("MINIO_ENDPOINT", "localhost:9000")
+	t.Setenv("MINIO_USE_SSL", "false")
+	t.Setenv("MINIO_ACCESS_KEY", "testaccess")
+	t.Setenv("MINIO_SECRET_KEY", "testsecret")
+	t.Setenv("MINIO_BUCKET", "")
+
+	stdout, _, err := runCLI(t, "storage", "test")
+	assertNoError(t, err)
+	assertContains(t, stdout, "Testing MinIO connection")
+	assertContains(t, stdout, "Connected successfully")
+}
+
 // =============================================================================
 // Pure Function Tests
 // =============================================================================

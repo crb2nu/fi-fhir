@@ -36,7 +36,7 @@ test-cover-unit:
 
 test-cover-integration:
 	@rm -rf coverage/integration && mkdir -p coverage/integration
-	go test -tags=integration ./cmd/fi-fhir/... -cover -timeout=120s \
+	go test -tags=integration ./cmd/fi-fhir/... ./pkg/terminology/db/... ./pkg/eventsourcing/... -cover -timeout=300s \
 		-args -test.gocoverdir=$(CURDIR)/coverage/integration
 	@go tool covdata percent -i=coverage/integration
 
@@ -432,7 +432,9 @@ docs-mermaid:
 	@echo "✓ Done"
 
 # Generate status data from coverage + git (re-runs tests for fresh coverage)
-docs-status: test-cover
+# Uses merged unit + integration coverage (see test-cover-all) so components
+# like Terminology DB reflect testcontainers-backed integration tests in CI.
+docs-status: test-cover-all
 	@echo "Generating component status data..."
 	bash scripts/docs-status.sh
 	@echo ""

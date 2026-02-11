@@ -273,6 +273,93 @@ func TestLoadICD10CM_DryRun_NonexistentFile(t *testing.T) {
 	assertErrorContains(t, err, "invalid ICD-10-CM input")
 }
 
+func TestLoadICD10CM_DryRun_Success(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "icd10cm.csv")
+	if err := os.WriteFile(path, []byte("code,desc\nE11.9,Type 2 diabetes mellitus without complications\n"), 0o600); err != nil {
+		t.Fatalf("write icd10cm: %v", err)
+	}
+
+	stdout, _ := captureOutput(t, func() {
+		err := loadICD10CM(context.Background(), nil, nil, path, "FY2024", nil, true)
+		assertNoError(t, err)
+	})
+	assertContains(t, stdout, "DRY RUN")
+	assertContains(t, stdout, "ICD-10-CM")
+}
+
+// =============================================================================
+// loadUMLS/loadRxNorm dry-run — validate directory + success/error paths
+// =============================================================================
+
+func TestLoadUMLS_DryRun_InvalidDir(t *testing.T) {
+	dir := t.TempDir()
+	// Missing required MRSTY.RRF
+	_ = os.WriteFile(filepath.Join(dir, "MRCONSO.RRF"), []byte(""), 0o600)
+	_ = os.WriteFile(filepath.Join(dir, "MRREL.RRF"), []byte(""), 0o600)
+
+	err := loadUMLS(context.Background(), nil, nil, dir, "2024AB", nil, true)
+	assertError(t, err)
+	assertErrorContains(t, err, "invalid UMLS META directory")
+	assertErrorContains(t, err, "required file not found")
+}
+
+func TestLoadUMLS_DryRun_Success(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "MRCONSO.RRF"), []byte(""), 0o600)
+	_ = os.WriteFile(filepath.Join(dir, "MRREL.RRF"), []byte(""), 0o600)
+	_ = os.WriteFile(filepath.Join(dir, "MRSTY.RRF"), []byte(""), 0o600)
+
+	stdout, _ := captureOutput(t, func() {
+		err := loadUMLS(context.Background(), nil, nil, dir, "2024AB", nil, true)
+		assertNoError(t, err)
+	})
+	assertContains(t, stdout, "DRY RUN")
+	assertContains(t, stdout, "UMLS")
+}
+
+func TestLoadRxNorm_DryRun_InvalidDir(t *testing.T) {
+	dir := t.TempDir()
+	err := loadRxNorm(context.Background(), nil, nil, dir, "2024-01", nil, true)
+	assertError(t, err)
+	assertErrorContains(t, err, "invalid RxNorm directory")
+	assertErrorContains(t, err, "required file not found")
+}
+
+func TestLoadRxNorm_DryRun_Success(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "RXNCONSO.RRF"), []byte(""), 0o600)
+
+	stdout, _ := captureOutput(t, func() {
+		err := loadRxNorm(context.Background(), nil, nil, dir, "2024-01", nil, true)
+		assertNoError(t, err)
+	})
+	assertContains(t, stdout, "DRY RUN")
+	assertContains(t, stdout, "RxNorm")
+}
+
+// =============================================================================
+// loadLOINC dry-run — panel hierarchy present branch
+// =============================================================================
+
+func TestLoadLOINC_DryRun_WithPanelHierarchy(t *testing.T) {
+	dir := t.TempDir()
+	loincPath := filepath.Join(dir, "LoincTable.csv")
+	panelPath := filepath.Join(dir, "PanelHierarchy.csv")
+	if err := os.WriteFile(loincPath, []byte("LOINC_NUM,COMPONENT\n1234-5,Example\n"), 0o600); err != nil {
+		t.Fatalf("write loinc table: %v", err)
+	}
+	if err := os.WriteFile(panelPath, []byte("PARENT_LOINC,CHILD_LOINC\n1234-5,5678-9\n"), 0o600); err != nil {
+		t.Fatalf("write panel hierarchy: %v", err)
+	}
+
+	stdout, _ := captureOutput(t, func() {
+		err := loadLOINC(context.Background(), nil, nil, loincPath, "2.77", nil, true)
+		assertNoError(t, err)
+	})
+	assertContains(t, stdout, "PanelHierarchy.csv")
+}
+
 // =============================================================================
 // getTerminologyDBURL — FI_FHIR_TERMINOLOGY_DB_URL path
 // =============================================================================

@@ -119,6 +119,9 @@ default:
   before_script:
     - node --version
     - npm --version
+    # Work around occasional npm v10.9.4 failures in k8s CI ("Exit handler never called!").
+    - npm i -g npm@10.9.3
+    - npm --version
     - npm config set cache "${CI_PROJECT_DIR}/ui/.npm" --global
 
 # =============================================================================
@@ -440,7 +443,7 @@ test:integration:
   script:
     - apt-get update && apt-get install -y --no-install-recommends git ca-certificates build-essential && rm -rf /var/lib/apt/lists/*
     - mkdir -p coverage/integration
-    - go test -tags=integration -cover -timeout=120s ./cmd/fi-fhir/...
+    - go test -tags=integration -cover -timeout=300s ./cmd/fi-fhir/...
         -args -test.gocoverdir=$PWD/coverage/integration
     - go tool covdata percent -i=coverage/integration
   artifacts:
