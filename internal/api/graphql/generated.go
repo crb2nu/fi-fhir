@@ -43,7 +43,6 @@ type ResolverRoot interface {
 	Mutation() MutationResolver
 	Query() QueryResolver
 	Subscription() SubscriptionResolver
-	WorkflowResult() WorkflowResultResolver
 }
 
 type DirectiveRoot struct {
@@ -1083,11 +1082,6 @@ type SubscriptionResolver interface {
 	EventStream(ctx context.Context, filter *model.EventFilter) (<-chan model.Event, error)
 	WorkflowEvents(ctx context.Context, workflowName string) (<-chan *model.WorkflowEventNotification, error)
 	PatientEvents(ctx context.Context, mrn string) (<-chan model.Event, error)
-}
-type WorkflowResultResolver interface {
-	RunID(ctx context.Context, obj *model.WorkflowResult) (*string, error)
-	Environment(ctx context.Context, obj *model.WorkflowResult) (*string, error)
-	VersionID(ctx context.Context, obj *model.WorkflowResult) (*string, error)
 }
 
 type executableSchema struct {
@@ -27862,7 +27856,7 @@ func (ec *executionContext) _WorkflowResult_runId(ctx context.Context, field gra
 		field,
 		ec.fieldContext_WorkflowResult_runId,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.WorkflowResult().RunID(ctx, obj)
+			return obj.RunID, nil
 		},
 		nil,
 		ec.marshalOID2ᚖstring,
@@ -27875,8 +27869,8 @@ func (ec *executionContext) fieldContext_WorkflowResult_runId(_ context.Context,
 	fc = &graphql.FieldContext{
 		Object:     "WorkflowResult",
 		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
+		IsMethod:   false,
+		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type ID does not have child fields")
 		},
@@ -27891,7 +27885,7 @@ func (ec *executionContext) _WorkflowResult_environment(ctx context.Context, fie
 		field,
 		ec.fieldContext_WorkflowResult_environment,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.WorkflowResult().Environment(ctx, obj)
+			return obj.Environment, nil
 		},
 		nil,
 		ec.marshalOString2ᚖstring,
@@ -27904,8 +27898,8 @@ func (ec *executionContext) fieldContext_WorkflowResult_environment(_ context.Co
 	fc = &graphql.FieldContext{
 		Object:     "WorkflowResult",
 		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
+		IsMethod:   false,
+		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
 		},
@@ -27920,7 +27914,7 @@ func (ec *executionContext) _WorkflowResult_versionId(ctx context.Context, field
 		field,
 		ec.fieldContext_WorkflowResult_versionId,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.WorkflowResult().VersionID(ctx, obj)
+			return obj.VersionID, nil
 		},
 		nil,
 		ec.marshalOID2ᚖstring,
@@ -27933,8 +27927,8 @@ func (ec *executionContext) fieldContext_WorkflowResult_versionId(_ context.Cont
 	fc = &graphql.FieldContext{
 		Object:     "WorkflowResult",
 		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
+		IsMethod:   false,
+		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type ID does not have child fields")
 		},
@@ -39566,127 +39560,34 @@ func (ec *executionContext) _WorkflowResult(ctx context.Context, sel ast.Selecti
 		case "workflowName":
 			out.Values[i] = ec._WorkflowResult_workflowName(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
+				out.Invalids++
 			}
 		case "routesMatched":
 			out.Values[i] = ec._WorkflowResult_routesMatched(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
+				out.Invalids++
 			}
 		case "actionsExecuted":
 			out.Values[i] = ec._WorkflowResult_actionsExecuted(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
+				out.Invalids++
 			}
 		case "errors":
 			out.Values[i] = ec._WorkflowResult_errors(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
+				out.Invalids++
 			}
 		case "duration":
 			out.Values[i] = ec._WorkflowResult_duration(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
+				out.Invalids++
 			}
 		case "runId":
-			field := field
-
-			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._WorkflowResult_runId(ctx, field, obj)
-				return res
-			}
-
-			if field.Deferrable != nil {
-				dfs, ok := deferred[field.Deferrable.Label]
-				di := 0
-				if ok {
-					dfs.AddField(field)
-					di = len(dfs.Values) - 1
-				} else {
-					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
-					deferred[field.Deferrable.Label] = dfs
-				}
-				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
-					return innerFunc(ctx, dfs)
-				})
-
-				// don't run the out.Concurrently() call below
-				out.Values[i] = graphql.Null
-				continue
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			out.Values[i] = ec._WorkflowResult_runId(ctx, field, obj)
 		case "environment":
-			field := field
-
-			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._WorkflowResult_environment(ctx, field, obj)
-				return res
-			}
-
-			if field.Deferrable != nil {
-				dfs, ok := deferred[field.Deferrable.Label]
-				di := 0
-				if ok {
-					dfs.AddField(field)
-					di = len(dfs.Values) - 1
-				} else {
-					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
-					deferred[field.Deferrable.Label] = dfs
-				}
-				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
-					return innerFunc(ctx, dfs)
-				})
-
-				// don't run the out.Concurrently() call below
-				out.Values[i] = graphql.Null
-				continue
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			out.Values[i] = ec._WorkflowResult_environment(ctx, field, obj)
 		case "versionId":
-			field := field
-
-			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._WorkflowResult_versionId(ctx, field, obj)
-				return res
-			}
-
-			if field.Deferrable != nil {
-				dfs, ok := deferred[field.Deferrable.Label]
-				di := 0
-				if ok {
-					dfs.AddField(field)
-					di = len(dfs.Values) - 1
-				} else {
-					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
-					deferred[field.Deferrable.Label] = dfs
-				}
-				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
-					return innerFunc(ctx, dfs)
-				})
-
-				// don't run the out.Concurrently() call below
-				out.Values[i] = graphql.Null
-				continue
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			out.Values[i] = ec._WorkflowResult_versionId(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}

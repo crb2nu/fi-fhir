@@ -2948,21 +2948,6 @@ func (r *subscriptionResolver) PatientEvents(ctx context.Context, mrn string) (<
 	return r.Store.SubscribePatient(ctx, mrn)
 }
 
-// RunID is the resolver for the runId field.
-func (r *workflowResultResolver) RunID(ctx context.Context, obj *model.WorkflowResult) (*string, error) {
-	panic(fmt.Errorf("not implemented: RunID - runId"))
-}
-
-// Environment is the resolver for the environment field.
-func (r *workflowResultResolver) Environment(ctx context.Context, obj *model.WorkflowResult) (*string, error) {
-	panic(fmt.Errorf("not implemented: Environment - environment"))
-}
-
-// VersionID is the resolver for the versionId field.
-func (r *workflowResultResolver) VersionID(ctx context.Context, obj *model.WorkflowResult) (*string, error) {
-	panic(fmt.Errorf("not implemented: VersionID - versionId"))
-}
-
 // Mutation returns graphql1.MutationResolver implementation.
 func (r *Resolver) Mutation() graphql1.MutationResolver { return &mutationResolver{r} }
 
@@ -2972,12 +2957,28 @@ func (r *Resolver) Query() graphql1.QueryResolver { return &queryResolver{r} }
 // Subscription returns graphql1.SubscriptionResolver implementation.
 func (r *Resolver) Subscription() graphql1.SubscriptionResolver { return &subscriptionResolver{r} }
 
-// WorkflowResult returns graphql1.WorkflowResultResolver implementation.
-func (r *Resolver) WorkflowResult() graphql1.WorkflowResultResolver {
-	return &workflowResultResolver{r}
-}
-
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }
+
+// !!! WARNING !!!
+// The code below was going to be deleted when updating resolvers. It has been copied here so you have
+// one last chance to move it out of harms way if you want. There are two reasons this happens:
+//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
+//    it when you're done.
+//  - You have helper methods in this file. Move them out to keep these resolver files clean.
+/*
+	func (r *workflowResultResolver) RunID(ctx context.Context, obj *model.WorkflowResult) (*string, error) {
+	panic(fmt.Errorf("not implemented: RunID - runId"))
+}
+func (r *workflowResultResolver) Environment(ctx context.Context, obj *model.WorkflowResult) (*string, error) {
+	panic(fmt.Errorf("not implemented: Environment - environment"))
+}
+func (r *workflowResultResolver) VersionID(ctx context.Context, obj *model.WorkflowResult) (*string, error) {
+	panic(fmt.Errorf("not implemented: VersionID - versionId"))
+}
+func (r *Resolver) WorkflowResult() graphql1.WorkflowResultResolver {
+	return &workflowResultResolver{r}
+}
 type workflowResultResolver struct{ *Resolver }
+*/
