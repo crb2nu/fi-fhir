@@ -39,6 +39,18 @@ type TestPostgresContainer struct {
 func setupPostgresContainer(t *testing.T) *TestPostgresContainer {
 	t.Helper()
 
+	// testcontainers-go may panic when Docker is not configured (e.g. rootless Docker
+	// missing on a developer machine). In that case, treat it as "Docker not
+	// available" and skip the integration tests unless CI is explicitly running.
+	defer func() {
+		if r := recover(); r != nil {
+			if os.Getenv("CI") != "" {
+				t.Fatalf("Docker/testcontainers panic in CI: %v", r)
+			}
+			t.Skipf("Docker not available, skipping integration test: %v", r)
+		}
+	}()
+
 	// Check if manual DSN is provided
 	if dsn := os.Getenv("POSTGRES_TEST_URL"); dsn != "" {
 		db, err := sql.Open("postgres", dsn)
@@ -52,25 +64,8 @@ func setupPostgresContainer(t *testing.T) *TestPostgresContainer {
 		return &TestPostgresContainer{DB: db, DSN: dsn}
 	}
 
-	// Skip if Docker is not available
-	if os.Getenv("CI") == "" && os.Getenv("DOCKER_HOST") == "" {
-		// Check if Docker daemon is running
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		_, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-			Started: false,
-			ContainerRequest: testcontainers.ContainerRequest{
-				Image: "alpine:latest",
-			},
-		})
-		if err != nil {
-			t.Skip("Docker not available, skipping integration test")
-			return nil
-		}
-	}
-
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
 
 	// Create PostgreSQL container
 	container, err := postgres.Run(ctx,
@@ -85,7 +80,11 @@ func setupPostgresContainer(t *testing.T) *TestPostgresContainer {
 		),
 	)
 	if err != nil {
-		t.Fatalf("Failed to start PostgreSQL container: %v", err)
+		if os.Getenv("CI") != "" {
+			t.Fatalf("Failed to start PostgreSQL container in CI: %v", err)
+		}
+		t.Skipf("Failed to start PostgreSQL container (Docker not available?): %v", err)
+		return nil
 	}
 
 	// Get connection string

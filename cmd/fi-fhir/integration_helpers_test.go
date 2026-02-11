@@ -5,8 +5,11 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -36,6 +39,8 @@ var (
 	sharedInfraErr  error
 )
 
+var errDockerNotAvailable = errors.New("docker not available")
+
 // setupTestInfra provisions PostgreSQL and MinIO for integration tests.
 //
 // Strategy (follows pkg/eventsourcing/postgres_integration_test.go pattern):
@@ -56,10 +61,33 @@ func setupTestInfra(t *testing.T) *TestInfra {
 	})
 
 	if sharedInfraErr != nil {
+		if errors.Is(sharedInfraErr, errDockerNotAvailable) {
+			t.Skipf("setupTestInfra: %v", sharedInfraErr)
+		}
 		t.Fatalf("setupTestInfra: %v", sharedInfraErr)
 	}
 
 	return sharedInfra
+}
+
+// getDatabaseURL is a small compatibility shim used by older integration tests.
+// It ensures DB-backed integration tests consistently share the same infra
+// provisioning (and skip behavior when Docker is unavailable).
+func getDatabaseURL(t *testing.T) string {
+	t.Helper()
+	return setupTestInfra(t).DatabaseURL
+}
+
+// requireEnv ensures required environment variables are set or skips the test.
+// This intentionally does not load .env files; integration tests should
+// provision infra via setupTestInfra() or set env vars externally.
+func requireEnv(t *testing.T, keys ...string) {
+	t.Helper()
+	for _, k := range keys {
+		if os.Getenv(k) == "" {
+			t.Skipf("skipping: %s not set", k)
+		}
+	}
 }
 
 func provisionInfra(t *testing.T) (*TestInfra, error) {
@@ -81,7 +109,16 @@ func provisionInfra(t *testing.T) (*TestInfra, error) {
 	}
 
 	// --- MinIO ---
-	if ep := os.Getenv("MINIO_ENDPOINT"); ep != "" {
+	// Prefer FI_FHIR_MINIO_* overrides for integration (avoid picking up unrelated
+	// developer env vars like MINIO_ENDPOINT which may include a scheme).
+	if ep := os.Getenv("FI_FHIR_MINIO_ENDPOINT"); ep != "" {
+		infra.MinioEndpoint = ep
+		infra.MinioAccess = os.Getenv("FI_FHIR_MINIO_ACCESS_KEY")
+		infra.MinioSecret = os.Getenv("FI_FHIR_MINIO_SECRET_KEY")
+		if b := os.Getenv("FI_FHIR_MINIO_BUCKET"); b != "" {
+			infra.MinioBucket = b
+		}
+	} else if ep := os.Getenv("MINIO_ENDPOINT"); ep != "" {
 		infra.MinioEndpoint = ep
 		infra.MinioAccess = os.Getenv("MINIO_ACCESS_KEY")
 		infra.MinioSecret = os.Getenv("MINIO_SECRET_KEY")
@@ -101,46 +138,145 @@ func provisionInfra(t *testing.T) (*TestInfra, error) {
 	// Inject env vars so production code and existing helpers pick them up.
 	os.Setenv("FI_FHIR_DATABASE_URL", infra.DatabaseURL)
 	os.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", infra.DatabaseURL)
+	minioEndpoint, minioSecure := normalizeMinIOEndpoint(infra.MinioEndpoint)
+	infra.MinioEndpoint = minioEndpoint
 	os.Setenv("MINIO_ENDPOINT", infra.MinioEndpoint)
 	os.Setenv("MINIO_ACCESS_KEY", infra.MinioAccess)
 	os.Setenv("MINIO_SECRET_KEY", infra.MinioSecret)
 	os.Setenv("MINIO_BUCKET", infra.MinioBucket)
-	os.Setenv("MINIO_USE_SSL", "false")
+	if minioSecure {
+		os.Setenv("MINIO_USE_SSL", "true")
+	} else {
+		os.Setenv("MINIO_USE_SSL", "false")
+	}
 
 	// Also set the FI_FHIR_MINIO_* variants used by cli_integration_test.go helpers.
 	os.Setenv("FI_FHIR_MINIO_ENDPOINT", infra.MinioEndpoint)
 	os.Setenv("FI_FHIR_MINIO_ACCESS_KEY", infra.MinioAccess)
 	os.Setenv("FI_FHIR_MINIO_SECRET_KEY", infra.MinioSecret)
+	os.Setenv("FI_FHIR_MINIO_BUCKET", infra.MinioBucket)
+
+	// CI service containers can take a few seconds to become ready; wait here to
+	// reduce integration test flake.
+	if err := waitForPostgres(infra.DatabaseURL, 30*time.Second); err != nil {
+		return nil, fmt.Errorf("postgres not ready: %w", err)
+	}
+	if err := ensureMinioBucket(infra, 30*time.Second); err != nil {
+		return nil, fmt.Errorf("minio not ready: %w", err)
+	}
 
 	// Create the MinIO bucket used by tests (best-effort, may already exist in CI).
-	createMinioBucket(infra)
+	// (ensureMinioBucket already did this)
 
 	return infra, nil
 }
 
-// startPostgresContainer starts a PostgreSQL testcontainer.
-// Mirrors the pattern from pkg/eventsourcing/postgres_integration_test.go:56-121.
-func startPostgresContainer(t *testing.T) (string, error) {
-	t.Helper()
-
-	// Docker availability check (skip in CI where Docker is always available)
-	if os.Getenv("CI") == "" && os.Getenv("DOCKER_HOST") == "" {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		_, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-			Started: false,
-			ContainerRequest: testcontainers.ContainerRequest{
-				Image: "alpine:latest",
-			},
-		})
-		if err != nil {
-			t.Skip("Docker not available, skipping integration test")
-			return "", fmt.Errorf("docker not available")
-		}
+func normalizeMinIOEndpoint(endpoint string) (hostPort string, secure bool) {
+	endpoint = strings.TrimSpace(endpoint)
+	if endpoint == "" {
+		return "", false
 	}
 
-	ctx := context.Background()
+	// minio-go expects host:port (no scheme). Some environments use URL-ish env vars.
+	if strings.Contains(endpoint, "://") {
+		u, err := url.Parse(endpoint)
+		if err == nil && u.Host != "" {
+			return u.Host, u.Scheme == "https"
+		}
+	}
+	return endpoint, false
+}
+
+func waitForPostgres(dsn string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+
+	for time.Now().Before(deadline) {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		db, err := sql.Open("postgres", dsn)
+		if err == nil {
+			err = db.PingContext(ctx)
+			_ = db.Close()
+		}
+		cancel()
+
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	if lastErr == nil {
+		lastErr = errors.New("timeout waiting for postgres")
+	}
+	return lastErr
+}
+
+func ensureMinioBucket(infra *TestInfra, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+
+	for time.Now().Before(deadline) {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+
+		client, err := minioClient.New(infra.MinioEndpoint, &minioClient.Options{
+			Creds:  credentials.NewStaticV4(infra.MinioAccess, infra.MinioSecret, ""),
+			Secure: strings.ToLower(os.Getenv("MINIO_USE_SSL")) == "true",
+		})
+		if err == nil {
+			exists, existsErr := client.BucketExists(ctx, infra.MinioBucket)
+			if existsErr == nil && exists {
+				cancel()
+				return nil
+			}
+			if existsErr == nil && !exists {
+				err = client.MakeBucket(ctx, infra.MinioBucket, minioClient.MakeBucketOptions{})
+				if err == nil {
+					cancel()
+					return nil
+				}
+				errResp := minioClient.ToErrorResponse(err)
+				if errResp.Code == "BucketAlreadyOwnedByYou" || errResp.Code == "BucketAlreadyExists" {
+					cancel()
+					return nil
+				}
+			} else if existsErr != nil {
+				err = existsErr
+			}
+		}
+
+		cancel()
+
+		if err == nil {
+			// Shouldn't happen, but avoid infinite loop.
+			return nil
+		}
+		lastErr = err
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	if lastErr == nil {
+		lastErr = errors.New("timeout waiting for minio")
+	}
+	return lastErr
+}
+
+// startPostgresContainer starts a PostgreSQL testcontainer.
+// Mirrors the pattern from pkg/eventsourcing/postgres_integration_test.go:56-121.
+func startPostgresContainer(t *testing.T) (connStr string, err error) {
+	t.Helper()
+
+	// testcontainers-go may panic when Docker is not configured; convert to a
+	// regular error so callers can decide whether to skip or fail.
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%w: %v", errDockerNotAvailable, r)
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
 
 	container, err := postgres.Run(ctx,
 		"postgres:16-alpine",
@@ -154,10 +290,13 @@ func startPostgresContainer(t *testing.T) (string, error) {
 		),
 	)
 	if err != nil {
-		return "", fmt.Errorf("start postgres: %w", err)
+		if os.Getenv("CI") != "" {
+			return "", fmt.Errorf("start postgres in CI: %w", err)
+		}
+		return "", fmt.Errorf("%w: start postgres: %w", errDockerNotAvailable, err)
 	}
 
-	connStr, err := container.ConnectionString(ctx, "sslmode=disable")
+	connStr, err = container.ConnectionString(ctx, "sslmode=disable")
 	if err != nil {
 		container.Terminate(ctx)
 		return "", fmt.Errorf("connection string: %w", err)
@@ -186,11 +325,21 @@ func startPostgresContainer(t *testing.T) (string, error) {
 func startMinioContainer(t *testing.T) (endpoint, user, password string, err error) {
 	t.Helper()
 
-	ctx := context.Background()
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%w: %v", errDockerNotAvailable, r)
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
 
 	container, err := minio.Run(ctx, "minio/minio:latest")
 	if err != nil {
-		return "", "", "", fmt.Errorf("start minio: %w", err)
+		if os.Getenv("CI") != "" {
+			return "", "", "", fmt.Errorf("start minio in CI: %w", err)
+		}
+		return "", "", "", fmt.Errorf("%w: start minio: %w", errDockerNotAvailable, err)
 	}
 
 	ep, err := container.ConnectionString(ctx)
@@ -200,25 +349,4 @@ func startMinioContainer(t *testing.T) (endpoint, user, password string, err err
 	}
 
 	return ep, container.Username, container.Password, nil
-}
-
-// createMinioBucket creates the test bucket in MinIO (best-effort).
-// Uses the minio-go client already in the project's dependency tree.
-func createMinioBucket(infra *TestInfra) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	client, err := minioClient.New(infra.MinioEndpoint, &minioClient.Options{
-		Creds:  credentials.NewStaticV4(infra.MinioAccess, infra.MinioSecret, ""),
-		Secure: false,
-	})
-	if err != nil {
-		return // best-effort
-	}
-
-	exists, err := client.BucketExists(ctx, infra.MinioBucket)
-	if err != nil || exists {
-		return
-	}
-	_ = client.MakeBucket(ctx, infra.MinioBucket, minioClient.MakeBucketOptions{})
 }
