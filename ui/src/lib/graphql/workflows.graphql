@@ -103,6 +103,23 @@ query GetWorkflowRun($id: ID!) {
   }
 }
 
+query ListWorkflowApprovalRequests(
+  $filter: WorkflowApprovalRequestFilter
+  $paging: PagingInput
+) {
+  workflowApprovalRequests(filter: $filter, paging: $paging) {
+    id
+    workflowId
+    targetVersionId
+    environment
+    status
+    requestedBy
+    reviewedBy
+    reviewedAt
+    comment
+  }
+}
+
 query GetWorkflow($name: String!) {
   workflow(name: $name) {
     name
@@ -184,6 +201,34 @@ mutation RollbackWorkflowVersion($input: RollbackWorkflowVersionInput!) {
 
 mutation RequestWorkflowApproval($input: RequestWorkflowApprovalInput!) {
   requestWorkflowApproval(input: $input) {
+    id
+    workflowId
+    targetVersionId
+    environment
+    status
+    requestedBy
+    reviewedBy
+    reviewedAt
+    comment
+  }
+}
+
+mutation ApproveWorkflowVersion($input: ApproveWorkflowVersionInput!) {
+  approveWorkflowVersion(input: $input) {
+    id
+    workflowId
+    targetVersionId
+    environment
+    status
+    requestedBy
+    reviewedBy
+    reviewedAt
+    comment
+  }
+}
+
+mutation RejectWorkflowVersion($input: RejectWorkflowVersionInput!) {
+  rejectWorkflowVersion(input: $input) {
     id
     workflowId
     targetVersionId

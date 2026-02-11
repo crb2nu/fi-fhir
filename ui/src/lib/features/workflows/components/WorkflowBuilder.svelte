@@ -415,6 +415,13 @@
         </Button>
       </div>
 
+      {#if publishEnvironment === 'production'}
+        <div class="gate-hint">
+          Production publish is gated. Request approval first, then publish after approval is
+          granted.
+        </div>
+      {/if}
+
       {#if loadedVersionNumber !== null}
         <div class="loaded-version muted">Loaded version: v{loadedVersionNumber}</div>
       {/if}
@@ -607,6 +614,15 @@
 
   .loaded-version {
     font-size: 0.85rem;
+  }
+
+  .gate-hint {
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    background: rgba(245, 158, 11, 0.14);
+    color: rgba(253, 230, 138, 0.95);
+    font-size: 0.82rem;
   }
 
   .lifecycle-error {

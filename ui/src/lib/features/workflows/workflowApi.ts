@@ -6,12 +6,15 @@ import {
   GetWorkflowVersionByIdDocument,
   ListWorkflowRunsDocument,
   GetWorkflowRunDocument,
+  ListWorkflowApprovalRequestsDocument,
   GetWorkflowDocument,
   CreateWorkflowDefinitionDocument,
   SaveWorkflowVersionDocument,
   PublishWorkflowVersionDocument,
   RollbackWorkflowVersionDocument,
   RequestWorkflowApprovalDocument,
+  ApproveWorkflowVersionDocument,
+  RejectWorkflowVersionDocument,
   TriggerWorkflowDocument,
   GenerateWorkflowDocument,
   ExplainWorkflowDocument,
@@ -27,6 +30,8 @@ import {
   type ListWorkflowRunsQueryVariables,
   type GetWorkflowRunQuery,
   type GetWorkflowRunQueryVariables,
+  type ListWorkflowApprovalRequestsQuery,
+  type ListWorkflowApprovalRequestsQueryVariables,
   type GetWorkflowQuery,
   type GetWorkflowQueryVariables,
   type CreateWorkflowDefinitionMutation,
@@ -39,6 +44,10 @@ import {
   type RollbackWorkflowVersionMutationVariables,
   type RequestWorkflowApprovalMutation,
   type RequestWorkflowApprovalMutationVariables,
+  type ApproveWorkflowVersionMutation,
+  type ApproveWorkflowVersionMutationVariables,
+  type RejectWorkflowVersionMutation,
+  type RejectWorkflowVersionMutationVariables,
   type TriggerWorkflowMutation,
   type TriggerWorkflowMutationVariables,
   type GenerateWorkflowMutation,
@@ -99,6 +108,19 @@ export function fetchWorkflowRuns(options?: {
 export function fetchWorkflowRun(id: string): Promise<GetWorkflowRunQuery> {
   return graphqlFetch<GetWorkflowRunQuery, GetWorkflowRunQueryVariables>(GetWorkflowRunDocument, {
     id
+  });
+}
+
+export function fetchWorkflowApprovalRequests(options?: {
+  filter?: ListWorkflowApprovalRequestsQueryVariables['filter'];
+  paging?: ListWorkflowApprovalRequestsQueryVariables['paging'];
+}): Promise<ListWorkflowApprovalRequestsQuery> {
+  return graphqlFetch<
+    ListWorkflowApprovalRequestsQuery,
+    ListWorkflowApprovalRequestsQueryVariables
+  >(ListWorkflowApprovalRequestsDocument, {
+    filter: options?.filter ?? null,
+    paging: options?.paging ?? null
   });
 }
 
@@ -195,6 +217,40 @@ export function requestWorkflowApproval(input: {
         targetVersionId: input.targetVersionId,
         environment: input.environment,
         requestedBy: input.requestedBy ?? null,
+        comment: input.comment ?? null
+      }
+    }
+  );
+}
+
+export function approveWorkflowVersion(input: {
+  approvalRequestId: string;
+  reviewedBy?: string | null;
+  comment?: string | null;
+}): Promise<ApproveWorkflowVersionMutation> {
+  return graphqlFetch<ApproveWorkflowVersionMutation, ApproveWorkflowVersionMutationVariables>(
+    ApproveWorkflowVersionDocument,
+    {
+      input: {
+        approvalRequestId: input.approvalRequestId,
+        reviewedBy: input.reviewedBy ?? null,
+        comment: input.comment ?? null
+      }
+    }
+  );
+}
+
+export function rejectWorkflowVersion(input: {
+  approvalRequestId: string;
+  reviewedBy?: string | null;
+  comment?: string | null;
+}): Promise<RejectWorkflowVersionMutation> {
+  return graphqlFetch<RejectWorkflowVersionMutation, RejectWorkflowVersionMutationVariables>(
+    RejectWorkflowVersionDocument,
+    {
+      input: {
+        approvalRequestId: input.approvalRequestId,
+        reviewedBy: input.reviewedBy ?? null,
         comment: input.comment ?? null
       }
     }

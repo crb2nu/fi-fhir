@@ -496,6 +496,11 @@
                   No version currently published to {selectedEnv}
                 {/if}
               </div>
+              {#if selectedEnv === 'production'}
+                <div class="gate-hint">
+                  Production publish requires an approved request for the selected version.
+                </div>
+              {/if}
 
               <div class="runner">
                 <label class="runner-label" for={`event-${wf.name}`}>
@@ -702,6 +707,15 @@
 
   .published-summary {
     font-size: 0.85rem;
+  }
+
+  .gate-hint {
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    background: rgba(245, 158, 11, 0.14);
+    color: rgba(253, 230, 138, 0.95);
+    font-size: 0.82rem;
   }
 
   .runner {

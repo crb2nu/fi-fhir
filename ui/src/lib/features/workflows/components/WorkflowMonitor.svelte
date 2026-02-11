@@ -5,20 +5,28 @@
   import Panel from '$lib/ui/Panel.svelte';
   import Button from '$lib/ui/Button.svelte';
   import {
+    approveWorkflowVersion,
     fetchWorkflowDefinitions,
+    fetchWorkflowApprovalRequests,
     fetchWorkflowRun,
-    fetchWorkflowRuns
+    fetchWorkflowRuns,
+    rejectWorkflowVersion
   } from '../workflowApi';
   import type {
     GetWorkflowRunQuery,
+    ListWorkflowApprovalRequestsQuery,
+    ListWorkflowApprovalRequestsQueryVariables,
     ListWorkflowDefinitionsQuery,
     ListWorkflowRunsQuery,
     ListWorkflowRunsQueryVariables
   } from '$lib/gen/graphql';
+  import { toasts } from '$lib/ui/toastStore';
 
   type WfEvent = WorkflowEventsSubscription['workflowEvents'];
   type WorkflowDefinitionItem = ListWorkflowDefinitionsQuery['workflowDefinitions'][number];
   type WorkflowRunItem = ListWorkflowRunsQuery['workflowRuns'][number];
+  type WorkflowApprovalItem =
+    ListWorkflowApprovalRequestsQuery['workflowApprovalRequests'][number];
 
   export let initialWorkflowName: string | null = null;
 
@@ -46,6 +54,15 @@
   let loadingSelectedRun = false;
   let appliedInitialWorkflowSelection = '';
 
+  let approvalRequests: WorkflowApprovalItem[] = [];
+  let loadingApprovals = false;
+  let approvalsError: string | null = null;
+  let approvalFilterWorkflowId = '';
+  let approvalFilterEnvironment = '';
+  let approvalFilterStatus = 'pending';
+  let approvalCommentById: Record<string, string> = {};
+  let approvalActionInFlightById: Record<string, boolean> = {};
+
   $: if (initialWorkflowName && initialWorkflowName !== appliedInitialWorkflowSelection) {
     appliedInitialWorkflowSelection = initialWorkflowName;
     filterWorkflowName = initialWorkflowName;
@@ -56,6 +73,7 @@
   onMount(() => {
     void loadDefinitions();
     void loadRuns();
+    void loadApprovals();
   });
 
   function startSubscription() {
@@ -104,6 +122,12 @@
         paging: { limit: 200, offset: 0 }
       });
       definitions = data.workflowDefinitions;
+      if (initialWorkflowName?.trim() && !approvalFilterWorkflowId) {
+        const selected = definitions.find((def) => def.name === initialWorkflowName);
+        if (selected) {
+          approvalFilterWorkflowId = selected.id;
+        }
+      }
     } catch {
       definitions = [];
     } finally {
@@ -162,6 +186,69 @@
     }
   }
 
+  function buildApprovalFilter(): ListWorkflowApprovalRequestsQueryVariables['filter'] {
+    return {
+      workflowId: approvalFilterWorkflowId.trim() ? approvalFilterWorkflowId : null,
+      environment: approvalFilterEnvironment.trim() ? approvalFilterEnvironment : null,
+      status: approvalFilterStatus.trim() ? approvalFilterStatus : null
+    };
+  }
+
+  async function loadApprovals() {
+    loadingApprovals = true;
+    approvalsError = null;
+
+    try {
+      const data = await fetchWorkflowApprovalRequests({
+        filter: buildApprovalFilter(),
+        paging: { limit: 200, offset: 0 }
+      });
+      approvalRequests = data.workflowApprovalRequests;
+    } catch (err) {
+      approvalsError = err instanceof Error ? err.message : 'Failed to load approval requests';
+      approvalRequests = [];
+    } finally {
+      loadingApprovals = false;
+    }
+  }
+
+  function clearApprovalFilters() {
+    approvalFilterWorkflowId = '';
+    approvalFilterEnvironment = '';
+    approvalFilterStatus = 'pending';
+  }
+
+  async function runApprovalAction(id: string, action: 'approve' | 'reject') {
+    if (!id) return;
+    approvalActionInFlightById = { ...approvalActionInFlightById, [id]: true };
+    approvalsError = null;
+    const comment = approvalCommentById[id]?.trim() ?? '';
+
+    try {
+      if (action === 'approve') {
+        await approveWorkflowVersion({
+          approvalRequestId: id,
+          comment: comment || null
+        });
+        toasts.success('Approval request approved');
+      } else {
+        await rejectWorkflowVersion({
+          approvalRequestId: id,
+          comment: comment || null
+        });
+        toasts.success('Approval request rejected');
+      }
+      await loadApprovals();
+      await loadRuns();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to update approval request';
+      approvalsError = message;
+      toasts.error(message);
+    } finally {
+      approvalActionInFlightById = { ...approvalActionInFlightById, [id]: false };
+    }
+  }
+
   function clearRunFilters() {
     filterWorkflowName = '';
     filterEnvironment = '';
@@ -190,6 +277,10 @@
     if (!value) return '-';
     if (value.length <= max) return value;
     return `${value.slice(0, max)}…`;
+  }
+
+  function workflowNameFromID(workflowID: string): string {
+    return definitions.find((def) => def.id === workflowID)?.name ?? workflowID;
   }
 
   onDestroy(() => {
@@ -384,6 +475,126 @@
             {/each}
           </div>
         {/if}
+      </div>
+    {/if}
+
+    <div class="section-title">Approval Queue</div>
+    <div class="filters">
+      <label class="field">
+        Workflow
+        <select class="input" bind:value={approvalFilterWorkflowId} disabled={loadingDefinitions}>
+          <option value="">All workflows</option>
+          {#each definitions as def (def.id)}
+            <option value={def.id}>{def.name}</option>
+          {/each}
+        </select>
+      </label>
+
+      <label class="field">
+        Environment
+        <select class="input" bind:value={approvalFilterEnvironment}>
+          <option value="">All environments</option>
+          <option value="staging">staging</option>
+          <option value="production">production</option>
+        </select>
+      </label>
+
+      <label class="field">
+        Status
+        <select class="input" bind:value={approvalFilterStatus}>
+          <option value="">all</option>
+          <option value="pending">pending</option>
+          <option value="approved">approved</option>
+          <option value="rejected">rejected</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="actions">
+      <Button on:click={loadApprovals} loading={loadingApprovals}>
+        {loadingApprovals ? 'Loading...' : 'Refresh Queue'}
+      </Button>
+      <Button
+        variant="secondary"
+        on:click={() => {
+          clearApprovalFilters();
+          void loadApprovals();
+        }}
+      >
+        Clear Filters
+      </Button>
+    </div>
+
+    {#if approvalsError}
+      <div class="error-box" role="alert">{approvalsError}</div>
+    {/if}
+
+    {#if approvalRequests.length === 0}
+      <div class="empty">No approval requests found for the current filter.</div>
+    {:else}
+      <div class="approval-table">
+        <div class="approval-header">
+          <span>Workflow</span>
+          <span>Environment</span>
+          <span>Status</span>
+          <span>Version</span>
+          <span>Requested By</span>
+          <span>Reviewed By</span>
+          <span>Comment</span>
+          <span>Actions</span>
+        </div>
+        {#each approvalRequests as req (req.id)}
+          {@const inFlight = !!approvalActionInFlightById[req.id]}
+          <div class="approval-row">
+            <span class="mono">{workflowNameFromID(req.workflowId)}</span>
+            <span>{req.environment}</span>
+            <span>
+              <span
+                class="status-pill"
+                class:failed={req.status === 'rejected'}
+                class:pending={req.status === 'pending'}>{req.status}</span
+              >
+            </span>
+            <span class="mono">{shortValue(req.targetVersionId, 14)}</span>
+            <span class="mono">{req.requestedBy}</span>
+            <span class="mono">{req.reviewedBy ?? '-'}</span>
+            <span>
+              <input
+                class="input comment-input"
+                type="text"
+                value={approvalCommentById[req.id] ?? req.comment ?? ''}
+                disabled={req.status !== 'pending'}
+                on:input={(e) => {
+                  approvalCommentById = {
+                    ...approvalCommentById,
+                    [req.id]: (e.target as HTMLInputElement).value
+                  };
+                }}
+                placeholder="Optional review comment"
+              />
+            </span>
+            <span class="approval-actions">
+              <Button
+                size="sm"
+                variant="secondary"
+                on:click={() => runApprovalAction(req.id, 'approve')}
+                disabled={req.status !== 'pending'}
+                loading={inFlight}
+              >
+                Approve
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                on:click={() => runApprovalAction(req.id, 'reject')}
+                disabled={req.status !== 'pending'}
+                loading={inFlight}
+              >
+                Reject
+              </Button>
+            </span>
+          </div>
+        {/each}
       </div>
     {/if}
   </div>
@@ -633,6 +844,12 @@
     border: 1px solid rgba(239, 68, 68, 0.35);
   }
 
+  .status-pill.pending {
+    color: rgba(253, 230, 138, 0.95);
+    background: rgba(245, 158, 11, 0.2);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+  }
+
   .detail {
     display: grid;
     gap: 8px;
@@ -674,6 +891,56 @@
     gap: 4px;
   }
 
+  .approval-table {
+    display: grid;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .approval-header,
+  .approval-row {
+    display: grid;
+    grid-template-columns: 150px 90px 90px 120px 120px 120px 1fr 170px;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 10px;
+  }
+
+  .approval-header {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-tertiary);
+    background: var(--color-bg-elevated);
+    border-bottom: 1px solid var(--color-border-subtle);
+    font-weight: 700;
+  }
+
+  .approval-row {
+    background: var(--color-bg-surface);
+    border-top: 1px solid var(--color-border-subtle);
+    font-size: 0.85rem;
+  }
+
+  .approval-row:hover {
+    background: var(--color-bg-hover);
+  }
+
+  .comment-input {
+    min-width: 200px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+  }
+
+  .approval-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
   .mono {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   }
@@ -700,6 +967,15 @@
     .run-header,
     .run-row {
       min-width: 980px;
+    }
+
+    .approval-table {
+      overflow-x: auto;
+    }
+
+    .approval-header,
+    .approval-row {
+      min-width: 1160px;
     }
 
     .detail-grid {
