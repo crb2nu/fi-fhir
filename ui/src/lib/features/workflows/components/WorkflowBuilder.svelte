@@ -56,6 +56,7 @@
   let creatingDefinition = false;
   let loadingVersionHistory = false;
   let loadingVersion = false;
+  let loadingVersionId = '';
   let savingVersion = false;
   let publishingVersion = false;
   let requestingApproval = false;
@@ -242,6 +243,31 @@
       compareFromVersionId =
         versionHistory.find((v) => v.id !== compareToVersionId)?.id || compareToVersionId;
     }
+  }
+
+  function setCompareFrom(versionId: string) {
+    compareFromVersionId = versionId;
+  }
+
+  function setCompareTo(versionId: string) {
+    compareToVersionId = versionId;
+  }
+
+  function selectVersion(versionId: string) {
+    selectedVersionId = versionId;
+    void refreshApprovalStateIfNeeded();
+  }
+
+  function summarizeValidation(version: WorkflowVersionItem): string {
+    const errorCount = version.validation.errors.length;
+    const warningCount = version.validation.warnings.length;
+    if (errorCount > 0) {
+      return `${errorCount} validation error${errorCount === 1 ? '' : 's'}`;
+    }
+    if (warningCount > 0) {
+      return `${warningCount} validation warning${warningCount === 1 ? '' : 's'}`;
+    }
+    return 'Validation passed';
   }
 
   async function refreshApprovalStateIfNeeded() {
@@ -436,6 +462,7 @@
       return;
     }
     loadingVersion = true;
+    loadingVersionId = versionId;
     lifecycleError = null;
 
     try {
@@ -457,6 +484,7 @@
       toasts.error(lifecycleError);
     } finally {
       loadingVersion = false;
+      loadingVersionId = '';
     }
   }
 
@@ -823,6 +851,89 @@
         </div>
       {/if}
 
+      {#if linkedWorkflowId}
+        <div class="version-history">
+          <div class="version-history-header">
+            <div class="managed-label">Version History</div>
+            <div class="muted">{versionHistory.length} version{versionHistory.length === 1 ? '' : 's'}</div>
+          </div>
+          {#if loadingVersionHistory}
+            <div class="checklist-note muted">Loading version history...</div>
+          {:else if versionHistory.length === 0}
+            <div class="checklist-note muted">No saved versions yet.</div>
+          {:else}
+            <div class="version-history-list">
+              {#each versionHistory as version (version.id)}
+                <div
+                  class="version-card"
+                  class:selected={selectedVersionId === version.id}
+                  class:loaded={loadedVersionNumber === version.versionNumber}
+                >
+                  <div class="version-card-main">
+                    <div class="version-card-title">
+                      <span class="mono">v{version.versionNumber}</span>
+                      {#if selectedVersionId === version.id}
+                        <span class="version-chip selected">selected</span>
+                      {/if}
+                      {#if loadedVersionNumber === version.versionNumber}
+                        <span class="version-chip loaded">loaded</span>
+                      {/if}
+                      <span
+                        class="version-chip"
+                        class:valid={version.validation.valid}
+                        class:invalid={!version.validation.valid}
+                      >
+                        {version.validation.valid ? 'valid' : 'invalid'}
+                      </span>
+                    </div>
+                    <div class="version-card-meta muted">
+                      {new Date(version.createdAt).toLocaleString()} · by {version.createdBy || 'unknown'}
+                    </div>
+                    <div class="version-card-meta muted">{summarizeValidation(version)}</div>
+                    {#if version.notes}
+                      <div class="version-card-notes">{version.notes}</div>
+                    {/if}
+                  </div>
+                  <div class="version-card-actions">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      on:click={() => selectVersion(version.id)}
+                    >
+                      Select
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      on:click={() => loadVersionIntoBuilder(version.id)}
+                      loading={loadingVersion && loadingVersionId === version.id}
+                    >
+                      Load
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      on:click={() => setCompareFrom(version.id)}
+                      disabled={compareFromVersionId === version.id}
+                    >
+                      Set Compare From
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      on:click={() => setCompareTo(version.id)}
+                      disabled={compareToVersionId === version.id}
+                    >
+                      Set Compare To
+                    </Button>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      {/if}
+
       {#if linkedWorkflowId && versionHistory.length > 1}
         <div class="version-compare">
           <div class="managed-label">Version Compare</div>
@@ -1142,6 +1253,115 @@
 
   .loaded-version {
     font-size: 0.85rem;
+  }
+
+  .version-history {
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-surface);
+  }
+
+  .version-history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .version-history-list {
+    display: grid;
+    gap: 8px;
+    max-height: 280px;
+    overflow: auto;
+    padding-right: 2px;
+  }
+
+  .version-card {
+    display: grid;
+    gap: 8px;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: 8px;
+    padding: 8px;
+    background: var(--color-bg-input);
+  }
+
+  .version-card.selected {
+    border-color: var(--color-primary-border);
+  }
+
+  .version-card.loaded {
+    box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.28);
+  }
+
+  .version-card-main {
+    display: grid;
+    gap: 4px;
+  }
+
+  .version-card-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    font-size: 0.84rem;
+    color: var(--color-text-primary);
+  }
+
+  .version-card-meta {
+    font-size: 0.8rem;
+  }
+
+  .version-card-notes {
+    border-left: 2px solid var(--color-border-default);
+    padding-left: 8px;
+    color: var(--color-text-secondary);
+    font-size: 0.82rem;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .version-card-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .version-chip {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-surface);
+    color: var(--color-text-tertiary);
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 2px 7px;
+  }
+
+  .version-chip.selected {
+    border-color: var(--color-border-focus);
+    color: var(--color-text-primary);
+  }
+
+  .version-chip.loaded {
+    border-color: rgba(148, 163, 184, 0.45);
+    color: rgba(226, 232, 240, 0.92);
+  }
+
+  .version-chip.valid {
+    border-color: rgba(16, 185, 129, 0.45);
+    color: rgba(187, 247, 208, 0.95);
+  }
+
+  .version-chip.invalid {
+    border-color: rgba(239, 68, 68, 0.45);
+    color: rgba(254, 202, 202, 0.95);
   }
 
   .version-compare {
