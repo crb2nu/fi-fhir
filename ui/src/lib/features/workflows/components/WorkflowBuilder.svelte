@@ -147,6 +147,43 @@
     ];
   }
 
+  function getPublishBlockers(): string[] {
+    const blockers: string[] = [];
+    const selectedVersion = getSelectedVersionRecord();
+
+    if (!linkedWorkflowId) {
+      blockers.push('Managed definition is not linked');
+    }
+    if (!selectedVersionId) {
+      blockers.push('No version is selected');
+    }
+    if (selectedVersion && !selectedVersion.validation.valid) {
+      blockers.push('Selected version has validation errors');
+    }
+    if (hasUnsavedManagedChanges) {
+      blockers.push('Builder has unsaved managed changes');
+    }
+    if (publishEnvironment === 'production' && !hasApprovedProductionRequest()) {
+      blockers.push('Production approval is not approved for selected version');
+    }
+
+    return blockers;
+  }
+
+  function canPublishSelectedVersion(): boolean {
+    return getPublishBlockers().length === 0;
+  }
+
+  function confirmPublishTarget(): boolean {
+    const selectedVersion = getSelectedVersionRecord();
+    if (!selectedVersion) return false;
+    if (typeof window === 'undefined' || typeof window.confirm !== 'function') return true;
+
+    return window.confirm(
+      `Publish v${selectedVersion.versionNumber} to ${publishEnvironment}?`
+    );
+  }
+
   function shouldProceedWithManagedDiscard(actionLabel: string): boolean {
     if (!hasUnsavedManagedChanges) return true;
     if (typeof window === 'undefined' || typeof window.confirm !== 'function') return true;
@@ -489,16 +526,13 @@
   }
 
   async function publishManagedVersion() {
-    if (!linkedWorkflowId) {
-      toasts.error('Create or open a managed workflow definition first');
+    const blockers = getPublishBlockers();
+    if (blockers.length > 0) {
+      toasts.error(`Publish blocked: ${blockers[0]}`);
       return;
     }
-    if (!selectedVersionId) {
-      toasts.error('Select a version to publish');
-      return;
-    }
-    if (publishEnvironment === 'production' && !hasApprovedProductionRequest()) {
-      toasts.error('Production publish is blocked until an approval request is approved');
+
+    if (!confirmPublishTarget()) {
       return;
     }
 
@@ -826,7 +860,7 @@
           variant="secondary"
           on:click={publishManagedVersion}
           loading={publishingVersion}
-          disabled={!linkedWorkflowId || !selectedVersionId}
+          disabled={!canPublishSelectedVersion()}
         >
           {publishingVersion ? 'Publishing...' : 'Publish'}
         </Button>
@@ -850,6 +884,21 @@
           unlinking, or resetting this draft.
         </div>
       {/if}
+
+      <div class="publish-readiness">
+        <div class="managed-label">Publish Readiness</div>
+        {#if canPublishSelectedVersion()}
+          <div class="checklist-note success">
+            Selected version is ready to publish to <span class="mono">{publishEnvironment}</span>.
+          </div>
+        {:else}
+          <div class="publish-blockers" role="alert">
+            {#each getPublishBlockers() as blocker (blocker)}
+              <div class="publish-blocker-item">{blocker}</div>
+            {/each}
+          </div>
+        {/if}
+      </div>
 
       {#if linkedWorkflowId}
         <div class="version-history">
@@ -1249,6 +1298,30 @@
     background: rgba(245, 158, 11, 0.14);
     color: rgba(253, 230, 138, 0.95);
     font-size: 0.82rem;
+  }
+
+  .publish-readiness {
+    display: grid;
+    gap: 6px;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-surface);
+  }
+
+  .publish-blockers {
+    display: grid;
+    gap: 4px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--color-danger-border);
+    background: var(--color-danger-bg);
+    color: var(--color-danger-text);
+  }
+
+  .publish-blocker-item {
+    font-size: 0.82rem;
+    line-height: 1.35;
   }
 
   .loaded-version {
