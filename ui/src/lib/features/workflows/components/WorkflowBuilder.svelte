@@ -174,6 +174,38 @@
     return getPublishBlockers().length === 0;
   }
 
+  function getApprovalBlockers(): string[] {
+    const blockers: string[] = [];
+    const selectedVersion = getSelectedVersionRecord();
+
+    if (!linkedWorkflowId) {
+      blockers.push('Managed definition is not linked');
+    }
+    if (!selectedVersionId) {
+      blockers.push('No version is selected');
+    }
+    if (selectedVersion && !selectedVersion.validation.valid) {
+      blockers.push('Selected version has validation errors');
+    }
+    if (hasUnsavedManagedChanges) {
+      blockers.push('Builder has unsaved managed changes');
+    }
+    if (publishEnvironment !== 'production') {
+      blockers.push('Set publish environment to production to request approval');
+    }
+    if (hasApprovedProductionRequest()) {
+      blockers.push('Selected version is already approved for production');
+    } else if (hasPendingProductionRequest()) {
+      blockers.push('Approval request is already pending for selected version');
+    }
+
+    return blockers;
+  }
+
+  function canRequestApproval(): boolean {
+    return getApprovalBlockers().length === 0;
+  }
+
   function confirmPublishTarget(): boolean {
     const selectedVersion = getSelectedVersionRecord();
     if (!selectedVersion) return false;
@@ -555,12 +587,9 @@
   }
 
   async function requestApproval() {
-    if (!linkedWorkflowId) {
-      toasts.error('Create or open a managed workflow definition first');
-      return;
-    }
-    if (!selectedVersionId) {
-      toasts.error('Select a version for approval');
+    const blockers = getApprovalBlockers();
+    if (blockers.length > 0) {
+      toasts.error(`Approval request blocked: ${blockers[0]}`);
       return;
     }
 
@@ -869,9 +898,13 @@
           variant="secondary"
           on:click={requestApproval}
           loading={requestingApproval}
-          disabled={!linkedWorkflowId || !selectedVersionId}
+          disabled={!canRequestApproval()}
         >
-          {requestingApproval ? 'Requesting...' : 'Request Approval'}
+          {requestingApproval
+            ? 'Requesting...'
+            : publishEnvironment === 'production'
+              ? 'Request Production Approval'
+              : 'Request Approval'}
         </Button>
         <Button variant="secondary" size="sm" on:click={unlinkManagedDefinition}>
           Unlink
@@ -895,6 +928,21 @@
           <div class="publish-blockers" role="alert">
             {#each getPublishBlockers() as blocker (blocker)}
               <div class="publish-blocker-item">{blocker}</div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+
+      <div class="approval-readiness">
+        <div class="managed-label">Approval Readiness</div>
+        {#if canRequestApproval()}
+          <div class="checklist-note success">
+            Selected version is ready for a production approval request.
+          </div>
+        {:else}
+          <div class="approval-blockers" role="alert">
+            {#each getApprovalBlockers() as blocker (blocker)}
+              <div class="approval-blocker-item">{blocker}</div>
             {/each}
           </div>
         {/if}
@@ -1320,6 +1368,30 @@
   }
 
   .publish-blocker-item {
+    font-size: 0.82rem;
+    line-height: 1.35;
+  }
+
+  .approval-readiness {
+    display: grid;
+    gap: 6px;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-surface);
+  }
+
+  .approval-blockers {
+    display: grid;
+    gap: 4px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    background: rgba(245, 158, 11, 0.14);
+    color: rgba(253, 230, 138, 0.95);
+  }
+
+  .approval-blocker-item {
     font-size: 0.82rem;
     line-height: 1.35;
   }
