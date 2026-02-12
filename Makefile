@@ -5,7 +5,8 @@
 	ci-lint ci-test ci-security ci-build ci-full ci-quick \
 	docker-push docker-push-ui docker-push-all \
 	deploy deploy-ui deploy-all deploy-status deploy-logs deploy-delete deploy-forward \
-	docs-status docs-status-quick docs-validate docs-all
+	docs-status docs-status-quick docs-validate docs-all \
+	contract-check contract-check-strict contract-matrix
 
 # Tool versions (update these when upgrading)
 GOLANGCI_LINT_VERSION := v2.8.0
@@ -192,6 +193,18 @@ install-tools:
 # Quick check: lint and test in one command
 check: lint test
 	@echo "✅ All checks passed!"
+
+# Contract check: compare canonical event types against GraphQL and OpenAPI
+contract-check:
+	go run ./scripts/check_event_contracts.go --root .
+
+# Strict contract check: fails on any drift
+contract-check-strict:
+	go run ./scripts/check_event_contracts.go --root . --strict
+
+# Generate markdown matrix report for planning/docs
+contract-matrix:
+	go run ./scripts/check_event_contracts.go --root . --report docs/planning/API-CONTRACT-MATRIX.md
 
 # Verify CI will pass locally
 ci: fmt-check lint test

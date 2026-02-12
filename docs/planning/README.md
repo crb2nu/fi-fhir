@@ -19,6 +19,7 @@ This directory contains detailed planning and specification documents for the fi
 | [FHIR-SUBSCRIPTIONS.md](FHIR-SUBSCRIPTIONS.md) | FHIR R4 Subscriptions (bidirectional) | ✅ Complete |
 | [GRAPHQL-API.md](GRAPHQL-API.md) | GraphQL API layer for events | ✅ Complete |
 | [EVENT-SOURCING.md](EVENT-SOURCING.md) | Event sourcing / CQRS patterns | ✅ Complete |
+| [API-CONTRACT-MATRIX.md](API-CONTRACT-MATRIX.md) | Canonical vs GraphQL vs OpenAPI event contract drift matrix | 🟡 Generated baseline (M0) |
 
 ## Architecture Overview
 
