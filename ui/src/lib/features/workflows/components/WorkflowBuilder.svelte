@@ -77,6 +77,7 @@
   let comparingVersions = false;
   let compareError: string | null = null;
   let pushedSnapshotId: string | null = null;
+  let promotingImportYaml = false;
 
   $: if (managedSelection) {
     const nextKey = `${managedSelection.workflowId}:${managedSelection.versionId ?? ''}`;
@@ -576,6 +577,40 @@
     }
   }
 
+  async function promoteImportedYamlToServer(event: CustomEvent<{ yaml: string; draftName: string }>) {
+    if (!linkedWorkflowId) {
+      toasts.error('Create or open a managed workflow definition first');
+      return;
+    }
+
+    if (linkedWorkflowName && event.detail.draftName && event.detail.draftName !== linkedWorkflowName) {
+      toasts.error(
+        `Imported YAML name "${event.detail.draftName}" does not match managed definition "${linkedWorkflowName}"`
+      );
+      return;
+    }
+
+    promotingImportYaml = true;
+    lifecycleError = null;
+
+    try {
+      const data = await saveWorkflowVersion({
+        workflowId: linkedWorkflowId,
+        yaml: event.detail.yaml,
+        notes: 'Promoted imported YAML from Draft Library'
+      });
+      selectedVersionId = data.saveWorkflowVersion.id;
+      loadedVersionNumber = data.saveWorkflowVersion.versionNumber;
+      await loadVersionHistory(linkedWorkflowId, data.saveWorkflowVersion.id);
+      toasts.success(`Imported YAML promoted as v${data.saveWorkflowVersion.versionNumber}`);
+    } catch (err) {
+      lifecycleError = err instanceof Error ? err.message : 'Failed to promote imported YAML';
+      toasts.error(lifecycleError);
+    } finally {
+      promotingImportYaml = false;
+    }
+  }
+
   function unlinkManagedDefinition() {
     if (!shouldProceedWithManagedDiscard('unlink the managed definition')) {
       return;
@@ -890,6 +925,9 @@
       {#if pushedSnapshotId}
         <div class="checklist-note muted">Promoting local snapshot to managed version...</div>
       {/if}
+      {#if promotingImportYaml}
+        <div class="checklist-note muted">Promoting imported YAML to managed version...</div>
+      {/if}
     </div>
   </Panel>
 
@@ -963,7 +1001,9 @@
 
   <WorkflowDraftLibrary
     pushToServerEnabled={!!linkedWorkflowId}
+    promoteImportEnabled={!!linkedWorkflowId}
     on:pushSnapshot={promoteSnapshotToServer}
+    on:promoteImportYaml={promoteImportedYamlToServer}
   />
 
   {#if showPreview}

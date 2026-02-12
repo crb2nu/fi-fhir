@@ -9,9 +9,11 @@
   import { toasts } from '$lib/ui/toastStore';
 
   export let pushToServerEnabled = false;
+  export let promoteImportEnabled = false;
 
   const dispatch = createEventDispatcher<{
     pushSnapshot: { snapshotId: string };
+    promoteImportYaml: { yaml: string; draftName: string };
   }>();
 
   let saveName = '';
@@ -43,6 +45,21 @@
 
   function pushSnapshotToServer(id: string) {
     dispatch('pushSnapshot', { snapshotId: id });
+  }
+
+  function validateAndPromoteImportYaml() {
+    const valid = validateImportYaml();
+    if (!valid) return;
+
+    try {
+      const draft = yamlToDraft(importYaml);
+      dispatch('promoteImportYaml', {
+        yaml: importYaml.trim(),
+        draftName: draft.name.trim()
+      });
+    } catch (err) {
+      toasts.error(err instanceof Error ? err.message : 'Failed to prepare YAML promotion');
+    }
   }
 
   function validateImportYaml(): boolean {
@@ -169,6 +186,11 @@ routes:
         <Button size="sm" on:click={loadYamlIntoBuilder}>
           Load into Builder
         </Button>
+        {#if promoteImportEnabled}
+          <Button variant="secondary" size="sm" on:click={validateAndPromoteImportYaml}>
+            Validate + Push to Server
+          </Button>
+        {/if}
       </div>
       {#if parsedDraftName}
         <div class="parsed-name">Parsed workflow: <span class="mono">{parsedDraftName}</span></div>
