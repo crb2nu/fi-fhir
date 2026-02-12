@@ -8,7 +8,7 @@
   import DryRunPanel from './DryRunPanel.svelte';
   import GenerateFromDescription from './GenerateFromDescription.svelte';
   import WorkflowDraftLibrary from './WorkflowDraftLibrary.svelte';
-  import { workflowDraft, isWorkflowValid } from '../workflowStore';
+  import { workflowDraft, workflowSavedDrafts, isWorkflowValid } from '../workflowStore';
   import { draftToYaml, yamlToDraft } from '../workflowYaml';
   import {
     createWorkflowDefinition,
@@ -32,6 +32,11 @@
   };
   type WorkflowVersionItem = GetWorkflowVersionsQuery['workflowVersions'][number];
   type WorkflowApprovalItem = ListWorkflowApprovalRequestsQuery['workflowApprovalRequests'][number];
+  type DiffLineKind = 'context' | 'add' | 'remove';
+  type DiffLine = {
+    kind: DiffLineKind;
+    text: string;
+  };
 
   export let managedSelection: ManagedSelection | null = null;
 
@@ -61,12 +66,36 @@
   let approvalStateByVersion: WorkflowApprovalItem[] = [];
   let loadingApprovalState = false;
   let approvalStateError: string | null = null;
+  let managedBaselineYaml: string | null = null;
+  let hasUnsavedManagedChanges = false;
+
+  let compareFromVersionId = '';
+  let compareToVersionId = '';
+  let compareLines: DiffLine[] = [];
+  let compareAddedCount = 0;
+  let compareRemovedCount = 0;
+  let comparingVersions = false;
+  let compareError: string | null = null;
+  let pushedSnapshotId: string | null = null;
 
   $: if (managedSelection) {
     const nextKey = `${managedSelection.workflowId}:${managedSelection.versionId ?? ''}`;
     if (nextKey !== selectionSyncKey) {
       selectionSyncKey = nextKey;
       void syncFromManagedSelection(managedSelection);
+    }
+  }
+
+  $: {
+    if (!managedBaselineYaml) {
+      hasUnsavedManagedChanges = false;
+    } else {
+      try {
+        const currentYaml = draftToYaml(get(workflowDraft));
+        hasUnsavedManagedChanges = currentYaml !== managedBaselineYaml;
+      } catch {
+        hasUnsavedManagedChanges = false;
+      }
     }
   }
 
@@ -116,6 +145,104 @@
     ];
   }
 
+  function shouldProceedWithManagedDiscard(actionLabel: string): boolean {
+    if (!hasUnsavedManagedChanges) return true;
+    if (typeof window === 'undefined' || typeof window.confirm !== 'function') return true;
+    return window.confirm(
+      `You have unsaved managed changes in the builder. Continue and ${actionLabel}?`
+    );
+  }
+
+  function computeNaiveLineDiff(fromYaml: string, toYaml: string): {
+    lines: DiffLine[];
+    added: number;
+    removed: number;
+  } {
+    const fromLines = fromYaml.split('\n');
+    const toLines = toYaml.split('\n');
+    const max = Math.max(fromLines.length, toLines.length);
+    const lines: DiffLine[] = [];
+    let added = 0;
+    let removed = 0;
+
+    for (let idx = 0; idx < max; idx++) {
+      const left = fromLines[idx];
+      const right = toLines[idx];
+      if (left === right && left !== undefined) {
+        lines.push({ kind: 'context', text: left });
+        continue;
+      }
+      if (left !== undefined) {
+        lines.push({ kind: 'remove', text: left });
+        removed++;
+      }
+      if (right !== undefined) {
+        lines.push({ kind: 'add', text: right });
+        added++;
+      }
+    }
+
+    return { lines, added, removed };
+  }
+
+  async function compareSelectedVersions() {
+    compareError = null;
+    compareLines = [];
+    compareAddedCount = 0;
+    compareRemovedCount = 0;
+
+    if (!linkedWorkflowId) {
+      toasts.error('Create or open a managed workflow definition first');
+      return;
+    }
+    if (!compareFromVersionId || !compareToVersionId) {
+      toasts.error('Select two versions to compare');
+      return;
+    }
+    if (compareFromVersionId === compareToVersionId) {
+      toasts.error('Choose two different versions to compare');
+      return;
+    }
+
+    comparingVersions = true;
+    try {
+      const [fromData, toData] = await Promise.all([
+        fetchWorkflowVersionById(compareFromVersionId),
+        fetchWorkflowVersionById(compareToVersionId)
+      ]);
+      if (!fromData.workflowVersion || !toData.workflowVersion) {
+        throw new Error('One or both selected versions could not be loaded');
+      }
+
+      const diff = computeNaiveLineDiff(fromData.workflowVersion.yaml, toData.workflowVersion.yaml);
+      compareLines = diff.lines;
+      compareAddedCount = diff.added;
+      compareRemovedCount = diff.removed;
+    } catch (err) {
+      compareError = err instanceof Error ? err.message : 'Failed to compare versions';
+      toasts.error(compareError);
+    } finally {
+      comparingVersions = false;
+    }
+  }
+
+  function setDefaultCompareVersions() {
+    if (versionHistory.length === 0) {
+      compareFromVersionId = '';
+      compareToVersionId = '';
+      return;
+    }
+
+    if (!compareToVersionId || !versionHistory.some((v) => v.id === compareToVersionId)) {
+      compareToVersionId = selectedVersionId || versionHistory[0]?.id || '';
+    }
+
+    if (!compareFromVersionId || !versionHistory.some((v) => v.id === compareFromVersionId)) {
+      compareFromVersionId =
+        versionHistory.find((v) => v.id !== compareToVersionId)?.id || compareToVersionId;
+    }
+  }
+
   async function refreshApprovalStateIfNeeded() {
     if (publishEnvironment === 'production' && linkedWorkflowId && selectedVersionId) {
       await loadApprovalState();
@@ -132,6 +259,9 @@
     lifecycleError = null;
     publishEnvironment = 'staging';
     loadedVersionNumber = selection.versionNumber ?? null;
+    compareLines = [];
+    compareError = null;
+    managedBaselineYaml = null;
 
     await loadVersionHistory(selection.workflowId, selection.versionId ?? undefined);
     if (selection.versionId) {
@@ -141,6 +271,10 @@
   }
 
   function applyTemplate() {
+    if (!shouldProceedWithManagedDiscard('replace the current draft with a template')) {
+      return;
+    }
+
     const template = WORKFLOW_TEMPLATES.find((item) => item.id === selectedTemplateId);
     if (!template) {
       toasts.error('Select a workflow template first');
@@ -157,6 +291,7 @@
       if (!linkedWorkflowId) {
         linkedWorkflowName = draft.name;
       }
+      managedBaselineYaml = null;
 
       toasts.success(`Loaded template: ${template.name}`);
     } catch (err) {
@@ -208,6 +343,7 @@
 
       const fallbackVersionId = data.workflowVersions[0]?.id ?? '';
       selectedVersionId = preferredVersionId && preferredVersionId.trim() ? preferredVersionId : fallbackVersionId;
+      setDefaultCompareVersions();
       await refreshApprovalStateIfNeeded();
     } catch (err) {
       lifecycleError = err instanceof Error ? err.message : 'Failed to load workflow versions';
@@ -238,6 +374,9 @@
       versionHistory = [];
       selectedVersionId = '';
       loadedVersionNumber = null;
+      managedBaselineYaml = null;
+      compareLines = [];
+      compareError = null;
       toasts.success(`Created managed workflow: ${linkedWorkflowName}`);
     } catch (err) {
       lifecycleError = err instanceof Error ? err.message : 'Failed to create workflow definition';
@@ -279,6 +418,7 @@
       selectedVersionId = version.id;
       loadedVersionNumber = version.versionNumber;
       versionNotes = '';
+      managedBaselineYaml = yaml;
       await loadVersionHistory(linkedWorkflowId, version.id);
       toasts.success(`Saved workflow version v${version.versionNumber}`);
     } catch (err) {
@@ -291,6 +431,9 @@
 
   async function loadVersionIntoBuilder(versionId: string) {
     if (!versionId) return;
+    if (!shouldProceedWithManagedDiscard('load a different managed version')) {
+      return;
+    }
     loadingVersion = true;
     lifecycleError = null;
 
@@ -305,6 +448,7 @@
       selectedVersionId = data.workflowVersion.id;
       loadedVersionNumber = data.workflowVersion.versionNumber;
       linkedWorkflowId = data.workflowVersion.workflowId;
+      managedBaselineYaml = data.workflowVersion.yaml;
       await refreshApprovalStateIfNeeded();
       toasts.success(`Loaded v${data.workflowVersion.versionNumber} into builder`);
     } catch (err) {
@@ -382,12 +526,70 @@
     await refreshApprovalStateIfNeeded();
   }
 
+  function resetDraftWithGuard() {
+    if (!shouldProceedWithManagedDiscard('reset the current draft')) {
+      return;
+    }
+    workflowDraft.reset();
+    managedBaselineYaml = null;
+  }
+
+  async function promoteSnapshotToServer(event: CustomEvent<{ snapshotId: string }>) {
+    const snapshotId = event.detail.snapshotId;
+    if (!linkedWorkflowId) {
+      toasts.error('Create or open a managed workflow definition first');
+      return;
+    }
+
+    const snapshot = get(workflowSavedDrafts).find((item) => item.id === snapshotId);
+    if (!snapshot) {
+      toasts.error('Snapshot not found');
+      return;
+    }
+
+    if (linkedWorkflowName && snapshot.draft.name.trim() !== linkedWorkflowName) {
+      toasts.error(
+        `Snapshot name "${snapshot.draft.name}" does not match managed definition "${linkedWorkflowName}"`
+      );
+      return;
+    }
+
+    pushedSnapshotId = snapshotId;
+    lifecycleError = null;
+
+    try {
+      const yaml = draftToYaml(snapshot.draft);
+      const data = await saveWorkflowVersion({
+        workflowId: linkedWorkflowId,
+        yaml,
+        notes: `Promoted local snapshot: ${snapshot.name}`
+      });
+      selectedVersionId = data.saveWorkflowVersion.id;
+      loadedVersionNumber = data.saveWorkflowVersion.versionNumber;
+      await loadVersionHistory(linkedWorkflowId, data.saveWorkflowVersion.id);
+      toasts.success(`Snapshot "${snapshot.name}" promoted as v${data.saveWorkflowVersion.versionNumber}`);
+    } catch (err) {
+      lifecycleError = err instanceof Error ? err.message : 'Failed to promote snapshot';
+      toasts.error(lifecycleError);
+    } finally {
+      pushedSnapshotId = null;
+    }
+  }
+
   function unlinkManagedDefinition() {
+    if (!shouldProceedWithManagedDiscard('unlink the managed definition')) {
+      return;
+    }
     linkedWorkflowId = '';
     linkedWorkflowName = '';
     versionHistory = [];
     selectedVersionId = '';
     loadedVersionNumber = null;
+    managedBaselineYaml = null;
+    compareFromVersionId = '';
+    compareToVersionId = '';
+    compareLines = [];
+    compareError = null;
     lifecycleError = null;
     selectionSyncKey = '';
     approvalStateByVersion = [];
@@ -579,6 +781,69 @@
         </Button>
       </div>
 
+      {#if hasUnsavedManagedChanges}
+        <div class="unsaved-hint warning">
+          Unsaved managed changes detected. Save a new version before loading another version,
+          unlinking, or resetting this draft.
+        </div>
+      {/if}
+
+      {#if linkedWorkflowId && versionHistory.length > 1}
+        <div class="version-compare">
+          <div class="managed-label">Version Compare</div>
+          <div class="compare-controls">
+            <label class="field-label">
+              Compare From
+              <select class="input" bind:value={compareFromVersionId}>
+                {#each versionHistory as version (version.id)}
+                  <option value={version.id}>
+                    v{version.versionNumber} · {new Date(version.createdAt).toLocaleString()}
+                  </option>
+                {/each}
+              </select>
+            </label>
+            <label class="field-label">
+              Compare To
+              <select class="input" bind:value={compareToVersionId}>
+                {#each versionHistory as version (version.id)}
+                  <option value={version.id}>
+                    v{version.versionNumber} · {new Date(version.createdAt).toLocaleString()}
+                  </option>
+                {/each}
+              </select>
+            </label>
+            <div class="compare-actions">
+              <Button
+                size="sm"
+                variant="secondary"
+                on:click={compareSelectedVersions}
+                loading={comparingVersions}
+                disabled={!compareFromVersionId || !compareToVersionId}
+              >
+                {comparingVersions ? 'Comparing...' : 'Compare Versions'}
+              </Button>
+            </div>
+          </div>
+
+          {#if compareError}
+            <div class="lifecycle-error" role="alert">{compareError}</div>
+          {/if}
+          {#if compareLines.length > 0}
+            <div class="compare-summary muted">
+              +{compareAddedCount} / -{compareRemovedCount} changed lines
+            </div>
+            <div class="compare-diff mono">
+              {#each compareLines as line, idx (idx)}
+                <div class="diff-line" class:add={line.kind === 'add'} class:remove={line.kind === 'remove'}>
+                  <span class="diff-prefix">{line.kind === 'add' ? '+' : line.kind === 'remove' ? '-' : ' '}</span>
+                  <span>{line.text}</span>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      {/if}
+
       {#if publishEnvironment === 'production'}
         <div class="gate-hint">
           Production publish is gated. Request approval first, then publish after approval is
@@ -621,6 +886,9 @@
       {/if}
       {#if lifecycleError}
         <div class="lifecycle-error" role="alert">{lifecycleError}</div>
+      {/if}
+      {#if pushedSnapshotId}
+        <div class="checklist-note muted">Promoting local snapshot to managed version...</div>
       {/if}
     </div>
   </Panel>
@@ -688,12 +956,15 @@
       {showGenerate ? 'Hide Generator' : 'Generate with AI'}
     </Button>
     <div class="spacer"></div>
-    <Button variant="secondary" on:click={() => workflowDraft.reset()}>
+    <Button variant="secondary" on:click={resetDraftWithGuard}>
       Reset
     </Button>
   </div>
 
-  <WorkflowDraftLibrary />
+  <WorkflowDraftLibrary
+    pushToServerEnabled={!!linkedWorkflowId}
+    on:pushSnapshot={promoteSnapshotToServer}
+  />
 
   {#if showPreview}
     <div transition:slide={{ duration: 200 }}>
@@ -820,8 +1091,71 @@
     align-items: center;
   }
 
+  .unsaved-hint {
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    background: rgba(245, 158, 11, 0.14);
+    color: rgba(253, 230, 138, 0.95);
+    font-size: 0.82rem;
+  }
+
   .loaded-version {
     font-size: 0.85rem;
+  }
+
+  .version-compare {
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-surface);
+  }
+
+  .compare-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 10px;
+    align-items: end;
+  }
+
+  .compare-actions {
+    padding-bottom: 2px;
+  }
+
+  .compare-summary {
+    font-size: 0.82rem;
+  }
+
+  .compare-diff {
+    max-height: 220px;
+    overflow: auto;
+    border-radius: 8px;
+    border: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-input);
+    padding: 8px;
+    display: grid;
+    gap: 2px;
+    font-size: 0.78rem;
+    line-height: 1.35;
+  }
+
+  .diff-line {
+    display: grid;
+    grid-template-columns: 14px 1fr;
+    gap: 6px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--color-text-secondary);
+  }
+
+  .diff-line.add {
+    color: rgba(187, 247, 208, 0.95);
+  }
+
+  .diff-line.remove {
+    color: rgba(254, 202, 202, 0.95);
   }
 
   .readiness {
@@ -917,6 +1251,10 @@
   @media (max-width: 1080px) {
     .template-row,
     .managed-row {
+      grid-template-columns: 1fr;
+    }
+
+    .compare-controls {
       grid-template-columns: 1fr;
     }
   }

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { createEventDispatcher } from 'svelte';
   import { get } from 'svelte/store';
   import Panel from '$lib/ui/Panel.svelte';
   import Button from '$lib/ui/Button.svelte';
@@ -6,6 +7,12 @@
   import { yamlToDraft, draftToYaml } from '../workflowYaml';
   import { validateWorkflowDraft } from '../workflowTypes';
   import { toasts } from '$lib/ui/toastStore';
+
+  export let pushToServerEnabled = false;
+
+  const dispatch = createEventDispatcher<{
+    pushSnapshot: { snapshotId: string };
+  }>();
 
   let saveName = '';
   let importYaml = '';
@@ -32,6 +39,10 @@
 
   function deleteSnapshot(id: string) {
     workflowSavedDrafts.deleteSnapshot(id);
+  }
+
+  function pushSnapshotToServer(id: string) {
+    dispatch('pushSnapshot', { snapshotId: id });
   }
 
   function validateImportYaml(): boolean {
@@ -116,6 +127,11 @@
                 <Button variant="secondary" size="sm" on:click={() => loadSnapshot(item.id)}>
                   Load
                 </Button>
+                {#if pushToServerEnabled}
+                  <Button variant="secondary" size="sm" on:click={() => pushSnapshotToServer(item.id)}>
+                    Push to Server
+                  </Button>
+                {/if}
                 <Button variant="danger" size="sm" on:click={() => deleteSnapshot(item.id)}>
                   Delete
                 </Button>
