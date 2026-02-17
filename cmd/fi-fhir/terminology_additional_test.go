@@ -3,6 +3,7 @@ package main
 import "testing"
 
 func TestGetTerminologyDBURL(t *testing.T) {
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "")
 	t.Setenv("FI_FHIR_DATABASE_URL", "postgres://env/test")
 
 	cases := []struct {

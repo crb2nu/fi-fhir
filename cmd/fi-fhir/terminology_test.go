@@ -41,14 +41,8 @@ func TestTerminology_UnknownSubcommand(t *testing.T) {
 }
 
 func TestTerminology_Init_MissingDBURL(t *testing.T) {
-	// Unset env var for this test
-	oldURL := os.Getenv("FI_FHIR_DATABASE_URL")
-	os.Unsetenv("FI_FHIR_DATABASE_URL")
-	defer func() {
-		if oldURL != "" {
-			os.Setenv("FI_FHIR_DATABASE_URL", oldURL)
-		}
-	}()
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "")
+	t.Setenv("FI_FHIR_DATABASE_URL", "")
 
 	_, _, err := runCLI(t, "terminology", "init")
 	assertError(t, err)
@@ -56,14 +50,8 @@ func TestTerminology_Init_MissingDBURL(t *testing.T) {
 }
 
 func TestTerminology_Status_MissingDBURL(t *testing.T) {
-	// Unset env var for this test
-	oldURL := os.Getenv("FI_FHIR_DATABASE_URL")
-	os.Unsetenv("FI_FHIR_DATABASE_URL")
-	defer func() {
-		if oldURL != "" {
-			os.Setenv("FI_FHIR_DATABASE_URL", oldURL)
-		}
-	}()
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "")
+	t.Setenv("FI_FHIR_DATABASE_URL", "")
 
 	_, _, err := runCLI(t, "terminology", "status")
 	assertError(t, err)
@@ -71,14 +59,8 @@ func TestTerminology_Status_MissingDBURL(t *testing.T) {
 }
 
 func TestTerminology_Use_MissingDBURL(t *testing.T) {
-	// Unset env var for this test
-	oldURL := os.Getenv("FI_FHIR_DATABASE_URL")
-	os.Unsetenv("FI_FHIR_DATABASE_URL")
-	defer func() {
-		if oldURL != "" {
-			os.Setenv("FI_FHIR_DATABASE_URL", oldURL)
-		}
-	}()
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "")
+	t.Setenv("FI_FHIR_DATABASE_URL", "")
 
 	_, _, err := runCLI(t, "terminology", "use", "loinc", "2.77")
 	assertError(t, err)
@@ -86,14 +68,8 @@ func TestTerminology_Use_MissingDBURL(t *testing.T) {
 }
 
 func TestTerminology_Drop_MissingDBURL(t *testing.T) {
-	// Unset env var for this test
-	oldURL := os.Getenv("FI_FHIR_DATABASE_URL")
-	os.Unsetenv("FI_FHIR_DATABASE_URL")
-	defer func() {
-		if oldURL != "" {
-			os.Setenv("FI_FHIR_DATABASE_URL", oldURL)
-		}
-	}()
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "")
+	t.Setenv("FI_FHIR_DATABASE_URL", "")
 
 	_, _, err := runCLI(t, "terminology", "drop", "--confirm")
 	assertError(t, err)
@@ -116,14 +92,8 @@ func TestTerminology_Load_MissingPath(t *testing.T) {
 }
 
 func TestTerminology_Load_UnsupportedVocabulary(t *testing.T) {
-	// Unset env var for this test
-	oldURL := os.Getenv("FI_FHIR_DATABASE_URL")
-	os.Unsetenv("FI_FHIR_DATABASE_URL")
-	defer func() {
-		if oldURL != "" {
-			os.Setenv("FI_FHIR_DATABASE_URL", oldURL)
-		}
-	}()
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "")
+	t.Setenv("FI_FHIR_DATABASE_URL", "")
 
 	_, _, err := runCLI(t, "terminology", "load", "unknown_vocab", "/path/to/data")
 	assertError(t, err)
@@ -155,16 +125,7 @@ func TestGetTerminologyDBURL_FromFlag(t *testing.T) {
 }
 
 func TestGetTerminologyDBURL_FromEnv(t *testing.T) {
-	// Save existing env var
-	savedURL := os.Getenv("FI_FHIR_DATABASE_URL")
-	defer func() {
-		if savedURL != "" {
-			os.Setenv("FI_FHIR_DATABASE_URL", savedURL)
-		} else {
-			os.Unsetenv("FI_FHIR_DATABASE_URL")
-		}
-	}()
-
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "")
 	os.Setenv("FI_FHIR_DATABASE_URL", "postgres://env/db")
 
 	args := []string{} // No --db flag
@@ -175,16 +136,7 @@ func TestGetTerminologyDBURL_FromEnv(t *testing.T) {
 }
 
 func TestGetTerminologyDBURL_FlagOverridesEnv(t *testing.T) {
-	// Save existing env var
-	savedURL := os.Getenv("FI_FHIR_DATABASE_URL")
-	defer func() {
-		if savedURL != "" {
-			os.Setenv("FI_FHIR_DATABASE_URL", savedURL)
-		} else {
-			os.Unsetenv("FI_FHIR_DATABASE_URL")
-		}
-	}()
-
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "")
 	os.Setenv("FI_FHIR_DATABASE_URL", "postgres://env/db")
 
 	args := []string{"--db", "postgres://flag/db"}
@@ -195,14 +147,8 @@ func TestGetTerminologyDBURL_FlagOverridesEnv(t *testing.T) {
 }
 
 func TestGetTerminologyDBURL_NoDBFound(t *testing.T) {
-	// Save and unset env var
-	savedURL := os.Getenv("FI_FHIR_DATABASE_URL")
-	os.Unsetenv("FI_FHIR_DATABASE_URL")
-	defer func() {
-		if savedURL != "" {
-			os.Setenv("FI_FHIR_DATABASE_URL", savedURL)
-		}
-	}()
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "")
+	t.Setenv("FI_FHIR_DATABASE_URL", "")
 
 	args := []string{} // No --db flag
 	url := getTerminologyDBURL(args)

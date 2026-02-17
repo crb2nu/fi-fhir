@@ -180,7 +180,8 @@ func TestRunTerminologyStatus_DBFlag(t *testing.T) {
 }
 
 func TestRunTerminologyDrop_ForceFlag(t *testing.T) {
-	t.Setenv("FI_FHIR_DATABASE_URL", "postgres://example/test")
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "")
+	t.Setenv("FI_FHIR_DATABASE_URL", "postgres://127.0.0.1:1/fi_fhir_test?sslmode=disable&connect_timeout=1")
 
 	// With --force flag, should attempt to connect and fail
 	err := runTerminologyDrop([]string{"--force"})
@@ -189,7 +190,8 @@ func TestRunTerminologyDrop_ForceFlag(t *testing.T) {
 }
 
 func TestRunTerminologyDrop_ShortForceFlag(t *testing.T) {
-	t.Setenv("FI_FHIR_DATABASE_URL", "postgres://example/test")
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "")
+	t.Setenv("FI_FHIR_DATABASE_URL", "postgres://127.0.0.1:1/fi_fhir_test?sslmode=disable&connect_timeout=1")
 
 	// With -f flag (short form), should attempt to connect and fail
 	err := runTerminologyDrop([]string{"-f"})
