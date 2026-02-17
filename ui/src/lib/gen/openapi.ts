@@ -278,7 +278,7 @@ export interface components {
              * @description Event type
              * @enum {string}
              */
-            type: "patient_admit" | "patient_discharge" | "patient_transfer" | "patient_update" | "lab_result" | "appointment_booked" | "appointment_cancelled" | "claim_submitted" | "claim_response" | "eligibility_inquiry" | "eligibility_response";
+            type: "patient_admit" | "patient_discharge" | "patient_transfer" | "patient_update" | "patient_merge" | "lab_result" | "lab_ordered" | "lab_cancelled" | "appointment_scheduled" | "appointment_rescheduled" | "appointment_modified" | "appointment_cancelled" | "appointment_noshow" | "appointment_checked_in" | "claim_submitted" | "claim_adjudicated" | "prior_auth_request" | "prior_auth_response" | "eligibility_inquiry" | "eligibility_response" | "claim_status_request" | "claim_status_response" | "document" | "document_original" | "document_status_change" | "document_addendum" | "document_edit" | "document_replacement" | "vital_sign" | "condition" | "procedure" | "immunization" | "financial_transaction" | "medication_request" | "allergy_intolerance" | "social_history";
             /** @description Source system identifier */
             source?: string;
             /** Format: date-time */
