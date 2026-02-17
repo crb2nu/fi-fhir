@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -253,5 +254,30 @@ func TestDefaultWorkerConfig(t *testing.T) {
 	}
 	if cfg.MaxConcurrentWorkflowTaskExecutionSize != 10 {
 		t.Fatalf("MaxConcurrentWorkflowTaskExecutionSize=%d want 10", cfg.MaxConcurrentWorkflowTaskExecutionSize)
+	}
+}
+
+func TestNewWorker_InvalidHostPort(t *testing.T) {
+	_, err := NewWorker(t.Context(), WorkerConfig{
+		HostPort:  "://invalid-hostport",
+		Namespace: "default",
+	}, nil, nil)
+	if err == nil {
+		t.Fatal("expected error for invalid host:port")
+	}
+	if !strings.Contains(err.Error(), "failed to create Temporal client") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestNewWorker_Defaults_WithoutServer(t *testing.T) {
+	// Empty HostPort/Namespace should use defaults, then fail dialing local Temporal
+	// in unit test environments where no server is running.
+	_, err := NewWorker(t.Context(), WorkerConfig{}, nil, nil)
+	if err == nil {
+		t.Fatal("expected dial error when no local Temporal server is running")
+	}
+	if !strings.Contains(err.Error(), "failed to create Temporal client") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
