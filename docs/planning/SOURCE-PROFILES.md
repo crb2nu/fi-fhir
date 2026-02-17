@@ -531,14 +531,11 @@ fi-fhir parse --profile ./profiles/epic_adt.yaml \
   --set 'hl7v2.tolerate.missing_segments=["PV1","PV2"]' \
   message.hl7
 
-# List available profiles
-fi-fhir profiles list
+# Lint a profile (with optional sample messages)
+fi-fhir profile lint ./profiles/epic_adt.yaml --samples ./samples/*.hl7
 
-# Validate a profile
-fi-fhir profiles validate ./profiles/epic_adt.yaml
-
-# Generate profile from sample messages (future)
-fi-fhir profiles infer ./samples/*.hl7 --output ./profiles/inferred.yaml
+# Generate profile from sample messages
+fi-fhir profile infer ./samples/*.hl7 --out ./profiles/inferred.yaml
 ```
 
 ## Example Profiles
@@ -649,7 +646,7 @@ Moving Source Profiles to MVP requires:
 - [x] Terminology mapping tables - see `pkg/terminology/mapper.go`
 - [x] NPI/MBI validators wired to quality checks - see `pkg/validate/identifiers.go`
 - [ ] Z-segment field mapping beyond raw capture
-- [ ] Profile inference from samples (`fi-fhir profiles infer`)
+- [x] Profile inference from samples (`fi-fhir profile infer`) - see `cmd/fi-fhir/main.go`
 
 ## Testing Strategy
 

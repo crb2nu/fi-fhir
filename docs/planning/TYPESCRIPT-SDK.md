@@ -387,7 +387,7 @@ describe('parseCSV', () => {
 - [x] npm publish workflow (GitLab npm registry) on tags
 - [ ] Streaming API (future)
 
-> **Note**: SDK is functional but distribution automation is not yet implemented.
+> **Note**: SDK is functional and distribution automation is implemented via GitLab npm publish on tags.
 
 ## See Also
 

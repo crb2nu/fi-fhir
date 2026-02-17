@@ -6,14 +6,14 @@ This document specifies the enhanced terminology mapping system with CSV upload,
 
 | Feature | Status | Implementation |
 |---------|--------|----------------|
-| **CSV mapping upload** | 🔲 Planned | `internal/api/graphql/resolvers/mapping.go` |
-| **Persistent mapping store** | 🔲 Planned | `pkg/terminology/db/mappings.go` |
-| **Autoroute engine** | 🔲 Planned | `internal/terminology/autoroute/` |
+| **CSV mapping upload** | ✅ Shipped | `pkg/terminology/upload/parser.go`, `internal/api/graphql/resolvers/schema.resolvers.go` |
+| **Persistent mapping store** | ✅ Shipped | `pkg/terminology/db/mappings.go` |
+| **Autoroute engine** | ✅ Shipped | `internal/terminology/autoroute/` |
 | **Semantic search** | ✅ Exists | `pkg/terminology/semantic/searcher.go` |
-| **LLM ranking/reasoning** | 🔲 Planned | `internal/terminology/autoroute/ranker.go` |
-| **Decision telemetry** | 🔲 Planned | `internal/terminology/mapping/telemetry.go` |
-| **Mapping review UI** | 🔲 Planned | `ui/src/lib/features/mappings/` |
-| **Approval workflow** | 🔲 Planned | GraphQL mutations + UI |
+| **LLM ranking/reasoning** | ✅ Shipped | `internal/terminology/autoroute/ranker.go` |
+| **Decision telemetry** | 🟡 Partial | `internal/terminology/workflow/activities.go`, `pkg/terminology/db/mappings.go` |
+| **Mapping review UI** | ✅ Shipped | `ui/src/lib/features/terminology/` |
+| **Approval workflow** | ✅ Shipped (GraphQL/UI) | GraphQL pending-autoroute mutations + `PendingReviewList.svelte` |
 
 ## Concepts
 
@@ -1366,18 +1366,14 @@ Provide confidence scores from 0.0 to 1.0 where:
 
 ### Component Structure
 
-```
-ui/src/lib/features/mappings/
-├── MappingsPage.svelte           # Main page with tabs
-├── components/
-│   ├── MappingUploader.svelte    # CSV upload with drag-drop
-│   ├── MappingPreview.svelte     # Preview uploaded rows
-│   ├── MappingBrowser.svelte     # Search/filter/edit mappings
-│   ├── PendingReview.svelte      # Review autorouted suggestions
-│   ├── DecisionTraceViewer.svelte # Visualize decision tree
-│   └── MappingStats.svelte       # Dashboard statistics
-└── stores/
-    └── mappingStore.ts           # Svelte stores for state
+```text
+ui/src/lib/features/terminology/
+├── MappingUploader.svelte        # CSV upload workflow
+├── MappingBrowser.svelte         # Search/filter/edit mappings
+├── PendingReviewList.svelte      # Review + approve/reject/bulk approve
+├── AutorouteResolver.svelte      # Resolve/suggest mapping exploration
+├── MappingEditor.svelte          # Manual mapping edits
+└── terminologyApi.ts             # GraphQL client helpers for mapping/review flows
 ```
 
 ### Upload Flow
@@ -1511,37 +1507,37 @@ FI_FHIR_MAPPING_QDRANT_URL=http://qdrant:6333
 
 ## Implementation Phases
 
-### Phase 1: CSV Upload + Persistent Storage (2-3 days)
-- [ ] Database schema migrations
-- [ ] `upload/parser.go` - CSV parsing with validation
-- [ ] `mapping/persistent.go` - PersistentStore CRUD
-- [ ] GraphQL mutations: `uploadMappingCSV`, `createMapping`, `deleteMapping`
-- [ ] Basic UI: `MappingUploader.svelte`, `MappingBrowser.svelte`
+### Phase 1: CSV Upload + Persistent Storage (2-3 days) ✅
+- [x] Database schema migrations - see `pkg/terminology/db/migrations.go`, `pkg/terminology/db/schema.go`
+- [x] `upload/parser.go` - CSV parsing with validation
+- [x] Persistent store CRUD - see `pkg/terminology/db/mappings.go` (`MappingStore`)
+- [x] GraphQL mutations: `uploadMappingCSV`, `createMapping`, `deleteMapping`
+- [x] Basic UI: `MappingUploader.svelte`, `MappingBrowser.svelte`
 - [ ] CLI: `fi-fhir terminology mapping upload`
 
-### Phase 2: Autoroute Engine (3-4 days)
-- [ ] `autoroute/engine.go` - Core orchestration
-- [ ] `autoroute/ranker.go` - LLM ranking with prompts
-- [ ] `autoroute/cache.go` - Result caching
-- [ ] `mapping/service.go` - MappingService with resolution flow
-- [ ] GraphQL queries: `resolveMapping`, `suggestMappings`
+### Phase 2: Autoroute Engine (3-4 days) ✅
+- [x] `autoroute/engine.go` - Core orchestration
+- [x] `autoroute/ranker.go` - LLM ranking with prompts
+- [x] `autoroute/cache.go` - Result caching
+- [x] Resolution flow via GraphQL resolver + mapping store fallback (`internal/api/graphql/resolvers/schema.resolvers.go`)
+- [x] GraphQL queries: `resolveMapping`, `suggestMappings`
 - [ ] CLI: `fi-fhir terminology mapping resolve`
 
 ### Phase 3: Decision Telemetry (1-2 days)
-- [ ] `mapping/telemetry.go` - DecisionRecorder
+- [x] Decision recording path via workflow activities + persistent store (`internal/terminology/workflow/activities.go`, `pkg/terminology/db/mappings.go`)
 - [ ] OpenTelemetry span attributes
 - [ ] `mapping_decisions` table with partitioning
-- [ ] GraphQL: `MappingDecisionTrace` in all results
+- [x] GraphQL decision trace included in mapping results (`ResolveMappingResult.trace`, `PendingAutoroute.decisionTrace`)
 
-### Phase 4: Review Workflow + UI (3-4 days)
-- [ ] `pending_autoroutes` table and logic
-- [ ] GraphQL: `pendingAutoroutes`, `approvePendingAutoroute`, `rejectPendingAutoroute`
-- [ ] UI: `PendingReview.svelte` with bulk actions
-- [ ] UI: `DecisionTraceViewer.svelte` for audit
+### Phase 4: Review Workflow + UI (3-4 days) ✅
+- [x] `pending_autoroutes` table and logic
+- [x] GraphQL: `listPendingAutoroutes`, `approvePendingAutoroute`, `rejectPendingAutoroute` (+ bulk approve)
+- [x] UI: `PendingReviewList.svelte` with bulk actions
+- [x] Decision trace is reviewable in pending review UI (expandable trace payload)
 - [ ] CLI: `fi-fhir terminology mapping pending`, `approve`, `reject`
 
 ### Phase 5: Analytics + Polish (2-3 days)
-- [ ] `MappingStats` query with aggregations
+- [ ] `MappingStats` query with aggregations (current: `pendingAutorouteStats`)
 - [ ] UI: `MappingStats.svelte` dashboard
 - [ ] Notification webhooks for new pending items
 - [ ] Performance optimization and load testing
