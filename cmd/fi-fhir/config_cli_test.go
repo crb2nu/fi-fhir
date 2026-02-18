@@ -51,6 +51,49 @@ observability:
 	}
 }
 
+func TestConfigValidate_InvalidFileContent(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "invalid-config.yaml")
+
+	cfg := `server:
+  port: 0
+  read_timeout: 0s
+workflow:
+  max_concurrency: 0
+`
+	if err := os.WriteFile(cfgPath, []byte(cfg), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	_, stderr, err := runCLI(t, "config", "validate", cfgPath)
+	if err == nil {
+		t.Fatalf("expected validation error")
+	}
+	if !strings.Contains(err.Error(), "validation failed") {
+		t.Fatalf("expected validation failure, got: %v", err)
+	}
+	if !strings.Contains(stderr, "Configuration validation failed") {
+		t.Fatalf("expected validation details in stderr, got: %s", stderr)
+	}
+}
+
+func TestConfigShow_InvalidConfigFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "invalid-config.yaml")
+
+	if err := os.WriteFile(cfgPath, []byte("server: ["), 0o600); err != nil {
+		t.Fatalf("write invalid config: %v", err)
+	}
+
+	_, _, err := runCLI(t, "config", "show", "--config", cfgPath)
+	if err == nil {
+		t.Fatalf("expected load error for invalid config")
+	}
+	if !strings.Contains(err.Error(), "failed to load config") {
+		t.Fatalf("expected load error, got: %v", err)
+	}
+}
+
 func TestConfigEnv_ExportFormat(t *testing.T) {
 	stdout, _, err := runCLI(t, "config", "env", "--format", "export")
 	if err != nil {
@@ -58,6 +101,36 @@ func TestConfigEnv_ExportFormat(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "export FI_FHIR_") {
 		t.Fatalf("expected export output, got: %s", stdout)
+	}
+}
+
+func TestConfigEnv_MissingFormatValue(t *testing.T) {
+	_, _, err := runCLI(t, "config", "env", "--format")
+	if err == nil {
+		t.Fatalf("expected missing format value error")
+	}
+	if !strings.Contains(err.Error(), "--format requires a value") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestConfigEnv_MissingSectionValue(t *testing.T) {
+	_, _, err := runCLI(t, "config", "env", "--section")
+	if err == nil {
+		t.Fatalf("expected missing section value error")
+	}
+	if !strings.Contains(err.Error(), "--section requires a value") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestConfigEnv_UnknownSection(t *testing.T) {
+	_, _, err := runCLI(t, "config", "env", "--section", "does-not-exist")
+	if err == nil {
+		t.Fatalf("expected unknown section error")
+	}
+	if !strings.Contains(err.Error(), "unknown section") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
