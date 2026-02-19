@@ -2932,6 +2932,13 @@ func runConfig(args []string) error {
 	}
 }
 
+var (
+	marshalConfigYAML = marshalYAML
+	marshalConfigJSON = func(v interface{}) ([]byte, error) {
+		return json.MarshalIndent(v, "", "  ")
+	}
+)
+
 func runConfigShow(args []string) error {
 	var (
 		configPath = ""
@@ -2981,13 +2988,13 @@ func runConfigShow(args []string) error {
 	// Output in requested format
 	switch format {
 	case "yaml":
-		output, err := marshalYAML(cfg)
+		output, err := marshalConfigYAML(cfg)
 		if err != nil {
 			return fmt.Errorf("failed to marshal config: %w", err)
 		}
 		fmt.Println(string(output))
 	case "json":
-		output, err := json.MarshalIndent(cfg, "", "  ")
+		output, err := marshalConfigJSON(cfg)
 		if err != nil {
 			return fmt.Errorf("failed to marshal config: %w", err)
 		}

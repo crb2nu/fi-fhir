@@ -1,10 +1,13 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/config"
 )
 
 func TestConfigShow_DefaultYAML(t *testing.T) {
@@ -24,6 +27,39 @@ func TestConfigShow_JSONFormat(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "{") {
 		t.Fatalf("expected JSON-ish output, got: %s", stdout)
+	}
+}
+
+func TestConfigShow_ConfigFlagIgnoresExtraPositionalConfigPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	primaryPath := filepath.Join(tmpDir, "primary.yaml")
+	secondaryPath := filepath.Join(tmpDir, "secondary.yaml")
+
+	primaryConfig := `server:
+  host: primary.example
+  port: 8011
+`
+	secondaryConfig := `server:
+  host: secondary.example
+  port: 9022
+`
+
+	if err := os.WriteFile(primaryPath, []byte(primaryConfig), 0o600); err != nil {
+		t.Fatalf("write primary config: %v", err)
+	}
+	if err := os.WriteFile(secondaryPath, []byte(secondaryConfig), 0o600); err != nil {
+		t.Fatalf("write secondary config: %v", err)
+	}
+
+	stdout, _, err := runCLI(t, "config", "show", "--config", primaryPath, secondaryPath)
+	if err != nil {
+		t.Fatalf("config show with extra positional config path: %v", err)
+	}
+	if !strings.Contains(stdout, "primary.example") {
+		t.Fatalf("expected output from primary config, got: %s", stdout)
+	}
+	if strings.Contains(stdout, "secondary.example") {
+		t.Fatalf("did not expect output from extra positional config path")
 	}
 }
 
@@ -91,6 +127,44 @@ func TestConfigShow_InvalidConfigFile(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "failed to load config") {
 		t.Fatalf("expected load error, got: %v", err)
+	}
+}
+
+func TestConfigShow_YAMLMarshalFailure(t *testing.T) {
+	original := marshalConfigYAML
+	t.Cleanup(func() {
+		marshalConfigYAML = original
+	})
+
+	marshalConfigYAML = func(*config.Config) ([]byte, error) {
+		return nil, errors.New("forced yaml marshal error")
+	}
+
+	_, _, err := runCLI(t, "config", "show")
+	if err == nil {
+		t.Fatalf("expected marshal error")
+	}
+	if !strings.Contains(err.Error(), "failed to marshal config") {
+		t.Fatalf("expected marshal failure, got: %v", err)
+	}
+}
+
+func TestConfigShow_JSONMarshalFailure(t *testing.T) {
+	original := marshalConfigJSON
+	t.Cleanup(func() {
+		marshalConfigJSON = original
+	})
+
+	marshalConfigJSON = func(interface{}) ([]byte, error) {
+		return nil, errors.New("forced json marshal error")
+	}
+
+	_, _, err := runCLI(t, "config", "show", "--format", "json")
+	if err == nil {
+		t.Fatalf("expected marshal error")
+	}
+	if !strings.Contains(err.Error(), "failed to marshal config") {
+		t.Fatalf("expected marshal failure, got: %v", err)
 	}
 }
 
