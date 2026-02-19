@@ -947,7 +947,6 @@
           </div>
         {/if}
       </div>
-
       {#if linkedWorkflowId}
         <div class="version-history">
           <div class="version-history-header">
