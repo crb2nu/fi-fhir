@@ -327,6 +327,32 @@ func TestTerminology_Live_Load_RxNorm(t *testing.T) {
 	assertContains(t, stdout, "NDC Cross-refs:")
 }
 
+func TestTerminology_Live_Load_SNOMED_And_ICD10PCS(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
+	requireEnv(t, "FI_FHIR_POSTGRES_ADMIN_URL")
+	dsn := createEphemeralPostgresDB(t, os.Getenv("FI_FHIR_POSTGRES_ADMIN_URL"))
+
+	// Minimal SNOMED fixture directory for live CLI path coverage.
+	snomedDir := t.TempDir()
+	assertNoError(t, os.WriteFile(snomedDir+"/release-notes.txt", []byte("SNOMED CT test fixture"), 0o600))
+
+	stdout, _, err := runCLI(t, "terminology", "load", "snomed", snomedDir, "--version", "2026-01", "--date", "2026-01-14", "--db", dsn)
+	assertNoError(t, err)
+	assertContains(t, stdout, "Loading SNOMED CT version 2026-01")
+	assertContains(t, stdout, "SNOMED loader not yet implemented")
+
+	// Minimal ICD-10-PCS fixture file for live CLI path coverage.
+	icd10pcsPath := t.TempDir() + "/icd10pcs.txt"
+	assertNoError(t, os.WriteFile(icd10pcsPath, []byte("ICD10PCS test fixture"), 0o600))
+
+	stdout, _, err = runCLI(t, "terminology", "load", "icd10pcs", icd10pcsPath, "--version", "FY2026", "--date", "2026-01-14", "--db", dsn)
+	assertNoError(t, err)
+	assertContains(t, stdout, "Loading ICD-10-PCS version FY2026")
+	assertContains(t, stdout, "ICD-10-PCS loader not yet implemented")
+}
+
 func TestEventStore_Live_Postgres(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping in short mode")
