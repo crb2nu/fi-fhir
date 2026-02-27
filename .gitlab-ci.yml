@@ -617,6 +617,55 @@ test:benchmark:
     - when: never
   allow_failure: true  # Soft-fail during threshold tuning phase; promote to blocking once stable
 
+test:docs-status:
+  stage: test
+  <<: *go-image
+  <<: *go-cache
+  # Gate owner: Platform/Docs — escalate via MR comment or #ci-support channel.
+  # Rollback: set allow_failure: true if drift threshold needs tuning.
+  needs:
+    - job: test:unit
+      optional: true
+      artifacts: true
+  script:
+    - apk add --no-cache git bash bc
+    - |
+      if [ ! -f coverage.out ]; then
+        echo "⚠ coverage.out not available (test:unit may have been skipped)"
+        exit 0
+      fi
+    - bash scripts/docs-status.sh --check-drift
+  after_script:
+    - |
+      if [ "$CI_JOB_STATUS" = "failed" ]; then
+        echo ""
+        echo "╔══════════════════════════════════════════════════════════════╗"
+        echo "║  test:docs-status FAILED — STATUS.md coverage drift found. ║"
+        echo "║                                                             ║"
+        echo "║  Fix: make docs-status && commit docs/STATUS.md             ║"
+        echo "║  Config: scripts/docs-status.sh (DRIFT_THRESHOLD env var)   ║"
+        echo "║  Owner: Platform/Docs — escalate in #ci-support             ║"
+        echo "╚══════════════════════════════════════════════════════════════╝"
+      fi
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - docs/STATUS.md
+        - scripts/docs-status.sh
+        - internal/**/*
+        - pkg/**/*
+        - cmd/**/*
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - docs/STATUS.md
+        - scripts/docs-status.sh
+        - internal/**/*
+        - pkg/**/*
+        - cmd/**/*
+    - when: never
+  allow_failure: true  # Soft-fail during initial rollout; promote to blocking after clean runs
+
 # =============================================================================
 # Security Stage
 # =============================================================================

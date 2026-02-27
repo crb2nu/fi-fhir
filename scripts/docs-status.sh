@@ -3,7 +3,13 @@
 #
 # Usage:
 #   bash scripts/docs-status.sh                  # Output structured data
-#   bash scripts/docs-status.sh --check-stale    # Also flag STATUS.md drift
+#   bash scripts/docs-status.sh --check-stale    # Also flag STATUS.md date drift
+#   bash scripts/docs-status.sh --check-drift    # Compare coverage vs STATUS.md (CI gate)
+#
+# Exit codes:
+#   0 — OK (no drift or within tolerance)
+#   1 — Coverage drift detected (>= threshold)
+#   2 — Script error (missing file, parse error)
 #
 # Requires: coverage.out in project root (run `make test-cover-all` or `make test-cover` first)
 
@@ -13,10 +19,16 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 COVERAGE_FILE="${PROJECT_ROOT}/coverage.out"
 STATUS_FILE="${PROJECT_ROOT}/docs/STATUS.md"
 CHECK_STALE=false
+CHECK_DRIFT=false
+DRIFT_THRESHOLD="${DRIFT_THRESHOLD:-5.0}"  # Configurable via env var
 
-if [[ "${1:-}" == "--check-stale" ]]; then
-    CHECK_STALE=true
-fi
+for arg in "$@"; do
+    case "${arg}" in
+        --check-stale) CHECK_STALE=true ;;
+        --check-drift) CHECK_DRIFT=true; CHECK_STALE=true ;;
+        --threshold=*) DRIFT_THRESHOLD="${arg#--threshold=}" ;;
+    esac
+done
 
 # ─── Component definitions ───────────────────────────────────────────────────
 # Each line: <display_name>|<path>|<coverage_prefix>
@@ -106,6 +118,8 @@ printf "%-30s-+-%-35s-+-%8s-+-%12s-+-%5s-+-%5s\n" \
     "------------------------------" "-----------------------------------" "--------" "------------" "-----" "-----"
 
 stale_count=0
+drift_count=0
+declare -A COMPUTED_COVERAGE  # Store computed values for drift check
 
 for comp_def in "${COMPONENTS[@]}"; do
     IFS='|' read -r name comp_path cov_prefix <<< "${comp_def}"
@@ -116,6 +130,7 @@ for comp_def in "${COMPONENTS[@]}"; do
     if [[ "${count}" -gt 0 ]]; then
         avg="$(echo "scale=1; ${total} / ${count}" | bc 2>/dev/null || echo "0.0")"
         coverage="${avg}%"
+        COMPUTED_COVERAGE[${comp_path}]="${avg}"
     else
         coverage="—"
     fi
@@ -151,11 +166,30 @@ for comp_def in "${COMPONENTS[@]}"; do
             escaped_path="\`${comp_path}\`"
             status_line="$(grep -F "${escaped_path}" "${STATUS_FILE}" 2>/dev/null | head -1 || true)"
         fi
+
+        # Date staleness check
         status_date="$(echo "${status_line}" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | tail -1 || true)"
         if [[ -n "${status_date}" ]] && [[ -n "${last_updated}" ]] && [[ "${last_updated}" != "N/A" ]]; then
             if [[ "${status_date}" != "${last_updated}" ]]; then
                 echo "  ⚠ STALE: STATUS.md says ${status_date}, git says ${last_updated}" >&2
                 stale_count=$((stale_count + 1))
+            fi
+        fi
+
+        # Coverage drift check (only with --check-drift)
+        if [[ "${CHECK_DRIFT}" == true ]] && [[ -n "${COMPUTED_COVERAGE[${comp_path}]:-}" ]]; then
+            # Extract coverage % from STATUS.md line (e.g., "| 78.7% |" or "| 0.0% |")
+            status_cov="$(echo "${status_line}" | grep -oE '[0-9]+\.[0-9]+%' | head -1 || true)"
+            status_cov="${status_cov%%%}"
+            computed_cov="${COMPUTED_COVERAGE[${comp_path}]}"
+
+            if [[ -n "${status_cov}" ]] && [[ -n "${computed_cov}" ]]; then
+                # Calculate absolute difference
+                diff_val="$(echo "scale=1; d = ${computed_cov} - ${status_cov}; if (d < 0) -d else d" | bc 2>/dev/null || echo "0")"
+                if [[ "$(echo "${diff_val} >= ${DRIFT_THRESHOLD}" | bc 2>/dev/null)" == "1" ]]; then
+                    echo "  ❌ DRIFT: ${name} — STATUS.md: ${status_cov}%, computed: ${computed_cov}% (Δ${diff_val}%, threshold: ${DRIFT_THRESHOLD}%)" >&2
+                    drift_count=$((drift_count + 1))
+                fi
             fi
         fi
     fi
@@ -184,9 +218,20 @@ echo "# Total Go coverage: $(go tool cover -func="${COVERAGE_FILE}" 2>/dev/null 
 if [[ "${CHECK_STALE}" == true ]]; then
     if [[ ${stale_count} -gt 0 ]]; then
         echo ""
-        echo "# ⚠ ${stale_count} component(s) have stale STATUS.md entries" >&2
+        echo "# ⚠ ${stale_count} component(s) have stale STATUS.md date entries" >&2
     else
         echo ""
-        echo "# ✅ All STATUS.md entries are up to date"
+        echo "# ✅ All STATUS.md date entries are up to date"
+    fi
+fi
+
+if [[ "${CHECK_DRIFT}" == true ]]; then
+    echo ""
+    if [[ ${drift_count} -gt 0 ]]; then
+        echo "# ❌ ${drift_count} component(s) have coverage drift > ${DRIFT_THRESHOLD}% in docs/STATUS.md" >&2
+        echo "# Fix: run 'make docs-status' and commit the updated docs/STATUS.md" >&2
+        exit 1
+    else
+        echo "# ✅ All STATUS.md coverage values are within ${DRIFT_THRESHOLD}% tolerance"
     fi
 fi
