@@ -62,7 +62,11 @@ func (e *CELEvaluator) Evaluate(condition string, event interface{}) (bool, erro
 
 	// Convert result to boolean
 	if out.Type() == types.BoolType {
-		return out.Value().(bool), nil
+		val, ok := out.Value().(bool)
+		if !ok {
+			return false, fmt.Errorf("CEL result type mismatch: expected bool, got %T", out.Value())
+		}
+		return val, nil
 	}
 
 	// For non-boolean results, check if truthy

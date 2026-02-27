@@ -233,7 +233,7 @@ func TestConfigInit_WritesMinimalConfig(t *testing.T) {
 		t.Fatalf("expected create output, got: %s", stdout)
 	}
 
-	b, err := os.ReadFile(outPath) //nolint:gosec // G304: test fixture
+	b, err := os.ReadFile(outPath)
 	if err != nil {
 		t.Fatalf("read created config: %v", err)
 	}

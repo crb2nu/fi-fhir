@@ -82,7 +82,7 @@ func main() {
 }
 
 func parseCanonicalEventTypes(path string) (set, error) {
-	content, err := os.ReadFile(path) //nolint:gosec // trusted local repo path
+	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read canonical events file: %w", err)
 	}
@@ -100,7 +100,7 @@ func parseCanonicalEventTypes(path string) (set, error) {
 }
 
 func parseGraphQLEventTypes(path string) (set, error) {
-	content, err := os.ReadFile(path) //nolint:gosec // trusted local repo path
+	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read graphql schema: %w", err)
 	}
@@ -140,7 +140,7 @@ func parseGraphQLEventTypes(path string) (set, error) {
 }
 
 func parseOpenAPIEventTypes(path string) (set, error) {
-	content, err := os.ReadFile(path) //nolint:gosec // trusted local repo path
+	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read openapi spec: %w", err)
 	}

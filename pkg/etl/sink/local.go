@@ -38,7 +38,7 @@ func (s *LocalSink) Write(ctx context.Context, path string, r io.Reader, size in
 	}
 
 	// Create file
-	f, err := os.Create(fullPath) //nolint:gosec // G304: path from config
+	f, err := os.Create(fullPath)
 	if err != nil {
 		return fmt.Errorf("failed to create file %s: %w", fullPath, err)
 	}
@@ -98,7 +98,7 @@ func (s *LocalSink) Validate(ctx context.Context) error {
 
 	// Check we can write
 	testFile := filepath.Join(s.basePath, ".etl-test")
-	f, err := os.Create(testFile) //nolint:gosec // G304: controlled test file
+	f, err := os.Create(testFile)
 	if err != nil {
 		return fmt.Errorf("failed to write test file: %w", err)
 	}

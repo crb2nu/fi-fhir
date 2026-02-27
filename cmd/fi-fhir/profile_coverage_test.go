@@ -128,7 +128,7 @@ func TestProfileInfer_OutputToFile(t *testing.T) {
 	}
 
 	// Output file should exist and contain valid YAML
-	data, err := os.ReadFile(outPath) //nolint:gosec // G304: test file path is controlled
+	data, err := os.ReadFile(outPath)
 	if err != nil {
 		t.Fatalf("read output file: %v", err)
 	}
@@ -263,7 +263,7 @@ func TestProfileInfer_ShortFlags(t *testing.T) {
 	assertNoError(t, err)
 	assertContains(t, stderr, "Inferred from")
 
-	data, err := os.ReadFile(outPath) //nolint:gosec // G304: test file path is controlled
+	data, err := os.ReadFile(outPath)
 	if err != nil {
 		t.Fatalf("read output: %v", err)
 	}

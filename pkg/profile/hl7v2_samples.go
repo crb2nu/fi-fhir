@@ -145,7 +145,7 @@ func ReadHL7v2Samples(paths []string, opts ReadHL7v2SamplesOptions) ([]string, [
 	var samples []string
 	var used []string
 	for _, f := range files {
-		data, err := os.ReadFile(f) //nolint:gosec // G304: user-provided paths
+		data, err := os.ReadFile(f)
 		if err != nil {
 			return nil, nil, fmt.Errorf("read %s: %w", f, err)
 		}

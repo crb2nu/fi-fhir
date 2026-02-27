@@ -1,4 +1,3 @@
-//nolint:gosec // Test file — security checks relaxed for test setup
 package main
 
 import (

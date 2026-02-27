@@ -7,7 +7,7 @@ import (
 
 func TestParse_HL7FromStdinDash(t *testing.T) {
 	inputPath := testdataPath(t, "adt_a01_sample.hl7")
-	data, err := os.ReadFile(inputPath) //nolint:gosec // test fixture path is controlled by the test
+	data, err := os.ReadFile(inputPath)
 	if err != nil {
 		t.Fatalf("read test HL7 message: %v", err)
 	}

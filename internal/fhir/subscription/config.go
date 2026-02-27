@@ -16,7 +16,7 @@ type Config struct {
 
 // LoadConfig loads subscription configuration from a YAML file.
 func LoadConfig(path string) (*Config, error) {
-	data, err := os.ReadFile(path) //nolint:gosec // G304: path from trusted caller
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read config file: %w", err)
 	}
@@ -177,7 +177,7 @@ func LoadFullConfig(subscriptionsPath, configPath string) (*FullConfig, error) {
 
 	// Load receiver config if path provided
 	if configPath != "" {
-		data, err := os.ReadFile(configPath) //nolint:gosec // G304: path from trusted config
+		data, err := os.ReadFile(configPath)
 		if err != nil {
 			return nil, fmt.Errorf("read config file: %w", err)
 		}

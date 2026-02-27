@@ -527,7 +527,6 @@ func (s *MappingStore) UpdateMapping(ctx context.Context, input UpdateMappingInp
 	// Add the ID for the WHERE clause
 	args = append(args, input.ID)
 
-	//nolint:gosec // G201: setClauses are from controlled code
 	query := fmt.Sprintf(`
 		UPDATE terminology.custom_mappings
 		SET %s

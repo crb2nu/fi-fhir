@@ -215,7 +215,7 @@ type FileDLQ struct {
 // NewFileDLQ creates a new file-based dead letter queue.
 func NewFileDLQ(dir string) (*FileDLQ, error) {
 	// Create directory if it doesn't exist
-	if err := os.MkdirAll(dir, 0755); err != nil { //nolint:gosec // G301: DLQ dir needs read access for debugging
+	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create DLQ directory: %w", err)
 	}
 
@@ -240,7 +240,7 @@ func (q *FileDLQ) Push(event *FailedEvent) error {
 	}
 
 	filename := filepath.Join(q.dir, event.ID+".json")
-	if err := os.WriteFile(filename, data, 0644); err != nil { //nolint:gosec // G306: DLQ files need read access
+	if err := os.WriteFile(filename, data, 0644); err != nil {
 		return fmt.Errorf("failed to write event file: %w", err)
 	}
 
@@ -424,7 +424,7 @@ func (q *FileDLQ) listFiles() ([]string, error) {
 
 // readFile reads a FailedEvent from a JSON file.
 func (q *FileDLQ) readFile(filename string) (*FailedEvent, error) {
-	data, err := os.ReadFile(filename) //nolint:gosec // G304: filename constructed from controlled DLQ directory
+	data, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read event file: %w", err)
 	}

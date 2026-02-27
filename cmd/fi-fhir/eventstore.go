@@ -213,7 +213,6 @@ func runEventStoreStreams(args []string) error {
 	defer cancel()
 
 	// Query distinct streams
-	//nolint:gosec // G201: tableName is trusted internal config, not user input
 	query := fmt.Sprintf(`
 		SELECT stream_id, MAX(stream_version) as version, COUNT(*) as event_count
 		FROM %s

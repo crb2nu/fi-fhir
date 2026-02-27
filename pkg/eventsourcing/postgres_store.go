@@ -671,7 +671,6 @@ func (s *PostgresStore) DeleteEventsByPosition(ctx context.Context, positions []
 		args[i] = pos
 	}
 
-	//nolint:gosec // G201: tableName from trusted config
 	query := fmt.Sprintf(
 		"DELETE FROM %s WHERE position IN (%s)",
 		s.tableName,

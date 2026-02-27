@@ -118,7 +118,7 @@ func fileAction(event interface{}, config map[string]string) error {
 	}
 
 	if format == "ndjson" {
-		f, err := os.OpenFile(resolvedPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, perm) //nolint:gosec // G302: config-controlled; perm defaults to 0600
+		f, err := os.OpenFile(resolvedPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, perm)
 		if err != nil {
 			return fmt.Errorf("failed to open output file %q: %w", resolvedPath, err)
 		}
@@ -418,7 +418,7 @@ func execAction(ctx context.Context, event interface{}, config map[string]string
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, command, args...) //nolint:gosec // G204: command path validated (absolute + allowlist)
+	cmd := exec.CommandContext(ctx, command, args...)
 	cmd.Env = append([]string{}, os.Environ()...)
 	for k, v := range config {
 		if !strings.HasPrefix(k, "env_") {

@@ -43,7 +43,7 @@ func runWorkflowGenerate(args []string) error {
 	)
 
 	for i := 0; i < len(args); i++ {
-		switch args[i] { //nolint:gosec // G602: i is bounded by loop condition
+		switch args[i] {
 		case "--interactive", "-i":
 			interactive = true
 		case "--json":
@@ -53,7 +53,7 @@ func runWorkflowGenerate(args []string) error {
 			return nil
 		default:
 			if len(args[i]) > 0 && args[i][0] == '-' {
-				return fmt.Errorf("unknown flag: %s", args[i]) //nolint:gosec // G602: i is bounded by loop condition
+				return fmt.Errorf("unknown flag: %s", args[i])
 			}
 			if description == "" {
 				description = args[i]
@@ -188,7 +188,7 @@ func runWorkflowExplain(args []string) error {
 	)
 
 	for i := 0; i < len(args); i++ {
-		switch args[i] { //nolint:gosec // G602: i is bounded by loop condition
+		switch args[i] {
 		case "--audience":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--audience requires a value")
@@ -204,7 +204,7 @@ func runWorkflowExplain(args []string) error {
 			return nil
 		default:
 			if len(args[i]) > 0 && args[i][0] == '-' {
-				return fmt.Errorf("unknown flag: %s", args[i]) //nolint:gosec // G602: i is bounded by loop condition
+				return fmt.Errorf("unknown flag: %s", args[i])
 			}
 			if input == "" {
 				input = args[i]
@@ -309,7 +309,7 @@ func runWorkflowCEL(args []string) error {
 	)
 
 	for i := 0; i < len(args); i++ {
-		switch args[i] { //nolint:gosec // G602: i is bounded by loop condition
+		switch args[i] {
 		case "--json":
 			jsonOutput = true
 		case "--validate":
@@ -322,7 +322,7 @@ func runWorkflowCEL(args []string) error {
 			printWorkflowCELUsage()
 			return nil
 		default:
-			if len(args[i]) > 0 && args[i][0] == '-' { //nolint:gosec // G602: i is bounded by loop condition
+			if len(args[i]) > 0 && args[i][0] == '-' {
 				return fmt.Errorf("unknown flag: %s", args[i])
 			}
 			if description == "" {
@@ -421,7 +421,7 @@ func runTerminologySearch(args []string) error {
 	)
 
 	for i := 0; i < len(args); i++ {
-		switch args[i] { //nolint:gosec // G602: i is bounded by loop condition
+		switch args[i] {
 		case "--query", "-q":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--query requires a value")
@@ -471,7 +471,7 @@ func runTerminologySearch(args []string) error {
 			return nil
 		default:
 			if len(args[i]) > 0 && args[i][0] == '-' {
-				return fmt.Errorf("unknown flag: %s", args[i]) //nolint:gosec // G602: i is bounded by loop condition
+				return fmt.Errorf("unknown flag: %s", args[i])
 			}
 			if query == "" {
 				query = args[i]

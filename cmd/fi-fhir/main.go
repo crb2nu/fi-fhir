@@ -1791,7 +1791,7 @@ func validateMessage(profilePath, messagePath, format string, verbose bool) []st
 	}
 
 	// Read message
-	data, err := os.ReadFile(messagePath) //nolint:gosec // G304: CLI tool reads user-specified file
+	data, err := os.ReadFile(messagePath)
 	if err != nil {
 		return []string{fmt.Sprintf("failed to read message: %v", err)}
 	}
@@ -1909,7 +1909,7 @@ func runWorkflowRun(args []string) error {
 	)
 
 	for i := 0; i < len(args); i++ {
-		switch args[i] { //nolint:gosec // G602: i is bounded by loop condition
+		switch args[i] {
 		case "--config", "-c":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--config requires a value")
@@ -1921,11 +1921,11 @@ func runWorkflowRun(args []string) error {
 			return nil
 		default:
 			if args[i] == "-" {
-				input = args[i] //nolint:gosec // G602: i is bounded by loop condition
-			} else if len(args[i]) > 0 && args[i][0] == '-' { //nolint:gosec // G602: i is bounded by loop condition
+				input = args[i]
+			} else if len(args[i]) > 0 && args[i][0] == '-' {
 				return fmt.Errorf("unknown flag: %s", args[i])
 			} else {
-				input = args[i] //nolint:gosec // G602: i is bounded by loop condition
+				input = args[i]
 			}
 		}
 	}
@@ -2007,7 +2007,7 @@ func runWorkflowValidate(args []string) error {
 			printWorkflowUsage()
 			return nil
 		default:
-			if len(args[i]) > 0 && args[i][0] != '-' { //nolint:gosec // G602: i is bounded by loop condition
+			if len(args[i]) > 0 && args[i][0] != '-' {
 				configPath = args[i]
 			}
 		}
@@ -2044,7 +2044,7 @@ func runWorkflowDryRun(args []string) error {
 	)
 
 	for i := 0; i < len(args); i++ {
-		switch args[i] { //nolint:gosec // G602: i is bounded by loop condition
+		switch args[i] {
 		case "--config", "-c":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--config requires a value")
@@ -2056,11 +2056,11 @@ func runWorkflowDryRun(args []string) error {
 			return nil
 		default:
 			if args[i] == "-" {
-				input = args[i] //nolint:gosec // G602: i is bounded by loop condition
-			} else if len(args[i]) > 0 && args[i][0] == '-' { //nolint:gosec // G602: i is bounded by loop condition
+				input = args[i]
+			} else if len(args[i]) > 0 && args[i][0] == '-' {
 				return fmt.Errorf("unknown flag: %s", args[i])
 			} else {
-				input = args[i] //nolint:gosec // G602: i is bounded by loop condition
+				input = args[i]
 			}
 		}
 	}
@@ -2118,7 +2118,7 @@ func runWorkflowRecord(args []string) error {
 	)
 
 	for i := 0; i < len(args); {
-		switch args[i] { //nolint:gosec // G602: i is bounded by loop condition
+		switch args[i] {
 		case "--config", "-c":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--config requires a value")
@@ -2268,8 +2268,8 @@ func runWorkflowReplay(args []string) error {
 			printWorkflowReplayUsage()
 			return nil
 		default:
-			if len(args[i]) > 0 && args[i][0] == '-' { //nolint:gosec // G602: i is bounded by loop condition
-				return fmt.Errorf("unknown flag: %s", args[i]) //nolint:gosec // G602: i is bounded by loop condition
+			if len(args[i]) > 0 && args[i][0] == '-' {
+				return fmt.Errorf("unknown flag: %s", args[i])
 			}
 			if recordingsPath == "" {
 				recordingsPath = args[i]
@@ -2356,7 +2356,7 @@ func runWorkflowReplay(args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to marshal summary: %w", err)
 		}
-		if err := os.WriteFile(outputPath, outputData, 0644); err != nil { //nolint:gosec // G306: non-sensitive output file
+		if err := os.WriteFile(outputPath, outputData, 0644); err != nil {
 			return fmt.Errorf("failed to write output: %w", err)
 		}
 		fmt.Printf("\nSummary written to %s\n", outputPath)
@@ -2482,7 +2482,7 @@ func runWorkflowSimulate(args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to marshal report: %w", err)
 		}
-		if err := os.WriteFile(outputPath, outputData, 0644); err != nil { //nolint:gosec // G306: non-sensitive output file
+		if err := os.WriteFile(outputPath, outputData, 0644); err != nil {
 			return fmt.Errorf("failed to write output: %w", err)
 		}
 		fmt.Printf("\nReport written to %s\n", outputPath)
@@ -2702,7 +2702,7 @@ func runWorkflowLoadtest(args []string) error {
 	)
 
 	for i := 0; i < len(args); {
-		switch args[i] { //nolint:gosec // G602: i is bounded by loop condition
+		switch args[i] {
 		case "-c", "--config":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--config requires a file path")
@@ -2775,8 +2775,8 @@ func runWorkflowLoadtest(args []string) error {
 			}
 			return nil
 		default:
-			if strings.HasPrefix(args[i], "-") { //nolint:gosec // G602: i is bounded by loop condition
-				return fmt.Errorf("unknown flag: %s", args[i]) //nolint:gosec // G602: i is bounded by loop condition
+			if strings.HasPrefix(args[i], "-") {
+				return fmt.Errorf("unknown flag: %s", args[i])
 			}
 		}
 		i++
@@ -3346,7 +3346,7 @@ secrets:
 `
 	}
 
-	if err := os.WriteFile(outputPath, []byte(content), 0644); err != nil { //nolint:gosec // G306: config template file
+	if err := os.WriteFile(outputPath, []byte(content), 0644); err != nil {
 		return fmt.Errorf("failed to write config: %w", err)
 	}
 
@@ -4392,7 +4392,7 @@ func runSubscriptionTest(args []string) error {
 	}
 
 	// Load resource
-	data, err := os.ReadFile(resourceFile) //nolint:gosec // G304: CLI tool reads user-specified file
+	data, err := os.ReadFile(resourceFile)
 	if err != nil {
 		return fmt.Errorf("read resource: %w", err)
 	}

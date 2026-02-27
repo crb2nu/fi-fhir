@@ -370,7 +370,7 @@ func Default() *Config {
 
 // LoadFromFile loads configuration from a YAML file.
 func LoadFromFile(path string) (*Config, error) {
-	data, err := os.ReadFile(path) //nolint:gosec // G304: path from trusted caller
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}

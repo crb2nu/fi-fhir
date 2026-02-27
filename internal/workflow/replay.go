@@ -213,11 +213,11 @@ func (r *MemoryRecorder) Export(path string) error {
 		return fmt.Errorf("failed to marshal events: %w", err)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil { //nolint:gosec // G301: recorder dirs need read access
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	if err := os.WriteFile(path, data, 0644); err != nil { //nolint:gosec // G306: recorder files need read access
+	if err := os.WriteFile(path, data, 0644); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 
@@ -226,7 +226,7 @@ func (r *MemoryRecorder) Export(path string) error {
 
 // Import loads events from a JSON file.
 func (r *MemoryRecorder) Import(path string) error {
-	data, err := os.ReadFile(path) //nolint:gosec // G304: path from trusted caller
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("failed to read file: %w", err)
 	}
@@ -257,7 +257,7 @@ type FileRecorder struct {
 
 // NewFileRecorder creates a new file-based event recorder.
 func NewFileRecorder(dir string) (*FileRecorder, error) {
-	if err := os.MkdirAll(dir, 0755); err != nil { //nolint:gosec // G301: recorder dirs need read access
+	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create directory: %w", err)
 	}
 	return &FileRecorder{
@@ -298,7 +298,7 @@ func (r *FileRecorder) RecordWithMetadata(event interface{}, result *Result, met
 	}
 
 	filename := filepath.Join(r.dir, id+".json")
-	if err := os.WriteFile(filename, data, 0644); err != nil { //nolint:gosec // G306: recorder files need read access
+	if err := os.WriteFile(filename, data, 0644); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 
@@ -384,11 +384,11 @@ func (r *FileRecorder) Export(path string) error {
 		return fmt.Errorf("failed to marshal events: %w", err)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil { //nolint:gosec // G301: recorder dirs need read access
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	if err := os.WriteFile(path, data, 0644); err != nil { //nolint:gosec // G306: recorder files need read access
+	if err := os.WriteFile(path, data, 0644); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 
@@ -397,7 +397,7 @@ func (r *FileRecorder) Export(path string) error {
 
 // Import loads events from a JSON file.
 func (r *FileRecorder) Import(path string) error {
-	data, err := os.ReadFile(path) //nolint:gosec // G304: path from trusted caller
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("failed to read file: %w", err)
 	}
@@ -413,7 +413,7 @@ func (r *FileRecorder) Import(path string) error {
 			continue
 		}
 		filename := filepath.Join(r.dir, event.ID+".json")
-		if err := os.WriteFile(filename, data, 0644); err != nil { //nolint:gosec // G306: recorder files need read access
+		if err := os.WriteFile(filename, data, 0644); err != nil {
 			return fmt.Errorf("failed to write file: %w", err)
 		}
 	}
@@ -463,7 +463,7 @@ func (r *FileRecorder) listFiles() ([]string, error) {
 
 // readFile reads a RecordedEvent from a JSON file.
 func (r *FileRecorder) readFile(filename string) (*RecordedEvent, error) {
-	data, err := os.ReadFile(filename) //nolint:gosec // G304: filename from controlled directory
+	data, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
@@ -840,7 +840,7 @@ func compareResults(recorded *RecordedEvent, result *Result) *ReplayDiff {
 
 // LoadRecordedEvents loads events from a JSON file (utility function).
 func LoadRecordedEvents(path string) ([]*RecordedEvent, error) {
-	data, err := os.ReadFile(path) //nolint:gosec // G304: path from trusted caller
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
@@ -860,11 +860,11 @@ func SaveRecordedEvents(path string, events []*RecordedEvent) error {
 		return fmt.Errorf("failed to marshal events: %w", err)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil { //nolint:gosec // G301: recorder dirs need read access
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	if err := os.WriteFile(path, data, 0644); err != nil { //nolint:gosec // G306: recorder files need read access
+	if err := os.WriteFile(path, data, 0644); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 

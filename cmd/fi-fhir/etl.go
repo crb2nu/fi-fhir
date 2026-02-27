@@ -130,7 +130,7 @@ func runETLSync(args []string) error {
 	)
 
 	for i := 0; i < len(args); {
-		switch args[i] { //nolint:gosec // guarded by loop bounds; gosec false positive
+		switch args[i] {
 		case "--source", "-s":
 			if i+1 < len(args) {
 				sourceName = args[i+1]
@@ -196,7 +196,7 @@ func runETLFetch(args []string) error {
 	)
 
 	for i := 1; i < len(args); {
-		switch args[i] { //nolint:gosec // guarded by loop bounds; gosec false positive
+		switch args[i] {
 		case "--version", "-v":
 			if i+1 < len(args) {
 				version = args[i+1]
@@ -257,7 +257,7 @@ Examples:
 	version := ""
 
 	for i := 1; i < len(args); {
-		switch args[i] { //nolint:gosec // guarded by loop bounds; gosec false positive
+		switch args[i] {
 		case "--output", "-o":
 			if i+1 < len(args) {
 				outputDir = args[i+1]
@@ -375,7 +375,7 @@ Examples:
 	)
 
 	for i := 1; i < len(args); {
-		switch args[i] { //nolint:gosec // guarded by loop bounds; gosec false positive
+		switch args[i] {
 		case "--version", "-v":
 			if i+1 < len(args) {
 				version = args[i+1]

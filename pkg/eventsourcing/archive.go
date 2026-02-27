@@ -446,7 +446,7 @@ type FileArchiveStore struct {
 // NewFileArchiveStore creates a new file-based archive store.
 // The file is created if it doesn't exist, or appended to if it does.
 func NewFileArchiveStore(path string) (*FileArchiveStore, error) {
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644) //nolint:gosec // G302: archive files need read access
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open archive file: %w", err)
 	}
@@ -511,7 +511,7 @@ type ArchiveReader struct {
 
 // NewArchiveReader creates a reader for an archive file.
 func NewArchiveReader(path string) (*ArchiveReader, error) {
-	file, err := os.Open(path) //nolint:gosec // G304: path from trusted caller
+	file, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open archive file: %w", err)
 	}

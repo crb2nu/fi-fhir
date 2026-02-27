@@ -1,4 +1,3 @@
-//nolint:errcheck,gosec,dogsled // Test file - os.Setenv/Unsetenv errors ignored, dogsled relaxed for runCLI calls
 package main
 
 import (

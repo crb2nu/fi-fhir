@@ -109,7 +109,6 @@ func TestCompanion_Export_WritesFile(t *testing.T) {
 	_, _, err := runCLI(t, "companion", "export", "medicare_part_b", outPath, "--format", "json")
 	assertNoError(t, err)
 
-	//nolint:gosec // outPath is created under t.TempDir()
 	b, err := os.ReadFile(outPath)
 	if err != nil {
 		t.Fatalf("failed to read exported file: %v", err)

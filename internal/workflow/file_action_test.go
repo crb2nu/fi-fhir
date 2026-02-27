@@ -35,7 +35,7 @@ func TestFileAction_WritesPrettyJSONUnderBaseDir(t *testing.T) {
 	}
 
 	outPath := filepath.Join(baseDir, string(events.EventPatientAdmit), "123.json")
-	data, err := os.ReadFile(outPath) //nolint:gosec // G304: test reads temp file path
+	data, err := os.ReadFile(outPath)
 	if err != nil {
 		t.Fatalf("read output: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestFileAction_AppendsNDJSON(t *testing.T) {
 		t.Fatalf("fileAction(2): %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(baseDir, "events.ndjson")) //nolint:gosec // G304: test reads temp file path
+	data, err := os.ReadFile(filepath.Join(baseDir, "events.ndjson"))
 	if err != nil {
 		t.Fatalf("read output: %v", err)
 	}

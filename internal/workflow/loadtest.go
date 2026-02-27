@@ -196,7 +196,7 @@ type RandomEventGenerator struct {
 func NewRandomEventGenerator(events []interface{}) *RandomEventGenerator {
 	return &RandomEventGenerator{
 		Events: events,
-		rng:    rand.New(rand.NewSource(time.Now().UnixNano())), //nolint:gosec // G404: math/rand is fine for load testing
+		rng:    rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 }
 
@@ -239,7 +239,7 @@ func NewWeightedEventGenerator(events []WeightedEvent) *WeightedEventGenerator {
 	return &WeightedEventGenerator{
 		Events:      events,
 		totalWeight: total,
-		rng:         rand.New(rand.NewSource(time.Now().UnixNano())), //nolint:gosec // G404: math/rand is fine for load testing
+		rng:         rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 }
 
