@@ -469,6 +469,18 @@ docs-status-quick:
 	@echo ""
 	@echo "✓ Status data generated."
 
+# Check STATUS.md coverage drift against computed values (CI gate).
+# Uses existing coverage.out — fails if coverage percentages drift > threshold.
+docs-status-check:
+	@if [ ! -f coverage.out ]; then \
+		echo "❌ coverage.out not found. Run 'make test-cover' first."; \
+		exit 1; \
+	fi
+	@echo "Checking STATUS.md coverage drift..."
+	bash scripts/docs-status.sh --check-drift
+	@echo ""
+	@echo "✓ STATUS.md drift check complete."
+
 # Check documentation consistency
 docs-validate:
 	@echo "Validating documentation..."

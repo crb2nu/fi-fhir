@@ -93,6 +93,14 @@
 ```bash
 make docs-status        # Re-run tests + generate fresh data
 make docs-status-quick  # Use existing coverage.out (faster)
+make docs-status-check  # Check for coverage drift (CI gate)
 ```
 
-The `scripts/docs-status.sh` script outputs structured data that can be compared against this file to flag stale entries.
+### Contributor Workflow
+
+1. After changing Go source code, coverage percentages may shift.
+2. CI runs `test:docs-status` to detect drift > 5% between this file and computed values.
+3. If the job fails, regenerate: `make docs-status` then commit the updated `docs/STATUS.md`.
+4. The drift threshold is configurable via `DRIFT_THRESHOLD` env var (default: 5.0%).
+
+The `scripts/docs-status.sh --check-drift` script compares computed coverage from `coverage.out` against the values in this file and exits non-zero when drift exceeds the threshold.
