@@ -581,24 +581,41 @@ test:benchmark:
   stage: test
   <<: *go-image
   <<: *go-cache
+  # Gate owner: Workflow/Platform — escalate via MR comment or #ci-support channel.
+  # Rollback: set allow_failure: true if thresholds need tuning (file issue with proposed values).
   script:
     - apk add --no-cache git
-    - go test -bench=. -benchmem -run=^$ ./internal/workflow/... | tee benchmark.txt
+    # Run benchmarks across all packages with benchmark tests
+    - go test -bench=. -benchmem -run=^$ -count=1 ./internal/workflow/... ./pkg/terminology/... ./pkg/validate/... | tee benchmark.txt
+    # Validate against absolute performance thresholds
+    - go run ./cmd/bench-check benchmark.txt
+  after_script:
+    - |
+      if [ "$CI_JOB_STATUS" = "failed" ]; then
+        echo ""
+        echo "╔═══════════════════════════════════════════════════════════╗"
+        echo "║  test:benchmark FAILED — performance threshold exceeded. ║"
+        echo "║                                                          ║"
+        echo "║  Artifact: benchmark.txt (attached to this job)          ║"
+        echo "║  Local: make bench-check                                 ║"
+        echo "║  Thresholds: internal/workflow/benchmark_util.go         ║"
+        echo "║  Owner: Workflow/Platform — escalate in #ci-support      ║"
+        echo "╚═══════════════════════════════════════════════════════════╝"
+      fi
   artifacts:
     paths:
       - benchmark.txt
-    expire_in: 1 month
+    expire_in: 3 months
+    when: always
   rules:
     - if: $CI_COMMIT_TAG
-      when: manual
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *go-changes
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *go-changes
       when: manual
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      changes: *go-changes
-      when: manual
     - when: never
-  allow_failure: true
+  allow_failure: true  # Soft-fail during threshold tuning phase; promote to blocking once stable
 
 # =============================================================================
 # Security Stage
@@ -612,6 +629,9 @@ security:govulncheck:
     - apk add --no-cache git
     - go install golang.org/x/vuln/cmd/govulncheck@latest
     - govulncheck ./...
+  retry:
+    max: 2
+    when: runner_system_failure
   rules:
     - if: $CI_COMMIT_TAG
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -654,6 +674,9 @@ security:gosec:
     reports:
       sast: gosec-report.sarif
     when: always
+  retry:
+    max: 2
+    when: runner_system_failure
   rules:
     - if: $CI_COMMIT_TAG
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
