@@ -112,9 +112,14 @@ install-lint:
 docker-build:
 	docker build -t fi-fhir:latest .
 
-# Run benchmarks
+# Run benchmarks across all packages
 bench:
-	go test -bench=. -benchmem ./internal/workflow/...
+	go test -bench=. -benchmem -run=^$$ -count=1 ./internal/workflow/... ./pkg/terminology/... ./pkg/validate/...
+
+# Run benchmarks and validate against thresholds
+bench-check:
+	go test -bench=. -benchmem -run=^$$ -count=1 ./internal/workflow/... ./pkg/terminology/... ./pkg/validate/... | tee benchmark.txt
+	go run ./cmd/bench-check benchmark.txt
 
 # Format Go code
 fmt:
