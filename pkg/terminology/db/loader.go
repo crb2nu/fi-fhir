@@ -102,7 +102,6 @@ func (b *BatchInserter) Flush(ctx context.Context) error {
 		args = append(args, row...)
 	}
 
-	//nolint:gosec // G201: table name from trusted internal code, not user input
 	query := fmt.Sprintf(
 		"INSERT INTO %s (%s) VALUES %s",
 		b.table,
@@ -207,7 +206,7 @@ func CountCSVRows(path string) (count int64, err error) {
 
 // OpenFile opens a file for reading, supporting gzip compression.
 func OpenFile(path string) (io.ReadCloser, error) {
-	f, err := os.Open(path) //nolint:gosec // G304: path from trusted caller
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file: %w", err)
 	}

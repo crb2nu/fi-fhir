@@ -27,7 +27,7 @@ func TestLocalSink_Write(t *testing.T) {
 	}
 
 	// Verify file was created
-	data, err := os.ReadFile(filepath.Join(tmpDir, "subdir/test.txt")) //nolint:gosec // G304: test file path
+	data, err := os.ReadFile(filepath.Join(tmpDir, "subdir/test.txt"))
 	if err != nil {
 		t.Fatalf("Failed to read written file: %v", err)
 	}

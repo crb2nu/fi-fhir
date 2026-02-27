@@ -42,7 +42,7 @@ func TestETL_FetchTest_WritesToOutputDir(t *testing.T) {
 		if d.IsDir() {
 			return nil
 		}
-		b, rerr := os.ReadFile(path) //nolint:gosec // path is under t.TempDir()
+		b, rerr := os.ReadFile(path)
 		if rerr == nil && string(b) == "hello" {
 			foundPayload = true
 		}

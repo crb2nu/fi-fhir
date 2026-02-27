@@ -75,7 +75,7 @@ func (s *LocalSource) Download(ctx context.Context, version string, w io.Writer)
 
 	fullPath := filepath.Join(s.basePath, relPath)
 
-	f, err := os.Open(fullPath) //nolint:gosec // G304: path from config
+	f, err := os.Open(fullPath)
 	if err != nil {
 		return 0, fmt.Errorf("failed to open %s: %w", fullPath, err)
 	}

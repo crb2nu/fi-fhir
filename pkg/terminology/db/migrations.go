@@ -165,7 +165,6 @@ func (m *Migrator) Stats(ctx context.Context) (*SchemaStats, error) {
 		}
 
 		// Get row count (use estimate for large tables)
-		//nolint:gosec // G201: table name from trusted internal list, not user input
 		query := fmt.Sprintf(`SELECT COUNT(*) FROM terminology.%s`, table)
 		err = m.db.QueryRowContext(ctx, query).Scan(&count)
 		if err != nil {

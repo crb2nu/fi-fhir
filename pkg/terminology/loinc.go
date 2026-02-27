@@ -94,7 +94,7 @@ func NewLOINCLoader() *LOINCLoader {
 // LoadLoincTable loads the main LOINC table from LoincTable.csv.
 // This is the core file from the LOINC distribution.
 func (l *LOINCLoader) LoadLoincTable(path string) error {
-	f, err := os.Open(path) //nolint:gosec // G304: path from trusted caller
+	f, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("failed to open LOINC table: %w", err)
 	}
@@ -188,7 +188,7 @@ func (l *LOINCLoader) LoadLoincTableFromReader(r io.Reader) error {
 
 // LoadPanelHierarchy loads panel relationships from PanelHierarchy.csv.
 func (l *LOINCLoader) LoadPanelHierarchy(path string) error {
-	f, err := os.Open(path) //nolint:gosec // G304: path from trusted caller
+	f, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("failed to open panel hierarchy: %w", err)
 	}

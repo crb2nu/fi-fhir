@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -261,7 +262,7 @@ func (s *PostgresWorkflowLifecycleStore) UpdateWorkflowDefinition(ctx context.Co
 		WHERE id = $1
 		RETURNING created_at, updated_at
 	`, record.ID, record.Name, description, record.Status).Scan(&record.CreatedAt, &record.UpdatedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -302,7 +303,7 @@ func (s *PostgresWorkflowLifecycleStore) GetWorkflowDefinitionByID(ctx context.C
 		FROM workflow_definitions
 		WHERE id = $1
 	`, workflowID).Scan(&record.ID, &record.Name, &description, &record.Status, &record.CreatedAt, &record.UpdatedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -323,7 +324,7 @@ func (s *PostgresWorkflowLifecycleStore) GetWorkflowDefinitionByName(ctx context
 		FROM workflow_definitions
 		WHERE lower(name) = lower($1)
 	`, strings.TrimSpace(name)).Scan(&record.ID, &record.Name, &description, &record.Status, &record.CreatedAt, &record.UpdatedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -476,7 +477,7 @@ func (s *PostgresWorkflowLifecycleStore) GetWorkflowVersion(ctx context.Context,
 		&record.CreatedAt,
 		&notes,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -622,7 +623,7 @@ func (s *PostgresWorkflowLifecycleStore) GetWorkflowRelease(ctx context.Context,
 		&record.PublishedAt,
 		&rollbackID,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -653,7 +654,7 @@ func (s *PostgresWorkflowLifecycleStore) GetPublishedWorkflowRelease(ctx context
 		&record.PublishedAt,
 		&rollbackID,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -811,7 +812,7 @@ func (s *PostgresWorkflowLifecycleStore) GetWorkflowRun(ctx context.Context, run
 		&record.StartedAt,
 		&record.Status,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -1025,7 +1026,7 @@ func (s *PostgresWorkflowLifecycleStore) UpdateWorkflowApprovalRequest(ctx conte
 		&reviewedAt,
 		&comment,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -1066,7 +1067,7 @@ func (s *PostgresWorkflowLifecycleStore) GetWorkflowApprovalRequest(ctx context.
 		&reviewedAt,
 		&comment,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {

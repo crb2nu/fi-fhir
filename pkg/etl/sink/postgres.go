@@ -221,7 +221,7 @@ func (s *PostgresSink) downloadAndExtract(ctx context.Context, storagePath, pref
 		localPath := filepath.Join(localDir, localName)
 
 		// Create local file
-		localFile, err := os.Create(localPath) //nolint:gosec // G304: controlled path
+		localFile, err := os.Create(localPath)
 		if err != nil {
 			_ = reader.Close()
 			cleanup()
@@ -281,7 +281,7 @@ func extractZip(zipPath, targetDir string) error {
 		}
 
 		// Extract file
-		outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode()) //nolint:gosec // G304: controlled path
+		outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
 		if err != nil {
 			return err
 		}
@@ -292,7 +292,6 @@ func extractZip(zipPath, targetDir string) error {
 			return err
 		}
 
-		//nolint:gosec // G110: Trusted source - files come from our MinIO storage
 		_, err = io.Copy(outFile, rc)
 		_ = rc.Close()
 		if cerr := outFile.Close(); cerr != nil && err == nil {

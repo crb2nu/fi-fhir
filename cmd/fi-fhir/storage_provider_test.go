@@ -165,7 +165,7 @@ func TestStorage_Get_Success(t *testing.T) {
 	assertContains(t, stdout, "Downloading")
 	assertContains(t, stdout, "Downloaded")
 
-	written, readErr := os.ReadFile(localPath) //nolint:gosec // test reads file created from a temp directory path
+	written, readErr := os.ReadFile(localPath)
 	assertNoError(t, readErr)
 	if !bytes.Equal(written, data) {
 		t.Fatalf("downloaded file mismatch: got %q, want %q", string(written), string(data))

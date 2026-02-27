@@ -42,7 +42,7 @@ func LintProfileFile(profilePath string, opts LintOptions) (*LintReport, error) 
 
 	r := &LintReport{}
 
-	data, err := os.ReadFile(profilePath) //nolint:gosec // G304: user-provided path
+	data, err := os.ReadFile(profilePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read profile: %w", err)
 	}

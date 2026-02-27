@@ -105,7 +105,7 @@ Examples:
 func getTerminologyDBURL(args []string) string {
 	// Check for --db flag
 	for i := 0; i+1 < len(args); i++ {
-		if args[i] == "--db" { //nolint:gosec // guarded by loop bounds; gosec false positive
+		if args[i] == "--db" {
 			return args[i+1]
 		}
 	}
@@ -365,7 +365,7 @@ Examples:
 	var dryRun bool
 
 	for i := 2; i < len(args); {
-		switch args[i] { //nolint:gosec // guarded by loop bounds; gosec false positive
+		switch args[i] {
 		case "--version":
 			if i+1 < len(args) {
 				version = args[i+1]
@@ -683,7 +683,7 @@ Examples:
 	dbURL := getTerminologyDBURL(args[1:])
 
 	for i := 1; i < len(args); i++ {
-		switch args[i] { //nolint:gosec // G602: i is bounded by loop condition
+		switch args[i] {
 		case "--from":
 			if i+1 < len(args) {
 				fromVocab = args[i+1]
@@ -880,7 +880,7 @@ func runTerminologyMappingUpload(args []string) error {
 	}
 
 	// Open file
-	file, err := os.Open(filePath) //nolint:gosec // G304: CLI arg is trusted
+	file, err := os.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
 	}
@@ -1027,7 +1027,7 @@ func runTerminologyMappingList(args []string) error {
 	}
 
 	for i := 0; i < len(args); i++ {
-		switch args[i] { //nolint:gosec // G602: i is bounded by loop condition
+		switch args[i] {
 		case "--source-system":
 			if i+1 < len(args) {
 				filter.SourceSystem = args[i+1]
@@ -1132,7 +1132,7 @@ func runTerminologyMappingGet(args []string) error {
 				continue
 			}
 		} else if !strings.HasPrefix(args[i], "--") && !strings.HasPrefix(args[i], "-") {
-			id, err := parseInt(args[i]) //nolint:gosec // G602: i is bounded by loop condition
+			id, err := parseInt(args[i])
 			if err == nil {
 				mappingID = int64(id)
 			}
@@ -1251,7 +1251,7 @@ func runTerminologyMappingDelete(args []string) error {
 		case "--force", "-f":
 			force = true
 		default:
-			if !strings.HasPrefix(args[i], "--") && !strings.HasPrefix(args[i], "-") { //nolint:gosec // G602: i is bounded by loop condition
+			if !strings.HasPrefix(args[i], "--") && !strings.HasPrefix(args[i], "-") {
 				id, err := parseInt(args[i])
 				if err == nil {
 					mappingID = int64(id)
@@ -1524,7 +1524,7 @@ func runTerminologyMappingPending(args []string) error {
 	var jsonOutput bool
 
 	for i := 0; i < len(args); i++ {
-		switch args[i] { //nolint:gosec // G602: i is bounded by loop condition
+		switch args[i] {
 		case "--status":
 			if i+1 < len(args) {
 				filter.Status = db.PendingStatus(args[i+1])

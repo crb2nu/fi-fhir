@@ -2893,7 +2893,7 @@ func (r *queryResolver) TemporalWorkflows(ctx context.Context, filter *model.Tem
 
 	resp, err := r.TemporalClient.ListWorkflow(ctx, &workflowservice.ListWorkflowExecutionsRequest{
 		Query:         query,
-		PageSize:      int32(pageSize), //nolint:gosec // G115: pageSize bounded by API
+		PageSize:      int32(pageSize),
 		NextPageToken: nextPageToken,
 	})
 	if err != nil {

@@ -217,7 +217,7 @@ func (b *Builder) loadEntries(path string, vocabulary Vocabulary) ([]IndexEntry,
 
 // loadLOINCEntries loads LOINC entries from a CSV file.
 func (b *Builder) loadLOINCEntries(path string) ([]IndexEntry, error) {
-	f, err := os.Open(path) //nolint:gosec // G304: path is from trusted caller
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open file: %w", err)
 	}
@@ -291,7 +291,7 @@ func (b *Builder) loadLOINCEntries(path string) ([]IndexEntry, error) {
 
 // loadSNOMEDEntries loads SNOMED CT entries from a file.
 func (b *Builder) loadSNOMEDEntries(path string) ([]IndexEntry, error) {
-	f, err := os.Open(path) //nolint:gosec // G304: path is from trusted caller
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open file: %w", err)
 	}
@@ -353,7 +353,7 @@ func (b *Builder) loadSNOMEDEntries(path string) ([]IndexEntry, error) {
 
 // loadICD10Entries loads ICD-10-CM entries from a file.
 func (b *Builder) loadICD10Entries(path string) ([]IndexEntry, error) {
-	f, err := os.Open(path) //nolint:gosec // G304: path is from trusted caller
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open file: %w", err)
 	}

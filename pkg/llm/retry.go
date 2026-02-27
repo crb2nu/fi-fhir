@@ -172,7 +172,7 @@ func (r *Retryer) backoffDelay(attempt int) time.Duration {
 
 	// Apply jitter
 	if r.config.Jitter > 0 {
-		jitter := delay * r.config.Jitter * (rand.Float64()*2 - 1) //nolint:gosec // G404: jitter doesn't need crypto
+		jitter := delay * r.config.Jitter * (rand.Float64()*2 - 1)
 		delay += jitter
 	}
 

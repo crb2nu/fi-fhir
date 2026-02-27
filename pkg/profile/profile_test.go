@@ -1,4 +1,3 @@
-//nolint:errcheck // Test file - error checking intentionally relaxed
 package profile
 
 import "testing"
@@ -197,13 +196,11 @@ func TestRegistryList(t *testing.T) {
 	}
 
 	// Add profiles
-	//nolint:gosec // G104: test setup - error handling intentionally skipped
 	r.LoadFromBytes([]byte(`source_profile:
   id: profile1
   name: Profile 1
   version: "1.0"`))
 
-	//nolint:gosec // G104: test setup - error handling intentionally skipped
 	r.LoadFromBytes([]byte(`source_profile:
   id: profile2
   name: Profile 2

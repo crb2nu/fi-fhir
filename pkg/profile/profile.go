@@ -192,7 +192,7 @@ func NewRegistry() *Registry {
 
 // LoadFromFile loads a profile from a YAML file.
 func (r *Registry) LoadFromFile(path string) (*SourceProfile, error) {
-	data, err := os.ReadFile(path) //nolint:gosec // G304: path from trusted caller
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read profile file: %w", err)
 	}

@@ -1,4 +1,3 @@
-//nolint:dogsled // Test file - runCLI returns are often ignored
 package main
 
 import (

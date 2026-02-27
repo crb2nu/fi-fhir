@@ -157,7 +157,7 @@ func (rc RetryConfig) CalculateDelay(attempt int) time.Duration {
 	// Apply jitter: delay * (1 - jitter + rand(0, 2*jitter))
 	if rc.Jitter > 0 {
 		jitterRange := delay * rc.Jitter * 2
-		delay = delay - (delay * rc.Jitter) + (rand.Float64() * jitterRange) //nolint:gosec // G404: math/rand OK for jitter
+		delay = delay - (delay * rc.Jitter) + (rand.Float64() * jitterRange)
 	}
 
 	// Cap at max delay

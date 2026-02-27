@@ -239,7 +239,7 @@ func executeInsert(db *sql.DB, config *DatabaseConfig, eventMap map[string]inter
 		placeholders[i] = fmt.Sprintf("$%d", i+1) // PostgreSQL style
 	}
 
-	query := fmt.Sprintf( //nolint:gosec // G201: table/columns from trusted config
+	query := fmt.Sprintf(
 		"INSERT INTO %s (%s) VALUES (%s)",
 		config.Table,
 		strings.Join(columns, ", "),
@@ -287,7 +287,7 @@ func executeUpsert(db *sql.DB, config *DatabaseConfig, eventMap map[string]inter
 	}
 
 	// Build PostgreSQL-style upsert query
-	query := fmt.Sprintf( //nolint:gosec // G201: table/columns from trusted config
+	query := fmt.Sprintf(
 		"INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s) DO UPDATE SET %s",
 		config.Table,
 		strings.Join(columns, ", "),

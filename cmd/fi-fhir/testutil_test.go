@@ -1,4 +1,3 @@
-//nolint:errcheck,gosec // Test file - error checking intentionally relaxed
 package main
 
 import (

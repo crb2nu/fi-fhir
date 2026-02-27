@@ -65,7 +65,7 @@ func NewMapper() *Mapper {
 // Expected columns: source_system, source_code, source_display, target_system, target_code, target_display, equivalence, comment
 // Header row is required.
 func (m *Mapper) LoadFromCSV(path string) error {
-	f, err := os.Open(path) //nolint:gosec // G304: path from trusted caller
+	f, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("failed to open mapping file: %w", err)
 	}

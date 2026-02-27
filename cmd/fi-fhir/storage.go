@@ -239,7 +239,7 @@ func runStorageGet(args []string) (err error) {
 	}()
 
 	// Create destination
-	file, err := os.Create(localPath) //nolint:gosec // G304: path from CLI args
+	file, err := os.Create(localPath)
 	if err != nil {
 		return fmt.Errorf("failed to create local file: %w", err)
 	}
@@ -292,7 +292,7 @@ func runStoragePut(args []string) (err error) {
 	fmt.Printf("Size: %s\n", humanizeSize(info.Size()))
 
 	// Open source
-	file, err := os.Open(localPath) //nolint:gosec // G304: path from CLI args
+	file, err := os.Open(localPath)
 	if err != nil {
 		return fmt.Errorf("failed to open local file: %w", err)
 	}

@@ -182,7 +182,7 @@ func TestCompanion_ExportYAML(t *testing.T) {
 	_, _, err := runCLI(t, "companion", "export", "medicare_part_b", outPath, "--format", "yaml")
 	assertNoError(t, err)
 
-	b, err := os.ReadFile(outPath) //nolint:gosec
+	b, err := os.ReadFile(outPath)
 	if err != nil {
 		t.Fatalf("failed to read exported file: %v", err)
 	}

@@ -228,7 +228,7 @@ func (c *UMLSClient) doRequest(ctx context.Context, method, path string, params 
 	for attempt := 0; attempt <= c.maxRetries; attempt++ {
 		if attempt > 0 {
 			// Exponential backoff
-			backoff := time.Duration(1<<uint(attempt-1)) * time.Second //nolint:gosec // G115: attempt bounded by maxRetries (typically 3-5)
+			backoff := time.Duration(1<<uint(attempt-1)) * time.Second
 			select {
 			case <-time.After(backoff):
 			case <-ctx.Done():

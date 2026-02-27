@@ -41,7 +41,7 @@ func (l *LocalProvider) resolvePath(path string) string {
 func (l *LocalProvider) Open(ctx context.Context, path string) (io.ReadCloser, error) {
 	resolved := l.resolvePath(path)
 
-	f, err := os.Open(resolved) //nolint:gosec // G304: path from caller
+	f, err := os.Open(resolved)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file: %w", err)
 	}
@@ -200,7 +200,7 @@ func (l *LocalProvider) Put(ctx context.Context, path string, r io.Reader, size 
 	}
 
 	// Create file
-	f, err := os.Create(resolved) //nolint:gosec // G304: path from caller
+	f, err := os.Create(resolved)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}

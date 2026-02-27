@@ -1,4 +1,3 @@
-//nolint:gosec,errcheck // Test file - G104 errors intentionally ignored in test setup
 package terminology
 
 import (

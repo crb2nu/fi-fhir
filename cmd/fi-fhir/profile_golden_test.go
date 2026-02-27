@@ -7,7 +7,7 @@ import (
 
 func TestProfileInferGolden_ADTA01(t *testing.T) {
 	goldenPath := testdataPath(t, "profiles/inferred/adt_a01_inferred.yaml")
-	golden, err := os.ReadFile(goldenPath) //nolint:gosec // G304: test fixture
+	golden, err := os.ReadFile(goldenPath)
 	if err != nil {
 		t.Fatalf("read golden: %v", err)
 	}
