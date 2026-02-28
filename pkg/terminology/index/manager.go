@@ -9,10 +9,24 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm"
 )
 
+// qdrantAPI abstracts the Qdrant vector database for testability.
+type qdrantAPI interface {
+	Ping(ctx context.Context) error
+	CreateCollection(ctx context.Context, name string, dimensions int) error
+	DeleteCollection(ctx context.Context, name string) error
+	CollectionExists(ctx context.Context, name string) (bool, error)
+	GetCollectionInfo(ctx context.Context, name string) (*CollectionInfo, error)
+	UpsertPoints(ctx context.Context, collection string, points []Point) error
+	Search(ctx context.Context, collection string, vector []float64, limit int, scoreThreshold float64) ([]SearchHit, error)
+	GetPoints(ctx context.Context, collection string, ids []string) ([]Point, error)
+	DeletePoints(ctx context.Context, collection string, ids []string) error
+	ScrollPoints(ctx context.Context, collection string, limit int, offset *string) (*ScrollResult, error)
+}
+
 // Manager provides high-level operations for terminology indexes.
 type Manager struct {
 	config          IndexConfig
-	qdrant          *QdrantClient
+	qdrant          qdrantAPI
 	embeddingClient llm.EmbeddingClient
 }
 

@@ -7,9 +7,9 @@
 
 | Maturity | Count | Description |
 |----------|-------|-------------|
-| **Production** | 22 | Stable, tested, deployed |
+| **Production** | 23 | Stable, tested, deployed |
 | **Beta** | 8 | Feature-complete, needs coverage or hardening |
-| **Alpha** | 3 | Functional but limited testing or scope |
+| **Alpha** | 2 | Functional but limited testing or scope |
 | **Planned** | 2 | Designed but not yet implemented (tracked via [#7](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/7), [#8](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/8)) |
 
 ---
@@ -43,7 +43,7 @@
 | Terminology Upload | `pkg/terminology/upload/` | Beta | 85.7% | Mapping file upload pipeline | 2026-02-03 |
 | Terminology Suggest | `pkg/terminology/suggest/` | Beta | 83.4% | Suggestion engine; httptest-based coverage | 2026-02-28 |
 | Terminology Semantic | `pkg/terminology/semantic/` | Production | 95.0% | Embedding-based semantic search | 2026-02-28 |
-| Terminology Index | `pkg/terminology/index/` | Alpha | 17.1% | Full-text indexing; needs test coverage | 2026-02-28 |
+| Terminology Index | `pkg/terminology/index/` | Production | 91.2% | Vector indexing; httptest + mock coverage | 2026-02-28 |
 | Patient Matching | `pkg/matching/` | Production | 85.3% | Deterministic + probabilistic, MPI, batch | 2026-02-27 |
 | LLM Client | `pkg/llm/` | Production | 82.5% | Multi-provider client, retry, embeddings | 2026-02-27 |
 | LLM Copilot | `pkg/llm/copilot/` | Production | 98.0%† | CEL-based copilot + workflow generation | 2026-02-08 |

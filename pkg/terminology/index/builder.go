@@ -15,7 +15,7 @@ import (
 // Builder constructs terminology embedding indexes.
 type Builder struct {
 	config          IndexConfig
-	qdrant          *QdrantClient
+	qdrant          qdrantAPI
 	embeddingClient llm.EmbeddingClient
 	progressChan    chan BuildProgress
 }
