@@ -2,6 +2,7 @@ package etl
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -323,5 +324,306 @@ func TestGenerateRunID(t *testing.T) {
 	}
 	if !strings.HasPrefix(id1, "run-") {
 		t.Errorf("ID = %q, want prefix 'run-'", id1)
+	}
+}
+
+func TestPipeline_Status_BeforeRun(t *testing.T) {
+	source := &mockSource{name: "s"}
+	sink := &mockSink{name: "k"}
+	p := NewPipeline("test", source, sink, DefaultPipelineOptions())
+
+	if status := p.Status(); status != nil {
+		t.Errorf("Status() before run = %v, want nil", status)
+	}
+}
+
+func TestPipeline_Status_AfterRun(t *testing.T) {
+	source := &mockSource{
+		name:     "s",
+		versions: []VersionInfo{{Version: "v1", IsLatest: true}},
+		data:     map[string]string{"v1": "data"},
+	}
+	sink := &mockSink{name: "k", storage: make(map[string]string)}
+	p := NewPipeline("test", source, sink, DefaultPipelineOptions())
+
+	_, _ = p.Run(context.Background(), "v1")
+
+	status := p.Status()
+	if status == nil {
+		t.Fatal("Status() after run = nil")
+	}
+	if status.Status != RunStatusCompleted {
+		t.Errorf("Status().Status = %v, want %v", status.Status, RunStatusCompleted)
+	}
+	if status.Version != "v1" {
+		t.Errorf("Status().Version = %q, want %q", status.Version, "v1")
+	}
+}
+
+func TestPipeline_ProgressCallback(t *testing.T) {
+	source := &mockSource{
+		name:     "s",
+		versions: []VersionInfo{{Version: "v1", IsLatest: true}},
+		data:     map[string]string{"v1": "data"},
+	}
+	sink := &mockSink{name: "k", storage: make(map[string]string)}
+
+	var callbackCount int
+	opts := DefaultPipelineOptions()
+	opts.OnProgress = func(run *PipelineRun) {
+		callbackCount++
+	}
+	p := NewPipeline("test", source, sink, opts)
+
+	_, _ = p.Run(context.Background(), "v1")
+
+	// Progress is called during execute (status=running) and after completion.
+	if callbackCount < 2 {
+		t.Errorf("progress callback called %d times, want >= 2", callbackCount)
+	}
+}
+
+func TestPipeline_VersionFallback_NoLatestFlag(t *testing.T) {
+	// When no version is marked IsLatest, the pipeline should fall back to
+	// the first version in the slice.
+	source := &mockSource{
+		name: "s",
+		versions: []VersionInfo{
+			{Version: "v1"},
+			{Version: "v2"},
+		},
+		data: map[string]string{"v1": "data1", "v2": "data2"},
+	}
+	sink := &mockSink{name: "k", storage: make(map[string]string)}
+	p := NewPipeline("test", source, sink, DefaultPipelineOptions())
+
+	run, err := p.Run(context.Background(), "")
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if run.Version != "v1" {
+		t.Errorf("Version = %q, want fallback to %q", run.Version, "v1")
+	}
+}
+
+func TestPipeline_NoVersionsAvailable(t *testing.T) {
+	source := &mockSource{
+		name:     "empty-source",
+		versions: []VersionInfo{},
+		data:     map[string]string{},
+	}
+	sink := &mockSink{name: "k", storage: make(map[string]string)}
+	p := NewPipeline("test", source, sink, DefaultPipelineOptions())
+
+	_, err := p.Run(context.Background(), "")
+	if err == nil {
+		t.Error("expected error when no versions available")
+	}
+	if !strings.Contains(err.Error(), "no versions available") {
+		t.Errorf("error = %q, want to contain 'no versions available'", err.Error())
+	}
+}
+
+func TestPipeline_OverwriteExisting(t *testing.T) {
+	source := &mockSource{
+		name:     "s",
+		versions: []VersionInfo{{Version: "v1", IsLatest: true}},
+		data:     map[string]string{"v1": "new data"},
+	}
+	sink := &mockSink{
+		name:    "k",
+		storage: map[string]string{"s/v1/data": "old data"},
+	}
+
+	opts := DefaultPipelineOptions()
+	opts.OverwriteExisting = true
+	p := NewPipeline("test", source, sink, opts)
+
+	run, err := p.Run(context.Background(), "v1")
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if run.Status != RunStatusCompleted {
+		t.Errorf("Status = %v, want %v", run.Status, RunStatusCompleted)
+	}
+	if sink.storage["s/v1/data"] != "new data" {
+		t.Errorf("sink data = %q, want %q", sink.storage["s/v1/data"], "new data")
+	}
+}
+
+func TestPipeline_SourceError(t *testing.T) {
+	source := &mockSource{
+		name:     "s",
+		versions: []VersionInfo{{Version: "v1", IsLatest: true}},
+		data:     map[string]string{"v1": "data"},
+	}
+	sink := &mockSink{
+		name:    "k",
+		storage: make(map[string]string),
+		err:     fmt.Errorf("sink write failure"),
+	}
+	p := NewPipeline("test", source, sink, DefaultPipelineOptions())
+
+	run, err := p.Run(context.Background(), "v1")
+	if err == nil {
+		t.Fatal("expected error from sink failure")
+	}
+	if run.Status != RunStatusFailed {
+		t.Errorf("Status = %v, want %v", run.Status, RunStatusFailed)
+	}
+	if run.ErrorMessage == "" {
+		t.Error("ErrorMessage should be populated on failure")
+	}
+}
+
+func TestPipeline_RunMetadata(t *testing.T) {
+	source := &mockSource{
+		name:     "my-src",
+		versions: []VersionInfo{{Version: "v1", IsLatest: true}},
+		data:     map[string]string{"v1": "content"},
+	}
+	sink := &mockSink{name: "k", storage: make(map[string]string)}
+	p := NewPipeline("my-pipeline", source, sink, DefaultPipelineOptions())
+
+	run, err := p.Run(context.Background(), "v1")
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if run.PipelineName != "my-pipeline" {
+		t.Errorf("PipelineName = %q, want %q", run.PipelineName, "my-pipeline")
+	}
+	if run.SourceName != "my-src" {
+		t.Errorf("SourceName = %q, want %q", run.SourceName, "my-src")
+	}
+	if run.DestinationPath != "my-src/v1/data" {
+		t.Errorf("DestinationPath = %q, want %q", run.DestinationPath, "my-src/v1/data")
+	}
+	if run.CompletedAt == nil {
+		t.Error("CompletedAt should be set")
+	}
+	if run.Duration == 0 {
+		t.Error("Duration should be > 0")
+	}
+	if run.ID == "" {
+		t.Error("ID should be populated")
+	}
+}
+
+func TestNewPipeline_Defaults(t *testing.T) {
+	source := &mockSource{name: "s"}
+	sink := &mockSink{name: "k"}
+
+	// Zero-value options should get filled with defaults.
+	p := NewPipeline("test", source, sink, PipelineOptions{})
+
+	if p.options.BufferSize == 0 {
+		t.Error("BufferSize should default to non-zero")
+	}
+	if p.options.Timeout == 0 {
+		t.Error("Timeout should default to non-zero")
+	}
+}
+
+func TestManager_RunAll(t *testing.T) {
+	source1 := &mockSource{
+		name:     "src1",
+		versions: []VersionInfo{{Version: "v1", IsLatest: true}},
+		data:     map[string]string{"v1": "data1"},
+	}
+	source2 := &mockSource{
+		name:     "src2",
+		versions: []VersionInfo{{Version: "v1", IsLatest: true}},
+		data:     map[string]string{"v1": "data2"},
+	}
+
+	sink := &mockSink{name: "k", storage: make(map[string]string)}
+
+	manager := NewManager()
+	manager.Register(NewPipeline("p1", source1, sink, DefaultPipelineOptions()))
+	manager.Register(NewPipeline("p2", source2, sink, DefaultPipelineOptions()))
+
+	results := manager.RunAll(context.Background(), "v1")
+
+	if len(results) != 2 {
+		t.Fatalf("RunAll() returned %d results, want 2", len(results))
+	}
+
+	for name, run := range results {
+		if run.Status != RunStatusCompleted {
+			t.Errorf("pipeline %q status = %v, want %v", name, run.Status, RunStatusCompleted)
+		}
+	}
+}
+
+func TestManager_RunAll_WithFailure(t *testing.T) {
+	goodSource := &mockSource{
+		name:     "good",
+		versions: []VersionInfo{{Version: "v1", IsLatest: true}},
+		data:     map[string]string{"v1": "ok"},
+	}
+	badSource := &mockSource{
+		name:     "bad",
+		versions: []VersionInfo{{Version: "v1", IsLatest: true}},
+		data:     map[string]string{}, // v1 not in data → download will fail
+	}
+
+	sink := &mockSink{name: "k", storage: make(map[string]string)}
+
+	manager := NewManager()
+	manager.Register(NewPipeline("good-pipeline", goodSource, sink, DefaultPipelineOptions()))
+	manager.Register(NewPipeline("bad-pipeline", badSource, sink, DefaultPipelineOptions()))
+
+	results := manager.RunAll(context.Background(), "v1")
+
+	if len(results) != 2 {
+		t.Fatalf("RunAll() returned %d results, want 2", len(results))
+	}
+
+	if results["good-pipeline"].Status != RunStatusCompleted {
+		t.Errorf("good-pipeline status = %v, want %v", results["good-pipeline"].Status, RunStatusCompleted)
+	}
+	if results["bad-pipeline"].Status != RunStatusFailed {
+		t.Errorf("bad-pipeline status = %v, want %v", results["bad-pipeline"].Status, RunStatusFailed)
+	}
+}
+
+func TestManager_Status(t *testing.T) {
+	source := &mockSource{
+		name:     "s",
+		versions: []VersionInfo{{Version: "v1", IsLatest: true}},
+		data:     map[string]string{"v1": "data"},
+	}
+	sink := &mockSink{name: "k", storage: make(map[string]string)}
+
+	manager := NewManager()
+	p := NewPipeline("p1", source, sink, DefaultPipelineOptions())
+	manager.Register(p)
+
+	// Before any run, status should exist but run should be nil.
+	status := manager.Status()
+	if len(status) != 1 {
+		t.Fatalf("Status() returned %d entries, want 1", len(status))
+	}
+	if status["p1"] != nil {
+		t.Error("Status() before run should be nil")
+	}
+
+	// After a run, status should reflect completion.
+	_, _ = manager.Run(context.Background(), "p1", "v1")
+
+	status = manager.Status()
+	if status["p1"] == nil {
+		t.Fatal("Status() after run should not be nil")
+	}
+	if status["p1"].Status != RunStatusCompleted {
+		t.Errorf("status = %v, want %v", status["p1"].Status, RunStatusCompleted)
+	}
+}
+
+func TestManager_Get_NotFound(t *testing.T) {
+	manager := NewManager()
+	_, ok := manager.Get("nonexistent")
+	if ok {
+		t.Error("Get() should return false for unknown pipeline")
 	}
 }

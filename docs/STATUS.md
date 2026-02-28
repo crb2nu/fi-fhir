@@ -36,7 +36,7 @@
 | Source Profiles | `pkg/profile/` | Beta | 64.2% | Inference, linting, vendor templates | 2026-01-18 |
 | Validators | `pkg/validate/` | Production | 98.2% | NPI, MBI, SSN, DEA; Luhn/checksum | 2026-01-09 |
 | FHIR Mapper | `pkg/fhir/` | Production | 75.2% | 24+ US Core resources, validation | 2026-01-19 |
-| ETL Pipeline | `pkg/etl/` | Beta | 41.7% | Source/sink framework, CLI commands | 2026-01-14 |
+| ETL Pipeline | `pkg/etl/` | Beta | 87.3% | Source/sink framework, CLI commands | 2026-02-27 |
 | Storage | `pkg/storage/` | Beta | 56.5% | Abstraction layer for file/S3/MinIO | 2026-02-27 |
 | Terminology (core) | `pkg/terminology/` | Production | 84.2% | LOINC, ICD-10, fuzzy matching, UMLS | 2026-02-03 |
 | Terminology DB | `pkg/terminology/db/` | Beta | 22.6% | PostgreSQL loaders; needs testcontainers | 2026-02-03 |

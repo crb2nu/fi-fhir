@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 )
 
@@ -254,5 +255,212 @@ func TestHTTPSource_AddVersion(t *testing.T) {
 
 	if !found {
 		t.Error("AddVersion() did not add the version")
+	}
+}
+
+func TestHTTPSource_Validate_ServerError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer server.Close()
+
+	src := NewHTTPSource(HTTPSourceConfig{
+		Name: "test",
+		URLs: map[string]string{"v1": server.URL},
+	})
+
+	err := src.Validate(context.Background())
+	if err == nil {
+		t.Error("Validate() should error on 403 response")
+	}
+}
+
+func TestHTTPSource_Validate_WithAuth(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer my-tok" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	src := NewHTTPSource(HTTPSourceConfig{
+		Name: "test",
+		URLs: map[string]string{"v1": server.URL},
+		Auth: &HTTPAuth{Type: "bearer", Token: "my-tok"},
+	})
+
+	if err := src.Validate(context.Background()); err != nil {
+		t.Errorf("Validate() with auth error = %v", err)
+	}
+}
+
+func TestHTTPSource_Download_NonOKStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	src := NewHTTPSource(HTTPSourceConfig{
+		Name: "test",
+		URLs: map[string]string{"v1": server.URL},
+	})
+
+	var buf bytes.Buffer
+	_, err := src.Download(context.Background(), "v1", &buf)
+	if err == nil {
+		t.Error("Download() should error on 500 response")
+	}
+}
+
+func TestHTTPSource_Download_CustomAPIKeyHeader(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Custom-Key") != "my-key" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer server.Close()
+
+	src := NewHTTPSource(HTTPSourceConfig{
+		Name: "test",
+		URLs: map[string]string{"v1": server.URL},
+		Auth: &HTTPAuth{
+			Type:   "api_key",
+			APIKey: "my-key",
+			Header: "X-Custom-Key",
+		},
+	})
+
+	var buf bytes.Buffer
+	_, err := src.Download(context.Background(), "v1", &buf)
+	if err != nil {
+		t.Fatalf("Download() error = %v", err)
+	}
+	if buf.String() != "ok" {
+		t.Errorf("content = %q, want %q", buf.String(), "ok")
+	}
+}
+
+func TestHTTPSource_NewDefaults(t *testing.T) {
+	src := NewHTTPSource(HTTPSourceConfig{Name: "test"})
+	if src.userAgent != "fi-fhir-etl/1.0" {
+		t.Errorf("userAgent = %q, want default", src.userAgent)
+	}
+}
+
+func TestHTTPSource_CustomUserAgent(t *testing.T) {
+	src := NewHTTPSource(HTTPSourceConfig{
+		Name:      "test",
+		UserAgent: "custom/2.0",
+	})
+	if src.userAgent != "custom/2.0" {
+		t.Errorf("userAgent = %q, want %q", src.userAgent, "custom/2.0")
+	}
+}
+
+func TestHTTPSource_Validate_WithBasicAuth(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok || user != "u" || pass != "p" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	src := NewHTTPSource(HTTPSourceConfig{
+		Name: "test",
+		URLs: map[string]string{"v1": server.URL},
+		Auth: &HTTPAuth{Type: "basic", Username: "u", Password: "p"},
+	})
+
+	if err := src.Validate(context.Background()); err != nil {
+		t.Errorf("Validate() with basic auth error = %v", err)
+	}
+}
+
+func TestHTTPSource_Validate_WithAPIKey(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-API-Key") != "secret" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	src := NewHTTPSource(HTTPSourceConfig{
+		Name: "test",
+		URLs: map[string]string{"v1": server.URL},
+		Auth: &HTTPAuth{Type: "api_key", APIKey: "secret"},
+	})
+
+	if err := src.Validate(context.Background()); err != nil {
+		t.Errorf("Validate() with API key error = %v", err)
+	}
+}
+
+func TestHTTPSource_Validate_Unreachable(t *testing.T) {
+	src := NewHTTPSource(HTTPSourceConfig{
+		Name: "test",
+		URLs: map[string]string{"v1": "http://127.0.0.1:1"}, // Unlikely to be listening.
+	})
+
+	err := src.Validate(context.Background())
+	if err == nil {
+		t.Error("Validate() should error for unreachable URL")
+	}
+}
+
+func TestHTTPSource_Download_Unreachable(t *testing.T) {
+	src := NewHTTPSource(HTTPSourceConfig{
+		Name: "test",
+		URLs: map[string]string{"v1": "http://127.0.0.1:1"}, // Unlikely to be listening.
+	})
+
+	var buf bytes.Buffer
+	_, err := src.Download(context.Background(), "v1", &buf)
+	if err == nil {
+		t.Error("Download() should error for unreachable server")
+	}
+}
+
+// failWriter always returns an error on Write.
+type failWriter struct{}
+
+func (w *failWriter) Write(p []byte) (int, error) {
+	return 0, os.ErrPermission
+}
+
+func TestHTTPSource_Download_WriterError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("response data"))
+	}))
+	defer server.Close()
+
+	src := NewHTTPSource(HTTPSourceConfig{
+		Name: "test",
+		URLs: map[string]string{"v1": server.URL},
+	})
+
+	_, err := src.Download(context.Background(), "v1", &failWriter{})
+	if err == nil {
+		t.Error("expected error from failing writer")
+	}
+}
+
+func TestHTTPSource_AvailableVersions_Empty(t *testing.T) {
+	src := NewHTTPSource(HTTPSourceConfig{Name: "test"})
+	versions, err := src.AvailableVersions(context.Background())
+	if err != nil {
+		t.Fatalf("AvailableVersions() error = %v", err)
+	}
+	if len(versions) != 0 {
+		t.Errorf("got %d versions, want 0", len(versions))
 	}
 }
