@@ -1,0 +1,86 @@
+# Event Dashboard Queries — Browse, Statistics, Patient Timeline
+
+query Events($filter: EventFilter, $first: Int, $after: String, $orderBy: EventOrderBy) {
+  events(filter: $filter, first: $first, after: $after, orderBy: $orderBy) {
+    edges {
+      cursor
+      node {
+        id
+        type
+        timestamp
+        source
+        sourceFormat
+        correlationId
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+    totalCount
+  }
+}
+
+query EventById($id: ID!) {
+  event(id: $id) {
+    id
+    type
+    timestamp
+    source
+    sourceFormat
+    correlationId
+  }
+}
+
+query EventStatistics {
+  eventStatistics {
+    totalEvents
+    byType {
+      eventType
+      count
+    }
+    bySource {
+      source
+      count
+    }
+  }
+}
+
+query PatientTimeline($mrn: ID!, $fromTimestamp: DateTime, $toTimestamp: DateTime, $limit: Int) {
+  patientTimeline(mrn: $mrn, fromTimestamp: $fromTimestamp, toTimestamp: $toTimestamp, limit: $limit) {
+    mrn
+    events {
+      position
+      timestamp
+      eventType
+      summary
+      streamId
+      source
+    }
+    lastUpdated
+    eventCount
+  }
+}
+
+query Patients($filter: PatientFilter, $first: Int, $after: String) {
+  patients(filter: $filter, first: $first, after: $after) {
+    edges {
+      cursor
+      node {
+        mrn
+        familyName
+        givenName
+        middleName
+        dateOfBirth
+        gender
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    totalCount
+  }
+}

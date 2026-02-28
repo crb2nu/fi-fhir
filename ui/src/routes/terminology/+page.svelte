@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import Panel from '$lib/ui/Panel.svelte';
   import Tabs from '$lib/ui/Tabs.svelte';
   import type { TabItem } from '$lib/ui/types';
@@ -8,11 +9,12 @@
   import MappingEditor from '$lib/features/terminology/MappingEditor.svelte';
   import PendingReviewList from '$lib/features/terminology/PendingReviewList.svelte';
   import TemporalWorkflowList from '$lib/features/terminology/TemporalWorkflowList.svelte';
+  import { getPendingAutorouteStats } from '$lib/features/terminology/terminologyApi';
   import type { ListMappingsQuery } from '$lib/gen/graphql';
 
   type MappingNode = ListMappingsQuery['listMappings']['nodes'][number];
 
-  const tabs: readonly TabItem[] = [
+  let tabs: TabItem[] = [
     { key: 'browse', label: 'Browse' },
     { key: 'upload', label: 'Upload' },
     { key: 'review', label: 'Review' },
@@ -21,6 +23,18 @@
   ];
 
   let activeTab = 'browse';
+
+  // Load pending review count for badge
+  onMount(async () => {
+    try {
+      const stats = await getPendingAutorouteStats();
+      tabs = tabs.map((t) =>
+        t.key === 'review' ? { ...t, count: stats.pendingCount } : t
+      );
+    } catch {
+      // Badge is optional — silently ignore
+    }
+  });
 
   // Trigger refresh when a mapping is approved or uploaded
   let browserKey = 0;

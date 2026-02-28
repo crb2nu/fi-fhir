@@ -7,7 +7,7 @@
 	deploy deploy-ui deploy-all deploy-status deploy-logs deploy-delete deploy-forward \
 	docs-status docs-status-quick docs-validate docs-all \
 	contract-check contract-check-strict contract-matrix \
-	dev dev-down
+	dev dev-down dev-ui dev-ui-down
 
 # Tool versions (update these when upgrading)
 GOLANGCI_LINT_VERSION := v2.8.0
@@ -514,4 +514,22 @@ dev: build
 
 # Stop docker-compose services started by `make dev`.
 dev-down:
+	docker-compose down
+
+# Start full stack: postgres + qdrant + backend + UI.
+# Visit http://localhost:3001 for UI, http://localhost:8080 for API.
+dev-ui: build
+	docker-compose up -d postgres qdrant
+	@echo "Waiting for postgres..."
+	@until docker-compose exec -T postgres pg_isready -U fi_fhir -d fi_fhir 2>/dev/null; do sleep 1; done
+	@echo "PostgreSQL ready."
+	docker-compose up -d fi-fhir fi-fhir-ui
+	@echo ""
+	@echo "✅ Full stack running:"
+	@echo "  UI:  http://localhost:3001"
+	@echo "  API: http://localhost:8080"
+	@echo "  Use 'make dev-ui-down' to stop."
+
+# Stop full-stack services.
+dev-ui-down:
 	docker-compose down

@@ -241,3 +241,12 @@ mutation BulkApprovePendingAutoroutes($input: BulkApproveInput) {
     }
   }
 }
+
+# Start a terminology review workflow via Temporal
+mutation StartTerminologyReview($input: StartTerminologyReviewInput!) {
+  startTerminologyReview(input: $input) {
+    workflowId
+    runId
+    started
+  }
+}

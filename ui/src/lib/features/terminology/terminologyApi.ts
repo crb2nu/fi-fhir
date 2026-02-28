@@ -21,6 +21,7 @@ import {
   ApprovePendingAutorouteDocument,
   RejectPendingAutorouteDocument,
   BulkApprovePendingAutoroutesDocument,
+  StartTerminologyReviewDocument,
   type ListMappingsQuery,
   type GetMappingQuery,
   type LookupMappingQuery,
@@ -35,6 +36,7 @@ import {
   type PendingAutorouteStatsQuery,
   type ApprovePendingAutorouteMutation,
   type BulkApprovePendingAutoroutesMutation,
+  type StartTerminologyReviewMutation,
   type ListMappingsInput,
   type UploadMappingCsvInput,
   type CreateMappingInput,
@@ -44,7 +46,8 @@ import {
   type ListPendingAutoroutesInput,
   type ApprovePendingAutorouteInput,
   type RejectPendingAutorouteInput,
-  type BulkApproveInput
+  type BulkApproveInput,
+  type StartTerminologyReviewInput
 } from '$lib/gen/graphql';
 import { graphqlFetch } from '$lib/graphql/client';
 
@@ -240,4 +243,22 @@ export async function bulkApprovePendingAutoroutes(
 ): Promise<BulkApprovePendingAutoroutesMutation['bulkApprovePendingAutoroutes']> {
   const result = await graphqlFetch(BulkApprovePendingAutoroutesDocument, { input: input ?? null });
   return result.bulkApprovePendingAutoroutes;
+}
+
+// =============================================================================
+// Terminology Review Workflow
+// =============================================================================
+
+/**
+ * Start a terminology review workflow via Temporal.
+ * Creates a new workflow that orchestrates LLM-powered mapping suggestion + human review.
+ */
+export async function startTerminologyReview(
+  input: StartTerminologyReviewInput
+): Promise<StartTerminologyReviewMutation['startTerminologyReview']> {
+  const result = await graphqlFetch(StartTerminologyReviewDocument, { input }, {
+    showSuccessToast: true,
+    successMessage: 'Terminology review workflow started'
+  });
+  return result.startTerminologyReview;
 }

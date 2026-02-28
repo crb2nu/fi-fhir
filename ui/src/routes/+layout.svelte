@@ -14,6 +14,7 @@
 
   const nav = [
     { href: '/', label: 'Home' },
+    { href: '/events', label: 'Events' },
     { href: '/hl7', label: 'HL7 Mapping' },
     { href: '/profiles', label: 'Profiles' },
     { href: '/terminology', label: 'Terminology' },

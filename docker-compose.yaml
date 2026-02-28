@@ -195,6 +195,20 @@ services:
       - fi-fhir-net
     restart: unless-stopped
 
+  # fi-fhir UI (SvelteKit + nginx)
+  fi-fhir-ui:
+    build: ./ui
+    container_name: fi-fhir-ui
+    ports:
+      - "3001:3000"   # UI (3000 taken by Grafana)
+    environment:
+      FI_FHIR_UI_API_ORIGIN: "http://fi-fhir:8080"
+    depends_on:
+      - fi-fhir
+    networks:
+      - fi-fhir-net
+    restart: unless-stopped
+
   # Grafana for dashboards
   grafana:
     image: grafana/grafana:10.2.2
