@@ -16,6 +16,7 @@ import (
 	termworkflow "gitlab.flexinfer.ai/libs/fi-fhir/internal/terminology/workflow"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/db"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/index"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/semantic"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/upload"
 )
@@ -45,6 +46,8 @@ func runTerminology(args []string) error {
 		return runTerminologyMapping(args[1:])
 	case "autoroute":
 		return runTerminologyAutoroute(args[1:])
+	case "index":
+		return runTerminologyIndex(args[1:])
 	case "-h", "--help", "help":
 		printTerminologyUsage()
 		return nil
@@ -69,6 +72,7 @@ Subcommands:
   search    Semantic search for terminology codes (LLM embeddings)
   mapping   Manage custom code mappings (upload, list, delete)
   autoroute Run autoroute engine for a source code (optionally via Temporal workflow)
+  index     Build/rebuild Qdrant vector indexes for semantic search
 
 Options:
   --db      PostgreSQL connection string (or FI_FHIR_TERMINOLOGY_DB_URL env)
@@ -2068,4 +2072,201 @@ func printResolveResultJSON(persistent *db.CustomMapping, autorouted *autoroute.
 	}
 	fmt.Println(string(data))
 	return nil
+}
+
+// runTerminologyIndex builds/rebuilds Qdrant vector indexes for semantic search.
+func runTerminologyIndex(args []string) error {
+	var (
+		vocabulary = ""
+		sourcePath = ""
+		version    = ""
+		qdrantURL  = os.Getenv("QDRANT_URL")
+		embedURL   = os.Getenv("EMBEDDING_BASE_URL")
+		embedModel = os.Getenv("EMBEDDING_MODEL")
+		batchSize  = 32
+		drop       = false
+		dimensions = 1024
+	)
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--vocabulary", "-v":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--vocabulary requires a value")
+			}
+			i++
+			vocabulary = strings.ToLower(args[i])
+		case "--source", "-s":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--source requires a value")
+			}
+			i++
+			sourcePath = args[i]
+		case "--version":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--version requires a value")
+			}
+			i++
+			version = args[i]
+		case "--qdrant-url":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--qdrant-url requires a value")
+			}
+			i++
+			qdrantURL = args[i]
+		case "--embedding-url":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--embedding-url requires a value")
+			}
+			i++
+			embedURL = args[i]
+		case "--model":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--model requires a value")
+			}
+			i++
+			embedModel = args[i]
+		case "--batch-size":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--batch-size requires a value")
+			}
+			i++
+			_, _ = fmt.Sscanf(args[i], "%d", &batchSize)
+		case "--dimensions":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--dimensions requires a value")
+			}
+			i++
+			_, _ = fmt.Sscanf(args[i], "%d", &dimensions)
+		case "--drop":
+			drop = true
+		case "--help", "-h":
+			printTerminologyIndexUsage()
+			return nil
+		default:
+			if len(args[i]) > 0 && args[i][0] == '-' {
+				return fmt.Errorf("unknown flag: %s", args[i])
+			}
+			// Positional: vocabulary then source
+			if vocabulary == "" {
+				vocabulary = strings.ToLower(args[i])
+			} else if sourcePath == "" {
+				sourcePath = args[i]
+			}
+		}
+	}
+
+	if vocabulary == "" {
+		return fmt.Errorf("vocabulary required (loinc, snomedct, icd10cm)")
+	}
+	if sourcePath == "" {
+		return fmt.Errorf("source file required (use --source or positional argument)")
+	}
+
+	// Apply defaults for unset env vars.
+	if qdrantURL == "" {
+		qdrantURL = "http://localhost:6333"
+	}
+	if embedURL == "" {
+		embedURL = "http://localhost:8000/v1"
+	}
+	if embedModel == "" {
+		embedModel = "bge-large-embeddings"
+	}
+
+	// Map vocabulary string to type.
+	var vocab index.Vocabulary
+	switch vocabulary {
+	case "loinc":
+		vocab = index.VocabularyLOINC
+	case "snomedct", "snomed":
+		vocab = index.VocabularySNOMED
+	case "icd10cm", "icd10":
+		vocab = index.VocabularyICD10CM
+	default:
+		return fmt.Errorf("unsupported vocabulary: %s (supported: loinc, snomedct, icd10cm)", vocabulary)
+	}
+
+	cfg := index.IndexConfig{
+		QdrantURL:           qdrantURL,
+		QdrantAPIKey:        os.Getenv("QDRANT_API_KEY"),
+		EmbeddingBaseURL:    embedURL,
+		EmbeddingAPIKey:     os.Getenv("EMBEDDING_API_KEY"),
+		EmbeddingModel:      embedModel,
+		EmbeddingDimensions: dimensions,
+		BatchSize:           batchSize,
+		Timeout:             120 * time.Second,
+	}
+
+	builder, err := index.NewBuilder(cfg)
+	if err != nil {
+		return fmt.Errorf("create builder: %w", err)
+	}
+
+	fmt.Printf("Building %s index from %s...\n", vocab, sourcePath)
+	if drop {
+		fmt.Println("  (dropping existing collection)")
+	}
+
+	opts := index.BuildOptions{
+		SourcePath:   sourcePath,
+		Vocabulary:   vocab,
+		Version:      version,
+		DropExisting: drop,
+		OnProgress: func(p index.BuildProgress) {
+			if p.TotalItems > 0 {
+				fmt.Printf("  [%s] %d/%d indexed (%.1f%%)\n",
+					p.Status, p.IndexedItems, p.TotalItems, p.PercentComplete())
+			}
+		},
+	}
+
+	ctx := context.Background()
+	if err := builder.Build(ctx, opts); err != nil {
+		return fmt.Errorf("build index: %w", err)
+	}
+
+	fmt.Printf("Index build complete for %s.\n", vocab)
+	return nil
+}
+
+func printTerminologyIndexUsage() {
+	fmt.Println(`fi-fhir terminology index - Build/rebuild vector indexes for semantic search
+
+Usage:
+  fi-fhir terminology index <vocabulary> <source-file> [options]
+  fi-fhir terminology index --vocabulary loinc --source /path/to/LoincTable.csv
+
+Arguments:
+  vocabulary    Vocabulary type: loinc, snomedct, icd10cm
+  source-file   Path to the vocabulary data file
+
+Options:
+  --vocabulary, -v   Vocabulary type (also accepted as positional)
+  --source, -s       Source file path (also accepted as positional)
+  --version          Vocabulary version string (e.g., "2.77", "2024-03")
+  --qdrant-url       Qdrant server URL (env: QDRANT_URL, default: http://localhost:6333)
+  --embedding-url    Embedding API URL (env: EMBEDDING_BASE_URL, default: http://localhost:8000/v1)
+  --model            Embedding model name (env: EMBEDDING_MODEL, default: bge-large-embeddings)
+  --dimensions       Embedding dimensions (default: 1024)
+  --batch-size       Items per embedding batch (default: 32)
+  --drop             Drop existing collection before building
+
+Examples:
+  # Build LOINC index
+  fi-fhir terminology index loinc /data/LoincTable.csv --version 2.77
+
+  # Build SNOMED CT index from RF2 descriptions file
+  fi-fhir terminology index snomedct /data/sct2_Description_Full-en_US.txt --version 2024-03
+
+  # Rebuild with custom embedding service
+  fi-fhir terminology index icd10cm /data/icd10cm.csv --drop \
+    --qdrant-url http://qdrant:6333 --embedding-url http://ollama:11434/v1 --model nomic-embed-text
+
+Environment Variables:
+  QDRANT_URL           Qdrant server URL
+  EMBEDDING_BASE_URL   Embedding API base URL
+  EMBEDDING_MODEL      Embedding model name
+  EMBEDDING_API_KEY    Embedding API key
+  QDRANT_API_KEY       Qdrant API key`)
 }

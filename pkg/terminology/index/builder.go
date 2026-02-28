@@ -290,6 +290,10 @@ func (b *Builder) loadLOINCEntries(path string) ([]IndexEntry, error) {
 }
 
 // loadSNOMEDEntries loads SNOMED CT entries from a file.
+// Supports two formats:
+//   - RF2 descriptions (auto-detected by "effectivetime" header column):
+//     columns conceptId, term, typeId, active
+//   - Simplified TSV: columns id, fsn, term, synonyms, semantictag, active
 func (b *Builder) loadSNOMEDEntries(path string) ([]IndexEntry, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -313,6 +317,101 @@ func (b *Builder) loadSNOMEDEntries(path string) ([]IndexEntry, error) {
 		colIdx[strings.ToLower(strings.TrimSpace(col))] = i
 	}
 
+	// Auto-detect RF2 format by checking for the effectivetime column.
+	_, isRF2 := colIdx["effectivetime"]
+	if isRF2 {
+		return b.loadSNOMEDRF2(reader, colIdx)
+	}
+	return b.loadSNOMEDSimplified(reader, colIdx)
+}
+
+// SNOMED CT RF2 typeId constants.
+const (
+	snomedTypeIDFSN     = "900000000000003001" // Fully Specified Name
+	snomedTypeIDSynonym = "900000000000013009" // Synonym (preferred/acceptable)
+)
+
+// loadSNOMEDRF2 reads SNOMED CT RF2 description files.
+// RF2 columns: id, effectiveTime, active, moduleId, conceptId, languageCode, typeId, term, caseSignificanceId
+func (b *Builder) loadSNOMEDRF2(reader *csv.Reader, colIdx map[string]int) ([]IndexEntry, error) {
+	// Collect descriptions grouped by conceptId so we can merge FSN + preferred term.
+	type conceptData struct {
+		FSN      string
+		Synonyms []string
+		Active   bool
+	}
+	concepts := make(map[string]*conceptData)
+
+	for {
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			continue // Skip malformed lines
+		}
+
+		activeStr := getCSVCol(record, colIdx, "active")
+		if activeStr != "1" {
+			continue
+		}
+
+		conceptID := getCSVCol(record, colIdx, "conceptid")
+		if conceptID == "" {
+			continue
+		}
+
+		term := getCSVCol(record, colIdx, "term")
+		typeID := getCSVCol(record, colIdx, "typeid")
+
+		data, ok := concepts[conceptID]
+		if !ok {
+			data = &conceptData{Active: true}
+			concepts[conceptID] = data
+		}
+
+		switch typeID {
+		case snomedTypeIDFSN:
+			data.FSN = term
+		default:
+			// Treat all non-FSN descriptions as synonyms.
+			data.Synonyms = append(data.Synonyms, term)
+		}
+	}
+
+	entries := make([]IndexEntry, 0, len(concepts))
+	for conceptID, data := range concepts {
+		// Use first synonym as Description (preferred term), or fall back to FSN.
+		description := data.FSN
+		if len(data.Synonyms) > 0 {
+			description = data.Synonyms[0]
+		}
+
+		// Extract semantic tag from FSN (e.g., "Aspirin (substance)" → "substance").
+		semanticTag := ""
+		if data.FSN != "" {
+			if idx := strings.LastIndex(data.FSN, "("); idx > 0 {
+				semanticTag = strings.TrimSuffix(data.FSN[idx+1:], ")")
+			}
+		}
+
+		entry := SNOMEDEntry{
+			ConceptID:   conceptID,
+			FSN:         data.FSN,
+			Description: description,
+			Synonyms:    strings.Join(data.Synonyms, "; "),
+			Semantic:    semanticTag,
+			Active:      true,
+		}
+		entries = append(entries, entry.ToIndexEntry())
+	}
+
+	return entries, nil
+}
+
+// loadSNOMEDSimplified reads SNOMED CT simplified TSV files.
+// Expected columns: id, fsn, term, synonyms, semantictag, active
+func (b *Builder) loadSNOMEDSimplified(reader *csv.Reader, colIdx map[string]int) ([]IndexEntry, error) {
 	var entries []IndexEntry
 	for {
 		record, err := reader.Read()
