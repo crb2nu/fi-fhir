@@ -199,11 +199,11 @@ func TestNewActivities_NilDependencies(t *testing.T) {
 	if a == nil {
 		t.Fatal("expected non-nil Activities")
 	}
-	if a.Engine != nil {
-		t.Error("expected nil Engine")
+	if a.engine != nil {
+		t.Error("expected nil engine")
 	}
-	if a.MappingStore != nil {
-		t.Error("expected nil MappingStore")
+	if a.store != nil {
+		t.Error("expected nil store")
 	}
 }
 

@@ -17,17 +17,31 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/db"
 )
 
+// suggestEngine abstracts the autoroute engine for testability.
+type suggestEngine interface {
+	Suggest(ctx context.Context, req autoroute.SuggestRequest) (*autoroute.SuggestResult, error)
+}
+
+// mappingRepository abstracts the mapping store for testability.
+type mappingRepository interface {
+	LookupMapping(ctx context.Context, sourceSystem, sourceCode, targetSystem, profileID string) (*db.CustomMapping, error)
+	CreatePendingAutoroute(ctx context.Context, p *db.PendingAutoroute) error
+	ApprovePendingAutoroute(ctx context.Context, id int64, approvedBy, equivalenceOverride, comment string) (*db.CustomMapping, error)
+	RejectPendingAutoroute(ctx context.Context, id int64, rejectedBy, reason string) error
+	RecordMappingDecision(ctx context.Context, d *db.MappingDecision) error
+}
+
 // Activities holds the dependencies needed by activity implementations.
 type Activities struct {
-	Engine       *autoroute.Engine
-	MappingStore *db.MappingStore
+	engine suggestEngine
+	store  mappingRepository
 }
 
 // NewActivities creates a new Activities instance with the required dependencies.
-func NewActivities(engine *autoroute.Engine, store *db.MappingStore) *Activities {
+func NewActivities(engine suggestEngine, store mappingRepository) *Activities {
 	return &Activities{
-		Engine:       engine,
-		MappingStore: store,
+		engine: engine,
+		store:  store,
 	}
 }
 
@@ -84,7 +98,7 @@ func (a *Activities) SuggestMapping(ctx context.Context, input SuggestMappingInp
 		MaxCandidates: input.MaxCandidates,
 	}
 
-	result, err := a.Engine.Suggest(ctx, req)
+	result, err := a.engine.Suggest(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("autoroute suggestion failed: %w", err)
 	}
@@ -196,7 +210,7 @@ func (a *Activities) CreatePendingAutoroute(ctx context.Context, input CreatePen
 		ExpiresAt:        &expiresAt,
 	}
 
-	if err := a.MappingStore.CreatePendingAutoroute(ctx, pending); err != nil {
+	if err := a.store.CreatePendingAutoroute(ctx, pending); err != nil {
 		return nil, fmt.Errorf("failed to create pending autoroute: %w", err)
 	}
 
@@ -234,7 +248,7 @@ func (a *Activities) ApproveMapping(ctx context.Context, input ApproveMappingInp
 		"approvedBy", input.ApprovedBy,
 	)
 
-	mapping, err := a.MappingStore.ApprovePendingAutoroute(
+	mapping, err := a.store.ApprovePendingAutoroute(
 		ctx,
 		input.PendingID,
 		input.ApprovedBy,
@@ -271,7 +285,7 @@ func (a *Activities) RejectMapping(ctx context.Context, input RejectMappingInput
 		"reason", input.Reason,
 	)
 
-	if err := a.MappingStore.RejectPendingAutoroute(
+	if err := a.store.RejectPendingAutoroute(
 		ctx,
 		input.PendingID,
 		input.RejectedBy,
@@ -343,7 +357,7 @@ func (a *Activities) RecordDecision(ctx context.Context, input RecordDecisionInp
 		DurationMs:      input.DurationMs,
 	}
 
-	if err := a.MappingStore.RecordMappingDecision(ctx, decision); err != nil {
+	if err := a.store.RecordMappingDecision(ctx, decision); err != nil {
 		return fmt.Errorf("failed to record decision: %w", err)
 	}
 
@@ -374,7 +388,7 @@ func (a *Activities) CheckExistingMapping(ctx context.Context, input CheckExisti
 		"targetSystem", input.TargetSystem,
 	)
 
-	mapping, err := a.MappingStore.LookupMapping(
+	mapping, err := a.store.LookupMapping(
 		ctx,
 		input.SourceSystem,
 		input.SourceCode,

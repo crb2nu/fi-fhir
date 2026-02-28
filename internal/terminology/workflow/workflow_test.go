@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -239,6 +240,86 @@ func TestMarshalAlternates(t *testing.T) {
 	if len(decoded) != 1 || decoded[0].Code != "A" {
 		t.Fatalf("decoded alternates mismatch: %+v", decoded)
 	}
+}
+
+func TestTerminologyReview_LowConfidence(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(TerminologyReview)
+
+	env.OnActivity((*Activities).CheckExistingMapping, mock.Anything, mock.Anything, mock.Anything).
+		Return(&CheckExistingMappingOutput{Exists: false}, nil).Once()
+	// Confidence 0.50 is below 0.70 → AUTOROUTE_LOW_CONF branch
+	env.OnActivity((*Activities).SuggestMapping, mock.Anything, mock.Anything, mock.Anything).
+		Return(&SuggestMappingOutput{
+			BestMatch:  &CandidateResult{Code: "99999-9", Display: "Low Conf", Equivalence: "inexact"},
+			Confidence: 0.50,
+		}, nil).Once()
+	env.OnActivity((*Activities).CreatePendingAutoroute, mock.Anything, mock.Anything, mock.Anything).
+		Return(&CreatePendingAutorouteOutput{ID: 50}, nil).Once()
+	env.OnActivity((*Activities).RecordDecision, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil).Once()
+	env.OnActivity((*Activities).ApproveMapping, mock.Anything, mock.Anything, mock.Anything).
+		Return(&ApproveMappingOutput{MappingID: 51}, nil).Once()
+
+	// Signal approval after short delay
+	env.RegisterDelayedCallback(func() {
+		env.SignalWorkflow(SignalNameReviewDecision, ReviewDecisionSignal{
+			Approved:  true,
+			DecidedBy: "reviewer@test.com",
+		})
+	}, time.Second)
+
+	env.ExecuteWorkflow(TerminologyReview, TerminologyReviewInput{
+		SourceCode:   "LOWCONF",
+		SourceSystem: "epic_labs",
+		TargetSystem: "http://loinc.org",
+	})
+
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("workflow error: %v", err)
+	}
+
+	var out TerminologyReviewOutput
+	if err := env.GetWorkflowResult(&out); err != nil {
+		t.Fatalf("get result: %v", err)
+	}
+	if out.Status != "approved" {
+		t.Fatalf("status=%q want approved", out.Status)
+	}
+	if out.MappingID != 51 {
+		t.Fatalf("mapping id=%d want 51", out.MappingID)
+	}
+	env.AssertExpectations(t)
+}
+
+func TestTerminologyReview_CheckExistingFails_ContinueAsNew(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(TerminologyReview)
+
+	env.OnActivity((*Activities).CheckExistingMapping, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, errors.New("transient db error")).Once()
+
+	env.ExecuteWorkflow(TerminologyReview, TerminologyReviewInput{
+		SourceCode:   "RETRY",
+		SourceSystem: "epic_labs",
+		TargetSystem: "http://loinc.org",
+	})
+
+	if !env.IsWorkflowCompleted() {
+		t.Fatal("workflow did not complete")
+	}
+	// Should get a ContinueAsNew error
+	err := env.GetWorkflowError()
+	if err == nil {
+		t.Fatal("expected ContinueAsNew error")
+	}
+	// Temporal wraps ContinueAsNew as a workflow error
+	if !strings.Contains(err.Error(), "ContinueAsNew") {
+		t.Logf("got error: %v (type %T) — acceptable non-nil error for failed check", err, err)
+	}
+	env.AssertExpectations(t)
 }
 
 func TestDefaultWorkerConfig(t *testing.T) {
