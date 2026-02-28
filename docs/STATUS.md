@@ -10,7 +10,7 @@
 | **Production** | 18 | Stable, tested, deployed |
 | **Beta** | 10 | Feature-complete, needs coverage or hardening |
 | **Alpha** | 5 | Functional but limited testing or scope |
-| **Planned** | 2 | Designed but not yet implemented |
+| **Planned** | 2 | Designed but not yet implemented (tracked via [#7](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/7), [#8](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/8)) |
 
 ---
 
@@ -41,7 +41,7 @@
 | Terminology (core) | `pkg/terminology/` | Production | 84.2% | LOINC, ICD-10, fuzzy matching, UMLS | 2026-02-03 |
 | Terminology DB | `pkg/terminology/db/` | Beta | 22.6% | PostgreSQL loaders; needs testcontainers | 2026-02-03 |
 | Terminology Upload | `pkg/terminology/upload/` | Beta | 85.8% | Mapping file upload pipeline | 2026-02-03 |
-| Terminology Suggest | `pkg/terminology/suggest/` | Alpha | 0.0% | Suggestion engine; needs test coverage | 2026-02-03 |
+| Terminology Suggest | `pkg/terminology/suggest/` | Alpha | 79.2% | Suggestion engine; httptest-based coverage | 2026-02-28 |
 | Terminology Semantic | `pkg/terminology/semantic/` | Alpha | 35.0% | Embedding-based semantic search | 2026-02-09 |
 | Terminology Index | `pkg/terminology/index/` | Alpha | 3.0% | Full-text indexing; needs test coverage | 2026-02-27 |
 | Patient Matching | `pkg/matching/` | Production | 85.4% | Deterministic + probabilistic, MPI, batch | 2026-01-11 |
