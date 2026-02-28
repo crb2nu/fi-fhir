@@ -205,6 +205,61 @@ fi-fhir validate profile epic_adt.yaml
 fi-fhir config show
 ```
 
+## Quick Start with Persistence
+
+By default, `fi-fhir serve` uses in-memory stores — events vanish on restart.
+To enable persistent storage, start PostgreSQL and set environment variables.
+
+### 1. Start PostgreSQL
+
+```bash
+# Using docker-compose (includes PostgreSQL, Qdrant, Temporal)
+docker-compose up -d
+
+# Or use an existing PostgreSQL instance
+```
+
+### 2. Configure Environment
+
+```bash
+export FI_FHIR_DATABASE_DRIVER=postgres
+export FI_FHIR_DATABASE_HOST=localhost
+export FI_FHIR_DATABASE_PORT=5432
+export FI_FHIR_DATABASE_NAME=fi_fhir
+export FI_FHIR_DATABASE_USERNAME=fi_fhir
+export FI_FHIR_DATABASE_PASSWORD=fi_fhir_dev
+export FI_FHIR_DATABASE_SSL_MODE=disable
+```
+
+### 3. Start the Server
+
+```bash
+fi-fhir serve --workflow configs/adt-workflow.yaml
+```
+
+You should see:
+```
+Profile store: PostgreSQL
+Event store: PostgreSQL
+Workflow lifecycle store: PostgreSQL
+```
+
+Or use the `make dev` shortcut which handles all of the above:
+
+```bash
+make dev
+```
+
+### 4. Verify Persistence
+
+Submit a message via GraphQL at `http://localhost:8081`, restart the server,
+and query events — they persist across restarts.
+
+### Graceful Degradation
+
+When database env vars are absent, fi-fhir falls back to in-memory stores
+with a warning. No crash, no configuration required for basic usage.
+
 ## Next Steps
 
 | To learn about... | Read... |
@@ -213,6 +268,7 @@ fi-fhir config show
 | Workflow filters and actions | [Workflows](workflows.md) |
 | FHIR resource generation | [FHIR Output](fhir-output.md) |
 | Interactive learning | [Playground Tutorial](playground-tutorial.md) |
+| Full development setup | [Development Setup](../developer-guide/development-setup.md) |
 
 ## Common Issues
 

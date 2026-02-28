@@ -172,10 +172,33 @@ docker-compose logs -f
 
 | Service | Port | Description |
 |---------|------|-------------|
-| PostgreSQL | 5432 | Event store |
+| PostgreSQL | 5432 | Event store, profile store, workflow lifecycle |
 | Kafka | 9092 | Message queue |
 | HAPI FHIR | 8090 | FHIR R4 server |
+| Qdrant | 6333 | Vector search for terminology semantic index |
+| Temporal | 7233 | Workflow orchestration for terminology mapping |
 | Jaeger | 16686 | Tracing UI |
+
+### Quick Development with `make dev`
+
+The `make dev` target starts infrastructure, waits for readiness, and launches
+the server with PostgreSQL persistence in a single command:
+
+```bash
+# Start everything
+make dev
+
+# Expected output:
+# docker-compose up -d postgres qdrant kafka
+# Waiting for postgres...
+# Profile store: PostgreSQL
+# Event store: PostgreSQL
+# Workflow lifecycle store: PostgreSQL
+# GraphQL playground available at http://localhost:8081
+
+# When done
+make dev-down
+```
 
 ### Run Integration Tests
 
@@ -344,18 +367,44 @@ make lint
 
 ## Environment Variables
 
-For development:
+For development, copy `.env.example` to `.env` and customize. Key variables:
 
 ```bash
-# Optional: Override config file location
-export FI_FHIR_CONFIG=./dev-config.yaml
+# Database (enables persistent stores)
+export FI_FHIR_DATABASE_DRIVER=postgres
+export FI_FHIR_DATABASE_HOST=localhost
+export FI_FHIR_DATABASE_PORT=5432
+export FI_FHIR_DATABASE_NAME=fi_fhir
+export FI_FHIR_DATABASE_USERNAME=fi_fhir
+export FI_FHIR_DATABASE_PASSWORD=fi_fhir_dev
+export FI_FHIR_DATABASE_SSL_MODE=disable
 
-# Optional: Enable debug logging
+# Server
+export FI_FHIR_SERVER_PORT=8081
+
+# Workflow config (alternative to --workflow flag)
+export FI_FHIR_WORKFLOW_CONFIG_PATH=./configs/adt-workflow.yaml
+
+# LLM (for AI-powered terminology features)
+export LLM_BASE_URL=http://localhost:11434/v1
+export LLM_DEFAULT_MODEL=llama3.2
+
+# Vector search
+export QDRANT_URL=http://localhost:6333
+
+# Embedding
+export EMBEDDING_BASE_URL=http://localhost:11434/v1
+export EMBEDDING_MODEL=nomic-embed-text
+
+# Temporal
+export TEMPORAL_ADDRESS=localhost:7233
+
+# Debug logging
 export FI_FHIR_LOG_LEVEL=debug
-
-# For integration tests
-export FI_FHIR_DATABASE_URL=postgres://postgres:postgres@localhost:5432/fi_fhir_test
 ```
+
+See `.env.example` for the complete list, or `configs/full-stack.env` for a
+configuration matching the k3s production deployment (with sanitized secrets).
 
 ## Next Steps
 
