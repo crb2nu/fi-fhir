@@ -128,6 +128,32 @@ CREATE INDEX IF NOT EXISTS idx_workflow_runs_name_env_started ON workflow_runs(w
 CREATE INDEX IF NOT EXISTS idx_workflow_approvals_workflow_env_status ON workflow_approval_requests(workflow_id, environment, status);
 CREATE INDEX IF NOT EXISTS idx_workflow_audit_workflow_occurred ON workflow_audit_log(workflow_id, occurred_at DESC);
 
+-- GraphQL event store tables (used by fi-fhir serve)
+CREATE TABLE IF NOT EXISTS graphql_events (
+    id TEXT PRIMARY KEY,
+    event_type TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT '',
+    source_format TEXT,
+    correlation_id TEXT,
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    payload JSONB NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_graphql_events_type ON graphql_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_graphql_events_source ON graphql_events(source);
+CREATE INDEX IF NOT EXISTS idx_graphql_events_timestamp ON graphql_events(timestamp);
+CREATE INDEX IF NOT EXISTS idx_graphql_events_correlation ON graphql_events(correlation_id) WHERE correlation_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS graphql_patients (
+    mrn TEXT PRIMARY KEY,
+    family_name TEXT NOT NULL DEFAULT '',
+    given_name TEXT NOT NULL DEFAULT '',
+    payload JSONB NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_graphql_patients_name ON graphql_patients(lower(family_name), lower(given_name));
+
 -- Grant permissions
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO fi_fhir;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO fi_fhir;

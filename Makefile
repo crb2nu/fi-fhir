@@ -6,7 +6,8 @@
 	docker-push docker-push-ui docker-push-all \
 	deploy deploy-ui deploy-all deploy-status deploy-logs deploy-delete deploy-forward \
 	docs-status docs-status-quick docs-validate docs-all \
-	contract-check contract-check-strict contract-matrix
+	contract-check contract-check-strict contract-matrix \
+	dev dev-down
 
 # Tool versions (update these when upgrading)
 GOLANGCI_LINT_VERSION := v2.8.0
@@ -375,6 +376,8 @@ deploy:
 		--set image.repository=$(HARBOR_REGISTRY)/$(HARBOR_PROJECT)/fi-fhir \
 		--set image.tag=$(SHA) \
 		--set replicaCount=1 \
+		--set config.database.enabled=true \
+		--set config.database.existingSecret=fi-fhir-postgres \
 		--wait --timeout 5m
 	@echo "✓ Backend deployed"
 
@@ -490,3 +493,25 @@ docs-validate:
 docs-all: docs-mermaid docs-status docs-validate
 	@echo ""
 	@echo "✅ Full documentation maintenance complete!"
+
+# ── Local development with persistence ──────────────────────────
+
+# Start postgres + qdrant + fi-fhir serve with persistent storage.
+# Ctrl-C stops the server; docker services keep running until `make dev-down`.
+dev: build
+	docker-compose up -d postgres qdrant
+	@echo "Waiting for postgres..."
+	@until docker-compose exec -T postgres pg_isready -U fi_fhir -d fi_fhir 2>/dev/null; do sleep 1; done
+	@echo "PostgreSQL ready."
+	FI_FHIR_DATABASE_HOST=localhost \
+	FI_FHIR_DATABASE_PORT=5432 \
+	FI_FHIR_DATABASE_NAME=fi_fhir \
+	FI_FHIR_DATABASE_USERNAME=fi_fhir \
+	FI_FHIR_DATABASE_PASSWORD=fi_fhir_dev \
+	FI_FHIR_DATABASE_SSL_MODE=disable \
+	QDRANT_URL=http://localhost:6333 \
+	./bin/fi-fhir serve $(ARGS)
+
+# Stop docker-compose services started by `make dev`.
+dev-down:
+	docker-compose down

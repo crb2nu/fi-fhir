@@ -4579,6 +4579,16 @@ func runServe(args []string) error {
 		}
 	}
 
+	// Env var fallbacks for settings not overridden by CLI flags.
+	if envPort := os.Getenv("FI_FHIR_SERVER_PORT"); envPort != "" && port == 8081 {
+		if p, err := strconv.Atoi(envPort); err == nil {
+			port = p
+		}
+	}
+	if envWorkflow := os.Getenv("FI_FHIR_WORKFLOW_CONFIG_PATH"); envWorkflow != "" && workflowPath == "" {
+		workflowPath = envWorkflow
+	}
+
 	var (
 		loadedWorkflow *workflow.Workflow
 		workflowEngine *workflow.Engine
@@ -4681,6 +4691,14 @@ func runServe(args []string) error {
 		fmt.Fprintf(os.Stderr, "Warning: workflow lifecycle store disabled: %v\n", err)
 	} else if workflowLifecycleStore != nil {
 		resolverOpts = append(resolverOpts, resolvers.WithWorkflowLifecycleStore(workflowLifecycleStore))
+	}
+	if eventStore, err := initEventStoreFromEnv(context.Background()); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: event store disabled (using in-memory): %v\n", err)
+	} else if eventStore != nil {
+		resolverOpts = append(resolverOpts, resolvers.WithStore(eventStore))
+		fmt.Println("Event store: PostgreSQL")
+	} else {
+		fmt.Println("Event store: in-memory (no database configured)")
 	}
 
 	// Load workflow engine if specified

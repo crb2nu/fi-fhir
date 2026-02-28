@@ -47,6 +47,11 @@ services:
       FI_FHIR_LOG_FORMAT: "json"
       FI_FHIR_TRACING_ENABLED: "true"
       FI_FHIR_TRACING_ENDPOINT: "http://jaeger:4317"
+      # Qdrant
+      QDRANT_URL: "http://qdrant:6333"
+      # Temporal
+      TEMPORAL_ADDRESS: "temporal:7233"
+      TEMPORAL_NAMESPACE: "terminology-mapping"
     volumes:
       - ./config:/app/config:ro
       - ./testdata:/app/testdata:ro
@@ -110,6 +115,38 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    networks:
+      - fi-fhir-net
+    restart: unless-stopped
+
+  # Qdrant vector database (for terminology semantic search)
+  qdrant:
+    image: qdrant/qdrant:v1.7.4
+    container_name: fi-fhir-qdrant
+    ports:
+      - "6333:6333"   # HTTP API
+      - "6334:6334"   # gRPC
+    volumes:
+      - qdrant-data:/qdrant/storage
+    networks:
+      - fi-fhir-net
+    restart: unless-stopped
+
+  # Temporal for workflow orchestration
+  temporal:
+    image: temporalio/auto-setup:1.22.4
+    container_name: fi-fhir-temporal
+    environment:
+      DB: postgresql
+      DB_PORT: "5432"
+      POSTGRES_USER: fi_fhir
+      POSTGRES_PWD: fi_fhir_dev
+      POSTGRES_SEEDS: postgres
+    ports:
+      - "7233:7233"
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - fi-fhir-net
     restart: unless-stopped
@@ -182,6 +219,7 @@ services:
 volumes:
   postgres-data:
   kafka-data:
+  qdrant-data:
   prometheus-data:
   grafana-data:
 
