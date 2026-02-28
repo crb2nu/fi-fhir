@@ -7,8 +7,8 @@
 
 | Maturity | Count | Description |
 |----------|-------|-------------|
-| **Production** | 21 | Stable, tested, deployed |
-| **Beta** | 9 | Feature-complete, needs coverage or hardening |
+| **Production** | 22 | Stable, tested, deployed |
+| **Beta** | 8 | Feature-complete, needs coverage or hardening |
 | **Alpha** | 3 | Functional but limited testing or scope |
 | **Planned** | 2 | Designed but not yet implemented (tracked via [#7](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/7), [#8](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/8)) |
 
@@ -57,7 +57,7 @@
 | FHIR Subscriptions | `internal/fhir/subscription/` | Production | 83.7% | Bidirectional; client + webhook receiver | 2026-02-27 |
 | Terminology Autoroute | `internal/terminology/autoroute/` | Beta | 83.2% | Automatic code-system routing engine | 2026-01-30 |
 | Terminology Workflow | `internal/terminology/workflow/` | Production | 95.7% | Temporal workflow + activity + worker unit tests | 2026-02-28 |
-| LLM Explain | `internal/llm/explain/` | Beta | 60.8% | Natural language explanation generation | 2026-02-01 |
+| LLM Explain | `internal/llm/explain/` | Production | 99.7% | Warning + workflow explanation generation | 2026-02-28 |
 | LLM Extract | `internal/llm/extract/` | Production | 80.7% | Structured data extraction from documents | 2026-02-01 |
 | LLM Quality | `internal/llm/quality/` | Production | 93.8% | Data quality analysis | 2026-01-23 |
 
