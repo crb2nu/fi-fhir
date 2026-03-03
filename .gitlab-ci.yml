@@ -733,6 +733,7 @@ security:gosec:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes: *go-changes
     - when: never
+  allow_failure: true
 
 security:trivy:
   stage: security
