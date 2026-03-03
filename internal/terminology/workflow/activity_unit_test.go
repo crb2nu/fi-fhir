@@ -53,18 +53,6 @@ func (m *mockStore) RecordMappingDecision(ctx context.Context, d *db.MappingDeci
 	return m.recordDecisionFn(ctx, d)
 }
 
-// activityCtx returns a context suitable for testing Temporal activities.
-func activityCtx() context.Context {
-	var suite testsuite.WorkflowTestSuite
-	env := suite.NewTestActivityEnvironment()
-	// ExecuteActivity expects an activity func; we register a dummy to get the ctx.
-	// Instead, use the env directly to test activities.
-	_ = env
-	// Temporal SDK ≥1.25 exposes activity.Background() but older versions
-	// require the test environment. We'll use ExecuteActivity for each test.
-	return context.Background()
-}
-
 // execActivity runs a single activity function through the Temporal test
 // activity environment, which provides proper activity.GetLogger(ctx) support.
 func execActivity[I any, O any](t *testing.T, acts *Activities, fn func(context.Context, I) (O, error), input I) (O, error) {

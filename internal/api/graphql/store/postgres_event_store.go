@@ -279,7 +279,6 @@ func (s *PostgresEventStore) QueryPatients(ctx context.Context, filter *model.Pa
 		if filter.GivenName != nil {
 			where += fmt.Sprintf(" AND lower(given_name) LIKE $%d", argIdx)
 			args = append(args, "%"+strings.ToLower(*filter.GivenName)+"%")
-			argIdx++
 		}
 	}
 
@@ -289,7 +288,11 @@ func (s *PostgresEventStore) QueryPatients(ctx context.Context, filter *model.Pa
 		return nil, fmt.Errorf("count patients: %w", err)
 	}
 
-	query := "SELECT mrn, payload FROM graphql_patients" + where + " ORDER BY mrn ASC"
+	var queryBuilder strings.Builder
+	queryBuilder.WriteString("SELECT mrn, payload FROM graphql_patients")
+	queryBuilder.WriteString(where)
+	queryBuilder.WriteString(" ORDER BY mrn ASC")
+	query := queryBuilder.String()
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query patients: %w", err)
