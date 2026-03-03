@@ -81,10 +81,20 @@ func NewMockQdrantClient() *MockQdrantClient {
 
 // Ping checks connectivity (mock always succeeds unless error is set).
 func (m *MockQdrantClient) Ping(ctx context.Context) error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	if m.Errors.Ping != nil {
 		return m.Errors.Ping
 	}
 	return nil
+}
+
+// SetPingError updates the Ping error in a race-safe way for concurrent tests.
+func (m *MockQdrantClient) SetPingError(err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.Errors.Ping = err
 }
 
 // CreateCollection creates a mock collection.

@@ -376,16 +376,12 @@ func TestManager_WaitForReady(t *testing.T) {
 
 	t.Run("becomes ready after retries", func(t *testing.T) {
 		mgr, mockQ, _ := newTestManager()
-		calls := 0
-		originalPing := mockQ.Errors.Ping
-		_ = originalPing
 		// Fail first call, succeed on second
-		mockQ.Errors.Ping = errors.New("not ready")
+		mockQ.SetPingError(errors.New("not ready"))
 
 		go func() {
 			time.Sleep(1500 * time.Millisecond)
-			mockQ.Errors.Ping = nil
-			calls++
+			mockQ.SetPingError(nil)
 		}()
 
 		err := mgr.WaitForReady(context.Background(), 5*time.Second)
