@@ -683,3 +683,228 @@ func TestRunTerminologyStatus_WithDBFlag(t *testing.T) {
 	err := runTerminologyStatus([]string{"--db", "postgres://localhost:5432/nonexistent"})
 	assertError(t, err) // connection error expected
 }
+
+// =============================================================================
+// Missing-DB-URL error paths — push coverage for getTerminologyDBURL guard
+// =============================================================================
+
+func TestRunTerminologyInit_MissingDBURL(t *testing.T) {
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "")
+	t.Setenv("FI_FHIR_DATABASE_URL", "")
+
+	err := runTerminologyInit([]string{})
+	assertError(t, err)
+	assertErrorContains(t, err, "database URL required")
+}
+
+func TestRunTerminologyStatus_MissingDBURL(t *testing.T) {
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "")
+	t.Setenv("FI_FHIR_DATABASE_URL", "")
+
+	err := runTerminologyStatus([]string{})
+	assertError(t, err)
+	assertErrorContains(t, err, "database URL required")
+}
+
+func TestRunTerminologyUse_MissingDBURL(t *testing.T) {
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "")
+	t.Setenv("FI_FHIR_DATABASE_URL", "")
+
+	err := runTerminologyUse([]string{"loinc", "2.77"})
+	assertError(t, err)
+	assertErrorContains(t, err, "database URL required")
+}
+
+func TestRunTerminologyDrop_MissingDBURL(t *testing.T) {
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "")
+	t.Setenv("FI_FHIR_DATABASE_URL", "")
+
+	err := runTerminologyDrop([]string{})
+	assertError(t, err)
+	assertErrorContains(t, err, "database URL required")
+}
+
+func TestRunTerminologyLoad_MissingDBURL(t *testing.T) {
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "")
+	t.Setenv("FI_FHIR_DATABASE_URL", "")
+
+	err := runTerminologyLoad([]string{"loinc", "/data/loinc", "--version", "2.77"})
+	assertError(t, err)
+	assertErrorContains(t, err, "database URL required")
+}
+
+func TestRunTerminologyCrosswalk_MissingVocabs(t *testing.T) {
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "postgres://localhost/test")
+
+	err := runTerminologyCrosswalk([]string{"E11.9"})
+	assertError(t, err)
+	assertErrorContains(t, err, "--from and --to vocabularies are required")
+}
+
+func TestRunTerminologyAutoroute_MissingSourceCode(t *testing.T) {
+	err := runTerminologyAutoroute([]string{})
+	assertError(t, err)
+	assertErrorContains(t, err, "source code required")
+}
+
+func TestRunTerminologyAutoroute_MissingDBURL(t *testing.T) {
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "")
+	t.Setenv("FI_FHIR_DATABASE_URL", "")
+
+	err := runTerminologyAutoroute([]string{"GLU001"})
+	assertError(t, err)
+	assertErrorContains(t, err, "database URL required")
+}
+
+// =============================================================================
+// Terminology dispatcher — exercise remaining subcommand paths
+// =============================================================================
+
+func TestRunTerminology_UnknownSubcommand(t *testing.T) {
+	err := runTerminology([]string{"nonexistent"})
+	assertError(t, err)
+	assertErrorContains(t, err, "unknown terminology subcommand")
+}
+
+func TestRunTerminology_HelpFlag(t *testing.T) {
+	stdout, _ := captureOutput(t, func() {
+		err := runTerminology([]string{"--help"})
+		assertNoError(t, err)
+	})
+	assertContains(t, stdout, "fi-fhir terminology")
+}
+
+func TestRunTerminology_HelpSubcommand(t *testing.T) {
+	stdout, _ := captureOutput(t, func() {
+		err := runTerminology([]string{"help"})
+		assertNoError(t, err)
+	})
+	assertContains(t, stdout, "fi-fhir terminology")
+}
+
+func TestRunTerminology_NoArgs(t *testing.T) {
+	stdout, _ := captureOutput(t, func() {
+		err := runTerminology([]string{})
+		assertNoError(t, err)
+	})
+	assertContains(t, stdout, "fi-fhir terminology")
+}
+
+func TestRunTerminology_IndexDispatch(t *testing.T) {
+	err := runTerminology([]string{"index"})
+	assertError(t, err)
+	assertErrorContains(t, err, "vocabulary required")
+}
+
+// =============================================================================
+// runTerminologyLoad — additional edge cases
+// =============================================================================
+
+func TestRunTerminologyLoad_NoArgs(t *testing.T) {
+	stdout, _ := captureOutput(t, func() {
+		err := runTerminologyLoad([]string{})
+		assertNoError(t, err)
+	})
+	assertContains(t, stdout, "Usage")
+}
+
+func TestRunTerminologyLoad_TooFewArgs(t *testing.T) {
+	stdout, _ := captureOutput(t, func() {
+		err := runTerminologyLoad([]string{"loinc"})
+		assertNoError(t, err) // prints usage for <2 args
+	})
+	assertContains(t, stdout, "Usage")
+}
+
+func TestRunTerminologyLoad_InvalidDate(t *testing.T) {
+	err := runTerminologyLoad([]string{"loinc", "/data/loinc", "--version", "2.77", "--date", "not-a-date", "--dry-run"})
+	assertError(t, err)
+	assertErrorContains(t, err, "invalid date format")
+}
+
+func TestRunTerminologyLoad_ValidDate(t *testing.T) {
+	dir := t.TempDir()
+	stdout, _ := captureOutput(t, func() {
+		err := runTerminologyLoad([]string{"snomed", dir, "--version", "2024-03", "--date", "2024-03-01", "--dry-run"})
+		assertNoError(t, err)
+	})
+	assertContains(t, stdout, "DRY RUN")
+}
+
+func TestRunTerminologyLoad_DryRunLOINC(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "LoincTable.csv")
+	_ = os.WriteFile(path, []byte("LOINC_NUM\n1234-5\n"), 0o600)
+
+	stdout, _ := captureOutput(t, func() {
+		err := runTerminologyLoad([]string{"loinc", path, "--version", "2.77", "--dry-run"})
+		assertNoError(t, err)
+	})
+	assertContains(t, stdout, "DRY RUN")
+}
+
+func TestRunTerminologyLoad_DryRunICD10CM(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "icd10cm.csv")
+	_ = os.WriteFile(path, []byte("code\nE11.9\n"), 0o600)
+
+	stdout, _ := captureOutput(t, func() {
+		err := runTerminologyLoad([]string{"icd10cm", path, "--version", "FY2024", "--dry-run"})
+		assertNoError(t, err)
+	})
+	assertContains(t, stdout, "DRY RUN")
+}
+
+func TestRunTerminologyLoad_DryRunUMLS(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "MRCONSO.RRF"), []byte(""), 0o600)
+	_ = os.WriteFile(filepath.Join(dir, "MRREL.RRF"), []byte(""), 0o600)
+	_ = os.WriteFile(filepath.Join(dir, "MRSTY.RRF"), []byte(""), 0o600)
+
+	stdout, _ := captureOutput(t, func() {
+		err := runTerminologyLoad([]string{"umls", dir, "--version", "2024AB", "--dry-run"})
+		assertNoError(t, err)
+	})
+	assertContains(t, stdout, "DRY RUN")
+}
+
+func TestRunTerminologyLoad_DryRunRxNorm(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "RXNCONSO.RRF"), []byte(""), 0o600)
+
+	stdout, _ := captureOutput(t, func() {
+		err := runTerminologyLoad([]string{"rxnorm", dir, "--version", "2024-01", "--dry-run"})
+		assertNoError(t, err)
+	})
+	assertContains(t, stdout, "DRY RUN")
+}
+
+// =============================================================================
+// runTerminologyUse — help/usage paths
+// =============================================================================
+
+func TestRunTerminologyUse_OneArg(t *testing.T) {
+	stdout, _ := captureOutput(t, func() {
+		err := runTerminologyUse([]string{"loinc"})
+		assertNoError(t, err)
+	})
+	assertContains(t, stdout, "Usage")
+}
+
+// =============================================================================
+// runTerminologyCrosswalk — with DB, reached "not yet implemented" path
+// =============================================================================
+
+func TestRunTerminologyCrosswalk_NotImplementedYet(t *testing.T) {
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "postgres://localhost/test")
+
+	stdout, _ := captureOutput(t, func() {
+		err := runTerminologyCrosswalk([]string{"E11.9", "--from", "ICD10CM", "--to", "SNOMEDCT_US"})
+		assertNoError(t, err)
+	})
+	assertContains(t, stdout, "not yet implemented")
+}
+
+// =============================================================================
+// runTerminologyMapping — unknown subcommand path
+// =============================================================================
