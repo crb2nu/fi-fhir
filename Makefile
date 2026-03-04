@@ -7,6 +7,7 @@
 	deploy deploy-ui deploy-all deploy-status deploy-logs deploy-delete deploy-forward \
 	docs-status docs-status-quick docs-validate docs-all \
 	contract-check contract-check-strict contract-matrix \
+	smoke-test smoke-test-local \
 	dev dev-down dev-ui dev-ui-down
 
 # Tool versions (update these when upgrading)
@@ -211,6 +212,14 @@ contract-check-strict:
 # Generate markdown matrix report for planning/docs
 contract-matrix:
 	go run ./scripts/check_event_contracts.go --root . --report docs/planning/API-CONTRACT-MATRIX.md
+
+# Smoke test: verify core endpoint reachability (/health, /graphql, /graphql/ws)
+smoke-test:
+	bash scripts/smoke-test.sh
+
+# Smoke test against local full-stack (docker-compose up first)
+smoke-test-local:
+	BASE_URL=http://localhost:8080 bash scripts/smoke-test.sh
 
 # Verify CI will pass locally
 ci: fmt-check lint test

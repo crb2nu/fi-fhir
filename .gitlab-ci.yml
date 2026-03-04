@@ -7,9 +7,9 @@ include:
 stages:
   - lint
   - test
-  - security      # Pre-build security (govulncheck, gosec, trivy fs, npm audit, license check)
+  - security # Pre-build security (govulncheck, gosec, trivy fs, npm audit, license check)
   - build
-  - scan          # Post-build security (trivy image scans)
+  - scan # Post-build security (trivy image scans)
   - deploy
   - release
 
@@ -321,8 +321,8 @@ lint:contracts:
   stage: lint
   <<: *go-image
   <<: *go-cache
-  # Warning mode for M0 rollout: surface drift without blocking merges yet.
-  allow_failure: true
+  # Gate owner: Platform/CI — escalate via MR comment or #ci-support channel.
+  # Promoted to blocking 2026-03-04 (M0 exit criterion). Rollback: set allow_failure: true if needed.
   script:
     - apk add --no-cache git
     - go run ./scripts/check_event_contracts.go --root . --report docs/planning/API-CONTRACT-MATRIX.md
@@ -490,7 +490,7 @@ test:integration:
     - apt-get update && apt-get install -y --no-install-recommends git ca-certificates build-essential && rm -rf /var/lib/apt/lists/*
     - mkdir -p coverage/integration
     - go test -tags=integration -cover -covermode=atomic -timeout=300s ./cmd/fi-fhir/...
-        -args -test.gocoverdir=$PWD/coverage/integration
+      -args -test.gocoverdir=$PWD/coverage/integration
     - go tool covdata percent -i=coverage/integration
   artifacts:
     paths:
@@ -615,7 +615,7 @@ test:benchmark:
       changes: *go-changes
       when: manual
     - when: never
-  allow_failure: true  # Soft-fail during threshold tuning phase; promote to blocking once stable
+  allow_failure: true # Soft-fail during threshold tuning phase; promote to blocking once stable
 
 test:docs-status:
   stage: test
@@ -664,7 +664,7 @@ test:docs-status:
         - pkg/**/*
         - cmd/**/*
     - when: never
-  allow_failure: true  # Soft-fail during initial rollout; promote to blocking after clean runs
+  allow_failure: true # Soft-fail during initial rollout; promote to blocking after clean runs
 
 # =============================================================================
 # Security Stage
