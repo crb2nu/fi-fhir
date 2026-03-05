@@ -273,8 +273,11 @@ Tracking issue: [libs/fi-fhir#8](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issu
 - LLM feature expansion: multi-model routing, prompt versioning, evaluation framework
 - Terminology approval workflow (human-in-the-loop review for autoroute suggestions)
 - Additional FHIR Implementation Guides (USCDI v3, Bulk Data, SMART App Launch)
-- Terminology index and semantic search test coverage (currently 0%)
-- LLM copilot test coverage (currently 0%)
+- ✅ Terminology index test coverage (91.3%) — 2026-03-05
+- ✅ Terminology semantic search test coverage (90.9%) — 2026-03-05
+- ✅ LLM extract test coverage (94.2%, up from 76.6%) — 2026-03-05
+- ✅ LLM copilot test coverage (98.0%) — 2026-03-05
+- Terminology suggest test coverage (79.2%, mostly DB-dependent)
 - Storage provider test expansion (S3/MinIO integration tests)
 
 ---

@@ -134,7 +134,7 @@ func truncateText(text string, maxLen int) string {
 	// Find a good break point
 	truncated := text[:maxLen]
 	lastSpace := strings.LastIndex(truncated, " ")
-	if lastSpace > maxLen-100 {
+	if lastSpace > 0 && lastSpace > maxLen-100 {
 		truncated = truncated[:lastSpace]
 	}
 
