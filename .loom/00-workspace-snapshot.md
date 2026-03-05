@@ -1,15 +1,32 @@
 # Workspace Snapshot
 
-- Generated: 2026-02-11T18:10:18-05:00
+- Generated: 2026-03-01T12:23:59-05:00
 - Root: `/Users/cblevins/workspace/libs/fi-fhir`
 - Git toplevel: `/Users/cblevins/workspace/libs/fi-fhir`
-- Platform: `macOS-26.3-arm64-arm-64bit`
+- Platform: `macOS-26.4-arm64-arm-64bit`
 - Python: `3.12.11`
 
 ## Git
 ```
-## backend-feature-expansion
-?? .loom/
+## main...origin/main
+ M docs/planning/README.md
+ M docs/planning/TYPESCRIPT-SDK.md
+?? ROADMAP_RECONCILIATION_2026-02-12.md
+?? ROADMAP_RECONCILIATION_2026-02-15.md
+?? ROADMAP_RECONCILIATION_2026-02-16.md
+?? ROADMAP_RECONCILIATION_2026-02-17.md
+?? ROADMAP_RECONCILIATION_2026-02-18.md
+?? ROADMAP_RECONCILIATION_2026-02-19.md
+?? ROADMAP_RECONCILIATION_2026-02-20.md
+?? ROADMAP_RECONCILIATION_2026-02-23.md
+?? ROADMAP_RECONCILIATION_2026-02-24.md
+?? ROADMAP_RECONCILIATION_2026-02-25.md
+?? ROADMAP_RECONCILIATION_2026-02-26.md
+?? ROADMAP_RECONCILIATION_2026-02-27.md
+?? ROADMAP_RECONCILIATION_2026-02-28.md
+?? ROADMAP_RECONCILIATION_2026-03-01.md
+?? docs/ROADMAP_RECONCILIATION_2026-02-28.md
+?? docs/ROADMAP_RECONCILIATION_2026-03-01.md
 ```
 
 ### Remotes
@@ -18,13 +35,13 @@ github	https://github.com/crb2nu/fi-fhir.git (fetch)
 github	https://github.com/crb2nu/fi-fhir.git (push)
 gitlab-vm	git@gitlab.flexinfer.ai:libs/fi-fhir.git (fetch)
 gitlab-vm	git@gitlab.flexinfer.ai:libs/fi-fhir.git (push)
-origin	https://gitlab.flexinfer.ai/libs/fi-fhir.git (fetch)
-origin	https://gitlab.flexinfer.ai/libs/fi-fhir.git (push)
+origin	https://oauth2:glpat-vFFCVHmo_LOPh6lq1tk3p286MQp1OjEH.01.0w0ycoylq@gitlab.flexinfer.ai/libs/fi-fhir.git (fetch)
+origin	https://oauth2:glpat-vFFCVHmo_LOPh6lq1tk3p286MQp1OjEH.01.0w0ycoylq@gitlab.flexinfer.ai/libs/fi-fhir.git (push)
 ```
 
 ### HEAD
 ```
-d649320 fix(ci): regenerate gqlgen outputs
+196a32e test(index): raise Terminology Index coverage 17% → 91%
 ```
 
 ## Top-Level Layout
@@ -35,7 +52,6 @@ d649320 fix(ci): regenerate gqlgen outputs
 - `.claude/`
 - `.git/`
 - `.githooks/`
-- `.github/`
 - `.go/`
 - `.loom/`
 - `.vscode/`
@@ -55,7 +71,6 @@ d649320 fix(ci): regenerate gqlgen outputs
 - `mappings/`
 - `pkg/`
 - `profiles/`
-- `resolvers/`
 - `scripts/`
 - `sdk/`
 - `test/`
@@ -85,6 +100,20 @@ d649320 fix(ci): regenerate gqlgen outputs
 - `Makefile`
 - `README.md`
 - `renovate.json5`
+- `ROADMAP_RECONCILIATION_2026-02-12.md`
+- `ROADMAP_RECONCILIATION_2026-02-15.md`
+- `ROADMAP_RECONCILIATION_2026-02-16.md`
+- `ROADMAP_RECONCILIATION_2026-02-17.md`
+- `ROADMAP_RECONCILIATION_2026-02-18.md`
+- `ROADMAP_RECONCILIATION_2026-02-19.md`
+- `ROADMAP_RECONCILIATION_2026-02-20.md`
+- `ROADMAP_RECONCILIATION_2026-02-23.md`
+- `ROADMAP_RECONCILIATION_2026-02-24.md`
+- `ROADMAP_RECONCILIATION_2026-02-25.md`
+- `ROADMAP_RECONCILIATION_2026-02-26.md`
+- `ROADMAP_RECONCILIATION_2026-02-27.md`
+- `ROADMAP_RECONCILIATION_2026-02-28.md`
+- `ROADMAP_RECONCILIATION_2026-03-01.md`
 - `tools.go`
 
 ## Key Files Detected
@@ -101,6 +130,14 @@ d649320 fix(ci): regenerate gqlgen outputs
 - `.gitignore`
 - `.gitlab-ci.yml`
 - `.golangci.yml`
+- `.loom/00-index.md`
+- `.loom/00-mcp-inventory.md`
+- `.loom/00-workspace-snapshot.md`
+- `.loom/10-research.md`
+- `.loom/20-product-spec.md`
+- `.loom/30-implementation-plan.md`
+- `.loom/40-decisions.md`
+- `.loom/50-worklog.md`
 - `.sops.yaml`
 - `AGENTS.md`
 - `CHANGELOG.md`
@@ -112,6 +149,7 @@ d649320 fix(ci): regenerate gqlgen outputs
 - `assets/banner.png`
 - `assets/header.svg`
 - `assets/icon.png`
+- `cmd/bench-check/main.go`
 - `cmd/fi-fhir/additional_coverage_test.go`
 - `cmd/fi-fhir/cli_additional_test.go`
 - `cmd/fi-fhir/cli_coverage_test.go`
@@ -140,6 +178,7 @@ d649320 fix(ci): regenerate gqlgen outputs
 - `cmd/fi-fhir/main.go`
 - `cmd/fi-fhir/main_test.go`
 - `cmd/fi-fhir/parse_companion_coverage_test.go`
+- `cmd/fi-fhir/parse_runtime_test.go`
 - `cmd/fi-fhir/postgres_cli_live_test.go`
 - `cmd/fi-fhir/profile_cli_test.go`
 - `cmd/fi-fhir/profile_coverage_test.go`
@@ -150,6 +189,8 @@ d649320 fix(ci): regenerate gqlgen outputs
 - `cmd/fi-fhir/serve_additional_test.go`
 - `cmd/fi-fhir/serve_cli_test.go`
 - `cmd/fi-fhir/serve_coverage_test.go`
+- `cmd/fi-fhir/serve_event_store.go`
+- `cmd/fi-fhir/serve_event_store_test.go`
 - `cmd/fi-fhir/serve_profile_store.go`
 - `cmd/fi-fhir/serve_profile_store_test.go`
 - `cmd/fi-fhir/serve_runtime_test.go`
@@ -181,6 +222,7 @@ d649320 fix(ci): regenerate gqlgen outputs
 - `cmd/fi-fhir/workflow_execution_test.go`
 - `cmd/fi-fhir/workflow_loadtest_test.go`
 - `configs/adt-workflow.yaml`
+- `configs/full-stack.env`
 - `dashboards/alerting/README.md`
 - `dashboards/alerting/workflow-alerts-k8s.yaml`
 - `dashboards/alerting/workflow-alerts.yaml`
@@ -241,6 +283,7 @@ d649320 fix(ci): regenerate gqlgen outputs
 - `docs/operations/PRODUCTION-HARDENING.md`
 - `docs/operations/README.md`
 - `docs/operations/RUNBOOK.md`
+- `docs/planning/API-CONTRACT-MATRIX.md`
 - `docs/planning/CDA-CCDA.md`
 - `docs/planning/EDI-COMPLEXITIES.md`
 - `docs/planning/EVENT-SOURCING.md`
@@ -281,20 +324,6 @@ d649320 fix(ci): regenerate gqlgen outputs
 - `internal/api/graphql/profile_yaml_http.go`
 - `internal/api/graphql/projections/service.go`
 - `internal/api/graphql/resolvers/batch_helpers.go`
-- `internal/api/graphql/resolvers/helpers.go`
-- `internal/api/graphql/resolvers/resolver.go`
-- `internal/api/graphql/resolvers/resolvers_test.go`
-- `internal/api/graphql/resolvers/schema.resolvers.go`
-- `internal/api/graphql/resolvers/workflow_lifecycle_helpers.go`
-- `internal/api/graphql/resolvers/workflow_lifecycle_test.go`
-- `internal/api/graphql/schema.graphql`
-- `internal/api/graphql/server.go`
-- `internal/api/graphql/store/profile_store.go`
-- `internal/api/graphql/store/store.go`
-- `internal/api/graphql/store/store_test.go`
-- `internal/api/graphql/store/workflow_lifecycle_pg_store.go`
-- `internal/api/graphql/store/workflow_lifecycle_store.go`
-- `internal/api/graphql/store/workflow_lifecycle_store_test.go`
 - `…`
 
 ## AGENTS.md Files

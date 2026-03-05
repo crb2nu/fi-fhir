@@ -505,6 +505,71 @@ test:integration:
     - when: never
   allow_failure: true
 
+test:ui:
+  stage: test
+  <<: *node-image
+  needs:
+    - job: test:binary
+      optional: true
+      artifacts: true
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}-ui-npm
+    paths:
+      - ui/.npm/
+  script:
+    - apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
+    - |
+      if [ ! -x bin/fi-fhir ]; then
+        echo "⚠ bin/fi-fhir not available (test:binary may have been skipped)"
+        exit 0
+      fi
+    # Start server in memory mode
+    - |
+      export FI_FHIR_ADDR=":8081"
+      bin/fi-fhir serve &
+      SERVER_PID=$!
+      echo "Started fi-fhir serve (PID=$SERVER_PID) on :8081"
+      # Wait for server readiness
+      for i in $(seq 1 30); do
+        if curl -sf http://localhost:8081/health > /dev/null 2>&1; then
+          echo "Server ready after ${i}×0.5s"
+          break
+        fi
+        sleep 0.5
+      done
+    - cd ui
+    - npm config set cache "${CI_PROJECT_DIR}/ui/.npm" --global
+    - npm ci --no-audit --no-fund
+    - export CI_INTEGRATION_TEST=true
+    - export VITE_GRAPHQL_API_URL="http://localhost:8081/graphql"
+    - npm run test:run
+    - |
+      status=$?
+      kill $SERVER_PID 2>/dev/null || true
+      wait $SERVER_PID 2>/dev/null || true
+      exit $status
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - ui/**/*
+        - internal/api/graphql/schema.graphql
+        - api/openapi.yaml
+        - .gitlab-ci.yml
+        - cmd/**/*
+        - internal/**/*
+        - pkg/**/*
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - ui/**/*
+        - internal/api/graphql/schema.graphql
+        - api/openapi.yaml
+        - .gitlab-ci.yml
+        - cmd/**/*
+        - internal/**/*
+        - pkg/**/*
+    - when: never
+
 test:coverage-merge:
   stage: test
   <<: *go-image

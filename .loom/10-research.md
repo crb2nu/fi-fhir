@@ -2,102 +2,128 @@
 
 ## Problem
 
-Define a practical roadmap to strengthen fi-fhir backend ETL and parsing/transform capabilities while making API contracts verifiable and audit trails complete.
+Re-plan fi-fhir as a fully integrated platform slice from backend to frontend, then define practical integration seams to sibling services (`flexinfer`, `loom-core`, `mentatlab`) based on what actually shipped recently.
 
 ## Questions
 
-- Q1: Where are the highest-impact gaps in ETL + parsing/transform today?
-- Q2: Where are contract risks between canonical model and external API surfaces?
-- Q3: What auditability primitives already exist, and what is missing for full lineage?
-
-## Constraints
-
-- Preserve profile-driven architecture as the scaling unit (`SourceProfile`).
-- Maintain warning-tolerant parsing semantics for messy healthcare feeds.
-- Build incrementally on existing GraphQL/workflow/event-sourcing architecture.
+- Q1: What did recent commits (since 2026-02-01) materially change?
+- Q2: What backend↔frontend integration is already real vs still implied?
+- Q3: Which sibling-service contracts are mature enough to integrate now?
+- Q4: What operational constraints could block execution?
 
 ## Method
 
-- Initialized Loom context pack and generated workspace snapshot.
-- Inspected planning/status docs, parser/profile code, ETL pipeline/CLI, API schemas, workflow transforms, replay/event-store, and logging primitives.
-- Compared OpenAPI, GraphQL, and canonical event enums for contract drift.
+- Reviewed commit history and changed-path concentration.
+- Inspected key commits tied to UI integration, persistent EventStore, terminology indexing, and contract governance.
+- Inspected fi-fhir runtime endpoints, UI proxy/client wiring, workflow action/validation surfaces, env and compose defaults.
+- Inspected sibling service docs in `~/workspace/services/{flexinfer,loom-core,mentatlab}` for concrete API/protocol contracts.
+- Verified MCP/loom inventory and codebase indexing readiness.
 
 ## Findings
 
-1. ETL foundation exists but is terminology-centric and low coverage.
-- ETL provides pluggable `Source`/`Sink`, run metadata (`PipelineRun`), streaming transfer, retry knobs, and CLI orchestration (`sync/fetch/load/status/validate`) (`pkg/etl/pipeline.go:13`, `pkg/etl/pipeline.go:65`, `cmd/fi-fhir/etl.go:39`, `cmd/fi-fhir/etl.go:593`).
-- Status matrix flags ETL/storage/terminology-db as lower maturity or coverage hotspots (ETL 41.7%, storage 31.6%, terminology-db 22.6%) (`docs/STATUS.md:39`, `docs/STATUS.md:40`, `docs/STATUS.md:42`).
+1. Recent work concentrated on tests + feature completion, with strong UI and backend movement.
+- Prefix counts from commit subjects since 2026-02-01: `test` (26), `feat` (22), `fix` (21), `ui` (19), `ci` (11).
+- Top changed roots: `ui` (202), `cmd` (105), `pkg` (98), `internal` (85).
+- Key shipped slices:
+  - `4a6048d`: full UI-backend integration across event/terminology/dashboard routes.
+  - `8b58964`: Postgres-backed GraphQL EventStore wiring.
+  - `6e1c5e7`: terminology index CLI and coverage uplift.
+  - `96550d1` + `843ba26`: event contract alignment + drift checks.
 
-2. Parser and transform subsystems already support profile-driven tolerance and extensible transforms.
-- HL7 parser records non-fatal warnings and writes them into event metadata (`internal/parser/hl7v2/parser.go:118`, `internal/parser/hl7v2/parser.go:160`, `internal/parser/hl7v2/parser.go:190`).
-- Missing segments can be tolerated by profile with warning instead of hard failure (`internal/parser/hl7v2/parser.go:1215`, `pkg/profile/profile.go:330`).
-- Transform pipeline supports `set_field`, `map_terminology`, `redact`, and contextual `explain_warnings` (`internal/workflow/transforms.go:56`, `internal/workflow/transforms.go:72`, `internal/workflow/transforms.go:78`, `internal/workflow/transforms.go:96`).
+2. fi-fhir backend→frontend wiring is now concrete and production-shaped.
+- Backend serves GraphQL + WebSocket + health endpoints (`/graphql`, `/graphql/ws`, `/health`).
+- `serve` CLI help documents GraphQL runtime, not REST `/api/v1/*` runtime handlers.
+- UI GraphQL clients call `/graphql` over HTTP and `/graphql/ws` for subscriptions.
+- UI nginx template proxies `/graphql`, `/graphql/ws`, `/health`, `/ready`, and `/api/` to backend origin.
+- Compose ships full-stack services (fi-fhir, postgres, kafka, qdrant, temporal, fi-fhir-ui, observability).
 
-3. API contract drift risk is real across OpenAPI vs GraphQL vs canonical events.
-- Canonical event constants include `appointment_scheduled` and `claim_adjudicated` (`pkg/events/events.go:25`, `pkg/events/events.go:39`).
-- GraphQL enum aligns with those semantics (`internal/api/graphql/schema.graphql:19`, `internal/api/graphql/schema.graphql:23`).
-- OpenAPI event enum includes different values such as `appointment_booked` and `claim_response` (`api/openapi.yaml:547`, `api/openapi.yaml:550`).
-- Runtime server path is GraphQL-focused (`/graphql`, `/graphql/ws`, `/health`) (`internal/api/graphql/server.go:126`, `internal/api/graphql/server.go:130`, `internal/api/graphql/server.go:140`), and CLI `serve` help documents GraphQL endpoints, not `/api/v1/*` (`cmd/fi-fhir/main.go:4876`, `cmd/fi-fhir/main.go:4905`).
-- Command check for runtime `/api/v1/parse|/api/v1/workflow` handlers returned no matches: `rg -n "/api/v1/parse|/api/v1/workflow" cmd internal`.
+3. Persistence and contract governance are in place but not fully enforced.
+- `initEventStoreFromEnv` enables Postgres event store when DB env vars exist and falls back to in-memory when absent.
+- Contract checker script compares canonical (`pkg/events`), GraphQL enum, and OpenAPI enum.
+- Make targets exist (`contract-check`, `contract-check-strict`, `contract-matrix`).
+- CI `lint:contracts` still runs with `allow_failure: true`, so drift can surface without merge blocking.
 
-4. Strong auditability building blocks exist, but lineage is not unified end-to-end.
-- Canonical events include `ParseWarnings`, `SourceProfileID`, and widespread `RawPayload` fields (`pkg/events/events.go:115`, `pkg/events/events.go:124`, `pkg/events/events.go:680`).
-- Event sourcing is append-only with immutable `StoredEvent` metadata/timestamp and explicitly positioned as audit trail infrastructure (`pkg/eventsourcing/store.go:2`, `pkg/eventsourcing/store.go:34`, `pkg/eventsourcing/store.go:98`, `pkg/eventsourcing/store.go:101`).
-- Workflow supports recording/replay and event_store append action (`internal/workflow/replay.go:15`, `internal/workflow/replay.go:57`, `internal/workflow/event_store.go:169`).
-- Structured logs already support trace/span correlation (`internal/workflow/logging.go:15`, `internal/workflow/logging.go:91`, `internal/workflow/logging.go:165`).
+4. Workflow action surface is broad enough for cross-service integration without architecture rewrite.
+- Built-in engine actions include `webhook`, `fhir`, `database`, `queue`, `event_store`, plus `exec`/`email`/`file`/`log`.
+- Validator enforces action-shape rules and warns on unknown patterns; transform schema already supports mapping and redaction primitives.
+
+5. Sibling repos expose immediately usable integration contracts.
+- `flexinfer`: OpenAI-compatible proxy endpoints (`/v1/models`, `/v1/chat/completions`, `/v1/completions`, `/v1/embeddings`) with SSE pass-through and documented cold-start/queue semantics.
+- `loom-core`: Streamable MCP HTTP endpoint (`POST /mcp`) with auth/TLS modes and compatibility policy for tool/CLI surfaces; suited for control-plane automation and ops integration rather than patient-data runtime path.
+- `mentatlab`: orchestrator REST + SSE under `/api/v1` (`/runs`, `/flows`, `/runs/{id}/events`) with replay/Last-Event-ID semantics; suitable for run orchestration and status fanout.
+
+6. Planning constraint: codebase-memory index remains unavailable.
+- `repo_id=fi-fhir` reports `total_chunks: 0`.
+- Index job stayed `running` with `files_total=0/files_done=0` and was canceled.
+- Local shell/file evidence remains the dependable planning baseline for now.
 
 ## Options
 
-### Option A: Incremental hardening on current architecture (recommended)
+### Option A: Direct Point-to-Point Integrations
 
-- Pros:
-  - Leverages shipped parser/workflow/event-store primitives.
-  - Fastest path to contract governance and auditable lineage.
-  - Limits migration risk for existing feeds and workflows.
-- Cons:
-  - Requires disciplined compatibility checks and schema governance work.
-  - ETL runtime concerns (scheduling/checkpoints) need explicit new components.
-- Risks:
-  - Partial implementation could leave contract drift unresolved.
+- Pros: fastest initial hookup.
+- Cons: auth/timeouts/retries drift across services; hard to operate at scale.
 
-### Option B: New dedicated ingestion platform/service rewrite
+### Option B: Event-Driven Integration via Existing Workflow Actions
 
-- Pros:
-  - Clean-slate design for ETL, contracts, and audit in one model.
-  - Could standardize ingestion patterns earlier.
-- Cons:
-  - Duplicates mature capabilities already in repo.
-  - High migration and delivery risk; slower customer impact.
-- Risks:
-  - Divergent behavior between legacy and rewritten paths during migration.
+- Pros: leverages existing `webhook`/`queue`/`event_store`; preserves profile-driven parsing and warning semantics.
+- Cons: needs stronger contract/version governance and trace propagation.
+
+### Option C: Control-Plane + Runtime Split (recommended)
+
+- Runtime path: fi-fhir backend/UI + workflow actions for clinical/event processing.
+- Cross-service runtime edges: `flexinfer` (LLM inference) and `mentatlab` (orchestration/SSE state).
+- Control-plane/ops path: `loom-core` for tooling orchestration, diagnostics, and automation workflows.
+- Pros: aligns with current shipped boundaries; minimizes rewrite risk.
+- Cons: requires explicit policy docs to prevent accidental coupling across planes.
 
 ## Recommendation
 
-Pursue Option A with a contract-first program:
-1. Establish canonical contract governance and compatibility tests immediately.
-2. Add ETL run persistence/checkpointing + lineage envelope.
-3. Expand parser/transform capabilities with profile-driven rules and warning taxonomy.
-4. Normalize audit trail across parse → transform → route → store with correlation IDs and immutable records.
+Adopt Option C with a phased integration program:
+
+1. Lock internal contract baseline (promote drift gate, add smoke tests for `/graphql`, `/graphql/ws`, `/health`, `/ready`).
+2. Complete backend↔frontend contract testing (typed query/mutation/subscription parity and startup env profiles).
+3. Integrate `flexinfer` via OpenAI-compatible client profile and codified cold-start timeout/retry envelope.
+4. Integrate `mentatlab` for workflow run orchestration + SSE status ingestion using correlation IDs.
+5. Integrate `loom-core` as control-plane automation surface (health checks, CI/runtime diagnostics, runbooks).
 
 ## Sources
 
-- [S1] `docs/planning/README.md:220`
-- [S2] `docs/STATUS.md:21`
-- [S3] `docs/STATUS.md:39`
-- [S4] `pkg/etl/pipeline.go:13`
-- [S5] `pkg/etl/pipeline.go:65`
-- [S6] `cmd/fi-fhir/etl.go:39`
-- [S7] `internal/parser/hl7v2/parser.go:118`
-- [S8] `internal/parser/hl7v2/parser.go:1215`
-- [S9] `pkg/profile/profile.go:330`
-- [S10] `internal/workflow/transforms.go:56`
-- [S11] `pkg/events/events.go:25`
-- [S12] `internal/api/graphql/schema.graphql:19`
-- [S13] `api/openapi.yaml:547`
-- [S14] `internal/api/graphql/server.go:126`
-- [S15] `cmd/fi-fhir/main.go:4876`
-- [S16] Command output: `rg -n "/api/v1/parse|/api/v1/workflow" cmd internal` (no matches)
-- [S17] `pkg/events/events.go:124`
-- [S18] `pkg/eventsourcing/store.go:2`
-- [S19] `internal/workflow/event_store.go:169`
-- [S20] `internal/workflow/logging.go:15`
+- [S1] Command: `git log --since='2026-02-01' --date=short --pretty=format:'%h %ad %s' -n 80`
+- [S2] Command: `git log --since='2026-02-01' --name-only --pretty=format: | awk -F/ 'NF{print $1}' | sort | uniq -c | sort -nr | head -20`
+- [S3] Command: `git log --since='2026-02-01' --pretty=format:'%s' | sed 's/:.*//' | awk '{print tolower($1)}' | sed 's/[^a-z0-9_-].*//' | sort | uniq -c | sort -nr | head -20`
+- [S4] Commands: `git show --stat --oneline ... 4a6048d`, `8b58964`, `6e1c5e7`, `96550d1`, `843ba26`
+- [S5] `internal/api/graphql/server.go:126`
+- [S6] `internal/api/graphql/server.go:130`
+- [S7] `internal/api/graphql/server.go:141`
+- [S8] `cmd/fi-fhir/main.go:4901`
+- [S9] `cmd/fi-fhir/main.go:4930`
+- [S10] `ui/src/lib/graphql/client.ts:38`
+- [S11] `ui/src/lib/graphql/subscriptions.ts:29`
+- [S12] `ui/nginx/default.conf.template:40`
+- [S13] `ui/nginx/default.conf.template:54`
+- [S14] `ui/nginx/default.conf.template:70`
+- [S15] `ui/Dockerfile:34`
+- [S16] `docker-compose.yaml:198`
+- [S17] `cmd/fi-fhir/serve_event_store.go:16`
+- [S18] `cmd/fi-fhir/main.go:4695`
+- [S19] `scripts/check_event_contracts.go:40`
+- [S20] `Makefile:203`
+- [S21] `.gitlab-ci.yml:320`
+- [S22] `.gitlab-ci.yml:325`
+- [S23] `internal/workflow/engine.go:125`
+- [S24] `internal/workflow/engine.go:134`
+- [S25] `internal/workflow/validate.go:230`
+- [S26] `internal/workflow/validate.go:289`
+- [S27] `/Users/cblevins/workspace/services/flexinfer/docs/user/api-compatibility.md:14`
+- [S28] `/Users/cblevins/workspace/services/flexinfer/docs/user/api-compatibility.md:111`
+- [S29] `/Users/cblevins/workspace/services/flexinfer/docs/user/proxy.md:45`
+- [S30] `/Users/cblevins/workspace/services/loom-core/docs/STREAMABLE_HTTP.md:14`
+- [S31] `/Users/cblevins/workspace/services/loom-core/docs/STREAMABLE_HTTP.md:221`
+- [S32] `/Users/cblevins/workspace/services/loom-core/docs/API_STABILITY.md:72`
+- [S33] `/Users/cblevins/workspace/services/mentatlab/docs/site/api-reference.md:7`
+- [S34] `/Users/cblevins/workspace/services/mentatlab/docs/site/api-reference.md:12`
+- [S35] `/Users/cblevins/workspace/services/mentatlab/docs/references/orchestrator-api.md:57`
+- [S36] `/Users/cblevins/workspace/services/mentatlab/docs/references/orchestrator-api.md:60`
+- [S37] Tool output: `mcp__loom__codebase_memory__codebase_stats(repo_id='fi-fhir')`
+- [S38] Tool outputs: `codebase_index_start/poll/cancel` (`job_id=4f93c59a0acaa0a1`)

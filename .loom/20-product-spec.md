@@ -2,116 +2,144 @@
 
 ## Summary
 
-Enhance fi-fhir backend ETL and format parsing/transform so data ingestion is resilient, contracts are explicitly governed across API surfaces, and every transformation/action is auditable with end-to-end lineage.
+Deliver an integration-complete fi-fhir platform slice that is operationally coherent from backend to frontend, and explicitly interoperable with sibling services:
+
+- `flexinfer` for inference workloads (OpenAI-compatible APIs)
+- `mentatlab` for run orchestration and SSE lifecycle visibility
+- `loom-core` for control-plane automation and operational tooling
 
 ## Goals
 
-- Improve ETL reliability and operational visibility (run tracking, checkpoints, idempotency, replayability).
-- Expand profile-driven parsing/transform capabilities without regressing tolerant healthcare parsing behavior.
-- Enforce robust API contracts across canonical model, GraphQL, and OpenAPI artifacts.
-- Provide complete auditability from raw payload intake through workflow actions and event-store persistence.
+- Complete and harden fi-fhir internal backend→frontend contracts (GraphQL HTTP + WS + health + env profiles).
+- Enforce canonical contract governance across canonical events, GraphQL schema, and OpenAPI artifacts.
+- Integrate inference path with `flexinfer` using predictable retry/timeout behavior around cold starts.
+- Integrate orchestration path with `mentatlab` for run initiation and live status/event monitoring.
+- Integrate ops/control path with `loom-core` for runbook automation, diagnostics, and environment health.
 
 ## Non-Goals
 
-- Rewriting the platform into a separate ingestion service.
-- Changing canonical business semantics (event type meaning) without compatibility process.
-- Replacing GraphQL runtime with a different API stack in this phase.
+- Rewriting fi-fhir into a separate ingestion/orchestration platform.
+- Replacing GraphQL runtime with a new primary API surface in this phase.
+- Deeply coupling clinical runtime processing to loom-core internals.
 
 ## Users / Stakeholders
 
-- Integration engineers (feed onboarding, parser tuning)
-- Platform/backend engineers (API stability, ETL operations)
-- Compliance and operations teams (audit trails, incident forensics)
-- Downstream consumers (workflow, FHIR, queue/db sinks)
+- Integration platform engineers (backend + workflow + contracts)
+- Frontend engineers (Svelte routes, GraphQL clients, live event UX)
+- MLOps / AI platform teams (`flexinfer` integration and SLOs)
+- Orchestration teams (`mentatlab` flows/runs)
+- SRE / platform ops (`loom-core` automation and diagnostics)
 
 ## Requirements
 
 ### Functional
 
-- ETL orchestration
-  - Persist ETL run records with lifecycle states, source/version, checkpoint position, and failure cause.
-  - Support deterministic re-run and replay from checkpoint.
-  - Add incremental sync hooks for eligible sources.
-- Parsing and transform
-  - Continue profile-driven tolerance behavior (`missing_segments`, delimiter quirks, identifier handling).
-  - Add transform governance (explicit transform schema, versioning, validation).
-  - Standardize warning taxonomy (`phase/code/severity/path`) and preserve across pipeline stages.
-- API contracts
-  - Define canonical contract source-of-truth and generated artifacts.
-  - Add compatibility checks that fail CI on enum/schema drift across canonical events, GraphQL, and OpenAPI.
-  - Decide and document REST `/api/v1/*` runtime support vs documentation-only status.
-- Auditability
-  - Introduce audit envelope for parse/transform/workflow stages with correlation ID, source profile, timestamp, actor/system, and immutable event references.
-  - Persist raw payload hash + optional encrypted payload pointer.
-  - Provide queryable audit trail for replay and compliance investigations.
+1. Backend↔Frontend Integration Baseline
+- GraphQL HTTP and WS endpoints remain stable and versioned.
+- UI routes (`/`, `/events`, `/terminology`) are validated against backend schema and availability.
+- Startup profiles (`.env.example`, `configs/full-stack.env`, compose) are aligned and tested.
+
+2. Contract Governance
+- Canonical event model remains the source of truth.
+- Drift checks (`canonical ↔ GraphQL ↔ OpenAPI`) run in CI and become blocking after rollout gate.
+- Contract matrix is regenerated with every schema/event change.
+
+3. FlexInfer Integration
+- fi-fhir LLM/inference clients support OpenAI-compatible calls to flexinfer proxy endpoints.
+- Timeouts/retries account for queue/cold-start behavior.
+- Error contracts are mapped into fi-fhir warning/error taxonomy for workflow handling.
+
+4. Mentatlab Integration
+- fi-fhir can start or signal orchestration runs via `mentatlab` `/api/v1` endpoints.
+- fi-fhir can consume run lifecycle via SSE (`/runs/{id}/events`) with replay/resume.
+- Correlation IDs are shared across fi-fhir event metadata and orchestrator run context.
+
+5. Loom-Core Integration (Control Plane)
+- Runbook operations and diagnostics can be executed via loom-core tooling (`/mcp` remote transport where applicable).
+- Integration playbooks are explicit about control-plane boundaries and avoid PHI runtime dependencies.
 
 ### Non-Functional
 
-- Reliability: no data loss for accepted messages; idempotent replay for audited workflows.
-- Security/Compliance: PHI-safe storage and access controls for raw payload/audit records.
-- Performance: maintain current parse/workflow throughput envelopes while adding audit metadata.
-- Operability: metrics/logging/tracing emitted for each ETL and workflow stage.
+- Reliability: integration failures degrade gracefully (warnings + retries), no hard parser regressions.
+- Security: explicit auth/TLS posture per service edge (`flexinfer`, `mentatlab`, `loom-core`).
+- Observability: trace/log correlation across backend, UI request edges, and sibling-service calls.
+- Operability: reproducible local full-stack dev setup and smoke test script.
 
-## UX / Flows
+## End-to-End Flows
 
-- Feed onboarding flow
-  1. Create/update Source Profile.
-  2. Validate profile + sample corpus.
-  3. Promote with contract compatibility checks.
-- Runtime ingestion flow
-  1. Receive raw payload.
-  2. Parse with warnings.
-  3. Apply transforms.
-  4. Route actions.
-  5. Append immutable audit + event records.
-- Incident/replay flow
-  1. Query audit trail by correlation/source/time/event type.
-  2. Inspect warning/action history.
-  3. Replay from chosen checkpoint with diff report.
+1. Internal Processing Flow
+- Ingest payload → parse with warnings → map canonical event → workflow actions → EventStore → GraphQL query/subscription → UI views.
 
-## Data / APIs
+2. Inference-Assisted Flow (`flexinfer`)
+- fi-fhir workflow or LLM action calls flexinfer OpenAI-compatible endpoint.
+- If model is cold, request waits through activation queue bounded by configured timeout.
+- Result returns to fi-fhir and is persisted/annotated for auditability.
 
-- Canonical data model remains `pkg/events`-based and continues to carry `ParseWarnings`, `SourceProfileID`, and `RawPayload` metadata.
-- GraphQL remains runtime API baseline; contract tests ensure enum/object parity with canonical model.
-- OpenAPI artifact must be either:
-  - generated from runtime handlers/contracts, or
-  - clearly marked documentation-only with explicit compatibility policy.
+3. Orchestration Flow (`mentatlab`)
+- fi-fhir initiates run request for complex external orchestration.
+- fi-fhir subscribes to run SSE stream and updates event/action status.
+- Replay support and correlation IDs enable deterministic incident reconstruction.
 
-## Rollout / Migration
+4. Operations Flow (`loom-core`)
+- Operators invoke loom tools for health checks, deployment diagnostics, and scripted mitigations.
+- Output is stored in worklog/runbook artifacts; runtime data path remains in fi-fhir.
 
-- Phase 1: contract governance + drift detection in CI (no runtime breaking changes).
-- Phase 2: ETL run persistence/checkpoints and audit envelope write path.
-- Phase 3: parser/transform enhancements and expanded replay tooling.
-- Phase 4: staged production rollout by source-profile cohort, with canary + rollback.
+## API / Data Contracts
 
-## Observability
+- fi-fhir runtime API: GraphQL (`/graphql`, `/graphql/ws`) + health endpoints.
+- OpenAPI remains documentation/contract artifact and must stay schema-aligned.
+- `flexinfer`: `/v1/models`, `/v1/chat/completions`, `/v1/completions`, `/v1/embeddings` (+ streaming).
+- `mentatlab`: `/api/v1/runs`, `/api/v1/runs/{id}/events` and related run/flow APIs.
+- `loom-core`: Streamable MCP HTTP (`POST /mcp`) for control-plane tool routing.
 
-- Logs: structured logs with `trace_id`/`span_id`, correlation ID, source profile ID, event ID.
-- Metrics: ETL run counts/durations/errors, warning rates by code/phase, contract validation failures, replay stats.
-- Traces: parse/transform/action spans with stage-level outcome tags.
+## Rollout
+
+- Phase 0: baseline contract + smoke gate.
+- Phase 1: internal backend/frontend parity and automated checks.
+- Phase 2: flexinfer integration behind feature flag.
+- Phase 3: mentatlab integration behind feature flag.
+- Phase 4: loom-core control-plane playbooks and cross-service observability dashboarding.
+
+## Acceptance Criteria
+
+- Contract CI fails on drift after rollout toggle date.
+- UI GraphQL operations used in dashboard/events/terminology pass against live server in CI.
+- flexinfer path passes timeout/cold-start integration tests with documented retry envelope.
+- mentatlab run lifecycle can be created and observed with SSE replay in integration tests.
+- Ops playbook commands execute through loom-core with reproducible outputs and no manual hidden steps.
 
 ## Risks
 
-- Contract alignment work could surface latent client dependencies on inconsistent enums.
-- Expanded audit storage may raise retention and PHI management costs.
-- ETL checkpointing complexity may vary by source capabilities.
+- Contract soft-fail period can mask regressions.
+- Cold-start latency variance from flexinfer may exceed current workflow defaults.
+- SSE reconnect/resume edge cases can create duplicate state transitions without idempotency keys.
+- Cross-service auth divergence can stall rollout unless standardized early.
 
 ## Open Questions
 
-- Confirm authoritative external API surface: GraphQL-only runtime, or GraphQL + REST `/api/v1/*`.
-- Define required retention windows and encryption/key-management standards for audit payload artifacts.
-- Define minimum backward-compatibility window for event schema changes.
+- Timeline to flip `lint:contracts` to blocking for all merge requests.
+- Preferred mentatlab integration mode: direct per-event run creation vs batched/coordinated orchestration.
+- Which loom-core tools should be mandatory vs optional for platform operations.
 
 ## Sources
 
-- [S1] `pkg/events/events.go:95`
-- [S2] `pkg/events/events.go:124`
-- [S3] `internal/parser/hl7v2/parser.go:1215`
-- [S4] `pkg/profile/profile.go:59`
-- [S5] `internal/workflow/transforms.go:56`
-- [S6] `api/openapi.yaml:486`
-- [S7] `internal/api/graphql/schema.graphql:12`
-- [S8] `internal/api/graphql/server.go:126`
-- [S9] `pkg/eventsourcing/store.go:2`
-- [S10] `internal/workflow/replay.go:57`
-- [S11] `docs/STATUS.md:39`
+- [S1] `internal/api/graphql/server.go:126`
+- [S2] `cmd/fi-fhir/main.go:4901`
+- [S3] `ui/src/lib/graphql/client.ts:38`
+- [S4] `ui/src/lib/graphql/subscriptions.ts:29`
+- [S5] `ui/nginx/default.conf.template:40`
+- [S6] `ui/nginx/default.conf.template:54`
+- [S7] `docker-compose.yaml:198`
+- [S8] `scripts/check_event_contracts.go:40`
+- [S9] `Makefile:203`
+- [S10] `.gitlab-ci.yml:320`
+- [S11] `.gitlab-ci.yml:325`
+- [S12] `/Users/cblevins/workspace/services/flexinfer/docs/user/api-compatibility.md:14`
+- [S13] `/Users/cblevins/workspace/services/flexinfer/docs/user/api-compatibility.md:149`
+- [S14] `/Users/cblevins/workspace/services/flexinfer/docs/user/proxy.md:45`
+- [S15] `/Users/cblevins/workspace/services/mentatlab/docs/site/api-reference.md:7`
+- [S16] `/Users/cblevins/workspace/services/mentatlab/docs/references/orchestrator-api.md:57`
+- [S17] `/Users/cblevins/workspace/services/loom-core/docs/STREAMABLE_HTTP.md:14`
+- [S18] `/Users/cblevins/workspace/services/loom-core/docs/STREAMABLE_HTTP.md:221`
+- [S19] `internal/workflow/engine.go:125`
+- [S20] `internal/workflow/engine.go:134`
