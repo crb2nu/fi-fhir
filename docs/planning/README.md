@@ -4,22 +4,22 @@ This directory contains detailed planning and specification documents for the fi
 
 ## Document Overview
 
-| Document | Purpose | Status |
-|----------|---------|--------|
-| [SOURCE-PROFILES.md](SOURCE-PROFILES.md) | Source Profile configuration system - the unit of scalability | ✅ Core + inference/lint shipped |
-| [WORKFLOW-DSL.md](WORKFLOW-DSL.md) | Workflow routing, transforms, and actions | ✅ Core + action pack shipped |
-| [FHIR-PROFILES.md](FHIR-PROFILES.md) | FHIR R4 output with US Core mapping | ✅ 17+ resources + validation shipped |
-| [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) | HL7 v2.x version differences and parsing edge cases | ✅ Core + vendor templates shipped |
-| [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md) | X12 EDI parsing (837P, 835, 270/271, 276/277) | ✅ Parsing + companion guide framework shipped |
-| [IDENTIFIERS.md](IDENTIFIERS.md) | Patient/provider identifier systems and validation | ✅ Complete (validators + matching engine) |
-| [TERMINOLOGY.md](TERMINOLOGY.md) | Healthcare code systems and mapping (LOINC, SNOMED, UMLS, ICD-10-CM) | ✅ Core + version tracking shipped |
-| [TERMINOLOGY-MAPPING.md](TERMINOLOGY-MAPPING.md) | Mapping upload, LLM autorouting, and decision telemetry | 🟡 Partial — upload/autoroute/review workflow shipped (GraphQL/UI); CLI subcommands + telemetry polish planned |
-| [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md) | TypeScript/JavaScript SDK | ✅ SDK + distribution shipped |
-| [CDA-CCDA.md](CDA-CCDA.md) | CDA/CCDA clinical document parsing | ✅ Complete |
-| [FHIR-SUBSCRIPTIONS.md](FHIR-SUBSCRIPTIONS.md) | FHIR R4 Subscriptions (bidirectional) | ✅ Complete |
-| [GRAPHQL-API.md](GRAPHQL-API.md) | GraphQL API layer for events | ✅ Complete |
-| [EVENT-SOURCING.md](EVENT-SOURCING.md) | Event sourcing / CQRS patterns | ✅ Complete |
-| [API-CONTRACT-MATRIX.md](API-CONTRACT-MATRIX.md) | Canonical vs GraphQL vs OpenAPI event contract drift matrix | 🟡 Generated baseline (M0) |
+| Document                                         | Purpose                                                              | Status                                                                                                         |
+| ------------------------------------------------ | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| [SOURCE-PROFILES.md](SOURCE-PROFILES.md)         | Source Profile configuration system - the unit of scalability        | ✅ Core + inference/lint shipped                                                                               |
+| [WORKFLOW-DSL.md](WORKFLOW-DSL.md)               | Workflow routing, transforms, and actions                            | ✅ Core + action pack shipped                                                                                  |
+| [FHIR-PROFILES.md](FHIR-PROFILES.md)             | FHIR R4 output with US Core mapping                                  | ✅ 17+ resources + validation shipped                                                                          |
+| [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md)               | HL7 v2.x version differences and parsing edge cases                  | ✅ Core + vendor templates shipped                                                                             |
+| [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md)       | X12 EDI parsing (837P, 835, 270/271, 276/277)                        | ✅ Parsing + companion guide framework shipped                                                                 |
+| [IDENTIFIERS.md](IDENTIFIERS.md)                 | Patient/provider identifier systems and validation                   | ✅ Complete (validators + matching engine)                                                                     |
+| [TERMINOLOGY.md](TERMINOLOGY.md)                 | Healthcare code systems and mapping (LOINC, SNOMED, UMLS, ICD-10-CM) | ✅ Core + version tracking shipped                                                                             |
+| [TERMINOLOGY-MAPPING.md](TERMINOLOGY-MAPPING.md) | Mapping upload, LLM autorouting, and decision telemetry              | 🟡 Partial — upload/autoroute/review workflow shipped (GraphQL/UI); CLI subcommands + telemetry polish planned |
+| [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md)           | TypeScript/JavaScript SDK                                            | ✅ SDK + distribution shipped                                                                                  |
+| [CDA-CCDA.md](CDA-CCDA.md)                       | CDA/CCDA clinical document parsing                                   | ✅ Complete                                                                                                    |
+| [FHIR-SUBSCRIPTIONS.md](FHIR-SUBSCRIPTIONS.md)   | FHIR R4 Subscriptions (bidirectional)                                | ✅ Complete                                                                                                    |
+| [GRAPHQL-API.md](GRAPHQL-API.md)                 | GraphQL API layer for events                                         | ✅ Complete                                                                                                    |
+| [EVENT-SOURCING.md](EVENT-SOURCING.md)           | Event sourcing / CQRS patterns                                       | ✅ Complete                                                                                                    |
+| [API-CONTRACT-MATRIX.md](API-CONTRACT-MATRIX.md) | Canonical vs GraphQL vs OpenAPI event contract drift matrix          | 🟡 Generated baseline (M0)                                                                                     |
 
 ## Architecture Overview
 
@@ -45,7 +45,9 @@ For new contributors, recommended reading order:
 ## Key Concepts
 
 ### Source Profiles
+
 The unit of scalability is a **Source Profile** (per interface/feed), not "HL7v2 support" in general. Each profile controls:
+
 - Parsing tolerance (missing segments, extra components)
 - Z-segment extraction and mapping
 - Identifier normalization and validation
@@ -53,13 +55,17 @@ The unit of scalability is a **Source Profile** (per interface/feed), not "HL7v2
 - Event classification (A01 → inpatient vs outpatient)
 
 ### Canonical Events
+
 All input formats map to semantic events (`patient_admit`, `lab_result`, `claim_submitted`). This decouples:
+
 - Input parsing from business logic
 - Workflow routing from format specifics
 - FHIR generation from source system
 
 ### Workflow Engine
+
 Events flow through configurable routes with:
+
 - Filters (event type, source, CEL conditions)
 - Transforms (set_field, map_terminology, redact)
 - Actions (FHIR, webhook, database, queue, log)
@@ -73,41 +79,47 @@ For AI assistant guidance, see [AGENTS.md](../../AGENTS.md).
 
 These are the remaining “big rocks” referenced by the Document Overview statuses above.
 
-| Build | Outcome | Status | Primary Docs |
-|-------|---------|--------|--------------|
-| FB-001 | Source Profile inference + linting | ✅ Shipped | [SOURCE-PROFILES.md](SOURCE-PROFILES.md) |
-| FB-002 | Workflow action pack (email/file/custom) | ✅ Shipped | [WORKFLOW-DSL.md](WORKFLOW-DSL.md) |
-| FB-003 | FHIR validation + conformance checks | ✅ Shipped | [FHIR-PROFILES.md](FHIR-PROFILES.md) |
-| FB-004 | Terminology version tracking | ✅ Shipped | [TERMINOLOGY.md](TERMINOLOGY.md) |
-| FB-005 | TypeScript SDK distribution | ✅ Shipped | [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md) |
-| FB-006 | HL7 vendor templates + fixtures | ✅ Shipped | [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md) |
+| Build  | Outcome                                  | Status     | Primary Docs                             |
+| ------ | ---------------------------------------- | ---------- | ---------------------------------------- |
+| FB-001 | Source Profile inference + linting       | ✅ Shipped | [SOURCE-PROFILES.md](SOURCE-PROFILES.md) |
+| FB-002 | Workflow action pack (email/file/custom) | ✅ Shipped | [WORKFLOW-DSL.md](WORKFLOW-DSL.md)       |
+| FB-003 | FHIR validation + conformance checks     | ✅ Shipped | [FHIR-PROFILES.md](FHIR-PROFILES.md)     |
+| FB-004 | Terminology version tracking             | ✅ Shipped | [TERMINOLOGY.md](TERMINOLOGY.md)         |
+| FB-005 | TypeScript SDK distribution              | ✅ Shipped | [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md)   |
+| FB-006 | HL7 vendor templates + fixtures          | ✅ Shipped | [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md)       |
 
 #### FB-001: Source Profile Inference + Linting
+
 - [x] Add `fi-fhir profile infer` to generate a profile skeleton from sample messages (delimiter/version/segment/Z-segment heuristics).
 - [x] Add `fi-fhir profile lint` with schema validation plus opinionated warnings (unknown segments, missing mappings, unsafe tolerances).
 - [x] Add fixtures + golden outputs for inference and linting (profiles + representative `testdata/` corpus).
 
 #### FB-002: Workflow Action Pack (Email/File/Custom)
+
 - [x] Implement `email` action (SMTP/SES; templated subject/body; retries + circuit breaker parity with `webhook`).
 - [x] Implement `file` action (write events to disk with templated paths; atomic writes; rotation/retention knobs).
 - [x] Define a safe “custom action” extension point (e.g. `exec` action with allowlist + timeouts) and document it in `WORKFLOW-DSL.md`.
 
 #### FB-003: FHIR Validation + Conformance
+
 - [x] Add a validation path for generated FHIR resources/bundles (US Core-focused), used by CLI and workflow (`fi-fhir fhir validate`, `fhir` action `validate_fhir`).
 - [x] Add golden fixtures to validate the highest-volume resources (Patient/Encounter/Observation/DiagnosticReport + bundle).
 - [x] Decide and document validator strategy (pure-Go structural checks vs external validator) and failure policy (warn vs error per profile).
 
 #### FB-004: Terminology Version Tracking
+
 - [x] Implement version pinning in config (per code system) and plumb through mapper/loader APIs.
 - [x] Add a lightweight “terminology registry/index” to track installed versions and effective dates (`terminology.releases`, `fi-fhir terminology status`, `fi-fhir terminology use`).
 - [x] Add version-aware validation modes: `pass` / `warn` / `error` (and surface them as `ParseWarning`s when tolerated).
 
 #### FB-005: TypeScript SDK Distribution
+
 - [x] Decide packaging for the Go CLI dependency (platform-specific optional deps; `FI_FHIR_PATH` override).
 - [x] Add publish-ready artifacts + CI for `sdk/typescript` (build + test jobs; npm publish on tags).
 - [x] Add usage docs and integration examples (Node service, serverless function, simple ETL).
 
 #### FB-006: HL7 Vendor Templates + Fixtures
+
 - [x] Add vendor profile templates (Epic/Cerner/Meditech/Allscripts) with documented deviations and recommended tolerances.
 - [x] Add real-world-ish fixtures (Z-segments, optionality drift, encoding/line ending variations) and map them to templates.
 - [x] Add a “template selection” guide (how to fork a template into a feed-specific Source Profile).
@@ -219,23 +231,29 @@ Work these in order unless a customer/production need pulls something forward:
 ✅ All current Feature Builds (FB-001..FB-006) are shipped.
 
 Next focus areas:
-- P2 test coverage gaps (especially CLI + terminology db)
-- Targeted P3 enhancements driven by real feed drift
+
+- P2 test coverage gaps (especially CLI + terminology db) — tracked in [libs/fi-fhir#7](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/7)
+- Targeted P3 enhancements driven by real feed drift — tracked in [libs/fi-fhir#8](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/8)
+- Platform integration M1 (backend↔frontend runtime parity) — tracked in [libs/fi-fhir#9](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/9)
+- Platform integration M2 (`flexinfer` inference path) — tracked in [libs/fi-fhir#10](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/10)
+- Platform integration M3 (`mentatlab` orchestration + SSE) — tracked in [libs/fi-fhir#11](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/11)
 
 ### P2 - Test Coverage Gaps
 
+Tracking issue: [libs/fi-fhir#7](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/7)
+
 > **Last refreshed**: 2026-02-06. Run `make docs-status` for latest numbers. See `docs/STATUS.md` for full component matrix.
 
-| Area | Current Coverage | Target | Notes |
-|------|------------------|--------|-------|
-| CLI (`cmd/fi-fhir/`) | 70.2% | 80%+ | Improved with offline stubs + CI live tests (k3s MinIO/PostgreSQL via GitLab CI variables; live CLI tests run under `-tags=live` in `test:unit`) |
-| Terminology (db) | 22.6% | 80%+ | Requires PostgreSQL testcontainers |
-| ✅ CDA Parser | 90.8% | 80%+ | ✅ Above target |
-| ✅ GraphQL Resolvers | 80.8% | 80%+ | |
-| ✅ FHIR Subscription | 83.8% | 80%+ | |
-| Terminology (pkg) | 84.2% | 80%+ | ✅ Core pkg above target; db/index/semantic/suggest still low |
-| ✅ FHIR Parser | 95.2% | 80%+ | |
-| Workflow Engine | 78.9% | 80%+ | Close to target |
+| Area                 | Current Coverage | Target | Notes                                                                                                                                            |
+| -------------------- | ---------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| CLI (`cmd/fi-fhir/`) | 70.2%            | 80%+   | Improved with offline stubs + CI live tests (k3s MinIO/PostgreSQL via GitLab CI variables; live CLI tests run under `-tags=live` in `test:unit`) |
+| Terminology (db)     | 22.6%            | 80%+   | Requires PostgreSQL testcontainers                                                                                                               |
+| ✅ CDA Parser        | 90.8%            | 80%+   | ✅ Above target                                                                                                                                  |
+| ✅ GraphQL Resolvers | 80.8%            | 80%+   |                                                                                                                                                  |
+| ✅ FHIR Subscription | 83.8%            | 80%+   |                                                                                                                                                  |
+| Terminology (pkg)    | 84.2%            | 80%+   | ✅ Core pkg above target; db/index/semantic/suggest still low                                                                                    |
+| ✅ FHIR Parser       | 95.2%            | 80%+   |                                                                                                                                                  |
+| Workflow Engine      | 78.9%            | 80%+   | Close to target                                                                                                                                  |
 
 #### P2 Next Steps (CLI Coverage)
 
@@ -244,6 +262,8 @@ Next focus areas:
 3. Add remaining ETL CLI coverage (`etl fetch/load/validate`) and projection rebuild coverage, preferring stubs first and `-tags=live` where Postgres/MinIO are required.
 
 ### P3 - Future Enhancements
+
+Tracking issue: [libs/fi-fhir#8](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/8)
 
 - ✅ Additional HL7v2 message types (MDM, DFT) — Implemented 2026-01-16
 - CDA/CCDA section expansion (Medications, Allergies, Social History)
@@ -259,9 +279,51 @@ Next focus areas:
 
 ---
 
+## Runtime Config (Proxy / Backend↔Frontend)
+
+The UI frontend is served via nginx, which reverse-proxies API requests to the fi-fhir backend. The following assumptions are validated by `make check-runtime-config` and `test:smoke` CI.
+
+### Proxy Routes
+
+| Route         | Backend         | Purpose                              |
+| ------------- | --------------- | ------------------------------------ |
+| `/health`     | `fi-fhir serve` | Liveness/readiness probe             |
+| `/graphql`    | `fi-fhir serve` | GraphQL queries+mutations            |
+| `/graphql/ws` | `fi-fhir serve` | GraphQL subscriptions (WebSocket)    |
+| `/ready`      | `fi-fhir serve` | Readiness passthrough for k8s probes |
+
+### WebSocket Upgrade
+
+The nginx config must include `Upgrade` and `Connection` header passthrough for `/graphql/ws`:
+
+```
+proxy_set_header Upgrade $http_upgrade;
+proxy_set_header Connection "upgrade";
+```
+
+See `ui/nginx/default.conf.template` for the canonical config.
+
+### Key Environment Variables
+
+| Variable                     | Default   | Purpose                                      |
+| ---------------------------- | --------- | -------------------------------------------- |
+| `FI_FHIR_ADDR`               | `:8080`   | Server listen address                        |
+| `FI_FHIR_UI_API_ORIGIN`      | —         | Backend origin for UI proxy                  |
+| `FI_FHIR_DATABASE_URL`       | —         | PostgreSQL DSN (if absent, uses MemoryStore) |
+| `FI_FHIR_DATABASE_HOST`      | —         | Alternative: PostgreSQL host                 |
+| `FI_FHIR_DATABASE_SSL_MODE`  | `disable` | SSL mode (defaults to disable in-cluster)    |
+| `FI_FHIR_TERMINOLOGY_DB_URL` | —         | Terminology database connection              |
+| `FI_FHIR_CORS_ORIGINS`       | —         | Allowed CORS origins                         |
+| `FI_FHIR_LLM_ENABLED`        | `false`   | Enable LLM features (autoroute, copilot)     |
+
+Full env var enumeration: `make check-runtime-config`.
+
+---
+
 ## Contributing
 
 When adding new planning documents:
+
 1. Follow the existing format (Overview → Details → Implementation Plan → See Also → References)
 2. Include a "See Also" section linking related docs
 3. Mark implementation status with checkboxes and file path references

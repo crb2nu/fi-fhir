@@ -7,7 +7,7 @@
 	deploy deploy-ui deploy-all deploy-status deploy-logs deploy-delete deploy-forward \
 	docs-status docs-status-quick docs-validate docs-all \
 	contract-check contract-check-strict contract-matrix \
-	smoke-test smoke-test-local \
+	smoke-test smoke-test-local check-runtime-config \
 	dev dev-down dev-ui dev-ui-down
 
 # Tool versions (update these when upgrading)
@@ -220,6 +220,10 @@ smoke-test:
 # Smoke test against local full-stack (docker-compose up first)
 smoke-test-local:
 	BASE_URL=http://localhost:8080 bash scripts/smoke-test.sh
+
+# Runtime config validation: check env var coverage and proxy assumptions
+check-runtime-config:
+	bash scripts/check-runtime-config.sh
 
 # Verify CI will pass locally
 ci: fmt-check lint test

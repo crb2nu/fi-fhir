@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+# check-runtime-config.sh — Validate proxy/runtime config assumptions.
+#
+# Checks:
+#   1. .env.example covers all FI_FHIR_* env vars referenced in Go source.
+#   2. Proxy config assumptions are documented.
+#
+# Usage:
+#   bash scripts/check-runtime-config.sh
+
+set -uo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ENV_EXAMPLE="${ROOT}/.env.example"
+FULL_STACK_ENV="${ROOT}/configs/full-stack.env"
+NGINX_CONF="${ROOT}/ui/nginx/default.conf.template"
+passed=0
+warned=0
+
+check() {
+  local name="$1"
+  shift
+  echo -n "  [$name] ... "
+  if "$@"; then
+    echo "✓"
+    ((passed++))
+  else
+    echo "⚠"
+    ((warned++))
+  fi
+}
+
+echo ""
+echo "fi-fhir Runtime Config Check"
+echo "════════════════════════════"
+echo ""
+
+# --------------------------------------------------------------------------
+# 1. Enumerate FI_FHIR_* vars used in Go source (exclude test files)
+# --------------------------------------------------------------------------
+echo "─── Env Var Coverage ───"
+
+go_vars=$(grep -roh 'FI_FHIR_[A-Z_]*' "${ROOT}/cmd/" "${ROOT}/internal/" "${ROOT}/pkg/" 2>/dev/null \
+  | grep -v '_test.go' | sort -u || true)
+
+if [ -f "$ENV_EXAMPLE" ]; then
+  example_contents=$(cat "$ENV_EXAMPLE")
+  missing=""
+  for var in $go_vars; do
+    if ! echo "$example_contents" | grep -q "$var"; then
+      missing="$missing $var"
+    fi
+  done
+
+  check ".env.example covers Go vars" bash -c "
+    if [ -n '$missing' ]; then
+      echo 'Missing:$missing'
+      exit 1
+    fi
+  "
+else
+  echo "  [.env.example] ... ⚠ file not found"
+  ((warned++))
+fi
+
+# --------------------------------------------------------------------------
+# 2. Proxy config: nginx template references
+# --------------------------------------------------------------------------
+echo ""
+echo "─── Proxy Config ───"
+
+if [ -f "$NGINX_CONF" ]; then
+  check "nginx proxies /graphql" grep -q '/graphql' "$NGINX_CONF"
+  check "nginx proxies /health"  grep -q '/health'  "$NGINX_CONF"
+  check "nginx WS upgrade"      grep -q -i 'upgrade' "$NGINX_CONF"
+else
+  echo "  [nginx conf] ... ⚠ $NGINX_CONF not found"
+  ((warned++))
+fi
+
+# --------------------------------------------------------------------------
+# 3. Key runtime vars documented
+# --------------------------------------------------------------------------
+echo ""
+echo "─── Key Variables ───"
+echo ""
+echo "  The following env vars control proxy/runtime behavior:"
+echo ""
+echo "  FI_FHIR_ADDR            Listen address for serve command (default :8080)"
+echo "  FI_FHIR_UI_API_ORIGIN   Backend origin for UI reverse proxy"
+echo "  FI_FHIR_DATABASE_URL    PostgreSQL connection string"
+echo "  FI_FHIR_DATABASE_HOST   PostgreSQL host (alternative to URL)"
+echo "  FI_FHIR_DATABASE_NAME   PostgreSQL database name"
+echo "  FI_FHIR_DATABASE_USER   PostgreSQL username"
+echo "  FI_FHIR_DATABASE_SSL_MODE  SSL mode (default: disable in-cluster)"
+echo "  FI_FHIR_TERMINOLOGY_DB_URL Terminology database connection"
+echo ""
+
+# --------------------------------------------------------------------------
+# Summary
+# --------------------------------------------------------------------------
+echo ""
+echo "Results: $passed passed, $warned warnings"
+echo ""
+
+if [ "$warned" -gt 0 ]; then
+  echo "⚠ Some config checks had warnings (non-blocking)"
+fi
+
+echo "✅ Runtime config check complete"
+exit 0
