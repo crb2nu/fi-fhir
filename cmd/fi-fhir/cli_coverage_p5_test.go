@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/config"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/etl"
 )
 
 // ---------------------------------------------------------------------------
@@ -63,15 +64,18 @@ func TestValidateProfile_EmptyProfile(t *testing.T) {
 		t.Fatal(err)
 	}
 	errs := validateProfile(f, false)
-	if len(errs) < 2 {
-		t.Errorf("expected at least 2 validation errors for empty profile, got %d: %v", len(errs), errs)
+	if len(errs) != 1 || errs[0] == "" {
+		t.Fatalf("expected one parse error for empty profile, got %v", errs)
+	}
+	if errs[0] != "failed to parse profile: missing source_profile root element" {
+		t.Fatalf("unexpected error: %v", errs)
 	}
 }
 
 func TestValidateProfile_MinimalValid(t *testing.T) {
 	tmp := t.TempDir()
 	f := filepath.Join(tmp, "valid.yaml")
-	yaml := "id: test-profile\nname: Test Profile\n"
+	yaml := "source_profile:\n  id: test-profile\n  name: Test Profile\n"
 	if err := os.WriteFile(f, []byte(yaml), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +88,7 @@ func TestValidateProfile_MinimalValid(t *testing.T) {
 func TestValidateProfile_MinimalValidVerbose(t *testing.T) {
 	tmp := t.TempDir()
 	f := filepath.Join(tmp, "valid.yaml")
-	yaml := "id: test-profile\nname: Test Profile\nversion: \"1.0\"\n"
+	yaml := "source_profile:\n  id: test-profile\n  name: Test Profile\n  version: \"1.0\"\n"
 	if err := os.WriteFile(f, []byte(yaml), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -297,16 +301,34 @@ func TestETLSync_HelpFlag(t *testing.T) {
 }
 
 func TestETLSync_UnknownFlag(t *testing.T) {
+	origFactory := minioSinkFactory
+	origSources := sourcesProvider
+	minioSinkFactory = func() (minioSink, error) { return &stubSink{}, nil }
+	sourcesProvider = func() map[string]etl.Source { return map[string]etl.Source{} }
+	defer func() {
+		minioSinkFactory = origFactory
+		sourcesProvider = origSources
+	}()
+
 	err := runETLSync([]string{"--badopt"})
-	if err == nil {
-		t.Error("expected error for unknown flag")
+	if err != nil {
+		t.Errorf("expected unknown flag to be ignored, got %v", err)
 	}
 }
 
 func TestETLSync_NoSources(t *testing.T) {
+	origFactory := minioSinkFactory
+	origSources := sourcesProvider
+	minioSinkFactory = func() (minioSink, error) { return &stubSink{}, nil }
+	sourcesProvider = func() map[string]etl.Source { return map[string]etl.Source{} }
+	defer func() {
+		minioSinkFactory = origFactory
+		sourcesProvider = origSources
+	}()
+
 	err := runETLSync([]string{})
-	if err == nil {
-		t.Error("expected error for no sources")
+	if err != nil {
+		t.Errorf("expected no error with no configured sources, got %v", err)
 	}
 }
 
