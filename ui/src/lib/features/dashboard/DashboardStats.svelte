@@ -59,20 +59,25 @@
   .stat-card {
     padding: 16px 20px;
     border-radius: var(--radius-2xl);
-    border: 1px solid var(--color-border-default);
+    border: 1px solid var(--color-border-subtle);
+    border-top: 1px solid var(--color-border-default);
     background: var(--color-bg-elevated);
     text-align: center;
     display: flex;
     flex-direction: column;
     justify-content: center;
     gap: 6px;
-    box-shadow: var(--shadow-sm);
+    box-shadow:
+      var(--shadow-sm),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
     transition: var(--transition-all);
   }
 
   .stat-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
+    transform: translateY(-2px) scale(1.02);
+    box-shadow:
+      var(--shadow-md),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
     border-color: var(--color-border-strong);
   }
 

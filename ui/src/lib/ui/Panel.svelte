@@ -59,15 +59,20 @@
 <style>
   .panel {
     border-radius: var(--panel-radius);
-    border: 1px solid var(--color-border-default);
+    border: 1px solid var(--color-border-subtle);
+    border-top: 1px solid var(--color-border-default);
     background: var(--color-bg-elevated);
     overflow: hidden;
-    box-shadow: var(--shadow-sm);
+    box-shadow:
+      var(--shadow-sm),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
     transition: var(--transition-all);
   }
 
   .panel:hover {
-    box-shadow: var(--shadow-md);
+    box-shadow:
+      var(--shadow-md),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
   }
 
   /* Tone variants */
@@ -141,11 +146,23 @@
     width: 16px;
     height: 16px;
     color: var(--color-text-muted);
-    transition: transform var(--duration-normal) var(--ease-out);
+    transition:
+      transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+      color var(--transition-colors);
   }
 
   .collapse-icon.rotated {
     transform: rotate(90deg);
+  }
+
+  .collapse-trigger:hover .collapse-icon {
+    transform: translateY(2px);
+    color: var(--color-text-primary);
+  }
+
+  .collapse-trigger:hover .collapse-icon.rotated {
+    transform: rotate(90deg) translateX(2px);
+    color: var(--color-text-primary);
   }
 
   .collapse-icon svg {

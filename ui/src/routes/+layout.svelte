@@ -1,43 +1,50 @@
 <script lang="ts">
-  import { goto } from '$app/navigation';
-  import { resolve } from '$app/paths';
-  import { page } from '$app/stores';
-  import { onMount } from 'svelte';
-  import CommandPalette, { type PaletteCommand } from '$lib/ui/CommandPalette.svelte';
-  import ToastContainer from '$lib/ui/ToastContainer.svelte';
-  import ThemeToggle from '$lib/theme/ThemeToggle.svelte';
-  import { initTheme } from '$lib/theme/theme';
+  import { goto } from "$app/navigation";
+  import { resolve } from "$app/paths";
+  import { page } from "$app/stores";
+  import { onMount } from "svelte";
+  import CommandPalette, {
+    type PaletteCommand,
+  } from "$lib/ui/CommandPalette.svelte";
+  import ToastContainer from "$lib/ui/ToastContainer.svelte";
+  import ThemeToggle from "$lib/theme/ThemeToggle.svelte";
+  import { initTheme } from "$lib/theme/theme";
 
   // Import global design tokens and base styles
-  import '$lib/styles/tokens.css';
-  import '$lib/styles/base.css';
+  import "$lib/styles/tokens.css";
+  import "$lib/styles/base.css";
 
   const nav = [
-    { href: '/', label: 'Home' },
-    { href: '/events', label: 'Events' },
-    { href: '/hl7', label: 'HL7 Mapping' },
-    { href: '/profiles', label: 'Profiles' },
-    { href: '/terminology', label: 'Terminology' },
-    { href: '/workflows', label: 'Workflows' }
+    { href: "/", label: "Home" },
+    { href: "/events", label: "Events" },
+    { href: "/hl7", label: "HL7 Mapping" },
+    { href: "/profiles", label: "Profiles" },
+    { href: "/terminology", label: "Terminology" },
+    { href: "/workflows", label: "Workflows" },
   ] as const;
 
   let paletteOpen = false;
-  let shortcutLabel = 'Ctrl+K';
+  let shortcutLabel = "Ctrl+K";
 
   function isActive(href: string, pathname: string): boolean {
-    if (href === '/') return pathname === '/';
-    return pathname === href || pathname.startsWith(href + '/');
+    if (href === "/") return pathname === "/";
+    return pathname === href || pathname.startsWith(href + "/");
   }
 
   function isEditableTarget(target: EventTarget | null): boolean {
     const el = target as HTMLElement | null;
     if (!el) return false;
     const tag = el.tagName;
-    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+    return (
+      tag === "INPUT" ||
+      tag === "TEXTAREA" ||
+      tag === "SELECT" ||
+      el.isContentEditable
+    );
   }
 
   function isHL7Route(pathname: string): boolean {
-    return pathname.startsWith('/hl7');
+    return pathname.startsWith("/hl7");
   }
 
   function openPalette(): void {
@@ -49,13 +56,15 @@
     id: `nav:${item.href}`,
     label: `Go to ${item.label}`,
     hint: resolve(item.href),
-    keywords: ['navigate', 'route', item.label.toLowerCase()],
-    run: () => goto(resolve(item.href))
+    keywords: ["navigate", "route", item.label.toLowerCase()],
+    run: () => goto(resolve(item.href)),
   }));
 
   onMount(() => {
     initTheme();
-    shortcutLabel = navigator.platform.toUpperCase().includes('MAC') ? 'Cmd+K' : 'Ctrl+K';
+    shortcutLabel = navigator.platform.toUpperCase().includes("MAC")
+      ? "Cmd+K"
+      : "Ctrl+K";
 
     const onKeydown = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
@@ -64,30 +73,34 @@
       // HL7 page has a richer page-specific command palette.
       if (isHL7Route($page.url.pathname)) return;
       const mod = e.metaKey || e.ctrlKey;
-      if (mod && (e.key === 'k' || e.key === 'K')) {
+      if (mod && (e.key === "k" || e.key === "K")) {
         e.preventDefault();
         openPalette();
       }
     };
 
-    window.addEventListener('keydown', onKeydown);
-    return () => window.removeEventListener('keydown', onKeydown);
+    window.addEventListener("keydown", onKeydown);
+    return () => window.removeEventListener("keydown", onKeydown);
   });
 </script>
 
 <ToastContainer />
-<CommandPalette bind:open={paletteOpen} title="Navigate" commands={paletteCommands} />
+<CommandPalette
+  bind:open={paletteOpen}
+  title="Navigate"
+  commands={paletteCommands}
+/>
 
 <div class="app">
   <header class="header bg-glass">
-    <a class="brand text-gradient" href={resolve('/')}>fi-fhir</a>
+    <a class="brand text-gradient" href={resolve("/")}>fi-fhir</a>
     <nav class="nav">
       {#each nav as item (item.href)}
         {@const active = isActive(item.href, $page.url.pathname)}
         <a
           class="nav-link"
           class:active
-          aria-current={active ? 'page' : undefined}
+          aria-current={active ? "page" : undefined}
           href={resolve(item.href)}
         >
           {item.label}
@@ -103,7 +116,13 @@
           title={`Open commands (${shortcutLabel})`}
           on:click={openPalette}
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
             <circle cx="11" cy="11" r="7" />
             <path d="m20 20-3.4-3.4" />
           </svg>
@@ -133,10 +152,13 @@
     align-items: center;
     justify-content: space-between;
     padding: var(--space-4) var(--space-5);
-    border-bottom: 1px solid var(--color-border-default);
+    border-bottom: 1px solid var(--color-border-subtle);
     position: sticky;
     top: 0;
     z-index: var(--z-sticky);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
   }
 
   .brand {
@@ -200,6 +222,8 @@
   .command-link:hover {
     background: var(--color-bg-hover);
     border-color: var(--color-border-strong);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
   }
 
   .command-link:focus-visible {
@@ -220,13 +244,15 @@
   .nav-link:hover {
     background: var(--color-bg-hover);
     color: var(--color-text-primary);
+    transform: translateY(-1px);
   }
 
   .nav-link.active {
     color: var(--color-primary);
     background: var(--color-primary-muted);
     border-color: var(--color-primary-border);
-    box-shadow: 0 2px 10px rgba(99, 102, 241, 0.1);
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.15);
+    text-shadow: 0 0 10px rgba(79, 70, 229, 0.2);
   }
 
   .nav-link:focus-visible {
