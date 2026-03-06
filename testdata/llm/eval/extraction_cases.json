@@ -1,0 +1,68 @@
+[
+  {
+    "id": "extract-diabetes-note",
+    "description": "Extract conditions from a progress note mentioning diabetes",
+    "task_type": "extraction",
+    "system_prompt": "You are a clinical entity extraction system.",
+    "input": "Patient is a 62-year-old male with Type 2 diabetes mellitus, currently on metformin 1000mg BID. A1C is 7.2%. Blood pressure 142/88. Denies chest pain.",
+    "expected": {
+      "conditions": [
+        {
+          "name": "Type 2 diabetes mellitus",
+          "code": "E11.9",
+          "confidence": 0.95,
+          "negated": false
+        }
+      ],
+      "medications": [
+        {
+          "name": "metformin",
+          "dose": "1000mg",
+          "frequency": "BID",
+          "confidence": 0.95
+        }
+      ],
+      "vital_signs": [
+        { "name": "A1C", "value": "7.2%", "confidence": 0.9 },
+        { "name": "Blood pressure", "value": "142/88", "confidence": 0.95 }
+      ],
+      "overall_confidence": 0.92
+    },
+    "tags": ["conditions", "medications", "vitals"]
+  },
+  {
+    "id": "extract-negation",
+    "description": "Extract entities with negation detection",
+    "task_type": "extraction",
+    "system_prompt": "You are a clinical entity extraction system.",
+    "input": "Patient denies shortness of breath, chest pain, or palpitations. History of COPD, currently stable on albuterol inhaler PRN.",
+    "expected": {
+      "conditions": [
+        { "name": "COPD", "confidence": 0.9, "negated": false },
+        { "name": "shortness of breath", "confidence": 0.85, "negated": true },
+        { "name": "chest pain", "confidence": 0.85, "negated": true }
+      ],
+      "medications": [
+        { "name": "albuterol inhaler", "frequency": "PRN", "confidence": 0.9 }
+      ],
+      "overall_confidence": 0.88
+    },
+    "tags": ["negation", "conditions"]
+  },
+  {
+    "id": "extract-lab-results",
+    "description": "Extract lab values from a lab report",
+    "task_type": "extraction",
+    "system_prompt": "You are a clinical entity extraction system.",
+    "input": "Lab Results: WBC 11.2 (H), Hemoglobin 13.5, Platelets 245, BUN 18, Creatinine 1.1, Glucose 126 (H), TSH 2.4",
+    "expected": {
+      "vital_signs": [
+        { "name": "WBC", "value": "11.2", "confidence": 0.95 },
+        { "name": "Hemoglobin", "value": "13.5", "confidence": 0.95 },
+        { "name": "Glucose", "value": "126", "confidence": 0.95 }
+      ],
+      "overall_confidence": 0.93
+    },
+    "tags": ["labs", "vitals"]
+  }
+]

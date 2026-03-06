@@ -4467,7 +4467,7 @@ Examples:
 func runServe(args []string) error {
 	var (
 		host              = "0.0.0.0"
-		port              = 8081
+		port              = 8080
 		path              = "/graphql"
 		playgroundPath    = "/"
 		playground        = true
@@ -4483,6 +4483,7 @@ func runServe(args []string) error {
 	if temporalNamespace == "" {
 		temporalNamespace = "terminology-mapping"
 	}
+	portSet := false
 
 	// Parse flags
 	for i := 0; i < len(args); i++ {
@@ -4503,6 +4504,7 @@ func runServe(args []string) error {
 			if err != nil {
 				return fmt.Errorf("invalid port: %s", args[i])
 			}
+			portSet = true
 		case "--path":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--path requires a value")
@@ -4580,7 +4582,7 @@ func runServe(args []string) error {
 	}
 
 	// Env var fallbacks for settings not overridden by CLI flags.
-	if envPort := os.Getenv("FI_FHIR_SERVER_PORT"); envPort != "" && port == 8081 {
+	if envPort := os.Getenv("FI_FHIR_SERVER_PORT"); envPort != "" && !portSet {
 		if p, err := strconv.Atoi(envPort); err == nil {
 			port = p
 		}

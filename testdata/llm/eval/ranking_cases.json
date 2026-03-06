@@ -1,0 +1,77 @@
+[
+  {
+    "id": "rank-icd10-diabetes",
+    "description": "Map ICD-9 250.00 (Diabetes mellitus type II) to ICD-10",
+    "task_type": "ranking",
+    "system_prompt": "You are a healthcare terminology expert.",
+    "input": "Map code 250.00 (Diabetes mellitus type II, not stated as uncontrolled) from ICD-9-CM to ICD-10-CM. Candidates: E11.9 (Type 2 diabetes mellitus without complications), E11.65 (Type 2 diabetes mellitus with hyperglycemia), E13.9 (Other specified diabetes mellitus without complications)",
+    "expected": {
+      "best_match": {
+        "code": "E11.9",
+        "confidence": 0.95,
+        "equivalence": "equivalent"
+      }
+    },
+    "tags": ["icd10", "diabetes", "crosswalk"]
+  },
+  {
+    "id": "rank-snomed-hypertension",
+    "description": "Map ICD-10 I10 to SNOMED CT essential hypertension",
+    "task_type": "ranking",
+    "system_prompt": "You are a healthcare terminology expert.",
+    "input": "Map code I10 (Essential (primary) hypertension) from ICD-10-CM to SNOMED CT. Candidates: 59621000 (Essential hypertension), 38341003 (Hypertensive disorder), 429457004 (Systemic arterial hypertension)",
+    "expected": {
+      "best_match": {
+        "code": "59621000",
+        "confidence": 0.92,
+        "equivalence": "equivalent"
+      }
+    },
+    "tags": ["snomed", "hypertension"]
+  },
+  {
+    "id": "rank-loinc-glucose",
+    "description": "Map local lab code to LOINC for glucose",
+    "task_type": "ranking",
+    "system_prompt": "You are a healthcare terminology expert.",
+    "input": "Map code GLU-FAST (Fasting glucose) from LOCAL to LOINC. Candidates: 1558-6 (Fasting glucose [Mass/volume] in Serum or Plasma), 2345-7 (Glucose [Mass/volume] in Serum or Plasma), 14771-0 (Fasting glucose [Mass/volume] in Capillary blood)",
+    "expected": {
+      "best_match": {
+        "code": "1558-6",
+        "confidence": 0.9,
+        "equivalence": "equivalent"
+      }
+    },
+    "tags": ["loinc", "labs"]
+  },
+  {
+    "id": "rank-cpt-colonoscopy",
+    "description": "Map SNOMED colonoscopy to CPT",
+    "task_type": "ranking",
+    "system_prompt": "You are a healthcare terminology expert.",
+    "input": "Map code 73761001 (Colonoscopy) from SNOMED CT to CPT. Candidates: 45378 (Colonoscopy, diagnostic), 45380 (Colonoscopy with biopsy), 45385 (Colonoscopy with removal of polyps)",
+    "expected": {
+      "best_match": {
+        "code": "45378",
+        "confidence": 0.88,
+        "equivalence": "wider"
+      }
+    },
+    "tags": ["cpt", "procedures"]
+  },
+  {
+    "id": "rank-rxnorm-metformin",
+    "description": "Map NDC for metformin to RxNorm",
+    "task_type": "ranking",
+    "system_prompt": "You are a healthcare terminology expert.",
+    "input": "Map code 00378-0234 (Metformin HCl 500mg tablet) from NDC to RxNorm. Candidates: 860975 (metformin hydrochloride 500 MG Oral Tablet), 861007 (metformin hydrochloride 850 MG Oral Tablet), 861010 (metformin hydrochloride 1000 MG Oral Tablet)",
+    "expected": {
+      "best_match": {
+        "code": "860975",
+        "confidence": 0.95,
+        "equivalence": "equivalent"
+      }
+    },
+    "tags": ["rxnorm", "medications"]
+  }
+]

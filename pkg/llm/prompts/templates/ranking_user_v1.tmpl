@@ -1,0 +1,14 @@
+## Source Code to Map
+- **Code**: `{{.SourceCode}}`
+{{- if .SourceDisplay}}
+- **Display**: {{.SourceDisplay}}
+{{- end}}
+- **Source System**: {{.SourceSystem}}
+- **Target System**: {{.TargetSystem}}
+
+## Candidate Matches
+
+{{range $i, $c := .Candidates}}{{add $i 1}}. **{{$c.Code}}** - {{$c.Display}} (similarity: {{printf "%.2f" $c.Score}})
+{{end}}
+## Task
+Evaluate these candidates and select the best mapping. Consider semantic equivalence, clinical appropriateness, and specificity. Provide confidence scores and reasoning for your decision.

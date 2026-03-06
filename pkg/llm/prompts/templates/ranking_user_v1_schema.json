@@ -1,0 +1,44 @@
+{
+  "type": "object",
+  "properties": {
+    "best_match": {
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "description": "The best matching code" },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Confidence score 0.0-1.0"
+        },
+        "equivalence": {
+          "type": "string",
+          "enum": ["equivalent", "wider", "narrower", "inexact"],
+          "description": "Semantic relationship"
+        },
+        "reasoning": {
+          "type": "string",
+          "description": "Why this is the best match"
+        }
+      },
+      "required": ["code", "confidence", "equivalence", "reasoning"]
+    },
+    "alternates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "string" },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "reasoning": { "type": "string" }
+        },
+        "required": ["code", "confidence", "reasoning"]
+      }
+    },
+    "overall_reasoning": {
+      "type": "string",
+      "description": "Summary of the decision process"
+    }
+  },
+  "required": ["best_match", "overall_reasoning"]
+}

@@ -1,0 +1,34 @@
+Extract clinical entities from this {{.DocumentType}} note.
+
+{{if .PatientContext}}Patient: {{.PatientContext}}
+{{end}}
+---
+CLINICAL TEXT:
+{{.ClinicalText}}
+---
+
+Extract the following entity types:
+{{- if .ExtractConditions}}
+- Conditions/Diagnoses (with ICD-10 codes if identifiable)
+{{- end}}
+{{- if .ExtractMedications}}
+- Medications (with dosage and frequency)
+{{- end}}
+{{- if .ExtractVitalSigns}}
+- Vital Signs (with values and units)
+{{- end}}
+{{- if .ExtractAllergies}}
+- Allergies (with reaction type and severity)
+{{- end}}
+{{- if .ExtractProcedures}}
+- Procedures (with CPT/ICD-10 codes if identifiable)
+{{- end}}
+
+For each entity provide:
+- The standardized code and code system
+- A display name
+- Confidence score (0.0-1.0)
+- Whether the entity is negated
+- The text span where it was found
+
+Return ONLY valid JSON.
