@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { getEventStatistics } from '$lib/features/events/eventsApi';
-  import { getPendingAutorouteStats } from '$lib/features/terminology/terminologyApi';
+  import { onMount } from "svelte";
+  import { getEventStatistics } from "$lib/features/events/eventsApi";
+  import { getPendingAutorouteStats } from "$lib/features/terminology/terminologyApi";
 
   let totalEvents = 0;
   let eventTypes = 0;
@@ -12,14 +12,14 @@
     try {
       const [eventStats, reviewStats] = await Promise.allSettled([
         getEventStatistics(),
-        getPendingAutorouteStats()
+        getPendingAutorouteStats(),
       ]);
 
-      if (eventStats.status === 'fulfilled') {
+      if (eventStats.status === "fulfilled") {
         totalEvents = eventStats.value.totalEvents;
         eventTypes = eventStats.value.byType.length;
       }
-      if (reviewStats.status === 'fulfilled') {
+      if (reviewStats.status === "fulfilled") {
         pendingReviews = reviewStats.value.pendingCount;
       }
     } finally {
@@ -30,15 +30,17 @@
 
 <div class="stats" class:loading>
   <div class="stat-card accent">
-    <span class="stat-value">{loading ? '-' : totalEvents.toLocaleString()}</span>
+    <span class="stat-value"
+      >{loading ? "-" : totalEvents.toLocaleString()}</span
+    >
     <span class="stat-label">Events</span>
   </div>
   <div class="stat-card">
-    <span class="stat-value">{loading ? '-' : eventTypes}</span>
+    <span class="stat-value">{loading ? "-" : eventTypes}</span>
     <span class="stat-label">Event Types</span>
   </div>
   <div class="stat-card" class:warn={pendingReviews > 0}>
-    <span class="stat-value">{loading ? '-' : pendingReviews}</span>
+    <span class="stat-value">{loading ? "-" : pendingReviews}</span>
     <span class="stat-label">Pending Reviews</span>
   </div>
 </div>
@@ -55,23 +57,45 @@
   }
 
   .stat-card {
-    padding: 14px 16px;
-    border-radius: 12px;
+    padding: 16px 20px;
+    border-radius: var(--radius-2xl);
     border: 1px solid var(--color-border-default);
     background: var(--color-bg-elevated);
     text-align: center;
-    display: grid;
-    gap: 4px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    box-shadow: var(--shadow-sm);
+    transition: var(--transition-all);
+  }
+
+  .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--color-border-strong);
   }
 
   .stat-card.accent {
-    border-color: rgba(59, 130, 246, 0.3);
-    background: rgba(59, 130, 246, 0.08);
+    border-color: var(--color-primary-border);
+    background: linear-gradient(
+      145deg,
+      var(--color-bg-elevated),
+      var(--color-primary-muted)
+    );
+  }
+
+  .stat-card.accent:hover {
+    box-shadow: var(--shadow-glow-primary);
   }
 
   .stat-card.warn {
-    border-color: rgba(245, 158, 11, 0.3);
-    background: rgba(245, 158, 11, 0.08);
+    border-color: var(--color-warning-border);
+    background: linear-gradient(
+      145deg,
+      var(--color-bg-elevated),
+      var(--color-warning-bg)
+    );
   }
 
   .stat-value {

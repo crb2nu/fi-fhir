@@ -7,10 +7,11 @@
    */
 
   export let title: string | null = null;
-  export let tone: 'default' | 'error' | 'success' | 'warning' | 'info' = 'default';
+  export let tone: "default" | "error" | "success" | "warning" | "info" =
+    "default";
   export let collapsible = false;
   export let collapsed = false;
-  export let padding: 'none' | 'sm' | 'md' | 'lg' = 'md';
+  export let padding: "none" | "sm" | "md" | "lg" = "md";
 </script>
 
 <section class="panel {tone}" class:collapsible class:collapsed>
@@ -61,6 +62,12 @@
     border: 1px solid var(--color-border-default);
     background: var(--color-bg-elevated);
     overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    transition: var(--transition-all);
+  }
+
+  .panel:hover {
+    box-shadow: var(--shadow-md);
   }
 
   /* Tone variants */

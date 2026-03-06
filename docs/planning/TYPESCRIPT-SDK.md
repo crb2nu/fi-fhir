@@ -380,12 +380,12 @@ describe('parseCSV', () => {
 - [x] Dry-run mode with route matching info
 - [x] Error handling with FiFhirError
 - [x] Workflow tests - see `tests/workflow.test.ts`
-- [ ] Streaming API (future)
+- [ ] Streaming API (future) — tracked in [libs/fi-fhir#3](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/3)
 
 ### Phase 3: Distribution 🔲
 - [x] Platform-specific packages (optional dependencies)
 - [x] npm publish workflow (GitLab npm registry) on tags
-- [ ] Streaming API (future)
+- [ ] Streaming API (future) — tracked in [libs/fi-fhir#3](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/3)
 
 > **Note**: SDK is functional and distribution automation is implemented via GitLab npm publish on tags.
 

@@ -29,11 +29,15 @@
   --color-text-inverse: #f9fafb;
 
   /* Brand Colors */
-  --color-primary: #3b82f6;
-  --color-primary-hover: #2563eb;
-  --color-primary-muted: rgba(59, 130, 246, 0.18);
-  --color-primary-border: rgba(59, 130, 246, 0.35);
-  --color-primary-glow: rgba(59, 130, 246, 0.22);
+  --color-primary: #6366f1; /* Indigo 500 */
+  --color-primary-hover: #4f46e5; /* Indigo 600 */
+  --color-primary-muted: rgba(99, 102, 241, 0.15);
+  --color-primary-border: rgba(99, 102, 241, 0.35);
+  --color-primary-glow: rgba(99, 102, 241, 0.3);
+
+  /* Brand Gradients */
+  --color-brand-gradient-start: #6366f1;
+  --color-brand-gradient-end: #8b5cf6; /* Violet 500 */
 
   /* Semantic Colors - Success */
   --color-success: #10b981;
@@ -50,7 +54,7 @@
   /* Semantic Colors - Danger/Error */
   --color-danger: #ef4444;
   --color-danger-text: rgba(239, 68, 68, 0.9);
-  --color-danger-bg: rgba(239, 68, 68, 0.10);
+  --color-danger-bg: rgba(239, 68, 68, 0.1);
   --color-danger-border: rgba(239, 68, 68, 0.35);
 
   /* Semantic Colors - Info */
@@ -63,7 +67,7 @@
   --color-border-subtle: rgba(15, 23, 42, 0.08);
   --color-border-default: rgba(15, 23, 42, 0.12);
   --color-border-strong: rgba(15, 23, 42, 0.18);
-  --color-border-focus: rgba(59, 130, 246, 0.62);
+  --color-border-focus: rgba(99, 102, 241, 0.62);
 
   /* ═══════════════════════════════════════════════════════════════════════════
    * SPACING SCALE
@@ -87,17 +91,21 @@
    * ═══════════════════════════════════════════════════════════════════════════ */
 
   /* Font Families */
-  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, Consolas, monospace;
+  --font-sans:
+    "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    sans-serif;
+  --font-heading: "Outfit", "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
 
   /* Font Sizes */
-  --text-2xs: 0.65rem;   /* 10.4px - badges, micro text */
-  --text-xs: 0.75rem;    /* 12px - labels, captions */
-  --text-sm: 0.875rem;   /* 14px - secondary text */
-  --text-base: 1rem;     /* 16px - body text */
-  --text-lg: 1.125rem;   /* 18px - subheadings */
-  --text-xl: 1.25rem;    /* 20px - headings */
-  --text-2xl: 1.5rem;    /* 24px - page titles */
+  --text-2xs: 0.65rem; /* 10.4px - badges, micro text */
+  --text-xs: 0.75rem; /* 12px - labels, captions */
+  --text-sm: 0.875rem; /* 14px - secondary text */
+  --text-base: 1rem; /* 16px - body text */
+  --text-lg: 1.125rem; /* 18px - subheadings */
+  --text-xl: 1.25rem; /* 20px - headings */
+  --text-2xl: 1.5rem; /* 24px - page titles */
 
   /* Font Weights */
   --font-normal: 400;
@@ -141,10 +149,10 @@
 
   /* Focus ring */
   --shadow-focus: 0 0 0 3px var(--color-primary-glow);
-  --shadow-focus-danger: 0 0 0 3px rgba(239, 68, 68, 0.20);
+  --shadow-focus-danger: 0 0 0 3px rgba(239, 68, 68, 0.2);
 
   /* Glow effects */
-  --shadow-glow-primary: 0 0 20px rgba(59, 130, 246, 0.2);
+  --shadow-glow-primary: 0 0 20px rgba(99, 102, 241, 0.3);
   --shadow-glow-success: 0 0 20px rgba(16, 185, 129, 0.2);
 
   /* ═══════════════════════════════════════════════════════════════════════════
@@ -164,9 +172,10 @@
   --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
 
   /* Common transitions */
-  --transition-colors: color var(--duration-fast) var(--ease-out),
-                       background-color var(--duration-fast) var(--ease-out),
-                       border-color var(--duration-fast) var(--ease-out);
+  --transition-colors:
+    color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
   --transition-transform: transform var(--duration-normal) var(--ease-out);
   --transition-opacity: opacity var(--duration-normal) var(--ease-out);
   --transition-all: all var(--duration-normal) var(--ease-out);
@@ -233,10 +242,10 @@
    * For mapping confidence indicators
    * ═══════════════════════════════════════════════════════════════════════════ */
 
-  --confidence-high: #10b981;      /* >= 90% */
-  --confidence-medium: #f59e0b;    /* 70-89% */
-  --confidence-low: #f97316;       /* 50-69% */
-  --confidence-very-low: #ef4444;  /* < 50% */
+  --confidence-high: #10b981; /* >= 90% */
+  --confidence-medium: #f59e0b; /* 70-89% */
+  --confidence-low: #f97316; /* 50-69% */
+  --confidence-very-low: #ef4444; /* < 50% */
 
   --confidence-high-bg: rgba(16, 185, 129, 0.15);
   --confidence-medium-bg: rgba(245, 158, 11, 0.15);
@@ -265,11 +274,11 @@
     --color-border-subtle: rgba(255, 255, 255, 0.06);
     --color-border-default: rgba(255, 255, 255, 0.08);
     --color-border-strong: rgba(255, 255, 255, 0.12);
-    --color-border-focus: rgba(59, 130, 246, 0.62);
+    --color-border-focus: rgba(99, 102, 241, 0.62);
   }
 }
 
-:root[data-theme='light'] {
+:root[data-theme="light"] {
   color-scheme: light;
 
   --color-bg-base: #f8fafc;
@@ -289,10 +298,10 @@
   --color-border-subtle: rgba(15, 23, 42, 0.08);
   --color-border-default: rgba(15, 23, 42, 0.12);
   --color-border-strong: rgba(15, 23, 42, 0.18);
-  --color-border-focus: rgba(59, 130, 246, 0.62);
+  --color-border-focus: rgba(99, 102, 241, 0.62);
 }
 
-:root[data-theme='dark'] {
+:root[data-theme="dark"] {
   color-scheme: dark;
 
   --color-bg-base: #0b1220;
@@ -312,7 +321,7 @@
   --color-border-subtle: rgba(255, 255, 255, 0.06);
   --color-border-default: rgba(255, 255, 255, 0.08);
   --color-border-strong: rgba(255, 255, 255, 0.12);
-  --color-border-focus: rgba(59, 130, 246, 0.62);
+  --color-border-focus: rgba(99, 102, 241, 0.62);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -320,13 +329,21 @@
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes fadeOut {
-  from { opacity: 1; }
-  to { opacity: 0; }
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 
 @keyframes slideInUp {
@@ -372,7 +389,8 @@
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {
@@ -390,7 +408,8 @@
 }
 
 @keyframes bounce {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0);
   }
   50% {

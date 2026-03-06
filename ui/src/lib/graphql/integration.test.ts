@@ -23,22 +23,22 @@ describe("Live Backend GraphQL Integration", () => {
       };
 
       const originalFetch = globalThis.fetch;
-      globalThis.fetch = liveFetch as any;
+      globalThis.fetch = liveFetch as unknown as typeof fetch;
 
       try {
         const result = await graphqlFetch(
           EventsDocument,
           {
             first: 1,
-            filter: {} as any,
-            after: null as any,
-            orderBy: null as any,
+            filter: null,
+            after: null,
+            orderBy: null,
           },
           { showErrorToast: false },
         );
 
         expect(result).toBeDefined();
-        expect((result as any).events).toBeDefined();
+        expect(result?.events).toBeDefined();
       } finally {
         globalThis.fetch = originalFetch;
       }
@@ -53,7 +53,7 @@ describe("Live Backend GraphQL Integration", () => {
       };
 
       const originalFetch = globalThis.fetch;
-      globalThis.fetch = liveFetch as any;
+      globalThis.fetch = liveFetch as unknown as typeof fetch;
 
       try {
         const result = await graphqlFetch(

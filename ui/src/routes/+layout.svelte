@@ -79,8 +79,8 @@
 <CommandPalette bind:open={paletteOpen} title="Navigate" commands={paletteCommands} />
 
 <div class="app">
-  <header class="header">
-    <a class="brand" href={resolve('/')}>fi-fhir</a>
+  <header class="header bg-glass">
+    <a class="brand text-gradient" href={resolve('/')}>fi-fhir</a>
     <nav class="nav">
       {#each nav as item (item.href)}
         {@const active = isActive(item.href, $page.url.pathname)}
@@ -134,19 +134,22 @@
     justify-content: space-between;
     padding: var(--space-4) var(--space-5);
     border-bottom: 1px solid var(--color-border-default);
-    background: var(--color-bg-overlay);
-    backdrop-filter: blur(12px);
     position: sticky;
     top: 0;
     z-index: var(--z-sticky);
   }
 
   .brand {
-    color: var(--color-text-primary);
-    font-weight: var(--font-bold);
-    font-size: var(--text-lg);
+    font-family: var(--font-heading);
+    font-weight: 800;
+    font-size: var(--text-xl);
     letter-spacing: var(--tracking-tight);
     text-decoration: none;
+    transition: var(--transition-transform);
+  }
+
+  .brand:hover {
+    transform: scale(1.02);
   }
 
   .nav {
@@ -165,14 +168,13 @@
   .nav-link {
     color: var(--color-text-secondary);
     text-decoration: none;
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-elevated);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-full);
     font-size: var(--text-sm);
     font-weight: var(--font-medium);
     transition: var(--transition-all);
     flex: 0 0 auto;
+    border: 1px solid transparent;
   }
 
   .command-link {
@@ -217,13 +219,14 @@
 
   .nav-link:hover {
     background: var(--color-bg-hover);
-    border-color: var(--color-border-strong);
+    color: var(--color-text-primary);
   }
 
   .nav-link.active {
-    color: var(--color-text-primary);
-    background: rgba(59, 130, 246, 0.14);
-    border-color: rgba(59, 130, 246, 0.38);
+    color: var(--color-primary);
+    background: var(--color-primary-muted);
+    border-color: var(--color-primary-border);
+    box-shadow: 0 2px 10px rgba(99, 102, 241, 0.1);
   }
 
   .nav-link:focus-visible {

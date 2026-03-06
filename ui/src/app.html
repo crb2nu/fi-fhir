@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
     <title>fi-fhir Mapping Studio</title>
     <meta
       name="description"
@@ -13,32 +16,49 @@
     <script>
       (() => {
         // Keep this in sync with src/lib/theme/theme.ts
-        const STORAGE_KEY = 'fi-fhir-theme';
-        const LIGHT_BG = '#f8fafc';
-        const DARK_BG = '#0b1220';
+        const STORAGE_KEY = "fi-fhir-theme";
+        const LIGHT_BG = "#f8fafc";
+        const DARK_BG = "#0b1220";
 
         try {
           const root = document.documentElement;
           const stored = localStorage.getItem(STORAGE_KEY);
           const prefersDark =
-            typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches;
+            typeof matchMedia === "function" &&
+            matchMedia("(prefers-color-scheme: dark)").matches;
 
-          const resolved = stored === 'dark' || stored === 'light' ? stored : prefersDark ? 'dark' : 'light';
+          const resolved =
+            stored === "dark" || stored === "light"
+              ? stored
+              : prefersDark
+                ? "dark"
+                : "light";
 
           // Persisted override: data-theme="light|dark". System preference: no attribute.
-          if (stored === 'dark' || stored === 'light') root.setAttribute('data-theme', stored);
-          else root.removeAttribute('data-theme');
+          if (stored === "dark" || stored === "light")
+            root.setAttribute("data-theme", stored);
+          else root.removeAttribute("data-theme");
 
           // Prevent first-paint flash before the bundled CSS loads.
-          root.style.backgroundColor = resolved === 'dark' ? DARK_BG : LIGHT_BG;
+          root.style.backgroundColor = resolved === "dark" ? DARK_BG : LIGHT_BG;
 
           const themeColor = document.querySelector('meta[name="theme-color"]');
-          if (themeColor) themeColor.setAttribute('content', resolved === 'dark' ? DARK_BG : LIGHT_BG);
+          if (themeColor)
+            themeColor.setAttribute(
+              "content",
+              resolved === "dark" ? DARK_BG : LIGHT_BG,
+            );
         } catch {
           // Ignore (e.g. localStorage blocked). Defaults handled by CSS + browser.
         }
       })();
     </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
     <style>
       :root {
         color-scheme: light;
@@ -54,13 +74,13 @@
         }
       }
 
-      :root[data-theme='light'] {
+      :root[data-theme="light"] {
         color-scheme: light;
         background: #f8fafc;
         color: #0f172a;
       }
 
-      :root[data-theme='dark'] {
+      :root[data-theme="dark"] {
         color-scheme: dark;
         background: #0b1220;
         color: #e5e7eb;
@@ -72,7 +92,12 @@
         margin: 0;
         background: inherit;
         color: inherit;
-        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        font-family:
+          system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          sans-serif;
         -webkit-font-smoothing: antialiased;
         text-rendering: optimizeLegibility;
       }
