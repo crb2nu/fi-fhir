@@ -9,13 +9,15 @@ import (
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm/prompts"
 )
 
 // Extractor provides LLM-powered clinical entity extraction.
 type Extractor struct {
-	client llm.Client
-	model  string
-	cache  *extractionCache
+	client   llm.Client
+	model    string
+	cache    *extractionCache
+	registry *prompts.Registry
 }
 
 // Config configures the extractor.
@@ -64,6 +66,16 @@ func NewExtractor(cfg Config) (*Extractor, error) {
 	}, nil
 }
 
+// NewExtractorWithRegistry creates a new clinical entity extractor with an optional prompt registry.
+func NewExtractorWithRegistry(cfg Config, reg *prompts.Registry) (*Extractor, error) {
+	ext, err := NewExtractor(cfg)
+	if err != nil {
+		return nil, err
+	}
+	ext.registry = reg
+	return ext, nil
+}
+
 // Extract extracts clinical entities from the given text.
 func (e *Extractor) Extract(ctx context.Context, text string, opts ExtractionOptions) (*ExtractionResult, error) {
 	if text == "" {
@@ -81,8 +93,9 @@ func (e *Extractor) Extract(ctx context.Context, text string, opts ExtractionOpt
 	}
 
 	// Build prompts
-	systemPrompt := buildSystemPrompt()
-	userPrompt := buildExtractionPrompt(text, opts)
+	systemPrompt := buildSystemPrompt(e.registry)
+	userPrompt := buildExtractionPrompt(text, opts, e.registry)
+	schema := getExtractionSchema(e.registry)
 
 	// Create completion request
 	req := llm.CompletionRequest{
@@ -99,7 +112,7 @@ func (e *Extractor) Extract(ctx context.Context, text string, opts ExtractionOpt
 	}
 
 	// Execute extraction with structured output
-	rawJSON, err := e.client.CompleteStructured(ctx, req, "clinical_extraction", extractionSchema)
+	rawJSON, err := e.client.CompleteStructured(ctx, req, "clinical_extraction", schema)
 	if err != nil {
 		return nil, fmt.Errorf("extraction failed: %w", err)
 	}

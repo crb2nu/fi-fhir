@@ -1,0 +1,95 @@
+{
+  "type": "object",
+  "properties": {
+    "conditions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "code": { "type": "string" },
+          "code_system": { "type": "string" },
+          "status": { "type": "string" },
+          "confidence": { "type": "number" },
+          "negated": { "type": "boolean" },
+          "text_span": { "type": "string" },
+          "onset_date": { "type": "string" },
+          "severity": { "type": "string" }
+        },
+        "required": ["name", "confidence"]
+      }
+    },
+    "medications": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "code": { "type": "string" },
+          "code_system": { "type": "string" },
+          "dose": { "type": "string" },
+          "route": { "type": "string" },
+          "frequency": { "type": "string" },
+          "confidence": { "type": "number" },
+          "negated": { "type": "boolean" },
+          "text_span": { "type": "string" }
+        },
+        "required": ["name", "confidence"]
+      }
+    },
+    "vital_signs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "loinc_code": { "type": "string" },
+          "value": { "type": "string" },
+          "unit": { "type": "string" },
+          "confidence": { "type": "number" },
+          "text_span": { "type": "string" }
+        },
+        "required": ["name", "value", "confidence"]
+      }
+    },
+    "allergies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "code": { "type": "string" },
+          "code_system": { "type": "string" },
+          "type": { "type": "string" },
+          "severity": { "type": "string" },
+          "reaction": { "type": "string" },
+          "confidence": { "type": "number" },
+          "negated": { "type": "boolean" },
+          "text_span": { "type": "string" }
+        },
+        "required": ["name", "confidence"]
+      }
+    },
+    "procedures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "code": { "type": "string" },
+          "code_system": { "type": "string" },
+          "status": { "type": "string" },
+          "date": { "type": "string" },
+          "confidence": { "type": "number" },
+          "negated": { "type": "boolean" },
+          "text_span": { "type": "string" }
+        },
+        "required": ["name", "confidence"]
+      }
+    },
+    "overall_confidence": {
+      "type": "number"
+    }
+  },
+  "required": ["overall_confidence"]
+}

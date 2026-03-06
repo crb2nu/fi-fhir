@@ -114,7 +114,7 @@ func TestTruncateText_EmptyString(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestBuildExtractionPrompt_DefaultDocType(t *testing.T) {
-	prompt := buildExtractionPrompt("Some clinical text", ExtractionOptions{})
+	prompt := buildExtractionPrompt("Some clinical text", ExtractionOptions{}, nil)
 	if prompt == "" {
 		t.Error("prompt should not be empty")
 	}
@@ -128,7 +128,7 @@ func TestBuildExtractionPrompt_WithPatientAge(t *testing.T) {
 	opts := ExtractionOptions{
 		PatientAge: 45,
 	}
-	prompt := buildExtractionPrompt("Patient has chest pain", opts)
+	prompt := buildExtractionPrompt("Patient has chest pain", opts, nil)
 	if prompt == "" {
 		t.Error("prompt should not be empty")
 	}
@@ -138,7 +138,7 @@ func TestBuildExtractionPrompt_WithPatientGender(t *testing.T) {
 	opts := ExtractionOptions{
 		PatientGender: "female",
 	}
-	prompt := buildExtractionPrompt("Patient has chest pain", opts)
+	prompt := buildExtractionPrompt("Patient has chest pain", opts, nil)
 	if prompt == "" {
 		t.Error("prompt should not be empty")
 	}
@@ -150,7 +150,7 @@ func TestBuildExtractionPrompt_WithAgeAndGender(t *testing.T) {
 		PatientGender: "male",
 		DocumentType:  "discharge_summary",
 	}
-	prompt := buildExtractionPrompt("Patient discharged in stable condition", opts)
+	prompt := buildExtractionPrompt("Patient discharged in stable condition", opts, nil)
 	if prompt == "" {
 		t.Error("prompt should not be empty")
 	}
@@ -165,7 +165,7 @@ func TestBuildExtractionPrompt_AllEntityTypes(t *testing.T) {
 		ExtractProcedures:  true,
 		DocumentType:       "progress_note",
 	}
-	prompt := buildExtractionPrompt("BP 120/80, HR 72. Continued metformin.", opts)
+	prompt := buildExtractionPrompt("BP 120/80, HR 72. Continued metformin.", opts, nil)
 	if prompt == "" {
 		t.Error("prompt should not be empty")
 	}
@@ -178,7 +178,7 @@ func TestBuildExtractionPrompt_LongTextTruncated(t *testing.T) {
 		longText += "Clinical note line with important patient data. "
 	}
 	opts := ExtractionOptions{DocumentType: "clinical"}
-	prompt := buildExtractionPrompt(longText, opts)
+	prompt := buildExtractionPrompt(longText, opts, nil)
 	if prompt == "" {
 		t.Error("prompt should not be empty")
 	}
@@ -193,7 +193,7 @@ func TestBuildExtractionPrompt_LongTextTruncated(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestBuildSystemPrompt_NotEmpty(t *testing.T) {
-	prompt := buildSystemPrompt()
+	prompt := buildSystemPrompt(nil)
 	if prompt == "" {
 		t.Error("system prompt should not be empty")
 	}

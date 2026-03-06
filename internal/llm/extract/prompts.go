@@ -2,8 +2,11 @@ package extract
 
 import (
 	"bytes"
+	"encoding/json"
 	"strings"
 	"text/template"
+
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm/prompts"
 )
 
 // promptTemplates contains the prompt templates for entity extraction.
@@ -85,14 +88,22 @@ type extractionPromptData struct {
 }
 
 // buildSystemPrompt generates the system prompt for extraction.
-func buildSystemPrompt() string {
+func buildSystemPrompt(reg *prompts.Registry) string {
+	if reg != nil {
+		if p, err := reg.Get(prompts.ExtractionSystemV1); err == nil {
+			if rendered, err := p.Render(nil); err == nil {
+				return rendered
+			}
+		}
+	}
+
 	var buf bytes.Buffer
 	_ = promptTemplates.system.Execute(&buf, nil)
 	return buf.String()
 }
 
 // buildExtractionPrompt generates the user prompt for extraction.
-func buildExtractionPrompt(text string, opts ExtractionOptions) string {
+func buildExtractionPrompt(text string, opts ExtractionOptions, reg *prompts.Registry) string {
 	data := extractionPromptData{
 		DocumentType:       opts.DocumentType,
 		ClinicalText:       truncateText(text, 12000), // Limit text length
@@ -118,6 +129,14 @@ func buildExtractionPrompt(text string, opts ExtractionOptions) string {
 	// Default document type
 	if data.DocumentType == "" {
 		data.DocumentType = "clinical"
+	}
+
+	if reg != nil {
+		if p, err := reg.Get(prompts.ExtractionUserV1); err == nil {
+			if rendered, err := p.Render(data); err == nil {
+				return rendered
+			}
+		}
 	}
 
 	var buf bytes.Buffer
@@ -162,6 +181,20 @@ func intToString(n int) string {
 		return "-" + string(digits)
 	}
 	return string(digits)
+}
+
+// getExtractionSchema returns the extraction JSON schema. It falls back to the embedded inline map.
+func getExtractionSchema(reg *prompts.Registry) interface{} {
+	var schema interface{} = extractionSchema
+	if reg != nil {
+		if p, err := reg.Get(prompts.ExtractionUserV1); err == nil && p.HasSchema() {
+			var registrySchema interface{}
+			if json.Unmarshal(p.Schema, &registrySchema) == nil {
+				return registrySchema
+			}
+		}
+	}
+	return schema
 }
 
 // extractionSchema defines the JSON schema for structured extraction output.
