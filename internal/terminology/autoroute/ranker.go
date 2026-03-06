@@ -8,14 +8,16 @@ import (
 	"time"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm/prompts"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/db"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/semantic"
 )
 
 // Ranker uses LLM to rank and evaluate semantic search candidates.
 type Ranker struct {
-	client llm.Client
-	model  string
+	client   llm.Client
+	model    string
+	registry *prompts.Registry // optional prompt registry
 }
 
 // RankerConfig configures the LLM ranker.
@@ -24,11 +26,20 @@ type RankerConfig struct {
 	Temperature float64 // Temperature for LLM (default: 0.1 for deterministic)
 }
 
-// NewRanker creates a new LLM ranker.
+// NewRanker creates a new LLM ranker with hardcoded prompts.
 func NewRanker(client llm.Client, cfg RankerConfig) *Ranker {
 	return &Ranker{
 		client: client,
 		model:  cfg.Model,
+	}
+}
+
+// NewRankerWithRegistry creates a ranker that uses the prompt registry for versioned prompts.
+func NewRankerWithRegistry(client llm.Client, cfg RankerConfig, reg *prompts.Registry) *Ranker {
+	return &Ranker{
+		client:   client,
+		model:    cfg.Model,
+		registry: reg,
 	}
 }
 
@@ -133,8 +144,35 @@ func (r *Ranker) Rank(ctx context.Context, req RankRequest) (*RankResult, error)
 
 	start := time.Now()
 
-	// Build the prompt with candidates
-	prompt := buildRankingPrompt(req)
+	// Resolve system prompt: use registry if available, fallback to hardcoded
+	systemPrompt := rankingSystemPrompt
+	if r.registry != nil {
+		if p, err := r.registry.Get(prompts.RankingSystemV1); err == nil {
+			if rendered, err := p.Render(nil); err == nil {
+				systemPrompt = rendered
+			}
+		}
+	}
+
+	// Build the user prompt: use registry template if available
+	var prompt string
+	if r.registry != nil {
+		if p, err := r.registry.Get(prompts.RankingUserV1); err == nil {
+			data := map[string]interface{}{
+				"SourceCode":    req.SourceCode,
+				"SourceDisplay": req.SourceDisplay,
+				"SourceSystem":  req.SourceSystem,
+				"TargetSystem":  req.TargetSystem,
+				"Candidates":    req.Candidates,
+			}
+			if rendered, err := p.Render(data); err == nil {
+				prompt = rendered
+			}
+		}
+	}
+	if prompt == "" {
+		prompt = buildRankingPrompt(req)
+	}
 
 	// Request structured output from LLM
 	model := r.model
@@ -144,14 +182,25 @@ func (r *Ranker) Rank(ctx context.Context, req RankRequest) (*RankResult, error)
 
 	llmReq := llm.CompletionRequest{
 		Messages: []llm.Message{
-			llm.SystemMessage(rankingSystemPrompt),
+			llm.SystemMessage(systemPrompt),
 			llm.UserMessage(prompt),
 		},
 		Model:       model,
 		Temperature: 0.1, // Low temperature for consistent rankings
 	}
 
-	jsonResp, err := r.client.CompleteStructured(ctx, llmReq, "terminology_ranking", rankingOutputSchema)
+	// Use co-located schema from registry if available, else inline schema
+	var schema interface{} = rankingOutputSchema
+	if r.registry != nil {
+		if p, err := r.registry.Get(prompts.RankingUserV1); err == nil && p.HasSchema() {
+			var registrySchema interface{}
+			if json.Unmarshal(p.Schema, &registrySchema) == nil {
+				schema = registrySchema
+			}
+		}
+	}
+
+	jsonResp, err := r.client.CompleteStructured(ctx, llmReq, "terminology_ranking", schema)
 	if err != nil {
 		return nil, fmt.Errorf("LLM ranking failed: %w", err)
 	}

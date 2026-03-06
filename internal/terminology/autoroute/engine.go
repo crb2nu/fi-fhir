@@ -16,6 +16,7 @@ import (
 type Engine struct {
 	searcher *semantic.Searcher
 	ranker   *Ranker
+	router   *llm.Router // optional router for task-aware model selection
 	cache    *Cache
 	config   Config
 }
@@ -54,8 +55,21 @@ func DefaultConfig() Config {
 	}
 }
 
-// NewEngine creates a new autoroute engine.
+// NewEngine creates a new autoroute engine with a single LLM client.
 func NewEngine(searcher *semantic.Searcher, llmClient llm.Client, cfg Config) *Engine {
+	return newEngine(searcher, llmClient, nil, cfg)
+}
+
+// NewEngineWithRouter creates a new autoroute engine with a task-aware Router.
+// The Router selects the appropriate model based on task type,
+// enabling automatic fallback and cost tracking.
+func NewEngineWithRouter(searcher *semantic.Searcher, router *llm.Router, cfg Config) *Engine {
+	// Use the router's ranking-tier client for the ranker
+	rankingClient := router.ClientForTask(llm.TaskRanking)
+	return newEngine(searcher, rankingClient, router, cfg)
+}
+
+func newEngine(searcher *semantic.Searcher, llmClient llm.Client, router *llm.Router, cfg Config) *Engine {
 	// Apply defaults
 	if cfg.HighConfidenceThreshold == 0 {
 		cfg.HighConfidenceThreshold = 0.90
@@ -90,6 +104,7 @@ func NewEngine(searcher *semantic.Searcher, llmClient llm.Client, cfg Config) *E
 			Model:       cfg.LLMModel,
 			Temperature: 0.1,
 		}),
+		router: router,
 		cache:  cache,
 		config: cfg,
 	}
