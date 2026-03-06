@@ -6,27 +6,31 @@
    * and LLM-powered autoroute suggestions.
    */
 
-  import { createEventDispatcher } from 'svelte';
-  import Button from '$lib/ui/Button.svelte';
-  import Input from '$lib/ui/Input.svelte';
-  import Select from '$lib/ui/Select.svelte';
-  import Badge from '$lib/ui/Badge.svelte';
-  import ConfidenceBadge from '$lib/ui/ConfidenceBadge.svelte';
-  import Panel from '$lib/ui/Panel.svelte';
-  import EmptyState from '$lib/ui/EmptyState.svelte';
-  import { toasts } from '$lib/ui/toastStore';
-  import { resolveMapping, suggestMappings, createMapping } from './terminologyApi';
+  import { createEventDispatcher } from "svelte";
+  import Button from "$lib/ui/Button.svelte";
+  import Input from "$lib/ui/Input.svelte";
+  import Select from "$lib/ui/Select.svelte";
+  import Badge from "$lib/ui/Badge.svelte";
+  import ConfidenceBadge from "$lib/ui/ConfidenceBadge.svelte";
+  import Panel from "$lib/ui/Panel.svelte";
+  import EmptyState from "$lib/ui/EmptyState.svelte";
+  import { toasts } from "$lib/ui/toastStore";
+  import {
+    resolveMapping,
+    suggestMappings,
+    createMapping,
+  } from "./terminologyApi";
   import type {
     ResolveMappingQuery,
     SuggestMappingsQuery,
     AutorouteDecision,
     MappingEquivalence,
-    MappingOrigin
-  } from '$lib/gen/graphql';
+    MappingOrigin,
+  } from "$lib/gen/graphql";
 
   // Type aliases (internal use only, not exported)
-  type ResolveResult = ResolveMappingQuery['resolveMapping'];
-  type Candidate = SuggestMappingsQuery['suggestMappings'][number];
+  type ResolveResult = ResolveMappingQuery["resolveMapping"];
+  type Candidate = SuggestMappingsQuery["suggestMappings"][number];
 
   // Props
   export let profileId: string | undefined = undefined;
@@ -37,10 +41,10 @@
   }>();
 
   // Form state
-  let sourceCode = '';
-  let sourceSystem = '';
-  let sourceDisplay = '';
-  let targetSystem = 'http://loinc.org';
+  let sourceCode = "";
+  let sourceSystem = "";
+  let sourceDisplay = "";
+  let targetSystem = "http://loinc.org";
   let maxCandidates = 5;
 
   // Result state
@@ -54,16 +58,18 @@
 
   // Common target systems for quick selection
   const targetSystemOptions = [
-    { value: 'http://loinc.org', label: 'LOINC' },
-    { value: 'http://snomed.info/sct', label: 'SNOMED CT' },
-    { value: 'http://hl7.org/fhir/sid/icd-10-cm', label: 'ICD-10-CM' },
-    { value: 'http://www.nlm.nih.gov/research/umls/rxnorm', label: 'RxNorm' },
-    { value: 'http://www.ama-assn.org/go/cpt', label: 'CPT' }
+    { value: "http://loinc.org", label: "LOINC" },
+    { value: "http://snomed.info/sct", label: "SNOMED CT" },
+    { value: "http://hl7.org/fhir/sid/icd-10-cm", label: "ICD-10-CM" },
+    { value: "http://www.nlm.nih.gov/research/umls/rxnorm", label: "RxNorm" },
+    { value: "http://www.ama-assn.org/go/cpt", label: "CPT" },
   ];
 
   async function handleResolve() {
     if (!sourceCode || !sourceSystem || !targetSystem) {
-      toasts.error('Source code, source system, and target system are required');
+      toasts.error(
+        "Source code, source system, and target system are required",
+      );
       return;
     }
 
@@ -80,15 +86,15 @@
         targetSystem,
         profileId: profileId ?? null,
         allowAutoroute: null,
-        minConfidence: null
+        minConfidence: null,
       });
 
       // Extract candidates from result
       candidates = result.candidates;
 
-      dispatch('resolved', { result });
+      dispatch("resolved", { result });
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to resolve mapping';
+      error = err instanceof Error ? err.message : "Failed to resolve mapping";
     } finally {
       loading = false;
     }
@@ -96,7 +102,9 @@
 
   async function handleSuggestOnly() {
     if (!sourceCode || !sourceSystem || !targetSystem) {
-      toasts.error('Source code, source system, and target system are required');
+      toasts.error(
+        "Source code, source system, and target system are required",
+      );
       return;
     }
 
@@ -111,10 +119,10 @@
         sourceSystem,
         sourceDisplay: sourceDisplay || null,
         targetSystem,
-        maxCandidates
+        maxCandidates,
       });
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to get suggestions';
+      error = err instanceof Error ? err.message : "Failed to get suggestions";
     } finally {
       loading = false;
     }
@@ -134,49 +142,54 @@
         targetSystem: candidate.system,
         targetCode: candidate.code,
         targetDisplay: candidate.display,
-        equivalence: (candidate.equivalence as MappingEquivalence) ?? 'EQUIVALENT',
+        equivalence:
+          (candidate.equivalence as MappingEquivalence) ?? "EQUIVALENT",
         confidence: candidate.confidence,
-        origin: 'APPROVED_AUTOROUTE' as MappingOrigin,
+        origin: "APPROVED_AUTOROUTE" as MappingOrigin,
         profileId: profileId ?? null,
-        comment: `Auto-approved from autoroute suggestion. Reasoning: ${candidate.reasoning ?? 'N/A'}`
+        comment: `Auto-approved from autoroute suggestion. Reasoning: ${candidate.reasoning ?? "N/A"}`,
       });
 
       toasts.success(`Mapping approved: ${sourceCode} → ${candidate.code}`);
-      dispatch('approved', { candidate, mapping });
+      dispatch("approved", { candidate, mapping });
     } catch (err) {
-      toasts.error(err instanceof Error ? err.message : 'Failed to approve mapping');
+      toasts.error(
+        err instanceof Error ? err.message : "Failed to approve mapping",
+      );
     } finally {
       approvingIndex = null;
     }
   }
 
-  function getDecisionVariant(decision: AutorouteDecision): 'success' | 'warning' | 'danger' | 'default' {
+  function getDecisionVariant(
+    decision: AutorouteDecision,
+  ): "success" | "warning" | "danger" | "default" {
     switch (decision) {
-      case 'PERSISTENT_HIT':
-      case 'AUTOROUTE_HIGH_CONF':
-        return 'success';
-      case 'AUTOROUTE_MED_CONF':
-        return 'warning';
-      case 'AUTOROUTE_LOW_CONF':
-      case 'NO_MATCH':
-        return 'danger';
+      case "PERSISTENT_HIT":
+      case "AUTOROUTE_HIGH_CONF":
+        return "success";
+      case "AUTOROUTE_MED_CONF":
+        return "warning";
+      case "AUTOROUTE_LOW_CONF":
+      case "NO_MATCH":
+        return "danger";
       default:
-        return 'default';
+        return "default";
     }
   }
 
   function formatDecisionLabel(decision: AutorouteDecision): string {
     switch (decision) {
-      case 'PERSISTENT_HIT':
-        return 'Persistent Match';
-      case 'AUTOROUTE_HIGH_CONF':
-        return 'High Confidence';
-      case 'AUTOROUTE_MED_CONF':
-        return 'Medium Confidence';
-      case 'AUTOROUTE_LOW_CONF':
-        return 'Low Confidence';
-      case 'NO_MATCH':
-        return 'No Match';
+      case "PERSISTENT_HIT":
+        return "Persistent Match";
+      case "AUTOROUTE_HIGH_CONF":
+        return "High Confidence";
+      case "AUTOROUTE_MED_CONF":
+        return "Medium Confidence";
+      case "AUTOROUTE_LOW_CONF":
+        return "Low Confidence";
+      case "NO_MATCH":
+        return "No Match";
       default:
         return decision;
     }
@@ -223,10 +236,10 @@
 
     <div class="form-actions">
       <Button on:click={handleResolve} {loading}>
-        {loading ? 'Resolving...' : 'Resolve (Persistent + Autoroute)'}
+        {loading ? "Resolving..." : "Resolve (Persistent + Autoroute)"}
       </Button>
       <Button variant="secondary" on:click={handleSuggestOnly} {loading}>
-        {loading ? 'Loading...' : 'Suggest Only (Autoroute)'}
+        {loading ? "Loading..." : "Suggest Only (Autoroute)"}
       </Button>
     </div>
   </Panel>
@@ -303,13 +316,18 @@
     <Panel title="Candidates ({candidates.length})">
       <div class="candidates">
         {#each candidates as candidate, index (candidate.code + candidate.system)}
-          <div class="candidate">
+          <div
+            class="candidate hover-lift"
+            style="animation-delay: {Math.min(index, 20) * 0.05}s"
+          >
             <div class="candidate-main">
               <div class="candidate-header">
                 <span class="candidate-code">{candidate.code}</span>
                 <ConfidenceBadge confidence={candidate.confidence} size="sm" />
                 {#if candidate.equivalence}
-                  <Badge variant="default" size="sm">{candidate.equivalence}</Badge>
+                  <Badge variant="default" size="sm"
+                    >{candidate.equivalence}</Badge
+                  >
                 {/if}
               </div>
               <p class="candidate-display">{candidate.display}</p>
@@ -323,7 +341,7 @@
               on:click={() => approveCandidate(index)}
               loading={approvingIndex === index}
             >
-              {approvingIndex === index ? 'Saving...' : 'Approve'}
+              {approvingIndex === index ? "Saving..." : "Approve"}
             </Button>
           </div>
         {/each}
@@ -520,16 +538,31 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: var(--space-4);
-    padding: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-bg-surface);
     border: 1px solid var(--color-border-default);
+    border-top: 1px solid rgba(255, 255, 255, 0.05); /* 3D depth */
+    box-shadow: var(--shadow-sm);
     border-radius: var(--radius-lg);
     transition: var(--transition-all);
+    animation: fade-in-up 0.4s ease-out both;
+  }
+
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   .candidate:hover {
     background: var(--color-bg-hover);
     border-color: var(--color-border-strong);
-    transform: translateY(-1px);
+    transform: translateY(-2px);
     box-shadow: var(--shadow-md);
   }
 

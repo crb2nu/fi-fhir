@@ -1,24 +1,25 @@
 <script lang="ts">
-  import { onMount, createEventDispatcher } from 'svelte';
-  import { SvelteSet } from 'svelte/reactivity';
-  import Button from '$lib/ui/Button.svelte';
-  import ConfirmModal from '$lib/ui/ConfirmModal.svelte';
-  import { toasts } from '$lib/ui/toastStore';
+  import { onMount, createEventDispatcher } from "svelte";
+  import { SvelteSet } from "svelte/reactivity";
+  import Button from "$lib/ui/Button.svelte";
+  import ConfirmModal from "$lib/ui/ConfirmModal.svelte";
+  import { toasts } from "$lib/ui/toastStore";
   import {
     listPendingAutoroutes,
     getPendingAutorouteStats,
     approvePendingAutoroute,
     rejectPendingAutoroute,
-    bulkApprovePendingAutoroutes
-  } from './terminologyApi';
+    bulkApprovePendingAutoroutes,
+  } from "./terminologyApi";
   import type {
     PendingAutorouteStatus,
     MappingEquivalence,
-    ListPendingAutoroutesQuery
-  } from '$lib/gen/graphql';
+    ListPendingAutoroutesQuery,
+  } from "$lib/gen/graphql";
 
   // Use the actual type returned from the query
-  type PendingNode = ListPendingAutoroutesQuery['listPendingAutoroutes']['nodes'][number];
+  type PendingNode =
+    ListPendingAutoroutesQuery["listPendingAutoroutes"]["nodes"][number];
 
   export let sourceSystem: string | undefined = undefined;
   export let targetSystem: string | undefined = undefined;
@@ -47,16 +48,16 @@
   } | null = null;
 
   // Filter state
-  let filterStatus: PendingAutorouteStatus | '' = 'PENDING';
-  let filterMinConfidence = '';
-  let filterSourceSystem = sourceSystem ?? '';
-  let filterTargetSystem = targetSystem ?? '';
+  let filterStatus: PendingAutorouteStatus | "" = "PENDING";
+  let filterMinConfidence = "";
+  let filterSourceSystem = sourceSystem ?? "";
+  let filterTargetSystem = targetSystem ?? "";
 
   // Action state
   let showRejectModal = false;
   let showBulkApproveModal = false;
   let rejectingId: string | null = null;
-  let rejectReason = '';
+  let rejectReason = "";
   let bulkMinConfidence = 0.95;
   let bulkApprovingSelected = false;
   let selectAllPendingEl: HTMLInputElement | null = null;
@@ -71,10 +72,15 @@
   // Expanded rows for showing alternates/trace
   let expandedIds = new SvelteSet<string>();
 
-  $: visiblePendingIds = pending.filter((item) => item.status === 'PENDING').map((item) => item.id);
-  $: selectedVisiblePendingIds = visiblePendingIds.filter((id) => selectedIds.has(id));
+  $: visiblePendingIds = pending
+    .filter((item) => item.status === "PENDING")
+    .map((item) => item.id);
+  $: selectedVisiblePendingIds = visiblePendingIds.filter((id) =>
+    selectedIds.has(id),
+  );
   $: allVisiblePendingSelected =
-    visiblePendingIds.length > 0 && selectedVisiblePendingIds.length === visiblePendingIds.length;
+    visiblePendingIds.length > 0 &&
+    selectedVisiblePendingIds.length === visiblePendingIds.length;
   $: someVisiblePendingSelected =
     selectedVisiblePendingIds.length > 0 && !allVisiblePendingSelected;
   $: if (selectAllPendingEl) {
@@ -95,15 +101,20 @@
         first: pageSize,
         offset,
         status: filterStatus || null,
-        minConfidence: filterMinConfidence ? parseFloat(filterMinConfidence) : null,
+        minConfidence: filterMinConfidence
+          ? parseFloat(filterMinConfidence)
+          : null,
         sourceSystem: filterSourceSystem || null,
-        targetSystem: filterTargetSystem || null
+        targetSystem: filterTargetSystem || null,
       });
       pending = result.nodes;
       totalCount = result.totalCount;
       syncSelectedWithVisiblePending();
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to load pending autoroutes';
+      error =
+        err instanceof Error
+          ? err.message
+          : "Failed to load pending autoroutes";
       toasts.error(error);
     } finally {
       loading = false;
@@ -124,10 +135,10 @@
   }
 
   function clearFilters() {
-    filterStatus = 'PENDING';
-    filterMinConfidence = '';
-    filterSourceSystem = '';
-    filterTargetSystem = '';
+    filterStatus = "PENDING";
+    filterMinConfidence = "";
+    filterSourceSystem = "";
+    filterTargetSystem = "";
     offset = 0;
     loadPending();
   }
@@ -163,7 +174,8 @@
   }
 
   function toggleSelectAllVisiblePending(event: Event) {
-    const checked = (event.currentTarget as HTMLInputElement | null)?.checked ?? false;
+    const checked =
+      (event.currentTarget as HTMLInputElement | null)?.checked ?? false;
     for (const id of visiblePendingIds) {
       if (checked) selectedIds.add(id);
       else selectedIds.delete(id);
@@ -178,7 +190,9 @@
 
   function syncSelectedWithVisiblePending() {
     const visiblePendingSet = new Set(
-      pending.filter((item) => item.status === 'PENDING').map((item) => item.id)
+      pending
+        .filter((item) => item.status === "PENDING")
+        .map((item) => item.id),
     );
     for (const id of selectedIds) {
       if (!visiblePendingSet.has(id)) {
@@ -187,21 +201,26 @@
     }
   }
 
-  async function handleApprove(item: PendingNode, equivalence?: MappingEquivalence) {
+  async function handleApprove(
+    item: PendingNode,
+    equivalence?: MappingEquivalence,
+  ) {
     processingIds.add(item.id);
 
     try {
       const mapping = await approvePendingAutoroute({
         id: item.id,
         equivalence: equivalence ?? null,
-        comment: null
+        comment: null,
       });
-      toasts.success(`Approved mapping: ${item.sourceCode} → ${item.suggestedCode}`);
-      dispatch('approve', { id: item.id, mappingId: mapping.id });
+      toasts.success(
+        `Approved mapping: ${item.sourceCode} → ${item.suggestedCode}`,
+      );
+      dispatch("approve", { id: item.id, mappingId: mapping.id });
       await loadPending();
       await loadStats();
     } catch (err) {
-      toasts.error(err instanceof Error ? err.message : 'Approval failed');
+      toasts.error(err instanceof Error ? err.message : "Approval failed");
     } finally {
       processingIds.delete(item.id);
     }
@@ -209,7 +228,7 @@
 
   function confirmReject(id: string) {
     rejectingId = id;
-    rejectReason = '';
+    rejectReason = "";
     showRejectModal = true;
   }
 
@@ -221,14 +240,14 @@
     try {
       await rejectPendingAutoroute({
         id: rejectingId,
-        reason: rejectReason || 'Rejected by reviewer'
+        reason: rejectReason || "Rejected by reviewer",
       });
-      toasts.success('Suggestion rejected');
-      dispatch('reject', { id: rejectingId });
+      toasts.success("Suggestion rejected");
+      dispatch("reject", { id: rejectingId });
       await loadPending();
       await loadStats();
     } catch (err) {
-      toasts.error(err instanceof Error ? err.message : 'Rejection failed');
+      toasts.error(err instanceof Error ? err.message : "Rejection failed");
     } finally {
       processingIds.delete(rejectingId!);
       showRejectModal = false;
@@ -244,14 +263,16 @@
     try {
       const result = await bulkApprovePendingAutoroutes({
         minConfidence: bulkMinConfidence,
-        maxCount: 100
+        maxCount: 100,
       });
-      toasts.success(`Approved ${result.approved} mappings (${result.skipped} skipped)`);
-      dispatch('refresh');
+      toasts.success(
+        `Approved ${result.approved} mappings (${result.skipped} skipped)`,
+      );
+      dispatch("refresh");
       await loadPending();
       await loadStats();
     } catch (err) {
-      toasts.error(err instanceof Error ? err.message : 'Bulk approval failed');
+      toasts.error(err instanceof Error ? err.message : "Bulk approval failed");
     } finally {
       showBulkApproveModal = false;
     }
@@ -275,7 +296,7 @@
           await approvePendingAutoroute({
             id,
             equivalence: null,
-            comment: null
+            comment: null,
           });
           approved += 1;
           selectedIds.delete(id);
@@ -287,11 +308,15 @@
       }
 
       if (approved > 0) {
-        toasts.success(`Approved ${approved} selected suggestion${approved === 1 ? '' : 's'}`);
-        dispatch('refresh');
+        toasts.success(
+          `Approved ${approved} selected suggestion${approved === 1 ? "" : "s"}`,
+        );
+        dispatch("refresh");
       }
       if (failed > 0) {
-        toasts.error(`Failed to approve ${failed} selected suggestion${failed === 1 ? '' : 's'}`);
+        toasts.error(
+          `Failed to approve ${failed} selected suggestion${failed === 1 ? "" : "s"}`,
+        );
       }
 
       await loadPending();
@@ -306,54 +331,66 @@
   }
 
   function getConfidenceClass(confidence: number): string {
-    if (confidence >= 0.9) return 'conf-high';
-    if (confidence >= 0.7) return 'conf-med';
-    if (confidence >= 0.5) return 'conf-low';
-    return 'conf-none';
+    if (confidence >= 0.9) return "conf-high";
+    if (confidence >= 0.7) return "conf-med";
+    if (confidence >= 0.5) return "conf-low";
+    return "conf-none";
   }
 
   function formatStatus(status: PendingAutorouteStatus): string {
     switch (status) {
-      case 'PENDING': return 'Pending';
-      case 'APPROVED': return 'Approved';
-      case 'REJECTED': return 'Rejected';
-      case 'EXPIRED': return 'Expired';
-      default: return String(status);
+      case "PENDING":
+        return "Pending";
+      case "APPROVED":
+        return "Approved";
+      case "REJECTED":
+        return "Rejected";
+      case "EXPIRED":
+        return "Expired";
+      default:
+        return String(status);
     }
   }
 
-  function formatEquivalence(eq: MappingEquivalence | null | undefined): string {
-    if (!eq) return '—';
+  function formatEquivalence(
+    eq: MappingEquivalence | null | undefined,
+  ): string {
+    if (!eq) return "—";
     switch (eq) {
-      case 'EQUIVALENT': return 'Equivalent';
-      case 'WIDER': return 'Wider';
-      case 'NARROWER': return 'Narrower';
-      case 'INEXACT': return 'Inexact';
-      default: return String(eq);
+      case "EQUIVALENT":
+        return "Equivalent";
+      case "WIDER":
+        return "Wider";
+      case "NARROWER":
+        return "Narrower";
+      case "INEXACT":
+        return "Inexact";
+      default:
+        return String(eq);
     }
   }
 
   function formatDate(dateStr: string): string {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   }
 
   function truncateSystem(system: string): string {
-    if (!system) return '';
-    if (system.startsWith('http://')) {
-      const rest = system.replace('http://', '');
-      return rest.split('/')[0] ?? rest;
+    if (!system) return "";
+    if (system.startsWith("http://")) {
+      const rest = system.replace("http://", "");
+      return rest.split("/")[0] ?? rest;
     }
-    if (system.startsWith('https://')) {
-      const rest = system.replace('https://', '');
-      return rest.split('/')[0] ?? rest;
+    if (system.startsWith("https://")) {
+      const rest = system.replace("https://", "");
+      return rest.split("/")[0] ?? rest;
     }
-    return system.length > 20 ? system.substring(0, 17) + '...' : system;
+    return system.length > 20 ? system.substring(0, 17) + "..." : system;
   }
 </script>
 
@@ -379,7 +416,8 @@
       </div>
       {#if stats.avgConfidence}
         <div class="stat">
-          <span class="stat-value">{formatConfidence(stats.avgConfidence)}</span>
+          <span class="stat-value">{formatConfidence(stats.avgConfidence)}</span
+          >
           <span class="stat-label">Avg Confidence</span>
         </div>
       {/if}
@@ -423,7 +461,7 @@
           class="filter-input"
           bind:value={filterSourceSystem}
           placeholder="e.g., epic_labs"
-          on:keydown={(e) => e.key === 'Enter' && applyFilters()}
+          on:keydown={(e) => e.key === "Enter" && applyFilters()}
         />
       </label>
       <label class="filter-field">
@@ -433,12 +471,16 @@
           class="filter-input"
           bind:value={filterTargetSystem}
           placeholder="e.g., http://loinc.org"
-          on:keydown={(e) => e.key === 'Enter' && applyFilters()}
+          on:keydown={(e) => e.key === "Enter" && applyFilters()}
         />
       </label>
       <div class="filter-actions">
-        <Button variant="secondary" size="sm" on:click={clearFilters}>Clear</Button>
-        <Button variant="primary" size="sm" on:click={applyFilters}>Apply</Button>
+        <Button variant="secondary" size="sm" on:click={clearFilters}
+          >Clear</Button
+        >
+        <Button variant="primary" size="sm" on:click={applyFilters}
+          >Apply</Button
+        >
       </div>
     </div>
   </div>
@@ -449,18 +491,24 @@
   {:else if error}
     <div class="error-state">
       <div class="error-message">{error}</div>
-      <Button variant="secondary" size="sm" on:click={loadPending}>Retry</Button>
+      <Button variant="secondary" size="sm" on:click={loadPending}>Retry</Button
+      >
     </div>
   {:else if pending.length === 0}
     <div class="empty-state">
       <div class="empty-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+        >
           <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       </div>
       <div class="empty-text">No pending suggestions</div>
       <div class="empty-hint">
-        {#if filterStatus !== 'PENDING'}
+        {#if filterStatus !== "PENDING"}
           Try filtering by "Pending" status
         {:else}
           All suggestions have been reviewed
@@ -489,7 +537,8 @@
           <Button
             variant="secondary"
             size="sm"
-            disabled={selectedVisiblePendingIds.length === 0 || bulkApprovingSelected}
+            disabled={selectedVisiblePendingIds.length === 0 ||
+              bulkApprovingSelected}
             on:click={clearSelected}
           >
             Clear Selected
@@ -497,22 +546,27 @@
           <Button
             variant="primary"
             size="sm"
-            disabled={selectedVisiblePendingIds.length === 0 || bulkApprovingSelected}
+            disabled={selectedVisiblePendingIds.length === 0 ||
+              bulkApprovingSelected}
             on:click={handleApproveSelected}
           >
-            {bulkApprovingSelected ? 'Approving...' : 'Approve Selected'}
+            {bulkApprovingSelected ? "Approving..." : "Approve Selected"}
           </Button>
         </div>
       </div>
     {/if}
 
     <div class="cards">
-      {#each pending as item (item.id)}
+      {#each pending as item, i (item.id)}
         {@const isExpanded = expandedIds.has(item.id)}
         {@const isProcessing = processingIds.has(item.id)}
-        <div class="card" class:expanded={isExpanded}>
+        <div
+          class="card hover-lift"
+          class:expanded={isExpanded}
+          style="animation-delay: {Math.min(i, 20) * 0.05}s"
+        >
           <div class="card-header">
-            {#if item.status === 'PENDING'}
+            {#if item.status === "PENDING"}
               <label class="card-select">
                 <input
                   type="checkbox"
@@ -520,23 +574,34 @@
                   on:change={() => toggleSelected(item.id)}
                   disabled={isProcessing || bulkApprovingSelected}
                 />
-                <span class="sr-only">Select suggestion {item.sourceCode} to {item.suggestedCode}</span>
+                <span class="sr-only"
+                  >Select suggestion {item.sourceCode} to {item.suggestedCode}</span
+                >
               </label>
             {/if}
             <div class="card-source">
-              <span class="system-label">{truncateSystem(item.sourceSystem)}</span>
+              <span class="system-label"
+                >{truncateSystem(item.sourceSystem)}</span
+              >
               <span class="code-value">{item.sourceCode}</span>
               {#if item.sourceDisplay}
                 <span class="display-value">{item.sourceDisplay}</span>
               {/if}
             </div>
             <div class="card-arrow">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
                 <path d="M14 5l7 7m0 0l-7 7m7-7H3" />
               </svg>
             </div>
             <div class="card-target">
-              <span class="system-label">{truncateSystem(item.targetSystem)}</span>
+              <span class="system-label"
+                >{truncateSystem(item.targetSystem)}</span
+              >
               <span class="code-value suggested">{item.suggestedCode}</span>
               {#if item.suggestedDisplay}
                 <span class="display-value">{item.suggestedDisplay}</span>
@@ -545,7 +610,9 @@
           </div>
 
           <div class="card-meta">
-            <span class="confidence-badge {getConfidenceClass(item.confidence)}">
+            <span
+              class="confidence-badge {getConfidenceClass(item.confidence)}"
+            >
               {formatConfidence(item.confidence)}
             </span>
             {#if item.equivalence}
@@ -561,8 +628,10 @@
               type="button"
               class="expand-btn"
               on:click={() => toggleExpand(item.id)}
-              title={isExpanded ? 'Collapse details' : 'Expand details'}
-              aria-label={isExpanded ? 'Collapse suggestion details' : 'Expand suggestion details'}
+              title={isExpanded ? "Collapse details" : "Expand details"}
+              aria-label={isExpanded
+                ? "Collapse suggestion details"
+                : "Expand suggestion details"}
               aria-expanded={isExpanded}
               aria-controls={`pending-details-${item.id}`}
             >
@@ -580,7 +649,8 @@
 
           {#if item.reasoning}
             <div class="card-reasoning">
-              <strong>Reasoning:</strong> {item.reasoning}
+              <strong>Reasoning:</strong>
+              {item.reasoning}
             </div>
           {/if}
 
@@ -595,7 +665,9 @@
                       {#if alt.display}
                         <span class="alt-display">{alt.display}</span>
                       {/if}
-                      <span class="alt-conf">{formatConfidence(alt.confidence)}</span>
+                      <span class="alt-conf"
+                        >{formatConfidence(alt.confidence)}</span
+                      >
                     </div>
                   {/each}
                 </div>
@@ -618,7 +690,7 @@
             </div>
           {/if}
 
-          {#if item.status === 'PENDING'}
+          {#if item.status === "PENDING"}
             <div class="card-actions">
               <Button
                 variant="secondary"
@@ -634,12 +706,13 @@
                 disabled={isProcessing || bulkApprovingSelected}
                 on:click={() => handleApprove(item)}
               >
-                {isProcessing ? 'Processing...' : 'Approve'}
+                {isProcessing ? "Processing..." : "Approve"}
               </Button>
             </div>
-          {:else if item.status === 'REJECTED' && item.rejectionReason}
+          {:else if item.status === "REJECTED" && item.rejectionReason}
             <div class="rejection-reason">
-              <strong>Reason:</strong> {item.rejectionReason}
+              <strong>Reason:</strong>
+              {item.rejectionReason}
             </div>
           {/if}
         </div>
@@ -652,10 +725,20 @@
         Showing {offset + 1}–{Math.min(offset + pending.length, totalCount)} of {totalCount}
       </div>
       <div class="pagination-controls">
-        <button type="button" class="page-btn" on:click={prevPage} disabled={offset === 0}>
+        <button
+          type="button"
+          class="page-btn"
+          on:click={prevPage}
+          disabled={offset === 0}
+        >
           Previous
         </button>
-        <button type="button" class="page-btn" on:click={nextPage} disabled={offset + pageSize >= totalCount}>
+        <button
+          type="button"
+          class="page-btn"
+          on:click={nextPage}
+          disabled={offset + pageSize >= totalCount}
+        >
           Next
         </button>
       </div>
@@ -703,7 +786,8 @@
       <span class="bulk-value">{formatConfidence(bulkMinConfidence)}</span>
     </label>
     <p class="bulk-hint">
-      Only suggestions with confidence ≥ {formatConfidence(bulkMinConfidence)} will be approved.
+      Only suggestions with confidence ≥ {formatConfidence(bulkMinConfidence)} will
+      be approved.
     </p>
   </div>
 </ConfirmModal>
@@ -740,10 +824,18 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .stat-value.pending { color: var(--color-warning); }
-  .stat-value.approved { color: var(--color-success); }
-  .stat-value.rejected { color: var(--color-danger); }
-  .stat-value.expired { color: var(--color-text-muted); }
+  .stat-value.pending {
+    color: var(--color-warning);
+  }
+  .stat-value.approved {
+    color: var(--color-success);
+  }
+  .stat-value.rejected {
+    color: var(--color-danger);
+  }
+  .stat-value.expired {
+    color: var(--color-text-muted);
+  }
 
   .stat-label {
     font-size: var(--text-xs);
@@ -874,13 +966,28 @@
     border-radius: var(--radius-lg);
     background: var(--color-bg-elevated);
     border: 1px solid var(--color-border-subtle);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: var(--shadow-sm);
     transition: var(--transition-all);
+    animation: fade-in-up 0.4s ease-out both;
+  }
+
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   .card:hover {
+    background: var(--color-bg-hover);
     border-color: var(--color-border-strong);
     transform: translateY(-2px);
-    box-shadow: var(--shadow-lg);
+    box-shadow: var(--shadow-md);
   }
 
   .card.expanded {
@@ -969,10 +1076,22 @@
     font-weight: var(--font-semibold);
   }
 
-  .conf-high { color: var(--confidence-high); background: var(--confidence-high-bg); }
-  .conf-med { color: var(--confidence-medium); background: var(--confidence-medium-bg); }
-  .conf-low { color: var(--confidence-low); background: var(--confidence-low-bg); }
-  .conf-none { color: var(--confidence-very-low); background: var(--confidence-very-low-bg); }
+  .conf-high {
+    color: var(--confidence-high);
+    background: var(--confidence-high-bg);
+  }
+  .conf-med {
+    color: var(--confidence-medium);
+    background: var(--confidence-medium-bg);
+  }
+  .conf-low {
+    color: var(--confidence-low);
+    background: var(--confidence-low-bg);
+  }
+  .conf-none {
+    color: var(--confidence-very-low);
+    background: var(--confidence-very-low-bg);
+  }
 
   .equiv-badge {
     padding: 2px var(--space-2);
@@ -981,10 +1100,22 @@
     font-weight: var(--font-medium);
   }
 
-  .equiv-equivalent { color: var(--color-success-text); background: var(--color-success-bg); }
-  .equiv-wider { color: var(--color-info-text); background: var(--color-info-bg); }
-  .equiv-narrower { color: var(--color-warning-text); background: var(--color-warning-bg); }
-  .equiv-inexact { color: var(--color-text-tertiary); background: var(--color-bg-surface); }
+  .equiv-equivalent {
+    color: var(--color-success-text);
+    background: var(--color-success-bg);
+  }
+  .equiv-wider {
+    color: var(--color-info-text);
+    background: var(--color-info-bg);
+  }
+  .equiv-narrower {
+    color: var(--color-warning-text);
+    background: var(--color-warning-bg);
+  }
+  .equiv-inexact {
+    color: var(--color-text-tertiary);
+    background: var(--color-bg-surface);
+  }
 
   .status-badge {
     padding: 2px var(--space-2);
@@ -993,10 +1124,22 @@
     font-weight: var(--font-medium);
   }
 
-  .status-pending { color: var(--color-warning-text); background: var(--color-warning-bg); }
-  .status-approved { color: var(--color-success-text); background: var(--color-success-bg); }
-  .status-rejected { color: var(--color-danger-text); background: var(--color-danger-bg); }
-  .status-expired { color: var(--color-text-muted); background: var(--color-bg-surface); }
+  .status-pending {
+    color: var(--color-warning-text);
+    background: var(--color-warning-bg);
+  }
+  .status-approved {
+    color: var(--color-success-text);
+    background: var(--color-success-bg);
+  }
+  .status-rejected {
+    color: var(--color-danger-text);
+    background: var(--color-danger-bg);
+  }
+  .status-expired {
+    color: var(--color-text-muted);
+    background: var(--color-bg-surface);
+  }
 
   .date-label {
     font-size: var(--text-xs);
