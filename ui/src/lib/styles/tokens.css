@@ -257,7 +257,7 @@
   :root {
     color-scheme: dark;
 
-    --color-bg-base: #0b1220;
+    --color-bg-base: #020617;
     --color-bg-elevated: rgba(255, 255, 255, 0.03);
     --color-bg-surface: rgba(255, 255, 255, 0.05);
     --color-bg-overlay: rgba(2, 6, 23, 0.85);
@@ -304,7 +304,7 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --color-bg-base: #0b1220;
+  --color-bg-base: #020617;
   --color-bg-elevated: rgba(255, 255, 255, 0.03);
   --color-bg-surface: rgba(255, 255, 255, 0.05);
   --color-bg-overlay: rgba(2, 6, 23, 0.85);
