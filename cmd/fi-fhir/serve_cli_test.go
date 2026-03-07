@@ -4,7 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 func TestServe_DryRun_PrintsConfig(t *testing.T) {
@@ -80,4 +82,28 @@ func TestServe_DryRun_InvalidWorkflow_ReturnsError(t *testing.T) {
 	)
 	assertError(t, err)
 	assertErrorContains(t, err, "failed to load workflow")
+}
+
+func TestRunServe_Execution_GracefulShutdown(t *testing.T) {
+	// Temporarily disable stores via env vars to avoid DB connection delays/errors
+	t.Setenv("FI_FHIR_DATABASE_URL", "")
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "")
+	t.Setenv("FI_FHIR_CORS_ORIGINS", "")
+
+	// Start a goroutine to send SIGINT and gracefully shut down the server
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		p, _ := os.FindProcess(os.Getpid())
+		_ = p.Signal(syscall.SIGINT)
+	}()
+
+	// Run on ephemeral port to avoid conflict
+	err := runServe([]string{"--port", "0"})
+	assertNoError(t, err)
+}
+
+func TestRunServe_Execution_InvalidHost(t *testing.T) {
+	// An invalid host should trigger an immediate error from the server
+	err := runServe([]string{"--host", "invalid-host-name-123456", "--port", "0"})
+	assertError(t, err)
 }

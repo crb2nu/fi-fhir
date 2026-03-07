@@ -269,7 +269,7 @@ Tracking issue: [libs/fi-fhir#8](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issu
 - CDA/CCDA section expansion (Medications, Allergies, Social History)
 - Test data organization and edge case fixtures
 - UI enhancements: dark mode, keyboard shortcuts, bulk operations, accessibility audit
-- ETL expansion: additional source/sink providers, scheduling, incremental sync
+- ✅ ETL expansion: additional source/sink providers, scheduling, incremental sync — Implemented 2026-03-07
 - ✅ LLM feature expansion: multi-model routing, prompt versioning, evaluation framework
 - Terminology approval workflow (human-in-the-loop review for autoroute suggestions)
 - Additional FHIR Implementation Guides (USCDI v3, Bulk Data, SMART App Launch)

@@ -908,3 +908,128 @@ func TestRunTerminologyCrosswalk_NotImplementedYet(t *testing.T) {
 // =============================================================================
 // runTerminologyMapping — unknown subcommand path
 // =============================================================================
+
+func TestRunTerminologyInit_FailsDBConnection(t *testing.T) {
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "postgres://localhost:5432/nonexistent?sslmode=disable")
+	err := runTerminologyInit([]string{})
+	assertError(t, err)
+}
+
+func TestRunTerminologyStatus_FailsDBConnection(t *testing.T) {
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "postgres://localhost:5432/nonexistent?sslmode=disable")
+	err := runTerminologyStatus([]string{})
+	assertError(t, err)
+}
+
+func TestRunTerminologyUse_FailsDBConnection(t *testing.T) {
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "postgres://localhost:5432/nonexistent?sslmode=disable")
+	err := runTerminologyUse([]string{"loinc", "2.77"})
+	assertError(t, err)
+}
+
+func TestRunTerminologyMappingUpload_DryRun(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "mappings.csv")
+	_ = os.WriteFile(path, []byte("source_code,target_code\nGLU,2345-7\n"), 0o600)
+
+	stdout, _ := captureOutput(t, func() {
+		err := runTerminologyMappingUpload([]string{path, "--source-system", "epic", "--target-system", "loinc", "--dry-run", "--db", "fake"})
+		assertNoError(t, err)
+	})
+	assertContains(t, stdout, "DRY RUN")
+	assertContains(t, stdout, "epic:GLU")
+}
+
+func TestRunTerminologyMappingUpload_FailsDBConnection(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "mappings.csv")
+	_ = os.WriteFile(path, []byte("source_code,target_code\nGLU,2345-7\n"), 0o600)
+	// Will fail after parsing during DB conn
+	err := runTerminologyMappingUpload([]string{path, "--source-system", "epic", "--target-system", "loinc", "--db", "postgres://localhost:5432/nonexistent?sslmode=disable"})
+	assertError(t, err)
+}
+
+func TestRunTerminologyMappingList_FailsDBConnection(t *testing.T) {
+	err := runTerminologyMappingList([]string{"--limit", "10", "--db", "postgres://localhost:5432/nonexistent?sslmode=disable"})
+	assertError(t, err)
+}
+
+func TestRunTerminologyMappingGet_FailsDBConnection_Batch(t *testing.T) {
+	err := runTerminologyMappingGet([]string{"--batch", "123e4567-e89b-12d3-a456-426614174000", "--db", "postgres://localhost:5432/nonexistent?sslmode=disable"})
+	assertError(t, err)
+}
+
+func TestRunTerminologyMappingGet_FailsDBConnection_ID(t *testing.T) {
+	err := runTerminologyMappingGet([]string{"42", "--db", "postgres://localhost:5432/nonexistent?sslmode=disable"})
+	assertError(t, err)
+}
+
+func TestRunTerminologyMappingResolve_FailsDBConnection(t *testing.T) {
+	err := runTerminologyMappingResolve([]string{"GLU", "--source-system", "sysA", "--target-system", "sysB", "--db", "postgres://localhost:5432/nonexistent?sslmode=disable"})
+	assertError(t, err)
+}
+
+func TestRunTerminologyMappingResolve_JSONOutputs(t *testing.T) {
+	err := runTerminologyMappingResolve([]string{"GLU", "--source-system", "sysA", "--target-system", "sysB", "--no-autoroute", "--json", "--db", "postgres://localhost:5432/nonexistent?sslmode=disable"})
+	assertError(t, err)
+}
+
+func TestRunTerminologyMappingPending_FailsDBConnection(t *testing.T) {
+	err := runTerminologyMappingPending([]string{"--db", "postgres://localhost:5432/nonexistent?sslmode=disable"})
+	assertError(t, err)
+}
+
+func TestRunTerminologyMappingApprove_FailsDBConnection(t *testing.T) {
+	err := runTerminologyMappingApprove([]string{"42", "--db", "postgres://localhost:5432/nonexistent?sslmode=disable"})
+	assertError(t, err)
+}
+
+func TestRunTerminologyMappingReject_FailsDBConnection(t *testing.T) {
+	err := runTerminologyMappingReject([]string{"42", "--db", "postgres://localhost:5432/nonexistent?sslmode=disable"})
+	assertError(t, err)
+}
+
+func TestRunTerminologyMappingGet_NoArgs(t *testing.T) {
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "postgres://fake")
+	err := runTerminologyMappingGet([]string{})
+	assertErrorContains(t, err, "mapping ID or --batch required")
+}
+
+func TestRunTerminologyMappingDelete_NoArgs(t *testing.T) {
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "postgres://fake")
+	err := runTerminologyMappingDelete([]string{})
+	assertErrorContains(t, err, "mapping ID or --batch required")
+}
+
+func TestRunTerminologyMappingResolve_NoArgs(t *testing.T) {
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "postgres://fake")
+	err := runTerminologyMappingResolve([]string{})
+	assertErrorContains(t, err, "source code required")
+}
+
+func TestRunTerminologyMappingResolve_MissingSys(t *testing.T) {
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "postgres://fake")
+	err := runTerminologyMappingResolve([]string{"GLU", "--target-system", "sysB"})
+	assertErrorContains(t, err, "--source-system is required")
+}
+
+func TestRunTerminologyMappingResolve_MissingTarget(t *testing.T) {
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "postgres://fake")
+	err := runTerminologyMappingResolve([]string{"GLU", "--source-system", "sysA"})
+	assertErrorContains(t, err, "--target-system is required")
+}
+
+func TestLoaders_Wrappers_Coverage(t *testing.T) {
+	// hit the non-dry-run paths directly for coverage
+	_ = loadLOINC(context.Background(), nil, nil, "fake", "1", nil, false)
+	_ = loadUMLS(context.Background(), nil, nil, "fake", "1", nil, false)
+	_ = loadRxNorm(context.Background(), nil, nil, "fake", "1", nil, false)
+	_ = loadICD10CM(context.Background(), nil, nil, "fake", "1", nil, false)
+}
+
+func TestCheckTerminologyPins_FailsDB(t *testing.T) {
+	ctx := context.Background()
+	// It will fail because URL is invalid
+	_, err := checkTerminologyPins(ctx, "postgres://localhost/fake", map[string]string{"loinc": "2.77"}, "warn")
+	assertError(t, err)
+}

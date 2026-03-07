@@ -65,3 +65,23 @@ func TestRunCLI_LLMEvalHelp(t *testing.T) {
 	assertNoError(t, err)
 	assertContains(t, stdout, "llm eval")
 }
+func TestRunLLM_NoArgs(t *testing.T) {
+	stdout, _ := captureOutput(t, func() {
+		err := runLLM([]string{})
+		assertNoError(t, err)
+	})
+	assertContains(t, stdout, "Usage")
+}
+
+func TestRunLLM_Help(t *testing.T) {
+	stdout, _ := captureOutput(t, func() {
+		err := runLLM([]string{"--help"})
+		assertNoError(t, err)
+	})
+	assertContains(t, stdout, "Usage")
+}
+
+func TestRunLLMEval_NoArgs(t *testing.T) {
+	err := runLLMEval([]string{})
+	assertErrorContains(t, err, "required")
+}
