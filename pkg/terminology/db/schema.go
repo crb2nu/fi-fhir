@@ -600,10 +600,11 @@ CREATE TABLE IF NOT EXISTS terminology.custom_mappings (
     approved_by     VARCHAR(100),
 
     -- For approved autoroutes: full decision context
-    decision_trace  JSONB,
-
-    UNIQUE(source_system, source_code, target_system, COALESCE(profile_id, ''))
+    decision_trace  JSONB
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_custom_mappings_uniq
+    ON terminology.custom_mappings(source_system, source_code, target_system, COALESCE(profile_id, ''));
 
 CREATE INDEX IF NOT EXISTS idx_custom_mappings_lookup
     ON terminology.custom_mappings(source_system, source_code, target_system);
