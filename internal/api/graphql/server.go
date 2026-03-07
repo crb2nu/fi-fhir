@@ -40,6 +40,8 @@ type ServerConfig struct {
 	Introspection bool
 	// CORS allowed origins
 	AllowedOrigins []string
+	// ExternalHandlers mounts additional HTTP handlers at specific paths
+	ExternalHandlers map[string]http.Handler
 }
 
 // DefaultServerConfig returns a sensible default configuration.
@@ -143,6 +145,14 @@ func (s *Server) Start() error {
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprintf(w, `{"status":"healthy","service":"graphql"}`)
 	})
+
+	// Mount external handlers
+	if s.config.ExternalHandlers != nil {
+		for pattern, handler := range s.config.ExternalHandlers {
+			mux.Handle(pattern, handler)
+			log.Printf("Mounted external handler at %s", pattern)
+		}
+	}
 
 	addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
 

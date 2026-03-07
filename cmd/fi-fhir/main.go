@@ -25,6 +25,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/resolvers"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/fhir/subscription"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/ingest"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/explain"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/extract"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/quality"
@@ -4824,7 +4825,7 @@ func runServe(args []string) error {
 	}
 
 	// Initialize Temporal client for GraphQL operations (separate from worker client)
-	if temporalAddr != "" && temporalClient == nil {
+	if temporalAddr != "" {
 		var err error
 		temporalClient, err = client.Dial(client.Options{
 			HostPort:  temporalAddr,
@@ -4841,6 +4842,13 @@ func runServe(args []string) error {
 	// Create resolver
 	resolver := resolvers.NewResolver(resolverOpts...)
 
+	// Set up external handlers (e.g., generic generic webhook ingest)
+	externalHandlers := make(map[string]http.Handler)
+	if workflowEngine != nil {
+		logger := workflow.NewStructuredLogger(nil)
+		externalHandlers["/ingest/webhook"] = ingest.NewHandler(logger, workflowEngine)
+	}
+
 	// Create server config
 	serverConfig := &graphql.ServerConfig{
 		Host:              host,
@@ -4854,6 +4862,7 @@ func runServe(args []string) error {
 		Timeout:           timeout,
 		Introspection:     introspection,
 		AllowedOrigins:    []string{"*"},
+		ExternalHandlers:  externalHandlers,
 	}
 
 	// Create and start server

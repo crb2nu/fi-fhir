@@ -258,7 +258,8 @@ func TestTraceIDFromContext(t *testing.T) {
 	}
 
 	// Nil context - intentionally testing nil handling
-	traceID = TraceIDFromContext(nil) //nolint:staticcheck // SA1012: intentionally testing nil context behavior
+	var nilCtx context.Context
+	traceID = TraceIDFromContext(nilCtx)
 	if traceID != "" {
 		t.Error("TraceIDFromContext should return empty string for nil context")
 	}
@@ -310,7 +311,8 @@ func TestTraceContextFields(t *testing.T) {
 	}
 
 	// Nil context - intentionally testing nil handling
-	fields = TraceContextFields(nil) //nolint:staticcheck // SA1012: intentionally testing nil context behavior
+	var nilCtx context.Context
+	fields = TraceContextFields(nilCtx)
 	if fields != nil {
 		t.Error("TraceContextFields should return nil for nil context")
 	}
