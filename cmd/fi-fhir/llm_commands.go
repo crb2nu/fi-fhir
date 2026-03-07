@@ -669,9 +669,39 @@ Examples:
   fi-fhir terminology search --json --limit 20 "diabetes mellitus"
 
 Environment Variables:
-  FI_FHIR_QDRANT_URL      Qdrant server URL (default: http://localhost:6333)
   FI_FHIR_QDRANT_API_KEY  Qdrant API key
   LLM_BASE_URL            LLM/Embedding API base URL
   LLM_API_KEY             LLM/Embedding API key
   LLM_EMBEDDING_MODEL     Embedding model name`)
+}
+
+func runLLM(args []string) error {
+	if len(args) == 0 {
+		printLLMUsage()
+		return nil
+	}
+
+	switch args[0] {
+	case "eval":
+		return runLLMEval(args[1:])
+	case "help", "--help", "-h":
+		printLLMUsage()
+		return nil
+	default:
+		return fmt.Errorf("unknown llm subcommand: %s", args[0])
+	}
+}
+
+func printLLMUsage() {
+	fmt.Println(`fi-fhir llm - LLM tools and utilities
+
+Usage:
+  fi-fhir llm <command> [arguments]
+
+Commands:
+  eval         Evaluate LLM prompts and models against golden test cases
+  help         Show this help message
+
+Examples:
+  fi-fhir llm eval --task-type=ranking --prompt=ranking_v1 --model=qwen3-8b`)
 }

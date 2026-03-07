@@ -126,6 +126,11 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
+	case "llm":
+		if err := runLLM(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 	case "version", "--version", "-v":
 		fmt.Printf("fi-fhir version %s\n", version)
 	case "help", "--help", "-h":
@@ -160,6 +165,7 @@ Commands:
   terminology  Manage terminology database (init, load, status, crosswalk)
   storage      Manage object storage (test, ls, get, put, rm)
   etl          ETL pipeline for terminology data (sync, fetch, status)
+  llm          LLM tools and utilities (eval)
   version      Show version information
   help         Show this help message
 
