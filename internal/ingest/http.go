@@ -43,7 +43,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to read body", http.StatusBadRequest)
 		return
 	}
-	defer r.Body.Close()
+	defer func() {
+		_ = r.Body.Close()
+	}()
 
 	if len(body) == 0 {
 		h.logger.Warn(ctx, "Received empty webhook body")
@@ -140,5 +142,5 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusAccepted)
-	fmt.Fprintln(w, `{"status":"accepted"}`)
+	_, _ = fmt.Fprintln(w, `{"status":"accepted"}`)
 }
