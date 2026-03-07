@@ -110,8 +110,7 @@ func athenaAction(ctx context.Context, event interface{}, config map[string]stri
 	// Execute with Standard Resilience Patterns
 	err := WithRateLimit(httpCtx, limiter, waitOnRateLimit, func() error {
 		var innerErr error
-		resp, innerErr = WithCircuitBreaker(cb, func() (*http.Response, error) {
-
+		resp, innerErr = WithCircuitBreaker(cb, func() (*http.Response, error) { //nolint:bodyclose // closed by outer defer
 			// OAuth Support via existing WithOAuthRetry logic (handles 401s transparently)
 			return WithOAuthRetry(retryConfig, config, func() (*http.Request, error) {
 				req, reqErr := http.NewRequestWithContext(httpCtx, method, url, bytes.NewReader(body))
