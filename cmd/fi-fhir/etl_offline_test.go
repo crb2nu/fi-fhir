@@ -162,6 +162,16 @@ func TestETLLoad_DryRun_FailsDBValidation(t *testing.T) {
 	assertErrorContains(t, err, "database validation failed")
 }
 
+func TestETLLoad_DryRun_MissingMinioEnv(t *testing.T) {
+	t.Setenv("FI_FHIR_DATABASE_URL", "postgres://user:pass@localhost:5432/test?sslmode=disable")
+	t.Setenv("MINIO_ACCESS_KEY", "")
+	t.Setenv("MINIO_SECRET_KEY", "")
+
+	err := runETLLoad([]string{"umls", "--version", "2024AB", "--dry-run"})
+	assertError(t, err)
+	assertErrorContains(t, err, "MINIO_ACCESS_KEY and MINIO_SECRET_KEY")
+}
+
 func TestETLSync_SpecificSource_Offline(t *testing.T) {
 	oldMinioSinkFactory := minioSinkFactory
 	oldSourcesProvider := sourcesProvider
