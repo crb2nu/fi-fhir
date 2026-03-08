@@ -257,6 +257,44 @@ func TestTerminology_Load_UnknownSource(t *testing.T) {
 	}
 }
 
+func TestTerminology_Load_SNOMED(t *testing.T) {
+	skipIfNoDatabase(t)
+	dbURL := os.Getenv("FI_FHIR_DATABASE_URL")
+
+	oldVal := os.Getenv("FI_FHIR_TERMINOLOGY_DB_URL")
+	os.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", dbURL)
+	defer func() {
+		if oldVal != "" {
+			os.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", oldVal)
+		} else {
+			os.Unsetenv("FI_FHIR_TERMINOLOGY_DB_URL")
+		}
+	}()
+
+	stdout, _, err := runCLI(t, "terminology", "load", "snomed", "/tmp", "--version", "2024")
+	assertNoError(t, err)
+	assertContains(t, stdout, "not yet implemented")
+}
+
+func TestTerminology_Load_ICD10PCS(t *testing.T) {
+	skipIfNoDatabase(t)
+	dbURL := os.Getenv("FI_FHIR_DATABASE_URL")
+
+	oldVal := os.Getenv("FI_FHIR_TERMINOLOGY_DB_URL")
+	os.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", dbURL)
+	defer func() {
+		if oldVal != "" {
+			os.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", oldVal)
+		} else {
+			os.Unsetenv("FI_FHIR_TERMINOLOGY_DB_URL")
+		}
+	}()
+
+	stdout, _, err := runCLI(t, "terminology", "load", "icd10pcs", "/tmp", "--version", "2024")
+	assertNoError(t, err)
+	assertContains(t, stdout, "not yet implemented")
+}
+
 // ===========================================================================
 // ETL Load Tests
 // ===========================================================================

@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 // =============================================================================
 // runServe — flag-parsing branches NOT covered by serve_additional_test.go
@@ -171,4 +174,95 @@ func TestSubscriptionServe_ShortFlags(t *testing.T) {
 	_, _, err := runCLI(t, "subscription", "serve", "-s")
 	assertError(t, err)
 	assertErrorContains(t, err, "--subscriptions requires a value")
+}
+
+// =============================================================================
+// runServe — flag-parsing and dry-run coverage
+// =============================================================================
+
+func TestServe_DryRun_NoArgs(t *testing.T) {
+	stdout, _, err := runCLI(t, "serve", "--dry-run")
+	assertNoError(t, err)
+	assertContains(t, stdout, "\"playground_enabled\": true")
+}
+
+func TestServe_DryRun_WithFlags(t *testing.T) {
+	stdout, _, err := runCLI(t, "serve", "--host", "127.0.0.1", "--port", "9090", "--path", "/api", "--no-playground", "--no-introspection", "--dry-run")
+	assertNoError(t, err)
+	assertContains(t, stdout, "\"host\": \"127.0.0.1\"")
+	assertContains(t, stdout, "\"port\": 9090")
+	assertContains(t, stdout, "\"path\": \"/api\"")
+	assertContains(t, stdout, "\"playground_enabled\": false")
+	assertContains(t, stdout, "\"introspection\": false")
+}
+
+// =============================================================================
+// Store Init Coverage (initEventStoreFromEnv, initProfileStoreFromEnv, etc)
+// =============================================================================
+
+func TestInitEventStoreFromEnv_MissingVars(t *testing.T) {
+	// Need to clear them to ensure it's empty during the test
+	t.Setenv("FI_FHIR_DATABASE_HOST", "")
+	t.Setenv("DATABASE_URL", "") // To ensure fallback is empty too
+
+	es, err := initEventStoreFromEnv(context.Background())
+	assertNoError(t, err)
+	if es != nil {
+		t.Fatalf("expected nil event store when env vars are missing")
+	}
+}
+
+func TestInitEventStoreFromEnv_InvalidConnection(t *testing.T) {
+	t.Setenv("FI_FHIR_DATABASE_HOST", "invalid-host")
+	t.Setenv("FI_FHIR_DATABASE_PORT", "5432")
+	t.Setenv("FI_FHIR_DATABASE_NAME", "testdb")
+	t.Setenv("FI_FHIR_DATABASE_USER", "testuser")
+	t.Setenv("FI_FHIR_DATABASE_SCHEMA", "fi_fhir_events")
+
+	_, err := initEventStoreFromEnv(context.Background())
+	assertError(t, err)
+}
+
+func TestInitProfileStoreFromEnv_MissingVars(t *testing.T) {
+	t.Setenv("FI_FHIR_DATABASE_HOST", "")
+	t.Setenv("DATABASE_URL", "")
+
+	ps, err := initProfileStoreFromEnv(context.Background())
+	assertNoError(t, err)
+	if ps != nil {
+		t.Fatalf("expected nil profile store when env vars are missing")
+	}
+}
+
+func TestInitProfileStoreFromEnv_InvalidConnection(t *testing.T) {
+	t.Setenv("FI_FHIR_DATABASE_HOST", "invalid-host")
+	t.Setenv("FI_FHIR_DATABASE_PORT", "5432")
+	t.Setenv("FI_FHIR_DATABASE_NAME", "testdb")
+	t.Setenv("FI_FHIR_DATABASE_USER", "testuser")
+	t.Setenv("FI_FHIR_DATABASE_SCHEMA", "fi_fhir_profiles")
+
+	_, err := initProfileStoreFromEnv(context.Background())
+	assertError(t, err)
+}
+
+func TestInitWorkflowLifecycleStoreFromEnv_MissingVars(t *testing.T) {
+	t.Setenv("FI_FHIR_DATABASE_HOST", "")
+	t.Setenv("DATABASE_URL", "")
+
+	ws, err := initWorkflowLifecycleStoreFromEnv(context.Background())
+	assertNoError(t, err)
+	if ws != nil {
+		t.Fatalf("expected nil workflow lifecycle store when env vars are missing")
+	}
+}
+
+func TestInitWorkflowLifecycleStoreFromEnv_InvalidConnection(t *testing.T) {
+	t.Setenv("FI_FHIR_DATABASE_HOST", "invalid-host")
+	t.Setenv("FI_FHIR_DATABASE_PORT", "5432")
+	t.Setenv("FI_FHIR_DATABASE_NAME", "testdb")
+	t.Setenv("FI_FHIR_DATABASE_USER", "testuser")
+	t.Setenv("FI_FHIR_DATABASE_SCHEMA", "fi_fhir_workflows")
+
+	_, err := initWorkflowLifecycleStoreFromEnv(context.Background())
+	assertError(t, err)
 }

@@ -5,61 +5,61 @@
 
 ## Summary
 
-| Maturity | Count | Description |
-|----------|-------|-------------|
-| **Production** | 23 | Stable, tested, deployed |
-| **Beta** | 8 | Feature-complete, needs coverage or hardening |
-| **Alpha** | 2 | Functional but limited testing or scope |
-| **Planned** | 2 | Designed but not yet implemented (tracked via [#7](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/7), [#8](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/8)) |
+| Maturity       | Count | Description                                                                                                                                                         |
+| -------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Production** | 23    | Stable, tested, deployed                                                                                                                                            |
+| **Beta**       | 8     | Feature-complete, needs coverage or hardening                                                                                                                       |
+| **Alpha**      | 2     | Functional but limited testing or scope                                                                                                                             |
+| **Planned**    | 2     | Designed but not yet implemented (tracked via [#7](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/7), [#8](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/8)) |
 
 ---
 
 ## Parsers (`internal/parser/*`)
 
-| Component | Path | Maturity | Coverage | Notes | Last Updated |
-|-----------|------|----------|----------|-------|--------------|
-| HL7v2 Parser | `internal/parser/hl7v2/` | Production | 78.6% | ADT, ORU, SIU, MDM, DFT; profile-driven | 2026-01-16 |
-| CSV Parser | `internal/parser/csv/` | Production | 82.0% | Schema inference for patient/lab records | 2026-01-14 |
-| EDI X12 Parser | `internal/parser/edi/` | Production | 73.9% | 837P, 835, 270/271, 276/277; loop parsing | 2026-01-14 |
-| EDI Companion Guides | `internal/parser/edi/companion/` | Production | 89.1% | Medicare, BlueCross, United built-in guides | 2026-01-14 |
-| CDA/CCDA Parser | `internal/parser/cda/` | Production | 85.8% | Namespace-aware XML, section handlers | 2026-02-07 |
-| FHIR Parser | `internal/parser/fhir/` | Production | 95.2% | FHIR R4 resource ingestion | 2026-01-14 |
+| Component            | Path                             | Maturity   | Coverage | Notes                                       | Last Updated |
+| -------------------- | -------------------------------- | ---------- | -------- | ------------------------------------------- | ------------ |
+| HL7v2 Parser         | `internal/parser/hl7v2/`         | Production | 78.6%    | ADT, ORU, SIU, MDM, DFT; profile-driven     | 2026-01-16   |
+| CSV Parser           | `internal/parser/csv/`           | Production | 82.0%    | Schema inference for patient/lab records    | 2026-01-14   |
+| EDI X12 Parser       | `internal/parser/edi/`           | Production | 73.9%    | 837P, 835, 270/271, 276/277; loop parsing   | 2026-01-14   |
+| EDI Companion Guides | `internal/parser/edi/companion/` | Production | 89.1%    | Medicare, BlueCross, United built-in guides | 2026-01-14   |
+| CDA/CCDA Parser      | `internal/parser/cda/`           | Production | 85.8%    | Namespace-aware XML, section handlers       | 2026-02-07   |
+| FHIR Parser          | `internal/parser/fhir/`          | Production | 95.2%    | FHIR R4 resource ingestion                  | 2026-01-14   |
 
 ## Core Libraries (`pkg/*`)
 
-| Component | Path | Maturity | Coverage | Notes | Last Updated |
-|-----------|------|----------|----------|-------|--------------|
-| Events (canonical model) | `pkg/events/` | Production | 80.5% | Immutable semantic event types | 2026-02-07 |
-| Event Sourcing | `pkg/eventsourcing/` | Production | 72.7% | Store, projections, snapshots, sagas, outbox | 2026-02-27 |
-| ES Projections | `pkg/eventsourcing/projections/` | Production | 88.9% | Patient timeline, stats, active encounters | 2026-01-14 |
-| Config | `pkg/config/` | Production | 89.3% | Layered loading (defaults → file → env), secrets | 2026-02-27 |
-| Source Profiles | `pkg/profile/` | Beta | 64.1% | Inference, linting, vendor templates | 2026-02-27 |
-| Validators | `pkg/validate/` | Production | 98.2% | NPI, MBI, SSN, DEA; Luhn/checksum | 2026-01-09 |
-| FHIR Mapper | `pkg/fhir/` | Production | 75.2% | 24+ US Core resources, validation | 2026-01-19 |
-| ETL Pipeline | `pkg/etl/` | Beta | 84.8% | Source/sink framework, CLI commands | 2026-02-27 |
-| Storage | `pkg/storage/` | Beta | 56.5% | Abstraction layer for file/S3/MinIO | 2026-02-27 |
-| Terminology (core) | `pkg/terminology/` | Production | 84.2% | LOINC, ICD-10, fuzzy matching, UMLS | 2026-02-28 |
-| Terminology DB | `pkg/terminology/db/` | Beta | 22.5% | PostgreSQL loaders; needs testcontainers | 2026-02-27 |
-| Terminology Upload | `pkg/terminology/upload/` | Beta | 85.7% | Mapping file upload pipeline | 2026-02-03 |
-| Terminology Suggest | `pkg/terminology/suggest/` | Beta | 83.4% | Suggestion engine; httptest-based coverage | 2026-02-28 |
-| Terminology Semantic | `pkg/terminology/semantic/` | Production | 95.0% | Embedding-based semantic search | 2026-02-28 |
-| Terminology Index | `pkg/terminology/index/` | Production | 91.2% | Vector indexing; httptest + mock coverage | 2026-02-28 |
-| Patient Matching | `pkg/matching/` | Production | 85.3% | Deterministic + probabilistic, MPI, batch | 2026-02-27 |
-| LLM Client | `pkg/llm/` | Production | 82.5% | Multi-provider client, retry, embeddings | 2026-02-27 |
-| LLM Copilot | `pkg/llm/copilot/` | Production | 98.0%† | CEL-based copilot + workflow generation | 2026-02-08 |
+| Component                | Path                             | Maturity   | Coverage | Notes                                            | Last Updated |
+| ------------------------ | -------------------------------- | ---------- | -------- | ------------------------------------------------ | ------------ |
+| Events (canonical model) | `pkg/events/`                    | Production | 80.5%    | Immutable semantic event types                   | 2026-02-07   |
+| Event Sourcing           | `pkg/eventsourcing/`             | Production | 72.7%    | Store, projections, snapshots, sagas, outbox     | 2026-02-27   |
+| ES Projections           | `pkg/eventsourcing/projections/` | Production | 88.9%    | Patient timeline, stats, active encounters       | 2026-01-14   |
+| Config                   | `pkg/config/`                    | Production | 89.3%    | Layered loading (defaults → file → env), secrets | 2026-02-27   |
+| Source Profiles          | `pkg/profile/`                   | Beta       | 64.1%    | Inference, linting, vendor templates             | 2026-02-27   |
+| Validators               | `pkg/validate/`                  | Production | 98.2%    | NPI, MBI, SSN, DEA; Luhn/checksum                | 2026-01-09   |
+| FHIR Mapper              | `pkg/fhir/`                      | Production | 75.2%    | 24+ US Core resources, validation                | 2026-01-19   |
+| ETL Pipeline             | `pkg/etl/`                       | Beta       | 84.8%    | Source/sink framework, CLI commands              | 2026-02-27   |
+| Storage                  | `pkg/storage/`                   | Beta       | 56.5%    | Abstraction layer for file/S3/MinIO              | 2026-02-27   |
+| Terminology (core)       | `pkg/terminology/`               | Production | 84.2%    | LOINC, ICD-10, fuzzy matching, UMLS              | 2026-02-28   |
+| Terminology DB           | `pkg/terminology/db/`            | Beta       | 22.5%    | PostgreSQL loaders; needs testcontainers         | 2026-02-27   |
+| Terminology Upload       | `pkg/terminology/upload/`        | Beta       | 85.7%    | Mapping file upload pipeline                     | 2026-02-03   |
+| Terminology Suggest      | `pkg/terminology/suggest/`       | Beta       | 83.4%    | Suggestion engine; httptest-based coverage       | 2026-02-28   |
+| Terminology Semantic     | `pkg/terminology/semantic/`      | Production | 95.0%    | Embedding-based semantic search                  | 2026-02-28   |
+| Terminology Index        | `pkg/terminology/index/`         | Production | 91.2%    | Vector indexing; httptest + mock coverage        | 2026-02-28   |
+| Patient Matching         | `pkg/matching/`                  | Production | 85.3%    | Deterministic + probabilistic, MPI, batch        | 2026-02-27   |
+| LLM Client               | `pkg/llm/`                       | Production | 82.5%    | Multi-provider client, retry, embeddings         | 2026-02-27   |
+| LLM Copilot              | `pkg/llm/copilot/`               | Production | 98.0%†   | CEL-based copilot + workflow generation          | 2026-02-08   |
 
 ## Internal Services (`internal/*`)
 
-| Component | Path | Maturity | Coverage | Notes | Last Updated |
-|-----------|------|----------|----------|-------|--------------|
-| Workflow Engine | `internal/workflow/` | Production | 82.7% | CEL filters, actions, replay, simulation, DLQ | 2026-02-27 |
-| GraphQL API | `internal/api/graphql/` | Production | 4.3%* | Schema, resolvers, dataloaders, WebSocket | 2026-02-28 |
-| FHIR Subscriptions | `internal/fhir/subscription/` | Production | 83.7% | Bidirectional; client + webhook receiver | 2026-02-27 |
-| Terminology Autoroute | `internal/terminology/autoroute/` | Beta | 83.2% | Automatic code-system routing engine | 2026-01-30 |
-| Terminology Workflow | `internal/terminology/workflow/` | Production | 95.7% | Temporal workflow + activity + worker unit tests | 2026-02-28 |
-| LLM Explain | `internal/llm/explain/` | Production | 99.7% | Warning + workflow explanation generation | 2026-02-28 |
-| LLM Extract | `internal/llm/extract/` | Production | 80.7% | Structured data extraction from documents | 2026-02-01 |
-| LLM Quality | `internal/llm/quality/` | Production | 93.8% | Data quality analysis | 2026-01-23 |
+| Component             | Path                              | Maturity   | Coverage | Notes                                            | Last Updated |
+| --------------------- | --------------------------------- | ---------- | -------- | ------------------------------------------------ | ------------ |
+| Workflow Engine       | `internal/workflow/`              | Production | 82.7%    | CEL filters, actions, replay, simulation, DLQ    | 2026-02-27   |
+| GraphQL API           | `internal/api/graphql/`           | Production | 4.3%\*   | Schema, resolvers, dataloaders, WebSocket        | 2026-02-28   |
+| FHIR Subscriptions    | `internal/fhir/subscription/`     | Production | 83.7%    | Bidirectional; client + webhook receiver         | 2026-02-27   |
+| Terminology Autoroute | `internal/terminology/autoroute/` | Beta       | 83.2%    | Automatic code-system routing engine             | 2026-01-30   |
+| Terminology Workflow  | `internal/terminology/workflow/`  | Production | 95.7%    | Temporal workflow + activity + worker unit tests | 2026-02-28   |
+| LLM Explain           | `internal/llm/explain/`           | Production | 99.7%    | Warning + workflow explanation generation        | 2026-02-28   |
+| LLM Extract           | `internal/llm/extract/`           | Production | 80.7%    | Structured data extraction from documents        | 2026-02-01   |
+| LLM Quality           | `internal/llm/quality/`           | Production | 93.8%    | Data quality analysis                            | 2026-01-23   |
 
 > \* GraphQL coverage is low because gqlgen generates ~2000 resolver stubs; actual hand-written resolver logic is well-tested (80.8% in `resolvers/` sub-package).
 >
@@ -67,9 +67,7 @@
 
 ## Infrastructure
 
-| Component | Path | Maturity | Coverage | Notes | Last Updated |
-|-----------|------|----------|----------|-------|--------------|
-| CLI | `cmd/fi-fhir/` | Production | 84.5% | parse, workflow, config, etl, terminology, eventstore, subscription | 2026-02-28 |
+| CLI | `cmd/fi-fhir/` | Production | 86.0% | parse, workflow, config, etl, terminology, eventstore, subscription | 2026-03-08 |
 | TypeScript SDK | `sdk/typescript/` | Production | — | CLI wrapper + type definitions; npm publishable | 2026-01-19 |
 | UI / Mapping Studio | `ui/src/` | Production | — | SvelteKit 5; HL7 inspector, workflow builder, terminology editor, event dashboard | 2026-02-28 |
 | Helm Chart | `deploy/helm/fi-fhir/` | Production | — | Full templating; HPA, PDB, ServiceMonitor | 2026-02-03 |
@@ -84,11 +82,11 @@
 
 ## Coverage Legend
 
-| Range | Indicator |
-|-------|-----------|
-| ≥ 80% | ✅ Good |
+| Range  | Indicator     |
+| ------ | ------------- |
+| ≥ 80%  | ✅ Good       |
 | 60–79% | ⚠️ Acceptable |
-| < 60% | ❌ Needs work |
+| < 60%  | ❌ Needs work |
 
 ## Refreshing This Document
 

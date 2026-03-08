@@ -644,12 +644,14 @@ test:coverage-merge:
 
 test:benchmark:
   stage: test
-  <<: *go-image
+  <<: *go-image-debian
   <<: *go-cache
+  variables:
+    CGO_ENABLED: "1"
   # Gate owner: Workflow/Platform — escalate via MR comment or #ci-support channel.
   # Rollback: set allow_failure: true if thresholds need tuning (file issue with proposed values).
   script:
-    - apk add --no-cache git
+    - apt-get update && apt-get install -y --no-install-recommends git build-essential && rm -rf /var/lib/apt/lists/*
     # Run benchmarks across all packages with benchmark tests
     - go test -bench=. -benchmem -run=^$ -count=1 ./internal/workflow/... ./pkg/terminology/... ./pkg/validate/... | tee benchmark.txt
     # Validate against absolute performance thresholds
