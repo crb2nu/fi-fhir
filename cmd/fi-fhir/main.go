@@ -4846,7 +4846,7 @@ func runServe(args []string) error {
 	externalHandlers := make(map[string]http.Handler)
 	if workflowEngine != nil {
 		logger := workflow.NewStructuredLogger(nil)
-		externalHandlers["/ingest/webhook"] = ingest.NewHandler(logger, workflowEngine)
+		externalHandlers["/ingest/webhook"] = ingest.NewHandler(logger, workflowEngine, nil)
 	}
 
 	// Create server config
