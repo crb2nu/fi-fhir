@@ -4,10 +4,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
 )
+
+// signalTestMu serialises tests that send process-wide signals (SIGINT/SIGTERM)
+// so the race detector does not flag concurrent signal.Notify registrations.
+var signalTestMu sync.Mutex
 
 func TestServe_DryRun_PrintsConfig(t *testing.T) {
 	stdout, _, err := runCLI(t,
@@ -85,7 +90,12 @@ func TestServe_DryRun_InvalidWorkflow_ReturnsError(t *testing.T) {
 }
 
 func TestRunServe_Execution_GracefulShutdown(t *testing.T) {
-	t.Skip("Flaky: Data race between graphql Start and Shutdown in test execution")
+	if raceEnabled {
+		t.Skip("Skipping: process-level SIGINT is inherently racy under -race detector")
+	}
+	signalTestMu.Lock()
+	defer signalTestMu.Unlock()
+
 	// Temporarily disable stores via env vars to avoid DB connection delays/errors
 	t.Setenv("FI_FHIR_DATABASE_URL", "")
 	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "")
@@ -93,7 +103,7 @@ func TestRunServe_Execution_GracefulShutdown(t *testing.T) {
 
 	// Start a goroutine to send SIGINT and gracefully shut down the server
 	go func() {
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 		p, _ := os.FindProcess(os.Getpid())
 		_ = p.Signal(syscall.SIGINT)
 	}()
@@ -104,6 +114,9 @@ func TestRunServe_Execution_GracefulShutdown(t *testing.T) {
 }
 
 func TestRunServe_Execution_InvalidHost(t *testing.T) {
+	signalTestMu.Lock()
+	defer signalTestMu.Unlock()
+
 	// An invalid host should trigger an immediate error from the server
 	err := runServe([]string{"--host", "invalid-host-name-123456", "--port", "0"})
 	assertError(t, err)

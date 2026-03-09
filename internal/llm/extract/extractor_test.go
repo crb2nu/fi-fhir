@@ -285,6 +285,41 @@ func TestExtractor_Extract(t *testing.T) {
 		}
 	})
 
+	t.Run("extracts social history successfully", func(t *testing.T) {
+		client := llm.NewMockClient()
+		client.WithJSONResponse(map[string]interface{}{
+			"social_history": []map[string]interface{}{
+				{
+					"name":        "Smoking status",
+					"code":        "72166-2",
+					"code_system": "LOINC",
+					"value":       "Former smoker",
+					"confidence":  0.96,
+				},
+			},
+			"overall_confidence": 0.94,
+		})
+
+		e, _ := NewExtractor(Config{Client: client})
+
+		result, err := e.Extract(ctx, "Patient is a former smoker.", ExtractionOptions{
+			ExtractSocialHistory: true,
+		})
+		if err != nil {
+			t.Fatalf("Extract error: %v", err)
+		}
+
+		if len(result.SocialHistory) != 1 {
+			t.Fatalf("len(SocialHistory) = %d, want 1", len(result.SocialHistory))
+		}
+		if result.SocialHistory[0].Name != "Smoking status" {
+			t.Errorf("SocialHistory[0].Name = %v", result.SocialHistory[0].Name)
+		}
+		if result.SocialHistory[0].Value != "Former smoker" {
+			t.Errorf("SocialHistory[0].Value = %v", result.SocialHistory[0].Value)
+		}
+	})
+
 	t.Run("filters by MinConfidence", func(t *testing.T) {
 		client := llm.NewMockClient()
 		client.WithJSONResponse(map[string]interface{}{
@@ -589,6 +624,9 @@ func TestDefaultExtractionOptions(t *testing.T) {
 	}
 	if !opts.ExtractProcedures {
 		t.Error("ExtractProcedures should be true by default")
+	}
+	if !opts.ExtractSocialHistory {
+		t.Error("ExtractSocialHistory should be true by default")
 	}
 	if opts.MinConfidence != 0.7 {
 		t.Errorf("MinConfidence = %v, want 0.7", opts.MinConfidence)

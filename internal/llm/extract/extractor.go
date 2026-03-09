@@ -143,12 +143,13 @@ func (e *Extractor) Extract(ctx context.Context, text string, opts ExtractionOpt
 
 // extractionResponse is the raw JSON response from the LLM.
 type extractionResponse struct {
-	Conditions        []rawCondition  `json:"conditions,omitempty"`
-	Medications       []rawMedication `json:"medications,omitempty"`
-	VitalSigns        []rawVitalSign  `json:"vital_signs,omitempty"`
-	Allergies         []rawAllergy    `json:"allergies,omitempty"`
-	Procedures        []rawProcedure  `json:"procedures,omitempty"`
-	OverallConfidence float64         `json:"overall_confidence"`
+	Conditions        []rawCondition     `json:"conditions,omitempty"`
+	Medications       []rawMedication    `json:"medications,omitempty"`
+	VitalSigns        []rawVitalSign     `json:"vital_signs,omitempty"`
+	Allergies         []rawAllergy       `json:"allergies,omitempty"`
+	Procedures        []rawProcedure     `json:"procedures,omitempty"`
+	SocialHistory     []rawSocialHistory `json:"social_history,omitempty"`
+	OverallConfidence float64            `json:"overall_confidence"`
 }
 
 type rawCondition struct {
@@ -204,6 +205,15 @@ type rawProcedure struct {
 	Date       string  `json:"date,omitempty"`
 	Confidence float64 `json:"confidence"`
 	Negated    bool    `json:"negated,omitempty"`
+	TextSpan   string  `json:"text_span,omitempty"`
+}
+
+type rawSocialHistory struct {
+	Name       string  `json:"name"`
+	Code       string  `json:"code,omitempty"`
+	CodeSystem string  `json:"code_system,omitempty"`
+	Value      string  `json:"value,omitempty"`
+	Confidence float64 `json:"confidence"`
 	TextSpan   string  `json:"text_span,omitempty"`
 }
 
@@ -309,13 +319,28 @@ func (e *Extractor) parseExtractionResponse(rawJSON json.RawMessage, opts Extrac
 		})
 	}
 
+	// Convert social history
+	for _, sh := range resp.SocialHistory {
+		if sh.Confidence < opts.MinConfidence {
+			continue
+		}
+		result.SocialHistory = append(result.SocialHistory, events.ExtractedSocialHistory{
+			Name:       sh.Name,
+			Code:       sh.Code,
+			CodeSystem: sh.CodeSystem,
+			Value:      sh.Value,
+			Confidence: sh.Confidence,
+			TextSpan:   sh.TextSpan,
+		})
+	}
+
 	return result, nil
 }
 
 // cacheKey generates a cache key for the extraction request.
 func (e *Extractor) cacheKey(text string, opts ExtractionOptions) string {
 	// Simple hash-like key based on text length and options
-	return fmt.Sprintf("%d:%s:%t:%t:%t:%t:%t",
+	return fmt.Sprintf("%d:%s:%t:%t:%t:%t:%t:%t",
 		len(text),
 		opts.DocumentType,
 		opts.ExtractConditions,
@@ -323,6 +348,7 @@ func (e *Extractor) cacheKey(text string, opts ExtractionOptions) string {
 		opts.ExtractVitalSigns,
 		opts.ExtractAllergies,
 		opts.ExtractProcedures,
+		opts.ExtractSocialHistory,
 	)
 }
 
