@@ -12,6 +12,25 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 )
 
+// DefaultMaxBodySize is the default maximum webhook body size (10 MB).
+const DefaultMaxBodySize int64 = 10 * 1024 * 1024
+
+// HandlerConfig configures the generic webhook handler.
+type HandlerConfig struct {
+	// MaxBodySize limits the request body size in bytes. 0 uses DefaultMaxBodySize.
+	MaxBodySize int64
+	// Auth configures request authentication. Nil or zero-value disables auth.
+	Auth *AuthConfig
+}
+
+// maxBodySize returns the effective body size limit.
+func (c *HandlerConfig) maxBodySize() int64 {
+	if c != nil && c.MaxBodySize > 0 {
+		return c.MaxBodySize
+	}
+	return DefaultMaxBodySize
+}
+
 // GenericWebhookEvent acts as a container for webhooks that haven't been mapped to a complex FHIR canonical type.
 type GenericWebhookEvent struct {
 	events.EventMeta
@@ -22,13 +41,16 @@ type GenericWebhookEvent struct {
 type Handler struct {
 	logger workflow.Logger
 	engine *workflow.Engine
+	config *HandlerConfig
 }
 
-// NewHandler creates a new webhook handler.
-func NewHandler(logger workflow.Logger, engine *workflow.Engine) *Handler {
+// NewHandler creates a new webhook handler with the given configuration.
+// If config is nil, defaults are used (10MB body limit, no auth).
+func NewHandler(logger workflow.Logger, engine *workflow.Engine, config *HandlerConfig) *Handler {
 	return &Handler{
 		logger: logger,
 		engine: engine,
+		config: config,
 	}
 }
 
@@ -36,9 +58,20 @@ func NewHandler(logger workflow.Logger, engine *workflow.Engine) *Handler {
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	// Enforce body size limit
+	maxSize := h.config.maxBodySize()
+	r.Body = http.MaxBytesReader(w, r.Body, maxSize)
+
 	// Read body
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
+		if err.Error() == "http: request body too large" {
+			h.logger.Warn(ctx, "Webhook body exceeds size limit",
+				workflow.F("max_bytes", maxSize),
+			)
+			http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
 		h.logger.Error(ctx, "Failed to read webhook body", workflow.F("error", err.Error()))
 		http.Error(w, "Failed to read body", http.StatusBadRequest)
 		return
@@ -51,6 +84,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.logger.Warn(ctx, "Received empty webhook body")
 		http.Error(w, "Empty body", http.StatusBadRequest)
 		return
+	}
+
+	// Verify request authentication
+	if h.config != nil && h.config.Auth != nil {
+		if authErr := h.config.Auth.VerifyRequest(r, body); authErr != nil {
+			h.logger.Warn(ctx, "Webhook authentication failed",
+				workflow.F("error", authErr.Error()),
+				workflow.F("remote_addr", r.RemoteAddr),
+			)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
 	}
 
 	// Try extracting standard event metadata if sent by a known system
