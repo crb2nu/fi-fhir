@@ -24,6 +24,9 @@ type ExtractionResult struct {
 	// Procedures are medical procedures mentioned in the text.
 	Procedures []events.ExtractedProcedure `json:"procedures,omitempty"`
 
+	// SocialHistory contains social history observations found in the text.
+	SocialHistory []events.ExtractedSocialHistory `json:"social_history,omitempty"`
+
 	// Confidence is the overall confidence score for the extraction (0.0-1.0).
 	Confidence float64 `json:"confidence"`
 
@@ -128,6 +131,17 @@ type ExtractedAllergy struct {
 	TextSpan string `json:"text_span,omitempty"`
 }
 
+// ExtractedSocialHistory extends SocialHistoryObservation with extraction-specific fields.
+type ExtractedSocialHistory struct {
+	events.SocialHistoryObservation
+
+	// Confidence is the extraction confidence for this entity (0.0-1.0).
+	Confidence float64 `json:"confidence"`
+
+	// TextSpan is the original text that mentioned this observation.
+	TextSpan string `json:"text_span,omitempty"`
+}
+
 // ExtractionOptions configures the extraction behavior.
 type ExtractionOptions struct {
 	// DocumentType specifies the type of clinical document.
@@ -155,6 +169,9 @@ type ExtractionOptions struct {
 	// ExtractProcedures enables procedure extraction.
 	ExtractProcedures bool `json:"extract_procedures"`
 
+	// ExtractSocialHistory enables social history extraction.
+	ExtractSocialHistory bool `json:"extract_social_history"`
+
 	// MinConfidence is the minimum confidence threshold for returned entities.
 	MinConfidence float64 `json:"min_confidence,omitempty"`
 
@@ -168,14 +185,15 @@ type ExtractionOptions struct {
 // DefaultExtractionOptions returns options that extract all entity types.
 func DefaultExtractionOptions() ExtractionOptions {
 	return ExtractionOptions{
-		ExtractConditions:  true,
-		ExtractMedications: true,
-		ExtractVitalSigns:  true,
-		ExtractAllergies:   true,
-		ExtractProcedures:  true,
-		MinConfidence:      0.7,
-		IncludeNegated:     false,
-		MaxTokens:          4096,
+		ExtractConditions:    true,
+		ExtractMedications:   true,
+		ExtractVitalSigns:    true,
+		ExtractAllergies:     true,
+		ExtractProcedures:    true,
+		ExtractSocialHistory: true,
+		MinConfidence:        0.7,
+		IncludeNegated:       false,
+		MaxTokens:            4096,
 	}
 }
 

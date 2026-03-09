@@ -28,6 +28,7 @@ import (
 //   - extract_vital_signs: "true" to extract vital signs (default: true)
 //   - extract_allergies: "true" to extract allergies (default: true)
 //   - extract_procedures: "true" to extract procedures (default: true)
+//   - extract_social_history: "true" to extract social history (default: true)
 func makeLLMExtractAction(client llm.Client) ContextActionHandlerFunc {
 	return func(ctx context.Context, event interface{}, config map[string]string) error {
 		if client == nil {
@@ -74,12 +75,13 @@ func makeLLMExtractAction(client llm.Client) ContextActionHandlerFunc {
 
 		// Build extraction options
 		opts := extract.ExtractionOptions{
-			DocumentType:       config["document_type"],
-			ExtractConditions:  parseOptBool(config["extract_conditions"], true),
-			ExtractMedications: parseOptBool(config["extract_medications"], true),
-			ExtractVitalSigns:  parseOptBool(config["extract_vital_signs"], true),
-			ExtractAllergies:   parseOptBool(config["extract_allergies"], true),
-			ExtractProcedures:  parseOptBool(config["extract_procedures"], true),
+			DocumentType:         config["document_type"],
+			ExtractConditions:    parseOptBool(config["extract_conditions"], true),
+			ExtractMedications:   parseOptBool(config["extract_medications"], true),
+			ExtractVitalSigns:    parseOptBool(config["extract_vital_signs"], true),
+			ExtractAllergies:     parseOptBool(config["extract_allergies"], true),
+			ExtractProcedures:    parseOptBool(config["extract_procedures"], true),
+			ExtractSocialHistory: parseOptBool(config["extract_social_history"], true),
 		}
 
 		// Perform extraction
@@ -269,6 +271,7 @@ func addExtractedEntitiesToEvent(event interface{}, result *extract.ExtractionRe
 	extracted.VitalSigns = result.VitalSigns
 	extracted.Allergies = result.Allergies
 	extracted.Procedures = result.Procedures
+	extracted.SocialHistory = result.SocialHistory
 
 	// Add to event meta
 	if meta, ok := eventMap["meta"].(map[string]interface{}); ok {

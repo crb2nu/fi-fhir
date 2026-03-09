@@ -65,6 +65,7 @@ Extract the following entity types:
 {{end}}{{if .ExtractVitalSigns}}- Vital Signs (use LOINC codes)
 {{end}}{{if .ExtractAllergies}}- Allergies/Intolerances (use RxNorm or SNOMED CT codes)
 {{end}}{{if .ExtractProcedures}}- Procedures (use CPT or SNOMED CT codes)
+{{end}}{{if .ExtractSocialHistory}}- Social History (smoking status, alcohol, substance use)
 {{end}}
 For each entity, include:
 - The standardized code and code system
@@ -77,14 +78,15 @@ Return ONLY valid JSON.`
 
 // extractionPromptData holds data for rendering the extraction prompt.
 type extractionPromptData struct {
-	DocumentType       string
-	PatientContext     string
-	ClinicalText       string
-	ExtractConditions  bool
-	ExtractMedications bool
-	ExtractVitalSigns  bool
-	ExtractAllergies   bool
-	ExtractProcedures  bool
+	DocumentType         string
+	PatientContext       string
+	ClinicalText         string
+	ExtractConditions    bool
+	ExtractMedications   bool
+	ExtractVitalSigns    bool
+	ExtractAllergies     bool
+	ExtractProcedures    bool
+	ExtractSocialHistory bool
 }
 
 // buildSystemPrompt generates the system prompt for extraction.
@@ -105,13 +107,14 @@ func buildSystemPrompt(reg *prompts.Registry) string {
 // buildExtractionPrompt generates the user prompt for extraction.
 func buildExtractionPrompt(text string, opts ExtractionOptions, reg *prompts.Registry) string {
 	data := extractionPromptData{
-		DocumentType:       opts.DocumentType,
-		ClinicalText:       truncateText(text, 12000), // Limit text length
-		ExtractConditions:  opts.ExtractConditions,
-		ExtractMedications: opts.ExtractMedications,
-		ExtractVitalSigns:  opts.ExtractVitalSigns,
-		ExtractAllergies:   opts.ExtractAllergies,
-		ExtractProcedures:  opts.ExtractProcedures,
+		DocumentType:         opts.DocumentType,
+		ClinicalText:         truncateText(text, 12000), // Limit text length
+		ExtractConditions:    opts.ExtractConditions,
+		ExtractMedications:   opts.ExtractMedications,
+		ExtractVitalSigns:    opts.ExtractVitalSigns,
+		ExtractAllergies:     opts.ExtractAllergies,
+		ExtractProcedures:    opts.ExtractProcedures,
+		ExtractSocialHistory: opts.ExtractSocialHistory,
 	}
 
 	// Build patient context
@@ -282,6 +285,21 @@ var extractionSchema = map[string]interface{}{
 					"date":        map[string]interface{}{"type": "string"},
 					"confidence":  map[string]interface{}{"type": "number"},
 					"negated":     map[string]interface{}{"type": "boolean"},
+					"text_span":   map[string]interface{}{"type": "string"},
+				},
+				"required": []string{"name", "confidence"},
+			},
+		},
+		"social_history": map[string]interface{}{
+			"type": "array",
+			"items": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"name":        map[string]interface{}{"type": "string"},
+					"code":        map[string]interface{}{"type": "string"},
+					"code_system": map[string]interface{}{"type": "string"},
+					"value":       map[string]interface{}{"type": "string"},
+					"confidence":  map[string]interface{}{"type": "number"},
 					"text_span":   map[string]interface{}{"type": "string"},
 				},
 				"required": []string{"name", "confidence"},

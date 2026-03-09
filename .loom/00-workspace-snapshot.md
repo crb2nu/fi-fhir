@@ -1,6 +1,6 @@
 # Workspace Snapshot
 
-- Generated: 2026-03-01T12:23:59-05:00
+- Generated: 2026-03-08T12:52:37-04:00
 - Root: `/Users/cblevins/workspace/libs/fi-fhir`
 - Git toplevel: `/Users/cblevins/workspace/libs/fi-fhir`
 - Platform: `macOS-26.4-arm64-arm-64bit`
@@ -8,25 +8,9 @@
 
 ## Git
 ```
-## main...origin/main
+## backlog/issue-7...origin/backlog/issue-7
  M docs/planning/README.md
- M docs/planning/TYPESCRIPT-SDK.md
-?? ROADMAP_RECONCILIATION_2026-02-12.md
-?? ROADMAP_RECONCILIATION_2026-02-15.md
-?? ROADMAP_RECONCILIATION_2026-02-16.md
-?? ROADMAP_RECONCILIATION_2026-02-17.md
-?? ROADMAP_RECONCILIATION_2026-02-18.md
-?? ROADMAP_RECONCILIATION_2026-02-19.md
-?? ROADMAP_RECONCILIATION_2026-02-20.md
-?? ROADMAP_RECONCILIATION_2026-02-23.md
-?? ROADMAP_RECONCILIATION_2026-02-24.md
-?? ROADMAP_RECONCILIATION_2026-02-25.md
-?? ROADMAP_RECONCILIATION_2026-02-26.md
-?? ROADMAP_RECONCILIATION_2026-02-27.md
-?? ROADMAP_RECONCILIATION_2026-02-28.md
-?? ROADMAP_RECONCILIATION_2026-03-01.md
-?? docs/ROADMAP_RECONCILIATION_2026-02-28.md
-?? docs/ROADMAP_RECONCILIATION_2026-03-01.md
+?? docs/ROADMAP_RECONCILIATION_2026-03-08.md
 ```
 
 ### Remotes
@@ -41,7 +25,7 @@ origin	https://oauth2:glpat-vFFCVHmo_LOPh6lq1tk3p286MQp1OjEH.01.0w0ycoylq@gitlab
 
 ### HEAD
 ```
-196a32e test(index): raise Terminology Index coverage 17% → 91%
+152cfc9 ci: fix test:benchmark compilation on temporal sdk
 ```
 
 ## Top-Level Layout
@@ -50,9 +34,11 @@ origin	https://oauth2:glpat-vFFCVHmo_LOPh6lq1tk3p286MQp1OjEH.01.0w0ycoylq@gitlab
 - `.antigravity/`
 - `.cache/`
 - `.claude/`
+- `.codex/`
 - `.git/`
 - `.githooks/`
 - `.go/`
+- `.kilocode/`
 - `.loom/`
 - `.vscode/`
 - `.vscode-mcp/`
@@ -90,6 +76,7 @@ origin	https://oauth2:glpat-vFFCVHmo_LOPh6lq1tk3p286MQp1OjEH.01.0w0ycoylq@gitlab
 - `CHANGELOG.md`
 - `cli_cov.out`
 - `companion_cov.out`
+- `cov.out`
 - `coverage.out`
 - `docker-compose.yaml`
 - `Dockerfile`
@@ -100,20 +87,6 @@ origin	https://oauth2:glpat-vFFCVHmo_LOPh6lq1tk3p286MQp1OjEH.01.0w0ycoylq@gitlab
 - `Makefile`
 - `README.md`
 - `renovate.json5`
-- `ROADMAP_RECONCILIATION_2026-02-12.md`
-- `ROADMAP_RECONCILIATION_2026-02-15.md`
-- `ROADMAP_RECONCILIATION_2026-02-16.md`
-- `ROADMAP_RECONCILIATION_2026-02-17.md`
-- `ROADMAP_RECONCILIATION_2026-02-18.md`
-- `ROADMAP_RECONCILIATION_2026-02-19.md`
-- `ROADMAP_RECONCILIATION_2026-02-20.md`
-- `ROADMAP_RECONCILIATION_2026-02-23.md`
-- `ROADMAP_RECONCILIATION_2026-02-24.md`
-- `ROADMAP_RECONCILIATION_2026-02-25.md`
-- `ROADMAP_RECONCILIATION_2026-02-26.md`
-- `ROADMAP_RECONCILIATION_2026-02-27.md`
-- `ROADMAP_RECONCILIATION_2026-02-28.md`
-- `ROADMAP_RECONCILIATION_2026-03-01.md`
 - `tools.go`
 
 ## Key Files Detected
@@ -152,6 +125,9 @@ origin	https://oauth2:glpat-vFFCVHmo_LOPh6lq1tk3p286MQp1OjEH.01.0w0ycoylq@gitlab
 - `cmd/bench-check/main.go`
 - `cmd/fi-fhir/additional_coverage_test.go`
 - `cmd/fi-fhir/cli_additional_test.go`
+- `cmd/fi-fhir/cli_coverage_p2_test.go`
+- `cmd/fi-fhir/cli_coverage_p3_test.go`
+- `cmd/fi-fhir/cli_coverage_p5_test.go`
 - `cmd/fi-fhir/cli_coverage_test.go`
 - `cmd/fi-fhir/cli_db_test.go`
 - `cmd/fi-fhir/cli_integration_test.go`
@@ -175,6 +151,8 @@ origin	https://oauth2:glpat-vFFCVHmo_LOPh6lq1tk3p286MQp1OjEH.01.0w0ycoylq@gitlab
 - `cmd/fi-fhir/llm_commands_additional_test.go`
 - `cmd/fi-fhir/llm_commands_deep_test.go`
 - `cmd/fi-fhir/llm_commands_test.go`
+- `cmd/fi-fhir/llm_eval.go`
+- `cmd/fi-fhir/llm_eval_test.go`
 - `cmd/fi-fhir/main.go`
 - `cmd/fi-fhir/main_test.go`
 - `cmd/fi-fhir/parse_companion_coverage_test.go`
@@ -210,8 +188,10 @@ origin	https://oauth2:glpat-vFFCVHmo_LOPh6lq1tk3p286MQp1OjEH.01.0w0ycoylq@gitlab
 - `cmd/fi-fhir/terminology_coverage_deep_test.go`
 - `cmd/fi-fhir/terminology_coverage_test.go`
 - `cmd/fi-fhir/terminology_dryrun_test.go`
+- `cmd/fi-fhir/terminology_index_test.go`
 - `cmd/fi-fhir/terminology_mapping_additional_test.go`
 - `cmd/fi-fhir/terminology_mapping_test.go`
+- `cmd/fi-fhir/terminology_offline_coverage_test.go`
 - `cmd/fi-fhir/terminology_offline_deep_test.go`
 - `cmd/fi-fhir/terminology_pins.go`
 - `cmd/fi-fhir/terminology_pins_test.go`
@@ -259,6 +239,25 @@ origin	https://oauth2:glpat-vFFCVHmo_LOPh6lq1tk3p286MQp1OjEH.01.0w0ycoylq@gitlab
 - `deploy/kubernetes/overlays/production/kustomization.yaml`
 - `docker-compose.yaml`
 - `docs/DOCUMENTATION-CONVENTIONS.md`
+- `docs/ROADMAP_RECONCILIATION_2026-02-12.md`
+- `docs/ROADMAP_RECONCILIATION_2026-02-15.md`
+- `docs/ROADMAP_RECONCILIATION_2026-02-16.md`
+- `docs/ROADMAP_RECONCILIATION_2026-02-17.md`
+- `docs/ROADMAP_RECONCILIATION_2026-02-18.md`
+- `docs/ROADMAP_RECONCILIATION_2026-02-19.md`
+- `docs/ROADMAP_RECONCILIATION_2026-02-20.md`
+- `docs/ROADMAP_RECONCILIATION_2026-02-23.md`
+- `docs/ROADMAP_RECONCILIATION_2026-02-24.md`
+- `docs/ROADMAP_RECONCILIATION_2026-02-25.md`
+- `docs/ROADMAP_RECONCILIATION_2026-02-26.md`
+- `docs/ROADMAP_RECONCILIATION_2026-02-27.md`
+- `docs/ROADMAP_RECONCILIATION_2026-02-28.md`
+- `docs/ROADMAP_RECONCILIATION_2026-03-01.md`
+- `docs/ROADMAP_RECONCILIATION_2026-03-03.md`
+- `docs/ROADMAP_RECONCILIATION_2026-03-04.md`
+- `docs/ROADMAP_RECONCILIATION_2026-03-05.md`
+- `docs/ROADMAP_RECONCILIATION_2026-03-06.md`
+- `docs/ROADMAP_RECONCILIATION_2026-03-07.md`
 - `docs/STATUS.md`
 - `docs/changelog-ai.md`
 - `docs/developer-guide/README.md`
@@ -298,32 +297,6 @@ origin	https://oauth2:glpat-vFFCVHmo_LOPh6lq1tk3p286MQp1OjEH.01.0w0ycoylq@gitlab
 - `docs/planning/TERMINOLOGY.md`
 - `docs/planning/TYPESCRIPT-SDK.md`
 - `docs/planning/WORKFLOW-DSL.md`
-- `docs/user-guide/README.md`
-- `docs/user-guide/cli-reference.md`
-- `docs/user-guide/core-concepts.md`
-- `docs/user-guide/fhir-output.md`
-- `docs/user-guide/getting-started.md`
-- `docs/user-guide/llm-features.md`
-- `docs/user-guide/playground-tutorial.md`
-- `docs/user-guide/source-profiles.md`
-- `docs/user-guide/terminology.md`
-- `docs/user-guide/workflows.md`
-- `examples/README.md`
-- `examples/workflows/adt-to-fhir.yaml`
-- `examples/workflows/appointment-sync.yaml`
-- `examples/workflows/claims-processing.yaml`
-- `examples/workflows/lab-results-routing.yaml`
-- `go.mod`
-- `go.sum`
-- `internal/api/graphql/generated.go`
-- `internal/api/graphql/gqlgen.yml`
-- `internal/api/graphql/model/enums.go`
-- `internal/api/graphql/model/inputs.go`
-- `internal/api/graphql/model/models.go`
-- `internal/api/graphql/model/models_gen.go`
-- `internal/api/graphql/profile_yaml_http.go`
-- `internal/api/graphql/projections/service.go`
-- `internal/api/graphql/resolvers/batch_helpers.go`
 - `…`
 
 ## AGENTS.md Files

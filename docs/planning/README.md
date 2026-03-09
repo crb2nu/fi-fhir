@@ -266,19 +266,19 @@ Tracking issue: [libs/fi-fhir#7](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issu
 Tracking issue: [libs/fi-fhir#8](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/8)
 
 - ✅ Additional HL7v2 message types (MDM, DFT) — Implemented 2026-01-16
-- CDA/CCDA section expansion (Medications, Allergies, Social History)
-- Test data organization and edge case fixtures
-- UI enhancements: dark mode, keyboard shortcuts, bulk operations, accessibility audit
+- CDA/CCDA section expansion (Medications, Allergies, Social History) — tracked in [libs/fi-fhir#13](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/13)
+- Test data organization and edge case fixtures — tracked in [libs/fi-fhir#15](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/15)
+- UI enhancements: dark mode, keyboard shortcuts, bulk operations, accessibility audit — tracked in [libs/fi-fhir#16](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/16)
 - ✅ ETL expansion: additional source/sink providers, scheduling, incremental sync — Implemented 2026-03-07
 - ✅ LLM feature expansion: multi-model routing, prompt versioning, evaluation framework
-- Terminology approval workflow (human-in-the-loop review for autoroute suggestions)
-- Additional FHIR Implementation Guides (USCDI v3, Bulk Data, SMART App Launch)
+- Terminology approval workflow (human-in-the-loop review for autoroute suggestions) — tracked in [libs/fi-fhir#17](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/17)
+- Additional FHIR Implementation Guides (USCDI v3, Bulk Data, SMART App Launch) — tracked in [libs/fi-fhir#12](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/12)
 - ✅ Terminology index test coverage (91.3%) — 2026-03-05
 - ✅ Terminology semantic search test coverage (90.9%) — 2026-03-05
 - ✅ LLM extract test coverage (94.2%, up from 76.6%) — 2026-03-05
 - ✅ LLM copilot test coverage (98.0%) — 2026-03-05
-- Terminology suggest test coverage (79.2%, mostly DB-dependent)
-- Storage provider test expansion (S3/MinIO integration tests)
+- Terminology suggest test coverage (79.2%, mostly DB-dependent) — tracked in [libs/fi-fhir#7](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/7)
+- Storage provider test expansion (S3/MinIO integration tests) — tracked in [libs/fi-fhir#18](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/18)
 
 ---
 

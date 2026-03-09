@@ -177,6 +177,9 @@ type ExtractedEntities struct {
 	// Procedures are extracted procedure references
 	Procedures []ExtractedProcedure `json:"procedures,omitempty"`
 
+	// SocialHistory contains social history observations found in the text
+	SocialHistory []ExtractedSocialHistory `json:"social_history,omitempty"`
+
 	// Confidence is the overall extraction confidence (0.0-1.0)
 	Confidence float64 `json:"confidence"`
 
@@ -305,6 +308,27 @@ type ExtractedProcedure struct {
 
 	// Status is the procedure status
 	Status string `json:"status,omitempty"`
+
+	// TextSpan is the original text span
+	TextSpan string `json:"text_span,omitempty"`
+}
+
+// ExtractedSocialHistory represents a social history observation extracted from text.
+type ExtractedSocialHistory struct {
+	// Name is the name of the observation (e.g., "smoking status")
+	Name string `json:"name"`
+
+	// Code is the standardized code (LOINC, SNOMED)
+	Code string `json:"code,omitempty"`
+
+	// CodeSystem identifies the code system
+	CodeSystem string `json:"code_system,omitempty"`
+
+	// Value is the observation value
+	Value string `json:"value,omitempty"`
+
+	// Confidence is the extraction confidence for this entity (0.0-1.0)
+	Confidence float64 `json:"confidence,omitempty"`
 
 	// TextSpan is the original text span
 	TextSpan string `json:"text_span,omitempty"`
