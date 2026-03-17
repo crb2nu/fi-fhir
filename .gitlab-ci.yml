@@ -4,6 +4,8 @@ include:
     file:
       - /k3s/ci/caches/gitlab-ci-cache.yml
 
+  - project: 'services/tech-radar'
+    file: '/ci/radar.yml'
 stages:
   - lint
   - test
@@ -1670,3 +1672,6 @@ release:gitlab:
           link_type: package
   rules:
     - if: $CI_COMMIT_TAG
+
+radar-scan:
+  extends: .radar-scan
