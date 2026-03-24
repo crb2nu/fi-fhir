@@ -1,5 +1,67 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/svelte';
+
+// Mock CodeMirror modules used by CodeEditor (imported by FilterEditor)
+vi.mock('@codemirror/view', () => {
+  function EditorViewCtor() {
+    return {
+      dispatch: vi.fn(),
+      destroy: vi.fn(),
+      state: { doc: { toString() { return ''; }, length: 0 } }
+    };
+  }
+  EditorViewCtor.theme = vi.fn(() => []);
+  EditorViewCtor.updateListener = { of: vi.fn(() => []) };
+  return {
+    EditorView: EditorViewCtor,
+    keymap: { of: vi.fn(() => []) },
+    placeholder: vi.fn(() => []),
+    lineNumbers: vi.fn(() => [])
+  };
+});
+
+vi.mock('@codemirror/state', () => {
+  class Compartment {
+    of(ext: unknown) { return ext; }
+    reconfigure(ext: unknown) { return ext; }
+  }
+  return {
+    EditorState: {
+      create: vi.fn(() => ({ doc: { toString() { return ''; }, length: 0 } })),
+      readOnly: { of: vi.fn(() => []) }
+    },
+    Compartment
+  };
+});
+
+vi.mock('@codemirror/commands', () => ({
+  defaultKeymap: [], history: vi.fn(() => []), historyKeymap: []
+}));
+
+vi.mock('@codemirror/language', () => ({
+  bracketMatching: vi.fn(() => []),
+  indentOnInput: vi.fn(() => []),
+  HighlightStyle: { define: vi.fn(() => ({})) },
+  syntaxHighlighting: vi.fn(() => []),
+  StreamLanguage: { define: vi.fn(() => ({})) }
+}));
+
+vi.mock('@codemirror/lint', () => ({ linter: vi.fn(() => []) }));
+vi.mock('@codemirror/autocomplete', () => ({ closeBrackets: vi.fn(() => []), closeBracketsKeymap: [] }));
+vi.mock('@codemirror/lang-json', () => ({ json: vi.fn(() => []) }));
+vi.mock('@codemirror/lang-yaml', () => ({ yaml: vi.fn(() => []) }));
+
+vi.mock('$lib/ui/editor/lang-cel', () => ({ cel: vi.fn(() => []) }));
+vi.mock('$lib/ui/editor/lang-hl7v2', () => ({ hl7v2: vi.fn(() => []) }));
+vi.mock('$lib/ui/editor/cmTheme', () => ({
+  createThemeExtension: vi.fn(() => ({
+    extension: [], compartment: { of: vi.fn(() => []), reconfigure: vi.fn(() => []) },
+    getThemeEffect: vi.fn(() => []), cleanup: vi.fn(), startObserving: vi.fn()
+  })),
+  getTheme: vi.fn(() => [])
+}));
+vi.mock('$lib/ui/editor/diagnostics', () => ({ toCM6Diagnostics: vi.fn((d: unknown[]) => d) }));
+
 import FilterEditor from './FilterEditor.svelte';
 import { ALL_EVENT_TYPES, EVENT_TYPE_PRESETS } from '../workflowTypes';
 import type { FilterDraft } from '../workflowTypes';
@@ -46,15 +108,15 @@ describe('FilterEditor', () => {
     expect(presetBtns.length).toBe(EVENT_TYPE_PRESETS.length);
   });
 
-  it('does not show CEL input by default', () => {
+  it('does not show CEL editor by default', () => {
     const { container } = render(FilterEditor, {
       props: { filter: defaultFilter }
     });
-    const monoInputs = container.querySelectorAll('input.mono');
-    expect(monoInputs.length).toBe(0);
+    const codeEditors = container.querySelectorAll('[data-testid="code-editor"]');
+    expect(codeEditors.length).toBe(0);
   });
 
-  it('shows CEL input when condition is pre-populated', () => {
+  it('shows CEL editor when condition is pre-populated', () => {
     const filter: FilterDraft = {
       eventTypes: [],
       sources: [],
@@ -63,8 +125,8 @@ describe('FilterEditor', () => {
     const { container } = render(FilterEditor, {
       props: { filter }
     });
-    const monoInputs = container.querySelectorAll('input.mono');
-    expect(monoInputs.length).toBe(1);
+    const codeEditors = container.querySelectorAll('[data-testid="code-editor"]');
+    expect(codeEditors.length).toBe(1);
   });
 
   it('renders category group labels', () => {

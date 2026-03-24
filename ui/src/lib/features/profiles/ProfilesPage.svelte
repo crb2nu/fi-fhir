@@ -5,6 +5,7 @@
   import Panel from '$lib/ui/Panel.svelte';
   import Button from '$lib/ui/Button.svelte';
   import TextArea from '$lib/ui/TextArea.svelte';
+  import CodeEditor from '$lib/ui/editor/CodeEditor.svelte';
 
   import ProfileSelector from '$lib/features/hl7/components/ProfileSelector.svelte';
   import ToleranceEditor from '$lib/features/hl7/components/ToleranceEditor.svelte';
@@ -303,7 +304,13 @@
           </div>
         </div>
 
-        <TextArea bind:value={yamlValue} rows={24} disabled={yamlState === 'saving'} />
+        <CodeEditor
+          language="yaml"
+          value={yamlValue}
+          on:change={(e) => { yamlValue = e.detail; }}
+          readOnly={yamlState === 'saving'}
+          height="480px"
+        />
 
         <div class="footer">
           <span class="muted">

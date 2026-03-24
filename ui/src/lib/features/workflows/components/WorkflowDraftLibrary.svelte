@@ -3,6 +3,7 @@
   import { get } from 'svelte/store';
   import Panel from '$lib/ui/Panel.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import CodeEditor from '$lib/ui/editor/CodeEditor.svelte';
   import { workflowDraft, workflowSavedDrafts, type SavedWorkflowDraft } from '../workflowStore';
   import { yamlToDraft, draftToYaml } from '../workflowYaml';
   import { validateWorkflowDraft } from '../workflowTypes';
@@ -161,21 +162,13 @@
 
     <div class="import">
       <div class="section-title">Import Workflow YAML</div>
-      <textarea
-        class="yaml-input mono"
-        rows="10"
-        bind:value={importYaml}
-        placeholder="name: adt-routing
-version: &quot;1.0&quot;
-routes:
-  - name: admits
-    filter:
-      event_type: PATIENT_ADMIT
-    actions:
-      - type: log
-        level: info
-        message: Admit received"
-      ></textarea>
+      <CodeEditor
+        language="yaml"
+        value={importYaml}
+        on:change={(e) => { importYaml = e.detail; }}
+        placeholder="name: adt-routing"
+        height="240px"
+      />
       <div class="import-actions">
         <Button variant="secondary" size="sm" on:click={useCurrentAsImportSource}>
           Load Current Draft YAML
