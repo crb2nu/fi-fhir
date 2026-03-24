@@ -501,7 +501,7 @@ ZPD|Y|STANDARD|GREEN|||
 - [x] Data type parsers (XCN, XPN, CX) with flexible component handling
 - [x] Component count tolerance via Source Profile
 - [x] Segment optionality via Source Profile `tolerate.missing_segments`
-- [ ] Strict version-specific validation mode
+- [ ] Strict version-specific validation mode — #3
 
 ### Phase 3: Z-Segment Framework ⚠️
 - [x] Generic Z-segment extraction
@@ -513,7 +513,7 @@ ZPD|Y|STANDARD|GREEN|||
 - [x] Escape sequence processing (\F\, \S\, \T\, \R\, \E\, \X..\)
 - [x] Field repetition parsing (~)
 - [x] Character encoding detection (UTF-8 BOM, MSH-18)
-- [ ] Full NULL value semantics ("" vs empty)
+- [ ] Full NULL value semantics ("" vs empty) — #3
 
 ## Testing Matrix
 

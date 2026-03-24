@@ -645,7 +645,7 @@ Moving Source Profiles to MVP requires:
 ### Weeks 5-8 (Post-Stability) ⚠️
 - [x] Terminology mapping tables - see `pkg/terminology/mapper.go`
 - [x] NPI/MBI validators wired to quality checks - see `pkg/validate/identifiers.go`
-- [ ] Z-segment field mapping beyond raw capture
+- [ ] Z-segment field mapping beyond raw capture — #3
 - [x] Profile inference from samples (`fi-fhir profile infer`) - see `cmd/fi-fhir/main.go`
 
 ## Testing Strategy

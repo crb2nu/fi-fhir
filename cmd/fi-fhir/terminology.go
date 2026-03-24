@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -741,6 +743,12 @@ func runTerminologyMapping(args []string) error {
 		return runTerminologyMappingApprove(args[1:])
 	case "reject":
 		return runTerminologyMappingReject(args[1:])
+	case "decisions":
+		return runTerminologyMappingDecisions(args[1:])
+	case "decision":
+		return runTerminologyMappingDecision(args[1:])
+	case "decision-stats":
+		return runTerminologyMappingDecisionStats(args[1:])
 	case "-h", "--help", "help":
 		printTerminologyMappingUsage()
 		return nil
@@ -764,6 +772,9 @@ Subcommands:
   pending   List pending autoroute suggestions awaiting review
   approve   Approve a pending autoroute suggestion
   reject    Reject a pending autoroute suggestion
+  decisions List recorded mapping decision telemetry
+  decision  Get a recorded mapping decision by ID
+  decision-stats Show aggregated decision telemetry stats
 
 Options:
   --db      PostgreSQL connection string (or FI_FHIR_TERMINOLOGY_DB_URL env)
@@ -811,6 +822,26 @@ Resolve Command:
     --no-autoroute    Disable LLM autorouting (persistent lookup only)
     --json            Output as JSON
 
+Decision Telemetry Commands:
+  fi-fhir terminology mapping decisions [options]
+    --decision-type   Filter by decision type (PERSISTENT_HIT, AUTOROUTE_*, NO_MATCH)
+    --source-system   Filter by source system
+    --source-code     Filter by source code
+    --profile         Filter by profile ID
+    --trace-id        Filter by trace ID
+    --since           RFC3339 timestamp or YYYY-MM-DD
+    --until           RFC3339 timestamp or YYYY-MM-DD
+    --limit           Maximum rows to return (default: 100)
+    --offset          Offset for pagination
+    --json            Output as JSON
+
+  fi-fhir terminology mapping decision <id> [--json]
+
+  fi-fhir terminology mapping decision-stats [options]
+    --since           RFC3339 timestamp or YYYY-MM-DD (default: 7 days ago)
+    --until           RFC3339 timestamp or YYYY-MM-DD (default: now)
+    --json            Output as JSON
+
 Examples:
   # Upload a CSV file with mappings
   fi-fhir terminology mapping upload mappings.csv --db "$DATABASE_URL"
@@ -839,7 +870,16 @@ Examples:
   fi-fhir terminology mapping resolve GLU001 \
     --source-system epic_labs \
     --target-system http://loinc.org \
-    --no-autoroute`)
+    --no-autoroute
+
+  # Inspect recent decision telemetry
+  fi-fhir terminology mapping decisions --decision-type AUTOROUTE_HIGH_CONF
+
+  # Show one decision trace
+  fi-fhir terminology mapping decision 42
+
+  # Summarize decision volume for the last 24 hours
+  fi-fhir terminology mapping decision-stats --since 2026-03-15`)
 }
 
 func runTerminologyMappingUpload(args []string) error {
@@ -1338,6 +1378,87 @@ func truncate(s string, maxLen int) string {
 	return s[:maxLen-3] + "..."
 }
 
+func parseTimeFlag(value string, endOfDay bool) (time.Time, error) {
+	if ts, err := time.Parse(time.RFC3339, value); err == nil {
+		return ts, nil
+	}
+
+	ts, err := time.ParseInLocation("2006-01-02", value, time.Local)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid time %q: use RFC3339 or YYYY-MM-DD", value)
+	}
+	if endOfDay {
+		return ts.Add(24*time.Hour - time.Nanosecond), nil
+	}
+	return ts, nil
+}
+
+func marshalJSON(value interface{}) json.RawMessage {
+	if value == nil {
+		return nil
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		return nil
+	}
+	return data
+}
+
+func formatJSON(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+
+	var pretty bytes.Buffer
+	if err := json.Indent(&pretty, raw, "", "  "); err == nil {
+		return pretty.String()
+	}
+	return string(raw)
+}
+
+func formatOptionalConfidence(confidence *float64) string {
+	if confidence == nil {
+		return "-"
+	}
+	return fmt.Sprintf("%.2f", *confidence)
+}
+
+func decisionSortKey(decisionType db.DecisionType) int {
+	switch decisionType {
+	case db.DecisionPersistentHit:
+		return 0
+	case db.DecisionAutorouteHighConf:
+		return 1
+	case db.DecisionAutorouteMedConf:
+		return 2
+	case db.DecisionAutorouteLowConf:
+		return 3
+	case db.DecisionNoMatch:
+		return 4
+	default:
+		return 100
+	}
+}
+
+func recordCLIMappingDecision(ctx context.Context, store *db.MappingStore, decision *db.MappingDecision) string {
+	if decision == nil {
+		return ""
+	}
+	if decision.TraceID == "" {
+		decision.TraceID = fmt.Sprintf("cli-%d", time.Now().UnixNano())
+	}
+	if decision.RequestSource == "" {
+		decision.RequestSource = "cli"
+	}
+
+	if err := store.RecordMappingDecision(ctx, decision); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to record mapping decision telemetry: %v\n", err)
+		return ""
+	}
+
+	return decision.TraceID
+}
+
 func runTerminologyMappingResolve(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("source code required")
@@ -1407,15 +1528,57 @@ func runTerminologyMappingResolve(args []string) error {
 	store := db.NewMappingStore(conn)
 
 	// Step 1: Check persistent mappings first
+	lookupStart := time.Now()
 	existing, err := store.LookupMapping(ctx, sourceSystem, code, targetSystem, profileID)
 	if err != nil {
 		return fmt.Errorf("persistent lookup failed: %w", err)
 	}
+	lookupDuration := time.Since(lookupStart)
 
 	if existing != nil {
+		traceID := recordCLIMappingDecision(ctx, store, &db.MappingDecision{
+			SourceSystem:    existing.SourceSystem,
+			SourceCode:      existing.SourceCode,
+			SourceDisplay:   existing.SourceDisplay,
+			TargetSystem:    existing.TargetSystem,
+			DecisionType:    db.DecisionPersistentHit,
+			Confidence:      existing.Confidence,
+			SelectedCode:    existing.TargetCode,
+			SelectedDisplay: existing.TargetDisplay,
+			DecisionTree: marshalJSON(map[string]interface{}{
+				"request": map[string]string{
+					"source_system":  existing.SourceSystem,
+					"source_code":    existing.SourceCode,
+					"source_display": existing.SourceDisplay,
+					"target_system":  existing.TargetSystem,
+					"profile_id":     profileID,
+				},
+				"steps": []map[string]interface{}{
+					{
+						"step":        "persistent_lookup",
+						"result":      "hit",
+						"duration_ms": lookupDuration.Milliseconds(),
+						"metadata": map[string]interface{}{
+							"mapping_id":  existing.ID,
+							"origin":      existing.Origin,
+							"equivalence": existing.Equivalence,
+						},
+					},
+				},
+				"result": map[string]interface{}{
+					"code":        existing.TargetCode,
+					"display":     existing.TargetDisplay,
+					"system":      existing.TargetSystem,
+					"equivalence": existing.Equivalence,
+				},
+			}),
+			ProfileID:  profileID,
+			DurationMs: int(lookupDuration.Milliseconds()),
+		})
+
 		// Found in persistent storage
 		if jsonOutput {
-			return printResolveResultJSON(existing, nil, "PERSISTENT_HIT")
+			return printResolveResultJSON(existing, nil, "PERSISTENT_HIT", traceID)
 		}
 		fmt.Println("✓ Found in persistent mappings")
 		fmt.Println(strings.Repeat("-", 50))
@@ -1427,14 +1590,52 @@ func runTerminologyMappingResolve(args []string) error {
 		if existing.Confidence != nil {
 			fmt.Printf("Confidence:  %.2f\n", *existing.Confidence)
 		}
+		if traceID != "" {
+			fmt.Printf("Trace ID:    %s\n", traceID)
+		}
 		return nil
 	}
 
 	if noAutoroute {
+		traceID := recordCLIMappingDecision(ctx, store, &db.MappingDecision{
+			SourceSystem:  sourceSystem,
+			SourceCode:    code,
+			SourceDisplay: display,
+			TargetSystem:  targetSystem,
+			DecisionType:  db.DecisionNoMatch,
+			DecisionTree: marshalJSON(map[string]interface{}{
+				"request": map[string]string{
+					"source_system":  sourceSystem,
+					"source_code":    code,
+					"source_display": display,
+					"target_system":  targetSystem,
+					"profile_id":     profileID,
+				},
+				"steps": []map[string]interface{}{
+					{
+						"step":        "persistent_lookup",
+						"result":      "miss",
+						"duration_ms": lookupDuration.Milliseconds(),
+					},
+					{
+						"step":   "autoroute",
+						"result": "skipped",
+						"metadata": map[string]interface{}{
+							"reason": "disabled_by_flag",
+						},
+					},
+				},
+			}),
+			ProfileID:  profileID,
+			DurationMs: int(lookupDuration.Milliseconds()),
+		})
 		if jsonOutput {
-			return printResolveResultJSON(nil, nil, "NO_MATCH")
+			return printResolveResultJSON(nil, nil, "NO_MATCH", traceID)
 		}
 		fmt.Println("✗ No mapping found (autoroute disabled)")
+		if traceID != "" {
+			fmt.Printf("Trace ID: %s\n", traceID)
+		}
 		return nil
 	}
 
@@ -1477,14 +1678,45 @@ func runTerminologyMappingResolve(args []string) error {
 
 	// Classify decision
 	decision := result.Classify(0.90, 0.70)
+	var confidence *float64
+	if result.Confidence > 0 {
+		confidence = &result.Confidence
+	}
+	selectedCode := ""
+	selectedDisplay := ""
+	traceID := ""
+	if result.Trace != nil {
+		traceID = result.Trace.TraceID
+	}
+	if result.BestMatch != nil {
+		selectedCode = result.BestMatch.Code
+		selectedDisplay = result.BestMatch.Display
+	}
+	traceID = recordCLIMappingDecision(ctx, store, &db.MappingDecision{
+		TraceID:         traceID,
+		SourceSystem:    sourceSystem,
+		SourceCode:      code,
+		SourceDisplay:   display,
+		TargetSystem:    targetSystem,
+		DecisionType:    db.DecisionType(decision),
+		Confidence:      confidence,
+		SelectedCode:    selectedCode,
+		SelectedDisplay: selectedDisplay,
+		DecisionTree:    marshalJSON(result.Trace),
+		ProfileID:       profileID,
+		DurationMs:      int(result.TotalDuration.Milliseconds()),
+	})
 
 	if jsonOutput {
-		return printResolveResultJSON(nil, result, string(decision))
+		return printResolveResultJSON(nil, result, string(decision), traceID)
 	}
 
 	// Print results
 	if result.BestMatch == nil {
 		fmt.Println("✗ No mapping suggestions found")
+		if traceID != "" {
+			fmt.Printf("Trace ID: %s\n", traceID)
+		}
 		return nil
 	}
 
@@ -1497,12 +1729,305 @@ func runTerminologyMappingResolve(args []string) error {
 	fmt.Printf("Equivalence: %s\n", result.BestMatch.Equivalence)
 	fmt.Printf("Reasoning:   %s\n", result.BestMatch.Reasoning)
 	fmt.Printf("Duration:    %s\n", result.TotalDuration.Round(time.Millisecond))
+	if traceID != "" {
+		fmt.Printf("Trace ID:    %s\n", traceID)
+	}
 
 	if len(result.Alternates) > 0 {
 		fmt.Printf("\nAlternate candidates:\n")
 		for i, alt := range result.Alternates {
 			fmt.Printf("  %d. %s (%s) - confidence: %.2f\n",
 				i+1, alt.Code, alt.Display, alt.Confidence)
+		}
+	}
+
+	return nil
+}
+
+func runTerminologyMappingDecisions(args []string) error {
+	dbURL := getTerminologyDBURL(args)
+	if dbURL == "" {
+		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_TERMINOLOGY_DB_URL env var")
+	}
+
+	filter := db.ListMappingDecisionsFilter{
+		Limit:  100,
+		Offset: 0,
+	}
+	var jsonOutput bool
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--decision-type":
+			if i+1 < len(args) {
+				filter.DecisionType = db.DecisionType(args[i+1])
+				i++
+			}
+		case "--source-system":
+			if i+1 < len(args) {
+				filter.SourceSystem = args[i+1]
+				i++
+			}
+		case "--source-code":
+			if i+1 < len(args) {
+				filter.SourceCode = args[i+1]
+				i++
+			}
+		case "--profile":
+			if i+1 < len(args) {
+				filter.ProfileID = args[i+1]
+				i++
+			}
+		case "--trace-id":
+			if i+1 < len(args) {
+				filter.TraceID = args[i+1]
+				i++
+			}
+		case "--since":
+			if i+1 < len(args) {
+				ts, err := parseTimeFlag(args[i+1], false)
+				if err != nil {
+					return err
+				}
+				filter.Since = &ts
+				i++
+			}
+		case "--until":
+			if i+1 < len(args) {
+				ts, err := parseTimeFlag(args[i+1], true)
+				if err != nil {
+					return err
+				}
+				filter.Until = &ts
+				i++
+			}
+		case "--limit":
+			if i+1 < len(args) {
+				limit, err := parseInt(args[i+1])
+				if err != nil {
+					return fmt.Errorf("invalid limit: %w", err)
+				}
+				filter.Limit = limit
+				i++
+			}
+		case "--offset":
+			if i+1 < len(args) {
+				offset, err := parseInt(args[i+1])
+				if err != nil {
+					return fmt.Errorf("invalid offset: %w", err)
+				}
+				filter.Offset = offset
+				i++
+			}
+		case "--json":
+			jsonOutput = true
+		}
+	}
+
+	conn, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	store := db.NewMappingStore(conn)
+	decisions, total, err := store.ListMappingDecisions(ctx, filter)
+	if err != nil {
+		return fmt.Errorf("failed to list mapping decisions: %w", err)
+	}
+
+	if jsonOutput {
+		data, err := json.MarshalIndent(map[string]interface{}{
+			"total":     total,
+			"offset":    filter.Offset,
+			"limit":     filter.Limit,
+			"decisions": decisions,
+		}, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(data))
+		return nil
+	}
+
+	fmt.Printf("Mapping Decisions (%d total, showing %d-%d)\n", total, filter.Offset+1, filter.Offset+len(decisions))
+	fmt.Println(strings.Repeat("-", 124))
+	fmt.Printf("%-6s %-22s %-16s %-12s %-12s %-10s %-8s %s\n",
+		"ID", "TYPE", "SOURCE_SYS", "SOURCE_CODE", "SELECTED", "CONF", "SRC", "CREATED")
+	fmt.Println(strings.Repeat("-", 124))
+	for _, decision := range decisions {
+		fmt.Printf("%-6d %-22s %-16s %-12s %-12s %-10s %-8s %s\n",
+			decision.ID,
+			string(decision.DecisionType),
+			truncate(decision.SourceSystem, 16),
+			truncate(decision.SourceCode, 12),
+			truncate(decision.SelectedCode, 12),
+			formatOptionalConfidence(decision.Confidence),
+			truncate(decision.RequestSource, 8),
+			decision.CreatedAt.Format("2006-01-02 15:04"))
+	}
+
+	if total > filter.Offset+len(decisions) {
+		fmt.Printf("\nShowing %d of %d. Use --offset %d for next page.\n",
+			len(decisions), total, filter.Offset+filter.Limit)
+	}
+
+	return nil
+}
+
+func runTerminologyMappingDecision(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("decision ID required")
+	}
+
+	decisionID, err := parseInt(args[0])
+	if err != nil {
+		return fmt.Errorf("invalid decision ID: %w", err)
+	}
+
+	dbURL := getTerminologyDBURL(args)
+	if dbURL == "" {
+		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_TERMINOLOGY_DB_URL env var")
+	}
+
+	var jsonOutput bool
+	for i := 1; i < len(args); i++ {
+		if args[i] == "--json" {
+			jsonOutput = true
+		}
+	}
+
+	conn, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	store := db.NewMappingStore(conn)
+	decision, err := store.GetMappingDecision(ctx, int64(decisionID))
+	if err != nil {
+		return fmt.Errorf("failed to get mapping decision: %w", err)
+	}
+	if decision == nil {
+		return fmt.Errorf("mapping decision not found: %d", decisionID)
+	}
+
+	if jsonOutput {
+		data, err := json.MarshalIndent(decision, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(data))
+		return nil
+	}
+
+	fmt.Printf("Mapping Decision: %d\n", decision.ID)
+	fmt.Println(strings.Repeat("-", 50))
+	fmt.Printf("Trace ID:         %s\n", decision.TraceID)
+	fmt.Printf("Decision Type:    %s\n", decision.DecisionType)
+	fmt.Printf("Request Source:   %s\n", decision.RequestSource)
+	fmt.Printf("Source System:    %s\n", decision.SourceSystem)
+	fmt.Printf("Source Code:      %s\n", decision.SourceCode)
+	fmt.Printf("Source Display:   %s\n", decision.SourceDisplay)
+	fmt.Printf("Target System:    %s\n", decision.TargetSystem)
+	fmt.Printf("Selected Code:    %s\n", decision.SelectedCode)
+	fmt.Printf("Selected Display: %s\n", decision.SelectedDisplay)
+	fmt.Printf("Confidence:       %s\n", formatOptionalConfidence(decision.Confidence))
+	fmt.Printf("Profile ID:       %s\n", decision.ProfileID)
+	fmt.Printf("Duration:         %dms\n", decision.DurationMs)
+	fmt.Printf("Created At:       %s\n", decision.CreatedAt.Format(time.RFC3339))
+	if len(decision.DecisionTree) > 0 {
+		fmt.Printf("\nDecision Tree:\n%s\n", formatJSON(decision.DecisionTree))
+	}
+
+	return nil
+}
+
+func runTerminologyMappingDecisionStats(args []string) error {
+	dbURL := getTerminologyDBURL(args)
+	if dbURL == "" {
+		return fmt.Errorf("database URL required: use --db flag or FI_FHIR_TERMINOLOGY_DB_URL env var")
+	}
+
+	until := time.Now()
+	since := until.Add(-7 * 24 * time.Hour)
+	var jsonOutput bool
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--since":
+			if i+1 < len(args) {
+				ts, err := parseTimeFlag(args[i+1], false)
+				if err != nil {
+					return err
+				}
+				since = ts
+				i++
+			}
+		case "--until":
+			if i+1 < len(args) {
+				ts, err := parseTimeFlag(args[i+1], true)
+				if err != nil {
+					return err
+				}
+				until = ts
+				i++
+			}
+		case "--json":
+			jsonOutput = true
+		}
+	}
+
+	conn, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	store := db.NewMappingStore(conn)
+	stats, err := store.GetDecisionStats(ctx, since, until)
+	if err != nil {
+		return fmt.Errorf("failed to get mapping decision stats: %w", err)
+	}
+
+	if jsonOutput {
+		data, err := json.MarshalIndent(stats, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(data))
+		return nil
+	}
+
+	fmt.Println("Mapping Decision Stats")
+	fmt.Println("----------------------")
+	fmt.Printf("Window:          %s to %s\n", stats.Since.Format(time.RFC3339), stats.Until.Format(time.RFC3339))
+	fmt.Printf("Total Decisions: %d\n", stats.TotalDecisions)
+	fmt.Printf("Avg Duration:    %.1fms\n", stats.AvgDurationMs)
+	if stats.AvgConfidence != nil {
+		fmt.Printf("Avg Confidence:  %.2f\n", *stats.AvgConfidence)
+	}
+
+	if len(stats.DecisionsByType) > 0 {
+		fmt.Println("\nBy Type:")
+		types := make([]db.DecisionType, 0, len(stats.DecisionsByType))
+		for decisionType := range stats.DecisionsByType {
+			types = append(types, decisionType)
+		}
+		sort.Slice(types, func(i, j int) bool {
+			return decisionSortKey(types[i]) < decisionSortKey(types[j])
+		})
+		for _, decisionType := range types {
+			fmt.Printf("  %-22s %d\n", decisionType, stats.DecisionsByType[decisionType])
 		}
 	}
 
@@ -1998,7 +2523,11 @@ func runAutoroute(code, sourceSystem, targetSystem, display string, jsonOutput b
 	decision := result.Classify(0.90, 0.70)
 
 	if jsonOutput {
-		return printResolveResultJSON(nil, result, string(decision))
+		traceID := ""
+		if result.Trace != nil {
+			traceID = result.Trace.TraceID
+		}
+		return printResolveResultJSON(nil, result, string(decision), traceID)
 	}
 
 	fmt.Printf("Autoroute result (%s)\n", decision)
@@ -2019,9 +2548,12 @@ func runAutoroute(code, sourceSystem, targetSystem, display string, jsonOutput b
 	return nil
 }
 
-func printResolveResultJSON(persistent *db.CustomMapping, autorouted *autoroute.SuggestResult, decision string) error {
+func printResolveResultJSON(persistent *db.CustomMapping, autorouted *autoroute.SuggestResult, decision, traceID string) error {
 	output := map[string]interface{}{
 		"decision": decision,
+	}
+	if traceID != "" {
+		output["traceId"] = traceID
 	}
 
 	if persistent != nil {
@@ -2040,9 +2572,15 @@ func printResolveResultJSON(persistent *db.CustomMapping, autorouted *autoroute.
 	}
 
 	if autorouted != nil && autorouted.BestMatch != nil {
+		sourceSystem := ""
+		sourceCode := ""
+		if autorouted.Trace != nil {
+			sourceSystem = autorouted.Trace.Request.SourceSystem
+			sourceCode = autorouted.Trace.Request.SourceCode
+		}
 		output["mapping"] = map[string]interface{}{
-			"sourceSystem":  autorouted.Trace.Request.SourceSystem,
-			"sourceCode":    autorouted.Trace.Request.SourceCode,
+			"sourceSystem":  sourceSystem,
+			"sourceCode":    sourceCode,
 			"targetSystem":  autorouted.BestMatch.System,
 			"targetCode":    autorouted.BestMatch.Code,
 			"targetDisplay": autorouted.BestMatch.Display,
