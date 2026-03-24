@@ -13,19 +13,6 @@ function createState(doc: string) {
   });
 }
 
-function getTokensAt(state: EditorState): Array<{ from: number; to: number; name: string }> {
-  const tokens: Array<{ from: number; to: number; name: string }> = [];
-  const tree = syntaxTree(state);
-  tree.iterate({
-    enter(node) {
-      if (node.from !== node.to) {
-        tokens.push({ from: node.from, to: node.to, name: node.name });
-      }
-    }
-  });
-  return tokens;
-}
-
 describe('lang-cel', () => {
   it('should create a language extension', () => {
     const ext = cel();

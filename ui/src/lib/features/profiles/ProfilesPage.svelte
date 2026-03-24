@@ -4,7 +4,6 @@
   import type { TabItem } from '$lib/ui/types';
   import Panel from '$lib/ui/Panel.svelte';
   import Button from '$lib/ui/Button.svelte';
-  import TextArea from '$lib/ui/TextArea.svelte';
   import CodeEditor from '$lib/ui/editor/CodeEditor.svelte';
 
   import ProfileSelector from '$lib/features/hl7/components/ProfileSelector.svelte';

@@ -76,7 +76,7 @@
         stroke-linejoin="round"
         aria-hidden="true"
       >
-        {#each entry.icon.split(' M') as segment, i}
+        {#each entry.icon.split(' M') as segment, i (`${entry.view}-${i}`)}
           <path d={i === 0 ? segment : `M${segment}`} />
         {/each}
       </svg>

@@ -1,7 +1,7 @@
 /**
  * Tests for the IDE state store.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { get } from 'svelte/store';
 import {
   ideState,

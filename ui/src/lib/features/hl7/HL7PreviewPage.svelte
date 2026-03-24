@@ -5,7 +5,6 @@
   import Button from '$lib/ui/Button.svelte';
   import Panel from '$lib/ui/Panel.svelte';
   import Tabs from '$lib/ui/Tabs.svelte';
-  import TextArea from '$lib/ui/TextArea.svelte';
   import CodeEditor from '$lib/ui/editor/CodeEditor.svelte';
   import WarningList from '$lib/ui/WarningList.svelte';
   import HL7Inspector from '$lib/features/hl7/components/HL7Inspector.svelte';

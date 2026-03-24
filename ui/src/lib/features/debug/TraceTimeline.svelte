@@ -43,21 +43,17 @@
   ): FlatSpan[] {
     if (allSpans.length === 0) return [];
 
-    const byParent = new Map<string | null, TraceSpan[]>();
+    const rootParentId = '__root__';
+    const byParent: Record<string, TraceSpan[]> = {};
     for (const s of allSpans) {
-      const parentKey = s.parentId ?? null;
-      const existing = byParent.get(parentKey);
-      if (existing) {
-        existing.push(s);
-      } else {
-        byParent.set(parentKey, [s]);
-      }
+      const parentKey = s.parentId ?? rootParentId;
+      byParent[parentKey] = [...(byParent[parentKey] ?? []), s];
     }
 
     const result: FlatSpan[] = [];
 
     function walk(parentId: string | null, depth: number): void {
-      const children = byParent.get(parentId) ?? [];
+      const children = byParent[parentId ?? rootParentId] ?? [];
       for (const span of children) {
         const start = new Date(span.startTime).getTime();
         const end = span.endTime ? new Date(span.endTime).getTime() : start + 10;
