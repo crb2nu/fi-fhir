@@ -10,7 +10,8 @@ export async function startDebugSession(
   void workflowYaml;
   void event;
   if (USE_MOCKS) {
-    return { ...mockSession, state: 'paused', steps: [mockSteps[0]] };
+    const firstStep = mockSteps[0];
+    return { ...mockSession, state: 'paused', steps: firstStep ? [firstStep] : [] };
   }
   // TODO: Wire to GraphQL mutation startDebugSession
   throw new Error('Not implemented');

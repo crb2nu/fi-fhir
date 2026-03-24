@@ -75,16 +75,22 @@ describe('ActivityBar', () => {
         events: { change: changeFn },
       });
 
-      const views = ['HL7 Messages', 'Workflows', 'Events', 'Profiles', 'Terminology', 'System'];
-      const expected = ['hl7', 'workflows', 'events', 'profiles', 'terminology', 'system'];
+      const views = [
+        ['HL7 Messages', 'hl7'],
+        ['Workflows', 'workflows'],
+        ['Events', 'events'],
+        ['Profiles', 'profiles'],
+        ['Terminology', 'terminology'],
+        ['System', 'system']
+      ] as const;
 
-      for (let i = 0; i < views.length; i++) {
-        await fireEvent.click(screen.getByRole('button', { name: views[i] }));
+      for (const [label] of views) {
+        await fireEvent.click(screen.getByRole('button', { name: label }));
       }
 
       expect(changeFn).toHaveBeenCalledTimes(6);
-      for (let i = 0; i < expected.length; i++) {
-        expect(changeFn.mock.calls[i]![0]!.detail).toBe(expected[i]);
+      for (const [index, [, expectedView]] of views.entries()) {
+        expect(changeFn.mock.calls[index]?.[0]?.detail).toBe(expectedView);
       }
     });
   });

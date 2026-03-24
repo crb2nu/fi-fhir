@@ -24,10 +24,11 @@ describe('TraceTimeline', () => {
 
       const labels = container.querySelectorAll('.span-label');
       expect(labels).toHaveLength(4);
-      expect(labels[0].textContent).toBe('workflow.process');
-      expect(labels[1].textContent).toBe('workflow.route');
-      expect(labels[2].textContent).toBe('workflow.transform');
-      expect(labels[3].textContent).toBe('workflow.action');
+      const [first, second, third, fourth] = Array.from(labels);
+      expect(first?.textContent).toBe('workflow.process');
+      expect(second?.textContent).toBe('workflow.route');
+      expect(third?.textContent).toBe('workflow.transform');
+      expect(fourth?.textContent).toBe('workflow.action');
     });
 
     it('should render span bars with status classes', () => {
@@ -66,7 +67,12 @@ describe('TraceTimeline', () => {
 
   describe('correct number of elements', () => {
     it('should render correct number of span elements for single span', () => {
-      const singleSpan = [mockTraceSpans[0]];
+      const firstSpan = mockTraceSpans[0];
+      expect(firstSpan).toBeDefined();
+      if (!firstSpan) {
+        throw new Error('expected first mock trace span');
+      }
+      const singleSpan = [firstSpan];
       const { container } = render(TraceTimeline, {
         props: { spans: singleSpan }
       });

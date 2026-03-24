@@ -5,7 +5,8 @@
  * and provides reactive theme extensions for light/dark modes.
  */
 import { EditorView } from '@codemirror/view';
-import { Extension, Compartment } from '@codemirror/state';
+import { Compartment } from '@codemirror/state';
+import type { Extension } from '@codemirror/state';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 

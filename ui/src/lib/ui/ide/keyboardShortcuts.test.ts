@@ -1,25 +1,36 @@
 /**
  * Tests for IDE keyboard shortcuts.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { initKeyboardShortcuts } from './keyboardShortcuts';
+import type { ShortcutCallbacks } from './keyboardShortcuts';
 
 describe('keyboardShortcuts', () => {
-  let callbacks: {
-    toggleSidebar: ReturnType<typeof vi.fn>;
-    toggleBottomPanel: ReturnType<typeof vi.fn>;
-    closeTab: ReturnType<typeof vi.fn>;
-    splitEditor: ReturnType<typeof vi.fn>;
-  };
+  let callbacks: ShortcutCallbacks;
+  let callCounts: Record<'toggleSidebar' | 'toggleBottomPanel' | 'closeTab' | 'splitEditor', number>;
 
   let cleanup: () => void;
 
   beforeEach(() => {
+    callCounts = {
+      toggleSidebar: 0,
+      toggleBottomPanel: 0,
+      closeTab: 0,
+      splitEditor: 0,
+    };
     callbacks = {
-      toggleSidebar: vi.fn(),
-      toggleBottomPanel: vi.fn(),
-      closeTab: vi.fn(),
-      splitEditor: vi.fn(),
+      toggleSidebar: () => {
+        callCounts.toggleSidebar += 1;
+      },
+      toggleBottomPanel: () => {
+        callCounts.toggleBottomPanel += 1;
+      },
+      closeTab: () => {
+        callCounts.closeTab += 1;
+      },
+      splitEditor: () => {
+        callCounts.splitEditor += 1;
+      },
     };
     cleanup = initKeyboardShortcuts(callbacks);
   });
@@ -43,43 +54,43 @@ describe('keyboardShortcuts', () => {
   describe('Cmd+B toggles sidebar', () => {
     it('should call toggleSidebar on Cmd+B', () => {
       fireKey('b', { metaKey: true });
-      expect(callbacks.toggleSidebar).toHaveBeenCalledTimes(1);
+      expect(callCounts.toggleSidebar).toBe(1);
     });
 
     it('should call toggleSidebar on Ctrl+B', () => {
       fireKey('b', { metaKey: false, ctrlKey: true });
-      expect(callbacks.toggleSidebar).toHaveBeenCalledTimes(1);
+      expect(callCounts.toggleSidebar).toBe(1);
     });
 
     it('should not call toggleSidebar without modifier', () => {
       fireKey('b', { metaKey: false, ctrlKey: false });
-      expect(callbacks.toggleSidebar).not.toHaveBeenCalled();
+      expect(callCounts.toggleSidebar).toBe(0);
     });
   });
 
   describe('Cmd+J toggles bottom panel', () => {
     it('should call toggleBottomPanel on Cmd+J', () => {
       fireKey('j', { metaKey: true });
-      expect(callbacks.toggleBottomPanel).toHaveBeenCalledTimes(1);
+      expect(callCounts.toggleBottomPanel).toBe(1);
     });
 
     it('should call toggleBottomPanel on Ctrl+J', () => {
       fireKey('j', { metaKey: false, ctrlKey: true });
-      expect(callbacks.toggleBottomPanel).toHaveBeenCalledTimes(1);
+      expect(callCounts.toggleBottomPanel).toBe(1);
     });
   });
 
   describe('Cmd+W closes tab', () => {
     it('should call closeTab on Cmd+W', () => {
       fireKey('w', { metaKey: true });
-      expect(callbacks.closeTab).toHaveBeenCalledTimes(1);
+      expect(callCounts.closeTab).toBe(1);
     });
   });
 
   describe('Cmd+\\ splits editor', () => {
     it('should call splitEditor on Cmd+\\', () => {
       fireKey('\\', { metaKey: true });
-      expect(callbacks.splitEditor).toHaveBeenCalledTimes(1);
+      expect(callCounts.splitEditor).toBe(1);
     });
   });
 
@@ -87,7 +98,7 @@ describe('keyboardShortcuts', () => {
     it('should remove event listeners on cleanup', () => {
       cleanup();
       fireKey('b', { metaKey: true });
-      expect(callbacks.toggleSidebar).not.toHaveBeenCalled();
+      expect(callCounts.toggleSidebar).toBe(0);
     });
   });
 
@@ -102,7 +113,7 @@ describe('keyboardShortcuts', () => {
       // Simulate default prevention
       Object.defineProperty(event, 'defaultPrevented', { value: true });
       window.dispatchEvent(event);
-      expect(callbacks.toggleSidebar).not.toHaveBeenCalled();
+      expect(callCounts.toggleSidebar).toBe(0);
     });
   });
 });

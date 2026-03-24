@@ -39,8 +39,9 @@
   let paletteOpen = false;
   let shortcutLabel = 'Ctrl+K';
   let cleanupShortcuts: (() => void) | null = null;
+  type AppRoute = '/' | '/events' | '/hl7' | '/profiles' | '/terminology' | '/workflows';
 
-  const viewRoutes: Record<IDEView, string> = {
+  const viewRoutes: Record<IDEView, AppRoute> = {
     hl7: '/hl7',
     workflows: '/workflows',
     events: '/events',
@@ -87,7 +88,7 @@
 
   function onViewChange(e: CustomEvent<IDEView>): void {
     const view = e.detail;
-    const route = viewRoutes[view] ?? '/';
+    const route = viewRoutes[view];
     goto(resolve(route));
   }
 

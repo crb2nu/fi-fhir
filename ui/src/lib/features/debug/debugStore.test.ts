@@ -135,8 +135,9 @@ describe('debugStore', () => {
       };
       addBreakpoint(bp);
 
-      expect(get(breakpoints)).toHaveLength(1);
-      expect(get(breakpoints)[0].name).toBe('new-bp');
+      const currentBreakpoints = get(breakpoints);
+      expect(currentBreakpoints).toHaveLength(1);
+      expect(currentBreakpoints[0]?.name).toBe('new-bp');
     });
   });
 

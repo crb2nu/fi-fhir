@@ -27,6 +27,18 @@
     return '';
   }
 
+  function getCollectionLabel(value: unknown, type: ValueType): string {
+    if (type === 'array') {
+      return `Array(${Array.isArray(value) ? value.length : 0})`;
+    }
+    return 'Object';
+  }
+
+  function asEntries(value: unknown): [string, unknown][] {
+    if (typeof value !== 'object' || value === null) return [];
+    return Object.entries(value as Record<string, unknown>);
+  }
+
   $: entries = Object.entries(variables);
   $: hasEntries = entries.length > 0;
 
@@ -58,12 +70,12 @@
               </span>
               <span class="var-key">{key}</span>
               <span class="var-type {type}">
-                {type === 'array' ? `Array(${/** @type {unknown[]} */ (/** @type {unknown} */ (value)).length})` : 'Object'}
+                {getCollectionLabel(value, type)}
               </span>
             </button>
             {#if expandedKeys[key]}
               <div class="nested">
-                {#each Object.entries(/** @type {Record<string, unknown>} */ (/** @type {unknown} */ (value))) as [nk, nv] (nk)}
+                {#each asEntries(value) as [nk, nv] (nk)}
                   <div class="var-row nested-row">
                     <span class="var-key">{nk}</span>
                     <span class="var-value {getType(nv)}">{formatValue(nv)}</span>

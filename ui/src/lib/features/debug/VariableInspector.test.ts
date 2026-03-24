@@ -20,9 +20,10 @@ describe('VariableInspector', () => {
 
       const keys = container.querySelectorAll('.var-key');
       expect(keys).toHaveLength(3);
-      expect(keys[0].textContent).toContain('event.type');
-      expect(keys[1].textContent).toContain('event.source');
-      expect(keys[2].textContent).toContain('event.isCritical');
+      const [first, second, third] = Array.from(keys);
+      expect(first?.textContent).toContain('event.type');
+      expect(second?.textContent).toContain('event.source');
+      expect(third?.textContent).toContain('event.isCritical');
     });
 
     it('should render string values with quotes', () => {
