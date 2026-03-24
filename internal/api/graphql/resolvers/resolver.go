@@ -97,6 +97,10 @@ type Resolver struct {
 	subscriptionRecords map[string]*SubscriptionRecord
 	subscriptionMu      sync.RWMutex
 
+	// Debug sessions
+	debugSessions   map[string]*workflow.DebugSession
+	debugSessionsMu sync.RWMutex
+
 	// Workflow event subscribers
 	workflowSubscribers []*workflowSubscriber
 	workflowSubMu       sync.RWMutex
@@ -117,6 +121,7 @@ func NewResolver(opts ...ResolverOption) *Resolver {
 		Store:                  store.NewMemoryStore(),
 		WorkflowLifecycleStore: store.NewMemoryWorkflowLifecycleStore(),
 		workflowVersionEngines: make(map[string]*workflow.Engine),
+		debugSessions:          make(map[string]*workflow.DebugSession),
 		Projections:            projections.NewService(nil), // In-memory projections by default
 		subscriptionClients:    make(map[string]*subscription.Client),
 		subscriptionRecords:    make(map[string]*SubscriptionRecord),

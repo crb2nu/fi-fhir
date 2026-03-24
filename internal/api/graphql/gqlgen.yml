@@ -241,6 +241,35 @@ models:
     model:
       - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.DryRunResult
 
+  # Debug & Trace types
+  DebugSession:
+    model:
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.DebugSessionModel
+  Breakpoint:
+    model:
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.BreakpointModel
+  WorkflowDebugStep:
+    model:
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.DebugStepModel
+  ParseEvent:
+    model:
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.ParseEventModel
+  TraceSpan:
+    model:
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.TraceSpanModel
+  TraceSpanEvent:
+    model:
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.TraceSpanEventModel
+  StartDebugSessionInput:
+    model:
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.StartDebugSessionInput
+  SetBreakpointInput:
+    model:
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.SetBreakpointInput
+  LiveParseInput:
+    model:
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.LiveParseInput
+
 # gqlgen features
 omit_slice_element_pointers: true
 omit_complexity: false

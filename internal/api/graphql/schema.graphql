@@ -1936,3 +1936,95 @@ extend type Mutation {
   # Cancel a running workflow
   cancelTemporalWorkflow(workflowId: String!, reason: String): Boolean!
 }
+
+# =============================================================================
+# Debug & Trace Types
+# =============================================================================
+
+type DebugSession {
+  id: ID!
+  workflowId: String!
+  state: String!
+  breakpoints: [Breakpoint!]!
+  steps: [WorkflowDebugStep!]!
+  createdAt: DateTime!
+}
+
+type Breakpoint {
+  id: ID!
+  type: String!
+  name: String!
+  enabled: Boolean!
+}
+
+type WorkflowDebugStep {
+  stepNumber: Int!
+  kind: String!
+  name: String!
+  variables: JSON
+  timestamp: DateTime!
+  spanName: String!
+}
+
+type ParseEvent {
+  segmentIndex: Int!
+  segmentType: String!
+  rawSegment: String!
+  fields: JSON
+  warnings: [String!]!
+  isComplete: Boolean!
+}
+
+type TraceSpan {
+  id: ID!
+  name: String!
+  parentId: ID
+  startTime: DateTime!
+  endTime: DateTime
+  status: String!
+  attributes: JSON
+  events: [TraceSpanEvent!]!
+}
+
+type TraceSpanEvent {
+  name: String!
+  timestamp: DateTime!
+  attributes: JSON
+}
+
+# Debug inputs
+input StartDebugSessionInput {
+  workflowYaml: String!
+  event: JSON!
+}
+
+input SetBreakpointInput {
+  sessionId: ID!
+  type: String!
+  name: String!
+}
+
+input LiveParseInput {
+  message: String!
+  format: SourceFormat!
+}
+
+# Extend existing types
+extend type Query {
+  debugSession(id: ID!): DebugSession
+  workflowRunTrace(runId: ID!): [TraceSpan!]!
+}
+
+extend type Mutation {
+  startDebugSession(input: StartDebugSessionInput!): DebugSession!
+  debugStep(sessionId: ID!): WorkflowDebugStep
+  debugContinue(sessionId: ID!): WorkflowDebugStep
+  debugSetBreakpoint(input: SetBreakpointInput!): Breakpoint!
+  debugRemoveBreakpoint(sessionId: ID!, breakpointId: ID!): Boolean!
+  debugEndSession(sessionId: ID!): Boolean!
+}
+
+extend type Subscription {
+  liveParseStream(input: LiveParseInput!): ParseEvent!
+  debugStepEvent(sessionId: ID!): WorkflowDebugStep!
+}
