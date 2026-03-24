@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import Button from '$lib/ui/Button.svelte';
+  import CodeEditor from '$lib/ui/editor/CodeEditor.svelte';
   import {
     EVENT_TYPE_CATEGORIES,
     EVENT_TYPE_PRESETS,
@@ -39,9 +40,8 @@
     dispatch('change', { ...filter, sources });
   }
 
-  function handleConditionInput(e: Event) {
-    const target = e.target as HTMLInputElement;
-    dispatch('change', { ...filter, condition: target.value });
+  function handleConditionChange(e: CustomEvent<string>) {
+    dispatch('change', { ...filter, condition: e.detail });
   }
 </script>
 
@@ -109,12 +109,13 @@
       </Button>
     </div>
     {#if showCel}
-      <input
-        type="text"
-        class="input mono"
+      <CodeEditor
+        language="cel"
         value={filter.condition}
-        on:input={handleConditionInput}
-        placeholder='e.g. event.isCritical == true'
+        on:change={handleConditionChange}
+        placeholder="e.g. event.isCritical == true"
+        height="60px"
+        lineNumbers={false}
       />
       <div class="hint">
         CEL expression evaluated against the event. Returns true to match.
@@ -225,10 +226,6 @@
   .input:focus {
     border-color: var(--color-border-focus);
     box-shadow: var(--shadow-focus);
-  }
-
-  .mono {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   }
 
   .hint {

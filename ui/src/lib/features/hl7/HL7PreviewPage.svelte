@@ -6,6 +6,7 @@
   import Panel from '$lib/ui/Panel.svelte';
   import Tabs from '$lib/ui/Tabs.svelte';
   import TextArea from '$lib/ui/TextArea.svelte';
+  import CodeEditor from '$lib/ui/editor/CodeEditor.svelte';
   import WarningList from '$lib/ui/WarningList.svelte';
   import HL7Inspector from '$lib/features/hl7/components/HL7Inspector.svelte';
   import { parseHL7Path } from '$lib/domain/hl7Path';
@@ -955,7 +956,13 @@
         {#if msh10}<span class="pill mono">MSH-10={msh10}</span>{/if}
         {#if msh12}<span class="pill mono">MSH-12={msh12}</span>{/if}
       </div>
-      <TextArea aria-label="HL7v2 message" bind:value={$state.data} rows={12} disabled={$state.loading} />
+      <CodeEditor
+        language="hl7v2"
+        value={$state.data}
+        on:change={(e) => { $state.data = e.detail; }}
+        readOnly={$state.loading}
+        height="300px"
+      />
       {#if isDragging}
         <div class="drop-hint">Drop files to import into Samples</div>
       {/if}

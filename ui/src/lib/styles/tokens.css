@@ -444,3 +444,24 @@
   --ide-split-handle: var(--color-border-default);
   --ide-split-handle-hover: var(--color-primary);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * CODE EDITOR TOKENS
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --editor-bg: var(--color-bg-input);
+  --editor-gutter-bg: var(--color-bg-elevated);
+  --editor-cursor: var(--color-text-primary);
+  --editor-selection: rgba(99, 102, 241, 0.2);
+  --editor-line-highlight: rgba(99, 102, 241, 0.06);
+  --editor-matching-bracket: rgba(99, 102, 241, 0.3);
+  --editor-gutter-text: var(--color-text-muted);
+  --editor-fold-placeholder: var(--color-text-tertiary);
+}
+
+:root[data-theme="dark"] {
+  --editor-selection: rgba(99, 102, 241, 0.3);
+  --editor-line-highlight: rgba(99, 102, 241, 0.08);
+  --editor-matching-bracket: rgba(99, 102, 241, 0.4);
+}
