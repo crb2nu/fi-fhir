@@ -416,3 +416,31 @@
     transform: translateY(-4px);
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * IDE LAYOUT TOKENS
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --ide-activity-bar-width: 48px;
+  --ide-sidebar-width: 280px;
+  --ide-sidebar-min-width: 200px;
+  --ide-sidebar-max-width: 480px;
+  --ide-bottom-panel-height: 200px;
+  --ide-bottom-panel-min-height: 100px;
+  --ide-bottom-panel-max-height: 500px;
+  --ide-status-bar-height: 24px;
+  --ide-tab-height: 36px;
+  --ide-header-height: 40px;
+
+  --ide-activity-bar-bg: var(--color-bg-elevated);
+  --ide-sidebar-bg: var(--color-bg-surface);
+  --ide-bottom-panel-bg: var(--color-bg-surface);
+  --ide-status-bar-bg: var(--color-primary);
+  --ide-status-bar-text: var(--color-text-inverse);
+  --ide-tab-bg: var(--color-bg-surface);
+  --ide-tab-active-bg: var(--color-bg-base);
+  --ide-tab-border: var(--color-border-subtle);
+  --ide-split-handle: var(--color-border-default);
+  --ide-split-handle-hover: var(--color-primary);
+}

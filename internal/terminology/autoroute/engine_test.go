@@ -4,7 +4,9 @@ import (
 	"testing"
 	"time"
 
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/index"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/semantic"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -203,5 +205,105 @@ func TestEngineCacheDisabled(t *testing.T) {
 
 	if engine.CacheSize() != 0 {
 		t.Error("CacheSize should return 0 when cache disabled")
+	}
+}
+
+func TestNewEngineWithRouter(t *testing.T) {
+	// Create a mock client to use as the fast tier
+	mockClient := &mockLLMClient{}
+	router := llm.NewRouter(mockClient, nil, llm.DefaultRouterConfig())
+
+	cfg := Config{
+		CacheEnabled: false,
+		LLMModel:     "router-model",
+	}
+
+	engine := NewEngineWithRouter(nil, router, cfg)
+
+	if engine.router != router {
+		t.Error("expected router to be set")
+	}
+	if engine.ranker == nil {
+		t.Error("expected ranker to be created")
+	}
+	// Defaults should be applied
+	if engine.config.HighConfidenceThreshold != 0.90 {
+		t.Errorf("HighConfidenceThreshold = %v, want 0.90", engine.config.HighConfidenceThreshold)
+	}
+}
+
+func TestBuildResultFromSemantic(t *testing.T) {
+	engine := NewEngine(nil, nil, Config{CacheEnabled: false})
+
+	matches := []semantic.SemanticMatch{
+		{Code: "2345-7", Display: "Glucose [Mass/volume]", System: "http://loinc.org", Score: 0.92},
+		{Code: "2339-0", Display: "Glucose in Blood", System: "http://loinc.org", Score: 0.85},
+		{Code: "74774-1", Display: "Glucose panel", System: "http://loinc.org", Score: 0.70},
+	}
+
+	req := SuggestRequest{
+		SourceCode:    "GLU",
+		SourceSystem:  "test",
+		TargetSystem:  "http://loinc.org",
+		MaxCandidates: 3,
+	}
+
+	trace := &DecisionTrace{Steps: make([]DecisionStep, 0)}
+	start := time.Now()
+	searchDuration := 50 * time.Millisecond
+
+	result := engine.buildResultFromSemantic(matches, req, searchDuration, trace, start)
+
+	// Best match
+	if result.BestMatch == nil {
+		t.Fatal("expected best match")
+	}
+	if result.BestMatch.Code != "2345-7" {
+		t.Errorf("best match code = %q, want 2345-7", result.BestMatch.Code)
+	}
+	// Confidence should be score * 0.9
+	expectedConf := 0.92 * 0.9
+	if diff := result.Confidence - expectedConf; diff > 1e-9 || diff < -1e-9 {
+		t.Errorf("confidence = %v, want ~%v", result.Confidence, expectedConf)
+	}
+
+	// Alternates
+	if len(result.Alternates) != 2 {
+		t.Fatalf("expected 2 alternates, got %d", len(result.Alternates))
+	}
+	if result.Alternates[0].Code != "2339-0" {
+		t.Errorf("first alternate = %q, want 2339-0", result.Alternates[0].Code)
+	}
+
+	// Trace result
+	if trace.Result == nil {
+		t.Fatal("expected trace result")
+	}
+	if trace.Result.Code != "2345-7" {
+		t.Errorf("trace result code = %q, want 2345-7", trace.Result.Code)
+	}
+
+	// Timing
+	if result.SearchDuration != searchDuration {
+		t.Errorf("search duration = %v, want %v", result.SearchDuration, searchDuration)
+	}
+}
+
+func TestBuildResultFromSemanticEmpty(t *testing.T) {
+	engine := NewEngine(nil, nil, Config{CacheEnabled: false})
+
+	trace := &DecisionTrace{Steps: make([]DecisionStep, 0)}
+	start := time.Now()
+
+	result := engine.buildResultFromSemantic(nil, SuggestRequest{MaxCandidates: 5}, 0, trace, start)
+
+	if result.BestMatch != nil {
+		t.Error("expected nil best match for empty input")
+	}
+	if result.Confidence != 0 {
+		t.Errorf("confidence = %v, want 0", result.Confidence)
+	}
+	if len(result.Alternates) != 0 {
+		t.Errorf("expected no alternates, got %d", len(result.Alternates))
 	}
 }
