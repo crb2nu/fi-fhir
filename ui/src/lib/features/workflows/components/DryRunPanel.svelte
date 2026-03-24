@@ -32,6 +32,7 @@
 
   let selectedSamples = [0];
   let customEventJson = '';
+  const customEventPlaceholder = '[{ "type": "PATIENT_ADMIT", "source": "epic" }]';
   let useCustom = false;
   let running = false;
   let result: DryRunResult | null = null;
@@ -96,7 +97,7 @@
           language="json"
           value={customEventJson}
           on:change={(e) => { customEventJson = e.detail; }}
-          placeholder='[{ "type": "PATIENT_ADMIT", "source": "epic" }]'
+          placeholder={customEventPlaceholder}
           height="150px"
         />
       {:else}

@@ -22,6 +22,9 @@
   } from './ideStore';
   import { initKeyboardShortcuts } from './keyboardShortcuts';
   import type { IDEView, PanelTab } from './types';
+  import DebugPanel from '$lib/features/debug/DebugPanel.svelte';
+  import TraceTimeline from '$lib/features/debug/TraceTimeline.svelte';
+  import { traceSpans } from '$lib/features/debug/debugStore';
 
   /**
    * IDE Shell composition root.
@@ -64,6 +67,8 @@
     { id: 'nav:system', label: 'Go to System', hint: '/', keywords: ['navigate', 'system', 'home'], run: () => goto(resolve('/')) },
     { id: 'cmd:toggle-sidebar', label: 'Toggle Sidebar', keywords: ['sidebar', 'panel'], run: () => toggleSidebar() },
     { id: 'cmd:toggle-panel', label: 'Toggle Bottom Panel', keywords: ['panel', 'output', 'problems'], run: () => toggleBottomPanel() },
+    { id: 'cmd:debug-panel', label: 'Open Debug Panel', hint: 'Cmd+Shift+D', keywords: ['debug', 'breakpoint', 'step'], run: () => { setActivePanelTab('debug'); if (!$ideState.bottomPanelOpen) toggleBottomPanel(); } },
+    { id: 'cmd:trace-panel', label: 'Open Trace Timeline', keywords: ['trace', 'timeline', 'spans'], run: () => { setActivePanelTab('trace'); if (!$ideState.bottomPanelOpen) toggleBottomPanel(); } },
   ];
 
   function detectViewFromPath(pathname: string): IDEView {
@@ -129,6 +134,10 @@
       closeTab: closeActiveTab,
       splitEditor: () => {
         // Split editor placeholder - future feature
+      },
+      openDebugPanel: () => {
+        setActivePanelTab('debug');
+        if (!$ideState.bottomPanelOpen) toggleBottomPanel();
       },
     });
 
@@ -226,7 +235,17 @@
         activeTab={$ideState.activePanelTab}
         on:tabchange={onPanelTabChange}
         on:toggle={onPanelToggle}
-      />
+      >
+        {#if $ideState.activePanelTab === 'debug'}
+          <DebugPanel />
+        {:else if $ideState.activePanelTab === 'trace'}
+          <TraceTimeline spans={$traceSpans} />
+        {:else if $ideState.activePanelTab === 'output'}
+          <div class="panel-placeholder">Output will appear here during workflow execution.</div>
+        {:else if $ideState.activePanelTab === 'problems'}
+          <div class="panel-placeholder">No problems detected.</div>
+        {/if}
+      </BottomPanel>
     </div>
 
     <Sidebar
@@ -362,6 +381,13 @@
     overflow: auto;
     min-height: 0;
     padding: var(--space-4);
+  }
+
+  .panel-placeholder {
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    padding: var(--space-4);
+    text-align: center;
   }
 
   /* ── Mobile responsive: collapse to single pane ── */

@@ -8,6 +8,7 @@ export interface ShortcutCallbacks {
   toggleBottomPanel: () => void;
   closeTab: () => void;
   splitEditor: () => void;
+  openDebugPanel?: () => void;
 }
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -42,6 +43,12 @@ export function initKeyboardShortcuts(callbacks: ShortcutCallbacks): () => void 
     if (key === 'j') {
       e.preventDefault();
       callbacks.toggleBottomPanel();
+      return;
+    }
+
+    if (key === 'd' && e.shiftKey && callbacks.openDebugPanel) {
+      e.preventDefault();
+      callbacks.openDebugPanel();
       return;
     }
 

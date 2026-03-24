@@ -21,6 +21,7 @@
   const panelTabs: PanelTabEntry[] = [
     { key: 'output', label: 'Output' },
     { key: 'problems', label: 'Problems' },
+    { key: 'debug', label: 'Debug' },
     { key: 'trace', label: 'Trace' },
   ];
 

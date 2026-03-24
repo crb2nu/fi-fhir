@@ -13,7 +13,7 @@ export interface EditorTab {
   path?: string;
 }
 
-export type PanelTab = 'output' | 'problems' | 'trace';
+export type PanelTab = 'output' | 'problems' | 'debug' | 'trace';
 
 export type SplitOrientation = 'horizontal' | 'vertical';
 
