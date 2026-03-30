@@ -4,6 +4,8 @@ include:
     file:
       - /k3s/ci/caches/gitlab-ci-cache.yml
 
+  - project: 'services/tech-radar'
+    file: '/ci/radar.yml'
 stages:
   - lint
   - test
@@ -138,7 +140,7 @@ lint:go:
     - apk add --no-cache git curl
     # Use pre-built binary to avoid dependency download issues
     - curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b "${GOPATH}/bin" ${GOLANGCI_LINT_VERSION}
-    - golangci-lint run --timeout=10m ./...
+    - golangci-lint run --timeout=15m ./...
   after_script:
     - |
       if [ "$CI_JOB_STATUS" = "failed" ]; then
@@ -1670,3 +1672,6 @@ release:gitlab:
           link_type: package
   rules:
     - if: $CI_COMMIT_TAG
+
+radar-scan:
+  extends: .radar-scan

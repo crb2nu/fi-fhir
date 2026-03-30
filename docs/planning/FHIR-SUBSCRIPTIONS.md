@@ -512,9 +512,9 @@ fhir.notification.receive (root span)
 - [x] Validation tooling - see `validate` command
 
 ### Phase 4: Advanced Features ⚠️
-- [ ] WebSocket channel support (planned)
+- [ ] WebSocket channel support (planned) — #3
 - [x] Custom CEL-based event mapping - see `mapper.go` (uses workflow.CELEvaluator)
-- [ ] Subscription backfill (initial sync)
+- [ ] Subscription backfill (initial sync) — #3
 
 ## Example: Full Integration
 

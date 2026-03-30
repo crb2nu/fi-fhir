@@ -469,9 +469,9 @@ profiles:
 - [x] Profile metadata injection (Meta.Profile set on all resources)
 - [x] Basic terminology system mapping (identifier type codes to URIs)
 - [x] Built-in validator (OperationOutcome) + CLI/workflow integration (`pkg/fhir/validate.go`, `fi-fhir fhir validate`, workflow `fhir` action `validate_fhir`)
-- [ ] Full must-support element validation (beyond current “US Core-ish” checks)
-- [ ] Terminology binding strength validation
-- [ ] External FHIR Validator integration (optional, for deep IG conformance)
+- [ ] Full must-support element validation (beyond current “US Core-ish” checks) — #3
+- [ ] Terminology binding strength validation — #3
+- [ ] External FHIR Validator integration (optional, for deep IG conformance) — #3
 
 ### Phase 4: Da Vinci Support ✅
 - [x] PAS Claim/ClaimResponse (for 837P → FHIR) - see `pkg/fhir/mapper.go:MapClaim()`
@@ -482,8 +482,8 @@ profiles:
 ### Phase 5: Bundle Operations ✅
 - [x] Transaction bundles - see `pkg/fhir/mapper.go:CreateTransactionBundle()`
 - [x] Searchset bundles - see `pkg/fhir/mapper.go:CreateSearchsetBundle()`
-- [ ] Batch bundles
-- [ ] Document bundles (if needed)
+- [ ] Batch bundles — #3
+- [ ] Document bundles (if needed) — #3
 
 ## Testing Strategy
 

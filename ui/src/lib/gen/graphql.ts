@@ -158,6 +158,14 @@ export type BatchResult = {
   totalItems: Scalars['Int']['output'];
 };
 
+export type Breakpoint = {
+  __typename?: 'Breakpoint';
+  enabled: Scalars['Boolean']['output'];
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  type: Scalars['String']['output'];
+};
+
 export type BulkApproveInput = {
   maxCount: InputMaybe<Scalars['Int']['input']>;
   minConfidence: InputMaybe<Scalars['Float']['input']>;
@@ -282,6 +290,16 @@ export type DataQualityScore = {
   overallScore: Scalars['Float']['output'];
   processingTimeMs: Maybe<Scalars['Int']['output']>;
   recommendations: Array<QualityRecommendation>;
+};
+
+export type DebugSession = {
+  __typename?: 'DebugSession';
+  breakpoints: Array<Breakpoint>;
+  createdAt: Scalars['DateTime']['output'];
+  id: Scalars['ID']['output'];
+  state: Scalars['String']['output'];
+  steps: Array<WorkflowDebugStep>;
+  workflowId: Scalars['String']['output'];
 };
 
 export type DocumentEvent = Event & {
@@ -685,6 +703,11 @@ export type ListPendingAutoroutesInput = {
   targetSystem: InputMaybe<Scalars['String']['input']>;
 };
 
+export type LiveParseInput = {
+  format: SourceFormat;
+  message: Scalars['String']['input'];
+};
+
 export type Location = {
   __typename?: 'Location';
   bed: Maybe<Scalars['String']['output']>;
@@ -735,6 +758,11 @@ export type Mutation = {
   createMapping: CodeMapping;
   createProfile: SourceProfile;
   createWorkflowDefinition: WorkflowDefinition;
+  debugContinue: Maybe<WorkflowDebugStep>;
+  debugEndSession: Scalars['Boolean']['output'];
+  debugRemoveBreakpoint: Scalars['Boolean']['output'];
+  debugSetBreakpoint: Breakpoint;
+  debugStep: Maybe<WorkflowDebugStep>;
   deleteFhirSubscription: Scalars['Boolean']['output'];
   deleteMapping: Scalars['Boolean']['output'];
   deleteMappingBatch: Scalars['Int']['output'];
@@ -751,6 +779,7 @@ export type Mutation = {
   rollbackWorkflowVersion: WorkflowRelease;
   saveWorkflowVersion: WorkflowVersion;
   signalReviewDecision: Scalars['Boolean']['output'];
+  startDebugSession: DebugSession;
   startTerminologyReview: StartTerminologyReviewResult;
   submitBatch: BatchResult;
   submitEvent: SubmitResult;
@@ -806,6 +835,32 @@ export type MutationCreateProfileArgs = {
 
 export type MutationCreateWorkflowDefinitionArgs = {
   input: CreateWorkflowDefinitionInput;
+};
+
+
+export type MutationDebugContinueArgs = {
+  sessionId: Scalars['ID']['input'];
+};
+
+
+export type MutationDebugEndSessionArgs = {
+  sessionId: Scalars['ID']['input'];
+};
+
+
+export type MutationDebugRemoveBreakpointArgs = {
+  breakpointId: Scalars['ID']['input'];
+  sessionId: Scalars['ID']['input'];
+};
+
+
+export type MutationDebugSetBreakpointArgs = {
+  input: SetBreakpointInput;
+};
+
+
+export type MutationDebugStepArgs = {
+  sessionId: Scalars['ID']['input'];
 };
 
 
@@ -891,6 +946,11 @@ export type MutationSignalReviewDecisionArgs = {
 };
 
 
+export type MutationStartDebugSessionArgs = {
+  input: StartDebugSessionInput;
+};
+
+
 export type MutationStartTerminologyReviewArgs = {
   input: StartTerminologyReviewInput;
 };
@@ -969,6 +1029,16 @@ export type PageInfo = {
 export type PagingInput = {
   limit: InputMaybe<Scalars['Int']['input']>;
   offset: InputMaybe<Scalars['Int']['input']>;
+};
+
+export type ParseEvent = {
+  __typename?: 'ParseEvent';
+  fields: Maybe<Scalars['JSON']['output']>;
+  isComplete: Scalars['Boolean']['output'];
+  rawSegment: Scalars['String']['output'];
+  segmentIndex: Scalars['Int']['output'];
+  segmentType: Scalars['String']['output'];
+  warnings: Array<Scalars['String']['output']>;
 };
 
 export type ParseResult = {
@@ -1190,6 +1260,7 @@ export type Query = {
   activeEncounters: Array<ActiveEncounter>;
   analyzeQuality: DataQualityScore;
   classifyMessage: MessageClassification;
+  debugSession: Maybe<DebugSession>;
   event: Maybe<Event>;
   eventStatistics: EventStatistics;
   events: EventConnection;
@@ -1224,6 +1295,7 @@ export type Query = {
   workflowDefinition: Maybe<WorkflowDefinition>;
   workflowDefinitions: Array<WorkflowDefinition>;
   workflowRun: Maybe<WorkflowRun>;
+  workflowRunTrace: Array<TraceSpan>;
   workflowRuns: Array<WorkflowRun>;
   workflowVersion: Maybe<WorkflowVersion>;
   workflowVersions: Array<WorkflowVersion>;
@@ -1255,6 +1327,11 @@ export type QueryAnalyzeQualityArgs = {
 
 export type QueryClassifyMessageArgs = {
   input: ClassifyMessageInput;
+};
+
+
+export type QueryDebugSessionArgs = {
+  id: Scalars['ID']['input'];
 };
 
 
@@ -1430,6 +1507,11 @@ export type QueryWorkflowRunArgs = {
 };
 
 
+export type QueryWorkflowRunTraceArgs = {
+  runId: Scalars['ID']['input'];
+};
+
+
 export type QueryWorkflowRunsArgs = {
   filter: InputMaybe<WorkflowRunFilter>;
   paging: InputMaybe<PagingInput>;
@@ -1509,6 +1591,12 @@ export type SaveWorkflowVersionInput = {
   yaml: Scalars['String']['input'];
 };
 
+export type SetBreakpointInput = {
+  name: Scalars['String']['input'];
+  sessionId: Scalars['ID']['input'];
+  type: Scalars['String']['input'];
+};
+
 export type SignalReviewDecisionInput = {
   approved: Scalars['Boolean']['input'];
   comment: InputMaybe<Scalars['String']['input']>;
@@ -1544,6 +1632,11 @@ export type SourceProfile = {
   terminology: Maybe<TerminologyConfig>;
   updatedAt: Scalars['DateTime']['output'];
   version: Scalars['String']['output'];
+};
+
+export type StartDebugSessionInput = {
+  event: Scalars['JSON']['input'];
+  workflowYaml: Scalars['String']['input'];
 };
 
 export type StartTerminologyReviewInput = {
@@ -1595,14 +1688,26 @@ export type SubmitResult = {
 
 export type Subscription = {
   __typename?: 'Subscription';
+  debugStepEvent: WorkflowDebugStep;
   eventStream: Event;
+  liveParseStream: ParseEvent;
   patientEvents: Event;
   workflowEvents: WorkflowEventNotification;
 };
 
 
+export type SubscriptionDebugStepEventArgs = {
+  sessionId: Scalars['ID']['input'];
+};
+
+
 export type SubscriptionEventStreamArgs = {
   filter: InputMaybe<EventFilter>;
+};
+
+
+export type SubscriptionLiveParseStreamArgs = {
+  input: LiveParseInput;
 };
 
 
@@ -1723,6 +1828,25 @@ export type ToleranceConfigInput = {
   nonStandardDelimiters: InputMaybe<Scalars['Boolean']['input']>;
   nteAnywhere: InputMaybe<Scalars['Boolean']['input']>;
   unknownSegments: InputMaybe<Scalars['Boolean']['input']>;
+};
+
+export type TraceSpan = {
+  __typename?: 'TraceSpan';
+  attributes: Maybe<Scalars['JSON']['output']>;
+  endTime: Maybe<Scalars['DateTime']['output']>;
+  events: Array<TraceSpanEvent>;
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  parentId: Maybe<Scalars['ID']['output']>;
+  startTime: Scalars['DateTime']['output'];
+  status: Scalars['String']['output'];
+};
+
+export type TraceSpanEvent = {
+  __typename?: 'TraceSpanEvent';
+  attributes: Maybe<Scalars['JSON']['output']>;
+  name: Scalars['String']['output'];
+  timestamp: Scalars['DateTime']['output'];
 };
 
 export type UpdateMappingInput = {
@@ -1853,6 +1977,16 @@ export type WorkflowApprovalRequestFilter = {
   workflowId: InputMaybe<Scalars['ID']['input']>;
 };
 
+export type WorkflowDebugStep = {
+  __typename?: 'WorkflowDebugStep';
+  kind: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  spanName: Scalars['String']['output'];
+  stepNumber: Scalars['Int']['output'];
+  timestamp: Scalars['DateTime']['output'];
+  variables: Maybe<Scalars['JSON']['output']>;
+};
+
 export type WorkflowDefinition = {
   __typename?: 'WorkflowDefinition';
   createdAt: Scalars['DateTime']['output'];
@@ -1963,6 +2097,77 @@ export type WorkflowVersion = {
   workflowId: Scalars['ID']['output'];
   yaml: Scalars['String']['output'];
 };
+
+export type StartDebugSessionMutationVariables = Exact<{
+  input: StartDebugSessionInput;
+}>;
+
+
+export type StartDebugSessionMutation = { __typename?: 'Mutation', startDebugSession: { __typename?: 'DebugSession', id: string, workflowId: string, state: string, createdAt: string, breakpoints: Array<{ __typename?: 'Breakpoint', id: string, type: string, name: string, enabled: boolean }>, steps: Array<{ __typename?: 'WorkflowDebugStep', stepNumber: number, kind: string, name: string, variables: unknown | null, timestamp: string, spanName: string }> } };
+
+export type DebugStepMutationVariables = Exact<{
+  sessionId: Scalars['ID']['input'];
+}>;
+
+
+export type DebugStepMutation = { __typename?: 'Mutation', debugStep: { __typename?: 'WorkflowDebugStep', stepNumber: number, kind: string, name: string, variables: unknown | null, timestamp: string, spanName: string } | null };
+
+export type DebugContinueMutationVariables = Exact<{
+  sessionId: Scalars['ID']['input'];
+}>;
+
+
+export type DebugContinueMutation = { __typename?: 'Mutation', debugContinue: { __typename?: 'WorkflowDebugStep', stepNumber: number, kind: string, name: string, variables: unknown | null, timestamp: string, spanName: string } | null };
+
+export type DebugSetBreakpointMutationVariables = Exact<{
+  input: SetBreakpointInput;
+}>;
+
+
+export type DebugSetBreakpointMutation = { __typename?: 'Mutation', debugSetBreakpoint: { __typename?: 'Breakpoint', id: string, type: string, name: string, enabled: boolean } };
+
+export type DebugRemoveBreakpointMutationVariables = Exact<{
+  sessionId: Scalars['ID']['input'];
+  breakpointId: Scalars['ID']['input'];
+}>;
+
+
+export type DebugRemoveBreakpointMutation = { __typename?: 'Mutation', debugRemoveBreakpoint: boolean };
+
+export type DebugEndSessionMutationVariables = Exact<{
+  sessionId: Scalars['ID']['input'];
+}>;
+
+
+export type DebugEndSessionMutation = { __typename?: 'Mutation', debugEndSession: boolean };
+
+export type LiveParseStreamSubscriptionVariables = Exact<{
+  input: LiveParseInput;
+}>;
+
+
+export type LiveParseStreamSubscription = { __typename?: 'Subscription', liveParseStream: { __typename?: 'ParseEvent', segmentIndex: number, segmentType: string, rawSegment: string, fields: unknown | null, warnings: Array<string>, isComplete: boolean } };
+
+export type DebugStepEventSubscriptionVariables = Exact<{
+  sessionId: Scalars['ID']['input'];
+}>;
+
+
+export type DebugStepEventSubscription = { __typename?: 'Subscription', debugStepEvent: { __typename?: 'WorkflowDebugStep', stepNumber: number, kind: string, name: string, variables: unknown | null, timestamp: string, spanName: string } };
+
+export type DebugSessionQueryQueryVariables = Exact<{
+  id: Scalars['ID']['input'];
+}>;
+
+
+export type DebugSessionQueryQuery = { __typename?: 'Query', debugSession: { __typename?: 'DebugSession', id: string, workflowId: string, state: string, createdAt: string, breakpoints: Array<{ __typename?: 'Breakpoint', id: string, type: string, name: string, enabled: boolean }>, steps: Array<{ __typename?: 'WorkflowDebugStep', stepNumber: number, kind: string, name: string, variables: unknown | null, timestamp: string, spanName: string }> } | null };
+
+export type WorkflowRunTraceQueryVariables = Exact<{
+  runId: Scalars['ID']['input'];
+}>;
+
+
+export type WorkflowRunTraceQuery = { __typename?: 'Query', workflowRunTrace: Array<{ __typename?: 'TraceSpan', id: string, name: string, parentId: string | null, startTime: string, endTime: string | null, status: string, attributes: unknown | null, events: Array<{ __typename?: 'TraceSpanEvent', name: string, timestamp: string, attributes: unknown | null }> }> };
 
 export type EventStreamSubscriptionVariables = Exact<{
   filter: InputMaybe<EventFilter>;
@@ -2478,6 +2683,16 @@ export const BatchFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":
 export const CandidateFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CandidateFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"MappingCandidate"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"display"}},{"kind":"Field","name":{"kind":"Name","value":"system"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"equivalence"}},{"kind":"Field","name":{"kind":"Name","value":"reasoning"}},{"kind":"Field","name":{"kind":"Name","value":"score"}}]}}]} as unknown as DocumentNode<CandidateFieldsFragment, unknown>;
 export const AutorouteTraceFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"AutorouteTraceFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"AutorouteTrace"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"traceId"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"steps"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"step"}},{"kind":"Field","name":{"kind":"Name","value":"result"}},{"kind":"Field","name":{"kind":"Name","value":"durationMs"}},{"kind":"Field","name":{"kind":"Name","value":"metadata"}}]}},{"kind":"Field","name":{"kind":"Name","value":"totalDurationMs"}}]}}]} as unknown as DocumentNode<AutorouteTraceFieldsFragment, unknown>;
 export const PendingAutorouteFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"PendingAutorouteFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"PendingAutoroute"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"sourceCode"}},{"kind":"Field","name":{"kind":"Name","value":"sourceDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"suggestedCode"}},{"kind":"Field","name":{"kind":"Name","value":"suggestedDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"equivalence"}},{"kind":"Field","name":{"kind":"Name","value":"reasoning"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"expiresAt"}},{"kind":"Field","name":{"kind":"Name","value":"reviewedAt"}},{"kind":"Field","name":{"kind":"Name","value":"reviewedBy"}},{"kind":"Field","name":{"kind":"Name","value":"rejectionReason"}},{"kind":"Field","name":{"kind":"Name","value":"alternates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"CandidateFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"decisionTrace"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"AutorouteTraceFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CandidateFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"MappingCandidate"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"display"}},{"kind":"Field","name":{"kind":"Name","value":"system"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"equivalence"}},{"kind":"Field","name":{"kind":"Name","value":"reasoning"}},{"kind":"Field","name":{"kind":"Name","value":"score"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"AutorouteTraceFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"AutorouteTrace"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"traceId"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"steps"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"step"}},{"kind":"Field","name":{"kind":"Name","value":"result"}},{"kind":"Field","name":{"kind":"Name","value":"durationMs"}},{"kind":"Field","name":{"kind":"Name","value":"metadata"}}]}},{"kind":"Field","name":{"kind":"Name","value":"totalDurationMs"}}]}}]} as unknown as DocumentNode<PendingAutorouteFieldsFragment, unknown>;
+export const StartDebugSessionDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"StartDebugSession"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"StartDebugSessionInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startDebugSession"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workflowId"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"breakpoints"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"enabled"}}]}},{"kind":"Field","name":{"kind":"Name","value":"steps"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"stepNumber"}},{"kind":"Field","name":{"kind":"Name","value":"kind"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"variables"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"spanName"}}]}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}}]}}]}}]} as unknown as DocumentNode<StartDebugSessionMutation, StartDebugSessionMutationVariables>;
+export const DebugStepDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DebugStep"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"debugStep"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"sessionId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"stepNumber"}},{"kind":"Field","name":{"kind":"Name","value":"kind"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"variables"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"spanName"}}]}}]}}]} as unknown as DocumentNode<DebugStepMutation, DebugStepMutationVariables>;
+export const DebugContinueDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DebugContinue"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"debugContinue"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"sessionId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"stepNumber"}},{"kind":"Field","name":{"kind":"Name","value":"kind"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"variables"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"spanName"}}]}}]}}]} as unknown as DocumentNode<DebugContinueMutation, DebugContinueMutationVariables>;
+export const DebugSetBreakpointDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DebugSetBreakpoint"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"SetBreakpointInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"debugSetBreakpoint"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"enabled"}}]}}]}}]} as unknown as DocumentNode<DebugSetBreakpointMutation, DebugSetBreakpointMutationVariables>;
+export const DebugRemoveBreakpointDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DebugRemoveBreakpoint"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"breakpointId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"debugRemoveBreakpoint"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"sessionId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}}},{"kind":"Argument","name":{"kind":"Name","value":"breakpointId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"breakpointId"}}}]}]}}]} as unknown as DocumentNode<DebugRemoveBreakpointMutation, DebugRemoveBreakpointMutationVariables>;
+export const DebugEndSessionDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DebugEndSession"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"debugEndSession"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"sessionId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}}}]}]}}]} as unknown as DocumentNode<DebugEndSessionMutation, DebugEndSessionMutationVariables>;
+export const LiveParseStreamDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"LiveParseStream"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"LiveParseInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"liveParseStream"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"segmentIndex"}},{"kind":"Field","name":{"kind":"Name","value":"segmentType"}},{"kind":"Field","name":{"kind":"Name","value":"rawSegment"}},{"kind":"Field","name":{"kind":"Name","value":"fields"}},{"kind":"Field","name":{"kind":"Name","value":"warnings"}},{"kind":"Field","name":{"kind":"Name","value":"isComplete"}}]}}]}}]} as unknown as DocumentNode<LiveParseStreamSubscription, LiveParseStreamSubscriptionVariables>;
+export const DebugStepEventDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"DebugStepEvent"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"debugStepEvent"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"sessionId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"stepNumber"}},{"kind":"Field","name":{"kind":"Name","value":"kind"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"variables"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"spanName"}}]}}]}}]} as unknown as DocumentNode<DebugStepEventSubscription, DebugStepEventSubscriptionVariables>;
+export const DebugSessionQueryDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"DebugSessionQuery"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"debugSession"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workflowId"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"breakpoints"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"enabled"}}]}},{"kind":"Field","name":{"kind":"Name","value":"steps"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"stepNumber"}},{"kind":"Field","name":{"kind":"Name","value":"kind"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"variables"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"spanName"}}]}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}}]}}]}}]} as unknown as DocumentNode<DebugSessionQueryQuery, DebugSessionQueryQueryVariables>;
+export const WorkflowRunTraceDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"WorkflowRunTrace"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"runId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"workflowRunTrace"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"runId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"runId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"parentId"}},{"kind":"Field","name":{"kind":"Name","value":"startTime"}},{"kind":"Field","name":{"kind":"Name","value":"endTime"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"attributes"}},{"kind":"Field","name":{"kind":"Name","value":"events"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"attributes"}}]}}]}}]}}]} as unknown as DocumentNode<WorkflowRunTraceQuery, WorkflowRunTraceQueryVariables>;
 export const EventStreamDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"EventStream"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"filter"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"EventFilter"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"eventStream"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"filter"},"value":{"kind":"Variable","name":{"kind":"Name","value":"filter"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"source"}},{"kind":"Field","name":{"kind":"Name","value":"sourceFormat"}},{"kind":"Field","name":{"kind":"Name","value":"correlationId"}}]}}]}}]} as unknown as DocumentNode<EventStreamSubscription, EventStreamSubscriptionVariables>;
 export const WorkflowEventsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"WorkflowEvents"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"workflowName"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"workflowEvents"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"workflowName"},"value":{"kind":"Variable","name":{"kind":"Name","value":"workflowName"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"event"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"source"}}]}},{"kind":"Field","name":{"kind":"Name","value":"workflow"}},{"kind":"Field","name":{"kind":"Name","value":"routesMatched"}},{"kind":"Field","name":{"kind":"Name","value":"actionsExecuted"}},{"kind":"Field","name":{"kind":"Name","value":"duration"}}]}}]}}]} as unknown as DocumentNode<WorkflowEventsSubscription, WorkflowEventsSubscriptionVariables>;
 export const PatientEventsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"PatientEvents"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"mrn"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"patientEvents"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"mrn"},"value":{"kind":"Variable","name":{"kind":"Name","value":"mrn"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"source"}},{"kind":"Field","name":{"kind":"Name","value":"sourceFormat"}},{"kind":"Field","name":{"kind":"Name","value":"correlationId"}}]}}]}}]} as unknown as DocumentNode<PatientEventsSubscription, PatientEventsSubscriptionVariables>;

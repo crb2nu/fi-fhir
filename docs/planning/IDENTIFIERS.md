@@ -439,7 +439,7 @@ func (s *IdentifierSet) GetBySystem(system string) []Identifier {
 ### Phase 4: MPI Interface ✅
 - [x] Abstract MPI interface - see `pkg/matching/mpi.go`
 - [x] In-memory implementation for testing - see `pkg/matching/mpi_memory.go`
-- [ ] External MPI integration (future)
+- [ ] External MPI integration (future) — #3
 
 ## Testing Data
 

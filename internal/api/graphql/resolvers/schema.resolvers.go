@@ -387,7 +387,11 @@ func (r *mutationResolver) TriggerWorkflow(ctx context.Context, name string, eve
 	}
 
 	startTime := time.Now()
+	originalTracer := engine.GetTracer()
+	traceRecorder := workflow.NewRecordingTracer()
+	engine.SetTracer(workflow.MultiTracer(originalTracer, traceRecorder))
 	wfResult := engine.ProcessWithContext(ctx, event)
+	engine.SetTracer(originalTracer)
 	duration := time.Since(startTime).Milliseconds()
 
 	routesMatchedCount, actionsExecutedCount, errors, routeNames, actionsSummary := summarizeWorkflowResult(wfResult)
@@ -419,6 +423,9 @@ func (r *mutationResolver) TriggerWorkflow(ctx context.Context, name string, eve
 		}
 		if run != nil {
 			runID = &run.ID
+			r.workflowRunTracesMu.Lock()
+			r.workflowRunTraces[run.ID] = toGraphQLTraceSpans(traceRecorder.Snapshot())
+			r.workflowRunTracesMu.Unlock()
 		}
 	}
 
@@ -1628,6 +1635,128 @@ func (r *mutationResolver) CancelTemporalWorkflow(ctx context.Context, workflowI
 	}
 
 	_ = cancelReason // Used for logging in production
+	return true, nil
+}
+
+// StartDebugSession is the resolver for the startDebugSession mutation.
+func (r *mutationResolver) StartDebugSession(ctx context.Context, input model.StartDebugSessionInput) (*model.DebugSessionModel, error) {
+	// Parse the workflow YAML
+	parsed, err := workflow.ParseWorkflow([]byte(input.WorkflowYaml))
+	if err != nil {
+		return nil, fmt.Errorf("parse workflow yaml: %w", err)
+	}
+
+	engine, err := workflow.NewEngine(parsed)
+	if err != nil {
+		return nil, fmt.Errorf("create workflow engine: %w", err)
+	}
+
+	sessionID := uuid.New().String()
+	session := workflow.NewDebugSession(sessionID, engine)
+	session.WorkflowID = parsed.Name
+
+	r.debugSessionsMu.Lock()
+	r.debugSessions[sessionID] = session
+	r.debugSessionsMu.Unlock()
+
+	// Start processing the event
+	session.Start(ctx, input.Event)
+
+	return toDebugSessionModel(session), nil
+}
+
+// DebugStep is the resolver for the debugStep mutation.
+func (r *mutationResolver) DebugStep(ctx context.Context, sessionID string) (*model.DebugStepModel, error) {
+	r.debugSessionsMu.RLock()
+	session, ok := r.debugSessions[sessionID]
+	r.debugSessionsMu.RUnlock()
+
+	if !ok {
+		return nil, fmt.Errorf("debug session %s not found", sessionID)
+	}
+
+	step := session.Step()
+	if step == nil {
+		return nil, nil
+	}
+
+	return toDebugStepModel(step), nil
+}
+
+// DebugContinue is the resolver for the debugContinue mutation.
+func (r *mutationResolver) DebugContinue(ctx context.Context, sessionID string) (*model.DebugStepModel, error) {
+	r.debugSessionsMu.RLock()
+	session, ok := r.debugSessions[sessionID]
+	r.debugSessionsMu.RUnlock()
+
+	if !ok {
+		return nil, fmt.Errorf("debug session %s not found", sessionID)
+	}
+
+	step := session.Continue()
+	if step == nil {
+		return nil, nil
+	}
+
+	return toDebugStepModel(step), nil
+}
+
+// DebugSetBreakpoint is the resolver for the debugSetBreakpoint mutation.
+func (r *mutationResolver) DebugSetBreakpoint(ctx context.Context, input model.SetBreakpointInput) (*model.BreakpointModel, error) {
+	r.debugSessionsMu.RLock()
+	session, ok := r.debugSessions[input.SessionID]
+	r.debugSessionsMu.RUnlock()
+
+	if !ok {
+		return nil, fmt.Errorf("debug session %s not found", input.SessionID)
+	}
+
+	bpID := uuid.New().String()
+	bp := &workflow.Breakpoint{
+		ID:      bpID,
+		Type:    workflow.BreakpointType(input.Type),
+		Name:    input.Name,
+		Enabled: true,
+	}
+
+	session.SetBreakpoint(bp)
+
+	return &model.BreakpointModel{
+		ID:      bpID,
+		Type:    input.Type,
+		Name:    input.Name,
+		Enabled: true,
+	}, nil
+}
+
+// DebugRemoveBreakpoint is the resolver for the debugRemoveBreakpoint mutation.
+func (r *mutationResolver) DebugRemoveBreakpoint(ctx context.Context, sessionID string, breakpointID string) (bool, error) {
+	r.debugSessionsMu.RLock()
+	session, ok := r.debugSessions[sessionID]
+	r.debugSessionsMu.RUnlock()
+
+	if !ok {
+		return false, fmt.Errorf("debug session %s not found", sessionID)
+	}
+
+	removed := session.RemoveBreakpoint(breakpointID)
+	return removed, nil
+}
+
+// DebugEndSession is the resolver for the debugEndSession mutation.
+func (r *mutationResolver) DebugEndSession(ctx context.Context, sessionID string) (bool, error) {
+	r.debugSessionsMu.Lock()
+	session, ok := r.debugSessions[sessionID]
+	if ok {
+		delete(r.debugSessions, sessionID)
+	}
+	r.debugSessionsMu.Unlock()
+
+	if !ok {
+		return false, fmt.Errorf("debug session %s not found", sessionID)
+	}
+
+	session.Close()
 	return true, nil
 }
 
@@ -2924,6 +3053,34 @@ func (r *queryResolver) TemporalWorkflows(ctx context.Context, filter *model.Tem
 	}, nil
 }
 
+// DebugSession is the resolver for the debugSession query.
+func (r *queryResolver) DebugSession(ctx context.Context, id string) (*model.DebugSessionModel, error) {
+	r.debugSessionsMu.RLock()
+	session, ok := r.debugSessions[id]
+	r.debugSessionsMu.RUnlock()
+
+	if !ok {
+		return nil, nil
+	}
+
+	return toDebugSessionModel(session), nil
+}
+
+// WorkflowRunTrace is the resolver for the workflowRunTrace query.
+func (r *queryResolver) WorkflowRunTrace(ctx context.Context, runID string) ([]model.TraceSpanModel, error) {
+	r.workflowRunTracesMu.RLock()
+	defer r.workflowRunTracesMu.RUnlock()
+
+	spans, ok := r.workflowRunTraces[runID]
+	if !ok {
+		return []model.TraceSpanModel{}, nil
+	}
+
+	out := make([]model.TraceSpanModel, len(spans))
+	copy(out, spans)
+	return out, nil
+}
+
 // EventStream is the resolver for the eventStream field.
 func (r *subscriptionResolver) EventStream(ctx context.Context, filter *model.EventFilter) (<-chan model.Event, error) {
 	return r.Store.Subscribe(ctx, filter)
@@ -2946,6 +3103,84 @@ func (r *subscriptionResolver) WorkflowEvents(ctx context.Context, workflowName 
 // PatientEvents is the resolver for the patientEvents field.
 func (r *subscriptionResolver) PatientEvents(ctx context.Context, mrn string) (<-chan model.Event, error) {
 	return r.Store.SubscribePatient(ctx, mrn)
+}
+
+// LiveParseStream is the resolver for the liveParseStream subscription.
+func (r *subscriptionResolver) LiveParseStream(ctx context.Context, input model.LiveParseInput) (<-chan *model.ParseEventModel, error) {
+	parser := hl7v2.NewParser("live-parse", hl7v2.ParserConfig{})
+	liveParser := hl7v2.NewLiveParser(parser)
+
+	out := make(chan *model.ParseEventModel, 100)
+
+	go func() {
+		defer close(out)
+
+		events := make(chan hl7v2.ParseEvent, 100)
+		go liveParser.ParseStream(input.Message, events)
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case ev, ok := <-events:
+				if !ok {
+					return
+				}
+				m := &model.ParseEventModel{
+					SegmentIndex: ev.SegmentIndex,
+					SegmentType:  ev.SegmentType,
+					RawSegment:   ev.RawSegment,
+					Fields:       ev.Fields,
+					Warnings:     ev.Warnings,
+					IsComplete:   ev.IsComplete,
+				}
+				select {
+				case out <- m:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+
+	return out, nil
+}
+
+// DebugStepEvent is the resolver for the debugStepEvent subscription.
+func (r *subscriptionResolver) DebugStepEvent(ctx context.Context, sessionID string) (<-chan *model.DebugStepModel, error) {
+	r.debugSessionsMu.RLock()
+	session, ok := r.debugSessions[sessionID]
+	r.debugSessionsMu.RUnlock()
+
+	if !ok {
+		return nil, fmt.Errorf("debug session %s not found", sessionID)
+	}
+
+	out := make(chan *model.DebugStepModel, 10)
+	steps, unsubscribe := session.SubscribeSteps(10)
+
+	go func() {
+		defer close(out)
+		defer unsubscribe()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case step, ok := <-steps:
+				if !ok {
+					return
+				}
+				select {
+				case out <- toDebugStepModel(&step):
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+
+	return out, nil
 }
 
 // Mutation returns graphql1.MutationResolver implementation.

@@ -59,7 +59,7 @@ func TestRunTerminologyUse_MissingDB(t *testing.T) {
 
 func TestPrintResolveResultJSON_NoMatch(t *testing.T) {
 	stdout, _ := captureOutput(t, func() {
-		err := printResolveResultJSON(nil, nil, "NO_MATCH")
+		err := printResolveResultJSON(nil, nil, "NO_MATCH", "")
 		assertNoError(t, err)
 	})
 
@@ -87,7 +87,7 @@ func TestPrintResolveResultJSON_PersistentMapping(t *testing.T) {
 	}
 
 	stdout, _ := captureOutput(t, func() {
-		err := printResolveResultJSON(mapping, nil, "PERSISTENT")
+		err := printResolveResultJSON(mapping, nil, "PERSISTENT", "")
 		assertNoError(t, err)
 	})
 
@@ -127,7 +127,7 @@ func TestPrintResolveResultJSON_PersistentWithConfidence(t *testing.T) {
 	}
 
 	stdout, _ := captureOutput(t, func() {
-		err := printResolveResultJSON(mapping, nil, "PERSISTENT")
+		err := printResolveResultJSON(mapping, nil, "PERSISTENT", "")
 		assertNoError(t, err)
 	})
 
@@ -163,7 +163,7 @@ func TestPrintResolveResultJSON_Autorouted(t *testing.T) {
 	}
 
 	stdout, _ := captureOutput(t, func() {
-		err := printResolveResultJSON(nil, suggestion, "AUTOROUTE")
+		err := printResolveResultJSON(nil, suggestion, "AUTOROUTE", "")
 		assertNoError(t, err)
 	})
 
@@ -216,7 +216,7 @@ func TestPrintResolveResultJSON_AutoroutedNoAlternates(t *testing.T) {
 	}
 
 	stdout, _ := captureOutput(t, func() {
-		err := printResolveResultJSON(nil, suggestion, "AUTOROUTE")
+		err := printResolveResultJSON(nil, suggestion, "AUTOROUTE", "")
 		assertNoError(t, err)
 	})
 

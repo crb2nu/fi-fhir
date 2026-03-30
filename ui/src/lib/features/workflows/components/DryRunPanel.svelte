@@ -1,5 +1,6 @@
 <script lang="ts">
   import Panel from '$lib/ui/Panel.svelte';
+  import CodeEditor from '$lib/ui/editor/CodeEditor.svelte';
   import Button from '$lib/ui/Button.svelte';
   import Badge from '$lib/ui/Badge.svelte';
   import { workflowDraft } from '../workflowStore';
@@ -31,6 +32,7 @@
 
   let selectedSamples = [0];
   let customEventJson = '';
+  const customEventPlaceholder = '[{ "type": "PATIENT_ADMIT", "source": "epic" }]';
   let useCustom = false;
   let running = false;
   let result: DryRunResult | null = null;
@@ -91,13 +93,13 @@
       </div>
 
       {#if useCustom}
-        <textarea
-          class="textarea mono"
-          bind:value={customEventJson}
-          aria-label="Custom events JSON"
-          placeholder={'[\n  { "type": "PATIENT_ADMIT", "source": "epic" }\n]'}
-          rows="5"
-        ></textarea>
+        <CodeEditor
+          language="json"
+          value={customEventJson}
+          on:change={(e) => { customEventJson = e.detail; }}
+          placeholder={customEventPlaceholder}
+          height="150px"
+        />
       {:else}
         <div class="sample-list">
           {#each sampleEvents as sample, i (i)}

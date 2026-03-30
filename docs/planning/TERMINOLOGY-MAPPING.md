@@ -11,7 +11,7 @@ This document specifies the enhanced terminology mapping system with CSV upload,
 | **Autoroute engine** | ✅ Shipped | `internal/terminology/autoroute/` |
 | **Semantic search** | ✅ Exists | `pkg/terminology/semantic/searcher.go` |
 | **LLM ranking/reasoning** | ✅ Shipped | `internal/terminology/autoroute/ranker.go` |
-| **Decision telemetry** | 🟡 Partial | `internal/terminology/workflow/activities.go`, `pkg/terminology/db/mappings.go` |
+| **Decision telemetry** | 🟡 Partial | `internal/terminology/workflow/activities.go`, `pkg/terminology/db/mappings.go`, `cmd/fi-fhir/terminology.go` |
 | **Mapping review UI** | ✅ Shipped | `ui/src/lib/features/terminology/` |
 | **Approval workflow** | ✅ Shipped (GraphQL/UI) | GraphQL pending-autoroute mutations + `PendingReviewList.svelte` |
 
@@ -1513,7 +1513,7 @@ FI_FHIR_MAPPING_QDRANT_URL=http://qdrant:6333
 - [x] Persistent store CRUD - see `pkg/terminology/db/mappings.go` (`MappingStore`)
 - [x] GraphQL mutations: `uploadMappingCSV`, `createMapping`, `deleteMapping`
 - [x] Basic UI: `MappingUploader.svelte`, `MappingBrowser.svelte`
-- [ ] CLI: `fi-fhir terminology mapping upload`
+- [x] CLI: `fi-fhir terminology mapping upload`
 
 ### Phase 2: Autoroute Engine (3-4 days) ✅
 - [x] `autoroute/engine.go` - Core orchestration
@@ -1521,12 +1521,13 @@ FI_FHIR_MAPPING_QDRANT_URL=http://qdrant:6333
 - [x] `autoroute/cache.go` - Result caching
 - [x] Resolution flow via GraphQL resolver + mapping store fallback (`internal/api/graphql/resolvers/schema.resolvers.go`)
 - [x] GraphQL queries: `resolveMapping`, `suggestMappings`
-- [ ] CLI: `fi-fhir terminology mapping resolve`
+- [x] CLI: `fi-fhir terminology mapping resolve`
 
 ### Phase 3: Decision Telemetry (1-2 days)
 - [x] Decision recording path via workflow activities + persistent store (`internal/terminology/workflow/activities.go`, `pkg/terminology/db/mappings.go`)
-- [ ] OpenTelemetry span attributes
-- [ ] `mapping_decisions` table with partitioning
+- [x] CLI telemetry recording + inspection (`fi-fhir terminology mapping decisions|decision|decision-stats`)
+- [ ] OpenTelemetry span attributes — #3
+- [ ] `mapping_decisions` table with partitioning — #3
 - [x] GraphQL decision trace included in mapping results (`ResolveMappingResult.trace`, `PendingAutoroute.decisionTrace`)
 
 ### Phase 4: Review Workflow + UI (3-4 days) ✅
@@ -1534,14 +1535,14 @@ FI_FHIR_MAPPING_QDRANT_URL=http://qdrant:6333
 - [x] GraphQL: `listPendingAutoroutes`, `approvePendingAutoroute`, `rejectPendingAutoroute` (+ bulk approve)
 - [x] UI: `PendingReviewList.svelte` with bulk actions
 - [x] Decision trace is reviewable in pending review UI (expandable trace payload)
-- [ ] CLI: `fi-fhir terminology mapping pending`, `approve`, `reject`
+- [x] CLI: `fi-fhir terminology mapping pending`, `approve`, `reject`
 
 ### Phase 5: Analytics + Polish (2-3 days)
-- [ ] `MappingStats` query with aggregations (current: `pendingAutorouteStats`)
-- [ ] UI: `MappingStats.svelte` dashboard
-- [ ] Notification webhooks for new pending items
-- [ ] Performance optimization and load testing
-- [ ] Documentation and examples
+- [ ] `MappingStats` query with aggregations (current: `pendingAutorouteStats`) — #3
+- [ ] UI: `MappingStats.svelte` dashboard — #3
+- [ ] Notification webhooks for new pending items — #3
+- [ ] Performance optimization and load testing — #3
+- [ ] Documentation and examples — #3
 
 ## Testing Strategy
 

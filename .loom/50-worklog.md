@@ -80,3 +80,70 @@ Chronological notes while executing the plan (useful for handoffs and debugging)
   - [S2] `.gitlab-ci.yml:324-325` — removed `allow_failure: true`.
   - [S3] New file: `scripts/smoke-test.sh`.
   - [S4] `Makefile:218-225` — added `smoke-test` / `smoke-test-local`.
+
+### 2026-03-16
+
+- What changed:
+  - Added CLI telemetry coverage for terminology mapping decisions:
+    - `fi-fhir terminology mapping decisions`
+    - `fi-fhir terminology mapping decision`
+    - `fi-fhir terminology mapping decision-stats`
+  - Updated `terminology mapping resolve` to record CLI decisions into `terminology.mapping_decisions` for persistent hits, autoroute results, and no-match outcomes.
+  - Added focused CLI tests plus an integration test scaffold for the new telemetry commands.
+  - Updated terminology planning docs and added a dedicated iteration plan for this slice.
+- Why:
+  - The roadmap/spec still showed terminology CLI/telemetry gaps even though the persistence layer already existed. This closes a high-value auditability gap with a small, shippable increment.
+- What’s next:
+  - Re-run focused Go tests after freeing disk space on the workstation.
+  - Continue Phase 3/5 telemetry follow-ups: OpenTelemetry attributes, analytics query/UI, and retention/partitioning work.
+- Sources:
+  - [S1] `cmd/fi-fhir/terminology.go`
+  - [S2] `cmd/fi-fhir/terminology_telemetry_cli_test.go`
+  - [S3] `cmd/fi-fhir/terminology_telemetry_integration_test.go`
+  - [S4] `.loom/iteration-plan-m2-terminology-telemetry.md`
+
+### 2026-03-29
+
+- What changed:
+  - Reviewed `feat/ide-integration` against `origin/main` and narrowed the unfinished branch work to the workflow debug surface rather than the IDE chrome itself.
+  - Wired the debug panel to the real GraphQL debug mutations instead of always loading mocks.
+  - Updated backend debug sessions to pause on the first executable span by default and to preserve a stable `createdAt` timestamp.
+  - Added frontend-derived trace/lineage synchronization from real debug steps so the bottom-panel debug/trace views stay useful even while server trace queries remain stubbed.
+  - Validated the backend debug surface with focused Go tests and the frontend debug/editor surface with focused Vitest plus UI typecheck.
+- Why:
+  - The branch looked feature-complete visually, but the actual debug session flow was not integrated end to end: the UI started sessions with empty workflow YAML, relied on mock state, and could not truthfully drive the backend debugger.
+- What’s next:
+  - Implement real server-backed `workflowRunTrace` query results instead of frontend-derived placeholders.
+  - Implement a real `debugStepEvent` subscription or another broadcast mechanism if live push updates are still desired.
+  - Triage the unrelated `ui/src/lib/ui/ide/ideStore.test.ts` runner-local `localStorage.clear` failure separately from this branch work.
+- Sources:
+  - [S1] Command: `git diff --stat 9cf0bf4006218b143c4184559d955c6f0428ddcf..HEAD`
+  - [S2] `ui/src/lib/features/debug/debugApi.ts`
+  - [S3] `ui/src/lib/features/debug/DebugPanel.svelte`
+  - [S4] `ui/src/lib/features/debug/debugStore.ts`
+  - [S5] `internal/workflow/debug.go`
+  - [S6] `internal/api/graphql/resolvers/debug.resolvers.go`
+  - [S7] Command: `GOCACHE=$PWD/.tmp/go-build-cache GOMODCACHE=$PWD/.tmp/go-mod-cache go test ./internal/workflow ./internal/parser/hl7v2 ./internal/api/graphql/...`
+  - [S8] Command: `npm run typecheck`
+  - [S9] Command: `npm test -- --run src/lib/features/debug/DebugPanel.test.ts src/lib/features/debug/debugStore.test.ts src/lib/features/debug/TraceTimeline.test.ts src/lib/features/debug/VariableInspector.test.ts src/lib/features/debug/StepControls.test.ts src/lib/ui/editor/CodeEditor.test.ts`
+
+### 2026-03-30
+
+- What changed:
+  - Finished the remaining backend integration for the debug surface by implementing `workflowRunTrace` from recorded runtime spans and wiring `debugStepEvent` to live debug-session pause broadcasts.
+  - Fixed debugger control semantics so `debugStep`/`debugContinue` discard the already-buffered current pause before waiting for the next one.
+  - Fixed debug-session shutdown so `Close()` cannot hang if the workflow engine continues traversing spans while unwinding after a stop command.
+  - Added focused resolver coverage for trace retrieval and live step subscriptions, then re-ran the workflow and GraphQL package tests on the changed backend surface.
+- Why:
+  - The March 29 UI integration made the debugger usable, but two backend contracts were still placeholders, and the first live subscription test exposed that stepping and stop behavior were not yet internally consistent.
+- What’s next:
+  - Re-run the frontend debug suite once more if we touch the UI again, but no additional client changes were required for this backend completion pass.
+  - If the branch is meant to ship immediately, the next practical step is a broader branch review plus commit/merge prep rather than more debugger feature work.
+- Sources:
+  - [S1] `internal/workflow/tracing.go`
+  - [S2] `internal/workflow/debug.go`
+  - [S3] `internal/api/graphql/resolvers/schema.resolvers.go`
+  - [S4] `internal/api/graphql/resolvers/debug.resolvers.go`
+  - [S5] `internal/api/graphql/resolvers/debug_subscription_test.go`
+  - [S6] `internal/api/graphql/resolvers/workflow_lifecycle_test.go`
+  - [S7] Command: `GOCACHE=$PWD/.tmp/go-build-cache GOMODCACHE=$PWD/.tmp/go-mod-cache go test ./internal/workflow ./internal/api/graphql/...`

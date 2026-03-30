@@ -1,0 +1,123 @@
+mutation StartDebugSession($input: StartDebugSessionInput!) {
+  startDebugSession(input: $input) {
+    id
+    workflowId
+    state
+    breakpoints {
+      id
+      type
+      name
+      enabled
+    }
+    steps {
+      stepNumber
+      kind
+      name
+      variables
+      timestamp
+      spanName
+    }
+    createdAt
+  }
+}
+
+mutation DebugStep($sessionId: ID!) {
+  debugStep(sessionId: $sessionId) {
+    stepNumber
+    kind
+    name
+    variables
+    timestamp
+    spanName
+  }
+}
+
+mutation DebugContinue($sessionId: ID!) {
+  debugContinue(sessionId: $sessionId) {
+    stepNumber
+    kind
+    name
+    variables
+    timestamp
+    spanName
+  }
+}
+
+mutation DebugSetBreakpoint($input: SetBreakpointInput!) {
+  debugSetBreakpoint(input: $input) {
+    id
+    type
+    name
+    enabled
+  }
+}
+
+mutation DebugRemoveBreakpoint($sessionId: ID!, $breakpointId: ID!) {
+  debugRemoveBreakpoint(sessionId: $sessionId, breakpointId: $breakpointId)
+}
+
+mutation DebugEndSession($sessionId: ID!) {
+  debugEndSession(sessionId: $sessionId)
+}
+
+subscription LiveParseStream($input: LiveParseInput!) {
+  liveParseStream(input: $input) {
+    segmentIndex
+    segmentType
+    rawSegment
+    fields
+    warnings
+    isComplete
+  }
+}
+
+subscription DebugStepEvent($sessionId: ID!) {
+  debugStepEvent(sessionId: $sessionId) {
+    stepNumber
+    kind
+    name
+    variables
+    timestamp
+    spanName
+  }
+}
+
+query DebugSessionQuery($id: ID!) {
+  debugSession(id: $id) {
+    id
+    workflowId
+    state
+    breakpoints {
+      id
+      type
+      name
+      enabled
+    }
+    steps {
+      stepNumber
+      kind
+      name
+      variables
+      timestamp
+      spanName
+    }
+    createdAt
+  }
+}
+
+query WorkflowRunTrace($runId: ID!) {
+  workflowRunTrace(runId: $runId) {
+    id
+    name
+    parentId
+    startTime
+    endTime
+    status
+    attributes
+    events {
+      name
+      timestamp
+      attributes
+    }
+  }
+}
