@@ -67,6 +67,7 @@ type DebugSession struct {
 	ID          string
 	WorkflowID  string
 	State       DebugSessionState
+	CreatedAt   time.Time
 	Engine      *Engine
 	Breakpoints map[string]*Breakpoint
 	Steps       []DebugStep
@@ -76,6 +77,7 @@ type DebugSession struct {
 	stepCh    chan DebugStep
 	doneCh    chan struct{}
 	tracer    *DebugTracer
+	stepSubs  map[chan DebugStep]struct{}
 }
 
 // NewDebugSession creates a new debug session wrapping an engine.
@@ -84,14 +86,18 @@ func NewDebugSession(id string, engine *Engine) *DebugSession {
 		ID:          id,
 		Engine:      engine,
 		State:       DebugStateIdle,
+		CreatedAt:   time.Now(),
 		Breakpoints: make(map[string]*Breakpoint),
 		Steps:       make([]DebugStep, 0),
 		controlCh:   make(chan DebugCommand, 1),
 		stepCh:      make(chan DebugStep, 10),
 		doneCh:      make(chan struct{}),
+		stepSubs:    make(map[chan DebugStep]struct{}),
 	}
 
-	ds.tracer = &DebugTracer{session: ds}
+	// Start in stepping mode so a newly created session pauses on the first
+	// executable span even when the UI has not pre-seeded breakpoints yet.
+	ds.tracer = &DebugTracer{session: ds, stepping: true}
 	return ds
 }
 
@@ -128,6 +134,7 @@ func (ds *DebugSession) Start(ctx context.Context, event interface{}) {
 			if ds.State == DebugStateRunning || ds.State == DebugStatePaused {
 				ds.State = DebugStateComplete
 			}
+			ds.closeSubscribersLocked()
 			ds.mu.Unlock()
 			close(ds.doneCh)
 		}()
@@ -145,6 +152,8 @@ func (ds *DebugSession) Step() *DebugStep {
 	}
 	ds.State = DebugStateRunning
 	ds.mu.Unlock()
+
+	ds.drainPendingSteps()
 
 	// Send step command
 	select {
@@ -170,6 +179,8 @@ func (ds *DebugSession) Continue() *DebugStep {
 	}
 	ds.State = DebugStateRunning
 	ds.mu.Unlock()
+
+	ds.drainPendingSteps()
 
 	select {
 	case ds.controlCh <- DebugCmdContinue:
@@ -198,11 +209,63 @@ func (ds *DebugSession) GetVariables() map[string]interface{} {
 func (ds *DebugSession) Close() {
 	ds.mu.Lock()
 	ds.State = DebugStateStopped
+	ds.closeSubscribersLocked()
 	ds.mu.Unlock()
 
 	select {
 	case ds.controlCh <- DebugCmdStop:
 	default:
+	}
+}
+
+// SubscribeSteps registers a non-blocking stream of paused steps for observers.
+func (ds *DebugSession) SubscribeSteps(buffer int) (<-chan DebugStep, func()) {
+	if buffer <= 0 {
+		buffer = 1
+	}
+
+	ch := make(chan DebugStep, buffer)
+	ds.mu.Lock()
+	ds.stepSubs[ch] = struct{}{}
+	ds.mu.Unlock()
+
+	cancel := func() {
+		ds.mu.Lock()
+		if _, ok := ds.stepSubs[ch]; ok {
+			delete(ds.stepSubs, ch)
+			close(ch)
+		}
+		ds.mu.Unlock()
+	}
+
+	return ch, cancel
+}
+
+func (ds *DebugSession) broadcastStep(step DebugStep) {
+	ds.mu.Lock()
+	defer ds.mu.Unlock()
+	for ch := range ds.stepSubs {
+		select {
+		case ch <- step:
+		default:
+		}
+	}
+}
+
+func (ds *DebugSession) closeSubscribersLocked() {
+	for ch := range ds.stepSubs {
+		close(ch)
+		delete(ds.stepSubs, ch)
+	}
+}
+
+func (ds *DebugSession) drainPendingSteps() {
+	for {
+		select {
+		case <-ds.stepCh:
+		default:
+			return
+		}
 	}
 }
 
@@ -249,6 +312,15 @@ type DebugTracer struct {
 
 // StartSpan implements Tracer. It pauses at breakpoints or on step commands.
 func (dt *DebugTracer) StartSpan(ctx context.Context, name string, opts ...SpanOption) (context.Context, Span) {
+	dt.session.mu.Lock()
+	stopped := dt.session.State == DebugStateStopped
+	dt.session.mu.Unlock()
+	if stopped {
+		cancelCtx, cancel := context.WithCancel(ctx)
+		cancel()
+		return cancelCtx, &noOpSpan{}
+	}
+
 	cfg := &spanConfig{}
 	for _, opt := range opts {
 		opt(cfg)
@@ -295,6 +367,7 @@ func (dt *DebugTracer) StartSpan(ctx context.Context, name string, opts ...SpanO
 		case dt.session.stepCh <- step:
 		default:
 		}
+		dt.session.broadcastStep(step)
 
 		// Wait for control command
 		cmd := <-dt.session.controlCh

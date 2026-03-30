@@ -101,6 +101,10 @@ type Resolver struct {
 	debugSessions   map[string]*workflow.DebugSession
 	debugSessionsMu sync.RWMutex
 
+	// Recorded workflow run traces keyed by workflow run ID.
+	workflowRunTraces   map[string][]model.TraceSpanModel
+	workflowRunTracesMu sync.RWMutex
+
 	// Workflow event subscribers
 	workflowSubscribers []*workflowSubscriber
 	workflowSubMu       sync.RWMutex
@@ -122,6 +126,7 @@ func NewResolver(opts ...ResolverOption) *Resolver {
 		WorkflowLifecycleStore: store.NewMemoryWorkflowLifecycleStore(),
 		workflowVersionEngines: make(map[string]*workflow.Engine),
 		debugSessions:          make(map[string]*workflow.DebugSession),
+		workflowRunTraces:      make(map[string][]model.TraceSpanModel),
 		Projections:            projections.NewService(nil), // In-memory projections by default
 		subscriptionClients:    make(map[string]*subscription.Client),
 		subscriptionRecords:    make(map[string]*SubscriptionRecord),

@@ -13,14 +13,14 @@ describe('DebugPanel', () => {
 
   describe('rendering', () => {
     it('should render step controls toolbar', () => {
-      const { container } = render(DebugPanel);
+      const { container } = render(DebugPanel, { props: { useMockData: true } });
 
       const toolbar = container.querySelector('[role="toolbar"]');
       expect(toolbar).not.toBeNull();
     });
 
     it('should render breakpoint list section', () => {
-      const { container } = render(DebugPanel);
+      const { container } = render(DebugPanel, { props: { useMockData: true } });
 
       const bpTitle = container.querySelector('.bp-title');
       expect(bpTitle).not.toBeNull();
@@ -28,7 +28,7 @@ describe('DebugPanel', () => {
     });
 
     it('should render variable inspector section', () => {
-      const { container } = render(DebugPanel);
+      const { container } = render(DebugPanel, { props: { useMockData: true } });
 
       const sectionTitle = container.querySelector('.section-title');
       expect(sectionTitle).not.toBeNull();
@@ -36,7 +36,7 @@ describe('DebugPanel', () => {
     });
 
     it('should render step history section', () => {
-      const { container } = render(DebugPanel);
+      const { container } = render(DebugPanel, { props: { useMockData: true } });
 
       const historyTitle = container.querySelector('.history-title');
       expect(historyTitle).not.toBeNull();
@@ -46,7 +46,7 @@ describe('DebugPanel', () => {
 
   describe('mock data loading', () => {
     it('should load mock data on mount when no session active', () => {
-      const { container } = render(DebugPanel);
+      const { container } = render(DebugPanel, { props: { useMockData: true } });
 
       // Mock data includes 3 breakpoints, so we should see breakpoint items
       const bpItems = container.querySelectorAll('.bp-item');
@@ -54,7 +54,7 @@ describe('DebugPanel', () => {
     });
 
     it('should render variable inspector with current step variables', () => {
-      const { container } = render(DebugPanel);
+      const { container } = render(DebugPanel, { props: { useMockData: true } });
 
       // Mock session has steps with variables, so var-entry elements should exist
       const varEntries = container.querySelectorAll('.var-entry');
@@ -62,7 +62,7 @@ describe('DebugPanel', () => {
     });
 
     it('should display step badge with current step info', () => {
-      const { container } = render(DebugPanel);
+      const { container } = render(DebugPanel, { props: { useMockData: true } });
 
       const stepBadge = container.querySelector('.step-badge');
       expect(stepBadge).not.toBeNull();
@@ -71,7 +71,7 @@ describe('DebugPanel', () => {
     });
 
     it('should show step count in history section', () => {
-      const { container } = render(DebugPanel);
+      const { container } = render(DebugPanel, { props: { useMockData: true } });
 
       const historyCount = container.querySelector('.history-count');
       expect(historyCount).not.toBeNull();

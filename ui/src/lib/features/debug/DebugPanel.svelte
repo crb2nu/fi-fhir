@@ -11,6 +11,7 @@
   import BreakpointList from './BreakpointList.svelte';
   import VariableInspector from './VariableInspector.svelte';
   import {
+    startSession,
     debugSession,
     sessionState,
     currentStep,
@@ -20,31 +21,78 @@
     updateSessionState,
     addStep,
     addBreakpoint as addBpToStore,
+    replaceBreakpoint,
     removeBreakpoint as removeBpFromStore,
-    toggleBreakpoint as toggleBpInStore,
     endSession
   } from './debugStore';
   import {
     startDebugSession,
     debugStep,
     debugContinue,
+    setBreakpoint,
+    removeBreakpointApi,
     endDebugSession
   } from './debugApi';
   import type { BreakpointType } from './types';
+  import { workflowDraft } from '$lib/features/workflows/workflowStore';
+  import { draftToYaml } from '$lib/features/workflows/workflowYaml';
+  import { validateWorkflowDraft } from '$lib/features/workflows/workflowTypes';
+  import { get } from 'svelte/store';
+  import CodeEditor from '$lib/ui/editor/CodeEditor.svelte';
+  import { toasts } from '$lib/ui/toastStore';
+
+  export let useMockData = false;
 
   let historyExpanded = false;
+  let debugEventJson = '';
+
+  function buildDefaultDebugEvent(): Record<string, unknown> {
+    const draft = get(workflowDraft);
+    const firstRoute = draft.routes[0];
+
+    return {
+      id: 'debug-event',
+      type: firstRoute?.filter.eventTypes[0] ?? 'PATIENT_ADMIT',
+      source: firstRoute?.filter.sources[0] ?? 'debug-ui'
+    };
+  }
 
   onMount(() => {
-    if (!$debugSession) {
+    if (useMockData && !$debugSession) {
       loadMockData();
+      return;
+    }
+
+    if (!debugEventJson) {
+      debugEventJson = JSON.stringify(buildDefaultDebugEvent(), null, 2);
     }
   });
 
   async function handlePlay(): Promise<void> {
+    if (useMockData) {
+      loadMockData();
+      return;
+    }
+
+    const draft = get(workflowDraft);
+    const validationIssues = validateWorkflowDraft(draft);
+    if (validationIssues.length > 0) {
+      toasts.error(validationIssues[0] ?? 'Workflow draft is not ready to debug');
+      return;
+    }
+
+    let event: unknown;
+    try {
+      event = JSON.parse(debugEventJson);
+    } catch {
+      toasts.error('Debug event JSON must be valid before starting a session');
+      return;
+    }
+
     updateSessionState('running');
-    const session = await startDebugSession('', {});
+    const session = await startDebugSession(draftToYaml(draft), event);
     if (session) {
-      debugSession.set(session);
+      startSession(session);
     }
   }
 
@@ -53,7 +101,9 @@
     const step = await debugStep($debugSession.id);
     if (step) {
       addStep(step);
+      return;
     }
+    updateSessionState('completed');
   }
 
   async function handleContinue(): Promise<void> {
@@ -62,42 +112,97 @@
     const step = await debugContinue($debugSession.id);
     if (step) {
       addStep(step);
+      return;
     }
     updateSessionState('completed');
   }
 
-  function handleRestart(): void {
-    endSession();
-    loadMockData();
+  async function handleRestart(): Promise<void> {
+    if (useMockData) {
+      endSession();
+      loadMockData();
+      return;
+    }
+
+    if ($debugSession) {
+      await endDebugSession($debugSession.id);
+      endSession();
+    }
+    await handlePlay();
   }
 
   async function handleStop(): Promise<void> {
     if ($debugSession) {
       await endDebugSession($debugSession.id);
     }
-    updateSessionState('stopped');
+    endSession();
   }
 
-  function handleToggleBreakpoint(id: string): void {
-    toggleBpInStore(id);
+  async function handleToggleBreakpoint(id: string): Promise<void> {
+    if (!$debugSession) {
+      toasts.info('Start a debug session before changing breakpoints');
+      return;
+    }
+
+    const breakpoint = $breakpointsStore.find((entry) => entry.id === id);
+    if (!breakpoint) return;
+
+    if (breakpoint.enabled) {
+      await removeBreakpointApi($debugSession.id, breakpoint.id);
+      replaceBreakpoint(id, { ...breakpoint, enabled: false });
+      return;
+    }
+
+    const next = await setBreakpoint($debugSession.id, breakpoint.type, breakpoint.name);
+    replaceBreakpoint(id, next);
   }
 
-  function handleRemoveBreakpoint(id: string): void {
+  async function handleRemoveBreakpoint(id: string): Promise<void> {
+    if ($debugSession) {
+      const breakpoint = $breakpointsStore.find((entry) => entry.id === id);
+      if (breakpoint?.enabled) {
+        await removeBreakpointApi($debugSession.id, breakpoint.id);
+      }
+    }
     removeBpFromStore(id);
   }
 
-  function handleAddBreakpoint(detail: { type: BreakpointType; name: string }): void {
+  async function handleAddBreakpoint(detail: { type: BreakpointType; name: string }): Promise<void> {
+    if (!$debugSession) {
+      toasts.info('Start a debug session before adding breakpoints');
+      return;
+    }
+
     const { type, name } = detail;
-    addBpToStore({
-      id: `bp-${Date.now()}`,
-      type,
-      name,
-      enabled: true
-    });
+    const breakpoint = await setBreakpoint($debugSession.id, type, name);
+    addBpToStore(breakpoint);
   }
 </script>
 
 <div class="debug-panel">
+  {#if !useMockData}
+    <div class="debug-config">
+      <div class="config-header">
+        <span class="config-title">Debug Event Input</span>
+        <button
+          type="button"
+          class="config-reset"
+          on:click={() => {
+            debugEventJson = JSON.stringify(buildDefaultDebugEvent(), null, 2);
+          }}
+        >
+          Reset
+        </button>
+      </div>
+      <CodeEditor
+        language="json"
+        value={debugEventJson}
+        on:change={(e) => { debugEventJson = e.detail; }}
+        height="120px"
+      />
+    </div>
+  {/if}
+
   <StepControls
     state={$sessionState}
     onPlay={handlePlay}
@@ -170,6 +275,43 @@
     background: var(--color-bg-elevated);
     overflow: hidden;
     box-shadow: var(--shadow-sm);
+  }
+
+  .debug-config {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-surface);
+  }
+
+  .config-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+
+  .config-title {
+    font-size: var(--text-xs);
+    font-weight: var(--font-bold);
+    color: var(--color-text-primary);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wider);
+  }
+
+  .config-reset {
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text-secondary);
+    padding: var(--space-1) var(--space-2);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .config-reset:hover {
+    background: var(--color-bg-hover);
   }
 
   .debug-body {

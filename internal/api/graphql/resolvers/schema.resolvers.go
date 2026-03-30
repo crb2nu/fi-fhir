@@ -387,7 +387,11 @@ func (r *mutationResolver) TriggerWorkflow(ctx context.Context, name string, eve
 	}
 
 	startTime := time.Now()
+	originalTracer := engine.GetTracer()
+	traceRecorder := workflow.NewRecordingTracer()
+	engine.SetTracer(workflow.MultiTracer(originalTracer, traceRecorder))
 	wfResult := engine.ProcessWithContext(ctx, event)
+	engine.SetTracer(originalTracer)
 	duration := time.Since(startTime).Milliseconds()
 
 	routesMatchedCount, actionsExecutedCount, errors, routeNames, actionsSummary := summarizeWorkflowResult(wfResult)
@@ -419,6 +423,9 @@ func (r *mutationResolver) TriggerWorkflow(ctx context.Context, name string, eve
 		}
 		if run != nil {
 			runID = &run.ID
+			r.workflowRunTracesMu.Lock()
+			r.workflowRunTraces[run.ID] = toGraphQLTraceSpans(traceRecorder.Snapshot())
+			r.workflowRunTracesMu.Unlock()
 		}
 	}
 
@@ -3061,8 +3068,17 @@ func (r *queryResolver) DebugSession(ctx context.Context, id string) (*model.Deb
 
 // WorkflowRunTrace is the resolver for the workflowRunTrace query.
 func (r *queryResolver) WorkflowRunTrace(ctx context.Context, runID string) ([]model.TraceSpanModel, error) {
-	// Placeholder: trace collection is not yet implemented
-	return []model.TraceSpanModel{}, nil
+	r.workflowRunTracesMu.RLock()
+	defer r.workflowRunTracesMu.RUnlock()
+
+	spans, ok := r.workflowRunTraces[runID]
+	if !ok {
+		return []model.TraceSpanModel{}, nil
+	}
+
+	out := make([]model.TraceSpanModel, len(spans))
+	copy(out, spans)
+	return out, nil
 }
 
 // EventStream is the resolver for the eventStream field.
@@ -3133,7 +3149,7 @@ func (r *subscriptionResolver) LiveParseStream(ctx context.Context, input model.
 // DebugStepEvent is the resolver for the debugStepEvent subscription.
 func (r *subscriptionResolver) DebugStepEvent(ctx context.Context, sessionID string) (<-chan *model.DebugStepModel, error) {
 	r.debugSessionsMu.RLock()
-	_, ok := r.debugSessions[sessionID]
+	session, ok := r.debugSessions[sessionID]
 	r.debugSessionsMu.RUnlock()
 
 	if !ok {
@@ -3141,11 +3157,27 @@ func (r *subscriptionResolver) DebugStepEvent(ctx context.Context, sessionID str
 	}
 
 	out := make(chan *model.DebugStepModel, 10)
+	steps, unsubscribe := session.SubscribeSteps(10)
 
 	go func() {
 		defer close(out)
-		// Keep sending step events until context is cancelled or session ends
-		<-ctx.Done()
+		defer unsubscribe()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case step, ok := <-steps:
+				if !ok {
+					return
+				}
+				select {
+				case out <- toDebugStepModel(&step):
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
 	}()
 
 	return out, nil

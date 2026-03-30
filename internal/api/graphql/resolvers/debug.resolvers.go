@@ -1,8 +1,6 @@
 package resolvers
 
 import (
-	"time"
-
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/workflow"
 )
@@ -30,7 +28,7 @@ func toDebugSessionModel(session *workflow.DebugSession) *model.DebugSessionMode
 		State:       string(session.State),
 		Breakpoints: breakpoints,
 		Steps:       steps,
-		CreatedAt:   time.Now(),
+		CreatedAt:   session.CreatedAt,
 	}
 }
 
@@ -43,5 +41,42 @@ func toDebugStepModel(step *workflow.DebugStep) *model.DebugStepModel {
 		Variables:  step.Variables,
 		Timestamp:  step.Timestamp,
 		SpanName:   step.SpanName,
+	}
+}
+
+func toGraphQLTraceSpans(spans []workflow.RecordedSpan) []model.TraceSpanModel {
+	results := make([]model.TraceSpanModel, 0, len(spans))
+	for _, span := range spans {
+		events := make([]*model.TraceSpanEventModel, 0, len(span.Events))
+		for _, event := range span.Events {
+			events = append(events, &model.TraceSpanEventModel{
+				Name:       event.Name,
+				Timestamp:  event.Timestamp,
+				Attributes: event.Attributes,
+			})
+		}
+
+		results = append(results, model.TraceSpanModel{
+			ID:         span.ID,
+			Name:       span.Name,
+			ParentID:   span.ParentID,
+			StartTime:  span.StartTime,
+			EndTime:    span.EndTime,
+			Status:     traceStatusString(span.Status),
+			Attributes: span.Attributes,
+			Events:     events,
+		})
+	}
+	return results
+}
+
+func traceStatusString(status workflow.SpanStatus) string {
+	switch status {
+	case workflow.SpanStatusOK:
+		return "ok"
+	case workflow.SpanStatusError:
+		return "error"
+	default:
+		return "unset"
 	}
 }

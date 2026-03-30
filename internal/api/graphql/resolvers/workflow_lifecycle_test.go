@@ -79,6 +79,14 @@ func TestWorkflowLifecycle_CreateSavePublishTriggerAndRuns(t *testing.T) {
 	if len(runs) == 0 {
 		t.Fatalf("expected at least one workflow run")
 	}
+
+	trace, err := queries.WorkflowRunTrace(ctx, *result.RunID)
+	if err != nil {
+		t.Fatalf("WorkflowRunTrace query failed: %v", err)
+	}
+	if len(trace) == 0 {
+		t.Fatalf("expected recorded trace spans for workflow run")
+	}
 }
 
 func TestWorkflowLifecycle_ProductionPublishRequiresApproval(t *testing.T) {
