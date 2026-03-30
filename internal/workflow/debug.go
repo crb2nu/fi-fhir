@@ -80,6 +80,16 @@ type DebugSession struct {
 	stepSubs  map[chan DebugStep]struct{}
 }
 
+// DebugSessionSnapshot is a read-safe copy of a debug session's observable state.
+type DebugSessionSnapshot struct {
+	ID          string
+	WorkflowID  string
+	State       DebugSessionState
+	CreatedAt   time.Time
+	Breakpoints map[string]*Breakpoint
+	Steps       []DebugStep
+}
+
 // NewDebugSession creates a new debug session wrapping an engine.
 func NewDebugSession(id string, engine *Engine) *DebugSession {
 	ds := &DebugSession{
@@ -202,7 +212,40 @@ func (ds *DebugSession) GetVariables() map[string]interface{} {
 	if len(ds.Steps) == 0 {
 		return nil
 	}
-	return ds.Steps[len(ds.Steps)-1].Variables
+	return copyInterfaceMap(ds.Steps[len(ds.Steps)-1].Variables)
+}
+
+// Snapshot returns a read-safe copy of the current session state.
+func (ds *DebugSession) Snapshot() DebugSessionSnapshot {
+	ds.mu.Lock()
+	defer ds.mu.Unlock()
+
+	breakpoints := make(map[string]*Breakpoint, len(ds.Breakpoints))
+	for id, bp := range ds.Breakpoints {
+		breakpointCopy := *bp
+		breakpoints[id] = &breakpointCopy
+	}
+
+	steps := make([]DebugStep, 0, len(ds.Steps))
+	for _, step := range ds.Steps {
+		steps = append(steps, DebugStep{
+			StepNumber: step.StepNumber,
+			Kind:       step.Kind,
+			Name:       step.Name,
+			Variables:  copyInterfaceMap(step.Variables),
+			Timestamp:  step.Timestamp,
+			SpanName:   step.SpanName,
+		})
+	}
+
+	return DebugSessionSnapshot{
+		ID:          ds.ID,
+		WorkflowID:  ds.WorkflowID,
+		State:       ds.State,
+		CreatedAt:   ds.CreatedAt,
+		Breakpoints: breakpoints,
+		Steps:       steps,
+	}
 }
 
 // Close terminates the debug session.
