@@ -2,10 +2,91 @@
  * IDE state store with localStorage persistence for layout dimensions.
  */
 import { writable, get } from 'svelte/store';
-import type { IDEState, IDEView, EditorTab, PanelTab } from './types';
+import type { IDEState, IDEView, EditorTab, PanelTab, IDEAppRoute } from './types';
 
 const SIDEBAR_WIDTH_KEY = 'fi-fhir-ide-sidebar-width';
 const BOTTOM_PANEL_HEIGHT_KEY = 'fi-fhir-ide-bottom-panel-height';
+
+const WORKSPACE_ROUTE_TITLES: Record<IDEView, string> = {
+  system: 'Workbench',
+  hl7: 'HL7 Mapping',
+  workflows: 'Workflows',
+  events: 'Events',
+  profiles: 'Profiles',
+  terminology: 'Terminology',
+};
+
+const WORKSPACE_VIEW_ROUTES: Record<IDEView, IDEAppRoute> = {
+  system: '/',
+  hl7: '/hl7',
+  workflows: '/workflows',
+  events: '/events',
+  profiles: '/profiles',
+  terminology: '/terminology',
+};
+
+function normalizeWorkspacePathname(pathname: string): string {
+  if (!pathname) return '/';
+  if (pathname.length > 1 && pathname.endsWith('/')) {
+    return pathname.replace(/\/+$/, '');
+  }
+  return pathname;
+}
+
+function workspaceViewForPath(pathname: string): IDEView {
+  const normalized = normalizeWorkspacePathname(pathname);
+  if (normalized === '/') return 'system';
+  if (normalized.startsWith('/events')) return 'events';
+  if (normalized.startsWith('/hl7')) return 'hl7';
+  if (normalized.startsWith('/profiles')) return 'profiles';
+  if (normalized.startsWith('/terminology')) return 'terminology';
+  if (normalized.startsWith('/workflows')) return 'workflows';
+  return 'system';
+}
+
+export function getWorkspaceTabTitle(pathname: string, view?: IDEView): string {
+  const workspaceView = view ?? workspaceViewForPath(pathname);
+  return WORKSPACE_ROUTE_TITLES[workspaceView];
+}
+
+export function createWorkspaceTab(pathname: string, view?: IDEView): EditorTab {
+  const normalized = normalizeWorkspacePathname(pathname);
+  const workspaceView = view ?? workspaceViewForPath(normalized);
+  const workspaceRoute = WORKSPACE_VIEW_ROUTES[workspaceView];
+  return {
+    id: workspaceRoute,
+    title: getWorkspaceTabTitle(normalized, workspaceView),
+    dirty: false,
+    view: workspaceView,
+    path: workspaceRoute,
+  };
+}
+
+export function resolveNextWorkspaceTabId(
+  tabs: EditorTab[],
+  activeTabId: string | null,
+  closingTabId: string
+): string | null {
+  const idx = tabs.findIndex((tab) => tab.id === closingTabId);
+  if (idx < 0) return activeTabId;
+
+  const next = tabs.filter((tab) => tab.id !== closingTabId);
+  if (tabs.length === 0) return null;
+
+  if (activeTabId !== closingTabId) {
+    return activeTabId;
+  }
+
+  if (next.length === 0) {
+    return null;
+  }
+
+  if (idx >= next.length) {
+    return next[next.length - 1]?.id ?? null;
+  }
+
+  return next[idx]?.id ?? null;
+}
 
 function loadNumber(key: string, fallback: number): number {
   if (typeof window === 'undefined') return fallback;
@@ -35,6 +116,7 @@ function createInitialState(): IDEState {
     activeView: 'hl7',
     openTabs: [],
     activeTabId: null,
+    workspaceSplit: false,
     bottomPanelOpen: false,
     bottomPanelHeight: loadNumber(BOTTOM_PANEL_HEIGHT_KEY, 200),
     activePanelTab: 'output',
@@ -54,6 +136,14 @@ export function setSidebarWidth(width: number): void {
 
 export function setActiveView(view: IDEView): void {
   ideState.update((s) => ({ ...s, activeView: view }));
+}
+
+export function toggleWorkspaceSplit(): void {
+  ideState.update((s) => ({ ...s, workspaceSplit: !s.workspaceSplit }));
+}
+
+export function setWorkspaceSplit(enabled: boolean): void {
+  ideState.update((s) => ({ ...s, workspaceSplit: enabled }));
 }
 
 export function openTab(tab: EditorTab): void {

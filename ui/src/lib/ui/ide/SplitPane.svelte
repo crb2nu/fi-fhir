@@ -92,18 +92,14 @@
     <slot />
   </div>
 
-  <div
+  <button
+    type="button"
     class="split-handle"
     class:handle-horizontal={orientation === 'horizontal'}
     class:handle-vertical={orientation === 'vertical'}
-    role="separator"
-    aria-orientation={orientation}
-    aria-valuenow={size}
-    aria-valuemin={minSize}
-    aria-valuemax={maxSize}
-    tabindex="0"
+    aria-label={orientation === 'horizontal' ? 'Resize workspace columns' : 'Resize workspace rows'}
     on:mousedown={onMouseDown}
-  ></div>
+  ></button>
 
   <div class="split-secondary">
     <slot name="secondary" />

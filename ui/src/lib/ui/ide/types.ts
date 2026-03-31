@@ -3,6 +3,7 @@
  */
 
 export type IDEView = 'hl7' | 'workflows' | 'events' | 'profiles' | 'terminology' | 'system';
+export type IDEAppRoute = '/' | '/hl7' | '/workflows' | '/events' | '/profiles' | '/terminology';
 
 export interface EditorTab {
   id: string;
@@ -10,7 +11,7 @@ export interface EditorTab {
   icon?: string;
   dirty: boolean;
   view: IDEView;
-  path?: string;
+  path?: IDEAppRoute;
 }
 
 export type PanelTab = 'output' | 'problems' | 'debug' | 'trace';
@@ -23,6 +24,7 @@ export interface IDEState {
   activeView: IDEView;
   openTabs: EditorTab[];
   activeTabId: string | null;
+  workspaceSplit: boolean;
   bottomPanelOpen: boolean;
   bottomPanelHeight: number;
   activePanelTab: PanelTab;
