@@ -12,8 +12,10 @@ describe('sidebarContent', () => {
     const context = getSidebarContext('/workflows/monitor');
 
     expect(context.view).toBe('workflows');
-    expect(context.title).toBe('Workflow builder');
+    expect(context.title).toBe('Delivery');
     expect(context.actions).toHaveLength(3);
+    expect(context.journey.stage?.label).toBe('Delivery');
+    expect(context.journey.nextAction.label).toBe('Continue to Verification');
     expect(context.recent[0]?.label).toBe('Workflow builder');
   });
 
@@ -22,11 +24,11 @@ describe('sidebarContent', () => {
 
     expect(links.map((link) => link.href)).toEqual([
       '/',
-      '/events',
       '/hl7',
       '/profiles',
       '/terminology',
       '/workflows',
+      '/events',
     ]);
   });
 });

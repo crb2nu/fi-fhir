@@ -1,6 +1,7 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
   import Panel from '$lib/ui/Panel.svelte';
+  import JourneyProgress from './JourneyProgress.svelte';
   import { getSidebarContext, getSidebarViewLinks } from './sidebar/sidebarContent';
 
   /**
@@ -27,6 +28,8 @@
 >
   {#if open}
     <div class="sidebar-content">
+      <JourneyProgress pathname={pathname} variant="compact" />
+
       <Panel title={context.title} padding="md">
         <div class="hero">
           <div class="eyebrow">{context.eyebrow}</div>
@@ -40,24 +43,35 @@
         </div>
       </Panel>
 
-      <Panel title="View navigation" padding="sm">
-        <nav class="stack" aria-label="Workbench views">
+      <Panel title="Stage map" padding="sm">
+        <nav class="stack" aria-label="Journey navigation">
           {#each viewLinks as link (link.view)}
             <a
               class="nav-link"
               class:active={link.view === context.view}
               aria-current={link.view === context.view ? 'page' : undefined}
-              aria-describedby={`nav-hint-${link.view}`}
               href={resolve(link.href)}
             >
               <span class="nav-label">{link.label}</span>
-              <span id={`nav-hint-${link.view}`} class="nav-hint" aria-hidden="true">{link.href}</span>
+              <span class="nav-hint">{link.href}</span>
             </a>
           {/each}
         </nav>
       </Panel>
 
-      <Panel title="Quick actions" padding="sm">
+      <Panel title="Recommended move" padding="sm">
+        <div class="stack">
+          <a
+            class="primary-action"
+            href={resolve(context.journey.nextAction.href)}
+          >
+            <span class="action-label">{context.journey.nextAction.label}</span>
+            <span class="action-hint">{context.journey.nextAction.hint}</span>
+          </a>
+        </div>
+      </Panel>
+
+      <Panel title="Supporting moves" padding="sm">
         <div class="stack">
           {#each context.actions as action, index (action.label)}
             <a
@@ -78,7 +92,7 @@
         </div>
       </Panel>
 
-      <Panel title="Recent surfaces" padding="sm">
+      <Panel title="Related surfaces" padding="sm">
         <div class="stack">
           {#each context.recent as item (item.label)}
             <div class="asset">
@@ -114,7 +128,7 @@
     height: 100%;
     overflow: auto;
     display: grid;
-    gap: var(--space-4);
+    gap: var(--space-3);
     padding: var(--space-3);
   }
 
@@ -161,6 +175,7 @@
   }
 
   .nav-link,
+  .primary-action,
   .action-link {
     display: grid;
     gap: 4px;
@@ -173,7 +188,17 @@
     transition: var(--transition-all);
   }
 
-  .nav-link:hover,
+  .primary-action {
+    border-color: var(--color-primary-border);
+    background: var(--color-primary-muted);
+  }
+
+  .nav-link.active {
+    border-color: var(--color-primary-border);
+    background: var(--color-primary-muted);
+  }
+
+  .primary-action:hover,
   .action-link:hover {
     transform: translateY(-1px);
     border-color: var(--color-border-strong);
@@ -181,10 +206,11 @@
     box-shadow: var(--shadow-sm);
   }
 
-  .nav-link.active {
-    border-color: var(--color-primary-border);
-    background: var(--color-primary-muted);
-    color: var(--color-primary);
+  .nav-link:hover {
+    transform: translateY(-1px);
+    border-color: var(--color-border-strong);
+    background: var(--color-bg-hover);
+    box-shadow: var(--shadow-sm);
   }
 
   .nav-label,

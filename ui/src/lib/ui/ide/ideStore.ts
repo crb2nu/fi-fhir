@@ -8,12 +8,12 @@ const SIDEBAR_WIDTH_KEY = 'fi-fhir-ide-sidebar-width';
 const BOTTOM_PANEL_HEIGHT_KEY = 'fi-fhir-ide-bottom-panel-height';
 
 const WORKSPACE_ROUTE_TITLES: Record<IDEView, string> = {
-  system: 'Workbench',
-  hl7: 'HL7 Mapping',
-  workflows: 'Workflows',
-  events: 'Events',
-  profiles: 'Profiles',
-  terminology: 'Terminology',
+  system: 'Mission Control',
+  hl7: 'Source Intake',
+  workflows: 'Delivery',
+  events: 'Verification',
+  profiles: 'Normalization',
+  terminology: 'Translation',
 };
 
 const WORKSPACE_VIEW_ROUTES: Record<IDEView, IDEAppRoute> = {
