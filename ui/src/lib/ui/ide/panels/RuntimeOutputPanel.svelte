@@ -2,6 +2,7 @@
   import { onDestroy, onMount } from 'svelte';
   import { subscribe as wsSubscribe } from '$lib/graphql/subscriptions';
   import { EventStreamDocument, WorkflowEventsDocument } from '$lib/gen/graphql';
+  import Badge from '$lib/ui/Badge.svelte';
   import Button from '$lib/ui/Button.svelte';
   import { workflowDraft } from '$lib/features/workflows/workflowStore';
   import {
@@ -20,6 +21,12 @@
   let unsubscribe: (() => void) | null = null;
   let mounted = false;
   let workflowName = '';
+  let entryCount = 0;
+  let latestTimestamp: string | null = null;
+  let statusLabel = 'Idle';
+  let statusVariant: 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'info' = 'default';
+  let feedLabel = 'Event stream';
+  let stateMessage = 'Live output will appear here as workflow or event stream messages arrive.';
 
   function stopSubscription(): void {
     if (unsubscribe) {
@@ -100,6 +107,33 @@
   });
 
   $: workflowName = $workflowDraft.name.trim();
+  $: entryCount = $runtimeOutputState.entries.length;
+  $: latestTimestamp = $runtimeOutputState.entries[0]?.timestamp ?? $runtimeOutputState.updatedAt;
+  $: statusLabel =
+    $runtimeOutputState.status === 'error'
+      ? 'Disconnected'
+      : $runtimeOutputState.connected || entryCount > 0
+        ? 'Live'
+        : $runtimeOutputState.status === 'connecting'
+          ? 'Connecting'
+          : 'Idle';
+  $: statusVariant =
+    $runtimeOutputState.status === 'error'
+      ? 'danger'
+      : $runtimeOutputState.connected || entryCount > 0
+        ? 'success'
+        : $runtimeOutputState.status === 'connecting'
+          ? 'info'
+          : 'default';
+  $: feedLabel = $runtimeOutputState.feedKind === 'workflow' ? 'Workflow feed' : 'Event stream';
+  $: stateMessage =
+    $runtimeOutputState.error
+      ? 'The console is disconnected. Try reconnecting once the backend is healthy.'
+      : $runtimeOutputState.connected || entryCount > 0
+        ? 'The feed is healthy and waiting for the next runtime event.'
+        : $runtimeOutputState.status === 'connecting'
+          ? 'Connecting to live output for workflow and event stream activity.'
+          : 'Live output will appear here as workflow or event stream messages arrive.';
   $: if (mounted) {
     subscribeToFeed();
   }
@@ -110,37 +144,53 @@
 </script>
 
 <div class="panel">
-  <div class="controls">
-    <div class="status" role="status" aria-live="polite">
-      <span class="indicator" class:connected={$runtimeOutputState.connected} class:error={$runtimeOutputState.status === 'error'}></span>
-      <div class="status-copy">
-        <div class="status-title">{ $runtimeOutputState.feedLabel }</div>
-        <div class="status-text">
-          {#if $runtimeOutputState.error}
-            {$runtimeOutputState.error}
-          {:else if $runtimeOutputState.status === 'connected'}
-            Connected
-          {:else if $runtimeOutputState.status === 'connecting'}
-            Connecting to live output...
-          {:else}
-            Waiting for runtime output
-          {/if}
+  <div class="header">
+    <div class="header-copy">
+      <p class="eyebrow">Operational console</p>
+      <div class="status-row" role="status" aria-live="polite">
+        <div class="status">
+          <span
+            class="indicator"
+            class:connected={$runtimeOutputState.connected}
+            class:error={$runtimeOutputState.status === 'error'}
+          ></span>
+          <div class="status-copy">
+            <div class="status-title">{ $runtimeOutputState.feedLabel }</div>
+            <div class="status-text">{stateMessage}</div>
+          </div>
         </div>
+
+        <Badge variant={statusVariant} size="sm" pill>{statusLabel}</Badge>
       </div>
     </div>
 
-    <div class="actions">
-      <Button variant="secondary" on:click={clearEntries}>Clear</Button>
-      <Button variant="secondary" on:click={reconnect}>Reconnect</Button>
+    <div class="metrics" aria-label="Runtime output summary">
+      <div class="metric">
+        <span class="metric-label">Entries</span>
+        <span class="metric-value">{entryCount}</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Latest</span>
+        <span class="metric-value">{latestTimestamp ? formatRuntimeOutputTimestamp(latestTimestamp) : '—'}</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Feed</span>
+        <span class="metric-value">{feedLabel}</span>
+      </div>
     </div>
+  </div>
+
+  <div class="actions">
+      <Button variant="secondary" on:click={clearEntries}>Clear feed</Button>
+      <Button variant="secondary" on:click={reconnect}>Reconnect</Button>
   </div>
 
   {#if $runtimeOutputState.entries.length === 0}
     <div class="empty">
       {#if $runtimeOutputState.error}
-        No live output is available right now. Try reconnecting once the backend is healthy.
+        The console is disconnected. Try reconnecting once the backend is healthy.
       {:else if $runtimeOutputState.status === 'connected'}
-        Waiting for the next runtime event...
+        The feed is healthy and waiting for the next runtime event.
       {:else}
         Live output will appear here as workflow events or stream events arrive.
       {/if}
@@ -178,12 +228,60 @@
     gap: var(--space-3);
   }
 
-  .controls {
+  .header {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(240px, 0.8fr);
+    gap: var(--space-3);
+    align-items: start;
+  }
+
+  .header-copy {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .eyebrow {
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: var(--text-2xs);
+    font-weight: var(--font-bold);
+    color: var(--color-text-tertiary);
+  }
+
+  .status-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: var(--space-3);
     flex-wrap: wrap;
+  }
+
+  .metrics {
+    display: grid;
+    gap: 10px;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface);
+  }
+
+  .metric {
+    display: grid;
+    gap: 3px;
+  }
+
+  .metric-label {
+    font-size: var(--text-2xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: var(--font-bold);
+    color: var(--color-text-tertiary);
+  }
+
+  .metric-value {
+    color: var(--color-text-primary);
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
   }
 
   .status {
@@ -335,5 +433,11 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  @media (max-width: 880px) {
+    .header {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

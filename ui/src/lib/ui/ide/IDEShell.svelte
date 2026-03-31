@@ -8,6 +8,7 @@
   import EditorTabs from './EditorTabs.svelte';
   import BottomPanel from './BottomPanel.svelte';
   import StatusBar from './StatusBar.svelte';
+  import JourneyProgress from './JourneyProgress.svelte';
   import ThemeToggle from '$lib/theme/ThemeToggle.svelte';
   import CommandPalette from '$lib/ui/CommandPalette.svelte';
   import type { PaletteCommand } from '$lib/ui/CommandPalette.svelte';
@@ -70,12 +71,12 @@
   };
 
   const navCommands: PaletteCommand[] = [
-    { id: 'nav:hl7', label: 'Go to HL7 Mapping', hint: '/hl7', keywords: ['navigate', 'hl7'], run: () => goto(resolve('/hl7')) },
-    { id: 'nav:workflows', label: 'Go to Workflows', hint: '/workflows', keywords: ['navigate', 'workflows'], run: () => goto(resolve('/workflows')) },
-    { id: 'nav:events', label: 'Go to Events', hint: '/events', keywords: ['navigate', 'events'], run: () => goto(resolve('/events')) },
-    { id: 'nav:profiles', label: 'Go to Profiles', hint: '/profiles', keywords: ['navigate', 'profiles'], run: () => goto(resolve('/profiles')) },
-    { id: 'nav:terminology', label: 'Go to Terminology', hint: '/terminology', keywords: ['navigate', 'terminology'], run: () => goto(resolve('/terminology')) },
-    { id: 'nav:system', label: 'Go to System', hint: '/', keywords: ['navigate', 'system', 'home'], run: () => goto(resolve('/')) },
+    { id: 'nav:hl7', label: 'Go to Source Intake', hint: '/hl7', keywords: ['navigate', 'hl7', 'source intake'], run: () => goto(resolve('/hl7')) },
+    { id: 'nav:workflows', label: 'Go to Delivery', hint: '/workflows', keywords: ['navigate', 'workflows', 'delivery'], run: () => goto(resolve('/workflows')) },
+    { id: 'nav:events', label: 'Go to Verification', hint: '/events', keywords: ['navigate', 'events', 'verification'], run: () => goto(resolve('/events')) },
+    { id: 'nav:profiles', label: 'Go to Normalization', hint: '/profiles', keywords: ['navigate', 'profiles', 'normalization'], run: () => goto(resolve('/profiles')) },
+    { id: 'nav:terminology', label: 'Go to Translation', hint: '/terminology', keywords: ['navigate', 'terminology', 'translation'], run: () => goto(resolve('/terminology')) },
+    { id: 'nav:system', label: 'Go to Mission Control', hint: '/', keywords: ['navigate', 'mission control', 'home'], run: () => goto(resolve('/')) },
     { id: 'cmd:toggle-sidebar', label: 'Toggle Sidebar', keywords: ['sidebar', 'panel'], run: () => toggleSidebar() },
     { id: 'cmd:toggle-panel', label: 'Toggle Bottom Panel', keywords: ['panel', 'output', 'problems'], run: () => toggleBottomPanel() },
     { id: 'cmd:debug-panel', label: 'Open Debug Panel', hint: 'Cmd+Shift+D', keywords: ['debug', 'breakpoint', 'step'], run: () => { setActivePanelTab('debug'); if (!$ideState.bottomPanelOpen) toggleBottomPanel(); } },
@@ -252,6 +253,8 @@
       <ThemeToggle />
     </div>
   </header>
+
+  <JourneyProgress pathname={$page.url.pathname} variant="compact" />
 
   <!-- Main body: activity bar + content + sidebar -->
   <div class="ide-body">

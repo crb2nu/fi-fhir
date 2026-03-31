@@ -21,6 +21,9 @@
   let filterType: EventType | 'ALL' = 'ALL';
   let filterSource = '';
   let pageSize = 50;
+  let filterSummary = 'All downstream events';
+  let windowSummary = 'Showing 50 events per page';
+  const pageSizes = [25, 50, 100] as const;
 
   const eventTypes: EventType[] = [
     'PATIENT_ADMIT', 'PATIENT_DISCHARGE', 'PATIENT_TRANSFER', 'PATIENT_UPDATE',
@@ -41,6 +44,10 @@
       fromTimestamp: null,
       toTimestamp: null
     };
+  }
+
+  function handlePageSizeChange(event: Event): void {
+    pageSize = Number((event.currentTarget as HTMLSelectElement).value);
   }
 
   async function loadEvents(append = false) {
@@ -97,10 +104,26 @@
     return 'default';
   }
 
+  function formatFilterSummary(): string {
+    const parts: string[] = [];
+
+    if (filterType !== 'ALL') {
+      parts.push(formatEventType(filterType));
+    }
+    if (filterSource.trim()) {
+      parts.push(`source ${filterSource.trim()}`);
+    }
+
+    return parts.length > 0 ? `Filtered by ${parts.join(' · ')}` : 'All downstream events';
+  }
+
   // Reload when filters change
   let lastFilterKey = '';
   $: {
-    const key = `${filterType}|${filterSource}`;
+    filterSummary = formatFilterSummary();
+    windowSummary = `Showing ${pageSize} events per page`;
+
+    const key = `${filterType}|${filterSource}|${pageSize}`;
     if (key !== lastFilterKey) {
       lastFilterKey = key;
       refresh();
@@ -109,12 +132,38 @@
 </script>
 
 <div class="browser">
+  <div class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow">Downstream verification</p>
+      <h2>Event browser</h2>
+      <p class="hero-text">
+        Use this view to confirm what arrived after an integration run. Start broad, then narrow
+        by source or event type when something looks off.
+      </p>
+    </div>
+
+    <div class="hero-stats" aria-label="Event browser summary">
+      <div class="stat">
+        <span class="stat-label">Total</span>
+        <span class="stat-value">{totalCount}</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Window</span>
+        <span class="stat-value">{windowSummary}</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Scope</span>
+        <span class="stat-value">{filterSummary}</span>
+      </div>
+    </div>
+  </div>
+
   <div class="toolbar">
     <div class="filters">
       <label class="filter">
         Type
         <select class="select" bind:value={filterType}>
-          <option value="ALL">All Types</option>
+          <option value="ALL">All types</option>
           {#each eventTypes as type (type)}
             <option value={type}>{formatEventType(type)}</option>
           {/each}
@@ -128,8 +177,17 @@
           type="text"
           class="input"
           bind:value={filterSource}
-          placeholder="Filter by source..."
+          placeholder="Filter downstream source..."
         />
+      </label>
+
+      <label class="filter compact">
+        Window
+        <select class="select" value={pageSize} on:change={handlePageSizeChange}>
+          {#each pageSizes as size (size)}
+            <option value={size}>{size} events</option>
+          {/each}
+        </select>
       </label>
     </div>
 
@@ -146,19 +204,31 @@
       <Button variant="secondary" on:click={refresh}>Retry</Button>
     </EmptyState>
   {:else if edges.length === 0 && !loading}
-    <EmptyState icon="inbox" title="No events found" description="Events will appear here once messages are processed." />
+    <EmptyState
+      icon="inbox"
+      title="No downstream events found"
+      description="Events will appear here once integrations emit processed records."
+    />
   {:else}
     <div class="event-list">
       {#each edges as edge (edge.cursor)}
         <button
           class="event-row"
           type="button"
+          aria-label={`${formatEventType(edge.node.type)} from ${edge.node.source} at ${formatTimestamp(edge.node.timestamp)}`}
           on:click={() => dispatch('select', { event: edge.node })}
         >
-          <span class="time mono">{formatTimestamp(edge.node.timestamp)}</span>
-          <span class="type-pill {typeColor(edge.node.type)}">{formatEventType(edge.node.type)}</span>
-          <span class="source mono">{edge.node.source}</span>
-          <span class="id muted mono" title={edge.node.id}>{edge.node.id.slice(0, 12)}...</span>
+          <div class="event-main">
+            <div class="event-topline">
+              <span class="time mono">{formatTimestamp(edge.node.timestamp)}</span>
+              <span class="type-pill {typeColor(edge.node.type)}">{formatEventType(edge.node.type)}</span>
+            </div>
+
+            <div class="event-bottomline">
+              <span class="source mono">{edge.node.source}</span>
+              <span class="id muted mono" title={edge.node.id}>ID {edge.node.id.slice(0, 10)}...</span>
+            </div>
+          </div>
         </button>
       {/each}
     </div>
@@ -176,7 +246,67 @@
 <style>
   .browser {
     display: grid;
-    gap: 12px;
+    gap: 16px;
+  }
+
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 0.8fr);
+    gap: 16px;
+    align-items: stretch;
+  }
+
+  .hero-copy,
+  .hero-stats {
+    padding: 16px;
+    border-radius: 18px;
+    border: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-surface);
+  }
+
+  .eyebrow {
+    margin: 0 0 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--color-text-tertiary);
+  }
+
+  h2 {
+    margin: 0 0 8px;
+    font-size: 1.4rem;
+    color: var(--color-text-primary);
+  }
+
+  .hero-text {
+    margin: 0;
+    color: var(--color-text-secondary);
+    line-height: 1.55;
+  }
+
+  .hero-stats {
+    display: grid;
+    gap: 10px;
+  }
+
+  .stat {
+    display: grid;
+    gap: 3px;
+  }
+
+  .stat-label {
+    color: var(--color-text-tertiary);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+  }
+
+  .stat-value {
+    color: var(--color-text-primary);
+    font-weight: 700;
+    line-height: 1.35;
   }
 
   .toolbar {
@@ -191,6 +321,7 @@
     display: flex;
     gap: 12px;
     flex-wrap: wrap;
+    align-items: flex-end;
   }
 
   .filter {
@@ -200,6 +331,10 @@
     font-size: 0.9rem;
     font-weight: 700;
     min-width: 160px;
+  }
+
+  .filter.compact {
+    min-width: 140px;
   }
 
   .select,
@@ -232,18 +367,15 @@
 
   .event-list {
     display: grid;
-    gap: 4px;
+    gap: 8px;
     max-height: 600px;
     overflow-y: auto;
   }
 
   .event-row {
     display: grid;
-    grid-template-columns: 170px auto 1fr auto;
-    gap: 12px;
-    align-items: center;
-    padding: 8px 12px;
-    border-radius: 8px;
+    padding: 12px 14px;
+    border-radius: 12px;
     border: 1px solid var(--color-border-default);
     background: var(--color-bg-elevated);
     cursor: pointer;
@@ -251,11 +383,32 @@
     width: 100%;
     color: inherit;
     font: inherit;
+    transition: var(--transition-colors);
+  }
+
+  .event-row:focus-visible {
+    outline: none;
+    border-color: var(--color-border-focus);
+    box-shadow: var(--shadow-focus);
   }
 
   .event-row:hover {
     background: var(--color-bg-hover);
     border-color: var(--color-border-strong);
+  }
+
+  .event-main {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .event-topline,
+  .event-bottomline {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
   }
 
   .time {
@@ -295,5 +448,11 @@
     display: flex;
     justify-content: center;
     padding-top: 8px;
+  }
+
+  @media (max-width: 880px) {
+    .hero {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

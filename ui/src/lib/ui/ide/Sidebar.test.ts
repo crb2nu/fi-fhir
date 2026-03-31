@@ -7,22 +7,22 @@ describe('Sidebar', () => {
     render(Sidebar, { props: { open: true, width: 320, pathname: '/hl7/sample' } });
 
     expect(screen.getByRole('complementary', { name: 'Workbench sidebar' })).toBeInTheDocument();
-    expect(screen.getByText('Parser triage')).toBeInTheDocument();
-    expect(screen.getByText('HL7 preview')).toBeInTheDocument();
-    expect(screen.getByText('Sample inbox')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open profile builder' })).toHaveAttribute('href', '/profiles');
+    expect(screen.getByRole('heading', { name: 'Source Intake' })).toBeInTheDocument();
+    expect(screen.getByText('Stage 1')).toBeInTheDocument();
+    expect(screen.getByText('Raw payloads')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Continue to Normalization/ })).toHaveAttribute('href', '/profiles');
   });
 
   it('marks the active navigation link', () => {
     render(Sidebar, { props: { open: true, width: 320, pathname: '/terminology' } });
 
-    const activeLink = screen.getByRole('link', { name: 'Terminology' });
+    const activeLink = screen.getByRole('link', { current: 'page' });
     expect(activeLink).toHaveAttribute('aria-current', 'page');
   });
 
   it('does not render content when closed', () => {
     render(Sidebar, { props: { open: false, width: 320, pathname: '/' } });
 
-    expect(screen.queryByText('Mapping studio')).not.toBeInTheDocument();
+    expect(screen.queryByText('Mission control')).not.toBeInTheDocument();
   });
 });

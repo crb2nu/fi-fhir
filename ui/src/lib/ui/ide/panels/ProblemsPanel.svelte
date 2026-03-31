@@ -1,30 +1,61 @@
 <script lang="ts">
+  import Badge from '$lib/ui/Badge.svelte';
   import { workflowDiagnostics } from './workflowProblemsStore';
 
   function pluralize(count: number, noun: string): string {
     return `${count} ${noun}${count === 1 ? '' : 's'}`;
   }
+
+  function severityLabel(): string {
+    if ($workflowDiagnostics.issues.length === 0) return 'Ready';
+    const errors = $workflowDiagnostics.issues.filter((issue) => issue.severity === 'error').length;
+    const warnings = $workflowDiagnostics.issues.filter((issue) => issue.severity === 'warning').length;
+    if (errors > 0) return `${pluralize(errors, 'error')}`;
+    if (warnings > 0) return `${pluralize(warnings, 'warning')}`;
+    return `${pluralize($workflowDiagnostics.issues.length, 'issue')}`;
+  }
+
+  function severityVariant(): 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'info' {
+    if ($workflowDiagnostics.issues.length === 0) return 'success';
+    const errors = $workflowDiagnostics.issues.filter((issue) => issue.severity === 'error').length;
+    if (errors > 0) return 'danger';
+    return 'warning';
+  }
 </script>
 
 <div class="panel">
-  <div class="summary">
-    <div class="summary-copy">
-      <div class="summary-title">
-        {#if $workflowDiagnostics.isValid}
-          Workflow draft is valid
-        {:else}
-          Workflow draft has {$workflowDiagnostics.issues.length} issue{#if $workflowDiagnostics.issues.length !== 1}s{/if}
-        {/if}
+  <div class="header">
+    <div class="summary">
+      <div class="summary-copy">
+        <div class="eyebrow">Workflow checks</div>
+        <div class="summary-title">
+          {#if $workflowDiagnostics.isValid}
+            Ready for runtime verification
+          {:else}
+            Workflow draft needs attention
+          {/if}
+        </div>
+        <div class="summary-subtitle">
+          {$workflowDiagnostics.draft.name || 'Untitled workflow'} · version {$workflowDiagnostics.draft.version}
+        </div>
       </div>
-      <div class="summary-subtitle">
-        {$workflowDiagnostics.draft.name || 'Untitled workflow'} · version {$workflowDiagnostics.draft.version}
+
+      <div class="summary-stats">
+        <span class="stat">{pluralize($workflowDiagnostics.routeCount, 'route')}</span>
+        <span class="stat">{pluralize($workflowDiagnostics.transformCount, 'transform')}</span>
+        <span class="stat">{pluralize($workflowDiagnostics.actionCount, 'action')}</span>
       </div>
     </div>
 
-    <div class="summary-stats">
-      <span class="stat">{pluralize($workflowDiagnostics.routeCount, 'route')}</span>
-      <span class="stat">{pluralize($workflowDiagnostics.transformCount, 'transform')}</span>
-      <span class="stat">{pluralize($workflowDiagnostics.actionCount, 'action')}</span>
+    <div class="health-card">
+      <Badge variant={severityVariant()} size="sm" pill>{severityLabel()}</Badge>
+      <div class="health-copy">
+        {#if $workflowDiagnostics.isValid}
+          Structure looks stable enough to move to runtime output and downstream event review.
+        {:else}
+          Fix the listed issues before you trust the destination behavior.
+        {/if}
+      </div>
     </div>
   </div>
 
@@ -58,18 +89,31 @@
     gap: var(--space-3);
   }
 
-  .summary {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
+  .header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 0.6fr);
     gap: var(--space-3);
-    flex-wrap: wrap;
+    align-items: start;
+  }
+
+  .summary {
+    display: grid;
+    gap: var(--space-3);
   }
 
   .summary-copy {
     display: grid;
-    gap: 4px;
+    gap: 6px;
     min-width: 0;
+  }
+
+  .eyebrow {
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: var(--text-2xs);
+    font-weight: var(--font-bold);
+    color: var(--color-text-tertiary);
   }
 
   .summary-title {
@@ -96,6 +140,22 @@
     color: var(--color-text-secondary);
     background: var(--color-bg-surface);
     border: 1px solid var(--color-border-subtle);
+  }
+
+  .health-card {
+    display: grid;
+    gap: 10px;
+    align-content: start;
+    padding: var(--space-3);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-surface);
+  }
+
+  .health-copy {
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    line-height: 1.5;
   }
 
   .empty {
@@ -174,5 +234,11 @@
     color: var(--color-text-secondary);
     font-size: var(--text-sm);
     line-height: 1.45;
+  }
+
+  @media (max-width: 880px) {
+    .header {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

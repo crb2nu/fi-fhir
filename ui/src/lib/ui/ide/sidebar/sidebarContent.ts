@@ -1,4 +1,5 @@
 import type { IDEAppRoute } from '../types';
+import { getJourneyState } from '../journey';
 
 export type SidebarView = 'home' | 'events' | 'hl7' | 'profiles' | 'terminology' | 'workflows';
 
@@ -30,121 +31,121 @@ export interface SidebarContext {
 }
 
 const viewLinks: SidebarViewLink[] = [
-  { view: 'home', label: 'Home', href: '/' },
-  { view: 'events', label: 'Events', href: '/events' },
-  { view: 'hl7', label: 'HL7 Mapping', href: '/hl7' },
-  { view: 'profiles', label: 'Profiles', href: '/profiles' },
-  { view: 'terminology', label: 'Terminology', href: '/terminology' },
-  { view: 'workflows', label: 'Workflows', href: '/workflows' },
+  { view: 'home', label: 'Mission Control', href: '/' },
+  { view: 'hl7', label: 'Source Intake', href: '/hl7' },
+  { view: 'profiles', label: 'Normalization', href: '/profiles' },
+  { view: 'terminology', label: 'Translation', href: '/terminology' },
+  { view: 'workflows', label: 'Delivery', href: '/workflows' },
+  { view: 'events', label: 'Verification', href: '/events' },
 ];
 
-const contexts: Record<SidebarView, SidebarContext> = {
+const contexts: Record<SidebarView, Omit<SidebarContext, 'journey'>> = {
   home: {
     view: 'home',
-    eyebrow: 'Workbench overview',
-    title: 'Mapping studio',
+    eyebrow: 'Overview',
+    title: 'Mission control',
     description:
-      'Keep the core surfaces close at hand: event review, HL7 inspection, profile tuning, terminology mapping, and workflow design.',
-    highlights: ['Events', 'HL7', 'Profiles', 'Terminology', 'Workflows'],
+      'Keep the entire source-to-destination journey in view, then jump straight to the next stage without losing context.',
+    highlights: ['Source intake', 'Normalization', 'Translation', 'Delivery', 'Verification'],
     actions: [
-      { label: 'Open event dashboard', href: '/events', hint: 'Review the latest processed events' },
-      { label: 'Preview HL7 messages', href: '/hl7', hint: 'Inspect warnings and sample inboxes' },
-      { label: 'Edit source profiles', href: '/profiles', hint: 'Tune builder, YAML, and revisions' },
+      { label: 'Start source intake', href: '/hl7', hint: 'Open inbound messages and review recoverable warnings.' },
+      { label: 'Shape normalization', href: '/profiles', hint: 'Tighten identifiers, tolerances, and source profile rules.' },
+      { label: 'Inspect translation', href: '/terminology', hint: 'Verify code mappings before delivery.' },
     ],
     recent: [
-      { label: 'Recent events feed', detail: 'Jump back into the newest message stream and patient timeline.' },
-      { label: 'HL7 preview workspace', detail: 'Resume parsing, warnings, and sample inbox triage.' },
-      { label: 'Workflow builder', detail: 'Continue authoring routing logic and dry-run edits.' },
-    ],
-  },
-  events: {
-    view: 'events',
-    eyebrow: 'Event operations',
-    title: 'Events workbench',
-    description:
-      'Use the sidebar to pivot between the event browser, timeline, and routing surfaces without losing your place.',
-    highlights: ['Browser', 'Stream', 'Timeline'],
-    actions: [
-      { label: 'Open patient timeline', href: '/events', hint: 'Focus on a single patient journey' },
-      { label: 'Jump to HL7 preview', href: '/hl7', hint: 'Trace an event back to raw input' },
-      { label: 'Review workflows', href: '/workflows', hint: 'See where events are routed next' },
-    ],
-    recent: [
-      { label: 'Event browser', detail: 'Browse and filter the current event feed.' },
-      { label: 'Live event stream', detail: 'Watch newly processed events land in real time.' },
-      { label: 'Patient timeline', detail: 'Follow a correlated patient narrative across feeds.' },
+      { label: 'Latest events', detail: 'Review the most recent downstream outcomes and patient timeline.' },
+      { label: 'Active workflow queue', detail: 'Pick up the next route, transform, or action chain.' },
+      { label: 'System health', detail: 'Check parser, routing, and runtime status before you continue.' },
     ],
   },
   hl7: {
     view: 'hl7',
-    eyebrow: 'Parser triage',
-    title: 'HL7 preview',
+    eyebrow: 'Stage 1',
+    title: 'Source intake',
     description:
-      'Keep parsing, warnings, sample inboxes, and profile tuning close together while you work through messy interface traffic.',
-    highlights: ['Samples', 'Warnings', 'Inspector'],
+      'Load inbound messages, inspect raw payloads, and keep recoverable warnings close while you decide what should normalize next.',
+    highlights: ['Raw payloads', 'Warnings', 'Source profile'],
     actions: [
-      { label: 'Open profile builder', href: '/profiles', hint: 'Refine profile rules and identifiers' },
-      { label: 'Inspect terminology', href: '/terminology', hint: 'Check mappings and autoroute decisions' },
-      { label: 'Review event output', href: '/events', hint: 'See what landed downstream' },
+      { label: 'Open normalization', href: '/profiles', hint: 'Tune identifiers and tolerance rules.' },
+      { label: 'Check translation', href: '/terminology', hint: 'Validate mapping candidates before delivery.' },
+      { label: 'Review verification', href: '/events', hint: 'Confirm the downstream event trail.' },
     ],
     recent: [
-      { label: 'Sample inbox', detail: 'Reload sample messages and source overrides.' },
-      { label: 'HL7 inspector', detail: 'Drill into segments, paths, and selected values.' },
-      { label: 'Profile draft panel', detail: 'Tune tolerances, identifiers, and event rules.' },
+      { label: 'Inbound queue', detail: 'Keep the current interface and sample inbox in view.' },
+      { label: 'Parser warnings', detail: 'Review recoverable anomalies before they become downstream noise.' },
+      { label: 'Raw message inspector', detail: 'Inspect segments, paths, and source payload values.' },
     ],
   },
   profiles: {
     view: 'profiles',
-    eyebrow: 'Source profile studio',
-    title: 'Profiles workspace',
+    eyebrow: 'Stage 2',
+    title: 'Normalization',
     description:
-      'Pair the builder with YAML and revision history so edits stay auditable and easy to recover.',
-    highlights: ['Builder', 'YAML', 'Revisions'],
+      'Shape the source profile so identifiers, tolerances, and recoverable rules read like the domain instead of the wire format.',
+    highlights: ['Identifiers', 'Tolerances', 'Profile rules'],
     actions: [
-      { label: 'Open HL7 preview', href: '/hl7', hint: 'Validate profile changes against sample traffic' },
-      { label: 'Check terminology mapping', href: '/terminology', hint: 'Verify code system routes' },
-      { label: 'Review workflows', href: '/workflows', hint: 'See how profile output is consumed' },
+      { label: 'Return to source intake', href: '/hl7', hint: 'Recheck raw messages against your profile rules.' },
+      { label: 'Open translation', href: '/terminology', hint: 'Verify code system decisions and semantic mapping.' },
+      { label: 'Advance to delivery', href: '/workflows', hint: 'Route normalized data into downstream actions.' },
     ],
     recent: [
       { label: 'Identifier editor', detail: 'Normalize PID-3 repetitions and assigning authorities.' },
-      { label: 'Tolerance editor', detail: 'Adjust recoverable parse and validation behavior.' },
-      { label: 'YAML revisions', detail: 'Track the latest saved profile snapshot and history.' },
+      { label: 'Tolerance editor', detail: 'Adjust how the parser treats recoverable anomalies.' },
+      { label: 'Profile revisions', detail: 'Track the latest YAML snapshot and review history.' },
     ],
   },
   terminology: {
     view: 'terminology',
-    eyebrow: 'Mapping review',
-    title: 'Terminology map',
+    eyebrow: 'Stage 3',
+    title: 'Translation',
     description:
-      'Move between the browser, autoroute resolver, pending review queue, and workflow traces without hunting for the next step.',
-    highlights: ['Browser', 'Review', 'Autoroute', 'Trace'],
+      'Translate source codes into shared semantic terms while keeping every candidate and decision explainable.',
+    highlights: ['Mappings', 'Candidates', 'Traceability'],
     actions: [
-      { label: 'Open profiles', href: '/profiles', hint: 'Check source profile identifiers and rules' },
-      { label: 'Review workflows', href: '/workflows', hint: 'See downstream routing and retry surfaces' },
-      { label: 'Check events', href: '/events', hint: 'Confirm mapped codes in the event stream' },
+      { label: 'Return to normalization', href: '/profiles', hint: 'Revisit profile-driven identifier and tolerance rules.' },
+      { label: 'Advance to delivery', href: '/workflows', hint: 'Turn translated codes into routing logic.' },
+      { label: 'Review verification', href: '/events', hint: 'Confirm the resulting semantic event trail.' },
     ],
     recent: [
-      { label: 'Mapping browser', detail: 'Browse code system mappings and equivalence values.' },
+      { label: 'Mapping browser', detail: 'Browse code systems, equivalence values, and source candidates.' },
       { label: 'Pending review', detail: 'Inspect high-confidence suggestions before approval.' },
-      { label: 'Autoroute resolver', detail: 'Study mapping traces, candidates, and decisions.' },
+      { label: 'Autoroute trace', detail: 'Study candidate scoring and the path each decision took.' },
     ],
   },
   workflows: {
     view: 'workflows',
-    eyebrow: 'Flow orchestration',
-    title: 'Workflow builder',
+    eyebrow: 'Stage 4',
+    title: 'Delivery',
     description:
-      'Keep the authoring, dry-run, and monitoring surfaces nearby so routing changes stay easy to reason about.',
-    highlights: ['Builder', 'Dry run', 'Monitor'],
+      'Package normalized events into workflows, destinations, and action chains that move the interface forward.',
+    highlights: ['Routes', 'Actions', 'Destinations'],
     actions: [
-      { label: 'Open HL7 preview', href: '/hl7', hint: 'Test workflow inputs against parsed messages' },
-      { label: 'Check event history', href: '/events', hint: 'See how routed events landed downstream' },
-      { label: 'Review terminology', href: '/terminology', hint: 'Inspect code mapping prerequisites' },
+      { label: 'Return to translation', href: '/terminology', hint: 'Check the semantic terms before you ship them.' },
+      { label: 'Open verification', href: '/events', hint: 'Watch how routed outcomes land in the event stream.' },
+      { label: 'Revisit source intake', href: '/hl7', hint: 'Trace the delivery path back to raw input.' },
     ],
     recent: [
       { label: 'Workflow builder', detail: 'Shape routes, transforms, and action chains.' },
-      { label: 'Dry run panel', detail: 'Preview a change before it hits production traffic.' },
-      { label: 'Workflow monitor', detail: 'Inspect execution status, retries, and health.' },
+      { label: 'Dry run panel', detail: 'Preview a change before it reaches live traffic.' },
+      { label: 'Workflow monitor', detail: 'Inspect retries, status, and delivery health.' },
+    ],
+  },
+  events: {
+    view: 'events',
+    eyebrow: 'Stage 5',
+    title: 'Verification',
+    description:
+      'Compare routed outcomes with source intent, then use the timeline to decide what should change next.',
+    highlights: ['Timeline', 'Outcomes', 'Feedback'],
+    actions: [
+      { label: 'Return to delivery', href: '/workflows', hint: 'Trace the route that delivered the event.' },
+      { label: 'Check translation', href: '/terminology', hint: 'Validate the semantic mapping that fed verification.' },
+      { label: 'Go back to mission control', href: '/', hint: 'Review the full journey and choose the next interface.' },
+    ],
+    recent: [
+      { label: 'Event browser', detail: 'Review the latest semantic events and filters.' },
+      { label: 'Patient timeline', detail: 'Follow a correlated journey across downstream systems.' },
+      { label: 'Verification log', detail: 'Inspect what landed, what failed, and what needs tuning.' },
     ],
   },
 };
@@ -159,16 +160,20 @@ export function getSidebarView(pathname: string): SidebarView {
   const normalized = normalizePathname(pathname);
 
   if (normalized === '/') return 'home';
-  if (normalized.startsWith('/events')) return 'events';
   if (normalized.startsWith('/hl7')) return 'hl7';
   if (normalized.startsWith('/profiles')) return 'profiles';
   if (normalized.startsWith('/terminology')) return 'terminology';
   if (normalized.startsWith('/workflows')) return 'workflows';
+  if (normalized.startsWith('/events')) return 'events';
   return 'home';
 }
 
-export function getSidebarContext(pathname: string): SidebarContext {
-  return contexts[getSidebarView(pathname)];
+export function getSidebarContext(pathname: string): SidebarContext & { journey: ReturnType<typeof getJourneyState> } {
+  const view = getSidebarView(pathname);
+  return {
+    ...contexts[view],
+    journey: getJourneyState(pathname),
+  };
 }
 
 export function getSidebarViewLinks(): SidebarViewLink[] {

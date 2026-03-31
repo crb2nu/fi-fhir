@@ -17,7 +17,9 @@ describe('ProblemsPanel', () => {
 
     render(ProblemsPanel);
 
-    expect(screen.getByText(/Workflow draft has 2 issues/)).toBeInTheDocument();
+    expect(screen.getByText('Workflow draft needs attention')).toBeInTheDocument();
+    expect(screen.getByText('2 errors')).toBeInTheDocument();
+    expect(screen.getByText('Fix the listed issues before you trust the destination behavior.')).toBeInTheDocument();
     expect(screen.getAllByText('Workflow')).toHaveLength(2);
     expect(screen.getByText('At least one route is required')).toBeInTheDocument();
   });
@@ -52,7 +54,7 @@ describe('ProblemsPanel', () => {
 
     render(ProblemsPanel);
 
-    expect(screen.getByText('Workflow draft is valid')).toBeInTheDocument();
+    expect(screen.getByText('Ready for runtime verification')).toBeInTheDocument();
     expect(screen.getByText('No blocking problems detected.')).toBeInTheDocument();
     expect(screen.getByText('1 route')).toBeInTheDocument();
     expect(screen.getByText('1 action')).toBeInTheDocument();
