@@ -65,8 +65,8 @@
       metric: $selectedProfile ? $selectedProfile.id : 'No profile selected',
       status: $isProfileDirty ? 'builder unsaved' : 'ready',
       actions: [
-        { label: 'Open HL7 preview', variant: 'primary', href: resolve('/hl7') },
-        { label: 'Review terminology', variant: 'secondary', href: resolve('/terminology') }
+        { label: 'Open HL7 preview', variant: 'primary', href: '/hl7' },
+        { label: 'Review terminology', variant: 'secondary', href: '/terminology' }
       ]
     },
     {
@@ -90,8 +90,8 @@
       metric: revisions.revisions.length ? `${revisions.revisions.length} revisions` : 'No revisions loaded',
       status: revisions.error ? 'revision error' : 'workflow ready',
       actions: [
-        { label: 'Terminology mapping', variant: 'primary', href: resolve('/terminology') },
-        { label: 'Workflow builder', variant: 'secondary', href: resolve('/workflows') }
+        { label: 'Terminology mapping', variant: 'primary', href: '/terminology' },
+        { label: 'Workflow builder', variant: 'secondary', href: '/workflows' }
       ]
     }
   ] satisfies FlowStep[];

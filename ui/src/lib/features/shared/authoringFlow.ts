@@ -1,6 +1,8 @@
+import type { IDEAppRoute } from '$lib/ui/ide/types';
+
 export type FlowAction = {
   label: string;
-  href?: string;
+  href?: IDEAppRoute;
   onClick?: () => void | Promise<void>;
   variant?: 'primary' | 'secondary' | 'ghost';
   ariaLabel?: string;

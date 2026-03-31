@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { resolve } from '$app/paths';
   import { onMount } from 'svelte';
   import Panel from '$lib/ui/Panel.svelte';
   import Tabs from '$lib/ui/Tabs.svelte';
@@ -61,8 +60,8 @@
       metric: 'upstream context',
       status: activeTab === 'resolve' ? 'resolver open' : 'ready',
       actions: [
-        { label: 'Open HL7 preview', variant: 'primary', href: resolve('/hl7') },
-        { label: 'Open profiles', variant: 'secondary', href: resolve('/profiles') }
+        { label: 'Open HL7 preview', variant: 'primary', href: '/hl7' },
+        { label: 'Open profiles', variant: 'secondary', href: '/profiles' }
       ]
     },
     {
@@ -88,7 +87,7 @@
       actions: [
         { label: 'Review', variant: 'secondary', onClick: () => { activeTab = 'review'; } },
         { label: 'Workflows', variant: 'primary', onClick: () => { activeTab = 'workflows'; } },
-        { label: 'Open workflows', variant: 'ghost', href: resolve('/workflows') }
+        { label: 'Open workflows', variant: 'ghost', href: '/workflows' }
       ]
     }
   ] satisfies FlowStep[];
