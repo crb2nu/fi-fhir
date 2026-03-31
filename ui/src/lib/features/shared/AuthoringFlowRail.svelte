@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { resolve } from '$app/paths';
   import type { FlowStep } from './authoringFlow';
 
   export let eyebrow = 'Authoring flow';
@@ -41,7 +42,7 @@
               {#if action.href}
                 <a
                   class="action {action.variant ?? 'secondary'}"
-                  href={action.href}
+                  href={resolve(action.href)}
                   aria-label={action.ariaLabel}
                 >
                   {action.label}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { resolve } from '$app/paths';
   import Tabs from '$lib/ui/Tabs.svelte';
   import type { TabItem } from '$lib/ui/types';
   import WorkflowList from './components/WorkflowList.svelte';
@@ -53,7 +54,7 @@
       </p>
 
       <div class="hero-links">
-        <a class="hero-link" href="/hl7">Open mapping studio</a>
+        <a class="hero-link" href={resolve('/hl7')}>Open mapping studio</a>
         <span class="hero-note">Use the mapping workspace to prepare the source side before you refine routing here.</span>
       </div>
     </div>
