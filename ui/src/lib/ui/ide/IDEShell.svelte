@@ -25,7 +25,7 @@
     resolveNextWorkspaceTabId,
   } from './ideStore';
   import { initKeyboardShortcuts } from './keyboardShortcuts';
-  import type { IDEView, PanelTab } from './types';
+  import type { IDEView, PanelTab, IDEAppRoute } from './types';
   import DebugPanel from '$lib/features/debug/DebugPanel.svelte';
   import TraceTimeline from '$lib/features/debug/TraceTimeline.svelte';
   import { traceSpans } from '$lib/features/debug/debugStore';
@@ -46,13 +46,12 @@
   let paletteOpen = false;
   let shortcutLabel = 'Ctrl+K';
   let cleanupShortcuts: (() => void) | null = null;
-  type AppRoute = '/' | '/events' | '/hl7' | '/profiles' | '/terminology' | '/workflows';
   type WorkspaceTab = ReturnType<typeof createWorkspaceTab>;
   let currentPath = '/';
   let currentView: IDEView = 'hl7';
   let currentWorkspaceTab: WorkspaceTab = createWorkspaceTab('/', 'system');
 
-  const viewRoutes: Record<IDEView, AppRoute> = {
+  const viewRoutes: Record<IDEView, IDEAppRoute> = {
     hl7: '/hl7',
     workflows: '/workflows',
     events: '/events',
@@ -101,7 +100,7 @@
     return pathname;
   }
 
-  function getWorkspaceTabRoute(view: IDEView): AppRoute {
+  function getWorkspaceTabRoute(view: IDEView): IDEAppRoute {
     return viewRoutes[view];
   }
 

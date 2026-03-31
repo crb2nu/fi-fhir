@@ -1,8 +1,10 @@
+import type { IDEAppRoute } from '../types';
+
 export type SidebarView = 'home' | 'events' | 'hl7' | 'profiles' | 'terminology' | 'workflows';
 
 export type SidebarAction = {
   label: string;
-  href: string;
+  href: IDEAppRoute;
   hint: string;
 };
 
@@ -14,7 +16,7 @@ export type SidebarAsset = {
 export type SidebarViewLink = {
   view: SidebarView;
   label: string;
-  href: string;
+  href: IDEAppRoute;
 };
 
 export interface SidebarContext {

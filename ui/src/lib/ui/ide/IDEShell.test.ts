@@ -27,11 +27,7 @@ describe('IDEShell workspace', () => {
   });
 
   it('opens route-aware tabs as navigation changes', async () => {
-    render(IDEShell, {
-      slots: {
-        default: '<div data-testid="page-content">HL7 content</div>',
-      },
-    });
+    render(IDEShell);
     await tick();
 
     expect(screen.getByRole('tab', { name: 'HL7 Mapping' })).toBeInTheDocument();
@@ -49,11 +45,7 @@ describe('IDEShell workspace', () => {
   });
 
   it('closes the active tab and returns to the remaining route', async () => {
-    render(IDEShell, {
-      slots: {
-        default: '<div data-testid="page-content">Workspace content</div>',
-      },
-    });
+    render(IDEShell);
     await tick();
 
     pageStore.set({ url: new URL('http://localhost/workflows') });
@@ -67,11 +59,7 @@ describe('IDEShell workspace', () => {
   });
 
   it('toggles split workspace with Cmd+\\', async () => {
-    render(IDEShell, {
-      slots: {
-        default: '<div data-testid="page-content">Workspace content</div>',
-      },
-    });
+    render(IDEShell);
     await tick();
 
     expect(screen.queryByText('Split workspace')).not.toBeInTheDocument();

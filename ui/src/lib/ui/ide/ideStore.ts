@@ -2,7 +2,7 @@
  * IDE state store with localStorage persistence for layout dimensions.
  */
 import { writable, get } from 'svelte/store';
-import type { IDEState, IDEView, EditorTab, PanelTab } from './types';
+import type { IDEState, IDEView, EditorTab, PanelTab, IDEAppRoute } from './types';
 
 const SIDEBAR_WIDTH_KEY = 'fi-fhir-ide-sidebar-width';
 const BOTTOM_PANEL_HEIGHT_KEY = 'fi-fhir-ide-bottom-panel-height';
@@ -14,6 +14,15 @@ const WORKSPACE_ROUTE_TITLES: Record<IDEView, string> = {
   events: 'Events',
   profiles: 'Profiles',
   terminology: 'Terminology',
+};
+
+const WORKSPACE_VIEW_ROUTES: Record<IDEView, IDEAppRoute> = {
+  system: '/',
+  hl7: '/hl7',
+  workflows: '/workflows',
+  events: '/events',
+  profiles: '/profiles',
+  terminology: '/terminology',
 };
 
 function normalizeWorkspacePathname(pathname: string): string {
@@ -43,12 +52,13 @@ export function getWorkspaceTabTitle(pathname: string, view?: IDEView): string {
 export function createWorkspaceTab(pathname: string, view?: IDEView): EditorTab {
   const normalized = normalizeWorkspacePathname(pathname);
   const workspaceView = view ?? workspaceViewForPath(normalized);
+  const workspaceRoute = WORKSPACE_VIEW_ROUTES[workspaceView];
   return {
-    id: normalized,
+    id: workspaceRoute,
     title: getWorkspaceTabTitle(normalized, workspaceView),
     dirty: false,
     view: workspaceView,
-    path: normalized,
+    path: workspaceRoute,
   };
 }
 
