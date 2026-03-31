@@ -52,6 +52,9 @@ describe('RuntimeOutputPanel', () => {
     expect(screen.getByText(/No routes matched/)).toBeInTheDocument();
     expect(screen.getByText('workflow-engine', { selector: '.source' })).toBeInTheDocument();
     expect(screen.getByRole('list', { name: 'Runtime output entries' })).toBeInTheDocument();
+    expect(screen.getByText('Workflow feed')).toBeInTheDocument();
+    expect(screen.getByText('Live')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Clear feed' })).toBeInTheDocument();
     expect(subscribeMock).toHaveBeenCalledTimes(1);
   });
 });
