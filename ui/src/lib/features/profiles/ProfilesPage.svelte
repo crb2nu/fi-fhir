@@ -1,10 +1,13 @@
 <script lang="ts">
+  import { resolve } from '$app/paths';
   import { onMount } from 'svelte';
   import Tabs from '$lib/ui/Tabs.svelte';
   import type { TabItem } from '$lib/ui/types';
   import Panel from '$lib/ui/Panel.svelte';
   import Button from '$lib/ui/Button.svelte';
   import CodeEditor from '$lib/ui/editor/CodeEditor.svelte';
+  import AuthoringFlowRail from '$lib/features/shared/AuthoringFlowRail.svelte';
+  import type { FlowStep } from '$lib/features/shared/authoringFlow';
 
   import ProfileSelector from '$lib/features/hl7/components/ProfileSelector.svelte';
   import ToleranceEditor from '$lib/features/hl7/components/ToleranceEditor.svelte';
@@ -52,6 +55,46 @@
   let revisions: RevisionsState = { state: 'idle', loadedAt: '', revisions: [], error: null };
 
   $: yamlDirty = (yamlState === 'ready' || yamlState === 'saving') && yamlValue !== yamlOriginal;
+  $: flowSteps = [
+    {
+      eyebrow: 'Normalize source feeds',
+      title: 'Choose the profile that controls HL7 parsing',
+      description: $selectedProfile
+        ? `${$selectedProfile.name} v${$selectedProfile.version} defines tolerance, event rules, identifier validation, and terminology mapping before the message becomes a semantic event.`
+        : 'Pick a Source Profile to see how it shapes raw HL7 normalization, warnings, and downstream event mapping.',
+      metric: $selectedProfile ? $selectedProfile.id : 'No profile selected',
+      status: $isProfileDirty ? 'builder unsaved' : 'ready',
+      actions: [
+        { label: 'Open HL7 preview', variant: 'primary', href: resolve('/hl7') },
+        { label: 'Review terminology', variant: 'secondary', href: resolve('/terminology') }
+      ]
+    },
+    {
+      eyebrow: 'Tune the workspace',
+      title: 'Edit builder rules or the source YAML',
+      description:
+        'Use the builder for tolerance, event, identifier, and terminology changes, then cross-check the raw YAML and revision history so the profile stays explainable.',
+      metric: yamlDirty ? 'yaml unsaved' : 'yaml ready',
+      status: yamlState === 'saving' ? 'saving' : 'loaded',
+      actions: [
+        { label: 'Builder', variant: 'secondary', onClick: () => { activeTab = 'builder'; } },
+        { label: 'YAML', variant: 'secondary', onClick: () => { activeTab = 'yaml'; } },
+        { label: 'Revisions', variant: 'ghost', onClick: () => { activeTab = 'revisions'; } }
+      ]
+    },
+    {
+      eyebrow: 'Downstream mapping',
+      title: 'Validate what changes for semantic events and workflows',
+      description:
+        'Once the profile looks right, check terminology mapping and workflow usage so the same normalization rules keep producing the semantic shape that downstream tools expect.',
+      metric: revisions.revisions.length ? `${revisions.revisions.length} revisions` : 'No revisions loaded',
+      status: revisions.error ? 'revision error' : 'workflow ready',
+      actions: [
+        { label: 'Terminology mapping', variant: 'primary', href: resolve('/terminology') },
+        { label: 'Workflow builder', variant: 'secondary', href: resolve('/workflows') }
+      ]
+    }
+  ] satisfies FlowStep[];
 
   async function loadYaml(profileId: string): Promise<void> {
     yamlState = 'loading';
@@ -200,12 +243,21 @@
 
 <h1>Profiles</h1>
 <p class="sub">
-  Manage Source Profiles using the typed builder, raw YAML (<span class="mono">/api/profiles/:id/yaml</span>),
-  and revision history.
+  Source Profiles shape how raw HL7 gets normalized, which warnings stay recoverable, and how
+  identifiers and terminology flow into semantic events.
 </p>
 
+<div class="flow-shell">
+  <AuthoringFlowRail
+    eyebrow="Normalization flow"
+    title="From profile edits to downstream mapping"
+    summary="Keep the source profile, its YAML, and the downstream consumers visible together so the changes you make in one place are easy to confirm in the others."
+    steps={flowSteps}
+  />
+</div>
+
 <div class="grid">
-  <Panel title="Source Profile">
+  <Panel title="Selected Source Profile">
     <ProfileSelector onProfileChange={handleProfileChange} externalDirty={yamlDirty} />
 
     {#if $selectedProfile}
@@ -222,10 +274,21 @@
           <span class="pill ok">copied</span>
         {/if}
       </div>
+
+      <div class="context-links">
+        <a class="context-link" href={resolve('/hl7')}>Open HL7 preview</a>
+        <a class="context-link" href={resolve('/terminology')}>Open terminology mappings</a>
+        <a class="context-link" href={resolve('/workflows')}>Check workflows</a>
+      </div>
+
+      <p class="context-copy">
+        This profile controls tolerance, event rules, identifier validation, and terminology
+        mapping before the message leaves the HL7 preview lane.
+      </p>
     {/if}
   </Panel>
 
-  <Panel title="Workspace">
+  <Panel title="Normalization workspace">
     <div class="tabs">
       <Tabs {tabs} active={activeTab} onChange={(k) => (activeTab = k as typeof activeTab)} />
     </div>
@@ -239,7 +302,7 @@
             <Button variant="secondary" on:click={exportYamlFromBuilder}>Export YAML</Button>
           </div>
           <div class="right">
-            <span class="hint">Use “Save” above to persist changes via GraphQL.</span>
+            <span class="hint">Builder edits and YAML save back to the same Source Profile record.</span>
           </div>
         </div>
 
@@ -265,7 +328,7 @@
       {/if}
     {:else if activeTab === 'yaml'}
       {#if !$selectedProfile}
-        <div class="empty">Select a profile to load its YAML.</div>
+        <div class="empty">Select a profile to inspect its YAML and revision trail.</div>
       {:else if yamlState === 'loading' || yamlState === 'idle'}
         <div class="empty">Loading…</div>
       {:else}
@@ -319,7 +382,7 @@
       {/if}
     {:else if activeTab === 'revisions'}
       {#if !$selectedProfile}
-        <div class="empty">Select a profile to view revisions.</div>
+        <div class="empty">Select a profile to review how edits changed the normalization contract.</div>
       {:else if revisions.state === 'loading' || revisions.state === 'idle'}
         <div class="empty">Loading…</div>
       {:else}
@@ -378,7 +441,11 @@
     color: var(--color-text-secondary);
     line-height: 1.55;
     margin: 0 0 16px;
-    max-width: 90ch;
+    max-width: 86ch;
+  }
+
+  .flow-shell {
+    margin-bottom: 14px;
   }
 
   .mono {
@@ -401,6 +468,38 @@
 
   .tabs {
     margin-bottom: 12px;
+  }
+
+  .context-links {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+
+  .context-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 0 10px;
+    border-radius: 999px;
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-surface);
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    font-size: 0.84rem;
+    font-weight: 800;
+  }
+
+  .context-link:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+
+  .context-copy {
+    margin: 12px 0 0;
+    color: var(--color-text-secondary);
+    line-height: 1.55;
   }
 
   .toolbar {

@@ -26,6 +26,8 @@
   import ExtractionPanel from '$lib/ui/ExtractionPanel.svelte';
   import QualityBadge from '$lib/ui/QualityBadge.svelte';
   import CommandPalette, { type PaletteCommand } from '$lib/ui/CommandPalette.svelte';
+  import AuthoringFlowRail from '$lib/features/shared/AuthoringFlowRail.svelte';
+  import type { FlowStep } from '$lib/features/shared/authoringFlow';
   import { graphqlFetch } from '$lib/graphql/client';
   import { ExplainWarningsDocument, type ParseWarningInput, type SourceFormat, type EventType } from '$lib/gen/graphql';
   import type { WarningLike } from '$lib/domain/warnings';
@@ -163,6 +165,9 @@
     | 'live' = 'warnings';
   let selectedPath: string | null = null;
   let selectedLocation: HL7PathLocation | null = null;
+  let warningCount = 0;
+  let eventCount = 0;
+  let flowSteps: FlowStep[] = [];
 
   $: activeSampleModified = Boolean($activeSample && $activeSample.raw !== $state.data);
   $: selectedValue = selectedLocation ? getHL7Value($hl7, selectedLocation) : null;
@@ -266,6 +271,60 @@
 
   let processState: ProcessState = { state: 'idle' };
   let lastProcessedSource: string | null = null;
+
+  $: flowSteps = [
+    {
+      eyebrow: 'Raw source',
+      title: 'Load the payload before it gets normalized',
+      description: $state.data.trim()
+        ? `${$state.source || 'ui_preview'} is loaded with ${$hl7.segments.length} segments${msh9 ? ` and ${msh9}` : ''}${msh12 ? ` on HL7 ${msh12}` : ''}.`
+        : 'Paste a sample or load a file so you can inspect the exact source that will be parsed.',
+      metric: $state.data.trim() ? `${$hl7.segments.length} segments` : 'Waiting for source',
+      status: $activeSample ? `sample ${$activeSample.name}` : 'Ready to preview',
+      actions: [
+        { label: 'Preview', variant: 'primary', onClick: run },
+        { label: 'Load file', variant: 'secondary', onClick: loadFileFromPalette }
+      ]
+    },
+    {
+      eyebrow: 'Warnings + extraction',
+      title: 'Triage parsing issues against the extracted events',
+      description: $state.result
+        ? `${warningCount} warnings and ${eventCount} extracted events are ready to inspect. Move between warnings, extraction, and the profile draft without losing source context.`
+        : 'Preview first to surface warnings and extracted semantic events side by side.',
+      metric: $state.result ? `${warningCount} warnings` : 'Preview first',
+      status: profileChanged
+        ? 'profile changed'
+        : $selectedProfile
+          ? `profile ${$selectedProfile.version}`
+          : 'No profile selected',
+      actions: [
+        { label: 'Warnings', variant: 'secondary', onClick: () => { activeTab = 'warnings'; } },
+        { label: 'Extraction', variant: 'secondary', onClick: () => { activeTab = 'extraction'; } },
+        { label: 'Profile draft', variant: 'primary', onClick: () => { activeTab = 'profile'; } }
+      ]
+    },
+    {
+      eyebrow: 'Profile + process',
+      title: 'Apply fixes, then hand the message downstream',
+      description:
+        processState.state === 'done'
+          ? `${processState.result.success ? 'Submission succeeded' : 'Submission returned issues'} for correlation ${processState.correlationId}.`
+          : 'When the profile looks right, move from the draft to process, workflow monitoring, and terminology work.',
+      metric: processState.state === 'done' ? 'submitted' : 'handoff ready',
+      status:
+        processState.state === 'running'
+          ? 'processing'
+          : processState.state === 'error'
+            ? 'submit error'
+            : 'ready',
+      actions: [
+        { label: 'Process message', variant: 'primary', onClick: processMessage },
+        { label: 'Live events', variant: 'secondary', onClick: () => { activeTab = 'live'; } },
+        { label: 'Terminology', variant: 'ghost', href: '/terminology' }
+      ]
+    }
+  ] satisfies FlowStep[];
 
   function makeCorrelationId(): string {
     const fromMsg = (msh10 ?? '').trim();
@@ -523,6 +582,8 @@
     return 'LAB_RESULT';
   }
   $: inferredEventType = inferEventType(msh9);
+  $: warningCount = $state.result?.parsePreview.warnings.length ?? 0;
+  $: eventCount = $events.length;
 
   // Generate fixes based on warnings and current profile
   $: fixes = suggestFixes($state.result?.parsePreview.warnings ?? [], $selectedProfile);
@@ -817,8 +878,18 @@
 
 <h1>HL7 Preview & Triage</h1>
 <p class="sub">
-  Paste sample HL7v2 messages, preview semantic extraction, and review warnings by parsing phase.
+  Start with raw HL7, move through warnings and extraction, then tune the profile or process the
+  message with the downstream workflow context still in view.
 </p>
+
+<div class="flow-shell">
+  <AuthoringFlowRail
+    eyebrow="Source-to-mapping flow"
+    title="From raw source to semantic handoff"
+    summary="Keep the source message, the parsing result, and the profile action in one lane so you can inspect, adjust, and re-test without bouncing between screens."
+    steps={flowSteps}
+  />
+</div>
 
 <div class="grid">
   <CommandPalette bind:open={paletteOpen} title="HL7 commands" commands={paletteCommands} />
@@ -1185,17 +1256,22 @@
   </Panel>
 </div>
 
-	<style>
-	  h1 {
-	    color: var(--color-text-primary);
-	    margin: 0 0 8px;
-	  }
+<style>
+  h1 {
+    color: var(--color-text-primary);
+    margin: 0 0 8px;
+  }
 	
-	  .sub {
-	    color: var(--color-text-secondary);
-	    line-height: 1.55;
-	    margin: 0 0 16px;
-	  }
+  .sub {
+    color: var(--color-text-secondary);
+    line-height: 1.55;
+    margin: 0 0 16px;
+    max-width: 82ch;
+  }
+
+  .flow-shell {
+    margin-bottom: 14px;
+  }
 
   .grid {
     display: grid;
