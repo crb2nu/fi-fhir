@@ -14,6 +14,10 @@ import {
   toggleBottomPanel,
   setBottomPanelHeight,
   setActivePanelTab,
+  toggleWorkspaceSplit,
+  setWorkspaceSplit,
+  createWorkspaceTab,
+  resolveNextWorkspaceTabId,
   resetIDEState,
   getIDEState,
 } from './ideStore';
@@ -45,6 +49,11 @@ describe('ideStore', () => {
       const state = get(ideState);
       expect(state.openTabs).toHaveLength(0);
       expect(state.activeTabId).toBeNull();
+    });
+
+    it('should have split workspace closed by default', () => {
+      const state = get(ideState);
+      expect(state.workspaceSplit).toBe(false);
     });
 
     it('should have bottom panel closed by default', () => {
@@ -89,6 +98,29 @@ describe('ideStore', () => {
     it('should update active view', () => {
       setActiveView('workflows');
       expect(get(ideState).activeView).toBe('workflows');
+    });
+  });
+
+  describe('workspace tab helpers', () => {
+    it('should build route-aware tabs from a pathname', () => {
+      const tab = createWorkspaceTab('/workflows/');
+      expect(tab.id).toBe('/workflows');
+      expect(tab.title).toBe('Workflows');
+      expect(tab.view).toBe('workflows');
+      expect(tab.path).toBe('/workflows');
+      expect(tab.dirty).toBe(false);
+    });
+
+    it('should resolve the next active tab when closing the current tab', () => {
+      const tabs: EditorTab[] = [
+        { id: '/hl7', title: 'HL7 Mapping', dirty: false, view: 'hl7' },
+        { id: '/workflows', title: 'Workflows', dirty: false, view: 'workflows' },
+        { id: '/events', title: 'Events', dirty: false, view: 'events' },
+      ];
+
+      expect(resolveNextWorkspaceTabId(tabs, '/workflows', '/workflows')).toBe('/events');
+      expect(resolveNextWorkspaceTabId(tabs, '/events', '/events')).toBe('/workflows');
+      expect(resolveNextWorkspaceTabId(tabs, '/events', '/missing')).toBe('/events');
     });
   });
 
@@ -231,6 +263,23 @@ describe('ideStore', () => {
 
       setActivePanelTab('output');
       expect(get(ideState).activePanelTab).toBe('output');
+    });
+  });
+
+  describe('workspace split', () => {
+    it('should toggle workspace split state', () => {
+      expect(get(ideState).workspaceSplit).toBe(false);
+      toggleWorkspaceSplit();
+      expect(get(ideState).workspaceSplit).toBe(true);
+      toggleWorkspaceSplit();
+      expect(get(ideState).workspaceSplit).toBe(false);
+    });
+
+    it('should set workspace split state explicitly', () => {
+      setWorkspaceSplit(true);
+      expect(get(ideState).workspaceSplit).toBe(true);
+      setWorkspaceSplit(false);
+      expect(get(ideState).workspaceSplit).toBe(false);
     });
   });
 

@@ -23,6 +23,7 @@ export interface IDEState {
   activeView: IDEView;
   openTabs: EditorTab[];
   activeTabId: string | null;
+  workspaceSplit: boolean;
   bottomPanelOpen: boolean;
   bottomPanelHeight: number;
   activePanelTab: PanelTab;
