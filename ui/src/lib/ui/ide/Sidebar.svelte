@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { resolve } from '$app/paths';
   import Panel from '$lib/ui/Panel.svelte';
   import { getSidebarContext, getSidebarViewLinks } from './sidebar/sidebarContent';
 
@@ -11,8 +12,10 @@
   export let width: number = 280;
   export let pathname: string = '/';
 
+  let context = getSidebarContext(pathname);
+  const viewLinks = getSidebarViewLinks();
+
   $: context = getSidebarContext(pathname);
-  $: viewLinks = getSidebarViewLinks();
 </script>
 
 <aside
@@ -45,7 +48,7 @@
               class:active={link.view === context.view}
               aria-current={link.view === context.view ? 'page' : undefined}
               aria-describedby={`nav-hint-${link.view}`}
-              href={link.href}
+              href={resolve(link.href)}
             >
               <span class="nav-label">{link.label}</span>
               <span id={`nav-hint-${link.view}`} class="nav-hint" aria-hidden="true">{link.href}</span>
@@ -60,7 +63,7 @@
             <a
               class="action-link"
               aria-describedby={`action-hint-${context.view}-${index}`}
-              href={action.href}
+              href={resolve(action.href)}
             >
               <span class="action-label">{action.label}</span>
               <span
