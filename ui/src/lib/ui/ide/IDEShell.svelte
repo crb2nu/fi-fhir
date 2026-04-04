@@ -9,6 +9,7 @@
   import BottomPanel from './BottomPanel.svelte';
   import StatusBar from './StatusBar.svelte';
   import JourneyProgress from './JourneyProgress.svelte';
+  import DocumentHost from './DocumentHost.svelte';
   import ThemeToggle from '$lib/theme/ThemeToggle.svelte';
   import CommandPalette from '$lib/ui/CommandPalette.svelte';
   import type { PaletteCommand } from '$lib/ui/CommandPalette.svelte';
@@ -17,16 +18,19 @@
     toggleSidebar,
     setActiveView,
     openTab as openTabAction,
+    openDocument,
     closeTab as closeTabAction,
     setActiveTab,
     toggleBottomPanel,
     toggleWorkspaceSplit,
     setActivePanelTab,
+    setSecondaryDocument,
     createWorkspaceTab,
+    createDocument,
     resolveNextWorkspaceTabId,
   } from './ideStore';
   import { initKeyboardShortcuts } from './keyboardShortcuts';
-  import type { IDEView, PanelTab, IDEAppRoute } from './types';
+  import type { IDEView, PanelTab, IDEAppRoute, DocumentType } from './types';
   import DebugPanel from '$lib/features/debug/DebugPanel.svelte';
   import TraceTimeline from '$lib/features/debug/TraceTimeline.svelte';
   import { traceSpans } from '$lib/features/debug/debugStore';
@@ -71,17 +75,70 @@
     '/': 'system',
   };
 
+  /** Navigate to a resolved path, bypassing SvelteKit typed route constraints. */
+  function navigateTo(path: string): void {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, svelte/no-navigation-without-resolve -- resolve() is called inside
+    void (goto as any)((resolve as any)(path));
+  }
+
+  // ── Command palette commands ──
+
   const navCommands: PaletteCommand[] = [
-    { id: 'nav:hl7', label: 'Go to Source Intake', hint: '/hl7', keywords: ['navigate', 'hl7', 'source intake'], run: () => goto(resolve('/hl7')) },
-    { id: 'nav:workflows', label: 'Go to Delivery', hint: '/workflows', keywords: ['navigate', 'workflows', 'delivery'], run: () => goto(resolve('/workflows')) },
-    { id: 'nav:events', label: 'Go to Verification', hint: '/events', keywords: ['navigate', 'events', 'verification'], run: () => goto(resolve('/events')) },
-    { id: 'nav:profiles', label: 'Go to Normalization', hint: '/profiles', keywords: ['navigate', 'profiles', 'normalization'], run: () => goto(resolve('/profiles')) },
-    { id: 'nav:terminology', label: 'Go to Translation', hint: '/terminology', keywords: ['navigate', 'terminology', 'translation'], run: () => goto(resolve('/terminology')) },
-    { id: 'nav:system', label: 'Go to Mission Control', hint: '/', keywords: ['navigate', 'mission control', 'home'], run: () => goto(resolve('/')) },
-    { id: 'cmd:toggle-sidebar', label: 'Toggle Sidebar', keywords: ['sidebar', 'panel'], run: () => toggleSidebar() },
-    { id: 'cmd:toggle-panel', label: 'Toggle Bottom Panel', keywords: ['panel', 'output', 'problems'], run: () => toggleBottomPanel() },
-    { id: 'cmd:debug-panel', label: 'Open Debug Panel', hint: 'Cmd+Shift+D', keywords: ['debug', 'breakpoint', 'step'], run: () => { setActivePanelTab('debug'); if (!$ideState.bottomPanelOpen) toggleBottomPanel(); } },
-    { id: 'cmd:trace-panel', label: 'Open Trace Timeline', keywords: ['trace', 'timeline', 'spans'], run: () => { setActivePanelTab('trace'); if (!$ideState.bottomPanelOpen) toggleBottomPanel(); } },
+    { id: 'nav:hl7', label: 'Go to Source Intake', hint: '/hl7', category: 'Navigation', keywords: ['navigate', 'hl7', 'source intake'], run: () => goto(resolve('/hl7')) },
+    { id: 'nav:workflows', label: 'Go to Delivery', hint: '/workflows', category: 'Navigation', keywords: ['navigate', 'workflows', 'delivery'], run: () => goto(resolve('/workflows')) },
+    { id: 'nav:events', label: 'Go to Verification', hint: '/events', category: 'Navigation', keywords: ['navigate', 'events', 'verification'], run: () => goto(resolve('/events')) },
+    { id: 'nav:profiles', label: 'Go to Normalization', hint: '/profiles', category: 'Navigation', keywords: ['navigate', 'profiles', 'normalization'], run: () => goto(resolve('/profiles')) },
+    { id: 'nav:terminology', label: 'Go to Translation', hint: '/terminology', category: 'Navigation', keywords: ['navigate', 'terminology', 'translation'], run: () => goto(resolve('/terminology')) },
+    { id: 'nav:system', label: 'Go to Mission Control', hint: '/', category: 'Navigation', keywords: ['navigate', 'mission control', 'home'], run: () => goto(resolve('/')) },
+    { id: 'cmd:toggle-sidebar', label: 'Toggle Sidebar', category: 'Workspace', keywords: ['sidebar', 'panel'], run: () => toggleSidebar() },
+    { id: 'cmd:toggle-panel', label: 'Toggle Bottom Panel', category: 'Workspace', keywords: ['panel', 'output', 'problems'], run: () => toggleBottomPanel() },
+    { id: 'cmd:debug-panel', label: 'Open Debug Panel', hint: 'Cmd+Shift+D', category: 'Workspace', keywords: ['debug', 'breakpoint', 'step'], run: () => { setActivePanelTab('debug'); if (!$ideState.bottomPanelOpen) toggleBottomPanel(); } },
+    { id: 'cmd:trace-panel', label: 'Open Trace Timeline', category: 'Workspace', keywords: ['trace', 'timeline', 'spans'], run: () => { setActivePanelTab('trace'); if (!$ideState.bottomPanelOpen) toggleBottomPanel(); } },
+    // Document artifact commands
+    {
+      id: 'doc:open-trace',
+      label: 'Open Active Trace',
+      hint: 'View trace timeline',
+      category: 'Documents',
+      keywords: ['trace', 'timeline', 'debug'],
+      run: () => {
+        const doc = createDocument('trace', 'Active Trace', { subtitle: 'Current run' });
+        openDocument(doc);
+      },
+    },
+    {
+      id: 'doc:open-recent-workflow',
+      label: 'Reopen Recent Workflow',
+      hint: 'Resume workflow editing',
+      category: 'Documents',
+      keywords: ['workflow', 'draft', 'recent'],
+      run: () => {
+        const doc = createDocument('workflow-draft', 'Recent Workflow', { subtitle: 'Draft' });
+        openDocument(doc);
+      },
+    },
+    {
+      id: 'doc:compare-events',
+      label: 'Compare Events',
+      hint: 'Side-by-side event diff',
+      category: 'Documents',
+      keywords: ['compare', 'diff', 'events'],
+      run: () => {
+        const doc = createDocument('event', 'Event Comparison', { subtitle: 'Side-by-side diff' });
+        openDocument(doc);
+      },
+    },
+    {
+      id: 'doc:open-profile',
+      label: 'Open Profile Revision',
+      hint: 'View source profile',
+      category: 'Documents',
+      keywords: ['profile', 'revision', 'source'],
+      run: () => {
+        const doc = createDocument('profile', 'Profile Revision', { subtitle: 'Source' });
+        openDocument(doc);
+      },
+    },
   ];
 
   function detectViewFromPath(pathname: string): IDEView {
@@ -115,35 +172,55 @@
   function onViewChange(e: CustomEvent<IDEView>): void {
     const view = e.detail;
     const route = getWorkspaceTabRoute(view);
-    goto(resolve(route));
+    navigateTo(route);
   }
 
   function onTabSelect(e: CustomEvent<string>): void {
-    const tab = $ideState.openTabs.find((entry) => entry.id === e.detail);
-    if (!tab) return;
-    setActiveTab(tab.id);
-    goto(resolve(tab.path ?? getWorkspaceTabRoute(tab.view)));
+    const doc = $ideState.documents.find((entry) => entry.id === e.detail);
+    if (!doc) return;
+    setActiveTab(doc.id);
+    // Only navigate for route-type documents
+    if (doc.type === 'route' || !doc.type) {
+      navigateTo(doc.path ?? doc.route ?? getWorkspaceTabRoute(doc.view ?? 'system'));
+    }
   }
 
   function closeTabById(closingTabId: string): void {
-    const nextTabId = resolveNextWorkspaceTabId($ideState.openTabs, $ideState.activeTabId, closingTabId);
-    const nextTab = nextTabId ? $ideState.openTabs.find((tab) => tab.id === nextTabId) ?? null : null;
-    const closingWasActive = closingTabId === $ideState.activeTabId;
+    const nextTabId = resolveNextWorkspaceTabId($ideState.documents, $ideState.activeDocumentId, closingTabId);
+    const nextDoc = nextTabId ? $ideState.documents.find((d) => d.id === nextTabId) ?? null : null;
+    const closingWasActive = closingTabId === $ideState.activeDocumentId;
 
     closeTabAction(closingTabId);
 
     if (!closingWasActive) return;
 
-    if (nextTab) {
-      goto(resolve(nextTab.path ?? getWorkspaceTabRoute(nextTab.view)));
+    if (nextDoc) {
+      if (nextDoc.type === 'route' || !nextDoc.type) {
+        navigateTo(nextDoc.path ?? nextDoc.route ?? getWorkspaceTabRoute(nextDoc.view ?? 'system'));
+      }
       return;
     }
 
-    goto(resolve('/'));
+    navigateTo('/');
   }
 
   function onTabClose(e: CustomEvent<string>): void {
     closeTabById(e.detail);
+  }
+
+  function onTabAdd(e: CustomEvent<DocumentType>): void {
+    const type = e.detail;
+    const titles: Record<Exclude<DocumentType, 'route'>, string> = {
+      'workflow-draft': 'New Workflow',
+      'debug-session': 'Debug Session',
+      trace: 'Trace View',
+      event: 'Event Payload',
+      profile: 'Source Profile',
+    };
+    if (type !== 'route') {
+      const doc = createDocument(type, titles[type]);
+      openDocument(doc);
+    }
   }
 
   function onPanelTabChange(e: CustomEvent<PanelTab>): void {
@@ -162,8 +239,8 @@
 
   function closeActiveTab(): void {
     const state = $ideState;
-    if (state.activeTabId) {
-      closeTabById(state.activeTabId);
+    if (state.activeDocumentId) {
+      closeTabById(state.activeDocumentId);
     }
   }
 
@@ -175,6 +252,20 @@
     if (isHL7Route($page.url.pathname)) return;
     paletteOpen = true;
   }
+
+  /** Determine which document to show in the active (primary) pane. */
+  $: activeDocument = $ideState.documents.find((d) => d.id === $ideState.activeDocumentId) ?? null;
+
+  /** Determine the secondary pane document. */
+  $: secondaryDocument = $ideState.secondaryDocumentId
+    ? $ideState.documents.find((d) => d.id === $ideState.secondaryDocumentId) ?? null
+    : null;
+
+  /** Whether the active document is a non-route artifact. */
+  $: isArtifactActive = activeDocument != null && activeDocument.type !== 'route' && !!activeDocument.type;
+
+  /** Whether the secondary document is a non-route artifact. */
+  $: isArtifactSecondary = secondaryDocument != null && secondaryDocument.type !== 'route' && !!secondaryDocument.type;
 
   onMount(() => {
     shortcutLabel = navigator.platform.toUpperCase().includes('MAC')
@@ -272,12 +363,13 @@
 
     <div class="ide-main">
       <!-- Editor tabs (only visible when tabs exist) -->
-      {#if $ideState.openTabs.length > 0}
+      {#if $ideState.documents.length > 0}
         <EditorTabs
-          tabs={$ideState.openTabs}
-          activeTabId={$ideState.activeTabId}
+          tabs={$ideState.documents}
+          activeTabId={$ideState.activeDocumentId}
           on:select={onTabSelect}
           on:close={onTabClose}
+          on:add={onTabAdd}
         />
       {/if}
 
@@ -289,46 +381,59 @@
           maxSize={1080}
           storageKey="fi-fhir-ide-workspace-split-width"
         >
+          <!-- Primary pane -->
           <div class="workspace-pane">
-            <slot />
+            {#if isArtifactActive && activeDocument}
+              <DocumentHost document={activeDocument} />
+            {:else}
+              <slot />
+            {/if}
           </div>
 
+          <!-- Secondary pane -->
           <div slot="secondary" class="workspace-secondary">
-            <section class="workspace-card workspace-summary">
-              <div class="workspace-eyebrow">Split workspace</div>
-              <h2>{currentWorkspaceTab.title}</h2>
-              <p>Keep another workspace surface open while you move between routes.</p>
-              <div class="workspace-path">{currentWorkspaceTab.path}</div>
-              <button type="button" class="workspace-toggle" on:click={toggleWorkspaceSplit}>
-                Close split workspace
-              </button>
-            </section>
+            {#if isArtifactSecondary && secondaryDocument}
+              <DocumentHost document={secondaryDocument} />
+            {:else}
+              <section class="workspace-card workspace-summary">
+                <div class="workspace-eyebrow">Split workspace</div>
+                <h2>{secondaryDocument?.title ?? currentWorkspaceTab.title}</h2>
+                <p>Keep another workspace surface open while you move between routes.</p>
+                <div class="workspace-path">{secondaryDocument?.route ?? currentWorkspaceTab.path}</div>
+                <button type="button" class="workspace-toggle" on:click={toggleWorkspaceSplit}>
+                  Close split workspace
+                </button>
+              </section>
 
-            <section class="workspace-card">
-              <div class="workspace-eyebrow">Open tabs</div>
-              <div class="workspace-tabs">
-                {#each $ideState.openTabs as tab (tab.id)}
-                  <button
-                    type="button"
-                    class="workspace-tab"
-                    class:active={tab.id === $ideState.activeTabId}
-                    on:click={() => {
-                      setActiveTab(tab.id);
-                      goto(resolve(tab.path ?? getWorkspaceTabRoute(tab.view)));
-                    }}
-                  >
-                    <span>{tab.title}</span>
-                    <small>{tab.path}</small>
-                  </button>
-                {/each}
-              </div>
-            </section>
+              <section class="workspace-card">
+                <div class="workspace-eyebrow">Open documents</div>
+                <div class="workspace-tabs">
+                  {#each $ideState.documents as doc (doc.id)}
+                    <button
+                      type="button"
+                      class="workspace-tab"
+                      class:active={doc.id === $ideState.activeDocumentId}
+                      on:click={() => {
+                        setSecondaryDocument(doc.id);
+                      }}
+                    >
+                      <span>{doc.title}</span>
+                      <small>{doc.type === 'route' ? (doc.path ?? doc.route ?? '/') : doc.type}</small>
+                    </button>
+                  {/each}
+                </div>
+              </section>
+            {/if}
           </div>
         </SplitPane>
       {:else}
-        <!-- Page content -->
+        <!-- Single pane content -->
         <div class="ide-content">
-          <slot />
+          {#if isArtifactActive && activeDocument}
+            <DocumentHost document={activeDocument} />
+          {:else}
+            <slot />
+          {/if}
         </div>
       {/if}
 

@@ -12,6 +12,7 @@ export { default as EditorTabs } from './EditorTabs.svelte';
 export { default as BottomPanel } from './BottomPanel.svelte';
 export { default as StatusBar } from './StatusBar.svelte';
 export { default as SplitPane } from './SplitPane.svelte';
+export { default as DocumentHost } from './DocumentHost.svelte';
 
 // Store
 export {
@@ -20,14 +21,20 @@ export {
   setSidebarWidth,
   setActiveView,
   openTab,
+  openDocument,
   closeTab,
+  closeDocument,
+  splitDocument,
+  markDirty,
   setActiveTab,
+  setSecondaryDocument,
   toggleWorkspaceSplit,
   setWorkspaceSplit,
   toggleBottomPanel,
   setBottomPanelHeight,
   setActivePanelTab,
   createWorkspaceTab,
+  createDocument,
   getWorkspaceTabTitle,
   resolveNextWorkspaceTabId,
   resetIDEState,
@@ -41,6 +48,8 @@ export { initKeyboardShortcuts } from './keyboardShortcuts';
 export type {
   IDEView,
   EditorTab,
+  WorkspaceDocument,
+  DocumentType,
   PanelTab,
   SplitOrientation,
   IDEState,

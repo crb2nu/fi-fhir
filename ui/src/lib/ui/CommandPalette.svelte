@@ -4,6 +4,7 @@
     label: string;
     hint?: string;
     keywords?: string[];
+    category?: string;
     run: () => void | Promise<void>;
   };
 </script>
@@ -46,9 +47,29 @@
     const q = norm(query);
     if (!q) return commands;
     return commands.filter((c) => {
-      const hay = [c.label, c.hint ?? '', ...(c.keywords ?? [])].join(' ').toLowerCase();
+      const hay = [c.label, c.hint ?? '', c.category ?? '', ...(c.keywords ?? [])].join(' ').toLowerCase();
       return hay.includes(q);
     });
+  })();
+
+  /** Group filtered commands by category for display. */
+  $: grouped = (() => {
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- local ephemeral grouping, not stored as reactive state
+    const map = new Map<string, { cmds: PaletteCommand[]; startIdx: number }>();
+    let idx = 0;
+    for (const c of filtered) {
+      const cat = c.category ?? '';
+      if (!map.has(cat)) {
+        map.set(cat, { cmds: [], startIdx: idx });
+      }
+      map.get(cat)!.cmds.push(c);
+      idx++;
+    }
+    return [...map.entries()].map(([cat, val]) => ({
+      category: cat,
+      commands: val.cmds,
+      startIdx: val.startIdx,
+    }));
   })();
 
   $: if (activeIndex >= filtered.length) activeIndex = Math.max(0, filtered.length - 1);
@@ -173,24 +194,30 @@
         {#if filtered.length === 0}
           <div class="empty">No matches</div>
         {:else}
-          {#each filtered as c, i (c.id)}
-            <button
-              type="button"
-              class="item"
-              class:active={i === activeIndex}
-              role="option"
-              aria-selected={i === activeIndex}
-              on:mouseenter={() => (activeIndex = i)}
-              on:click={() => {
-                activeIndex = i;
-                void runActive();
-              }}
-            >
-              <div class="label">{c.label}</div>
-              {#if c.hint}
-                <div class="hint">{c.hint}</div>
-              {/if}
-            </button>
+          {#each grouped as group (group.category)}
+            {#if group.category}
+              <div class="category-header">{group.category}</div>
+            {/if}
+            {#each group.commands as c, ci (c.id)}
+              {@const globalIdx = group.startIdx + ci}
+              <button
+                type="button"
+                class="item"
+                class:active={globalIdx === activeIndex}
+                role="option"
+                aria-selected={globalIdx === activeIndex}
+                on:mouseenter={() => (activeIndex = globalIdx)}
+                on:click={() => {
+                  activeIndex = globalIdx;
+                  void runActive();
+                }}
+              >
+                <div class="label">{c.label}</div>
+                {#if c.hint}
+                  <div class="hint">{c.hint}</div>
+                {/if}
+              </button>
+            {/each}
           {/each}
         {/if}
       </div>
@@ -289,6 +316,20 @@
     max-height: 360px;
     overflow: auto;
     padding: var(--space-2);
+  }
+
+  .category-header {
+    padding: var(--space-2) var(--space-3);
+    margin-top: var(--space-1);
+    color: var(--color-text-muted);
+    font-size: var(--text-2xs);
+    font-weight: var(--font-bold);
+    letter-spacing: var(--tracking-wider);
+    text-transform: uppercase;
+  }
+
+  .category-header:first-child {
+    margin-top: 0;
   }
 
   .empty {
