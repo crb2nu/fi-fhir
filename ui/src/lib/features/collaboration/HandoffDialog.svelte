@@ -233,7 +233,7 @@
           <div class="context-section">
             <span class="context-heading">Context</span>
             <ul class="context-list receive">
-              {#each handoff.context.openDocuments as doc}
+              {#each handoff.context.openDocuments as doc (doc)}
                 <li class="context-item">
                   <span class="bullet" aria-hidden="true">
                     <svg viewBox="0 0 6 6" fill="currentColor">
@@ -244,7 +244,7 @@
                 </li>
               {/each}
 
-              {#each handoff.context.decisions as decision}
+              {#each handoff.context.decisions as decision (decision)}
                 <li class="context-item decision">
                   <span class="bullet" aria-hidden="true">
                     <svg viewBox="0 0 6 6" fill="currentColor">

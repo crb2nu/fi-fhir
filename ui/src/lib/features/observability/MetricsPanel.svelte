@@ -44,6 +44,7 @@
       labels: {},
       values: [],
     };
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- ephemeral local aggregation, not reactive state
     const byTs = new Map<number, number[]>();
     for (const s of list) {
       for (const v of s.values) {
@@ -148,7 +149,7 @@
       <span class="metric-unit">events/min</span>
       {#if throughputSpark}
         <div class="sparkline" aria-hidden="true">
-          {#each sparklineHeights(throughputSpark) as h, i}
+          {#each sparklineHeights(throughputSpark) as h, i (i)}
             <div
               class="bar throughput-bar"
               style="height: {h}%; animation-delay: {i * 25}ms"
@@ -189,7 +190,7 @@
       <span class="metric-unit">%</span>
       {#if errorSpark}
         <div class="sparkline" aria-hidden="true">
-          {#each sparklineHeights(errorSpark) as h, i}
+          {#each sparklineHeights(errorSpark) as h, i (i)}
             <div
               class="bar"
               class:error-bar-high={errorRateVal > 1}
@@ -208,7 +209,7 @@
       <span class="metric-unit">messages</span>
       {#if dlqSpark}
         <div class="sparkline" aria-hidden="true">
-          {#each sparklineHeights(dlqSpark) as h, i}
+          {#each sparklineHeights(dlqSpark) as h, i (i)}
             <div
               class="bar dlq-bar"
               style="height: {h}%; animation-delay: {i * 25}ms"

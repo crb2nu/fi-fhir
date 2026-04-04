@@ -10,7 +10,7 @@
   import RecentEventsFeed from '$lib/features/dashboard/RecentEventsFeed.svelte';
   import JourneyProgress from '$lib/ui/ide/JourneyProgress.svelte';
   import { recents } from '$lib/features/dashboard/recentsStore';
-  import { ideState, hasRestoredLayout, restoreLayout } from '$lib/ui/ide/ideStore';
+  import { hasRestoredLayout, restoreLayout } from '$lib/ui/ide/ideStore';
   import { platformState } from '$lib/platform/platformStore';
   import { getJourneyStages } from '$lib/ui/ide/journey';
   import type { JourneyStage } from '$lib/ui/ide/journey';
@@ -88,7 +88,6 @@
 
   // ── Reactive state ─────────────────────────────────────────────────────────
   let mounted = false;
-  let layoutRestored = false;
 
   $: recentEntries = $recents.slice(0, 5);
   $: hasRecents = recentEntries.length > 0;
@@ -134,6 +133,7 @@
 
   // ── Navigation ─────────────────────────────────────────────────────────────
   function navigateTo(path: string): void {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, svelte/no-navigation-without-resolve -- resolve() is called inside
     void (goto as any)((resolve as any)(path));
   }
 
@@ -146,6 +146,7 @@
     warnings: number;
   };
 
+  // eslint-disable-next-line svelte/no-immutable-reactive-statements -- will become reactive when diagnosticsStore is wired in
   $: stageHealth = stages.map((s): StageHealth => ({
     id: s.id,
     label: s.label,
@@ -174,7 +175,7 @@
 
   // ── Mount ──────────────────────────────────────────────────────────────────
   onMount(() => {
-    layoutRestored = restoreLayout();
+    restoreLayout();
     mounted = true;
   });
 </script>

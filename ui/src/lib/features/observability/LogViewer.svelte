@@ -93,14 +93,14 @@
     <div class="filter-controls">
       <select class="filter-select" value={selectedLevel} on:change={handleLevelChange} aria-label="Filter by level">
         <option value="">All Levels</option>
-        {#each LEVEL_OPTIONS.slice(1) as lvl}
+        {#each LEVEL_OPTIONS.slice(1) as lvl (lvl)}
           <option value={lvl}>{lvl.toUpperCase()}</option>
         {/each}
       </select>
 
       <select class="filter-select" value={selectedWorkflow} on:change={handleWorkflowChange} aria-label="Filter by workflow">
         <option value="">All Workflows</option>
-        {#each WORKFLOW_OPTIONS.slice(1) as wf}
+        {#each WORKFLOW_OPTIONS.slice(1) as wf (wf)}
           <option value={wf}>{wf}</option>
         {/each}
       </select>

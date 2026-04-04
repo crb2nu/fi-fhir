@@ -49,10 +49,6 @@
     return '#94a3b8';
   }
 
-  function priorityLabel(priority: IntegrationTask['priority']): string {
-    return priority.charAt(0).toUpperCase() + priority.slice(1);
-  }
-
   function statusVariant(status: IntegrationTask['status']): string {
     if (status === 'pending') return 'default';
     if (status === 'in_progress') return 'primary';
@@ -242,7 +238,7 @@
               <div class="detail-row">
                 <span class="detail-label">Blocked by</span>
                 <span class="detail-value">
-                  {#each task.blockedBy as blockId}
+                  {#each task.blockedBy as blockId (blockId)}
                     {@const blocking = $collaborationState.tasks.find(
                       (t) => t.id === blockId
                     )}
