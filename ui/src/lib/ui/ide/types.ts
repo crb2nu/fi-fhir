@@ -14,15 +14,15 @@ export interface WorkspaceDocument {
   /** Document type. Defaults to 'route' when omitted (backward compat). */
   type?: DocumentType;
   title: string;
-  subtitle?: string;
-  route?: string;
-  artifactId?: string;
+  subtitle?: string | undefined;
+  route?: string | undefined;
+  artifactId?: string | undefined;
   dirty: boolean;
   restorableState?: unknown;
   /** @deprecated Kept for backward compat with route-type documents. */
-  view?: IDEView;
+  view?: IDEView | undefined;
   /** @deprecated Kept for backward compat with route-type documents. */
-  path?: IDEAppRoute;
+  path?: IDEAppRoute | undefined;
 }
 
 /**

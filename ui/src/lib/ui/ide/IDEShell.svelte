@@ -75,6 +75,12 @@
     '/': 'system',
   };
 
+  /** Navigate to a resolved path, bypassing SvelteKit typed route constraints. */
+  function navigateTo(path: string): void {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    void (goto as any)((resolve as any)(path));
+  }
+
   // ── Command palette commands ──
 
   const navCommands: PaletteCommand[] = [
@@ -166,7 +172,7 @@
   function onViewChange(e: CustomEvent<IDEView>): void {
     const view = e.detail;
     const route = getWorkspaceTabRoute(view);
-    goto(resolve(route));
+    navigateTo(route);
   }
 
   function onTabSelect(e: CustomEvent<string>): void {
@@ -175,7 +181,7 @@
     setActiveTab(doc.id);
     // Only navigate for route-type documents
     if (doc.type === 'route' || !doc.type) {
-      goto(resolve(doc.path ?? doc.route ?? getWorkspaceTabRoute(doc.view ?? 'system')));
+      navigateTo(doc.path ?? doc.route ?? getWorkspaceTabRoute(doc.view ?? 'system'));
     }
   }
 
@@ -190,12 +196,12 @@
 
     if (nextDoc) {
       if (nextDoc.type === 'route' || !nextDoc.type) {
-        goto(resolve(nextDoc.path ?? nextDoc.route ?? getWorkspaceTabRoute(nextDoc.view ?? 'system')));
+        navigateTo(nextDoc.path ?? nextDoc.route ?? getWorkspaceTabRoute(nextDoc.view ?? 'system'));
       }
       return;
     }
 
-    goto(resolve('/'));
+    navigateTo('/');
   }
 
   function onTabClose(e: CustomEvent<string>): void {

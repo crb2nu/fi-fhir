@@ -29,10 +29,10 @@ export type JourneyStage =
   | 'verification';
 
 export interface DiagnosticTarget {
-  documentType?: string;
-  artifactId?: string;
-  route?: string;
-  line?: number;
+  documentType?: string | undefined;
+  artifactId?: string | undefined;
+  route?: string | undefined;
+  line?: number | undefined;
 }
 
 export interface Diagnostic {
@@ -41,9 +41,9 @@ export interface Diagnostic {
   scope: DiagnosticScope;
   stage: JourneyStage;
   message: string;
-  detail?: string;
+  detail?: string | undefined;
   source: string;
-  target?: DiagnosticTarget;
+  target?: DiagnosticTarget | undefined;
   timestamp: number;
 }
 
