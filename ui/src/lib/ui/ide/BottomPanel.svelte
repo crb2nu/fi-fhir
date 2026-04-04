@@ -14,6 +14,7 @@
   const dispatch = createEventDispatcher<{
     tabchange: PanelTab;
     toggle: void;
+    navigate: { panel: string };
   }>();
 
   type PanelTabEntry = { key: PanelTab; label: string };

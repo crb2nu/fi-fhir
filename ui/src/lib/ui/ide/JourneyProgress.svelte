@@ -9,33 +9,42 @@
 
   export let pathname: string = '/';
   export let variant: 'compact' | 'full' = 'compact';
+  export let showAction: boolean = true;
 
   let journey = getJourneyState(pathname);
   let isCompact = variant === 'compact';
+  let heading = journey.title;
+  let eyebrow = journey.progressLabel;
+  let description = journey.description;
 
   $: journey = getJourneyState(pathname);
   $: isCompact = variant === 'compact';
+  $: heading = !journey.stage && !isCompact ? 'Operator journey' : journey.title;
+  $: eyebrow = !journey.stage && isCompact ? 'Journey overview' : journey.progressLabel;
+  $: description = !journey.stage && isCompact
+    ? 'Track the five-stage operator flow without leaving the current workspace.'
+    : journey.description;
 </script>
 
-<section class="journey {variant}" aria-label={journey.title}>
+<section class="journey {variant}" aria-label={heading}>
   <div class="journey-top">
     <div class="copy">
-      <div class="eyebrow">{journey.progressLabel}</div>
+      <div class="eyebrow">{eyebrow}</div>
       <div class="heading-row">
-        <h2>{journey.title}</h2>
+        <h2>{heading}</h2>
         {#if journey.stage}
           <span class="stage-count">{journey.stage.order}/{journey.totalStages}</span>
         {/if}
       </div>
-      <p>{journey.description}</p>
+      <p>{description}</p>
     </div>
 
     {#if isCompact}
-      <div class="next-strip">
+      <a class="next-strip" href={resolve(journey.nextAction.href)}>
         <span class="next-label">Next up</span>
         <span class="next-action">{journey.nextAction.label}</span>
-      </div>
-    {:else}
+      </a>
+    {:else if showAction}
       <a class="primary-action" href={resolve(journey.nextAction.href)}>
         <span>{journey.nextAction.label}</span>
         <small>{journey.nextAction.hint}</small>
@@ -106,7 +115,7 @@
   }
 
   .journey.compact {
-    padding: var(--space-3);
+    padding: 12px 14px;
     gap: var(--space-2);
   }
 
@@ -121,6 +130,10 @@
     display: grid;
     gap: var(--space-2);
     min-width: 0;
+  }
+
+  .journey.compact .copy {
+    gap: 4px;
   }
 
   .eyebrow {
@@ -161,6 +174,12 @@
     line-height: var(--leading-relaxed);
   }
 
+  .journey.compact .copy p {
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+    color: var(--color-text-muted);
+  }
+
   .primary-action {
     display: grid;
     gap: 2px;
@@ -198,6 +217,15 @@
     border: 1px solid var(--color-border-subtle);
     background: var(--color-bg-surface);
     color: var(--color-text-primary);
+    text-decoration: none;
+    transition: var(--transition-all);
+  }
+
+  .next-strip:hover {
+    transform: translateY(-1px);
+    border-color: var(--color-border-strong);
+    background: var(--color-bg-hover);
+    box-shadow: var(--shadow-sm);
   }
 
   .next-label {
@@ -220,6 +248,7 @@
 
   .journey.compact .stage-grid {
     grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
   }
 
   .journey.full .stage-grid {
@@ -237,6 +266,13 @@
     text-decoration: none;
     transition: var(--transition-all);
     min-width: 0;
+  }
+
+  .journey.compact .stage-card {
+    gap: 8px;
+    padding: 12px;
+    min-height: 84px;
+    align-content: start;
   }
 
   .stage-card:hover {
@@ -265,6 +301,10 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--space-2);
+  }
+
+  .journey.compact .stage-card-top {
+    align-items: center;
   }
 
   .stage-order {
@@ -301,10 +341,19 @@
     white-space: nowrap;
   }
 
+  .journey.compact .stage-state {
+    letter-spacing: 0.08em;
+  }
+
   .stage-label {
     font-size: var(--text-sm);
     font-weight: var(--font-semibold);
     color: var(--color-text-primary);
+  }
+
+  .journey.compact .stage-label {
+    font-size: var(--text-xs);
+    line-height: 1.35;
   }
 
   .stage-summary {

@@ -7,11 +7,14 @@
   import { draftToYaml } from '../workflowYaml';
   import { dryRunWorkflow } from '../workflowApi';
   import { toasts } from '$lib/ui/toastStore';
+  import { debugSession } from '$lib/features/debug/debugStore';
+  import { runtimeOutputState } from '$lib/ui/ide/panels/runtimeOutputStore';
   import type { DryRunWorkflowMutation } from '$lib/gen/graphql';
 
   type DryRunResult = DryRunWorkflowMutation['dryRunWorkflow'];
+  type EventSource = 'presets' | 'debug' | 'recent' | 'custom';
 
-  const sampleEvents = [
+  const presetEvents = [
     {
       label: 'Patient Admit',
       event: { type: 'PATIENT_ADMIT', source: 'epic', id: 'sample-1', isCritical: false }
@@ -30,20 +33,59 @@
     }
   ];
 
-  let selectedSamples = [0];
+  const sourceOptions: { value: EventSource; label: string }[] = [
+    { value: 'presets', label: 'Presets' },
+    { value: 'debug', label: 'Debug Session' },
+    { value: 'recent', label: 'Recent Output' },
+    { value: 'custom', label: 'Custom JSON' },
+  ];
+
+  let eventSource: EventSource = 'presets';
+  let selectedPresets = [0];
   let customEventJson = '';
   const customEventPlaceholder = '[{ "type": "PATIENT_ADMIT", "source": "epic" }]';
-  let useCustom = false;
   let running = false;
   let result: DryRunResult | null = null;
 
-  function toggleSample(index: number) {
-    if (selectedSamples.includes(index)) {
-      selectedSamples = selectedSamples.filter((i) => i !== index);
+  function togglePreset(index: number) {
+    if (selectedPresets.includes(index)) {
+      selectedPresets = selectedPresets.filter((i) => i !== index);
     } else {
-      selectedSamples = [...selectedSamples, index];
+      selectedPresets = [...selectedPresets, index];
     }
   }
+
+  function toEventPayload(entry: { title: string; source: string; kind: string }): Record<string, unknown> {
+    return { type: entry.title.toUpperCase().replace(/\s+/g, '_'), source: entry.source, kind: entry.kind };
+  }
+
+  function parseCustomJson(json: string): unknown[] {
+    try {
+      const parsed = JSON.parse(json);
+      return Array.isArray(parsed) ? parsed : [parsed];
+    } catch {
+      return [];
+    }
+  }
+
+  $: resolvedEvents = (() => {
+    if (eventSource === 'debug') {
+      const session = $debugSession;
+      if (!session || session.steps.length === 0) return [];
+      const firstStep = session.steps[0];
+      const ev = firstStep?.variables?.['event'];
+      if (ev && typeof ev === 'object') return [ev];
+      return [firstStep?.variables ?? {}];
+    }
+    if (eventSource === 'recent') {
+      return $runtimeOutputState.entries.slice(0, 5).map(toEventPayload);
+    }
+    if (eventSource === 'custom') {
+      return parseCustomJson(customEventJson);
+    }
+    // presets
+    return selectedPresets.map((i) => presetEvents[i]!.event);
+  })();
 
   async function handleRun() {
     running = true;
@@ -51,28 +93,24 @@
 
     try {
       const yamlStr = draftToYaml($workflowDraft);
-      let events: unknown[];
 
-      if (useCustom) {
+      if (resolvedEvents.length === 0) {
+        toasts.error('No events available for dry run');
+        running = false;
+        return;
+      }
+
+      if (eventSource === 'custom' && customEventJson.trim()) {
         try {
-          const parsed = JSON.parse(customEventJson);
-          events = Array.isArray(parsed) ? parsed : [parsed];
+          JSON.parse(customEventJson);
         } catch {
           toasts.error('Invalid JSON for custom events');
           running = false;
           return;
         }
-      } else {
-        events = selectedSamples.map((i) => sampleEvents[i]!.event);
       }
 
-      if (events.length === 0) {
-        toasts.error('Select at least one sample event');
-        running = false;
-        return;
-      }
-
-      const data = await dryRunWorkflow(yamlStr, events);
+      const data = await dryRunWorkflow(yamlStr, resolvedEvents);
       result = data.dryRunWorkflow;
     } catch {
       toasts.error('Dry run failed');
@@ -86,13 +124,24 @@
   <div class="dry-run">
     <div class="event-selector">
       <div class="selector-header">
-        <span class="label">Sample Events</span>
-        <Button variant="ghost" size="sm" on:click={() => (useCustom = !useCustom)}>
-          {useCustom ? 'Use Presets' : 'Custom JSON'}
-        </Button>
+        <span class="label">Event Source</span>
+        <div class="source-tabs" role="tablist">
+          {#each sourceOptions as opt (opt.value)}
+            <button
+              type="button"
+              class="source-tab"
+              class:active={eventSource === opt.value}
+              role="tab"
+              aria-selected={eventSource === opt.value}
+              on:click={() => { eventSource = opt.value; }}
+            >
+              {opt.label}
+            </button>
+          {/each}
+        </div>
       </div>
 
-      {#if useCustom}
+      {#if eventSource === 'custom'}
         <CodeEditor
           language="json"
           value={customEventJson}
@@ -100,25 +149,45 @@
           placeholder={customEventPlaceholder}
           height="150px"
         />
-      {:else}
+      {:else if eventSource === 'presets'}
         <div class="sample-list">
-          {#each sampleEvents as sample, i (i)}
+          {#each presetEvents as sample, i (i)}
             <label class="sample-item">
               <input
                 type="checkbox"
-                checked={selectedSamples.includes(i)}
-                on:change={() => toggleSample(i)}
+                checked={selectedPresets.includes(i)}
+                on:change={() => togglePreset(i)}
               />
               <span class="sample-label">{sample.label}</span>
               <span class="sample-type mono">{sample.event.type}</span>
             </label>
           {/each}
         </div>
+      {:else if eventSource === 'debug'}
+        <div class="source-info">
+          {#if $debugSession}
+            <span class="source-status active">Debug session active</span>
+            <span class="source-detail mono">{$debugSession.id}</span>
+          {:else}
+            <span class="source-status">No active debug session</span>
+          {/if}
+        </div>
+      {:else if eventSource === 'recent'}
+        <div class="source-info">
+          {#if $runtimeOutputState.entries.length > 0}
+            <span class="source-status active">{Math.min(5, $runtimeOutputState.entries.length)} recent entries</span>
+          {:else}
+            <span class="source-status">No recent output entries</span>
+          {/if}
+        </div>
       {/if}
 
-      <Button on:click={handleRun} loading={running}>
-        {running ? 'Running...' : 'Run Simulation'}
-      </Button>
+      <div class="run-row">
+        <Button on:click={handleRun} loading={running} disabled={resolvedEvents.length === 0}>
+          {running ? 'Running...' : 'Run Simulation'}
+        </Button>
+        <span class="event-count">{resolvedEvents.length} event{resolvedEvents.length === 1 ? '' : 's'}</span>
+      </div>
     </div>
 
     {#if result}
@@ -190,34 +259,71 @@
     font-size: 0.9rem;
   }
 
-  .textarea {
-    padding: 8px 12px;
-    border-radius: 10px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-input);
-    color: var(--color-text-primary);
-    outline: none;
-    resize: vertical;
-    width: 100%;
-    box-sizing: border-box;
+  .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+
+  .source-tabs {
+    display: flex;
+    gap: 2px;
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: 8px;
+    padding: 2px;
+  }
+
+  .source-tab {
+    padding: 4px 10px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--color-text-tertiary);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
     transition: var(--transition-all);
   }
 
-  .textarea::placeholder {
+  .source-tab:hover {
+    color: var(--color-text-secondary);
+    background: var(--color-bg-hover);
+  }
+
+  .source-tab.active {
+    color: var(--color-text-primary);
+    background: var(--color-bg-elevated);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .source-info {
+    display: grid;
+    gap: 4px;
+    padding: 8px 0;
+  }
+
+  .source-status {
+    font-size: 0.85rem;
     color: var(--color-text-muted);
   }
 
-  .textarea:hover:not(:disabled):not(:focus) {
-    border-color: var(--color-border-strong);
+  .source-status.active {
+    color: var(--color-success-text, #10b981);
   }
 
-  .textarea:focus {
-    border-color: var(--color-border-focus);
-    box-shadow: var(--shadow-focus);
+  .source-detail {
+    font-size: 0.8rem;
+    color: var(--color-text-tertiary);
   }
 
-  .mono {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  .run-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .event-count {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
   }
 
   .sample-list {

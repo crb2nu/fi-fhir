@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, createEventDispatcher } from 'svelte';
   import { subscribe as wsSubscribe } from '$lib/graphql/subscriptions';
   import { EventStreamDocument, WorkflowEventsDocument } from '$lib/gen/graphql';
   import Badge from '$lib/ui/Badge.svelte';
   import Button from '$lib/ui/Button.svelte';
   import { workflowDraft } from '$lib/features/workflows/workflowStore';
+  import { debugSession } from '$lib/features/debug/debugStore';
   import {
     activateRuntimeOutputFeed,
     appendRuntimeOutputEntry,
@@ -16,7 +17,10 @@
     markRuntimeOutputError,
     markRuntimeOutputIdle,
     runtimeOutputState,
+    setRuntimeOutputSessionId,
   } from './runtimeOutputStore';
+
+  const dispatch = createEventDispatcher<{ navigate: { panel: string } }>();
 
   let unsubscribe: (() => void) | null = null;
   let mounted = false;
@@ -134,6 +138,12 @@
         : $runtimeOutputState.status === 'connecting'
           ? 'Connecting to live output for workflow and event stream activity.'
           : 'Live output will appear here as workflow or event stream messages arrive.';
+  $: if ($debugSession?.id) {
+    setRuntimeOutputSessionId($debugSession.id);
+  } else {
+    setRuntimeOutputSessionId(null);
+  }
+
   $: if (mounted) {
     subscribeToFeed();
   }
@@ -198,13 +208,31 @@
   {:else}
     <div class="entry-list" role="list" aria-label="Runtime output entries">
       {#each $runtimeOutputState.entries as entry (entry.id)}
-        <article class="entry" role="listitem">
+        <article
+          class="entry"
+          class:session-match={entry.sessionId && entry.sessionId === $runtimeOutputState.activeSessionId}
+          role="listitem"
+        >
           <div class="entry-head">
             <span class="time mono">{formatRuntimeOutputTimestamp(entry.timestamp)}</span>
             <span class="severity" class:warning={entry.severity === 'warning'} class:error={entry.severity === 'error'}>
               {entry.severity}
             </span>
             <span class="kind">{entry.kind === 'workflow' ? 'Workflow' : 'Event stream'}</span>
+            {#if entry.sessionId}
+              <button
+                type="button"
+                class="jump-btn"
+                on:click={() => dispatch('navigate', { panel: 'debug' })}
+                title="Jump to Debug"
+              >Debug</button>
+              <button
+                type="button"
+                class="jump-btn"
+                on:click={() => dispatch('navigate', { panel: 'trace' })}
+                title="Jump to Trace"
+              >Trace</button>
+            {/if}
           </div>
 
           <div class="entry-title">{entry.title}</div>
@@ -356,6 +384,28 @@
     border: 1px solid var(--color-border-subtle);
     border-radius: var(--radius-lg);
     background: var(--color-bg-elevated);
+  }
+
+  .entry.session-match {
+    border-left: 3px solid var(--color-primary, #3b82f6);
+  }
+
+  .jump-btn {
+    padding: 1px 6px;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--color-text-tertiary);
+    font-size: 10px;
+    font-weight: var(--font-semibold);
+    cursor: pointer;
+    transition: var(--transition-colors);
+  }
+
+  .jump-btn:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+    border-color: var(--color-border-default);
   }
 
   .entry-head {

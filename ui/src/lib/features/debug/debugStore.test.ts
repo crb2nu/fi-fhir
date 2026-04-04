@@ -18,7 +18,9 @@ import {
   removeBreakpoint,
   toggleBreakpoint,
   endSession,
-  loadMockData
+  loadMockData,
+  subscribeToSession,
+  loadRealTraceSpans
 } from './debugStore';
 import { mockSession, mockTraceSpans, mockEventLineage } from './debugMocks';
 import type { DebugSession, DebugStep, Breakpoint } from './types';
@@ -217,6 +219,23 @@ describe('debugStore', () => {
       expect(get(eventLineage)).toHaveLength(5);
       expect(get(breakpoints)).toHaveLength(3);
       expect(get(stepHistory)).toHaveLength(3);
+    });
+  });
+
+  describe('subscribeToSession', () => {
+    it('should return an unsubscribe function', () => {
+      startSession(mockSession);
+      const unsub = subscribeToSession(mockSession.id);
+      expect(typeof unsub).toBe('function');
+      unsub();
+    });
+  });
+
+  describe('loadRealTraceSpans', () => {
+    it('should be callable and return a promise', async () => {
+      // This will fail with a network error in test, which is expected
+      // since there's no backend — we just verify the function exists and is async
+      await expect(loadRealTraceSpans('nonexistent-run')).rejects.toThrow();
     });
   });
 });

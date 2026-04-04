@@ -7,6 +7,7 @@
   export let connectionState: 'connected' | 'disconnected' | 'connecting' = 'disconnected';
   export let activeProfile: string = '';
   export let parserStatus: string = '';
+  export let platformConnected: boolean = false;
 
   function connectionLabel(state: typeof connectionState): string {
     if (state === 'connected') return 'Connected';
@@ -37,6 +38,16 @@
       <span class="separator" aria-hidden="true"></span>
       <span class="parser" title="Parser status">{parserStatus}</span>
     {/if}
+
+    <span class="separator" aria-hidden="true"></span>
+    <span
+      class="platform"
+      class:platform-connected={platformConnected}
+      title={platformConnected ? 'Platform connected' : 'Platform disconnected'}
+    >
+      <span class="platform-dot" aria-hidden="true"></span>
+      <span>Platform</span>
+    </span>
   </div>
 
   <div class="status-right">
@@ -113,6 +124,31 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .platform {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+    opacity: 0.5;
+  }
+
+  .platform.platform-connected {
+    opacity: 1;
+  }
+
+  .platform-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.35);
+    flex: 0 0 auto;
+  }
+
+  .platform-connected .platform-dot {
+    background: #86efac;
+    box-shadow: 0 0 3px rgba(134, 239, 172, 0.5);
   }
 
   .branding {

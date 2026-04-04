@@ -14,6 +14,7 @@ export type RuntimeOutputEntry = {
   message: string;
   source: string;
   details: string[];
+  sessionId?: string;
 };
 
 export type RuntimeOutputState = {
@@ -25,6 +26,7 @@ export type RuntimeOutputState = {
   error: string | null;
   entries: RuntimeOutputEntry[];
   updatedAt: string | null;
+  activeSessionId: string | null;
 };
 
 const MAX_ENTRIES = 100;
@@ -38,6 +40,7 @@ const initialState: RuntimeOutputState = {
   error: null,
   entries: [],
   updatedAt: null,
+  activeSessionId: null,
 };
 
 export const runtimeOutputState = writable<RuntimeOutputState>(initialState);
@@ -189,21 +192,33 @@ export function markRuntimeOutputError(message: string): void {
 }
 
 export function appendRuntimeOutputEntry(entry: Omit<RuntimeOutputEntry, 'id'> & { id?: string }): RuntimeOutputEntry {
-  const normalized: RuntimeOutputEntry = {
+  let normalized: RuntimeOutputEntry = {
     ...entry,
     id: entry.id ?? nextEntryId(entry.kind),
   };
 
-  runtimeOutputState.update((state) => ({
-    ...state,
-    connected: true,
-    status: 'connected',
-    error: null,
-    entries: [normalized, ...state.entries].slice(0, MAX_ENTRIES),
-    updatedAt: normalized.timestamp,
-  }));
+  runtimeOutputState.update((state) => {
+    if (state.activeSessionId && !normalized.sessionId) {
+      normalized = { ...normalized, sessionId: state.activeSessionId };
+    }
+    return {
+      ...state,
+      connected: true,
+      status: 'connected',
+      error: null,
+      entries: [normalized, ...state.entries].slice(0, MAX_ENTRIES),
+      updatedAt: normalized.timestamp,
+    };
+  });
 
   return normalized;
+}
+
+export function setRuntimeOutputSessionId(sessionId: string | null): void {
+  runtimeOutputState.update((state) => ({
+    ...state,
+    activeSessionId: sessionId,
+  }));
 }
 
 export function clearRuntimeOutputEntries(): void {

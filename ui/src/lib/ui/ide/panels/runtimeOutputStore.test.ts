@@ -8,6 +8,7 @@ import {
   resetRuntimeOutputFeed,
   runtimeOutputState,
   formatRuntimeOutputTimestamp,
+  setRuntimeOutputSessionId,
 } from './runtimeOutputStore';
 
 describe('runtimeOutputStore', () => {
@@ -75,5 +76,45 @@ describe('runtimeOutputStore', () => {
 
   it('formats timestamps for display', () => {
     expect(formatRuntimeOutputTimestamp('2026-03-31T12:34:56.000Z')).toContain(':');
+  });
+
+  it('tags entries with activeSessionId when set', () => {
+    activateRuntimeOutputFeed('event-stream', 'Event stream', 'event-stream');
+    setRuntimeOutputSessionId('session-42');
+
+    const entry = appendRuntimeOutputEntry({
+      timestamp: '2026-04-01T10:00:00.000Z',
+      severity: 'info',
+      kind: 'event-stream',
+      title: 'Test',
+      message: 'Tagged entry',
+      source: 'test',
+      details: []
+    });
+
+    expect(entry.sessionId).toBe('session-42');
+  });
+
+  it('does not tag entries when no activeSessionId is set', () => {
+    activateRuntimeOutputFeed('event-stream', 'Event stream', 'event-stream');
+
+    const entry = appendRuntimeOutputEntry({
+      timestamp: '2026-04-01T10:00:00.000Z',
+      severity: 'info',
+      kind: 'event-stream',
+      title: 'Test',
+      message: 'Untagged entry',
+      source: 'test',
+      details: []
+    });
+
+    expect(entry.sessionId).toBeUndefined();
+  });
+
+  it('resets activeSessionId on feed reset', () => {
+    setRuntimeOutputSessionId('session-42');
+    resetRuntimeOutputFeed();
+    const state = get(runtimeOutputState);
+    expect(state.activeSessionId).toBeNull();
   });
 });

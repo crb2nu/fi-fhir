@@ -8,6 +8,7 @@ import type {
   DebugSessionState
 } from './types';
 import { mockSession, mockTraceSpans, mockEventLineage } from './debugMocks';
+import { subscribeDebugStepEvent, fetchWorkflowRunTrace } from './debugApi';
 
 function deriveTraceSpansFromSession(session: DebugSession | null): TraceSpan[] {
   if (!session || session.steps.length === 0) return [];
@@ -171,6 +172,22 @@ export function endSession(): void {
   debugSession.set(null);
   traceSpans.set([]);
   eventLineage.set([]);
+}
+
+// Subscription-based live step delivery
+export function subscribeToSession(sessionId: string): () => void {
+  return subscribeDebugStepEvent(sessionId, {
+    onData: (step) => addStep(step),
+    onError: (err) => console.error('[debug] subscription error:', err.message)
+  });
+}
+
+// Load real trace spans from persisted workflow run
+export async function loadRealTraceSpans(runId: string): Promise<void> {
+  const spans = await fetchWorkflowRunTrace(runId);
+  if (spans.length > 0) {
+    traceSpans.set(spans);
+  }
 }
 
 // Initialize with mock data for development
