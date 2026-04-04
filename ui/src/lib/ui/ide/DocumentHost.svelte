@@ -70,7 +70,7 @@
           aria-hidden="true"
           class="doc-icon"
         >
-          {#each meta.iconPath.split(' M') as segment, i}
+          {#each meta.iconPath.split(' M') as segment, i (i)}
             <path d={i === 0 ? segment : `M${segment}`} />
           {/each}
         </svg>
@@ -91,7 +91,8 @@
 
     <div class="doc-surface">
       <div class="surface-lines">
-        {#each Array(5) as _, i}
+        <!-- eslint-disable-next-line @typescript-eslint/no-unused-vars -->
+        {#each {length: 5} as _, i (i)}
           <div
             class="surface-line"
             style="width: {60 + Math.sin(i * 1.7) * 25}%; animation-delay: {i * 120}ms"

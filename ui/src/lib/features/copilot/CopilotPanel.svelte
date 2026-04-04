@@ -5,7 +5,7 @@
    * Docked in the IDE bottom panel. Supports Explain, Suggest, Generate,
    * and Review actions with streaming responses and context awareness.
    */
-  import { onMount, afterUpdate } from 'svelte';
+  import { afterUpdate } from 'svelte';
   import {
     copilotState,
     isAvailable,
@@ -13,7 +13,6 @@
     cancelStream,
     clearMessages,
     type CopilotAction,
-    type CopilotMessage,
     type CopilotContext,
   } from './copilotStore';
 
@@ -75,6 +74,7 @@
     resizeTextarea(inputText);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   function resizeTextarea(_value: string): void {
     if (!textareaEl) return;
     textareaEl.style.height = 'auto';
@@ -188,7 +188,7 @@
   <!-- Header bar -->
   <div class="copilot-header">
     <div class="context-chips">
-      {#each contextChips as chip, i}
+      {#each contextChips as chip, i (chip.label)}
         <span
           class="context-chip"
           style="animation-delay: {i * 50}ms"
@@ -199,7 +199,7 @@
       {/each}
       {#if contextChips.length === 0}
         <span class="context-chip placeholder-chip">
-          <span class="chip-icon">{'\u2728'}</span>
+          <span class="chip-icon">✨</span>
           <span class="chip-label">No context</span>
         </span>
       {/if}
@@ -242,10 +242,11 @@
         <div class="msg msg-assistant">
           <div class="msg-bubble msg-bubble-assistant">
             {#if msg.content}
+              <!-- eslint-disable-next-line svelte/no-at-html-tags -- markdown-like formatting from trusted LLM responses -->
               {@html formatContent(msg.content)}
             {/if}
             {#if msg.streaming}
-              <span class="streaming-cursor">{'\u2588'}</span>
+              <span class="streaming-cursor">█</span>
             {/if}
           </div>
           <span class="msg-time">{formatTime(msg.timestamp)}</span>

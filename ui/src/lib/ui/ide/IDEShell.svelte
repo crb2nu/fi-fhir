@@ -30,7 +30,7 @@
     resolveNextWorkspaceTabId,
   } from './ideStore';
   import { initKeyboardShortcuts } from './keyboardShortcuts';
-  import type { IDEView, PanelTab, IDEAppRoute, DocumentType, WorkspaceDocument } from './types';
+  import type { IDEView, PanelTab, IDEAppRoute, DocumentType } from './types';
   import DebugPanel from '$lib/features/debug/DebugPanel.svelte';
   import TraceTimeline from '$lib/features/debug/TraceTimeline.svelte';
   import { traceSpans } from '$lib/features/debug/debugStore';
@@ -77,7 +77,7 @@
 
   /** Navigate to a resolved path, bypassing SvelteKit typed route constraints. */
   function navigateTo(path: string): void {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, svelte/no-navigation-without-resolve -- resolve() is called inside
     void (goto as any)((resolve as any)(path));
   }
 

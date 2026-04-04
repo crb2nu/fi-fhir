@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import { SvelteSet } from 'svelte/reactivity';
   import {
     diagnostics,
     diagnosticCounts,
@@ -15,18 +16,18 @@
 
   // ── Filter state ──────────────────────────────────────────────────────
 
-  let severityFilters = $state<Set<DiagnosticSeverity>>(new Set(['error', 'warning', 'info']));
-  let stageFilters = $state<Set<JourneyStage>>(
-    new Set(['intake', 'normalization', 'translation', 'delivery', 'verification']),
+  let severityFilters = new SvelteSet<DiagnosticSeverity>(['error', 'warning', 'info']);
+  let stageFilters = new SvelteSet<JourneyStage>(
+    ['intake', 'normalization', 'translation', 'delivery', 'verification'],
   );
 
   // ── Section collapse state ────────────────────────────────────────────
 
-  let collapsedSections = $state<Set<DiagnosticSeverity>>(new Set());
+  let collapsedSections = new SvelteSet<DiagnosticSeverity>();
 
   // ── Detail expansion state ────────────────────────────────────────────
 
-  let expandedIds = $state<Set<string>>(new Set());
+  let expandedIds = new SvelteSet<string>();
 
   // ── Derived data ──────────────────────────────────────────────────────
 
@@ -80,43 +81,35 @@
   // ── Helpers ───────────────────────────────────────────────────────────
 
   function toggleSeverityFilter(sev: DiagnosticSeverity): void {
-    const next = new Set(severityFilters);
-    if (next.has(sev)) {
-      next.delete(sev);
+    if (severityFilters.has(sev)) {
+      severityFilters.delete(sev);
     } else {
-      next.add(sev);
+      severityFilters.add(sev);
     }
-    severityFilters = next;
   }
 
   function toggleStageFilter(stage: JourneyStage): void {
-    const next = new Set(stageFilters);
-    if (next.has(stage)) {
-      next.delete(stage);
+    if (stageFilters.has(stage)) {
+      stageFilters.delete(stage);
     } else {
-      next.add(stage);
+      stageFilters.add(stage);
     }
-    stageFilters = next;
   }
 
   function toggleSection(sev: DiagnosticSeverity): void {
-    const next = new Set(collapsedSections);
-    if (next.has(sev)) {
-      next.delete(sev);
+    if (collapsedSections.has(sev)) {
+      collapsedSections.delete(sev);
     } else {
-      next.add(sev);
+      collapsedSections.add(sev);
     }
-    collapsedSections = next;
   }
 
   function toggleDetail(id: string): void {
-    const next = new Set(expandedIds);
-    if (next.has(id)) {
-      next.delete(id);
+    if (expandedIds.has(id)) {
+      expandedIds.delete(id);
     } else {
-      next.add(id);
+      expandedIds.add(id);
     }
-    expandedIds = next;
   }
 
   function handleRowClick(d: Diagnostic): void {

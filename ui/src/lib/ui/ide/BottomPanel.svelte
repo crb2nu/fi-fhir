@@ -43,6 +43,7 @@
   let pulsing = false;
   let pulseTimer: ReturnType<typeof setTimeout> | undefined;
 
+  /* eslint-disable svelte/infinite-reactive-loop -- one-shot pulse, no feedback loop */
   $: {
     const total = $diagnosticCounts.total;
     if (total > prevTotal && prevTotal >= 0) {
@@ -54,6 +55,7 @@
     }
     prevTotal = total;
   }
+  /* eslint-enable svelte/infinite-reactive-loop */
 
   $: badgeVariant = $diagnosticCounts.error > 0
     ? 'danger'

@@ -105,6 +105,7 @@ const SIMULATED_RESPONSES: Record<CopilotAction, (input: string) => string> = {
     );
   },
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   suggest: (_input: string) => {
     return (
       `**Terminology Mapping Suggestions**\n\n` +
@@ -140,6 +141,7 @@ const SIMULATED_RESPONSES: Record<CopilotAction, (input: string) => string> = {
     );
   },
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   review: (_input: string) => {
     return (
       `**Mapping Review**\n\n` +

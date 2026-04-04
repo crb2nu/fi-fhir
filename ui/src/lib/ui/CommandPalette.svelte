@@ -54,6 +54,7 @@
 
   /** Group filtered commands by category for display. */
   $: grouped = (() => {
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- local ephemeral grouping, not stored as reactive state
     const map = new Map<string, { cmds: PaletteCommand[]; startIdx: number }>();
     let idx = 0;
     for (const c of filtered) {
