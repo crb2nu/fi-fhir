@@ -416,10 +416,10 @@ export function restoreLayout(): boolean {
   const saved = loadLayout();
   if (!saved) return false;
   _layoutRestored = true;
-  ideState.update((s) => ({
+  _store.update((s) => ({
     ...s,
-    openTabs: saved.openTabs,
-    activeTabId: saved.activeTabId,
+    documents: saved.openTabs,
+    activeDocumentId: saved.activeTabId,
     workspaceSplit: saved.workspaceSplit,
     bottomPanelOpen: saved.bottomPanelOpen,
     activePanelTab: saved.activePanelTab,
