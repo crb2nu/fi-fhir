@@ -31,7 +31,7 @@ export interface WorkspaceDocument {
  */
 export type EditorTab = WorkspaceDocument;
 
-export type PanelTab = 'output' | 'problems' | 'debug' | 'trace';
+export type PanelTab = 'output' | 'problems' | 'debug' | 'trace' | 'copilot';
 
 export type SplitOrientation = 'horizontal' | 'vertical';
 

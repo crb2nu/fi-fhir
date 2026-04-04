@@ -2,10 +2,12 @@
   import { createEventDispatcher } from 'svelte';
   import type { PanelTab } from './types';
   import { diagnosticCounts } from './panels/diagnosticsStore';
+  import { isAvailable } from '$lib/features/copilot';
+  import { CopilotPanel } from '$lib/features/copilot';
 
   /**
    * Collapsible bottom panel with tabbed content areas.
-   * Hosts Output, Problems, Debug, and Trace views.
+   * Hosts Output, Problems, Debug, Trace, and Copilot views.
    */
 
   export let open: boolean = false;
@@ -18,13 +20,14 @@
     navigate: { panel: string };
   }>();
 
-  type PanelTabEntry = { key: PanelTab; label: string };
+  type PanelTabEntry = { key: PanelTab; label: string; indicator?: string };
 
   const panelTabs: PanelTabEntry[] = [
     { key: 'output', label: 'Output' },
     { key: 'problems', label: 'Problems' },
     { key: 'debug', label: 'Debug' },
     { key: 'trace', label: 'Trace' },
+    { key: 'copilot', label: 'Copilot', indicator: '\u2726' },
   ];
 
   function onTabClick(key: PanelTab): void {
@@ -71,6 +74,7 @@
           type="button"
           class="panel-tab"
           class:active={tab.key === activeTab}
+          class:dimmed={tab.key === 'copilot' && !$isAvailable}
           role="tab"
           aria-selected={tab.key === activeTab}
           on:click={() => onTabClick(tab.key)}
@@ -84,6 +88,9 @@
             >
               {$diagnosticCounts.total}
             </span>
+          {/if}
+          {#if tab.indicator}
+            <span class="tab-indicator">{tab.indicator}</span>
           {/if}
         </button>
       {/each}
@@ -112,9 +119,15 @@
   </div>
 
   {#if open}
-    <div class="panel-content">
-      <slot />
-    </div>
+    {#if activeTab === 'copilot'}
+      <div class="panel-content panel-content-copilot">
+        <CopilotPanel />
+      </div>
+    {:else}
+      <div class="panel-content">
+        <slot />
+      </div>
+    {/if}
   {/if}
 </div>
 
@@ -172,6 +185,21 @@
   .panel-tab.active {
     color: var(--color-text-primary);
     border-bottom-color: var(--color-primary);
+  }
+
+  .panel-tab.dimmed {
+    opacity: 0.5;
+  }
+
+  .tab-indicator {
+    margin-left: 2px;
+    font-size: 9px;
+    color: var(--color-primary);
+    line-height: 1;
+  }
+
+  .panel-tab.active .tab-indicator {
+    color: var(--color-primary);
   }
 
   .panel-tab:focus-visible {
@@ -269,5 +297,10 @@
     overflow: auto;
     padding: var(--space-2) var(--space-3);
     min-height: 0;
+  }
+
+  .panel-content-copilot {
+    padding: 0;
+    overflow: hidden;
   }
 </style>
