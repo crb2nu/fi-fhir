@@ -1,4 +1,5 @@
 import { graphqlFetch } from '$lib/graphql/client';
+import { subscribe as wsSubscribe } from '$lib/graphql/subscriptions';
 import {
   StartDebugSessionDocument,
   DebugStepDocument,
@@ -6,12 +7,15 @@ import {
   DebugSetBreakpointDocument,
   DebugRemoveBreakpointDocument,
   DebugEndSessionDocument,
+  DebugStepEventDocument,
+  DebugSessionQueryDocument,
+  WorkflowRunTraceDocument,
   type StartDebugSessionMutation,
   type DebugStepMutation,
   type DebugContinueMutation,
   type DebugSetBreakpointMutation
 } from '$lib/gen/graphql';
-import type { DebugSession, DebugStep, Breakpoint } from './types';
+import type { DebugSession, DebugStep, Breakpoint, TraceSpan } from './types';
 
 function toVariables(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -112,4 +116,54 @@ export async function endDebugSession(
 ): Promise<boolean> {
   const data = await graphqlFetch(DebugEndSessionDocument, { sessionId });
   return data.debugEndSession;
+}
+
+export function subscribeDebugStepEvent(
+  sessionId: string,
+  callbacks: { onData: (step: DebugStep) => void; onError?: (err: Error) => void }
+): () => void {
+  const subCallbacks: import('$lib/graphql/subscriptions').SubscriptionCallbacks<
+    import('$lib/gen/graphql').DebugStepEventSubscription
+  > = {
+    onData: (data) => {
+      if (!data.debugStepEvent) return;
+      const raw = data.debugStepEvent;
+      callbacks.onData({
+        stepNumber: raw.stepNumber,
+        kind: raw.kind as DebugStep['kind'],
+        name: raw.name,
+        variables: toVariables(raw.variables),
+        timestamp: raw.timestamp,
+        spanName: raw.spanName
+      });
+    },
+  };
+  if (callbacks.onError) {
+    subCallbacks.onError = callbacks.onError;
+  }
+  return wsSubscribe(DebugStepEventDocument, { sessionId }, subCallbacks);
+}
+
+export async function fetchDebugSession(id: string): Promise<DebugSession | null> {
+  const data = await graphqlFetch(DebugSessionQueryDocument, { id }, { showErrorToast: false });
+  if (!data.debugSession) return null;
+  return normalizeSession(data.debugSession as StartDebugSessionMutation['startDebugSession']);
+}
+
+export async function fetchWorkflowRunTrace(runId: string): Promise<TraceSpan[]> {
+  const data = await graphqlFetch(WorkflowRunTraceDocument, { runId }, { showErrorToast: false });
+  return data.workflowRunTrace.map((span) => ({
+    id: span.id,
+    name: span.name,
+    parentId: span.parentId,
+    startTime: span.startTime,
+    endTime: span.endTime,
+    status: span.status as TraceSpan['status'],
+    attributes: (span.attributes as Record<string, unknown>) ?? {},
+    events: span.events.map((ev) => ({
+      name: ev.name,
+      timestamp: ev.timestamp,
+      attributes: (ev.attributes as Record<string, unknown>) ?? {}
+    }))
+  }));
 }

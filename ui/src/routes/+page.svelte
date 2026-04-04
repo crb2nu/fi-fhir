@@ -7,41 +7,59 @@
   import RecentEventsFeed from '$lib/features/dashboard/RecentEventsFeed.svelte';
   import JourneyProgress from '$lib/ui/ide/JourneyProgress.svelte';
 
+  const missionSignals = [
+    'Five-stage guided workspace',
+    'Live runtime health',
+    'Recent downstream verification'
+  ];
+
+  const recommendation = {
+    label: 'Continue to Normalization',
+    href: '/profiles' satisfies IDEAppRoute,
+    summary: 'Open source profiles and tighten identifier rules before the next delivery pass.'
+  };
+
   const launchPads: Array<{
-    order: string;
+    eyebrow: string;
     label: string;
     href: IDEAppRoute;
     hint: string;
+    detail: string;
   }> = [
     {
-      order: '1',
-      label: 'Source Intake',
+      eyebrow: 'Inspect',
+      label: 'Source intake lab',
       href: '/hl7',
-      hint: 'Inspect raw HL7, preserve payloads, and surface warnings.',
+      hint: 'Raw payloads, warnings, source profile',
+      detail: 'Review inbound messages, parser drift, and feed-specific anomalies before they spill downstream.'
     },
     {
-      order: '2',
-      label: 'Normalization',
+      eyebrow: 'Refine',
+      label: 'Normalization rules',
       href: '/profiles',
-      hint: 'Tune identifiers, tolerances, and source profile rules.',
+      hint: 'Identifiers, tolerances, profile rules',
+      detail: 'Tighten assigning authorities, tolerance settings, and feed behavior in one editing surface.'
     },
     {
-      order: '3',
-      label: 'Translation',
+      eyebrow: 'Translate',
+      label: 'Terminology queue',
       href: '/terminology',
-      hint: 'Verify semantic mappings and canonical code paths.',
+      hint: 'Mappings, candidates, traceability',
+      detail: 'Move from local codes to canonical semantics with enough traceability for review and correction.'
     },
     {
-      order: '4',
-      label: 'Delivery',
+      eyebrow: 'Deliver',
+      label: 'Workflow workbench',
       href: '/workflows',
-      hint: 'Route normalized events into downstream actions.',
+      hint: 'Routes, actions, destinations',
+      detail: 'Author routes, dry-run changes, and inspect delivery behavior before traffic reaches live destinations.'
     },
     {
-      order: '5',
-      label: 'Verification',
+      eyebrow: 'Verify',
+      label: 'Outcome timeline',
       href: '/events',
-      hint: 'Review the downstream event trail and timeline.',
+      hint: 'Timeline, outcomes, feedback',
+      detail: 'Compare what landed against source intent and decide what to tune next.'
     },
   ];
 </script>
@@ -58,25 +76,42 @@
       Keep intake, normalization, translation, delivery, and verification in one guided workspace so
       each decision stays traceable.
     </p>
+
+    <div class="hero-signals" aria-label="Mission control signals">
+      {#each missionSignals as signal (signal)}
+        <span class="signal-chip">{signal}</span>
+      {/each}
+    </div>
   </div>
 
-  <div class="hero-actions">
-    <a class="primary-action" href={resolve('/hl7')}>Start Source Intake</a>
-    <a class="secondary-action" href={resolve('/events')}>Review Verification</a>
-  </div>
+  <aside class="hero-aside">
+    <div class="hero-rail">
+      <div class="rail-copy">
+        <span class="rail-label">Recommended move</span>
+        <a class="primary-action" href={resolve(recommendation.href as '/')}>{recommendation.label}</a>
+        <p>{recommendation.summary}</p>
+      </div>
+
+      <div class="hero-actions">
+        <a class="secondary-action" href={resolve('/hl7')}>Start Source Intake</a>
+        <a class="tertiary-action" href={resolve('/events')}>Review Verification</a>
+      </div>
+    </div>
+  </aside>
 </section>
 
 <div class="stack">
-  <JourneyProgress pathname="/" variant="full" />
+  <JourneyProgress pathname="/" variant="full" showAction={false} />
 
   <div class="workspace-grid">
-    <Panel title="Launch deck" padding="lg">
+    <Panel title="Operator surfaces" padding="lg">
       <div class="launch-grid">
-        {#each launchPads as pad (pad.order)}
+        {#each launchPads as pad (pad.label)}
           <a class="launch-card" href={resolve(pad.href)}>
-            <span class="launch-order">{pad.order}</span>
+            <span class="launch-eyebrow">{pad.eyebrow}</span>
             <span class="launch-label">{pad.label}</span>
             <span class="launch-hint">{pad.hint}</span>
+            <span class="launch-detail">{pad.detail}</span>
           </a>
         {/each}
       </div>
@@ -97,9 +132,8 @@
 
 <style>
   .hero {
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.7fr);
     gap: var(--space-4);
     padding: var(--space-6);
     border: 1px solid var(--color-border-subtle);
@@ -116,6 +150,24 @@
     display: grid;
     gap: var(--space-3);
     max-width: 66ch;
+  }
+
+  .hero-signals {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .signal-chip {
+    padding: 6px 10px;
+    border-radius: var(--radius-full);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    background: rgba(15, 23, 42, 0.32);
+    color: var(--color-text-secondary);
+    font-size: var(--text-2xs);
+    font-weight: var(--font-semibold);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
   }
 
   .eyebrow {
@@ -141,15 +193,51 @@
     line-height: var(--leading-relaxed);
   }
 
+  .hero-aside {
+    display: grid;
+    align-items: stretch;
+  }
+
+  .hero-rail {
+    display: grid;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    border-radius: var(--radius-xl);
+    border: 1px solid rgba(99, 102, 241, 0.18);
+    background:
+      linear-gradient(180deg, rgba(99, 102, 241, 0.18), rgba(99, 102, 241, 0.05)),
+      rgba(15, 23, 42, 0.5);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .rail-copy {
+    display: grid;
+    gap: 10px;
+  }
+
+  .rail-label {
+    color: rgba(199, 210, 254, 0.9);
+    font-size: var(--text-2xs);
+    font-weight: var(--font-bold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .rail-copy p {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    line-height: var(--leading-relaxed);
+  }
+
   .hero-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-    justify-content: flex-end;
+    display: grid;
+    gap: var(--space-2);
   }
 
   .primary-action,
-  .secondary-action {
+  .secondary-action,
+  .tertiary-action {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -165,6 +253,7 @@
     border-color: var(--color-primary-border);
     background: var(--color-primary-muted);
     color: var(--color-primary);
+    min-height: 44px;
   }
 
   .primary-action:hover {
@@ -183,6 +272,19 @@
   .secondary-action:hover {
     background: var(--color-bg-hover);
     border-color: var(--color-border-strong);
+    transform: translateY(-2px);
+  }
+
+  .tertiary-action {
+    border-color: rgba(148, 163, 184, 0.16);
+    background: transparent;
+    color: var(--color-text-secondary);
+  }
+
+  .tertiary-action:hover {
+    background: rgba(148, 163, 184, 0.08);
+    border-color: rgba(148, 163, 184, 0.28);
+    color: var(--color-text-primary);
     transform: translateY(-2px);
   }
 
@@ -211,7 +313,7 @@
 
   .launch-card {
     display: grid;
-    gap: 6px;
+    gap: 8px;
     padding: var(--space-4);
     border-radius: var(--radius-xl);
     border: 1px solid var(--color-border-subtle);
@@ -219,7 +321,7 @@
     text-decoration: none;
     color: inherit;
     transition: var(--transition-all);
-    min-height: 128px;
+    min-height: 158px;
   }
 
   .launch-card:hover {
@@ -229,18 +331,12 @@
     box-shadow: var(--shadow-md);
   }
 
-  .launch-order {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    border-radius: 999px;
-    border: 1px solid var(--color-border-subtle);
-    background: var(--color-bg-base);
-    color: var(--color-text-primary);
-    font-size: var(--text-xs);
+  .launch-eyebrow {
+    color: var(--color-text-muted);
+    font-size: var(--text-2xs);
     font-weight: var(--font-bold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
   }
 
   .launch-label {
@@ -253,16 +349,18 @@
     color: var(--color-text-muted);
     font-size: var(--text-sm);
     line-height: var(--leading-snug);
+    font-weight: var(--font-medium);
+  }
+
+  .launch-detail {
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    line-height: var(--leading-relaxed);
   }
 
   @media (max-width: 1080px) {
     .hero {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-
-    .hero-actions {
-      justify-content: flex-start;
+      grid-template-columns: 1fr;
     }
 
     .workspace-grid {
@@ -273,6 +371,10 @@
   @media (max-width: 760px) {
     .hero {
       padding: var(--space-5);
+    }
+
+    .hero-rail {
+      padding: var(--space-3);
     }
 
     .launch-grid {

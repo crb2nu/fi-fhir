@@ -33,6 +33,7 @@
   import SplitPane from './SplitPane.svelte';
   import RuntimeOutputPanel from './panels/RuntimeOutputPanel.svelte';
   import ProblemsPanel from './panels/ProblemsPanel.svelte';
+  import { platformState, initializePlatform, teardownPlatform } from '$lib/platform';
 
   /**
    * IDE Shell composition root.
@@ -153,6 +154,12 @@
     toggleBottomPanel();
   }
 
+  function onPanelNavigate(e: CustomEvent<{ panel: string }>): void {
+    const tab = e.detail.panel as import('./types').PanelTab;
+    setActivePanelTab(tab);
+    if (!$ideState.bottomPanelOpen) toggleBottomPanel();
+  }
+
   function closeActiveTab(): void {
     const state = $ideState;
     if (state.activeTabId) {
@@ -203,6 +210,8 @@
 
     window.addEventListener('keydown', onCmdK);
 
+    initializePlatform();
+
     return () => {
       window.removeEventListener('keydown', onCmdK);
     };
@@ -210,6 +219,7 @@
 
   onDestroy(() => {
     if (cleanupShortcuts) cleanupShortcuts();
+    teardownPlatform();
   });
 </script>
 
@@ -329,13 +339,14 @@
         activeTab={$ideState.activePanelTab}
         on:tabchange={onPanelTabChange}
         on:toggle={onPanelToggle}
+        on:navigate={onPanelNavigate}
       >
         {#if $ideState.activePanelTab === 'debug'}
           <DebugPanel />
         {:else if $ideState.activePanelTab === 'trace'}
           <TraceTimeline spans={$traceSpans} />
         {:else if $ideState.activePanelTab === 'output'}
-          <RuntimeOutputPanel />
+          <RuntimeOutputPanel on:navigate />
         {:else if $ideState.activePanelTab === 'problems'}
           <ProblemsPanel />
         {/if}
@@ -354,6 +365,7 @@
     {connectionState}
     {activeProfile}
     {parserStatus}
+    platformConnected={$platformState.connected}
   />
 </div>
 

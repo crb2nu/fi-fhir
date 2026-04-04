@@ -10,7 +10,7 @@ describe('Sidebar', () => {
     expect(screen.getByRole('heading', { name: 'Source Intake' })).toBeInTheDocument();
     expect(screen.getByText('Stage 1')).toBeInTheDocument();
     expect(screen.getByText('Raw payloads')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Continue to Normalization/ })).toHaveAttribute('href', '/profiles');
+    expect(screen.getAllByRole('link', { name: /Continue to Normalization/ })[0]).toHaveAttribute('href', '/profiles');
   });
 
   it('marks the active navigation link', () => {

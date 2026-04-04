@@ -28,11 +28,25 @@
 >
   {#if open}
     <div class="sidebar-content">
-      <JourneyProgress pathname={pathname} variant="compact" />
+      <JourneyProgress pathname={pathname} variant="compact" showAction={false} />
 
-      <Panel title={context.title} padding="md">
+      <Panel title="Current stage" padding="md">
         <div class="hero">
-          <div class="eyebrow">{context.eyebrow}</div>
+          <div class="stage-header">
+            <div class="stage-copy">
+              <div class="eyebrow">{context.eyebrow}</div>
+              <h3>{context.title}</h3>
+            </div>
+
+            <span class="stage-badge">
+              {#if context.journey.stage}
+                {context.journey.stage.order}/{context.journey.totalStages}
+              {:else}
+                Ready
+              {/if}
+            </span>
+          </div>
+
           <p class="description">{context.description}</p>
 
           <div class="chips" aria-label="Current focus">
@@ -40,10 +54,18 @@
               <span class="chip">{highlight}</span>
             {/each}
           </div>
+
+          <a
+            class="primary-action"
+            href={resolve(context.journey.nextAction.href)}
+          >
+            <span class="action-label">{context.journey.nextAction.label}</span>
+            <span class="action-hint">{context.journey.nextAction.hint}</span>
+          </a>
         </div>
       </Panel>
 
-      <Panel title="Stage map" padding="sm">
+      <Panel title="Navigator" padding="sm">
         <nav class="stack" aria-label="Journey navigation">
           {#each viewLinks as link (link.view)}
             <a
@@ -59,47 +81,41 @@
         </nav>
       </Panel>
 
-      <Panel title="Recommended move" padding="sm">
-        <div class="stack">
-          <a
-            class="primary-action"
-            href={resolve(context.journey.nextAction.href)}
-          >
-            <span class="action-label">{context.journey.nextAction.label}</span>
-            <span class="action-hint">{context.journey.nextAction.hint}</span>
-          </a>
-        </div>
-      </Panel>
-
-      <Panel title="Supporting moves" padding="sm">
-        <div class="stack">
-          {#each context.actions as action, index (action.label)}
-            <a
-              class="action-link"
-              aria-describedby={`action-hint-${context.view}-${index}`}
-              href={resolve(action.href)}
-            >
-              <span class="action-label">{action.label}</span>
-              <span
-                id={`action-hint-${context.view}-${index}`}
-                class="action-hint"
-                aria-hidden="true"
-              >
-                {action.hint}
-              </span>
-            </a>
-          {/each}
-        </div>
-      </Panel>
-
-      <Panel title="Related surfaces" padding="sm">
-        <div class="stack">
-          {#each context.recent as item (item.label)}
-            <div class="asset">
-              <div class="asset-label">{item.label}</div>
-              <div class="asset-detail">{item.detail}</div>
+      <Panel title="Operator surfaces" padding="sm">
+        <div class="sections">
+          <div class="section">
+            <div class="section-label">Supporting moves</div>
+            <div class="stack">
+              {#each context.actions as action, index (action.label)}
+                <a
+                  class="action-link"
+                  aria-describedby={`action-hint-${context.view}-${index}`}
+                  href={resolve(action.href)}
+                >
+                  <span class="action-label">{action.label}</span>
+                  <span
+                    id={`action-hint-${context.view}-${index}`}
+                    class="action-hint"
+                    aria-hidden="true"
+                  >
+                    {action.hint}
+                  </span>
+                </a>
+              {/each}
             </div>
-          {/each}
+          </div>
+
+          <div class="section">
+            <div class="section-label">Related surfaces</div>
+            <div class="stack">
+              {#each context.recent as item (item.label)}
+                <div class="asset">
+                  <div class="asset-label">{item.label}</div>
+                  <div class="asset-detail">{item.detail}</div>
+                </div>
+              {/each}
+            </div>
+          </div>
         </div>
       </Panel>
     </div>
@@ -137,6 +153,19 @@
     gap: var(--space-3);
   }
 
+  .stage-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+
+  .stage-copy {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+
   .eyebrow {
     color: var(--color-text-muted);
     font-size: var(--text-xs);
@@ -145,10 +174,29 @@
     text-transform: uppercase;
   }
 
+  h3 {
+    margin: 0;
+    font-size: var(--text-base);
+    line-height: var(--leading-tight);
+    color: var(--color-text-primary);
+  }
+
+  .stage-badge {
+    padding: 4px 9px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--color-border-subtle);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    white-space: nowrap;
+  }
+
   .description {
     margin: 0;
     color: var(--color-text-secondary);
     line-height: var(--leading-relaxed);
+    font-size: var(--text-sm);
   }
 
   .chips {
@@ -161,7 +209,7 @@
     padding: 4px 10px;
     border-radius: var(--radius-full);
     border: 1px solid var(--color-border-subtle);
-    background: var(--color-bg-surface);
+    background: rgba(255, 255, 255, 0.03);
     color: var(--color-text-secondary);
     font-size: var(--text-2xs);
     font-weight: var(--font-semibold);
@@ -172,6 +220,24 @@
   .stack {
     display: grid;
     gap: var(--space-2);
+  }
+
+  .sections {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .section {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .section-label {
+    color: var(--color-text-muted);
+    font-size: var(--text-2xs);
+    font-weight: var(--font-bold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
   }
 
   .nav-link,
@@ -191,6 +257,14 @@
   .primary-action {
     border-color: var(--color-primary-border);
     background: var(--color-primary-muted);
+  }
+
+  .primary-action:hover {
+    transform: translateY(-1px);
+    border-color: var(--color-primary-border);
+    background: var(--color-primary);
+    color: var(--color-text-inverse);
+    box-shadow: var(--shadow-glow-primary);
   }
 
   .nav-link.active {

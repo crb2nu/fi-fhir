@@ -6,10 +6,11 @@
    * VariableInspector, and step history into a unified debug UI.
    * Uses debugStore for state management.
    */
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import StepControls from './StepControls.svelte';
   import BreakpointList from './BreakpointList.svelte';
   import VariableInspector from './VariableInspector.svelte';
+  import EventLineage from './EventLineage.svelte';
   import {
     startSession,
     debugSession,
@@ -17,9 +18,11 @@
     currentStep,
     breakpoints as breakpointsStore,
     stepHistory,
+    eventLineage,
     loadMockData,
     updateSessionState,
     addStep,
+    subscribeToSession,
     addBreakpoint as addBpToStore,
     replaceBreakpoint,
     removeBreakpoint as removeBpFromStore,
@@ -45,6 +48,14 @@
 
   let historyExpanded = false;
   let debugEventJson = '';
+  let unsubscribeSession: (() => void) | null = null;
+
+  function cleanupSubscription(): void {
+    if (unsubscribeSession) {
+      unsubscribeSession();
+      unsubscribeSession = null;
+    }
+  }
 
   function buildDefaultDebugEvent(): Record<string, unknown> {
     const draft = get(workflowDraft);
@@ -58,7 +69,7 @@
   }
 
   onMount(() => {
-    if (useMockData && !$debugSession) {
+    if (useMockData && import.meta.env.DEV && !$debugSession) {
       loadMockData();
       return;
     }
@@ -66,6 +77,10 @@
     if (!debugEventJson) {
       debugEventJson = JSON.stringify(buildDefaultDebugEvent(), null, 2);
     }
+  });
+
+  onDestroy(() => {
+    cleanupSubscription();
   });
 
   async function handlePlay(): Promise<void> {
@@ -93,6 +108,8 @@
     const session = await startDebugSession(draftToYaml(draft), event);
     if (session) {
       startSession(session);
+      cleanupSubscription();
+      unsubscribeSession = subscribeToSession(session.id);
     }
   }
 
@@ -124,6 +141,7 @@
       return;
     }
 
+    cleanupSubscription();
     if ($debugSession) {
       await endDebugSession($debugSession.id);
       endSession();
@@ -132,6 +150,7 @@
   }
 
   async function handleStop(): Promise<void> {
+    cleanupSubscription();
     if ($debugSession) {
       await endDebugSession($debugSession.id);
     }
@@ -264,6 +283,15 @@
       </div>
     {/if}
   </div>
+
+  {#if $eventLineage.length > 0}
+    <div class="debug-lineage">
+      <div class="lineage-header">
+        <span class="lineage-title">Event Lineage</span>
+      </div>
+      <EventLineage nodes={$eventLineage} />
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -494,5 +522,23 @@
     font-size: var(--text-2xs);
     color: var(--color-text-muted);
     flex-shrink: 0;
+  }
+
+  /* Event lineage section */
+  .debug-lineage {
+    border-top: 1px solid var(--color-border-subtle);
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .lineage-header {
+    padding-bottom: var(--space-2);
+  }
+
+  .lineage-title {
+    font-size: var(--text-xs);
+    font-weight: var(--font-bold);
+    color: var(--color-text-primary);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wider);
   }
 </style>

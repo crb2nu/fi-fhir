@@ -10,10 +10,10 @@ describe('home mission control', () => {
     render(HomePage);
 
     expect(screen.getByRole('heading', { name: 'Build the interface from source to destination' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Mission control' })).toBeInTheDocument();
+    expect(screen.getByText('Recommended move')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Start Source Intake' })).toHaveAttribute('href', '/hl7');
-    expect(screen.getByText('Launch deck')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Continue to Normalization/ })).toHaveAttribute('href', '/profiles');
+    expect(screen.getByText('Operator surfaces')).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: /Continue to Normalization/ })[0]).toHaveAttribute('href', '/profiles');
     expect(screen.getByText('Operational telemetry')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Review Verification' })).toHaveAttribute('href', '/events');
   });
