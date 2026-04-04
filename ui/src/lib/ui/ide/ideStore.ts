@@ -1,5 +1,5 @@
 /**
- * IDE state store with localStorage persistence for layout dimensions.
+ * IDE state store with localStorage persistence for layout dimensions and full layout state.
  *
  * M2: Introduces WorkspaceDocument model. Route-type documents behave
  * identically to the former EditorTab. Non-route documents (workflow-draft,
@@ -17,6 +17,71 @@ import type {
 
 const SIDEBAR_WIDTH_KEY = 'fi-fhir-ide-sidebar-width';
 const BOTTOM_PANEL_HEIGHT_KEY = 'fi-fhir-ide-bottom-panel-height';
+const LAYOUT_KEY = 'fi-fhir-ide-layout';
+
+/**
+ * Serializable subset of IDE state for layout persistence.
+ */
+interface PersistedLayout {
+  openTabs: WorkspaceDocument[];
+  activeTabId: string | null;
+  workspaceSplit: boolean;
+  bottomPanelOpen: boolean;
+  activePanelTab: PanelTab;
+  activeView: IDEView;
+}
+
+const VALID_PANEL_TABS = new Set<PanelTab>(['output', 'problems', 'debug', 'trace', 'copilot']);
+const VALID_VIEWS = new Set<IDEView>(['hl7', 'workflows', 'events', 'profiles', 'terminology', 'system']);
+
+function loadLayout(): PersistedLayout | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(LAYOUT_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const obj = parsed as Record<string, unknown>;
+
+    // Validate required fields
+    if (!Array.isArray(obj['openTabs'])) return null;
+    if (typeof obj['activeTabId'] !== 'string' && obj['activeTabId'] !== null) return null;
+    if (typeof obj['workspaceSplit'] !== 'boolean') return null;
+    if (typeof obj['bottomPanelOpen'] !== 'boolean') return null;
+    if (typeof obj['activePanelTab'] !== 'string' || !VALID_PANEL_TABS.has(obj['activePanelTab'] as PanelTab)) return null;
+    if (typeof obj['activeView'] !== 'string' || !VALID_VIEWS.has(obj['activeView'] as IDEView)) return null;
+
+    return {
+      openTabs: obj['openTabs'] as WorkspaceDocument[],
+      activeTabId: obj['activeTabId'] as string | null,
+      workspaceSplit: obj['workspaceSplit'] as boolean,
+      bottomPanelOpen: obj['bottomPanelOpen'] as boolean,
+      activePanelTab: obj['activePanelTab'] as PanelTab,
+      activeView: obj['activeView'] as IDEView,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function saveLayout(state: IDEState): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const layout: PersistedLayout = {
+      openTabs: state.openTabs,
+      activeTabId: state.activeTabId,
+      workspaceSplit: state.workspaceSplit,
+      bottomPanelOpen: state.bottomPanelOpen,
+      activePanelTab: state.activePanelTab,
+      activeView: state.activeView,
+    };
+    localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+let _layoutRestored = false;
 
 const WORKSPACE_ROUTE_TITLES: Record<IDEView, string> = {
   system: 'Mission Control',
@@ -185,6 +250,11 @@ export const ideState = derived(_store, ($s): IDEState => ({
 // Sidebar / layout actions
 // ---------------------------------------------------------------------------
 
+// Persist layout on every state change
+ideState.subscribe((state) => {
+  saveLayout(state);
+});
+
 export function toggleSidebar(): void {
   _store.update((s) => ({ ...s, sidebarOpen: !s.sidebarOpen }));
 }
@@ -337,3 +407,30 @@ export function resetIDEState(): void {
 export function getIDEState(): IDEState {
   return get(ideState);
 }
+
+/**
+ * Restore layout from localStorage.
+ * Returns true if a saved layout was found and applied.
+ */
+export function restoreLayout(): boolean {
+  const saved = loadLayout();
+  if (!saved) return false;
+  _layoutRestored = true;
+  _store.update((s) => ({
+    ...s,
+    documents: saved.openTabs,
+    activeDocumentId: saved.activeTabId,
+    workspaceSplit: saved.workspaceSplit,
+    bottomPanelOpen: saved.bottomPanelOpen,
+    activePanelTab: saved.activePanelTab,
+    activeView: saved.activeView,
+  }));
+  return true;
+}
+
+/** Derived boolean indicating whether a saved layout exists in localStorage. */
+export const hasRestoredLayout = derived(ideState, () => {
+  if (_layoutRestored) return true;
+  // Check if there's a saved layout available
+  return loadLayout() !== null;
+});

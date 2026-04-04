@@ -1,8 +1,9 @@
 <script lang="ts">
   /**
    * 24px status bar at the bottom of the IDE shell.
-   * Displays connection state, active profile, parser status, and branding.
+   * Displays connection state, active profile, parser status, alerts, and branding.
    */
+  import AlertBadge from '$lib/features/observability/AlertBadge.svelte';
 
   export let connectionState: 'connected' | 'disconnected' | 'connecting' = 'disconnected';
   export let activeProfile: string = '';
@@ -48,6 +49,11 @@
       <span class="platform-dot" aria-hidden="true"></span>
       <span>Platform</span>
     </span>
+
+    {#if platformConnected}
+      <span class="separator" aria-hidden="true"></span>
+      <AlertBadge />
+    {/if}
   </div>
 
   <div class="status-right">
