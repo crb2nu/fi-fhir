@@ -25,6 +25,8 @@ variables:
   # GitLab dependency proxy is currently returning 429s from upstream pulls.
   # Use the Harbor pull-through cache for Docker Hub images instead.
   DOCKERHUB_CACHE_PREFIX: "registry.harbor.lan/dockerhub-cache"
+  # Pin Trivy to a mirrored tag. Harbor does not currently serve `latest`.
+  TRIVY_VERSION: "0.63.0"
   # CI includes set GOPROXY to Athens. When Athens is unhealthy, Go only falls back on 404/410 with ','.
   # Use '|' to fall back on any error (e.g. connection refused).
   GOPROXY: "http://athens.ci.svc.cluster.local:3000|https://proxy.golang.org|direct"
@@ -863,7 +865,7 @@ security:gosec:
 security:trivy:
   stage: security
   image:
-    name: ${DOCKERHUB_CACHE_PREFIX}/aquasec/trivy:latest
+    name: ${DOCKERHUB_CACHE_PREFIX}/aquasec/trivy:${TRIVY_VERSION}
     entrypoint: [""]
   script:
     - trivy fs --exit-code 0 --severity HIGH,CRITICAL --format sarif -o trivy-report.sarif .
@@ -917,7 +919,7 @@ security:npm-audit:
 security:trivy-image:
   stage: scan
   image:
-    name: ${DOCKERHUB_CACHE_PREFIX}/aquasec/trivy:latest
+    name: ${DOCKERHUB_CACHE_PREFIX}/aquasec/trivy:${TRIVY_VERSION}
     entrypoint: [""]
   needs:
     - job: build:docker
@@ -971,7 +973,7 @@ security:license-check:
 security:trivy-ui-image:
   stage: scan
   image:
-    name: ${DOCKERHUB_CACHE_PREFIX}/aquasec/trivy:latest
+    name: ${DOCKERHUB_CACHE_PREFIX}/aquasec/trivy:${TRIVY_VERSION}
     entrypoint: [""]
   needs:
     - job: build:docker-ui
