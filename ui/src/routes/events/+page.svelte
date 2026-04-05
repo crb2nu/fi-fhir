@@ -1,5 +1,6 @@
 <script lang="ts">
   import Panel from '$lib/ui/Panel.svelte';
+  import PageHeader from '$lib/ui/PageHeader.svelte';
   import Tabs from '$lib/ui/Tabs.svelte';
   import type { TabItem } from '$lib/ui/types';
   import EventBrowser from '$lib/features/events/EventBrowser.svelte';
@@ -30,10 +31,7 @@
   }
 </script>
 
-<h1>Events</h1>
-<p class="sub">
-  Browse processed events, monitor the live stream, view patient timelines, and review aggregate statistics.
-</p>
+<PageHeader title="Events" subtitle="Browse, stream, and analyze processed events." />
 
 <div class="tabs-wrapper">
   <Tabs {tabs} active={activeTab} onChange={(key) => (activeTab = key)} />
@@ -55,54 +53,26 @@
     </div>
   {:else if activeTab === 'live'}
     <div class="tab-content">
-      <p class="description">
-        Real-time event stream via WebSocket. Events appear as they are processed by the backend.
-      </p>
       <EventStreamPanel />
     </div>
   {:else if activeTab === 'timeline'}
     <div class="tab-content">
-      <p class="description">
-        View a patient's chronological event history. Enter a patient MRN to load their timeline.
-      </p>
       <PatientTimeline />
     </div>
   {:else if activeTab === 'stats'}
     <div class="tab-content">
-      <p class="description">
-        Aggregate event statistics — total counts, breakdowns by type and source.
-      </p>
       <EventStats />
     </div>
   {/if}
 </Panel>
 
 <style>
-  h1 {
-    color: var(--color-text-primary);
-    margin: 0 0 8px;
-  }
-
-  .sub {
-    color: var(--color-text-secondary);
-    line-height: 1.55;
-    margin: 0 0 16px;
-    max-width: 70ch;
-  }
-
   .tabs-wrapper {
     margin-bottom: 16px;
   }
 
   .tab-content {
     padding: 8px 0;
-  }
-
-  .description {
-    color: var(--color-text-tertiary);
-    font-size: 0.9rem;
-    line-height: 1.55;
-    margin: 0 0 16px;
   }
 
   .browse-layout {

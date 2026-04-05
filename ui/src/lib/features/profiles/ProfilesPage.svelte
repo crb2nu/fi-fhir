@@ -4,6 +4,7 @@
   import Tabs from '$lib/ui/Tabs.svelte';
   import type { TabItem } from '$lib/ui/types';
   import Panel from '$lib/ui/Panel.svelte';
+  import PageHeader from '$lib/ui/PageHeader.svelte';
   import Button from '$lib/ui/Button.svelte';
   import CodeEditor from '$lib/ui/editor/CodeEditor.svelte';
   import AuthoringFlowRail from '$lib/features/shared/AuthoringFlowRail.svelte';
@@ -241,17 +242,12 @@
   });
 </script>
 
-<h1>Profiles</h1>
-<p class="sub">
-  Source Profiles shape how raw HL7 gets normalized, which warnings stay recoverable, and how
-  identifiers and terminology flow into semantic events.
-</p>
+<PageHeader title="Profiles" subtitle="Shape how HL7 gets normalized into semantic events." />
 
 <div class="flow-shell">
   <AuthoringFlowRail
-    eyebrow="Normalization flow"
+    compact
     title="From profile edits to downstream mapping"
-    summary="Keep the source profile, its YAML, and the downstream consumers visible together so the changes you make in one place are easy to confirm in the others."
     steps={flowSteps}
   />
 </div>
@@ -281,10 +277,6 @@
         <a class="context-link" href={resolve('/workflows')}>Check workflows</a>
       </div>
 
-      <p class="context-copy">
-        This profile controls tolerance, event rules, identifier validation, and terminology
-        mapping before the message leaves the HL7 preview lane.
-      </p>
     {/if}
   </Panel>
 
@@ -432,18 +424,6 @@
 </div>
 
 <style>
-  h1 {
-    color: var(--color-text-primary);
-    margin: 0 0 8px;
-  }
-
-  .sub {
-    color: var(--color-text-secondary);
-    line-height: 1.55;
-    margin: 0 0 16px;
-    max-width: 86ch;
-  }
-
   .flow-shell {
     margin-bottom: 14px;
   }
@@ -494,12 +474,6 @@
   .context-link:hover {
     background: var(--color-bg-hover);
     color: var(--color-text-primary);
-  }
-
-  .context-copy {
-    margin: 12px 0 0;
-    color: var(--color-text-secondary);
-    line-height: 1.55;
   }
 
   .toolbar {

@@ -26,6 +26,7 @@
   import ExtractionPanel from '$lib/ui/ExtractionPanel.svelte';
   import QualityBadge from '$lib/ui/QualityBadge.svelte';
   import CommandPalette, { type PaletteCommand } from '$lib/ui/CommandPalette.svelte';
+  import PageHeader from '$lib/ui/PageHeader.svelte';
   import AuthoringFlowRail from '$lib/features/shared/AuthoringFlowRail.svelte';
   import type { FlowStep } from '$lib/features/shared/authoringFlow';
   import { graphqlFetch } from '$lib/graphql/client';
@@ -876,17 +877,12 @@
   });
 </script>
 
-<h1>HL7 Preview & Triage</h1>
-<p class="sub">
-  Start with raw HL7, move through warnings and extraction, then tune the profile or process the
-  message with the downstream workflow context still in view.
-</p>
+<PageHeader title="HL7 Preview & Triage" subtitle="Load, parse, triage warnings, then hand off downstream." />
 
 <div class="flow-shell">
   <AuthoringFlowRail
-    eyebrow="Source-to-mapping flow"
+    compact
     title="From raw source to semantic handoff"
-    summary="Keep the source message, the parsing result, and the profile action in one lane so you can inspect, adjust, and re-test without bouncing between screens."
     steps={flowSteps}
   />
 </div>
@@ -1257,18 +1253,6 @@
 </div>
 
 <style>
-  h1 {
-    color: var(--color-text-primary);
-    margin: 0 0 8px;
-  }
-	
-  .sub {
-    color: var(--color-text-secondary);
-    line-height: 1.55;
-    margin: 0 0 16px;
-    max-width: 82ch;
-  }
-
   .flow-shell {
     margin-bottom: 14px;
   }

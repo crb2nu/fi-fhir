@@ -41,4 +41,47 @@ describe('AuthoringFlowRail', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
     expect(preview).toHaveBeenCalledTimes(1);
   });
+
+  it('renders compact mode as a horizontal pill bar', () => {
+    render(AuthoringFlowRail, {
+      props: {
+        compact: true,
+        title: 'Compact flow',
+        steps: [
+          {
+            eyebrow: 'Source',
+            title: 'Inspect payload',
+            description: 'Start from raw source.',
+            metric: '12 segments',
+            actions: [{ label: 'Preview', href: '/hl7' }]
+          },
+          {
+            eyebrow: 'Map',
+            title: 'Map codes',
+            description: 'Resolve terminology.',
+            actions: [{ label: 'Resolve', onClick: vi.fn() }]
+          }
+        ]
+      }
+    });
+
+    const nav = screen.getByRole('navigation', { name: 'Compact flow' });
+    expect(nav).toBeInTheDocument();
+
+    // Step labels rendered
+    expect(screen.getByText('Source')).toBeInTheDocument();
+    expect(screen.getByText('Map')).toBeInTheDocument();
+
+    // Action link rendered
+    expect(screen.getByRole('link', { name: 'Preview' })).toHaveAttribute('href', '/hl7');
+
+    // Action button rendered
+    expect(screen.getByRole('button', { name: 'Resolve' })).toBeInTheDocument();
+
+    // Metric badge rendered
+    expect(screen.getByText('12 segments')).toBeInTheDocument();
+
+    // No h2 heading in compact mode
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument();
+  });
 });

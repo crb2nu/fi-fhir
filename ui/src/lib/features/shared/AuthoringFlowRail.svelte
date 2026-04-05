@@ -6,64 +6,102 @@
   export let title: string;
   export let summary = '';
   export let steps: readonly FlowStep[] = [];
+  export let compact = false;
 </script>
 
-<section class="flow-rail">
-  <div class="header">
-    <p class="eyebrow">{eyebrow}</p>
-    <h2>{title}</h2>
-    {#if summary}
-      <p class="summary">{summary}</p>
-    {/if}
-  </div>
-
-  <div class="steps" aria-label={title}>
+{#if compact}
+  <nav class="flow-compact" aria-label={title}>
     {#each steps as step, index (step.title + step.eyebrow)}
-      <article class="step">
-        <div class="step-top">
-          <span class="index">0{index + 1}</span>
-          <div class="badges">
-            {#if step.metric}
-              <span class="badge metric">{step.metric}</span>
-            {/if}
-            {#if step.status}
-              <span class="badge status">{step.status}</span>
-            {/if}
-          </div>
+      {#if index > 0}
+        <span class="connector" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+      {/if}
+      <div class="chip" class:first={index === 0}>
+        <span class="chip-index">0{index + 1}</span>
+        <div class="chip-body">
+          <span class="chip-label">{step.eyebrow}</span>
+          {#if step.actions?.length}
+            <div class="chip-actions">
+              {#each step.actions as action (action.label + (action.href ?? 'button'))}
+                {#if action.href}
+                  <a class="chip-link" href={resolve(action.href)} aria-label={action.ariaLabel}>{action.label}</a>
+                {:else}
+                  <button class="chip-link" type="button" aria-label={action.ariaLabel} on:click={() => action.onClick?.()}>{action.label}</button>
+                {/if}
+                {#if action !== step.actions[step.actions.length - 1]}
+                  <span class="chip-sep" aria-hidden="true">&middot;</span>
+                {/if}
+              {/each}
+            </div>
+          {/if}
         </div>
-
-        <p class="step-eyebrow">{step.eyebrow}</p>
-        <h3>{step.title}</h3>
-        <p class="description">{step.description}</p>
-
-        {#if step.actions?.length}
-          <div class="actions">
-            {#each step.actions as action (action.label + (action.href ?? 'button'))}
-              {#if action.href}
-                <a
-                  class="action {action.variant ?? 'secondary'}"
-                  href={resolve(action.href)}
-                  aria-label={action.ariaLabel}
-                >
-                  {action.label}
-                </a>
-              {:else}
-                <button
-                  class="action {action.variant ?? 'secondary'}"
-                  type="button"
-                  aria-label={action.ariaLabel}
-                  on:click={() => action.onClick?.()}
-                >
-                  {action.label}
-                </button>
-              {/if}
-            {/each}
-          </div>
+        {#if step.metric && step.metric !== step.eyebrow}
+          <span class="chip-badge">{step.metric}</span>
         {/if}
-      </article>
+      </div>
     {/each}
-  </div>
-</section>
+  </nav>
+{:else}
+  <section class="flow-rail">
+    <div class="header">
+      <p class="eyebrow">{eyebrow}</p>
+      <h2>{title}</h2>
+      {#if summary}
+        <p class="summary">{summary}</p>
+      {/if}
+    </div>
+
+    <div class="steps" aria-label={title}>
+      {#each steps as step, index (step.title + step.eyebrow)}
+        <article class="step">
+          <div class="step-top">
+            <span class="index">0{index + 1}</span>
+            <div class="badges">
+              {#if step.metric}
+                <span class="badge metric">{step.metric}</span>
+              {/if}
+              {#if step.status}
+                <span class="badge status">{step.status}</span>
+              {/if}
+            </div>
+          </div>
+
+          <p class="step-eyebrow">{step.eyebrow}</p>
+          <h3>{step.title}</h3>
+          <p class="description">{step.description}</p>
+
+          {#if step.actions?.length}
+            <div class="actions">
+              {#each step.actions as action (action.label + (action.href ?? 'button'))}
+                {#if action.href}
+                  <a
+                    class="action {action.variant ?? 'secondary'}"
+                    href={resolve(action.href)}
+                    aria-label={action.ariaLabel}
+                  >
+                    {action.label}
+                  </a>
+                {:else}
+                  <button
+                    class="action {action.variant ?? 'secondary'}"
+                    type="button"
+                    aria-label={action.ariaLabel}
+                    on:click={() => action.onClick?.()}
+                  >
+                    {action.label}
+                  </button>
+                {/if}
+              {/each}
+            </div>
+          {/if}
+        </article>
+      {/each}
+    </div>
+  </section>
+{/if}
 
 <style>
   .flow-rail {
@@ -265,5 +303,122 @@
 
   .action.primary:hover {
     box-shadow: var(--shadow-glow-primary);
+  }
+
+  /* ── Compact mode ─────────────────────────── */
+
+  .flow-compact {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(56, 189, 248, 0.18);
+    background:
+      linear-gradient(90deg, rgba(56, 189, 248, 0.06), transparent 60%),
+      var(--color-bg-elevated);
+  }
+
+  .connector {
+    display: inline-flex;
+    align-items: center;
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-surface);
+    min-height: 32px;
+  }
+
+  .chip.first {
+    border-color: rgba(56, 189, 248, 0.28);
+    background: rgba(56, 189, 248, 0.08);
+  }
+
+  .chip-index {
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    color: var(--color-primary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .chip-body {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .chip-label {
+    font-size: 0.82rem;
+    font-weight: 800;
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+  }
+
+  .chip-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .chip-link {
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    text-decoration: none;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .chip-link:hover {
+    text-decoration: underline;
+  }
+
+  .chip-sep {
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+  }
+
+  .chip-badge {
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: var(--color-text-muted);
+    padding: 2px 7px;
+    border-radius: 999px;
+    border: 1px solid var(--color-border-strong);
+    background: var(--color-bg-elevated);
+    white-space: nowrap;
+  }
+
+  @media (max-width: 640px) {
+    .flow-compact {
+      flex-direction: column;
+      align-items: stretch;
+      border-radius: 16px;
+      padding: 10px;
+    }
+
+    .connector {
+      display: none;
+    }
+
+    .chip {
+      width: 100%;
+    }
   }
 </style>

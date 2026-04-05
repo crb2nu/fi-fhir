@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Panel from '$lib/ui/Panel.svelte';
+  import PageHeader from '$lib/ui/PageHeader.svelte';
   import Tabs from '$lib/ui/Tabs.svelte';
   import type { TabItem } from '$lib/ui/types';
   import AuthoringFlowRail from '$lib/features/shared/AuthoringFlowRail.svelte';
@@ -109,17 +110,12 @@
   }
 </script>
 
-<h1>Terminology Mapping</h1>
-<p class="sub">
-  Map codes only after you know which source profile and HL7 message produced them, then confirm
-  the downstream review and workflow path stays aligned.
-</p>
+<PageHeader title="Terminology Mapping" subtitle="Map codes after confirming the source profile and HL7 context." />
 
 <div class="flow-shell">
   <AuthoringFlowRail
-    eyebrow="Terminology flow"
+    compact
     title="From source code to workflow-ready mapping"
-    summary="Keep the source message, profile rules, mapping decisions, and review workflows in the same mental model so the terminology work stays connected to the rest of the authoring flow."
     steps={flowSteps}
   />
 </div>
@@ -131,46 +127,24 @@
 <Panel>
   {#if activeTab === 'browse'}
     <div class="tab-content">
-      <p class="description">
-        Browse and manage existing code mappings. Filter by source system, target system, equivalence,
-        or date when you need to confirm which downstream workflow will use the mapping.
-      </p>
       {#key browserKey}
         <MappingBrowser on:refresh={refreshBrowser} on:edit={handleEditMapping} />
       {/key}
     </div>
   {:else if activeTab === 'upload'}
     <div class="tab-content">
-      <p class="description">
-        Upload custom mappings from a CSV file. The CSV should have columns: source_system,
-        source_code, source_display, target_system, target_code, target_display, equivalence, so
-        the mapping can be traced back to the source context that produced it.
-      </p>
       <MappingUploader on:uploaded={refreshBrowser} />
     </div>
   {:else if activeTab === 'review'}
     <div class="tab-content">
-      <p class="description">
-        Review and approve LLM-suggested mappings. High-confidence suggestions can be bulk approved,
-        which keeps the upstream source context moving without stalling the downstream workflow lane.
-      </p>
       <PendingReviewList on:approve={refreshBrowser} on:refresh={refreshBrowser} />
     </div>
   {:else if activeTab === 'resolve'}
     <div class="tab-content">
-      <p class="description">
-        Enter a source code to find or suggest a mapping. The resolver first checks persistent
-        mappings, then falls back to LLM-powered semantic search if no match is found, so you can
-        work directly from the source payload you saw in HL7 preview.
-      </p>
       <AutorouteResolver on:approved={refreshBrowser} />
     </div>
   {:else if activeTab === 'workflows'}
     <div class="tab-content">
-      <p class="description">
-        Monitor Temporal workflows for terminology review processes. View status, cancel running
-        workflows, or signal decisions that confirm the mapping is ready to use downstream.
-      </p>
       <TemporalWorkflowList workflowType="TerminologyReviewWorkflow" />
     </div>
   {/if}
@@ -187,18 +161,6 @@
 {/if}
 
 <style>
-  h1 {
-    color: var(--color-text-primary);
-    margin: 0 0 8px;
-  }
-
-  .sub {
-    color: var(--color-text-secondary);
-    line-height: 1.55;
-    margin: 0 0 16px;
-    max-width: 84ch;
-  }
-
   .flow-shell {
     margin-bottom: 14px;
   }
@@ -209,12 +171,5 @@
 
   .tab-content {
     padding: 8px 0;
-  }
-
-  .description {
-    color: var(--color-text-tertiary);
-    font-size: 0.9rem;
-    line-height: 1.55;
-    margin: 0 0 16px;
   }
 </style>
