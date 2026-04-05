@@ -31,24 +31,41 @@ interface ToastState {
 }
 
 const DEFAULT_DURATION = 5000;
+const DEDUP_WINDOW_MS = 2000;
 let nextId = 1;
 
 function createToastStore() {
   const { subscribe, update } = writable<ToastState>({ toasts: [] });
 
+  // Keep a reference to current state for dedup checks
+  let current: ToastState = { toasts: [] };
+  subscribe((state) => {
+    current = state;
+  });
+
   /**
    * Adds a new toast notification.
+   * Deduplicates: if an identical message+variant toast exists within 2s, returns its ID.
    * Returns the toast ID for manual dismissal if needed.
    */
   function add(input: ToastInput): string {
+    const variant = input.variant ?? 'info';
+    const now = Date.now();
+
+    // Deduplicate: skip if identical toast was created within the window
+    const existing = current.toasts.find(
+      (t) => t.message === input.message && t.variant === variant && now - t.createdAt < DEDUP_WINDOW_MS
+    );
+    if (existing) return existing.id;
+
     const id = `toast-${nextId++}`;
     const toast: Toast = {
       id,
       message: input.message,
-      variant: input.variant ?? 'info',
+      variant,
       duration: input.duration ?? DEFAULT_DURATION,
       dismissible: input.dismissible ?? true,
-      createdAt: Date.now()
+      createdAt: now
     };
 
     update((state) => ({

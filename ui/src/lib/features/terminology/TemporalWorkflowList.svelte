@@ -65,7 +65,6 @@
       endCursor = result.pageInfo.endCursor ?? null;
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to load workflows';
-      toasts.error(error);
     } finally {
       loading = false;
     }

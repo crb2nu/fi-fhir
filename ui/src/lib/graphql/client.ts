@@ -2,6 +2,18 @@ import type { TypedDocumentNode } from '@graphql-typed-document-node/core';
 import { print } from 'graphql';
 import { toasts } from '$lib/ui/toastStore';
 
+/** Tag errors that have already been shown as a toast so the catch block skips them. */
+const TOASTED = Symbol('toasted');
+type ToastedError = Error & { [TOASTED]: true };
+
+function markToasted(err: Error): ToastedError {
+  return Object.assign(err, { [TOASTED]: true as const });
+}
+
+function isToasted(err: unknown): err is ToastedError {
+  return err instanceof Error && TOASTED in err;
+}
+
 type GraphQLErrorResponse = {
   errors?: Array<{ message?: string }>;
 };
@@ -45,6 +57,7 @@ export async function graphqlFetch<TData, TVars>(
       const error = new Error(`GraphQL HTTP ${res.status}`);
       if (showErrorToast) {
         toasts.error(`Request failed: HTTP ${res.status}`);
+        markToasted(error);
       }
       throw error;
     }
@@ -52,15 +65,18 @@ export async function graphqlFetch<TData, TVars>(
     const json = (await res.json()) as { data?: TData } & GraphQLErrorResponse;
     if (json.errors?.length) {
       const msg = json.errors.map((e) => e.message ?? 'Unknown error').join('; ');
+      const error = new Error(msg);
       if (showErrorToast) {
         toasts.error(msg);
+        markToasted(error);
       }
-      throw new Error(msg);
+      throw error;
     }
     if (!json.data) {
       const error = new Error('GraphQL response missing data');
       if (showErrorToast) {
         toasts.error('Unexpected response from server');
+        markToasted(error);
       }
       throw error;
     }
@@ -71,8 +87,8 @@ export async function graphqlFetch<TData, TVars>(
 
     return json.data;
   } catch (err) {
-    // Re-throw after toast was already shown (for non-GraphQL errors like network failures)
-    if (err instanceof Error && showErrorToast && !err.message.startsWith('GraphQL')) {
+    // Only toast network failures (fetch rejections) — skip errors already toasted above
+    if (err instanceof Error && showErrorToast && !isToasted(err)) {
       toasts.error(`Network error: ${err.message}`);
     }
     throw err;

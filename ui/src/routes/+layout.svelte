@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import ToastContainer from '$lib/ui/ToastContainer.svelte';
   import { initTheme } from '$lib/theme/theme';
   import { IDEShell } from '$lib/ui/ide';
+  import { connectionState, start, stop } from '$lib/stores/connectionStore';
 
   // Import global design tokens and base styles
   import '$lib/styles/tokens.css';
@@ -10,10 +11,15 @@
 
   onMount(() => {
     initTheme();
+    start();
+  });
+
+  onDestroy(() => {
+    stop();
   });
 </script>
 
 <ToastContainer />
-<IDEShell>
+<IDEShell connectionState={$connectionState}>
   <slot />
 </IDEShell>

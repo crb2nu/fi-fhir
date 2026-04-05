@@ -80,7 +80,6 @@
       totalCount = result.totalCount;
     } catch (err) {
       error = err instanceof Error ? err.message : "Failed to load mappings";
-      toasts.error(error);
     } finally {
       loading = false;
     }

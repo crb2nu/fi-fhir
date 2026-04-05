@@ -115,7 +115,6 @@
         err instanceof Error
           ? err.message
           : "Failed to load pending autoroutes";
-      toasts.error(error);
     } finally {
       loading = false;
     }

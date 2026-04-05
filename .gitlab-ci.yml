@@ -16,7 +16,7 @@ stages:
   - release
 
 variables:
-  GO_VERSION: "1.25.5"
+  GO_VERSION: "1.25.7"
   GOLANGCI_LINT_VERSION: "v2.8.0"
   NODE_VERSION: "22"
   CGO_ENABLED: "0"

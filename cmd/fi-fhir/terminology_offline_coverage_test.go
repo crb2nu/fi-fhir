@@ -163,9 +163,11 @@ func TestTerminology_MappingResolve_MissingTarget(t *testing.T) {
 }
 
 func TestTerminology_MappingResolve_NoAutoroute(t *testing.T) {
-	t.Setenv("FI_FHIR_DATABASE_URL", "postgres://user:pass@localhost:5432/invalid_db")
+	// Clear the priority env var so the fallback is actually used.
+	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "")
+	t.Setenv("FI_FHIR_DATABASE_URL", "postgres://user:pass@invalid-host.local:5432/invalid_db?connect_timeout=1")
 
-	// Even with no-autoroute it hits DB first. Should fail on dial or pg ping.
+	// Even with no-autoroute it hits DB first. Should fail on dial.
 	_, _, err := runCLI(t, "terminology", "mapping", "resolve", "CODE", "--source-system", "src", "--target-system", "tgt", "--no-autoroute")
 	assertError(t, err)
 }
