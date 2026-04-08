@@ -8,6 +8,8 @@
   import SystemStatusPanel from '$lib/features/system/SystemStatusPanel.svelte';
   import DashboardStats from '$lib/features/dashboard/DashboardStats.svelte';
   import RecentEventsFeed from '$lib/features/dashboard/RecentEventsFeed.svelte';
+  import WarningTrends from '$lib/features/dashboard/WarningTrends.svelte';
+  import AlertsPanel from '$lib/features/dashboard/AlertsPanel.svelte';
   import JourneyProgress from '$lib/ui/ide/JourneyProgress.svelte';
   import { recents } from '$lib/features/dashboard/recentsStore';
   import { hasRestoredLayout, restoreLayout } from '$lib/ui/ide/ideStore';
@@ -347,13 +349,13 @@
       <SystemStatusPanel />
     </div>
   </div>
-
-  <!-- Recent Events -->
-  <div class="stagger-6" class:mounted>
-    <Panel title="Recent events" padding="md">
-      <RecentEventsFeed />
-    </Panel>
-  </div>
+<!-- Recent Events -->
+<div class="workspace-grid stagger-6" class:mounted>
+  <WarningTrends />
+  <Panel title="Recent events" padding="md">
+    <RecentEventsFeed />
+  </Panel>
+</div>
 </div>
 
 <style>

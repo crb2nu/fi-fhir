@@ -496,6 +496,35 @@
     color: var(--color-text-primary);
   }
 
+  .title-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .sev-badge {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+  .sev-badge.error {
+    background: rgba(239, 68, 68, 0.15);
+    color: rgba(248, 113, 113, 0.95);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+  }
+  .sev-badge.warning {
+    background: rgba(245, 158, 11, 0.15);
+    color: rgba(253, 230, 138, 0.95);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+  }
+  .sev-badge.info {
+    background: rgba(59, 130, 246, 0.15);
+    color: rgba(147, 197, 253, 0.95);
+    border: 1px solid rgba(59, 130, 246, 0.35);
+  }
+
   .path {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
     font-size: 0.85rem;

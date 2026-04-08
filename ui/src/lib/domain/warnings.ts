@@ -81,6 +81,16 @@ export function groupWarningsByPhase(warnings: readonly WarningLike[]): WarningG
 
   return sortedEntries.map(([phase, items]) => {
     const sortedItems = [...items].sort((x, y) => {
+      const sevRank = (s?: string | null) => {
+        const lower = s?.toLowerCase();
+        if (lower === 'error') return 0;
+        if (lower === 'warning') return 1;
+        if (lower === 'info') return 2;
+        return 3;
+      };
+      const sevCmp = sevRank(x.severity) - sevRank(y.severity);
+      if (sevCmp !== 0) return sevCmp;
+
       const codeCmp = x.code.localeCompare(y.code);
       if (codeCmp !== 0) return codeCmp;
       return (x.path ?? '').localeCompare(y.path ?? '');
