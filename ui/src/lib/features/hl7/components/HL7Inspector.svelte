@@ -3,10 +3,14 @@
   import type { HL7PathLocation } from '$lib/domain/hl7Path';
   import { getHL7Value } from '$lib/domain/hl7Access';
   import { browser } from '$app/environment';
-  import { afterUpdate } from 'svelte';
+  import { afterUpdate, createEventDispatcher } from 'svelte';
 
   export let message: HL7Message;
   export let selected: HL7PathLocation | null = null;
+
+  const dispatch = createEventDispatcher<{
+    selectPath: { path: string };
+  }>();
 
   let root: HTMLElement | null = null;
   let lastKey = '';
@@ -132,6 +136,25 @@
     document.execCommand('copy');
     document.body.removeChild(ta);
   }
+
+  function handleSegmentClick(seg: HL7Segment, event: MouseEvent) {
+    if ((event.target as HTMLElement).tagName === 'SUMMARY') {
+      const path = `${seg.id}[${seg.occurrence}]`;
+      dispatch('selectPath', { path });
+    }
+  }
+
+  function handleFieldClick(seg: HL7Segment, fieldNumber: number, event: MouseEvent) {
+    event.stopPropagation();
+    const path = `${seg.id}[${seg.occurrence}]-${fieldNumber}`;
+    dispatch('selectPath', { path });
+  }
+
+  function handleComponentClick(seg: HL7Segment, fieldNumber: number, componentNumber: number, event: MouseEvent) {
+    event.stopPropagation();
+    const path = `${seg.id}[${seg.occurrence}]-${fieldNumber}.${componentNumber}`;
+    dispatch('selectPath', { path });
+  }
 </script>
 
 <div class="wrap" bind:this={root}>
@@ -164,7 +187,7 @@
       {/if}
     </div>
   {:else}
-    <div class="note">Select a warning/path to highlight fields; or browse freely.</div>
+    <div class="note">Select a warning/path to highlight fields; or click a field to inspect its lineage.</div>
   {/if}
 
   <div class="segments">
@@ -175,17 +198,22 @@
         data-selected={isSelected(seg)}
         data-hl7-key={seg.id + '[' + seg.occurrence + ']'}
       >
-        <summary class="summary">
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <summary class="summary" on:click={(e) => handleSegmentClick(seg, e)}>
           <span class="id mono">{seg.id}</span>
           <span class="hint">#{seg.occurrence} • {seg.fields.length} fields</span>
         </summary>
 
         <div class="fields">
           {#each seg.fields as f (f.number)}
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
               class="field"
               class:selected={fieldSelected(seg.id, seg.occurrence, f.number)}
               data-hl7-key={seg.id + '[' + seg.occurrence + ']-' + f.number}
+              on:click={(e) => handleFieldClick(seg, f.number, e)}
             >
               <div class="field-head">
                 <span class="mono label">{seg.id}-{f.number}</span>
@@ -208,10 +236,13 @@
                       {#if r.components.length > 1}
                         <div class="components">
                           {#each r.components as c, i (i)}
+                            <!-- svelte-ignore a11y_click_events_have_key_events -->
+                            <!-- svelte-ignore a11y_no_static_element_interactions -->
                             <div
                               class="component"
                               class:selected={repetitionComponentSelected(seg.id, seg.occurrence, f.number, r.index, i + 1)}
                               data-hl7-key={seg.id + '[' + seg.occurrence + ']-' + f.number + '[' + r.index + '].' + (i + 1)}
+                              on:click={(e) => handleComponentClick(seg, f.number, i + 1, e)}
                             >
                               <span class="mono comp-label">{seg.id}-{f.number}[{r.index}].{i + 1}</span>
                               <span class="mono comp-value">{c || '∅'}</span>
@@ -225,10 +256,13 @@
               {:else if f.components.length > 1}
                 <div class="components">
                   {#each f.components as c, i (i)}
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
                     <div
                       class="component"
                       class:selected={componentSelected(seg.id, seg.occurrence, f.number, i + 1)}
                       data-hl7-key={seg.id + '[' + seg.occurrence + ']-' + f.number + '.' + (i + 1)}
+                      on:click={(e) => handleComponentClick(seg, f.number, i + 1, e)}
                     >
                       <span class="mono comp-label">{seg.id}-{f.number}.{i + 1}</span>
                       <span class="mono comp-value">{c || '∅'}</span>

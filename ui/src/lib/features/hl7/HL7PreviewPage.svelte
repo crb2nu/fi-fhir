@@ -598,7 +598,10 @@
     // Apply the changes to the local state
     profileStore.updateLocal(fix.changes);
     // Switch to the profile tab to show the changes
-    activeTab = 'profile';
+    // activeTab = 'profile'; // Commented out to stay on the warnings tab while editing
+    if ($activeSample) {
+      void run();
+    }
   }
 
   $: paletteCommands = (() => {
