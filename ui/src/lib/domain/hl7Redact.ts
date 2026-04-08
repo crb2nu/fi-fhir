@@ -1,4 +1,4 @@
-export type HL7RedactionMode = 'none' | 'mask_basic' | 'segment_sanitize';
+export type HL7RedactionMode = 'none' | 'mask_basic' | 'segment_sanitize' | 'pattern_replace';
 
 type HL7Delimiters = {
   field: string;
@@ -15,6 +15,22 @@ const defaultDelimiters: HL7Delimiters = {
   escape: '\\',
   subcomponent: '&'
 };
+
+/**
+ * Common patterns that likely contain PHI (best-effort).
+ */
+const PHI_PATTERNS = [
+  // SSN: XXX-XX-XXXX or XXXXXXXXX
+  /\b\d{3}-\d{2}-\d{4}\b/g,
+  /\b\d{9}\b/g,
+  // Phone: (XXX) XXX-XXXX or XXX-XXX-XXXX
+  /\b\(\d{3}\) \d{3}-\d{4}\b/g,
+  /\b\d{3}-\d{3}-\d{4}\b/g,
+  // Email
+  /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
+  // Date of Birth (basic YYYYMMDD or common separators)
+  /\b(19|20)\d{2}[01]\d[0123]\d\b/g
+];
 
 function normalizeLines(raw: string): string {
   return raw.replaceAll('\r\n', '\r').replaceAll('\n', '\r');
@@ -49,6 +65,14 @@ function sanitizeSegment(parts: string[], fieldSep: string): string {
   return `${id}${fieldSep}REDACTED`;
 }
 
+function redactByPattern(text: string): string {
+  let out = text;
+  for (const pattern of PHI_PATTERNS) {
+    out = out.replace(pattern, 'REDACTED');
+  }
+  return out;
+}
+
 /**
  * Best-effort PHI redaction for HL7v2 payloads.
  *
@@ -71,6 +95,11 @@ export function redactHL7(raw: string, mode: HL7RedactionMode): string {
     if (!id) continue;
     if (id === 'MSH') {
       out.push(line);
+      continue;
+    }
+
+    if (mode === 'pattern_replace') {
+      out.push(redactByPattern(line));
       continue;
     }
 
@@ -116,4 +145,3 @@ export function redactHL7(raw: string, mode: HL7RedactionMode): string {
 
   return out.join('\r');
 }
-

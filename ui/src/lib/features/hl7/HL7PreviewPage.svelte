@@ -988,6 +988,7 @@
             <option value="none">None</option>
             <option value="mask_basic">Mask basic (PID/NK1/PV1)</option>
             <option value="segment_sanitize">Sanitize segments (PID/NK1/IN*)</option>
+            <option value="pattern_replace">Pattern replacement (SSN/Phone/Email)</option>
           </select>
           <span class="hint">Best-effort; free-text fields may still contain PHI.</span>
         </label>
