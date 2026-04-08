@@ -28,6 +28,7 @@
   import CommandPalette, { type PaletteCommand } from '$lib/ui/CommandPalette.svelte';
   import PageHeader from '$lib/ui/PageHeader.svelte';
   import AuthoringFlowRail from '$lib/features/shared/AuthoringFlowRail.svelte';
+  import LifecycleTrace from '$lib/features/shared/LifecycleTrace.svelte';
   import type { FlowStep } from '$lib/features/shared/authoringFlow';
   import { graphqlFetch } from '$lib/graphql/client';
   import { ExplainWarningsDocument, type ParseWarningInput, type SourceFormat, type EventType } from '$lib/gen/graphql';
@@ -887,6 +888,19 @@
     compact
     title="From raw source to semantic handoff"
     steps={flowSteps}
+  />
+</div>
+
+<div class="trace-shell">
+  <LifecycleTrace
+    source={$state.source || 'ui_preview'}
+    profile={$selectedProfile?.id ?? null}
+    eventCount={eventCount}
+    warningCount={warningCount}
+    success={$state.result?.parsePreview.success ?? false}
+    workflow={processState.state === 'done' ? 'Standard ADT' : null}
+    destinations={processState.state === 'done' && processState.result.success ? ['FHIR'] : []}
+    on:navigate={(e: CustomEvent<{ step: string }>) => { activeTab = e.detail.step as typeof activeTab; }}
   />
 </div>
 
