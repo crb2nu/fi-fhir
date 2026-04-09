@@ -15,6 +15,7 @@
     inspect: WarningLike;
     explain: WarningLike;
     explainAll: void;
+    resolve: WarningLike;
   }>();
 
   /** Check if a specific warning is loading */
@@ -28,8 +29,13 @@
     0
   );
 
-  /** Whether any explain operation is in progress */
+  /** Check if any explain operation is in progress */
   $: anyLoading = explainLoadingCodes.size > 0;
+
+  /** Check if a warning can be resolved via AI */
+  function canResolve(w: WarningLike): boolean {
+    return ['W042', 'E099'].includes(w.code) && !!w.explanation;
+  }
 
   // Track which explanations are expanded
   let expandedExplanations = new SvelteSet<string>();
@@ -222,6 +228,16 @@
                       on:click|stopPropagation={() => dispatch('explain', w)}
                     >
                       {loading ? '...' : 'Explain'}
+                    </button>
+                  {/if}
+                  {#if canResolve(w)}
+                    <button
+                      class="mini resolve-btn"
+                      type="button"
+                      title="Resolve mapping with AI"
+                      on:click|stopPropagation={() => dispatch('resolve', w)}
+                    >
+                      Resolve
                     </button>
                   {/if}
                   {#if w.path}
@@ -635,5 +651,16 @@
   .explain-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  .resolve-btn {
+    border-color: rgba(16, 185, 129, 0.3);
+    color: rgba(16, 185, 129, 0.95);
+    background: rgba(16, 185, 129, 0.05);
+  }
+
+  .resolve-btn:hover {
+    background: rgba(16, 185, 129, 0.15);
+    border-color: rgba(16, 185, 129, 0.5);
   }
 </style>

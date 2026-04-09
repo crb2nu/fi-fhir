@@ -15,8 +15,10 @@
   import EventRulesEditor from '$lib/features/hl7/components/EventRulesEditor.svelte';
   import IdentifierEditor from '$lib/features/hl7/components/IdentifierEditor.svelte';
   import TerminologyEditor from '$lib/features/hl7/components/TerminologyEditor.svelte';
+  import ConfirmModal from '$lib/ui/ConfirmModal.svelte';
+  import ProfileDiffModal from './ProfileDiffModal.svelte';
 
-  import { selectedProfile, isDirty as isProfileDirty } from '$lib/features/hl7/profile/profileStore';
+  import { selectedProfile, isDirty as isProfileDirty, profileStore } from '$lib/features/hl7/profile/profileStore';
   import { fetchProfileYaml, saveProfileYaml } from '$lib/features/hl7/profile/profileYamlApi';
   import { getProfileRevisions } from '$lib/features/hl7/profile/profileApi';
   import { toSourceProfileYAML } from '$lib/features/hl7/profile/yaml';
@@ -45,6 +47,29 @@
   let yamlLoadedAt = '';
   let yamlError: string | null = null;
   let copied = false;
+  let showPublishModal = false;
+
+  async function handlePublish() {
+    showPublishModal = true;
+  }
+
+  async function handleConfirmPublish() {
+    showPublishModal = false;
+    const ok = await profileStore.saveProfile();
+    if (ok) {
+      if ($selectedProfile) {
+        await loadYaml($selectedProfile.id);
+        await loadRevisions($selectedProfile.id);
+      }
+    }
+  }
+
+  async function handleDiscard() {
+    if (confirm('Are you sure you want to discard all local changes?')) {
+      showPublishModal = false;
+      await profileStore.discardChanges();
+    }
+  }
 
   type RevisionsState = {
     state: 'idle' | 'loading' | 'ready';
@@ -261,6 +286,9 @@
         <span class="pill">{$selectedProfile.id}</span>
         <span class="pill muted">v{$selectedProfile.version}</span>
         {#if $isProfileDirty}
+          <span class="pill warn">DRAFT</span>
+        {/if}
+        {#if $isProfileDirty}
           <span class="pill warn">builder unsaved</span>
         {/if}
         {#if yamlDirty}
@@ -292,9 +320,10 @@
         <div class="toolbar">
           <div class="left">
             <Button variant="secondary" on:click={exportYamlFromBuilder}>Export YAML</Button>
+            <Button variant="secondary" on:click={() => profileStore.discardChanges()} disabled={!$isProfileDirty}>Reset</Button>
           </div>
           <div class="right">
-            <span class="hint">Builder edits and YAML save back to the same Source Profile record.</span>
+            <Button on:click={handlePublish} disabled={!$isProfileDirty}>Review & Publish</Button>
           </div>
         </div>
 
@@ -422,6 +451,28 @@
     {/if}
   </Panel>
 </div>
+
+<ConfirmModal
+  bind:open={showPublishModal}
+  title="Publish Changes"
+  confirmText="Publish"
+  cancelText="Back to Editing"
+  on:confirm={handleConfirmPublish}
+>
+  <div class="publish-dialog">
+    <p class="publish-hint">Provide a summary of what changed in this version.</p>
+    <textarea class="summary-input" placeholder="e.g., Added tolerance for missing MSH-15..."></textarea>
+    
+    {#if $selectedProfile}
+      <ProfileDiffModal 
+        original={$selectedProfile} 
+        draft={$selectedProfile} 
+        on:confirm={handleConfirmPublish}
+        on:cancel={() => showPublishModal = false}
+      />
+    {/if}
+  </div>
+</ConfirmModal>
 
 <style>
   .flow-shell {
@@ -595,5 +646,30 @@
     .rev-row {
       grid-template-columns: 1fr;
     }
+  }
+
+  .publish-dialog {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+  }
+
+  .summary-input {
+    width: 100%;
+    min-height: 80px;
+    padding: var(--space-2);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-input);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    resize: vertical;
+  }
+
+  .publish-hint {
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+    margin: 0;
   }
 </style>

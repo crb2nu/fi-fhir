@@ -34,6 +34,8 @@
   import { ExplainWarningsDocument, type ParseWarningInput, type SourceFormat, type EventType } from '$lib/gen/graphql';
   import type { WarningLike } from '$lib/domain/warnings';
   import { submitHL7Message } from '$lib/features/hl7/hl7Submit';
+  import { resolveMapping } from '$lib/features/terminology/terminologyApi';
+  import { toasts } from '$lib/ui/toastStore';
   import { SvelteSet } from 'svelte/reactivity';
 
   const store = createHL7PreviewStore();
@@ -602,6 +604,39 @@
     // activeTab = 'profile'; // Commented out to stay on the warnings tab while editing
     if ($activeSample) {
       void run();
+    }
+  }
+
+  async function handleResolveWarning(w: WarningLike) {
+    if (!w.path) return;
+    
+    // Parse the path to get the value from HL7
+    const loc = parseHL7Path(w.path);
+    if (!loc) return;
+    
+    const value = getHL7Value($hl7, loc);
+    if (!value) {
+      toasts.error('Could not find code value at path ' + w.path);
+      return;
+    }
+
+    // Best effort to find the system (usually field 3 or 4 in OBX/DG1)
+    // For now we'll let the backend suggest it or use a default.
+    try {
+      await resolveMapping({
+        sourceSystem: 'FIXME_SYSTEM', // Backend should ideally infer this
+        sourceCode: value,
+        targetSystem: 'http://loinc.org', // Default target
+        sourceDisplay: null,
+        profileId: $selectedProfile?.id ?? null,
+        minConfidence: 0,
+        allowAutoroute: true
+      });
+      toasts.success(`Resolved mapping for ${value}`);
+      // Re-run to clear the warning
+      void run();
+    } catch (e) {
+      toasts.error('Failed to resolve mapping: ' + (e instanceof Error ? e.message : String(e)));
     }
   }
 
@@ -1183,6 +1218,7 @@
           on:inspect={onInspectWarning}
           on:explain={onExplainWarning}
           on:explainAll={onExplainAll}
+          on:resolve={(e) => handleResolveWarning(e.detail)}
         />
       {:else if activeTab === 'events'}
         <EventLineagePanel events={$events} message={$hl7} on:inspectPath={(e) => inspectPath(e.detail.path)} />

@@ -10,6 +10,7 @@
   import RecentEventsFeed from '$lib/features/dashboard/RecentEventsFeed.svelte';
   import WarningTrends from '$lib/features/dashboard/WarningTrends.svelte';
   import AlertsPanel from '$lib/features/dashboard/AlertsPanel.svelte';
+  import UnmappedCodesWidget from '$lib/features/dashboard/UnmappedCodesWidget.svelte';
   import JourneyProgress from '$lib/ui/ide/JourneyProgress.svelte';
   import { recents } from '$lib/features/dashboard/recentsStore';
   import { hasRestoredLayout, restoreLayout } from '$lib/ui/ide/ideStore';
@@ -347,6 +348,8 @@
 
     <div class="side-stack">
       <SystemStatusPanel />
+      <AlertsPanel />
+      <UnmappedCodesWidget />
     </div>
   </div>
 <!-- Recent Events -->
