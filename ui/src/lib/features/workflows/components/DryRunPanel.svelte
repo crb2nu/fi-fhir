@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { createEventDispatcher } from 'svelte';
   import Panel from '$lib/ui/Panel.svelte';
   import CodeEditor from '$lib/ui/editor/CodeEditor.svelte';
   import Button from '$lib/ui/Button.svelte';
@@ -87,9 +88,14 @@
     return selectedPresets.map((i) => presetEvents[i]!.event);
   })();
 
+  const dispatch = createEventDispatcher<{
+    result: DryRunResult | null;
+  }>();
+
   async function handleRun() {
     running = true;
     result = null;
+    dispatch('result', null);
 
     try {
       const yamlStr = draftToYaml($workflowDraft);
@@ -112,6 +118,7 @@
 
       const data = await dryRunWorkflow(yamlStr, resolvedEvents);
       result = data.dryRunWorkflow;
+      dispatch('result', result);
     } catch {
       toasts.error('Dry run failed');
     } finally {

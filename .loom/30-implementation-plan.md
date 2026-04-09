@@ -1,72 +1,41 @@
-# Implementation Plan: Integration Platform Evolution
+# Implementation Plan: IDE Connectivity & Feedback Loop
 
-## Scope
+## Objective
+To close the loop between production telemetry and IDE authoring, enabling users to fix terminology gaps and debug workflows with live production signals.
 
-Execute the integration platform product spec across 4 core areas: Ingestion/Extraction, Terminology Governance, FHIR Interoperability, and Profile Management.
+## Proposed Slices
 
-## Milestones
+### Slice A: Visual Workflow Debugging (MVP 3)
+*Goal: Visualize matched/skipped routes directly in the builder.*
+- **Task A1**: Update `DryRunPanel.svelte` to bubble up results to the parent `WorkflowBuilder`.
+- **Task A2**: Enhance `WorkflowBuilder.svelte` to apply conditional styling (e.g., `is-matched`, `is-skipped`) to routes based on dry-run output.
+- **Task A3**: Add "Evaluation Tooltips" to show exactly why a CEL rule matched or failed.
 
-1. **M1**: Universal Ingestion & CCDA Expansion
-2. **M2**: Terminology Approval Workflow
-3. **M3**: FHIR Interoperability (USCDI v3, Bulk, SMART)
-4. **M4**: Dynamic Profile Management & Tracing
+### Slice B: Terminology Coverage Dashboard (MVP 4)
+*Goal: Surface unmapped codes seen in production.*
+- **Task B1**: Create `UnmappedCodesWidget.svelte` in `lib/features/dashboard`.
+- **Task B2**: Bridge `eventStatistics` with the mapping status to identify high-volume gaps.
+- **Task B3**: Add "Quick Resolve" actions that jump the user to the `AutorouteResolver`.
 
----
+### Slice C: Profile Lifecycle Management (MVP 2)
+*Goal: Safety rails for profile changes.*
+- **Task C1**: Implement "Draft" detection in `profileStore`.
+- **Task C2**: Create a `ProfileDiffModal.svelte` to show changes between the local draft and the published version.
+- **Task C3**: Add "Publish" workflow with mandatory change summaries.
 
-## 1. M1: Universal Ingestion & CCDA Expansion
+### Slice D: Inline AI Fixes (UX)
+*Goal: Reduce friction for common triage tasks.*
+- **Task D1**: Update `WarningList.svelte` to support specialized action buttons per warning code.
+- **Task D2**: Implement "Resolve with AI" inline button for terminology warnings (W042, E099).
+- **Task D3**: Trigger `resolveMapping` and show a confirmation toast/popover.
 
-### Code Changes
+## Key Files
+- `ui/src/lib/features/workflows/components/WorkflowBuilder.svelte`
+- `ui/src/lib/features/dashboard/DashboardStats.svelte`
+- `ui/src/lib/features/profiles/ProfilesPage.svelte`
+- `ui/src/lib/ui/WarningList.svelte`
 
-- **`internal/parser/cda/`**: Extend `mapper.go` and `parser.go` with specialized XPath extractors for Medications, Allergies, and Social History sections.
-- **`cmd/fi-fhir/etl.go` & `storage/s3.go` (NEW)**: Add pull-based watchers for S3 and SFTP. Alternatively, provide Mentatlab YAML configurations to push batches.
-- **`pkg/events/`**: Guarantee canonical event representations for the newly extracted CDA concepts.
-
-### Verification Plan
-
-- **Automated Tests**: Write Go unit tests (`cda_medications_test.go`, etc.) feeding sample CCDA XML files with known Medications/Allergies and asserting canonical event output.
-- **Integration**: Start the ETL pipeline `go run ./cmd/fi-fhir serve` and simulate S3 bucket events to verify batch processing endpoints.
-
----
-
-## 2. M2: Terminology Approval Workflow
-
-### Code Changes
-
-- **`pkg/terminology/`**: Add a `Status` field to mappings (`PENDING`, `APPROVED`, `REJECTED`).
-- **`internal/api/graphql/`**: Add mutations `approveMapping(id)` and `rejectMapping(id)`, and a query `pendingMappings()`.
-- **`ui/` (Frontend)**: Build the HITL Terminology Dashboard hitting the new GraphQL endpoints.
-
-### Verification Plan
-
-- **Automated Tests**: Add integration tests to `cmd/fi-fhir/terminology_approval_test.go` that submit an unknown code, mock the LLM authoroute, query pending status, and approve the mapping.
-- **Manual Verification**: Run the local Frontend and execute the approval steps via the Svelte application UI.
-
----
-
-## 3. M3: FHIR Interoperability
-
-### Code Changes
-
-- **`internal/fhir/export/` (NEW)**: Implement `$export` operation handlers using NDJSON format streaming.
-- **`internal/fhir/smart/` (NEW)**: Implement OAuth2 flows, integrating with OIDC providers for SMART App Launch contexts.
-- **`internal/fhir/adapter/`**: Adjust resource mappers to comply with USCDI v3 constraints (e.g. strict systems and terminology bindings).
-
-### Verification Plan
-
-- **Automated Tests**: Leverage existing FHIR testing frameworks. Create a test executing `GET [Base]/Patient/$export` and validating the NDJSON output format.
-- **Manual Verification**: Run a SMART App Launch sandbox (like SMART Launcher) against a locally running `fi-fhir` instance to ensure the authorization handshake passes.
-
----
-
-## 4. M4: Dynamic Profile Management & Tracing
-
-### Code Changes
-
-- **`internal/api/graphql/`**: Expose CRUD for `SourceProfile` resources, backing them via DB instead of purely `configs/`.
-- **`pkg/eventsourcing/`**: Introduce tracing metadata (`TraceID`, `SpanID`) attached to every step of Byte Normalization, Syntactic Parse, and Semantic Extraction.
-- **`ui/` (Frontend)**: Build an interface to graphically view a message's lifecycle using the tracing headers.
-
-### Verification Plan
-
-- **Automated Tests**: Inject an HL7v2 message and fetch its EventStore audit trail, validating that all transition states and applied profiles are recorded.
-- **Manual Verification**: Validate the UI rendering of a processed event pipeline from raw byte string to structured canonical JSON.
+## Verification Plan
+- **Unit Tests**: Test the logic for matching dry-run results to route IDs.
+- **Visual Check**: Verify highlighting in the Workflow list.
+- **Manual Triage**: Simulate a terminology warning and fix it using the inline AI action.

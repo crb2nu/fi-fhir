@@ -1,6 +1,6 @@
 # Workspace Snapshot
 
-- Generated: 2026-03-08T12:52:37-04:00
+- Generated: 2026-04-09T09:31:00-04:00
 - Root: `/Users/cblevins/workspace/libs/fi-fhir`
 - Git toplevel: `/Users/cblevins/workspace/libs/fi-fhir`
 - Platform: `macOS-26.4-arm64-arm-64bit`
@@ -8,24 +8,24 @@
 
 ## Git
 ```
-## backlog/issue-7...origin/backlog/issue-7
- M docs/planning/README.md
-?? docs/ROADMAP_RECONCILIATION_2026-03-08.md
+## main...origin/main
+?? .tmp/
+?? docs/roadmap-reconciliation-2026-04-01.md
 ```
 
 ### Remotes
 ```
 github	https://github.com/crb2nu/fi-fhir.git (fetch)
 github	https://github.com/crb2nu/fi-fhir.git (push)
-gitlab-vm	git@gitlab.flexinfer.ai:libs/fi-fhir.git (fetch)
-gitlab-vm	git@gitlab.flexinfer.ai:libs/fi-fhir.git (push)
-origin	https://oauth2:glpat-vFFCVHmo_LOPh6lq1tk3p286MQp1OjEH.01.0w0ycoylq@gitlab.flexinfer.ai/libs/fi-fhir.git (fetch)
-origin	https://oauth2:glpat-vFFCVHmo_LOPh6lq1tk3p286MQp1OjEH.01.0w0ycoylq@gitlab.flexinfer.ai/libs/fi-fhir.git (push)
+gitlab-vm	https://gitlab.flexinfer.ai/libs/fi-fhir.git (fetch)
+gitlab-vm	https://gitlab.flexinfer.ai/libs/fi-fhir.git (push)
+origin	https://gitlab.flexinfer.ai/libs/fi-fhir.git (fetch)
+origin	https://gitlab.flexinfer.ai/libs/fi-fhir.git (push)
 ```
 
 ### HEAD
 ```
-152cfc9 ci: fix test:benchmark compilation on temporal sdk
+294d9fc1 feat(ui): add lifecycle trace visualization to HL7 preview
 ```
 
 ## Top-Level Layout
@@ -40,6 +40,7 @@ origin	https://oauth2:glpat-vFFCVHmo_LOPh6lq1tk3p286MQp1OjEH.01.0w0ycoylq@gitlab
 - `.go/`
 - `.kilocode/`
 - `.loom/`
+- `.tmp/`
 - `.vscode/`
 - `.vscode-mcp/`
 - `api/`
@@ -111,6 +112,8 @@ origin	https://oauth2:glpat-vFFCVHmo_LOPh6lq1tk3p286MQp1OjEH.01.0w0ycoylq@gitlab
 - `.loom/30-implementation-plan.md`
 - `.loom/40-decisions.md`
 - `.loom/50-worklog.md`
+- `.loom/iteration-plan-m1-cda.md`
+- `.loom/iteration-plan-m2-terminology-telemetry.md`
 - `.sops.yaml`
 - `AGENTS.md`
 - `CHANGELOG.md`
@@ -163,6 +166,8 @@ origin	https://oauth2:glpat-vFFCVHmo_LOPh6lq1tk3p286MQp1OjEH.01.0w0ycoylq@gitlab
 - `cmd/fi-fhir/profile_golden_test.go`
 - `cmd/fi-fhir/profile_usage_test.go`
 - `cmd/fi-fhir/profile_vendor_templates_test.go`
+- `cmd/fi-fhir/race_disabled_test.go`
+- `cmd/fi-fhir/race_enabled_test.go`
 - `cmd/fi-fhir/remaining_coverage_test.go`
 - `cmd/fi-fhir/serve_additional_test.go`
 - `cmd/fi-fhir/serve_cli_test.go`
@@ -195,6 +200,8 @@ origin	https://oauth2:glpat-vFFCVHmo_LOPh6lq1tk3p286MQp1OjEH.01.0w0ycoylq@gitlab
 - `cmd/fi-fhir/terminology_offline_deep_test.go`
 - `cmd/fi-fhir/terminology_pins.go`
 - `cmd/fi-fhir/terminology_pins_test.go`
+- `cmd/fi-fhir/terminology_telemetry_cli_test.go`
+- `cmd/fi-fhir/terminology_telemetry_integration_test.go`
 - `cmd/fi-fhir/terminology_test.go`
 - `cmd/fi-fhir/testutil_test.go`
 - `cmd/fi-fhir/validate_message_test.go`
@@ -258,6 +265,7 @@ origin	https://oauth2:glpat-vFFCVHmo_LOPh6lq1tk3p286MQp1OjEH.01.0w0ycoylq@gitlab
 - `docs/ROADMAP_RECONCILIATION_2026-03-05.md`
 - `docs/ROADMAP_RECONCILIATION_2026-03-06.md`
 - `docs/ROADMAP_RECONCILIATION_2026-03-07.md`
+- `docs/ROADMAP_RECONCILIATION_2026-03-08.md`
 - `docs/STATUS.md`
 - `docs/changelog-ai.md`
 - `docs/developer-guide/README.md`
@@ -290,19 +298,390 @@ origin	https://oauth2:glpat-vFFCVHmo_LOPh6lq1tk3p286MQp1OjEH.01.0w0ycoylq@gitlab
 - `docs/planning/FHIR-SUBSCRIPTIONS.md`
 - `docs/planning/GRAPHQL-API.md`
 - `docs/planning/HL7V2-QUIRKS.md`
-- `docs/planning/IDENTIFIERS.md`
-- `docs/planning/README.md`
-- `docs/planning/SOURCE-PROFILES.md`
-- `docs/planning/TERMINOLOGY-MAPPING.md`
-- `docs/planning/TERMINOLOGY.md`
-- `docs/planning/TYPESCRIPT-SDK.md`
-- `docs/planning/WORKFLOW-DSL.md`
 - `…`
 
 ## AGENTS.md Files
+- `.claude/worktrees/agent-a36816c3/AGENTS.md`
+- `.claude/worktrees/agent-a4b92aa1/AGENTS.md`
+- `.claude/worktrees/agent-acafac36/AGENTS.md`
 - `AGENTS.md`
 
 ### AGENTS.md Contents (head)
+
+#### `.claude/worktrees/agent-a36816c3/AGENTS.md`
+```
+# AGENTS.md - fi-fhir
+
+Guidance for AI coding assistants working on this healthcare integration library.
+
+## Project Overview
+
+fi-fhir is a **format-agnostic healthcare integration library** that transforms legacy formats (HL7v2, flatfiles, EDI) into semantic events. The core innovation is **Source Profile-driven normalization** - each interface/feed gets its own profile that controls parsing behavior. Users work with business concepts (`patient_admit`, `lab_result`) rather than format-specific structures (`ADT^A01`, `OBX`).
+
+---
+
+## Core Architecture Principles
+
+### 1. Profile-Driven Design
+- **The unit of scalability is the Source Profile, not "HL7v2 support"**
+- All parsing decisions flow through the profile configuration
+- Tolerance, validation, and mapping rules are profile-configurable
+- See `docs/planning/SOURCE-PROFILES.md` for full specification
+
+### 2. Three-Phase Parsing Pipeline
+```
+Byte Normalization → Syntactic Parse → Semantic Extraction
+      (Phase 1)         (Phase 2)          (Phase 3)
+```
+- Phase 1: Character encoding, line endings, preserve raw
+- Phase 2: Delimiters, repetitions, escape sequences
+- Phase 3: Profile-driven extraction, event classification
+
+### 3. Warnings Over Errors
+- Healthcare data is messy; don't fail on recoverable issues
+- Use `ParseWarning` to record anomalies while continuing
+- Check profile tolerance before returning errors:
+```go
+if segment == nil {
+    if p.profile.IsMissingSegmentTolerated(segmentID) {
+        p.addWarning("semantic", "MISSING_"+segmentID, msg, path)
+        return DefaultValue{}, nil  // Don't fail
+    }
+    return DefaultValue{}, fmt.Errorf("%s not found", segmentID)
+}
+```
+
+### 4. Identifier-First Design
+- `IdentifierSet` is a first-class type for handling PID-3 repetitions
+- Always validate identifiers (NPI, MBI, SSN) and record warnings
+- Map assigning authorities using profile configuration
+- Preserve original values before normalization
+
+---
+
+## Architecture
+
+```
+Input Formats          Semantic Layer           Output/Actions
+─────────────         ────────────────         ──────────────
+HL7v2    ──┐          ┌─────────────┐          ┌─> FHIR API
+Flatfile ──┼──────────┤ Canonical   ├──────────┼─> REST Webhook
+EDI X12  ──┤          │ Event Model │          ├─> Database
+CDA/CCDA ──┤          └─────────────┘          └─> Message Queue
+FHIR     ──┘
+```
+
+### Key Directories
+
+| Path | Purpose |
+|------|---------|
+| `cmd/fi-fhir/` | CLI entry point |
+| `internal/parser/hl7v2/` | HL7v2 message parsing |
+| `internal/parser/csv/` | CSV/flatfile parsing |
+| `internal/parser/edi/` | EDI X12 (837/835) parsing |
+| `internal/parser/cda/` | CDA/CCDA clinical document parsing |
+| `internal/fhir/subscription/` | FHIR R4 Subscriptions (bidirectional) |
+| `internal/workflow/` | Workflow engine with CEL conditions |
+| `pkg/events/` | **Public** semantic event types - the canonical model |
+| `pkg/eventsourcing/` | Event store, projections, snapshots for CQRS |
+| `pkg/config/` | Configuration types |
+| `testdata/` | Sample messages for testing |
+
+### Critical Files
+
+- `pkg/events/events.go` - **THE** canonical event model. All format adapters map TO these types.
+- `internal/parser/hl7v2/parser.go` - HL7v2 parsing logic, reference implementation
+- `internal/parser/cda/parser.go` - CDA/CCDA XML parsing with namespace handling
+- `internal/parser/cda/mapper.go` - CDA to canonical event mapping
+
+## Build & Test
+
+```bash
+# Build CLI
+go build -o bin/fi-fhir ./cmd/fi-fhir
+
+# Run all tests
+go test ./...
+
+# Run with verbose output
+go test -v ./internal/parser/hl7v2/...
+
+# Test CLI manually
+./bin/fi-fhir parse --pretty testdata/adt_a01_sample.hl7
+```
+
+## Code Conventions
+
+### Go Style
+- Follow standard Go idioms
+- Error wrapping with `fmt.Errorf("context: %w", err)`
+- Table-driven tests
+- Use `internal/` for private implementation, `pkg/` for public API
+
+### HL7v2 Specifics
+- MSH field numbers match array indices (MSH-9 → `fields[9]`)
+- Always handle empty fields gracefully
+- Preserve raw payload for audit purposes
+- Test with real-world message variants (Z-segments, missing fields)
+
+### Semantic Events
+- Events are **immutable** - create new instances, don't modify
+- Always populate `EventMeta` with source, format, timestamp
+- Use `json.RawMessage` for `RawPayload` to preserve original data
+- Event types should be self-documenting with JSON tags
+
+…
+```
+
+#### `.claude/worktrees/agent-a4b92aa1/AGENTS.md`
+```
+# AGENTS.md - fi-fhir
+
+Guidance for AI coding assistants working on this healthcare integration library.
+
+## Project Overview
+
+fi-fhir is a **format-agnostic healthcare integration library** that transforms legacy formats (HL7v2, flatfiles, EDI) into semantic events. The core innovation is **Source Profile-driven normalization** - each interface/feed gets its own profile that controls parsing behavior. Users work with business concepts (`patient_admit`, `lab_result`) rather than format-specific structures (`ADT^A01`, `OBX`).
+
+---
+
+## Core Architecture Principles
+
+### 1. Profile-Driven Design
+- **The unit of scalability is the Source Profile, not "HL7v2 support"**
+- All parsing decisions flow through the profile configuration
+- Tolerance, validation, and mapping rules are profile-configurable
+- See `docs/planning/SOURCE-PROFILES.md` for full specification
+
+### 2. Three-Phase Parsing Pipeline
+```
+Byte Normalization → Syntactic Parse → Semantic Extraction
+      (Phase 1)         (Phase 2)          (Phase 3)
+```
+- Phase 1: Character encoding, line endings, preserve raw
+- Phase 2: Delimiters, repetitions, escape sequences
+- Phase 3: Profile-driven extraction, event classification
+
+### 3. Warnings Over Errors
+- Healthcare data is messy; don't fail on recoverable issues
+- Use `ParseWarning` to record anomalies while continuing
+- Check profile tolerance before returning errors:
+```go
+if segment == nil {
+    if p.profile.IsMissingSegmentTolerated(segmentID) {
+        p.addWarning("semantic", "MISSING_"+segmentID, msg, path)
+        return DefaultValue{}, nil  // Don't fail
+    }
+    return DefaultValue{}, fmt.Errorf("%s not found", segmentID)
+}
+```
+
+### 4. Identifier-First Design
+- `IdentifierSet` is a first-class type for handling PID-3 repetitions
+- Always validate identifiers (NPI, MBI, SSN) and record warnings
+- Map assigning authorities using profile configuration
+- Preserve original values before normalization
+
+---
+
+## Architecture
+
+```
+Input Formats          Semantic Layer           Output/Actions
+─────────────         ────────────────         ──────────────
+HL7v2    ──┐          ┌─────────────┐          ┌─> FHIR API
+Flatfile ──┼──────────┤ Canonical   ├──────────┼─> REST Webhook
+EDI X12  ──┤          │ Event Model │          ├─> Database
+CDA/CCDA ──┤          └─────────────┘          └─> Message Queue
+FHIR     ──┘
+```
+
+### Key Directories
+
+| Path | Purpose |
+|------|---------|
+| `cmd/fi-fhir/` | CLI entry point |
+| `internal/parser/hl7v2/` | HL7v2 message parsing |
+| `internal/parser/csv/` | CSV/flatfile parsing |
+| `internal/parser/edi/` | EDI X12 (837/835) parsing |
+| `internal/parser/cda/` | CDA/CCDA clinical document parsing |
+| `internal/fhir/subscription/` | FHIR R4 Subscriptions (bidirectional) |
+| `internal/workflow/` | Workflow engine with CEL conditions |
+| `pkg/events/` | **Public** semantic event types - the canonical model |
+| `pkg/eventsourcing/` | Event store, projections, snapshots for CQRS |
+| `pkg/config/` | Configuration types |
+| `testdata/` | Sample messages for testing |
+
+### Critical Files
+
+- `pkg/events/events.go` - **THE** canonical event model. All format adapters map TO these types.
+- `internal/parser/hl7v2/parser.go` - HL7v2 parsing logic, reference implementation
+- `internal/parser/cda/parser.go` - CDA/CCDA XML parsing with namespace handling
+- `internal/parser/cda/mapper.go` - CDA to canonical event mapping
+
+## Build & Test
+
+```bash
+# Build CLI
+go build -o bin/fi-fhir ./cmd/fi-fhir
+
+# Run all tests
+go test ./...
+
+# Run with verbose output
+go test -v ./internal/parser/hl7v2/...
+
+# Test CLI manually
+./bin/fi-fhir parse --pretty testdata/adt_a01_sample.hl7
+```
+
+## Code Conventions
+
+### Go Style
+- Follow standard Go idioms
+- Error wrapping with `fmt.Errorf("context: %w", err)`
+- Table-driven tests
+- Use `internal/` for private implementation, `pkg/` for public API
+
+### HL7v2 Specifics
+- MSH field numbers match array indices (MSH-9 → `fields[9]`)
+- Always handle empty fields gracefully
+- Preserve raw payload for audit purposes
+- Test with real-world message variants (Z-segments, missing fields)
+
+### Semantic Events
+- Events are **immutable** - create new instances, don't modify
+- Always populate `EventMeta` with source, format, timestamp
+- Use `json.RawMessage` for `RawPayload` to preserve original data
+- Event types should be self-documenting with JSON tags
+
+…
+```
+
+#### `.claude/worktrees/agent-acafac36/AGENTS.md`
+```
+# AGENTS.md - fi-fhir
+
+Guidance for AI coding assistants working on this healthcare integration library.
+
+## Project Overview
+
+fi-fhir is a **format-agnostic healthcare integration library** that transforms legacy formats (HL7v2, flatfiles, EDI) into semantic events. The core innovation is **Source Profile-driven normalization** - each interface/feed gets its own profile that controls parsing behavior. Users work with business concepts (`patient_admit`, `lab_result`) rather than format-specific structures (`ADT^A01`, `OBX`).
+
+---
+
+## Core Architecture Principles
+
+### 1. Profile-Driven Design
+- **The unit of scalability is the Source Profile, not "HL7v2 support"**
+- All parsing decisions flow through the profile configuration
+- Tolerance, validation, and mapping rules are profile-configurable
+- See `docs/planning/SOURCE-PROFILES.md` for full specification
+
+### 2. Three-Phase Parsing Pipeline
+```
+Byte Normalization → Syntactic Parse → Semantic Extraction
+      (Phase 1)         (Phase 2)          (Phase 3)
+```
+- Phase 1: Character encoding, line endings, preserve raw
+- Phase 2: Delimiters, repetitions, escape sequences
+- Phase 3: Profile-driven extraction, event classification
+
+### 3. Warnings Over Errors
+- Healthcare data is messy; don't fail on recoverable issues
+- Use `ParseWarning` to record anomalies while continuing
+- Check profile tolerance before returning errors:
+```go
+if segment == nil {
+    if p.profile.IsMissingSegmentTolerated(segmentID) {
+        p.addWarning("semantic", "MISSING_"+segmentID, msg, path)
+        return DefaultValue{}, nil  // Don't fail
+    }
+    return DefaultValue{}, fmt.Errorf("%s not found", segmentID)
+}
+```
+
+### 4. Identifier-First Design
+- `IdentifierSet` is a first-class type for handling PID-3 repetitions
+- Always validate identifiers (NPI, MBI, SSN) and record warnings
+- Map assigning authorities using profile configuration
+- Preserve original values before normalization
+
+---
+
+## Architecture
+
+```
+Input Formats          Semantic Layer           Output/Actions
+─────────────         ────────────────         ──────────────
+HL7v2    ──┐          ┌─────────────┐          ┌─> FHIR API
+Flatfile ──┼──────────┤ Canonical   ├──────────┼─> REST Webhook
+EDI X12  ──┤          │ Event Model │          ├─> Database
+CDA/CCDA ──┤          └─────────────┘          └─> Message Queue
+FHIR     ──┘
+```
+
+### Key Directories
+
+| Path | Purpose |
+|------|---------|
+| `cmd/fi-fhir/` | CLI entry point |
+| `internal/parser/hl7v2/` | HL7v2 message parsing |
+| `internal/parser/csv/` | CSV/flatfile parsing |
+| `internal/parser/edi/` | EDI X12 (837/835) parsing |
+| `internal/parser/cda/` | CDA/CCDA clinical document parsing |
+| `internal/fhir/subscription/` | FHIR R4 Subscriptions (bidirectional) |
+| `internal/workflow/` | Workflow engine with CEL conditions |
+| `pkg/events/` | **Public** semantic event types - the canonical model |
+| `pkg/eventsourcing/` | Event store, projections, snapshots for CQRS |
+| `pkg/config/` | Configuration types |
+| `testdata/` | Sample messages for testing |
+
+### Critical Files
+
+- `pkg/events/events.go` - **THE** canonical event model. All format adapters map TO these types.
+- `internal/parser/hl7v2/parser.go` - HL7v2 parsing logic, reference implementation
+- `internal/parser/cda/parser.go` - CDA/CCDA XML parsing with namespace handling
+- `internal/parser/cda/mapper.go` - CDA to canonical event mapping
+
+## Build & Test
+
+```bash
+# Build CLI
+go build -o bin/fi-fhir ./cmd/fi-fhir
+
+# Run all tests
+go test ./...
+
+# Run with verbose output
+go test -v ./internal/parser/hl7v2/...
+
+# Test CLI manually
+./bin/fi-fhir parse --pretty testdata/adt_a01_sample.hl7
+```
+
+## Code Conventions
+
+### Go Style
+- Follow standard Go idioms
+- Error wrapping with `fmt.Errorf("context: %w", err)`
+- Table-driven tests
+- Use `internal/` for private implementation, `pkg/` for public API
+
+### HL7v2 Specifics
+- MSH field numbers match array indices (MSH-9 → `fields[9]`)
+- Always handle empty fields gracefully
+- Preserve raw payload for audit purposes
+- Test with real-world message variants (Z-segments, missing fields)
+
+### Semantic Events
+- Events are **immutable** - create new instances, don't modify
+- Always populate `EventMeta` with source, format, timestamp
+- Use `json.RawMessage` for `RawPayload` to preserve original data
+- Event types should be self-documenting with JSON tags
+
+…
+```
 
 #### `AGENTS.md`
 ```

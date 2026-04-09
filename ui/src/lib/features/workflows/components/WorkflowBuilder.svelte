@@ -20,7 +20,7 @@
     saveWorkflowVersion
   } from '../workflowApi';
   import { WORKFLOW_TEMPLATES } from '../workflowTemplates';
-  import type { GetWorkflowVersionsQuery, ListWorkflowApprovalRequestsQuery } from '$lib/gen/graphql';
+  import type { GetWorkflowVersionsQuery, ListWorkflowApprovalRequestsQuery, DryRunResult } from '$lib/gen/graphql';
   import { toasts } from '$lib/ui/toastStore';
 
   type ManagedSelection = {
@@ -79,6 +79,12 @@
   let compareError: string | null = null;
   let pushedSnapshotId: string | null = null;
   let promotingImportYaml = false;
+
+  let lastDryRunResult: DryRunResult | null = null;
+
+  function handleDryRunResult(result: DryRunResult | null) {
+    lastDryRunResult = result;
+  }
 
   $: if (managedSelection) {
     const nextKey = `${managedSelection.workflowId}:${managedSelection.versionId ?? ''}`;
@@ -1142,6 +1148,7 @@
     {#each $workflowDraft.routes as route (route._key)}
       <RouteEditor
         {route}
+        dryRunResult={lastDryRunResult?.routeResults.find(r => r.routeName === route.name) ?? null}
         on:toggleExpand={() => workflowDraft.toggleRouteExpanded(route._key)}
         on:remove={() => workflowDraft.removeRoute(route._key)}
         on:updateName={(e) => workflowDraft.updateRoute(route._key, { name: e.detail })}
@@ -1221,7 +1228,7 @@
 
   {#if showDryRun}
     <div transition:slide={{ duration: 200 }}>
-      <DryRunPanel />
+      <DryRunPanel on:result={(e) => handleDryRunResult(e.detail)} />
     </div>
   {/if}
 

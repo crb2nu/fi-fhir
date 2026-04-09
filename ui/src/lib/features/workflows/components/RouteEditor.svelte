@@ -1,11 +1,14 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import Badge from '$lib/ui/Badge.svelte';
   import FilterEditor from './FilterEditor.svelte';
   import TransformList from './TransformList.svelte';
   import ActionList from './ActionList.svelte';
   import type { RouteDraft, FilterDraft, ActionDraft, TransformDraft } from '../workflowTypes';
+  import type { DryRunRouteResult } from '$lib/gen/graphql';
 
   export let route: RouteDraft;
+  export let dryRunResult: DryRunRouteResult | null = null;
 
   const dispatch = createEventDispatcher<{
     toggleExpand: void;
@@ -48,6 +51,17 @@
     >
       <span class="collapse-icon" class:rotated={route.expanded}>&#9654;</span>
       <span class="route-name">{route.name || 'Unnamed route'}</span>
+
+      {#if dryRunResult}
+        <div class="dry-run-badge">
+          {#if dryRunResult.matched}
+            <Badge variant="success" size="sm">MATCHED</Badge>
+          {:else}
+            <Badge variant="default" size="sm">SKIPPED</Badge>
+          {/if}
+        </div>
+      {/if}
+
       {#if !route.expanded}
         <span class="summary">
           <span class="summary-filter">{filterSummary(route)}</span>
@@ -184,6 +198,22 @@
     font-weight: 700;
     color: var(--color-text-primary);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+
+  .dry-run-badge {
+    margin-left: 8px;
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
 
   .summary {
