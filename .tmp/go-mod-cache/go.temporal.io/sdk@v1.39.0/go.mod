@@ -1,6 +1,6 @@
 module go.temporal.io/sdk
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a
@@ -13,8 +13,8 @@ require (
 	github.com/robfig/cron v1.2.0
 	github.com/stretchr/testify v1.10.0
 	go.temporal.io/api v1.59.0
-	golang.org/x/sync v0.19.0
-	golang.org/x/sys v0.39.0
+	golang.org/x/sync v0.20.0
+	golang.org/x/sys v0.43.0
 	golang.org/x/time v0.3.0
 	google.golang.org/grpc v1.79.3
 	google.golang.org/protobuf v1.36.10
@@ -25,8 +25,8 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.22.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
-	golang.org/x/net v0.48.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
+	golang.org/x/net v0.53.0 // indirect
+	golang.org/x/text v0.36.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20251202230838-ff82c1b0f217 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
