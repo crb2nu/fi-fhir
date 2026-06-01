@@ -448,3 +448,22 @@ input[type='search']::-webkit-search-results-decoration {
   scrollbar-width: thin;
   scrollbar-color: var(--color-border-strong) var(--color-bg-elevated);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * REDUCED MOTION  (UX professional redesign §5.2)
+ * Honor prefers-reduced-motion: collapse non-essential animation and
+ * transition to a near-instant duration while preserving the final state.
+ * Applies globally — decorative loops (pulseGlow/shimmer/pulse/bounce) and
+ * one-shot enter transitions alike resolve immediately for users who opt out.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

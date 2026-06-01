@@ -15,8 +15,10 @@
   $: originalYaml = toSourceProfileYAML(original);
   $: draftYaml = toSourceProfileYAML(draft);
 
-  // Basic line-by-line diff for visualization
-  function getDiff() {
+  // Basic line-by-line diff for visualization.
+  // Takes the YAML strings as args so the reactive statement below tracks them
+  // (referencing them only inside the function body would leave $: diff non-reactive).
+  function getDiff(originalYaml: string, draftYaml: string) {
     const origLines = originalYaml.split('\n');
     const draftLines = draftYaml.split('\n');
     const max = Math.max(origLines.length, draftLines.length);
@@ -35,7 +37,7 @@
     return result;
   }
 
-  $: diff = getDiff();
+  $: diff = getDiff(originalYaml, draftYaml);
 </script>
 
 <div class="diff-container">
@@ -45,7 +47,7 @@
   </div>
 
   <div class="diff-body mono">
-    {#each diff as line}
+    {#each diff as line, i (i)}
       <div class="line {line.type}">
         <span class="prefix">
           {#if line.type === 'added'}+{:else if line.type === 'removed'}-{:else}&nbsp;{/if}

@@ -1,0 +1,18 @@
+{
+  "comment": "Token-drift guardrail (UX professional redesign §5.3). Forbids raw hex in component <style> blocks so color flows through tokens.css. Slice 0 lands this report-only (severity: warning → exits 0); Slice 1 removes the override to make it blocking once the 57 offenders are migrated. tokens.css/base.css are intentionally NOT linted (they are the source of truth for raw values).",
+  "overrides": [
+    {
+      "files": ["**/*.svelte"],
+      "customSyntax": "postcss-html"
+    }
+  ],
+  "rules": {
+    "color-no-hex": [
+      true,
+      {
+        "severity": "warning",
+        "message": "Raw hex forbidden in component styles — use a token from tokens.css (var(--color-*)). See .loom/21-ux-professional-redesign.md §5.3."
+      }
+    ]
+  }
+}
