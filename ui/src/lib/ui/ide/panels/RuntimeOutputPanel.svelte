@@ -327,12 +327,12 @@
   }
 
   .indicator.connected {
-    background: var(--color-success, #10b981);
+    background: var(--color-success, var(--color-success));
     box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.12);
   }
 
   .indicator.error {
-    background: var(--color-danger, #ef4444);
+    background: var(--color-danger, var(--color-danger));
     box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12);
   }
 
@@ -387,7 +387,7 @@
   }
 
   .entry.session-match {
-    border-left: 3px solid var(--color-primary, #3b82f6);
+    border-left: 3px solid var(--color-primary, var(--palette-blue-500));
   }
 
   .jump-btn {

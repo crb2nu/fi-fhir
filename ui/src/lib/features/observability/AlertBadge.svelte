@@ -151,11 +151,11 @@
   }
 
   .badge-trigger.critical {
-    color: #fca5a5;
+    color: var(--palette-red-300);
   }
 
   .badge-trigger.warning {
-    color: #fde68a;
+    color: var(--palette-yellow-200);
   }
 
   .alert-icon {

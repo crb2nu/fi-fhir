@@ -101,12 +101,12 @@
   }
 
   .connected .dot {
-    background: #86efac;
+    background: var(--palette-green-300);
     box-shadow: 0 0 4px rgba(134, 239, 172, 0.6);
   }
 
   .connecting .dot {
-    background: #fde68a;
+    background: var(--palette-yellow-200);
     animation: pulse 1.5s ease-in-out infinite;
   }
 
@@ -153,7 +153,7 @@
   }
 
   .platform-connected .platform-dot {
-    background: #86efac;
+    background: var(--palette-green-300);
     box-shadow: 0 0 3px rgba(134, 239, 172, 0.5);
   }
 

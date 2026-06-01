@@ -333,17 +333,17 @@
 
   .score-badge.good {
     background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(16, 185, 129, 0.2));
-    color: #6ee7b7;
+    color: var(--color-success-soft);
   }
 
   .score-badge.warning {
     background: linear-gradient(135deg, rgba(234, 179, 8, 0.3), rgba(234, 179, 8, 0.2));
-    color: #fde047;
+    color: var(--color-warning-soft);
   }
 
   .score-badge.poor {
     background: linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(239, 68, 68, 0.2));
-    color: #f87171;
+    color: var(--color-danger-soft);
   }
 
   .score-value {
@@ -363,7 +363,7 @@
     background: rgba(59, 130, 246, 0.2);
     border: 1px solid rgba(59, 130, 246, 0.3);
     border-radius: 6px;
-    color: #93c5fd;
+    color: var(--color-info-soft);
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
@@ -382,7 +382,7 @@
     width: 12px;
     height: 12px;
     border: 2px solid rgba(147, 197, 253, 0.3);
-    border-top-color: #93c5fd;
+    border-top-color: var(--color-info-soft);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }
@@ -442,9 +442,9 @@
     font-weight: 600;
   }
 
-  .dim-value.good { color: #6ee7b7; }
-  .dim-value.warning { color: #fde047; }
-  .dim-value.poor { color: #f87171; }
+  .dim-value.good { color: var(--color-success-soft); }
+  .dim-value.warning { color: var(--color-warning-soft); }
+  .dim-value.poor { color: var(--color-danger-soft); }
 
   .issues-summary {
     margin-top: 12px;
@@ -472,7 +472,7 @@
     align-items: center;
     gap: 8px;
     padding: 8px 16px;
-    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    background: linear-gradient(135deg, var(--color-brand-gradient-end) 0%, var(--palette-violet-600) 100%);
     color: white;
     border: none;
     border-radius: 6px;
@@ -513,7 +513,7 @@
     background: rgba(239, 68, 68, 0.15);
     border: 1px solid rgba(239, 68, 68, 0.3);
     border-radius: 6px;
-    color: #f87171;
+    color: var(--color-danger-soft);
     font-size: 0.85rem;
   }
 
@@ -543,19 +543,19 @@
   .score-circle.good {
     background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(16, 185, 129, 0.15));
     border: 3px solid rgba(16, 185, 129, 0.5);
-    color: #6ee7b7;
+    color: var(--color-success-soft);
   }
 
   .score-circle.warning {
     background: linear-gradient(135deg, rgba(234, 179, 8, 0.3), rgba(234, 179, 8, 0.15));
     border: 3px solid rgba(234, 179, 8, 0.5);
-    color: #fde047;
+    color: var(--color-warning-soft);
   }
 
   .score-circle.poor {
     background: linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(239, 68, 68, 0.15));
     border: 3px solid rgba(239, 68, 68, 0.5);
-    color: #f87171;
+    color: var(--color-danger-soft);
   }
 
   .score-number {
@@ -612,9 +612,9 @@
     transition: width 0.5s ease;
   }
 
-  .bar-fill.good { background: #10b981; }
-  .bar-fill.warning { background: #eab308; }
-  .bar-fill.poor { background: #ef4444; }
+  .bar-fill.good { background: var(--color-success); }
+  .bar-fill.warning { background: var(--palette-yellow-500); }
+  .bar-fill.poor { background: var(--color-danger); }
 
   .dim-score {
     font-size: 0.8rem;
@@ -643,17 +643,17 @@
 
   .issue.high {
     background: rgba(239, 68, 68, 0.1);
-    border-left-color: #ef4444;
+    border-left-color: var(--color-danger);
   }
 
   .issue.medium {
     background: rgba(234, 179, 8, 0.1);
-    border-left-color: #eab308;
+    border-left-color: var(--palette-yellow-500);
   }
 
   .issue.low {
     background: rgba(59, 130, 246, 0.1);
-    border-left-color: #3b82f6;
+    border-left-color: var(--palette-blue-500);
   }
 
   .issue-header {
@@ -671,9 +671,9 @@
     text-transform: uppercase;
   }
 
-  .issue.high .issue-severity { background: rgba(239, 68, 68, 0.3); color: #f87171; }
-  .issue.medium .issue-severity { background: rgba(234, 179, 8, 0.3); color: #fde047; }
-  .issue.low .issue-severity { background: rgba(59, 130, 246, 0.3); color: #93c5fd; }
+  .issue.high .issue-severity { background: rgba(239, 68, 68, 0.3); color: var(--color-danger-soft); }
+  .issue.medium .issue-severity { background: rgba(234, 179, 8, 0.3); color: var(--color-warning-soft); }
+  .issue.low .issue-severity { background: rgba(59, 130, 246, 0.3); color: var(--color-info-soft); }
 
   .issue-dimension {
     font-size: 0.8rem;
@@ -728,7 +728,7 @@
     border-radius: 4px;
     font-size: 0.7rem;
     font-weight: 600;
-    color: #c4b5fd;
+    color: var(--color-accent-soft);
   }
 
   .rec-category {
