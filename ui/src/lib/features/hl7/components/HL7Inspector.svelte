@@ -198,8 +198,6 @@
         data-selected={isSelected(seg)}
         data-hl7-key={seg.id + '[' + seg.occurrence + ']'}
       >
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
         <summary class="summary" on:click={(e) => handleSegmentClick(seg, e)}>
           <span class="id mono">{seg.id}</span>
           <span class="hint">#{seg.occurrence} • {seg.fields.length} fields</span>
