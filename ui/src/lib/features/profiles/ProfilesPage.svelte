@@ -320,7 +320,7 @@
         <div class="toolbar">
           <div class="left">
             <Button variant="secondary" on:click={exportYamlFromBuilder}>Export YAML</Button>
-            <Button variant="secondary" on:click={() => profileStore.discardChanges()} disabled={!$isProfileDirty}>Reset</Button>
+            <Button variant="secondary" on:click={handleDiscard} disabled={!$isProfileDirty}>Reset</Button>
           </div>
           <div class="right">
             <Button on:click={handlePublish} disabled={!$isProfileDirty}>Review & Publish</Button>
