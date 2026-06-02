@@ -6,6 +6,20 @@
  */
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * SELF-HOSTED FONTS
+ * Geist Sans (SIL OFL) — heading voice, self-hosted for air-gapped/locked-down
+ * healthcare deployments (no CDN dependency). Body stays Inter (see app.html).
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/Geist-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * CSS RESET & DEFAULTS
  * ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -453,7 +467,7 @@ input[type='search']::-webkit-search-results-decoration {
  * REDUCED MOTION  (UX professional redesign §5.2)
  * Honor prefers-reduced-motion: collapse non-essential animation and
  * transition to a near-instant duration while preserving the final state.
- * Applies globally — decorative loops (pulseGlow/shimmer/pulse/bounce) and
+ * Applies globally — remaining loops (shimmer/pulse loaders + status dots) and
  * one-shot enter transitions alike resolve immediately for users who opt out.
  * ═══════════════════════════════════════════════════════════════════════════ */
 

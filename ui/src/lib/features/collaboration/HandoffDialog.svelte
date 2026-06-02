@@ -556,7 +556,7 @@
   .dialog-btn.create:hover:not(:disabled),
   .dialog-btn.accept:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow: var(--shadow-glow-primary);
+    box-shadow: var(--shadow-md);
   }
 
   .dialog-btn.create:active:not(:disabled),

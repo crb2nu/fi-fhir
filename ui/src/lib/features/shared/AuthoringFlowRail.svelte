@@ -280,7 +280,7 @@
   }
 
   .action.primary:hover {
-    box-shadow: var(--shadow-glow-primary);
+    box-shadow: var(--shadow-md);
   }
 
   /* ── Compact mode ─────────────────────────── */

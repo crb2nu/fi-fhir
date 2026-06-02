@@ -783,7 +783,7 @@
     background: var(--color-primary);
     color: var(--color-text-inverse);
     transform: translateY(-1px);
-    box-shadow: var(--shadow-glow-primary);
+    box-shadow: var(--shadow-md);
   }
 
   .send-btn:disabled {

@@ -197,7 +197,7 @@
 
   .node.active {
     border-color: var(--color-primary-border);
-    box-shadow: var(--shadow-glow-primary);
+    box-shadow: var(--shadow-md);
   }
 
   .icon {

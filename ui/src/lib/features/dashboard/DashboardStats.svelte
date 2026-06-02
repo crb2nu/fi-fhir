@@ -122,12 +122,12 @@
 
   .stat-card.accent {
     border-color: var(--color-primary-border);
-    background: linear-gradient(145deg, rgba(99, 102, 241, 0.16), rgba(99, 102, 241, 0.05));
+    background: var(--color-primary-muted);
   }
 
   .stat-card.warn {
     border-color: var(--color-warning-border);
-    background: linear-gradient(145deg, rgba(245, 158, 11, 0.14), rgba(245, 158, 11, 0.04));
+    background: var(--color-warning-bg);
   }
 
   .stat-value {
