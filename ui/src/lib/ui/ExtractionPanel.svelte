@@ -6,6 +6,7 @@
   import { graphqlFetch } from '$lib/graphql/client';
   import { ExtractEntitiesDocument } from '$lib/gen/graphql';
   import Panel from './Panel.svelte';
+  import Badge from './Badge.svelte';
   import { createEventDispatcher } from 'svelte';
 
   export let text: string = '';
@@ -65,6 +66,19 @@
 
   function formatConfidence(confidence: number): string {
     return `${Math.round(confidence * 100)}%`;
+  }
+
+  function severityVariant(severity: string): 'success' | 'warning' | 'danger' | 'default' {
+    switch (severity.toLowerCase()) {
+      case 'mild':
+        return 'success';
+      case 'moderate':
+        return 'warning';
+      case 'severe':
+        return 'danger';
+      default:
+        return 'default';
+    }
   }
 
   $: hasConditions = (result?.conditions?.length ?? 0) > 0;
@@ -143,10 +157,10 @@
                     <div class="entity-main">
                       <span class="entity-name">{condition.name}</span>
                       {#if condition.negated}
-                        <span class="tag negated">negated</span>
+                        <Badge variant="danger" size="sm">negated</Badge>
                       {/if}
                       {#if condition.status}
-                        <span class="tag status">{condition.status}</span>
+                        <Badge variant="info" size="sm">{condition.status}</Badge>
                       {/if}
                       <span class="confidence {confidenceClass(condition.confidence)}">
                         {formatConfidence(condition.confidence)}
@@ -174,10 +188,10 @@
                     <div class="entity-main">
                       <span class="entity-name">{med.name}</span>
                       {#if med.dose}
-                        <span class="tag dose">{med.dose}</span>
+                        <Badge variant="default" size="sm">{med.dose}</Badge>
                       {/if}
                       {#if med.route}
-                        <span class="tag route">{med.route}</span>
+                        <Badge variant="default" size="sm">{med.route}</Badge>
                       {/if}
                       <span class="confidence {confidenceClass(med.confidence)}">
                         {formatConfidence(med.confidence)}
@@ -207,9 +221,9 @@
                   <li class="entity">
                     <div class="entity-main">
                       <span class="entity-name">{vital.name}</span>
-                      <span class="tag value">{vital.value}{vital.unit ?? ''}</span>
+                      <Badge variant="default" size="sm">{vital.value}{vital.unit ?? ''}</Badge>
                       {#if vital.interpretation}
-                        <span class="tag interpretation">{vital.interpretation}</span>
+                        <Badge variant="default" size="sm">{vital.interpretation}</Badge>
                       {/if}
                       <span class="confidence {confidenceClass(vital.confidence)}">
                         {formatConfidence(vital.confidence)}
@@ -237,7 +251,7 @@
                     <div class="entity-main">
                       <span class="entity-name">{allergy.substance}</span>
                       {#if allergy.severity}
-                        <span class="tag severity-{allergy.severity.toLowerCase()}">{allergy.severity}</span>
+                        <Badge variant={severityVariant(allergy.severity)} size="sm">{allergy.severity}</Badge>
                       {/if}
                       <span class="confidence {confidenceClass(allergy.confidence)}">
                         {formatConfidence(allergy.confidence)}
@@ -268,7 +282,7 @@
                     <div class="entity-main">
                       <span class="entity-name">{procedure.name}</span>
                       {#if procedure.status}
-                        <span class="tag status">{procedure.status}</span>
+                        <Badge variant="info" size="sm">{procedure.status}</Badge>
                       {/if}
                       <span class="confidence {confidenceClass(procedure.confidence)}">
                         {formatConfidence(procedure.confidence)}
@@ -438,46 +452,6 @@
   .entity-name {
     font-weight: 500;
     color: var(--color-text-primary);
-  }
-
-  .tag {
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 0.75rem;
-    font-weight: 500;
-  }
-
-  .tag.negated {
-    background: rgba(239, 68, 68, 0.2);
-    color: var(--color-danger-soft);
-  }
-
-  .tag.status,
-  .tag.dose,
-  .tag.route,
-  .tag.value {
-    background: rgba(59, 130, 246, 0.15);
-    color: var(--color-info-soft);
-  }
-
-  .tag.interpretation {
-    background: rgba(168, 85, 247, 0.15);
-    color: var(--color-accent-soft);
-  }
-
-  .tag.severity-mild {
-    background: rgba(34, 197, 94, 0.15);
-    color: var(--palette-green-300);
-  }
-
-  .tag.severity-moderate {
-    background: rgba(234, 179, 8, 0.15);
-    color: var(--color-warning-soft);
-  }
-
-  .tag.severity-severe {
-    background: rgba(239, 68, 68, 0.15);
-    color: var(--color-danger-soft);
   }
 
   .confidence {
