@@ -2,6 +2,7 @@
   import Panel from '$lib/ui/Panel.svelte';
   import Button from '$lib/ui/Button.svelte';
   import ConfirmModal from '$lib/ui/ConfirmModal.svelte';
+  import Badge from '$lib/ui/Badge.svelte';
   import type { HL7Sample } from '$lib/features/hl7/samples/types';
   import type { HL7RedactionMode } from '$lib/domain/hl7Redact';
   import { afterUpdate, createEventDispatcher, tick } from 'svelte';
@@ -449,16 +450,16 @@
 	            <div class="top">
 	              <div class="title">{s.name}</div>
               <div class="meta">
-                {#if s.messageType}<span class="pill mono">{s.messageType}</span>{/if}
-                {#if s.version}<span class="pill mono">{s.version}</span>{/if}
-                {#if s.feed}<span class="pill mono">feed:{s.feed}</span>{/if}
+                {#if s.messageType}<Badge mono>{s.messageType}</Badge>{/if}
+                {#if s.version}<Badge mono>{s.version}</Badge>{/if}
+                {#if s.feed}<Badge mono>feed:{s.feed}</Badge>{/if}
                 {#if s.tags?.length}
                   {#each s.tags as t (t)}
-                    <span class="pill tag">{t}</span>
+                    <Badge variant="info">{t}</Badge>
                   {/each}
                 {/if}
                 {#if s.redactionMode && s.redactionMode !== 'none'}
-                  <span class="pill warn">redacted</span>
+                  <Badge variant="warning">redacted</Badge>
                 {/if}
               </div>
             </div>
@@ -791,28 +792,6 @@
     gap: 8px;
     flex-wrap: wrap;
     justify-content: flex-end;
-  }
-
-	  .pill {
-	    padding: 2px 8px;
-	    border-radius: 999px;
-	    border: 1px solid var(--color-border-strong);
-	    background: var(--color-bg-surface);
-	    color: var(--color-text-secondary);
-	    font-size: 0.85rem;
-	    font-weight: 650;
-	  }
-
-  .pill.tag {
-    border-color: rgba(59, 130, 246, 0.28);
-    background: rgba(59, 130, 246, 0.10);
-    color: rgba(219, 234, 254, 0.92);
-  }
-
-  .pill.warn {
-    border-color: rgba(245, 158, 11, 0.35);
-    background: rgba(245, 158, 11, 0.12);
-    color: rgba(253, 230, 138, 0.95);
   }
 
   .trash {

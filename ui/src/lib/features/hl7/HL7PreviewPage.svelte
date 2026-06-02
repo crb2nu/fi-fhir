@@ -25,6 +25,8 @@
   import EventStreamPanel from '$lib/features/events/EventStreamPanel.svelte';
   import ExtractionPanel from '$lib/ui/ExtractionPanel.svelte';
   import QualityBadge from '$lib/ui/QualityBadge.svelte';
+  import Badge from '$lib/ui/Badge.svelte';
+  import StatusPill from '$lib/ui/StatusPill.svelte';
   import CommandPalette, { type PaletteCommand } from '$lib/ui/CommandPalette.svelte';
   import PageHeader from '$lib/ui/PageHeader.svelte';
   import AuthoringFlowRail from '$lib/features/shared/AuthoringFlowRail.svelte';
@@ -985,7 +987,7 @@
         <span class="muted">active sample</span>
         <span class="mono">{$activeSample.name}</span>
         {#if activeSampleModified}
-          <span class="pill stale">modified</span>
+          <Badge variant="warning">modified</Badge>
         {/if}
         <button class="link" type="button" on:click={() => (activeTab = 'samples')} disabled={$state.loading}>
           open samples
@@ -1070,10 +1072,10 @@
       </div>
 
       <div class="stats muted">
-        <span class="pill">segments: {$hl7.segments.length}</span>
-        {#if msh9}<span class="pill mono">MSH-9={msh9}</span>{/if}
-        {#if msh10}<span class="pill mono">MSH-10={msh10}</span>{/if}
-        {#if msh12}<span class="pill mono">MSH-12={msh12}</span>{/if}
+        <Badge>segments: {$hl7.segments.length}</Badge>
+        {#if msh9}<Badge mono>MSH-9={msh9}</Badge>{/if}
+        {#if msh10}<Badge mono>MSH-10={msh10}</Badge>{/if}
+        {#if msh12}<Badge mono>MSH-12={msh12}</Badge>{/if}
       </div>
       <CodeEditor
         language="hl7v2"
@@ -1101,31 +1103,31 @@
       {/if}
     {:else}
       <div class="meta">
-        <div class="pill {$state.result.parsePreview.success ? 'ok' : 'bad'}">
+        <StatusPill variant={$state.result.parsePreview.success ? 'success' : 'danger'}>
           {$state.result.parsePreview.success ? 'success' : 'failed'}
-        </div>
-        <div class="pill">events: {$events.length}</div>
-        <div class="pill">warnings: {$state.result.parsePreview.warnings.length}</div>
+        </StatusPill>
+        <Badge>events: {$events.length}</Badge>
+        <Badge>warnings: {$state.result.parsePreview.warnings.length}</Badge>
         {#if processState.state !== 'idle'}
-          <div
-            class="pill {processState.state === 'done' ? (processState.result.success ? 'ok' : 'bad') : processState.state === 'error' ? 'bad' : 'muted'}"
+          <StatusPill
+            variant={processState.state === 'done' ? (processState.result.success ? 'success' : 'danger') : processState.state === 'error' ? 'danger' : 'neutral'}
           >
             process: {processState.state}
-          </div>
+          </StatusPill>
         {/if}
         <button class="pill stale" on:click={() => (activeTab = 'inspector')} disabled={$state.loading}>
           Inspect message
         </button>
         {#if lastUsedProfileId}
-          <div class="pill profile">profile: {lastUsedProfileId}</div>
+          <Badge variant="info">profile: {lastUsedProfileId}</Badge>
         {:else}
-          <div class="pill muted">no profile</div>
+          <Badge variant="default">no profile</Badge>
         {/if}
         {#if lastRunRedactionMode !== 'none'}
-          <div class="pill warn">redaction: {lastRunRedactionMode}</div>
+          <Badge variant="warning">redaction: {lastRunRedactionMode}</Badge>
         {/if}
         {#if lastProcessRedactionMode !== 'none'}
-          <div class="pill warn">process redaction: {lastProcessRedactionMode}</div>
+          <Badge variant="warning">process redaction: {lastProcessRedactionMode}</Badge>
         {/if}
         {#if profileChanged}
           <button class="pill stale" on:click={run} disabled={$state.loading}>
@@ -1244,19 +1246,19 @@
         {:else if processState.state === 'done'}
           <Panel title="Submit result" tone={processState.result.success ? 'default' : 'error'}>
             <div class="meta">
-              <div class="pill {processState.result.success ? 'ok' : 'bad'}">
+              <StatusPill variant={processState.result.success ? 'success' : 'danger'}>
                 {processState.result.success ? 'success' : 'failed'}
-              </div>
+              </StatusPill>
               {#if processState.result.eventId}
-                <div class="pill mono">eventId={processState.result.eventId}</div>
+                <Badge mono>eventId={processState.result.eventId}</Badge>
               {/if}
-              <div class="pill mono">correlationId={processState.correlationId}</div>
+              <Badge mono>correlationId={processState.correlationId}</Badge>
               {#if lastProcessedSource}
-                <div class="pill mono">source={lastProcessedSource}</div>
+                <Badge mono>source={lastProcessedSource}</Badge>
               {/if}
-              <div class="pill">workflows: {processState.result.workflowResults.length}</div>
-              <div class="pill">warnings: {processState.result.warnings.length}</div>
-              <div class="pill">errors: {processState.result.errors.length}</div>
+              <Badge>workflows: {processState.result.workflowResults.length}</Badge>
+              <Badge>warnings: {processState.result.warnings.length}</Badge>
+              <Badge>errors: {processState.result.errors.length}</Badge>
               <button class="pill stale" type="button" on:click={() => (activeTab = 'live')} disabled={$state.loading}>
                 view live events
               </button>
@@ -1525,33 +1527,6 @@
 	    color: var(--color-text-secondary);
 	    font-weight: 650;
 	    font-size: 0.85rem;
-	  }
-
-  .pill.ok {
-    border-color: rgba(16, 185, 129, 0.35);
-    background: rgba(16, 185, 129, 0.12);
-  }
-
-  .pill.bad {
-    border-color: rgba(239, 68, 68, 0.35);
-    background: rgba(239, 68, 68, 0.12);
-  }
-
-  .pill.profile {
-    border-color: rgba(59, 130, 246, 0.35);
-    background: rgba(59, 130, 246, 0.12);
-    color: rgba(147, 197, 253, 0.95);
-  }
-
-  .pill.warn {
-    border-color: rgba(245, 158, 11, 0.35);
-    background: rgba(245, 158, 11, 0.12);
-    color: rgba(253, 230, 138, 0.95);
-  }
-
-	  .pill.muted {
-	    color: var(--color-text-muted);
-	    border-color: var(--color-border-default);
 	  }
 
   .pill.stale {

@@ -4,6 +4,7 @@
   import { getHL7Value } from '$lib/domain/hl7Access';
   import type { ParsePreviewQuery } from '$lib/gen/graphql';
   import { createEventDispatcher } from 'svelte';
+  import Badge from '$lib/ui/Badge.svelte';
 
   export let events: ParsePreviewQuery['parsePreview']['events'];
   export let message: HL7Message;
@@ -63,8 +64,8 @@
         <div class="head">
           <div class="title">{ev.__typename}</div>
           <div class="meta">
-            <span class="pill mono">{String(ev.type)}</span>
-            <span class="pill mono">{new Date(String(ev.timestamp)).toLocaleString()}</span>
+            <Badge mono>{String(ev.type)}</Badge>
+            <Badge mono>{new Date(String(ev.timestamp)).toLocaleString()}</Badge>
           </div>
         </div>
 
@@ -252,15 +253,6 @@
     flex-wrap: wrap;
     justify-content: flex-end;
   }
-
-	  .pill {
-    padding: 2px 8px;
-    border-radius: 999px;
-	    border: 1px solid var(--color-border-strong);
-	    background: var(--color-bg-surface);
-	    color: var(--color-text-secondary);
-	    font-size: 0.85rem;
-	  }
 
 	  .mono {
 	    font-family: var(--font-mono);

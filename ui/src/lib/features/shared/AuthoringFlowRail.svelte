@@ -1,5 +1,6 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
+  import Badge from '$lib/ui/Badge.svelte';
   import type { FlowStep } from './authoringFlow';
 
   export let eyebrow = 'Authoring flow';
@@ -61,10 +62,10 @@
             <span class="index">0{index + 1}</span>
             <div class="badges">
               {#if step.metric}
-                <span class="badge metric">{step.metric}</span>
+                <Badge variant="default" pill>{step.metric}</Badge>
               {/if}
               {#if step.status}
-                <span class="badge status">{step.status}</span>
+                <Badge variant="primary" pill>{step.status}</Badge>
               {/if}
             </div>
           </div>
@@ -197,29 +198,6 @@
     flex-wrap: wrap;
     justify-content: flex-end;
     gap: 6px;
-  }
-
-  .badge {
-    display: inline-flex;
-    align-items: center;
-    min-height: 24px;
-    padding: 0 9px;
-    border-radius: 999px;
-    border: 1px solid var(--color-border-strong);
-    background: var(--color-bg-elevated);
-    color: var(--color-text-secondary);
-    font-size: 0.78rem;
-    font-weight: 800;
-  }
-
-  .metric {
-    color: var(--color-text-primary);
-  }
-
-  .status {
-    border-color: rgba(56, 189, 248, 0.28);
-    background: rgba(56, 189, 248, 0.1);
-    color: var(--color-primary);
   }
 
   .step-eyebrow {

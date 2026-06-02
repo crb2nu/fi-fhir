@@ -4,6 +4,7 @@
   import { getHL7Value } from '$lib/domain/hl7Access';
   import { browser } from '$app/environment';
   import { afterUpdate, createEventDispatcher } from 'svelte';
+  import Badge from '$lib/ui/Badge.svelte';
 
   export let message: HL7Message;
   export let selected: HL7PathLocation | null = null;
@@ -159,10 +160,10 @@
 
 <div class="wrap" bind:this={root}>
   <div class="meta">
-    <div class="pill">segments: {filteredSegments.length}/{message.segments.length}</div>
-    <div class="pill mono">
+    <Badge>segments: {filteredSegments.length}/{message.segments.length}</Badge>
+    <Badge mono>
       delims: field={message.delimiters.field} comp={message.delimiters.component} rep={message.delimiters.repetition}
-    </div>
+    </Badge>
     <label class="sr-only" for="hl7-inspector-filter">
       Filter HL7 segments
     </label>
@@ -177,9 +178,9 @@
 
   {#if selected}
     <div class="selected">
-      <div class="pill mono">selected: {selectionKey()}</div>
+      <Badge mono>selected: {selectionKey()}</Badge>
       {#if selectedValue !== null}
-        <div class="pill mono">value: {selectedValue || '∅'}</div>
+        <Badge mono>value: {selectedValue || '∅'}</Badge>
       {/if}
       <button class="mini" type="button" on:click={() => copyText(selectionKey())}>Copy path</button>
       {#if selectedValue !== null}
@@ -288,16 +289,6 @@
     flex-wrap: wrap;
     align-items: center;
   }
-
-	  .pill {
-	    padding: 4px 10px;
-	    border-radius: 999px;
-	    border: 1px solid var(--color-border-strong);
-	    background: var(--color-bg-surface);
-	    color: var(--color-text-secondary);
-	    font-weight: 650;
-	    font-size: 0.85rem;
-	  }
 
 	  .mono {
 	    font-family: var(--font-mono);

@@ -2,6 +2,7 @@
   import { queryEvents } from './eventsApi';
   import type { EventsQuery, EventFilter, EventType, EventOrderBy } from '$lib/gen/graphql';
   import Button from '$lib/ui/Button.svelte';
+  import Badge from '$lib/ui/Badge.svelte';
   import EmptyState from '$lib/ui/EmptyState.svelte';
   import { createEventDispatcher } from 'svelte';
 
@@ -96,11 +97,13 @@
     return type.replace(/_/g, ' ');
   }
 
-  function typeColor(type: string): string {
-    if (type.startsWith('PATIENT_')) return 'adt';
-    if (type.startsWith('LAB_')) return 'lab';
-    if (type.startsWith('APPOINTMENT_')) return 'appt';
-    if (type.startsWith('CLAIM_') || type.startsWith('PRIOR_') || type.startsWith('ELIGIBILITY_')) return 'claim';
+  type BadgeVariant = 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'info';
+
+  function typeBadgeVariant(type: string): BadgeVariant {
+    if (type.startsWith('PATIENT_')) return 'info';
+    if (type.startsWith('LAB_')) return 'success';
+    if (type.startsWith('APPOINTMENT_')) return 'warning';
+    if (type.startsWith('CLAIM_') || type.startsWith('PRIOR_') || type.startsWith('ELIGIBILITY_')) return 'primary';
     return 'default';
   }
 
@@ -221,7 +224,7 @@
           <div class="event-main">
             <div class="event-topline">
               <span class="time mono">{formatTimestamp(edge.node.timestamp)}</span>
-              <span class="type-pill {typeColor(edge.node.type)}">{formatEventType(edge.node.type)}</span>
+              <Badge variant={typeBadgeVariant(edge.node.type)} size="sm" pill>{formatEventType(edge.node.type)}</Badge>
             </div>
 
             <div class="event-bottomline">
@@ -415,21 +418,6 @@
     color: var(--color-text-tertiary);
     font-size: 0.85rem;
   }
-
-  .type-pill {
-    padding: 2px 8px;
-    border-radius: 999px;
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    white-space: nowrap;
-  }
-
-  .type-pill.adt { background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); color: rgba(147, 197, 253, 0.95); }
-  .type-pill.lab { background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: rgba(110, 231, 183, 0.95); }
-  .type-pill.appt { background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); color: rgba(253, 230, 138, 0.95); }
-  .type-pill.claim { background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.3); color: rgba(216, 180, 254, 0.95); }
-  .type-pill.default { background: var(--color-bg-surface); border: 1px solid var(--color-border-strong); color: var(--color-text-secondary); }
 
   .source {
     color: var(--color-text-secondary);

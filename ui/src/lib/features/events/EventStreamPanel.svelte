@@ -3,6 +3,7 @@
   import { subscribe as wsSubscribe } from '$lib/graphql/subscriptions';
   import { EventStreamDocument, type EventStreamSubscription, type EventFilter, type EventType } from '$lib/gen/graphql';
   import Button from '$lib/ui/Button.svelte';
+  import Badge from '$lib/ui/Badge.svelte';
 
   /** Maximum number of events to display in the list */
   export let maxEvents: number = 100;
@@ -117,23 +118,25 @@
     return type.replace(/_/g, ' ');
   }
 
-  function typeColor(type: EventType): string {
+  type BadgeVariant = 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'info';
+
+  function typeBadgeVariant(type: EventType): BadgeVariant {
     switch (type) {
       case 'PATIENT_ADMIT':
       case 'PATIENT_DISCHARGE':
       case 'PATIENT_TRANSFER':
       case 'PATIENT_UPDATE':
-        return 'adt';
+        return 'info';
       case 'LAB_RESULT':
       case 'LAB_ORDERED':
-        return 'lab';
+        return 'success';
       case 'APPOINTMENT_SCHEDULED':
       case 'APPOINTMENT_CANCELLED':
       case 'APPOINTMENT_NOSHOW':
-        return 'appt';
+        return 'warning';
       case 'CLAIM_SUBMITTED':
       case 'CLAIM_ADJUDICATED':
-        return 'claim';
+        return 'primary';
       default:
         return 'default';
     }
@@ -235,7 +238,7 @@
       {#each events as event (event.id)}
         <div class="event-row">
           <span class="time mono">{formatTimestamp(event.timestamp)}</span>
-          <span class="type-pill {typeColor(event.type)}">{formatEventType(event.type)}</span>
+          <Badge variant={typeBadgeVariant(event.type)} size="sm" pill>{formatEventType(event.type)}</Badge>
           <span class="source mono">{event.source}</span>
           <span class="corr muted mono" title={event.correlationId ?? ''}>
             {event.correlationId ? `${event.correlationId.slice(0, 10)}…` : '-'}
@@ -248,7 +251,7 @@
     <div class="footer muted">
       Showing {events.length} of {maxEvents} max events
       {#if paused}
-        <span class="paused-badge">PAUSED</span>
+        <Badge variant="warning" size="sm">PAUSED</Badge>
       {/if}
     </div>
   {/if}
@@ -372,45 +375,6 @@
     font-size: 0.85rem;
   }
 
-  .type-pill {
-    padding: 2px 8px;
-    border-radius: 999px;
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    white-space: nowrap;
-  }
-
-  .type-pill.adt {
-    background: rgba(59, 130, 246, 0.15);
-    border: 1px solid rgba(59, 130, 246, 0.3);
-    color: rgba(147, 197, 253, 0.95);
-  }
-
-  .type-pill.lab {
-    background: rgba(16, 185, 129, 0.15);
-    border: 1px solid rgba(16, 185, 129, 0.3);
-    color: rgba(110, 231, 183, 0.95);
-  }
-
-  .type-pill.appt {
-    background: rgba(245, 158, 11, 0.15);
-    border: 1px solid rgba(245, 158, 11, 0.3);
-    color: rgba(253, 230, 138, 0.95);
-  }
-
-  .type-pill.claim {
-    background: rgba(168, 85, 247, 0.15);
-    border: 1px solid rgba(168, 85, 247, 0.3);
-    color: rgba(216, 180, 254, 0.95);
-  }
-
-  .type-pill.default {
-    background: var(--color-bg-surface);
-    border: 1px solid var(--color-border-strong);
-    color: var(--color-text-secondary);
-  }
-
   .source {
     color: var(--color-text-secondary);
     font-size: 0.85rem;
@@ -445,15 +409,5 @@
     font-size: 0.85rem;
     padding-top: 8px;
     border-top: 1px solid var(--color-border-default);
-  }
-
-  .paused-badge {
-    padding: 2px 8px;
-    border-radius: 4px;
-    background: rgba(245, 158, 11, 0.2);
-    border: 1px solid rgba(245, 158, 11, 0.4);
-    color: rgba(253, 230, 138, 0.95);
-    font-weight: 700;
-    font-size: 0.75rem;
   }
 </style>

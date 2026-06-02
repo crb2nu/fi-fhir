@@ -196,7 +196,7 @@
 
     <div class="hero-signals" aria-label="Mission control signals">
       {#each signalChips as signal (signal)}
-        <span class="signal-chip">{signal}</span>
+        <Badge variant="default" size="sm" pill>{signal}</Badge>
       {/each}
     </div>
   </div>
@@ -461,18 +461,6 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
-  }
-
-  .signal-chip {
-    padding: 6px 10px;
-    border-radius: var(--radius-full);
-    border: 1px solid rgba(148, 163, 184, 0.2);
-    background: rgba(15, 23, 42, 0.32);
-    color: var(--color-text-secondary);
-    font-size: var(--text-2xs);
-    font-weight: var(--font-semibold);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
   }
 
   .eyebrow {

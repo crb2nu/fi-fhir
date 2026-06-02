@@ -6,6 +6,7 @@
   import Panel from '$lib/ui/Panel.svelte';
   import PageHeader from '$lib/ui/PageHeader.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import Badge from '$lib/ui/Badge.svelte';
   import CodeEditor from '$lib/ui/editor/CodeEditor.svelte';
   import AuthoringFlowRail from '$lib/features/shared/AuthoringFlowRail.svelte';
   import type { FlowStep } from '$lib/features/shared/authoringFlow';
@@ -283,19 +284,19 @@
 
     {#if $selectedProfile}
       <div class="meta">
-        <span class="pill">{$selectedProfile.id}</span>
-        <span class="pill muted">v{$selectedProfile.version}</span>
+        <Badge variant="default" size="sm" pill>{$selectedProfile.id}</Badge>
+        <Badge variant="default" size="sm" pill>v{$selectedProfile.version}</Badge>
         {#if $isProfileDirty}
-          <span class="pill warn">DRAFT</span>
+          <Badge variant="warning" size="sm" pill>DRAFT</Badge>
         {/if}
         {#if $isProfileDirty}
-          <span class="pill warn">builder unsaved</span>
+          <Badge variant="warning" size="sm" pill>builder unsaved</Badge>
         {/if}
         {#if yamlDirty}
-          <span class="pill warn">yaml unsaved</span>
+          <Badge variant="warning" size="sm" pill>yaml unsaved</Badge>
         {/if}
         {#if copied}
-          <span class="pill ok">copied</span>
+          <Badge variant="success" size="sm" pill>copied</Badge>
         {/if}
       </div>
 
@@ -559,31 +560,6 @@
     gap: 10px;
     flex-wrap: wrap;
     margin-top: 12px;
-  }
-
-  .pill {
-    padding: 3px 10px;
-    border-radius: 999px;
-    border: 1px solid var(--color-border-strong);
-    background: var(--color-bg-surface);
-    color: var(--color-text-secondary);
-    font-weight: 800;
-    font-size: 0.85rem;
-  }
-
-  .pill.muted {
-    color: var(--color-text-muted);
-  }
-
-  .pill.warn {
-    border-color: rgba(245, 158, 11, 0.35);
-    background: rgba(245, 158, 11, 0.12);
-    color: rgba(253, 230, 138, 0.95);
-  }
-
-  .pill.ok {
-    border-color: rgba(16, 185, 129, 0.35);
-    background: rgba(16, 185, 129, 0.12);
   }
 
   .empty {
