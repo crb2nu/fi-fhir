@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import Badge from '$lib/ui/Badge.svelte';
+  import Tooltip from '$lib/ui/Tooltip.svelte';
   import FilterEditor from './FilterEditor.svelte';
   import TransformList from './TransformList.svelte';
   import ActionList from './ActionList.svelte';
@@ -54,11 +55,13 @@
 
       {#if dryRunResult}
         <div class="dry-run-badge">
-          {#if dryRunResult.matched}
-            <Badge variant="success" size="sm">MATCHED</Badge>
-          {:else}
-            <Badge variant="default" size="sm">SKIPPED</Badge>
-          {/if}
+          <Tooltip content={dryRunResult.matched ? 'Successfully matched this route' : (dryRunResult.skipReason || 'Route skipped')}>
+            {#if dryRunResult.matched}
+              <Badge variant="success" size="sm">MATCHED</Badge>
+            {:else}
+              <Badge variant="default" size="sm">SKIPPED</Badge>
+            {/if}
+          </Tooltip>
         </div>
       {/if}
 

@@ -6,6 +6,7 @@
 - MCP inventory: `00-mcp-inventory.md`
 - Research: `10-research.md`
 - Product spec: `20-product-spec.md`
+- UX professional redesign spec + plan: `21-ux-professional-redesign.md`
 - Implementation plan: `30-implementation-plan.md`
 - Decisions: `40-decisions.md`
 - Worklog: `50-worklog.md`
