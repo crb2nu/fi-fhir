@@ -202,10 +202,10 @@
         <span class="meta-label">Profile</span>
         <div class="meta-value">
           {#if $selectedProfile}
-            <span class="pill profile">{$selectedProfile.id}</span>
+            <Badge variant="info" size="sm" pill>{$selectedProfile.id}</Badge>
             <span class="mono">v{$selectedProfile.version}</span>
           {:else}
-            <span class="pill muted">none selected</span>
+            <Badge variant="default" size="sm" pill>none selected</Badge>
           {/if}
         </div>
       </div>
@@ -214,9 +214,9 @@
         <span class="meta-label">UI build</span>
         <div class="meta-value">
           {#if build.tag}
-            <span class="pill">{build.tag}</span>
+            <Badge variant="default" size="sm" pill>{build.tag}</Badge>
           {:else}
-            <span class="pill muted">unknown</span>
+            <Badge variant="default" size="sm" pill>unknown</Badge>
           {/if}
           {#if build.sha}
             <span class="mono">{build.sha}</span>
@@ -334,27 +334,6 @@
     gap: 8px;
     align-items: center;
     flex-wrap: wrap;
-  }
-
-  .pill {
-    padding: 3px 10px;
-    border-radius: 999px;
-    border: 1px solid var(--color-border-strong);
-    background: var(--color-bg-surface);
-    color: var(--color-text-secondary);
-    font-weight: 700;
-    font-size: 0.85rem;
-  }
-
-  .pill.profile {
-    border-color: rgba(59, 130, 246, 0.35);
-    background: rgba(59, 130, 246, 0.12);
-    color: rgba(147, 197, 253, 0.95);
-  }
-
-  .pill.muted {
-    color: var(--color-text-muted);
-    border-color: var(--color-border-default);
   }
 
   @media (max-width: 760px) {

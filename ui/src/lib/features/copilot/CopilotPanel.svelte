@@ -6,6 +6,7 @@
    * and Review actions with streaming responses and context awareness.
    */
   import { afterUpdate } from 'svelte';
+  import Badge from '$lib/ui/Badge.svelte';
   import {
     copilotState,
     isAvailable,
@@ -43,7 +44,10 @@
     review: 'Paste the mapping decision to review...',
   };
 
-  const actionBadgeVariant: Record<CopilotAction, string> = {
+  const actionBadgeVariant: Record<
+    CopilotAction,
+    'info' | 'success' | 'warning' | 'primary'
+  > = {
     explain: 'info',
     suggest: 'success',
     generate: 'warning',
@@ -228,9 +232,14 @@
         <div class="msg msg-user">
           <div class="msg-meta-user">
             {#if msg.action}
-              <span class="action-badge badge-{actionBadgeVariant[msg.action]}">
+              <Badge
+                variant={actionBadgeVariant[msg.action]}
+                size="sm"
+                pill
+                style="text-transform: capitalize"
+              >
                 {msg.action}
-              </span>
+              </Badge>
             {/if}
             <span class="msg-time">{formatTime(msg.timestamp)}</span>
           </div>
@@ -475,41 +484,6 @@
     display: flex;
     align-items: center;
     gap: var(--space-1);
-  }
-
-  .action-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 1px var(--space-2);
-    border-radius: var(--radius-full);
-    font-size: var(--text-2xs);
-    font-weight: var(--font-semibold);
-    text-transform: capitalize;
-    line-height: 1.4;
-  }
-
-  .badge-info {
-    color: var(--color-info-text);
-    background: var(--color-info-bg);
-    border: 1px solid var(--color-info-border);
-  }
-
-  .badge-success {
-    color: var(--color-success-text);
-    background: var(--color-success-bg);
-    border: 1px solid var(--color-success-border);
-  }
-
-  .badge-warning {
-    color: var(--color-warning-text);
-    background: var(--color-warning-bg);
-    border: 1px solid var(--color-warning-border);
-  }
-
-  .badge-primary {
-    color: var(--color-primary);
-    background: var(--color-primary-muted);
-    border: 1px solid var(--color-primary-border);
   }
 
   .msg-bubble {
