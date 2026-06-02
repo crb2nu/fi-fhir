@@ -264,7 +264,7 @@
     border-color: var(--color-primary-border);
     background: var(--color-primary);
     color: var(--color-text-inverse);
-    box-shadow: var(--shadow-glow-primary);
+    box-shadow: var(--shadow-md);
   }
 
   .nav-link.active {

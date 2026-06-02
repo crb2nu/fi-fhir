@@ -102,7 +102,7 @@
   --font-sans:
     "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
     sans-serif;
-  --font-heading: "Outfit", "Inter", system-ui, -apple-system, sans-serif;
+  --font-heading: "Geist", "Inter", system-ui, -apple-system, sans-serif;
   --font-mono:
     ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
 
@@ -150,18 +150,16 @@
    * SHADOWS
    * ═══════════════════════════════════════════════════════════════════════════ */
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.15);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
-  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.35);
-  --shadow-xl: 0 20px 50px rgba(0, 0, 0, 0.45);
+  /* Elevation via border + faint shadow, not glow. Alphas recalibrated calmer
+     for the dark-first canonical theme (Slice 2). */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.12);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.18);
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.24);
+  --shadow-xl: 0 20px 50px rgba(0, 0, 0, 0.32);
 
-  /* Focus ring */
+  /* Focus ring (functional, not decorative) */
   --shadow-focus: 0 0 0 3px var(--color-primary-glow);
   --shadow-focus-danger: 0 0 0 3px rgba(239, 68, 68, 0.2);
-
-  /* Glow effects */
-  --shadow-glow-primary: 0 0 20px rgba(99, 102, 241, 0.3);
-  --shadow-glow-success: 0 0 20px rgba(16, 185, 129, 0.2);
 
   /* ═══════════════════════════════════════════════════════════════════════════
    * TRANSITIONS & ANIMATIONS

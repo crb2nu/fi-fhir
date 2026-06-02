@@ -191,7 +191,7 @@
 <section class="hero" class:mounted>
   <div class="hero-copy">
     <div class="eyebrow">Mission control</div>
-    <h1 class="text-gradient">{heroGreeting}</h1>
+    <h1>{heroGreeting}</h1>
     <p>{heroSubtext}</p>
 
     <div class="hero-signals" aria-label="Mission control signals">
@@ -377,11 +377,6 @@
     }
   }
 
-  @keyframes pulseGlow {
-    0%, 100% { box-shadow: 0 0 0 0 var(--pulse-color, transparent); }
-    50% { box-shadow: 0 0 6px 2px var(--pulse-color, transparent); }
-  }
-
   /* Staggered entry: elements start invisible and slide in on mount */
   .stagger-1,
   .stagger-2,
@@ -443,12 +438,8 @@
     padding: var(--space-6);
     border: 1px solid var(--color-border-subtle);
     border-radius: calc(var(--radius-xl) + 4px);
-    background:
-      radial-gradient(circle at top left, rgba(96, 165, 250, 0.18), transparent 36%),
-      radial-gradient(circle at 80% 0%, rgba(52, 211, 153, 0.14), transparent 28%),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent),
-      var(--color-bg-elevated);
-    box-shadow: var(--shadow-lg);
+    background: var(--color-bg-elevated);
+    box-shadow: var(--shadow-sm);
   }
 
   .hero-copy {
@@ -473,6 +464,8 @@
 
   h1 {
     margin: 0;
+    font-family: var(--font-heading);
+    color: var(--color-text-primary);
     font-size: clamp(var(--text-3xl), 5vw, 3.8rem);
     line-height: 0.95;
     letter-spacing: var(--tracking-tight);
@@ -496,11 +489,8 @@
     gap: var(--space-4);
     padding: var(--space-4);
     border-radius: var(--radius-xl);
-    border: 1px solid rgba(99, 102, 241, 0.18);
-    background:
-      linear-gradient(180deg, rgba(99, 102, 241, 0.18), rgba(99, 102, 241, 0.05)),
-      rgba(15, 23, 42, 0.5);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--color-primary-border);
+    background: var(--color-bg-surface);
   }
 
   .rail-copy {
@@ -556,7 +546,7 @@
     background: var(--color-primary);
     color: var(--color-text-inverse);
     transform: translateY(-2px);
-    box-shadow: var(--shadow-glow-primary);
+    box-shadow: var(--shadow-md);
   }
 
   .secondary-action {
@@ -770,28 +760,17 @@
     transition: var(--transition-all);
   }
 
+  /* Solid state dots — color carries state, no glow or pulsing (Slice 2). */
   .health-dot.healthy {
     background: var(--color-success);
-    box-shadow: 0 0 4px rgba(16, 185, 129, 0.3);
   }
 
   .health-dot.warn {
     background: var(--color-warning);
-    --pulse-color: rgba(245, 158, 11, 0.3);
-    animation: pulseGlow 2s ease-in-out infinite;
   }
 
   .health-dot.error {
     background: var(--color-danger);
-    --pulse-color: rgba(239, 68, 68, 0.3);
-    animation: pulseGlow 1.5s ease-in-out infinite;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .health-dot.warn,
-    .health-dot.error {
-      animation: none;
-    }
   }
 
   .stage-health-label {
