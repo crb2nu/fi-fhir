@@ -237,7 +237,7 @@
   .avatar-initial {
     font-size: var(--text-xs);
     font-weight: var(--font-bold);
-    color: #fff;
+    color: var(--palette-white);
     line-height: 1;
     user-select: none;
   }
@@ -249,7 +249,7 @@
     right: -3px;
     width: 12px;
     height: 12px;
-    color: #fff;
+    color: var(--palette-white);
     filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.4));
   }
 
@@ -270,12 +270,12 @@
   }
 
   .status-dot.active {
-    background-color: #10b981;
+    background-color: var(--color-success);
     animation: statusPulse 2s ease-in-out infinite;
   }
 
   .status-dot.idle {
-    background-color: #f59e0b;
+    background-color: var(--color-warning);
   }
 
   .status-dot.away {
@@ -346,7 +346,7 @@
     justify-content: center;
     font-size: var(--text-xs);
     font-weight: var(--font-bold);
-    color: #fff;
+    color: var(--palette-white);
     flex-shrink: 0;
   }
 
@@ -415,11 +415,11 @@
   }
 
   .tooltip-status-dot.active {
-    background-color: #10b981;
+    background-color: var(--color-success);
   }
 
   .tooltip-status-dot.idle {
-    background-color: #f59e0b;
+    background-color: var(--color-warning);
   }
 
   .tooltip-status-dot.away {

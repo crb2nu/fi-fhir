@@ -548,7 +548,7 @@
 
   .dialog-btn.create,
   .dialog-btn.accept {
-    color: #fff;
+    color: var(--palette-white);
     background: linear-gradient(135deg, var(--color-brand-gradient-start), var(--color-brand-gradient-end));
     border-color: transparent;
   }

@@ -102,12 +102,12 @@
 
   .line.added {
     background: rgba(16, 185, 129, 0.1);
-    color: #34d399;
+    color: var(--palette-emerald-400);
   }
 
   .line.removed {
     background: rgba(239, 68, 68, 0.1);
-    color: #f87171;
+    color: var(--color-danger-soft);
     text-decoration: line-through;
   }
 

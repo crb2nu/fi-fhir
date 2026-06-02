@@ -250,7 +250,7 @@ lint:ui:
     - cd ui
     - npm ci --no-audit --no-fund
     - npm run lint
-    - npm run lint:css # report-only token-drift guardrail (warnings, exit 0); Slice 1 makes it blocking
+    - npm run lint:css # BLOCKING token-drift guardrail (Slice 1): fails CI on any raw hex in component <style> blocks
     - npm run codegen:check
     - npm run check
     - npm run typecheck

@@ -314,7 +314,7 @@
   }
 
   .source-status.active {
-    color: var(--color-success-text, #10b981);
+    color: var(--color-success-text, var(--color-success));
   }
 
   .source-detail {

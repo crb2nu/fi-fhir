@@ -312,7 +312,7 @@
     align-items: center;
     gap: 8px;
     padding: 8px 16px;
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    background: linear-gradient(135deg, var(--palette-blue-500) 0%, var(--palette-blue-600) 100%);
     color: white;
     border: none;
     border-radius: 6px;
@@ -353,7 +353,7 @@
     background: rgba(239, 68, 68, 0.15);
     border: 1px solid rgba(239, 68, 68, 0.3);
     border-radius: 6px;
-    color: #f87171;
+    color: var(--color-danger-soft);
     font-size: 0.85rem;
   }
 
@@ -449,7 +449,7 @@
 
   .tag.negated {
     background: rgba(239, 68, 68, 0.2);
-    color: #f87171;
+    color: var(--color-danger-soft);
   }
 
   .tag.status,
@@ -457,27 +457,27 @@
   .tag.route,
   .tag.value {
     background: rgba(59, 130, 246, 0.15);
-    color: #93c5fd;
+    color: var(--color-info-soft);
   }
 
   .tag.interpretation {
     background: rgba(168, 85, 247, 0.15);
-    color: #c4b5fd;
+    color: var(--color-accent-soft);
   }
 
   .tag.severity-mild {
     background: rgba(34, 197, 94, 0.15);
-    color: #86efac;
+    color: var(--palette-green-300);
   }
 
   .tag.severity-moderate {
     background: rgba(234, 179, 8, 0.15);
-    color: #fde047;
+    color: var(--color-warning-soft);
   }
 
   .tag.severity-severe {
     background: rgba(239, 68, 68, 0.15);
-    color: #f87171;
+    color: var(--color-danger-soft);
   }
 
   .confidence {
@@ -490,17 +490,17 @@
 
   .confidence.high {
     background: rgba(16, 185, 129, 0.15);
-    color: #6ee7b7;
+    color: var(--color-success-soft);
   }
 
   .confidence.medium {
     background: rgba(234, 179, 8, 0.15);
-    color: #fde047;
+    color: var(--color-warning-soft);
   }
 
   .confidence.low {
     background: rgba(239, 68, 68, 0.15);
-    color: #f87171;
+    color: var(--color-danger-soft);
   }
 
   .entity-code,

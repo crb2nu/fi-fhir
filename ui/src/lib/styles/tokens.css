@@ -63,6 +63,14 @@
   --color-info-bg: rgba(14, 165, 233, 0.12);
   --color-info-border: rgba(14, 165, 233, 0.35);
 
+  /* Soft state colors — lighter shades for text/icons on dark surfaces.
+   * Introduced in Slice 1 to eliminate raw hex; Slice 2 recalibrates these. */
+  --color-success-soft: #6ee7b7;
+  --color-warning-soft: #fde047;
+  --color-danger-soft: #f87171;
+  --color-info-soft: #93c5fd;
+  --color-accent-soft: #c4b5fd;
+
   /* Border Colors */
   --color-border-subtle: rgba(15, 23, 42, 0.08);
   --color-border-default: rgba(15, 23, 42, 0.12);
@@ -251,6 +259,23 @@
   --confidence-medium-bg: rgba(245, 158, 11, 0.15);
   --confidence-low-bg: rgba(249, 115, 22, 0.15);
   --confidence-very-low-bg: rgba(239, 68, 68, 0.15);
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+   * PALETTE SHADES (raw Tailwind values)
+   * TEMPORARY: introduced in Slice 1 to eliminate raw hex from components.
+   * Named by hue + lightness so Slice 2 can consolidate them into the
+   * recalibrated semantic scale. Prefer semantic tokens (--color-*) over these.
+   * ═══════════════════════════════════════════════════════════════════════════ */
+  --palette-green-300: #86efac;
+  --palette-emerald-400: #34d399;
+  --palette-yellow-200: #fde68a;
+  --palette-yellow-500: #eab308;
+  --palette-red-300: #fca5a5;
+  --palette-blue-500: #3b82f6;
+  --palette-blue-600: #2563eb;
+  --palette-violet-600: #7c3aed;
+  --palette-slate-400: #94a3b8;
+  --palette-white: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
