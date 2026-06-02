@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { resolve } from '$app/paths';
-  import { listPendingAutoroutes } from '$lib/features/terminology/terminologyApi';
-  import type { ListPendingAutoroutesQuery } from '$lib/gen/graphql';
+  import { listPendingAutoroutes, getPendingAutorouteStats } from '$lib/features/terminology/terminologyApi';
+  import type { ListPendingAutoroutesQuery, PendingAutorouteStats } from '$lib/gen/graphql';
   import Panel from '$lib/ui/Panel.svelte';
   import Badge from '$lib/ui/Badge.svelte';
   import Button from '$lib/ui/Button.svelte';
@@ -10,6 +10,7 @@
   type PendingNode = ListPendingAutoroutesQuery['listPendingAutoroutes']['nodes'][number];
 
   let unmapped: PendingNode[] = [];
+  let stats: PendingAutorouteStats | null = null;
   let loading = true;
   let error: string | null = null;
 
@@ -17,15 +18,19 @@
     loading = true;
     error = null;
     try {
-      const result = await listPendingAutoroutes({
-        status: 'PENDING',
-        first: 5,
-        offset: 0,
-        minConfidence: 0,
-        sourceSystem: '',
-        targetSystem: ''
-      });
-      unmapped = result.nodes;
+      const [res, s] = await Promise.all([
+        listPendingAutoroutes({
+          status: 'PENDING',
+          first: 5,
+          offset: 0,
+          minConfidence: 0,
+          sourceSystem: '',
+          targetSystem: ''
+        }),
+        getPendingAutorouteStats()
+      ]);
+      unmapped = res.nodes;
+      stats = s;
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to load unmapped codes';
     } finally {
@@ -40,7 +45,16 @@
   <div class="unmapped-container">
     <div class="header-row">
       <span class="sub-title">Recent Unmapped Codes</span>
-      <Badge variant="warning" size="sm">Action Required</Badge>
+      {#if stats}
+        <div class="header-badges">
+          <Badge variant="warning" size="sm">{stats.pendingCount} pending</Badge>
+          {#if stats.avgConfidence}
+            <Badge variant="success" size="sm">{Math.round(stats.avgConfidence * 100)}% avg confidence</Badge>
+          {/if}
+        </div>
+      {:else}
+        <Badge variant="warning" size="sm">Action Required</Badge>
+      {/if}
     </div>
 
     {#if loading}
@@ -85,6 +99,12 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: var(--space-2);
+  }
+
+  .header-badges {
+    display: flex;
+    gap: 4px;
   }
 
   .sub-title {
