@@ -3,6 +3,7 @@
   import { slide } from 'svelte/transition';
   import Panel from '$lib/ui/Panel.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import Badge from '$lib/ui/Badge.svelte';
   import RouteEditor from './RouteEditor.svelte';
   import WorkflowPreview from './WorkflowPreview.svelte';
   import DryRunPanel from './DryRunPanel.svelte';
@@ -975,18 +976,14 @@
                     <div class="version-card-title">
                       <span class="mono">v{version.versionNumber}</span>
                       {#if selectedVersionId === version.id}
-                        <span class="version-chip selected">selected</span>
+                        <Badge variant="primary" size="sm" pill>selected</Badge>
                       {/if}
                       {#if loadedVersionNumber === version.versionNumber}
-                        <span class="version-chip loaded">loaded</span>
+                        <Badge variant="default" size="sm" pill>loaded</Badge>
                       {/if}
-                      <span
-                        class="version-chip"
-                        class:valid={version.validation.valid}
-                        class:invalid={!version.validation.valid}
-                      >
+                      <Badge variant={version.validation.valid ? 'success' : 'danger'} size="sm" pill>
                         {version.validation.valid ? 'valid' : 'invalid'}
-                      </span>
+                      </Badge>
                     </div>
                     <div class="version-card-meta muted">
                       {new Date(version.createdAt).toLocaleString()} · by {version.createdBy || 'unknown'}
@@ -1479,40 +1476,6 @@
     display: flex;
     gap: 6px;
     flex-wrap: wrap;
-  }
-
-  .version-chip {
-    display: inline-flex;
-    align-items: center;
-    border-radius: 999px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-surface);
-    color: var(--color-text-tertiary);
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    padding: 2px 7px;
-  }
-
-  .version-chip.selected {
-    border-color: var(--color-border-focus);
-    color: var(--color-text-primary);
-  }
-
-  .version-chip.loaded {
-    border-color: rgba(148, 163, 184, 0.45);
-    color: rgba(226, 232, 240, 0.92);
-  }
-
-  .version-chip.valid {
-    border-color: rgba(16, 185, 129, 0.45);
-    color: rgba(187, 247, 208, 0.95);
-  }
-
-  .version-chip.invalid {
-    border-color: rgba(239, 68, 68, 0.45);
-    color: rgba(254, 202, 202, 0.95);
   }
 
   .version-compare {

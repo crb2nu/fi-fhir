@@ -4,6 +4,8 @@
   import { WorkflowEventsDocument, type WorkflowEventsSubscription } from '$lib/gen/graphql';
   import Panel from '$lib/ui/Panel.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import Badge from '$lib/ui/Badge.svelte';
+  import StatusPill from '$lib/ui/StatusPill.svelte';
   import {
     approveWorkflowVersion,
     fetchWorkflowDefinitions,
@@ -283,6 +285,20 @@
     return definitions.find((def) => def.id === workflowID)?.name ?? workflowID;
   }
 
+  type StatusVariant = 'neutral' | 'success' | 'warning' | 'danger' | 'info';
+
+  // Preserves prior styling: failed/rejected -> danger, pending -> warning,
+  // any other value (success, approved, etc.) -> success.
+  function runStatusVariant(status: string): StatusVariant {
+    return status === 'failed' ? 'danger' : 'success';
+  }
+
+  function approvalStatusVariant(status: string): StatusVariant {
+    if (status === 'rejected') return 'danger';
+    if (status === 'pending') return 'warning';
+    return 'success';
+  }
+
   onDestroy(() => {
     stopSubscription();
   });
@@ -340,7 +356,7 @@
         {#each events as ev, i (i)}
           <div class="event-row">
             <span class="time mono">{formatTimestamp(ev.event.timestamp)}</span>
-            <span class="type-pill">{ev.event.type.replace(/_/g, ' ')}</span>
+            <Badge variant="info" size="sm" pill>{ev.event.type.replace(/_/g, ' ')}</Badge>
             <span class="routes mono">{ev.routesMatched.join(', ')}</span>
             <span class="actions-col">{ev.actionsExecuted.length} actions</span>
             <span class="duration muted">{ev.duration}ms</span>
@@ -349,7 +365,7 @@
       </div>
       <div class="footer muted">
         {events.length} events
-        {#if paused}<span class="paused-badge">PAUSED</span>{/if}
+        {#if paused}<Badge variant="warning" size="sm">PAUSED</Badge>{/if}
       </div>
     {/if}
 
@@ -432,7 +448,7 @@
             <span class="mono">{run.workflowName}</span>
             <span>{run.environment}</span>
             <span>
-              <span class="status-pill" class:failed={run.status === 'failed'}>{run.status}</span>
+              <StatusPill variant={runStatusVariant(run.status)} size="sm">{run.status}</StatusPill>
             </span>
             <span>{run.routesMatched}</span>
             <span>{run.actionsExecuted}</span>
@@ -549,11 +565,7 @@
             <span class="mono">{workflowNameFromID(req.workflowId)}</span>
             <span>{req.environment}</span>
             <span>
-              <span
-                class="status-pill"
-                class:failed={req.status === 'rejected'}
-                class:pending={req.status === 'pending'}>{req.status}</span
-              >
+              <StatusPill variant={approvalStatusVariant(req.status)} size="sm">{req.status}</StatusPill>
             </span>
             <span class="mono">{shortValue(req.targetVersionId, 14)}</span>
             <span class="mono">{req.requestedBy}</span>
@@ -737,18 +749,6 @@
     font-size: 0.85rem;
   }
 
-  .type-pill {
-    padding: 2px 8px;
-    border-radius: 999px;
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    white-space: nowrap;
-    background: rgba(59, 130, 246, 0.15);
-    border: 1px solid rgba(59, 130, 246, 0.3);
-    color: rgba(147, 197, 253, 0.95);
-  }
-
   .routes {
     color: var(--color-text-secondary);
     font-size: 0.85rem;
@@ -775,16 +775,6 @@
     font-size: 0.85rem;
     padding-top: 8px;
     border-top: 1px solid var(--color-border-subtle);
-  }
-
-  .paused-badge {
-    padding: 2px 8px;
-    border-radius: 4px;
-    background: rgba(245, 158, 11, 0.2);
-    border: 1px solid rgba(245, 158, 11, 0.4);
-    color: rgba(253, 230, 138, 0.95);
-    font-weight: 700;
-    font-size: 0.75rem;
   }
 
   .run-table {
@@ -821,33 +811,6 @@
 
   .run-row:hover {
     background: var(--color-bg-hover);
-  }
-
-  .status-pill {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 64px;
-    padding: 2px 8px;
-    border-radius: 999px;
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: lowercase;
-    color: rgba(187, 247, 208, 0.95);
-    background: rgba(16, 185, 129, 0.15);
-    border: 1px solid rgba(16, 185, 129, 0.3);
-  }
-
-  .status-pill.failed {
-    color: rgba(254, 202, 202, 0.95);
-    background: rgba(239, 68, 68, 0.2);
-    border: 1px solid rgba(239, 68, 68, 0.35);
-  }
-
-  .status-pill.pending {
-    color: rgba(253, 230, 138, 0.95);
-    background: rgba(245, 158, 11, 0.2);
-    border: 1px solid rgba(245, 158, 11, 0.35);
   }
 
   .detail {
