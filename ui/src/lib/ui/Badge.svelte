@@ -10,6 +10,8 @@
   export let size: 'sm' | 'md' = 'md';
   export let outline = false;
   export let pill = false;
+  /** Render content in the monospace font (for IDs, codes, versions). */
+  export let mono = false;
 </script>
 
 <span
@@ -17,6 +19,7 @@
   class:sm={size === 'sm'}
   class:outline
   class:pill
+  class:mono
   {...$$restProps}
 >
   <slot />
@@ -47,6 +50,11 @@
   .badge.pill {
     border-radius: var(--radius-full);
     padding: 0 var(--space-3);
+  }
+
+  .badge.mono {
+    font-family: var(--font-mono);
+    font-weight: var(--font-normal);
   }
 
   /* Variant: Default */
