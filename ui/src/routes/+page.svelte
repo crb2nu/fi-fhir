@@ -3,7 +3,6 @@
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import type { IDEAppRoute } from '$lib/ui/ide/types';
-  import Panel from '$lib/ui/Panel.svelte';
   import Badge from '$lib/ui/Badge.svelte';
   import SystemStatusPanel from '$lib/features/system/SystemStatusPanel.svelte';
   import DashboardStats from '$lib/features/dashboard/DashboardStats.svelte';
@@ -11,7 +10,6 @@
   import WarningTrends from '$lib/features/dashboard/WarningTrends.svelte';
   import AlertsPanel from '$lib/features/dashboard/AlertsPanel.svelte';
   import UnmappedCodesWidget from '$lib/features/dashboard/UnmappedCodesWidget.svelte';
-  import JourneyProgress from '$lib/ui/ide/JourneyProgress.svelte';
   import { recents } from '$lib/features/dashboard/recentsStore';
   import { hasRestoredLayout, restoreLayout } from '$lib/ui/ide/ideStore';
   import { platformState } from '$lib/platform/platformStore';
@@ -38,7 +36,17 @@
     profile: 'var(--palette-violet-600)',
   };
 
-  // ── Launch pads (operator surfaces) ────────────────────────────────────────
+  // ── Tier 1 journey shortcuts ───────────────────────────────────────────────
+  // Deterministic entry points into the pipeline: start, mid-pipeline, and the
+  // end-of-line review. These are stable so the dashboard always offers a clear
+  // way in regardless of session state.
+  const journeyLinks: { label: string; href: IDEAppRoute; hint: string }[] = [
+    { label: 'Start Source Intake', href: '/hl7', hint: 'Load and inspect inbound interfaces' },
+    { label: 'Continue to Normalization', href: '/profiles', hint: 'Tighten identifiers and profile rules' },
+    { label: 'Review Verification', href: '/events', hint: 'Confirm outcomes against source intent' },
+  ];
+
+  // ── Launch pads (operator surfaces, Tier 3) ────────────────────────────────
   const launchPads: Array<{
     eyebrow: string;
     label: string;
@@ -89,10 +97,22 @@
     },
   ];
 
+  // ── Tier 3 progressive disclosure ──────────────────────────────────────────
+  // Only the active panel mounts, keeping the default screen quiet and the
+  // on-load element count low. Tab labels stay in the DOM as the disclosure.
+  type OnDemandTab = 'surfaces' | 'telemetry' | 'events' | 'trends';
+  const onDemandTabs: { id: OnDemandTab; label: string }[] = [
+    { id: 'surfaces', label: 'Operator surfaces' },
+    { id: 'telemetry', label: 'Operational telemetry' },
+    { id: 'events', label: 'Recent events' },
+    { id: 'trends', label: 'Signals & trends' },
+  ];
+  let activeTab: OnDemandTab = 'surfaces';
+
   // ── Reactive state ─────────────────────────────────────────────────────────
   let mounted = false;
 
-  $: recentEntries = $recents.slice(0, 5);
+  $: recentEntries = $recents.slice(0, 3);
   $: hasRecents = recentEntries.length > 0;
   $: connected = $platformState.connected;
   $: hasSavedLayout = $hasRestoredLayout;
@@ -105,7 +125,6 @@
     href: IDEAppRoute;
     reason: string;
   } {
-    // If there are recent entries, recommend continuing
     if (recent.length > 0) {
       const last = recent[0]!;
       const route = (last.route ?? '/hl7') as IDEAppRoute;
@@ -116,7 +135,6 @@
       };
     }
 
-    // Default: recommend starting source intake
     return {
       label: 'Start Source Intake',
       href: '/hl7',
@@ -140,6 +158,19 @@
     void (goto as any)((resolve as any)(path));
   }
 
+  // ── Tier 3 tab keyboard navigation ─────────────────────────────────────────
+  function onTabKeydown(e: KeyboardEvent, id: OnDemandTab): void {
+    const idx = onDemandTabs.findIndex((t) => t.id === id);
+    let next = idx;
+    if (e.key === 'ArrowRight') next = (idx + 1) % onDemandTabs.length;
+    else if (e.key === 'ArrowLeft') next = (idx - 1 + onDemandTabs.length) % onDemandTabs.length;
+    else return;
+    e.preventDefault();
+    activeTab = onDemandTabs[next]!.id;
+    const tabs = (e.currentTarget as HTMLElement).parentElement?.querySelectorAll('[role="tab"]');
+    (tabs?.[next] as HTMLElement | undefined)?.focus();
+  }
+
   // ── Stage health placeholder (no diagnosticsStore exists yet) ──────────────
   type StageHealth = {
     id: string;
@@ -158,7 +189,7 @@
     warnings: 0,
   }));
 
-  // ── Hero greeting ──────────────────────────────────────────────────────────
+  // ── Header greeting ────────────────────────────────────────────────────────
   $: heroGreeting = hasRecents ? 'Welcome back' : 'Build the interface from source to destination';
   $: heroSubtext = hasRecents
     ? 'Your recent work is waiting. Pick up a thread or start something new.'
@@ -172,7 +203,6 @@
     if (isConnected) chips.push('Platform connected');
     if (hasRecentWork) chips.push(`${$recents.length} recent items`);
     chips.push('Five-stage guided workspace');
-    chips.push('Live runtime health');
     return chips;
   }
 
@@ -184,104 +214,117 @@
 </script>
 
 <svelte:head>
-  <title>Mission Control | fi-fhir</title>
+  <title>Dashboard | fi-fhir</title>
 </svelte:head>
 
-<!-- Hero Section -->
-<section class="hero" class:mounted>
-  <div class="hero-copy">
-    <div class="eyebrow">Mission control</div>
-    <h1>{heroGreeting}</h1>
-    <p>{heroSubtext}</p>
-
-    <div class="hero-signals" aria-label="Mission control signals">
-      {#each signalChips as signal (signal)}
-        <Badge variant="default" size="sm" pill>{signal}</Badge>
-      {/each}
-    </div>
-  </div>
-
-  <aside class="hero-aside">
-    <div class="hero-rail">
-      <div class="rail-copy">
-        <span class="rail-label">Recommended move</span>
-        <button
-          class="primary-action"
-          on:click={() => navigateTo(recommendedAction.href)}
-        >{recommendedAction.label}</button>
-        <p>{recommendedAction.reason}</p>
+<div class="dashboard" class:mounted>
+  <!-- ── Tier 1 — Now ──────────────────────────────────────────────────────── -->
+  <section class="now" aria-label="Now">
+    <div class="now-head">
+      <div class="now-intro">
+        <div class="eyebrow">Mission control</div>
+        <h1>{heroGreeting}</h1>
+        <p>{heroSubtext}</p>
+        <div class="signal-row" aria-label="Workspace signals">
+          {#each signalChips as signal (signal)}
+            <Badge variant="default" size="sm" pill>{signal}</Badge>
+          {/each}
+        </div>
       </div>
 
-      <div class="hero-actions">
+      <aside class="recommended" aria-label="Recommended move">
+        <span class="rail-label">Recommended move</span>
+        <button class="primary-action" on:click={() => navigateTo(recommendedAction.href)}>
+          {recommendedAction.label}
+        </button>
+        <p class="rec-reason">{recommendedAction.reason}</p>
         {#if hasSavedLayout && hasRecents}
           <button class="secondary-action" on:click={() => navigateTo(recommendedAction.href)}>
             Resume session
           </button>
         {/if}
-        <a class="tertiary-action" href={resolve('/hl7')}>Start Source Intake</a>
-        <a class="tertiary-action" href={resolve('/events')}>Review Verification</a>
-      </div>
+      </aside>
     </div>
-  </aside>
-</section>
 
-<div class="stack">
-  <!-- Continue Where You Left Off -->
-  <section class="section stagger-1" class:mounted aria-label="Recent work">
-    <h2 class="section-title">Continue where you left off</h2>
+    <nav class="journey-links" aria-label="Pipeline shortcuts">
+      {#each journeyLinks as link (link.href)}
+        <a class="journey-link" href={resolve(link.href)} aria-label={link.label}>
+          <span class="journey-link-label">{link.label}</span>
+          <span class="journey-link-hint">{link.hint}</span>
+        </a>
+      {/each}
+    </nav>
 
-    {#if hasRecents}
-      <div class="recents-grid">
-        {#each recentEntries as entry (entry.id)}
-          <button
-            class="recent-card"
-            on:click={() => navigateTo(entry.route ?? '/hl7')}
-          >
-            <span
-              class="recent-type-strip"
-              style:background={docTypeColors[entry.documentType] ?? 'var(--color-text-muted)'}
-            ></span>
-            <div class="recent-body">
-              <div class="recent-top">
+    <div class="now-active">
+      <section class="now-col" aria-label="Recent work">
+        <h2 class="section-title">Continue where you left off</h2>
+        {#if hasRecents}
+          <div class="recents-grid">
+            {#each recentEntries as entry (entry.id)}
+              <button class="recent-card" on:click={() => navigateTo(entry.route ?? '/hl7')}>
                 <span
-                  class="recent-dot"
+                  class="recent-type-strip"
                   style:background={docTypeColors[entry.documentType] ?? 'var(--color-text-muted)'}
                 ></span>
-                <span class="recent-doc-type">{entry.documentType.replace(/-/g, ' ')}</span>
-                <span class="recent-time">{formatRelativeTime(entry.timestamp)}</span>
-              </div>
-              <span class="recent-title">{entry.title}</span>
-              {#if entry.subtitle}
-                <span class="recent-subtitle">{entry.subtitle}</span>
-              {/if}
-              <span class="recent-stage">
-                <span
-                  class="stage-dot-sm"
-                  style:background={stageColors[entry.stage] ?? 'var(--color-text-muted)'}
-                ></span>
-                {entry.stage.replace(/-/g, ' ')}
-              </span>
-            </div>
-          </button>
-        {/each}
-      </div>
-    {:else}
-      <div class="empty-section">
-        <p>No recent work -- start by exploring a stage above</p>
-      </div>
-    {/if}
+                <div class="recent-body">
+                  <div class="recent-top">
+                    <span
+                      class="recent-dot"
+                      style:background={docTypeColors[entry.documentType] ?? 'var(--color-text-muted)'}
+                    ></span>
+                    <span class="recent-doc-type">{entry.documentType.replace(/-/g, ' ')}</span>
+                    <span class="recent-time">{formatRelativeTime(entry.timestamp)}</span>
+                  </div>
+                  <span class="recent-title">{entry.title}</span>
+                  {#if entry.subtitle}
+                    <span class="recent-subtitle">{entry.subtitle}</span>
+                  {/if}
+                  <span class="recent-stage">
+                    <span
+                      class="stage-dot-sm"
+                      style:background={stageColors[entry.stage] ?? 'var(--color-text-muted)'}
+                    ></span>
+                    {entry.stage.replace(/-/g, ' ')}
+                  </span>
+                </div>
+              </button>
+            {/each}
+          </div>
+        {:else}
+          <div class="empty-section">
+            <p>No recent work — start from a pipeline shortcut above.</p>
+          </div>
+        {/if}
+      </section>
+
+      <section class="now-col" aria-label="Active investigations">
+        <h2 class="section-title">Active investigations</h2>
+        <div class="investigations-card">
+          <div class="empty-investigations">
+            <span class="inv-icon" aria-hidden="true">&#9678;</span>
+            <p>No active investigations</p>
+            <span class="inv-hint">Debug sessions and dry runs will appear here</span>
+          </div>
+        </div>
+      </section>
+    </div>
   </section>
 
-  <!-- Stage Health + Active Investigations row -->
-  <div class="health-row stagger-2" class:mounted>
-    <!-- Stage Health -->
-    <section class="health-section" aria-label="Stage health">
-      <h2 class="section-title">Stage health</h2>
+  <!-- ── Tier 2 — Health at a glance ───────────────────────────────────────── -->
+  <section class="health" aria-label="Health at a glance">
+    <h2 class="section-title">Health at a glance</h2>
+    <div class="health-grid">
       <div class="stage-health-grid">
         {#each stageHealth as stage (stage.id)}
           <div class="stage-health-card">
             <div class="stage-health-top">
-              <span class="health-dot" class:healthy={stage.errors === 0 && stage.warnings === 0} class:warn={stage.errors === 0 && stage.warnings > 0} class:error={stage.errors > 0} style:--stage-color={stage.color}></span>
+              <span
+                class="health-dot"
+                class:healthy={stage.errors === 0 && stage.warnings === 0}
+                class:warn={stage.errors === 0 && stage.warnings > 0}
+                class:error={stage.errors > 0}
+                style:--stage-color={stage.color}
+              ></span>
               <span class="stage-health-label">{stage.label}</span>
             </div>
             <div class="stage-health-counts">
@@ -298,78 +341,79 @@
           </div>
         {/each}
       </div>
-    </section>
-
-    <!-- Active Investigations -->
-    <section class="investigations-section" aria-label="Active investigations">
-      <h2 class="section-title">Active investigations</h2>
-      <div class="investigations-card">
-        <div class="empty-investigations">
-          <span class="inv-icon">&#9678;</span>
-          <p>No active investigations</p>
-          <span class="inv-hint">Debug sessions and dry runs will appear here</span>
-        </div>
+      <div class="health-side">
+        <SystemStatusPanel />
+        <AlertsPanel />
       </div>
-    </section>
-  </div>
-
-  <!-- Journey Progress -->
-  <div class="stagger-3" class:mounted>
-    <JourneyProgress pathname="/" variant="full" showAction={false} />
-  </div>
-
-  <!-- Operator Surfaces (existing launch cards) -->
-  <section class="stagger-4" class:mounted aria-label="Operator surfaces">
-    <Panel title="Operator surfaces" padding="lg">
-      <div class="launch-grid">
-        {#each launchPads as pad (pad.label)}
-          <a class="launch-card" href={resolve(pad.href)}>
-            <div class="launch-card-head">
-              <span
-                class="launch-stage-dot"
-                style:background={stageColors[pad.stageId] ?? 'var(--color-text-muted)'}
-              ></span>
-              <span class="launch-eyebrow">{pad.eyebrow}</span>
-            </div>
-            <span class="launch-label">{pad.label}</span>
-            <span class="launch-hint">{pad.hint}</span>
-            <span class="launch-detail">{pad.detail}</span>
-          </a>
-        {/each}
-      </div>
-    </Panel>
+    </div>
   </section>
 
-  <!-- Telemetry + System Status -->
-  <div class="workspace-grid stagger-5" class:mounted>
-    <Panel title="Operational telemetry" padding="md">
-      <DashboardStats />
-    </Panel>
-
-    <div class="side-stack">
-      <SystemStatusPanel />
-      <AlertsPanel />
-      <UnmappedCodesWidget />
+  <!-- ── Tier 3 — On demand (progressive disclosure) ───────────────────────── -->
+  <section class="on-demand" aria-label="On demand">
+    <div class="tablist" role="tablist" aria-label="On-demand panels">
+      {#each onDemandTabs as tab (tab.id)}
+        <button
+          type="button"
+          role="tab"
+          class="od-tab"
+          class:active={activeTab === tab.id}
+          id={`od-tab-${tab.id}`}
+          aria-selected={activeTab === tab.id}
+          aria-controls={`od-panel-${tab.id}`}
+          tabindex={activeTab === tab.id ? 0 : -1}
+          on:click={() => (activeTab = tab.id)}
+          on:keydown={(e) => onTabKeydown(e, tab.id)}
+        >{tab.label}</button>
+      {/each}
     </div>
-  </div>
-<!-- Recent Events -->
-<div class="workspace-grid stagger-6" class:mounted>
-  <WarningTrends />
-  <Panel title="Recent events" padding="md">
-    <RecentEventsFeed />
-  </Panel>
-</div>
+
+    <div
+      class="od-panel"
+      role="tabpanel"
+      id={`od-panel-${activeTab}`}
+      aria-labelledby={`od-tab-${activeTab}`}
+      tabindex="0"
+    >
+      {#if activeTab === 'surfaces'}
+        <div class="launch-grid">
+          {#each launchPads as pad (pad.label)}
+            <a class="launch-card" href={resolve(pad.href)}>
+              <div class="launch-card-head">
+                <span
+                  class="launch-stage-dot"
+                  style:background={stageColors[pad.stageId] ?? 'var(--color-text-muted)'}
+                ></span>
+                <span class="launch-eyebrow">{pad.eyebrow}</span>
+              </div>
+              <span class="launch-label">{pad.label}</span>
+              <span class="launch-hint">{pad.hint}</span>
+              <span class="launch-detail">{pad.detail}</span>
+            </a>
+          {/each}
+        </div>
+      {:else if activeTab === 'telemetry'}
+        <DashboardStats />
+      {:else if activeTab === 'events'}
+        <RecentEventsFeed />
+      {:else if activeTab === 'trends'}
+        <div class="trends-stack">
+          <WarningTrends />
+          <UnmappedCodesWidget />
+        </div>
+      {/if}
+    </div>
+  </section>
 </div>
 
 <style>
   /* ═══════════════════════════════════════════════════════════════════════════
-   * ANIMATIONS
+   * ENTRY MOTION — single quiet one-shot (<=200ms), reduced-motion safe.
    * ═══════════════════════════════════════════════════════════════════════════ */
 
-  @keyframes slideInUp {
+  @keyframes fadeIn {
     from {
       opacity: 0;
-      transform: translateY(12px);
+      transform: translateY(6px);
     }
     to {
       opacity: 1;
@@ -377,81 +421,45 @@
     }
   }
 
-  /* Staggered entry: elements start invisible and slide in on mount */
-  .stagger-1,
-  .stagger-2,
-  .stagger-3,
-  .stagger-4,
-  .stagger-5,
-  .stagger-6 {
+  .dashboard {
+    display: grid;
+    gap: var(--space-5);
     opacity: 0;
-    transform: translateY(12px);
   }
 
-  .stagger-1.mounted { animation: slideInUp 0.4s ease-out 0.1s forwards; }
-  .stagger-2.mounted { animation: slideInUp 0.4s ease-out 0.2s forwards; }
-  .stagger-3.mounted { animation: slideInUp 0.4s ease-out 0.3s forwards; }
-  .stagger-4.mounted { animation: slideInUp 0.4s ease-out 0.4s forwards; }
-  .stagger-5.mounted { animation: slideInUp 0.4s ease-out 0.5s forwards; }
-  .stagger-6.mounted { animation: slideInUp 0.4s ease-out 0.6s forwards; }
-
-  .hero {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  .hero.mounted {
-    animation: slideInUp 0.5s ease-out forwards;
+  .dashboard.mounted {
+    animation: fadeIn 0.2s ease-out forwards;
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .stagger-1,
-    .stagger-2,
-    .stagger-3,
-    .stagger-4,
-    .stagger-5,
-    .stagger-6,
-    .hero {
+    .dashboard,
+    .dashboard.mounted {
       opacity: 1;
       transform: none;
-      animation: none;
-    }
-
-    .stagger-1.mounted,
-    .stagger-2.mounted,
-    .stagger-3.mounted,
-    .stagger-4.mounted,
-    .stagger-5.mounted,
-    .stagger-6.mounted,
-    .hero.mounted {
       animation: none;
     }
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════
-   * HERO SECTION
+   * TIER 1 — NOW
    * ═══════════════════════════════════════════════════════════════════════════ */
 
-  .hero {
+  .now {
     display: grid;
-    grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.7fr);
     gap: var(--space-4);
-    padding: var(--space-6);
-    border: 1px solid var(--color-border-subtle);
-    border-radius: calc(var(--radius-xl) + 4px);
-    background: var(--color-bg-elevated);
-    box-shadow: var(--shadow-sm);
   }
 
-  .hero-copy {
+  .now-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(260px, 0.7fr);
+    gap: var(--space-4);
+    align-items: start;
+  }
+
+  .now-intro {
     display: grid;
     gap: var(--space-3);
-    max-width: 66ch;
-  }
-
-  .hero-signals {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
+    max-width: 70ch;
   }
 
   .eyebrow {
@@ -466,66 +474,57 @@
     margin: 0;
     font-family: var(--font-heading);
     color: var(--color-text-primary);
-    font-size: clamp(var(--text-3xl), 5vw, 3.8rem);
-    line-height: 0.95;
+    font-size: clamp(var(--text-2xl), 3vw, 2.4rem);
+    line-height: var(--leading-tight);
     letter-spacing: var(--tracking-tight);
   }
 
-  .hero-copy p {
+  .now-intro p {
     margin: 0;
     color: var(--color-text-secondary);
-    max-width: 62ch;
-    font-size: var(--text-lg);
+    max-width: 64ch;
+    font-size: var(--text-base);
     line-height: var(--leading-relaxed);
   }
 
-  .hero-aside {
-    display: grid;
-    align-items: stretch;
+  .signal-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
   }
 
-  .hero-rail {
+  .recommended {
     display: grid;
-    gap: var(--space-4);
+    gap: var(--space-2);
     padding: var(--space-4);
     border-radius: var(--radius-xl);
     border: 1px solid var(--color-primary-border);
     background: var(--color-bg-surface);
-  }
-
-  .rail-copy {
-    display: grid;
-    gap: 10px;
+    align-content: start;
   }
 
   .rail-label {
-    color: rgba(199, 210, 254, 0.9);
+    color: var(--color-text-muted);
     font-size: var(--text-2xs);
     font-weight: var(--font-bold);
     letter-spacing: 0.12em;
     text-transform: uppercase;
   }
 
-  .rail-copy p {
+  .rec-reason {
     margin: 0;
     color: var(--color-text-secondary);
     font-size: var(--text-sm);
     line-height: var(--leading-relaxed);
   }
 
-  .hero-actions {
-    display: grid;
-    gap: var(--space-2);
-  }
-
   .primary-action,
-  .secondary-action,
-  .tertiary-action {
+  .secondary-action {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 12px 16px;
-    border-radius: var(--radius-xl);
+    padding: 10px 16px;
+    border-radius: var(--radius-lg);
     border: 1px solid transparent;
     font-weight: var(--font-semibold);
     text-decoration: none;
@@ -545,72 +544,82 @@
   .primary-action:hover {
     background: var(--color-primary);
     color: var(--color-text-inverse);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
+    box-shadow: var(--shadow-sm);
   }
 
   .secondary-action {
     border-color: var(--color-border-default);
-    background: var(--color-bg-surface);
+    background: var(--color-bg-elevated);
     color: var(--color-text-primary);
   }
 
   .secondary-action:hover {
     background: var(--color-bg-hover);
     border-color: var(--color-border-strong);
-    transform: translateY(-2px);
   }
 
-  .tertiary-action {
-    border-color: rgba(148, 163, 184, 0.16);
-    background: transparent;
-    color: var(--color-text-secondary);
-  }
+  /* ── Journey shortcuts ── */
 
-  .tertiary-action:hover {
-    background: rgba(148, 163, 184, 0.08);
-    border-color: rgba(148, 163, 184, 0.28);
-    color: var(--color-text-primary);
-    transform: translateY(-2px);
-  }
-
-  /* ═══════════════════════════════════════════════════════════════════════════
-   * LAYOUT
-   * ═══════════════════════════════════════════════════════════════════════════ */
-
-  .stack {
+  .journey-links {
     display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+
+  .journey-link {
+    display: grid;
+    gap: 4px;
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-elevated);
+    text-decoration: none;
+    color: inherit;
+    transition: var(--transition-all);
+  }
+
+  .journey-link:hover {
+    border-color: var(--color-border-strong);
+    background: var(--color-bg-hover);
+  }
+
+  .journey-link-label {
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    color: var(--color-text-primary);
+  }
+
+  .journey-link-hint {
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+    line-height: var(--leading-snug);
+  }
+
+  /* ── Active now (recents + investigations) ── */
+
+  .now-active {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.8fr);
     gap: var(--space-4);
+    align-items: start;
+  }
+
+  .now-col {
+    min-width: 0;
   }
 
   .section-title {
     margin: 0 0 var(--space-3) 0;
     font-family: var(--font-heading);
-    font-size: var(--text-lg);
+    font-size: var(--text-base);
     font-weight: var(--font-semibold);
     color: var(--color-text-primary);
     letter-spacing: var(--tracking-tight);
   }
 
-  .workspace-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
-    gap: var(--space-4);
-    align-items: start;
-  }
-
-  .side-stack {
-    display: grid;
-    gap: var(--space-4);
-  }
-
-  /* ═══════════════════════════════════════════════════════════════════════════
-   * RECENT WORK CARDS
-   * ═══════════════════════════════════════════════════════════════════════════ */
-
   .recents-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: var(--space-3);
   }
 
@@ -618,13 +627,10 @@
     position: relative;
     display: grid;
     grid-template-columns: 3px 1fr;
-    gap: 0;
     padding: 0;
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-lg);
     border: 1px solid var(--color-border-subtle);
     background: var(--color-bg-elevated);
-    text-decoration: none;
-    color: inherit;
     text-align: left;
     cursor: pointer;
     font-family: inherit;
@@ -633,14 +639,12 @@
   }
 
   .recent-card:hover {
-    transform: translateY(-1px);
     border-color: var(--color-border-strong);
     background: var(--color-bg-hover);
-    box-shadow: var(--shadow-md);
+    box-shadow: var(--shadow-sm);
   }
 
   .recent-type-strip {
-    border-radius: var(--radius-xl) 0 0 var(--radius-xl);
     min-height: 100%;
   }
 
@@ -707,26 +711,79 @@
     flex-shrink: 0;
   }
 
+  .investigations-card {
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-elevated);
+    overflow: hidden;
+  }
+
+  .empty-investigations {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-5) var(--space-4);
+    text-align: center;
+    gap: 4px;
+  }
+
+  .inv-icon {
+    font-size: 1.5rem;
+    color: var(--color-text-muted);
+    opacity: 0.5;
+    margin-bottom: var(--space-1);
+  }
+
+  .empty-investigations p {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+  }
+
+  .inv-hint {
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+  }
+
+  .empty-section {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-5) var(--space-4);
+    border: 1px dashed var(--color-border-strong);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface);
+  }
+
+  .empty-section p {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+  }
+
   /* ═══════════════════════════════════════════════════════════════════════════
-   * STAGE HEALTH
+   * TIER 2 — HEALTH AT A GLANCE
    * ═══════════════════════════════════════════════════════════════════════════ */
 
-  .health-row {
+  .health-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
     gap: var(--space-4);
     align-items: start;
   }
 
-  .health-section,
-  .investigations-section {
-    min-width: 0;
-  }
-
   .stage-health-grid {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: var(--space-2);
+    align-content: start;
+  }
+
+  .health-side {
+    display: grid;
+    gap: var(--space-4);
   }
 
   .stage-health-card {
@@ -740,7 +797,6 @@
   }
 
   .stage-health-card:hover {
-    transform: translateY(-1px);
     border-color: var(--color-border-strong);
     box-shadow: var(--shadow-sm);
   }
@@ -757,7 +813,6 @@
     border-radius: 50%;
     flex-shrink: 0;
     background: var(--stage-color, var(--color-text-muted));
-    transition: var(--transition-all);
   }
 
   /* Solid state dots — color carries state, no glow or pulsing (Slice 2). */
@@ -792,93 +847,89 @@
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════
-   * ACTIVE INVESTIGATIONS
+   * TIER 3 — ON DEMAND
    * ═══════════════════════════════════════════════════════════════════════════ */
 
-  .investigations-card {
-    border-radius: var(--radius-xl);
-    border: 1px solid var(--color-border-subtle);
-    background: var(--color-bg-elevated);
-    overflow: hidden;
+  .on-demand {
+    display: grid;
+    gap: var(--space-3);
   }
 
-  .empty-investigations {
+  .tablist {
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: var(--space-6) var(--space-4);
-    text-align: center;
-    gap: 4px;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    border-bottom: 1px solid var(--color-border-subtle);
   }
 
-  .inv-icon {
-    font-size: 1.5rem;
-    color: var(--color-text-muted);
-    opacity: 0.5;
-    margin-bottom: var(--space-1);
-  }
-
-  .empty-investigations p {
-    margin: 0;
-    color: var(--color-text-secondary);
+  .od-tab {
+    padding: var(--space-2) var(--space-3);
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--color-text-tertiary);
+    font-family: inherit;
     font-size: var(--text-sm);
     font-weight: var(--font-medium);
+    cursor: pointer;
+    transition: var(--transition-colors);
+    margin-bottom: -1px;
   }
 
-  .inv-hint {
-    color: var(--color-text-muted);
-    font-size: var(--text-xs);
+  .od-tab:hover {
+    color: var(--color-text-primary);
   }
 
-  /* ═══════════════════════════════════════════════════════════════════════════
-   * EMPTY STATE
-   * ═══════════════════════════════════════════════════════════════════════════ */
-
-  .empty-section {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: var(--space-5) var(--space-4);
-    border: 1px dashed var(--color-border-strong);
-    border-radius: var(--radius-xl);
-    background: var(--color-bg-surface);
+  .od-tab.active {
+    color: var(--color-text-primary);
+    border-bottom-color: var(--color-primary);
+    font-weight: var(--font-semibold);
   }
 
-  .empty-section p {
-    margin: 0;
-    color: var(--color-text-muted);
-    font-size: var(--text-sm);
+  .od-tab:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+    border-radius: var(--radius-sm);
   }
 
-  /* ═══════════════════════════════════════════════════════════════════════════
-   * LAUNCH CARDS
-   * ═══════════════════════════════════════════════════════════════════════════ */
+  .od-panel {
+    padding-top: var(--space-2);
+  }
+
+  .od-panel:focus-visible {
+    outline: none;
+  }
+
+  .trends-stack {
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  /* ── Launch cards (operator surfaces) ── */
 
   .launch-grid {
     display: grid;
     gap: var(--space-3);
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   }
 
   .launch-card {
     display: grid;
     gap: 8px;
     padding: var(--space-4);
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-lg);
     border: 1px solid var(--color-border-subtle);
     background: var(--color-bg-surface);
     text-decoration: none;
     color: inherit;
     transition: var(--transition-all);
-    min-height: 158px;
+    min-height: 150px;
   }
 
   .launch-card:hover {
-    transform: translateY(-2px);
     border-color: var(--color-border-strong);
     background: var(--color-bg-hover);
-    box-shadow: var(--shadow-md);
+    box-shadow: var(--shadow-sm);
   }
 
   .launch-card-head {
@@ -926,15 +977,9 @@
    * ═══════════════════════════════════════════════════════════════════════════ */
 
   @media (max-width: 1080px) {
-    .hero {
-      grid-template-columns: 1fr;
-    }
-
-    .workspace-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .health-row {
+    .now-head,
+    .now-active,
+    .health-grid {
       grid-template-columns: 1fr;
     }
 
@@ -944,15 +989,7 @@
   }
 
   @media (max-width: 760px) {
-    .hero {
-      padding: var(--space-5);
-    }
-
-    .hero-rail {
-      padding: var(--space-3);
-    }
-
-    .launch-grid {
+    .journey-links {
       grid-template-columns: 1fr;
     }
 
