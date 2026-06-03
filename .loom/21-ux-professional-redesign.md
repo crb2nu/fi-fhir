@@ -257,9 +257,22 @@ propagate (this is the kill-test's whole point). Shell/dashboard (3-4) are the m
 | **2** Color + motion + type | ✅ shipped | merge `c7c3e7b9` |
 | **3** Shell & nav | ✅ shipped | MR !58 (merge `24fc469f`) |
 | **4** Dashboard restructure | ✅ shipped | MR !59 (merge `fd16b879`) |
-| **5a** Feature-surface noise (motion + emoji) | in progress | branch `feat/ux-slice5-feature-pages` |
+| **5a** Feature-surface noise (motion + emoji) | ✅ shipped | MR !60 (merge `b058ea79`) |
+| **3b** Shell-name reconcile | in progress | branch `feat/ux-slice3b-shell-naming` |
 | **5b** Feature-page scaffolding + inline styles | ⏳ queued | — |
 | **6** | ⏳ queued | — |
+
+**Slice 3b scope (this MR):** finish the domain-first nav rename Slice 3 left to the
+ActivityBar. Editor tab titles (`ideStore.ts` `WORKSPACE_ROUTE_TITLES`), the sidebar
+Navigator list (`sidebarContent.ts` `viewLinks`), and the command-palette nav commands
+(`IDEShell.svelte`) now lead with the domain term (HL7 / Intake · Workflows · Events ·
+Profiles · Terminology · Dashboard); the journey metaphor is **kept** where it belongs —
+the per-stage sidebar headings (`contexts[].title` + `Stage N` eyebrows) and the
+`JourneyProgress` panel (`journey.ts` stage labels + `Continue to …` next-actions),
+unchanged. Updated `IDEShell.test.ts` tab/close-label assertions to the domain labels
+(its heading assertion derives from `journey.ts`, so it stays). This **fixes the last
+pre-existing `ideStore.test` failure** (`createWorkspaceTab('/workflows/').title` now =
+`Workflows`); remaining vitest failures: `ProblemsPanel` ×2 (future copy, untouched here).
 
 **Slice 5a scope (this MR):** feature-surface noise removal — the two mechanical, metric-
 closing halves of Slice 5. **Motion (§5.2):** removed 8 decorative infinite animations
