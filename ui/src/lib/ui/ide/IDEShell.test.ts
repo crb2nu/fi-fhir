@@ -30,18 +30,18 @@ describe('IDEShell workspace', () => {
     render(IDEShell);
     await tick();
 
-    expect(screen.getByRole('tab', { name: 'Source Intake' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'HL7 / Intake' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Source Intake' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Source Intake' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'HL7 / Intake' })).toHaveAttribute('aria-selected', 'true');
 
     pageStore.set({ url: new URL('http://localhost/workflows') });
     await tick();
 
-    expect(screen.getByRole('tab', { name: 'Source Intake' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Delivery' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Delivery' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'HL7 / Intake' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Workflows' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Workflows' })).toHaveAttribute('aria-selected', 'true');
 
-    await fireEvent.click(screen.getByRole('tab', { name: 'Source Intake' }));
+    await fireEvent.click(screen.getByRole('tab', { name: 'HL7 / Intake' }));
     expect(gotoMock).toHaveBeenCalledWith('/hl7');
   });
 
@@ -52,10 +52,10 @@ describe('IDEShell workspace', () => {
     pageStore.set({ url: new URL('http://localhost/workflows') });
     await tick();
 
-    await fireEvent.click(screen.getByLabelText('Close Delivery'));
+    await fireEvent.click(screen.getByLabelText('Close Workflows'));
 
     expect(gotoMock).toHaveBeenCalledWith('/hl7');
-    expect(screen.getByRole('tab', { name: 'Source Intake' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'HL7 / Intake' })).toHaveAttribute('aria-selected', 'true');
     expect(get(ideState).activeTabId).toBe('/hl7');
   });
 

@@ -30,13 +30,15 @@ export interface SidebarContext {
   recent: SidebarAsset[];
 }
 
+// Domain-first sidebar navigation (matches the ActivityBar labels, Slice 3).
+// The journey metaphor is preserved in the per-stage headings + journey panel.
 const viewLinks: SidebarViewLink[] = [
-  { view: 'home', label: 'Mission Control', href: '/' },
-  { view: 'hl7', label: 'Source Intake', href: '/hl7' },
-  { view: 'profiles', label: 'Normalization', href: '/profiles' },
-  { view: 'terminology', label: 'Translation', href: '/terminology' },
-  { view: 'workflows', label: 'Delivery', href: '/workflows' },
-  { view: 'events', label: 'Verification', href: '/events' },
+  { view: 'home', label: 'Dashboard', href: '/' },
+  { view: 'hl7', label: 'HL7 / Intake', href: '/hl7' },
+  { view: 'profiles', label: 'Profiles', href: '/profiles' },
+  { view: 'terminology', label: 'Terminology', href: '/terminology' },
+  { view: 'workflows', label: 'Workflows', href: '/workflows' },
+  { view: 'events', label: 'Events', href: '/events' },
 ];
 
 const contexts: Record<SidebarView, Omit<SidebarContext, 'journey'>> = {

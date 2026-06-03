@@ -83,13 +83,16 @@ function saveLayout(state: IDEState): void {
 
 let _layoutRestored = false;
 
+// Domain-first editor tab titles (match the ActivityBar labels, Slice 3). The
+// journey metaphor (Source Intake / Delivery / …) lives in the journey panel and
+// the per-stage sidebar headings, not in the nav chrome.
 const WORKSPACE_ROUTE_TITLES: Record<IDEView, string> = {
-  system: 'Mission Control',
-  hl7: 'Source Intake',
-  workflows: 'Delivery',
-  events: 'Verification',
-  profiles: 'Normalization',
-  terminology: 'Translation',
+  system: 'Dashboard',
+  hl7: 'HL7 / Intake',
+  workflows: 'Workflows',
+  events: 'Events',
+  profiles: 'Profiles',
+  terminology: 'Terminology',
 };
 
 const WORKSPACE_VIEW_ROUTES: Record<IDEView, IDEAppRoute> = {
