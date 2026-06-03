@@ -247,7 +247,7 @@ Sequencing rationale: enforcement (1) precedes recalibration (2) so token change
 propagate (this is the kill-test's whole point). Shell/dashboard (3-4) are the most visible
 "professional" wins. Per-page migration (5) is the long tail. Policy/a11y (6) hardens.
 
-### Delivery progress (updated 2026-06-02)
+### Delivery progress (updated 2026-06-03)
 
 | Slice | Status | Reference |
 |---|---|---|
@@ -255,8 +255,26 @@ propagate (this is the kill-test's whole point). Shell/dashboard (3-4) are the m
 | **1a** hex → tokens | ✅ shipped | merge `4f4d6e72` |
 | **1b** ad-hoc badges → primitives | ✅ shipped | MR !53 (merge `b045ea2a`) |
 | **2** Color + motion + type | ✅ shipped | merge `c7c3e7b9` |
-| **3** Shell & nav | in progress | branch `feat/ux-slice3-shell-nav` |
-| **4–6** | ⏳ queued | — |
+| **3** Shell & nav | ✅ shipped | MR !58 (merge `24fc469f`) |
+| **4** Dashboard restructure | in progress | branch `feat/ux-slice4-dashboard` |
+| **5–6** | ⏳ queued | — |
+
+**Slice 4 scope (this MR):** rebuilt `routes/+page.svelte` into the §5.5 three-tier
+hierarchy. **Tier 1 (Now):** quiet header + "Recommended move" primary action + three
+deterministic pipeline shortcuts (Start Source Intake / Continue to Normalization / Review
+Verification) + recents (top 3) + active investigations. **Tier 2 (Health at a glance):**
+five compact solid-dot stage-health cards + SystemStatusPanel + AlertsPanel. **Tier 3 (On
+demand):** a `role="tablist"` (Operator surfaces · Operational telemetry · Recent events ·
+Signals & trends) where only the active panel mounts — so DashboardStats, RecentEventsFeed,
+WarningTrends, and UnmappedCodesWidget no longer render on load, and the redundant full
+JourneyProgress is dropped. On-load heavy data components **7 → 2**; always-on top-level
+blocks **7 → 3 tiers** (well past the ~⅓ target). The six-level staggered slide-in cascade
+(0.4s each, over the ≤250ms budget) → a single ≤200ms `fadeIn`. Title `Mission Control` →
+`Dashboard` for Slice-3 nav consistency. This also **fixes the pre-existing `home.test.ts`
+failure** (it now finds the `Continue to Normalization`→`/profiles` link); vitest
+pre-existing failures **4 → 3** (remaining: deferred `ideStore` rename + `ProblemsPanel`×2).
+Tab-label text (`Operator surfaces`, `Operational telemetry`) stays in the DOM as the
+disclosure, satisfying the test contract while only one panel mounts.
 
 **Slice 3 scope (this MR):** ActivityBar rename — domain term leads as the accessible
 name (`aria-label`), journey metaphor rides along in the hover tooltip (`title`) per §5.4;
