@@ -24,8 +24,8 @@
   /* Text Colors */
   --color-text-primary: #0f172a;
   --color-text-secondary: rgba(15, 23, 42, 0.78);
-  --color-text-tertiary: rgba(15, 23, 42, 0.62);
-  --color-text-muted: rgba(15, 23, 42, 0.48);
+  --color-text-tertiary: rgba(15, 23, 42, 0.66); /* AA: 5.43:1 min on light surfaces (kept a step above muted) */
+  --color-text-muted: rgba(15, 23, 42, 0.62); /* AA: 4.77:1 min on light surfaces (was 0.48 → 3.1:1, failed WCAG AA) */
   --color-text-inverse: #f9fafb;
 
   /* Brand Colors */
@@ -314,8 +314,8 @@
 
   --color-text-primary: #0f172a;
   --color-text-secondary: rgba(15, 23, 42, 0.78);
-  --color-text-tertiary: rgba(15, 23, 42, 0.62);
-  --color-text-muted: rgba(15, 23, 42, 0.48);
+  --color-text-tertiary: rgba(15, 23, 42, 0.66); /* AA: 5.43:1 min on light surfaces (kept a step above muted) */
+  --color-text-muted: rgba(15, 23, 42, 0.62); /* AA: 4.77:1 min on light surfaces (was 0.48 → 3.1:1, failed WCAG AA) */
   --color-text-inverse: #f9fafb;
 
   --color-border-subtle: rgba(15, 23, 42, 0.08);
