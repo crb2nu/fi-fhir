@@ -507,13 +507,7 @@
   .msg-bubble-assistant {
     background: var(--color-bg-elevated);
     border: none;
-    border-left: 3px solid;
-    border-image: linear-gradient(
-        to bottom,
-        var(--color-brand-gradient-start),
-        var(--color-brand-gradient-end)
-      )
-      1;
+    border-left: 3px solid var(--color-primary);
     color: var(--color-text-secondary);
   }
 

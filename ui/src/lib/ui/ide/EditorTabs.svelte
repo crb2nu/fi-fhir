@@ -23,7 +23,7 @@
     'debug-session': 'var(--color-warning)',
     trace: 'var(--color-info)',
     event: 'var(--color-success)',
-    profile: '#8b5cf6',
+    profile: 'var(--palette-violet-600)',
   };
 
   let addMenuOpen = false;
@@ -221,7 +221,6 @@
     height: 7px;
     border-radius: 50%;
     flex: 0 0 auto;
-    box-shadow: 0 0 6px currentColor;
   }
 
   .tab-title {

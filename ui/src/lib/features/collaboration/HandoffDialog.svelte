@@ -549,7 +549,7 @@
   .dialog-btn.create,
   .dialog-btn.accept {
     color: var(--palette-white);
-    background: linear-gradient(135deg, var(--color-brand-gradient-start), var(--color-brand-gradient-end));
+    background: var(--color-primary);
     border-color: transparent;
   }
 

@@ -42,7 +42,7 @@
     },
     profile: {
       label: 'Profile',
-      color: '#8b5cf6',
+      color: 'var(--palette-violet-600)',
       iconPath: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8z',
       description: 'Review source profile definitions, field constraints, and revision history.',
     },

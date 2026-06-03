@@ -247,6 +247,40 @@ Sequencing rationale: enforcement (1) precedes recalibration (2) so token change
 propagate (this is the kill-test's whole point). Shell/dashboard (3-4) are the most visible
 "professional" wins. Per-page migration (5) is the long tail. Policy/a11y (6) hardens.
 
+### Delivery progress (updated 2026-06-02)
+
+| Slice | Status | Reference |
+|---|---|---|
+| **0** Kill-test + foundations | ✅ shipped | MR !50 (merge `63919e3d`) |
+| **1a** hex → tokens | ✅ shipped | merge `4f4d6e72` |
+| **1b** ad-hoc badges → primitives | ✅ shipped | MR !53 (merge `b045ea2a`) |
+| **2** Color + motion + type | ✅ shipped | merge `c7c3e7b9` |
+| **3** Shell & nav | in progress | branch `feat/ux-slice3-shell-nav` |
+| **4–6** | ⏳ queued | — |
+
+**Slice 3 scope (this MR):** ActivityBar rename — domain term leads as the accessible
+name (`aria-label`), journey metaphor rides along in the hover tooltip (`title`) per §5.4;
+`ActivityBar.test.ts` updated to the spec labels (this fixes a pre-existing failure that
+asserted the new labels against the old component). StatusBar dots → solid (removed the
+`pulse` infinite animation + glow `box-shadow`s). EditorTabs type-badge glow removed. The
+last brand-gradient non-brand accents (QualityBadge analyze-btn, HandoffDialog action
+buttons, CopilotPanel assistant-bubble border) → flat `--color-primary`, completing §5.1's
+"brand gradient → brand-mark only" (the only remaining `--color-brand-gradient-*` usage is
+the wordmark in `base.css`). Residual profile/normalization `#8b5cf6` → `--palette-violet-600`
+(tokenized in place to avoid collapsing the 5-stage pipeline palette onto `--color-primary`).
+
+**Deferred out of Slice 3 (documented, not dropped):**
+- **Sidebar / IDEShell tabs / route titles / journey-stage labels** still lead with the
+  journey metaphor (`ideStore.ts` `VIEW_LABELS`, `sidebarContent.ts`, `journey.ts`). §5.4
+  scopes the rename to the ActivityBar; reconciling the other shell surfaces is a larger
+  change touching `IDEShell.test.ts` / `Sidebar.test.ts` / `sidebarContent.test.ts` /
+  `home.test.ts` and the journey feature's semantics — wants its own slice/decision.
+- **Feature-page decorative animations** (PresenceBar, TemporalWorkflowList, AlertBadge,
+  LogViewer, RecentEventsFeed, MappingUploader, Skeleton infinite pulse/shimmer) → fold into
+  Slice 5 (feature-page migration). Slice 3's motion sweep covered the shell (StatusBar/tabs).
+- `collaborationStore.ts:80` `#8b5cf6` is JS avatar-color data (not a `<style>` block, so the
+  guardrail doesn't flag it) — feature data, not shell chrome.
+
 ---
 
 ## 7. Success metrics
