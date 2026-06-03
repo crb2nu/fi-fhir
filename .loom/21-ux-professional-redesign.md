@@ -258,9 +258,20 @@ propagate (this is the kill-test's whole point). Shell/dashboard (3-4) are the m
 | **3** Shell & nav | ✅ shipped | MR !58 (merge `24fc469f`) |
 | **4** Dashboard restructure | ✅ shipped | MR !59 (merge `fd16b879`) |
 | **5a** Feature-surface noise (motion + emoji) | ✅ shipped | MR !60 (merge `b058ea79`) |
-| **3b** Shell-name reconcile | in progress | branch `feat/ux-slice3b-shell-naming` |
+| **3b** Shell-name reconcile | ✅ shipped | MR !61 (merge `b930bcdb`) |
+| **6a** A11y contrast (AA text tokens) | in progress | branch `feat/ux-slice6a-a11y-contrast` |
 | **5b** Feature-page scaffolding + inline styles | ⏳ queued | — |
-| **6** | ⏳ queued | — |
+| **6b** Notifications + focus/non-color a11y | ⏳ queued | — |
+
+**Slice 6a scope (this MR):** §5.8 contrast audit. Computed WCAG ratios (alpha-composited
+over bg-base/elevated/surface, both themes) for the text-color scale. **Finding:** the
+**light** (secondary) theme `--color-text-muted` at 0.48 alpha failed AA — **3.1:1** (large-
+text-only). Dark (canonical) theme passes everywhere (muted 4.77:1). **Fix:** light
+`--color-text-muted` 0.48 → **0.62** (4.77:1 min) and `--color-text-tertiary` 0.62 → **0.66**
+(5.43:1, to keep a hierarchy step above muted), in both the `:root` default and
+`[data-theme="light"]` blocks. Dark tokens unchanged. Audit script: `/tmp/contrast_audit.py`
+(reproducible). **Deferred to 6b:** `:focus-visible` consistency sweep (token `--shadow-focus`
+exists) + non-color-state verification + the toast-budget audit (§5.6, 120 call-sites).
 
 **Slice 3b scope (this MR):** finish the domain-first nav rename Slice 3 left to the
 ActivityBar. Editor tab titles (`ideStore.ts` `WORKSPACE_ROUTE_TITLES`), the sidebar
@@ -345,7 +356,7 @@ the wordmark in `base.css`). Residual profile/normalization `#8b5cf6` → `--pal
 | Toast call-sites | 120 | categorized; transient-only |
 | Emoji in clinical surfaces | 3 files | 0 |
 | Dashboard on-load elements | ~70 | ~⅓ reduction |
-| WCAG AA contrast on body/muted text | unverified | pass |
+| WCAG AA contrast on body/muted text | unverified | **text scale verified AA both themes (Slice 6a)**; focus/non-color → 6b |
 | `prefers-reduced-motion` honored | no | yes |
 
 ---
