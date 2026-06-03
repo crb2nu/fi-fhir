@@ -17,12 +17,12 @@ describe('ActivityBar', () => {
     it('should render all expected aria labels', () => {
       render(ActivityBar, { props: { activeView: 'hl7' } });
 
-      expect(screen.getByRole('button', { name: 'HL7 Messages' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'HL7 / Intake' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Workflows' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Events' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Profiles' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Terminology' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'System' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Dashboard' })).toBeInTheDocument();
     });
 
     it('should render activity bar navigation', () => {
@@ -39,7 +39,7 @@ describe('ActivityBar', () => {
       const workflowBtn = screen.getByRole('button', { name: 'Workflows' });
       expect(workflowBtn).toHaveAttribute('aria-current', 'true');
 
-      const hl7Btn = screen.getByRole('button', { name: 'HL7 Messages' });
+      const hl7Btn = screen.getByRole('button', { name: 'HL7 / Intake' });
       expect(hl7Btn).not.toHaveAttribute('aria-current');
     });
 
@@ -49,7 +49,7 @@ describe('ActivityBar', () => {
       const eventsBtn = screen.getByRole('button', { name: 'Events' });
       expect(eventsBtn).toHaveClass('active');
 
-      const hl7Btn = screen.getByRole('button', { name: 'HL7 Messages' });
+      const hl7Btn = screen.getByRole('button', { name: 'HL7 / Intake' });
       expect(hl7Btn).not.toHaveClass('active');
     });
   });
@@ -76,12 +76,12 @@ describe('ActivityBar', () => {
       });
 
       const views = [
-        ['HL7 Messages', 'hl7'],
+        ['HL7 / Intake', 'hl7'],
         ['Workflows', 'workflows'],
         ['Events', 'events'],
         ['Profiles', 'profiles'],
         ['Terminology', 'terminology'],
-        ['System', 'system']
+        ['Dashboard', 'system']
       ] as const;
 
       for (const [label] of views) {

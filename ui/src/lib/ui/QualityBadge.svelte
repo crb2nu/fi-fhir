@@ -472,8 +472,8 @@
     align-items: center;
     gap: 8px;
     padding: 8px 16px;
-    background: linear-gradient(135deg, var(--color-brand-gradient-end) 0%, var(--palette-violet-600) 100%);
-    color: white;
+    background: var(--color-primary);
+    color: var(--palette-white);
     border: none;
     border-radius: 6px;
     font-weight: 500;

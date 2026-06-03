@@ -102,12 +102,10 @@
 
   .connected .dot {
     background: var(--palette-green-300);
-    box-shadow: 0 0 4px rgba(134, 239, 172, 0.6);
   }
 
   .connecting .dot {
     background: var(--palette-yellow-200);
-    animation: pulse 1.5s ease-in-out infinite;
   }
 
   .disconnected .dot {
@@ -154,7 +152,6 @@
 
   .platform-connected .platform-dot {
     background: var(--palette-green-300);
-    box-shadow: 0 0 3px rgba(134, 239, 172, 0.5);
   }
 
   .branding {
@@ -162,10 +159,5 @@
     font-weight: var(--font-bold);
     letter-spacing: var(--tracking-wide);
     opacity: 0.8;
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
   }
 </style>

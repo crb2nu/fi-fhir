@@ -23,7 +23,7 @@
 
   const stageColors: Record<string, string> = {
     'source-intake': 'var(--color-info)',
-    normalization: '#8b5cf6',
+    normalization: 'var(--palette-violet-600)',
     translation: 'var(--color-warning)',
     delivery: 'var(--color-primary)',
     verification: 'var(--color-success)',
@@ -35,7 +35,7 @@
     'debug-session': 'var(--color-warning)',
     trace: 'var(--color-info)',
     event: 'var(--color-success)',
-    profile: '#8b5cf6',
+    profile: 'var(--palette-violet-600)',
   };
 
   // ── Launch pads (operator surfaces) ────────────────────────────────────────
