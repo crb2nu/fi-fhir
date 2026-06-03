@@ -589,16 +589,10 @@
     height: 6px;
     border-radius: var(--radius-full);
     background: var(--color-warning);
-    animation: pulse 2s infinite;
   }
 
   .status-running {
     padding-left: var(--space-5);
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
   }
 
   .status-completed {

@@ -30,11 +30,11 @@
   $: available = $isAvailable;
 
   // ── Action definitions ──
-  const actions: { key: CopilotAction; label: string; icon: string; colorClass: string }[] = [
-    { key: 'explain', label: 'Explain', icon: '\u{1F4A1}', colorClass: 'action-info' },
-    { key: 'suggest', label: 'Suggest', icon: '\u{1F3AF}', colorClass: 'action-success' },
-    { key: 'generate', label: 'Generate', icon: '\u26A1', colorClass: 'action-warning' },
-    { key: 'review', label: 'Review', icon: '\u{1F50D}', colorClass: 'action-primary' },
+  const actions: { key: CopilotAction; label: string; colorClass: string }[] = [
+    { key: 'explain', label: 'Explain', colorClass: 'action-info' },
+    { key: 'suggest', label: 'Suggest', colorClass: 'action-success' },
+    { key: 'generate', label: 'Generate', colorClass: 'action-warning' },
+    { key: 'review', label: 'Review', colorClass: 'action-primary' },
   ];
 
   const placeholders: Record<CopilotAction, string> = {
@@ -57,12 +57,12 @@
   // ── Context chips ──
   $: contextChips = buildContextChips(context);
 
-  function buildContextChips(ctx: CopilotContext): { label: string; icon: string }[] {
-    const chips: { label: string; icon: string }[] = [];
-    if (ctx.stage) chips.push({ label: ctx.stage, icon: '\u{1F3C1}' });
-    if (ctx.documentType) chips.push({ label: ctx.documentType, icon: '\u{1F4C4}' });
-    if (ctx.selection) chips.push({ label: 'Selection active', icon: '\u2702\uFE0F' });
-    if (ctx.artifactId) chips.push({ label: ctx.artifactId, icon: '\u{1F4E6}' });
+  function buildContextChips(ctx: CopilotContext): { label: string }[] {
+    const chips: { label: string }[] = [];
+    if (ctx.stage) chips.push({ label: ctx.stage });
+    if (ctx.documentType) chips.push({ label: ctx.documentType });
+    if (ctx.selection) chips.push({ label: 'Selection active' });
+    if (ctx.artifactId) chips.push({ label: ctx.artifactId });
     return chips;
   }
 
@@ -197,13 +197,11 @@
           class="context-chip"
           style="animation-delay: {i * 50}ms"
         >
-          <span class="chip-icon">{chip.icon}</span>
           <span class="chip-label">{chip.label}</span>
         </span>
       {/each}
       {#if contextChips.length === 0}
         <span class="context-chip placeholder-chip">
-          <span class="chip-icon">✨</span>
           <span class="chip-label">No context</span>
         </span>
       {/if}
@@ -282,7 +280,6 @@
           on:click={() => selectAction(action.key)}
           title={action.label}
         >
-          <span class="action-icon">{action.icon}</span>
           <span class="action-label">{action.label}</span>
         </button>
       {/each}
@@ -395,11 +392,6 @@
 
   .placeholder-chip {
     opacity: 0.5;
-  }
-
-  .chip-icon {
-    font-size: 10px;
-    line-height: 1;
   }
 
   .chip-label {
@@ -617,7 +609,6 @@
   .streaming-cursor {
     display: inline;
     color: var(--color-primary);
-    animation: pulse 1s infinite;
     font-weight: var(--font-bold);
   }
 
@@ -662,11 +653,6 @@
       border-color var(--duration-fast) var(--ease-out),
       transform var(--duration-normal) var(--ease-out),
       box-shadow var(--duration-normal) var(--ease-out);
-    line-height: 1;
-  }
-
-  .action-icon {
-    font-size: 12px;
     line-height: 1;
   }
 

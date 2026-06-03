@@ -256,8 +256,28 @@ propagate (this is the kill-test's whole point). Shell/dashboard (3-4) are the m
 | **1b** ad-hoc badges → primitives | ✅ shipped | MR !53 (merge `b045ea2a`) |
 | **2** Color + motion + type | ✅ shipped | merge `c7c3e7b9` |
 | **3** Shell & nav | ✅ shipped | MR !58 (merge `24fc469f`) |
-| **4** Dashboard restructure | in progress | branch `feat/ux-slice4-dashboard` |
-| **5–6** | ⏳ queued | — |
+| **4** Dashboard restructure | ✅ shipped | MR !59 (merge `fd16b879`) |
+| **5a** Feature-surface noise (motion + emoji) | in progress | branch `feat/ux-slice5-feature-pages` |
+| **5b** Feature-page scaffolding + inline styles | ⏳ queued | — |
+| **6** | ⏳ queued | — |
+
+**Slice 5a scope (this MR):** feature-surface noise removal — the two mechanical, metric-
+closing halves of Slice 5. **Motion (§5.2):** removed 8 decorative infinite animations
+(PresenceBar `statusPulse`, MappingUploader `borderPulse` → static drop-zone border,
+TemporalWorkflowList running-dot `pulse`, AlertBadge `badgePulse`+`dotPulse`, LogViewer
+loading `pulse`, RecentEventsFeed skeleton `pulse`, CopilotPanel streaming-cursor `pulse`).
+Color/state now carries each signal; static cues preserved where they were the only
+indicator. **Emoji (§1 metric → 0):** stripped CopilotPanel's 9 playful glyphs (4 action
+icons + 4 context-chip icons + ✨ placeholder; labels carry the meaning) and WarningList's
+💡, plus the now-unused `.action-icon`/`.chip-icon`/`.icon` CSS. WorkflowBuilder's `✓`/`○`
+are functional status glyphs, kept. **Deferred:** the shared `Skeleton.svelte` `shimmer`
+infinite (core primitive — its own decision, not feature-page scope) is the only remaining
+infinite animation besides `spin` loaders.
+
+**Slice 5b (queued):** per-page scaffolding — add `EmptyState` where pages lack it (0/5
+use it today), give `/hl7` (HL7PreviewPage) a `PageHeader`, give `/workflows`
+(WorkflowsPage) a `Panel`; plus consolidate the ~42 non-data-driven inline `style=`/`style:`
+attributes (heaviest: RecentEventsFeed, MetricsPanel, PresenceBar, CopilotPanel).
 
 **Slice 4 scope (this MR):** rebuilt `routes/+page.svelte` into the §5.5 three-tier
 hierarchy. **Tier 1 (Now):** quiet header + "Recommended move" primary action + three

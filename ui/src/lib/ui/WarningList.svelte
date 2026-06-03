@@ -191,7 +191,6 @@
                         aria-expanded={expandedExplanations.has(wKey)}
                         on:click|stopPropagation={() => toggleExplanation(wKey)}
                       >
-                        <span class="icon" aria-hidden="true">💡</span>
                         {#if w.fromCache}
                           <span class="cache-badge">cached</span>
                         {/if}
@@ -579,10 +578,6 @@
 
   .explain-toggle:hover {
     color: rgba(129, 140, 248, 1);
-  }
-
-  .icon {
-    font-size: 1rem;
   }
 
   .cache-badge {

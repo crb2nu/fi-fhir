@@ -312,12 +312,7 @@
   }
 
   .uploader.dragging .drop-zone {
-    animation: borderPulse 1s ease-in-out infinite;
-  }
-
-  @keyframes borderPulse {
-    0%, 100% { border-color: var(--color-primary); }
-    50% { border-color: var(--color-primary-muted); }
+    border-color: var(--color-primary);
   }
 
   .drop-icon {

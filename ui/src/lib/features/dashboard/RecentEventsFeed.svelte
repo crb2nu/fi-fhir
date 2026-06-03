@@ -230,7 +230,6 @@
 
   .skeleton {
     opacity: 0.6;
-    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 
   .skeleton-dot {
@@ -246,13 +245,4 @@
     background: var(--color-border-strong);
   }
 
-  @keyframes pulse {
-    0%,
-    100% {
-      opacity: 0.6;
-    }
-    50% {
-      opacity: 0.3;
-    }
-  }
 </style>
