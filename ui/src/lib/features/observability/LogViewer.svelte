@@ -371,7 +371,6 @@
     font-weight: var(--font-bold);
     color: var(--color-primary);
     letter-spacing: var(--tracking-wider);
-    animation: pulse 2s ease-in-out infinite;
   }
 
   /* Animations */
@@ -386,10 +385,6 @@
     }
   }
 
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-  }
 
   @media (prefers-reduced-motion: reduce) {
     .log-row.tail-anim {

@@ -271,7 +271,6 @@
 
   .status-dot.active {
     background-color: var(--color-success);
-    animation: statusPulse 2s ease-in-out infinite;
   }
 
   .status-dot.idle {
@@ -427,11 +426,6 @@
   }
 
   /* Animations */
-  @keyframes statusPulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.55; }
-  }
-
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(4px); }
     to { opacity: 1; transform: translateY(0); }

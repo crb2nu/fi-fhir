@@ -169,9 +169,6 @@
     text-align: center;
   }
 
-  .badge-count.pulse {
-    animation: badgePulse 2s ease-in-out infinite;
-  }
 
   /* Dropdown — positioned via inline style (fixed) to escape overflow:hidden */
   .dropdown {
@@ -266,9 +263,6 @@
     background: var(--color-info);
   }
 
-  .alert-item.firing .severity-dot {
-    animation: dotPulse 2s ease-in-out infinite;
-  }
 
   .alert-name {
     font-size: var(--text-xs);
@@ -318,16 +312,6 @@
   }
 
   /* Animations */
-  @keyframes badgePulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.6; }
-  }
-
-  @keyframes dotPulse {
-    0%, 100% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.3); opacity: 0.7; }
-  }
-
   @keyframes scaleIn {
     from {
       opacity: 0;
