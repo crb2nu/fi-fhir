@@ -2,6 +2,7 @@
   import { onMount, createEventDispatcher } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import Button from "$lib/ui/Button.svelte";
+  import EmptyState from "$lib/ui/EmptyState.svelte";
   import ConfirmModal from "$lib/ui/ConfirmModal.svelte";
   import { toasts } from "$lib/ui/toastStore";
   import {
@@ -494,26 +495,13 @@
       >
     </div>
   {:else if pending.length === 0}
-    <div class="empty-state">
-      <div class="empty-icon">
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-        >
-          <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      </div>
-      <div class="empty-text">No pending suggestions</div>
-      <div class="empty-hint">
-        {#if filterStatus !== "PENDING"}
-          Try filtering by "Pending" status
-        {:else}
-          All suggestions have been reviewed
-        {/if}
-      </div>
-    </div>
+    <EmptyState
+      icon="inbox"
+      title="No pending suggestions"
+      description={filterStatus !== "PENDING"
+        ? 'Try filtering by "Pending" status'
+        : "All suggestions have been reviewed"}
+    />
   {:else}
     {#if visiblePendingIds.length > 0}
       <div class="bulk-toolbar" role="toolbar" aria-label="Bulk review actions">
@@ -1348,36 +1336,6 @@
   .error-message {
     color: var(--color-danger-text);
     font-size: var(--text-sm);
-  }
-
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-12);
-  }
-
-  .empty-icon {
-    width: 48px;
-    height: 48px;
-    color: var(--color-success);
-    opacity: 0.5;
-  }
-
-  .empty-icon svg {
-    width: 100%;
-    height: 100%;
-  }
-
-  .empty-text {
-    color: var(--color-text-secondary);
-    font-size: var(--text-sm);
-  }
-
-  .empty-hint {
-    color: var(--color-text-muted);
-    font-size: var(--text-xs);
   }
 
   /* Modal Content */

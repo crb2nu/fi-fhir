@@ -3,6 +3,7 @@
   import { queryEvents } from "$lib/features/events/eventsApi";
   import type { EventsQuery, EventOrderBy } from "$lib/gen/graphql";
   import { resolve } from "$app/paths";
+  import EmptyState from "$lib/ui/EmptyState.svelte";
 
   type EventNode = EventsQuery["events"]["edges"][number]["node"];
 
@@ -57,27 +58,24 @@
       {#each [1, 2, 3] as i (i)}
         <div class="event-row skeleton">
           <div class="skeleton-dot"></div>
-          <div class="skeleton-text" style="width: 120px;"></div>
-          <div
-            class="skeleton-text"
-            style="width: 80px; margin-left: auto;"
-          ></div>
-          <div class="skeleton-text" style="width: 60px;"></div>
+          <div class="skeleton-text w-lg"></div>
+          <div class="skeleton-text w-md"></div>
+          <div class="skeleton-text w-sm"></div>
         </div>
       {/each}
     </div>
   {:else if events.length === 0}
-    <div class="empty-state">
-      <div class="empty-icon">⌘</div>
-      <p class="muted">No events yet.</p>
-      <p class="sub">Submit a message to get started.</p>
-    </div>
+    <EmptyState
+      icon="inbox"
+      title="No events yet."
+      description="Submit a message to get started."
+      compact
+    />
   {:else}
     <div class="event-list">
       {#each events as event (event.id)}
         <div
           class="event-row {typeColor(event.type)} animate-slide-in-up"
-          style="animation-duration: 0.3s; animation-fill-mode: both;"
         >
           <span class="type-dot {typeColor(event.type)}"></span>
           <span class="type-text">{event.type.replace(/_/g, " ")}</span>
@@ -126,6 +124,11 @@
     border-radius: var(--radius-lg);
     border-left: 4px solid var(--color-border-default);
     transition: var(--transition-all);
+  }
+
+  .event-row.animate-slide-in-up {
+    animation-duration: 0.3s;
+    animation-fill-mode: both;
   }
 
   .event-row:hover {
@@ -208,26 +211,7 @@
     text-decoration: underline;
   }
 
-  /* Empty & Loading States */
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 32px 16px;
-    text-align: center;
-    border: 1px dashed var(--color-border-strong);
-    border-radius: var(--radius-xl);
-    background: var(--color-bg-surface);
-  }
-
-  .empty-icon {
-    font-size: 2rem;
-    color: var(--color-border-focus);
-    margin-bottom: 12px;
-    opacity: 0.5;
-  }
-
+  /* Loading State */
   .skeleton {
     opacity: 0.6;
   }
@@ -243,6 +227,19 @@
     height: 12px;
     border-radius: 6px;
     background: var(--color-border-strong);
+  }
+
+  .skeleton-text.w-lg {
+    width: 120px;
+  }
+
+  .skeleton-text.w-md {
+    width: 80px;
+    margin-left: auto;
+  }
+
+  .skeleton-text.w-sm {
+    width: 60px;
   }
 
 </style>

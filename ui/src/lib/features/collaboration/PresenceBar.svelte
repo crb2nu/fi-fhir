@@ -83,7 +83,7 @@
         on:mouseenter={(e) => handleMouseEnter(e, agent.agentId)}
         on:mouseleave={handleMouseLeave}
       >
-        <div class="avatar" style="background-color: {agent.avatarColor}">
+        <div class="avatar" style="--avatar-color: {agent.avatarColor}">
           <span class="avatar-initial">{getInitial(agent.displayName)}</span>
           {#if isAiAgent(agent)}
             <span class="ai-indicator" aria-hidden="true">
@@ -122,13 +122,13 @@
   {#if hoveredAgentData}
     <div
       class="tooltip"
-      style="left: {tooltipX}px; top: {tooltipY}px"
+      style="--tip-x: {tooltipX}px; --tip-y: {tooltipY}px"
       role="tooltip"
     >
       <div class="tooltip-header">
         <div
           class="tooltip-avatar"
-          style="background-color: {hoveredAgentData.avatarColor}"
+          style="--avatar-color: {hoveredAgentData.avatarColor}"
         >
           {getInitial(hoveredAgentData.displayName)}
         </div>
@@ -219,6 +219,7 @@
     position: relative;
     width: 32px;
     height: 32px;
+    background-color: var(--avatar-color, var(--color-bg-elevated));
     border-radius: var(--radius-full);
     display: flex;
     align-items: center;
@@ -312,6 +313,8 @@
   /* Tooltip */
   .tooltip {
     position: fixed;
+    left: var(--tip-x, 0);
+    top: var(--tip-y, 0);
     z-index: var(--z-tooltip);
     transform: translateX(-50%);
     background: var(--color-bg-overlay);
@@ -339,6 +342,7 @@
   .tooltip-avatar {
     width: 28px;
     height: 28px;
+    background-color: var(--avatar-color, var(--color-bg-elevated));
     border-radius: var(--radius-full);
     display: flex;
     align-items: center;

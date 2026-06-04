@@ -2,6 +2,7 @@
   import { onMount, createEventDispatcher } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import Button from '$lib/ui/Button.svelte';
+  import EmptyState from '$lib/ui/EmptyState.svelte';
   import ConfirmModal from '$lib/ui/ConfirmModal.svelte';
   import { toasts } from '$lib/ui/toastStore';
   import { listTemporalWorkflows, cancelTemporalWorkflow } from './temporalApi';
@@ -278,21 +279,13 @@
       <Button variant="secondary" size="sm" on:click={loadWorkflows}>Retry</Button>
     </div>
   {:else if workflows.length === 0}
-    <div class="empty-state">
-      <div class="empty-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z" />
-        </svg>
-      </div>
-      <div class="empty-text">No workflows found</div>
-      <div class="empty-hint">
-        {#if filterStatus}
-          Try adjusting your filters
-        {:else}
-          Workflows will appear here when terminology reviews are started
-        {/if}
-      </div>
-    </div>
+    <EmptyState
+      icon="data"
+      title="No workflows found"
+      description={filterStatus
+        ? "Try adjusting your filters"
+        : "Workflows will appear here when terminology reviews are started"}
+    />
   {:else}
     <div class="cards">
       {#each workflows as wf (wf.id + wf.runId)}
@@ -734,36 +727,6 @@
 
   .error-message {
     color: var(--color-danger);
-    font-size: var(--text-sm);
-  }
-
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-12);
-  }
-
-  .empty-icon {
-    width: 48px;
-    height: 48px;
-    color: var(--color-text-muted);
-    opacity: 0.5;
-  }
-
-  .empty-icon svg {
-    width: 100%;
-    height: 100%;
-  }
-
-  .empty-text {
-    color: var(--color-text-secondary);
-    font-size: var(--text-base);
-  }
-
-  .empty-hint {
-    color: var(--color-text-muted);
     font-size: var(--text-sm);
   }
 
