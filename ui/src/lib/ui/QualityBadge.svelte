@@ -331,6 +331,11 @@
     transform: scale(1.05);
   }
 
+  .score-badge:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+  }
+
   .score-badge.good {
     background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(16, 185, 129, 0.2));
     color: var(--color-success-soft);
@@ -378,6 +383,11 @@
     background: rgba(59, 130, 246, 0.3);
   }
 
+  .analyze-btn-compact:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+  }
+
   .spinner-small {
     width: 12px;
     height: 12px;
@@ -419,6 +429,13 @@
   }
 
   .close-btn:hover {
+    color: var(--color-text-primary);
+  }
+
+  .close-btn:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+    border-radius: var(--radius-sm);
     color: var(--color-text-primary);
   }
 
@@ -488,6 +505,11 @@
 
   .analyze-btn:hover:not(:disabled) {
     opacity: 0.9;
+  }
+
+  .analyze-btn:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
   }
 
   .spinner {

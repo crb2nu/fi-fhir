@@ -117,6 +117,12 @@
     border-color: var(--color-border-strong);
   }
 
+  .copy-btn:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+    border-color: var(--color-border-focus);
+  }
+
   .copied {
     color: var(--color-success);
   }

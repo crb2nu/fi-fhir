@@ -408,6 +408,12 @@
     border-color: var(--color-border-default);
   }
 
+  .jump-btn:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+    border-color: var(--color-border-focus);
+  }
+
   .entry-head {
     display: flex;
     align-items: center;

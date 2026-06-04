@@ -260,8 +260,30 @@ propagate (this is the kill-test's whole point). Shell/dashboard (3-4) are the m
 | **5a** Feature-surface noise (motion + emoji) | ✅ shipped | MR !60 (merge `b058ea79`) |
 | **3b** Shell-name reconcile | ✅ shipped | MR !61 (merge `b930bcdb`) |
 | **6a** A11y contrast (AA text tokens) | ✅ shipped | MR !62 (merge `d9340950`) |
-| **5b** Feature-page scaffolding + inline styles | ✅ shipped | branch `feat/ux-slice5b-scaffolding` |
-| **6b** Notifications + focus/non-color a11y | ⏳ queued | — |
+| **5b** Feature-page scaffolding + inline styles | ✅ shipped | MR !63 (merge `d69616f1`) |
+| **6b-α** Focus-visible sweep (shared primitives) | ✅ shipped | branch `feat/ux-slice6b-a11y-toasts` |
+| **6b-β** Toast budget + remaining a11y | ⏳ queued | — |
+
+**Slice 6b-α scope (this MR):** §5.8 visible-focus consistency — first half of Slice 6b
+(split from the 103-call-site toast budget, deferred to 6b-β). A census found focus styling
+already broad (`--shadow-focus` in 54 files, `:focus-visible` in 25) but **20 components had
+interactive controls with no focus rule at all** — the likely a11y bug being native `<button>`s
+falling back to a browser default outline that reads poorly on the dark canonical theme. Refined
+the list: components that delegate to the `Button`/`IconButton` primitives are **false positives**
+(those primitives already carry `:focus-visible { box-shadow: var(--shadow-focus) }`), e.g.
+`ThemeToggle` via `IconButton`. Real gaps = components with **bespoke `<button class>`**. This MR
+fixes the **6 shared `ui/` primitives + chrome**: `Toast` (`.dismiss`), `JsonViewer` (`.copy-btn`),
+`QualityBadge` (`.score-badge`/`.analyze-btn`/`.analyze-btn-compact`/`.close-btn`), `ExtractionPanel`
+(`.extract-btn`/`.tab`), `RuntimeOutputPanel` (`.jump-btn`), `ProblemsPanel` (`.filter-chip`/
+`.clear-btn`/`.section-header`/`.diagnostic-row`/`.nav-btn`) — all using the canonical idiom
+`:focus-visible { outline: none; box-shadow: var(--shadow-focus); }` (CSS-only, additive, zero
+behavioral risk). **Deferred to 6b-β:** the 13 remaining feature-component focus gaps
+(AutorouteResolver, WorkflowPreview, DryRunPanel, ActionList, TransformList, AuthoringFlowRail,
+SystemStatusPanel, ProfilesPage, EventDetail, ProfileDraftPanel, EventStats, AlertBadge,
+ProfileDiffModal), the non-color-state verification, and the §5.6 toast budget (103 call-sites:
+71 error / 32 success / 14 add / 3 info / 1 warning — the 71 persistent errors are the prime
+"move to Problems/inline" candidates). Verification: stylelint/eslint/svelte-check clean (0 errors,
+no new warnings); vitest unchanged (473 pass, 2 known `ProblemsPanel` fails); `vite build` green.
 
 **Slice 5b scope (this MR):** §5.3/§5.7 page scaffolding + inline-style consolidation.
 **Scaffolding:** `WorkflowsPage` hand-rolled `.workspace-frame` (border + `bg-elevated` +
