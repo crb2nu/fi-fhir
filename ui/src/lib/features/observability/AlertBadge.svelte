@@ -146,6 +146,12 @@
     color: rgba(255, 255, 255, 0.8);
   }
 
+  .badge-trigger:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+    border-radius: var(--radius-sm);
+  }
+
   .badge-trigger.has-alerts {
     color: rgba(255, 255, 255, 0.9);
   }

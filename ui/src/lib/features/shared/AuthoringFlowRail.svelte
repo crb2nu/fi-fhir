@@ -279,6 +279,11 @@
     box-shadow: var(--shadow-sm);
   }
 
+  .action:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+  }
+
   .action.primary:hover {
     box-shadow: var(--shadow-md);
   }
@@ -365,6 +370,12 @@
 
   .chip-link:hover {
     text-decoration: underline;
+  }
+
+  .chip-link:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+    border-radius: var(--radius-sm);
   }
 
   .chip-sep {

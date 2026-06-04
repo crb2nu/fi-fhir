@@ -296,6 +296,12 @@
     background: var(--color-bg-hover);
   }
 
+  .source-tab:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+    border-radius: var(--radius-sm);
+  }
+
   .source-tab.active {
     color: var(--color-text-primary);
     background: var(--color-bg-elevated);

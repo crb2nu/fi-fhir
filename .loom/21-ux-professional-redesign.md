@@ -261,8 +261,23 @@ propagate (this is the kill-test's whole point). Shell/dashboard (3-4) are the m
 | **3b** Shell-name reconcile | ✅ shipped | MR !61 (merge `b930bcdb`) |
 | **6a** A11y contrast (AA text tokens) | ✅ shipped | MR !62 (merge `d9340950`) |
 | **5b** Feature-page scaffolding + inline styles | ✅ shipped | MR !63 (merge `d69616f1`) |
-| **6b-α** Focus-visible sweep (shared primitives) | ✅ shipped | branch `feat/ux-slice6b-a11y-toasts` |
-| **6b-β** Toast budget + remaining a11y | ⏳ queued | — |
+| **6b-α** Focus-visible sweep (shared primitives) | ✅ shipped | MR !64 (merge `f37c5063`) |
+| **6b-β1** Focus-visible sweep (feature components) | ✅ shipped | branch `feat/ux-slice6b-b1-focus` |
+| **6b-β2** Non-color-state + toast budget (§5.6) | ⏳ queued | — |
+
+**Slice 6b-β1 scope (this MR):** §5.8 visible-focus — completes the focus sweep across the
+**5 feature components** with bespoke `<button>` that 6b-α deferred: `DryRunPanel` (`.source-tab`),
+`ActionList` + `TransformList` (`.icon-btn`), `AuthoringFlowRail` (`.action` + `.chip-link`,
+the latter shared by an `<a>` and a `<button>`), `AlertBadge` (`.badge-trigger`; its `.action-btn`
+pair is permanently `disabled` → not focusable → skipped). Same canonical idiom
+`:focus-visible { outline: none; box-shadow: var(--shadow-focus); }`. **Audit closure:** the
+original census flagged 20 components; **11 were real gaps (6 in 6b-α + 5 here)** and **9 were
+false positives** that delegate clicks to the `Button`/`IconButton` primitives (verified: the 8
+`<button>=0` feature components have zero bare `on:click` on `<div>/<tr>/<li>/<span>` — every
+handler sits on `<Button>`/`<button>`). **The visible-focus workstream is now complete.**
+Remaining 6b work (→ **6b-β2**): non-color-state verification + the §5.6 toast budget (103
+call-sites). CSS-only/additive; stylelint/eslint/svelte-check clean (0 err, no new warnings);
+vitest unchanged (473 pass, 2 known `ProblemsPanel`); `vite build` green.
 
 **Slice 6b-α scope (this MR):** §5.8 visible-focus consistency — first half of Slice 6b
 (split from the 103-call-site toast budget, deferred to 6b-β). A census found focus styling
