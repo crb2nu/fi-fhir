@@ -339,6 +339,11 @@
     color: var(--color-text-secondary);
   }
 
+  .filter-chip:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+  }
+
   .filter-chip.active.severity-error {
     background: var(--color-danger-bg);
     border-color: var(--color-danger-border);
@@ -421,6 +426,11 @@
     color: var(--color-text-secondary);
   }
 
+  .clear-btn:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+  }
+
   .clear-btn:disabled {
     opacity: 0.4;
     cursor: default;
@@ -496,6 +506,11 @@
 
   .section-header:hover {
     background: var(--color-bg-hover);
+  }
+
+  .section-header:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
   }
 
   .section-label {
@@ -585,6 +600,11 @@
   .diagnostic-row:hover {
     background: var(--color-bg-hover);
     box-shadow: var(--shadow-sm);
+  }
+
+  .diagnostic-row:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
   }
 
   .severity-strip {
@@ -717,6 +737,11 @@
   .nav-btn:hover {
     background: var(--color-bg-active);
     color: var(--color-primary);
+  }
+
+  .nav-btn:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
   }
 
   .nav-btn svg {

@@ -344,6 +344,11 @@
     opacity: 0.9;
   }
 
+  .extract-btn:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+  }
+
   .spinner {
     width: 14px;
     height: 14px;
@@ -402,6 +407,12 @@
   .tab:hover {
     color: var(--color-text-primary);
     background: var(--color-bg-hover);
+  }
+
+  .tab:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+    border-radius: var(--radius-sm);
   }
 
   .tab.active {

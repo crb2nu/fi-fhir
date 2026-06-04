@@ -139,6 +139,13 @@
     color: rgba(243, 244, 246, 0.95);
   }
 
+  .dismiss:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+    border-radius: var(--radius-sm);
+    color: rgba(243, 244, 246, 0.95);
+  }
+
   .dismiss-icon {
     width: 100%;
     height: 100%;
