@@ -118,6 +118,11 @@
     color: var(--color-text-primary);
   }
 
+  .icon-btn:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+  }
+
   .icon-btn:disabled {
     opacity: 0.3;
     cursor: not-allowed;
