@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, createEventDispatcher } from "svelte";
   import Button from "$lib/ui/Button.svelte";
+  import EmptyState from "$lib/ui/EmptyState.svelte";
   import ConfirmModal from "$lib/ui/ConfirmModal.svelte";
   import { toasts } from "$lib/ui/toastStore";
   import {
@@ -337,30 +338,17 @@
       >
     </div>
   {:else if mappings.length === 0}
-    <div class="empty-state">
-      <div class="empty-icon">
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-        >
-          <path d="M4 7h16M4 12h16M4 17h10" />
-        </svg>
-      </div>
-      <div class="empty-text">No mappings found</div>
-      <div class="empty-hint">
-        {#if filterSourceSystem || filterTargetSystem}
-          Try adjusting your filters
-        {:else}
-          Upload a CSV file to add mappings
-        {/if}
-      </div>
-    </div>
+    <EmptyState
+      icon="data"
+      title="No mappings found"
+      description={filterSourceSystem || filterTargetSystem
+        ? "Try adjusting your filters"
+        : "Upload a CSV file to add mappings"}
+    />
   {:else}
     <div class="cards">
       {#each mappings as mapping, i (mapping.id)}
-        <div class="card hover-lift" style="animation-delay: {i * 0.05}s">
+        <div class="card hover-lift" style="--card-delay: {i * 0.05}s">
           <button
             type="button"
             class="card-main"
@@ -614,6 +602,7 @@
     border-top: 1px solid rgba(255, 255, 255, 0.05); /* 3D depth */
     box-shadow: var(--shadow-sm);
     animation: fade-in-up 0.4s ease-out both;
+    animation-delay: var(--card-delay, 0s);
     gap: var(--space-4);
   }
 
@@ -844,36 +833,6 @@
   .error-message {
     color: var(--color-danger-text);
     font-size: var(--text-sm);
-  }
-
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-12);
-  }
-
-  .empty-icon {
-    width: 48px;
-    height: 48px;
-    color: var(--color-text-muted);
-    opacity: 0.5;
-  }
-
-  .empty-icon svg {
-    width: 100%;
-    height: 100%;
-  }
-
-  .empty-text {
-    color: var(--color-text-secondary);
-    font-size: var(--text-sm);
-  }
-
-  .empty-hint {
-    color: var(--color-text-muted);
-    font-size: var(--text-xs);
   }
 
   /* Responsive */

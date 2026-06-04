@@ -2,6 +2,7 @@
   import Tabs from '$lib/ui/Tabs.svelte';
   import type { TabItem } from '$lib/ui/types';
   import PageHeader from '$lib/ui/PageHeader.svelte';
+  import Panel from '$lib/ui/Panel.svelte';
   import AuthoringFlowRail from '$lib/features/shared/AuthoringFlowRail.svelte';
   import type { FlowStep } from '$lib/features/shared/authoringFlow';
   import WorkflowList from './components/WorkflowList.svelte';
@@ -85,19 +86,21 @@
     />
   </div>
 
-  <div class="workspace-frame">
-    <Tabs {tabs} active={activeTab} onChange={(key) => (activeTab = key)} />
+  <Panel padding="lg">
+    <div class="workspace-frame">
+      <Tabs {tabs} active={activeTab} onChange={(key) => (activeTab = key)} />
 
-    <div class="workspace">
-      {#if activeTab === 'list'}
-        <WorkflowList on:openBuilder={handleOpenBuilder} on:openMonitor={handleOpenMonitor} />
-      {:else if activeTab === 'builder'}
-        <WorkflowBuilder managedSelection={builderSelection} />
-      {:else if activeTab === 'monitor'}
-        <WorkflowMonitor initialWorkflowName={monitorWorkflowSelection} />
-      {/if}
+      <div class="workspace">
+        {#if activeTab === 'list'}
+          <WorkflowList on:openBuilder={handleOpenBuilder} on:openMonitor={handleOpenMonitor} />
+        {:else if activeTab === 'builder'}
+          <WorkflowBuilder managedSelection={builderSelection} />
+        {:else if activeTab === 'monitor'}
+          <WorkflowMonitor initialWorkflowName={monitorWorkflowSelection} />
+        {/if}
+      </div>
     </div>
-  </div>
+  </Panel>
 </section>
 
 <style>
@@ -113,11 +116,6 @@
   .workspace-frame {
     display: grid;
     gap: 16px;
-    padding: 20px;
-    border-radius: 24px;
-    border: 1px solid var(--color-border-subtle);
-    background: var(--color-bg-elevated);
-    box-shadow: var(--shadow-sm);
   }
 
   .workspace {

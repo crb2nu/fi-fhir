@@ -259,9 +259,29 @@ propagate (this is the kill-test's whole point). Shell/dashboard (3-4) are the m
 | **4** Dashboard restructure | ✅ shipped | MR !59 (merge `fd16b879`) |
 | **5a** Feature-surface noise (motion + emoji) | ✅ shipped | MR !60 (merge `b058ea79`) |
 | **3b** Shell-name reconcile | ✅ shipped | MR !61 (merge `b930bcdb`) |
-| **6a** A11y contrast (AA text tokens) | in progress | branch `feat/ux-slice6a-a11y-contrast` |
-| **5b** Feature-page scaffolding + inline styles | ⏳ queued | — |
+| **6a** A11y contrast (AA text tokens) | ✅ shipped | MR !62 (merge `d9340950`) |
+| **5b** Feature-page scaffolding + inline styles | ✅ shipped | branch `feat/ux-slice5b-scaffolding` |
 | **6b** Notifications + focus/non-color a11y | ⏳ queued | — |
+
+**Slice 5b scope (this MR):** §5.3/§5.7 page scaffolding + inline-style consolidation.
+**Scaffolding:** `WorkflowsPage` hand-rolled `.workspace-frame` (border + `bg-elevated` +
+`shadow-sm` + radius + padding) → the shared `<Panel padding="lg">` primitive; migrated **4
+ad-hoc empty states** to the canonical `<EmptyState>` — terminology `MappingBrowser` (→
+`icon="data"`), `PendingReviewList` (→ `inbox`), `TemporalWorkflowList` (→ `data`), and
+dashboard `RecentEventsFeed` (→ `inbox`, which also **removed the decorative `⌘` glyph** the
+ad-hoc state used as an icon). Each migration deleted the bespoke `.empty-state/.empty-icon/
+.empty-text/.empty-hint` CSS (no orphaned selectors — svelte-check confirms 0 new unused-CSS
+warnings). **Inline styles (§5.3 bound CSS-var pattern):** converted **11** presentational
+inline `style=` attributes to `style="--var: {x}"` + a class rule consuming `var(--var, fallback)`:
+`MetricsPanel` sparkline bars (`--bar-h`/`--bar-delay` ×3), `PresenceBar` (`--avatar-color` ×2,
+tooltip `--tip-x`/`--tip-y`), `RecentEventsFeed` (static skeleton widths → `.w-lg/.w-md/.w-sm`
+classes; constant `animation-duration`/`fill-mode` → `.event-row.animate-slide-in-up` rule),
+`CopilotPanel` (context-chip `--chip-delay`; `text-transform: capitalize` → JS `capitalize()`
+helper since `Badge` can't cleanly forward a `class`), and `MappingBrowser` card stagger
+(`--card-delay`). **Verification:** stylelint/eslint/svelte-check clean; vitest unchanged at
+baseline (473 pass, the 2 known `ProblemsPanel` failures only); `vite build` green. **Deferred:**
+remaining data-driven `style:background` in `routes/+page.svelte` (already a token-fallback
+binding) and the larger Profiles/HL7 pages (already scaffolded with PageHeader/Panel).
 
 **Slice 6a scope (this MR):** §5.8 contrast audit. Computed WCAG ratios (alpha-composited
 over bg-base/elevated/surface, both themes) for the text-color scale. **Finding:** the

@@ -186,6 +186,10 @@
   function formatTime(ts: number): string {
     return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
+
+  function capitalize(value: string): string {
+    return value.length === 0 ? value : value.charAt(0).toUpperCase() + value.slice(1);
+  }
 </script>
 
 <div class="copilot-panel" class:disconnected={!available}>
@@ -195,7 +199,7 @@
       {#each contextChips as chip, i (chip.label)}
         <span
           class="context-chip"
-          style="animation-delay: {i * 50}ms"
+          style="--chip-delay: {i * 50}ms"
         >
           <span class="chip-label">{chip.label}</span>
         </span>
@@ -234,9 +238,8 @@
                 variant={actionBadgeVariant[msg.action]}
                 size="sm"
                 pill
-                style="text-transform: capitalize"
               >
-                {msg.action}
+                {capitalize(msg.action)}
               </Badge>
             {/if}
             <span class="msg-time">{formatTime(msg.timestamp)}</span>
@@ -388,6 +391,7 @@
     color: var(--color-text-tertiary);
     background: var(--color-bg-elevated);
     animation: fadeIn var(--duration-normal) var(--ease-out) both;
+    animation-delay: var(--chip-delay, 0ms);
   }
 
   .placeholder-chip {

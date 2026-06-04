@@ -152,7 +152,7 @@
           {#each sparklineHeights(throughputSpark) as h, i (i)}
             <div
               class="bar throughput-bar"
-              style="height: {h}%; animation-delay: {i * 25}ms"
+              style="--bar-h: {h}%; --bar-delay: {i * 25}ms"
             ></div>
           {/each}
         </div>
@@ -195,7 +195,7 @@
               class="bar"
               class:error-bar-high={errorRateVal > 1}
               class:error-bar-normal={errorRateVal <= 1}
-              style="height: {h}%; animation-delay: {i * 25}ms"
+              style="--bar-h: {h}%; --bar-delay: {i * 25}ms"
             ></div>
           {/each}
         </div>
@@ -212,7 +212,7 @@
           {#each sparklineHeights(dlqSpark) as h, i (i)}
             <div
               class="bar dlq-bar"
-              style="height: {h}%; animation-delay: {i * 25}ms"
+              style="--bar-h: {h}%; --bar-delay: {i * 25}ms"
             ></div>
           {/each}
         </div>
@@ -454,9 +454,11 @@
 
   .bar {
     width: 100%;
+    height: var(--bar-h, 0%);
     min-height: 2px;
     border-radius: 1px 1px 0 0;
     animation: barGrow var(--duration-slow) var(--ease-out) both;
+    animation-delay: var(--bar-delay, 0ms);
   }
 
   .throughput-bar {
