@@ -337,6 +337,27 @@ const STATUS_RANK: Record<IntegrationTask['status'], number> = {
   completed: 3
 };
 
+/**
+ * Human-readable priority label for a task.
+ *
+ * Provides a non-color cue for task priority (WCAG 1.4.1, Use of Color):
+ * priority must not be conveyed by the colored dot alone.
+ */
+export function priorityLabel(priority: IntegrationTask['priority']): string {
+  switch (priority) {
+    case 'critical':
+      return 'Critical';
+    case 'high':
+      return 'High';
+    case 'medium':
+      return 'Medium';
+    case 'low':
+      return 'Low';
+    default:
+      return 'Low';
+  }
+}
+
 export function sortTasks(tasks: IntegrationTask[]): IntegrationTask[] {
   return [...tasks].sort((a, b) => {
     const pd = PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
