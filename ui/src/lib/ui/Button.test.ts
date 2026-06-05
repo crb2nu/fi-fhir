@@ -63,4 +63,14 @@ describe('Button', () => {
       expect(button).toBeDisabled();
     });
   });
+
+  describe('attribute forwarding', () => {
+    it('forwards a title attribute to the native button (used for disabled-precondition tooltips)', () => {
+      render(Button, { props: { disabled: true, title: 'Create or open a definition first' } });
+
+      const button = screen.getByRole('button');
+      expect(button).toHaveAttribute('title', 'Create or open a definition first');
+      expect(button).toBeDisabled();
+    });
+  });
 });

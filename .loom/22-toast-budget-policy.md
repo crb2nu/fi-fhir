@@ -126,12 +126,30 @@ Success metric (spec §7): "Toast call-sites: categorized; transient-only." ✅ 
 
 1. **6b-β2a — non-color-state audit** (independent, low-risk; ships first). ✅ **SHIPPED**
 2. **6b-β2b — B2 disabled-control preconditions** (WorkflowBuilder ×4, DebugPanel ×2) — small,
-   high-value, removes dead clicks.
+   high-value, removes dead clicks. ✅ **SHIPPED**
 3. **6b-β2c — B1 validation → inline/Problems** (the ~16) — the largest; do per-feature
    (workflows first, since the Problems panel already exists there).
 4. **6b-β2d — B4 graphql dedupe** — verify `markToasted` covers component-handled errors.
 
 Each keeps tests green and ships behind its own MR per the slice discipline.
+
+### 5b. Slice 6b-β2b outcome (disabled-control preconditions, B2/D2)
+
+Verified each of the 6 precondition toasts against its actual trigger control. **Only the
+2 DebugPanel sites were live dead-clicks**; the 4 WorkflowBuilder sites were already prevented:
+
+| Site | Trigger control | Before β2b | β2b change |
+|---|---|---|---|
+| DebugPanel add breakpoint | `BreakpointList` add button (always enabled) | **live dead-click** → toast | `BreakpointList` gets `hasSession` prop; add button disabled + tooltip "Start a debug session to manage breakpoints"; handler also guards |
+| DebugPanel toggle breakpoint | `BreakpointList` toggle checkbox (always enabled) | **live dead-click** → toast | checkbox disabled + tooltip when no session (remove stays enabled — it works without a session) |
+| WorkflowBuilder save | Save button | already `disabled={!linkedWorkflowId ‖ !valid}` (no reason shown) | added explanatory `title` (D2's missing tooltip half) |
+| WorkflowBuilder compare | Compare button | `disabled` on version-select only | added `!linkedWorkflowId` to disabled + explanatory `title` |
+| WorkflowBuilder snapshot/import promote | `WorkflowDraftLibrary` push/import controls | already **hidden** via `pushToServerEnabled`/`promoteImportEnabled={!!linkedWorkflowId}` | none — control not rendered, toast unreachable |
+
+`Button` needed no change — it already forwards `title` via `{...$$restProps}`, and
+`.btn:disabled` has no `pointer-events:none`, so the tooltip shows on the disabled control.
+The 6 toast guards remain as unreachable defensive backstops (cheap; cannot fire from the UI).
+Tests: 7 new (BreakpointList session-gating ×6, Button title-forwarding ×1).
 
 ### 5a. Slice 6b-β2a outcome (non-color-state, WCAG 1.4.1)
 
