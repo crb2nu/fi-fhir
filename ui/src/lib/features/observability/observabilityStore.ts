@@ -42,6 +42,25 @@ export interface Alert {
   labels: Record<string, string>;
 }
 
+/**
+ * Human-readable severity label for an alert.
+ *
+ * Provides a non-color cue for alert severity (WCAG 1.4.1, Use of Color):
+ * severity must not be conveyed by the colored marker alone.
+ */
+export function severityLabel(severity: Alert['severity']): string {
+  switch (severity) {
+    case 'critical':
+      return 'Critical';
+    case 'warning':
+      return 'Warning';
+    case 'info':
+      return 'Info';
+    default:
+      return 'Info';
+  }
+}
+
 export interface LogFilter {
   level?: string | undefined;
   workflowName?: string | undefined;

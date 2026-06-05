@@ -8,7 +8,7 @@
     observabilityState,
     activeAlertCount,
     fetchAlerts,
-    type Alert,
+    severityLabel,
   } from './observabilityStore';
 
   let showDropdown = false;
@@ -37,15 +37,6 @@
     if (diff < 60) return `${diff}s ago`;
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
     return `${Math.floor(diff / 3600)}h ago`;
-  }
-
-  function severityIcon(severity: Alert['severity']): string {
-    switch (severity) {
-      case 'critical': return 'crit';
-      case 'warning': return 'warn';
-      case 'info': return 'info';
-      default: return 'info';
-    }
   }
 
   function handleClickOutside(event: MouseEvent) {
@@ -97,7 +88,7 @@
         {#each alerts as alert (alert.id)}
           <div class="alert-item" class:firing={alert.state === 'firing'} class:pending={alert.state === 'pending'} class:resolved={alert.state === 'resolved'}>
             <div class="alert-row-top">
-              <span class="severity-dot {severityIcon(alert.severity)}" aria-hidden="true"></span>
+              <span class="severity-tag severity-{alert.severity}">{severityLabel(alert.severity)}</span>
               <span class="alert-name">{alert.name}</span>
               <span class="alert-time">{timeSince(alert.startsAt)}</span>
             </div>
@@ -248,25 +239,34 @@
     gap: var(--space-2);
   }
 
-  .severity-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
+  .severity-tag {
     flex: 0 0 auto;
+    padding: 1px var(--space-1);
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    font-size: var(--text-2xs, 10px);
+    font-weight: var(--font-semibold);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    line-height: 1.4;
   }
 
-  .severity-dot.crit {
-    background: var(--color-danger);
-    box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
+  .severity-tag.severity-critical {
+    color: var(--color-danger-text);
+    background: var(--color-danger-bg);
+    border-color: var(--color-danger-border);
   }
 
-  .severity-dot.warn {
-    background: var(--color-warning);
-    box-shadow: 0 0 6px rgba(245, 158, 11, 0.4);
+  .severity-tag.severity-warning {
+    color: var(--color-warning-text);
+    background: var(--color-warning-bg);
+    border-color: var(--color-warning-border);
   }
 
-  .severity-dot.info {
-    background: var(--color-info);
+  .severity-tag.severity-info {
+    color: var(--color-info-text);
+    background: var(--color-info-bg);
+    border-color: var(--color-info-border);
   }
 
 
@@ -330,8 +330,7 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .badge-count.pulse,
-    .alert-item.firing .severity-dot {
+    .badge-count.pulse {
       animation: none;
     }
     .dropdown {

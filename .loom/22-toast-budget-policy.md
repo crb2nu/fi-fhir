@@ -124,7 +124,7 @@ Success metric (spec §7): "Toast call-sites: categorized; transient-only." ✅ 
 
 ## 5. Suggested implementation sub-slices (after approval)
 
-1. **6b-β2a — non-color-state audit** (independent, low-risk; ships first).
+1. **6b-β2a — non-color-state audit** (independent, low-risk; ships first). ✅ **SHIPPED**
 2. **6b-β2b — B2 disabled-control preconditions** (WorkflowBuilder ×4, DebugPanel ×2) — small,
    high-value, removes dead clicks.
 3. **6b-β2c — B1 validation → inline/Problems** (the ~16) — the largest; do per-feature
@@ -132,6 +132,31 @@ Success metric (spec §7): "Toast call-sites: categorized; transient-only." ✅ 
 4. **6b-β2d — B4 graphql dedupe** — verify `markToasted` covers component-handled errors.
 
 Each keeps tests green and ships behind its own MR per the slice discipline.
+
+### 5a. Slice 6b-β2a outcome (non-color-state, WCAG 1.4.1)
+
+Audited every status/severity/priority indicator under `ui/src` for state conveyed by
+**color alone**. Two genuine gaps (state present *only* in a colored marker, no text/glyph):
+
+| Component | Was | Now |
+|---|---|---|
+| `AlertBadge.svelte` | `aria-hidden` color-only severity **dot**; severity level appeared in no text or glyph | labeled **severity tag** (`Critical`/`Warning`/`Info`) — text + color + border, screen-reader announced |
+| `TaskPanel.svelte` | color-only priority **dot**; priority appeared in no text on the card | visible **priority tag** (`Critical`/`High`/`Medium`/`Low`) in the meta row; dot is now decorative (`aria-hidden` + `title`) |
+
+Helpers `severityLabel()` / `priorityLabel()` extracted into the respective stores
+(co-located with their types, unit-tested). Regression coverage: 12 tests across
+`observabilityStore`, `collaborationStore`, `AlertBadge`, `TaskPanel`.
+
+**Reviewed and left as-is (not color-only):**
+- `ProblemsPanel.svelte` — diagnostics are grouped under text section headers
+  (`Errors`/`Warnings`/`Info`), so per-row severity is already conveyed by text; the colored
+  strip is redundant. (β2c reworks this panel anyway.)
+- `TemporalWorkflowList.svelte` — status badges already render `formatStatus()` text.
+- `StatusBar.svelte` / `RuntimeOutputPanel.svelte` — connection dots sit beside adjacent
+  status text labels.
+- `PresenceBar.svelte` — parent carries `aria-label="{name}: {status}"` and non-compact mode
+  shows the status word; **residual**: compact-mode dot is color-only for colorblind *sighted*
+  users (AT-covered). Tracked as a low-priority follow-up, not blocking.
 
 ---
 

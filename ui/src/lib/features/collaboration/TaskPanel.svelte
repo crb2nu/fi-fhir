@@ -14,6 +14,7 @@
     updateTaskStatus,
     assignTask,
     sortTasks,
+    priorityLabel,
     CURRENT_AGENT_ID
   } from './collaborationStore';
   import type { IntegrationTask } from './collaborationStore';
@@ -204,10 +205,18 @@
           on:click={() => toggleExpand(task.id)}
           aria-expanded={expandedTaskId === task.id}
         >
-          <div class="task-priority-dot" style="background-color: {priorityColor(task.priority)}"></div>
+          <div
+            class="task-priority-dot"
+            style="background-color: {priorityColor(task.priority)}"
+            title="{priorityLabel(task.priority)} priority"
+            aria-hidden="true"
+          ></div>
           <div class="task-main">
             <span class="task-title">{task.title}</span>
             <div class="task-meta">
+              <span class="task-priority-tag priority-{task.priority}">
+                {priorityLabel(task.priority)}
+              </span>
               <span class="task-status-badge {statusVariant(task.status)}">
                 {#if task.status === 'blocked'}
                   <svg viewBox="0 0 12 12" fill="currentColor" class="chain-icon" aria-hidden="true">
@@ -520,6 +529,43 @@
     border-radius: var(--radius-full);
     flex-shrink: 0;
     margin-top: 4px;
+  }
+
+  .task-priority-tag {
+    display: inline-flex;
+    align-items: center;
+    font-size: var(--text-2xs);
+    font-weight: var(--font-semibold);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    padding: 1px var(--space-1);
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+
+  .task-priority-tag.priority-critical {
+    color: var(--color-danger-text);
+    background: var(--color-danger-bg);
+    border-color: var(--color-danger-border);
+  }
+
+  .task-priority-tag.priority-high {
+    color: var(--color-warning-text);
+    background: var(--color-warning-bg);
+    border-color: var(--color-warning-border);
+  }
+
+  .task-priority-tag.priority-medium {
+    color: var(--color-info-text);
+    background: var(--color-info-bg);
+    border-color: var(--color-info-border);
+  }
+
+  .task-priority-tag.priority-low {
+    color: var(--color-text-muted);
+    background: var(--color-bg-elevated);
+    border-color: var(--color-border-subtle);
   }
 
   .task-main {
