@@ -83,6 +83,19 @@
 
   let lastDryRunResult: DryRunResult | null = null;
 
+  // Explanatory tooltips for disabled managed-version controls (UX policy B2/D2:
+  // preconditions are surfaced on the disabled control, not via a post-click toast).
+  $: saveDisabledReason = !linkedWorkflowId
+    ? 'Create or open a managed workflow definition first'
+    : !$isWorkflowValid
+      ? 'Resolve workflow validation errors before saving'
+      : undefined;
+  $: compareDisabledReason = !linkedWorkflowId
+    ? 'Create or open a managed workflow definition first'
+    : !compareFromVersionId || !compareToVersionId
+      ? 'Select two versions to compare'
+      : undefined;
+
   function handleDryRunResult(result: DryRunResult | null) {
     lastDryRunResult = result;
   }
@@ -888,6 +901,7 @@
           on:click={saveManagedVersion}
           loading={savingVersion}
           disabled={!linkedWorkflowId || !$isWorkflowValid}
+          title={saveDisabledReason}
         >
           {savingVersion ? 'Saving...' : 'Save Version'}
         </Button>
@@ -1063,7 +1077,8 @@
                 variant="secondary"
                 on:click={compareSelectedVersions}
                 loading={comparingVersions}
-                disabled={!compareFromVersionId || !compareToVersionId}
+                disabled={!linkedWorkflowId || !compareFromVersionId || !compareToVersionId}
+                title={compareDisabledReason}
               >
                 {comparingVersions ? 'Comparing...' : 'Compare Versions'}
               </Button>

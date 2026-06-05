@@ -235,6 +235,7 @@
     <aside class="debug-sidebar">
       <BreakpointList
         breakpoints={$breakpointsStore}
+        hasSession={!!$debugSession}
         onToggle={handleToggleBreakpoint}
         onRemove={handleRemoveBreakpoint}
         onAdd={handleAddBreakpoint}

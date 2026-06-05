@@ -10,8 +10,21 @@
   export let onToggle: ((id: string) => void) | undefined = undefined;
   export let onRemove: ((id: string) => void) | undefined = undefined;
   export let onAdd: ((detail: { type: BreakpointType; name: string }) => void) | undefined = undefined;
+  /**
+   * Whether a debug session is active. Adding/toggling breakpoints requires one
+   * (the operations call the session API). When false the controls are disabled
+   * with an explanatory tooltip rather than letting a dead click fire a toast
+   * (UX policy B2/D2).
+   */
+  export let hasSession = true;
+
+  const NO_SESSION_HINT = 'Start a debug session to manage breakpoints';
 
   let showAddForm = false;
+
+  $: if (!hasSession) {
+    showAddForm = false;
+  }
   let newType: BreakpointType = 'route';
   let newName = '';
 
@@ -40,9 +53,10 @@
     <span class="bp-title">Breakpoints</span>
     <button
       class="bp-add-btn"
-      title="Add breakpoint"
+      title={hasSession ? 'Add breakpoint' : NO_SESSION_HINT}
       aria-label="Add breakpoint"
-      on:click={() => { showAddForm = !showAddForm; }}
+      disabled={!hasSession}
+      on:click={() => { if (!hasSession) return; showAddForm = !showAddForm; }}
     >
       <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
         <path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none" />
@@ -88,10 +102,11 @@
     <ul class="bp-items" role="list">
       {#each breakpoints as bp (bp.id)}
         <li class="bp-item" class:disabled={!bp.enabled}>
-          <label class="bp-toggle" title={bp.enabled ? 'Disable' : 'Enable'}>
+          <label class="bp-toggle" title={hasSession ? (bp.enabled ? 'Disable' : 'Enable') : NO_SESSION_HINT}>
             <input
               type="checkbox"
               checked={bp.enabled}
+              disabled={!hasSession}
               on:change={() => onToggle?.(bp.id)}
               aria-label="Toggle {bp.name}"
             />
@@ -153,10 +168,15 @@
     transition: var(--transition-all);
   }
 
-  .bp-add-btn:hover {
+  .bp-add-btn:hover:not(:disabled) {
     background: var(--color-bg-hover);
     color: var(--color-text-primary);
     border-color: var(--color-border-default);
+  }
+
+  .bp-add-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
 
   .bp-add-btn:focus-visible {
@@ -276,6 +296,14 @@
     display: flex;
     cursor: pointer;
     flex-shrink: 0;
+  }
+
+  .bp-toggle:has(input:disabled) {
+    cursor: not-allowed;
+  }
+
+  .bp-toggle:has(input:disabled) .bp-checkbox {
+    opacity: 0.45;
   }
 
   .bp-toggle input {
