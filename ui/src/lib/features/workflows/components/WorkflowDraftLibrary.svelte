@@ -6,7 +6,7 @@
   import CodeEditor from '$lib/ui/editor/CodeEditor.svelte';
   import { workflowDraft, workflowSavedDrafts, type SavedWorkflowDraft } from '../workflowStore';
   import { yamlToDraft, draftToYaml } from '../workflowYaml';
-  import { validateWorkflowDraft } from '../workflowTypes';
+  import { evaluateImportYaml } from '../importYamlValidation';
   import { toasts } from '$lib/ui/toastStore';
 
   export let pushToServerEnabled = false;
@@ -64,30 +64,18 @@
   }
 
   function validateImportYaml(): boolean {
-    importIssues = [];
-    parsedDraftName = '';
+    // Validation issues (parse errors, structural problems) are persistent state
+    // until the user fixes the YAML, so they live inline in the `.issues` list
+    // below — not in a transient toast that would duplicate them (.loom/22 B1/B4).
+    const { issues, parsedName } = evaluateImportYaml(importYaml);
+    importIssues = issues;
+    parsedDraftName = parsedName;
 
-    const yaml = importYaml.trim();
-    if (!yaml) {
-      importIssues = ['YAML input is required'];
-      return false;
+    if (issues.length === 0) {
+      toasts.success('YAML validation passed');
+      return true;
     }
-
-    try {
-      const draft = yamlToDraft(yaml);
-      importIssues = validateWorkflowDraft(draft);
-      parsedDraftName = draft.name || '(unnamed)';
-      if (importIssues.length === 0) {
-        toasts.success('YAML validation passed');
-        return true;
-      }
-      toasts.error(`YAML has ${importIssues.length} validation issue${importIssues.length === 1 ? '' : 's'}`);
-      return false;
-    } catch (err) {
-      importIssues = [err instanceof Error ? err.message : 'Invalid YAML'];
-      toasts.error('Failed to parse YAML');
-      return false;
-    }
+    return false;
   }
 
   function loadYamlIntoBuilder() {
