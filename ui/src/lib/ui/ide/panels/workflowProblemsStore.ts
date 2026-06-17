@@ -51,6 +51,13 @@ function toProblem(issue: string): WorkflowProblem {
   };
 }
 
+export type WorkflowProblemCounts = {
+  error: number;
+  warning: number;
+  info: number;
+  total: number;
+};
+
 export const workflowDiagnostics = derived(workflowDraft, ($draft): WorkflowDiagnostics => {
   const issues = validateWorkflowDraft($draft).map(toProblem);
 
@@ -63,3 +70,28 @@ export const workflowDiagnostics = derived(workflowDraft, ($draft): WorkflowDiag
     transformCount: $draft.routes.reduce((count, route) => count + route.transforms.length, 0)
   };
 });
+
+/**
+ * Severity-banded counts for the workflow draft diagnostics.
+ *
+ * The Problems-panel tab badge in {@link BottomPanel} consumes this so the badge
+ * count tracks the same live signal the panel renders. All issues currently land
+ * in the `error` band (see {@link toProblem}); `warning`/`info` are kept so the
+ * badge's variant logic stays correct if validation grows softer severities.
+ */
+export const workflowProblemCounts = derived(
+  workflowDiagnostics,
+  ($diag): WorkflowProblemCounts => {
+    let error = 0;
+    let warning = 0;
+    let info = 0;
+
+    for (const issue of $diag.issues) {
+      if (issue.severity === 'error') error += 1;
+      else if (issue.severity === 'warning') warning += 1;
+      else info += 1;
+    }
+
+    return { error, warning, info, total: $diag.issues.length };
+  }
+);
