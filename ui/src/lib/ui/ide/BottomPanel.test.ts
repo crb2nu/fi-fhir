@@ -4,7 +4,7 @@ import BottomPanel from './BottomPanel.svelte';
 import { workflowDraft } from '$lib/features/workflows/workflowStore';
 
 // The Problems-tab badge must track the same live signal the ProblemsPanel
-// renders (`workflowDiagnostics`), not the dormant generic diagnosticsStore.
+// renders (`workflowDiagnostics`), not the now-removed generic diagnosticsStore.
 // These tests pin the badge to the workflow-draft validity state.
 describe('BottomPanel problems badge', () => {
   beforeEach(() => {
