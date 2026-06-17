@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import type { PanelTab } from './types';
-  import { diagnosticCounts } from './panels/diagnosticsStore';
+  import { workflowProblemCounts } from './panels/workflowProblemsStore';
   import { isAvailable } from '$lib/features/copilot';
   import { CopilotPanel } from '$lib/features/copilot';
 
@@ -45,7 +45,7 @@
 
   /* eslint-disable svelte/infinite-reactive-loop -- one-shot pulse, no feedback loop */
   $: {
-    const total = $diagnosticCounts.total;
+    const total = $workflowProblemCounts.total;
     if (total > prevTotal && prevTotal >= 0) {
       pulsing = true;
       clearTimeout(pulseTimer);
@@ -57,9 +57,9 @@
   }
   /* eslint-enable svelte/infinite-reactive-loop */
 
-  $: badgeVariant = $diagnosticCounts.error > 0
+  $: badgeVariant = $workflowProblemCounts.error > 0
     ? 'danger'
-    : $diagnosticCounts.warning > 0
+    : $workflowProblemCounts.warning > 0
       ? 'warning'
       : 'info';
 </script>
@@ -82,13 +82,13 @@
           on:click={() => onTabClick(tab.key)}
         >
           {tab.label}
-          {#if tab.key === 'problems' && $diagnosticCounts.total > 0}
+          {#if tab.key === 'problems' && $workflowProblemCounts.total > 0}
             <span
               class="diag-badge {badgeVariant}"
               class:pulse={pulsing}
-              aria-label="{$diagnosticCounts.total} problems"
+              aria-label="{$workflowProblemCounts.total} problems"
             >
-              {$diagnosticCounts.total}
+              {$workflowProblemCounts.total}
             </span>
           {/if}
           {#if tab.indicator}
