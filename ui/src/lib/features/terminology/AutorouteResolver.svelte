@@ -20,6 +20,7 @@
     suggestMappings,
     createMapping,
   } from "./terminologyApi";
+  import { validateResolveInputs } from "./resolveValidation";
   import type {
     ResolveMappingQuery,
     SuggestMappingsQuery,
@@ -66,10 +67,13 @@
   ];
 
   async function handleResolve() {
-    if (!sourceCode || !sourceSystem || !targetSystem) {
-      toasts.error(
-        "Source code, source system, and target system are required",
-      );
+    const validationError = validateResolveInputs({
+      sourceCode,
+      sourceSystem,
+      targetSystem,
+    });
+    if (validationError) {
+      error = validationError;
       return;
     }
 
@@ -101,10 +105,13 @@
   }
 
   async function handleSuggestOnly() {
-    if (!sourceCode || !sourceSystem || !targetSystem) {
-      toasts.error(
-        "Source code, source system, and target system are required",
-      );
+    const validationError = validateResolveInputs({
+      sourceCode,
+      sourceSystem,
+      targetSystem,
+    });
+    if (validationError) {
+      error = validationError;
       return;
     }
 

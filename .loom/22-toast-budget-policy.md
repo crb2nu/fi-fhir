@@ -233,6 +233,33 @@ Validate click). Net 2 toasts removed. Tests: 4 new (`importYamlValidation.test.
 suite 511 passed / 2 skipped; eslint clean; svelte-check unchanged (3 pre-existing `.yaml-input`
 dead-CSS warnings, not from this slice).
 
+### 5g. Slice 6b-β2c (toast-redirect #4, AutorouteResolver required fields) outcome — B1
+
+Both **Resolve** and **Suggest** guarded the same precondition — source code,
+source system, and target system must be present — with an identical
+`toasts.error("Source code, source system, and target system are required")`.
+The component **already renders an inline `error` Panel** (`{#if error}` →
+`<Panel tone="error">`) for its async failure paths (`Failed to resolve mapping`,
+`Failed to get suggestions`); the two validation guards simply bypassed that home
+and toasted instead. A pure B1 redirect-into-an-existing-home, same shape as #1–#3.
+
+Extracted the guard into a pure, unit-tested helper
+`features/terminology/resolveValidation.ts` (`validateResolveInputs(inputs) →
+string | null`). `handleResolve` / `handleSuggestOnly` now assign the message to
+`error` and **toast nothing**; the `toasts` import stays because
+`approveCandidate` still uses `toasts.success`/`toasts.error` for the legit R1/R2
+async approve result. Net 2 toasts removed. Tests: 5 new
+(`resolveValidation.test.ts`); full UI suite 516 passed / 2 skipped; eslint +
+svelte-check clean for changed files.
+
+**MappingUploader deliberately deferred:** its `Please select a CSV file` (B1)
+toast has **no existing inline home** — the `.errors-section` only renders
+post-preview row validation, not a file-type rejection — so per the
+redirect-strategy gate (only remove a toast whose destination already exists) it
+stays a toast until a destination is built. Queued as the next increment; it is
+the last open B1 site. After it, only the WorkflowBuilder name-family backstops
+(unreachable / B2) and the **6b-β2d graphql dedupe** remain.
+
 ### 5b. Slice 6b-β2b outcome (disabled-control preconditions, B2/D2)
 
 Verified each of the 6 precondition toasts against its actual trigger control. **Only the
