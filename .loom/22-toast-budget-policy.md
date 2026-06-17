@@ -193,9 +193,8 @@ passed / 2 skipped; svelte-check + eslint clean for changed files.
 **Remaining B1/B4 sites (future increments):** WorkflowBuilder name-required family (513 is
 already an unreachable backstop — Save is disabled when invalid per β2b — and 475/compare/
 template/name-match are click-time guards better handled as B2 disabled-controls or inline);
-WorkflowDraftLibrary YAML parse (×2); AutorouteResolver required-fields (×2); MappingUploader
-CSV select (×1). WorkflowList publish/rollback "Select a version" (×2) are B2 disabled-control
-preconditions, not B1.
+AutorouteResolver required-fields (×2); MappingUploader CSV select (×1). WorkflowList
+publish/rollback "Select a version" (×2) are B2 disabled-control preconditions, not B1.
 
 ### 5e. Slice 6b-β2c (toast-redirect #2, DryRunPanel custom JSON) outcome — B1/B2/D2
 
@@ -215,6 +214,24 @@ JSON payload just greyed out Run). Fix (β2b-style combo):
 
 Net 2 toasts removed. Tests: 5 new (`dryRunValidation.test.ts`); full UI suite 507 passed / 2
 skipped; svelte-check + eslint clean for changed files.
+
+### 5f. Slice 6b-β2c (toast-redirect #3, WorkflowDraftLibrary import YAML) outcome — B1/B4
+
+The Import-YAML editor already maintained `importIssues` (a `string[]` rendered inline under
+the editor as `<div class="issues" role="alert">`), populated in **every** path —
+`['YAML input is required']`, `validateWorkflowDraft(draft)`, or `[parse error message]`. The
+two error toasts ("YAML has N validation issues", "Failed to parse YAML") simply duplicated
+that inline list (B4 double-surface); the inline list is strictly more detailed (it shows the
+actual issues, not a generic count).
+
+Extracted the parse/validate core into a pure, unit-tested helper
+`features/workflows/importYamlValidation.ts` (`evaluateImportYaml(yaml) → {issues, parsedName}`,
+wrapping `yamlToDraft` + `validateWorkflowDraft`). `validateImportYaml` now just assigns the
+result to `importIssues`/`parsedDraftName` and **toasts nothing on failure**; the
+`'YAML validation passed'` success toast stays (legit R2 transient confirmation of the explicit
+Validate click). Net 2 toasts removed. Tests: 4 new (`importYamlValidation.test.ts`); full UI
+suite 511 passed / 2 skipped; eslint clean; svelte-check unchanged (3 pre-existing `.yaml-input`
+dead-CSS warnings, not from this slice).
 
 ### 5b. Slice 6b-β2b outcome (disabled-control preconditions, B2/D2)
 
