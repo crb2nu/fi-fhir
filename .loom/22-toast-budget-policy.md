@@ -169,6 +169,34 @@ svelte-check + eslint clean for the changed file.
 generic store — point it at `workflowDiagnostics` for coherence; (b) decide whether to retire
 or wire the dormant cross-stage diagnostics scaffolding.
 
+### 5d. Slice 6b-β2c (toast-redirect, WorkflowList event payload) outcome — B1/B4
+
+First toast-redirect increment, scoped to the `WorkflowList` "Run Event" payload cluster
+because its inline destination **already existed**: `runWorkflow` maintained
+`runErrorByWorkflow[name]`, rendered as an inline `role="alert"` under the Event JSON
+textarea. Two of the three guards already wrote that inline error **and** fired a toast — the
+exact B4 double-surface anti-pattern.
+
+| Site | Before | After |
+|---|---|---|
+| `WorkflowList` empty payload | toast only ("Provide an event JSON payload first") | inline only (B1 → inline) |
+| `WorkflowList` invalid JSON | inline **+** toast ("Invalid JSON payload") | inline only (B4 dedupe) |
+| `WorkflowList` non-object payload | inline **+** toast ("Event payload must be a JSON object") | inline only (B4 dedupe) |
+
+Extracted the parse/validate logic into a pure, unit-tested helper
+`features/workflows/eventPayload.ts` (`validateEventPayload` → `{ok,value}|{ok:false,message}`);
+`runWorkflow` now writes `payload.message` to `runErrorByWorkflow` and fires **no toast**. The
+helper is reusable for DryRunPanel's identical "Invalid JSON for custom events" path (next
+increment). Net 3 toasts removed. Tests: 6 new (`eventPayload.test.ts`); full UI suite 500
+passed / 2 skipped; svelte-check + eslint clean for changed files.
+
+**Remaining B1/B4 sites (future increments):** WorkflowBuilder name-required family (513 is
+already an unreachable backstop — Save is disabled when invalid per β2b — and 475/compare/
+template/name-match are click-time guards better handled as B2 disabled-controls or inline);
+WorkflowDraftLibrary YAML parse (×2); DryRunPanel custom-events JSON (×2, reuse the helper);
+AutorouteResolver required-fields (×2); MappingUploader CSV select (×1). WorkflowList
+publish/rollback "Select a version" (×2) are B2 disabled-control preconditions, not B1.
+
 ### 5b. Slice 6b-β2b outcome (disabled-control preconditions, B2/D2)
 
 Verified each of the 6 precondition toasts against its actual trigger control. **Only the
