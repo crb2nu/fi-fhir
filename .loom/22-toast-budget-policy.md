@@ -52,7 +52,13 @@ workflow draft is invalid" — run that path live.
 already receive a given validation error, that error stays inline at the field (B1's first
 home) and is **not** removed until the inline home exists.
 
-**Status**: not run — owner to confirm during 6b-β2 slice 1.
+**Status**: **passed 2026-06-17** — `ProblemsPanel.svelte` now consumes the
+`workflowDiagnostics` derived store and renders structured workflow-draft diagnostics
+(invalid → "Workflow draft needs attention" + per-issue rows; valid → "Ready for runtime
+verification"). The 2 `ProblemsPanel.test.ts` cases (the kill-test in unit form) load an
+invalid draft and assert the diagnostics render **without any toast** — both green. The
+destination home for B1 validation messages provably exists, so β2c toast-redirect is
+unblocked. (Slice 6b-β2c-1; see §5c.)
 
 ---
 
@@ -129,9 +135,39 @@ Success metric (spec §7): "Toast call-sites: categorized; transient-only." ✅ 
    high-value, removes dead clicks. ✅ **SHIPPED**
 3. **6b-β2c — B1 validation → inline/Problems** (the ~16) — the largest; do per-feature
    (workflows first, since the Problems panel already exists there).
+   - **β2c-1 — Problems-panel wiring (kill-test).** ✅ **SHIPPED** — see §5c. Builds the
+     destination *before* removing any toast.
+   - **β2c-2+ — toast redirect** (WorkflowBuilder / WorkflowList / WorkflowDraftLibrary /
+     DryRunPanel / AutorouteResolver / MappingUploader). Now unblocked.
 4. **6b-β2d — B4 graphql dedupe** — verify `markToasted` covers component-handled errors.
 
 Each keeps tests green and ships behind its own MR per the slice discipline.
+
+### 5c. Slice 6b-β2c-1 outcome (Problems-panel wiring = riskiest-assumption kill-test)
+
+**Discovery:** the kill-test (§2) was failing. `ProblemsPanel.svelte` rendered the generic
+cross-stage `diagnosticsStore`, which is **dead in production** — no adapter is ever called,
+`addDiagnostic`/`addDiagnostics` are never invoked, and `+page.svelte` carries a "no
+diagnosticsStore exists yet" placeholder comment. The only live validation signal is
+`workflowDiagnostics` (derived from `workflowDraft` via `validateWorkflowDraft`), which had
+**zero consumers** — an orphan bridge built speculatively for β2c. The 2 `ProblemsPanel.test.ts`
+cases were unrendered future copy (RED), encoding the assumption rather than asserting it.
+
+**Change (single file):** rewired `ProblemsPanel.svelte` to render `workflowDiagnostics`:
+
+| Draft state | Renders |
+|---|---|
+| invalid | "Workflow draft needs attention" + `{n} error(s)` count + per-issue rows (`location` · `message`), each with a **text severity tag** (non-color, WCAG 1.4.1, consistent with β2a) |
+| valid | "Ready for runtime verification" + "No blocking problems detected." + route/action/transform meta chips |
+
+The generic `diagnosticsStore`/`diagnosticAdapters` are left untouched as dormant scaffolding
+(still feed `BottomPanel`'s count badge); no toast was removed in this slice — the redirect is
+β2c-2+. Validation: 2 target tests RED→GREEN; full UI suite 494 passed / 2 skipped;
+svelte-check + eslint clean for the changed file.
+
+**Follow-ups queued:** (a) `BottomPanel` problem-count badge still reads the always-empty
+generic store — point it at `workflowDiagnostics` for coherence; (b) decide whether to retire
+or wire the dormant cross-stage diagnostics scaffolding.
 
 ### 5b. Slice 6b-β2b outcome (disabled-control preconditions, B2/D2)
 
