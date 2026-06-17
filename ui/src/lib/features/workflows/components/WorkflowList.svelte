@@ -12,6 +12,7 @@
     rollbackWorkflowVersion,
     triggerWorkflow,
   } from "../workflowApi";
+  import { validateEventPayload } from "../eventPayload";
   import type {
     GetWorkflowVersionsQuery,
     ListWorkflowDefinitionsQuery,
@@ -262,36 +263,18 @@
   async function runWorkflow(workflowId: string, workflowName: string) {
     if (runningWorkflowName) return;
 
-    const eventJson = eventJsonByWorkflow[workflowName]?.trim() ?? "";
-    if (!eventJson) {
-      toasts.error("Provide an event JSON payload first");
-      return;
-    }
-
-    let parsedEvent: unknown;
-    try {
-      parsedEvent = JSON.parse(eventJson);
-    } catch {
-      toasts.error("Invalid JSON payload");
+    // Persistent payload validation belongs inline at the field, not in a
+    // transient toast (.loom/22 B1/B4): show the message in runErrorByWorkflow,
+    // which renders as an inline `role="alert"` next to the Event JSON textarea.
+    const payload = validateEventPayload(eventJsonByWorkflow[workflowName] ?? "");
+    if (!payload.ok) {
       runErrorByWorkflow = {
         ...runErrorByWorkflow,
-        [workflowName]: "Invalid JSON payload",
+        [workflowName]: payload.message,
       };
       return;
     }
-
-    if (
-      parsedEvent === null ||
-      typeof parsedEvent !== "object" ||
-      Array.isArray(parsedEvent)
-    ) {
-      toasts.error("Event payload must be a JSON object");
-      runErrorByWorkflow = {
-        ...runErrorByWorkflow,
-        [workflowName]: "Event payload must be a JSON object",
-      };
-      return;
-    }
+    const parsedEvent = payload.value;
 
     runningWorkflowName = workflowName;
     runErrorByWorkflow = { ...runErrorByWorkflow, [workflowName]: undefined };
