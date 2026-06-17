@@ -171,7 +171,7 @@
     (tabs?.[next] as HTMLElement | undefined)?.focus();
   }
 
-  // ── Stage health placeholder (no diagnosticsStore exists yet) ──────────────
+  // ── Stage health placeholder (static; cross-stage diagnostics scaffolding retired) ──
   type StageHealth = {
     id: string;
     label: string;
@@ -180,7 +180,7 @@
     warnings: number;
   };
 
-  // eslint-disable-next-line svelte/no-immutable-reactive-statements -- will become reactive when diagnosticsStore is wired in
+  // eslint-disable-next-line svelte/no-immutable-reactive-statements -- static placeholder; no per-stage health signal exists yet
   $: stageHealth = stages.map((s): StageHealth => ({
     id: s.id,
     label: s.label,
