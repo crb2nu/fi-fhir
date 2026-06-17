@@ -193,9 +193,28 @@ passed / 2 skipped; svelte-check + eslint clean for changed files.
 **Remaining B1/B4 sites (future increments):** WorkflowBuilder name-required family (513 is
 already an unreachable backstop — Save is disabled when invalid per β2b — and 475/compare/
 template/name-match are click-time guards better handled as B2 disabled-controls or inline);
-WorkflowDraftLibrary YAML parse (×2); DryRunPanel custom-events JSON (×2, reuse the helper);
-AutorouteResolver required-fields (×2); MappingUploader CSV select (×1). WorkflowList
-publish/rollback "Select a version" (×2) are B2 disabled-control preconditions, not B1.
+WorkflowDraftLibrary YAML parse (×2); AutorouteResolver required-fields (×2); MappingUploader
+CSV select (×1). WorkflowList publish/rollback "Select a version" (×2) are B2 disabled-control
+preconditions, not B1.
+
+### 5e. Slice 6b-β2c (toast-redirect #2, DryRunPanel custom JSON) outcome — B1/B2/D2
+
+Both DryRunPanel toasts ("No events available for dry run", "Invalid JSON for custom events")
+were **already unreachable backstops**: the Run button is `disabled={resolvedEvents.length === 0}`,
+and invalid custom JSON makes `parseCustomJson` return `[]` → `resolvedEvents` empty → button
+disabled. So the real defect was a **silently-disabled button with no explanation** (a malformed
+JSON payload just greyed out Run). Fix (β2b-style combo):
+
+- new pure helper `features/workflows/dryRunValidation.ts` `customEventsJsonError()` (array-shaped
+  custom events, so distinct from `validateEventPayload`'s single-object check) → reactive inline
+  `role="alert"` under the custom-JSON editor, live as the user types
+- explanatory `title` on the disabled Run button (`runDisabledReason`: "Fix the custom event JSON
+  before running" vs "Add or select at least one event to run") — D2, `Button` forwards `title`
+- `handleRun` simplified: both validation toasts removed (kept a silent `resolvedEvents.length === 0`
+  guard); the async "Dry run failed" catch stays a toast (legit R1)
+
+Net 2 toasts removed. Tests: 5 new (`dryRunValidation.test.ts`); full UI suite 507 passed / 2
+skipped; svelte-check + eslint clean for changed files.
 
 ### 5b. Slice 6b-β2b outcome (disabled-control preconditions, B2/D2)
 

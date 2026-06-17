@@ -7,6 +7,7 @@
   import { workflowDraft } from '../workflowStore';
   import { draftToYaml } from '../workflowYaml';
   import { dryRunWorkflow } from '../workflowApi';
+  import { customEventsJsonError } from '../dryRunValidation';
   import { toasts } from '$lib/ui/toastStore';
   import { debugSession } from '$lib/features/debug/debugStore';
   import { runtimeOutputState } from '$lib/ui/ide/panels/runtimeOutputStore';
@@ -88,34 +89,33 @@
     return selectedPresets.map((i) => presetEvents[i]!.event);
   })();
 
+  // Live inline validation for the custom-JSON field (persistent until fixed),
+  // plus an explanatory reason for the disabled Run button (.loom/22 B1/B2/D2).
+  $: customJsonError = customEventsJsonError(eventSource, customEventJson);
+  $: runDisabledReason =
+    resolvedEvents.length > 0
+      ? undefined
+      : customJsonError
+        ? 'Fix the custom event JSON before running'
+        : 'Add or select at least one event to run';
+
   const dispatch = createEventDispatcher<{
     result: DryRunResult | null;
   }>();
 
   async function handleRun() {
+    // The Run button is disabled whenever no events resolve (which includes
+    // invalid custom JSON, since parseCustomJson yields []), and the reason is
+    // shown inline + in the button tooltip — so the old post-click validation
+    // toasts were unreachable backstops. Keep a defensive guard, no toast.
+    if (resolvedEvents.length === 0) return;
+
     running = true;
     result = null;
     dispatch('result', null);
 
     try {
       const yamlStr = draftToYaml($workflowDraft);
-
-      if (resolvedEvents.length === 0) {
-        toasts.error('No events available for dry run');
-        running = false;
-        return;
-      }
-
-      if (eventSource === 'custom' && customEventJson.trim()) {
-        try {
-          JSON.parse(customEventJson);
-        } catch {
-          toasts.error('Invalid JSON for custom events');
-          running = false;
-          return;
-        }
-      }
-
       const data = await dryRunWorkflow(yamlStr, resolvedEvents);
       result = data.dryRunWorkflow;
       dispatch('result', result);
@@ -156,6 +156,9 @@
           placeholder={customEventPlaceholder}
           height="150px"
         />
+        {#if customJsonError}
+          <div class="custom-json-error" role="alert">{customJsonError}</div>
+        {/if}
       {:else if eventSource === 'presets'}
         <div class="sample-list">
           {#each presetEvents as sample, i (i)}
@@ -190,7 +193,12 @@
       {/if}
 
       <div class="run-row">
-        <Button on:click={handleRun} loading={running} disabled={resolvedEvents.length === 0}>
+        <Button
+          on:click={handleRun}
+          loading={running}
+          disabled={resolvedEvents.length === 0}
+          title={runDisabledReason}
+        >
           {running ? 'Running...' : 'Run Simulation'}
         </Button>
         <span class="event-count">{resolvedEvents.length} event{resolvedEvents.length === 1 ? '' : 's'}</span>
@@ -376,6 +384,16 @@
     font-size: 0.85rem;
     font-weight: 700;
     margin: 0;
+  }
+
+  .custom-json-error {
+    margin-top: 6px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: var(--color-danger-bg);
+    border: 1px solid var(--color-danger-border);
+    color: var(--color-danger-text);
+    font-size: 0.85rem;
   }
 
   .errors {
