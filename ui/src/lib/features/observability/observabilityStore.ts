@@ -253,6 +253,14 @@ export const activeAlertCount = derived(observabilityState, ($s) =>
 
 export const isAvailable = derived(platformState, ($p) => $p.connected);
 
+/**
+ * True when the currently-displayed observability data is simulated (the
+ * platform MCP was unreachable, so a mock fallback was rendered). Components
+ * MUST surface this so operators never mistake demo data for live signals.
+ * Set per-fetch: false on a real backend result, true on a fallback.
+ */
+export const isSimulated = writable<boolean>(false);
+
 export const filteredLogs = derived(observabilityState, ($s) => {
   let logs = $s.logs;
   const { level, workflowName, search } = $s.logFilter;
@@ -286,6 +294,7 @@ export async function fetchMetrics(): Promise<void> {
           step: '180s',
         });
         if (result) {
+          isSimulated.set(false);
           observabilityState.update((s) => ({
             ...s,
             metrics: result as MetricsSnapshot,
@@ -299,6 +308,7 @@ export async function fetchMetrics(): Promise<void> {
     }
 
     // Simulated data fallback
+    isSimulated.set(true);
     const metrics = generateMockMetrics();
     observabilityState.update((s) => ({ ...s, metrics, isLoadingMetrics: false }));
   } catch (err) {
@@ -321,6 +331,7 @@ export async function fetchLogs(filter?: LogFilter | undefined): Promise<void> {
           limit: 50,
         });
         if (result) {
+          isSimulated.set(false);
           observabilityState.update((s) => ({
             ...s,
             logs: result as LogEntry[],
@@ -335,6 +346,7 @@ export async function fetchLogs(filter?: LogFilter | undefined): Promise<void> {
     }
 
     // Simulated data fallback
+    isSimulated.set(true);
     const logs = generateMockLogs(40);
     observabilityState.update((s) => ({
       ...s,
@@ -355,6 +367,7 @@ export async function fetchAlerts(): Promise<void> {
       try {
         const result = await client.callTool('mcp-alertmanager', 'am_list_alerts', {});
         if (result) {
+          isSimulated.set(false);
           observabilityState.update((s) => ({
             ...s,
             alerts: result as Alert[],
@@ -367,6 +380,7 @@ export async function fetchAlerts(): Promise<void> {
     }
 
     // Simulated data fallback
+    isSimulated.set(true);
     const alerts = generateMockAlerts();
     observabilityState.update((s) => ({ ...s, alerts }));
   } catch {
