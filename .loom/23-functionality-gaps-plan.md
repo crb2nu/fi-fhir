@@ -183,10 +183,32 @@ Gated by the **kill-test above (Slice 0)**. Only proceeds if the LLM path is pro
   *Deferred within scope*: no GraphQL capability field exposes "LLM enabled", so the UI can only
   distinguish *unreachable* (op errors → inline + net toast) from *connected*; a true "LLM off" badge needs
   a backend capability query (candidate Wave-3, alongside the `LLM_*`/`FI_FHIR_LLM_*` namespace collapse).
-- **Slice 2b — Workflow generate/explain wired through.**
-  `GenerateFromDescription.svelte` → `GenerateWorkflow` mutation; explain → `explainWorkflow` query.
-  Generated YAML lands in the WorkflowBuilder draft (not a toast).
-  *Done*: "Generate from description" produces a real, prompt-specific draft; round-trips into the builder.
+- **Slice 2b — Workflow generate/explain wired through. ✅ SHIPPED as a regression-lock (2026-06-18, branch
+  `feat/funcgap-w2b-workflow-generate`).**
+  **Plan-vs-reality correction (verify-before-build):** the Class-B audit claims for "Workflow generate" and
+  "Workflow explain" were **STALE** — both surfaces were *already* wired to the real ops and mounted, since the
+  original workflow-builder MVP (`7af950a4`), and never routed through the copilot:
+  - generate → `GenerateFromDescription.svelte:25` calls `generateWorkflow()` (`workflowApi.ts:279` →
+    `GenerateWorkflowDocument`); renders explanation/warnings/YAML; "Load into Builder" does
+    `yamlToDraft → workflowDraft.loadDraft` (lands in the builder draft, **not** a toast). Mounted at
+    `WorkflowBuilder.svelte:1270`.
+  - explain → `WorkflowPreview.svelte:21` "Explain with AI" calls `explainWorkflow(yaml,'business')`
+    (`workflowApi.ts:290` → `ExplainWorkflowDocument`); renders description + route explanations inline.
+    Mounted at `WorkflowBuilder.svelte:1258`. Both already use the `isErrorToasted` B4 dedup guard
+    (added `64daaf8a`).
+  **The real gap was test coverage** — *zero* regression tests existed for either surface, and the plan itself
+  proposed routing generate *through the copilot*, which is exactly the regression a test must forbid. So this
+  slice locks the wiring instead of rewriting it: 5 new vitest (`GenerateFromDescription.test.ts` — real op
+  called with description + `ALL_EVENT_TYPES`/`ACTION_TYPES`, warnings render, real YAML round-trips into the
+  draft on Load; `WorkflowPreview.test.ts` — real explain query called with draft YAML + `'business'`, renders
+  explanation, loading state). Tests mock only the `workflowApi` op boundary; the store + `yamlToDraft`/
+  `draftToYaml` round-trip are exercised for real.
+  *Done*: generate/explain proven real + mounted + regression-locked; stale audit corrected. 565 pass
+  (560→565; main baseline already includes Slice 2a's +22 and the bottom-panel fix's +5), lint + typecheck
+  clean (1 pre-existing vite/rollup `.d.ts` error only).
+  *Deferred within scope (polish, not wiring)*: `WorkflowPreview` explain renders only `description` + routes,
+  dropping the op's `summary`/`diagram`/`warnings`; surfacing the explain `warnings` would aid honesty. Small,
+  optional — not required for "wired to the real query."
 
 ### Wave 3 — Backend capability fills (close end-to-end loops)
 
