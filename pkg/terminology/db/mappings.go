@@ -590,6 +590,17 @@ func nullJSON(data json.RawMessage) interface{} {
 	return data
 }
 
+// jsonObjectOrEmpty returns the JSON payload, or an empty JSON object when the
+// payload is absent. Use this for columns declared NOT NULL DEFAULT '{}' (e.g.
+// pending_autoroutes.decision_trace): the INSERT lists the column explicitly,
+// so the table default never applies — passing nil would violate NOT NULL.
+func jsonObjectOrEmpty(data json.RawMessage) interface{} {
+	if len(data) == 0 {
+		return []byte("{}")
+	}
+	return []byte(data)
+}
+
 // =============================================================================
 // Pending Autoroute Types and Operations
 // =============================================================================
@@ -663,7 +674,7 @@ func (s *MappingStore) CreatePendingAutoroute(ctx context.Context, p *PendingAut
 		p.SourceSystem, p.SourceCode, nullIfEmpty(p.SourceDisplay), p.TargetSystem,
 		p.SuggestedCode, nullIfEmpty(p.SuggestedDisplay), p.Confidence,
 		nullIfEmpty(p.Equivalence), nullIfEmpty(p.Reasoning),
-		nullJSON(p.DecisionTrace), nullJSON(p.Alternates), StatusPending, expiresAt,
+		jsonObjectOrEmpty(p.DecisionTrace), nullJSON(p.Alternates), StatusPending, expiresAt,
 	).Scan(&p.ID, &p.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("creating pending autoroute: %w", err)
@@ -734,6 +745,12 @@ type ListPendingAutoroutesFilter struct {
 // ListPendingAutoroutes returns pending autoroutes matching the filter.
 func (s *MappingStore) ListPendingAutoroutes(ctx context.Context, filter ListPendingAutoroutesFilter) ([]*PendingAutoroute, int, error) {
 	// Build query with filters
+	// A pending row whose expires_at has passed is logically expired even if a
+	// sweep has not yet flipped its status column. Hide those from every view so
+	// the review queue never surfaces stale suggestions (a status='expired'
+	// filter is unaffected — those rows are no longer status='pending').
+	const excludeTimeExpired = " AND NOT (status = 'pending' AND expires_at IS NOT NULL AND expires_at < NOW())"
+
 	query := `
 		SELECT id, source_system, source_code, source_display, target_system,
 		       suggested_code, suggested_display, confidence, equivalence, reasoning,
@@ -741,8 +758,8 @@ func (s *MappingStore) ListPendingAutoroutes(ctx context.Context, filter ListPen
 		       rejection_reason, created_at, expires_at
 		FROM terminology.pending_autoroutes
 		WHERE 1=1
-	`
-	countQuery := `SELECT COUNT(*) FROM terminology.pending_autoroutes WHERE 1=1`
+	` + excludeTimeExpired
+	countQuery := `SELECT COUNT(*) FROM terminology.pending_autoroutes WHERE 1=1` + excludeTimeExpired
 
 	var args []interface{}
 	argNum := 1
@@ -1019,9 +1036,18 @@ func (s *MappingStore) ExpirePendingAutoroutes(ctx context.Context) (int64, erro
 }
 
 // CountPendingAutoroutes returns counts of pending autoroutes by status.
+//
+// A pending row whose expires_at has passed is counted as 'expired', not
+// 'pending', so the counts stay consistent with ListPendingAutoroutes (which
+// hides time-expired rows) even before a sweep flips the status column.
 func (s *MappingStore) CountPendingAutoroutes(ctx context.Context) (map[PendingStatus]int, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT status, COUNT(*) FROM terminology.pending_autoroutes GROUP BY status
+		SELECT
+			CASE WHEN status = 'pending' AND expires_at IS NOT NULL AND expires_at < NOW()
+			     THEN 'expired' ELSE status END AS effective_status,
+			COUNT(*)
+		FROM terminology.pending_autoroutes
+		GROUP BY effective_status
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("counting pending autoroutes: %w", err)
