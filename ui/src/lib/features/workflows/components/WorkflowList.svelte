@@ -19,6 +19,7 @@
     TriggerWorkflowMutation,
   } from "$lib/gen/graphql";
   import { toasts } from "$lib/ui/toastStore";
+  import { isErrorToasted } from "$lib/graphql/client";
 
   type WorkflowItem =
     ListWorkflowDefinitionsQuery["workflowDefinitions"][number];
@@ -304,7 +305,11 @@
         ...runErrorByWorkflow,
         [workflowName]: msg,
       };
-      toasts.error(msg);
+      // Inline runErrorByWorkflow carries the field context; only toast if the
+      // global graphqlFetch net did not already (B4 dedupe).
+      if (!isErrorToasted(err)) {
+        toasts.error(msg);
+      }
     } finally {
       runningWorkflowName = null;
     }
@@ -330,9 +335,12 @@
       await refreshWorkflowVersions(workflow);
       toasts.success(`Published ${workflow.name} to ${environment}`);
     } catch (err) {
-      toasts.error(
-        err instanceof Error ? err.message : "Failed to publish workflow",
-      );
+      // Global graphqlFetch net already toasts graphql failures (B4 dedupe).
+      if (!isErrorToasted(err)) {
+        toasts.error(
+          err instanceof Error ? err.message : "Failed to publish workflow",
+        );
+      }
     } finally {
       publishingByWorkflowId = {
         ...publishingByWorkflowId,
@@ -364,9 +372,12 @@
       await refreshWorkflowVersions(workflow);
       toasts.success(`Rolled back ${workflow.name} in ${environment}`);
     } catch (err) {
-      toasts.error(
-        err instanceof Error ? err.message : "Failed to roll back workflow",
-      );
+      // Global graphqlFetch net already toasts graphql failures (B4 dedupe).
+      if (!isErrorToasted(err)) {
+        toasts.error(
+          err instanceof Error ? err.message : "Failed to roll back workflow",
+        );
+      }
     } finally {
       rollingBackByWorkflowId = {
         ...rollingBackByWorkflowId,

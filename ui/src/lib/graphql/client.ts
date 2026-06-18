@@ -10,7 +10,18 @@ function markToasted(err: Error): ToastedError {
   return Object.assign(err, { [TOASTED]: true as const });
 }
 
-function isToasted(err: unknown): err is ToastedError {
+/**
+ * Reports whether an error was already surfaced as a toast by the global net
+ * in `graphqlFetch` (i.e. carries the internal TOASTED flag).
+ *
+ * Component `catch` blocks use this to **defer to the global net** and avoid a
+ * double-toast (toast-budget policy .loom/22, B4): a component that adds inline
+ * field context keeps the inline message but only toasts when the global net did
+ * not already — `if (!isErrorToasted(e)) toasts.error(...)`. A graphql failure is
+ * therefore shown once (by the net); a local throw the net never saw (a
+ * pre-fetch `JSON.parse`, etc.) still toasts from the component.
+ */
+export function isErrorToasted(err: unknown): err is ToastedError {
   return err instanceof Error && TOASTED in err;
 }
 
@@ -88,7 +99,7 @@ export async function graphqlFetch<TData, TVars>(
     return json.data;
   } catch (err) {
     // Only toast network failures (fetch rejections) — skip errors already toasted above
-    if (err instanceof Error && showErrorToast && !isToasted(err)) {
+    if (err instanceof Error && showErrorToast && !isErrorToasted(err)) {
       toasts.error(`Network error: ${err.message}`);
     }
     throw err;

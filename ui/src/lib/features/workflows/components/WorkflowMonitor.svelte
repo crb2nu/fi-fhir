@@ -23,6 +23,7 @@
     ListWorkflowRunsQueryVariables
   } from '$lib/gen/graphql';
   import { toasts } from '$lib/ui/toastStore';
+  import { isErrorToasted } from '$lib/graphql/client';
 
   type WfEvent = WorkflowEventsSubscription['workflowEvents'];
   type WorkflowDefinitionItem = ListWorkflowDefinitionsQuery['workflowDefinitions'][number];
@@ -245,7 +246,11 @@
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to update approval request';
       approvalsError = message;
-      toasts.error(message);
+      // Inline approvalsError carries the field context; only toast if the
+      // global graphqlFetch net did not already (B4 dedupe).
+      if (!isErrorToasted(err)) {
+        toasts.error(message);
+      }
     } finally {
       approvalActionInFlightById = { ...approvalActionInFlightById, [id]: false };
     }

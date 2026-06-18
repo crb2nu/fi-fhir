@@ -15,6 +15,7 @@
   import Panel from "$lib/ui/Panel.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import { toasts } from "$lib/ui/toastStore";
+  import { isErrorToasted } from "$lib/graphql/client";
   import {
     resolveMapping,
     suggestMappings,
@@ -160,9 +161,12 @@
       toasts.success(`Mapping approved: ${sourceCode} → ${candidate.code}`);
       dispatch("approved", { candidate, mapping });
     } catch (err) {
-      toasts.error(
-        err instanceof Error ? err.message : "Failed to approve mapping",
-      );
+      // Global graphqlFetch net already toasts graphql failures (B4 dedupe).
+      if (!isErrorToasted(err)) {
+        toasts.error(
+          err instanceof Error ? err.message : "Failed to approve mapping",
+        );
+      }
     } finally {
       approvingIndex = null;
     }

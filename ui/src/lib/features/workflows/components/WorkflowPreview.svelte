@@ -5,6 +5,7 @@
   import { draftToYaml } from '../workflowYaml';
   import { explainWorkflow } from '../workflowApi';
   import { toasts } from '$lib/ui/toastStore';
+  import { isErrorToasted } from '$lib/graphql/client';
 
   let yamlOutput = '';
   let explanation = '';
@@ -26,8 +27,11 @@
             .map((r) => `- ${r.name}: ${r.description}`)
             .join('\n');
       }
-    } catch {
-      toasts.error('Failed to explain workflow');
+    } catch (e) {
+      // Global graphqlFetch net already toasts graphql failures (B4 dedupe).
+      if (!isErrorToasted(e)) {
+        toasts.error('Failed to explain workflow');
+      }
     } finally {
       explaining = false;
     }

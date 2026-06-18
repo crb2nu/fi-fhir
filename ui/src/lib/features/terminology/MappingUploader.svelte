@@ -4,6 +4,7 @@
   import { toasts } from '$lib/ui/toastStore';
   import { uploadMappingCSV } from './terminologyApi';
   import { validateCsvFile } from './csvFileValidation';
+  import { isErrorToasted } from '$lib/graphql/client';
   import type { UploadMappingCsvInput, MappingEquivalence } from '$lib/gen/graphql';
 
   export let profileId: string | undefined = undefined;
@@ -92,7 +93,10 @@
       showPreview = true;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Preview failed';
-      toasts.error(message);
+      // Global graphqlFetch net already toasts graphql failures (B4 dedupe).
+      if (!isErrorToasted(err)) {
+        toasts.error(message);
+      }
       dispatch('uploadError', { message });
     } finally {
       isUploading = false;
@@ -129,7 +133,10 @@
       previewResult = null;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Upload failed';
-      toasts.error(message);
+      // Global graphqlFetch net already toasts graphql failures (B4 dedupe).
+      if (!isErrorToasted(err)) {
+        toasts.error(message);
+      }
       dispatch('uploadError', { message });
     } finally {
       isUploading = false;

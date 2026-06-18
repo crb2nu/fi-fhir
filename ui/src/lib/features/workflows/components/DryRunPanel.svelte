@@ -9,6 +9,7 @@
   import { dryRunWorkflow } from '../workflowApi';
   import { customEventsJsonError } from '../dryRunValidation';
   import { toasts } from '$lib/ui/toastStore';
+  import { isErrorToasted } from '$lib/graphql/client';
   import { debugSession } from '$lib/features/debug/debugStore';
   import { runtimeOutputState } from '$lib/ui/ide/panels/runtimeOutputStore';
   import type { DryRunWorkflowMutation } from '$lib/gen/graphql';
@@ -119,8 +120,12 @@
       const data = await dryRunWorkflow(yamlStr, resolvedEvents);
       result = data.dryRunWorkflow;
       dispatch('result', result);
-    } catch {
-      toasts.error('Dry run failed');
+    } catch (e) {
+      // Global graphqlFetch net already toasts graphql failures (B4 dedupe); a
+      // local draftToYaml throw is not toasted by the net, so still surface it.
+      if (!isErrorToasted(e)) {
+        toasts.error('Dry run failed');
+      }
     } finally {
       running = false;
     }
