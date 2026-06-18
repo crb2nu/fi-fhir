@@ -250,6 +250,26 @@ Pulled forward because Wave 2 is blocked on an LLM provider (no backend dependen
   Pick per real need: workflow-lifecycle CLI for CI automation, or OTel emission for the decision telemetry
   dashboards. Defer unless pulled by a concrete consumer.
 
+- **Slice 3e — LLM config-namespace unification. ✅ SHIPPED (2026-06-18, branch
+  `feat/funcgap-w3-llm-config-namespace`).** Closes the deploy-trap surfaced by the Slice-0 kill-test.
+  **Deeper than the original note**: `runServe` (`cmd/fi-fhir/main.go:4474`) never loads `pkg/config` —
+  it builds the LLM client purely from `llm.DefaultConfig().WithEnv()` (the `LLM_*` namespace) and the block
+  is **ungated** (LLM is always attempted; "disabled" only on a connection error). So the entire
+  `FI_FHIR_LLM_*` surface — both the documented connection keys *and* `FI_FHIR_LLM_ENABLED` — was dead for
+  serve; the kill-test's `FI_FHIR_LLM_ENABLED=true` was a no-op and only `LLM_BASE_URL` mattered.
+  **Fix (low-risk, backward-compatible)**: `pkg/llm.Config.WithEnv()` now reads `FI_FHIR_LLM_*` with
+  precedence over the legacy `LLM_*` (via a new `firstEnv` helper), falling back to `LLM_*` then
+  `OPENAI_API_KEY` for the key. Following the documented `FI_FHIR_LLM_BASE_URL`/`_API_KEY`/`_DEFAULT_MODEL`/
+  `_QUALITY_MODEL` now actually configures the copilot/explainers/extraction/quality; existing `LLM_*`
+  deployments keep working. `docs/user-guide/llm-features.md` updated to make `FI_FHIR_LLM_*` canonical and
+  note the fallback. *Done*: 5 new Go subtests (`TestConfigWithEnv_FIFHIRNamespace` — override, precedence,
+  fallback, 2× API-key chain), `go test ./pkg/llm/...` green, build+vet+gofmt clean.
+  *Deferred within scope (separate, riskier follow-ups, NOT done here)*: (1) `runServe` still ignores
+  `cfg.LLM.Enabled` and the per-feature toggles (Extraction/Copilot/etc.) — wiring those would change
+  enablement behavior (default-false could disable LLM for current deploys), so it needs its own slice;
+  (2) embedding/semantic-terminology config still uses the `LLM_EMBEDDING_*`/`LLM_*` path (out of the serve
+  chat path); (3) the Slice-2a UI "LLM off" honest badge still needs an `llmEnabled` GraphQL capability field.
+
 ---
 
 ## Test & rollout strategy

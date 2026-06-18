@@ -28,7 +28,7 @@ llm:
   max_retries: 3
 ```
 
-Environment variables:
+Environment variables — the canonical namespace is `FI_FHIR_LLM_*`:
 ```bash
 export FI_FHIR_LLM_ENABLED=true
 export FI_FHIR_LLM_BASE_URL="http://localhost:8000/v1"
