@@ -47,3 +47,40 @@ source_profile:
           target: "encounter.custom.visit_number"
           type: "string"
 
+  identifiers:
+    assigning_authority_map:
+      "CERNER": "urn:fi-fhir:identifier-system:cerner:mrn"
+      "CERNER_MRN": "urn:fi-fhir:identifier-system:cerner:mrn"
+      "CERNER_FIN": "urn:fi-fhir:identifier-system:cerner:financial-number"
+
+    primary_id_preference:
+      - type: "MR"
+        assigner_contains: "CERNER"
+      - type: "VN"
+        assigner_contains: "CERNER"
+      - type: "MR"
+
+    validation:
+      npi:
+        enabled: true
+        on_invalid: "warn"
+      mbi:
+        enabled: true
+        on_invalid: "warn"
+      ssn:
+        enabled: true
+        on_invalid: "warn"
+
+    normalization:
+      ssn:
+        strip_dashes: true
+        reject_patterns:
+          - "000000000"
+          - "123456789"
+          - "111111111"
+      phone:
+        strip_country_code: true
+        normalize_to_digits: true
+      mrn:
+        strip_leading_zeros: false
+        uppercase: true

@@ -1,0 +1,138 @@
+# NextGen Ambulatory Template
+#
+# Research basis:
+# - NextGen documents interface support for documents, labs, devices, PACS/RIS,
+#   demographics, scheduling, orders, and result messages, and highlights Mirth
+#   Connect as an HL7-capable integration engine:
+#   https://www.nextgen.com/solutions/interoperability/interfaces
+#
+# Copy this template per feed and tighten tolerances after linting real traffic.
+
+source_profile:
+  id: nextgen_ambulatory_template
+  name: NextGen Ambulatory Template
+  version: "0.1.0"
+
+  hl7v2:
+    default_version: "2.5.1"
+    timezone: "UTC"
+
+    encoding:
+      charset_default: "UTF-8"
+      charset_detection: true
+      line_ending_mode: "tolerant"
+
+    tolerate:
+      missing_segments:
+        - "PV1"
+        - "PD1"
+        - "NK1"
+        - "GT1"
+        - "IN1"
+        - "AL1"
+        - "DG1"
+        - "PR1"
+        - "OBR"
+        - "OBX"
+        - "TXA"
+        - "SCH"
+        - "RGS"
+        - "AIG"
+        - "AIL"
+        - "AIP"
+      nte_anywhere: true
+      extra_components: true
+      unknown_segments: true
+      non_standard_delimiters: true
+
+    datatypes:
+      xcn_component_count: "flexible"
+      cx_component_count: "flexible"
+      xpn_component_count: "flexible"
+
+    event_classification:
+      adt_a01:
+        default: "patient_admit"
+        rules:
+          - condition: "PV1.2 == 'I'"
+            event: "inpatient_admit"
+          - condition: "PV1.2 == 'O'"
+            event: "outpatient_registration"
+          - condition: "PV1.2 == 'E'"
+            event: "emergency_registration"
+      adt_a04:
+        default: "outpatient_registration"
+      adt_a08:
+        default: "patient_update"
+
+  edi:
+    companion_guide: "auto"
+
+  z_segments:
+    preserve_raw: true
+    mappings:
+      ZPV:
+        - field: 1
+          target: "encounter.custom.nextgen_encounter_id"
+          type: "string"
+      ZPD:
+        - field: 1
+          target: "patient.custom.nextgen_person_id"
+          type: "string"
+
+  identifiers:
+    assigning_authority_map:
+      "NEXTGEN": "urn:fi-fhir:identifier-system:nextgen:mrn"
+      "NEXTGEN_MRN": "urn:fi-fhir:identifier-system:nextgen:mrn"
+      "NEXTGEN_PERSON_ID": "urn:fi-fhir:identifier-system:nextgen:person-id"
+
+    primary_id_preference:
+      - type: "MR"
+        assigner_contains: "NEXTGEN"
+      - type: "PI"
+        assigner_contains: "NEXTGEN"
+      - type: "MR"
+      - type: "PI"
+
+    validation:
+      npi:
+        enabled: true
+        on_invalid: "warn"
+      mbi:
+        enabled: true
+        on_invalid: "warn"
+      ssn:
+        enabled: true
+        on_invalid: "warn"
+
+    normalization:
+      ssn:
+        strip_dashes: true
+        reject_patterns:
+          - "000000000"
+          - "123456789"
+          - "111111111"
+      phone:
+        strip_country_code: true
+        normalize_to_digits: true
+      mrn:
+        strip_leading_zeros: false
+        uppercase: true
+
+  terminology:
+    strict_validation: false
+    unknown_code_behavior: "warn"
+
+  quality:
+    metrics:
+      - "message_types_distribution"
+      - "segment_presence_rates"
+      - "encoding_anomalies"
+      - "identifier_validity_rates"
+      - "terminology_coverage_rates"
+      - "z_segment_frequency"
+    alerts:
+      unknown_segment_rate:
+        threshold: 0.05
+        severity: "warning"
+
