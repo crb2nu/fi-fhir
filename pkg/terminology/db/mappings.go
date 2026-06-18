@@ -245,7 +245,7 @@ func (s *MappingStore) CreateMappingsBatch(ctx context.Context, mappings []*Cust
 // If profileID is empty, looks for global mappings.
 func (s *MappingStore) LookupMapping(ctx context.Context, sourceSystem, sourceCode, targetSystem, profileID string) (*CustomMapping, error) {
 	var m CustomMapping
-	var sourceDisplay, targetDisplay, comment, createdBy, approvedBy sql.NullString
+	var sourceDisplay, targetDisplay, comment, scannedProfileID, createdBy, approvedBy sql.NullString
 	var confidence sql.NullFloat64
 	var batchID *uuid.UUID
 	var approvedAt sql.NullTime
@@ -265,7 +265,7 @@ func (s *MappingStore) LookupMapping(ctx context.Context, sourceSystem, sourceCo
 
 	err := s.db.QueryRowContext(ctx, query, sourceSystem, sourceCode, targetSystem, profileID).Scan(
 		&m.ID, &m.SourceSystem, &m.SourceCode, &sourceDisplay, &m.TargetSystem, &m.TargetCode, &targetDisplay,
-		&m.Equivalence, &confidence, &comment, &m.Origin, &batchID, &m.ProfileID,
+		&m.Equivalence, &confidence, &comment, &m.Origin, &batchID, &scannedProfileID,
 		&m.CreatedAt, &createdBy, &approvedAt, &approvedBy, &decisionTrace,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -278,6 +278,7 @@ func (s *MappingStore) LookupMapping(ctx context.Context, sourceSystem, sourceCo
 	m.SourceDisplay = sourceDisplay.String
 	m.TargetDisplay = targetDisplay.String
 	m.Comment = comment.String
+	m.ProfileID = scannedProfileID.String
 	m.CreatedBy = createdBy.String
 	m.ApprovedBy = approvedBy.String
 	if confidence.Valid {
@@ -1113,7 +1114,7 @@ func (s *MappingStore) RecordMappingDecision(ctx context.Context, d *MappingDeci
 	`,
 		d.TraceID, d.SourceSystem, d.SourceCode, nullIfEmpty(d.SourceDisplay), d.TargetSystem,
 		d.DecisionType, d.Confidence, nullIfEmpty(d.SelectedCode), nullIfEmpty(d.SelectedDisplay),
-		nullJSON(d.DecisionTree), nullIfEmpty(d.ProfileID), nullIfEmpty(d.RequestSource), d.DurationMs,
+		jsonObjectOrEmpty(d.DecisionTree), nullIfEmpty(d.ProfileID), nullIfEmpty(d.RequestSource), d.DurationMs,
 	).Scan(&d.ID, &d.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("recording mapping decision: %w", err)

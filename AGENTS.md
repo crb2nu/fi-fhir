@@ -215,6 +215,34 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 - Edge cases: empty fields, missing segments, Z-segments
 - Use `testdata/` for sample messages (not fixtures in code)
 
+### Local-only integration tests (NOT in CI)
+
+The CI `test:integration` job (`.gitlab-ci.yml`) runs `go test -tags=integration
+./cmd/fi-fhir/...` **only**. Integration tests under `./pkg/...` that stand up
+their own PostgreSQL via testcontainers are therefore **not** exercised by the
+pipeline and can silently rot. Notably:
+
+- `pkg/terminology/db/...` — MappingStore, migrations, RxNorm/UMLS/LOINC/ICD-10
+  loaders. Run locally with Docker Desktop (context `desktop-linux`):
+
+  ```bash
+  go test -tags=integration -run 'TestMappingStore_' ./pkg/terminology/db/
+  # or the whole package (some loader tests require testdata/terminology/ fixtures):
+  go test -tags=integration ./pkg/terminology/db/
+  ```
+
+  `setupPostgresContainer` honors `POSTGRES_TEST_URL` to reuse an external
+  Postgres instead of testcontainers — the same env var the CI postgres service
+  already exposes via `FI_FHIR_TERMINOLOGY_DB_URL`.
+
+**Wiring these into CI** is feasible without Docker-in-Docker (point
+`POSTGRES_TEST_URL` at the existing `postgres` service), but is deferred because
+(1) several same-package loader tests are independently red pending fixture/loader
+fixes, and (2) both `cmd/fi-fhir/...` and `pkg/terminology/db/...` `DROP SCHEMA
+terminology CASCADE`, so they must be schema-isolated (`-p 1` or a separate
+DB/job) before sharing one Postgres. Until then, run them locally before changing
+the terminology store or its schema.
+
 ## Dependencies
 
 Minimal external dependencies by design:
