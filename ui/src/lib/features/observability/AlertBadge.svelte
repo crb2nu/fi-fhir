@@ -9,6 +9,7 @@
     activeAlertCount,
     fetchAlerts,
     severityLabel,
+    isSimulated,
   } from './observabilityStore';
 
   let showDropdown = false;
@@ -65,8 +66,8 @@
     class:warning={hasWarning && !hasCritical}
     on:click={toggleDropdown}
     bind:this={triggerEl}
-    title="{firingCount} firing alert{firingCount === 1 ? '' : 's'}"
-    aria-label="Alerts: {firingCount} firing"
+    title="{firingCount} firing alert{firingCount === 1 ? '' : 's'}{$isSimulated ? ' (demo data — platform not connected)' : ''}"
+    aria-label="Alerts: {firingCount} firing{$isSimulated ? ', showing demo data, platform not connected' : ''}"
     aria-expanded={showDropdown}
   >
     <svg class="alert-icon" viewBox="0 0 16 16" fill="currentColor">
@@ -81,6 +82,9 @@
     <div class="dropdown" role="dialog" aria-label="Alerts" style={dropdownStyle}>
       <div class="dropdown-header">
         <span class="dropdown-title">Alerts</span>
+        {#if $isSimulated}
+          <span class="sim-tag" title="The platform monitoring connection is unavailable. These alerts are demo data, not live signals.">Demo data</span>
+        {/if}
         <span class="dropdown-count">{alerts.length} total</span>
       </div>
 
@@ -199,6 +203,22 @@
   .dropdown-count {
     font-size: var(--text-2xs);
     color: var(--color-text-muted);
+  }
+
+  .sim-tag {
+    margin-left: auto;
+    margin-right: var(--space-2);
+    padding: 1px var(--space-1);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-warning-border);
+    background: var(--color-warning-bg);
+    color: var(--color-warning-text);
+    font-size: var(--text-2xs, 10px);
+    font-weight: var(--font-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    line-height: 1.4;
+    cursor: help;
   }
 
   .alert-list {

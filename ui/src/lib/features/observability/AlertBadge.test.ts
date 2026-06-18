@@ -15,7 +15,7 @@ vi.mock('./observabilityStore', async (importActual) => {
 });
 
 import AlertBadge from './AlertBadge.svelte';
-import { observabilityState, type Alert } from './observabilityStore';
+import { observabilityState, isSimulated, type Alert } from './observabilityStore';
 
 const alerts: Alert[] = [
   { id: 'a1', name: 'Disk almost full', severity: 'critical', state: 'firing', summary: 'Node-1 disk at 95%', startsAt: 1_700_000_000_000, labels: {} },
@@ -38,6 +38,7 @@ function seed(rows: Alert[] = alerts): void {
 afterEach(() => {
   cleanup();
   seed([]);
+  isSimulated.set(false);
 });
 
 describe('AlertBadge severity cue', () => {
@@ -70,5 +71,37 @@ describe('AlertBadge severity cue', () => {
     await fireEvent.click(container.querySelector('.badge-trigger') as HTMLElement);
 
     expect(container.querySelector('.severity-dot')).toBeNull();
+  });
+});
+
+describe('AlertBadge simulated-data honesty', () => {
+  it('shows a "Demo data" tag in the dropdown when alerts are simulated', async () => {
+    seed();
+    isSimulated.set(true);
+    const { container, getByText } = render(AlertBadge);
+
+    await fireEvent.click(container.querySelector('.badge-trigger') as HTMLElement);
+
+    expect(getByText('Demo data')).toBeInTheDocument();
+    expect(container.querySelector('.sim-tag')).not.toBeNull();
+  });
+
+  it('does not show the "Demo data" tag when alerts are real', async () => {
+    seed();
+    isSimulated.set(false);
+    const { container } = render(AlertBadge);
+
+    await fireEvent.click(container.querySelector('.badge-trigger') as HTMLElement);
+
+    expect(container.querySelector('.sim-tag')).toBeNull();
+  });
+
+  it('annotates the badge aria-label when showing demo data (perceivable without opening)', () => {
+    seed();
+    isSimulated.set(true);
+    const { container } = render(AlertBadge);
+
+    const trigger = container.querySelector('.badge-trigger') as HTMLElement;
+    expect(trigger.getAttribute('aria-label')).toContain('demo data');
   });
 });

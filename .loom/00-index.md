@@ -7,16 +7,23 @@
 - Research: `10-research.md`
 - Product spec: `20-product-spec.md`
 - UX professional redesign spec + plan: `21-ux-professional-redesign.md`
+- Toast budget policy: `22-toast-budget-policy.md`
+- **IDE + Backend functionality gap-fill program: `23-functionality-gaps-plan.md`** (active)
 - Implementation plan: `30-implementation-plan.md`
 - Decisions: `40-decisions.md`
 - Worklog: `50-worklog.md`
 
-## Current Goal
+## Current Goal — IDE + Backend functionality gap-fill (see `23-functionality-gaps-plan.md`)
 
-- [x] Review recent commit stream (feature focus, quality gates, and integration-relevant deltas).
-- [x] Update planning for full backend-to-frontend platform integration in fi-fhir.
-- [x] Define concrete integration points to sibling repos in `~/workspace/services` (`flexinfer`, `loom-core`, `mentatlab`).
-- [ ] Execute M0 integration alignment tasks (contract CI promotion, gateway baseline, and smoke tests).
+- [x] Audit IDE + backend for functional gaps (UI mock-masquerade + unwired capability; backend reach gaps).
+- [x] Produce sequenced 3-wave program with riskiest-assumption kill-test.
+- [ ] **Wave 1 — Honesty pass**: debug no-fake-session, observability simulated-badge, collaboration label-as-preview.
+- [ ] **Wave 2 — Copilot real**: run LLM-reachability kill-test (Slice 0), then wire UI Copilot → existing LLM GraphQL.
+- [ ] **Wave 3 — Backend fills**: MappingStats + dashboard, pending-autoroute auto-expiry + notifications.
+
+### Prior goal (platform integration M0–M3) — parked
+- [x] Backend-to-frontend integration planning; sibling-repo integration points (`flexinfer`, `loom-core`, `mentatlab`).
+- [ ] Execute M0 integration alignment (contract CI promotion, gateway baseline, smoke tests).
 
 ## Success Criteria
 
