@@ -14,6 +14,7 @@ import {
   toggleBottomPanel,
   setBottomPanelHeight,
   setActivePanelTab,
+  openPanelTab,
   toggleWorkspaceSplit,
   setWorkspaceSplit,
   createWorkspaceTab,
@@ -263,6 +264,24 @@ describe('ideStore', () => {
 
       setActivePanelTab('output');
       expect(get(ideState).activePanelTab).toBe('output');
+    });
+  });
+
+  describe('openPanelTab', () => {
+    it('opens a collapsed panel and selects the tab in one action', () => {
+      expect(get(ideState).bottomPanelOpen).toBe(false);
+      openPanelTab('problems');
+      expect(get(ideState).bottomPanelOpen).toBe(true);
+      expect(get(ideState).activePanelTab).toBe('problems');
+    });
+
+    it('switches tabs without closing an already-open panel', () => {
+      toggleBottomPanel(); // open
+      openPanelTab('output');
+      expect(get(ideState).bottomPanelOpen).toBe(true);
+      openPanelTab('trace');
+      expect(get(ideState).bottomPanelOpen).toBe(true);
+      expect(get(ideState).activePanelTab).toBe('trace');
     });
   });
 

@@ -23,7 +23,7 @@
     setActiveTab,
     toggleBottomPanel,
     toggleWorkspaceSplit,
-    setActivePanelTab,
+    openPanelTab,
     setSecondaryDocument,
     createWorkspaceTab,
     createDocument,
@@ -92,8 +92,8 @@
     { id: 'nav:system', label: 'Go to Dashboard', hint: '/', category: 'Navigation', keywords: ['navigate', 'mission control', 'home', 'dashboard'], run: () => goto(resolve('/')) },
     { id: 'cmd:toggle-sidebar', label: 'Toggle Sidebar', category: 'Workspace', keywords: ['sidebar', 'panel'], run: () => toggleSidebar() },
     { id: 'cmd:toggle-panel', label: 'Toggle Bottom Panel', category: 'Workspace', keywords: ['panel', 'output', 'problems'], run: () => toggleBottomPanel() },
-    { id: 'cmd:debug-panel', label: 'Open Debug Panel', hint: 'Cmd+Shift+D', category: 'Workspace', keywords: ['debug', 'breakpoint', 'step'], run: () => { setActivePanelTab('debug'); if (!$ideState.bottomPanelOpen) toggleBottomPanel(); } },
-    { id: 'cmd:trace-panel', label: 'Open Trace Timeline', category: 'Workspace', keywords: ['trace', 'timeline', 'spans'], run: () => { setActivePanelTab('trace'); if (!$ideState.bottomPanelOpen) toggleBottomPanel(); } },
+    { id: 'cmd:debug-panel', label: 'Open Debug Panel', hint: 'Cmd+Shift+D', category: 'Workspace', keywords: ['debug', 'breakpoint', 'step'], run: () => openPanelTab('debug') },
+    { id: 'cmd:trace-panel', label: 'Open Trace Timeline', category: 'Workspace', keywords: ['trace', 'timeline', 'spans'], run: () => openPanelTab('trace') },
     // Document artifact commands
     {
       id: 'doc:open-trace',
@@ -224,7 +224,8 @@
   }
 
   function onPanelTabChange(e: CustomEvent<PanelTab>): void {
-    setActivePanelTab(e.detail);
+    // Clicking a tab reveals the panel (open-on-select), not just re-labels it.
+    openPanelTab(e.detail);
   }
 
   function onPanelToggle(): void {
@@ -232,9 +233,7 @@
   }
 
   function onPanelNavigate(e: CustomEvent<{ panel: string }>): void {
-    const tab = e.detail.panel as import('./types').PanelTab;
-    setActivePanelTab(tab);
-    if (!$ideState.bottomPanelOpen) toggleBottomPanel();
+    openPanelTab(e.detail.panel as import('./types').PanelTab);
   }
 
   function closeActiveTab(): void {
@@ -280,8 +279,7 @@
         toggleWorkspaceSplit();
       },
       openDebugPanel: () => {
-        setActivePanelTab('debug');
-        if (!$ideState.bottomPanelOpen) toggleBottomPanel();
+        openPanelTab('debug');
       },
     });
 
