@@ -183,8 +183,10 @@ Gated by the **kill-test above (Slice 0)**. Only proceeds if the LLM path is pro
 - **Wave 2 gate**: do not merge any copilot-wiring MR until the Slice-0 kill-test is recorded as passed.
 - **CI gotchas** (from memory / `.loom/22`): `lint:gqlgen` cold-GOMODCACHE run takes 16-24 min and looks
   hung but isn't — don't cancel-retry; it blocks MWPS (not allow_failure). `test:ui` silently skips vitest
-  on UI-only MRs. For MR create/merge against the public host, use curl with
-  `--resolve gitlab.flexinfer.ai:443:192.168.50.227` + `$GITLAB_PAT` (MCP gitlab write POSTs 403 via Cloudflare).
+  on UI-only MRs. `lint:go` used to compile golangci-lint from source and timed out on a cold branch cache;
+  as of 2026-06-18 it uses the pinned `golangci/golangci-lint:${GOLANGCI_LINT_VERSION}-alpine` image instead.
+  For MR create/merge against the public host, use curl with `--resolve gitlab.flexinfer.ai:443:192.168.50.227`
+  + `$GITLAB_PAT` (MCP gitlab write POSTs 403 via Cloudflare).
 
 ## Open questions (decisions needed)
 
