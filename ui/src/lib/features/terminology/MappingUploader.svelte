@@ -3,6 +3,7 @@
   import Button from '$lib/ui/Button.svelte';
   import { toasts } from '$lib/ui/toastStore';
   import { uploadMappingCSV } from './terminologyApi';
+  import { validateCsvFile } from './csvFileValidation';
   import type { UploadMappingCsvInput, MappingEquivalence } from '$lib/gen/graphql';
 
   export let profileId: string | undefined = undefined;
@@ -20,6 +21,9 @@
   let isUploading = false;
   let csvContent = '';
   let filename = '';
+
+  // Inline file-type rejection (B1: persistent validation belongs inline, not a toast)
+  let fileError: string | null = null;
 
   // Preview state
   let showPreview = false;
@@ -58,8 +62,8 @@
   }
 
   async function handleFile(file: File) {
-    if (!file.name.endsWith('.csv')) {
-      toasts.error('Please select a CSV file');
+    fileError = validateCsvFile(file.name);
+    if (fileError) {
       return;
     }
 
@@ -137,6 +141,7 @@
     filename = '';
     showPreview = false;
     previewResult = null;
+    fileError = null;
   }
 
   function formatEquivalence(eq: MappingEquivalence): string {
@@ -182,6 +187,10 @@
         <span class="drop-secondary">or click to browse</span>
       </div>
     </button>
+
+    {#if fileError}
+      <p class="file-error" role="alert">{fileError}</p>
+    {/if}
 
     <!-- Format Help -->
     <div class="format-help">
@@ -348,6 +357,16 @@
 
   .drop-secondary {
     color: var(--color-text-muted);
+    font-size: var(--text-sm);
+  }
+
+  .file-error {
+    margin: 0;
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-lg);
+    background: var(--color-danger-subtle);
+    border: 1px solid var(--color-danger-muted);
+    color: var(--color-danger);
     font-size: var(--text-sm);
   }
 
