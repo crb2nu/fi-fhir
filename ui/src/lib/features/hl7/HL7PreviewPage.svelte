@@ -32,7 +32,7 @@
   import AuthoringFlowRail from '$lib/features/shared/AuthoringFlowRail.svelte';
   import LifecycleTrace from '$lib/features/shared/LifecycleTrace.svelte';
   import type { FlowStep } from '$lib/features/shared/authoringFlow';
-  import { graphqlFetch } from '$lib/graphql/client';
+  import { graphqlFetch, isErrorToasted } from '$lib/graphql/client';
   import { ExplainWarningsDocument, type ParseWarningInput, type SourceFormat, type EventType } from '$lib/gen/graphql';
   import type { WarningLike } from '$lib/domain/warnings';
   import { submitHL7Message } from '$lib/features/hl7/hl7Submit';
@@ -638,7 +638,10 @@
       // Re-run to clear the warning
       void run();
     } catch (e) {
-      toasts.error('Failed to resolve mapping: ' + (e instanceof Error ? e.message : String(e)));
+      // Global graphqlFetch net already toasts graphql failures (B4 dedupe).
+      if (!isErrorToasted(e)) {
+        toasts.error('Failed to resolve mapping: ' + (e instanceof Error ? e.message : String(e)));
+      }
     }
   }
 

@@ -6,6 +6,7 @@
   import { generateWorkflow } from '../workflowApi';
   import { ALL_EVENT_TYPES, ACTION_TYPES } from '../workflowTypes';
   import { toasts } from '$lib/ui/toastStore';
+  import { isErrorToasted } from '$lib/graphql/client';
 
   let description = '';
   let generating = false;
@@ -25,8 +26,11 @@
       generatedYaml = result.generateWorkflow.yaml;
       generatedExplanation = result.generateWorkflow.explanation;
       generatedWarnings = result.generateWorkflow.warnings;
-    } catch {
-      toasts.error('Failed to generate workflow');
+    } catch (e) {
+      // Global graphqlFetch net already toasts graphql failures (B4 dedupe).
+      if (!isErrorToasted(e)) {
+        toasts.error('Failed to generate workflow');
+      }
     } finally {
       generating = false;
     }

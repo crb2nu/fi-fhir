@@ -295,6 +295,52 @@ WorkflowBuilder name-family backstops (unreachable / B2, intentionally kept) and
 the **6b-β2d graphql dedupe** (B4 — verify `markToasted` covers
 component-handled errors in `graphql/client.ts`), the final UX-redesign slice.
 
+### 5i. Slice 6b-β2d (graphql B4 dedupe) outcome — B4, the FINAL UX slice
+
+**Verification finding:** `markToasted` did **not** cover component-handled
+errors. The `TOASTED` symbol and its `isToasted` predicate were module-private to
+`graphql/client.ts`, so no component could consult them — and the global net
+already toasted (then threw) *before* a component's `catch` ran. Every component
+`catch` that toasted after a default-options `graphqlFetch` (all wrappers except
+`debugApi`'s two `showErrorToast:false` calls) therefore produced a **double
+toast**: the global generic/server message **plus** the component's message.
+Census: **28 genuine B4 catch-sites across 13 files** (the §3 table's "~3" counted
+only the three literal `client.ts` strings; the §4 effect target is
+"double-toasts → 0"). This also corrects the §5d/§5e/§5h "legit R1 catch toast,
+untouched" framing — those R1 failure toasts (WorkflowList run, DryRunPanel,
+MappingUploader preview/confirm, AutorouteResolver approve, …) were in fact B4
+doubles, now deduped here.
+
+**Fix (D3 — "global net, components defer via markToasted"):** exported the
+predicate as `isErrorToasted(err)` from `client.ts` (kept the internal usage) and
+guarded each of the 28 component catch toasts:
+`if (!isErrorToasted(e)) toasts.error(...)`. One uniform guard handles all three
+sub-cases — pure-B4 (suppress the duplicate), MIXED (a pre-fetch local throw like
+`draftToYaml`/`JSON.parse` the net never saw still toasts), and inline+toast (keep
+the inline `role="alert"` field context — `lifecycleError`/`compareError`,
+`runErrorByWorkflow`, `approvalsError` — guard only the toast). Result: a graphql
+failure shows **one** toast (the net's), a local failure still shows the
+component's.
+
+Files: `client.ts` (+export) and 13 components — terminology (MappingEditor,
+MappingBrowser, AutorouteResolver, TemporalWorkflowList, PendingReviewList ×3,
+MappingUploader ×2), workflows (GenerateFromDescription, DryRunPanel,
+WorkflowPreview, WorkflowMonitor, WorkflowList ×3, WorkflowBuilder ×9), hl7
+(HL7PreviewPage). **Deliberately excluded** (not B4): `WorkflowList:292`
+(success-path run-errors count, the graphql call succeeded), `PendingReviewList`
+bulk-selected aggregate (inner `catch {}` swallows the error → no object to guard;
+the per-item global toasts during a bulk run would need wrapper option-forwarding,
+out of scope), all synchronous precondition guards (B2), and local parse toasts
+(`GenerateFromDescription:41`, `WorkflowBuilder` YAML-parse, `HL7PreviewPage:621`).
+
+Tests: 6 new in `client.test.ts` (`isErrorToasted` predicate + the dedupe contract
+the guards rely on — marks net-toasted errors, leaves `showErrorToast:false` and
+local errors unmarked, guarded component catch does not double-toast a graphql
+failure but still toasts a local one). Full UI suite **527 passed / 2 skipped**
+(521 baseline + 6); eslint clean for all changed files; svelte-check shows only the
+pre-existing vite/rollup `.d.ts` node_modules error. **Double-toasts → 0; the §4
+effect table is fully realized. This is the last UX-redesign slice.**
+
 ### 5b. Slice 6b-β2b outcome (disabled-control preconditions, B2/D2)
 
 Verified each of the 6 precondition toasts against its actual trigger control. **Only the

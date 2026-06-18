@@ -23,6 +23,7 @@
   import { WORKFLOW_TEMPLATES } from '../workflowTemplates';
   import type { GetWorkflowVersionsQuery, ListWorkflowApprovalRequestsQuery, DryRunResult } from '$lib/gen/graphql';
   import { toasts } from '$lib/ui/toastStore';
+  import { isErrorToasted } from '$lib/graphql/client';
 
   type ManagedSelection = {
     workflowId: string;
@@ -311,7 +312,11 @@
       compareRemovedCount = diff.removed;
     } catch (err) {
       compareError = err instanceof Error ? err.message : 'Failed to compare versions';
-      toasts.error(compareError);
+      // Inline compareError carries the field context; only toast if the global
+      // graphqlFetch net did not already (B4 dedupe).
+      if (!isErrorToasted(err)) {
+        toasts.error(compareError);
+      }
     } finally {
       comparingVersions = false;
     }
@@ -463,7 +468,9 @@
       await refreshApprovalStateIfNeeded();
     } catch (err) {
       lifecycleError = err instanceof Error ? err.message : 'Failed to load workflow versions';
-      toasts.error(lifecycleError);
+      if (!isErrorToasted(err)) {
+        toasts.error(lifecycleError);
+      }
     } finally {
       loadingVersionHistory = false;
     }
@@ -496,7 +503,9 @@
       toasts.success(`Created managed workflow: ${linkedWorkflowName}`);
     } catch (err) {
       lifecycleError = err instanceof Error ? err.message : 'Failed to create workflow definition';
-      toasts.error(lifecycleError);
+      if (!isErrorToasted(err)) {
+        toasts.error(lifecycleError);
+      }
     } finally {
       creatingDefinition = false;
     }
@@ -539,7 +548,9 @@
       toasts.success(`Saved workflow version v${version.versionNumber}`);
     } catch (err) {
       lifecycleError = err instanceof Error ? err.message : 'Failed to save workflow version';
-      toasts.error(lifecycleError);
+      if (!isErrorToasted(err)) {
+        toasts.error(lifecycleError);
+      }
     } finally {
       savingVersion = false;
     }
@@ -570,7 +581,9 @@
       toasts.success(`Loaded v${data.workflowVersion.versionNumber} into builder`);
     } catch (err) {
       lifecycleError = err instanceof Error ? err.message : 'Failed to load workflow version';
-      toasts.error(lifecycleError);
+      if (!isErrorToasted(err)) {
+        toasts.error(lifecycleError);
+      }
     } finally {
       loadingVersion = false;
       loadingVersionId = '';
@@ -600,7 +613,9 @@
       toasts.success(`Published version to ${publishEnvironment}`);
     } catch (err) {
       lifecycleError = err instanceof Error ? err.message : 'Failed to publish version';
-      toasts.error(lifecycleError);
+      if (!isErrorToasted(err)) {
+        toasts.error(lifecycleError);
+      }
     } finally {
       publishingVersion = false;
     }
@@ -626,7 +641,9 @@
       toasts.success(`Approval requested (${data.requestWorkflowApproval.status})`);
     } catch (err) {
       lifecycleError = err instanceof Error ? err.message : 'Failed to request approval';
-      toasts.error(lifecycleError);
+      if (!isErrorToasted(err)) {
+        toasts.error(lifecycleError);
+      }
     } finally {
       requestingApproval = false;
     }
@@ -682,7 +699,9 @@
       toasts.success(`Snapshot "${snapshot.name}" promoted as v${data.saveWorkflowVersion.versionNumber}`);
     } catch (err) {
       lifecycleError = err instanceof Error ? err.message : 'Failed to promote snapshot';
-      toasts.error(lifecycleError);
+      if (!isErrorToasted(err)) {
+        toasts.error(lifecycleError);
+      }
     } finally {
       pushedSnapshotId = null;
     }
@@ -716,7 +735,9 @@
       toasts.success(`Imported YAML promoted as v${data.saveWorkflowVersion.versionNumber}`);
     } catch (err) {
       lifecycleError = err instanceof Error ? err.message : 'Failed to promote imported YAML';
-      toasts.error(lifecycleError);
+      if (!isErrorToasted(err)) {
+        toasts.error(lifecycleError);
+      }
     } finally {
       promotingImportYaml = false;
     }

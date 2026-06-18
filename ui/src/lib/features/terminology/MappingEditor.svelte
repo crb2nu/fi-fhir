@@ -2,6 +2,7 @@
   import { afterUpdate, createEventDispatcher, tick } from 'svelte';
   import Button from '$lib/ui/Button.svelte';
   import { toasts } from '$lib/ui/toastStore';
+  import { isErrorToasted } from '$lib/graphql/client';
   import { updateMapping } from './terminologyApi';
   import type { MappingEquivalence, ListMappingsQuery } from '$lib/gen/graphql';
   import { createDialogFocusController } from '$lib/domain/a11yDialog';
@@ -66,7 +67,10 @@
       dispatch('save', { mapping: updated });
       handleClose();
     } catch (err) {
-      toasts.error(err instanceof Error ? err.message : 'Failed to update mapping');
+      // Global graphqlFetch net already toasts graphql failures (B4 dedupe).
+      if (!isErrorToasted(err)) {
+        toasts.error(err instanceof Error ? err.message : 'Failed to update mapping');
+      }
     } finally {
       saving = false;
     }

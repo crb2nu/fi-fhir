@@ -4,6 +4,7 @@
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import ConfirmModal from "$lib/ui/ConfirmModal.svelte";
   import { toasts } from "$lib/ui/toastStore";
+  import { isErrorToasted } from "$lib/graphql/client";
   import {
     listMappings,
     deleteMapping,
@@ -139,7 +140,10 @@
 
       toasts.success("Mappings exported successfully");
     } catch (err) {
-      toasts.error(err instanceof Error ? err.message : "Export failed");
+      // Global graphqlFetch net already toasts graphql failures (B4 dedupe).
+      if (!isErrorToasted(err)) {
+        toasts.error(err instanceof Error ? err.message : "Export failed");
+      }
     } finally {
       exporting = false;
     }
@@ -181,7 +185,10 @@
       }
       await loadMappings();
     } catch (err) {
-      toasts.error(err instanceof Error ? err.message : "Delete failed");
+      // Global graphqlFetch net already toasts graphql failures (B4 dedupe).
+      if (!isErrorToasted(err)) {
+        toasts.error(err instanceof Error ? err.message : "Delete failed");
+      }
     } finally {
       showDeleteConfirm = false;
       deletingId = null;

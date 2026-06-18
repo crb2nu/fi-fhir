@@ -5,6 +5,7 @@
   import EmptyState from '$lib/ui/EmptyState.svelte';
   import ConfirmModal from '$lib/ui/ConfirmModal.svelte';
   import { toasts } from '$lib/ui/toastStore';
+  import { isErrorToasted } from '$lib/graphql/client';
   import { listTemporalWorkflows, cancelTemporalWorkflow } from './temporalApi';
   import type { TemporalWorkflowStatus, ListTemporalWorkflowsQuery } from '$lib/gen/graphql';
 
@@ -92,7 +93,10 @@
       hasNextPage = result.pageInfo.hasNextPage;
       endCursor = result.pageInfo.endCursor ?? null;
     } catch (err) {
-      toasts.error(err instanceof Error ? err.message : 'Failed to load more workflows');
+      // Global graphqlFetch net already toasts graphql failures (B4 dedupe).
+      if (!isErrorToasted(err)) {
+        toasts.error(err instanceof Error ? err.message : 'Failed to load more workflows');
+      }
     } finally {
       loading = false;
     }
@@ -132,7 +136,10 @@
       dispatch('refresh');
       await loadWorkflows();
     } catch (err) {
-      toasts.error(err instanceof Error ? err.message : 'Failed to cancel workflow');
+      // Global graphqlFetch net already toasts graphql failures (B4 dedupe).
+      if (!isErrorToasted(err)) {
+        toasts.error(err instanceof Error ? err.message : 'Failed to cancel workflow');
+      }
     } finally {
       processingIds.delete(cancelingId);
       showCancelModal = false;
