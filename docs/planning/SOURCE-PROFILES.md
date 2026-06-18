@@ -18,6 +18,7 @@ When onboarding a new HL7v2 interface, start from a vendor template and then tig
 
 - Templates: `profiles/templates/hl7v2/`
 - Example fixtures: `testdata/hl7v2/vendors/`
+- EHR/PM starting points include Epic, Cerner, MEDITECH, Allscripts, athenahealth, eClinicalWorks, NextGen, Greenway Intergy, and AdvancedMD.
 
 Typical loop:
 1. Copy a template into `profiles/<feed>.yaml` and set `source_profile.id` + `source_profile.name`.

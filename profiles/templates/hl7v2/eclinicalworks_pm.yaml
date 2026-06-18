@@ -1,0 +1,134 @@
+# eClinicalWorks Practice Management Template
+#
+# Research basis:
+# - eClinicalWorks documents HL7 ADT for demographics/registration and HL7 SIU
+#   scheduling, including S12/S14/S15 variants:
+#   https://www.eclinicalworks.com/products-services/interoperability/practice-management-integrations/
+# - Clinical integrations list HL7 ORM/ORU for lab and imaging, plus ORU/MDM
+#   for embedded-PDF reports and transcription:
+#   https://www.eclinicalworks.com/products-services/interoperability/clinical-integrations/
+#
+# Copy this template per feed and tighten tolerances after linting real traffic.
+
+source_profile:
+  id: eclinicalworks_pm_template
+  name: eClinicalWorks Practice Management Template
+  version: "0.1.0"
+
+  hl7v2:
+    default_version: "2.5.1"
+    timezone: "UTC"
+
+    encoding:
+      charset_default: "UTF-8"
+      charset_detection: true
+      line_ending_mode: "tolerant"
+
+    tolerate:
+      missing_segments:
+        - "PV1"
+        - "PD1"
+        - "NK1"
+        - "GT1"
+        - "IN1"
+        - "AL1"
+        - "OBR"
+        - "OBX"
+        - "TXA"
+        - "SCH"
+        - "RGS"
+        - "AIG"
+        - "AIL"
+        - "AIP"
+      nte_anywhere: true
+      extra_components: true
+      unknown_segments: true
+      non_standard_delimiters: true
+
+    datatypes:
+      xcn_component_count: "flexible"
+      cx_component_count: "flexible"
+      xpn_component_count: "flexible"
+
+    event_classification:
+      adt_a01:
+        default: "patient_admit"
+        rules:
+          - condition: "PV1.2 == 'I'"
+            event: "inpatient_admit"
+          - condition: "PV1.2 == 'O'"
+            event: "outpatient_registration"
+          - condition: "PV1.2 == 'E'"
+            event: "emergency_registration"
+      adt_a04:
+        default: "outpatient_registration"
+      adt_a08:
+        default: "patient_update"
+
+  z_segments:
+    preserve_raw: true
+    mappings:
+      ZPV:
+        - field: 1
+          target: "encounter.custom.ecw_visit_id"
+          type: "string"
+      ZPD:
+        - field: 1
+          target: "patient.custom.ecw_patient_id"
+          type: "string"
+
+  identifiers:
+    assigning_authority_map:
+      "ECW": "urn:fi-fhir:identifier-system:eclinicalworks:mrn"
+      "ECW_MRN": "urn:fi-fhir:identifier-system:eclinicalworks:mrn"
+      "ECW_PATIENT_ID": "urn:fi-fhir:identifier-system:eclinicalworks:patient-id"
+
+    primary_id_preference:
+      - type: "MR"
+        assigner_contains: "ECW"
+      - type: "PI"
+        assigner_contains: "ECW"
+      - type: "MR"
+      - type: "PI"
+
+    validation:
+      npi:
+        enabled: true
+        on_invalid: "warn"
+      mbi:
+        enabled: true
+        on_invalid: "warn"
+      ssn:
+        enabled: true
+        on_invalid: "warn"
+
+    normalization:
+      ssn:
+        strip_dashes: true
+        reject_patterns:
+          - "000000000"
+          - "123456789"
+          - "111111111"
+      phone:
+        strip_country_code: true
+        normalize_to_digits: true
+      mrn:
+        strip_leading_zeros: false
+        uppercase: true
+
+  terminology:
+    strict_validation: false
+    unknown_code_behavior: "warn"
+
+  quality:
+    metrics:
+      - "message_types_distribution"
+      - "segment_presence_rates"
+      - "identifier_validity_rates"
+      - "terminology_coverage_rates"
+      - "z_segment_frequency"
+    alerts:
+      missing_patient_id_rate:
+        threshold: 0.01
+        severity: "warning"
+

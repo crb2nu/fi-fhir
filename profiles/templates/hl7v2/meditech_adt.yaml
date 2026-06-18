@@ -45,3 +45,40 @@ source_profile:
           target: "patient.custom.financial_class"
           type: "string"
 
+  identifiers:
+    assigning_authority_map:
+      "MEDITECH": "urn:fi-fhir:identifier-system:meditech:mrn"
+      "MEDITECH_MRN": "urn:fi-fhir:identifier-system:meditech:mrn"
+      "MEDITECH_ACCOUNT": "urn:fi-fhir:identifier-system:meditech:account-number"
+
+    primary_id_preference:
+      - type: "MR"
+        assigner_contains: "MEDITECH"
+      - type: "AN"
+        assigner_contains: "MEDITECH"
+      - type: "MR"
+
+    validation:
+      npi:
+        enabled: true
+        on_invalid: "warn"
+      mbi:
+        enabled: true
+        on_invalid: "warn"
+      ssn:
+        enabled: true
+        on_invalid: "warn"
+
+    normalization:
+      ssn:
+        strip_dashes: true
+        reject_patterns:
+          - "000000000"
+          - "123456789"
+          - "111111111"
+      phone:
+        strip_country_code: true
+        normalize_to_digits: true
+      mrn:
+        strip_leading_zeros: false
+        uppercase: true

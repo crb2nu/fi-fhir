@@ -1,0 +1,134 @@
+# Greenway Intergy Template
+#
+# Research basis:
+# - Greenway documents use of HL7, FHIR, and CDA standards for secure data
+#   exchange and support of interoperability workflows:
+#   https://www.greenwayhealth.com/solutions/interoperability
+#
+# Copy this template per feed and tighten tolerances after linting real traffic.
+
+source_profile:
+  id: greenway_intergy_template
+  name: Greenway Intergy Template
+  version: "0.1.0"
+
+  hl7v2:
+    default_version: "2.5.1"
+    timezone: "UTC"
+
+    encoding:
+      charset_default: "UTF-8"
+      charset_detection: true
+      line_ending_mode: "tolerant"
+
+    tolerate:
+      missing_segments:
+        - "PV1"
+        - "PD1"
+        - "NK1"
+        - "GT1"
+        - "IN1"
+        - "AL1"
+        - "OBR"
+        - "OBX"
+        - "TXA"
+        - "SCH"
+        - "RGS"
+        - "AIG"
+        - "AIL"
+        - "AIP"
+      nte_anywhere: true
+      extra_components: true
+      unknown_segments: true
+      non_standard_delimiters: true
+
+    datatypes:
+      xcn_component_count: "flexible"
+      cx_component_count: "flexible"
+      xpn_component_count: "flexible"
+
+    event_classification:
+      adt_a01:
+        default: "patient_admit"
+        rules:
+          - condition: "PV1.2 == 'I'"
+            event: "inpatient_admit"
+          - condition: "PV1.2 == 'O'"
+            event: "outpatient_registration"
+          - condition: "PV1.2 == 'E'"
+            event: "emergency_registration"
+      adt_a04:
+        default: "outpatient_registration"
+      adt_a08:
+        default: "patient_update"
+
+  edi:
+    companion_guide: "auto"
+
+  z_segments:
+    preserve_raw: true
+    mappings:
+      ZPV:
+        - field: 1
+          target: "encounter.custom.greenway_visit_id"
+          type: "string"
+      ZPD:
+        - field: 1
+          target: "patient.custom.greenway_account_id"
+          type: "string"
+
+  identifiers:
+    assigning_authority_map:
+      "GREENWAY": "urn:fi-fhir:identifier-system:greenway:mrn"
+      "INTERGY": "urn:fi-fhir:identifier-system:greenway:mrn"
+      "GREENWAY_ACCOUNT": "urn:fi-fhir:identifier-system:greenway:account-id"
+
+    primary_id_preference:
+      - type: "MR"
+        assigner_contains: "GREENWAY"
+      - type: "MR"
+        assigner_contains: "INTERGY"
+      - type: "PI"
+      - type: "MR"
+
+    validation:
+      npi:
+        enabled: true
+        on_invalid: "warn"
+      mbi:
+        enabled: true
+        on_invalid: "warn"
+      ssn:
+        enabled: true
+        on_invalid: "warn"
+
+    normalization:
+      ssn:
+        strip_dashes: true
+        reject_patterns:
+          - "000000000"
+          - "123456789"
+          - "111111111"
+      phone:
+        strip_country_code: true
+        normalize_to_digits: true
+      mrn:
+        strip_leading_zeros: false
+        uppercase: true
+
+  terminology:
+    strict_validation: false
+    unknown_code_behavior: "warn"
+
+  quality:
+    metrics:
+      - "message_types_distribution"
+      - "segment_presence_rates"
+      - "identifier_validity_rates"
+      - "terminology_coverage_rates"
+      - "z_segment_frequency"
+    alerts:
+      identifier_warning_rate:
+        threshold: 0.02
+        severity: "warning"
+
