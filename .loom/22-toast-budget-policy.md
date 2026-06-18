@@ -260,6 +260,41 @@ stays a toast until a destination is built. Queued as the next increment; it is
 the last open B1 site. After it, only the WorkflowBuilder name-family backstops
 (unreachable / B2) and the **6b-β2d graphql dedupe** remain.
 
+### 5h. Slice 6b-β2c (toast-redirect #5, MappingUploader CSV file type) outcome — B1
+
+The **last open B1 site** (deferred from #4, §5g). `handleFile` rejected a
+non-CSV selection with `toasts.error("Please select a CSV file")`. Unlike #1–#4,
+the component had **no existing inline home**: `.errors-section` only renders
+*post-preview* row validation (`previewResult.batch.validationErrors`), and a
+file-type rejection fires *before* any preview exists. So per the
+redirect-strategy gate (only remove a toast whose destination already exists),
+this was a **build-home-then-redirect**, not a pure redirect.
+
+Built the home: a reactive `fileError` string rendered as an inline
+`<p class="file-error" role="alert">` directly under the drop zone (styled with
+the same danger tokens as `.errors-section` — `--color-danger-subtle` /
+`--color-danger-muted` / `--color-danger`). The `role="alert"` makes the
+dynamically-inserted rejection a live region so screen readers still announce it,
+recovering the toast's one genuine virtue. Extracted the guard into a pure,
+unit-tested helper `features/terminology/csvFileValidation.ts`
+(`validateCsvFile(name) → string | null`), mirroring `resolveValidation.ts` from
+#4; the check is behaviour-preserving (`name.endsWith('.csv')`, case-sensitive,
+matching the prior guard and the `<input accept=".csv">` filter). `handleFile`
+now assigns `fileError = validateCsvFile(file.name)` and returns on error (no
+toast), clears `fileError = null` on a valid file before previewing;
+`cancelUpload` also clears it. The async `previewUpload`/`confirmUpload` catch
+toasts (legit R1) and the upload-success toast (legit R1) are untouched. Net 1
+toast removed. Tests: 5 new (`csvFileValidation.test.ts`); full UI suite **521
+passed / 2 skipped** (516 baseline + 5); eslint clean for changed files;
+svelte-check shows only the pre-existing vite/rollup `.d.ts` node_modules error
+and pre-existing unused-CSS warnings — none in the changed files.
+
+**B1 redirect series complete.** All persistent-validation toasts with a
+real or buildable inline home are now inline. Remaining toast-budget work: the
+WorkflowBuilder name-family backstops (unreachable / B2, intentionally kept) and
+the **6b-β2d graphql dedupe** (B4 — verify `markToasted` covers
+component-handled errors in `graphql/client.ts`), the final UX-redesign slice.
+
 ### 5b. Slice 6b-β2b outcome (disabled-control preconditions, B2/D2)
 
 Verified each of the 6 precondition toasts against its actual trigger control. **Only the
