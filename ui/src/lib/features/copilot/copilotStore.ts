@@ -2,10 +2,16 @@
  * Copilot store — manages the LLM assistant conversation state.
  *
  * Uses Svelte 4 writable/derived stores for consistency with the codebase.
- * LLM calls are simulated until the real MCP LLM tool is wired up.
+ * Each action dispatches a real, codegen'd GraphQL LLM operation via
+ * `copilotDispatch` (Wave 2, `.loom/23` Slice 2a) — there is no simulator.
+ * The "streaming" shell (placeholder message + spinner + cancel) is preserved
+ * to signal the in-flight network call; the real formatted response replaces
+ * the placeholder when it lands.
  */
 import { writable, derived, get } from 'svelte/store';
 import { platformState } from '$lib/platform';
+import { isErrorToasted } from '$lib/graphql/client';
+import { dispatchCopilotAction } from './copilotDispatch';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -30,6 +36,8 @@ export interface CopilotMessage {
   timestamp: number;
   streaming?: boolean;
   error?: string;
+  /** Real model name when the backend op reported one (e.g. review/analyzeQuality). */
+  model?: string;
 }
 
 export interface CopilotState {
@@ -49,14 +57,14 @@ const initialState: CopilotState = {
     {
       id: 'system-welcome',
       role: 'system',
-      content: 'Copilot ready. Select text and choose an action.',
-      timestamp: Date.now(),
-    },
+      content: 'Copilot ready. Pick an action and describe what you need.',
+      timestamp: Date.now()
+    }
   ],
   isStreaming: false,
   currentAction: null,
   context: {},
-  error: null,
+  error: null
 };
 
 // ---------------------------------------------------------------------------
@@ -85,94 +93,18 @@ function nextId(): string {
 }
 
 // ---------------------------------------------------------------------------
-// Simulated streaming responses
+// Action runner — dispatches the real GraphQL op behind the streaming shell
 // ---------------------------------------------------------------------------
 
-const SIMULATED_RESPONSES: Record<CopilotAction, (input: string) => string> = {
-  explain: (input: string) => {
-    const trimmed = input.slice(0, 60).replace(/\n/g, ' ');
-    return (
-      `**HL7 Segment Analysis**\n\n` +
-      `The input \`${trimmed}...\` represents a standard HL7 v2 message segment commonly used ` +
-      `in healthcare integration workflows. This segment carries patient demographic data, ` +
-      `clinical identifiers, and routing metadata that downstream FHIR transforms depend on.\n\n` +
-      `**Key Fields:**\n` +
-      `- **Field 1 (Set ID):** Sequential counter for repeating segments\n` +
-      `- **Field 3 (Patient Identifier):** Maps to \`Patient.identifier\` in FHIR R4\n` +
-      `- **Field 5 (Patient Name):** Decomposes into \`HumanName.family\`, \`.given\`, and \`.prefix\`\n\n` +
-      `When mapping this segment, pay attention to the encoding characters and field separators. ` +
-      `Misaligned delimiters are the most common source of parse failures in production HL7 feeds.`
-    );
-  },
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  suggest: (_input: string) => {
-    return (
-      `**Terminology Mapping Suggestions**\n\n` +
-      `| Source Code | Target System | Target Code | Display | Confidence |\n` +
-      `|------------|---------------|-------------|---------|------------|\n` +
-      `| \`OBX-3\` | LOINC | \`8867-4\` | Heart rate | **94%** |\n` +
-      `| \`OBX-3\` | LOINC | \`8310-5\` | Body temperature | **87%** |\n` +
-      `| \`OBX-3\` | SNOMED CT | \`364075005\` | Heart rate | **82%** |\n` +
-      `| \`OBX-3\` | LOINC | \`9279-1\` | Respiratory rate | **71%** |\n\n` +
-      `**Recommendation:** The top match (\`8867-4\` Heart rate) has high confidence and aligns ` +
-      `with the US Core Vital Signs profile. Consider adding a \`ConceptMap\` entry for institutional ` +
-      `codes that don't have a direct LOINC equivalent.`
-    );
-  },
-
-  generate: (input: string) => {
-    const desc = input.slice(0, 40).replace(/\n/g, ' ');
-    return (
-      `**Generated CEL Expression**\n\n` +
-      `\`\`\`cel\n` +
-      `// Filter: ${desc}\n` +
-      `message.MSH.sending_facility == "MAIN_LAB"\n` +
-      `  && message.PID.patient_class in ["I", "E"]\n` +
-      `  && size(message.OBX) > 0\n` +
-      `  && message.OBX.exists(o, o.observation_id.matches("^8[0-9]{3}"))\n` +
-      `\`\`\`\n\n` +
-      `**Explanation:**\n` +
-      `- Filters messages from the \`MAIN_LAB\` sending facility\n` +
-      `- Accepts only inpatient (\`I\`) and emergency (\`E\`) encounters\n` +
-      `- Requires at least one OBX segment with an observation ID starting with \`8\`\n\n` +
-      `This expression runs in the CEL evaluator before FHIR transformation. ` +
-      `Test with the Dry Run panel to validate against sample messages.`
-    );
-  },
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  review: (_input: string) => {
-    return (
-      `**Mapping Review**\n\n` +
-      `**Overall Assessment:** Acceptable with minor issues\n\n` +
-      `**Findings:**\n\n` +
-      `1. **Patient Identifier Mapping** - The MRN is mapped to \`Patient.identifier\` ` +
-      `with system \`urn:oid:2.16.840.1.113883\`. This is correct, but consider adding ` +
-      `an \`assigner\` reference for traceability.\n\n` +
-      `2. **Name Handling** - The mapping splits on \`^\` correctly, but does not handle ` +
-      `the suffix component (field 5.4). Approximately 3% of production messages include ` +
-      `suffixes like "Jr" or "III".\n\n` +
-      `3. **Date Formatting** - The DOB mapping assumes \`YYYYMMDD\` format. Add a fallback ` +
-      `for \`YYYYMMDD HHmmss\` which appears in ~12% of ADT messages.\n\n` +
-      `**Suggested Actions:**\n` +
-      `- [ ] Add \`assigner\` to identifier mapping\n` +
-      `- [ ] Handle name suffix component\n` +
-      `- [ ] Add date format fallback`
-    );
-  },
-};
-
-async function simulateStream(
+async function runAction(
   action: CopilotAction,
   input: string,
-  _context: CopilotContext,
+  context: CopilotContext,
   signal: AbortSignal
 ): Promise<void> {
-  const responseText = SIMULATED_RESPONSES[action](input);
   const assistantId = nextId();
 
-  // Add empty assistant message placeholder
+  // Add empty assistant placeholder (shows the streaming spinner while in flight).
   copilotState.update((s) => ({
     ...s,
     messages: [
@@ -183,75 +115,73 @@ async function simulateStream(
         action,
         content: '',
         timestamp: Date.now(),
-        streaming: true,
-      },
-    ],
+        streaming: true
+      }
+    ]
   }));
 
-  // Simulate initial thinking delay (500-1500ms)
-  const thinkDelay = 500 + Math.random() * 1000;
-  await delay(thinkDelay, signal);
-
-  // Stream character by character in small chunks
-  const chunkSize = 3 + Math.floor(Math.random() * 5); // 3-7 chars per tick
-  let pos = 0;
-
-  while (pos < responseText.length) {
+  let result;
+  try {
+    result = await dispatchCopilotAction(action, input, context);
+  } catch (err) {
+    // Cancelled mid-flight: drop the placeholder, leave no error.
     if (signal.aborted) {
-      // Mark message as done (partial)
       copilotState.update((s) => ({
         ...s,
-        messages: s.messages.map((m) =>
-          m.id === assistantId ? { ...m, streaming: false } : m
-        ),
+        messages: s.messages.filter((m) => m.id !== assistantId),
         isStreaming: false,
-        currentAction: null,
+        currentAction: null
       }));
       return;
     }
-
-    const end = Math.min(pos + chunkSize, responseText.length);
-    const chunk = responseText.slice(0, end);
-    pos = end;
-
+    // Real failure. The global net (`graphqlFetch`) already toasted network/
+    // GraphQL errors and tagged them; only toast here if it did not (B4 dedup,
+    // `.loom/22 §5i`). The inline message is surfaced regardless.
+    const message = err instanceof Error ? err.message : 'Copilot request failed';
     copilotState.update((s) => ({
       ...s,
       messages: s.messages.map((m) =>
-        m.id === assistantId ? { ...m, content: chunk } : m
+        m.id === assistantId
+          ? { ...m, content: '', streaming: false, error: message }
+          : m
       ),
+      isStreaming: false,
+      currentAction: null,
+      error: message
     }));
-
-    const tickDelay = 20 + Math.random() * 20; // 20-40ms
-    await delay(tickDelay, signal);
+    if (err instanceof Error && !isErrorToasted(err)) {
+      // Pre-fetch/local throw the net never saw — re-throw so the caller toasts.
+      throw err;
+    }
+    return;
   }
 
-  // Mark streaming complete
+  // Cancelled after the response arrived but before we rendered it: discard.
+  if (signal.aborted) {
+    copilotState.update((s) => ({
+      ...s,
+      messages: s.messages.filter((m) => m.id !== assistantId),
+      isStreaming: false,
+      currentAction: null
+    }));
+    return;
+  }
+
   copilotState.update((s) => ({
     ...s,
     messages: s.messages.map((m) =>
-      m.id === assistantId ? { ...m, streaming: false } : m
+      m.id === assistantId
+        ? {
+            ...m,
+            content: result.content,
+            streaming: false,
+            ...(result.model ? { model: result.model } : {})
+          }
+        : m
     ),
     isStreaming: false,
-    currentAction: null,
+    currentAction: null
   }));
-}
-
-function delay(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal.aborted) {
-      reject(new DOMException('Aborted', 'AbortError'));
-      return;
-    }
-    const timer = setTimeout(resolve, ms);
-    signal.addEventListener(
-      'abort',
-      () => {
-        clearTimeout(timer);
-        reject(new DOMException('Aborted', 'AbortError'));
-      },
-      { once: true }
-    );
-  });
 }
 
 // ---------------------------------------------------------------------------
@@ -260,7 +190,8 @@ function delay(ms: number, signal: AbortSignal): Promise<void> {
 
 /**
  * Send an action request to the copilot.
- * Creates a user message and streams back a simulated assistant response.
+ * Creates a user message and dispatches the real GraphQL op for the action,
+ * streaming a placeholder while the request is in flight.
  */
 export async function sendAction(
   action: CopilotAction,
@@ -271,12 +202,12 @@ export async function sendAction(
   if (!ps.connected) {
     copilotState.update((s) => ({
       ...s,
-      error: 'Connect to the platform to use the Copilot',
+      error: 'Connect to the platform to use the Copilot'
     }));
     return;
   }
 
-  // Cancel any existing stream
+  // Cancel any existing request.
   if (activeAbort) {
     activeAbort.abort();
     activeAbort = null;
@@ -289,7 +220,7 @@ export async function sendAction(
     action,
     content: input,
     context: mergedContext,
-    timestamp: Date.now(),
+    timestamp: Date.now()
   };
 
   copilotState.update((s) => ({
@@ -297,31 +228,27 @@ export async function sendAction(
     messages: [...s.messages, userMessage],
     isStreaming: true,
     currentAction: action,
-    error: null,
+    error: null
   }));
 
   activeAbort = new AbortController();
 
   try {
-    await simulateStream(action, input, mergedContext, activeAbort.signal);
+    await runAction(action, input, mergedContext, activeAbort.signal);
   } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') {
-      // Cancelled — already handled inside simulateStream
-      return;
-    }
     const message = err instanceof Error ? err.message : 'Unknown error';
     copilotState.update((s) => ({
       ...s,
       isStreaming: false,
       currentAction: null,
-      error: message,
+      error: message
     }));
   } finally {
     activeAbort = null;
   }
 }
 
-/** Cancel any in-progress streaming response. */
+/** Cancel any in-progress request. */
 export function cancelStream(): void {
   if (activeAbort) {
     activeAbort.abort();
@@ -330,7 +257,7 @@ export function cancelStream(): void {
   copilotState.update((s) => ({
     ...s,
     isStreaming: false,
-    currentAction: null,
+    currentAction: null
   }));
 }
 
@@ -344,6 +271,6 @@ export function clearMessages(): void {
 export function setContext(ctx: Partial<CopilotContext>): void {
   copilotState.update((s) => ({
     ...s,
-    context: { ...s.context, ...ctx },
+    context: { ...s.context, ...ctx }
   }));
 }

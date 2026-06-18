@@ -259,7 +259,12 @@
               <span class="streaming-cursor">█</span>
             {/if}
           </div>
-          <span class="msg-time">{formatTime(msg.timestamp)}</span>
+          <div class="msg-meta-assistant">
+            {#if msg.model}
+              <span class="msg-model" title="Model that produced this response">{msg.model}</span>
+            {/if}
+            <span class="msg-time">{formatTime(msg.timestamp)}</span>
+          </div>
         </div>
       {/if}
     {/each}
@@ -607,6 +612,22 @@
   .msg-time {
     font-size: var(--text-2xs);
     color: var(--color-text-muted);
+  }
+
+  .msg-meta-assistant {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .msg-model {
+    font-size: var(--text-2xs);
+    font-family: var(--font-mono);
+    color: var(--color-text-muted);
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 0 var(--space-1);
   }
 
   /* Streaming cursor */

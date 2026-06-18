@@ -144,19 +144,45 @@ Removes mock-masquerade. Low effort, no backend dependency, immediately de-risks
 
 Gated by the **kill-test above (Slice 0)**. Only proceeds if the LLM path is proven live.
 
-- **Slice 0 — LLM reachability kill-test. ⛔ BLOCKED (2026-06-18).** Probe from the dev Mac: every
-  flexinfer/litellm endpoint is in-cluster (`*.svc.cluster.local`, unreachable locally); public
-  `api.flexinfer.ai/v1/models` → 302 (auth-gated, no key on hand). Running the kill-test needs a
-  user-provided reachable OpenAI-compatible endpoint + key, OR an authorized `kubectl port-forward` of
-  `flexinfer-proxy.flexinfer-system` plus a local `fi-fhir serve`. **Wave 2 parked pending that.** Did NOT
-  fake the kill-test (riskiest-assumption rule). Loop pivoted to Wave 3 (no LLM dependency).
-- **Slice 2a — Replace `simulateStream()` with real GraphQL.**
-  Rewire `copilotStore.sendAction()` to call the codegen'd ops: explain→`ExplainWarnings`/`ExplainWorkflow`,
-  suggest→terminology suggest path, generate→`GenerateWorkflow`, review→`AnalyzeQuality`/extract.
-  Preserve the streaming UX shell; surface the real `model` field. Honest disabled state when LLM is off
-  (distinguish "off" from "unreachable" per the kill-test's negative check).
-  *Done*: Copilot responses vary with input and name the real model; B4 error path uses the dedup'd
-  toast guard (`isErrorToasted`, see `.loom/22 §5i`).
+- **Slice 0 — LLM reachability kill-test. ✅ PASSED (2026-06-18) → Wave 2 UNBLOCKED.**
+  Operator authorized `flexinfer-proxy` + gemma4/qwen3 models. Procedure run:
+  `kubectl port-forward -n flexinfer-system svc/flexinfer-proxy 8000:80` (k3s kubeconfig), then local
+  `fi-fhir serve` with `LLM_BASE_URL=http://localhost:8000/v1`, `LLM_QUALITY_MODEL=gemma4-26b-a4b-gptq`,
+  `LLM_DEFAULT_MODEL=gemma4-e4b-radeonvii`, `FI_FHIR_LLM_ENABLED=true`. Results:
+  - `generateWorkflow` returned **real, prompt-specific** YAML for two distinct prompts (ADT→FHIR + missing-MRN
+    warn route; ORU→Kafka + critical-result email) — the disconfirming "varies with prompt" check passed.
+  - `explainWorkflow` returned a real business-audience summary (same client → same proxy).
+  - Negative check confirmed: with the wrong base URL the resolver errors against the default
+    `litellm.ai.svc.cluster.local` — i.e. "off/misconfigured" is distinguishable from "live".
+  - Working models on the proxy: `gemma4-26b-a4b-gptq`, `gemma4-e4b-radeonvii`, `qwen3-1p7b-tools-radeonvii`.
+    Broken/unactivatable: `qwen3-8b-radeonvii` (RuntimeFailed). Avoid the latter in config.
+
+  **⚠ Config-namespace gap found (record before 2a deploy):** the serve GraphQL LLM client reads the
+  `pkg/llm` env namespace — `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_DEFAULT_MODEL`, `LLM_QUALITY_MODEL`
+  (`cmd/fi-fhir/main.go:4724` → `llm.DefaultConfig().WithEnv()`, `pkg/llm/config.go:100`). But *enablement*
+  reads `FI_FHIR_LLM_ENABLED` (`pkg/config`). So the `FI_FHIR_LLM_BASE_URL`/`_MODEL` keys documented in
+  `docs/planning/README.md` and this spec's kill-test draft DO NOT configure the copilot/explainers — only
+  the `LLM_*` keys do. Deploys must set `LLM_BASE_URL` (or unify the two namespaces). Candidate Wave-3
+  cleanup slice: collapse `pkg/llm` env loading onto the `FI_FHIR_LLM_*` namespace, or document both.
+- **Slice 2a — Replace `simulateStream()` with real GraphQL. ✅ SHIPPED (2026-06-18, branch `feat/funcgap-w2-copilot-real`).**
+  `copilotStore.sendAction()` now dispatches real codegen'd ops via a new pure, unit-tested
+  `copilotDispatch.ts` (no simulator left). Operator-selected mapping "wire all 4 best-effort":
+  generate→`GenerateWorkflow{description}`, explain→`ExplainWorkflow{workflowYaml}`,
+  suggest→`SuggestMappings{…}` (best-effort free-text coercion: parses a trailing `… to <system>`
+  clause, context-metadata hints, LOINC default), review→`AnalyzeQuality{event,eventType}` (JSON input
+  passed through, else wrapped `{raw}`; eventType from a validated context hint else `DOCUMENT`).
+  **Mapping reality vs. the plan sketch**: only `AnalyzeQuality`/`ExtractEntities` carry a `model` field in
+  the schema — `GeneratedWorkflow`/`WorkflowExplanation` do not — so per the operator decision the model
+  badge surfaces *only* for `review` (the others render `model: null`, no fabrication). The streaming UX
+  shell (placeholder + spinner + cancel) is preserved as an honest in-flight indicator (single round-trip;
+  no fake token typewriter re-added). B4 error path defers to the global toast net via `isErrorToasted`
+  (`.loom/22 §5i`); cancel discards an in-flight result.
+  *Done*: 22 new vitest (`copilotDispatch.test.ts` builders/formatters/dispatch + `copilotStore.test.ts`
+  dispatch/model/error/cancel), 555 pass (533→555), lint clean, typecheck clean (1 pre-existing
+  vite/rollup `.d.ts` error only). `model` chip added to `CopilotPanel`.
+  *Deferred within scope*: no GraphQL capability field exposes "LLM enabled", so the UI can only
+  distinguish *unreachable* (op errors → inline + net toast) from *connected*; a true "LLM off" badge needs
+  a backend capability query (candidate Wave-3, alongside the `LLM_*`/`FI_FHIR_LLM_*` namespace collapse).
 - **Slice 2b — Workflow generate/explain wired through.**
   `GenerateFromDescription.svelte` → `GenerateWorkflow` mutation; explain → `explainWorkflow` query.
   Generated YAML lands in the WorkflowBuilder draft (not a toast).
