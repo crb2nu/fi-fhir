@@ -112,9 +112,11 @@
         aria-hidden="true"
       >
         {#if open}
-          <path d="M6 15l6-6 6 6" />
-        {:else}
+          <!-- Open: chevron points down — click to collapse the panel downward. -->
           <path d="M6 9l6 6 6-6" />
+        {:else}
+          <!-- Closed: chevron points up — click to expand the panel upward. -->
+          <path d="M6 15l6-6 6 6" />
         {/if}
       </svg>
     </button>

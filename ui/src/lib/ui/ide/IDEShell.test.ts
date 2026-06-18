@@ -59,6 +59,19 @@ describe('IDEShell workspace', () => {
     expect(get(ideState).activeTabId).toBe('/hl7');
   });
 
+  it('opens the bottom panel when a panel tab is clicked', async () => {
+    render(IDEShell);
+    await tick();
+
+    expect(get(ideState).bottomPanelOpen).toBe(false);
+
+    // Name carries a diagnostics badge count (e.g. "Problems 3"), so match by prefix.
+    await fireEvent.click(screen.getByRole('tab', { name: /^Problems/ }));
+
+    expect(get(ideState).bottomPanelOpen).toBe(true);
+    expect(get(ideState).activePanelTab).toBe('problems');
+  });
+
   it('toggles split workspace with Cmd+\\', async () => {
     render(IDEShell);
     await tick();

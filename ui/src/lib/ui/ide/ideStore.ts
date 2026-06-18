@@ -397,6 +397,18 @@ export function setActivePanelTab(tab: PanelTab): void {
   _store.update((s) => ({ ...s, activePanelTab: tab }));
 }
 
+/**
+ * Select a panel tab and ensure the bottom panel is open.
+ *
+ * Tabs are "open-on-select": clicking Output/Problems/etc. while the panel is
+ * collapsed selects that tab and reveals it in one action. Already-open panels
+ * just switch tabs. Use this for any user gesture that should surface a tab
+ * (tab clicks, deep links, command-palette panel commands).
+ */
+export function openPanelTab(tab: PanelTab): void {
+  _store.update((s) => ({ ...s, activePanelTab: tab, bottomPanelOpen: true }));
+}
+
 // ---------------------------------------------------------------------------
 // Utility
 // ---------------------------------------------------------------------------

@@ -65,3 +65,24 @@ describe('BottomPanel problems badge', () => {
     expect(screen.queryByLabelText(/problems$/)).not.toBeInTheDocument();
   });
 });
+
+// The toggle chevron must match its aria-label: an open bottom drawer collapses
+// downward (down chevron), a closed one expands upward (up chevron).
+describe('BottomPanel toggle chevron direction', () => {
+  function chevronPath(): string | null {
+    const path = document.querySelector('.panel-toggle svg path');
+    return path?.getAttribute('d') ?? null;
+  }
+
+  it('shows a down chevron when open (click to collapse)', () => {
+    render(BottomPanel, { open: true });
+    expect(screen.getByLabelText('Hide panel')).toBeInTheDocument();
+    expect(chevronPath()).toBe('M6 9l6 6 6-6');
+  });
+
+  it('shows an up chevron when closed (click to expand)', () => {
+    render(BottomPanel, { open: false });
+    expect(screen.getByLabelText('Show panel')).toBeInTheDocument();
+    expect(chevronPath()).toBe('M6 15l6-6 6 6');
+  });
+});
