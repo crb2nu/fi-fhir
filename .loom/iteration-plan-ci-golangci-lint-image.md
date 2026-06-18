@@ -19,15 +19,16 @@
   - Any new product roadmap feature until the previous MR is green/queued.
 - Acceptance criteria:
   - `lint:go` uses the pinned official golangci-lint image instead of `go install` from source.
+  - `lint:go` has enough runner CPU/memory and lint timeout budget to load packages on a cold branch cache.
   - Local focused validation passes.
   - MR pipeline is re-triggered and auto-merge is re-armed.
 - Dependencies/blockers:
   - Harbor Docker Hub cache must serve `golangci/golangci-lint:v2.8.0-alpine`.
   - GitLab runner must be able to run the image with the repo's Go module cache settings.
 - Riskiest assumption:
-  - The pinned golangci-lint image is built with a Go toolchain compatible with this repo's `go` directive.
+  - The pinned golangci-lint image plus a 2 CPU / 4 GiB lint job can load this repo's packages within 30 minutes on a cold branch cache.
 - Kill-test:
-  - Verify the image manifest exists before patching, then let the MR pipeline execute `lint:go`; failure would require reverting to source build with a longer timeout or a CI-warmed custom lint image.
+  - Verify the image manifest exists before patching, then let the MR pipeline execute `lint:go`; failure would require a CI-warmed custom lint image or broader Go cache redesign.
 
 ## Land
 
@@ -38,8 +39,9 @@
   - `.loom/50-worklog.md`
 - Implementation steps:
   1. Switch `lint:go` to the pinned golangci-lint image.
-  2. Preserve GOPATH/GOCACHE setup and current lint command.
-  3. Document the CI failure and decision.
+  2. Preserve GOPATH/GOCACHE setup.
+  3. Increase lint job resources and timeout enough for cold-cache package loading.
+  4. Document the CI failure and decision.
 
 ## Prove
 
