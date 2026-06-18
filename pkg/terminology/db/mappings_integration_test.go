@@ -1,5 +1,23 @@
 //go:build integration
 
+// MappingStore integration tests exercise the custom-mapping, pending-autoroute,
+// and mapping-decision telemetry persistence paths against a real PostgreSQL.
+//
+// LOCAL-ONLY: these are NOT run by CI. The `.gitlab-ci.yml` `test:integration`
+// job runs `go test -tags=integration ./cmd/fi-fhir/...` only — it does not
+// include `./pkg/...`, so this package's store-vs-schema contract is never
+// exercised in the pipeline. Run it locally with Docker Desktop:
+//
+//	go test -tags=integration -run 'TestMappingStore_' ./pkg/terminology/db/
+//
+// setupPostgresContainer spins its own Postgres via testcontainers, or reuses
+// an external instance when POSTGRES_TEST_URL is set:
+//
+//	POSTGRES_TEST_URL=postgres://user:pass@localhost:5432/testdb \
+//	    go test -tags=integration ./pkg/terminology/db/
+//
+// See AGENTS.md ("Testing Strategy" → local-only integration tests) for why
+// these are not yet wired into CI.
 package db
 
 import (
@@ -1355,6 +1373,73 @@ func TestMappingStore_ExpirePendingAutoroutes(t *testing.T) {
 	got3, _ := store.GetPendingAutoroute(ctx, noExpiry.ID)
 	if got3.Status != StatusPending {
 		t.Errorf("No expiry status = %s, want pending", got3.Status)
+	}
+}
+
+// Time-expired pending rows must drop out of the review queue immediately,
+// before any sweep flips their status column. List + Count must agree.
+func TestMappingStore_ListPendingAutoroutes_HidesTimeExpired(t *testing.T) {
+	store, ctx := initStoreForTest(t)
+
+	past := time.Now().Add(-1 * time.Hour)
+	future := time.Now().Add(24 * time.Hour)
+
+	timeExpired := &PendingAutoroute{
+		SourceSystem: "epic_labs", SourceCode: "TEXP001", TargetSystem: "http://loinc.org",
+		SuggestedCode: "9001-1", Confidence: 0.90, ExpiresAt: &past,
+	}
+	future1 := &PendingAutoroute{
+		SourceSystem: "epic_labs", SourceCode: "TEXP002", TargetSystem: "http://loinc.org",
+		SuggestedCode: "9001-2", Confidence: 0.88, ExpiresAt: &future,
+	}
+	noExpiry := &PendingAutoroute{
+		SourceSystem: "epic_labs", SourceCode: "TEXP003", TargetSystem: "http://loinc.org",
+		SuggestedCode: "9001-3", Confidence: 0.86,
+	}
+	for _, p := range []*PendingAutoroute{timeExpired, future1, noExpiry} {
+		if err := store.CreatePendingAutoroute(ctx, p); err != nil {
+			t.Fatalf("Create %s failed: %v", p.SourceCode, err)
+		}
+	}
+
+	// NOTE: no ExpirePendingAutoroutes() call — this proves the query-time
+	// exclusion, independent of the sweep.
+
+	// Filtering for pending must omit the time-expired row.
+	list, total, err := store.ListPendingAutoroutes(ctx, ListPendingAutoroutesFilter{Status: StatusPending})
+	if err != nil {
+		t.Fatalf("ListPendingAutoroutes failed: %v", err)
+	}
+	if total != 2 {
+		t.Errorf("pending total = %d, want 2 (time-expired row hidden)", total)
+	}
+	for _, p := range list {
+		if p.SourceCode == "TEXP001" {
+			t.Errorf("time-expired row TEXP001 leaked into the pending review queue")
+		}
+	}
+
+	// No status filter must also omit the time-expired row (it is logically expired).
+	allList, _, err := store.ListPendingAutoroutes(ctx, ListPendingAutoroutesFilter{})
+	if err != nil {
+		t.Fatalf("ListPendingAutoroutes (no filter) failed: %v", err)
+	}
+	for _, p := range allList {
+		if p.SourceCode == "TEXP001" {
+			t.Errorf("time-expired row TEXP001 leaked into the unfiltered list")
+		}
+	}
+
+	// Counts must attribute the time-expired row to 'expired', not 'pending'.
+	counts, err := store.CountPendingAutoroutes(ctx)
+	if err != nil {
+		t.Fatalf("CountPendingAutoroutes failed: %v", err)
+	}
+	if counts[StatusPending] != 2 {
+		t.Errorf("counts[pending] = %d, want 2", counts[StatusPending])
+	}
+	if counts[StatusExpired] != 1 {
+		t.Errorf("counts[expired] = %d, want 1 (time-expired pending row)", counts[StatusExpired])
 	}
 }
 

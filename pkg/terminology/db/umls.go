@@ -398,6 +398,18 @@ func (l *UMLSLoader) loadMRSTY(ctx context.Context, path string, releaseID int, 
 	defer func() { _ = reader.Close() }()
 	reader.SetTotalLines(totalRows)
 
+	// MRSTY.RRF has no SAB column, so it cannot be filtered by source directly.
+	// When a source filter is active, restrict semantic types to the CUIs that
+	// survived the concept-level filter in MRCONSO; otherwise we would load
+	// semantic types for concepts that were never loaded.
+	var cuiFilter map[string]struct{}
+	if len(opts.FilterSources) > 0 {
+		cuiFilter, err = l.loadedConceptCUIs(ctx, releaseID)
+		if err != nil {
+			return 0, fmt.Errorf("collect filtered CUIs: %w", err)
+		}
+	}
+
 	tx, err := l.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
@@ -425,6 +437,12 @@ func (l *UMLSLoader) loadMRSTY(ctx context.Context, path string, releaseID int, 
 		}
 		if err != nil {
 			return 0, err
+		}
+
+		if cuiFilter != nil {
+			if _, ok := cuiFilter[strings.TrimSpace(RRFField(row, MRSTYColCUI))]; !ok {
+				continue
+			}
 		}
 
 		if err := inserter.Add(ctx,
@@ -460,6 +478,29 @@ func (l *UMLSLoader) loadMRSTY(ctx context.Context, path string, releaseID int, 
 	}
 
 	return loaded, nil
+}
+
+// loadedConceptCUIs returns the set of distinct CUIs present in umls_concepts
+// for a release. Used to scope MRSTY (which has no SAB column) to the concepts
+// that survived a source filter.
+func (l *UMLSLoader) loadedConceptCUIs(ctx context.Context, releaseID int) (map[string]struct{}, error) {
+	rows, err := l.db.QueryContext(ctx,
+		"SELECT DISTINCT cui FROM terminology.umls_concepts WHERE release_id = $1", releaseID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	cuis := make(map[string]struct{})
+	for rows.Next() {
+		var cui string
+		if err := rows.Scan(&cui); err != nil {
+			return nil, err
+		}
+		cuis[strings.TrimSpace(cui)] = struct{}{}
+	}
+
+	return cuis, rows.Err()
 }
 
 // clearReleaseData removes existing data for a release.

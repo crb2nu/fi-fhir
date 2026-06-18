@@ -144,7 +144,12 @@ Removes mock-masquerade. Low effort, no backend dependency, immediately de-risks
 
 Gated by the **kill-test above (Slice 0)**. Only proceeds if the LLM path is proven live.
 
-- **Slice 0 — LLM reachability kill-test.** Run the procedure above. Record result in this doc + `40-decisions.md`.
+- **Slice 0 — LLM reachability kill-test. ⛔ BLOCKED (2026-06-18).** Probe from the dev Mac: every
+  flexinfer/litellm endpoint is in-cluster (`*.svc.cluster.local`, unreachable locally); public
+  `api.flexinfer.ai/v1/models` → 302 (auth-gated, no key on hand). Running the kill-test needs a
+  user-provided reachable OpenAI-compatible endpoint + key, OR an authorized `kubectl port-forward` of
+  `flexinfer-proxy.flexinfer-system` plus a local `fi-fhir serve`. **Wave 2 parked pending that.** Did NOT
+  fake the kill-test (riskiest-assumption rule). Loop pivoted to Wave 3 (no LLM dependency).
 - **Slice 2a — Replace `simulateStream()` with real GraphQL.**
   Rewire `copilotStore.sendAction()` to call the codegen'd ops: explain→`ExplainWarnings`/`ExplainWorkflow`,
   suggest→terminology suggest path, generate→`GenerateWorkflow`, review→`AnalyzeQuality`/extract.
@@ -159,12 +164,32 @@ Gated by the **kill-test above (Slice 0)**. Only proceeds if the LLM path is pro
 
 ### Wave 3 — Backend capability fills (close end-to-end loops)
 
-- **Slice 3a — `MappingStats` query + mapping-stats dashboard.**
-  Implement the missing resolver (counts by origin/system/confidence); build the dashboard widget that
-  consumes it. Closes the terminology Phase-5 dashboard deferral end-to-end (backend + UI in one loop).
-- **Slice 3b — Pending-autoroute auto-expiry.**
-  Scheduled cleanup honoring `expiresAt`; expired items leave the review queue. Smallest, highest-signal
-  backend fix (S effort, directly improves the already-shipped review UI).
+Pulled forward because Wave 2 is blocked on an LLM provider (no backend dependency here).
+
+- **Slice 3b — Pending-autoroute expiry honesty. ✅ SHIPPED (2026-06-18, branch `feat/funcgap-w3-pending-autoroute-expiry`).**
+  Verification corrected the plan: the DB transition `ExpirePendingAutoroutes` (SQL `status='pending' AND
+  expires_at < NOW()` → expired) already existed at `mappings.go:1009` — but **nothing called it**, and
+  `ListPendingAutoroutes`/`CountPendingAutoroutes` filtered only on the literal `status` column, so a
+  time-expired-but-unswept row still appeared in the review queue. Fix (query-time, sweep-independent):
+  `ListPendingAutoroutes` + count now exclude `status='pending' AND expires_at < NOW()` (count remaps
+  those to `expired` via CASE), so expired suggestions never surface regardless of sweep timing.
+  **Bonus latent-bug fix**: `CreatePendingAutoroute` passed `nullJSON(DecisionTrace)` = NULL into the
+  `decision_trace JSONB NOT NULL` column → insert failure whenever a caller omits the trace; now defaults
+  to `'{}'` (`jsonObjectOrEmpty`). *Done*: 1 new integration test; verified via local testcontainers —
+  branch FAIL set ⊊ clean-main FAIL set (no new failures) and the `decision_trace` fix **repaired 9
+  previously-red** pending-autoroute integration tests. gofmt+vet clean.
+  *Deferred within scope*: the background **sweep caller** (periodic `ExpirePendingAutoroutes` in the serve
+  path, for DB hygiene/analytics + status-column truth) — next slice; query-time exclusion already makes
+  the UI honest, so it's not urgent.
+  *Pre-existing rot found (out of scope, flagged separately)*: 7 `TestMappingStore_*` integration tests
+  red on main in unrelated areas (`custom_mappings` create/lookup, `mapping_decisions` telemetry, a
+  separate `ApprovePendingAutoroute` path bug). These integration tests aren't in CI's path
+  (`test:integration` runs `./cmd/fi-fhir/...` only), so they rotted unnoticed.
+
+- **~~Slice 3a — `MappingStats` query + dashboard~~**: RE-SCOPED. Audit claim ("schema field with no
+  resolver") is **false** — there is no `MappingStats` field in `schema.graphql`; `pendingAutorouteStats`
+  already exists, is implemented, and is UI-consumed. A broader mapping-stats query would be a net-new
+  feature *build* (not a wiring fix). Park until a concrete dashboard need pulls it.
 - **Slice 3c — Pending-autoroute notifications.**
   Webhook/Slack dispatch when a high-confidence autoroute lands in review. (M effort.)
 - **Slice 3d (stretch) — CLI↔GraphQL parity + OTel mapping spans.**
