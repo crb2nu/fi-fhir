@@ -1,5 +1,11 @@
 # Implementation Plan: IDE Connectivity & Feedback Loop
 
+> 2026-06-19 refresh: this older MVP sketch is partially superseded by
+> `.loom/24-parallel-execution-specs.md`, which turns the latest brainstorm docs
+> into parallel agent lanes. Use this file for historical MVP intent; use
+> `24-parallel-execution-specs.md` for current handoff cards, dependencies, and
+> kill-tests.
+
 ## Objective
 To close the loop between production telemetry and IDE authoring, enabling users to fix terminology gaps and debug workflows with live production signals.
 
