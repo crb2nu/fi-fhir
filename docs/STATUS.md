@@ -29,11 +29,11 @@
 
 | Component                | Path                             | Maturity   | Coverage | Notes                                            | Last Updated |
 | ------------------------ | -------------------------------- | ---------- | -------- | ------------------------------------------------ | ------------ |
-| Events (canonical model) | `pkg/events/`                    | Production | 86.1%    | Immutable semantic event types                   | 2026-03-09   |
+| Events (canonical model) | `pkg/events/`                    | Production | 80.5%    | Immutable semantic event types                   | 2026-03-09   |
 | Event Sourcing           | `pkg/eventsourcing/`             | Production | 72.7%    | Store, projections, snapshots, sagas, outbox     | 2026-02-27   |
 | ES Projections           | `pkg/eventsourcing/projections/` | Production | 88.9%    | Patient timeline, stats, active encounters       | 2026-01-14   |
 | Config                   | `pkg/config/`                    | Production | 89.3%    | Layered loading (defaults → file → env), secrets | 2026-02-27   |
-| Source Profiles          | `pkg/profile/`                   | Beta       | 64.1%    | Inference, linting, vendor templates             | 2026-02-27   |
+| Source Profiles          | `pkg/profile/`                   | Beta       | 71.9%    | Inference, linting, vendor templates             | 2026-02-27   |
 | Validators               | `pkg/validate/`                  | Production | 98.2%    | NPI, MBI, SSN, DEA; Luhn/checksum                | 2026-01-09   |
 | FHIR Mapper              | `pkg/fhir/`                      | Production | 75.2%    | 24+ US Core resources, validation                | 2026-01-19   |
 | ETL Pipeline             | `pkg/etl/`                       | Beta       | 84.8%    | Source/sink framework, CLI commands              | 2026-02-27   |
@@ -43,7 +43,7 @@
 | Terminology Upload       | `pkg/terminology/upload/`        | Beta       | 85.7%    | Mapping file upload pipeline                     | 2026-02-03   |
 | Terminology Suggest      | `pkg/terminology/suggest/`       | Beta       | 83.4%    | Suggestion engine; httptest-based coverage       | 2026-02-28   |
 | Terminology Semantic     | `pkg/terminology/semantic/`      | Production | 95.0%    | Embedding-based semantic search                  | 2026-02-28   |
-| Terminology Index        | `pkg/terminology/index/`         | Production | 71.2%    | Vector indexing; httptest + mock coverage        | 2026-03-03   |
+| Terminology Index        | `pkg/terminology/index/`         | Production | 92.2%    | Vector indexing; httptest + mock coverage        | 2026-03-03   |
 | Patient Matching         | `pkg/matching/`                  | Production | 85.3%    | Deterministic + probabilistic, MPI, batch        | 2026-02-27   |
 | LLM Client               | `pkg/llm/`                       | Production | 86.3%    | Multi-provider client, retry, embeddings         | 2026-03-06   |
 | LLM Copilot              | `pkg/llm/copilot/`               | Production | 98.0%†   | CEL-based copilot + workflow generation          | 2026-02-08   |
@@ -56,7 +56,7 @@
 | GraphQL API           | `internal/api/graphql/`           | Production | 4.1%\*   | Schema, resolvers, dataloaders, WebSocket        | 2026-03-24   |
 | FHIR Subscriptions    | `internal/fhir/subscription/`     | Production | 83.7%    | Bidirectional; client + webhook receiver         | 2026-02-27   |
 | Terminology Autoroute | `internal/terminology/autoroute/` | Beta       | 88.5%    | Automatic code-system routing engine             | 2026-03-09   |
-| Terminology Workflow  | `internal/terminology/workflow/`  | Production | 80.8%    | Temporal workflow + activity + worker unit tests | 2026-03-03   |
+| Terminology Workflow  | `internal/terminology/workflow/`  | Production | 95.7%    | Temporal workflow + activity + worker unit tests | 2026-03-03   |
 | LLM Explain           | `internal/llm/explain/`           | Production | 99.7%    | Warning + workflow explanation generation        | 2026-02-28   |
 | LLM Extract           | `internal/llm/extract/`           | Production | 84.3%    | Structured data extraction from documents        | 2026-03-09   |
 | LLM Quality           | `internal/llm/quality/`           | Production | 93.8%    | Data quality analysis                            | 2026-01-23   |
