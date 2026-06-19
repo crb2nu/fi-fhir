@@ -5,6 +5,7 @@ import GenerateFromDescription from './GenerateFromDescription.svelte';
 import { generateWorkflow } from '../workflowApi';
 import { ACTION_TYPES, ALL_EVENT_TYPES } from '../workflowTypes';
 import { workflowDraft } from '../workflowStore';
+import { draftToYaml } from '../workflowYaml';
 import { toastList, toasts } from '$lib/ui/toastStore';
 import { isErrorToasted } from '$lib/graphql/client';
 
@@ -16,16 +17,20 @@ vi.mock('$lib/graphql/client', () => ({
   isErrorToasted: vi.fn(() => false)
 }));
 
-const validGeneratedYaml = `name: generated-adt-route
-version: "1.0"
-routes:
-  - name: adt_to_fhir
-    filter:
-      event_type: PATIENT_ADMIT
-    actions:
-      - type: fhir
-        server: https://fhir.example.com
-`;
+const knownDraft = {
+  name: 'adt-routing',
+  version: '1.0',
+  routes: [
+    {
+      _key: 'route-1',
+      name: 'Admission route',
+      filter: { eventTypes: ['PATIENT_ADMIT'], sources: [], condition: '' },
+      transforms: [],
+      actions: [{ _key: 'action-1', type: 'log', config: { message: 'received' } }],
+      expanded: true
+    }
+  ]
+};
 
 describe('GenerateFromDescription', () => {
   beforeEach(() => {
@@ -42,7 +47,7 @@ describe('GenerateFromDescription', () => {
   it('calls generateWorkflow with the current description and supported workflow types', async () => {
     vi.mocked(generateWorkflow).mockResolvedValue({
       generateWorkflow: {
-        yaml: validGeneratedYaml,
+        yaml: draftToYaml(knownDraft),
         explanation: 'Routes patient admits to the configured FHIR server.',
         warnings: ['FHIR credentials still need to be configured.']
       }
@@ -53,7 +58,7 @@ describe('GenerateFromDescription', () => {
     await fireEvent.input(screen.getByLabelText('Workflow description'), {
       target: { value: 'Route admits to FHIR' }
     });
-    await fireEvent.click(screen.getByRole('button', { name: 'Generate Workflow' }));
+    await fireEvent.click(screen.getByRole('button', { name: /Generate Workflow/ }));
 
     await waitFor(() => {
       expect(generateWorkflow).toHaveBeenCalledWith(
@@ -64,22 +69,40 @@ describe('GenerateFromDescription', () => {
     });
     expect(screen.getByText('Routes patient admits to the configured FHIR server.')).toBeInTheDocument();
     expect(screen.getByText('FHIR credentials still need to be configured.')).toBeInTheDocument();
-    expect(
-      screen.getByText((_, element) =>
-        Boolean(element?.matches('pre') && element.textContent?.includes('name: generated-adt-route'))
-      )
-    ).toBeInTheDocument();
+    expect(screen.getByText((_, element) =>
+      Boolean(element?.matches('pre') && element.textContent?.includes('name: adt-routing'))
+    )).toBeInTheDocument();
+    expect(get(workflowDraft).name).toBe('');
+  });
+
+  it('loads valid generated YAML into the builder draft only after the user asks', async () => {
+    vi.mocked(generateWorkflow).mockResolvedValue({
+      generateWorkflow: {
+        yaml: draftToYaml(knownDraft),
+        explanation: '',
+        warnings: []
+      }
+    } as Awaited<ReturnType<typeof generateWorkflow>>);
+
+    render(GenerateFromDescription);
+
+    await fireEvent.input(screen.getByLabelText('Workflow description'), {
+      target: { value: 'admissions' }
+    });
+    await fireEvent.click(screen.getByRole('button', { name: /Generate Workflow/ }));
+    await screen.findByText('Load into Builder');
+
     expect(get(workflowDraft).name).toBe('');
 
     await fireEvent.click(screen.getByRole('button', { name: 'Load into Builder' }));
 
     await waitFor(() => {
-      expect(get(workflowDraft).name).toBe('generated-adt-route');
+      expect(get(workflowDraft).name).toBe('adt-routing');
     });
     const draft = get(workflowDraft);
-    expect(draft.routes[0]!.name).toBe('adt_to_fhir');
+    expect(draft.routes).toHaveLength(1);
+    expect(draft.routes[0]!.name).toBe('Admission route');
     expect(draft.routes[0]!.filter.eventTypes).toEqual(['PATIENT_ADMIT']);
-    expect(draft.routes[0]!.actions[0]!.type).toBe('fhir');
     expect(get(toastList).some((toast) => toast.message === 'Workflow loaded into builder')).toBe(true);
   });
 
@@ -98,7 +121,7 @@ describe('GenerateFromDescription', () => {
     await fireEvent.input(screen.getByLabelText('Workflow description'), {
       target: { value: 'Generate malformed yaml for the kill-test' }
     });
-    await fireEvent.click(screen.getByRole('button', { name: 'Generate Workflow' }));
+    await fireEvent.click(screen.getByRole('button', { name: /Generate Workflow/ }));
 
     await screen.findByText('not: [valid: yaml');
     expect(get(toastList).some((toast) => toast.message === 'Failed to parse generated YAML')).toBe(false);
@@ -121,7 +144,7 @@ describe('GenerateFromDescription', () => {
     await fireEvent.input(screen.getByLabelText('Workflow description'), {
       target: { value: 'Route lab results to email' }
     });
-    await fireEvent.click(screen.getByRole('button', { name: 'Generate Workflow' }));
+    await fireEvent.click(screen.getByRole('button', { name: /Generate Workflow/ }));
 
     await waitFor(() => {
       expect(generateWorkflow).toHaveBeenCalled();

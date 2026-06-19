@@ -183,17 +183,38 @@ Gated by the **kill-test above (Slice 0)**. Only proceeds if the LLM path is pro
   *Deferred within scope*: no GraphQL capability field exposes "LLM enabled", so the UI can only
   distinguish *unreachable* (op errors → inline + net toast) from *connected*; a true "LLM off" badge needs
   a backend capability query (candidate Wave-3, alongside the `LLM_*`/`FI_FHIR_LLM_*` namespace collapse).
-- **Slice 2b — Workflow generate/explain wired through. ✅ VERIFIED (2026-06-19, Lane A, branch `codex/workflow-ai-verify`).**
-  Current code already routes `GenerateFromDescription.svelte` through the real `GenerateWorkflow` mutation
-  and `WorkflowPreview.svelte` through the real `explainWorkflow` query. Lane A added focused UI tests for
-  both paths instead of duplicate wiring.
-  *Done*: `GenerateFromDescription.test.ts` proves the current description plus supported event/action types
-  are sent to `generateWorkflow`, the generated YAML/warnings/explanation render, and `workflowDraft` changes
-  only after `Load into Builder` parses valid YAML. Kill-test: invalid generated YAML shows no parse failure
-  on generation, shows `Failed to parse generated YAML` only when loaded, and leaves the draft unchanged.
-  `WorkflowPreview.test.ts` proves `explainWorkflow(yamlOutput, "business")`, route explanations render, and
-  already-toasted GraphQL failures do not produce duplicate component toasts.
-  *Verification*: `cd ui && npm test -- --run src/lib/features/workflows` → 87 pass.
+- **Slice 2b — Workflow generate/explain wired through. ✅ SHIPPED as a regression-lock (2026-06-18, branch
+  `feat/funcgap-w2b-workflow-generate`).**
+  **Plan-vs-reality correction (verify-before-build):** the Class-B audit claims for "Workflow generate" and
+  "Workflow explain" were **STALE** — both surfaces were *already* wired to the real ops and mounted, since the
+  original workflow-builder MVP (`7af950a4`), and never routed through the copilot:
+  - generate → `GenerateFromDescription.svelte:25` calls `generateWorkflow()` (`workflowApi.ts:279` →
+    `GenerateWorkflowDocument`); renders explanation/warnings/YAML; "Load into Builder" does
+    `yamlToDraft → workflowDraft.loadDraft` (lands in the builder draft, **not** a toast). Mounted at
+    `WorkflowBuilder.svelte:1270`.
+  - explain → `WorkflowPreview.svelte:21` "Explain with AI" calls `explainWorkflow(yaml,'business')`
+    (`workflowApi.ts:290` → `ExplainWorkflowDocument`); renders description + route explanations inline.
+    Mounted at `WorkflowBuilder.svelte:1258`. Both already use the `isErrorToasted` B4 dedup guard
+    (added `64daaf8a`).
+  **The real gap was test coverage** — *zero* regression tests existed for either surface, and the plan itself
+  proposed routing generate *through the copilot*, which is exactly the regression a test must forbid. So this
+  slice locks the wiring instead of rewriting it: 5 new vitest (`GenerateFromDescription.test.ts` — real op
+  called with description + `ALL_EVENT_TYPES`/`ACTION_TYPES`, warnings render, real YAML round-trips into the
+  draft on Load; `WorkflowPreview.test.ts` — real explain query called with draft YAML + `'business'`, renders
+  explanation, loading state). Tests mock only the `workflowApi` op boundary; the store + `yamlToDraft`/
+  `draftToYaml` round-trip are exercised for real.
+  *Done*: generate/explain proven real + mounted + regression-locked; stale audit corrected. 565 pass
+  (560→565; main baseline already includes Slice 2a's +22 and the bottom-panel fix's +5), lint + typecheck
+  clean (1 pre-existing vite/rollup `.d.ts` error only).
+  **Lane A hardening (2026-06-19, branch `codex/workflow-ai-verify`)** extended the regression lock instead
+  of reimplementing the already-wired path: `GenerateFromDescription.test.ts` now also proves valid YAML
+  mutates `workflowDraft` only after `Load into Builder`, invalid generated YAML raises `Failed to parse
+  generated YAML` only when loaded and leaves the draft unchanged, and already-toasted GraphQL failures do not
+  produce duplicate component toasts. `WorkflowPreview.test.ts` now also proves already-toasted explain
+  failures do not produce duplicate component toasts.
+  *Deferred within scope (polish, not wiring)*: `WorkflowPreview` explain renders only `description` + routes,
+  dropping the op's `summary`/`diagram`/`warnings`; surfacing the explain `warnings` would aid honesty. Small,
+  optional — not required for "wired to the real query."
 
 ### Wave 3 — Backend capability fills (close end-to-end loops)
 

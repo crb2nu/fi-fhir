@@ -70,7 +70,7 @@ describe('WorkflowPreview', () => {
 
     render(WorkflowPreview);
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Explain with AI' }));
+    await fireEvent.click(screen.getByRole('button', { name: /Explain with AI/ }));
 
     await waitFor(() => {
       expect(explainWorkflow).toHaveBeenCalledTimes(1);
@@ -84,13 +84,39 @@ describe('WorkflowPreview', () => {
     expect(screen.getByText(/critical_labs: Sends critical lab results/)).toBeInTheDocument();
   });
 
+  it('shows a loading label while the explanation is in flight', async () => {
+    let resolveExplanation: (value: Awaited<ReturnType<typeof explainWorkflow>>) => void = () => {};
+    vi.mocked(explainWorkflow).mockReturnValue(
+      new Promise((resolve) => {
+        resolveExplanation = resolve;
+      })
+    );
+
+    render(WorkflowPreview);
+
+    await fireEvent.click(screen.getByRole('button', { name: /Explain with AI/ }));
+
+    expect(screen.getByRole('button', { name: 'Explaining...' })).toBeInTheDocument();
+
+    resolveExplanation({
+      explainWorkflow: {
+        summary: '',
+        description: 'done',
+        diagram: null,
+        routeExplanations: [],
+        warnings: []
+      }
+    } as Awaited<ReturnType<typeof explainWorkflow>>);
+    expect(await screen.findByText('done')).toBeInTheDocument();
+  });
+
   it('does not add a duplicate local toast when explainWorkflow reports an already-toasted failure', async () => {
     vi.mocked(isErrorToasted).mockReturnValue(true);
     vi.mocked(explainWorkflow).mockRejectedValue(new Error('LLM unavailable'));
 
     render(WorkflowPreview);
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Explain with AI' }));
+    await fireEvent.click(screen.getByRole('button', { name: /Explain with AI/ }));
 
     await waitFor(() => {
       expect(explainWorkflow).toHaveBeenCalled();
