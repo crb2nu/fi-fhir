@@ -92,8 +92,8 @@ backend *reach* gaps (schema field with no resolver, CLI↔GraphQL parity, defer
 | Surface | Evidence | Defect |
 |---------|----------|--------|
 | Copilot assistant | `copilotStore.ts:91-237`, `sendAction()` `:265-322` | Explain/suggest/generate/review return canned text; ignores the codegen'd `llm.graphql` ops + live resolvers. |
-| Workflow generate | `ui/src/lib/features/workflows/components/GenerateFromDescription.svelte` | "Generate from description" routes through the stubbed copilot, not `GenerateWorkflow` mutation. |
-| Workflow explain | `ui/src/lib/features/workflows/workflowApi.ts` (ExplainWorkflow defined, leaks to copilot) | Explanation not wired to the real `explainWorkflow` query. |
+| Workflow generate | `ui/src/lib/features/workflows/components/GenerateFromDescription.svelte` + `GenerateFromDescription.test.ts` | ✅ VERIFIED (Lane A, 2026-06-19): calls `GenerateWorkflow` via `generateWorkflow(description, ALL_EVENT_TYPES, ACTION_TYPES)`, renders YAML/warnings/explanation, and mutates the builder draft only after valid YAML is loaded. |
+| Workflow explain | `ui/src/lib/features/workflows/components/WorkflowPreview.svelte` + `WorkflowPreview.test.ts` | ✅ VERIFIED (Lane A, 2026-06-19): calls `explainWorkflow(yamlOutput, "business")`, renders top-level and route explanations, and honors the toast-dedupe contract on failure. |
 
 ### Class C — Backend capability/reach fills
 
@@ -183,10 +183,17 @@ Gated by the **kill-test above (Slice 0)**. Only proceeds if the LLM path is pro
   *Deferred within scope*: no GraphQL capability field exposes "LLM enabled", so the UI can only
   distinguish *unreachable* (op errors → inline + net toast) from *connected*; a true "LLM off" badge needs
   a backend capability query (candidate Wave-3, alongside the `LLM_*`/`FI_FHIR_LLM_*` namespace collapse).
-- **Slice 2b — Workflow generate/explain wired through.**
-  `GenerateFromDescription.svelte` → `GenerateWorkflow` mutation; explain → `explainWorkflow` query.
-  Generated YAML lands in the WorkflowBuilder draft (not a toast).
-  *Done*: "Generate from description" produces a real, prompt-specific draft; round-trips into the builder.
+- **Slice 2b — Workflow generate/explain wired through. ✅ VERIFIED (2026-06-19, Lane A, branch `codex/workflow-ai-verify`).**
+  Current code already routes `GenerateFromDescription.svelte` through the real `GenerateWorkflow` mutation
+  and `WorkflowPreview.svelte` through the real `explainWorkflow` query. Lane A added focused UI tests for
+  both paths instead of duplicate wiring.
+  *Done*: `GenerateFromDescription.test.ts` proves the current description plus supported event/action types
+  are sent to `generateWorkflow`, the generated YAML/warnings/explanation render, and `workflowDraft` changes
+  only after `Load into Builder` parses valid YAML. Kill-test: invalid generated YAML shows no parse failure
+  on generation, shows `Failed to parse generated YAML` only when loaded, and leaves the draft unchanged.
+  `WorkflowPreview.test.ts` proves `explainWorkflow(yamlOutput, "business")`, route explanations render, and
+  already-toasted GraphQL failures do not produce duplicate component toasts.
+  *Verification*: `cd ui && npm test -- --run src/lib/features/workflows` → 87 pass.
 
 ### Wave 3 — Backend capability fills (close end-to-end loops)
 

@@ -184,3 +184,44 @@ Chronological notes while executing the plan (useful for handoffs and debugging)
   - [S4] `ui/src/lib/features/workflows/components/WorkflowPreview.svelte`
   - [S5] `pkg/llm/config.go`
   - [S6] `pkg/terminology/db/mappings.go`
+
+### 2026-06-19 - Lane A workflow AI verification
+
+- What changed:
+  - Added component coverage for Workflow Builder "Generate from Description":
+    real `generateWorkflow(description, ALL_EVENT_TYPES, ACTION_TYPES)` dispatch, generated YAML/warnings/explanation rendering, valid-YAML-only draft loading, and the invalid-YAML kill-test.
+  - Added component coverage for YAML Preview "Explain with AI":
+    real `explainWorkflow(yamlOutput, "business")` dispatch, top-level + route explanation rendering, and no duplicate local toast when the GraphQL net already toasted the error.
+  - Corrected `.loom/23-functionality-gaps-plan.md` so Wave 2b is recorded as verified rather than an old generic unwired gap.
+- Why:
+  - `.loom/24-parallel-execution-specs.md` identified this lane as verification/polish: the product path was already wired, but lacked focused tests and the old plan text was stale.
+- Verification:
+  - `cd ui && npm test -- --run src/lib/features/workflows` → 87 pass.
+- Sources:
+  - [S1] `ui/src/lib/features/workflows/components/GenerateFromDescription.test.ts`
+  - [S2] `ui/src/lib/features/workflows/components/WorkflowPreview.test.ts`
+  - [S3] `.loom/23-functionality-gaps-plan.md`
+
+### 2026-06-19
+
+- What changed:
+  - Lane F split the product expansion backlog into five independent speclets:
+    - `.loom/25-spec-cda-section-expansion.md`
+    - `.loom/26-spec-storage-provider-tests.md`
+    - `.loom/27-spec-terminology-governance.md`
+    - `.loom/28-spec-fhir-ig-bulk-smart.md`
+    - `.loom/29-spec-profile-management-observability.md`
+  - Added `.loom/00-index.md` links for the new speclets.
+- Why:
+  - The product spec and P3 backlog were too broad for one implementation lane. Each child spec now has explicit goals, non-goals, acceptance criteria, kill-test, dependencies, sources, and an independent assignment note.
+- What's next:
+  - Downstream agents can pick up a single speclet and start with its kill-test before implementation.
+  - Terminology governance should wait for Lane D's terminology DB integration-test baseline and avoid duplicating Lane C's expiry/notification automation.
+- Sources:
+  - [S1] `.loom/24-parallel-execution-specs.md` Lane F
+  - [S2] `.loom/20-product-spec.md`
+  - [S3] `docs/planning/README.md` P2/P3 backlog
+  - [S4] `docs/planning/CDA-CCDA.md`
+  - [S5] `docs/planning/TERMINOLOGY-MAPPING.md`
+  - [S6] `docs/planning/FHIR-PROFILES.md`
+  - [S7] `docs/planning/SOURCE-PROFILES.md`
