@@ -255,6 +255,21 @@ Tracking issue: [libs/fi-fhir#7](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issu
 | ✅ FHIR Parser       | 95.2%            | 80%+   |                                                                                                                                                  |
 | Workflow Engine      | 78.9%            | 80%+   | Close to target                                                                                                                                  |
 
+#### Terminology DB Integration Tests
+
+`pkg/terminology/db` integration tests now run in CI through the existing
+`test:integration` PostgreSQL service:
+
+```bash
+POSTGRES_TEST_URL=postgres://testuser:testpass@postgres:5432/fi_fhir_test?sslmode=disable \
+  go test -tags=integration -p 1 ./pkg/terminology/db/
+```
+
+Keep this package serialized with other integration packages that reset the
+`terminology` schema. The CI job runs the CLI integration tests first and then
+the terminology DB package against the same service database, avoiding
+testcontainers/Docker-in-Docker and avoiding unsafe concurrent schema drops.
+
 #### P2 Next Steps (CLI Coverage)
 
 1. Add offline tests for low-coverage CLI commands: `companion`, `serve`, `subscription *`, `config show/env`.
