@@ -10,6 +10,11 @@
 - Toast budget policy: `22-toast-budget-policy.md`
 - **IDE + Backend functionality gap-fill program: `23-functionality-gaps-plan.md`** (active)
 - **Parallel execution specs: `24-parallel-execution-specs.md`** (active handoff map)
+- Product speclet - CDA/CCDA section expansion: `25-spec-cda-section-expansion.md`
+- Product speclet - Storage/provider integration tests: `26-spec-storage-provider-tests.md`
+- Product speclet - Terminology approval workflow hardening: `27-spec-terminology-governance.md`
+- Product speclet - FHIR IG/Bulk/SMART scoping: `28-spec-fhir-ig-bulk-smart.md`
+- Product speclet - Dynamic Source Profile management: `29-spec-profile-management-observability.md`
 - Implementation plan: `30-implementation-plan.md`
 - Decisions: `40-decisions.md`
 - Worklog: `50-worklog.md`
