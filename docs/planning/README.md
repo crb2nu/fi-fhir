@@ -318,6 +318,18 @@ See `ui/nginx/default.conf.template` for the canonical config.
 | `FI_FHIR_TERMINOLOGY_DB_URL` | —         | Terminology database connection              |
 | `FI_FHIR_CORS_ORIGINS`       | —         | Allowed CORS origins                         |
 | `FI_FHIR_LLM_ENABLED`        | `false`   | Enable LLM features (autoroute, copilot)     |
+| `FI_FHIR_LLM_BASE_URL`       | in-cluster LiteLLM | Canonical LLM provider base URL       |
+| `FI_FHIR_LLM_API_KEY`        | —         | Canonical LLM provider API key               |
+| `FI_FHIR_LLM_DEFAULT_MODEL`  | `qwen3-8b-fast` | Default LLM model                       |
+| `FI_FHIR_LLM_QUALITY_MODEL`  | `qwen3-14b-quality` | Higher-quality LLM model              |
+
+For LLM runtime configuration, `FI_FHIR_LLM_*` names are canonical. Legacy
+`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_DEFAULT_MODEL`, and `LLM_QUALITY_MODEL`
+remain supported as fallbacks, with `OPENAI_API_KEY` as the final API-key
+fallback. When both namespaces are set, `FI_FHIR_LLM_*` wins. GraphQL callers
+can inspect the safe `llmCapability` query for `enabled`, `configured`,
+provider host, model names, `status`, and warnings without exposing API keys or
+full provider URLs.
 
 Full env var enumeration: `make check-runtime-config`.
 

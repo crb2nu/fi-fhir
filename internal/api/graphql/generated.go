@@ -426,6 +426,16 @@ type ComplexityRoot struct {
 		Type             func(childComplexity int) int
 	}
 
+	LLMCapability struct {
+		Configured          func(childComplexity int) int
+		DefaultModel        func(childComplexity int) int
+		Enabled             func(childComplexity int) int
+		ProviderBaseURLHost func(childComplexity int) int
+		QualityModel        func(childComplexity int) int
+		Status              func(childComplexity int) int
+		Warnings            func(childComplexity int) int
+	}
+
 	LabResult struct {
 		Interpretation func(childComplexity int) int
 		ReferenceRange func(childComplexity int) int
@@ -732,6 +742,7 @@ type ComplexityRoot struct {
 		Health                   func(childComplexity int) int
 		ListMappings             func(childComplexity int, input *model.ListMappingsInput) int
 		ListPendingAutoroutes    func(childComplexity int, input *model.ListPendingAutoroutesInput) int
+		LlmCapability            func(childComplexity int) int
 		LookupMapping            func(childComplexity int, sourceSystem string, sourceCode string, targetSystem string, profileID *string) int
 		ParsePreview             func(childComplexity int, format model.SourceFormat, data string, source *string) int
 		ParsePreviewWithProfile  func(childComplexity int, format model.SourceFormat, data string, source *string, profileID *string) int
@@ -1128,6 +1139,7 @@ type QueryResolver interface {
 	ParsePreviewWithProfile(ctx context.Context, format model.SourceFormat, data string, source *string, profileID *string) (*model.ParseResult, error)
 	ExplainWarnings(ctx context.Context, warnings []model.ParseWarningInput, format model.SourceFormat) ([]model.ExplainedWarning, error)
 	ExtractEntities(ctx context.Context, input model.ExtractEntitiesInput) (*model.ExtractionResult, error)
+	LlmCapability(ctx context.Context) (*model.LLMCapability, error)
 	AnalyzeQuality(ctx context.Context, input model.AnalyzeQualityInput) (*model.DataQualityScore, error)
 	QuickQualityScore(ctx context.Context, event map[string]any) (*model.DataQualityScore, error)
 	ExplainWorkflow(ctx context.Context, input model.ExplainWorkflowInput) (*model.WorkflowExplanation, error)
@@ -2687,6 +2699,49 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.ImmunizationEvent.Type(childComplexity), true
+
+	case "LLMCapability.configured":
+		if e.complexity.LLMCapability.Configured == nil {
+			break
+		}
+
+		return e.complexity.LLMCapability.Configured(childComplexity), true
+	case "LLMCapability.defaultModel":
+		if e.complexity.LLMCapability.DefaultModel == nil {
+			break
+		}
+
+		return e.complexity.LLMCapability.DefaultModel(childComplexity), true
+	case "LLMCapability.enabled":
+		if e.complexity.LLMCapability.Enabled == nil {
+			break
+		}
+
+		return e.complexity.LLMCapability.Enabled(childComplexity), true
+	case "LLMCapability.providerBaseURLHost":
+		if e.complexity.LLMCapability.ProviderBaseURLHost == nil {
+			break
+		}
+
+		return e.complexity.LLMCapability.ProviderBaseURLHost(childComplexity), true
+	case "LLMCapability.qualityModel":
+		if e.complexity.LLMCapability.QualityModel == nil {
+			break
+		}
+
+		return e.complexity.LLMCapability.QualityModel(childComplexity), true
+	case "LLMCapability.status":
+		if e.complexity.LLMCapability.Status == nil {
+			break
+		}
+
+		return e.complexity.LLMCapability.Status(childComplexity), true
+	case "LLMCapability.warnings":
+		if e.complexity.LLMCapability.Warnings == nil {
+			break
+		}
+
+		return e.complexity.LLMCapability.Warnings(childComplexity), true
 
 	case "LabResult.interpretation":
 		if e.complexity.LabResult.Interpretation == nil {
@@ -4327,6 +4382,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.ListPendingAutoroutes(childComplexity, args["input"].(*model.ListPendingAutoroutesInput)), true
+	case "Query.llmCapability":
+		if e.complexity.Query.LlmCapability == nil {
+			break
+		}
+
+		return e.complexity.Query.LlmCapability(childComplexity), true
 	case "Query.lookupMapping":
 		if e.complexity.Query.LookupMapping == nil {
 			break
@@ -14865,6 +14926,209 @@ func (ec *executionContext) fieldContext_ImmunizationEvent_administeredDate(_ co
 	return fc, nil
 }
 
+func (ec *executionContext) _LLMCapability_enabled(ctx context.Context, field graphql.CollectedField, obj *model.LLMCapability) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LLMCapability_enabled,
+		func(ctx context.Context) (any, error) {
+			return obj.Enabled, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LLMCapability_enabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LLMCapability",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LLMCapability_configured(ctx context.Context, field graphql.CollectedField, obj *model.LLMCapability) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LLMCapability_configured,
+		func(ctx context.Context) (any, error) {
+			return obj.Configured, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LLMCapability_configured(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LLMCapability",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LLMCapability_providerBaseURLHost(ctx context.Context, field graphql.CollectedField, obj *model.LLMCapability) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LLMCapability_providerBaseURLHost,
+		func(ctx context.Context) (any, error) {
+			return obj.ProviderBaseURLHost, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_LLMCapability_providerBaseURLHost(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LLMCapability",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LLMCapability_defaultModel(ctx context.Context, field graphql.CollectedField, obj *model.LLMCapability) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LLMCapability_defaultModel,
+		func(ctx context.Context) (any, error) {
+			return obj.DefaultModel, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_LLMCapability_defaultModel(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LLMCapability",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LLMCapability_qualityModel(ctx context.Context, field graphql.CollectedField, obj *model.LLMCapability) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LLMCapability_qualityModel,
+		func(ctx context.Context) (any, error) {
+			return obj.QualityModel, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_LLMCapability_qualityModel(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LLMCapability",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LLMCapability_status(ctx context.Context, field graphql.CollectedField, obj *model.LLMCapability) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LLMCapability_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LLMCapability_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LLMCapability",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LLMCapability_warnings(ctx context.Context, field graphql.CollectedField, obj *model.LLMCapability) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LLMCapability_warnings,
+		func(ctx context.Context) (any, error) {
+			return obj.Warnings, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LLMCapability_warnings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LLMCapability",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _LabResult_value(ctx context.Context, field graphql.CollectedField, obj *model.LabResult) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -23550,6 +23814,51 @@ func (ec *executionContext) fieldContext_Query_extractEntities(ctx context.Conte
 	if fc.Args, err = ec.field_Query_extractEntities_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_llmCapability(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_llmCapability,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Query().LlmCapability(ctx)
+		},
+		nil,
+		ec.marshalNLLMCapability2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLLMCapability,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_llmCapability(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "enabled":
+				return ec.fieldContext_LLMCapability_enabled(ctx, field)
+			case "configured":
+				return ec.fieldContext_LLMCapability_configured(ctx, field)
+			case "providerBaseURLHost":
+				return ec.fieldContext_LLMCapability_providerBaseURLHost(ctx, field)
+			case "defaultModel":
+				return ec.fieldContext_LLMCapability_defaultModel(ctx, field)
+			case "qualityModel":
+				return ec.fieldContext_LLMCapability_qualityModel(ctx, field)
+			case "status":
+				return ec.fieldContext_LLMCapability_status(ctx, field)
+			case "warnings":
+				return ec.fieldContext_LLMCapability_warnings(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type LLMCapability", field.Name)
+		},
 	}
 	return fc, nil
 }
@@ -37632,6 +37941,66 @@ func (ec *executionContext) _ImmunizationEvent(ctx context.Context, sel ast.Sele
 	return out
 }
 
+var lLMCapabilityImplementors = []string{"LLMCapability"}
+
+func (ec *executionContext) _LLMCapability(ctx context.Context, sel ast.SelectionSet, obj *model.LLMCapability) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lLMCapabilityImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LLMCapability")
+		case "enabled":
+			out.Values[i] = ec._LLMCapability_enabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "configured":
+			out.Values[i] = ec._LLMCapability_configured(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "providerBaseURLHost":
+			out.Values[i] = ec._LLMCapability_providerBaseURLHost(ctx, field, obj)
+		case "defaultModel":
+			out.Values[i] = ec._LLMCapability_defaultModel(ctx, field, obj)
+		case "qualityModel":
+			out.Values[i] = ec._LLMCapability_qualityModel(ctx, field, obj)
+		case "status":
+			out.Values[i] = ec._LLMCapability_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "warnings":
+			out.Values[i] = ec._LLMCapability_warnings(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var labResultImplementors = []string{"LabResult"}
 
 func (ec *executionContext) _LabResult(ctx context.Context, sel ast.SelectionSet, obj *model.LabResult) graphql.Marshaler {
@@ -40058,6 +40427,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_extractEntities(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "llmCapability":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_llmCapability(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -44238,6 +44629,20 @@ func (ec *executionContext) marshalNJSON2ᚕmapᚄ(ctx context.Context, sel ast.
 	}
 
 	return ret
+}
+
+func (ec *executionContext) marshalNLLMCapability2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLLMCapability(ctx context.Context, sel ast.SelectionSet, v model.LLMCapability) graphql.Marshaler {
+	return ec._LLMCapability(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNLLMCapability2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLLMCapability(ctx context.Context, sel ast.SelectionSet, v *model.LLMCapability) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LLMCapability(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNLabResult2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLabResult(ctx context.Context, sel ast.SelectionSet, v model.LabResult) graphql.Marshaler {

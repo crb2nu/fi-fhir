@@ -30,10 +30,46 @@ llm:
 
 Environment variables:
 ```bash
-export LLM_BASE_URL="http://localhost:8000/v1"
-export LLM_API_KEY="your-api-key"
-export LLM_DEFAULT_MODEL="qwen3-8b-fast"
+export FI_FHIR_LLM_ENABLED=true
+export FI_FHIR_LLM_BASE_URL="http://localhost:8000/v1"
+export FI_FHIR_LLM_API_KEY="your-api-key"
+export FI_FHIR_LLM_DEFAULT_MODEL="qwen3-8b-fast"
+export FI_FHIR_LLM_QUALITY_MODEL="qwen3-14b-quality"
 ```
+
+`FI_FHIR_LLM_*` names are canonical for runtime configuration. Legacy `LLM_*`
+names remain supported as fallbacks for existing deployments:
+
+| Canonical | Legacy fallback | Purpose |
+|-----------|-----------------|---------|
+| `FI_FHIR_LLM_BASE_URL` | `LLM_BASE_URL` | OpenAI-compatible provider base URL |
+| `FI_FHIR_LLM_API_KEY` | `LLM_API_KEY`, then `OPENAI_API_KEY` | Provider API key |
+| `FI_FHIR_LLM_DEFAULT_MODEL` | `LLM_DEFAULT_MODEL` | Fast/default completion model |
+| `FI_FHIR_LLM_QUALITY_MODEL` | `LLM_QUALITY_MODEL` | Higher-quality reasoning model |
+
+When both canonical and legacy variables are set, the canonical
+`FI_FHIR_LLM_*` value wins.
+
+### Runtime Capability
+
+GraphQL exposes a safe capability query for UI and operator checks:
+
+```graphql
+query {
+  llmCapability {
+    enabled
+    configured
+    providerBaseURLHost
+    defaultModel
+    qualityModel
+    status
+    warnings
+  }
+}
+```
+
+The response never includes API keys or the full provider URL. `status` is one
+of `disabled`, `unavailable`, `degraded`, or `available`.
 
 ---
 
