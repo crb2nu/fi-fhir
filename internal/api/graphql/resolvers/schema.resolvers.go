@@ -2375,6 +2375,11 @@ func (r *queryResolver) ExtractEntities(ctx context.Context, input model.Extract
 	return convertExtractionResult(result, time.Since(startTime)), nil
 }
 
+// LlmCapability is the resolver for the llmCapability field.
+func (r *queryResolver) LlmCapability(ctx context.Context) (*model.LLMCapability, error) {
+	return cloneLLMCapability(r.LLMCapability), nil
+}
+
 // AnalyzeQuality analyzes data quality of an event using LLM.
 func (r *queryResolver) AnalyzeQuality(ctx context.Context, input model.AnalyzeQualityInput) (*model.DataQualityScore, error) {
 	// Return graceful degradation if analyzer not configured

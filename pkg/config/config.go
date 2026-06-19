@@ -465,10 +465,13 @@ func (c *Config) ApplyEnv() {
 
 	// LLM
 	c.LLM.Enabled = getEnvBool("FI_FHIR_LLM_ENABLED", c.LLM.Enabled)
-	c.LLM.BaseURL = getEnvString("FI_FHIR_LLM_BASE_URL", c.LLM.BaseURL)
-	c.LLM.APIKey = getEnvString("FI_FHIR_LLM_API_KEY", c.LLM.APIKey)
-	c.LLM.DefaultModel = getEnvString("FI_FHIR_LLM_DEFAULT_MODEL", c.LLM.DefaultModel)
-	c.LLM.QualityModel = getEnvString("FI_FHIR_LLM_QUALITY_MODEL", c.LLM.QualityModel)
+	c.LLM.BaseURL = getEnvStringFallback("FI_FHIR_LLM_BASE_URL", "LLM_BASE_URL", c.LLM.BaseURL)
+	c.LLM.APIKey = getEnvStringFallback("FI_FHIR_LLM_API_KEY", "LLM_API_KEY", c.LLM.APIKey)
+	if c.LLM.APIKey == "" {
+		c.LLM.APIKey = getEnvString("OPENAI_API_KEY", c.LLM.APIKey)
+	}
+	c.LLM.DefaultModel = getEnvStringFallback("FI_FHIR_LLM_DEFAULT_MODEL", "LLM_DEFAULT_MODEL", c.LLM.DefaultModel)
+	c.LLM.QualityModel = getEnvStringFallback("FI_FHIR_LLM_QUALITY_MODEL", "LLM_QUALITY_MODEL", c.LLM.QualityModel)
 	c.LLM.Timeout = getEnvDuration("FI_FHIR_LLM_TIMEOUT", c.LLM.Timeout)
 	c.LLM.MaxRetries = getEnvInt("FI_FHIR_LLM_MAX_RETRIES", c.LLM.MaxRetries)
 
@@ -713,6 +716,16 @@ func (c *Config) ServerAddr() string {
 
 func getEnvString(key, defaultVal string) string {
 	if val := os.Getenv(key); val != "" {
+		return val
+	}
+	return defaultVal
+}
+
+func getEnvStringFallback(canonicalKey, legacyKey, defaultVal string) string {
+	if val := os.Getenv(canonicalKey); val != "" {
+		return val
+	}
+	if val := os.Getenv(legacyKey); val != "" {
 		return val
 	}
 	return defaultVal

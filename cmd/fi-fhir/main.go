@@ -4675,6 +4675,9 @@ func runServe(args []string) error {
 		return nil
 	}
 
+	runtimeConfig := config.Default()
+	runtimeConfig.ApplyEnv()
+
 	// Enforce terminology version pins (if configured)
 	dbURL, pins, policy := loadTerminologyPinConfigFromEnv()
 	if pinWarnings, err := checkTerminologyPins(context.Background(), dbURL, pins, policy); err != nil {
@@ -4719,18 +4722,49 @@ func runServe(args []string) error {
 	// Temporal client and worker (declared here, initialized below)
 	var temporalClient client.Client
 	var temporalWorker *termworkflow.Worker
+	var autorouteEngine *autoroute.Engine
+	var mappingStore *termdb.MappingStore
+
+	if dbURL != "" {
+		// Initialize mapping store from terminology database.
+		if mappingDB, err := sql.Open("postgres", dbURL); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: mapping store disabled (db connection failed): %v\n", err)
+		} else if err := mappingDB.Ping(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: mapping store disabled (db ping failed): %v\n", err)
+			_ = mappingDB.Close()
+		} else {
+			mappingStore = termdb.NewMappingStore(mappingDB)
+			resolverOpts = append(resolverOpts, resolvers.WithMappingStore(mappingStore))
+		}
+	}
 
 	// Initialize LLM-powered features (optional - gracefully disabled if unavailable)
-	llmCfg := llm.DefaultConfig().WithEnv()
-	if llmClient, err := llm.New(llmCfg); err != nil {
+	llmCfg := llmConfigFromRuntime(runtimeConfig.LLM)
+	llmStatus := "disabled"
+	llmWarnings := []string{"LLM features disabled; set FI_FHIR_LLM_ENABLED=true to enable"}
+	if runtimeConfig.LLM.Enabled {
+		llmWarnings = []string{}
+	}
+	if !runtimeConfig.LLM.Enabled {
+		fmt.Println("LLM features: disabled")
+	} else if err := llmCfg.Validate(); err != nil {
+		llmStatus = "unavailable"
+		llmWarnings = append(llmWarnings, fmt.Sprintf("LLM configuration invalid: %v", err))
+		fmt.Fprintf(os.Stderr, "Warning: LLM features disabled: %v\n", err)
+	} else if llmClient, err := llm.New(llmCfg); err != nil {
+		llmStatus = "unavailable"
+		llmWarnings = append(llmWarnings, fmt.Sprintf("LLM client unavailable: %v", err))
 		fmt.Fprintf(os.Stderr, "Warning: LLM features disabled: %v\n", err)
 	} else {
+		llmStatus = "available"
 		// Clinical entity extraction
 		if extractor, err := extract.NewExtractor(extract.Config{
 			Client:      llmClient,
 			Model:       llmCfg.QualityModel,
 			EnableCache: true,
 		}); err != nil {
+			llmStatus = "degraded"
+			llmWarnings = append(llmWarnings, fmt.Sprintf("clinical extraction unavailable: %v", err))
 			fmt.Fprintf(os.Stderr, "Warning: clinical extraction disabled: %v\n", err)
 		} else {
 			resolverOpts = append(resolverOpts, resolvers.WithClinicalExtractor(extractor))
@@ -4741,6 +4775,8 @@ func runServe(args []string) error {
 			Client: llmClient,
 			Model:  llmCfg.QualityModel,
 		}); err != nil {
+			llmStatus = "degraded"
+			llmWarnings = append(llmWarnings, fmt.Sprintf("quality analysis unavailable: %v", err))
 			fmt.Fprintf(os.Stderr, "Warning: quality analysis disabled: %v\n", err)
 		} else {
 			resolverOpts = append(resolverOpts, resolvers.WithQualityAnalyzer(analyzer))
@@ -4751,6 +4787,8 @@ func runServe(args []string) error {
 			Client: llmClient,
 			Model:  llmCfg.QualityModel,
 		}); err != nil {
+			llmStatus = "degraded"
+			llmWarnings = append(llmWarnings, fmt.Sprintf("workflow copilot unavailable: %v", err))
 			fmt.Fprintf(os.Stderr, "Warning: workflow copilot disabled: %v\n", err)
 		} else {
 			resolverOpts = append(resolverOpts, resolvers.WithWorkflowCopilot(workflowCopilot))
@@ -4766,6 +4804,8 @@ func runServe(args []string) error {
 			Model:       llmCfg.QualityModel,
 			EnableCache: true,
 		}); err != nil {
+			llmStatus = "degraded"
+			llmWarnings = append(llmWarnings, fmt.Sprintf("warning explainer unavailable: %v", err))
 			fmt.Fprintf(os.Stderr, "Warning: warning explainer disabled: %v\n", err)
 		} else {
 			resolverOpts = append(resolverOpts, resolvers.WithWarningExplainer(warningExplainer))
@@ -4774,53 +4814,46 @@ func runServe(args []string) error {
 		fmt.Println("LLM features enabled: extraction, quality, copilot, explainers")
 
 		// Terminology autoroute engine (requires LLM + semantic search)
-		// Track these at higher scope for Temporal worker
-		var autorouteEngine *autoroute.Engine
-		var mappingStore *termdb.MappingStore
-		if dbURL != "" {
-			// Initialize mapping store from terminology database
-			if mappingDB, err := sql.Open("postgres", dbURL); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: mapping store disabled (db connection failed): %v\n", err)
-			} else if err := mappingDB.Ping(); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: mapping store disabled (db ping failed): %v\n", err)
-				_ = mappingDB.Close()
+		if mappingStore != nil {
+			semanticCfg := semantic.DefaultSearchConfig().WithEnv()
+			if searcher, err := semantic.NewSearcher(semanticCfg); err != nil {
+				llmStatus = "degraded"
+				llmWarnings = append(llmWarnings, fmt.Sprintf("autoroute unavailable: semantic search init failed: %v", err))
+				fmt.Fprintf(os.Stderr, "Warning: autoroute disabled (semantic search init failed): %v\n", err)
 			} else {
-				mappingStore = termdb.NewMappingStore(mappingDB)
-				resolverOpts = append(resolverOpts, resolvers.WithMappingStore(mappingStore))
-
-				// Initialize semantic searcher for autoroute
-				semanticCfg := semantic.DefaultSearchConfig().WithEnv()
-				if searcher, err := semantic.NewSearcher(semanticCfg); err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: autoroute disabled (semantic search init failed): %v\n", err)
-				} else {
-					// Create autoroute engine with semantic search + LLM ranking
-					autorouteEngine = autoroute.NewEngine(searcher, llmClient, autoroute.DefaultConfig())
-					resolverOpts = append(resolverOpts, resolvers.WithAutorouteEngine(autorouteEngine))
-					fmt.Println("Terminology autoroute engine enabled")
-				}
+				// Create autoroute engine with semantic search + LLM ranking
+				autorouteEngine = autoroute.NewEngine(searcher, llmClient, autoroute.DefaultConfig())
+				resolverOpts = append(resolverOpts, resolvers.WithAutorouteEngine(autorouteEngine))
+				fmt.Println("Terminology autoroute engine enabled")
 			}
 		}
+	}
+	resolverOpts = append(resolverOpts, resolvers.WithLLMCapability(resolvers.NewLLMCapability(
+		runtimeConfig.LLM.Enabled,
+		llmCfg,
+		llmStatus,
+		llmWarnings,
+	)))
 
-		// Initialize Temporal worker for terminology workflows (requires autoroute engine + mapping store)
-		if temporalAddr != "" && autorouteEngine != nil && mappingStore != nil {
-			workerCfg := termworkflow.WorkerConfig{
-				HostPort:  temporalAddr,
-				Namespace: temporalNamespace,
-			}
-			worker, workerErr := termworkflow.NewWorker(context.Background(), workerCfg, autorouteEngine, mappingStore)
-			if workerErr != nil {
-				fmt.Fprintf(os.Stderr, "Warning: Temporal worker disabled: %v\n", workerErr)
-			} else {
-				errCh := worker.StartAsync()
-				go func() {
-					if err := <-errCh; err != nil {
-						fmt.Fprintf(os.Stderr, "Warning: Temporal worker stopped: %v\n", err)
-					}
-				}()
-				temporalWorker = worker
-				resolverOpts = append(resolverOpts, resolvers.WithTemporalWorker(worker))
-				fmt.Println("Temporal terminology review worker started")
-			}
+	// Initialize Temporal worker for terminology workflows (requires autoroute engine + mapping store)
+	if temporalAddr != "" && autorouteEngine != nil && mappingStore != nil {
+		workerCfg := termworkflow.WorkerConfig{
+			HostPort:  temporalAddr,
+			Namespace: temporalNamespace,
+		}
+		worker, workerErr := termworkflow.NewWorker(context.Background(), workerCfg, autorouteEngine, mappingStore)
+		if workerErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: Temporal worker disabled: %v\n", workerErr)
+		} else {
+			errCh := worker.StartAsync()
+			go func() {
+				if err := <-errCh; err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: Temporal worker stopped: %v\n", err)
+				}
+			}()
+			temporalWorker = worker
+			resolverOpts = append(resolverOpts, resolvers.WithTemporalWorker(worker))
+			fmt.Println("Temporal terminology review worker started")
 		}
 	}
 
@@ -4912,6 +4945,17 @@ func runServe(args []string) error {
 		}
 		return nil
 	}
+}
+
+func llmConfigFromRuntime(runtime config.LLMConfig) llm.Config {
+	cfg := llm.DefaultConfig()
+	cfg.BaseURL = runtime.BaseURL
+	cfg.APIKey = runtime.APIKey
+	cfg.DefaultModel = runtime.DefaultModel
+	cfg.QualityModel = runtime.QualityModel
+	cfg.Timeout = runtime.Timeout
+	cfg.MaxRetries = runtime.MaxRetries
+	return cfg
 }
 
 func printServeUsage() {

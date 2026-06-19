@@ -2,6 +2,7 @@ package resolvers
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/store"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/workflow"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm"
 )
 
 func TestQueryResolver_Health(t *testing.T) {
@@ -29,6 +31,66 @@ func TestQueryResolver_Health(t *testing.T) {
 	}
 	if len(health.Components) < 2 {
 		t.Errorf("Expected at least 2 components, got %d", len(health.Components))
+	}
+}
+
+func TestQueryResolver_LlmCapability_DefaultDisabled(t *testing.T) {
+	resolver := NewResolver()
+	queryResolver := &queryResolver{resolver}
+
+	capability, err := queryResolver.LlmCapability(context.Background())
+	if err != nil {
+		t.Fatalf("LlmCapability query failed: %v", err)
+	}
+
+	if capability.Enabled {
+		t.Error("Expected LLM capability to be disabled by default")
+	}
+	if capability.Configured {
+		t.Error("Expected default LLM capability to be unconfigured")
+	}
+	if capability.Status != "disabled" {
+		t.Errorf("Expected status disabled, got %q", capability.Status)
+	}
+	if len(capability.Warnings) == 0 {
+		t.Error("Expected default LLM capability warning")
+	}
+}
+
+func TestQueryResolver_LlmCapability_SafeConfiguredFields(t *testing.T) {
+	capability := NewLLMCapability(true, llm.Config{
+		BaseURL:      "https://user:secret@example.com:8443/v1?api_key=hidden",
+		DefaultModel: "default-model",
+		QualityModel: "quality-model",
+	}, "available", nil)
+	resolver := NewResolver(WithLLMCapability(capability))
+	queryResolver := &queryResolver{resolver}
+
+	got, err := queryResolver.LlmCapability(context.Background())
+	if err != nil {
+		t.Fatalf("LlmCapability query failed: %v", err)
+	}
+
+	if !got.Enabled {
+		t.Error("Expected LLM capability to be enabled")
+	}
+	if !got.Configured {
+		t.Error("Expected LLM capability to be configured")
+	}
+	if got.ProviderBaseURLHost == nil || *got.ProviderBaseURLHost != "example.com:8443" {
+		t.Fatalf("Expected provider host example.com:8443, got %v", got.ProviderBaseURLHost)
+	}
+	if strings.Contains(*got.ProviderBaseURLHost, "secret") || strings.Contains(*got.ProviderBaseURLHost, "hidden") {
+		t.Errorf("Provider host leaked secret-bearing URL data: %q", *got.ProviderBaseURLHost)
+	}
+	if got.DefaultModel == nil || *got.DefaultModel != "default-model" {
+		t.Errorf("Expected default model, got %v", got.DefaultModel)
+	}
+	if got.QualityModel == nil || *got.QualityModel != "quality-model" {
+		t.Errorf("Expected quality model, got %v", got.QualityModel)
+	}
+	if got.Status != "available" {
+		t.Errorf("Expected status available, got %q", got.Status)
 	}
 }
 
