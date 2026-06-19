@@ -9,7 +9,8 @@
 //
 // Or to run without testcontainers (manual PostgreSQL):
 //
-//	POSTGRES_TEST_URL=postgres://user:pass@localhost:5432/testdb go test ./pkg/terminology/db/...
+//	POSTGRES_TEST_URL=postgres://user:pass@localhost:5432/testdb \
+//	    go test -tags=integration -p 1 ./pkg/terminology/db/...
 package db
 
 import (

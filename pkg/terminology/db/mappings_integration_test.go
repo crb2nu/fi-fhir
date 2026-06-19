@@ -3,10 +3,9 @@
 // MappingStore integration tests exercise the custom-mapping, pending-autoroute,
 // and mapping-decision telemetry persistence paths against a real PostgreSQL.
 //
-// LOCAL-ONLY: these are NOT run by CI. The `.gitlab-ci.yml` `test:integration`
-// job runs `go test -tags=integration ./cmd/fi-fhir/...` only — it does not
-// include `./pkg/...`, so this package's store-vs-schema contract is never
-// exercised in the pipeline. Run it locally with Docker Desktop:
+// These tests run in CI via POSTGRES_TEST_URL so the package exercises the same
+// store-vs-schema contract as local runs without relying on Docker-in-Docker.
+// Run the store-focused subset locally with Docker Desktop:
 //
 //	go test -tags=integration -run 'TestMappingStore_' ./pkg/terminology/db/
 //
@@ -14,10 +13,10 @@
 // an external instance when POSTGRES_TEST_URL is set:
 //
 //	POSTGRES_TEST_URL=postgres://user:pass@localhost:5432/testdb \
-//	    go test -tags=integration ./pkg/terminology/db/
+//	    go test -tags=integration -p 1 ./pkg/terminology/db/
 //
-// See AGENTS.md ("Testing Strategy" → local-only integration tests) for why
-// these are not yet wired into CI.
+// Use -p 1 when combining with other integration packages that reset the shared
+// terminology schema.
 package db
 
 import (
