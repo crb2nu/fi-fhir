@@ -649,6 +649,17 @@ export type ImmunizationEvent = Event & {
   type: EventType;
 };
 
+export type LlmCapability = {
+  __typename?: 'LLMCapability';
+  configured: Scalars['Boolean']['output'];
+  defaultModel: Maybe<Scalars['String']['output']>;
+  enabled: Scalars['Boolean']['output'];
+  providerBaseURLHost: Maybe<Scalars['String']['output']>;
+  qualityModel: Maybe<Scalars['String']['output']>;
+  status: Scalars['String']['output'];
+  warnings: Array<Scalars['String']['output']>;
+};
+
 export type LabResult = {
   __typename?: 'LabResult';
   interpretation: Maybe<Scalars['String']['output']>;
@@ -1274,6 +1285,7 @@ export type Query = {
   health: HealthStatus;
   listMappings: CodeMappingConnection;
   listPendingAutoroutes: PendingAutorouteConnection;
+  llmCapability: LlmCapability;
   lookupMapping: Maybe<CodeMapping>;
   parsePreview: ParseResult;
   parsePreviewWithProfile: ParseResult;
