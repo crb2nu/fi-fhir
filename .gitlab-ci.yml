@@ -486,6 +486,7 @@ test:integration:
     POSTGRES_HOST_AUTH_METHOD: trust
     FI_FHIR_DATABASE_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_test?sslmode=disable"
     FI_FHIR_TERMINOLOGY_DB_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_test?sslmode=disable"
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_test?sslmode=disable"
     # MinIO service container (bitnami image uses these env vars)
     MINIO_ROOT_USER: minioadmin
     MINIO_ROOT_PASSWORD: minioadmin
@@ -503,6 +504,11 @@ test:integration:
     - apt-get update && apt-get install -y --no-install-recommends git ca-certificates build-essential && rm -rf /var/lib/apt/lists/*
     - mkdir -p coverage/integration
     - go test -tags=integration -cover -covermode=atomic -timeout=300s ./cmd/fi-fhir/...
+      -args -test.gocoverdir=$PWD/coverage/integration
+    # Keep terminology DB integration tests in this job, after cmd tests, because both
+    # paths reset the shared terminology schema. POSTGRES_TEST_URL uses the CI
+    # Postgres service directly and avoids Docker-in-Docker/testcontainers.
+    - go test -tags=integration -p 1 -cover -covermode=atomic -timeout=300s ./pkg/terminology/db/
       -args -test.gocoverdir=$PWD/coverage/integration
     - go tool covdata percent -i=coverage/integration
   artifacts:

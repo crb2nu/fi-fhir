@@ -1,71 +1,126 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/svelte';
-
-// Mock the op boundary only — "Explain with AI" must call the REAL
-// ExplainWorkflow query via workflowApi (.loom/23 Wave 2 Slice 2b).
-vi.mock('../workflowApi', () => ({ explainWorkflow: vi.fn() }));
-
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
+import { get } from 'svelte/store';
 import WorkflowPreview from './WorkflowPreview.svelte';
 import { explainWorkflow } from '../workflowApi';
 import { workflowDraft } from '../workflowStore';
+import { toastList, toasts } from '$lib/ui/toastStore';
+import { isErrorToasted } from '$lib/graphql/client';
 
-const mockExplain = explainWorkflow as unknown as ReturnType<typeof vi.fn>;
+vi.mock('../workflowApi', () => ({
+  explainWorkflow: vi.fn()
+}));
 
-beforeEach(() => {
-  mockExplain.mockReset();
-  workflowDraft.loadDraft({
-    name: 'adt-routing',
-    version: '1.0',
-    routes: [
-      {
-        _key: 'route-1',
-        name: 'Admission route',
-        filter: { eventTypes: ['PATIENT_ADMIT'], sources: [], condition: '' },
-        transforms: [],
-        actions: [{ _key: 'action-1', type: 'log', config: { message: 'received' } }],
-        expanded: true
-      }
-    ]
+vi.mock('$lib/graphql/client', () => ({
+  isErrorToasted: vi.fn(() => false)
+}));
+
+describe('WorkflowPreview', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(isErrorToasted).mockReturnValue(false);
+    workflowDraft.loadDraft({
+      name: 'critical-lab-routing',
+      version: '1.0',
+      routes: [
+        {
+          _key: 'route-1',
+          name: 'critical_labs',
+          filter: {
+            eventTypes: ['LAB_RESULT'],
+            sources: [],
+            condition: 'event.isCritical == true'
+          },
+          transforms: [],
+          actions: [
+            {
+              _key: 'action-1',
+              type: 'webhook',
+              config: { url: 'https://alerts.example.com' }
+            }
+          ],
+          expanded: false
+        }
+      ]
+    });
+    toasts.dismissAll();
   });
-});
 
-describe('WorkflowPreview "Explain with AI"', () => {
-  it('calls the real ExplainWorkflow query with the draft YAML for a business audience', async () => {
-    mockExplain.mockResolvedValue({
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('calls explainWorkflow with the YAML preview and business audience, then renders route explanations', async () => {
+    vi.mocked(explainWorkflow).mockResolvedValue({
       explainWorkflow: {
-        summary: 'Routes admissions',
-        description: 'This workflow forwards admit events to FHIR.',
-        routeExplanations: [{ name: 'Admission route', trigger: 'PATIENT_ADMIT', actions: ['log'], description: 'logs the event' }],
+        summary: 'Critical lab alert routing',
+        description: 'Routes critical lab events to an alert webhook.',
         diagram: null,
+        routeExplanations: [
+          {
+            name: 'critical_labs',
+            trigger: 'LAB_RESULT events where event.isCritical is true',
+            actions: ['webhook'],
+            description: 'Sends critical lab results to the alerts endpoint.'
+          }
+        ],
         warnings: []
       }
-    });
+    } as Awaited<ReturnType<typeof explainWorkflow>>);
 
     render(WorkflowPreview);
+
     await fireEvent.click(screen.getByRole('button', { name: /Explain with AI/ }));
 
-    expect(mockExplain).toHaveBeenCalledTimes(1);
-    const [yamlArg, audienceArg] = mockExplain.mock.calls[0] ?? [];
-    expect(yamlArg).toContain('adt-routing'); // real draftToYaml output
-    expect(audienceArg).toBe('business');
-
-    expect(await screen.findByText(/forwards admit events to FHIR/)).toBeInTheDocument();
-    // Route explanations are appended to the rendered description.
-    expect(screen.getByText(/Admission route: logs the event/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(explainWorkflow).toHaveBeenCalledTimes(1);
+    });
+    const [yamlOutput, audience] = vi.mocked(explainWorkflow).mock.calls[0]!;
+    expect(yamlOutput).toContain('name: critical-lab-routing');
+    expect(yamlOutput).toContain('name: critical_labs');
+    expect(yamlOutput).toContain('event_type: LAB_RESULT');
+    expect(audience).toBe('business');
+    expect(screen.getByText(/Routes critical lab events to an alert webhook/)).toBeInTheDocument();
+    expect(screen.getByText(/critical_labs: Sends critical lab results/)).toBeInTheDocument();
   });
 
   it('shows a loading label while the explanation is in flight', async () => {
-    let resolveFn: (v: unknown) => void = () => {};
-    mockExplain.mockReturnValue(new Promise((r) => { resolveFn = r; }));
+    let resolveExplanation: (value: Awaited<ReturnType<typeof explainWorkflow>>) => void = () => {};
+    vi.mocked(explainWorkflow).mockReturnValue(
+      new Promise((resolve) => {
+        resolveExplanation = resolve;
+      })
+    );
 
     render(WorkflowPreview);
-    await fireEvent.click(screen.getByRole('button', { name: 'Explain with AI' }));
+
+    await fireEvent.click(screen.getByRole('button', { name: /Explain with AI/ }));
 
     expect(screen.getByRole('button', { name: 'Explaining...' })).toBeInTheDocument();
 
-    resolveFn({
-      explainWorkflow: { summary: '', description: 'done', routeExplanations: [], diagram: null, warnings: [] }
-    });
+    resolveExplanation({
+      explainWorkflow: {
+        summary: '',
+        description: 'done',
+        diagram: null,
+        routeExplanations: [],
+        warnings: []
+      }
+    } as Awaited<ReturnType<typeof explainWorkflow>>);
     expect(await screen.findByText('done')).toBeInTheDocument();
+  });
+
+  it('does not add a duplicate local toast when explainWorkflow reports an already-toasted failure', async () => {
+    vi.mocked(isErrorToasted).mockReturnValue(true);
+    vi.mocked(explainWorkflow).mockRejectedValue(new Error('LLM unavailable'));
+
+    render(WorkflowPreview);
+
+    await fireEvent.click(screen.getByRole('button', { name: /Explain with AI/ }));
+
+    await waitFor(() => {
+      expect(explainWorkflow).toHaveBeenCalled();
+    });
+    expect(get(toastList).some((toast) => toast.message === 'Failed to explain workflow')).toBe(false);
   });
 });

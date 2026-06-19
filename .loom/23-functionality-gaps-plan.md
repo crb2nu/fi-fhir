@@ -92,8 +92,8 @@ backend *reach* gaps (schema field with no resolver, CLI↔GraphQL parity, defer
 | Surface | Evidence | Defect |
 |---------|----------|--------|
 | Copilot assistant | `copilotStore.ts:91-237`, `sendAction()` `:265-322` | Explain/suggest/generate/review return canned text; ignores the codegen'd `llm.graphql` ops + live resolvers. |
-| Workflow generate | `ui/src/lib/features/workflows/components/GenerateFromDescription.svelte` | "Generate from description" routes through the stubbed copilot, not `GenerateWorkflow` mutation. |
-| Workflow explain | `ui/src/lib/features/workflows/workflowApi.ts` (ExplainWorkflow defined, leaks to copilot) | Explanation not wired to the real `explainWorkflow` query. |
+| Workflow generate | `ui/src/lib/features/workflows/components/GenerateFromDescription.svelte` + `GenerateFromDescription.test.ts` | ✅ VERIFIED (Lane A, 2026-06-19): calls `GenerateWorkflow` via `generateWorkflow(description, ALL_EVENT_TYPES, ACTION_TYPES)`, renders YAML/warnings/explanation, and mutates the builder draft only after valid YAML is loaded. |
+| Workflow explain | `ui/src/lib/features/workflows/components/WorkflowPreview.svelte` + `WorkflowPreview.test.ts` | ✅ VERIFIED (Lane A, 2026-06-19): calls `explainWorkflow(yamlOutput, "business")`, renders top-level and route explanations, and honors the toast-dedupe contract on failure. |
 
 ### Class C — Backend capability/reach fills
 
@@ -206,6 +206,12 @@ Gated by the **kill-test above (Slice 0)**. Only proceeds if the LLM path is pro
   *Done*: generate/explain proven real + mounted + regression-locked; stale audit corrected. 565 pass
   (560→565; main baseline already includes Slice 2a's +22 and the bottom-panel fix's +5), lint + typecheck
   clean (1 pre-existing vite/rollup `.d.ts` error only).
+  **Lane A hardening (2026-06-19, branch `codex/workflow-ai-verify`)** extended the regression lock instead
+  of reimplementing the already-wired path: `GenerateFromDescription.test.ts` now also proves valid YAML
+  mutates `workflowDraft` only after `Load into Builder`, invalid generated YAML raises `Failed to parse
+  generated YAML` only when loaded and leaves the draft unchanged, and already-toasted GraphQL failures do not
+  produce duplicate component toasts. `WorkflowPreview.test.ts` now also proves already-toasted explain
+  failures do not produce duplicate component toasts.
   *Deferred within scope (polish, not wiring)*: `WorkflowPreview` explain renders only `description` + routes,
   dropping the op's `summary`/`diagram`/`warnings`; surfacing the explain `warnings` would aid honesty. Small,
   optional — not required for "wired to the real query."

@@ -92,28 +92,32 @@ func DefaultEmbeddingConfig() EmbeddingConfig {
 // Environment variables take precedence over struct values.
 //
 // Supported environment variables:
-//   - LLM_BASE_URL: Override BaseURL
-//   - LLM_API_KEY: Override APIKey
+//   - FI_FHIR_LLM_BASE_URL: Override BaseURL
+//   - FI_FHIR_LLM_API_KEY: Override APIKey
+//   - FI_FHIR_LLM_DEFAULT_MODEL: Override DefaultModel
+//   - FI_FHIR_LLM_QUALITY_MODEL: Override QualityModel
+//   - LLM_BASE_URL: Legacy fallback for BaseURL
+//   - LLM_API_KEY: Legacy fallback for APIKey
 //   - OPENAI_API_KEY: Fallback for APIKey
-//   - LLM_DEFAULT_MODEL: Override DefaultModel
-//   - LLM_QUALITY_MODEL: Override QualityModel
+//   - LLM_DEFAULT_MODEL: Legacy fallback for DefaultModel
+//   - LLM_QUALITY_MODEL: Legacy fallback for QualityModel
 func (c Config) WithEnv() Config {
-	if v := os.Getenv("LLM_BASE_URL"); v != "" {
+	if v := firstEnv("FI_FHIR_LLM_BASE_URL", "LLM_BASE_URL"); v != "" {
 		c.BaseURL = v
 	}
 
 	// API key with fallback chain
-	if v := os.Getenv("LLM_API_KEY"); v != "" {
+	if v := firstEnv("FI_FHIR_LLM_API_KEY", "LLM_API_KEY"); v != "" {
 		c.APIKey = v
 	} else if v := os.Getenv("OPENAI_API_KEY"); v != "" && c.APIKey == "" {
 		c.APIKey = v
 	}
 
-	if v := os.Getenv("LLM_DEFAULT_MODEL"); v != "" {
+	if v := firstEnv("FI_FHIR_LLM_DEFAULT_MODEL", "LLM_DEFAULT_MODEL"); v != "" {
 		c.DefaultModel = v
 	}
 
-	if v := os.Getenv("LLM_QUALITY_MODEL"); v != "" {
+	if v := firstEnv("FI_FHIR_LLM_QUALITY_MODEL", "LLM_QUALITY_MODEL"); v != "" {
 		c.QualityModel = v
 	}
 
@@ -123,29 +127,41 @@ func (c Config) WithEnv() Config {
 // WithEnv returns a new EmbeddingConfig with environment variable overrides applied.
 //
 // Supported environment variables:
-//   - LLM_EMBEDDING_BASE_URL: Override BaseURL
-//   - LLM_EMBEDDING_API_KEY: Override APIKey
-//   - LLM_API_KEY: Fallback for APIKey
-//   - LLM_EMBEDDING_MODEL: Override Model
+//   - FI_FHIR_LLM_EMBEDDING_BASE_URL: Override BaseURL
+//   - FI_FHIR_LLM_EMBEDDING_API_KEY: Override APIKey
+//   - FI_FHIR_LLM_EMBEDDING_MODEL: Override Model
+//   - LLM_EMBEDDING_BASE_URL: Legacy fallback for BaseURL
+//   - LLM_EMBEDDING_API_KEY: Legacy fallback for APIKey
+//   - LLM_API_KEY: Legacy fallback for APIKey
+//   - LLM_EMBEDDING_MODEL: Legacy fallback for Model
 func (c EmbeddingConfig) WithEnv() EmbeddingConfig {
-	if v := os.Getenv("LLM_EMBEDDING_BASE_URL"); v != "" {
+	if v := firstEnv("FI_FHIR_LLM_EMBEDDING_BASE_URL", "LLM_EMBEDDING_BASE_URL"); v != "" {
 		c.BaseURL = v
-	} else if v := os.Getenv("LLM_BASE_URL"); v != "" && c.BaseURL == "" {
+	} else if v := firstEnv("FI_FHIR_LLM_BASE_URL", "LLM_BASE_URL"); v != "" && c.BaseURL == "" {
 		c.BaseURL = v
 	}
 
 	// API key with fallback chain
-	if v := os.Getenv("LLM_EMBEDDING_API_KEY"); v != "" {
+	if v := firstEnv("FI_FHIR_LLM_EMBEDDING_API_KEY", "LLM_EMBEDDING_API_KEY"); v != "" {
 		c.APIKey = v
-	} else if v := os.Getenv("LLM_API_KEY"); v != "" && c.APIKey == "" {
+	} else if v := firstEnv("FI_FHIR_LLM_API_KEY", "LLM_API_KEY"); v != "" && c.APIKey == "" {
 		c.APIKey = v
 	}
 
-	if v := os.Getenv("LLM_EMBEDDING_MODEL"); v != "" {
+	if v := firstEnv("FI_FHIR_LLM_EMBEDDING_MODEL", "LLM_EMBEDDING_MODEL"); v != "" {
 		c.Model = v
 	}
 
 	return c
+}
+
+func firstEnv(keys ...string) string {
+	for _, key := range keys {
+		if v := os.Getenv(key); v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // Validate checks if the Config has all required fields.

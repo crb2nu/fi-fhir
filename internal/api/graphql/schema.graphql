@@ -1150,6 +1150,9 @@ extend type Query {
   # Extract clinical entities from unstructured text using LLM
   extractEntities(input: ExtractEntitiesInput!): ExtractionResult!
 
+  # Safe runtime status for LLM-powered features
+  llmCapability: LLMCapability!
+
   # =========================================================================
   # LLM-Powered Data Quality Analysis (Phase 7B)
   # =========================================================================
@@ -1256,6 +1259,16 @@ type ExtractionResult {
   overallConfidence: Float!
   processingTimeMs: Int!
   model: String
+}
+
+type LLMCapability {
+  enabled: Boolean!
+  configured: Boolean!
+  providerBaseURLHost: String
+  defaultModel: String
+  qualityModel: String
+  status: String!
+  warnings: [String!]!
 }
 
 # =============================================================================

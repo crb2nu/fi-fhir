@@ -1,0 +1,339 @@
+# 24 - Parallel Execution Specs
+
+**Status**: Ready for agent pickup (created 2026-06-19)
+**Owner**: platform
+**Inputs**: latest Loom planning/brainstorm artifacts: `.loom/20-product-spec.md`, `.loom/21-ux-professional-redesign.md`, `.loom/22-toast-budget-policy.md`, `.loom/23-functionality-gaps-plan.md`, `.loom/30-implementation-plan.md`
+
+## Goal
+
+Turn the latest brainstorm/planning material into execution-ready specs that can be assigned to parallel agents without duplicating work, re-opening shipped slices, or turning verification items into unnecessary rebuilds.
+
+## Non-Goals
+
+- Do not re-run the completed UX redesign/toast budget program; `.loom/21-ux-professional-redesign.md` and `.loom/22-toast-budget-policy.md` record it as shipped.
+- Do not implement these specs in this planning slice.
+- Do not change GitLab issues from this doc alone; issue updates should happen when an execution lane starts.
+- Do not create sibling worktrees outside the owning repo; follow `AGENTS.md` worktree policy.
+
+## Current-State Corrections From Code
+
+These corrections matter before parallelization:
+
+1. **Workflow generate/explain is already wired in current code.**
+   - `GenerateFromDescription.svelte` imports `generateWorkflow`, calls it, stores `yaml`/`explanation`/`warnings`, and loads YAML into `workflowDraft`: `ui/src/lib/features/workflows/components/GenerateFromDescription.svelte:6`, `:24-43`.
+   - `WorkflowPreview.svelte` imports `explainWorkflow`, calls it, and renders route explanations: `ui/src/lib/features/workflows/components/WorkflowPreview.svelte:6`, `:17-29`.
+   - The GraphQL operations exist in `ui/src/lib/graphql/workflows.graphql:267-288`.
+   - Therefore the old Wave 2b should now be a **verification + UX hardening** lane, not a blind wiring lane.
+2. **LLM config naming is still a real execution risk.**
+   - Serve initializes LLM features with `llm.DefaultConfig().WithEnv()`: `cmd/fi-fhir/main.go:4723-4725`.
+   - `pkg/llm.Config.WithEnv()` reads `LLM_*` variables: `pkg/llm/config.go:91-120`.
+   - App config reads `FI_FHIR_LLM_*` variables: `pkg/config/config.go:466-473`.
+   - The functionality plan found the same split during the LLM reachability kill-test: `.loom/23-functionality-gaps-plan.md:160-166`.
+3. **Pending autoroute expiry has query-time honesty but still lacks a background sweep caller.**
+   - `ListPendingAutoroutes` excludes time-expired pending rows at query time: `pkg/terminology/db/mappings.go:747-763`.
+   - `ExpirePendingAutoroutes` exists but is just a store method: `pkg/terminology/db/mappings.go:1025-1037`.
+   - `.loom/23-functionality-gaps-plan.md:195-209` records the shipped query-time fix and explicitly defers the background sweep caller.
+4. **Terminology DB integration tests are the fragile prerequisite for more terminology-store work.**
+   - The integration test helper supports `POSTGRES_TEST_URL`: `pkg/terminology/db/migrations_integration_test.go:35-63`.
+   - CI `test:integration` already provisions Postgres but only runs `./cmd/fi-fhir/...`: `.gitlab-ci.yml:469-506`.
+   - The project AGENTS notes explicitly say `pkg/terminology/db/...` integration tests are not exercised by CI and can rot.
+5. **Contract lint is no longer a soft M0 blocker, but broader integration CI still is.**
+   - `lint:contracts` has no `allow_failure` and comments say it was promoted to blocking: `.gitlab-ci.yml:333-366`.
+   - `test:integration` still has `allow_failure: true`: `.gitlab-ci.yml:469-519`.
+
+## Parallelization Map
+
+| Lane | Can Start Now? | Parallel With | Must Coordinate With | Primary Risk |
+|---|---:|---|---|---|
+| A. Workflow AI verification + polish | Yes | B, D, E | B if adding capability UI | Shipping tests for behavior already implemented |
+| B. LLM config namespace + capability surface | Yes | A, D, E | A if UI consumes capability query | Breaking existing `LLM_*` users |
+| C. Pending autoroute sweep + notifications | After D triage, or carefully isolated | A, B, E | D because same DB package | Adding automation on top of red integration tests |
+| D. Terminology DB integration recovery + CI path | Yes | A, B | C, E | CI/schema isolation and existing red tests |
+| E. Integration/contract CI hardening | Yes, but split narrowly | A, B | D for terminology DB inclusion | Turning soft jobs blocking before stable |
+| F. Product expansion speclets (CDA, storage, FHIR IG) | Yes, spec-first | A-E | None unless implementation begins | Too broad for one agent |
+
+Recommended first wave: A, B, D, and F can run in parallel. C should wait for D's initial red/green audit unless its agent touches only serve-time scheduling and notification interfaces. E should avoid changing the terminology DB CI path until D has a clean package-level story.
+
+## Lane A - Workflow AI Verification + Polish
+
+**Branch suggestion**: `codex/workflow-ai-verify`
+
+### Goal
+
+Prove the current Workflow Builder "Generate from Description" and "Explain with AI" path is truly live, covered, and honest when LLM features are enabled or unavailable.
+
+### Non-Goals
+
+- Do not reintroduce simulated Copilot text.
+- Do not add a new LLM provider abstraction.
+- Do not change GraphQL schema unless the capability-query work from Lane B has landed.
+
+### Tasks
+
+1. Add or refresh UI tests for `GenerateFromDescription.svelte`:
+   - Calls `generateWorkflow(...)` with the current description, event types, and action types.
+   - Renders generated YAML, warnings, and explanation.
+   - `Load into Builder` calls `workflowDraft.loadDraft` only after YAML parses.
+   - GraphQL errors follow the `isErrorToasted` dedupe contract.
+2. Add or refresh UI tests for `WorkflowPreview.svelte`:
+   - Calls `explainWorkflow(yamlOutput, "business")`.
+   - Renders top-level description and route explanation rows.
+   - Handles failures without double-toasting.
+3. Run a local GraphQL smoke with an LLM-enabled backend if credentials are available; otherwise record the unavailable-provider result as an explicit limitation.
+4. Update `.loom/23-functionality-gaps-plan.md` to mark Wave 2b as verified or to replace it with the exact remaining defect.
+
+### Acceptance Criteria
+
+- Tests prove current code uses `GenerateWorkflow` and `ExplainWorkflow`, not the old Copilot simulator.
+- Generated YAML can be parsed into the builder draft in a test.
+- Failure UI is honest: no fake output, no duplicate toast.
+- `.loom/23-functionality-gaps-plan.md` no longer lists Wave 2b as a generic unwired item if verification passes.
+
+### Kill-Test
+
+Before broad UI polish, run one targeted test that mocks `generateWorkflow` with invalid YAML. The component must show a parse failure only when `Load into Builder` is clicked, not silently mutate the draft.
+
+### Verification
+
+- `cd ui && npm test -- --run src/lib/features/workflows`
+- `cd ui && npm run typecheck`
+
+## Lane B - LLM Config Namespace + Capability Surface
+
+**Branch suggestion**: `codex/llm-config-capability`
+
+### Goal
+
+Make LLM runtime configuration unambiguous for operators and give UI/GraphQL callers a truthful capability surface for "enabled, configured, unavailable, degraded".
+
+### Non-Goals
+
+- Do not remove legacy `LLM_*` variables in the first slice.
+- Do not require an external provider for unit tests.
+- Do not expose API keys or provider secrets through GraphQL.
+
+### Tasks
+
+1. Decide precedence and document it:
+   - Recommended: `FI_FHIR_LLM_*` is canonical for app/runtime config; `LLM_*` remains backward-compatible fallback for package-level clients.
+   - Preserve `OPENAI_API_KEY` as API-key fallback where already supported.
+2. Update `pkg/llm.Config.WithEnv()` to read `FI_FHIR_LLM_BASE_URL`, `FI_FHIR_LLM_API_KEY`, `FI_FHIR_LLM_DEFAULT_MODEL`, and `FI_FHIR_LLM_QUALITY_MODEL` before legacy `LLM_*`.
+3. Add unit tests in `pkg/llm/config_test.go` covering canonical envs, fallback envs, and precedence.
+4. Add a small GraphQL capability query if needed by UI:
+   - Minimum fields: `enabled`, `configured`, `providerBaseURLHost`, `defaultModel`, `qualityModel`, `status`, `warnings`.
+   - Never return API keys or full secret-bearing URLs.
+5. Wire serve-time resolver state from actual initialization, not from env guessing alone.
+6. Update `docs/planning/README.md` and `docs/user-guide/llm-features.md` so operators see both canonical and legacy variable names.
+
+### Acceptance Criteria
+
+- Both `FI_FHIR_LLM_*` and existing `LLM_*` configurations work, with documented precedence.
+- Serve-time warnings clearly distinguish "disabled", "misconfigured", and "provider unreachable" where practical.
+- UI can display a truthful disabled/degraded state without probing by failing user actions if the capability query is added.
+- Existing LLM command tests still pass.
+
+### Kill-Test
+
+Run a unit test where both `FI_FHIR_LLM_BASE_URL` and `LLM_BASE_URL` are set to different values. The resulting config must use the documented canonical value.
+
+### Verification
+
+- `go test ./pkg/llm ./cmd/fi-fhir ./internal/api/graphql/...`
+- If schema changes: regenerate GraphQL artifacts and run the repo's GraphQL/codegen checks.
+
+## Lane C - Pending Autoroute Sweep + Notifications
+
+**Branch suggestion**: `codex/autoroute-review-automation`
+
+### Goal
+
+Finish the deferred operational loop for pending autoroutes: keep the status column truthful over time and notify humans when high-confidence mappings need review.
+
+### Non-Goals
+
+- Do not rebuild the approval UI; it already consumes pending review stats and list APIs.
+- Do not add Slack-only logic directly into the DB package.
+- Do not auto-approve mappings in this lane.
+
+### Tasks
+
+1. Add a serve-time background sweep that periodically calls `MappingStore.ExpirePendingAutoroutes(ctx)`.
+   - Scope it to serve/runtime initialization where `mappingStore` exists.
+   - Use context cancellation on server shutdown.
+   - Make interval configurable, with a conservative default.
+2. Add structured logging/metrics for sweep count and failures.
+3. Design a notification interface around "new pending autoroute created" or "high-confidence pending review".
+   - Initial implementation can be webhook-only using existing workflow/webhook utilities or a small HTTP client.
+   - Config should align with the planning key `notification_webhook`: `docs/planning/TERMINOLOGY-MAPPING.md:1493-1494`.
+4. Ensure notification dispatch cannot block creation of a pending autoroute.
+5. Add tests for sweep invocation and notification error handling.
+
+### Acceptance Criteria
+
+- Expired pending rows eventually transition to `expired` without relying only on query-time filtering.
+- Notification failures are logged/warned but do not fail the mapping resolution path.
+- High-confidence thresholds and webhook URL are configurable.
+- The review queue remains truthful if the sweep has not run yet, preserving the shipped query-time guard.
+
+### Kill-Test
+
+Create an expired pending autoroute in an integration test, start only the sweep runner with a short interval, and assert status becomes `expired` without calling `ListPendingAutoroutes`.
+
+### Verification
+
+- `go test ./pkg/terminology/db ./cmd/fi-fhir ./internal/terminology/...`
+- Integration path after Lane D: `POSTGRES_TEST_URL=... go test -tags=integration ./pkg/terminology/db/`
+
+## Lane D - Terminology DB Integration Recovery + CI Path
+
+**Branch suggestion**: `codex/terminology-db-integration-ci`
+
+### Goal
+
+Make `pkg/terminology/db` integration tests reliable enough to protect the approval/autoroute store, then wire them into CI without schema collisions.
+
+### Non-Goals
+
+- Do not make unrelated loader fixture tests blocking until their data dependency is understood.
+- Do not share a destructive schema between concurrent CI packages.
+- Do not hide red tests with blanket skips.
+
+### Tasks
+
+1. Run and record the current package baseline:
+   - `go test -tags=integration ./pkg/terminology/db/`
+   - If Docker is unavailable, use the CI-compatible `POSTGRES_TEST_URL` path.
+2. Split failures into:
+   - Store logic regressions.
+   - Fixture/loader dependency failures.
+   - Schema isolation or test-order failures.
+3. Fix store logic regressions first, especially pending autoroute approve/reject/count behavior noted in `.loom/23-functionality-gaps-plan.md:210-213`.
+4. Add schema isolation for CI:
+   - Either serialize destructive packages with `-p 1`, or give `cmd/fi-fhir` and `pkg/terminology/db` distinct databases/schemas.
+   - The AGENTS note says both paths can `DROP SCHEMA terminology CASCADE`, so treat parallel sharing as unsafe.
+5. Update `.gitlab-ci.yml` to run the clean subset/package using the existing Postgres service and `POSTGRES_TEST_URL`.
+6. Update project docs with the new CI/local command.
+
+### Acceptance Criteria
+
+- `pkg/terminology/db` integration tests have a known green subset or a fully green package.
+- CI runs that subset/package against the existing Postgres service.
+- Any remaining loader fixture failures are explicitly excluded with issue-backed rationale, not silently skipped.
+- Lane C has a stable store test base to build on.
+
+### Kill-Test
+
+Run the new CI command twice against the same Postgres service path. It must pass both times, proving cleanup/schema isolation is sufficient.
+
+### Verification
+
+- `POSTGRES_TEST_URL=postgres://testuser:testpass@localhost:5432/fi_fhir_test?sslmode=disable go test -tags=integration ./pkg/terminology/db/`
+- CI lint for `.gitlab-ci.yml` if available.
+
+## Lane E - Integration CI Hardening
+
+**Branch suggestion**: `codex/integration-ci-hardening`
+
+### Goal
+
+Reduce CI blind spots without destabilizing the pipeline: integration tests should be meaningful, and soft-fail jobs should have explicit promotion criteria.
+
+### Non-Goals
+
+- Do not promote every existing `allow_failure` job in one MR.
+- Do not change `lint:contracts`; it is already blocking according to current CI config.
+- Do not require Docker-in-Docker.
+
+### Tasks
+
+1. Inventory remaining `allow_failure: true` jobs and classify them as:
+   - Intentionally advisory.
+   - Ready to promote.
+   - Needs cleanup issue.
+2. For `test:integration`, decide whether this lane only documents promotion criteria or also removes `allow_failure`.
+3. Add smoke assertions for `/graphql`, `/graphql/ws`, `/health`, and `/ready` only if they are missing from current CI.
+4. Coordinate with Lane D before adding terminology DB package tests.
+
+### Acceptance Criteria
+
+- CI soft-fail policy is documented in `.loom/40-decisions.md` or CI comments.
+- Any promoted job has a recent green proof.
+- `test:integration` no longer gives a false sense of coverage in docs.
+
+### Kill-Test
+
+Before promoting `test:integration`, run the exact CI script locally or in a branch pipeline and confirm the job is green without relying on `allow_failure`.
+
+## Lane F - Product Expansion Speclets
+
+**Branch suggestion**: `codex/product-speclets`
+
+### Goal
+
+Break `.loom/20-product-spec.md` and the P3 backlog into independent child specs, not broad implementation blobs.
+
+### Non-Goals
+
+- Do not implement new ingestion, FHIR IG, or SMART flows in this lane.
+- Do not treat all P3 items as equal priority; each speclet should name its trigger/customer pull.
+
+### Speclets To Produce
+
+1. **CDA/CCDA section expansion**
+   - Source: `.loom/20-product-spec.md:22-27`, `docs/planning/README.md:268-269`.
+   - Output: `.loom/25-spec-cda-section-expansion.md`.
+   - Acceptance focus: Medications, Allergies, Social History mapping to canonical events.
+2. **Storage/provider integration tests**
+   - Source: `docs/planning/README.md:280-281`.
+   - Output: `.loom/26-spec-storage-provider-tests.md`.
+   - Acceptance focus: S3/MinIO test harness, no production credential coupling.
+3. **Terminology approval workflow hardening**
+   - Source: `.loom/20-product-spec.md:28-33`, `docs/planning/README.md:274`.
+   - Output: `.loom/27-spec-terminology-governance.md`.
+   - Acceptance focus: review queue SLA, audit trail, notification policy; avoid duplicating Lane C implementation details.
+4. **FHIR IG/Bulk/SMART scoping**
+   - Source: `.loom/20-product-spec.md:34-39`, `docs/planning/README.md:275`.
+   - Output: `.loom/28-spec-fhir-ig-bulk-smart.md`.
+   - Acceptance focus: standards matrix and incremental compliance order.
+5. **Dynamic Source Profile management**
+   - Source: `.loom/20-product-spec.md:40-43`.
+   - Output: `.loom/29-spec-profile-management-observability.md`.
+   - Acceptance focus: profile CRUD, diff/publish safety, trace correlation.
+
+### Acceptance Criteria
+
+- Each speclet has Goal, Non-Goals, Acceptance Criteria, Kill-Test, Dependencies, and Sources.
+- Each speclet can be assigned independently after review.
+- Cross-spec dependencies are explicit.
+
+## Coordination Rules For Parallel Agents
+
+- Use separate branches/worktrees per lane.
+- Lane agents must update only their lane section and the relevant implementation/worklog entries.
+- If two lanes need the same file, the earlier lane records the ownership note in `.loom/50-worklog.md`.
+- Any agent finding a false premise must correct the source planning doc before coding. The Workflow AI wiring correction above is the model: verify code first, then re-scope.
+- Before MR/commit, each lane runs targeted tests and records exact commands in the relevant spec/worklog.
+
+## Suggested Execution Order
+
+1. **Wave P1 (parallel)**: Lane A, Lane B, Lane D, Lane F.
+2. **Wave P2 (after D baseline)**: Lane C, Lane E CI promotion changes.
+3. **Wave P3**: Child speclet implementation MRs selected from Lane F based on customer pull or issue priority.
+
+## Sources
+
+- `.loom/20-product-spec.md:7-13`, `.loom/20-product-spec.md:22-43`
+- `.loom/21-ux-professional-redesign.md:231-248`, `.loom/21-ux-professional-redesign.md:250-267`
+- `.loom/22-toast-budget-policy.md:131-144`, `.loom/22-toast-budget-policy.md:292-342`
+- `.loom/23-functionality-gaps-plan.md:12-67`, `.loom/23-functionality-gaps-plan.md:143-223`, `.loom/23-functionality-gaps-plan.md:227-241`
+- `.loom/30-implementation-plan.md:6-41`
+- `ui/src/lib/features/workflows/components/GenerateFromDescription.svelte:6`, `ui/src/lib/features/workflows/components/GenerateFromDescription.svelte:24-43`
+- `ui/src/lib/features/workflows/components/WorkflowPreview.svelte:6`, `ui/src/lib/features/workflows/components/WorkflowPreview.svelte:17-29`
+- `ui/src/lib/graphql/workflows.graphql:267-288`
+- `cmd/fi-fhir/main.go:4723-4725`
+- `pkg/llm/config.go:91-120`
+- `pkg/config/config.go:466-473`
+- `pkg/terminology/db/mappings.go:747-763`, `pkg/terminology/db/mappings.go:1025-1037`
+- `pkg/terminology/db/migrations_integration_test.go:35-63`
+- `.gitlab-ci.yml:333-366`, `.gitlab-ci.yml:469-519`
+- `docs/planning/README.md:241-281`

@@ -139,12 +139,20 @@ func TestEmbeddingConfigValidate(t *testing.T) {
 
 func TestConfigWithEnv(t *testing.T) {
 	// Save original env vars
+	origCanonicalBaseURL := os.Getenv("FI_FHIR_LLM_BASE_URL")
+	origCanonicalAPIKey := os.Getenv("FI_FHIR_LLM_API_KEY")
+	origCanonicalDefaultModel := os.Getenv("FI_FHIR_LLM_DEFAULT_MODEL")
+	origCanonicalQualityModel := os.Getenv("FI_FHIR_LLM_QUALITY_MODEL")
 	origBaseURL := os.Getenv("LLM_BASE_URL")
 	origAPIKey := os.Getenv("LLM_API_KEY")
 	origOpenAIKey := os.Getenv("OPENAI_API_KEY")
 	origDefaultModel := os.Getenv("LLM_DEFAULT_MODEL")
 	origQualityModel := os.Getenv("LLM_QUALITY_MODEL")
 	defer func() {
+		os.Setenv("FI_FHIR_LLM_BASE_URL", origCanonicalBaseURL)
+		os.Setenv("FI_FHIR_LLM_API_KEY", origCanonicalAPIKey)
+		os.Setenv("FI_FHIR_LLM_DEFAULT_MODEL", origCanonicalDefaultModel)
+		os.Setenv("FI_FHIR_LLM_QUALITY_MODEL", origCanonicalQualityModel)
 		os.Setenv("LLM_BASE_URL", origBaseURL)
 		os.Setenv("LLM_API_KEY", origAPIKey)
 		os.Setenv("OPENAI_API_KEY", origOpenAIKey)
@@ -152,9 +160,48 @@ func TestConfigWithEnv(t *testing.T) {
 		os.Setenv("LLM_QUALITY_MODEL", origQualityModel)
 	}()
 
-	t.Run("env vars override config", func(t *testing.T) {
+	t.Run("canonical env vars override config", func(t *testing.T) {
+		os.Setenv("FI_FHIR_LLM_BASE_URL", "http://canonical-server:8000/v1")
+		os.Setenv("FI_FHIR_LLM_API_KEY", "canonical-api-key")
+		os.Setenv("FI_FHIR_LLM_DEFAULT_MODEL", "canonical-model")
+		os.Setenv("FI_FHIR_LLM_QUALITY_MODEL", "canonical-quality-model")
+		os.Unsetenv("LLM_BASE_URL")
+		os.Unsetenv("LLM_API_KEY")
+		os.Unsetenv("OPENAI_API_KEY")
+		os.Unsetenv("LLM_DEFAULT_MODEL")
+		os.Unsetenv("LLM_QUALITY_MODEL")
+
+		cfg := Config{
+			BaseURL:      "http://original:8000/v1",
+			APIKey:       "original-key",
+			DefaultModel: "original-model",
+			QualityModel: "original-quality-model",
+		}
+
+		cfg = cfg.WithEnv()
+
+		if cfg.BaseURL != "http://canonical-server:8000/v1" {
+			t.Errorf("BaseURL = %v, want %v", cfg.BaseURL, "http://canonical-server:8000/v1")
+		}
+		if cfg.APIKey != "canonical-api-key" {
+			t.Errorf("APIKey = %v, want %v", cfg.APIKey, "canonical-api-key")
+		}
+		if cfg.DefaultModel != "canonical-model" {
+			t.Errorf("DefaultModel = %v, want %v", cfg.DefaultModel, "canonical-model")
+		}
+		if cfg.QualityModel != "canonical-quality-model" {
+			t.Errorf("QualityModel = %v, want %v", cfg.QualityModel, "canonical-quality-model")
+		}
+	})
+
+	t.Run("legacy env vars remain fallback", func(t *testing.T) {
+		os.Unsetenv("FI_FHIR_LLM_BASE_URL")
+		os.Unsetenv("FI_FHIR_LLM_API_KEY")
+		os.Unsetenv("FI_FHIR_LLM_DEFAULT_MODEL")
+		os.Unsetenv("FI_FHIR_LLM_QUALITY_MODEL")
 		os.Setenv("LLM_BASE_URL", "http://test-server:8000/v1")
 		os.Setenv("LLM_API_KEY", "test-api-key")
+		os.Unsetenv("OPENAI_API_KEY")
 		os.Setenv("LLM_DEFAULT_MODEL", "test-model")
 		os.Setenv("LLM_QUALITY_MODEL", "test-quality-model")
 
@@ -181,7 +228,38 @@ func TestConfigWithEnv(t *testing.T) {
 		}
 	})
 
+	t.Run("canonical env vars take precedence over legacy", func(t *testing.T) {
+		os.Setenv("FI_FHIR_LLM_BASE_URL", "http://canonical-server:8000/v1")
+		os.Setenv("FI_FHIR_LLM_API_KEY", "canonical-api-key")
+		os.Setenv("FI_FHIR_LLM_DEFAULT_MODEL", "canonical-model")
+		os.Setenv("FI_FHIR_LLM_QUALITY_MODEL", "canonical-quality-model")
+		os.Setenv("LLM_BASE_URL", "http://legacy-server:8000/v1")
+		os.Setenv("LLM_API_KEY", "legacy-api-key")
+		os.Setenv("OPENAI_API_KEY", "openai-fallback-key")
+		os.Setenv("LLM_DEFAULT_MODEL", "legacy-model")
+		os.Setenv("LLM_QUALITY_MODEL", "legacy-quality-model")
+
+		cfg := Config{}.WithEnv()
+
+		if cfg.BaseURL != "http://canonical-server:8000/v1" {
+			t.Errorf("BaseURL = %v, want canonical value", cfg.BaseURL)
+		}
+		if cfg.APIKey != "canonical-api-key" {
+			t.Errorf("APIKey = %v, want canonical value", cfg.APIKey)
+		}
+		if cfg.DefaultModel != "canonical-model" {
+			t.Errorf("DefaultModel = %v, want canonical value", cfg.DefaultModel)
+		}
+		if cfg.QualityModel != "canonical-quality-model" {
+			t.Errorf("QualityModel = %v, want canonical value", cfg.QualityModel)
+		}
+	})
+
 	t.Run("OPENAI_API_KEY fallback", func(t *testing.T) {
+		os.Unsetenv("FI_FHIR_LLM_BASE_URL")
+		os.Unsetenv("FI_FHIR_LLM_API_KEY")
+		os.Unsetenv("FI_FHIR_LLM_DEFAULT_MODEL")
+		os.Unsetenv("FI_FHIR_LLM_QUALITY_MODEL")
 		os.Unsetenv("LLM_BASE_URL")
 		os.Unsetenv("LLM_API_KEY")
 		os.Setenv("OPENAI_API_KEY", "openai-fallback-key")
@@ -197,6 +275,10 @@ func TestConfigWithEnv(t *testing.T) {
 	})
 
 	t.Run("LLM_API_KEY takes precedence over OPENAI_API_KEY", func(t *testing.T) {
+		os.Unsetenv("FI_FHIR_LLM_BASE_URL")
+		os.Unsetenv("FI_FHIR_LLM_API_KEY")
+		os.Unsetenv("FI_FHIR_LLM_DEFAULT_MODEL")
+		os.Unsetenv("FI_FHIR_LLM_QUALITY_MODEL")
 		os.Unsetenv("LLM_BASE_URL")
 		os.Setenv("LLM_API_KEY", "llm-api-key")
 		os.Setenv("OPENAI_API_KEY", "openai-fallback-key")
@@ -212,6 +294,10 @@ func TestConfigWithEnv(t *testing.T) {
 	})
 
 	t.Run("empty env vars don't override", func(t *testing.T) {
+		os.Setenv("FI_FHIR_LLM_BASE_URL", "")
+		os.Setenv("FI_FHIR_LLM_API_KEY", "")
+		os.Setenv("FI_FHIR_LLM_DEFAULT_MODEL", "")
+		os.Setenv("FI_FHIR_LLM_QUALITY_MODEL", "")
 		os.Setenv("LLM_BASE_URL", "")
 		os.Setenv("LLM_API_KEY", "")
 		os.Setenv("OPENAI_API_KEY", "")

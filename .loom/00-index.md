@@ -9,6 +9,12 @@
 - UX professional redesign spec + plan: `21-ux-professional-redesign.md`
 - Toast budget policy: `22-toast-budget-policy.md`
 - **IDE + Backend functionality gap-fill program: `23-functionality-gaps-plan.md`** (active)
+- **Parallel execution specs: `24-parallel-execution-specs.md`** (active handoff map)
+- Product speclet - CDA/CCDA section expansion: `25-spec-cda-section-expansion.md`
+- Product speclet - Storage/provider integration tests: `26-spec-storage-provider-tests.md`
+- Product speclet - Terminology approval workflow hardening: `27-spec-terminology-governance.md`
+- Product speclet - FHIR IG/Bulk/SMART scoping: `28-spec-fhir-ig-bulk-smart.md`
+- Product speclet - Dynamic Source Profile management: `29-spec-profile-management-observability.md`
 - Implementation plan: `30-implementation-plan.md`
 - Decisions: `40-decisions.md`
 - Worklog: `50-worklog.md`
@@ -17,9 +23,11 @@
 
 - [x] Audit IDE + backend for functional gaps (UI mock-masquerade + unwired capability; backend reach gaps).
 - [x] Produce sequenced 3-wave program with riskiest-assumption kill-test.
-- [ ] **Wave 1 — Honesty pass**: debug no-fake-session, observability simulated-badge, collaboration label-as-preview.
-- [ ] **Wave 2 — Copilot real**: run LLM-reachability kill-test (Slice 0), then wire UI Copilot → existing LLM GraphQL.
-- [ ] **Wave 3 — Backend fills**: MappingStats + dashboard, pending-autoroute auto-expiry + notifications.
+- [x] Convert latest brainstorm/spec docs into parallel execution lanes (`24-parallel-execution-specs.md`).
+- [ ] **Lane A**: verify/harden Workflow AI generate/explain surfaces now that code is wired.
+- [ ] **Lane B**: unify LLM config namespace and add truthful capability surface.
+- [ ] **Lane D**: recover terminology DB integration tests and CI path before more store automation.
+- [ ] **Lane C**: add pending-autoroute sweep + notifications after terminology DB baseline is stable.
 
 ### Prior goal (platform integration M0–M3) — parked
 - [x] Backend-to-frontend integration planning; sibling-repo integration points (`flexinfer`, `loom-core`, `mentatlab`).
@@ -38,6 +46,7 @@
 - [ ] Should `lint:contracts` be promoted to hard-fail immediately, or after a fixed burn-in window (for example one clean week)?
 - [ ] For `mentatlab` integration, do we want fi-fhir to create runs directly (`POST /api/v1/runs`) or publish integration events that a gateway consumes?
 - [ ] Should `loom-core` integration stay control-plane only (ops/automation) or expose selected runtime actions through fi-fhir admin APIs?
+- [ ] Should LLM runtime config make `FI_FHIR_LLM_*` canonical with `LLM_*` fallback, or keep both namespaces fully peer-level?
 
 ## Risks
 

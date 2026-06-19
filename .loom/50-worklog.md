@@ -164,3 +164,104 @@ Chronological notes while executing the plan (useful for handoffs and debugging)
   - [S1] `.gitlab-ci.yml`
   - [S2] `.loom/iteration-plan-ci-golangci-lint-image.md`
   - [S3] GitLab pipeline `14326`, job `142164`
+
+### 2026-06-19
+
+- What changed:
+  - Converted the latest Loom brainstorm/spec docs into `.loom/24-parallel-execution-specs.md`.
+  - Split follow-up work into parallel lanes: Workflow AI verification, LLM config/capability, pending-autoroute automation, terminology DB integration recovery, integration CI hardening, and product speclets.
+  - Updated `.loom/00-index.md` and `.loom/30-implementation-plan.md` to point future agents at the new handoff map.
+  - Refreshed the workspace snapshot per `plan-loom-core`, then reverted that generated change because the local worktree remote URLs include credentials and should not be persisted in planning docs.
+- Why:
+  - Several brainstorm assumptions have changed since the docs were written. In particular, workflow generate/explain is already wired in current code, so the remaining work should be verification/hardening instead of duplicate wiring.
+- What's next:
+  - Start Wave P1 lanes in parallel: A, B, D, and F from `.loom/24-parallel-execution-specs.md`.
+  - Defer pending-autoroute sweep/notifications until Lane D records a stable terminology DB integration-test baseline.
+- Sources:
+  - [S1] `.loom/24-parallel-execution-specs.md`
+  - [S2] `.loom/23-functionality-gaps-plan.md`
+  - [S3] `ui/src/lib/features/workflows/components/GenerateFromDescription.svelte`
+  - [S4] `ui/src/lib/features/workflows/components/WorkflowPreview.svelte`
+  - [S5] `pkg/llm/config.go`
+  - [S6] `pkg/terminology/db/mappings.go`
+
+### 2026-06-19 - Lane A workflow AI verification
+
+- What changed:
+  - Added component coverage for Workflow Builder "Generate from Description":
+    real `generateWorkflow(description, ALL_EVENT_TYPES, ACTION_TYPES)` dispatch, generated YAML/warnings/explanation rendering, valid-YAML-only draft loading, and the invalid-YAML kill-test.
+  - Added component coverage for YAML Preview "Explain with AI":
+    real `explainWorkflow(yamlOutput, "business")` dispatch, top-level + route explanation rendering, and no duplicate local toast when the GraphQL net already toasted the error.
+  - Corrected `.loom/23-functionality-gaps-plan.md` so Wave 2b is recorded as verified rather than an old generic unwired gap.
+- Why:
+  - `.loom/24-parallel-execution-specs.md` identified this lane as verification/polish: the product path was already wired, but lacked focused tests and the old plan text was stale.
+- Verification:
+  - `cd ui && npm test -- --run src/lib/features/workflows` → 87 pass.
+- Sources:
+  - [S1] `ui/src/lib/features/workflows/components/GenerateFromDescription.test.ts`
+  - [S2] `ui/src/lib/features/workflows/components/WorkflowPreview.test.ts`
+  - [S3] `.loom/23-functionality-gaps-plan.md`
+
+### 2026-06-19
+
+- What changed:
+  - Lane F split the product expansion backlog into five independent speclets:
+    - `.loom/25-spec-cda-section-expansion.md`
+    - `.loom/26-spec-storage-provider-tests.md`
+    - `.loom/27-spec-terminology-governance.md`
+    - `.loom/28-spec-fhir-ig-bulk-smart.md`
+    - `.loom/29-spec-profile-management-observability.md`
+  - Added `.loom/00-index.md` links for the new speclets.
+- Why:
+  - The product spec and P3 backlog were too broad for one implementation lane. Each child spec now has explicit goals, non-goals, acceptance criteria, kill-test, dependencies, sources, and an independent assignment note.
+- What's next:
+  - Downstream agents can pick up a single speclet and start with its kill-test before implementation.
+  - Terminology governance should wait for Lane D's terminology DB integration-test baseline and avoid duplicating Lane C's expiry/notification automation.
+- Sources:
+  - [S1] `.loom/24-parallel-execution-specs.md` Lane F
+  - [S2] `.loom/20-product-spec.md`
+  - [S3] `docs/planning/README.md` P2/P3 backlog
+  - [S4] `docs/planning/CDA-CCDA.md`
+  - [S5] `docs/planning/TERMINOLOGY-MAPPING.md`
+  - [S6] `docs/planning/FHIR-PROFILES.md`
+  - [S7] `docs/planning/SOURCE-PROFILES.md`
+
+### 2026-06-19 - Lane B LLM config namespace + capability surface
+
+- What changed:
+  - Made `pkg/llm.Config.WithEnv()` prefer canonical `FI_FHIR_LLM_*` variables before legacy `LLM_*`, preserving `OPENAI_API_KEY` as the final API-key fallback.
+  - Mirrored the same base URL/API key/default model/quality model precedence in `pkg/config.ApplyEnv()`.
+  - Added a safe GraphQL `llmCapability` query with `enabled`, `configured`, provider host, model names, `status`, and warnings only.
+  - Changed serve-time LLM wiring to honor `FI_FHIR_LLM_ENABLED` and report disabled/unavailable/degraded/available from actual initialization.
+  - Updated LLM docs with canonical and legacy variable names.
+- Why:
+  - Lane B needed runtime LLM configuration to be unambiguous while keeping existing `LLM_*` deployments working.
+- Verification:
+  - `go test ./pkg/config ./pkg/llm ./cmd/fi-fhir ./internal/api/graphql/...` → passed.
+  - `go run github.com/99designs/gqlgen generate --config gqlgen.yml` → passed.
+- Sources:
+  - [S1] `pkg/llm/config.go`
+  - [S2] `pkg/config/config.go`
+  - [S3] `cmd/fi-fhir/main.go`
+  - [S4] `internal/api/graphql/schema.graphql`
+  - [S5] `docs/user-guide/llm-features.md`
+
+### 2026-06-19 - Lane D terminology DB integration CI
+
+- What changed:
+  - Ran the requested `pkg/terminology/db` integration baseline. The no-env testcontainers path failed in `TestICD10Loader_Integration_LoadCSV` with `port "5432/tcp" not found`.
+  - Verified the full package is green through the CI-compatible `POSTGRES_TEST_URL` path against an isolated Postgres service.
+  - Wired `.gitlab-ci.yml` `test:integration` to run `./pkg/terminology/db/` after `./cmd/fi-fhir/...`, with `POSTGRES_TEST_URL` pointing at the existing CI Postgres service and `-p 1` serialization to avoid shared `terminology` schema collisions.
+  - Updated terminology DB test comments and planning docs with the exact CI/local command.
+- Why:
+  - Lane D needs approval/autoroute store behavior protected in CI without relying on Docker-in-Docker or parallel packages that can both `DROP SCHEMA terminology CASCADE`.
+- What's next:
+  - Keep loader fixtures in the full package path; no exclusions were needed after the external-DSN run passed.
+  - Lane C can build pending-autoroute sweep/notification work on this stable store-test base.
+- Sources:
+  - [S1] Command: `go test -tags=integration ./pkg/terminology/db/` -> failed via testcontainers port discovery.
+  - [S2] Command: `POSTGRES_TEST_URL=postgres://testuser:testpass@localhost:55433/fi_fhir_test?sslmode=disable go test -tags=integration ./pkg/terminology/db/` -> passed.
+  - [S3] `.gitlab-ci.yml`
+  - [S4] `pkg/terminology/db/migrations_integration_test.go`
+  - [S5] `pkg/terminology/db/mappings_integration_test.go`
+  - [S6] `docs/planning/README.md`

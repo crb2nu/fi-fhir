@@ -208,6 +208,61 @@ func TestApplyEnv(t *testing.T) {
 	}
 }
 
+func TestApplyEnvLLMCanonicalPrecedence(t *testing.T) {
+	t.Setenv("FI_FHIR_LLM_BASE_URL", "https://canonical.example.com/v1")
+	t.Setenv("FI_FHIR_LLM_API_KEY", "canonical-key")
+	t.Setenv("FI_FHIR_LLM_DEFAULT_MODEL", "canonical-default")
+	t.Setenv("FI_FHIR_LLM_QUALITY_MODEL", "canonical-quality")
+	t.Setenv("LLM_BASE_URL", "https://legacy.example.com/v1")
+	t.Setenv("LLM_API_KEY", "legacy-key")
+	t.Setenv("LLM_DEFAULT_MODEL", "legacy-default")
+	t.Setenv("LLM_QUALITY_MODEL", "legacy-quality")
+	t.Setenv("OPENAI_API_KEY", "openai-fallback")
+
+	cfg := Default()
+	cfg.ApplyEnv()
+
+	if cfg.LLM.BaseURL != "https://canonical.example.com/v1" {
+		t.Errorf("Expected canonical base URL, got %q", cfg.LLM.BaseURL)
+	}
+	if cfg.LLM.APIKey != "canonical-key" {
+		t.Errorf("Expected canonical API key, got %q", cfg.LLM.APIKey)
+	}
+	if cfg.LLM.DefaultModel != "canonical-default" {
+		t.Errorf("Expected canonical default model, got %q", cfg.LLM.DefaultModel)
+	}
+	if cfg.LLM.QualityModel != "canonical-quality" {
+		t.Errorf("Expected canonical quality model, got %q", cfg.LLM.QualityModel)
+	}
+}
+
+func TestApplyEnvLLMLegacyFallback(t *testing.T) {
+	t.Setenv("FI_FHIR_LLM_BASE_URL", "")
+	t.Setenv("FI_FHIR_LLM_API_KEY", "")
+	t.Setenv("FI_FHIR_LLM_DEFAULT_MODEL", "")
+	t.Setenv("FI_FHIR_LLM_QUALITY_MODEL", "")
+	t.Setenv("LLM_BASE_URL", "https://legacy.example.com/v1")
+	t.Setenv("LLM_API_KEY", "legacy-key")
+	t.Setenv("LLM_DEFAULT_MODEL", "legacy-default")
+	t.Setenv("LLM_QUALITY_MODEL", "legacy-quality")
+
+	cfg := Default()
+	cfg.ApplyEnv()
+
+	if cfg.LLM.BaseURL != "https://legacy.example.com/v1" {
+		t.Errorf("Expected legacy base URL fallback, got %q", cfg.LLM.BaseURL)
+	}
+	if cfg.LLM.APIKey != "legacy-key" {
+		t.Errorf("Expected legacy API key fallback, got %q", cfg.LLM.APIKey)
+	}
+	if cfg.LLM.DefaultModel != "legacy-default" {
+		t.Errorf("Expected legacy default model fallback, got %q", cfg.LLM.DefaultModel)
+	}
+	if cfg.LLM.QualityModel != "legacy-quality" {
+		t.Errorf("Expected legacy quality model fallback, got %q", cfg.LLM.QualityModel)
+	}
+}
+
 func TestLoad(t *testing.T) {
 	// Create temp config file
 	tmpDir := t.TempDir()

@@ -2,6 +2,8 @@ package resolvers
 
 import (
 	"fmt"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,6 +19,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/terminology/autoroute"
 	termworkflow "gitlab.flexinfer.ai/libs/fi-fhir/internal/terminology/workflow"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/workflow"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm/copilot"
 	termdb "gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/db"
 )
@@ -80,6 +83,9 @@ type Resolver struct {
 	// WorkflowExplainer provides LLM-powered workflow explanations
 	WorkflowExplainer *explain.WorkflowExplainer
 
+	// LLMCapability describes safe runtime LLM status for UI/API callers.
+	LLMCapability *model.LLMCapability
+
 	// MappingStore provides custom terminology mapping storage
 	MappingStore *termdb.MappingStore
 
@@ -130,6 +136,7 @@ func NewResolver(opts ...ResolverOption) *Resolver {
 		Projections:            projections.NewService(nil), // In-memory projections by default
 		subscriptionClients:    make(map[string]*subscription.Client),
 		subscriptionRecords:    make(map[string]*SubscriptionRecord),
+		LLMCapability:          DefaultLLMCapability(),
 		Version:                "0.1.0",
 		StartTime:              time.Now(),
 	}
@@ -219,6 +226,81 @@ func WithWorkflowExplainer(e *explain.WorkflowExplainer) ResolverOption {
 	return func(r *Resolver) {
 		r.WorkflowExplainer = e
 	}
+}
+
+// WithLLMCapability sets safe runtime LLM capability metadata.
+func WithLLMCapability(capability *model.LLMCapability) ResolverOption {
+	return func(r *Resolver) {
+		r.LLMCapability = cloneLLMCapability(capability)
+	}
+}
+
+// DefaultLLMCapability returns the safe default when LLM runtime state is not wired.
+func DefaultLLMCapability() *model.LLMCapability {
+	return &model.LLMCapability{
+		Enabled:    false,
+		Configured: false,
+		Status:     "disabled",
+		Warnings:   []string{"LLM features are disabled"},
+	}
+}
+
+// NewLLMCapability builds a secret-safe capability view from runtime configuration.
+func NewLLMCapability(enabled bool, cfg llm.Config, status string, warnings []string) *model.LLMCapability {
+	configured := cfg.Validate() == nil
+	copiedWarnings := append([]string(nil), warnings...)
+	host := providerBaseURLHost(cfg.BaseURL)
+	if cfg.BaseURL != "" && host == nil {
+		copiedWarnings = append(copiedWarnings, "LLM provider base URL is invalid; host unavailable")
+	}
+	if status == "" {
+		switch {
+		case !enabled:
+			status = "disabled"
+		case !configured:
+			status = "unavailable"
+		default:
+			status = "available"
+		}
+	}
+
+	return &model.LLMCapability{
+		Enabled:             enabled,
+		Configured:          configured,
+		ProviderBaseURLHost: host,
+		DefaultModel:        optionalString(cfg.DefaultModel),
+		QualityModel:        optionalString(cfg.QualityModel),
+		Status:              status,
+		Warnings:            copiedWarnings,
+	}
+}
+
+func cloneLLMCapability(capability *model.LLMCapability) *model.LLMCapability {
+	if capability == nil {
+		return DefaultLLMCapability()
+	}
+	clone := *capability
+	clone.Warnings = append([]string(nil), capability.Warnings...)
+	return &clone
+}
+
+func providerBaseURLHost(raw string) *string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Host == "" {
+		return nil
+	}
+	host := parsed.Host
+	return &host
+}
+
+func optionalString(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
 }
 
 // WithMappingStore sets the terminology mapping store.
