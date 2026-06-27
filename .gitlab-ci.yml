@@ -883,8 +883,9 @@ security:trivy:
     name: ${DOCKERHUB_CACHE_PREFIX}/aquasec/trivy:${TRIVY_VERSION}
     entrypoint: [""]
   script:
-    - trivy fs --exit-code 0 --severity HIGH,CRITICAL --format sarif -o trivy-report.sarif .
-    - trivy fs --exit-code 1 --severity CRITICAL .
+    # Skip generated CI/tool caches; scan tracked project manifests and source inputs.
+    - trivy fs --skip-dirs .tmp --skip-dirs .go --skip-dirs .cache --skip-dirs ui/.pnpm-store --exit-code 0 --severity HIGH,CRITICAL --format sarif -o trivy-report.sarif .
+    - trivy fs --skip-dirs .tmp --skip-dirs .go --skip-dirs .cache --skip-dirs ui/.pnpm-store --exit-code 1 --severity CRITICAL .
   artifacts:
     reports:
       sast: trivy-report.sarif
