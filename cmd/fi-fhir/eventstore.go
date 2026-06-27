@@ -549,7 +549,16 @@ func runProjectionStatus(args []string) error {
 	}
 
 	projectionNames := []string{"patient_timeline", "event_statistics", "active_encounters"}
+	printProjectionStatus(ctx, checkpointStore, lastPosition, projectionNames)
 
+	return nil
+}
+
+type projectionCheckpointReader interface {
+	GetCheckpoint(ctx context.Context, projectionName string) (int64, error)
+}
+
+func printProjectionStatus(ctx context.Context, checkpointStore projectionCheckpointReader, lastPosition int64, projectionNames []string) {
 	fmt.Println("Projection Status")
 	fmt.Println("-----------------")
 	fmt.Printf("Last Event Position: %d\n\n", lastPosition)
@@ -580,8 +589,6 @@ func runProjectionStatus(args []string) error {
 
 		fmt.Printf("%-25s %12d %12d %s\n", name, checkpoint, behind, status)
 	}
-
-	return nil
 }
 
 func runProjectionRun(args []string) error {

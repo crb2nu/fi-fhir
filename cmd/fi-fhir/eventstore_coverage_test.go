@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"testing"
 )
 
@@ -112,6 +114,64 @@ func TestProjection_Status_NameFlag(t *testing.T) {
 
 	err := runProjectionStatus([]string{"--name", "patient_timeline"})
 	assertError(t, err) // connection error expected
+}
+
+type fakeProjectionCheckpointStore struct {
+	checkpoints map[string]int64
+	errors      map[string]error
+}
+
+func (f fakeProjectionCheckpointStore) GetCheckpoint(_ context.Context, projectionName string) (int64, error) {
+	if err, ok := f.errors[projectionName]; ok {
+		return 0, err
+	}
+	if checkpoint, ok := f.checkpoints[projectionName]; ok {
+		return checkpoint, nil
+	}
+	return -1, nil
+}
+
+func TestPrintProjectionStatus_FormatsCheckpointStates(t *testing.T) {
+	store := fakeProjectionCheckpointStore{
+		checkpoints: map[string]int64{
+			"patient_timeline":  -1,
+			"event_statistics":  7,
+			"active_encounters": 10,
+		},
+	}
+
+	stdout, _ := captureOutput(t, func() {
+		printProjectionStatus(context.Background(), store, 10, []string{
+			"patient_timeline",
+			"event_statistics",
+			"active_encounters",
+		})
+	})
+
+	assertContains(t, stdout, "Projection Status")
+	assertContains(t, stdout, "Last Event Position: 10")
+	assertContains(t, stdout, "patient_timeline")
+	assertContains(t, stdout, "not started")
+	assertContains(t, stdout, "event_statistics")
+	assertContains(t, stdout, "catching up")
+	assertContains(t, stdout, "active_encounters")
+	assertContains(t, stdout, "up-to-date")
+}
+
+func TestPrintProjectionStatus_FormatsCheckpointErrors(t *testing.T) {
+	store := fakeProjectionCheckpointStore{
+		errors: map[string]error{
+			"patient_timeline": errors.New("checkpoint unavailable"),
+		},
+	}
+
+	stdout, _ := captureOutput(t, func() {
+		printProjectionStatus(context.Background(), store, 10, []string{"patient_timeline"})
+	})
+
+	assertContains(t, stdout, "patient_timeline")
+	assertContains(t, stdout, "error")
+	assertContains(t, stdout, "checkpoint unavailable")
 }
 
 func TestProjection_Run_AllFlag(t *testing.T) {

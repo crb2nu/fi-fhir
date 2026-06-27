@@ -275,6 +275,7 @@ testcontainers/Docker-in-Docker and avoiding unsafe concurrent schema drops.
 1. Add offline tests for low-coverage CLI commands: `companion`, `serve`, `subscription *`, `config show/env`.
 2. Add `-tags=live` CLI tests for untested terminology loaders: `terminology load snomed`, `terminology load icd10pcs` (minimal fixtures).
 3. Add remaining ETL CLI coverage (`etl fetch/load/validate`) and projection rebuild coverage, preferring stubs first and `-tags=live` where Postgres/MinIO are required.
+   - 2026-06-27: Added offline projection status formatting coverage; projection rebuild and ETL load branches remain the next highest-value CLI coverage targets.
 
 ### P3 - Future Enhancements
 
