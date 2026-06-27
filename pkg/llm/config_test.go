@@ -336,7 +336,7 @@ func TestConfigWithEnv(t *testing.T) {
 func TestConfigWithEnv_FIFHIRNamespace(t *testing.T) {
 	// Neutralize every relevant var so leakage between subtests can't mask a
 	// precedence bug. t.Setenv auto-restores after each subtest.
-	clear := func(t *testing.T) {
+	clearLLMEnv := func(t *testing.T) {
 		for _, k := range []string{
 			"FI_FHIR_LLM_BASE_URL", "FI_FHIR_LLM_API_KEY",
 			"FI_FHIR_LLM_DEFAULT_MODEL", "FI_FHIR_LLM_QUALITY_MODEL",
@@ -348,7 +348,7 @@ func TestConfigWithEnv_FIFHIRNamespace(t *testing.T) {
 	}
 
 	t.Run("FI_FHIR_LLM_* overrides struct values", func(t *testing.T) {
-		clear(t)
+		clearLLMEnv(t)
 		t.Setenv("FI_FHIR_LLM_BASE_URL", "http://proxy:8000/v1")
 		t.Setenv("FI_FHIR_LLM_API_KEY", "fi-key")
 		t.Setenv("FI_FHIR_LLM_DEFAULT_MODEL", "fi-default")
@@ -371,7 +371,7 @@ func TestConfigWithEnv_FIFHIRNamespace(t *testing.T) {
 	})
 
 	t.Run("FI_FHIR_LLM_* wins over legacy LLM_*", func(t *testing.T) {
-		clear(t)
+		clearLLMEnv(t)
 		t.Setenv("FI_FHIR_LLM_BASE_URL", "http://fifhir:8000/v1")
 		t.Setenv("LLM_BASE_URL", "http://legacy:8000/v1")
 		t.Setenv("FI_FHIR_LLM_QUALITY_MODEL", "fi-quality")
@@ -388,7 +388,7 @@ func TestConfigWithEnv_FIFHIRNamespace(t *testing.T) {
 	})
 
 	t.Run("falls back to legacy LLM_* when FI_FHIR_* unset", func(t *testing.T) {
-		clear(t)
+		clearLLMEnv(t)
 		t.Setenv("LLM_BASE_URL", "http://legacy:8000/v1")
 		t.Setenv("LLM_QUALITY_MODEL", "legacy-quality")
 
@@ -403,7 +403,7 @@ func TestConfigWithEnv_FIFHIRNamespace(t *testing.T) {
 	})
 
 	t.Run("API key precedence FI_FHIR > LLM > OPENAI", func(t *testing.T) {
-		clear(t)
+		clearLLMEnv(t)
 		t.Setenv("FI_FHIR_LLM_API_KEY", "fi-key")
 		t.Setenv("LLM_API_KEY", "llm-key")
 		t.Setenv("OPENAI_API_KEY", "openai-key")
@@ -414,7 +414,7 @@ func TestConfigWithEnv_FIFHIRNamespace(t *testing.T) {
 	})
 
 	t.Run("API key falls back LLM > OPENAI when FI_FHIR unset", func(t *testing.T) {
-		clear(t)
+		clearLLMEnv(t)
 		t.Setenv("LLM_API_KEY", "llm-key")
 		t.Setenv("OPENAI_API_KEY", "openai-key")
 
