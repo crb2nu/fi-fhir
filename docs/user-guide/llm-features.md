@@ -71,6 +71,10 @@ query {
 The response never includes API keys or the full provider URL. `status` is one
 of `disabled`, `unavailable`, `degraded`, or `available`.
 
+`fi-fhir serve` also honors `FI_FHIR_LLM_ENABLED=false` as an explicit off switch
+for GraphQL LLM resolvers. If `FI_FHIR_LLM_ENABLED` is unset, serve preserves the
+legacy behavior of attempting LLM setup from the configured endpoint/model values.
+
 ---
 
 ## Warning Explanations

@@ -264,11 +264,15 @@ Pulled forward because Wave 2 is blocked on an LLM provider (no backend dependen
   deployments keep working. `docs/user-guide/llm-features.md` updated to make `FI_FHIR_LLM_*` canonical and
   note the fallback. *Done*: 5 new Go subtests (`TestConfigWithEnv_FIFHIRNamespace` — override, precedence,
   fallback, 2× API-key chain), `go test ./pkg/llm/...` green, build+vet+gofmt clean.
-  *Deferred within scope (separate, riskier follow-ups, NOT done here)*: (1) `runServe` still ignores
-  `cfg.LLM.Enabled` and the per-feature toggles (Extraction/Copilot/etc.) — wiring those would change
-  enablement behavior (default-false could disable LLM for current deploys), so it needs its own slice;
-  (2) embedding/semantic-terminology config still uses the `LLM_EMBEDDING_*`/`LLM_*` path (out of the serve
-  chat path); (3) the Slice-2a UI "LLM off" honest badge still needs an `llmEnabled` GraphQL capability field.
+  **2026-06-27 follow-up shipped locally**: `fi-fhir serve` now honors explicit
+  `FI_FHIR_LLM_ENABLED=false` by skipping LLM client construction and resolver registration, while leaving
+  unset/empty `FI_FHIR_LLM_ENABLED` in the legacy auto-attempt path so existing `LLM_*` deployments are not
+  silently disabled. The LLM setup block was extracted into a testable helper with focused coverage for
+  disabled/enabled/unset/client-error paths.
+  *Remaining follow-ups*: (1) per-feature toggles (Extraction/Copilot/DataQuality/etc.) still are not wired
+  into serve; (2) embedding/semantic-terminology config still uses the `LLM_EMBEDDING_*`/`LLM_*` path (out of
+  the serve chat path); (3) the Slice-2a UI "LLM off" honest badge still needs an `llmEnabled` GraphQL
+  capability field.
 
 ---
 
