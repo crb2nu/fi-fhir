@@ -470,6 +470,14 @@ type HealthStatus {
   components: [ComponentHealth!]!
 }
 
+type LLMFeatureCapability {
+  name: String!
+  enabled: Boolean!
+  status: String!
+  reason: String
+  model: String
+}
+
 type ParseWarning {
   phase: String!
   code: String!
@@ -1269,6 +1277,7 @@ type LLMCapability {
   qualityModel: String
   status: String!
   warnings: [String!]!
+  features: [LLMFeatureCapability!]!
 }
 
 # =============================================================================

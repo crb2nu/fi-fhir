@@ -242,11 +242,17 @@ func DefaultLLMCapability() *model.LLMCapability {
 		Configured: false,
 		Status:     "disabled",
 		Warnings:   []string{"LLM features are disabled"},
+		Features:   DefaultLLMFeatureCapabilities(false, "disabled", "LLM features are disabled", ""),
 	}
 }
 
 // NewLLMCapability builds a secret-safe capability view from runtime configuration.
 func NewLLMCapability(enabled bool, cfg llm.Config, status string, warnings []string) *model.LLMCapability {
+	return NewLLMCapabilityWithFeatures(enabled, cfg, status, warnings, nil)
+}
+
+// NewLLMCapabilityWithFeatures builds a capability view with explicit feature rows.
+func NewLLMCapabilityWithFeatures(enabled bool, cfg llm.Config, status string, warnings []string, features []model.LLMFeatureCapability) *model.LLMCapability {
 	configured := cfg.Validate() == nil
 	copiedWarnings := append([]string(nil), warnings...)
 	host := providerBaseURLHost(cfg.BaseURL)
@@ -263,6 +269,13 @@ func NewLLMCapability(enabled bool, cfg llm.Config, status string, warnings []st
 			status = "available"
 		}
 	}
+	if len(features) == 0 {
+		reason := strings.Join(copiedWarnings, "; ")
+		featureEnabled := enabled && configured && status == "available"
+		features = DefaultLLMFeatureCapabilities(featureEnabled, status, reason, cfg.QualityModel)
+	} else {
+		features = append([]model.LLMFeatureCapability(nil), features...)
+	}
 
 	return &model.LLMCapability{
 		Enabled:             enabled,
@@ -272,6 +285,7 @@ func NewLLMCapability(enabled bool, cfg llm.Config, status string, warnings []st
 		QualityModel:        optionalString(cfg.QualityModel),
 		Status:              status,
 		Warnings:            copiedWarnings,
+		Features:            features,
 	}
 }
 
@@ -281,6 +295,7 @@ func cloneLLMCapability(capability *model.LLMCapability) *model.LLMCapability {
 	}
 	clone := *capability
 	clone.Warnings = append([]string(nil), capability.Warnings...)
+	clone.Features = append([]model.LLMFeatureCapability(nil), capability.Features...)
 	return &clone
 }
 
@@ -315,6 +330,75 @@ func WithAutorouteEngine(e *autoroute.Engine) ResolverOption {
 	return func(r *Resolver) {
 		r.AutorouteEngine = e
 	}
+}
+
+// NewLLMFeatureCapability reports availability for one LLM-backed GraphQL feature.
+func NewLLMFeatureCapability(name string, enabled bool, status, reason, modelName string) model.LLMFeatureCapability {
+	return llmFeatureCapability(name, enabled, status, reason, modelName)
+}
+
+// DefaultLLMFeatureCapabilities returns the standard GraphQL LLM feature matrix.
+func DefaultLLMFeatureCapabilities(enabled bool, status, reason, modelName string) []model.LLMFeatureCapability {
+	names := []string{
+		"explainWarnings",
+		"extractEntities",
+		"analyzeQuality",
+		"generateWorkflow",
+		"explainWorkflow",
+		"suggestMappings",
+	}
+
+	features := make([]model.LLMFeatureCapability, 0, len(names))
+	for _, name := range names {
+		features = append(features, llmFeatureCapability(name, enabled, status, reason, modelName))
+	}
+	return features
+}
+
+func llmFeatureCapability(name string, enabled bool, status, reason, modelName string) model.LLMFeatureCapability {
+	feature := model.LLMFeatureCapability{
+		Name:    name,
+		Enabled: enabled,
+		Status:  status,
+	}
+	if reason != "" {
+		feature.Reason = strPtr(reason)
+	}
+	if modelName != "" {
+		feature.Model = strPtr(modelName)
+	}
+	return feature
+}
+
+func (r *Resolver) currentLLMFeatureCapabilities(capability *model.LLMCapability) []model.LLMFeatureCapability {
+	modelName := ""
+	if capability.QualityModel != nil {
+		modelName = *capability.QualityModel
+	}
+	if !capability.Enabled || !capability.Configured || capability.Status == "disabled" || capability.Status == "unavailable" {
+		return DefaultLLMFeatureCapabilities(false, capability.Status, strings.Join(capability.Warnings, "; "), modelName)
+	}
+	features := []model.LLMFeatureCapability{
+		resolverLLMFeatureCapability("explainWarnings", r.WarningExplainer != nil),
+		resolverLLMFeatureCapability("extractEntities", r.ClinicalExtractor != nil),
+		resolverLLMFeatureCapability("analyzeQuality", r.QualityAnalyzer != nil),
+		resolverLLMFeatureCapability("generateWorkflow", r.WorkflowCopilot != nil),
+		resolverLLMFeatureCapability("explainWorkflow", r.WorkflowExplainer != nil),
+		resolverLLMFeatureCapability("suggestMappings", r.AutorouteEngine != nil),
+	}
+	for i := range features {
+		if features[i].Model == nil && modelName != "" {
+			features[i].Model = strPtr(modelName)
+		}
+	}
+	return features
+}
+
+func resolverLLMFeatureCapability(name string, enabled bool) model.LLMFeatureCapability {
+	if enabled {
+		return llmFeatureCapability(name, true, "available", "", "")
+	}
+	return llmFeatureCapability(name, false, "unconfigured", "resolver not configured", "")
 }
 
 // WithTemporalClient sets the Temporal client for workflow orchestration.

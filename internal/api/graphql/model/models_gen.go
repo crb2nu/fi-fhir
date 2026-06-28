@@ -288,13 +288,14 @@ type IdentifierConfigInput struct {
 }
 
 type LLMCapability struct {
-	Enabled             bool     `json:"enabled"`
-	Configured          bool     `json:"configured"`
-	ProviderBaseURLHost *string  `json:"providerBaseURLHost,omitempty"`
-	DefaultModel        *string  `json:"defaultModel,omitempty"`
-	QualityModel        *string  `json:"qualityModel,omitempty"`
-	Status              string   `json:"status"`
-	Warnings            []string `json:"warnings"`
+	Enabled             bool                   `json:"enabled"`
+	Configured          bool                   `json:"configured"`
+	ProviderBaseURLHost *string                `json:"providerBaseURLHost,omitempty"`
+	DefaultModel        *string                `json:"defaultModel,omitempty"`
+	QualityModel        *string                `json:"qualityModel,omitempty"`
+	Status              string                 `json:"status"`
+	Warnings            []string               `json:"warnings"`
+	Features            []LLMFeatureCapability `json:"features"`
 }
 
 type ListMappingsInput struct {

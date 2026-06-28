@@ -55,6 +55,17 @@ func TestQueryResolver_LlmCapability_DefaultDisabled(t *testing.T) {
 	if len(capability.Warnings) == 0 {
 		t.Error("Expected default LLM capability warning")
 	}
+	if len(capability.Features) == 0 {
+		t.Fatal("Expected default LLM capability feature rows")
+	}
+	for _, feature := range capability.Features {
+		if feature.Enabled {
+			t.Fatalf("Expected default feature %q to be disabled", feature.Name)
+		}
+		if feature.Status != "disabled" {
+			t.Fatalf("Expected default feature %q status disabled, got %q", feature.Name, feature.Status)
+		}
+	}
 }
 
 func TestQueryResolver_LlmCapability_SafeConfiguredFields(t *testing.T) {
@@ -91,6 +102,9 @@ func TestQueryResolver_LlmCapability_SafeConfiguredFields(t *testing.T) {
 	}
 	if got.Status != "available" {
 		t.Errorf("Expected status available, got %q", got.Status)
+	}
+	if len(got.Features) == 0 {
+		t.Fatal("Expected LLM capability feature rows")
 	}
 }
 

@@ -654,10 +654,20 @@ export type LlmCapability = {
   configured: Scalars['Boolean']['output'];
   defaultModel: Maybe<Scalars['String']['output']>;
   enabled: Scalars['Boolean']['output'];
+  features: Array<LlmFeatureCapability>;
   providerBaseURLHost: Maybe<Scalars['String']['output']>;
   qualityModel: Maybe<Scalars['String']['output']>;
   status: Scalars['String']['output'];
   warnings: Array<Scalars['String']['output']>;
+};
+
+export type LlmFeatureCapability = {
+  __typename?: 'LLMFeatureCapability';
+  enabled: Scalars['Boolean']['output'];
+  model: Maybe<Scalars['String']['output']>;
+  name: Scalars['String']['output'];
+  reason: Maybe<Scalars['String']['output']>;
+  status: Scalars['String']['output'];
 };
 
 export type LabResult = {
