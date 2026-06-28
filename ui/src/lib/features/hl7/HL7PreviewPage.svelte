@@ -39,8 +39,10 @@
   import { resolveMapping } from '$lib/features/terminology/terminologyApi';
   import { toasts } from '$lib/ui/toastStore';
   import { SvelteSet } from 'svelte/reactivity';
+  import { isIntegrationSessionEngineEnabled } from '$lib/features/integration-session';
 
   const store = createHL7PreviewStore();
+  const sessionEngineEnabled = isIntegrationSessionEngineEnabled();
 
   let fileInputEl: HTMLInputElement | null = null;
   let dragDepth = 0;
@@ -66,7 +68,7 @@
     $selectedProfile &&
     (lastUsedProfileId !== $selectedProfile.id ||
       lastUsedProfileVersion !== $selectedProfile.version);
-  const { state, warningsByPhase, events, hl7, updateWarningExplanation } = store;
+  const { state, warningsByPhase, events, sessionDiagnostics, hl7, updateWarningExplanation } = store;
   const samplesStore = createHL7SampleStore();
 
   // LLM explanation state - tracks which warning codes are currently loading
@@ -388,13 +390,14 @@
       const result = await parseHL7Preview({
         source: snapshot.source,
         data,
-        profileId
+        profileId,
+        sessionId: $state.session?.mode === 'session' ? $state.session.id : null
       });
       lastUsedProfileId = profileId;
       lastUsedProfileVersion = $selectedProfile?.version ?? null;
       lastRunRedactionMode =
         useRedactionForPreview && editorRedactionMode !== 'none' ? editorRedactionMode : 'none';
-      state.update((s) => ({ ...s, loading: false, result }));
+      state.update((s) => ({ ...s, loading: false, result, session: result.session ?? null }));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       state.update((s) => ({ ...s, loading: false, error: msg }));
@@ -1111,6 +1114,19 @@
         </StatusPill>
         <Badge>events: {$events.length}</Badge>
         <Badge>warnings: {$state.result.parsePreview.warnings.length}</Badge>
+        {#if sessionEngineEnabled && $state.session}
+          {#if $state.session.mode === 'session'}
+            <Badge variant="info" mono>session={$state.session.id}</Badge>
+            {#if $state.session.runId}
+              <Badge variant="info" mono>run={$state.session.runId}</Badge>
+            {/if}
+          {:else}
+            <Badge variant="warning">session fallback</Badge>
+          {/if}
+          {#if $sessionDiagnostics.length}
+            <Badge variant="warning">diagnostics: {$sessionDiagnostics.length}</Badge>
+          {/if}
+        {/if}
         {#if processState.state !== 'idle'}
           <StatusPill
             variant={processState.state === 'done' ? (processState.result.success ? 'success' : 'danger') : processState.state === 'error' ? 'danger' : 'neutral'}
@@ -1151,6 +1167,35 @@
           <ul class="errors">
             {#each $state.result.parsePreview.errors as err (err)}
               <li>{err}</li>
+            {/each}
+          </ul>
+        </Panel>
+      {/if}
+
+      {#if sessionEngineEnabled && $state.session?.error}
+        <Panel title="Session preview fallback" tone="error">
+          <div class="session-diagnostic">{$state.session.error}</div>
+        </Panel>
+      {/if}
+
+      {#if sessionEngineEnabled && $sessionDiagnostics.length}
+        <Panel title="Session diagnostics">
+          <ul class="session-diagnostics">
+            {#each $sessionDiagnostics as diagnostic (diagnostic.id)}
+              <li>
+                <span class="mono">{diagnostic.code}</span>
+                <span>{diagnostic.message}</span>
+                {#if diagnostic.path}
+                  <button
+                    class="link"
+                    type="button"
+                    on:click={() => inspectPath(diagnostic.path ?? '')}
+                    disabled={$state.loading}
+                  >
+                    {diagnostic.path}
+                  </button>
+                {/if}
+              </li>
             {/each}
           </ul>
         </Panel>
@@ -1557,6 +1602,27 @@
     margin: 0;
     padding-left: 18px;
     color: rgba(254, 226, 226, 0.9);
+  }
+
+  .session-diagnostic {
+    color: var(--color-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 0.86rem;
+  }
+
+  .session-diagnostics {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding-left: 18px;
+    color: var(--color-text-secondary);
+  }
+
+  .session-diagnostics li {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    flex-wrap: wrap;
   }
 
   .quality-section {

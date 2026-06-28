@@ -968,6 +968,46 @@ func (r *mutationResolver) ResumeFhirSubscription(ctx context.Context, id string
 	}, nil
 }
 
+// CreateIntegrationSession is the resolver for the createIntegrationSession field.
+func (r *mutationResolver) CreateIntegrationSession(ctx context.Context, input model.CreateIntegrationSessionInput) (*model.IntegrationSession, error) {
+	return r.integrationSessions.createSession(input)
+}
+
+// ArchiveIntegrationSession is the resolver for the archiveIntegrationSession field.
+func (r *mutationResolver) ArchiveIntegrationSession(ctx context.Context, id string) (*model.IntegrationSession, error) {
+	return r.integrationSessions.archiveSession(id)
+}
+
+// AddSessionSample is the resolver for the addSessionSample field.
+func (r *mutationResolver) AddSessionSample(ctx context.Context, input model.AddSessionSampleInput) (*model.SessionSample, error) {
+	return r.integrationSessions.addSample(input)
+}
+
+// UpdateSessionProfileDraft is the resolver for the updateSessionProfileDraft field.
+func (r *mutationResolver) UpdateSessionProfileDraft(ctx context.Context, input model.UpdateSessionArtifactInput) (*model.SessionArtifact, error) {
+	return r.integrationSessions.saveArtifact(input.SessionID, "profile", input)
+}
+
+// UpdateSessionWorkflowDraft is the resolver for the updateSessionWorkflowDraft field.
+func (r *mutationResolver) UpdateSessionWorkflowDraft(ctx context.Context, input model.UpdateSessionArtifactInput) (*model.SessionArtifact, error) {
+	return r.integrationSessions.saveArtifact(input.SessionID, "workflow", input)
+}
+
+// RunSessionPreview is the resolver for the runSessionPreview field.
+func (r *mutationResolver) RunSessionPreview(ctx context.Context, input model.RunSessionPreviewInput) (*model.SessionRun, error) {
+	return r.integrationSessions.runPreview(input)
+}
+
+// AcceptDiagnosticFix is the resolver for the acceptDiagnosticFix field.
+func (r *mutationResolver) AcceptDiagnosticFix(ctx context.Context, input model.AcceptDiagnosticFixInput) (*model.SessionDiagnostic, error) {
+	return r.integrationSessions.acceptDiagnostic(input)
+}
+
+// ExportIntegrationBundle is the resolver for the exportIntegrationBundle field.
+func (r *mutationResolver) ExportIntegrationBundle(ctx context.Context, input model.ExportIntegrationBundleInput) (*model.IntegrationBundle, error) {
+	return r.integrationSessions.exportBundle(input)
+}
+
 // CreateProfile is the resolver for the createProfile field.
 func (r *mutationResolver) CreateProfile(ctx context.Context, input model.CreateProfileInput) (*model.SourceProfile, error) {
 	if r.ProfileStore == nil {
@@ -2160,6 +2200,42 @@ func (r *queryResolver) ParsePreview(ctx context.Context, format model.SourceFor
 	return result, nil
 }
 
+// IntegrationSession is the resolver for the integrationSession field.
+func (r *queryResolver) IntegrationSession(ctx context.Context, id string) (*model.IntegrationSession, error) {
+	return r.integrationSessions.getSession(id)
+}
+
+// IntegrationSessions is the resolver for the integrationSessions field.
+func (r *queryResolver) IntegrationSessions(ctx context.Context, includeArchived *bool) ([]model.IntegrationSession, error) {
+	archived := includeArchived != nil && *includeArchived
+	return r.integrationSessions.listSessions(archived)
+}
+
+// SessionSamples is the resolver for the sessionSamples field.
+func (r *queryResolver) SessionSamples(ctx context.Context, sessionID string) ([]model.SessionSample, error) {
+	return r.integrationSessions.listSamples(sessionID)
+}
+
+// SessionArtifacts is the resolver for the sessionArtifacts field.
+func (r *queryResolver) SessionArtifacts(ctx context.Context, sessionID string) ([]model.SessionArtifact, error) {
+	return r.integrationSessions.listArtifacts(sessionID)
+}
+
+// SessionRuns is the resolver for the sessionRuns field.
+func (r *queryResolver) SessionRuns(ctx context.Context, sessionID string) ([]model.SessionRun, error) {
+	return r.integrationSessions.listRuns(sessionID)
+}
+
+// SessionRun is the resolver for the sessionRun field.
+func (r *queryResolver) SessionRun(ctx context.Context, id string) (*model.SessionRun, error) {
+	return r.integrationSessions.getRun(id)
+}
+
+// SessionDiagnostics is the resolver for the sessionDiagnostics field.
+func (r *queryResolver) SessionDiagnostics(ctx context.Context, sessionID string, runID *string) ([]model.SessionDiagnostic, error) {
+	return r.integrationSessions.listDiagnostics(sessionID, runID)
+}
+
 // PatientTimeline is the resolver for the patientTimeline field.
 func (r *queryResolver) PatientTimeline(ctx context.Context, mrn string, fromTimestamp *time.Time, toTimestamp *time.Time, limit *int) (*model.PatientTimeline, error) {
 	limitVal := 0
@@ -3110,6 +3186,16 @@ func (r *subscriptionResolver) WorkflowEvents(ctx context.Context, workflowName 
 // PatientEvents is the resolver for the patientEvents field.
 func (r *subscriptionResolver) PatientEvents(ctx context.Context, mrn string) (<-chan model.Event, error) {
 	return r.Store.SubscribePatient(ctx, mrn)
+}
+
+// IntegrationSessionEvents is the resolver for the integrationSessionEvents field.
+func (r *subscriptionResolver) IntegrationSessionEvents(ctx context.Context, sessionID string) (<-chan *model.IntegrationSessionEvent, error) {
+	return r.integrationSessions.subscribe(ctx, sessionID, nil)
+}
+
+// SessionRunEvents is the resolver for the sessionRunEvents field.
+func (r *subscriptionResolver) SessionRunEvents(ctx context.Context, sessionID string, runID *string) (<-chan *model.IntegrationSessionEvent, error) {
+	return r.integrationSessions.subscribe(ctx, sessionID, runID)
 }
 
 // LiveParseStream is the resolver for the liveParseStream subscription.

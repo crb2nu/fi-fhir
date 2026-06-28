@@ -426,6 +426,42 @@ type ComplexityRoot struct {
 		Type             func(childComplexity int) int
 	}
 
+	IntegrationBundle struct {
+		Artifacts   func(childComplexity int) int
+		Diagnostics func(childComplexity int) int
+		ExportedAt  func(childComplexity int) int
+		Runs        func(childComplexity int) int
+		Samples     func(childComplexity int) int
+		Session     func(childComplexity int) int
+		SessionID   func(childComplexity int) int
+	}
+
+	IntegrationSession struct {
+		Archived             func(childComplexity int) int
+		Artifacts            func(childComplexity int) int
+		CreatedAt            func(childComplexity int) int
+		CurrentProfileDraft  func(childComplexity int) int
+		CurrentWorkflowDraft func(childComplexity int) int
+		Description          func(childComplexity int) int
+		Diagnostics          func(childComplexity int) int
+		ID                   func(childComplexity int) int
+		Name                 func(childComplexity int) int
+		Runs                 func(childComplexity int) int
+		Samples              func(childComplexity int) int
+		UpdatedAt            func(childComplexity int) int
+	}
+
+	IntegrationSessionEvent struct {
+		ID        func(childComplexity int) int
+		Message   func(childComplexity int) int
+		Run       func(childComplexity int) int
+		RunID     func(childComplexity int) int
+		Session   func(childComplexity int) int
+		SessionID func(childComplexity int) int
+		Timestamp func(childComplexity int) int
+		Type      func(childComplexity int) int
+	}
+
 	LLMCapability struct {
 		Configured          func(childComplexity int) int
 		DefaultModel        func(childComplexity int) int
@@ -474,6 +510,12 @@ type ComplexityRoot struct {
 		LoincCode   func(childComplexity int) int
 	}
 
+	LineageLink struct {
+		Description func(childComplexity int) int
+		SourcePath  func(childComplexity int) int
+		TargetPath  func(childComplexity int) int
+	}
+
 	Location struct {
 		Bed      func(childComplexity int) int
 		Facility func(childComplexity int) int
@@ -500,12 +542,16 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
+		AcceptDiagnosticFix          func(childComplexity int, input model.AcceptDiagnosticFixInput) int
+		AddSessionSample             func(childComplexity int, input model.AddSessionSampleInput) int
 		ApprovePendingAutoroute      func(childComplexity int, input model.ApprovePendingAutorouteInput) int
 		ApproveWorkflowVersion       func(childComplexity int, input model.ApproveWorkflowVersionInput) int
+		ArchiveIntegrationSession    func(childComplexity int, id string) int
 		ArchiveWorkflowDefinition    func(childComplexity int, input model.ArchiveWorkflowDefinitionInput) int
 		BulkApprovePendingAutoroutes func(childComplexity int, input *model.BulkApproveInput) int
 		CancelTemporalWorkflow       func(childComplexity int, workflowID string, reason *string) int
 		CreateFhirSubscription       func(childComplexity int, input model.CreateSubscriptionInput) int
+		CreateIntegrationSession     func(childComplexity int, input model.CreateIntegrationSessionInput) int
 		CreateMapping                func(childComplexity int, input model.CreateMappingInput) int
 		CreateProfile                func(childComplexity int, input model.CreateProfileInput) int
 		CreateWorkflowDefinition     func(childComplexity int, input model.CreateWorkflowDefinitionInput) int
@@ -520,6 +566,7 @@ type ComplexityRoot struct {
 		DeleteProfile                func(childComplexity int, id string) int
 		DryRunWorkflow               func(childComplexity int, input model.DryRunWorkflowInput) int
 		DuplicateProfile             func(childComplexity int, id string, newID string, newName string) int
+		ExportIntegrationBundle      func(childComplexity int, input model.ExportIntegrationBundleInput) int
 		GenerateWorkflow             func(childComplexity int, input model.GenerateWorkflowInput) int
 		PauseFhirSubscription        func(childComplexity int, id string) int
 		PublishWorkflowVersion       func(childComplexity int, input model.PublishWorkflowVersionInput) int
@@ -528,6 +575,7 @@ type ComplexityRoot struct {
 		RequestWorkflowApproval      func(childComplexity int, input model.RequestWorkflowApprovalInput) int
 		ResumeFhirSubscription       func(childComplexity int, id string) int
 		RollbackWorkflowVersion      func(childComplexity int, input model.RollbackWorkflowVersionInput) int
+		RunSessionPreview            func(childComplexity int, input model.RunSessionPreviewInput) int
 		SaveWorkflowVersion          func(childComplexity int, input model.SaveWorkflowVersionInput) int
 		SignalReviewDecision         func(childComplexity int, input model.SignalReviewDecisionInput) int
 		StartDebugSession            func(childComplexity int, input model.StartDebugSessionInput) int
@@ -538,6 +586,8 @@ type ComplexityRoot struct {
 		TriggerWorkflow              func(childComplexity int, name string, event map[string]any, environment *string, versionID *string) int
 		UpdateMapping                func(childComplexity int, input model.UpdateMappingInput) int
 		UpdateProfile                func(childComplexity int, id string, input model.UpdateProfileInput) int
+		UpdateSessionProfileDraft    func(childComplexity int, input model.UpdateSessionArtifactInput) int
+		UpdateSessionWorkflowDraft   func(childComplexity int, input model.UpdateSessionArtifactInput) int
 		UpdateWorkflowDefinition     func(childComplexity int, input model.UpdateWorkflowDefinitionInput) int
 		UploadMappingCSV             func(childComplexity int, input model.UploadMappingCSVInput) int
 	}
@@ -749,6 +799,8 @@ type ComplexityRoot struct {
 		GetPendingAutoroute      func(childComplexity int, id string) int
 		GetUploadBatch           func(childComplexity int, id string) int
 		Health                   func(childComplexity int) int
+		IntegrationSession       func(childComplexity int, id string) int
+		IntegrationSessions      func(childComplexity int, includeArchived *bool) int
 		ListMappings             func(childComplexity int, input *model.ListMappingsInput) int
 		ListPendingAutoroutes    func(childComplexity int, input *model.ListPendingAutoroutesInput) int
 		LlmCapability            func(childComplexity int) int
@@ -765,6 +817,11 @@ type ComplexityRoot struct {
 		ProjectionStatus         func(childComplexity int) int
 		QuickQualityScore        func(childComplexity int, event map[string]any) int
 		ResolveMapping           func(childComplexity int, input model.ResolveMappingInput) int
+		SessionArtifacts         func(childComplexity int, sessionID string) int
+		SessionDiagnostics       func(childComplexity int, sessionID string, runID *string) int
+		SessionRun               func(childComplexity int, id string) int
+		SessionRuns              func(childComplexity int, sessionID string) int
+		SessionSamples           func(childComplexity int, sessionID string) int
 		SuggestMappings          func(childComplexity int, input model.SuggestMappingsInput) int
 		TemporalWorkflow         func(childComplexity int, workflowID string, runID *string) int
 		TemporalWorkflows        func(childComplexity int, filter *model.TemporalWorkflowFilter, first *int, after *string) int
@@ -796,6 +853,66 @@ type ComplexityRoot struct {
 		Description func(childComplexity int) int
 		Name        func(childComplexity int) int
 		Trigger     func(childComplexity int) int
+	}
+
+	RunStage struct {
+		CompletedAt func(childComplexity int) int
+		DurationMs  func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Name        func(childComplexity int) int
+		StartedAt   func(childComplexity int) int
+		Status      func(childComplexity int) int
+		Summary     func(childComplexity int) int
+	}
+
+	SessionArtifact struct {
+		Content   func(childComplexity int) int
+		CreatedAt func(childComplexity int) int
+		ID        func(childComplexity int) int
+		Kind      func(childComplexity int) int
+		Name      func(childComplexity int) int
+		SessionID func(childComplexity int) int
+		UpdatedAt func(childComplexity int) int
+	}
+
+	SessionDiagnostic struct {
+		Accepted      func(childComplexity int) int
+		AcceptedAt    func(childComplexity int) int
+		Code          func(childComplexity int) int
+		FixSuggestion func(childComplexity int) int
+		ID            func(childComplexity int) int
+		Lineage       func(childComplexity int) int
+		Message       func(childComplexity int) int
+		Path          func(childComplexity int) int
+		RunID         func(childComplexity int) int
+		SampleID      func(childComplexity int) int
+		SessionID     func(childComplexity int) int
+		Severity      func(childComplexity int) int
+	}
+
+	SessionRun struct {
+		CompletedAt func(childComplexity int) int
+		CreatedAt   func(childComplexity int) int
+		Diagnostics func(childComplexity int) int
+		Events      func(childComplexity int) int
+		ID          func(childComplexity int) int
+		SampleID    func(childComplexity int) int
+		SessionID   func(childComplexity int) int
+		Stages      func(childComplexity int) int
+		Status      func(childComplexity int) int
+		Warnings    func(childComplexity int) int
+	}
+
+	SessionSample struct {
+		CreatedAt       func(childComplexity int) int
+		Format          func(childComplexity int) int
+		ID              func(childComplexity int) int
+		Name            func(childComplexity int) int
+		PayloadChecksum func(childComplexity int) int
+		PayloadRef      func(childComplexity int) int
+		RawPayload      func(childComplexity int) int
+		SessionID       func(childComplexity int) int
+		Source          func(childComplexity int) int
 	}
 
 	SourceCount struct {
@@ -831,11 +948,13 @@ type ComplexityRoot struct {
 	}
 
 	Subscription struct {
-		DebugStepEvent  func(childComplexity int, sessionID string) int
-		EventStream     func(childComplexity int, filter *model.EventFilter) int
-		LiveParseStream func(childComplexity int, input model.LiveParseInput) int
-		PatientEvents   func(childComplexity int, mrn string) int
-		WorkflowEvents  func(childComplexity int, workflowName string) int
+		DebugStepEvent           func(childComplexity int, sessionID string) int
+		EventStream              func(childComplexity int, filter *model.EventFilter) int
+		IntegrationSessionEvents func(childComplexity int, sessionID string) int
+		LiveParseStream          func(childComplexity int, input model.LiveParseInput) int
+		PatientEvents            func(childComplexity int, mrn string) int
+		SessionRunEvents         func(childComplexity int, sessionID string, runID *string) int
+		WorkflowEvents           func(childComplexity int, workflowName string) int
 	}
 
 	TemporalWorkflow struct {
@@ -1096,6 +1215,14 @@ type MutationResolver interface {
 	DeleteFhirSubscription(ctx context.Context, id string) (bool, error)
 	PauseFhirSubscription(ctx context.Context, id string) (*model.FhirSubscription, error)
 	ResumeFhirSubscription(ctx context.Context, id string) (*model.FhirSubscription, error)
+	CreateIntegrationSession(ctx context.Context, input model.CreateIntegrationSessionInput) (*model.IntegrationSession, error)
+	ArchiveIntegrationSession(ctx context.Context, id string) (*model.IntegrationSession, error)
+	AddSessionSample(ctx context.Context, input model.AddSessionSampleInput) (*model.SessionSample, error)
+	UpdateSessionProfileDraft(ctx context.Context, input model.UpdateSessionArtifactInput) (*model.SessionArtifact, error)
+	UpdateSessionWorkflowDraft(ctx context.Context, input model.UpdateSessionArtifactInput) (*model.SessionArtifact, error)
+	RunSessionPreview(ctx context.Context, input model.RunSessionPreviewInput) (*model.SessionRun, error)
+	AcceptDiagnosticFix(ctx context.Context, input model.AcceptDiagnosticFixInput) (*model.SessionDiagnostic, error)
+	ExportIntegrationBundle(ctx context.Context, input model.ExportIntegrationBundleInput) (*model.IntegrationBundle, error)
 	CreateProfile(ctx context.Context, input model.CreateProfileInput) (*model.SourceProfile, error)
 	UpdateProfile(ctx context.Context, id string, input model.UpdateProfileInput) (*model.SourceProfile, error)
 	DeleteProfile(ctx context.Context, id string) (bool, error)
@@ -1136,6 +1263,13 @@ type QueryResolver interface {
 	WorkflowApprovalRequests(ctx context.Context, filter *model.WorkflowApprovalRequestFilter, paging *model.PagingInput) ([]model.WorkflowApprovalRequest, error)
 	Health(ctx context.Context) (*model.HealthStatus, error)
 	ParsePreview(ctx context.Context, format model.SourceFormat, data string, source *string) (*model.ParseResult, error)
+	IntegrationSession(ctx context.Context, id string) (*model.IntegrationSession, error)
+	IntegrationSessions(ctx context.Context, includeArchived *bool) ([]model.IntegrationSession, error)
+	SessionSamples(ctx context.Context, sessionID string) ([]model.SessionSample, error)
+	SessionArtifacts(ctx context.Context, sessionID string) ([]model.SessionArtifact, error)
+	SessionRuns(ctx context.Context, sessionID string) ([]model.SessionRun, error)
+	SessionRun(ctx context.Context, id string) (*model.SessionRun, error)
+	SessionDiagnostics(ctx context.Context, sessionID string, runID *string) ([]model.SessionDiagnostic, error)
 	PatientTimeline(ctx context.Context, mrn string, fromTimestamp *time.Time, toTimestamp *time.Time, limit *int) (*model.PatientTimeline, error)
 	EventStatistics(ctx context.Context) (*model.EventStatistics, error)
 	ActiveEncounters(ctx context.Context, location *string, unit *string, class *string) ([]model.ActiveEncounter, error)
@@ -1172,6 +1306,8 @@ type SubscriptionResolver interface {
 	EventStream(ctx context.Context, filter *model.EventFilter) (<-chan model.Event, error)
 	WorkflowEvents(ctx context.Context, workflowName string) (<-chan *model.WorkflowEventNotification, error)
 	PatientEvents(ctx context.Context, mrn string) (<-chan model.Event, error)
+	IntegrationSessionEvents(ctx context.Context, sessionID string) (<-chan *model.IntegrationSessionEvent, error)
+	SessionRunEvents(ctx context.Context, sessionID string, runID *string) (<-chan *model.IntegrationSessionEvent, error)
 	LiveParseStream(ctx context.Context, input model.LiveParseInput) (<-chan *model.ParseEventModel, error)
 	DebugStepEvent(ctx context.Context, sessionID string) (<-chan *model.DebugStepModel, error)
 }
@@ -2709,6 +2845,171 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.ImmunizationEvent.Type(childComplexity), true
 
+	case "IntegrationBundle.artifacts":
+		if e.complexity.IntegrationBundle.Artifacts == nil {
+			break
+		}
+
+		return e.complexity.IntegrationBundle.Artifacts(childComplexity), true
+	case "IntegrationBundle.diagnostics":
+		if e.complexity.IntegrationBundle.Diagnostics == nil {
+			break
+		}
+
+		return e.complexity.IntegrationBundle.Diagnostics(childComplexity), true
+	case "IntegrationBundle.exportedAt":
+		if e.complexity.IntegrationBundle.ExportedAt == nil {
+			break
+		}
+
+		return e.complexity.IntegrationBundle.ExportedAt(childComplexity), true
+	case "IntegrationBundle.runs":
+		if e.complexity.IntegrationBundle.Runs == nil {
+			break
+		}
+
+		return e.complexity.IntegrationBundle.Runs(childComplexity), true
+	case "IntegrationBundle.samples":
+		if e.complexity.IntegrationBundle.Samples == nil {
+			break
+		}
+
+		return e.complexity.IntegrationBundle.Samples(childComplexity), true
+	case "IntegrationBundle.session":
+		if e.complexity.IntegrationBundle.Session == nil {
+			break
+		}
+
+		return e.complexity.IntegrationBundle.Session(childComplexity), true
+	case "IntegrationBundle.sessionId":
+		if e.complexity.IntegrationBundle.SessionID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationBundle.SessionID(childComplexity), true
+
+	case "IntegrationSession.archived":
+		if e.complexity.IntegrationSession.Archived == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSession.Archived(childComplexity), true
+	case "IntegrationSession.artifacts":
+		if e.complexity.IntegrationSession.Artifacts == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSession.Artifacts(childComplexity), true
+	case "IntegrationSession.createdAt":
+		if e.complexity.IntegrationSession.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSession.CreatedAt(childComplexity), true
+	case "IntegrationSession.currentProfileDraft":
+		if e.complexity.IntegrationSession.CurrentProfileDraft == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSession.CurrentProfileDraft(childComplexity), true
+	case "IntegrationSession.currentWorkflowDraft":
+		if e.complexity.IntegrationSession.CurrentWorkflowDraft == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSession.CurrentWorkflowDraft(childComplexity), true
+	case "IntegrationSession.description":
+		if e.complexity.IntegrationSession.Description == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSession.Description(childComplexity), true
+	case "IntegrationSession.diagnostics":
+		if e.complexity.IntegrationSession.Diagnostics == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSession.Diagnostics(childComplexity), true
+	case "IntegrationSession.id":
+		if e.complexity.IntegrationSession.ID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSession.ID(childComplexity), true
+	case "IntegrationSession.name":
+		if e.complexity.IntegrationSession.Name == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSession.Name(childComplexity), true
+	case "IntegrationSession.runs":
+		if e.complexity.IntegrationSession.Runs == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSession.Runs(childComplexity), true
+	case "IntegrationSession.samples":
+		if e.complexity.IntegrationSession.Samples == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSession.Samples(childComplexity), true
+	case "IntegrationSession.updatedAt":
+		if e.complexity.IntegrationSession.UpdatedAt == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSession.UpdatedAt(childComplexity), true
+
+	case "IntegrationSessionEvent.id":
+		if e.complexity.IntegrationSessionEvent.ID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSessionEvent.ID(childComplexity), true
+	case "IntegrationSessionEvent.message":
+		if e.complexity.IntegrationSessionEvent.Message == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSessionEvent.Message(childComplexity), true
+	case "IntegrationSessionEvent.run":
+		if e.complexity.IntegrationSessionEvent.Run == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSessionEvent.Run(childComplexity), true
+	case "IntegrationSessionEvent.runId":
+		if e.complexity.IntegrationSessionEvent.RunID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSessionEvent.RunID(childComplexity), true
+	case "IntegrationSessionEvent.session":
+		if e.complexity.IntegrationSessionEvent.Session == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSessionEvent.Session(childComplexity), true
+	case "IntegrationSessionEvent.sessionId":
+		if e.complexity.IntegrationSessionEvent.SessionID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSessionEvent.SessionID(childComplexity), true
+	case "IntegrationSessionEvent.timestamp":
+		if e.complexity.IntegrationSessionEvent.Timestamp == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSessionEvent.Timestamp(childComplexity), true
+	case "IntegrationSessionEvent.type":
+		if e.complexity.IntegrationSessionEvent.Type == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSessionEvent.Type(childComplexity), true
+
 	case "LLMCapability.configured":
 		if e.complexity.LLMCapability.Configured == nil {
 			break
@@ -2912,6 +3213,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.LabTest.LoincCode(childComplexity), true
 
+	case "LineageLink.description":
+		if e.complexity.LineageLink.Description == nil {
+			break
+		}
+
+		return e.complexity.LineageLink.Description(childComplexity), true
+	case "LineageLink.sourcePath":
+		if e.complexity.LineageLink.SourcePath == nil {
+			break
+		}
+
+		return e.complexity.LineageLink.SourcePath(childComplexity), true
+	case "LineageLink.targetPath":
+		if e.complexity.LineageLink.TargetPath == nil {
+			break
+		}
+
+		return e.complexity.LineageLink.TargetPath(childComplexity), true
+
 	case "Location.bed":
 		if e.complexity.Location.Bed == nil {
 			break
@@ -3011,6 +3331,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.MessageClassification.Summary(childComplexity), true
 
+	case "Mutation.acceptDiagnosticFix":
+		if e.complexity.Mutation.AcceptDiagnosticFix == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_acceptDiagnosticFix_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.AcceptDiagnosticFix(childComplexity, args["input"].(model.AcceptDiagnosticFixInput)), true
+	case "Mutation.addSessionSample":
+		if e.complexity.Mutation.AddSessionSample == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_addSessionSample_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.AddSessionSample(childComplexity, args["input"].(model.AddSessionSampleInput)), true
 	case "Mutation.approvePendingAutoroute":
 		if e.complexity.Mutation.ApprovePendingAutoroute == nil {
 			break
@@ -3033,6 +3375,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.ApproveWorkflowVersion(childComplexity, args["input"].(model.ApproveWorkflowVersionInput)), true
+	case "Mutation.archiveIntegrationSession":
+		if e.complexity.Mutation.ArchiveIntegrationSession == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_archiveIntegrationSession_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.ArchiveIntegrationSession(childComplexity, args["id"].(string)), true
 	case "Mutation.archiveWorkflowDefinition":
 		if e.complexity.Mutation.ArchiveWorkflowDefinition == nil {
 			break
@@ -3077,6 +3430,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.CreateFhirSubscription(childComplexity, args["input"].(model.CreateSubscriptionInput)), true
+	case "Mutation.createIntegrationSession":
+		if e.complexity.Mutation.CreateIntegrationSession == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createIntegrationSession_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CreateIntegrationSession(childComplexity, args["input"].(model.CreateIntegrationSessionInput)), true
 	case "Mutation.createMapping":
 		if e.complexity.Mutation.CreateMapping == nil {
 			break
@@ -3231,6 +3595,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.DuplicateProfile(childComplexity, args["id"].(string), args["newId"].(string), args["newName"].(string)), true
+	case "Mutation.exportIntegrationBundle":
+		if e.complexity.Mutation.ExportIntegrationBundle == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_exportIntegrationBundle_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.ExportIntegrationBundle(childComplexity, args["input"].(model.ExportIntegrationBundleInput)), true
 	case "Mutation.generateWorkflow":
 		if e.complexity.Mutation.GenerateWorkflow == nil {
 			break
@@ -3319,6 +3694,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.RollbackWorkflowVersion(childComplexity, args["input"].(model.RollbackWorkflowVersionInput)), true
+	case "Mutation.runSessionPreview":
+		if e.complexity.Mutation.RunSessionPreview == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_runSessionPreview_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.RunSessionPreview(childComplexity, args["input"].(model.RunSessionPreviewInput)), true
 	case "Mutation.saveWorkflowVersion":
 		if e.complexity.Mutation.SaveWorkflowVersion == nil {
 			break
@@ -3429,6 +3815,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.UpdateProfile(childComplexity, args["id"].(string), args["input"].(model.UpdateProfileInput)), true
+	case "Mutation.updateSessionProfileDraft":
+		if e.complexity.Mutation.UpdateSessionProfileDraft == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateSessionProfileDraft_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UpdateSessionProfileDraft(childComplexity, args["input"].(model.UpdateSessionArtifactInput)), true
+	case "Mutation.updateSessionWorkflowDraft":
+		if e.complexity.Mutation.UpdateSessionWorkflowDraft == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateSessionWorkflowDraft_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UpdateSessionWorkflowDraft(childComplexity, args["input"].(model.UpdateSessionArtifactInput)), true
 	case "Mutation.updateWorkflowDefinition":
 		if e.complexity.Mutation.UpdateWorkflowDefinition == nil {
 			break
@@ -4406,6 +4814,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.Health(childComplexity), true
+	case "Query.integrationSession":
+		if e.complexity.Query.IntegrationSession == nil {
+			break
+		}
+
+		args, err := ec.field_Query_integrationSession_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.IntegrationSession(childComplexity, args["id"].(string)), true
+	case "Query.integrationSessions":
+		if e.complexity.Query.IntegrationSessions == nil {
+			break
+		}
+
+		args, err := ec.field_Query_integrationSessions_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.IntegrationSessions(childComplexity, args["includeArchived"].(*bool)), true
 	case "Query.listMappings":
 		if e.complexity.Query.ListMappings == nil {
 			break
@@ -4567,6 +4997,61 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.ResolveMapping(childComplexity, args["input"].(model.ResolveMappingInput)), true
+	case "Query.sessionArtifacts":
+		if e.complexity.Query.SessionArtifacts == nil {
+			break
+		}
+
+		args, err := ec.field_Query_sessionArtifacts_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.SessionArtifacts(childComplexity, args["sessionId"].(string)), true
+	case "Query.sessionDiagnostics":
+		if e.complexity.Query.SessionDiagnostics == nil {
+			break
+		}
+
+		args, err := ec.field_Query_sessionDiagnostics_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.SessionDiagnostics(childComplexity, args["sessionId"].(string), args["runId"].(*string)), true
+	case "Query.sessionRun":
+		if e.complexity.Query.SessionRun == nil {
+			break
+		}
+
+		args, err := ec.field_Query_sessionRun_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.SessionRun(childComplexity, args["id"].(string)), true
+	case "Query.sessionRuns":
+		if e.complexity.Query.SessionRuns == nil {
+			break
+		}
+
+		args, err := ec.field_Query_sessionRuns_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.SessionRuns(childComplexity, args["sessionId"].(string)), true
+	case "Query.sessionSamples":
+		if e.complexity.Query.SessionSamples == nil {
+			break
+		}
+
+		args, err := ec.field_Query_sessionSamples_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.SessionSamples(childComplexity, args["sessionId"].(string)), true
 	case "Query.suggestMappings":
 		if e.complexity.Query.SuggestMappings == nil {
 			break
@@ -4780,6 +5265,281 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.RouteExplanation.Trigger(childComplexity), true
 
+	case "RunStage.completedAt":
+		if e.complexity.RunStage.CompletedAt == nil {
+			break
+		}
+
+		return e.complexity.RunStage.CompletedAt(childComplexity), true
+	case "RunStage.durationMs":
+		if e.complexity.RunStage.DurationMs == nil {
+			break
+		}
+
+		return e.complexity.RunStage.DurationMs(childComplexity), true
+	case "RunStage.id":
+		if e.complexity.RunStage.ID == nil {
+			break
+		}
+
+		return e.complexity.RunStage.ID(childComplexity), true
+	case "RunStage.name":
+		if e.complexity.RunStage.Name == nil {
+			break
+		}
+
+		return e.complexity.RunStage.Name(childComplexity), true
+	case "RunStage.startedAt":
+		if e.complexity.RunStage.StartedAt == nil {
+			break
+		}
+
+		return e.complexity.RunStage.StartedAt(childComplexity), true
+	case "RunStage.status":
+		if e.complexity.RunStage.Status == nil {
+			break
+		}
+
+		return e.complexity.RunStage.Status(childComplexity), true
+	case "RunStage.summary":
+		if e.complexity.RunStage.Summary == nil {
+			break
+		}
+
+		return e.complexity.RunStage.Summary(childComplexity), true
+
+	case "SessionArtifact.content":
+		if e.complexity.SessionArtifact.Content == nil {
+			break
+		}
+
+		return e.complexity.SessionArtifact.Content(childComplexity), true
+	case "SessionArtifact.createdAt":
+		if e.complexity.SessionArtifact.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.SessionArtifact.CreatedAt(childComplexity), true
+	case "SessionArtifact.id":
+		if e.complexity.SessionArtifact.ID == nil {
+			break
+		}
+
+		return e.complexity.SessionArtifact.ID(childComplexity), true
+	case "SessionArtifact.kind":
+		if e.complexity.SessionArtifact.Kind == nil {
+			break
+		}
+
+		return e.complexity.SessionArtifact.Kind(childComplexity), true
+	case "SessionArtifact.name":
+		if e.complexity.SessionArtifact.Name == nil {
+			break
+		}
+
+		return e.complexity.SessionArtifact.Name(childComplexity), true
+	case "SessionArtifact.sessionId":
+		if e.complexity.SessionArtifact.SessionID == nil {
+			break
+		}
+
+		return e.complexity.SessionArtifact.SessionID(childComplexity), true
+	case "SessionArtifact.updatedAt":
+		if e.complexity.SessionArtifact.UpdatedAt == nil {
+			break
+		}
+
+		return e.complexity.SessionArtifact.UpdatedAt(childComplexity), true
+
+	case "SessionDiagnostic.accepted":
+		if e.complexity.SessionDiagnostic.Accepted == nil {
+			break
+		}
+
+		return e.complexity.SessionDiagnostic.Accepted(childComplexity), true
+	case "SessionDiagnostic.acceptedAt":
+		if e.complexity.SessionDiagnostic.AcceptedAt == nil {
+			break
+		}
+
+		return e.complexity.SessionDiagnostic.AcceptedAt(childComplexity), true
+	case "SessionDiagnostic.code":
+		if e.complexity.SessionDiagnostic.Code == nil {
+			break
+		}
+
+		return e.complexity.SessionDiagnostic.Code(childComplexity), true
+	case "SessionDiagnostic.fixSuggestion":
+		if e.complexity.SessionDiagnostic.FixSuggestion == nil {
+			break
+		}
+
+		return e.complexity.SessionDiagnostic.FixSuggestion(childComplexity), true
+	case "SessionDiagnostic.id":
+		if e.complexity.SessionDiagnostic.ID == nil {
+			break
+		}
+
+		return e.complexity.SessionDiagnostic.ID(childComplexity), true
+	case "SessionDiagnostic.lineage":
+		if e.complexity.SessionDiagnostic.Lineage == nil {
+			break
+		}
+
+		return e.complexity.SessionDiagnostic.Lineage(childComplexity), true
+	case "SessionDiagnostic.message":
+		if e.complexity.SessionDiagnostic.Message == nil {
+			break
+		}
+
+		return e.complexity.SessionDiagnostic.Message(childComplexity), true
+	case "SessionDiagnostic.path":
+		if e.complexity.SessionDiagnostic.Path == nil {
+			break
+		}
+
+		return e.complexity.SessionDiagnostic.Path(childComplexity), true
+	case "SessionDiagnostic.runId":
+		if e.complexity.SessionDiagnostic.RunID == nil {
+			break
+		}
+
+		return e.complexity.SessionDiagnostic.RunID(childComplexity), true
+	case "SessionDiagnostic.sampleId":
+		if e.complexity.SessionDiagnostic.SampleID == nil {
+			break
+		}
+
+		return e.complexity.SessionDiagnostic.SampleID(childComplexity), true
+	case "SessionDiagnostic.sessionId":
+		if e.complexity.SessionDiagnostic.SessionID == nil {
+			break
+		}
+
+		return e.complexity.SessionDiagnostic.SessionID(childComplexity), true
+	case "SessionDiagnostic.severity":
+		if e.complexity.SessionDiagnostic.Severity == nil {
+			break
+		}
+
+		return e.complexity.SessionDiagnostic.Severity(childComplexity), true
+
+	case "SessionRun.completedAt":
+		if e.complexity.SessionRun.CompletedAt == nil {
+			break
+		}
+
+		return e.complexity.SessionRun.CompletedAt(childComplexity), true
+	case "SessionRun.createdAt":
+		if e.complexity.SessionRun.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.SessionRun.CreatedAt(childComplexity), true
+	case "SessionRun.diagnostics":
+		if e.complexity.SessionRun.Diagnostics == nil {
+			break
+		}
+
+		return e.complexity.SessionRun.Diagnostics(childComplexity), true
+	case "SessionRun.events":
+		if e.complexity.SessionRun.Events == nil {
+			break
+		}
+
+		return e.complexity.SessionRun.Events(childComplexity), true
+	case "SessionRun.id":
+		if e.complexity.SessionRun.ID == nil {
+			break
+		}
+
+		return e.complexity.SessionRun.ID(childComplexity), true
+	case "SessionRun.sampleId":
+		if e.complexity.SessionRun.SampleID == nil {
+			break
+		}
+
+		return e.complexity.SessionRun.SampleID(childComplexity), true
+	case "SessionRun.sessionId":
+		if e.complexity.SessionRun.SessionID == nil {
+			break
+		}
+
+		return e.complexity.SessionRun.SessionID(childComplexity), true
+	case "SessionRun.stages":
+		if e.complexity.SessionRun.Stages == nil {
+			break
+		}
+
+		return e.complexity.SessionRun.Stages(childComplexity), true
+	case "SessionRun.status":
+		if e.complexity.SessionRun.Status == nil {
+			break
+		}
+
+		return e.complexity.SessionRun.Status(childComplexity), true
+	case "SessionRun.warnings":
+		if e.complexity.SessionRun.Warnings == nil {
+			break
+		}
+
+		return e.complexity.SessionRun.Warnings(childComplexity), true
+
+	case "SessionSample.createdAt":
+		if e.complexity.SessionSample.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.SessionSample.CreatedAt(childComplexity), true
+	case "SessionSample.format":
+		if e.complexity.SessionSample.Format == nil {
+			break
+		}
+
+		return e.complexity.SessionSample.Format(childComplexity), true
+	case "SessionSample.id":
+		if e.complexity.SessionSample.ID == nil {
+			break
+		}
+
+		return e.complexity.SessionSample.ID(childComplexity), true
+	case "SessionSample.name":
+		if e.complexity.SessionSample.Name == nil {
+			break
+		}
+
+		return e.complexity.SessionSample.Name(childComplexity), true
+	case "SessionSample.payloadChecksum":
+		if e.complexity.SessionSample.PayloadChecksum == nil {
+			break
+		}
+
+		return e.complexity.SessionSample.PayloadChecksum(childComplexity), true
+	case "SessionSample.payloadRef":
+		if e.complexity.SessionSample.PayloadRef == nil {
+			break
+		}
+
+		return e.complexity.SessionSample.PayloadRef(childComplexity), true
+	case "SessionSample.rawPayload":
+		if e.complexity.SessionSample.RawPayload == nil {
+			break
+		}
+
+		return e.complexity.SessionSample.RawPayload(childComplexity), true
+	case "SessionSample.sessionId":
+		if e.complexity.SessionSample.SessionID == nil {
+			break
+		}
+
+		return e.complexity.SessionSample.SessionID(childComplexity), true
+	case "SessionSample.source":
+		if e.complexity.SessionSample.Source == nil {
+			break
+		}
+
+		return e.complexity.SessionSample.Source(childComplexity), true
+
 	case "SourceCount.count":
 		if e.complexity.SourceCount.Count == nil {
 			break
@@ -4926,6 +5686,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Subscription.EventStream(childComplexity, args["filter"].(*model.EventFilter)), true
+	case "Subscription.integrationSessionEvents":
+		if e.complexity.Subscription.IntegrationSessionEvents == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_integrationSessionEvents_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Subscription.IntegrationSessionEvents(childComplexity, args["sessionId"].(string)), true
 	case "Subscription.liveParseStream":
 		if e.complexity.Subscription.LiveParseStream == nil {
 			break
@@ -4948,6 +5719,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Subscription.PatientEvents(childComplexity, args["mrn"].(string)), true
+	case "Subscription.sessionRunEvents":
+		if e.complexity.Subscription.SessionRunEvents == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_sessionRunEvents_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Subscription.SessionRunEvents(childComplexity, args["sessionId"].(string), args["runId"].(*string)), true
 	case "Subscription.workflowEvents":
 		if e.complexity.Subscription.WorkflowEvents == nil {
 			break
@@ -5943,6 +6725,8 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := executionContext{opCtx, e, 0, 0, make(chan graphql.DeferredResult)}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputAcceptDiagnosticFixInput,
+		ec.unmarshalInputAddSessionSampleInput,
 		ec.unmarshalInputAnalyzeQualityInput,
 		ec.unmarshalInputApprovePendingAutorouteInput,
 		ec.unmarshalInputApproveWorkflowVersionInput,
@@ -5952,6 +6736,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputBatchMessageItem,
 		ec.unmarshalInputBulkApproveInput,
 		ec.unmarshalInputClassifyMessageInput,
+		ec.unmarshalInputCreateIntegrationSessionInput,
 		ec.unmarshalInputCreateMappingInput,
 		ec.unmarshalInputCreateProfileInput,
 		ec.unmarshalInputCreateSubscriptionInput,
@@ -5961,6 +6746,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputEventFilter,
 		ec.unmarshalInputEventOrderBy,
 		ec.unmarshalInputExplainWorkflowInput,
+		ec.unmarshalInputExportIntegrationBundleInput,
 		ec.unmarshalInputExtractEntitiesInput,
 		ec.unmarshalInputGenerateWorkflowInput,
 		ec.unmarshalInputHL7v2ConfigInput,
@@ -5979,6 +6765,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputRequestWorkflowApprovalInput,
 		ec.unmarshalInputResolveMappingInput,
 		ec.unmarshalInputRollbackWorkflowVersionInput,
+		ec.unmarshalInputRunSessionPreviewInput,
 		ec.unmarshalInputSaveWorkflowVersionInput,
 		ec.unmarshalInputSetBreakpointInput,
 		ec.unmarshalInputSignalReviewDecisionInput,
@@ -5995,6 +6782,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputToleranceConfigInput,
 		ec.unmarshalInputUpdateMappingInput,
 		ec.unmarshalInputUpdateProfileInput,
+		ec.unmarshalInputUpdateSessionArtifactInput,
 		ec.unmarshalInputUpdateWorkflowDefinitionInput,
 		ec.unmarshalInputUploadMappingCSVInput,
 		ec.unmarshalInputValidationSettingsInput,
@@ -6135,6 +6923,28 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 
 // region    ***************************** args.gotpl *****************************
 
+func (ec *executionContext) field_Mutation_acceptDiagnosticFix_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNAcceptDiagnosticFixInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAcceptDiagnosticFixInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_addSessionSample_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNAddSessionSampleInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAddSessionSampleInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_approvePendingAutoroute_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -6154,6 +6964,17 @@ func (ec *executionContext) field_Mutation_approveWorkflowVersion_args(ctx conte
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_archiveIntegrationSession_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -6199,6 +7020,17 @@ func (ec *executionContext) field_Mutation_createFhirSubscription_args(ctx conte
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNCreateSubscriptionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐCreateSubscriptionInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createIntegrationSession_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNCreateIntegrationSessionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐCreateIntegrationSessionInput)
 	if err != nil {
 		return nil, err
 	}
@@ -6375,6 +7207,17 @@ func (ec *executionContext) field_Mutation_duplicateProfile_args(ctx context.Con
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_exportIntegrationBundle_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNExportIntegrationBundleInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐExportIntegrationBundleInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_generateWorkflow_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -6456,6 +7299,17 @@ func (ec *executionContext) field_Mutation_rollbackWorkflowVersion_args(ctx cont
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNRollbackWorkflowVersionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐRollbackWorkflowVersionInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_runSessionPreview_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNRunSessionPreviewInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐRunSessionPreviewInput)
 	if err != nil {
 		return nil, err
 	}
@@ -6590,6 +7444,28 @@ func (ec *executionContext) field_Mutation_updateProfile_args(ctx context.Contex
 		return nil, err
 	}
 	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateSessionProfileDraft_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNUpdateSessionArtifactInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐUpdateSessionArtifactInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateSessionWorkflowDraft_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNUpdateSessionArtifactInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐUpdateSessionArtifactInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -6821,6 +7697,28 @@ func (ec *executionContext) field_Query_getUploadBatch_args(ctx context.Context,
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_integrationSession_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_integrationSessions_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "includeArchived", ec.unmarshalOBoolean2ᚖbool)
+	if err != nil {
+		return nil, err
+	}
+	args["includeArchived"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_listMappings_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -7029,6 +7927,66 @@ func (ec *executionContext) field_Query_resolveMapping_args(ctx context.Context,
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_sessionArtifacts_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "sessionId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["sessionId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_sessionDiagnostics_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "sessionId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["sessionId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "runId", ec.unmarshalOID2ᚖstring)
+	if err != nil {
+		return nil, err
+	}
+	args["runId"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_sessionRun_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_sessionRuns_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "sessionId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["sessionId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_sessionSamples_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "sessionId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["sessionId"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_suggestMappings_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -7218,6 +8176,17 @@ func (ec *executionContext) field_Subscription_eventStream_args(ctx context.Cont
 	return args, nil
 }
 
+func (ec *executionContext) field_Subscription_integrationSessionEvents_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "sessionId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["sessionId"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Subscription_liveParseStream_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -7237,6 +8206,22 @@ func (ec *executionContext) field_Subscription_patientEvents_args(ctx context.Co
 		return nil, err
 	}
 	args["mrn"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_sessionRunEvents_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "sessionId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["sessionId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "runId", ec.unmarshalOID2ᚖstring)
+	if err != nil {
+		return nil, err
+	}
+	args["runId"] = arg1
 	return args, nil
 }
 
@@ -14972,6 +15957,1063 @@ func (ec *executionContext) fieldContext_ImmunizationEvent_administeredDate(_ co
 	return fc, nil
 }
 
+func (ec *executionContext) _IntegrationBundle_sessionId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationBundle) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationBundle_sessionId,
+		func(ctx context.Context) (any, error) {
+			return obj.SessionID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationBundle_sessionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationBundle",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationBundle_exportedAt(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationBundle) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationBundle_exportedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.ExportedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationBundle_exportedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationBundle",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationBundle_session(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationBundle) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationBundle_session,
+		func(ctx context.Context) (any, error) {
+			return obj.Session, nil
+		},
+		nil,
+		ec.marshalNIntegrationSession2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSession,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationBundle_session(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationBundle",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_IntegrationSession_id(ctx, field)
+			case "name":
+				return ec.fieldContext_IntegrationSession_name(ctx, field)
+			case "description":
+				return ec.fieldContext_IntegrationSession_description(ctx, field)
+			case "archived":
+				return ec.fieldContext_IntegrationSession_archived(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_IntegrationSession_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_IntegrationSession_updatedAt(ctx, field)
+			case "samples":
+				return ec.fieldContext_IntegrationSession_samples(ctx, field)
+			case "artifacts":
+				return ec.fieldContext_IntegrationSession_artifacts(ctx, field)
+			case "runs":
+				return ec.fieldContext_IntegrationSession_runs(ctx, field)
+			case "diagnostics":
+				return ec.fieldContext_IntegrationSession_diagnostics(ctx, field)
+			case "currentProfileDraft":
+				return ec.fieldContext_IntegrationSession_currentProfileDraft(ctx, field)
+			case "currentWorkflowDraft":
+				return ec.fieldContext_IntegrationSession_currentWorkflowDraft(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationSession", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationBundle_samples(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationBundle) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationBundle_samples,
+		func(ctx context.Context) (any, error) {
+			return obj.Samples, nil
+		},
+		nil,
+		ec.marshalNSessionSample2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionSampleᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationBundle_samples(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationBundle",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SessionSample_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_SessionSample_sessionId(ctx, field)
+			case "name":
+				return ec.fieldContext_SessionSample_name(ctx, field)
+			case "format":
+				return ec.fieldContext_SessionSample_format(ctx, field)
+			case "source":
+				return ec.fieldContext_SessionSample_source(ctx, field)
+			case "rawPayload":
+				return ec.fieldContext_SessionSample_rawPayload(ctx, field)
+			case "payloadChecksum":
+				return ec.fieldContext_SessionSample_payloadChecksum(ctx, field)
+			case "payloadRef":
+				return ec.fieldContext_SessionSample_payloadRef(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_SessionSample_createdAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SessionSample", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationBundle_artifacts(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationBundle) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationBundle_artifacts,
+		func(ctx context.Context) (any, error) {
+			return obj.Artifacts, nil
+		},
+		nil,
+		ec.marshalNSessionArtifact2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionArtifactᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationBundle_artifacts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationBundle",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SessionArtifact_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_SessionArtifact_sessionId(ctx, field)
+			case "kind":
+				return ec.fieldContext_SessionArtifact_kind(ctx, field)
+			case "name":
+				return ec.fieldContext_SessionArtifact_name(ctx, field)
+			case "content":
+				return ec.fieldContext_SessionArtifact_content(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_SessionArtifact_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_SessionArtifact_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SessionArtifact", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationBundle_runs(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationBundle) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationBundle_runs,
+		func(ctx context.Context) (any, error) {
+			return obj.Runs, nil
+		},
+		nil,
+		ec.marshalNSessionRun2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionRunᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationBundle_runs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationBundle",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SessionRun_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_SessionRun_sessionId(ctx, field)
+			case "sampleId":
+				return ec.fieldContext_SessionRun_sampleId(ctx, field)
+			case "status":
+				return ec.fieldContext_SessionRun_status(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_SessionRun_createdAt(ctx, field)
+			case "completedAt":
+				return ec.fieldContext_SessionRun_completedAt(ctx, field)
+			case "stages":
+				return ec.fieldContext_SessionRun_stages(ctx, field)
+			case "diagnostics":
+				return ec.fieldContext_SessionRun_diagnostics(ctx, field)
+			case "events":
+				return ec.fieldContext_SessionRun_events(ctx, field)
+			case "warnings":
+				return ec.fieldContext_SessionRun_warnings(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SessionRun", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationBundle_diagnostics(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationBundle) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationBundle_diagnostics,
+		func(ctx context.Context) (any, error) {
+			return obj.Diagnostics, nil
+		},
+		nil,
+		ec.marshalNSessionDiagnostic2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionDiagnosticᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationBundle_diagnostics(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationBundle",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SessionDiagnostic_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_SessionDiagnostic_sessionId(ctx, field)
+			case "runId":
+				return ec.fieldContext_SessionDiagnostic_runId(ctx, field)
+			case "sampleId":
+				return ec.fieldContext_SessionDiagnostic_sampleId(ctx, field)
+			case "severity":
+				return ec.fieldContext_SessionDiagnostic_severity(ctx, field)
+			case "code":
+				return ec.fieldContext_SessionDiagnostic_code(ctx, field)
+			case "message":
+				return ec.fieldContext_SessionDiagnostic_message(ctx, field)
+			case "path":
+				return ec.fieldContext_SessionDiagnostic_path(ctx, field)
+			case "fixSuggestion":
+				return ec.fieldContext_SessionDiagnostic_fixSuggestion(ctx, field)
+			case "accepted":
+				return ec.fieldContext_SessionDiagnostic_accepted(ctx, field)
+			case "acceptedAt":
+				return ec.fieldContext_SessionDiagnostic_acceptedAt(ctx, field)
+			case "lineage":
+				return ec.fieldContext_SessionDiagnostic_lineage(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SessionDiagnostic", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSession_id(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSession_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSession_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSession",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSession_name(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSession_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSession_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSession",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSession_description(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSession_description,
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSession_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSession",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSession_archived(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSession_archived,
+		func(ctx context.Context) (any, error) {
+			return obj.Archived, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSession_archived(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSession",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSession_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSession_createdAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSession_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSession",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSession_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSession_updatedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSession_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSession",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSession_samples(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSession_samples,
+		func(ctx context.Context) (any, error) {
+			return obj.Samples, nil
+		},
+		nil,
+		ec.marshalNSessionSample2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionSampleᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSession_samples(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSession",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SessionSample_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_SessionSample_sessionId(ctx, field)
+			case "name":
+				return ec.fieldContext_SessionSample_name(ctx, field)
+			case "format":
+				return ec.fieldContext_SessionSample_format(ctx, field)
+			case "source":
+				return ec.fieldContext_SessionSample_source(ctx, field)
+			case "rawPayload":
+				return ec.fieldContext_SessionSample_rawPayload(ctx, field)
+			case "payloadChecksum":
+				return ec.fieldContext_SessionSample_payloadChecksum(ctx, field)
+			case "payloadRef":
+				return ec.fieldContext_SessionSample_payloadRef(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_SessionSample_createdAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SessionSample", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSession_artifacts(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSession_artifacts,
+		func(ctx context.Context) (any, error) {
+			return obj.Artifacts, nil
+		},
+		nil,
+		ec.marshalNSessionArtifact2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionArtifactᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSession_artifacts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSession",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SessionArtifact_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_SessionArtifact_sessionId(ctx, field)
+			case "kind":
+				return ec.fieldContext_SessionArtifact_kind(ctx, field)
+			case "name":
+				return ec.fieldContext_SessionArtifact_name(ctx, field)
+			case "content":
+				return ec.fieldContext_SessionArtifact_content(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_SessionArtifact_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_SessionArtifact_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SessionArtifact", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSession_runs(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSession_runs,
+		func(ctx context.Context) (any, error) {
+			return obj.Runs, nil
+		},
+		nil,
+		ec.marshalNSessionRun2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionRunᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSession_runs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSession",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SessionRun_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_SessionRun_sessionId(ctx, field)
+			case "sampleId":
+				return ec.fieldContext_SessionRun_sampleId(ctx, field)
+			case "status":
+				return ec.fieldContext_SessionRun_status(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_SessionRun_createdAt(ctx, field)
+			case "completedAt":
+				return ec.fieldContext_SessionRun_completedAt(ctx, field)
+			case "stages":
+				return ec.fieldContext_SessionRun_stages(ctx, field)
+			case "diagnostics":
+				return ec.fieldContext_SessionRun_diagnostics(ctx, field)
+			case "events":
+				return ec.fieldContext_SessionRun_events(ctx, field)
+			case "warnings":
+				return ec.fieldContext_SessionRun_warnings(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SessionRun", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSession_diagnostics(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSession_diagnostics,
+		func(ctx context.Context) (any, error) {
+			return obj.Diagnostics, nil
+		},
+		nil,
+		ec.marshalNSessionDiagnostic2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionDiagnosticᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSession_diagnostics(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSession",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SessionDiagnostic_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_SessionDiagnostic_sessionId(ctx, field)
+			case "runId":
+				return ec.fieldContext_SessionDiagnostic_runId(ctx, field)
+			case "sampleId":
+				return ec.fieldContext_SessionDiagnostic_sampleId(ctx, field)
+			case "severity":
+				return ec.fieldContext_SessionDiagnostic_severity(ctx, field)
+			case "code":
+				return ec.fieldContext_SessionDiagnostic_code(ctx, field)
+			case "message":
+				return ec.fieldContext_SessionDiagnostic_message(ctx, field)
+			case "path":
+				return ec.fieldContext_SessionDiagnostic_path(ctx, field)
+			case "fixSuggestion":
+				return ec.fieldContext_SessionDiagnostic_fixSuggestion(ctx, field)
+			case "accepted":
+				return ec.fieldContext_SessionDiagnostic_accepted(ctx, field)
+			case "acceptedAt":
+				return ec.fieldContext_SessionDiagnostic_acceptedAt(ctx, field)
+			case "lineage":
+				return ec.fieldContext_SessionDiagnostic_lineage(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SessionDiagnostic", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSession_currentProfileDraft(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSession_currentProfileDraft,
+		func(ctx context.Context) (any, error) {
+			return obj.CurrentProfileDraft, nil
+		},
+		nil,
+		ec.marshalOSessionArtifact2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionArtifact,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSession_currentProfileDraft(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSession",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SessionArtifact_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_SessionArtifact_sessionId(ctx, field)
+			case "kind":
+				return ec.fieldContext_SessionArtifact_kind(ctx, field)
+			case "name":
+				return ec.fieldContext_SessionArtifact_name(ctx, field)
+			case "content":
+				return ec.fieldContext_SessionArtifact_content(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_SessionArtifact_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_SessionArtifact_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SessionArtifact", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSession_currentWorkflowDraft(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSession_currentWorkflowDraft,
+		func(ctx context.Context) (any, error) {
+			return obj.CurrentWorkflowDraft, nil
+		},
+		nil,
+		ec.marshalOSessionArtifact2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionArtifact,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSession_currentWorkflowDraft(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSession",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SessionArtifact_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_SessionArtifact_sessionId(ctx, field)
+			case "kind":
+				return ec.fieldContext_SessionArtifact_kind(ctx, field)
+			case "name":
+				return ec.fieldContext_SessionArtifact_name(ctx, field)
+			case "content":
+				return ec.fieldContext_SessionArtifact_content(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_SessionArtifact_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_SessionArtifact_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SessionArtifact", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSessionEvent_id(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSessionEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSessionEvent_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSessionEvent_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSessionEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSessionEvent_type(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSessionEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSessionEvent_type,
+		func(ctx context.Context) (any, error) {
+			return obj.Type, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSessionEvent_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSessionEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSessionEvent_sessionId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSessionEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSessionEvent_sessionId,
+		func(ctx context.Context) (any, error) {
+			return obj.SessionID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSessionEvent_sessionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSessionEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSessionEvent_runId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSessionEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSessionEvent_runId,
+		func(ctx context.Context) (any, error) {
+			return obj.RunID, nil
+		},
+		nil,
+		ec.marshalOID2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSessionEvent_runId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSessionEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSessionEvent_message(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSessionEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSessionEvent_message,
+		func(ctx context.Context) (any, error) {
+			return obj.Message, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSessionEvent_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSessionEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSessionEvent_timestamp(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSessionEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSessionEvent_timestamp,
+		func(ctx context.Context) (any, error) {
+			return obj.Timestamp, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSessionEvent_timestamp(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSessionEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSessionEvent_session(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSessionEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSessionEvent_session,
+		func(ctx context.Context) (any, error) {
+			return obj.Session, nil
+		},
+		nil,
+		ec.marshalOIntegrationSession2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSession,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSessionEvent_session(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSessionEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_IntegrationSession_id(ctx, field)
+			case "name":
+				return ec.fieldContext_IntegrationSession_name(ctx, field)
+			case "description":
+				return ec.fieldContext_IntegrationSession_description(ctx, field)
+			case "archived":
+				return ec.fieldContext_IntegrationSession_archived(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_IntegrationSession_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_IntegrationSession_updatedAt(ctx, field)
+			case "samples":
+				return ec.fieldContext_IntegrationSession_samples(ctx, field)
+			case "artifacts":
+				return ec.fieldContext_IntegrationSession_artifacts(ctx, field)
+			case "runs":
+				return ec.fieldContext_IntegrationSession_runs(ctx, field)
+			case "diagnostics":
+				return ec.fieldContext_IntegrationSession_diagnostics(ctx, field)
+			case "currentProfileDraft":
+				return ec.fieldContext_IntegrationSession_currentProfileDraft(ctx, field)
+			case "currentWorkflowDraft":
+				return ec.fieldContext_IntegrationSession_currentWorkflowDraft(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationSession", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSessionEvent_run(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSessionEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSessionEvent_run,
+		func(ctx context.Context) (any, error) {
+			return obj.Run, nil
+		},
+		nil,
+		ec.marshalOSessionRun2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionRun,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSessionEvent_run(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSessionEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SessionRun_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_SessionRun_sessionId(ctx, field)
+			case "sampleId":
+				return ec.fieldContext_SessionRun_sampleId(ctx, field)
+			case "status":
+				return ec.fieldContext_SessionRun_status(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_SessionRun_createdAt(ctx, field)
+			case "completedAt":
+				return ec.fieldContext_SessionRun_completedAt(ctx, field)
+			case "stages":
+				return ec.fieldContext_SessionRun_stages(ctx, field)
+			case "diagnostics":
+				return ec.fieldContext_SessionRun_diagnostics(ctx, field)
+			case "events":
+				return ec.fieldContext_SessionRun_events(ctx, field)
+			case "warnings":
+				return ec.fieldContext_SessionRun_warnings(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SessionRun", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _LLMCapability_enabled(ctx context.Context, field graphql.CollectedField, obj *model.LLMCapability) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -15989,6 +18031,93 @@ func (ec *executionContext) _LabTest_category(ctx context.Context, field graphql
 func (ec *executionContext) fieldContext_LabTest_category(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "LabTest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LineageLink_sourcePath(ctx context.Context, field graphql.CollectedField, obj *model.LineageLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LineageLink_sourcePath,
+		func(ctx context.Context) (any, error) {
+			return obj.SourcePath, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LineageLink_sourcePath(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LineageLink",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LineageLink_targetPath(ctx context.Context, field graphql.CollectedField, obj *model.LineageLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LineageLink_targetPath,
+		func(ctx context.Context) (any, error) {
+			return obj.TargetPath, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_LineageLink_targetPath(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LineageLink",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LineageLink_description(ctx context.Context, field graphql.CollectedField, obj *model.LineageLink) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LineageLink_description,
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_LineageLink_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LineageLink",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -17420,6 +19549,502 @@ func (ec *executionContext) fieldContext_Mutation_resumeFhirSubscription(ctx con
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_resumeFhirSubscription_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createIntegrationSession(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_createIntegrationSession,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().CreateIntegrationSession(ctx, fc.Args["input"].(model.CreateIntegrationSessionInput))
+		},
+		nil,
+		ec.marshalNIntegrationSession2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSession,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_createIntegrationSession(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_IntegrationSession_id(ctx, field)
+			case "name":
+				return ec.fieldContext_IntegrationSession_name(ctx, field)
+			case "description":
+				return ec.fieldContext_IntegrationSession_description(ctx, field)
+			case "archived":
+				return ec.fieldContext_IntegrationSession_archived(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_IntegrationSession_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_IntegrationSession_updatedAt(ctx, field)
+			case "samples":
+				return ec.fieldContext_IntegrationSession_samples(ctx, field)
+			case "artifacts":
+				return ec.fieldContext_IntegrationSession_artifacts(ctx, field)
+			case "runs":
+				return ec.fieldContext_IntegrationSession_runs(ctx, field)
+			case "diagnostics":
+				return ec.fieldContext_IntegrationSession_diagnostics(ctx, field)
+			case "currentProfileDraft":
+				return ec.fieldContext_IntegrationSession_currentProfileDraft(ctx, field)
+			case "currentWorkflowDraft":
+				return ec.fieldContext_IntegrationSession_currentWorkflowDraft(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationSession", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createIntegrationSession_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_archiveIntegrationSession(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_archiveIntegrationSession,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().ArchiveIntegrationSession(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		ec.marshalNIntegrationSession2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSession,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_archiveIntegrationSession(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_IntegrationSession_id(ctx, field)
+			case "name":
+				return ec.fieldContext_IntegrationSession_name(ctx, field)
+			case "description":
+				return ec.fieldContext_IntegrationSession_description(ctx, field)
+			case "archived":
+				return ec.fieldContext_IntegrationSession_archived(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_IntegrationSession_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_IntegrationSession_updatedAt(ctx, field)
+			case "samples":
+				return ec.fieldContext_IntegrationSession_samples(ctx, field)
+			case "artifacts":
+				return ec.fieldContext_IntegrationSession_artifacts(ctx, field)
+			case "runs":
+				return ec.fieldContext_IntegrationSession_runs(ctx, field)
+			case "diagnostics":
+				return ec.fieldContext_IntegrationSession_diagnostics(ctx, field)
+			case "currentProfileDraft":
+				return ec.fieldContext_IntegrationSession_currentProfileDraft(ctx, field)
+			case "currentWorkflowDraft":
+				return ec.fieldContext_IntegrationSession_currentWorkflowDraft(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationSession", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_archiveIntegrationSession_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_addSessionSample(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_addSessionSample,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().AddSessionSample(ctx, fc.Args["input"].(model.AddSessionSampleInput))
+		},
+		nil,
+		ec.marshalNSessionSample2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionSample,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_addSessionSample(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SessionSample_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_SessionSample_sessionId(ctx, field)
+			case "name":
+				return ec.fieldContext_SessionSample_name(ctx, field)
+			case "format":
+				return ec.fieldContext_SessionSample_format(ctx, field)
+			case "source":
+				return ec.fieldContext_SessionSample_source(ctx, field)
+			case "rawPayload":
+				return ec.fieldContext_SessionSample_rawPayload(ctx, field)
+			case "payloadChecksum":
+				return ec.fieldContext_SessionSample_payloadChecksum(ctx, field)
+			case "payloadRef":
+				return ec.fieldContext_SessionSample_payloadRef(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_SessionSample_createdAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SessionSample", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_addSessionSample_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateSessionProfileDraft(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_updateSessionProfileDraft,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().UpdateSessionProfileDraft(ctx, fc.Args["input"].(model.UpdateSessionArtifactInput))
+		},
+		nil,
+		ec.marshalNSessionArtifact2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionArtifact,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_updateSessionProfileDraft(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SessionArtifact_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_SessionArtifact_sessionId(ctx, field)
+			case "kind":
+				return ec.fieldContext_SessionArtifact_kind(ctx, field)
+			case "name":
+				return ec.fieldContext_SessionArtifact_name(ctx, field)
+			case "content":
+				return ec.fieldContext_SessionArtifact_content(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_SessionArtifact_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_SessionArtifact_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SessionArtifact", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateSessionProfileDraft_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateSessionWorkflowDraft(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_updateSessionWorkflowDraft,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().UpdateSessionWorkflowDraft(ctx, fc.Args["input"].(model.UpdateSessionArtifactInput))
+		},
+		nil,
+		ec.marshalNSessionArtifact2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionArtifact,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_updateSessionWorkflowDraft(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SessionArtifact_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_SessionArtifact_sessionId(ctx, field)
+			case "kind":
+				return ec.fieldContext_SessionArtifact_kind(ctx, field)
+			case "name":
+				return ec.fieldContext_SessionArtifact_name(ctx, field)
+			case "content":
+				return ec.fieldContext_SessionArtifact_content(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_SessionArtifact_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_SessionArtifact_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SessionArtifact", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateSessionWorkflowDraft_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_runSessionPreview(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_runSessionPreview,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().RunSessionPreview(ctx, fc.Args["input"].(model.RunSessionPreviewInput))
+		},
+		nil,
+		ec.marshalNSessionRun2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionRun,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_runSessionPreview(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SessionRun_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_SessionRun_sessionId(ctx, field)
+			case "sampleId":
+				return ec.fieldContext_SessionRun_sampleId(ctx, field)
+			case "status":
+				return ec.fieldContext_SessionRun_status(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_SessionRun_createdAt(ctx, field)
+			case "completedAt":
+				return ec.fieldContext_SessionRun_completedAt(ctx, field)
+			case "stages":
+				return ec.fieldContext_SessionRun_stages(ctx, field)
+			case "diagnostics":
+				return ec.fieldContext_SessionRun_diagnostics(ctx, field)
+			case "events":
+				return ec.fieldContext_SessionRun_events(ctx, field)
+			case "warnings":
+				return ec.fieldContext_SessionRun_warnings(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SessionRun", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_runSessionPreview_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_acceptDiagnosticFix(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_acceptDiagnosticFix,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().AcceptDiagnosticFix(ctx, fc.Args["input"].(model.AcceptDiagnosticFixInput))
+		},
+		nil,
+		ec.marshalNSessionDiagnostic2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionDiagnostic,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_acceptDiagnosticFix(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SessionDiagnostic_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_SessionDiagnostic_sessionId(ctx, field)
+			case "runId":
+				return ec.fieldContext_SessionDiagnostic_runId(ctx, field)
+			case "sampleId":
+				return ec.fieldContext_SessionDiagnostic_sampleId(ctx, field)
+			case "severity":
+				return ec.fieldContext_SessionDiagnostic_severity(ctx, field)
+			case "code":
+				return ec.fieldContext_SessionDiagnostic_code(ctx, field)
+			case "message":
+				return ec.fieldContext_SessionDiagnostic_message(ctx, field)
+			case "path":
+				return ec.fieldContext_SessionDiagnostic_path(ctx, field)
+			case "fixSuggestion":
+				return ec.fieldContext_SessionDiagnostic_fixSuggestion(ctx, field)
+			case "accepted":
+				return ec.fieldContext_SessionDiagnostic_accepted(ctx, field)
+			case "acceptedAt":
+				return ec.fieldContext_SessionDiagnostic_acceptedAt(ctx, field)
+			case "lineage":
+				return ec.fieldContext_SessionDiagnostic_lineage(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SessionDiagnostic", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_acceptDiagnosticFix_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_exportIntegrationBundle(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_exportIntegrationBundle,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().ExportIntegrationBundle(ctx, fc.Args["input"].(model.ExportIntegrationBundleInput))
+		},
+		nil,
+		ec.marshalNIntegrationBundle2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationBundle,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_exportIntegrationBundle(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "sessionId":
+				return ec.fieldContext_IntegrationBundle_sessionId(ctx, field)
+			case "exportedAt":
+				return ec.fieldContext_IntegrationBundle_exportedAt(ctx, field)
+			case "session":
+				return ec.fieldContext_IntegrationBundle_session(ctx, field)
+			case "samples":
+				return ec.fieldContext_IntegrationBundle_samples(ctx, field)
+			case "artifacts":
+				return ec.fieldContext_IntegrationBundle_artifacts(ctx, field)
+			case "runs":
+				return ec.fieldContext_IntegrationBundle_runs(ctx, field)
+			case "diagnostics":
+				return ec.fieldContext_IntegrationBundle_diagnostics(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationBundle", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_exportIntegrationBundle_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -23386,6 +26011,451 @@ func (ec *executionContext) fieldContext_Query_parsePreview(ctx context.Context,
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_integrationSession(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_integrationSession,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().IntegrationSession(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		ec.marshalOIntegrationSession2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSession,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_integrationSession(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_IntegrationSession_id(ctx, field)
+			case "name":
+				return ec.fieldContext_IntegrationSession_name(ctx, field)
+			case "description":
+				return ec.fieldContext_IntegrationSession_description(ctx, field)
+			case "archived":
+				return ec.fieldContext_IntegrationSession_archived(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_IntegrationSession_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_IntegrationSession_updatedAt(ctx, field)
+			case "samples":
+				return ec.fieldContext_IntegrationSession_samples(ctx, field)
+			case "artifacts":
+				return ec.fieldContext_IntegrationSession_artifacts(ctx, field)
+			case "runs":
+				return ec.fieldContext_IntegrationSession_runs(ctx, field)
+			case "diagnostics":
+				return ec.fieldContext_IntegrationSession_diagnostics(ctx, field)
+			case "currentProfileDraft":
+				return ec.fieldContext_IntegrationSession_currentProfileDraft(ctx, field)
+			case "currentWorkflowDraft":
+				return ec.fieldContext_IntegrationSession_currentWorkflowDraft(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationSession", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_integrationSession_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_integrationSessions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_integrationSessions,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().IntegrationSessions(ctx, fc.Args["includeArchived"].(*bool))
+		},
+		nil,
+		ec.marshalNIntegrationSession2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSessionᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_integrationSessions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_IntegrationSession_id(ctx, field)
+			case "name":
+				return ec.fieldContext_IntegrationSession_name(ctx, field)
+			case "description":
+				return ec.fieldContext_IntegrationSession_description(ctx, field)
+			case "archived":
+				return ec.fieldContext_IntegrationSession_archived(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_IntegrationSession_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_IntegrationSession_updatedAt(ctx, field)
+			case "samples":
+				return ec.fieldContext_IntegrationSession_samples(ctx, field)
+			case "artifacts":
+				return ec.fieldContext_IntegrationSession_artifacts(ctx, field)
+			case "runs":
+				return ec.fieldContext_IntegrationSession_runs(ctx, field)
+			case "diagnostics":
+				return ec.fieldContext_IntegrationSession_diagnostics(ctx, field)
+			case "currentProfileDraft":
+				return ec.fieldContext_IntegrationSession_currentProfileDraft(ctx, field)
+			case "currentWorkflowDraft":
+				return ec.fieldContext_IntegrationSession_currentWorkflowDraft(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationSession", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_integrationSessions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_sessionSamples(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_sessionSamples,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().SessionSamples(ctx, fc.Args["sessionId"].(string))
+		},
+		nil,
+		ec.marshalNSessionSample2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionSampleᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_sessionSamples(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SessionSample_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_SessionSample_sessionId(ctx, field)
+			case "name":
+				return ec.fieldContext_SessionSample_name(ctx, field)
+			case "format":
+				return ec.fieldContext_SessionSample_format(ctx, field)
+			case "source":
+				return ec.fieldContext_SessionSample_source(ctx, field)
+			case "rawPayload":
+				return ec.fieldContext_SessionSample_rawPayload(ctx, field)
+			case "payloadChecksum":
+				return ec.fieldContext_SessionSample_payloadChecksum(ctx, field)
+			case "payloadRef":
+				return ec.fieldContext_SessionSample_payloadRef(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_SessionSample_createdAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SessionSample", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_sessionSamples_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_sessionArtifacts(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_sessionArtifacts,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().SessionArtifacts(ctx, fc.Args["sessionId"].(string))
+		},
+		nil,
+		ec.marshalNSessionArtifact2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionArtifactᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_sessionArtifacts(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SessionArtifact_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_SessionArtifact_sessionId(ctx, field)
+			case "kind":
+				return ec.fieldContext_SessionArtifact_kind(ctx, field)
+			case "name":
+				return ec.fieldContext_SessionArtifact_name(ctx, field)
+			case "content":
+				return ec.fieldContext_SessionArtifact_content(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_SessionArtifact_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_SessionArtifact_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SessionArtifact", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_sessionArtifacts_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_sessionRuns(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_sessionRuns,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().SessionRuns(ctx, fc.Args["sessionId"].(string))
+		},
+		nil,
+		ec.marshalNSessionRun2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionRunᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_sessionRuns(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SessionRun_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_SessionRun_sessionId(ctx, field)
+			case "sampleId":
+				return ec.fieldContext_SessionRun_sampleId(ctx, field)
+			case "status":
+				return ec.fieldContext_SessionRun_status(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_SessionRun_createdAt(ctx, field)
+			case "completedAt":
+				return ec.fieldContext_SessionRun_completedAt(ctx, field)
+			case "stages":
+				return ec.fieldContext_SessionRun_stages(ctx, field)
+			case "diagnostics":
+				return ec.fieldContext_SessionRun_diagnostics(ctx, field)
+			case "events":
+				return ec.fieldContext_SessionRun_events(ctx, field)
+			case "warnings":
+				return ec.fieldContext_SessionRun_warnings(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SessionRun", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_sessionRuns_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_sessionRun(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_sessionRun,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().SessionRun(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		ec.marshalOSessionRun2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionRun,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_sessionRun(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SessionRun_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_SessionRun_sessionId(ctx, field)
+			case "sampleId":
+				return ec.fieldContext_SessionRun_sampleId(ctx, field)
+			case "status":
+				return ec.fieldContext_SessionRun_status(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_SessionRun_createdAt(ctx, field)
+			case "completedAt":
+				return ec.fieldContext_SessionRun_completedAt(ctx, field)
+			case "stages":
+				return ec.fieldContext_SessionRun_stages(ctx, field)
+			case "diagnostics":
+				return ec.fieldContext_SessionRun_diagnostics(ctx, field)
+			case "events":
+				return ec.fieldContext_SessionRun_events(ctx, field)
+			case "warnings":
+				return ec.fieldContext_SessionRun_warnings(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SessionRun", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_sessionRun_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_sessionDiagnostics(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_sessionDiagnostics,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().SessionDiagnostics(ctx, fc.Args["sessionId"].(string), fc.Args["runId"].(*string))
+		},
+		nil,
+		ec.marshalNSessionDiagnostic2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionDiagnosticᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_sessionDiagnostics(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SessionDiagnostic_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_SessionDiagnostic_sessionId(ctx, field)
+			case "runId":
+				return ec.fieldContext_SessionDiagnostic_runId(ctx, field)
+			case "sampleId":
+				return ec.fieldContext_SessionDiagnostic_sampleId(ctx, field)
+			case "severity":
+				return ec.fieldContext_SessionDiagnostic_severity(ctx, field)
+			case "code":
+				return ec.fieldContext_SessionDiagnostic_code(ctx, field)
+			case "message":
+				return ec.fieldContext_SessionDiagnostic_message(ctx, field)
+			case "path":
+				return ec.fieldContext_SessionDiagnostic_path(ctx, field)
+			case "fixSuggestion":
+				return ec.fieldContext_SessionDiagnostic_fixSuggestion(ctx, field)
+			case "accepted":
+				return ec.fieldContext_SessionDiagnostic_accepted(ctx, field)
+			case "acceptedAt":
+				return ec.fieldContext_SessionDiagnostic_acceptedAt(ctx, field)
+			case "lineage":
+				return ec.fieldContext_SessionDiagnostic_lineage(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SessionDiagnostic", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_sessionDiagnostics_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_patientTimeline(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -25655,6 +28725,1381 @@ func (ec *executionContext) fieldContext_RouteExplanation_description(_ context.
 	return fc, nil
 }
 
+func (ec *executionContext) _RunStage_id(ctx context.Context, field graphql.CollectedField, obj *model.RunStage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RunStage_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RunStage_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RunStage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RunStage_name(ctx context.Context, field graphql.CollectedField, obj *model.RunStage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RunStage_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RunStage_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RunStage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RunStage_status(ctx context.Context, field graphql.CollectedField, obj *model.RunStage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RunStage_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RunStage_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RunStage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RunStage_startedAt(ctx context.Context, field graphql.CollectedField, obj *model.RunStage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RunStage_startedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.StartedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RunStage_startedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RunStage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RunStage_completedAt(ctx context.Context, field graphql.CollectedField, obj *model.RunStage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RunStage_completedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CompletedAt, nil
+		},
+		nil,
+		ec.marshalODateTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_RunStage_completedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RunStage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RunStage_durationMs(ctx context.Context, field graphql.CollectedField, obj *model.RunStage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RunStage_durationMs,
+		func(ctx context.Context) (any, error) {
+			return obj.DurationMs, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RunStage_durationMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RunStage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RunStage_summary(ctx context.Context, field graphql.CollectedField, obj *model.RunStage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RunStage_summary,
+		func(ctx context.Context) (any, error) {
+			return obj.Summary, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_RunStage_summary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RunStage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionArtifact_id(ctx context.Context, field graphql.CollectedField, obj *model.SessionArtifact) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionArtifact_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionArtifact_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionArtifact",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionArtifact_sessionId(ctx context.Context, field graphql.CollectedField, obj *model.SessionArtifact) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionArtifact_sessionId,
+		func(ctx context.Context) (any, error) {
+			return obj.SessionID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionArtifact_sessionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionArtifact",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionArtifact_kind(ctx context.Context, field graphql.CollectedField, obj *model.SessionArtifact) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionArtifact_kind,
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionArtifact_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionArtifact",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionArtifact_name(ctx context.Context, field graphql.CollectedField, obj *model.SessionArtifact) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionArtifact_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionArtifact_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionArtifact",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionArtifact_content(ctx context.Context, field graphql.CollectedField, obj *model.SessionArtifact) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionArtifact_content,
+		func(ctx context.Context) (any, error) {
+			return obj.Content, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionArtifact_content(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionArtifact",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionArtifact_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.SessionArtifact) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionArtifact_createdAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionArtifact_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionArtifact",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionArtifact_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.SessionArtifact) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionArtifact_updatedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionArtifact_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionArtifact",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionDiagnostic_id(ctx context.Context, field graphql.CollectedField, obj *model.SessionDiagnostic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionDiagnostic_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionDiagnostic_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionDiagnostic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionDiagnostic_sessionId(ctx context.Context, field graphql.CollectedField, obj *model.SessionDiagnostic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionDiagnostic_sessionId,
+		func(ctx context.Context) (any, error) {
+			return obj.SessionID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionDiagnostic_sessionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionDiagnostic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionDiagnostic_runId(ctx context.Context, field graphql.CollectedField, obj *model.SessionDiagnostic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionDiagnostic_runId,
+		func(ctx context.Context) (any, error) {
+			return obj.RunID, nil
+		},
+		nil,
+		ec.marshalOID2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionDiagnostic_runId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionDiagnostic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionDiagnostic_sampleId(ctx context.Context, field graphql.CollectedField, obj *model.SessionDiagnostic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionDiagnostic_sampleId,
+		func(ctx context.Context) (any, error) {
+			return obj.SampleID, nil
+		},
+		nil,
+		ec.marshalOID2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionDiagnostic_sampleId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionDiagnostic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionDiagnostic_severity(ctx context.Context, field graphql.CollectedField, obj *model.SessionDiagnostic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionDiagnostic_severity,
+		func(ctx context.Context) (any, error) {
+			return obj.Severity, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionDiagnostic_severity(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionDiagnostic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionDiagnostic_code(ctx context.Context, field graphql.CollectedField, obj *model.SessionDiagnostic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionDiagnostic_code,
+		func(ctx context.Context) (any, error) {
+			return obj.Code, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionDiagnostic_code(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionDiagnostic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionDiagnostic_message(ctx context.Context, field graphql.CollectedField, obj *model.SessionDiagnostic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionDiagnostic_message,
+		func(ctx context.Context) (any, error) {
+			return obj.Message, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionDiagnostic_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionDiagnostic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionDiagnostic_path(ctx context.Context, field graphql.CollectedField, obj *model.SessionDiagnostic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionDiagnostic_path,
+		func(ctx context.Context) (any, error) {
+			return obj.Path, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionDiagnostic_path(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionDiagnostic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionDiagnostic_fixSuggestion(ctx context.Context, field graphql.CollectedField, obj *model.SessionDiagnostic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionDiagnostic_fixSuggestion,
+		func(ctx context.Context) (any, error) {
+			return obj.FixSuggestion, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionDiagnostic_fixSuggestion(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionDiagnostic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionDiagnostic_accepted(ctx context.Context, field graphql.CollectedField, obj *model.SessionDiagnostic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionDiagnostic_accepted,
+		func(ctx context.Context) (any, error) {
+			return obj.Accepted, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionDiagnostic_accepted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionDiagnostic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionDiagnostic_acceptedAt(ctx context.Context, field graphql.CollectedField, obj *model.SessionDiagnostic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionDiagnostic_acceptedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.AcceptedAt, nil
+		},
+		nil,
+		ec.marshalODateTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionDiagnostic_acceptedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionDiagnostic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionDiagnostic_lineage(ctx context.Context, field graphql.CollectedField, obj *model.SessionDiagnostic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionDiagnostic_lineage,
+		func(ctx context.Context) (any, error) {
+			return obj.Lineage, nil
+		},
+		nil,
+		ec.marshalNLineageLink2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLineageLinkᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionDiagnostic_lineage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionDiagnostic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "sourcePath":
+				return ec.fieldContext_LineageLink_sourcePath(ctx, field)
+			case "targetPath":
+				return ec.fieldContext_LineageLink_targetPath(ctx, field)
+			case "description":
+				return ec.fieldContext_LineageLink_description(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type LineageLink", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionRun_id(ctx context.Context, field graphql.CollectedField, obj *model.SessionRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionRun_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionRun_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionRun",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionRun_sessionId(ctx context.Context, field graphql.CollectedField, obj *model.SessionRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionRun_sessionId,
+		func(ctx context.Context) (any, error) {
+			return obj.SessionID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionRun_sessionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionRun",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionRun_sampleId(ctx context.Context, field graphql.CollectedField, obj *model.SessionRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionRun_sampleId,
+		func(ctx context.Context) (any, error) {
+			return obj.SampleID, nil
+		},
+		nil,
+		ec.marshalOID2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionRun_sampleId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionRun",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionRun_status(ctx context.Context, field graphql.CollectedField, obj *model.SessionRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionRun_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionRun_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionRun",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionRun_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.SessionRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionRun_createdAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionRun_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionRun",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionRun_completedAt(ctx context.Context, field graphql.CollectedField, obj *model.SessionRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionRun_completedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CompletedAt, nil
+		},
+		nil,
+		ec.marshalODateTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionRun_completedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionRun",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionRun_stages(ctx context.Context, field graphql.CollectedField, obj *model.SessionRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionRun_stages,
+		func(ctx context.Context) (any, error) {
+			return obj.Stages, nil
+		},
+		nil,
+		ec.marshalNRunStage2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐRunStageᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionRun_stages(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionRun",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_RunStage_id(ctx, field)
+			case "name":
+				return ec.fieldContext_RunStage_name(ctx, field)
+			case "status":
+				return ec.fieldContext_RunStage_status(ctx, field)
+			case "startedAt":
+				return ec.fieldContext_RunStage_startedAt(ctx, field)
+			case "completedAt":
+				return ec.fieldContext_RunStage_completedAt(ctx, field)
+			case "durationMs":
+				return ec.fieldContext_RunStage_durationMs(ctx, field)
+			case "summary":
+				return ec.fieldContext_RunStage_summary(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type RunStage", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionRun_diagnostics(ctx context.Context, field graphql.CollectedField, obj *model.SessionRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionRun_diagnostics,
+		func(ctx context.Context) (any, error) {
+			return obj.Diagnostics, nil
+		},
+		nil,
+		ec.marshalNSessionDiagnostic2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionDiagnosticᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionRun_diagnostics(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionRun",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SessionDiagnostic_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_SessionDiagnostic_sessionId(ctx, field)
+			case "runId":
+				return ec.fieldContext_SessionDiagnostic_runId(ctx, field)
+			case "sampleId":
+				return ec.fieldContext_SessionDiagnostic_sampleId(ctx, field)
+			case "severity":
+				return ec.fieldContext_SessionDiagnostic_severity(ctx, field)
+			case "code":
+				return ec.fieldContext_SessionDiagnostic_code(ctx, field)
+			case "message":
+				return ec.fieldContext_SessionDiagnostic_message(ctx, field)
+			case "path":
+				return ec.fieldContext_SessionDiagnostic_path(ctx, field)
+			case "fixSuggestion":
+				return ec.fieldContext_SessionDiagnostic_fixSuggestion(ctx, field)
+			case "accepted":
+				return ec.fieldContext_SessionDiagnostic_accepted(ctx, field)
+			case "acceptedAt":
+				return ec.fieldContext_SessionDiagnostic_acceptedAt(ctx, field)
+			case "lineage":
+				return ec.fieldContext_SessionDiagnostic_lineage(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SessionDiagnostic", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionRun_events(ctx context.Context, field graphql.CollectedField, obj *model.SessionRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionRun_events,
+		func(ctx context.Context) (any, error) {
+			return obj.Events, nil
+		},
+		nil,
+		ec.marshalNEvent2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEventᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionRun_events(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionRun",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("FieldContext.Child cannot be called on type INTERFACE")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionRun_warnings(ctx context.Context, field graphql.CollectedField, obj *model.SessionRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionRun_warnings,
+		func(ctx context.Context) (any, error) {
+			return obj.Warnings, nil
+		},
+		nil,
+		ec.marshalNParseWarning2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐParseWarningᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionRun_warnings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionRun",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "phase":
+				return ec.fieldContext_ParseWarning_phase(ctx, field)
+			case "code":
+				return ec.fieldContext_ParseWarning_code(ctx, field)
+			case "message":
+				return ec.fieldContext_ParseWarning_message(ctx, field)
+			case "path":
+				return ec.fieldContext_ParseWarning_path(ctx, field)
+			case "explanation":
+				return ec.fieldContext_ParseWarning_explanation(ctx, field)
+			case "fixSuggestion":
+				return ec.fieldContext_ParseWarning_fixSuggestion(ctx, field)
+			case "impact":
+				return ec.fieldContext_ParseWarning_impact(ctx, field)
+			case "severity":
+				return ec.fieldContext_ParseWarning_severity(ctx, field)
+			case "fromCache":
+				return ec.fieldContext_ParseWarning_fromCache(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ParseWarning", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionSample_id(ctx context.Context, field graphql.CollectedField, obj *model.SessionSample) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionSample_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionSample_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionSample",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionSample_sessionId(ctx context.Context, field graphql.CollectedField, obj *model.SessionSample) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionSample_sessionId,
+		func(ctx context.Context) (any, error) {
+			return obj.SessionID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionSample_sessionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionSample",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionSample_name(ctx context.Context, field graphql.CollectedField, obj *model.SessionSample) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionSample_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionSample_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionSample",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionSample_format(ctx context.Context, field graphql.CollectedField, obj *model.SessionSample) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionSample_format,
+		func(ctx context.Context) (any, error) {
+			return obj.Format, nil
+		},
+		nil,
+		ec.marshalNSourceFormat2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionSample_format(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionSample",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type SourceFormat does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionSample_source(ctx context.Context, field graphql.CollectedField, obj *model.SessionSample) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionSample_source,
+		func(ctx context.Context) (any, error) {
+			return obj.Source, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionSample_source(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionSample",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionSample_rawPayload(ctx context.Context, field graphql.CollectedField, obj *model.SessionSample) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionSample_rawPayload,
+		func(ctx context.Context) (any, error) {
+			return obj.RawPayload, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionSample_rawPayload(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionSample",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionSample_payloadChecksum(ctx context.Context, field graphql.CollectedField, obj *model.SessionSample) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionSample_payloadChecksum,
+		func(ctx context.Context) (any, error) {
+			return obj.PayloadChecksum, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionSample_payloadChecksum(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionSample",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionSample_payloadRef(ctx context.Context, field graphql.CollectedField, obj *model.SessionSample) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionSample_payloadRef,
+		func(ctx context.Context) (any, error) {
+			return obj.PayloadRef, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionSample_payloadRef(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionSample",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionSample_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.SessionSample) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionSample_createdAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionSample_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionSample",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _SourceCount_source(ctx context.Context, field graphql.CollectedField, obj *model.SourceCount) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -26426,6 +30871,124 @@ func (ec *executionContext) fieldContext_Subscription_patientEvents(ctx context.
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Subscription_patientEvents_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_integrationSessionEvents(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Subscription_integrationSessionEvents,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Subscription().IntegrationSessionEvents(ctx, fc.Args["sessionId"].(string))
+		},
+		nil,
+		ec.marshalNIntegrationSessionEvent2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSessionEvent,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Subscription_integrationSessionEvents(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_IntegrationSessionEvent_id(ctx, field)
+			case "type":
+				return ec.fieldContext_IntegrationSessionEvent_type(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_IntegrationSessionEvent_sessionId(ctx, field)
+			case "runId":
+				return ec.fieldContext_IntegrationSessionEvent_runId(ctx, field)
+			case "message":
+				return ec.fieldContext_IntegrationSessionEvent_message(ctx, field)
+			case "timestamp":
+				return ec.fieldContext_IntegrationSessionEvent_timestamp(ctx, field)
+			case "session":
+				return ec.fieldContext_IntegrationSessionEvent_session(ctx, field)
+			case "run":
+				return ec.fieldContext_IntegrationSessionEvent_run(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationSessionEvent", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_integrationSessionEvents_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_sessionRunEvents(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Subscription_sessionRunEvents,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Subscription().SessionRunEvents(ctx, fc.Args["sessionId"].(string), fc.Args["runId"].(*string))
+		},
+		nil,
+		ec.marshalNIntegrationSessionEvent2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSessionEvent,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Subscription_sessionRunEvents(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_IntegrationSessionEvent_id(ctx, field)
+			case "type":
+				return ec.fieldContext_IntegrationSessionEvent_type(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_IntegrationSessionEvent_sessionId(ctx, field)
+			case "runId":
+				return ec.fieldContext_IntegrationSessionEvent_runId(ctx, field)
+			case "message":
+				return ec.fieldContext_IntegrationSessionEvent_message(ctx, field)
+			case "timestamp":
+				return ec.fieldContext_IntegrationSessionEvent_timestamp(ctx, field)
+			case "session":
+				return ec.fieldContext_IntegrationSessionEvent_session(ctx, field)
+			case "run":
+				return ec.fieldContext_IntegrationSessionEvent_run(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationSessionEvent", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_sessionRunEvents_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -32790,6 +37353,116 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputAcceptDiagnosticFixInput(ctx context.Context, obj any) (model.AcceptDiagnosticFixInput, error) {
+	var it model.AcceptDiagnosticFixInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"sessionId", "diagnosticId", "acceptedBy"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "sessionId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sessionId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SessionID = data
+		case "diagnosticId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("diagnosticId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DiagnosticID = data
+		case "acceptedBy":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("acceptedBy"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AcceptedBy = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputAddSessionSampleInput(ctx context.Context, obj any) (model.AddSessionSampleInput, error) {
+	var it model.AddSessionSampleInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"sessionId", "name", "format", "data", "source", "retainRawPayload", "payloadRef"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "sessionId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sessionId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SessionID = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "format":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("format"))
+			data, err := ec.unmarshalNSourceFormat2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Format = data
+		case "data":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("data"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Data = data
+		case "source":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("source"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Source = data
+		case "retainRawPayload":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("retainRawPayload"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RetainRawPayload = data
+		case "payloadRef":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("payloadRef"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PayloadRef = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputAnalyzeQualityInput(ctx context.Context, obj any) (model.AnalyzeQualityInput, error) {
 	var it model.AnalyzeQualityInput
 	asMap := map[string]any{}
@@ -33160,6 +37833,40 @@ func (ec *executionContext) unmarshalInputClassifyMessageInput(ctx context.Conte
 				return it, err
 			}
 			it.Format = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputCreateIntegrationSessionInput(ctx context.Context, obj any) (model.CreateIntegrationSessionInput, error) {
+	var it model.CreateIntegrationSessionInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"name", "description"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
 		}
 	}
 
@@ -33596,6 +38303,40 @@ func (ec *executionContext) unmarshalInputExplainWorkflowInput(ctx context.Conte
 				return it, err
 			}
 			it.Audience = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputExportIntegrationBundleInput(ctx context.Context, obj any) (model.ExportIntegrationBundleInput, error) {
+	var it model.ExportIntegrationBundleInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"sessionId", "includeRawPayload"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "sessionId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sessionId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SessionID = data
+		case "includeRawPayload":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("includeRawPayload"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IncludeRawPayload = data
 		}
 	}
 
@@ -34543,6 +39284,61 @@ func (ec *executionContext) unmarshalInputRollbackWorkflowVersionInput(ctx conte
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputRunSessionPreviewInput(ctx context.Context, obj any) (model.RunSessionPreviewInput, error) {
+	var it model.RunSessionPreviewInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"sessionId", "sampleId", "data", "format", "source"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "sessionId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sessionId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SessionID = data
+		case "sampleId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sampleId"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SampleID = data
+		case "data":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("data"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Data = data
+		case "format":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("format"))
+			data, err := ec.unmarshalOSourceFormat2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Format = data
+		case "source":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("source"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Source = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputSaveWorkflowVersionInput(ctx context.Context, obj any) (model.SaveWorkflowVersionInput, error) {
 	var it model.SaveWorkflowVersionInput
 	asMap := map[string]any{}
@@ -35323,6 +40119,47 @@ func (ec *executionContext) unmarshalInputUpdateProfileInput(ctx context.Context
 				return it, err
 			}
 			it.Terminology = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateSessionArtifactInput(ctx context.Context, obj any) (model.UpdateSessionArtifactInput, error) {
+	var it model.UpdateSessionArtifactInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"sessionId", "name", "content"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "sessionId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sessionId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SessionID = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "content":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("content"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Content = data
 		}
 	}
 
@@ -38175,6 +43012,225 @@ func (ec *executionContext) _ImmunizationEvent(ctx context.Context, sel ast.Sele
 	return out
 }
 
+var integrationBundleImplementors = []string{"IntegrationBundle"}
+
+func (ec *executionContext) _IntegrationBundle(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationBundle) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationBundleImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationBundle")
+		case "sessionId":
+			out.Values[i] = ec._IntegrationBundle_sessionId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "exportedAt":
+			out.Values[i] = ec._IntegrationBundle_exportedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "session":
+			out.Values[i] = ec._IntegrationBundle_session(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "samples":
+			out.Values[i] = ec._IntegrationBundle_samples(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "artifacts":
+			out.Values[i] = ec._IntegrationBundle_artifacts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "runs":
+			out.Values[i] = ec._IntegrationBundle_runs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "diagnostics":
+			out.Values[i] = ec._IntegrationBundle_diagnostics(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var integrationSessionImplementors = []string{"IntegrationSession"}
+
+func (ec *executionContext) _IntegrationSession(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationSession) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationSessionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationSession")
+		case "id":
+			out.Values[i] = ec._IntegrationSession_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._IntegrationSession_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "description":
+			out.Values[i] = ec._IntegrationSession_description(ctx, field, obj)
+		case "archived":
+			out.Values[i] = ec._IntegrationSession_archived(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._IntegrationSession_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._IntegrationSession_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "samples":
+			out.Values[i] = ec._IntegrationSession_samples(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "artifacts":
+			out.Values[i] = ec._IntegrationSession_artifacts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "runs":
+			out.Values[i] = ec._IntegrationSession_runs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "diagnostics":
+			out.Values[i] = ec._IntegrationSession_diagnostics(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "currentProfileDraft":
+			out.Values[i] = ec._IntegrationSession_currentProfileDraft(ctx, field, obj)
+		case "currentWorkflowDraft":
+			out.Values[i] = ec._IntegrationSession_currentWorkflowDraft(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var integrationSessionEventImplementors = []string{"IntegrationSessionEvent"}
+
+func (ec *executionContext) _IntegrationSessionEvent(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationSessionEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationSessionEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationSessionEvent")
+		case "id":
+			out.Values[i] = ec._IntegrationSessionEvent_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "type":
+			out.Values[i] = ec._IntegrationSessionEvent_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sessionId":
+			out.Values[i] = ec._IntegrationSessionEvent_sessionId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "runId":
+			out.Values[i] = ec._IntegrationSessionEvent_runId(ctx, field, obj)
+		case "message":
+			out.Values[i] = ec._IntegrationSessionEvent_message(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "timestamp":
+			out.Values[i] = ec._IntegrationSessionEvent_timestamp(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "session":
+			out.Values[i] = ec._IntegrationSessionEvent_session(ctx, field, obj)
+		case "run":
+			out.Values[i] = ec._IntegrationSessionEvent_run(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var lLMCapabilityImplementors = []string{"LLMCapability"}
 
 func (ec *executionContext) _LLMCapability(ctx context.Context, sel ast.SelectionSet, obj *model.LLMCapability) graphql.Marshaler {
@@ -38442,6 +43498,49 @@ func (ec *executionContext) _LabTest(ctx context.Context, sel ast.SelectionSet, 
 			}
 		case "category":
 			out.Values[i] = ec._LabTest_category(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var lineageLinkImplementors = []string{"LineageLink"}
+
+func (ec *executionContext) _LineageLink(ctx context.Context, sel ast.SelectionSet, obj *model.LineageLink) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lineageLinkImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LineageLink")
+		case "sourcePath":
+			out.Values[i] = ec._LineageLink_sourcePath(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "targetPath":
+			out.Values[i] = ec._LineageLink_targetPath(ctx, field, obj)
+		case "description":
+			out.Values[i] = ec._LineageLink_description(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -38754,6 +43853,62 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "resumeFhirSubscription":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_resumeFhirSubscription(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createIntegrationSession":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createIntegrationSession(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "archiveIntegrationSession":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_archiveIntegrationSession(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "addSessionSample":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_addSessionSample(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateSessionProfileDraft":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateSessionProfileDraft(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateSessionWorkflowDraft":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateSessionWorkflowDraft(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "runSessionPreview":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_runSessionPreview(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "acceptDiagnosticFix":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_acceptDiagnosticFix(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "exportIntegrationBundle":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_exportIntegrationBundle(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -40479,6 +45634,154 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "integrationSession":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_integrationSession(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "integrationSessions":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_integrationSessions(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "sessionSamples":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_sessionSamples(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "sessionArtifacts":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_sessionArtifacts(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "sessionRuns":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_sessionRuns(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "sessionRun":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_sessionRun(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "sessionDiagnostics":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_sessionDiagnostics(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "patientTimeline":
 			field := field
 
@@ -41278,6 +46581,365 @@ func (ec *executionContext) _RouteExplanation(ctx context.Context, sel ast.Selec
 	return out
 }
 
+var runStageImplementors = []string{"RunStage"}
+
+func (ec *executionContext) _RunStage(ctx context.Context, sel ast.SelectionSet, obj *model.RunStage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, runStageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RunStage")
+		case "id":
+			out.Values[i] = ec._RunStage_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._RunStage_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._RunStage_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "startedAt":
+			out.Values[i] = ec._RunStage_startedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "completedAt":
+			out.Values[i] = ec._RunStage_completedAt(ctx, field, obj)
+		case "durationMs":
+			out.Values[i] = ec._RunStage_durationMs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "summary":
+			out.Values[i] = ec._RunStage_summary(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var sessionArtifactImplementors = []string{"SessionArtifact"}
+
+func (ec *executionContext) _SessionArtifact(ctx context.Context, sel ast.SelectionSet, obj *model.SessionArtifact) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, sessionArtifactImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SessionArtifact")
+		case "id":
+			out.Values[i] = ec._SessionArtifact_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sessionId":
+			out.Values[i] = ec._SessionArtifact_sessionId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kind":
+			out.Values[i] = ec._SessionArtifact_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._SessionArtifact_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "content":
+			out.Values[i] = ec._SessionArtifact_content(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._SessionArtifact_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._SessionArtifact_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var sessionDiagnosticImplementors = []string{"SessionDiagnostic"}
+
+func (ec *executionContext) _SessionDiagnostic(ctx context.Context, sel ast.SelectionSet, obj *model.SessionDiagnostic) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, sessionDiagnosticImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SessionDiagnostic")
+		case "id":
+			out.Values[i] = ec._SessionDiagnostic_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sessionId":
+			out.Values[i] = ec._SessionDiagnostic_sessionId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "runId":
+			out.Values[i] = ec._SessionDiagnostic_runId(ctx, field, obj)
+		case "sampleId":
+			out.Values[i] = ec._SessionDiagnostic_sampleId(ctx, field, obj)
+		case "severity":
+			out.Values[i] = ec._SessionDiagnostic_severity(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "code":
+			out.Values[i] = ec._SessionDiagnostic_code(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "message":
+			out.Values[i] = ec._SessionDiagnostic_message(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "path":
+			out.Values[i] = ec._SessionDiagnostic_path(ctx, field, obj)
+		case "fixSuggestion":
+			out.Values[i] = ec._SessionDiagnostic_fixSuggestion(ctx, field, obj)
+		case "accepted":
+			out.Values[i] = ec._SessionDiagnostic_accepted(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "acceptedAt":
+			out.Values[i] = ec._SessionDiagnostic_acceptedAt(ctx, field, obj)
+		case "lineage":
+			out.Values[i] = ec._SessionDiagnostic_lineage(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var sessionRunImplementors = []string{"SessionRun"}
+
+func (ec *executionContext) _SessionRun(ctx context.Context, sel ast.SelectionSet, obj *model.SessionRun) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, sessionRunImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SessionRun")
+		case "id":
+			out.Values[i] = ec._SessionRun_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sessionId":
+			out.Values[i] = ec._SessionRun_sessionId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sampleId":
+			out.Values[i] = ec._SessionRun_sampleId(ctx, field, obj)
+		case "status":
+			out.Values[i] = ec._SessionRun_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._SessionRun_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "completedAt":
+			out.Values[i] = ec._SessionRun_completedAt(ctx, field, obj)
+		case "stages":
+			out.Values[i] = ec._SessionRun_stages(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "diagnostics":
+			out.Values[i] = ec._SessionRun_diagnostics(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "events":
+			out.Values[i] = ec._SessionRun_events(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "warnings":
+			out.Values[i] = ec._SessionRun_warnings(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var sessionSampleImplementors = []string{"SessionSample"}
+
+func (ec *executionContext) _SessionSample(ctx context.Context, sel ast.SelectionSet, obj *model.SessionSample) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, sessionSampleImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SessionSample")
+		case "id":
+			out.Values[i] = ec._SessionSample_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sessionId":
+			out.Values[i] = ec._SessionSample_sessionId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._SessionSample_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "format":
+			out.Values[i] = ec._SessionSample_format(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "source":
+			out.Values[i] = ec._SessionSample_source(ctx, field, obj)
+		case "rawPayload":
+			out.Values[i] = ec._SessionSample_rawPayload(ctx, field, obj)
+		case "payloadChecksum":
+			out.Values[i] = ec._SessionSample_payloadChecksum(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "payloadRef":
+			out.Values[i] = ec._SessionSample_payloadRef(ctx, field, obj)
+		case "createdAt":
+			out.Values[i] = ec._SessionSample_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var sourceCountImplementors = []string{"SourceCount"}
 
 func (ec *executionContext) _SourceCount(ctx context.Context, sel ast.SelectionSet, obj *model.SourceCount) graphql.Marshaler {
@@ -41518,6 +47180,10 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 		return ec._Subscription_workflowEvents(ctx, fields[0])
 	case "patientEvents":
 		return ec._Subscription_patientEvents(ctx, fields[0])
+	case "integrationSessionEvents":
+		return ec._Subscription_integrationSessionEvents(ctx, fields[0])
+	case "sessionRunEvents":
+		return ec._Subscription_sessionRunEvents(ctx, fields[0])
 	case "liveParseStream":
 		return ec._Subscription_liveParseStream(ctx, fields[0])
 	case "debugStepEvent":
@@ -43453,6 +49119,11 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 
 // region    ***************************** type.gotpl *****************************
 
+func (ec *executionContext) unmarshalNAcceptDiagnosticFixInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAcceptDiagnosticFixInput(ctx context.Context, v any) (model.AcceptDiagnosticFixInput, error) {
+	res, err := ec.unmarshalInputAcceptDiagnosticFixInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNActiveEncounter2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐActiveEncounter(ctx context.Context, sel ast.SelectionSet, v model.ActiveEncounter) graphql.Marshaler {
 	return ec._ActiveEncounter(ctx, sel, &v)
 }
@@ -43499,6 +49170,11 @@ func (ec *executionContext) marshalNActiveEncounter2ᚕgitlabᚗflexinferᚗai�
 	}
 
 	return ret
+}
+
+func (ec *executionContext) unmarshalNAddSessionSampleInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAddSessionSampleInput(ctx context.Context, v any) (model.AddSessionSampleInput, error) {
+	res, err := ec.unmarshalInputAddSessionSampleInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNAnalyzeQualityInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐAnalyzeQualityInput(ctx context.Context, v any) (model.AnalyzeQualityInput, error) {
@@ -43923,6 +49599,11 @@ func (ec *executionContext) marshalNComponentHealth2ᚕgitlabᚗflexinferᚗai�
 
 func (ec *executionContext) marshalNCondition2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐCondition(ctx context.Context, sel ast.SelectionSet, v model.Condition) graphql.Marshaler {
 	return ec._Condition(ctx, sel, &v)
+}
+
+func (ec *executionContext) unmarshalNCreateIntegrationSessionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐCreateIntegrationSessionInput(ctx context.Context, v any) (model.CreateIntegrationSessionInput, error) {
+	res, err := ec.unmarshalInputCreateIntegrationSessionInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNCreateMappingInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐCreateMappingInput(ctx context.Context, v any) (model.CreateMappingInput, error) {
@@ -44412,6 +50093,11 @@ func (ec *executionContext) marshalNExplainedWarning2ᚕgitlabᚗflexinferᚗai�
 	return ret
 }
 
+func (ec *executionContext) unmarshalNExportIntegrationBundleInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐExportIntegrationBundleInput(ctx context.Context, v any) (model.ExportIntegrationBundleInput, error) {
+	res, err := ec.unmarshalInputExportIntegrationBundleInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNExtractEntitiesInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐExtractEntitiesInput(ctx context.Context, v any) (model.ExtractEntitiesInput, error) {
 	res, err := ec.unmarshalInputExtractEntitiesInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -44871,6 +50557,92 @@ func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.Selecti
 	return res
 }
 
+func (ec *executionContext) marshalNIntegrationBundle2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationBundle(ctx context.Context, sel ast.SelectionSet, v model.IntegrationBundle) graphql.Marshaler {
+	return ec._IntegrationBundle(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNIntegrationBundle2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationBundle(ctx context.Context, sel ast.SelectionSet, v *model.IntegrationBundle) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._IntegrationBundle(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNIntegrationSession2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSession(ctx context.Context, sel ast.SelectionSet, v model.IntegrationSession) graphql.Marshaler {
+	return ec._IntegrationSession(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNIntegrationSession2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSessionᚄ(ctx context.Context, sel ast.SelectionSet, v []model.IntegrationSession) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNIntegrationSession2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSession(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNIntegrationSession2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSession(ctx context.Context, sel ast.SelectionSet, v *model.IntegrationSession) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._IntegrationSession(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNIntegrationSessionEvent2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSessionEvent(ctx context.Context, sel ast.SelectionSet, v model.IntegrationSessionEvent) graphql.Marshaler {
+	return ec._IntegrationSessionEvent(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNIntegrationSessionEvent2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSessionEvent(ctx context.Context, sel ast.SelectionSet, v *model.IntegrationSessionEvent) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._IntegrationSessionEvent(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNJSON2map(ctx context.Context, v any) (map[string]any, error) {
 	res, err := graphql.UnmarshalMap(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -44991,6 +50763,54 @@ func (ec *executionContext) marshalNLabResult2gitlabᚗflexinferᚗaiᚋlibsᚋf
 
 func (ec *executionContext) marshalNLabTest2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLabTest(ctx context.Context, sel ast.SelectionSet, v model.LabTest) graphql.Marshaler {
 	return ec._LabTest(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNLineageLink2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLineageLink(ctx context.Context, sel ast.SelectionSet, v model.LineageLink) graphql.Marshaler {
+	return ec._LineageLink(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNLineageLink2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLineageLinkᚄ(ctx context.Context, sel ast.SelectionSet, v []model.LineageLink) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNLineageLink2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLineageLink(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalNLiveParseInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLiveParseInput(ctx context.Context, v any) (model.LiveParseInput, error) {
@@ -45602,9 +51422,294 @@ func (ec *executionContext) marshalNRouteExplanation2ᚕgitlabᚗflexinferᚗai�
 	return ret
 }
 
+func (ec *executionContext) unmarshalNRunSessionPreviewInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐRunSessionPreviewInput(ctx context.Context, v any) (model.RunSessionPreviewInput, error) {
+	res, err := ec.unmarshalInputRunSessionPreviewInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNRunStage2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐRunStage(ctx context.Context, sel ast.SelectionSet, v model.RunStage) graphql.Marshaler {
+	return ec._RunStage(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNRunStage2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐRunStageᚄ(ctx context.Context, sel ast.SelectionSet, v []model.RunStage) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNRunStage2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐRunStage(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) unmarshalNSaveWorkflowVersionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSaveWorkflowVersionInput(ctx context.Context, v any) (model.SaveWorkflowVersionInput, error) {
 	res, err := ec.unmarshalInputSaveWorkflowVersionInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNSessionArtifact2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionArtifact(ctx context.Context, sel ast.SelectionSet, v model.SessionArtifact) graphql.Marshaler {
+	return ec._SessionArtifact(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNSessionArtifact2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionArtifactᚄ(ctx context.Context, sel ast.SelectionSet, v []model.SessionArtifact) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNSessionArtifact2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionArtifact(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNSessionArtifact2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionArtifact(ctx context.Context, sel ast.SelectionSet, v *model.SessionArtifact) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SessionArtifact(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNSessionDiagnostic2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionDiagnostic(ctx context.Context, sel ast.SelectionSet, v model.SessionDiagnostic) graphql.Marshaler {
+	return ec._SessionDiagnostic(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNSessionDiagnostic2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionDiagnosticᚄ(ctx context.Context, sel ast.SelectionSet, v []model.SessionDiagnostic) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNSessionDiagnostic2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionDiagnostic(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNSessionDiagnostic2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionDiagnostic(ctx context.Context, sel ast.SelectionSet, v *model.SessionDiagnostic) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SessionDiagnostic(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNSessionRun2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionRun(ctx context.Context, sel ast.SelectionSet, v model.SessionRun) graphql.Marshaler {
+	return ec._SessionRun(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNSessionRun2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionRunᚄ(ctx context.Context, sel ast.SelectionSet, v []model.SessionRun) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNSessionRun2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionRun(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNSessionRun2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionRun(ctx context.Context, sel ast.SelectionSet, v *model.SessionRun) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SessionRun(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNSessionSample2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionSample(ctx context.Context, sel ast.SelectionSet, v model.SessionSample) graphql.Marshaler {
+	return ec._SessionSample(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNSessionSample2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionSampleᚄ(ctx context.Context, sel ast.SelectionSet, v []model.SessionSample) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNSessionSample2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionSample(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNSessionSample2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionSample(ctx context.Context, sel ast.SelectionSet, v *model.SessionSample) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SessionSample(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNSetBreakpointInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSetBreakpointInput(ctx context.Context, v any) (model.SetBreakpointInput, error) {
@@ -46172,6 +52277,11 @@ func (ec *executionContext) unmarshalNUpdateMappingInput2gitlabᚗflexinferᚗai
 
 func (ec *executionContext) unmarshalNUpdateProfileInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐUpdateProfileInput(ctx context.Context, v any) (model.UpdateProfileInput, error) {
 	res, err := ec.unmarshalInputUpdateProfileInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateSessionArtifactInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐUpdateSessionArtifactInput(ctx context.Context, v any) (model.UpdateSessionArtifactInput, error) {
+	res, err := ec.unmarshalInputUpdateSessionArtifactInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
@@ -47320,6 +53430,13 @@ func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.Sele
 	return res
 }
 
+func (ec *executionContext) marshalOIntegrationSession2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSession(ctx context.Context, sel ast.SelectionSet, v *model.IntegrationSession) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._IntegrationSession(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalOJSON2map(ctx context.Context, v any) (map[string]any, error) {
 	if v == nil {
 		return nil, nil
@@ -47466,6 +53583,20 @@ func (ec *executionContext) marshalOProvider2ᚖgitlabᚗflexinferᚗaiᚋlibs�
 		return graphql.Null
 	}
 	return ec._Provider(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOSessionArtifact2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionArtifact(ctx context.Context, sel ast.SelectionSet, v *model.SessionArtifact) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._SessionArtifact(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOSessionRun2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionRun(ctx context.Context, sel ast.SelectionSet, v *model.SessionRun) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._SessionRun(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOSourceFormat2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSourceFormat(ctx context.Context, v any) (*model.SourceFormat, error) {

@@ -798,6 +798,178 @@ type Subscription {
 }
 
 # =============================================================================
+# Integration Session Engine
+# =============================================================================
+
+type IntegrationSession {
+  id: ID!
+  name: String!
+  description: String
+  archived: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  samples: [SessionSample!]!
+  artifacts: [SessionArtifact!]!
+  runs: [SessionRun!]!
+  diagnostics: [SessionDiagnostic!]!
+  currentProfileDraft: SessionArtifact
+  currentWorkflowDraft: SessionArtifact
+}
+
+type SessionSample {
+  id: ID!
+  sessionId: ID!
+  name: String!
+  format: SourceFormat!
+  source: String
+  rawPayload: String
+  payloadChecksum: String!
+  payloadRef: String
+  createdAt: DateTime!
+}
+
+type SessionArtifact {
+  id: ID!
+  sessionId: ID!
+  kind: String!
+  name: String!
+  content: String!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type SessionRun {
+  id: ID!
+  sessionId: ID!
+  sampleId: ID
+  status: String!
+  createdAt: DateTime!
+  completedAt: DateTime
+  stages: [RunStage!]!
+  diagnostics: [SessionDiagnostic!]!
+  events: [Event!]!
+  warnings: [ParseWarning!]!
+}
+
+type RunStage {
+  id: ID!
+  name: String!
+  status: String!
+  startedAt: DateTime!
+  completedAt: DateTime
+  durationMs: Int!
+  summary: String
+}
+
+type SessionDiagnostic {
+  id: ID!
+  sessionId: ID!
+  runId: ID
+  sampleId: ID
+  severity: String!
+  code: String!
+  message: String!
+  path: String
+  fixSuggestion: String
+  accepted: Boolean!
+  acceptedAt: DateTime
+  lineage: [LineageLink!]!
+}
+
+type LineageLink {
+  sourcePath: String!
+  targetPath: String
+  description: String
+}
+
+type IntegrationBundle {
+  sessionId: ID!
+  exportedAt: DateTime!
+  session: IntegrationSession!
+  samples: [SessionSample!]!
+  artifacts: [SessionArtifact!]!
+  runs: [SessionRun!]!
+  diagnostics: [SessionDiagnostic!]!
+}
+
+type IntegrationSessionEvent {
+  id: ID!
+  type: String!
+  sessionId: ID!
+  runId: ID
+  message: String!
+  timestamp: DateTime!
+  session: IntegrationSession
+  run: SessionRun
+}
+
+input CreateIntegrationSessionInput {
+  name: String!
+  description: String
+}
+
+input AddSessionSampleInput {
+  sessionId: ID!
+  name: String!
+  format: SourceFormat!
+  data: String!
+  source: String
+  retainRawPayload: Boolean
+  payloadRef: String
+}
+
+input UpdateSessionArtifactInput {
+  sessionId: ID!
+  name: String
+  content: String!
+}
+
+input RunSessionPreviewInput {
+  sessionId: ID!
+  sampleId: ID
+  data: String
+  format: SourceFormat
+  source: String
+}
+
+input AcceptDiagnosticFixInput {
+  sessionId: ID!
+  diagnosticId: ID!
+  acceptedBy: String
+}
+
+input ExportIntegrationBundleInput {
+  sessionId: ID!
+  includeRawPayload: Boolean
+}
+
+extend type Query {
+  integrationSession(id: ID!): IntegrationSession
+  integrationSessions(includeArchived: Boolean): [IntegrationSession!]!
+  sessionSamples(sessionId: ID!): [SessionSample!]!
+  sessionArtifacts(sessionId: ID!): [SessionArtifact!]!
+  sessionRuns(sessionId: ID!): [SessionRun!]!
+  sessionRun(id: ID!): SessionRun
+  sessionDiagnostics(sessionId: ID!, runId: ID): [SessionDiagnostic!]!
+}
+
+extend type Mutation {
+  createIntegrationSession(input: CreateIntegrationSessionInput!): IntegrationSession!
+  archiveIntegrationSession(id: ID!): IntegrationSession!
+  addSessionSample(input: AddSessionSampleInput!): SessionSample!
+  updateSessionProfileDraft(input: UpdateSessionArtifactInput!): SessionArtifact!
+  updateSessionWorkflowDraft(input: UpdateSessionArtifactInput!): SessionArtifact!
+  runSessionPreview(input: RunSessionPreviewInput!): SessionRun!
+  acceptDiagnosticFix(input: AcceptDiagnosticFixInput!): SessionDiagnostic!
+  exportIntegrationBundle(input: ExportIntegrationBundleInput!): IntegrationBundle!
+}
+
+extend type Subscription {
+  integrationSessionEvents(sessionId: ID!): IntegrationSessionEvent!
+  sessionRunEvents(sessionId: ID!, runId: ID): IntegrationSessionEvent!
+}
+
+# =============================================================================
 # Event Sourcing / Projection Types
 # =============================================================================
 

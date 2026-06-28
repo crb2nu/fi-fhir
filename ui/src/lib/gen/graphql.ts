@@ -17,6 +17,12 @@ export type Scalars = {
   JSON: { input: unknown; output: unknown; }
 };
 
+export type AcceptDiagnosticFixInput = {
+  acceptedBy: InputMaybe<Scalars['String']['input']>;
+  diagnosticId: Scalars['ID']['input'];
+  sessionId: Scalars['ID']['input'];
+};
+
 export type ActiveEncounter = {
   __typename?: 'ActiveEncounter';
   admitTime: Scalars['DateTime']['output'];
@@ -30,6 +36,16 @@ export type ActiveEncounter = {
   provider: Maybe<Scalars['String']['output']>;
   room: Maybe<Scalars['String']['output']>;
   unit: Maybe<Scalars['String']['output']>;
+};
+
+export type AddSessionSampleInput = {
+  data: Scalars['String']['input'];
+  format: SourceFormat;
+  name: Scalars['String']['input'];
+  payloadRef: InputMaybe<Scalars['String']['input']>;
+  retainRawPayload: InputMaybe<Scalars['Boolean']['input']>;
+  sessionId: Scalars['ID']['input'];
+  source: InputMaybe<Scalars['String']['input']>;
 };
 
 export type Address = {
@@ -238,6 +254,11 @@ export type ConditionEvent = Event & {
   sourceFormat: Maybe<SourceFormat>;
   timestamp: Scalars['DateTime']['output'];
   type: EventType;
+};
+
+export type CreateIntegrationSessionInput = {
+  description: InputMaybe<Scalars['String']['input']>;
+  name: Scalars['String']['input'];
 };
 
 export type CreateMappingInput = {
@@ -467,6 +488,11 @@ export type ExplainedWarning = {
   impact: Maybe<Scalars['String']['output']>;
 };
 
+export type ExportIntegrationBundleInput = {
+  includeRawPayload: InputMaybe<Scalars['Boolean']['input']>;
+  sessionId: Scalars['ID']['input'];
+};
+
 export type ExtractEntitiesInput = {
   documentType: InputMaybe<Scalars['String']['input']>;
   includeNegated: InputMaybe<Scalars['Boolean']['input']>;
@@ -649,6 +675,45 @@ export type ImmunizationEvent = Event & {
   type: EventType;
 };
 
+export type IntegrationBundle = {
+  __typename?: 'IntegrationBundle';
+  artifacts: Array<SessionArtifact>;
+  diagnostics: Array<SessionDiagnostic>;
+  exportedAt: Scalars['DateTime']['output'];
+  runs: Array<SessionRun>;
+  samples: Array<SessionSample>;
+  session: IntegrationSession;
+  sessionId: Scalars['ID']['output'];
+};
+
+export type IntegrationSession = {
+  __typename?: 'IntegrationSession';
+  archived: Scalars['Boolean']['output'];
+  artifacts: Array<SessionArtifact>;
+  createdAt: Scalars['DateTime']['output'];
+  currentProfileDraft: Maybe<SessionArtifact>;
+  currentWorkflowDraft: Maybe<SessionArtifact>;
+  description: Maybe<Scalars['String']['output']>;
+  diagnostics: Array<SessionDiagnostic>;
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  runs: Array<SessionRun>;
+  samples: Array<SessionSample>;
+  updatedAt: Scalars['DateTime']['output'];
+};
+
+export type IntegrationSessionEvent = {
+  __typename?: 'IntegrationSessionEvent';
+  id: Scalars['ID']['output'];
+  message: Scalars['String']['output'];
+  run: Maybe<SessionRun>;
+  runId: Maybe<Scalars['ID']['output']>;
+  session: Maybe<IntegrationSession>;
+  sessionId: Scalars['ID']['output'];
+  timestamp: Scalars['DateTime']['output'];
+  type: Scalars['String']['output'];
+};
+
 export type LlmCapability = {
   __typename?: 'LLMCapability';
   configured: Scalars['Boolean']['output'];
@@ -700,6 +765,13 @@ export type LabTest = {
   description: Scalars['String']['output'];
   localCode: Maybe<Scalars['String']['output']>;
   loincCode: Maybe<Scalars['String']['output']>;
+};
+
+export type LineageLink = {
+  __typename?: 'LineageLink';
+  description: Maybe<Scalars['String']['output']>;
+  sourcePath: Scalars['String']['output'];
+  targetPath: Maybe<Scalars['String']['output']>;
 };
 
 export type ListMappingsInput = {
@@ -770,12 +842,16 @@ export type MessageClassification = {
 
 export type Mutation = {
   __typename?: 'Mutation';
+  acceptDiagnosticFix: SessionDiagnostic;
+  addSessionSample: SessionSample;
   approvePendingAutoroute: CodeMapping;
   approveWorkflowVersion: WorkflowApprovalRequest;
+  archiveIntegrationSession: IntegrationSession;
   archiveWorkflowDefinition: WorkflowDefinition;
   bulkApprovePendingAutoroutes: BulkApproveResult;
   cancelTemporalWorkflow: Scalars['Boolean']['output'];
   createFhirSubscription: FhirSubscription;
+  createIntegrationSession: IntegrationSession;
   createMapping: CodeMapping;
   createProfile: SourceProfile;
   createWorkflowDefinition: WorkflowDefinition;
@@ -790,6 +866,7 @@ export type Mutation = {
   deleteProfile: Scalars['Boolean']['output'];
   dryRunWorkflow: DryRunResult;
   duplicateProfile: SourceProfile;
+  exportIntegrationBundle: IntegrationBundle;
   generateWorkflow: GeneratedWorkflow;
   pauseFhirSubscription: FhirSubscription;
   publishWorkflowVersion: WorkflowRelease;
@@ -798,6 +875,7 @@ export type Mutation = {
   requestWorkflowApproval: WorkflowApprovalRequest;
   resumeFhirSubscription: FhirSubscription;
   rollbackWorkflowVersion: WorkflowRelease;
+  runSessionPreview: SessionRun;
   saveWorkflowVersion: WorkflowVersion;
   signalReviewDecision: Scalars['Boolean']['output'];
   startDebugSession: DebugSession;
@@ -808,8 +886,20 @@ export type Mutation = {
   triggerWorkflow: WorkflowResult;
   updateMapping: CodeMapping;
   updateProfile: SourceProfile;
+  updateSessionProfileDraft: SessionArtifact;
+  updateSessionWorkflowDraft: SessionArtifact;
   updateWorkflowDefinition: WorkflowDefinition;
   uploadMappingCSV: UploadMappingResult;
+};
+
+
+export type MutationAcceptDiagnosticFixArgs = {
+  input: AcceptDiagnosticFixInput;
+};
+
+
+export type MutationAddSessionSampleArgs = {
+  input: AddSessionSampleInput;
 };
 
 
@@ -820,6 +910,11 @@ export type MutationApprovePendingAutorouteArgs = {
 
 export type MutationApproveWorkflowVersionArgs = {
   input: ApproveWorkflowVersionInput;
+};
+
+
+export type MutationArchiveIntegrationSessionArgs = {
+  id: Scalars['ID']['input'];
 };
 
 
@@ -841,6 +936,11 @@ export type MutationCancelTemporalWorkflowArgs = {
 
 export type MutationCreateFhirSubscriptionArgs = {
   input: CreateSubscriptionInput;
+};
+
+
+export type MutationCreateIntegrationSessionArgs = {
+  input: CreateIntegrationSessionInput;
 };
 
 
@@ -917,6 +1017,11 @@ export type MutationDuplicateProfileArgs = {
 };
 
 
+export type MutationExportIntegrationBundleArgs = {
+  input: ExportIntegrationBundleInput;
+};
+
+
 export type MutationGenerateWorkflowArgs = {
   input: GenerateWorkflowInput;
 };
@@ -954,6 +1059,11 @@ export type MutationResumeFhirSubscriptionArgs = {
 
 export type MutationRollbackWorkflowVersionArgs = {
   input: RollbackWorkflowVersionInput;
+};
+
+
+export type MutationRunSessionPreviewArgs = {
+  input: RunSessionPreviewInput;
 };
 
 
@@ -1008,6 +1118,16 @@ export type MutationUpdateMappingArgs = {
 export type MutationUpdateProfileArgs = {
   id: Scalars['ID']['input'];
   input: UpdateProfileInput;
+};
+
+
+export type MutationUpdateSessionProfileDraftArgs = {
+  input: UpdateSessionArtifactInput;
+};
+
+
+export type MutationUpdateSessionWorkflowDraftArgs = {
+  input: UpdateSessionArtifactInput;
 };
 
 
@@ -1293,6 +1413,8 @@ export type Query = {
   getPendingAutoroute: Maybe<PendingAutoroute>;
   getUploadBatch: Maybe<UploadBatch>;
   health: HealthStatus;
+  integrationSession: Maybe<IntegrationSession>;
+  integrationSessions: Array<IntegrationSession>;
   listMappings: CodeMappingConnection;
   listPendingAutoroutes: PendingAutorouteConnection;
   llmCapability: LlmCapability;
@@ -1309,6 +1431,11 @@ export type Query = {
   projectionStatus: Array<ProjectionStatus>;
   quickQualityScore: DataQualityScore;
   resolveMapping: ResolveMappingResult;
+  sessionArtifacts: Array<SessionArtifact>;
+  sessionDiagnostics: Array<SessionDiagnostic>;
+  sessionRun: Maybe<SessionRun>;
+  sessionRuns: Array<SessionRun>;
+  sessionSamples: Array<SessionSample>;
   suggestMappings: Array<MappingCandidate>;
   temporalWorkflow: Maybe<TemporalWorkflow>;
   temporalWorkflows: TemporalWorkflowConnection;
@@ -1406,6 +1533,16 @@ export type QueryGetUploadBatchArgs = {
 };
 
 
+export type QueryIntegrationSessionArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryIntegrationSessionsArgs = {
+  includeArchived: InputMaybe<Scalars['Boolean']['input']>;
+};
+
+
 export type QueryListMappingsArgs = {
   input: InputMaybe<ListMappingsInput>;
 };
@@ -1481,6 +1618,32 @@ export type QueryQuickQualityScoreArgs = {
 
 export type QueryResolveMappingArgs = {
   input: ResolveMappingInput;
+};
+
+
+export type QuerySessionArtifactsArgs = {
+  sessionId: Scalars['ID']['input'];
+};
+
+
+export type QuerySessionDiagnosticsArgs = {
+  runId: InputMaybe<Scalars['ID']['input']>;
+  sessionId: Scalars['ID']['input'];
+};
+
+
+export type QuerySessionRunArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QuerySessionRunsArgs = {
+  sessionId: Scalars['ID']['input'];
+};
+
+
+export type QuerySessionSamplesArgs = {
+  sessionId: Scalars['ID']['input'];
 };
 
 
@@ -1606,11 +1769,84 @@ export type RouteExplanation = {
   trigger: Scalars['String']['output'];
 };
 
+export type RunSessionPreviewInput = {
+  data: InputMaybe<Scalars['String']['input']>;
+  format: InputMaybe<SourceFormat>;
+  sampleId: InputMaybe<Scalars['ID']['input']>;
+  sessionId: Scalars['ID']['input'];
+  source: InputMaybe<Scalars['String']['input']>;
+};
+
+export type RunStage = {
+  __typename?: 'RunStage';
+  completedAt: Maybe<Scalars['DateTime']['output']>;
+  durationMs: Scalars['Int']['output'];
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  startedAt: Scalars['DateTime']['output'];
+  status: Scalars['String']['output'];
+  summary: Maybe<Scalars['String']['output']>;
+};
+
 export type SaveWorkflowVersionInput = {
   createdBy: InputMaybe<Scalars['String']['input']>;
   notes: InputMaybe<Scalars['String']['input']>;
   workflowId: Scalars['ID']['input'];
   yaml: Scalars['String']['input'];
+};
+
+export type SessionArtifact = {
+  __typename?: 'SessionArtifact';
+  content: Scalars['String']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  id: Scalars['ID']['output'];
+  kind: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  sessionId: Scalars['ID']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+};
+
+export type SessionDiagnostic = {
+  __typename?: 'SessionDiagnostic';
+  accepted: Scalars['Boolean']['output'];
+  acceptedAt: Maybe<Scalars['DateTime']['output']>;
+  code: Scalars['String']['output'];
+  fixSuggestion: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  lineage: Array<LineageLink>;
+  message: Scalars['String']['output'];
+  path: Maybe<Scalars['String']['output']>;
+  runId: Maybe<Scalars['ID']['output']>;
+  sampleId: Maybe<Scalars['ID']['output']>;
+  sessionId: Scalars['ID']['output'];
+  severity: Scalars['String']['output'];
+};
+
+export type SessionRun = {
+  __typename?: 'SessionRun';
+  completedAt: Maybe<Scalars['DateTime']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  diagnostics: Array<SessionDiagnostic>;
+  events: Array<Event>;
+  id: Scalars['ID']['output'];
+  sampleId: Maybe<Scalars['ID']['output']>;
+  sessionId: Scalars['ID']['output'];
+  stages: Array<RunStage>;
+  status: Scalars['String']['output'];
+  warnings: Array<ParseWarning>;
+};
+
+export type SessionSample = {
+  __typename?: 'SessionSample';
+  createdAt: Scalars['DateTime']['output'];
+  format: SourceFormat;
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  payloadChecksum: Scalars['String']['output'];
+  payloadRef: Maybe<Scalars['String']['output']>;
+  rawPayload: Maybe<Scalars['String']['output']>;
+  sessionId: Scalars['ID']['output'];
+  source: Maybe<Scalars['String']['output']>;
 };
 
 export type SetBreakpointInput = {
@@ -1712,8 +1948,10 @@ export type Subscription = {
   __typename?: 'Subscription';
   debugStepEvent: WorkflowDebugStep;
   eventStream: Event;
+  integrationSessionEvents: IntegrationSessionEvent;
   liveParseStream: ParseEvent;
   patientEvents: Event;
+  sessionRunEvents: IntegrationSessionEvent;
   workflowEvents: WorkflowEventNotification;
 };
 
@@ -1728,6 +1966,11 @@ export type SubscriptionEventStreamArgs = {
 };
 
 
+export type SubscriptionIntegrationSessionEventsArgs = {
+  sessionId: Scalars['ID']['input'];
+};
+
+
 export type SubscriptionLiveParseStreamArgs = {
   input: LiveParseInput;
 };
@@ -1735,6 +1978,12 @@ export type SubscriptionLiveParseStreamArgs = {
 
 export type SubscriptionPatientEventsArgs = {
   mrn: Scalars['ID']['input'];
+};
+
+
+export type SubscriptionSessionRunEventsArgs = {
+  runId: InputMaybe<Scalars['ID']['input']>;
+  sessionId: Scalars['ID']['input'];
 };
 
 
@@ -1885,6 +2134,12 @@ export type UpdateProfileInput = {
   identifiers: InputMaybe<IdentifierConfigInput>;
   name: InputMaybe<Scalars['String']['input']>;
   terminology: InputMaybe<TerminologyConfigInput>;
+};
+
+export type UpdateSessionArtifactInput = {
+  content: Scalars['String']['input'];
+  name: InputMaybe<Scalars['String']['input']>;
+  sessionId: Scalars['ID']['input'];
 };
 
 export type UpdateWorkflowDefinitionInput = {
@@ -2265,6 +2520,35 @@ export type HealthQueryVariables = Exact<{ [key: string]: never; }>;
 
 
 export type HealthQuery = { __typename?: 'Query', health: { __typename?: 'HealthStatus', status: string, version: string } };
+
+export type CreateIntegrationSessionMutationVariables = Exact<{
+  input: CreateIntegrationSessionInput;
+}>;
+
+
+export type CreateIntegrationSessionMutation = { __typename?: 'Mutation', createIntegrationSession: { __typename?: 'IntegrationSession', id: string, name: string } };
+
+export type AddSessionSampleMutationVariables = Exact<{
+  input: AddSessionSampleInput;
+}>;
+
+
+export type AddSessionSampleMutation = { __typename?: 'Mutation', addSessionSample: { __typename?: 'SessionSample', id: string, source: string | null, payloadChecksum: string, rawPayload: string | null } };
+
+export type RunSessionPreviewMutationVariables = Exact<{
+  input: RunSessionPreviewInput;
+}>;
+
+
+export type RunSessionPreviewMutation = { __typename?: 'Mutation', runSessionPreview: { __typename?: 'SessionRun', id: string, status: string, events: Array<{ __typename: 'AppointmentEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null, patient: { __typename?: 'Patient', mrn: string, familyName: string, givenName: string, dateOfBirth: string | null, gender: string | null }, appointment: { __typename?: 'Appointment', id: string, status: string, startTime: string, endTime: string | null, reason: string | null, location: { __typename?: 'Location', facility: string | null, unit: string | null, room: string | null, bed: string | null } | null, provider: { __typename?: 'Provider', familyName: string, givenName: string, npi: string | null } | null } } | { __typename: 'ConditionEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename: 'DocumentEvent', documentType: string, title: string | null, id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename: 'ImmunizationEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename: 'LabResultEvent', isCritical: boolean, id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null, patient: { __typename?: 'Patient', mrn: string, familyName: string, givenName: string, dateOfBirth: string | null, gender: string | null }, test: { __typename?: 'LabTest', loincCode: string | null, localCode: string | null, description: string }, result: { __typename?: 'LabResult', value: string, unit: string | null, status: string | null } } | { __typename: 'PatientAdmitEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null, patient: { __typename?: 'Patient', mrn: string, familyName: string, givenName: string, dateOfBirth: string | null, gender: string | null }, encounter: { __typename?: 'Encounter', class: string, location: { __typename?: 'Location', facility: string | null, unit: string | null, room: string | null, bed: string | null } | null } } | { __typename: 'PatientDischargeEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null, patient: { __typename?: 'Patient', mrn: string, familyName: string, givenName: string, dateOfBirth: string | null, gender: string | null }, encounter: { __typename?: 'Encounter', class: string, location: { __typename?: 'Location', facility: string | null, unit: string | null, room: string | null, bed: string | null } | null } } | { __typename: 'ProcedureEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename: 'VitalSignEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null }>, warnings: Array<{ __typename?: 'ParseWarning', phase: string, code: string, message: string, path: string | null, explanation: string | null, fixSuggestion: string | null, impact: string | null, severity: string | null, fromCache: boolean | null }>, diagnostics: Array<{ __typename?: 'SessionDiagnostic', id: string, code: string, message: string, path: string | null, severity: string, fixSuggestion: string | null, accepted: boolean, acceptedAt: string | null }>, stages: Array<{ __typename?: 'RunStage', id: string, name: string, status: string, startedAt: string, completedAt: string | null, durationMs: number }> } };
+
+export type SessionRunEventsSubscriptionVariables = Exact<{
+  sessionId: Scalars['ID']['input'];
+  runId: InputMaybe<Scalars['ID']['input']>;
+}>;
+
+
+export type SessionRunEventsSubscription = { __typename?: 'Subscription', sessionRunEvents: { __typename?: 'IntegrationSessionEvent', sessionId: string, runId: string | null, type: string, message: string } };
 
 export type ExtractEntitiesQueryVariables = Exact<{
   input: ExtractEntitiesInput;
@@ -2725,6 +3009,10 @@ export const PatientTimelineDocument = {"kind":"Document","definitions":[{"kind"
 export const PatientsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Patients"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"filter"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"PatientFilter"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"first"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"after"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"patients"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"filter"},"value":{"kind":"Variable","name":{"kind":"Name","value":"filter"}}},{"kind":"Argument","name":{"kind":"Name","value":"first"},"value":{"kind":"Variable","name":{"kind":"Name","value":"first"}}},{"kind":"Argument","name":{"kind":"Name","value":"after"},"value":{"kind":"Variable","name":{"kind":"Name","value":"after"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"edges"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"cursor"}},{"kind":"Field","name":{"kind":"Name","value":"node"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mrn"}},{"kind":"Field","name":{"kind":"Name","value":"familyName"}},{"kind":"Field","name":{"kind":"Name","value":"givenName"}},{"kind":"Field","name":{"kind":"Name","value":"middleName"}},{"kind":"Field","name":{"kind":"Name","value":"dateOfBirth"}},{"kind":"Field","name":{"kind":"Name","value":"gender"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"pageInfo"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"hasNextPage"}},{"kind":"Field","name":{"kind":"Name","value":"endCursor"}}]}},{"kind":"Field","name":{"kind":"Name","value":"totalCount"}}]}}]}}]} as unknown as DocumentNode<PatientsQuery, PatientsQueryVariables>;
 export const ExplainWarningsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"ExplainWarnings"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"warnings"}},"type":{"kind":"NonNullType","type":{"kind":"ListType","type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ParseWarningInput"}}}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"format"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"SourceFormat"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"explainWarnings"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"warnings"},"value":{"kind":"Variable","name":{"kind":"Name","value":"warnings"}}},{"kind":"Argument","name":{"kind":"Name","value":"format"},"value":{"kind":"Variable","name":{"kind":"Name","value":"format"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"explanation"}},{"kind":"Field","name":{"kind":"Name","value":"fixSuggestion"}},{"kind":"Field","name":{"kind":"Name","value":"impact"}},{"kind":"Field","name":{"kind":"Name","value":"fromCache"}}]}}]}}]} as unknown as DocumentNode<ExplainWarningsQuery, ExplainWarningsQueryVariables>;
 export const HealthDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Health"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"health"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"version"}}]}}]}}]} as unknown as DocumentNode<HealthQuery, HealthQueryVariables>;
+export const CreateIntegrationSessionDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"CreateIntegrationSession"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"CreateIntegrationSessionInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"createIntegrationSession"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}}]}}]} as unknown as DocumentNode<CreateIntegrationSessionMutation, CreateIntegrationSessionMutationVariables>;
+export const AddSessionSampleDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"AddSessionSample"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"AddSessionSampleInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"addSessionSample"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"source"}},{"kind":"Field","name":{"kind":"Name","value":"payloadChecksum"}},{"kind":"Field","name":{"kind":"Name","value":"rawPayload"}}]}}]}}]} as unknown as DocumentNode<AddSessionSampleMutation, AddSessionSampleMutationVariables>;
+export const RunSessionPreviewDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"RunSessionPreview"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"RunSessionPreviewInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"runSessionPreview"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"events"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"__typename"}},{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"source"}},{"kind":"Field","name":{"kind":"Name","value":"sourceFormat"}},{"kind":"Field","name":{"kind":"Name","value":"correlationId"}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"PatientAdmitEvent"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"patient"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mrn"}},{"kind":"Field","name":{"kind":"Name","value":"familyName"}},{"kind":"Field","name":{"kind":"Name","value":"givenName"}},{"kind":"Field","name":{"kind":"Name","value":"dateOfBirth"}},{"kind":"Field","name":{"kind":"Name","value":"gender"}}]}},{"kind":"Field","name":{"kind":"Name","value":"encounter"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"class"}},{"kind":"Field","name":{"kind":"Name","value":"location"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"facility"}},{"kind":"Field","name":{"kind":"Name","value":"unit"}},{"kind":"Field","name":{"kind":"Name","value":"room"}},{"kind":"Field","name":{"kind":"Name","value":"bed"}}]}}]}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"PatientDischargeEvent"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"patient"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mrn"}},{"kind":"Field","name":{"kind":"Name","value":"familyName"}},{"kind":"Field","name":{"kind":"Name","value":"givenName"}},{"kind":"Field","name":{"kind":"Name","value":"dateOfBirth"}},{"kind":"Field","name":{"kind":"Name","value":"gender"}}]}},{"kind":"Field","name":{"kind":"Name","value":"encounter"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"class"}},{"kind":"Field","name":{"kind":"Name","value":"location"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"facility"}},{"kind":"Field","name":{"kind":"Name","value":"unit"}},{"kind":"Field","name":{"kind":"Name","value":"room"}},{"kind":"Field","name":{"kind":"Name","value":"bed"}}]}}]}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"LabResultEvent"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"patient"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mrn"}},{"kind":"Field","name":{"kind":"Name","value":"familyName"}},{"kind":"Field","name":{"kind":"Name","value":"givenName"}},{"kind":"Field","name":{"kind":"Name","value":"dateOfBirth"}},{"kind":"Field","name":{"kind":"Name","value":"gender"}}]}},{"kind":"Field","name":{"kind":"Name","value":"test"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"loincCode"}},{"kind":"Field","name":{"kind":"Name","value":"localCode"}},{"kind":"Field","name":{"kind":"Name","value":"description"}}]}},{"kind":"Field","name":{"kind":"Name","value":"result"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"value"}},{"kind":"Field","name":{"kind":"Name","value":"unit"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}},{"kind":"Field","name":{"kind":"Name","value":"isCritical"}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"AppointmentEvent"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"patient"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mrn"}},{"kind":"Field","name":{"kind":"Name","value":"familyName"}},{"kind":"Field","name":{"kind":"Name","value":"givenName"}},{"kind":"Field","name":{"kind":"Name","value":"dateOfBirth"}},{"kind":"Field","name":{"kind":"Name","value":"gender"}}]}},{"kind":"Field","name":{"kind":"Name","value":"appointment"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"startTime"}},{"kind":"Field","name":{"kind":"Name","value":"endTime"}},{"kind":"Field","name":{"kind":"Name","value":"reason"}},{"kind":"Field","name":{"kind":"Name","value":"location"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"facility"}},{"kind":"Field","name":{"kind":"Name","value":"unit"}},{"kind":"Field","name":{"kind":"Name","value":"room"}},{"kind":"Field","name":{"kind":"Name","value":"bed"}}]}},{"kind":"Field","name":{"kind":"Name","value":"provider"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"familyName"}},{"kind":"Field","name":{"kind":"Name","value":"givenName"}},{"kind":"Field","name":{"kind":"Name","value":"npi"}}]}}]}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"DocumentEvent"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"documentType"}},{"kind":"Field","name":{"kind":"Name","value":"title"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"warnings"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"phase"}},{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"message"}},{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"explanation"}},{"kind":"Field","name":{"kind":"Name","value":"fixSuggestion"}},{"kind":"Field","name":{"kind":"Name","value":"impact"}},{"kind":"Field","name":{"kind":"Name","value":"severity"}},{"kind":"Field","name":{"kind":"Name","value":"fromCache"}}]}},{"kind":"Field","name":{"kind":"Name","value":"diagnostics"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"message"}},{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"severity"}},{"kind":"Field","name":{"kind":"Name","value":"fixSuggestion"}},{"kind":"Field","name":{"kind":"Name","value":"accepted"}},{"kind":"Field","name":{"kind":"Name","value":"acceptedAt"}}]}},{"kind":"Field","name":{"kind":"Name","value":"stages"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"startedAt"}},{"kind":"Field","name":{"kind":"Name","value":"completedAt"}},{"kind":"Field","name":{"kind":"Name","value":"durationMs"}}]}}]}}]}}]} as unknown as DocumentNode<RunSessionPreviewMutation, RunSessionPreviewMutationVariables>;
+export const SessionRunEventsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"SessionRunEvents"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"runId"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"sessionRunEvents"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"sessionId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}}},{"kind":"Argument","name":{"kind":"Name","value":"runId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"runId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"sessionId"}},{"kind":"Field","name":{"kind":"Name","value":"runId"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"message"}}]}}]}}]} as unknown as DocumentNode<SessionRunEventsSubscription, SessionRunEventsSubscriptionVariables>;
 export const ExtractEntitiesDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"ExtractEntities"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ExtractEntitiesInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"extractEntities"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"conditions"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"codeSystem"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"negated"}},{"kind":"Field","name":{"kind":"Name","value":"textSpan"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}},{"kind":"Field","name":{"kind":"Name","value":"medications"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"codeSystem"}},{"kind":"Field","name":{"kind":"Name","value":"dose"}},{"kind":"Field","name":{"kind":"Name","value":"route"}},{"kind":"Field","name":{"kind":"Name","value":"frequency"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"negated"}},{"kind":"Field","name":{"kind":"Name","value":"textSpan"}}]}},{"kind":"Field","name":{"kind":"Name","value":"vitalSigns"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"loincCode"}},{"kind":"Field","name":{"kind":"Name","value":"value"}},{"kind":"Field","name":{"kind":"Name","value":"unit"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"interpretation"}},{"kind":"Field","name":{"kind":"Name","value":"textSpan"}}]}},{"kind":"Field","name":{"kind":"Name","value":"allergies"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"substance"}},{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"codeSystem"}},{"kind":"Field","name":{"kind":"Name","value":"severity"}},{"kind":"Field","name":{"kind":"Name","value":"reaction"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"negated"}},{"kind":"Field","name":{"kind":"Name","value":"textSpan"}}]}},{"kind":"Field","name":{"kind":"Name","value":"procedures"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"codeSystem"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"negated"}},{"kind":"Field","name":{"kind":"Name","value":"textSpan"}}]}},{"kind":"Field","name":{"kind":"Name","value":"overallConfidence"}},{"kind":"Field","name":{"kind":"Name","value":"processingTimeMs"}},{"kind":"Field","name":{"kind":"Name","value":"model"}}]}}]}}]} as unknown as DocumentNode<ExtractEntitiesQuery, ExtractEntitiesQueryVariables>;
 export const AnalyzeQualityDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"AnalyzeQuality"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"AnalyzeQualityInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"analyzeQuality"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"overallScore"}},{"kind":"Field","name":{"kind":"Name","value":"dimensions"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"completeness"}},{"kind":"Field","name":{"kind":"Name","value":"accuracy"}},{"kind":"Field","name":{"kind":"Name","value":"consistency"}},{"kind":"Field","name":{"kind":"Name","value":"conformance"}},{"kind":"Field","name":{"kind":"Name","value":"timeliness"}}]}},{"kind":"Field","name":{"kind":"Name","value":"issues"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"dimension"}},{"kind":"Field","name":{"kind":"Name","value":"severity"}},{"kind":"Field","name":{"kind":"Name","value":"field"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"actualValue"}},{"kind":"Field","name":{"kind":"Name","value":"expectedValue"}}]}},{"kind":"Field","name":{"kind":"Name","value":"recommendations"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"priority"}},{"kind":"Field","name":{"kind":"Name","value":"category"}},{"kind":"Field","name":{"kind":"Name","value":"title"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"impact"}}]}},{"kind":"Field","name":{"kind":"Name","value":"processingTimeMs"}},{"kind":"Field","name":{"kind":"Name","value":"model"}}]}}]}}]} as unknown as DocumentNode<AnalyzeQualityQuery, AnalyzeQualityQueryVariables>;
 export const GenerateWorkflowDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"GenerateWorkflow"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"GenerateWorkflowInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"generateWorkflow"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"yaml"}},{"kind":"Field","name":{"kind":"Name","value":"explanation"}},{"kind":"Field","name":{"kind":"Name","value":"warnings"}}]}}]}}]} as unknown as DocumentNode<GenerateWorkflowMutation, GenerateWorkflowMutationVariables>;
