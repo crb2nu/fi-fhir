@@ -5,52 +5,52 @@ import type { IntegrationSessionDiagnostic, IntegrationSessionStage } from './ty
 
 export type CreateIntegrationSessionMutationVariables = {
   input: {
-    source: string;
-    profileId?: string | null;
-    title?: string | null;
+    name: string;
+    description?: string | null;
   };
 };
 
 export type CreateIntegrationSessionMutation = {
   createIntegrationSession: {
     id: string;
-    source: string | null;
-    profileId: string | null;
-    title: string | null;
+    name: string;
   };
 };
 
 export type AddSessionSampleMutationVariables = {
-  sessionId: string;
   input: {
-    source: string;
+    sessionId: string;
+    name: string;
+    source?: string | null;
     format: 'HL7V2';
     data: string;
+    retainRawPayload?: boolean | null;
   };
 };
 
 export type AddSessionSampleMutation = {
   addSessionSample: {
     id: string;
-    source: string;
-    checksum: string | null;
-    rawRetained: boolean | null;
+    source: string | null;
+    payloadChecksum: string;
+    rawPayload: string | null;
   };
 };
 
 export type RunSessionPreviewMutationVariables = {
-  sessionId: string;
-  sampleId: string;
   input: {
-    profileId?: string | null;
+    sessionId: string;
+    sampleId: string;
+    source?: string | null;
   };
 };
 
 export type RunSessionPreviewMutation = {
   runSessionPreview: {
     id: string;
-    state: string;
-    preview: ParsePreviewQuery['parsePreview'] | null;
+    status: string;
+    events: ParsePreviewQuery['parsePreview']['events'];
+    warnings: ParsePreviewQuery['parsePreview']['warnings'];
     diagnostics: IntegrationSessionDiagnostic[];
     stages: IntegrationSessionStage[];
   };
@@ -64,85 +64,79 @@ export type SessionRunEventsSubscriptionVariables = {
 export type SessionRunEventsSubscription = {
   sessionRunEvents: {
     sessionId: string;
-    runId: string;
+    runId: string | null;
     type: string;
-    state: string | null;
-    message: string | null;
-    preview: ParsePreviewQuery['parsePreview'] | null;
-    diagnostics: IntegrationSessionDiagnostic[];
+    message: string;
   };
 };
 
-const parseResultSelection = `
-  success
-  errors
-  events {
-    __typename
-    id
-    type
-    timestamp
-    source
-    sourceFormat
-    correlationId
-    ... on PatientAdmitEvent {
-      patient { mrn familyName givenName dateOfBirth gender }
-      encounter { class location { facility unit room bed } }
-    }
-    ... on PatientDischargeEvent {
-      patient { mrn familyName givenName dateOfBirth gender }
-      encounter { class location { facility unit room bed } }
-    }
-    ... on LabResultEvent {
-      patient { mrn familyName givenName dateOfBirth gender }
-      test { loincCode localCode description }
-      result { value unit status }
-      isCritical
-    }
-    ... on AppointmentEvent {
-      patient { mrn familyName givenName dateOfBirth gender }
-      appointment {
-        id
-        status
-        startTime
-        endTime
-        reason
-        location { facility unit room bed }
-        provider { familyName givenName npi }
-      }
-    }
-    ... on DocumentEvent {
-      documentType
-      title
+const eventSelection = `
+  __typename
+  id
+  type
+  timestamp
+  source
+  sourceFormat
+  correlationId
+  ... on PatientAdmitEvent {
+    patient { mrn familyName givenName dateOfBirth gender }
+    encounter { class location { facility unit room bed } }
+  }
+  ... on PatientDischargeEvent {
+    patient { mrn familyName givenName dateOfBirth gender }
+    encounter { class location { facility unit room bed } }
+  }
+  ... on LabResultEvent {
+    patient { mrn familyName givenName dateOfBirth gender }
+    test { loincCode localCode description }
+    result { value unit status }
+    isCritical
+  }
+  ... on AppointmentEvent {
+    patient { mrn familyName givenName dateOfBirth gender }
+    appointment {
+      id
+      status
+      startTime
+      endTime
+      reason
+      location { facility unit room bed }
+      provider { familyName givenName npi }
     }
   }
-  warnings {
-    phase
-    code
-    message
-    path
-    explanation
-    fixSuggestion
-    impact
-    severity
-    fromCache
+  ... on DocumentEvent {
+    documentType
+    title
   }
 `;
 
-const diagnosticSelection = `
-  id
+const warningSelection = `
   phase
   code
   message
   path
-  severity
-  status
+  explanation
   fixSuggestion
+  impact
+  severity
+  fromCache
+`;
+
+const diagnosticSelection = `
+  id
+  code
+  message
+  path
+  severity
+  fixSuggestion
+  accepted
+  acceptedAt
 `;
 
 const stageSelection = `
   id
   name
-  state
+  status
   startedAt
   completedAt
   durationMs
@@ -152,9 +146,7 @@ export const CreateIntegrationSessionDocument = parse(`
   mutation CreateIntegrationSession($input: CreateIntegrationSessionInput!) {
     createIntegrationSession(input: $input) {
       id
-      source
-      profileId
-      title
+      name
     }
   }
 `) as unknown as TypedDocumentNode<
@@ -163,23 +155,26 @@ export const CreateIntegrationSessionDocument = parse(`
 >;
 
 export const AddSessionSampleDocument = parse(`
-  mutation AddSessionSample($sessionId: ID!, $input: AddSessionSampleInput!) {
-    addSessionSample(sessionId: $sessionId, input: $input) {
+  mutation AddSessionSample($input: AddSessionSampleInput!) {
+    addSessionSample(input: $input) {
       id
       source
-      checksum
-      rawRetained
+      payloadChecksum
+      rawPayload
     }
   }
 `) as unknown as TypedDocumentNode<AddSessionSampleMutation, AddSessionSampleMutationVariables>;
 
 export const RunSessionPreviewDocument = parse(`
-  mutation RunSessionPreview($sessionId: ID!, $sampleId: ID!, $input: RunSessionPreviewInput!) {
-    runSessionPreview(sessionId: $sessionId, sampleId: $sampleId, input: $input) {
+  mutation RunSessionPreview($input: RunSessionPreviewInput!) {
+    runSessionPreview(input: $input) {
       id
-      state
-      preview {
-        ${parseResultSelection}
+      status
+      events {
+        ${eventSelection}
+      }
+      warnings {
+        ${warningSelection}
       }
       diagnostics {
         ${diagnosticSelection}
@@ -197,14 +192,7 @@ export const SessionRunEventsDocument = parse(`
       sessionId
       runId
       type
-      state
       message
-      preview {
-        ${parseResultSelection}
-      }
-      diagnostics {
-        ${diagnosticSelection}
-      }
     }
   }
 `) as unknown as TypedDocumentNode<

@@ -1,63 +1,144 @@
 mutation CreateIntegrationSession($input: CreateIntegrationSessionInput!) {
   createIntegrationSession(input: $input) {
     id
-    source
-    profileId
-    title
+    name
   }
 }
 
-mutation AddSessionSample($sessionId: ID!, $input: AddSessionSampleInput!) {
-  addSessionSample(sessionId: $sessionId, input: $input) {
+mutation AddSessionSample($input: AddSessionSampleInput!) {
+  addSessionSample(input: $input) {
     id
     source
-    checksum
-    rawRetained
+    payloadChecksum
+    rawPayload
   }
 }
 
-mutation RunSessionPreview($sessionId: ID!, $sampleId: ID!, $input: RunSessionPreviewInput!) {
-  runSessionPreview(sessionId: $sessionId, sampleId: $sampleId, input: $input) {
+mutation RunSessionPreview($input: RunSessionPreviewInput!) {
+  runSessionPreview(input: $input) {
     id
-    state
-    preview {
-      success
-      errors
-      events {
-        __typename
-        id
-        type
-        timestamp
-        source
-        sourceFormat
-        correlationId
+    status
+    events {
+      __typename
+      id
+      type
+      timestamp
+      source
+      sourceFormat
+      correlationId
+      ... on PatientAdmitEvent {
+        patient {
+          mrn
+          familyName
+          givenName
+          dateOfBirth
+          gender
+        }
+        encounter {
+          class
+          location {
+            facility
+            unit
+            room
+            bed
+          }
+        }
       }
-      warnings {
-        phase
-        code
-        message
-        path
-        explanation
-        fixSuggestion
-        impact
-        severity
-        fromCache
+      ... on PatientDischargeEvent {
+        patient {
+          mrn
+          familyName
+          givenName
+          dateOfBirth
+          gender
+        }
+        encounter {
+          class
+          location {
+            facility
+            unit
+            room
+            bed
+          }
+        }
+      }
+      ... on LabResultEvent {
+        patient {
+          mrn
+          familyName
+          givenName
+          dateOfBirth
+          gender
+        }
+        test {
+          loincCode
+          localCode
+          description
+        }
+        result {
+          value
+          unit
+          status
+        }
+        isCritical
+      }
+      ... on AppointmentEvent {
+        patient {
+          mrn
+          familyName
+          givenName
+          dateOfBirth
+          gender
+        }
+        appointment {
+          id
+          status
+          startTime
+          endTime
+          reason
+          location {
+            facility
+            unit
+            room
+            bed
+          }
+          provider {
+            familyName
+            givenName
+            npi
+          }
+        }
+      }
+      ... on DocumentEvent {
+        documentType
+        title
       }
     }
-    diagnostics {
-      id
+    warnings {
       phase
       code
       message
       path
-      severity
-      status
+      explanation
       fixSuggestion
+      impact
+      severity
+      fromCache
+    }
+    diagnostics {
+      id
+      code
+      message
+      path
+      severity
+      fixSuggestion
+      accepted
+      acceptedAt
     }
     stages {
       id
       name
-      state
+      status
       startedAt
       completedAt
       durationMs
@@ -70,17 +151,6 @@ subscription SessionRunEvents($sessionId: ID!, $runId: ID) {
     sessionId
     runId
     type
-    state
     message
-    diagnostics {
-      id
-      phase
-      code
-      message
-      path
-      severity
-      status
-      fixSuggestion
-    }
   }
 }

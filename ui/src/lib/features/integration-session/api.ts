@@ -61,9 +61,8 @@ export async function runSessionBackedHL7Preview(
       CreateIntegrationSessionDocument,
       {
         input: {
-          source,
-          profileId: input.profileId ?? null,
-          title: `${source} HL7 preview`
+          name: `${source} HL7 preview`,
+          description: input.profileId ? `Profile ${input.profileId}` : null
         }
       },
       { showErrorToast: false }
@@ -74,11 +73,13 @@ export async function runSessionBackedHL7Preview(
   const sample = await graphqlFetch(
     AddSessionSampleDocument,
     {
-      sessionId,
       input: {
+        sessionId,
+        name: `${source} sample`,
         source,
         format: 'HL7V2',
-        data: input.data
+        data: input.data,
+        retainRawPayload: true
       }
     },
     { showErrorToast: false }
@@ -87,16 +88,22 @@ export async function runSessionBackedHL7Preview(
   const run = await graphqlFetch(
     RunSessionPreviewDocument,
     {
-      sessionId,
-      sampleId: sample.addSessionSample.id,
       input: {
-        profileId: input.profileId ?? null
+        sessionId,
+        sampleId: sample.addSessionSample.id,
+        source
       }
     },
     { showErrorToast: false }
   );
 
-  const preview = run.runSessionPreview.preview ?? emptyPreview();
+  const preview: ParsePreviewQuery['parsePreview'] = {
+    __typename: 'ParseResult',
+    success: run.runSessionPreview.status === 'completed',
+    errors: run.runSessionPreview.status === 'completed' ? [] : ['Session preview failed'],
+    events: run.runSessionPreview.events ?? [],
+    warnings: run.runSessionPreview.warnings ?? []
+  };
 
   return {
     parsePreview: preview,
@@ -105,7 +112,7 @@ export async function runSessionBackedHL7Preview(
       id: sessionId,
       sampleId: sample.addSessionSample.id,
       runId: run.runSessionPreview.id,
-      state: run.runSessionPreview.state,
+      state: run.runSessionPreview.status,
       diagnostics: run.runSessionPreview.diagnostics ?? [],
       stages: run.runSessionPreview.stages ?? [],
       error: null

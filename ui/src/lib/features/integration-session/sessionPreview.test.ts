@@ -65,7 +65,7 @@ describe('parseHL7Preview session routing', () => {
       data: 'MSH|^~\\\\&|A|B|C|D|20240101||ADT^A01|1|P|2.5'
     });
 
-    expect(result.parsePreview).toBe(preview);
+    expect(result.parsePreview).toStrictEqual(preview);
     expect(result.session).toBeUndefined();
     expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(mockFetch).toHaveBeenCalledWith(ParsePreviewDocument, {
@@ -80,28 +80,45 @@ describe('parseHL7Preview session routing', () => {
     mockFetch.mockImplementation(async (document: unknown) => {
       switch (operationName(document)) {
         case 'CreateIntegrationSession':
-          return { createIntegrationSession: { id: 'session-1', source: 'adt_feed', profileId: null, title: 'adt_feed HL7 preview' } };
+          return { createIntegrationSession: { id: 'session-1', name: 'adt_feed HL7 preview' } };
         case 'AddSessionSample':
-          return { addSessionSample: { id: 'sample-1', source: 'adt_feed', checksum: 'sha256:1', rawRetained: false } };
+          return {
+            addSessionSample: {
+              id: 'sample-1',
+              source: 'adt_feed',
+              payloadChecksum: 'sha256:1',
+              rawPayload: null
+            }
+          };
         case 'RunSessionPreview':
           return {
             runSessionPreview: {
               id: 'run-1',
-              state: 'completed',
-              preview,
+              status: 'completed',
+              events: preview.events,
+              warnings: preview.warnings,
               diagnostics: [
                 {
                   id: 'diag-1',
-                  phase: 'semantic',
                   code: 'PID_NAME',
                   message: 'Patient name missing',
                   path: 'PID-5',
                   severity: 'warning',
-                  status: 'open',
-                  fixSuggestion: 'Map PID-5'
+                  fixSuggestion: 'Map PID-5',
+                  accepted: false,
+                  acceptedAt: null
                 }
               ],
-              stages: [{ id: 'stage-1', name: 'parse', state: 'completed', startedAt: null, completedAt: null, durationMs: 3 }]
+              stages: [
+                {
+                  id: 'stage-1',
+                  name: 'parse_hl7v2',
+                  status: 'succeeded',
+                  startedAt: null,
+                  completedAt: null,
+                  durationMs: 3
+                }
+              ]
             }
           };
         default:
@@ -115,7 +132,7 @@ describe('parseHL7Preview session routing', () => {
       profileId: 'profile-1'
     });
 
-    expect(result.parsePreview).toBe(preview);
+    expect(result.parsePreview).toStrictEqual(preview);
     expect(result.session).toMatchObject({
       mode: 'session',
       id: 'session-1',
@@ -130,16 +147,13 @@ describe('parseHL7Preview session routing', () => {
       'RunSessionPreview'
     ]);
     expect(mockFetch.mock.calls[0]?.[1]).toMatchObject({
-      input: { source: 'adt_feed', profileId: 'profile-1' }
+      input: { name: 'adt_feed HL7 preview', description: 'Profile profile-1' }
     });
     expect(mockFetch.mock.calls[1]?.[1]).toMatchObject({
-      sessionId: 'session-1',
-      input: { source: 'adt_feed', format: 'HL7V2' }
+      input: { sessionId: 'session-1', source: 'adt_feed', format: 'HL7V2' }
     });
     expect(mockFetch.mock.calls[2]?.[1]).toMatchObject({
-      sessionId: 'session-1',
-      sampleId: 'sample-1',
-      input: { profileId: 'profile-1' }
+      input: { sessionId: 'session-1', sampleId: 'sample-1' }
     });
   });
 

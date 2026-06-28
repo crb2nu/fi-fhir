@@ -76,7 +76,7 @@ func TestIntegrationSession_RunPreview(t *testing.T) {
 	if len(run.Events) != 1 {
 		t.Fatalf("expected one parsed event, got %d", len(run.Events))
 	}
-	if len(run.Stages) != 1 || run.Stages[0].DurationMs < 0 {
+	if !hasRunStage(run.Stages, "parse_hl7v2") {
 		t.Fatalf("expected parse stage with duration, got %#v", run.Stages)
 	}
 }
@@ -196,4 +196,13 @@ func addTestIntegrationSample(t *testing.T, mutationResolver *mutationResolver, 
 		t.Fatalf("AddSessionSample failed: %v", err)
 	}
 	return sample
+}
+
+func hasRunStage(stages []model.RunStage, name string) bool {
+	for _, stage := range stages {
+		if stage.Name == name && stage.DurationMs >= 0 {
+			return true
+		}
+	}
+	return false
 }

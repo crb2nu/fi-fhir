@@ -4,443 +4,330 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
-	"sync"
 	"time"
 
-	"github.com/google/uuid"
-
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model"
-	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/hl7v2"
+	enginesession "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/session"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 )
 
-type integrationSessionSubscriber struct {
-	sessionID string
-	runID     *string
-	ch        chan *model.IntegrationSessionEvent
-}
-
 type integrationSessionService struct {
-	mu sync.RWMutex
-
-	sessions    map[string]*model.IntegrationSession
-	samples     map[string][]model.SessionSample
-	artifacts   map[string]map[string]model.SessionArtifact
-	runs        map[string][]model.SessionRun
-	runsByID    map[string]model.SessionRun
-	diagnostics map[string][]model.SessionDiagnostic
-
-	subscribers map[string]*integrationSessionSubscriber
+	store    *enginesession.MemoryStore
+	runner   *enginesession.Runner
+	hub      *enginesession.Hub
+	accepted map[string]time.Time
 }
 
 func newIntegrationSessionService() *integrationSessionService {
+	store := enginesession.NewMemoryStore()
+	hub := enginesession.NewHub()
 	return &integrationSessionService{
-		sessions:    make(map[string]*model.IntegrationSession),
-		samples:     make(map[string][]model.SessionSample),
-		artifacts:   make(map[string]map[string]model.SessionArtifact),
-		runs:        make(map[string][]model.SessionRun),
-		runsByID:    make(map[string]model.SessionRun),
-		diagnostics: make(map[string][]model.SessionDiagnostic),
-		subscribers: make(map[string]*integrationSessionSubscriber),
+		store:    store,
+		runner:   enginesession.NewRunner(store, hub),
+		hub:      hub,
+		accepted: make(map[string]time.Time),
 	}
 }
 
 func (s *integrationSessionService) createSession(input model.CreateIntegrationSessionInput) (*model.IntegrationSession, error) {
-	if input.Name == "" {
-		return nil, fmt.Errorf("session name is required")
+	req := enginesession.CreateSessionRequest{
+		Name: input.Name,
 	}
-
-	now := time.Now()
-	session := &model.IntegrationSession{
-		ID:          uuid.NewString(),
-		Name:        input.Name,
-		Description: input.Description,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+	if input.Description != nil {
+		req.Description = *input.Description
 	}
+	session, err := s.store.CreateSession(context.Background(), req)
+	if err != nil {
+		return nil, err
+	}
+	s.publish("session.created", session.ID, "", "integration session created")
+	return s.cloneSession(session.ID, true)
+}
 
-	s.mu.Lock()
-	s.sessions[session.ID] = session
-	s.mu.Unlock()
-
-	out := s.cloneSession(session.ID, true)
-	s.publish("session.created", session.ID, nil, "integration session created")
+func (s *integrationSessionService) listSessions(includeArchived bool) ([]model.IntegrationSession, error) {
+	sessions, err := s.store.ListSessions(context.Background(), enginesession.ListSessionsOptions{
+		IncludeArchived: includeArchived,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.IntegrationSession, 0, len(sessions))
+	for _, session := range sessions {
+		gql, err := s.toGraphQLSession(session, true)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *gql)
+	}
 	return out, nil
 }
 
-func (s *integrationSessionService) listSessions(includeArchived bool) []model.IntegrationSession {
-	s.mu.RLock()
-	ids := make([]string, 0, len(s.sessions))
-	for id, session := range s.sessions {
-		if includeArchived || !session.Archived {
-			ids = append(ids, id)
-		}
-	}
-	s.mu.RUnlock()
-
-	out := make([]model.IntegrationSession, 0, len(ids))
-	for _, id := range ids {
-		if session := s.cloneSession(id, true); session != nil {
-			out = append(out, *session)
-		}
-	}
-	return out
-}
-
-func (s *integrationSessionService) getSession(id string) *model.IntegrationSession {
+func (s *integrationSessionService) getSession(id string) (*model.IntegrationSession, error) {
 	return s.cloneSession(id, true)
 }
 
 func (s *integrationSessionService) archiveSession(id string) (*model.IntegrationSession, error) {
-	s.mu.Lock()
-	session, ok := s.sessions[id]
-	if !ok {
-		s.mu.Unlock()
-		return nil, fmt.Errorf("integration session %q not found", id)
+	session, err := s.store.ArchiveSession(context.Background(), id)
+	if err != nil {
+		return nil, err
 	}
-	session.Archived = true
-	session.UpdatedAt = time.Now()
-	s.mu.Unlock()
-
-	out := s.cloneSession(id, true)
-	s.publish("session.archived", id, nil, "integration session archived")
-	return out, nil
+	s.publish("session.archived", id, "", "integration session archived")
+	return s.toGraphQLSession(*session, true)
 }
 
 func (s *integrationSessionService) addSample(input model.AddSessionSampleInput) (*model.SessionSample, error) {
-	if input.Name == "" {
-		return nil, fmt.Errorf("sample name is required")
-	}
 	if input.Data == "" {
 		return nil, fmt.Errorf("sample data is required")
 	}
-
-	now := time.Now()
-	checksum := sha256.Sum256([]byte(input.Data))
-	retainRaw := input.RetainRawPayload != nil && *input.RetainRawPayload
-	var raw *string
-	if retainRaw {
-		raw = &input.Data
+	policy := enginesession.PHIPolicyRedact
+	if input.RetainRawPayload != nil && *input.RetainRawPayload {
+		policy = enginesession.PHIPolicyRetain
+	}
+	req := enginesession.AddSampleRequest{
+		Name:      input.Name,
+		Format:    convertToEventsSourceFormat(input.Format),
+		Raw:       input.Data,
+		PHIPolicy: policy,
+	}
+	if input.Source != nil {
+		req.Source = *input.Source
 	}
 
-	sample := model.SessionSample{
-		ID:              uuid.NewString(),
-		SessionID:       input.SessionID,
-		Name:            input.Name,
-		Format:          input.Format,
-		Source:          input.Source,
-		RawPayload:      raw,
-		PayloadChecksum: hex.EncodeToString(checksum[:]),
-		PayloadRef:      input.PayloadRef,
-		CreatedAt:       now,
+	sample, err := s.store.AddSample(context.Background(), input.SessionID, req)
+	if err != nil {
+		return nil, err
 	}
-
-	s.mu.Lock()
-	session, ok := s.sessions[input.SessionID]
-	if !ok {
-		s.mu.Unlock()
-		return nil, fmt.Errorf("integration session %q not found", input.SessionID)
-	}
-	session.UpdatedAt = now
-	s.samples[input.SessionID] = append(s.samples[input.SessionID], sample)
-	s.mu.Unlock()
-
-	s.publish("sample.added", input.SessionID, nil, "session sample added")
-	return &sample, nil
+	s.publish("sample.added", input.SessionID, "", "session sample added")
+	return s.toGraphQLSample(*sample), nil
 }
 
-func (s *integrationSessionService) listSamples(sessionID string) []model.SessionSample {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return append([]model.SessionSample(nil), s.samples[sessionID]...)
+func (s *integrationSessionService) listSamples(sessionID string) ([]model.SessionSample, error) {
+	samples, err := s.store.ListSamples(context.Background(), sessionID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.SessionSample, 0, len(samples))
+	for _, sample := range samples {
+		out = append(out, *s.toGraphQLSample(sample))
+	}
+	return out, nil
 }
 
 func (s *integrationSessionService) saveArtifact(sessionID, kind string, input model.UpdateSessionArtifactInput) (*model.SessionArtifact, error) {
-	now := time.Now()
 	name := kind
 	if input.Name != nil && *input.Name != "" {
 		name = *input.Name
 	}
-
-	s.mu.Lock()
-	session, ok := s.sessions[sessionID]
-	if !ok {
-		s.mu.Unlock()
-		return nil, fmt.Errorf("integration session %q not found", sessionID)
-	}
-
-	byKind := s.artifacts[sessionID]
-	if byKind == nil {
-		byKind = make(map[string]model.SessionArtifact)
-		s.artifacts[sessionID] = byKind
-	}
-
-	artifact := byKind[kind]
-	if artifact.ID == "" {
-		artifact.ID = uuid.NewString()
-		artifact.SessionID = sessionID
-		artifact.Kind = kind
-		artifact.CreatedAt = now
-	}
-	artifact.Name = name
-	artifact.Content = input.Content
-	artifact.UpdatedAt = now
-	byKind[kind] = artifact
-	session.UpdatedAt = now
-	s.mu.Unlock()
-
-	s.publish("artifact.updated", sessionID, nil, fmt.Sprintf("%s draft updated", kind))
-	return &artifact, nil
-}
-
-func (s *integrationSessionService) listArtifacts(sessionID string) []model.SessionArtifact {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	out := make([]model.SessionArtifact, 0, len(s.artifacts[sessionID]))
-	for _, artifact := range s.artifacts[sessionID] {
-		out = append(out, artifact)
-	}
-	return out
-}
-
-func (s *integrationSessionService) runPreview(input model.RunSessionPreviewInput) (*model.SessionRun, error) {
-	payload, format, source, sampleID, err := s.resolvePreviewInput(input)
+	draft, err := s.store.SaveArtifactDraft(context.Background(), sessionID, enginesession.SaveArtifactDraftRequest{
+		Kind:    toArtifactKind(kind),
+		Name:    name,
+		Content: json.RawMessage(input.Content),
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	now := time.Now()
-	run := model.SessionRun{
-		ID:        uuid.NewString(),
-		SessionID: input.SessionID,
-		SampleID:  sampleID,
-		Status:    "running",
-		CreatedAt: now,
-		Stages: []model.RunStage{{
-			ID:        uuid.NewString(),
-			Name:      "parse",
-			Status:    "running",
-			StartedAt: now,
-		}},
-		Diagnostics: []model.SessionDiagnostic{},
-		Events:      []model.Event{},
-		Warnings:    []model.ParseWarning{},
-	}
-
-	start := time.Now()
-	if format != model.SourceFormatHL7v2 {
-		msg := fmt.Sprintf("session preview currently supports HL7v2 only; got %s", format)
-		run.Diagnostics = append(run.Diagnostics, newSessionDiagnostic(input.SessionID, run.ID, sampleID, "error", "UNSUPPORTED_FORMAT", msg, nil))
-		run.Status = "failed"
-	} else {
-		parser := hl7v2.NewParser(source, hl7v2.ParserConfig{})
-		parseResult, parseErr := parser.ParseWithResult(payload)
-		if parseErr != nil {
-			run.Diagnostics = append(run.Diagnostics, newSessionDiagnostic(input.SessionID, run.ID, sampleID, "error", "PARSE_ERROR", parseErr.Error(), nil))
-			run.Status = "failed"
-		} else {
-			if parseResult.Event != nil {
-				if event := convertToGraphQLEvent(parseResult.Event, source, format, nil); event != nil {
-					run.Events = append(run.Events, event)
-				}
-			}
-			for _, warning := range parseResult.Warnings {
-				path := warning.Path
-				gqlWarning := model.ParseWarning{
-					Phase:   warning.Phase,
-					Code:    warning.Code,
-					Message: warning.Message,
-					Path:    strPtr(path),
-				}
-				run.Warnings = append(run.Warnings, gqlWarning)
-
-				severity := warning.Severity
-				if severity == "" {
-					severity = "warning"
-				}
-				run.Diagnostics = append(run.Diagnostics, newSessionDiagnostic(input.SessionID, run.ID, sampleID, severity, warning.Code, warning.Message, strPtr(path)))
-			}
-			run.Status = "completed"
-		}
-	}
-
-	completed := time.Now()
-	summary := fmt.Sprintf("%d event(s), %d diagnostic(s)", len(run.Events), len(run.Diagnostics))
-	run.CompletedAt = &completed
-	run.Stages[0].Status = run.Status
-	run.Stages[0].CompletedAt = &completed
-	run.Stages[0].DurationMs = int(time.Since(start).Milliseconds())
-	run.Stages[0].Summary = &summary
-
-	s.mu.Lock()
-	session, ok := s.sessions[input.SessionID]
-	if !ok {
-		s.mu.Unlock()
-		return nil, fmt.Errorf("integration session %q not found", input.SessionID)
-	}
-	session.UpdatedAt = completed
-	s.runs[input.SessionID] = append(s.runs[input.SessionID], run)
-	s.runsByID[run.ID] = run
-	s.diagnostics[input.SessionID] = append(s.diagnostics[input.SessionID], run.Diagnostics...)
-	s.mu.Unlock()
-
-	s.publish("run.completed", input.SessionID, &run.ID, "session preview run completed")
-	return &run, nil
+	s.publish("artifact.updated", sessionID, "", fmt.Sprintf("%s draft updated", kind))
+	return toGraphQLArtifact(*draft), nil
 }
 
-func (s *integrationSessionService) resolvePreviewInput(input model.RunSessionPreviewInput) (string, model.SourceFormat, string, *string, error) {
-	source := "integration-session"
-	if input.Source != nil && *input.Source != "" {
+func (s *integrationSessionService) listArtifacts(sessionID string) ([]model.SessionArtifact, error) {
+	drafts, err := s.store.ListArtifactDrafts(context.Background(), sessionID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.SessionArtifact, 0, len(drafts))
+	for _, draft := range drafts {
+		out = append(out, *toGraphQLArtifact(draft))
+	}
+	return out, nil
+}
+
+func (s *integrationSessionService) runPreview(input model.RunSessionPreviewInput) (*model.SessionRun, error) {
+	sampleID, cleanup, err := s.ensurePreviewSample(input)
+	if err != nil {
+		return nil, err
+	}
+	_ = cleanup
+
+	sample, err := s.store.GetSample(context.Background(), input.SessionID, sampleID)
+	if err != nil {
+		return nil, err
+	}
+	if sample.Format != events.FormatHL7v2 {
+		run, err := s.createUnsupportedFormatRun(input.SessionID, sampleID, sample.Format, sample.Source)
+		if err != nil {
+			return nil, err
+		}
+		return s.toGraphQLRun(*run)
+	}
+
+	source := ""
+	if input.Source != nil {
 		source = *input.Source
+	}
+	run, err := s.runner.RunHL7v2(context.Background(), enginesession.RunRequest{
+		SessionID: input.SessionID,
+		SampleID:  sampleID,
+		Source:    source,
+	})
+	if err != nil {
+		if run != nil {
+			return s.toGraphQLRun(*run)
+		}
+		return nil, err
+	}
+	return s.toGraphQLRun(*run)
+}
+
+func (s *integrationSessionService) ensurePreviewSample(input model.RunSessionPreviewInput) (string, func(), error) {
+	if input.SampleID != nil && *input.SampleID != "" {
+		return *input.SampleID, func() {}, nil
+	}
+	if input.Data == nil || *input.Data == "" {
+		return "", nil, fmt.Errorf("run preview requires sampleId or data")
 	}
 	format := model.SourceFormatHL7v2
 	if input.Format != nil {
 		format = *input.Format
 	}
-	if input.Data != nil && *input.Data != "" {
-		return *input.Data, format, source, nil, nil
+	source := "integration-session"
+	if input.Source != nil && *input.Source != "" {
+		source = *input.Source
 	}
-	if input.SampleID == nil {
-		return "", "", "", nil, fmt.Errorf("run preview requires sampleId or data")
+	sample, err := s.store.AddSample(context.Background(), input.SessionID, enginesession.AddSampleRequest{
+		Name:      "Ad hoc preview",
+		Format:    convertToEventsSourceFormat(format),
+		Source:    source,
+		Raw:       *input.Data,
+		PHIPolicy: enginesession.PHIPolicyRetain,
+	})
+	if err != nil {
+		return "", nil, err
 	}
+	return sample.ID, func() {}, nil
+}
 
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if _, ok := s.sessions[input.SessionID]; !ok {
-		return "", "", "", nil, fmt.Errorf("integration session %q not found", input.SessionID)
+func (s *integrationSessionService) createUnsupportedFormatRun(sessionID, sampleID string, format events.SourceFormat, source string) (*enginesession.Run, error) {
+	run, err := s.store.CreateRun(context.Background(), sessionID, sampleID, source)
+	if err != nil {
+		return nil, err
 	}
-	for _, sample := range s.samples[input.SessionID] {
-		if sample.ID == *input.SampleID {
-			if sample.Source != nil && *sample.Source != "" {
-				source = *sample.Source
-			}
-			if input.Format == nil {
-				format = sample.Format
-			}
-			if sample.RawPayload == nil {
-				return "", "", "", nil, fmt.Errorf("sample %q does not retain raw payload; provide data for preview", sample.ID)
-			}
-			return *sample.RawPayload, format, source, &sample.ID, nil
+	now := time.Now().UTC()
+	msg := fmt.Sprintf("session preview currently supports HL7v2 only; got %s", format)
+	run.Status = enginesession.RunStatusFailed
+	run.StartedAt = &now
+	run.FinishedAt = &now
+	run.Error = msg
+	run.Stages = []enginesession.RunStage{{
+		Name:       "parse_hl7v2",
+		Status:     enginesession.StageStatusFailed,
+		StartedAt:  now,
+		FinishedAt: &now,
+		Error:      msg,
+	}}
+	run.Diagnostics = []enginesession.Diagnostic{{
+		ID:        "diag_001",
+		Severity:  "error",
+		Phase:     "syntactic",
+		Code:      "UNSUPPORTED_FORMAT",
+		Message:   msg,
+		Source:    "integration_session_runner",
+		CreatedAt: now,
+	}}
+	updated, err := s.store.UpdateRun(context.Background(), *run)
+	if err != nil {
+		return nil, err
+	}
+	s.publish("run.failed", sessionID, updated.ID, "session preview run failed")
+	return updated, nil
+}
+
+func (s *integrationSessionService) listRuns(sessionID string) ([]model.SessionRun, error) {
+	runs, err := s.store.ListRuns(context.Background(), sessionID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.SessionRun, 0, len(runs))
+	for _, run := range runs {
+		gql, err := s.toGraphQLRun(run)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *gql)
+	}
+	return out, nil
+}
+
+func (s *integrationSessionService) getRun(id string) (*model.SessionRun, error) {
+	sessions, err := s.store.ListSessions(context.Background(), enginesession.ListSessionsOptions{IncludeArchived: true})
+	if err != nil {
+		return nil, err
+	}
+	for _, session := range sessions {
+		run, err := s.store.GetRun(context.Background(), session.ID, id)
+		if err == nil {
+			return s.toGraphQLRun(*run)
 		}
 	}
-	return "", "", "", nil, fmt.Errorf("session sample %q not found", *input.SampleID)
+	return nil, nil
 }
 
-func newSessionDiagnostic(sessionID, runID string, sampleID *string, severity, code, message string, path *string) model.SessionDiagnostic {
-	if severity == "" {
-		severity = "warning"
+func (s *integrationSessionService) listDiagnostics(sessionID string, runID *string) ([]model.SessionDiagnostic, error) {
+	runs, err := s.store.ListRuns(context.Background(), sessionID)
+	if err != nil {
+		return nil, err
 	}
-	lineage := []model.LineageLink{}
-	if path != nil && *path != "" {
-		lineage = append(lineage, model.LineageLink{SourcePath: *path})
-	}
-	fix := "Review the source profile or sample payload for this warning."
-	return model.SessionDiagnostic{
-		ID:            uuid.NewString(),
-		SessionID:     sessionID,
-		RunID:         &runID,
-		SampleID:      sampleID,
-		Severity:      severity,
-		Code:          code,
-		Message:       message,
-		Path:          path,
-		FixSuggestion: &fix,
-		Lineage:       lineage,
-	}
-}
-
-func (s *integrationSessionService) listRuns(sessionID string) []model.SessionRun {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return cloneRuns(s.runs[sessionID])
-}
-
-func (s *integrationSessionService) getRun(id string) *model.SessionRun {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	run, ok := s.runsByID[id]
-	if !ok {
-		return nil
-	}
-	cloned := cloneRun(run)
-	return &cloned
-}
-
-func (s *integrationSessionService) listDiagnostics(sessionID string, runID *string) []model.SessionDiagnostic {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	var out []model.SessionDiagnostic
-	for _, diagnostic := range s.diagnostics[sessionID] {
-		if runID == nil || (diagnostic.RunID != nil && *diagnostic.RunID == *runID) {
-			out = append(out, diagnostic)
+	out := make([]model.SessionDiagnostic, 0)
+	for _, run := range runs {
+		if runID != nil && run.ID != *runID {
+			continue
+		}
+		for _, diagnostic := range run.Diagnostics {
+			out = append(out, s.toGraphQLDiagnostic(run, diagnostic))
 		}
 	}
-	return out
+	return out, nil
 }
 
 func (s *integrationSessionService) acceptDiagnostic(input model.AcceptDiagnosticFixInput) (*model.SessionDiagnostic, error) {
-	now := time.Now()
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	diags := s.diagnostics[input.SessionID]
-	for i := range diags {
-		if diags[i].ID == input.DiagnosticID {
-			diags[i].Accepted = true
-			diags[i].AcceptedAt = &now
-			s.diagnostics[input.SessionID] = diags
-			s.updateRunDiagnosticLocked(diags[i])
-			if session := s.sessions[input.SessionID]; session != nil {
-				session.UpdatedAt = now
+	runs, err := s.store.ListRuns(context.Background(), input.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now().UTC()
+	for _, run := range runs {
+		for _, diagnostic := range run.Diagnostics {
+			if diagnostic.ID != input.DiagnosticID {
+				continue
 			}
-			out := diags[i]
-			go s.publish("diagnostic.accepted", input.SessionID, out.RunID, "diagnostic fix accepted")
+			s.accepted[diagnosticKey(run.ID, diagnostic.ID)] = now
+			out := s.toGraphQLDiagnostic(run, diagnostic)
+			s.publish("diagnostic.accepted", input.SessionID, run.ID, "diagnostic fix accepted")
 			return &out, nil
 		}
 	}
 	return nil, fmt.Errorf("session diagnostic %q not found", input.DiagnosticID)
 }
 
-func (s *integrationSessionService) updateRunDiagnosticLocked(diagnostic model.SessionDiagnostic) {
-	if diagnostic.RunID == nil {
-		return
-	}
-	run, ok := s.runsByID[*diagnostic.RunID]
-	if !ok {
-		return
-	}
-	for i := range run.Diagnostics {
-		if run.Diagnostics[i].ID == diagnostic.ID {
-			run.Diagnostics[i] = diagnostic
-		}
-	}
-	s.runsByID[run.ID] = run
-	runs := s.runs[run.SessionID]
-	for i := range runs {
-		if runs[i].ID == run.ID {
-			runs[i] = run
-		}
-	}
-	s.runs[run.SessionID] = runs
-}
-
 func (s *integrationSessionService) exportBundle(input model.ExportIntegrationBundleInput) (*model.IntegrationBundle, error) {
-	session := s.cloneSession(input.SessionID, true)
-	if session == nil {
-		return nil, fmt.Errorf("integration session %q not found", input.SessionID)
+	bundle, err := s.store.ExportBundle(context.Background(), input.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	session, err := s.toGraphQLSession(bundle.Session, true)
+	if err != nil {
+		return nil, err
 	}
 	if input.IncludeRawPayload == nil || !*input.IncludeRawPayload {
 		for i := range session.Samples {
 			session.Samples[i].RawPayload = nil
 		}
 	}
-
 	return &model.IntegrationBundle{
 		SessionID:   input.SessionID,
-		ExportedAt:  time.Now(),
+		ExportedAt:  bundle.ExportedAt,
 		Session:     *session,
 		Samples:     append([]model.SessionSample(nil), session.Samples...),
 		Artifacts:   append([]model.SessionArtifact(nil), session.Artifacts...),
@@ -450,107 +337,345 @@ func (s *integrationSessionService) exportBundle(input model.ExportIntegrationBu
 }
 
 func (s *integrationSessionService) subscribe(ctx context.Context, sessionID string, runID *string) (<-chan *model.IntegrationSessionEvent, error) {
-	s.mu.RLock()
-	_, ok := s.sessions[sessionID]
-	s.mu.RUnlock()
-	if !ok {
-		return nil, fmt.Errorf("integration session %q not found", sessionID)
+	if _, err := s.store.GetSession(context.Background(), sessionID); err != nil {
+		return nil, err
 	}
-
-	id := uuid.NewString()
-	ch := make(chan *model.IntegrationSessionEvent, 16)
-
-	s.mu.Lock()
-	s.subscribers[id] = &integrationSessionSubscriber{
-		sessionID: sessionID,
-		runID:     runID,
-		ch:        ch,
-	}
-	s.mu.Unlock()
-
+	source := s.hub.Subscribe(ctx, sessionID)
+	out := make(chan *model.IntegrationSessionEvent, 16)
 	go func() {
-		<-ctx.Done()
-		s.mu.Lock()
-		delete(s.subscribers, id)
-		close(ch)
-		s.mu.Unlock()
+		defer close(out)
+		for event := range source {
+			if runID != nil && event.RunID != *runID {
+				continue
+			}
+			gql := s.toGraphQLEvent(event)
+			select {
+			case out <- gql:
+			case <-ctx.Done():
+				return
+			}
+		}
 	}()
-
-	return ch, nil
+	return out, nil
 }
 
-func (s *integrationSessionService) publish(eventType, sessionID string, runID *string, message string) {
-	event := &model.IntegrationSessionEvent{
-		ID:        uuid.NewString(),
-		Type:      eventType,
+func (s *integrationSessionService) publish(eventType, sessionID, runID, message string) {
+	s.hub.Publish(enginesession.StreamEvent{
+		Type:      enginesession.StreamEventType(eventType),
 		SessionID: sessionID,
 		RunID:     runID,
-		Message:   message,
-		Timestamp: time.Now(),
-		Session:   s.cloneSession(sessionID, true),
+		Payload:   message,
+	})
+}
+
+func (s *integrationSessionService) cloneSession(id string, includeChildren bool) (*model.IntegrationSession, error) {
+	session, err := s.store.GetSession(context.Background(), id)
+	if err != nil {
+		return nil, err
 	}
-	if runID != nil {
-		event.Run = s.getRun(*runID)
+	return s.toGraphQLSession(*session, includeChildren)
+}
+
+func (s *integrationSessionService) toGraphQLSession(session enginesession.Session, includeChildren bool) (*model.IntegrationSession, error) {
+	description := strPtrEmpty(session.Description)
+	out := &model.IntegrationSession{
+		ID:          session.ID,
+		Name:        session.Name,
+		Description: description,
+		Archived:    session.Status == enginesession.SessionStatusArchived,
+		CreatedAt:   session.CreatedAt,
+		UpdatedAt:   session.UpdatedAt,
+		Samples:     []model.SessionSample{},
+		Artifacts:   []model.SessionArtifact{},
+		Runs:        []model.SessionRun{},
+		Diagnostics: []model.SessionDiagnostic{},
+	}
+	if !includeChildren {
+		return out, nil
 	}
 
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	for _, sub := range s.subscribers {
-		if sub.sessionID != sessionID {
-			continue
+	samples, err := s.listSamples(session.ID)
+	if err != nil {
+		return nil, err
+	}
+	out.Samples = samples
+
+	artifacts, err := s.listArtifacts(session.ID)
+	if err != nil {
+		return nil, err
+	}
+	out.Artifacts = artifacts
+	for i := range out.Artifacts {
+		artifact := out.Artifacts[i]
+		switch artifact.Kind {
+		case string(enginesession.ArtifactKindMappingProfile):
+			out.CurrentProfileDraft = &artifact
+		case string(enginesession.ArtifactKindWorkflowDraft):
+			out.CurrentWorkflowDraft = &artifact
 		}
-		if sub.runID != nil && (runID == nil || *sub.runID != *runID) {
-			continue
-		}
-		select {
-		case sub.ch <- event:
-		default:
-		}
+	}
+
+	runs, err := s.listRuns(session.ID)
+	if err != nil {
+		return nil, err
+	}
+	out.Runs = runs
+
+	diagnostics, err := s.listDiagnostics(session.ID, nil)
+	if err != nil {
+		return nil, err
+	}
+	out.Diagnostics = diagnostics
+	return out, nil
+}
+
+func (s *integrationSessionService) toGraphQLSample(sample enginesession.Sample) *model.SessionSample {
+	checksum := sha256.Sum256([]byte(sample.Raw))
+	var raw *string
+	if sample.PHIPolicy == enginesession.PHIPolicyRetain {
+		raw = &sample.Raw
+	}
+	source := strPtrEmpty(sample.Source)
+	return &model.SessionSample{
+		ID:              sample.ID,
+		SessionID:       sample.SessionID,
+		Name:            sample.Name,
+		Format:          toGraphQLSourceFormat(sample.Format),
+		Source:          source,
+		RawPayload:      raw,
+		PayloadChecksum: hex.EncodeToString(checksum[:]),
+		CreatedAt:       sample.CreatedAt,
 	}
 }
 
-func (s *integrationSessionService) cloneSession(id string, includeChildren bool) *model.IntegrationSession {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	session, ok := s.sessions[id]
-	if !ok {
-		return nil
+func toGraphQLArtifact(draft enginesession.ArtifactDraft) *model.SessionArtifact {
+	return &model.SessionArtifact{
+		ID:        draft.ID,
+		SessionID: draft.SessionID,
+		Kind:      string(draft.Kind),
+		Name:      draft.Name,
+		Content:   string(draft.Content),
+		CreatedAt: draft.CreatedAt,
+		UpdatedAt: draft.UpdatedAt,
 	}
+}
 
-	out := *session
-	if !includeChildren {
-		return &out
+func (s *integrationSessionService) toGraphQLRun(run enginesession.Run) (*model.SessionRun, error) {
+	stages := make([]model.RunStage, 0, len(run.Stages))
+	for _, stage := range run.Stages {
+		stages = append(stages, toGraphQLStage(stage))
 	}
-	out.Samples = append([]model.SessionSample(nil), s.samples[id]...)
-	out.Artifacts = make([]model.SessionArtifact, 0, len(s.artifacts[id]))
-	for _, artifact := range s.artifacts[id] {
-		out.Artifacts = append(out.Artifacts, artifact)
-		artifactCopy := artifact
-		switch artifact.Kind {
-		case "profile":
-			out.CurrentProfileDraft = &artifactCopy
-		case "workflow":
-			out.CurrentWorkflowDraft = &artifactCopy
+	diagnostics := make([]model.SessionDiagnostic, 0, len(run.Diagnostics))
+	warnings := make([]model.ParseWarning, 0, len(run.Diagnostics))
+	for _, diagnostic := range run.Diagnostics {
+		diagnostics = append(diagnostics, s.toGraphQLDiagnostic(run, diagnostic))
+		if diagnostic.Severity != "error" {
+			path := strPtrEmpty(diagnostic.Path)
+			warnings = append(warnings, model.ParseWarning{
+				Phase:    diagnostic.Phase,
+				Code:     diagnostic.Code,
+				Message:  diagnostic.Message,
+				Path:     path,
+				Severity: strPtrEmpty(diagnostic.Severity),
+			})
 		}
 	}
-	out.Runs = cloneRuns(s.runs[id])
-	out.Diagnostics = append([]model.SessionDiagnostic(nil), s.diagnostics[id]...)
-	return &out
+	eventsOut := make([]model.Event, 0, len(run.Events))
+	for _, parsed := range run.Events {
+		event, err := parsedEventToGraphQL(parsed, run.Source)
+		if err != nil {
+			return nil, err
+		}
+		if event != nil {
+			eventsOut = append(eventsOut, event)
+		}
+	}
+	sampleID := strPtrEmpty(run.SampleID)
+	return &model.SessionRun{
+		ID:          run.ID,
+		SessionID:   run.SessionID,
+		SampleID:    sampleID,
+		Status:      toGraphQLRunStatus(run.Status),
+		CreatedAt:   run.CreatedAt,
+		CompletedAt: run.FinishedAt,
+		Stages:      stages,
+		Diagnostics: diagnostics,
+		Events:      eventsOut,
+		Warnings:    warnings,
+	}, nil
+}
+
+func toGraphQLStage(stage enginesession.RunStage) model.RunStage {
+	duration := 0
+	if stage.FinishedAt != nil {
+		duration = int(stage.FinishedAt.Sub(stage.StartedAt).Milliseconds())
+	}
+	summary := strPtrEmpty(stage.Error)
+	return model.RunStage{
+		ID:          stage.Name,
+		Name:        stage.Name,
+		Status:      string(stage.Status),
+		StartedAt:   stage.StartedAt,
+		CompletedAt: stage.FinishedAt,
+		DurationMs:  duration,
+		Summary:     summary,
+	}
+}
+
+func (s *integrationSessionService) toGraphQLDiagnostic(run enginesession.Run, diagnostic enginesession.Diagnostic) model.SessionDiagnostic {
+	runID := run.ID
+	sampleID := run.SampleID
+	path := strPtrEmpty(diagnostic.Path)
+	fix := "Review the source profile or sample payload for this warning."
+	acceptedAt, accepted := s.accepted[diagnosticKey(run.ID, diagnostic.ID)]
+	var acceptedAtPtr *time.Time
+	if accepted {
+		acceptedAtPtr = &acceptedAt
+	}
+	lineage := make([]model.LineageLink, 0)
+	for _, link := range run.Lineage {
+		if diagnostic.Path != "" && link.SourcePath != diagnostic.Path {
+			continue
+		}
+		target := strPtrEmpty(link.TargetPath)
+		description := strPtrEmpty(link.ValuePreview)
+		lineage = append(lineage, model.LineageLink{
+			SourcePath:  link.SourcePath,
+			TargetPath:  target,
+			Description: description,
+		})
+	}
+	if len(lineage) == 0 && diagnostic.Path != "" {
+		lineage = append(lineage, model.LineageLink{SourcePath: diagnostic.Path})
+	}
+	return model.SessionDiagnostic{
+		ID:            diagnostic.ID,
+		SessionID:     run.SessionID,
+		RunID:         &runID,
+		SampleID:      &sampleID,
+		Severity:      diagnostic.Severity,
+		Code:          diagnostic.Code,
+		Message:       diagnostic.Message,
+		Path:          path,
+		FixSuggestion: &fix,
+		Accepted:      accepted,
+		AcceptedAt:    acceptedAtPtr,
+		Lineage:       lineage,
+	}
+}
+
+func (s *integrationSessionService) toGraphQLEvent(event enginesession.StreamEvent) *model.IntegrationSessionEvent {
+	runID := strPtrEmpty(event.RunID)
+	gql := &model.IntegrationSessionEvent{
+		ID:        event.ID,
+		Type:      string(event.Type),
+		SessionID: event.SessionID,
+		RunID:     runID,
+		Message:   fmt.Sprint(event.Payload),
+		Timestamp: event.At,
+	}
+	if session, err := s.cloneSession(event.SessionID, true); err == nil {
+		gql.Session = session
+	}
+	if event.RunID != "" {
+		if run, err := s.getRun(event.RunID); err == nil {
+			gql.Run = run
+		}
+	}
+	return gql
+}
+
+func parsedEventToGraphQL(parsed enginesession.ParsedEvent, source string) (model.Event, error) {
+	if len(parsed.Payload) == 0 {
+		return nil, nil
+	}
+	switch events.EventType(parsed.Type) {
+	case events.EventPatientAdmit:
+		var event events.PatientAdmitEvent
+		if err := json.Unmarshal(parsed.Payload, &event); err != nil {
+			return nil, err
+		}
+		return convertToGraphQLEvent(&event, source, model.SourceFormatHL7v2, nil), nil
+	case events.EventPatientDischarge:
+		var event events.PatientDischargeEvent
+		if err := json.Unmarshal(parsed.Payload, &event); err != nil {
+			return nil, err
+		}
+		return convertToGraphQLEvent(&event, source, model.SourceFormatHL7v2, nil), nil
+	case events.EventLabResult:
+		var event events.LabResultEvent
+		if err := json.Unmarshal(parsed.Payload, &event); err != nil {
+			return nil, err
+		}
+		return convertToGraphQLEvent(&event, source, model.SourceFormatHL7v2, nil), nil
+	case events.EventAppointmentScheduled, events.EventAppointmentCancelled, events.EventAppointmentNoShow:
+		var event events.AppointmentEvent
+		if err := json.Unmarshal(parsed.Payload, &event); err != nil {
+			return nil, err
+		}
+		return convertToGraphQLEvent(&event, source, model.SourceFormatHL7v2, nil), nil
+	case events.EventDocument:
+		var event events.DocumentEvent
+		if err := json.Unmarshal(parsed.Payload, &event); err != nil {
+			return nil, err
+		}
+		return convertToGraphQLEvent(&event, source, model.SourceFormatHL7v2, nil), nil
+	default:
+		return nil, nil
+	}
+}
+
+func toArtifactKind(kind string) enginesession.ArtifactKind {
+	switch kind {
+	case "profile":
+		return enginesession.ArtifactKindMappingProfile
+	case "workflow":
+		return enginesession.ArtifactKindWorkflowDraft
+	default:
+		return enginesession.ArtifactKind(kind)
+	}
+}
+
+func toGraphQLSourceFormat(format events.SourceFormat) model.SourceFormat {
+	switch format {
+	case events.FormatHL7v2:
+		return model.SourceFormatHL7v2
+	case events.FormatFHIR:
+		return model.SourceFormatFHIR
+	case events.FormatCSV:
+		return model.SourceFormatCSV
+	case events.FormatEDI837:
+		return model.SourceFormatEDI837
+	case events.FormatEDI835:
+		return model.SourceFormatEDI835
+	case events.FormatCDA:
+		return model.SourceFormatCDA
+	default:
+		return model.SourceFormatHL7v2
+	}
+}
+
+func toGraphQLRunStatus(status enginesession.RunStatus) string {
+	switch status {
+	case enginesession.RunStatusSucceeded:
+		return "completed"
+	default:
+		return string(status)
+	}
+}
+
+func diagnosticKey(runID, diagnosticID string) string {
+	return runID + ":" + diagnosticID
 }
 
 func cloneRuns(in []model.SessionRun) []model.SessionRun {
 	out := make([]model.SessionRun, len(in))
 	for i, run := range in {
-		out[i] = cloneRun(run)
+		out[i] = run
+		out[i].Stages = append([]model.RunStage(nil), run.Stages...)
+		out[i].Diagnostics = append([]model.SessionDiagnostic(nil), run.Diagnostics...)
+		out[i].Events = append([]model.Event(nil), run.Events...)
+		out[i].Warnings = append([]model.ParseWarning(nil), run.Warnings...)
 	}
 	return out
-}
-
-func cloneRun(run model.SessionRun) model.SessionRun {
-	run.Stages = append([]model.RunStage(nil), run.Stages...)
-	run.Diagnostics = append([]model.SessionDiagnostic(nil), run.Diagnostics...)
-	run.Events = append([]model.Event(nil), run.Events...)
-	run.Warnings = append([]model.ParseWarning(nil), run.Warnings...)
-	return run
 }

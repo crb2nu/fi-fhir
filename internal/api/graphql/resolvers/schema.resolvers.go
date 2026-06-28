@@ -2202,38 +2202,38 @@ func (r *queryResolver) ParsePreview(ctx context.Context, format model.SourceFor
 
 // IntegrationSession is the resolver for the integrationSession field.
 func (r *queryResolver) IntegrationSession(ctx context.Context, id string) (*model.IntegrationSession, error) {
-	return r.integrationSessions.getSession(id), nil
+	return r.integrationSessions.getSession(id)
 }
 
 // IntegrationSessions is the resolver for the integrationSessions field.
 func (r *queryResolver) IntegrationSessions(ctx context.Context, includeArchived *bool) ([]model.IntegrationSession, error) {
 	archived := includeArchived != nil && *includeArchived
-	return r.integrationSessions.listSessions(archived), nil
+	return r.integrationSessions.listSessions(archived)
 }
 
 // SessionSamples is the resolver for the sessionSamples field.
 func (r *queryResolver) SessionSamples(ctx context.Context, sessionID string) ([]model.SessionSample, error) {
-	return r.integrationSessions.listSamples(sessionID), nil
+	return r.integrationSessions.listSamples(sessionID)
 }
 
 // SessionArtifacts is the resolver for the sessionArtifacts field.
 func (r *queryResolver) SessionArtifacts(ctx context.Context, sessionID string) ([]model.SessionArtifact, error) {
-	return r.integrationSessions.listArtifacts(sessionID), nil
+	return r.integrationSessions.listArtifacts(sessionID)
 }
 
 // SessionRuns is the resolver for the sessionRuns field.
 func (r *queryResolver) SessionRuns(ctx context.Context, sessionID string) ([]model.SessionRun, error) {
-	return r.integrationSessions.listRuns(sessionID), nil
+	return r.integrationSessions.listRuns(sessionID)
 }
 
 // SessionRun is the resolver for the sessionRun field.
 func (r *queryResolver) SessionRun(ctx context.Context, id string) (*model.SessionRun, error) {
-	return r.integrationSessions.getRun(id), nil
+	return r.integrationSessions.getRun(id)
 }
 
 // SessionDiagnostics is the resolver for the sessionDiagnostics field.
 func (r *queryResolver) SessionDiagnostics(ctx context.Context, sessionID string, runID *string) ([]model.SessionDiagnostic, error) {
-	return r.integrationSessions.listDiagnostics(sessionID, runID), nil
+	return r.integrationSessions.listDiagnostics(sessionID, runID)
 }
 
 // PatientTimeline is the resolver for the patientTimeline field.

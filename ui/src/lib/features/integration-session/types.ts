@@ -2,19 +2,19 @@ import type { ParsePreviewQuery } from '$lib/gen/graphql';
 
 export type IntegrationSessionDiagnostic = {
   id: string;
-  phase: string;
   code: string;
   message: string;
   path: string | null;
   severity: string | null;
-  status: string | null;
   fixSuggestion: string | null;
+  accepted: boolean;
+  acceptedAt: string | null;
 };
 
 export type IntegrationSessionStage = {
   id: string;
   name: string;
-  state: string;
+  status: string;
   startedAt: string | null;
   completedAt: string | null;
   durationMs: number | null;
@@ -22,8 +22,9 @@ export type IntegrationSessionStage = {
 
 export type IntegrationSessionRun = {
   id: string;
-  state: string;
-  preview: ParsePreviewQuery['parsePreview'] | null;
+  status: string;
+  events: ParsePreviewQuery['parsePreview']['events'];
+  warnings: ParsePreviewQuery['parsePreview']['warnings'];
   diagnostics: IntegrationSessionDiagnostic[];
   stages: IntegrationSessionStage[];
 };
