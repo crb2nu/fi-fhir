@@ -1,0 +1,86 @@
+mutation CreateIntegrationSession($input: CreateIntegrationSessionInput!) {
+  createIntegrationSession(input: $input) {
+    id
+    source
+    profileId
+    title
+  }
+}
+
+mutation AddSessionSample($sessionId: ID!, $input: AddSessionSampleInput!) {
+  addSessionSample(sessionId: $sessionId, input: $input) {
+    id
+    source
+    checksum
+    rawRetained
+  }
+}
+
+mutation RunSessionPreview($sessionId: ID!, $sampleId: ID!, $input: RunSessionPreviewInput!) {
+  runSessionPreview(sessionId: $sessionId, sampleId: $sampleId, input: $input) {
+    id
+    state
+    preview {
+      success
+      errors
+      events {
+        __typename
+        id
+        type
+        timestamp
+        source
+        sourceFormat
+        correlationId
+      }
+      warnings {
+        phase
+        code
+        message
+        path
+        explanation
+        fixSuggestion
+        impact
+        severity
+        fromCache
+      }
+    }
+    diagnostics {
+      id
+      phase
+      code
+      message
+      path
+      severity
+      status
+      fixSuggestion
+    }
+    stages {
+      id
+      name
+      state
+      startedAt
+      completedAt
+      durationMs
+    }
+  }
+}
+
+subscription SessionRunEvents($sessionId: ID!, $runId: ID) {
+  sessionRunEvents(sessionId: $sessionId, runId: $runId) {
+    sessionId
+    runId
+    type
+    state
+    message
+    diagnostics {
+      id
+      phase
+      code
+      message
+      path
+      severity
+      status
+      fixSuggestion
+    }
+  }
+}

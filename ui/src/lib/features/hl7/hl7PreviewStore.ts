@@ -1,14 +1,17 @@
 import { derived, writable } from 'svelte/store';
-import type { ParsePreviewQuery, ExplainedWarning } from '$lib/gen/graphql';
+import type { ExplainedWarning } from '$lib/gen/graphql';
 import { groupWarningsByPhase } from '$lib/domain/warnings';
 import { parseHL7Message } from '$lib/domain/hl7v2';
+import type { IntegrationSessionPreviewMeta } from '$lib/features/integration-session';
+import type { HL7PreviewResult } from './hl7Preview';
 
 export type HL7PreviewState = {
   source: string;
   data: string;
   loading: boolean;
   error: string | null;
-  result: ParsePreviewQuery | null;
+  result: HL7PreviewResult | null;
+  session: IntegrationSessionPreviewMeta | null;
 };
 
 const defaultSample =
@@ -22,7 +25,8 @@ export function createHL7PreviewStore() {
     data: defaultSample,
     loading: false,
     error: null,
-    result: null
+    result: null,
+    session: null
   });
 
   const warningsByPhase = derived(state, ($s) => {
@@ -31,6 +35,8 @@ export function createHL7PreviewStore() {
   });
 
   const events = derived(state, ($s) => $s.result?.parsePreview.events ?? []);
+
+  const sessionDiagnostics = derived(state, ($s) => $s.session?.diagnostics ?? []);
 
   const hl7 = derived(state, ($s) => parseHL7Message($s.data));
 
@@ -66,5 +72,5 @@ export function createHL7PreviewStore() {
     });
   }
 
-  return { state, warningsByPhase, events, hl7, updateWarningExplanation };
+  return { state, warningsByPhase, events, sessionDiagnostics, hl7, updateWarningExplanation };
 }
