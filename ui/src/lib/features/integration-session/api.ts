@@ -27,16 +27,6 @@ function messageFromError(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-function emptyPreview(): ParsePreviewQuery['parsePreview'] {
-  return {
-    __typename: 'ParseResult',
-    success: false,
-    errors: ['Session preview did not return a parse result'],
-    events: [],
-    warnings: []
-  };
-}
-
 export function buildFallbackSessionMeta(error: unknown): IntegrationSessionPreviewMeta {
   return {
     mode: 'fallback',
