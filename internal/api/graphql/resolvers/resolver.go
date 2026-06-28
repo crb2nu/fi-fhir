@@ -115,6 +115,9 @@ type Resolver struct {
 	workflowSubscribers []*workflowSubscriber
 	workflowSubMu       sync.RWMutex
 
+	// Integration sessions back the Mapping Studio session workspace.
+	integrationSessions *integrationSessionService
+
 	// Server metadata
 	Version   string
 	StartTime time.Time
@@ -133,6 +136,7 @@ func NewResolver(opts ...ResolverOption) *Resolver {
 		workflowVersionEngines: make(map[string]*workflow.Engine),
 		debugSessions:          make(map[string]*workflow.DebugSession),
 		workflowRunTraces:      make(map[string][]model.TraceSpanModel),
+		integrationSessions:    newIntegrationSessionService(),
 		Projections:            projections.NewService(nil), // In-memory projections by default
 		subscriptionClients:    make(map[string]*subscription.Client),
 		subscriptionRecords:    make(map[string]*SubscriptionRecord),
