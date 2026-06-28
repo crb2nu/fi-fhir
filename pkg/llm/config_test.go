@@ -328,6 +328,102 @@ func TestConfigWithEnv(t *testing.T) {
 	})
 }
 
+// TestConfigWithEnv_FIFHIRNamespace verifies the documented FI_FHIR_LLM_*
+// namespace configures the LLM client, taking precedence over the legacy LLM_*
+// keys while still falling back to them for backward compatibility. This is the
+// fix for the deploy-trap where docs/planning used FI_FHIR_LLM_* keys that the
+// serve LLM client (which calls WithEnv) silently ignored.
+func TestConfigWithEnv_FIFHIRNamespace(t *testing.T) {
+	// Neutralize every relevant var so leakage between subtests can't mask a
+	// precedence bug. t.Setenv auto-restores after each subtest.
+	clearLLMEnv := func(t *testing.T) {
+		for _, k := range []string{
+			"FI_FHIR_LLM_BASE_URL", "FI_FHIR_LLM_API_KEY",
+			"FI_FHIR_LLM_DEFAULT_MODEL", "FI_FHIR_LLM_QUALITY_MODEL",
+			"LLM_BASE_URL", "LLM_API_KEY", "LLM_DEFAULT_MODEL", "LLM_QUALITY_MODEL",
+			"OPENAI_API_KEY",
+		} {
+			t.Setenv(k, "")
+		}
+	}
+
+	t.Run("FI_FHIR_LLM_* overrides struct values", func(t *testing.T) {
+		clearLLMEnv(t)
+		t.Setenv("FI_FHIR_LLM_BASE_URL", "http://proxy:8000/v1")
+		t.Setenv("FI_FHIR_LLM_API_KEY", "fi-key")
+		t.Setenv("FI_FHIR_LLM_DEFAULT_MODEL", "fi-default")
+		t.Setenv("FI_FHIR_LLM_QUALITY_MODEL", "fi-quality")
+
+		cfg := Config{BaseURL: "orig", APIKey: "orig", DefaultModel: "orig", QualityModel: "orig"}.WithEnv()
+
+		if cfg.BaseURL != "http://proxy:8000/v1" {
+			t.Errorf("BaseURL = %q, want FI_FHIR override", cfg.BaseURL)
+		}
+		if cfg.APIKey != "fi-key" {
+			t.Errorf("APIKey = %q, want FI_FHIR override", cfg.APIKey)
+		}
+		if cfg.DefaultModel != "fi-default" {
+			t.Errorf("DefaultModel = %q, want FI_FHIR override", cfg.DefaultModel)
+		}
+		if cfg.QualityModel != "fi-quality" {
+			t.Errorf("QualityModel = %q, want FI_FHIR override", cfg.QualityModel)
+		}
+	})
+
+	t.Run("FI_FHIR_LLM_* wins over legacy LLM_*", func(t *testing.T) {
+		clearLLMEnv(t)
+		t.Setenv("FI_FHIR_LLM_BASE_URL", "http://fifhir:8000/v1")
+		t.Setenv("LLM_BASE_URL", "http://legacy:8000/v1")
+		t.Setenv("FI_FHIR_LLM_QUALITY_MODEL", "fi-quality")
+		t.Setenv("LLM_QUALITY_MODEL", "legacy-quality")
+
+		cfg := Config{}.WithEnv()
+
+		if cfg.BaseURL != "http://fifhir:8000/v1" {
+			t.Errorf("BaseURL = %q, want FI_FHIR to win over LLM_*", cfg.BaseURL)
+		}
+		if cfg.QualityModel != "fi-quality" {
+			t.Errorf("QualityModel = %q, want FI_FHIR to win over LLM_*", cfg.QualityModel)
+		}
+	})
+
+	t.Run("falls back to legacy LLM_* when FI_FHIR_* unset", func(t *testing.T) {
+		clearLLMEnv(t)
+		t.Setenv("LLM_BASE_URL", "http://legacy:8000/v1")
+		t.Setenv("LLM_QUALITY_MODEL", "legacy-quality")
+
+		cfg := Config{}.WithEnv()
+
+		if cfg.BaseURL != "http://legacy:8000/v1" {
+			t.Errorf("BaseURL = %q, want legacy LLM_* fallback", cfg.BaseURL)
+		}
+		if cfg.QualityModel != "legacy-quality" {
+			t.Errorf("QualityModel = %q, want legacy LLM_* fallback", cfg.QualityModel)
+		}
+	})
+
+	t.Run("API key precedence FI_FHIR > LLM > OPENAI", func(t *testing.T) {
+		clearLLMEnv(t)
+		t.Setenv("FI_FHIR_LLM_API_KEY", "fi-key")
+		t.Setenv("LLM_API_KEY", "llm-key")
+		t.Setenv("OPENAI_API_KEY", "openai-key")
+
+		if got := (Config{}).WithEnv().APIKey; got != "fi-key" {
+			t.Errorf("APIKey = %q, want fi-key (FI_FHIR wins)", got)
+		}
+	})
+
+	t.Run("API key falls back LLM > OPENAI when FI_FHIR unset", func(t *testing.T) {
+		clearLLMEnv(t)
+		t.Setenv("LLM_API_KEY", "llm-key")
+		t.Setenv("OPENAI_API_KEY", "openai-key")
+
+		if got := (Config{}).WithEnv().APIKey; got != "llm-key" {
+			t.Errorf("APIKey = %q, want llm-key (LLM_ wins over OPENAI)", got)
+		}
+	})
+}
+
 func TestEmbeddingConfigWithEnv(t *testing.T) {
 	// Save original env vars
 	origBaseURL := os.Getenv("LLM_EMBEDDING_BASE_URL")

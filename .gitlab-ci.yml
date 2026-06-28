@@ -816,6 +816,8 @@ security:govulncheck:
   stage: security
   <<: *go-image
   <<: *go-cache-pull
+  variables:
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
   script:
     - apk add --no-cache git
     - go install golang.org/x/vuln/cmd/govulncheck@latest
@@ -836,6 +838,8 @@ security:gosec:
   stage: security
   <<: *go-image
   <<: *go-cache-pull
+  variables:
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
   # Gate owner: Platform/CI — escalate via MR comment or #ci-support channel.
   # Rollback: set allow_failure: true per-job if pipeline-wide incident occurs (file incident ticket).
   # Exclusions mirror .golangci.yml gosec settings to avoid false-positive blocks.
@@ -883,8 +887,9 @@ security:trivy:
     name: ${DOCKERHUB_CACHE_PREFIX}/aquasec/trivy:${TRIVY_VERSION}
     entrypoint: [""]
   script:
-    - trivy fs --exit-code 0 --severity HIGH,CRITICAL --format sarif -o trivy-report.sarif .
-    - trivy fs --exit-code 1 --severity CRITICAL .
+    # Skip generated CI/tool caches; scan tracked project manifests and source inputs.
+    - trivy fs --skip-dirs .tmp --skip-dirs .go --skip-dirs .cache --skip-dirs ui/.pnpm-store --exit-code 0 --severity HIGH,CRITICAL --format sarif -o trivy-report.sarif .
+    - trivy fs --skip-dirs .tmp --skip-dirs .go --skip-dirs .cache --skip-dirs ui/.pnpm-store --exit-code 1 --severity CRITICAL .
   artifacts:
     reports:
       sast: trivy-report.sarif

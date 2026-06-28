@@ -28,7 +28,7 @@ llm:
   max_retries: 3
 ```
 
-Environment variables:
+Environment variables — the canonical namespace is `FI_FHIR_LLM_*`:
 ```bash
 export FI_FHIR_LLM_ENABLED=true
 export FI_FHIR_LLM_BASE_URL="http://localhost:8000/v1"
@@ -64,12 +64,25 @@ query {
     qualityModel
     status
     warnings
+    features {
+      name
+      enabled
+      status
+      reason
+      model
+    }
   }
 }
 ```
 
-The response never includes API keys or the full provider URL. `status` is one
-of `disabled`, `unavailable`, `degraded`, or `available`.
+The response never includes API keys or the full provider URL. Top-level
+`status` is one of `disabled`, `unavailable`, `degraded`, or `available`.
+Feature rows use the same vocabulary, with `unconfigured` for optional features
+that cannot be wired in the current runtime.
+
+`fi-fhir serve` also honors `FI_FHIR_LLM_ENABLED=false` as an explicit off switch
+for GraphQL LLM resolvers. If `FI_FHIR_LLM_ENABLED` is unset, serve preserves the
+legacy behavior of attempting LLM setup from the configured endpoint/model values.
 
 ---
 

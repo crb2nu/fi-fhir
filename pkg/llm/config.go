@@ -91,22 +91,22 @@ func DefaultEmbeddingConfig() EmbeddingConfig {
 // WithEnv returns a new Config with environment variable overrides applied.
 // Environment variables take precedence over struct values.
 //
-// Supported environment variables:
-//   - FI_FHIR_LLM_BASE_URL: Override BaseURL
-//   - FI_FHIR_LLM_API_KEY: Override APIKey
-//   - FI_FHIR_LLM_DEFAULT_MODEL: Override DefaultModel
-//   - FI_FHIR_LLM_QUALITY_MODEL: Override QualityModel
-//   - LLM_BASE_URL: Legacy fallback for BaseURL
-//   - LLM_API_KEY: Legacy fallback for APIKey
-//   - OPENAI_API_KEY: Fallback for APIKey
-//   - LLM_DEFAULT_MODEL: Legacy fallback for DefaultModel
-//   - LLM_QUALITY_MODEL: Legacy fallback for QualityModel
+// The canonical, documented namespace is FI_FHIR_LLM_* (matching the keys read
+// by pkg/config). The legacy LLM_* keys are still honored as a fallback for
+// backward compatibility, so FI_FHIR_LLM_* wins when both are set.
+//
+// Supported environment variables (precedence: FI_FHIR_LLM_* > LLM_* > default):
+//   - FI_FHIR_LLM_BASE_URL / LLM_BASE_URL: Override BaseURL
+//   - FI_FHIR_LLM_API_KEY / LLM_API_KEY: Override APIKey
+//   - OPENAI_API_KEY: Last-resort fallback for APIKey
+//   - FI_FHIR_LLM_DEFAULT_MODEL / LLM_DEFAULT_MODEL: Override DefaultModel
+//   - FI_FHIR_LLM_QUALITY_MODEL / LLM_QUALITY_MODEL: Override QualityModel
 func (c Config) WithEnv() Config {
 	if v := firstEnv("FI_FHIR_LLM_BASE_URL", "LLM_BASE_URL"); v != "" {
 		c.BaseURL = v
 	}
 
-	// API key with fallback chain
+	// API key with fallback chain: FI_FHIR_LLM_API_KEY > LLM_API_KEY > OPENAI_API_KEY.
 	if v := firstEnv("FI_FHIR_LLM_API_KEY", "LLM_API_KEY"); v != "" {
 		c.APIKey = v
 	} else if v := os.Getenv("OPENAI_API_KEY"); v != "" && c.APIKey == "" {
@@ -122,6 +122,17 @@ func (c Config) WithEnv() Config {
 	}
 
 	return c
+}
+
+// firstEnv returns the value of the first set, non-empty environment variable
+// in keys (earlier keys take precedence), or "" when none are set.
+func firstEnv(keys ...string) string {
+	for _, k := range keys {
+		if v := os.Getenv(k); v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // WithEnv returns a new EmbeddingConfig with environment variable overrides applied.
@@ -153,15 +164,6 @@ func (c EmbeddingConfig) WithEnv() EmbeddingConfig {
 	}
 
 	return c
-}
-
-func firstEnv(keys ...string) string {
-	for _, key := range keys {
-		if v := os.Getenv(key); v != "" {
-			return v
-		}
-	}
-	return ""
 }
 
 // Validate checks if the Config has all required fields.

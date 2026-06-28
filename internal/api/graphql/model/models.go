@@ -282,6 +282,14 @@ type HealthStatus struct {
 	Components []ComponentHealth `json:"components"`
 }
 
+type LLMFeatureCapability struct {
+	Name    string  `json:"name"`
+	Enabled bool    `json:"enabled"`
+	Status  string  `json:"status"`
+	Reason  *string `json:"reason,omitempty"`
+	Model   *string `json:"model,omitempty"`
+}
+
 type ParseWarning struct {
 	Phase   string  `json:"phase"`
 	Code    string  `json:"code"`

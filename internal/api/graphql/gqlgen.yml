@@ -152,6 +152,9 @@ models:
   HealthStatus:
     model:
       - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.HealthStatus
+  LLMFeatureCapability:
+    model:
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.LLMFeatureCapability
   ParseWarning:
     model:
       - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.ParseWarning

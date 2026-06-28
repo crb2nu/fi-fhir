@@ -180,9 +180,9 @@ Gated by the **kill-test above (Slice 0)**. Only proceeds if the LLM path is pro
   *Done*: 22 new vitest (`copilotDispatch.test.ts` builders/formatters/dispatch + `copilotStore.test.ts`
   dispatch/model/error/cancel), 555 pass (533→555), lint clean, typecheck clean (1 pre-existing
   vite/rollup `.d.ts` error only). `model` chip added to `CopilotPanel`.
-  *Deferred within scope*: no GraphQL capability field exposes "LLM enabled", so the UI can only
-  distinguish *unreachable* (op errors → inline + net toast) from *connected*; a true "LLM off" badge needs
-  a backend capability query (candidate Wave-3, alongside the `LLM_*`/`FI_FHIR_LLM_*` namespace collapse).
+  *Deferred within scope*: the backend now exposes `llmCapability` with feature rows (Slice 3f), but the
+  Copilot UI still needs to query it and render an honest disabled/unavailable/degraded badge instead of
+  inferring state from operation errors.
 - **Slice 2b — Workflow generate/explain wired through. ✅ SHIPPED as a regression-lock (2026-06-18, branch
   `feat/funcgap-w2b-workflow-generate`).**
   **Plan-vs-reality correction (verify-before-build):** the Class-B audit claims for "Workflow generate" and
@@ -249,6 +249,41 @@ Pulled forward because Wave 2 is blocked on an LLM provider (no backend dependen
 - **Slice 3d (stretch) — CLI↔GraphQL parity + OTel mapping spans.**
   Pick per real need: workflow-lifecycle CLI for CI automation, or OTel emission for the decision telemetry
   dashboards. Defer unless pulled by a concrete consumer.
+
+- **Slice 3e — LLM config-namespace unification. ✅ SHIPPED (2026-06-18, branch
+  `feat/funcgap-w3-llm-config-namespace`).** Closes the deploy-trap surfaced by the Slice-0 kill-test.
+  **Deeper than the original note**: `runServe` (`cmd/fi-fhir/main.go:4474`) never loads `pkg/config` —
+  it builds the LLM client purely from `llm.DefaultConfig().WithEnv()` (the `LLM_*` namespace) and the block
+  is **ungated** (LLM is always attempted; "disabled" only on a connection error). So the entire
+  `FI_FHIR_LLM_*` surface — both the documented connection keys *and* `FI_FHIR_LLM_ENABLED` — was dead for
+  serve; the kill-test's `FI_FHIR_LLM_ENABLED=true` was a no-op and only `LLM_BASE_URL` mattered.
+  **Fix (low-risk, backward-compatible)**: `pkg/llm.Config.WithEnv()` now reads `FI_FHIR_LLM_*` with
+  precedence over the legacy `LLM_*` (via a new `firstEnv` helper), falling back to `LLM_*` then
+  `OPENAI_API_KEY` for the key. Following the documented `FI_FHIR_LLM_BASE_URL`/`_API_KEY`/`_DEFAULT_MODEL`/
+  `_QUALITY_MODEL` now actually configures the copilot/explainers/extraction/quality; existing `LLM_*`
+  deployments keep working. `docs/user-guide/llm-features.md` updated to make `FI_FHIR_LLM_*` canonical and
+  note the fallback. *Done*: 5 new Go subtests (`TestConfigWithEnv_FIFHIRNamespace` — override, precedence,
+  fallback, 2× API-key chain), `go test ./pkg/llm/...` green, build+vet+gofmt clean.
+  **2026-06-27 follow-up shipped locally**: `fi-fhir serve` now honors explicit
+  `FI_FHIR_LLM_ENABLED=false` by skipping LLM client construction and resolver registration, while leaving
+  unset/empty `FI_FHIR_LLM_ENABLED` in the legacy auto-attempt path so existing `LLM_*` deployments are not
+  silently disabled. The LLM setup block was extracted into a testable helper with focused coverage for
+  disabled/enabled/unset/client-error paths.
+  *Remaining follow-ups*: (1) per-feature toggles (Extraction/Copilot/DataQuality/etc.) still are not wired
+  into serve; (2) embedding/semantic-terminology config still uses the `LLM_EMBEDDING_*`/`LLM_*` path (out of
+  the serve chat path); (3) the Slice-2a UI "LLM off" honest badge still needs frontend wiring to the
+  `llmCapability` query.
+
+- **Slice 3f — GraphQL LLM capability query. ✅ SHIPPED LOCALLY (2026-06-28, branch
+  `feat/funcgap-w3-llm-config-namespace`).** Extended the read-only `llmCapability` query to report
+  safe top-level LLM state (`available`, `degraded`, `disabled`, `unavailable`) plus feature-level
+  rows for `explainWarnings`, `extractEntities`, `analyzeQuality`, `generateWorkflow`, `explainWorkflow`,
+  and `suggestMappings`. `fi-fhir serve` attaches explicit capability state during LLM initialization:
+  `FI_FHIR_LLM_ENABLED=false` reports `disabled`, client construction failure reports `unavailable`, and a
+  partially wired runtime reports `degraded` with unconfigured feature rows where applicable. This closes the
+  backend half of the Copilot honest-state gap without changing existing LLM operation graceful-degrade
+  behavior. *Done*: gqlgen regenerated; focused resolver tests added. *Remaining follow-up*: wire the Copilot
+  UI to query `llmCapability` and display disabled/unavailable/degraded states before dispatching LLM actions.
 
 ---
 
