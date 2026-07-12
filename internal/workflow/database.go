@@ -8,6 +8,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/lib/pq"
+
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/sqlutil"
 )
 
 // DatabaseManager manages database connections for workflow actions.
@@ -184,6 +188,9 @@ func parseDatabaseConfig(config map[string]string) (*DatabaseConfig, error) {
 	if table == "" {
 		return nil, fmt.Errorf("database action requires 'table' config")
 	}
+	if err := sqlutil.ValidatePostgresIdentifier(table); err != nil {
+		return nil, fmt.Errorf("invalid database table %q: %w", table, err)
+	}
 
 	operation := config["operation"]
 	if operation == "" {
@@ -198,6 +205,9 @@ func parseDatabaseConfig(config map[string]string) (*DatabaseConfig, error) {
 	for key, value := range config {
 		if strings.HasPrefix(key, "mapping_") {
 			column := strings.TrimPrefix(key, "mapping_")
+			if err := sqlutil.ValidatePostgresIdentifier(column); err != nil {
+				return nil, fmt.Errorf("invalid database column %q: %w", column, err)
+			}
 			mapping[column] = value
 		}
 	}
@@ -212,6 +222,9 @@ func parseDatabaseConfig(config map[string]string) (*DatabaseConfig, error) {
 		for _, col := range strings.Split(conflict, ",") {
 			col = strings.TrimSpace(col)
 			if col != "" {
+				if err := sqlutil.ValidatePostgresIdentifier(col); err != nil {
+					return nil, fmt.Errorf("invalid conflict column %q: %w", col, err)
+				}
 				conflictOn = append(conflictOn, col)
 			}
 		}
@@ -241,8 +254,8 @@ func executeInsert(db *sql.DB, config *DatabaseConfig, eventMap map[string]inter
 
 	query := fmt.Sprintf(
 		"INSERT INTO %s (%s) VALUES (%s)",
-		config.Table,
-		strings.Join(columns, ", "),
+		pq.QuoteIdentifier(config.Table),
+		quotePostgresIdentifiers(columns),
 		strings.Join(placeholders, ", "),
 	)
 
@@ -282,17 +295,17 @@ func executeUpsert(db *sql.DB, config *DatabaseConfig, eventMap map[string]inter
 			}
 		}
 		if !isConflict {
-			updateSets = append(updateSets, fmt.Sprintf("%s = $%d", col, i+1))
+			updateSets = append(updateSets, fmt.Sprintf("%s = $%d", pq.QuoteIdentifier(col), i+1))
 		}
 	}
 
 	// Build PostgreSQL-style upsert query
 	query := fmt.Sprintf(
 		"INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s) DO UPDATE SET %s",
-		config.Table,
-		strings.Join(columns, ", "),
+		pq.QuoteIdentifier(config.Table),
+		quotePostgresIdentifiers(columns),
 		strings.Join(placeholders, ", "),
-		strings.Join(config.ConflictOn, ", "),
+		quotePostgresIdentifiers(config.ConflictOn),
 		strings.Join(updateSets, ", "),
 	)
 
@@ -302,6 +315,14 @@ func executeUpsert(db *sql.DB, config *DatabaseConfig, eventMap map[string]inter
 	}
 
 	return nil
+}
+
+func quotePostgresIdentifiers(identifiers []string) string {
+	quoted := make([]string, len(identifiers))
+	for i, identifier := range identifiers {
+		quoted[i] = pq.QuoteIdentifier(identifier)
+	}
+	return strings.Join(quoted, ", ")
 }
 
 // buildColumnsAndValues builds column names and values from mapping.

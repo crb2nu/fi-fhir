@@ -9,8 +9,9 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/sqlutil"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/eventsourcing"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/eventsourcing/projections"
 )
@@ -99,6 +100,13 @@ func getEventStoreDB(args []string) (string, string, error) {
 	if dbURL == "" {
 		return "", "", fmt.Errorf("database URL required: use --db flag or FI_FHIR_DATABASE_URL env var")
 	}
+	if err := sqlutil.ValidatePostgresIdentifier(tableName); err != nil {
+		return "", "", fmt.Errorf(
+			"invalid event store table name %q: %w",
+			tableName,
+			err,
+		)
+	}
 
 	return dbURL, tableName, nil
 }
@@ -133,8 +141,8 @@ func runEventStoreInit(args []string) error {
 	}
 
 	fmt.Printf("Event store schema initialized successfully\n")
-	fmt.Printf("  Events table: %s\n", tableName)
-	fmt.Printf("  Checkpoints table: %s_checkpoints\n", tableName)
+	fmt.Printf("  Events table: %s\n", store.PhysicalTableName())
+	fmt.Printf("  Checkpoints table: %s\n", checkpointStore.PhysicalTableName())
 
 	return nil
 }
@@ -219,8 +227,10 @@ func runEventStoreStreams(args []string) error {
 		GROUP BY stream_id
 		ORDER BY MAX(position) DESC
 		LIMIT $1
-	`, tableName)
+	`, pq.QuoteIdentifier(tableName))
 
+	// #nosec G701 -- getEventStoreDB restricts tableName to a single PostgreSQL
+	// identifier and pq.QuoteIdentifier escapes it before query construction.
 	rows, err := db.QueryContext(ctx, query, limit)
 	if err != nil {
 		return fmt.Errorf("failed to query streams: %w", err)

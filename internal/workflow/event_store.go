@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/sqlutil"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/eventsourcing"
 )
 
@@ -153,6 +154,9 @@ func parseEventStoreConfig(config map[string]string) (*EventStoreConfig, error) 
 	}
 	if esConfig.StreamTemplate == "" {
 		return nil, fmt.Errorf("event_store action requires 'stream' or 'stream_template' config")
+	}
+	if err := sqlutil.ValidatePostgresIdentifier(esConfig.Table); err != nil {
+		return nil, fmt.Errorf("invalid event_store table %q: %w", esConfig.Table, err)
 	}
 
 	return esConfig, nil
