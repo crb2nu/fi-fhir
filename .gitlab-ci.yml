@@ -16,8 +16,10 @@ stages:
   - release
 
 variables:
-  GO_VERSION: "1.25.7"
-  GOLANGCI_LINT_VERSION: "v2.8.0"
+  GO_VERSION: "1.26.5"
+  GOLANGCI_LINT_VERSION: "v2.12.2"
+  GOVULNCHECK_VERSION: "v1.6.0"
+  GOSEC_VERSION: "v2.27.1"
   NODE_VERSION: "22"
   CGO_ENABLED: "0"
   DOCKER_DRIVER: overlay2
@@ -150,7 +152,7 @@ lint:go:
   script:
     - apk add --no-cache git
     - golangci-lint version
-    - golangci-lint run --timeout=30m ./...
+    - golangci-lint run --timeout=30m ./cmd/... ./internal/... ./pkg/... ./scripts/... ./sdk/...
   after_script:
     - |
       if [ "$CI_JOB_STATUS" = "failed" ]; then
@@ -820,8 +822,8 @@ security:govulncheck:
     KUBERNETES_MEMORY_LIMIT: "4Gi"
   script:
     - apk add --no-cache git
-    - go install golang.org/x/vuln/cmd/govulncheck@latest
-    - govulncheck ./...
+    - go install golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}
+    - govulncheck ./cmd/... ./internal/... ./pkg/... ./scripts/...
   retry:
     max: 2
     when: runner_system_failure
@@ -845,7 +847,7 @@ security:gosec:
   # Exclusions mirror .golangci.yml gosec settings to avoid false-positive blocks.
   script:
     - apk add --no-cache git
-    - go install github.com/securego/gosec/v2/cmd/gosec@latest
+    - go install github.com/securego/gosec/v2/cmd/gosec@${GOSEC_VERSION}
     # Report all findings to SARIF for GitLab security dashboard (always succeeds)
     - gosec -fmt sarif -out gosec-report.sarif -exclude-generated -exclude=G104,G201,G304,G301,G302,G306,G115,G404,G101,G602,G703,G704 ./cmd/... ./internal/... ./pkg/... ./sdk/... || true
     # Gate: fail only on HIGH severity + HIGH confidence findings (filter noise from standalone gosec).

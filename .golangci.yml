@@ -78,6 +78,12 @@ linters:
         - unusedwrite  # 33 issues — test struct field writes
         - nilness      # 2 issues — tautological nil checks
 
+    staticcheck:
+      checks:
+        # Stylistic WriteString(fmt.Sprintf(...)) quick-fix; keep this security
+        # baseline focused and re-enable through a dedicated cleanup slice.
+        - -QF1012
+
     # Settings for disabled linters (kept for future re-enablement):
     # gocyclo:
     #   min-complexity: 15

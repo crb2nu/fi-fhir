@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -32,6 +33,22 @@ type TestPostgresContainer struct {
 	Container testcontainers.Container
 	DB        *sql.DB
 	DSN       string
+}
+
+type postgresDBAdapter struct {
+	db *sql.DB
+}
+
+func (a postgresDBAdapter) ExecContext(ctx context.Context, query string, args ...interface{}) (Result, error) {
+	return a.db.ExecContext(ctx, query, args...)
+}
+
+func (a postgresDBAdapter) QueryRowContext(ctx context.Context, query string, args ...interface{}) Row {
+	return a.db.QueryRowContext(ctx, query, args...)
+}
+
+func (a postgresDBAdapter) QueryContext(ctx context.Context, query string, args ...interface{}) (Rows, error) {
+	return a.db.QueryContext(ctx, query, args...)
 }
 
 // setupPostgresContainer creates a PostgreSQL testcontainer for integration tests.
@@ -157,6 +174,92 @@ func TestPostgresStore_Integration_InitSchema(t *testing.T) {
 	err = store.InitSchema(ctx)
 	if err != nil {
 		t.Fatalf("Second InitSchema failed: %v", err)
+	}
+}
+
+func TestPostgresStores_Integration_MaxLengthDerivedIdentifiers(t *testing.T) {
+	tc := setupPostgresContainer(t)
+	if tc == nil {
+		return
+	}
+
+	ctx := context.Background()
+	base := strings.Repeat("e", postgresIdentifierMaxBytes)
+	tableNames := []string{
+		base,
+		base + "_checkpoints",
+		base + "_snapshots",
+		base + "_stream_snapshots",
+	}
+
+	eventStore := NewPostgresStore(tc.DB, PostgresStoreConfig{TableName: tableNames[0]})
+	checkpointStore := NewPostgresCheckpointStore(tc.DB, tableNames[1])
+	snapshotStore := NewPostgresSnapshotStore(tc.DB, tableNames[2])
+	streamSnapshotStore := NewPostgresStreamSnapshotStore(postgresDBAdapter{db: tc.DB}, tableNames[3])
+
+	quotedTables := []string{
+		eventStore.tableName,
+		checkpointStore.tableName,
+		snapshotStore.tableName,
+		streamSnapshotStore.tableName,
+	}
+	for _, table := range quotedTables {
+		_, _ = tc.DB.ExecContext(ctx, fmt.Sprintf("DROP TABLE IF EXISTS %s CASCADE", table))
+	}
+	t.Cleanup(func() {
+		for _, table := range quotedTables {
+			_, _ = tc.DB.ExecContext(context.Background(), fmt.Sprintf("DROP TABLE IF EXISTS %s CASCADE", table))
+		}
+	})
+
+	for name, initSchema := range map[string]func(context.Context) error{
+		"event":           eventStore.InitSchema,
+		"checkpoint":      checkpointStore.InitSchema,
+		"snapshot":        snapshotStore.InitSchema,
+		"stream snapshot": streamSnapshotStore.InitSchema,
+	} {
+		if err := initSchema(ctx); err != nil {
+			t.Fatalf("initialize %s schema: %v", name, err)
+		}
+	}
+
+	for _, table := range tableNames {
+		var exists bool
+		err := tc.DB.QueryRowContext(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM information_schema.tables
+				WHERE table_schema = current_schema() AND table_name = $1
+			)
+		`, normalizePostgresIdentifier(table)).Scan(&exists)
+		if err != nil {
+			t.Fatalf("query table %q: %v", table, err)
+		}
+		if !exists {
+			t.Fatalf("expected normalized table for %q", table)
+		}
+	}
+
+	indexNames := []string{
+		"idx_" + tableNames[0] + "_stream",
+		"idx_" + tableNames[0] + "_type",
+		"idx_" + tableNames[0] + "_timestamp",
+		"idx_" + tableNames[2] + "_projection",
+		"idx_" + tableNames[3] + "_type",
+	}
+	for _, index := range indexNames {
+		var exists bool
+		err := tc.DB.QueryRowContext(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM pg_indexes
+				WHERE schemaname = current_schema() AND indexname = $1
+			)
+		`, normalizePostgresIdentifier(index)).Scan(&exists)
+		if err != nil {
+			t.Fatalf("query index %q: %v", index, err)
+		}
+		if !exists {
+			t.Fatalf("expected normalized index for %q", index)
+		}
 	}
 }
 

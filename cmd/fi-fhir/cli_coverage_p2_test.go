@@ -196,6 +196,51 @@ func TestGetEventStoreDB_WithTableFlag(t *testing.T) {
 	}
 }
 
+func TestGetEventStoreDB_ValidatesTableIdentifier(t *testing.T) {
+	t.Setenv("FI_FHIR_DATABASE_URL", "")
+
+	tests := []struct {
+		name      string
+		tableName string
+		wantErr   bool
+	}{
+		{name: "letters and underscore", tableName: "my_events"},
+		{name: "leading underscore", tableName: "_events_2026"},
+		{name: "maximum length", tableName: strings.Repeat("e", 63)},
+		{name: "empty", tableName: "", wantErr: true},
+		{name: "uppercase", tableName: "MyEvents", wantErr: true},
+		{name: "starts with digit", tableName: "2026_events", wantErr: true},
+		{name: "schema qualified", tableName: "public.events", wantErr: true},
+		{name: "quoted", tableName: `"events"`, wantErr: true},
+		{name: "contains whitespace", tableName: "events archive", wantErr: true},
+		{name: "statement injection", tableName: "events; DROP TABLE patients;--", wantErr: true},
+		{name: "contains nul", tableName: "events\x00archive", wantErr: true},
+		{name: "longer than postgres limit", tableName: strings.Repeat("e", 64), wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, tableName, err := getEventStoreDB([]string{
+				"--db", "postgres://x",
+				"--table", tt.tableName,
+			})
+
+			if tt.wantErr {
+				if err == nil || !strings.Contains(err.Error(), "invalid event store table name") {
+					t.Fatalf("expected invalid table name error, got %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tableName != tt.tableName {
+				t.Fatalf("expected table %q, got %q", tt.tableName, tableName)
+			}
+		})
+	}
+}
+
 // =============================================================================
 // Projection — dispatcher and error paths
 // =============================================================================

@@ -122,6 +122,16 @@ func TestParseEventStoreConfig(t *testing.T) {
 			wantErr:     true,
 			errContains: "stream",
 		},
+		{
+			name: "invalid table identifier",
+			config: map[string]string{
+				"connection": "postgres://localhost/test",
+				"table":      "events; DROP TABLE patients;--",
+				"stream":     "test:stream",
+			},
+			wantErr:     true,
+			errContains: "invalid event_store table",
+		},
 	}
 
 	for _, tt := range tests {

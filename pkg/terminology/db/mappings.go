@@ -384,6 +384,7 @@ func (s *MappingStore) ListMappings(ctx context.Context, filter ListMappingsFilt
 		query += fmt.Sprintf(" LIMIT %d", filter.Limit)
 	}
 	if filter.Offset > 0 {
+		// #nosec G202 -- Offset is a typed integer, not a SQL fragment.
 		query += fmt.Sprintf(" OFFSET %d", filter.Offset)
 	}
 
@@ -801,6 +802,7 @@ func (s *MappingStore) ListPendingAutoroutes(ctx context.Context, filter ListPen
 		query += fmt.Sprintf(" LIMIT %d", filter.Limit)
 	}
 	if filter.Offset > 0 {
+		// #nosec G202 -- Offset is a typed integer, not a SQL fragment.
 		query += fmt.Sprintf(" OFFSET %d", filter.Offset)
 	}
 
@@ -1243,6 +1245,7 @@ func (s *MappingStore) ListMappingDecisions(ctx context.Context, filter ListMapp
 		query += fmt.Sprintf(" LIMIT %d", filter.Limit)
 	}
 	if filter.Offset > 0 {
+		// #nosec G202 -- Offset is a typed integer, not a SQL fragment.
 		query += fmt.Sprintf(" OFFSET %d", filter.Offset)
 	}
 

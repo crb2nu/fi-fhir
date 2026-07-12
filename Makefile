@@ -11,8 +11,10 @@
 	dev dev-down dev-ui dev-ui-down
 
 # Tool versions (update these when upgrading)
-GOLANGCI_LINT_VERSION := v2.8.0
-GO_MIN_VERSION := 1.21
+GOLANGCI_LINT_VERSION := v2.12.2
+GOVULNCHECK_VERSION := v1.6.0
+GOSEC_VERSION := v2.27.1
+GO_MIN_VERSION := 1.26.5
 
 # Build the CLI
 build:
@@ -98,11 +100,11 @@ tidy:
 
 # Run linter using 'go run' for reliability (no PATH issues)
 lint:
-	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run ./cmd/... ./internal/... ./pkg/... ./scripts/... ./sdk/...
 
 # Run linter with auto-fix
 lint-fix:
-	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run --fix
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run --fix ./cmd/... ./internal/... ./pkg/... ./scripts/... ./sdk/...
 
 # Install linter to $GOPATH/bin (for IDE integration)
 install-lint:
@@ -175,7 +177,7 @@ dev-setup: check-deps setup-hooks tidy
 # Check development dependencies
 check-deps:
 	@echo "Checking Go version..."
-	@go version | grep -q "go1\.\(2[1-9]\|[3-9][0-9]\)" || { \
+	@go env GOVERSION | grep -Eq '^go1\.(26\.([5-9]|[1-9][0-9]+)|2[7-9](\.|$$)|[3-9][0-9](\.|$$))' || { \
 		echo "❌ Go $(GO_MIN_VERSION)+ required. Current: $$(go version)"; \
 		exit 1; \
 	}
@@ -277,14 +279,14 @@ test-race:
 # Security: govulncheck (matches security:govulncheck in CI)
 security-vulncheck:
 	@echo "Running govulncheck..."
-	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+	GOFLAGS=-mod=readonly go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./cmd/... ./internal/... ./pkg/... ./scripts/...
 	@echo "✓ No known vulnerabilities found"
 
 # Security: gosec (matches security:gosec in CI)
 security-gosec:
 	@echo "Running gosec..."
-	go run github.com/securego/gosec/v2/cmd/gosec@latest -fmt text -exclude-generated ./cmd/... ./internal/... ./pkg/... ./sdk/... || true
-	@echo "✓ gosec scan complete"
+	GOFLAGS=-mod=readonly go run github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION) -quiet -fmt text -severity high -confidence high -exclude-generated -exclude=G104,G201,G304,G301,G302,G306,G115,G404,G101,G602,G703,G704 ./cmd/... ./internal/... ./pkg/... ./sdk/...
+	@echo "✓ No unwaived high-confidence/high-severity gosec findings"
 
 # Security: npm audit (matches security:npm-audit in CI)
 security-npm-audit:

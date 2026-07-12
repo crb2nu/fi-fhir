@@ -537,7 +537,7 @@ func (e *Engine) getEventType(event interface{}) string {
 	}
 
 	v := reflect.ValueOf(event)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 
@@ -570,7 +570,7 @@ func (e *Engine) getEventSource(event interface{}) string {
 	}
 
 	v := reflect.ValueOf(event)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 

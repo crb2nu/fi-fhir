@@ -358,6 +358,7 @@ func (s *PostgresWorkflowLifecycleStore) ListWorkflowDefinitions(ctx context.Con
 		argIndex++
 	}
 
+	// #nosec G202 -- only parameter ordinals are formatted; limit/offset remain bound values.
 	query += fmt.Sprintf(" ORDER BY updated_at DESC, name ASC LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
 	args = append(args, limit, offset)
 
@@ -875,6 +876,7 @@ func (s *PostgresWorkflowLifecycleStore) ListWorkflowRuns(ctx context.Context, f
 		argIndex++
 	}
 
+	// #nosec G202 -- only parameter ordinals are formatted; limit/offset remain bound values.
 	query += fmt.Sprintf(" ORDER BY started_at DESC, id DESC LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
 	args = append(args, limit, offset)
 
@@ -1113,6 +1115,7 @@ func (s *PostgresWorkflowLifecycleStore) ListWorkflowApprovalRequests(ctx contex
 		args = append(args, strings.TrimSpace(*filter.Status))
 		argIndex++
 	}
+	// #nosec G202 -- only parameter ordinals are formatted; limit/offset remain bound values.
 	query += fmt.Sprintf(" ORDER BY id DESC LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
 	args = append(args, limit, offset)
 

@@ -2164,6 +2164,38 @@ func TestDatabaseConfigParsing(t *testing.T) {
 			},
 			expectError: false,
 		},
+		{
+			name: "invalid table identifier",
+			config: map[string]string{
+				"connection":       "postgres://localhost/test",
+				"table":            "events; DROP TABLE patients;--",
+				"mapping_event_id": "id",
+			},
+			expectError: true,
+			errorMsg:    "invalid database table",
+		},
+		{
+			name: "invalid mapping column identifier",
+			config: map[string]string{
+				"connection":                   "postgres://localhost/test",
+				"table":                        "events",
+				"mapping_event_id) VALUES (1)": "id",
+			},
+			expectError: true,
+			errorMsg:    "invalid database column",
+		},
+		{
+			name: "invalid conflict column identifier",
+			config: map[string]string{
+				"connection":       "postgres://localhost/test",
+				"table":            "events",
+				"operation":        "upsert",
+				"conflict_on":      "event_id) DO NOTHING;--",
+				"mapping_event_id": "id",
+			},
+			expectError: true,
+			errorMsg:    "invalid conflict column",
+		},
 	}
 
 	for _, tt := range tests {
@@ -2190,6 +2222,14 @@ func TestDatabaseConfigParsing(t *testing.T) {
 				t.Errorf("Expected table '%s', got '%s'", tt.config["table"], result.Table)
 			}
 		})
+	}
+}
+
+func TestQuotePostgresIdentifiers(t *testing.T) {
+	got := quotePostgresIdentifiers([]string{"event_id", "type"})
+	want := `"event_id", "type"`
+	if got != want {
+		t.Fatalf("quotePostgresIdentifiers() = %q, want %q", got, want)
 	}
 }
 

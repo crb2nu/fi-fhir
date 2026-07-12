@@ -576,8 +576,10 @@ func (s *MemoryStreamSnapshotStore) ListStreamSnapshots(ctx context.Context) ([]
 
 // PostgresStreamSnapshotStore is a PostgreSQL-backed stream snapshot store.
 type PostgresStreamSnapshotStore struct {
-	db        DB
-	tableName string
+	db                DB
+	tableName         string
+	physicalTableName string
+	indexName         string
 }
 
 // DB interface for database operations (allows testing with mocks).
@@ -606,14 +608,22 @@ type Rows interface {
 }
 
 // NewPostgresStreamSnapshotStore creates a new PostgreSQL stream snapshot store.
+// tableName is treated as one raw, unqualified identifier and is safely quoted.
 func NewPostgresStreamSnapshotStore(db DB, tableName string) *PostgresStreamSnapshotStore {
 	if tableName == "" {
 		tableName = "stream_snapshots"
 	}
 	return &PostgresStreamSnapshotStore{
-		db:        db,
-		tableName: tableName,
+		db:                db,
+		tableName:         quotePostgresIdentifier(tableName),
+		physicalTableName: normalizePostgresIdentifier(tableName),
+		indexName:         quotePostgresIndexIdentifier(tableName, "type"),
 	}
+}
+
+// PhysicalTableName returns the normalized PostgreSQL table name used by the store.
+func (s *PostgresStreamSnapshotStore) PhysicalTableName() string {
+	return s.physicalTableName
 }
 
 // InitSchema creates the stream snapshots table.
@@ -628,8 +638,8 @@ func (s *PostgresStreamSnapshotStore) InitSchema(ctx context.Context) error {
 			event_count BIGINT NOT NULL DEFAULT 0,
 			created_at TIMESTAMPTZ DEFAULT NOW()
 		);
-		CREATE INDEX IF NOT EXISTS idx_%s_type ON %s (aggregate_type);
-	`, s.tableName, s.tableName, s.tableName)
+		CREATE INDEX IF NOT EXISTS %s ON %s (aggregate_type);
+	`, s.tableName, s.indexName, s.tableName)
 
 	_, err := s.db.ExecContext(ctx, schema)
 	return err

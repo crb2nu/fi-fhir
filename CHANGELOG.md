@@ -184,6 +184,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation conventions (`docs/DOCUMENTATION-CONVENTIONS.md`)
 
 ### Security
+- Upgraded the Go build/runtime baseline to 1.26.5 and the Go-1.26-compatible
+  golangci-lint baseline to 2.12.2; govulncheck and gosec versions are now pinned.
+- Event-store and database workflow actions now reject configuration-controlled
+  SQL identifiers outside lowercase PostgreSQL identifiers (`[a-z_][a-z0-9_]*`,
+  maximum 63 characters) and quote identifiers at direct query boundaries.
+- Public PostgreSQL event, checkpoint, projection-snapshot, and stream-snapshot
+  stores now quote raw unqualified table and derived index names internally;
+  embedded NUL bytes and names over PostgreSQL's 63-byte limit receive a
+  deterministic hash suffix.
 - Non-root container execution
 - Read-only root filesystem
 - Secret provider interface (env, file, Vault, AWS SSM, K8s secrets)

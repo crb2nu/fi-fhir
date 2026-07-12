@@ -12,14 +12,19 @@ import (
 // PostgresStore is a PostgreSQL-backed event store.
 // It provides durable, production-ready event storage with ACID guarantees.
 type PostgresStore struct {
-	db           *sql.DB
-	tableName    string
-	pollInterval time.Duration
+	db                 *sql.DB
+	tableName          string
+	physicalTableName  string
+	streamIndexName    string
+	typeIndexName      string
+	timestampIndexName string
+	pollInterval       time.Duration
 }
 
 // PostgresStoreConfig configures the PostgreSQL event store.
 type PostgresStoreConfig struct {
-	// TableName is the events table name (default: "events")
+	// TableName is one raw, unqualified events table name (default: "events").
+	// The store quotes it as a PostgreSQL identifier before constructing SQL.
 	TableName string
 	// PollInterval for subscriptions (default: 100ms)
 	PollInterval time.Duration
@@ -44,10 +49,19 @@ func NewPostgresStore(db *sql.DB, config PostgresStoreConfig) *PostgresStore {
 	}
 
 	return &PostgresStore{
-		db:           db,
-		tableName:    config.TableName,
-		pollInterval: config.PollInterval,
+		db:                 db,
+		tableName:          quotePostgresIdentifier(config.TableName),
+		physicalTableName:  normalizePostgresIdentifier(config.TableName),
+		streamIndexName:    quotePostgresIndexIdentifier(config.TableName, "stream"),
+		typeIndexName:      quotePostgresIndexIdentifier(config.TableName, "type"),
+		timestampIndexName: quotePostgresIndexIdentifier(config.TableName, "timestamp"),
+		pollInterval:       config.PollInterval,
 	}
+}
+
+// PhysicalTableName returns the normalized PostgreSQL table name used by the store.
+func (s *PostgresStore) PhysicalTableName() string {
+	return s.physicalTableName
 }
 
 // InitSchema creates the events table and indexes.
@@ -65,10 +79,10 @@ func (s *PostgresStore) InitSchema(ctx context.Context) error {
 			UNIQUE (stream_id, stream_version)
 		);
 
-		CREATE INDEX IF NOT EXISTS idx_%s_stream ON %s (stream_id, stream_version);
-		CREATE INDEX IF NOT EXISTS idx_%s_type ON %s (event_type);
-		CREATE INDEX IF NOT EXISTS idx_%s_timestamp ON %s (timestamp);
-	`, s.tableName, s.tableName, s.tableName, s.tableName, s.tableName, s.tableName, s.tableName)
+		CREATE INDEX IF NOT EXISTS %s ON %s (stream_id, stream_version);
+		CREATE INDEX IF NOT EXISTS %s ON %s (event_type);
+		CREATE INDEX IF NOT EXISTS %s ON %s (timestamp);
+	`, s.tableName, s.streamIndexName, s.tableName, s.typeIndexName, s.tableName, s.timestampIndexName, s.tableName)
 
 	_, err := s.db.ExecContext(ctx, schema)
 	return err
@@ -418,19 +432,27 @@ func (s *PostgresStore) CountEventsInTimeRange(ctx context.Context, fromTime, to
 
 // PostgresCheckpointStore is a PostgreSQL-backed checkpoint store.
 type PostgresCheckpointStore struct {
-	db        *sql.DB
-	tableName string
+	db                *sql.DB
+	tableName         string
+	physicalTableName string
 }
 
 // NewPostgresCheckpointStore creates a new PostgreSQL checkpoint store.
+// tableName is treated as one raw, unqualified identifier and is safely quoted.
 func NewPostgresCheckpointStore(db *sql.DB, tableName string) *PostgresCheckpointStore {
 	if tableName == "" {
 		tableName = "projection_checkpoints"
 	}
 	return &PostgresCheckpointStore{
-		db:        db,
-		tableName: tableName,
+		db:                db,
+		tableName:         quotePostgresIdentifier(tableName),
+		physicalTableName: normalizePostgresIdentifier(tableName),
 	}
+}
+
+// PhysicalTableName returns the normalized PostgreSQL table name used by the store.
+func (s *PostgresCheckpointStore) PhysicalTableName() string {
+	return s.physicalTableName
 }
 
 // InitSchema creates the checkpoints table.
@@ -489,19 +511,29 @@ func (s *PostgresCheckpointStore) SetCheckpoint(ctx context.Context, projectionN
 
 // PostgresSnapshotStore is a PostgreSQL-backed snapshot store for projection state.
 type PostgresSnapshotStore struct {
-	db        *sql.DB
-	tableName string
+	db                *sql.DB
+	tableName         string
+	physicalTableName string
+	indexName         string
 }
 
 // NewPostgresSnapshotStore creates a new PostgreSQL snapshot store.
+// tableName is treated as one raw, unqualified identifier and is safely quoted.
 func NewPostgresSnapshotStore(db *sql.DB, tableName string) *PostgresSnapshotStore {
 	if tableName == "" {
 		tableName = "projection_snapshots"
 	}
 	return &PostgresSnapshotStore{
-		db:        db,
-		tableName: tableName,
+		db:                db,
+		tableName:         quotePostgresIdentifier(tableName),
+		physicalTableName: normalizePostgresIdentifier(tableName),
+		indexName:         quotePostgresIndexIdentifier(tableName, "projection"),
 	}
+}
+
+// PhysicalTableName returns the normalized PostgreSQL table name used by the store.
+func (s *PostgresSnapshotStore) PhysicalTableName() string {
+	return s.physicalTableName
 }
 
 // InitSchema creates the snapshots table.
@@ -514,8 +546,8 @@ func (s *PostgresSnapshotStore) InitSchema(ctx context.Context) error {
 			data BYTEA NOT NULL,
 			created_at TIMESTAMPTZ DEFAULT NOW()
 		);
-		CREATE INDEX IF NOT EXISTS idx_%s_projection ON %s (projection_name, position DESC);
-	`, s.tableName, s.tableName, s.tableName)
+		CREATE INDEX IF NOT EXISTS %s ON %s (projection_name, position DESC);
+	`, s.tableName, s.indexName, s.tableName)
 
 	_, err := s.db.ExecContext(ctx, schema)
 	return err

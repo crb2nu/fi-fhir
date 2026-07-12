@@ -127,3 +127,96 @@ Adopt Option C with a phased integration program:
 - [S36] `/Users/cblevins/workspace/services/mentatlab/docs/references/orchestrator-api.md:60`
 - [S37] Tool output: `mcp__loom__codebase_memory__codebase_stats(repo_id='fi-fhir')`
 - [S38] Tool outputs: `codebase_index_start/poll/cancel` (`job_id=4f93c59a0acaa0a1`)
+
+## 2026-07-12 Completion audit: integration engine and IDE
+
+This section supersedes the earlier description of the frontend/backend stack as
+"production-shaped" and the sibling-integration-first recommendation. Those
+contracts remain useful, but completion now prioritizes the clinical runtime and
+authoring lifecycle inside fi-fhir.
+
+### Question and method
+
+What separates the current repository from a complete, healthcare-grade
+integration engine and IDE? The audit refreshed `origin/main`, reviewed the
+runtime/GraphQL/IDE/deployment/CI paths in parallel, exercised Go and UI suites,
+proved a live GraphQL WebSocket session run, inspected historical security jobs,
+and compared the product boundary with official NextGen Connect, InterSystems,
+FHIR, SMART, and Bulk Data documentation.
+
+### Findings
+
+1. **The capability kernel is real; the product spine is missing.** Parsers,
+   Source Profiles, canonical events, workflow actions, FHIR mapping,
+   event-sourcing primitives, terminology, GraphQL, and substantial SvelteKit
+   authoring surfaces work. The interactive parse/persist/workflow composition
+   lives in GraphQL, while headless ingress does not share that composition.
+
+2. **There is no deployed integration lifecycle.** `serve` loads one workflow;
+   generic webhook ingestion wraps JSON rather than parsing healthcare payloads;
+   S3/SFTP discovery is not registered into the runtime and does not complete
+   parse/route/checkpoint; no MLLP source exists.
+
+3. **The Integration Session Engine is a useful prototype, not the IDE runtime.**
+   It is in-memory and HL7-only, ignores selected profile/workflow drafts, forces
+   raw retention in its UI path, is feature-flagged off by default, and does not
+   wire its existing subscription helper. A manual WebSocket proof did establish
+   that subscribe-before-run yields ordered stage/diagnostic/completion events.
+
+4. **Several IDE surfaces are real but not durable or truthful.** Profile publish
+   summary logic compares the selection to itself; terminology upload event names
+   disagree; debug mutation/subscription paths can duplicate steps; workflow
+   drafts and HL7 samples use browser storage; dashboard alerts/trends are partly
+   hard-coded; document tabs remain placeholders.
+
+5. **Deployment and observability claims drift from executables.** Docker and
+   Compose default to `help`; the Kustomize probe runs `version`; port 9090 and
+   `/ready`/`/metrics` are claimed without the corresponding mounted runtime.
+   GraphQL currently permits wildcard CORS/WebSocket origins and has no complete
+   auth/RBAC/tenant boundary.
+
+6. **CI can be green without exercising the integration contract.** The binary
+   producer rules do not match UI/smoke consumers, UI/smoke jobs may exit zero
+   when the binary is absent, and `scripts/smoke-test.sh` exits after its first
+   successful increment under `set -e`. npm install/test is current (571 pass,
+   2 live tests skipped); the committed pnpm lock cannot satisfy a frozen install.
+
+7. **The deployed baseline carried known security failures.** Pipeline 15878
+   reported 14 reachable standard-library vulnerabilities under Go 1.25.7 and a
+   HIGH/HIGH G701 event-store table path, while security jobs were advisory.
+   Further review found unvalidated IDE-authored event-store/database identifiers.
+   Go 1.26.5, a Go-1.26-built linter, pinned scanners, and strict identifier
+   validation are therefore Gate 0A rather than later hardening.
+
+8. **The product comparison points to lifecycle, not parser breadth.** NextGen
+   Connect describes filter/transform/extract/route fundamentals; InterSystems
+   makes adapters, persistent messages, visual trace, testing, resend, and
+   monitoring a cohesive production. fi-fhir should differentiate with
+   profile-driven semantics and governed healthcare diagnostics while meeting
+   that lifecycle baseline.
+
+### Recommendation
+
+Execute in this order: secure baseline -> truthful CI -> pre-schema
+tenant/identity/PHI/secret contracts -> one shared MessageProcessor -> durable
+receipt/idempotency/outbox -> authenticated HTTP kill-test -> IntegrationDefinition
+lifecycle/MLLP -> durable IDE -> operations/governance/scale -> pinned standards
+conformance. Do not add connector breadth or sibling-service coupling until the
+Golden Path 001 profile/duplicate/restart/IDE-parity kill-test passes.
+
+### Completion-audit sources
+
+- [C1] `cmd/fi-fhir/main.go` (`serve` workflow and HTTP mounts)
+- [C2] `internal/ingest/http.go` and `internal/ingest/temporal.go`
+- [C3] `internal/api/graphql/resolvers/schema.resolvers.go`
+- [C4] `internal/integration/session/runner.go` and `store.go`
+- [C5] `ui/src/lib/features/integration-session/api.ts`
+- [C6] `Dockerfile`, `docker-compose.yaml`, and `deploy/kubernetes/base/deployment.yaml`
+- [C7] `.gitlab-ci.yml` and `scripts/smoke-test.sh`
+- [C8] GitLab pipelines `15878` and `16623`
+- [C9] https://github.com/nextgenhealthcare/connect
+- [C10] https://docs.intersystems.com/irislatest/csp/docbook/DocBook.UI.Page.cls?KEY=EGIN_intro
+- [C11] https://go.dev/doc/devel/release
+- [C12] https://hl7.org/fhir/us/core/STU9/
+- [C13] https://hl7.org/fhir/smart-app-launch/
+- [C14] https://hl7.org/fhir/uv/bulkdata/
