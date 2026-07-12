@@ -157,3 +157,77 @@ Record decisions as they are made, with date, rationale, and sources.
   - [S1] `.gitlab-ci.yml`
   - [S2] GitLab job `142164` trace: `lint:go` timed out after 1h while downloading golangci-lint dependencies.
   - [S3] Command: `docker manifest inspect registry.harbor.lan/dockerhub-cache/golangci/golangci-lint:v2.8.0-alpine`
+
+### 2026-07-12: Put a Secure, Reproducible Baseline Before Completion Features
+
+- Decision:
+  - Gate all engine/IDE completion work behind Go 1.26.5, a Go-1.26-compatible
+    pinned linter, pinned scanners, and strict validation/quoting for
+    configuration-controlled SQL identifiers.
+- Rationale:
+  - A deployed-build pipeline contained reachable standard-library
+    vulnerabilities and a HIGH/HIGH SQL injection while advisory jobs still
+    allowed a green pipeline. Additional review found the same identifier class
+    in IDE-authored workflow actions.
+- Alternatives considered:
+  - Defer security to release-candidate hardening (rejected; it would build new
+    schemas and ingress on a known unsafe/unreproducible baseline).
+- Consequences:
+  - Gate 0A precedes the shared runtime spine. Gate 0B promotes proven security
+    jobs to required merge gates and reconciles remaining CI truthfulness.
+- Sources:
+  - [S1] GitLab pipeline `15878`
+  - [S2] `cmd/fi-fhir/eventstore.go`
+  - [S3] `internal/workflow/event_store.go`
+  - [S4] `internal/workflow/database.go`
+  - [S5] https://go.dev/doc/devel/release
+
+### 2026-07-12: Make One MessageProcessor the Product Boundary
+
+- Decision:
+  - Production adapters, GraphQL submit, and Integration Session preview must use
+    one `MessageProcessor` semantic path. Preview is explicitly side-effect-free;
+    production adds durability/delivery around the same parse/route result.
+  - Golden Path 001 is a blocking kill-test before MLLP, connector breadth, or
+    deeper IDE work.
+- Rationale:
+  - Current interactive and headless paths compose different primitives. A second
+    preview engine would inevitably drift from production profile and routing
+    behavior.
+- Alternatives considered:
+  - Keep the Integration Session runner separate and compare output in tests
+    (rejected; tests cannot make duplicate orchestration a stable product contract).
+  - Rewrite the parser/workflow kernel (rejected; the existing primitives are
+    mature and the gap is composition/lifecycle).
+- Consequences:
+  - The first alpha optimizes for one proven HL7v2 vertical slice, not connector
+    count. The program stops and redesigns the boundary if parity, duplicate, or
+    restart evidence fails.
+- Sources:
+  - [S1] `internal/api/graphql/resolvers/schema.resolvers.go`
+  - [S2] `internal/integration/session/runner.go`
+  - [S3] `internal/ingest/http.go`
+  - [S4] `.loom/20-product-spec-integration-engine-ide-completion.md`
+
+### 2026-07-12: Fix Tenancy, Identity, Secret, and PHI Contracts Before Schemas
+
+- Decision:
+  - Slice 1.0 defines a single security domain per 1.0 deployment, required
+    logical tenant/actor propagation, secret references, PHI classification,
+    raw-retention policy, encryption/TTL/audit fields, and production/preview
+    modes before receipt and trace migrations are written.
+- Rationale:
+  - These fields define primary keys, access predicates, audit semantics, and
+    retention behavior. Retrofitting them after durable ingestion would risk PHI
+    leakage, destructive migrations, and incompatible receipts.
+- Alternatives considered:
+  - Add auth/RBAC/PHI only in the operations phase (rejected; enforcement UI can
+    come later, but persistence boundaries cannot).
+  - Claim shared multi-tenant hosting in 1.0 (rejected until isolation tests and
+    operational ownership are proven).
+- Consequences:
+  - Every durable runtime/artifact type is tenant- and actor-aware from creation.
+    Fine-grained UI RBAC and shared-hosting certification remain later slices.
+- Sources:
+  - [S1] `.loom/20-product-spec-integration-engine-ide-completion.md`
+  - [S2] `.loom/30-implementation-plan-integration-engine-ide-completion.md`

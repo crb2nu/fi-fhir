@@ -1,58 +1,78 @@
 # MCP Inventory Snapshot
 
-## Runtime Detection
+**Refreshed**: 2026-07-12
+**Project**: `libs/fi-fhir`
 
-- **Loom-Mode**: Active.
-- **Resources observed**:
-  - `loom://servers`
-  - `loom://tools`
-  - `loom://tools/index`
-  - `loom://health`
-  - `loom://config`
-- **Templates observed**:
-  - `loom://servers`
-  - `loom://tools`
-  - `loom://tools/index`
-  - `loom://tools/page/{page}`
-  - `loom://tools/server/{server}/page/{page}`
-  - `loom://health`
-  - `loom://config`
+## Runtime detection
 
-## Context
+- Loom mode is active through `loom://config`, `loom://servers`,
+  `loom://tools/index`, and `loom://health`.
+- Inventory at review time: 25 registered servers and 317 aggregated tools.
+- Agent Context is available and holds session
+  `ed063fdc58fe44d8` in namespace
+  `fi-fhir/integration-engine-ide-completion`.
+- GitLab, GitHub, Kubernetes, observability, research, time, and local execution
+  capabilities are discoverable through Loom.
 
-- **Codebase index readiness**:
-  - Initial stats still reported `total_chunks: 0`.
-  - A fresh reindex was started (`job_id=b5b801a902b14fa9`) and is now progressing, so index recovery appears possible even though this turn did not wait for full completion.
-- **Branch review workflow used**:
-  - Git inspection via `git status`, `git merge-base`, `git diff`, and `git log`.
-  - Backend verification via repo-local Go caches:
-    - `GOCACHE=$PWD/.tmp/go-build-cache`
-    - `GOMODCACHE=$PWD/.tmp/go-mod-cache`
-  - UI verification via repo-local npm cache:
-    - `npm ci --cache .tmp/npm-cache`
-- **Current verification status**:
-  - Focused Go tests for `internal/workflow`, `internal/parser/hl7v2`, and `internal/api/graphql/...` passed.
-  - UI typecheck passed.
-  - Focused debug/editor Vitest suite passed.
-  - Broader IDE Vitest batch still shows an unrelated runner issue in `ui/src/lib/ui/ide/ideStore.test.ts` (`localStorage.clear` missing in this environment).
+## Known capability failures
 
-## Plan
+- Codebase-memory stats/index access is not usable in this environment. The
+  configured Qdrant endpoint returns no route to host, despite the aggregate health
+  surface reporting the server healthy.
+- The agent-context worktree allocator failed because its hub process could not
+  find `git` on PATH. The compliant repo-local worktree was therefore created
+  manually at:
+  `/Users/cblevins/workspace/libs/fi-fhir/.worktrees/integration-engine-completion`.
+- These are tooling limitations, not reasons to block file/command-backed review.
+  They must not be represented as a successful semantic index or allocator run.
 
-Proceed with file/command-backed planning and implementation until the codebase index is repaired. For branch-finish work, prefer:
+## Evidence and fallback used
 
-1. `git diff`/targeted file reads for changed-surface review.
-2. Focused Go test runs with local caches.
-3. Focused UI typecheck/test runs with repo-local npm cache.
-4. Treat codebase-memory indexing recovery as a separate enablement task, not a blocker for scoped delivery.
+- Refreshed `origin/main`, inspected commits/MRs/pipelines, and used `rg`,
+  targeted file reads, and tests as the source of code truth.
+- Delegated independent read-only engine, IDE, delivery, planning, and security
+  reviews; reconciled their evidence in the completion spec.
+- Verified the merged Integration Session core rather than relying on stale plan
+  state.
+- Proved GraphQL WebSocket transport manually by subscribing before a session
+  run and observing ordered run/stage/diagnostic/completion events.
+- Used official primary product/standard sources for external comparison.
+
+## Verification snapshot
+
+- Focused Go integration-session/GraphQL tests: pass.
+- Full Go suite: one clean pass during audit; an internal/workflow repeat run
+  exposed an intermittent/noisy flake that passed in isolation and remains a
+  quality item rather than a suppressed result.
+- UI `npm ci --no-audit --no-fund`: pass.
+- UI Vitest: 571 passed; 2 live integration tests skipped.
+- UI type/check/lint/style/build: pass with 9 unused-CSS warnings from Svelte
+  check.
+- Frozen pnpm install: fails because the pnpm lock omits current
+  `postcss-html` and `stylelint` dependencies. npm/package-lock is the current
+  reproducible path and Gate 0B will make it canonical.
+- Live backend smoke review: `scripts/smoke-test.sh` exits after its first
+  successful check because arithmetic increment returns status 1 under `set -e`.
+- Go 1.26.5 compatibility, pinned govulncheck v1.6.0, and pinned gosec v2.27.1:
+  pass on the stable Gate 0A candidate.
+
+## Operating rule
+
+Until the two Loom failures are repaired:
+
+1. use direct Git/file/test evidence for implementation decisions;
+2. record plan/session state in Agent Context when available;
+3. create worktrees only under the owning repo after the workspace sprawl audit;
+4. never claim index-backed coverage or allocator success when the fallback path
+   was used;
+5. track codebase-memory and hub-PATH repair as enablement work outside the
+   clinical data-plane completion slices.
 
 ## Sources
 
-- [S1] Tool output: `functions.list_mcp_resources`
-- [S2] Tool output: `functions.list_mcp_resource_templates`
-- [S3] Tool output: `mcp__loom__codebase_memory__codebase_stats(repo_id='fi-fhir')`
-- [S4] Command: `git diff --stat 9cf0bf4006218b143c4184559d955c6f0428ddcf..HEAD`
-- [S5] Command: `GOCACHE=$PWD/.tmp/go-build-cache GOMODCACHE=$PWD/.tmp/go-mod-cache go test ./internal/workflow ./internal/parser/hl7v2 ./internal/api/graphql/...`
-- [S6] Command: `npm run typecheck`
-- [S7] Command: `npm test -- --run src/lib/features/debug/DebugPanel.test.ts src/lib/features/debug/debugStore.test.ts src/lib/features/debug/TraceTimeline.test.ts src/lib/features/debug/VariableInspector.test.ts src/lib/features/debug/StepControls.test.ts src/lib/ui/editor/CodeEditor.test.ts`
-- [S8] Tool output: `mcp__loom__codebase_memory__codebase_index_start(repo_id='fi-fhir', root='.', full_refresh=true, embeddings=false)` → `job_id=b5b801a902b14fa9`
-- [S9] Tool output: `mcp__loom__codebase_memory__codebase_index_poll(job_id='b5b801a902b14fa9')`
+- Loom resources: `loom://config`, `loom://servers`,
+  `loom://tools/index`, `loom://health`
+- Agent Context session: `ed063fdc58fe44d8`
+- Commands: `rg`, `git status/log/diff`, targeted/full Go tests, npm/Vitest,
+  Svelte checks, live GraphQL WebSocket proof
+- Tool errors: Qdrant no-route-to-host; worktree allocator missing `git` on PATH
