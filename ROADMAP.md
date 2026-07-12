@@ -36,7 +36,8 @@ must not enter the clinical data plane before the engine spine is proven.
 
 ## Now
 
-- [ ] **Gate 0A — secure baseline**
+- [x] **Gate 0A — secure baseline** — MR !89 pipeline 18379 green on
+  2026-07-12; lint, govulncheck, and gosec each passed individually.
   - Go 1.26.5 in module, CI, and container builds.
   - Go-1.26-compatible golangci-lint.
   - Event-store SQL identifier injection closed with regression coverage.

@@ -12,7 +12,11 @@ expansion, or deeper IDE lifecycle slices ship.
 
 ## Phase 0 — Make the baseline trustworthy
 
-### Gate 0A: secure build/runtime baseline — in progress
+### Gate 0A: secure build/runtime baseline — complete
+
+MR !89 pipeline 18379 passed on 2026-07-12. The prebuilt `lint:go`, pinned
+`security:govulncheck`, and pinned `security:gosec` jobs each finished
+`success`; the latest evidence-only commit remains subject to the same MR gate.
 
 Scope:
 

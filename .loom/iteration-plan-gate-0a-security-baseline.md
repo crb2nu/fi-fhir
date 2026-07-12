@@ -1,6 +1,7 @@
 # RALPH Iteration Plan: Gate 0A Security Baseline
 
-**Status**: implementation in progress
+**Status**: complete — MR !89 pipeline 18379 green; latest evidence-only SHA
+must retain a terminal green MR pipeline before merge
 **Date**: 2026-07-12
 
 ## Review
@@ -170,12 +171,12 @@ docker --context 7900xtx manifest inspect \
 | gosec v2.27.1 HIGH/HIGH | green locally |
 | Go 1.26.5 build/compile compatibility | green locally |
 | golangci-lint v2.12.2 via local Go 1.26.5 | green locally |
-| prebuilt linter image + auto toolchain resolution | pending `lint:go` MR job |
+| prebuilt linter image + auto toolchain resolution | pipeline 18379 job 177057 `lint:go`: success; image v2.12.2 built with Go 1.26.2 resolved the module's Go 1.26.5 requirement |
 | vet + CGO-disabled build | green locally |
 | targeted race tests | green locally |
 | full `go test -count=1 ./...` | green locally |
 | PostgreSQL 16 max-length/derived schema integration | green in disposable remote container |
-| MR pipeline and individual advisory security jobs | pending |
+| MR pipeline and individual advisory security jobs | pipeline 18379: success; job 177072 `security:govulncheck`: success; job 177073 `security:gosec`: success |
 
 ## Risks and rollback
 
