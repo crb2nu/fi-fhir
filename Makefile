@@ -122,7 +122,7 @@ bench:
 
 # Run benchmarks and validate against thresholds
 bench-check:
-	go test -bench=. -benchmem -run=^$$ -count=1 ./internal/workflow/... ./pkg/terminology/... ./pkg/validate/... | tee benchmark.txt
+	@go test -bench=. -benchmem -run=^$$ -count=1 ./internal/workflow/... ./pkg/terminology/... ./pkg/validate/... > benchmark.txt 2>&1; status=$$?; cat benchmark.txt; exit $$status
 	go run ./cmd/bench-check benchmark.txt
 
 # Format Go code

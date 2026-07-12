@@ -61,8 +61,9 @@ func parseBenchLine(line string) (BenchmarkResult, error) {
 	}
 
 	result := BenchmarkResult{
-		Name:       name,
-		Iterations: iterations,
+		Name:          name,
+		Iterations:    iterations,
+		parsedMetrics: make(map[string]struct{}),
 	}
 
 	// Parse remaining key-value pairs: "1234 ns/op", "256 B/op", "5 allocs/op"
@@ -80,7 +81,16 @@ func parseBenchLine(line string) (BenchmarkResult, error) {
 			result.BytesPerOp = int64(val)
 		case "allocs/op":
 			result.AllocsPerOp = int64(val)
+		case "events/sec":
+			result.EventsPerSec = val
+		default:
+			continue
 		}
+		result.parsedMetrics[unit] = struct{}{}
+	}
+
+	if len(result.parsedMetrics) == 0 {
+		return BenchmarkResult{}, fmt.Errorf("no recognized metrics: %q", line)
 	}
 
 	return result, nil

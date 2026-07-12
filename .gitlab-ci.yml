@@ -674,7 +674,14 @@ test:benchmark:
   script:
     - apt-get update && apt-get install -y --no-install-recommends git build-essential && rm -rf /var/lib/apt/lists/*
     # Run benchmarks across all packages with benchmark tests
-    - go test -bench=. -benchmem -run=^$ -count=1 ./internal/workflow/... ./pkg/terminology/... ./pkg/validate/... | tee benchmark.txt
+    - |
+      if go test -bench=. -benchmem -run=^$ -count=1 ./internal/workflow/... ./pkg/terminology/... ./pkg/validate/... > benchmark.txt 2>&1; then
+        cat benchmark.txt
+      else
+        benchmark_status=$?
+        cat benchmark.txt
+        exit "$benchmark_status"
+      fi
     # Validate against absolute performance thresholds
     - go run ./cmd/bench-check benchmark.txt
   after_script:
@@ -703,7 +710,7 @@ test:benchmark:
       changes: *go-changes
       when: manual
     - when: never
-  allow_failure: true # Soft-fail during threshold tuning phase; promote to blocking once stable
+  allow_failure: false # Blocking after truthful shared-runner threshold calibration
 
 test:docs-status:
   stage: test
