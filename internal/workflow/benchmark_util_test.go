@@ -260,16 +260,69 @@ func TestPerformanceThresholds_Validate(t *testing.T) {
 			t.Errorf("Expected throughput violation message, got: %s", violations[0])
 		}
 	})
+
+	t.Run("missing_required_benchmark", func(t *testing.T) {
+		thresholds := &PerformanceThresholds{
+			MaxNsPerOp: map[string]float64{
+				"BenchmarkRequired": 100,
+			},
+		}
+
+		violations := thresholds.Validate(NewBenchmarkSuite("test"))
+		if len(violations) != 1 {
+			t.Fatalf("Expected 1 violation, got %d: %v", len(violations), violations)
+		}
+		if !strings.Contains(violations[0], "required benchmark result missing") {
+			t.Errorf("Expected missing benchmark violation, got: %s", violations[0])
+		}
+	})
+
+	t.Run("parsed_result_missing_required_metric", func(t *testing.T) {
+		result, err := parseBenchLine("BenchmarkRequired-8 1000 50 ns/op")
+		if err != nil {
+			t.Fatalf("parseBenchLine returned error: %v", err)
+		}
+
+		suite := NewBenchmarkSuite("test")
+		suite.AddResult(result)
+		thresholds := &PerformanceThresholds{
+			MaxNsPerOp:     map[string]float64{"BenchmarkRequired": 100},
+			MaxAllocsPerOp: map[string]int64{"BenchmarkRequired": 1},
+		}
+
+		violations := thresholds.Validate(suite)
+		if len(violations) != 1 {
+			t.Fatalf("Expected 1 violation, got %d: %v", len(violations), violations)
+		}
+		if !strings.Contains(violations[0], "required allocs/op metric missing") {
+			t.Errorf("Expected missing metric violation, got: %s", violations[0])
+		}
+	})
 }
 
 func TestDefaultWorkflowThresholds(t *testing.T) {
 	thresholds := DefaultWorkflowThresholds()
 
-	if thresholds.MaxNsPerOp["BenchmarkEngineProcess"] != 5000 {
-		t.Error("Expected default threshold for BenchmarkEngineProcess")
-	}
 	if thresholds.MinThroughput["BenchmarkThroughput_Simple"] != 100000 {
 		t.Error("Expected default throughput threshold")
+	}
+	if thresholds.MaxNsPerOp["BenchmarkCELEvaluate_Simple"] != 2000 {
+		t.Error("Expected shared-CI CEL threshold")
+	}
+	if thresholds.MaxNsPerOp["BenchmarkEngineProcess"] != 12000 {
+		t.Error("Expected shared-CI engine threshold")
+	}
+	if thresholds.MaxNsPerOp["BenchmarkFilterMatch_EventType"] != 5500 {
+		t.Error("Expected shared-CI filter threshold")
+	}
+	if thresholds.MaxNsPerOp["BenchmarkTransform_SetField"] != 3000 {
+		t.Error("Expected shared-CI transform threshold")
+	}
+	if _, ok := thresholds.MaxNsPerOp["BenchmarkFilterMatch_EventType"]; !ok {
+		t.Error("Expected threshold for the concrete filter benchmark")
+	}
+	if _, ok := thresholds.MaxNsPerOp["BenchmarkFilterMatch"]; ok {
+		t.Error("Unexpected threshold for nonexistent BenchmarkFilterMatch")
 	}
 }
 

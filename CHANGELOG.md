@@ -183,6 +183,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Component status matrix (`docs/STATUS.md`)
 - Documentation conventions (`docs/DOCUMENTATION-CONVENTIONS.md`)
 
+### Fixed
+
+- Workflow benchmarks now replace terminal log actions with a benchmark-only
+  no-op handler, parse `events/sec`, and fail when a thresholded result is
+  missing; benchmark test failures now propagate through the artifact-capture
+  step, and shared-x86 latency ceilings are calibrated from default-branch
+  evidence so the gate measures engine performance instead of console I/O or
+  silently skipped records. The calibrated benchmark job is now blocking.
+
 ### Security
 - Upgraded the Go build/runtime baseline to 1.26.5 and the Go-1.26-compatible
   golangci-lint baseline to 2.12.2; govulncheck and gosec versions are now pinned.

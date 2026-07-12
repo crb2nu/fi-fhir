@@ -16,6 +16,7 @@ type BenchmarkResult struct {
 	AllocsPerOp   int64
 	EventsPerSec  float64
 	CustomMetrics map[string]float64
+	parsedMetrics map[string]struct{}
 }
 
 // BenchmarkSuite holds results from multiple benchmark runs for comparison.
@@ -222,17 +223,19 @@ type PerformanceThresholds struct {
 // DefaultWorkflowThresholds returns default performance thresholds for workflow engine.
 func DefaultWorkflowThresholds() *PerformanceThresholds {
 	return &PerformanceThresholds{
+		// Shared-x86 latency ceilings use 1.5x the maximum observed across
+		// isolated Broadwell runner samples, rounded up to 500 ns.
 		MaxNsPerOp: map[string]float64{
-			"BenchmarkEngineProcess":      5000, // 5µs max
-			"BenchmarkCELEvaluate_Simple": 500,  // 500ns max (cached)
-			"BenchmarkFilterMatch":        3000, // 3µs max
-			"BenchmarkTransform_SetField": 500,  // 500ns max
+			"BenchmarkEngineProcess":         12000, // 12µs max
+			"BenchmarkCELEvaluate_Simple":    2000,  // 2µs max on shared x86 CI
+			"BenchmarkFilterMatch_EventType": 5500,  // 5.5µs max
+			"BenchmarkTransform_SetField":    3000,  // 3µs max on shared x86 CI
 		},
 		MaxAllocsPerOp: map[string]int64{
-			"BenchmarkEngineProcess":      50,
-			"BenchmarkCELEvaluate_Simple": 10,
-			"BenchmarkFilterMatch":        50,
-			"BenchmarkTransform_SetField": 10,
+			"BenchmarkEngineProcess":         50,
+			"BenchmarkCELEvaluate_Simple":    10,
+			"BenchmarkFilterMatch_EventType": 50,
+			"BenchmarkTransform_SetField":    10,
 		},
 		MinThroughput: map[string]float64{
 			"BenchmarkThroughput_Simple":  100000, // 100k events/sec minimum
@@ -244,11 +247,35 @@ func DefaultWorkflowThresholds() *PerformanceThresholds {
 // Validate checks if a benchmark suite meets the performance thresholds.
 func (t *PerformanceThresholds) Validate(suite *BenchmarkSuite) []string {
 	var violations []string
+	required := make(map[string]struct{}, len(t.MaxNsPerOp)+len(t.MaxAllocsPerOp)+len(t.MinThroughput))
+	for name := range t.MaxNsPerOp {
+		required[name] = struct{}{}
+	}
+	for name := range t.MaxAllocsPerOp {
+		required[name] = struct{}{}
+	}
+	for name := range t.MinThroughput {
+		required[name] = struct{}{}
+	}
+
+	requiredNames := make([]string, 0, len(required))
+	for name := range required {
+		requiredNames = append(requiredNames, name)
+	}
+	sort.Strings(requiredNames)
+	for _, name := range requiredNames {
+		if suite.GetResult(name) == nil {
+			violations = append(violations, fmt.Sprintf("%s: required benchmark result missing", name))
+		}
+	}
 
 	for _, r := range suite.Results {
 		// Check ns/op thresholds
 		if maxNs, ok := t.MaxNsPerOp[r.Name]; ok {
-			if r.NsPerOp > maxNs {
+			if !r.hasParsedMetric("ns/op") {
+				violations = append(violations,
+					fmt.Sprintf("%s: required ns/op metric missing", r.Name))
+			} else if r.NsPerOp > maxNs {
 				violations = append(violations,
 					fmt.Sprintf("%s: %.0f ns/op exceeds threshold of %.0f ns/op",
 						r.Name, r.NsPerOp, maxNs))
@@ -257,7 +284,10 @@ func (t *PerformanceThresholds) Validate(suite *BenchmarkSuite) []string {
 
 		// Check allocs/op thresholds
 		if maxAllocs, ok := t.MaxAllocsPerOp[r.Name]; ok {
-			if r.AllocsPerOp > maxAllocs {
+			if !r.hasParsedMetric("allocs/op") {
+				violations = append(violations,
+					fmt.Sprintf("%s: required allocs/op metric missing", r.Name))
+			} else if r.AllocsPerOp > maxAllocs {
 				violations = append(violations,
 					fmt.Sprintf("%s: %d allocs/op exceeds threshold of %d allocs/op",
 						r.Name, r.AllocsPerOp, maxAllocs))
@@ -266,7 +296,10 @@ func (t *PerformanceThresholds) Validate(suite *BenchmarkSuite) []string {
 
 		// Check throughput thresholds
 		if minThroughput, ok := t.MinThroughput[r.Name]; ok {
-			if r.EventsPerSec < minThroughput {
+			if !r.hasParsedMetric("events/sec") {
+				violations = append(violations,
+					fmt.Sprintf("%s: required events/sec metric missing", r.Name))
+			} else if r.EventsPerSec < minThroughput {
 				violations = append(violations,
 					fmt.Sprintf("%s: %.0f events/sec below threshold of %.0f events/sec",
 						r.Name, r.EventsPerSec, minThroughput))
@@ -275,6 +308,17 @@ func (t *PerformanceThresholds) Validate(suite *BenchmarkSuite) []string {
 	}
 
 	return violations
+}
+
+// hasParsedMetric distinguishes a parsed zero value from a metric that was not
+// present in benchmark output. Programmatically constructed results predate
+// parser metadata and retain their existing validation behavior.
+func (r BenchmarkResult) hasParsedMetric(unit string) bool {
+	if r.parsedMetrics == nil {
+		return true
+	}
+	_, ok := r.parsedMetrics[unit]
+	return ok
 }
 
 // QuickBenchmark runs a quick performance test and returns ops/sec.

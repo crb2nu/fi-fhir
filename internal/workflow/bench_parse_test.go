@@ -121,8 +121,21 @@ func TestParseBenchLine(t *testing.T) {
 			},
 		},
 		{
+			name: "custom throughput metric",
+			line: "BenchmarkThroughput-8    2000    3456 ns/op    125000 events/sec    512 B/op    8 allocs/op",
+			want: BenchmarkResult{
+				Name: "BenchmarkThroughput", Iterations: 2000,
+				NsPerOp: 3456, EventsPerSec: 125000, BytesPerOp: 512, AllocsPerOp: 8,
+			},
+		},
+		{
 			name:    "too few fields",
 			line:    "BenchmarkShort    1000",
+			wantErr: true,
+		},
+		{
+			name:    "no recognized metrics",
+			line:    "BenchmarkRequired-8    1000    0 bogus",
 			wantErr: true,
 		},
 	}
@@ -153,6 +166,9 @@ func TestParseBenchLine(t *testing.T) {
 			}
 			if got.AllocsPerOp != tt.want.AllocsPerOp {
 				t.Errorf("AllocsPerOp = %d, want %d", got.AllocsPerOp, tt.want.AllocsPerOp)
+			}
+			if got.EventsPerSec != tt.want.EventsPerSec {
+				t.Errorf("EventsPerSec = %f, want %f", got.EventsPerSec, tt.want.EventsPerSec)
 			}
 		})
 	}

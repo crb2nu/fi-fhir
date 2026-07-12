@@ -7,6 +7,33 @@ import (
 	"time"
 )
 
+// benchmarkNoOpActionHandler keeps engine benchmarks focused on routing and
+// action dispatch. The production log action writes every iteration to stdout,
+// which corrupts Go benchmark records and can exhaust CI log limits.
+type benchmarkNoOpActionHandler struct{}
+
+func (benchmarkNoOpActionHandler) Execute(interface{}, map[string]string) error {
+	return nil
+}
+
+func newBenchmarkEngine(tb testing.TB, workflow *Workflow) *Engine {
+	tb.Helper()
+
+	engine, err := NewEngine(workflow)
+	if err != nil {
+		tb.Fatalf("NewEngine failed: %v", err)
+	}
+	engine.RegisterAction("log", benchmarkNoOpActionHandler{})
+	return engine
+}
+
+func TestNewBenchmarkEngineOverridesLogAction(t *testing.T) {
+	engine := newBenchmarkEngine(t, &Workflow{Name: "benchmark"})
+	if _, ok := engine.actions["log"].(benchmarkNoOpActionHandler); !ok {
+		t.Fatalf("log action handler = %T, want benchmarkNoOpActionHandler", engine.actions["log"])
+	}
+}
+
 // =============================================================================
 // Engine Benchmarks
 // =============================================================================
@@ -26,10 +53,7 @@ func BenchmarkEngineProcess(b *testing.B) {
 		},
 	}
 
-	engine, err := NewEngine(workflow)
-	if err != nil {
-		b.Fatalf("NewEngine failed: %v", err)
-	}
+	engine := newBenchmarkEngine(b, workflow)
 
 	event := map[string]interface{}{
 		"type":   "patient_admit",
@@ -74,7 +98,7 @@ func BenchmarkEngineProcess_MultiRoute(b *testing.B) {
 			}
 
 			workflow := &Workflow{Name: "benchmark", Routes: routes}
-			engine, _ := NewEngine(workflow)
+			engine := newBenchmarkEngine(b, workflow)
 
 			event := map[string]interface{}{
 				"type":   "patient_admit",
@@ -116,7 +140,7 @@ func BenchmarkEngineProcess_MultiAction(b *testing.B) {
 				},
 			}
 
-			engine, _ := NewEngine(workflow)
+			engine := newBenchmarkEngine(b, workflow)
 			event := map[string]interface{}{"type": "patient_admit"}
 
 			b.ReportAllocs()
@@ -142,7 +166,7 @@ func BenchmarkEngineProcess_NoMatch(b *testing.B) {
 		},
 	}
 
-	engine, _ := NewEngine(workflow)
+	engine := newBenchmarkEngine(b, workflow)
 	event := map[string]interface{}{"type": "lab_result"} // Won't match
 
 	b.ReportAllocs()
@@ -171,7 +195,7 @@ func BenchmarkEngineDryRun(b *testing.B) {
 		},
 	}
 
-	engine, _ := NewEngine(workflow)
+	engine := newBenchmarkEngine(b, workflow)
 	event := map[string]interface{}{"type": "patient_admit", "source": "epic"}
 
 	b.ReportAllocs()
@@ -304,7 +328,7 @@ func BenchmarkFilterMatch_EventType(b *testing.B) {
 		},
 	}
 
-	engine, _ := NewEngine(workflow)
+	engine := newBenchmarkEngine(b, workflow)
 	event := map[string]interface{}{"type": "patient_admit"}
 
 	b.ReportAllocs()
@@ -328,7 +352,7 @@ func BenchmarkFilterMatch_Source(b *testing.B) {
 		},
 	}
 
-	engine, _ := NewEngine(workflow)
+	engine := newBenchmarkEngine(b, workflow)
 	event := map[string]interface{}{"type": "test", "source": "epic"}
 
 	b.ReportAllocs()
@@ -354,7 +378,7 @@ func BenchmarkFilterMatch_CELCondition(b *testing.B) {
 		},
 	}
 
-	engine, _ := NewEngine(workflow)
+	engine := newBenchmarkEngine(b, workflow)
 	event := map[string]interface{}{
 		"type": "patient_admit",
 		"patient": map[string]interface{}{
@@ -390,7 +414,7 @@ func BenchmarkFilterMatch_Combined(b *testing.B) {
 		},
 	}
 
-	engine, _ := NewEngine(workflow)
+	engine := newBenchmarkEngine(b, workflow)
 	event := map[string]interface{}{
 		"type":   "patient_admit",
 		"source": "epic",
@@ -491,7 +515,7 @@ func BenchmarkTransform_Pipeline(b *testing.B) {
 
 // BenchmarkGetEventType_Map tests event type extraction from map.
 func BenchmarkGetEventType_Map(b *testing.B) {
-	engine, _ := NewEngine(&Workflow{Name: "test"})
+	engine := newBenchmarkEngine(b, &Workflow{Name: "test"})
 	event := map[string]interface{}{
 		"type":   "patient_admit",
 		"source": "epic",
@@ -546,7 +570,7 @@ func BenchmarkRecordingEngine_Process(b *testing.B) {
 
 	// Baseline: regular engine
 	b.Run("baseline", func(b *testing.B) {
-		engine, _ := NewEngine(workflow)
+		engine := newBenchmarkEngine(b, workflow)
 		event := map[string]interface{}{"type": "patient_admit"}
 
 		b.ReportAllocs()
@@ -560,7 +584,11 @@ func BenchmarkRecordingEngine_Process(b *testing.B) {
 	// With recording
 	b.Run("with_recording", func(b *testing.B) {
 		recorder := NewMemoryRecorder()
-		engine, _ := NewRecordingEngine(workflow, recorder)
+		engine, err := NewRecordingEngine(workflow, recorder)
+		if err != nil {
+			b.Fatalf("NewRecordingEngine failed: %v", err)
+		}
+		engine.RegisterAction("log", benchmarkNoOpActionHandler{})
 		event := map[string]interface{}{"type": "patient_admit"}
 
 		b.ReportAllocs()
@@ -617,7 +645,7 @@ func BenchmarkEngineProcess_Parallel(b *testing.B) {
 		},
 	}
 
-	engine, _ := NewEngine(workflow)
+	engine := newBenchmarkEngine(b, workflow)
 	event := map[string]interface{}{"type": "patient_admit", "source": "epic"}
 
 	b.ReportAllocs()
@@ -747,7 +775,7 @@ func BenchmarkFullPipeline(b *testing.B) {
 		},
 	}
 
-	engine, _ := NewEngine(workflow)
+	engine := newBenchmarkEngine(b, workflow)
 	event := map[string]interface{}{
 		"type":   "patient_admit",
 		"source": "epic",
@@ -784,7 +812,7 @@ func BenchmarkFullPipeline_WithMetrics(b *testing.B) {
 	}
 
 	b.Run("no_metrics", func(b *testing.B) {
-		engine, _ := NewEngine(workflow)
+		engine := newBenchmarkEngine(b, workflow)
 		event := map[string]interface{}{"type": "patient_admit"}
 
 		b.ReportAllocs()
@@ -796,7 +824,7 @@ func BenchmarkFullPipeline_WithMetrics(b *testing.B) {
 	})
 
 	b.Run("with_inmemory_metrics", func(b *testing.B) {
-		engine, _ := NewEngine(workflow)
+		engine := newBenchmarkEngine(b, workflow)
 		engine.SetMetrics(NewInMemoryMetrics())
 		event := map[string]interface{}{"type": "patient_admit"}
 
@@ -823,7 +851,7 @@ func BenchmarkFullPipeline_WithTracing(b *testing.B) {
 	}
 
 	b.Run("no_tracing", func(b *testing.B) {
-		engine, _ := NewEngine(workflow)
+		engine := newBenchmarkEngine(b, workflow)
 		event := map[string]interface{}{"type": "patient_admit"}
 
 		b.ReportAllocs()
@@ -835,7 +863,7 @@ func BenchmarkFullPipeline_WithTracing(b *testing.B) {
 	})
 
 	b.Run("with_noop_tracer", func(b *testing.B) {
-		engine, _ := NewEngine(workflow)
+		engine := newBenchmarkEngine(b, workflow)
 		engine.SetTracer(&NoOpTracer{})
 		event := map[string]interface{}{"type": "patient_admit"}
 
@@ -865,7 +893,7 @@ func BenchmarkThroughput_Simple(b *testing.B) {
 		},
 	}
 
-	engine, _ := NewEngine(workflow)
+	engine := newBenchmarkEngine(b, workflow)
 	event := map[string]interface{}{"type": "test"}
 
 	start := time.Now()
@@ -909,7 +937,7 @@ func BenchmarkThroughput_Complex(b *testing.B) {
 		},
 	}
 
-	engine, _ := NewEngine(workflow)
+	engine := newBenchmarkEngine(b, workflow)
 	event := map[string]interface{}{
 		"type": "patient_admit",
 		"patient": map[string]interface{}{
