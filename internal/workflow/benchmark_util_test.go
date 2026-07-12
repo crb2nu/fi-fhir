@@ -303,16 +303,19 @@ func TestPerformanceThresholds_Validate(t *testing.T) {
 func TestDefaultWorkflowThresholds(t *testing.T) {
 	thresholds := DefaultWorkflowThresholds()
 
-	if thresholds.MaxNsPerOp["BenchmarkEngineProcess"] != 5000 {
-		t.Error("Expected default threshold for BenchmarkEngineProcess")
-	}
 	if thresholds.MinThroughput["BenchmarkThroughput_Simple"] != 100000 {
 		t.Error("Expected default throughput threshold")
 	}
 	if thresholds.MaxNsPerOp["BenchmarkCELEvaluate_Simple"] != 2000 {
 		t.Error("Expected shared-CI CEL threshold")
 	}
-	if thresholds.MaxNsPerOp["BenchmarkTransform_SetField"] != 2000 {
+	if thresholds.MaxNsPerOp["BenchmarkEngineProcess"] != 12000 {
+		t.Error("Expected shared-CI engine threshold")
+	}
+	if thresholds.MaxNsPerOp["BenchmarkFilterMatch_EventType"] != 5500 {
+		t.Error("Expected shared-CI filter threshold")
+	}
+	if thresholds.MaxNsPerOp["BenchmarkTransform_SetField"] != 3000 {
 		t.Error("Expected shared-CI transform threshold")
 	}
 	if _, ok := thresholds.MaxNsPerOp["BenchmarkFilterMatch_EventType"]; !ok {

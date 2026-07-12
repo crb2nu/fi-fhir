@@ -223,11 +223,13 @@ type PerformanceThresholds struct {
 // DefaultWorkflowThresholds returns default performance thresholds for workflow engine.
 func DefaultWorkflowThresholds() *PerformanceThresholds {
 	return &PerformanceThresholds{
+		// Shared-x86 latency ceilings use 1.5x the maximum observed across
+		// isolated Broadwell runner samples, rounded up to 500 ns.
 		MaxNsPerOp: map[string]float64{
-			"BenchmarkEngineProcess":         5000, // 5µs max
-			"BenchmarkCELEvaluate_Simple":    2000, // 2µs max on shared x86 CI
-			"BenchmarkFilterMatch_EventType": 3000, // 3µs max
-			"BenchmarkTransform_SetField":    2000, // 2µs max on shared x86 CI
+			"BenchmarkEngineProcess":         12000, // 12µs max
+			"BenchmarkCELEvaluate_Simple":    2000,  // 2µs max on shared x86 CI
+			"BenchmarkFilterMatch_EventType": 5500,  // 5.5µs max
+			"BenchmarkTransform_SetField":    3000,  // 3µs max on shared x86 CI
 		},
 		MaxAllocsPerOp: map[string]int64{
 			"BenchmarkEngineProcess":         50,
