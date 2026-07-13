@@ -87,7 +87,7 @@ and ingress ship:
 Exit: migrations and processor implementation cannot begin until a fixture can
 construct and validate one revision without embedding secrets or retained raw PHI.
 
-### Slice 1.1a: immutable artifact resolution — proving
+### Slice 1.1a: immutable artifact resolution — complete
 
 Repair the persistence boundary before runtime composition:
 
@@ -104,7 +104,10 @@ Exit: Slice 1.1b remains blocked until wrong tenant, owner, digest, nonexistent
 revision, malformed content, and concurrent version-allocation cases fail closed
 and the live v1-after-v2 kill-test passes.
 
-### Slice 1.1b: canonical MessageProcessor preview semantics
+MR !94 and required pipeline 18533 passed that boundary; post-merge main
+pipeline 18542 passed all 33 jobs, including the isolated PostgreSQL proof.
+
+### Slice 1.1b: canonical MessageProcessor preview semantics — proving
 
 Introduce a small application service—not another parser abstraction—that owns:
 
@@ -113,15 +116,29 @@ Introduce a small application service—not another parser abstraction—that ow
 Acceptance:
 
 - HL7v2 first; the selected published profile demonstrably changes behavior.
-- GraphQL preview and Integration Session preview call the same evaluation
-  service. GraphQL submit moves behind its durable committer in Slice 1.2; the
-  authenticated HTTP adapter is added in Slice 1.3.
+- Resolve only a server-owned integration revision and exact immutable profile
+  and workflow bytes; compile a bounded published grammar rather than the
+  permissive authoring representation.
 - Preview owns the shared parsing/routing semantics and cannot invoke any
   destination. Production remains explicitly unavailable until Slice 1.2 wraps
   the same evaluator with durable receipt/idempotency/outbox work.
 - Event, diagnostics, artifact revisions, planned routes/actions, and correlation
   identifiers are deterministic for the same request.
-- Raw payload retention follows explicit policy.
+- Raw payload, parser text, workflow configuration, secrets, and executable
+  clients are absent from the result and processor boundary.
+
+### Slice 1.1c: authenticated preview adapters and legacy containment
+
+- Establish one authenticated tenant/principal request context for the GraphQL
+  and IDE boundary before it can call the processor.
+- Require POST for raw clinical payloads, enforce an explicit HTTP/WebSocket
+  origin allowlist, bounded bodies, and no credentialed wildcard/reflection.
+- Route GraphQL and Integration Session preview through the exact 1.1b kernel;
+  remove raw sample/run persistence from the canonical preview path.
+- Fail legacy direct submit/session execution closed. Production GraphQL submit
+  remains unavailable until Slice 1.2 supplies the durable committer.
+- Prove adapter/kernel parity and wrong-tenant/origin/method/body rejection with
+  transport-level tests before any IDE activation.
 
 ### Slice 1.2: durable receipt and idempotency
 

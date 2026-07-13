@@ -87,6 +87,12 @@ func (e RawEnvelope) Bytes() []byte {
 	return append([]byte(nil), e.payload...)
 }
 
+// PayloadSizeBytes returns the actual in-memory source length without copying it.
+// Callers enforcing transport or processor limits must not trust mutable wire metadata.
+func (e RawEnvelope) PayloadSizeBytes() int64 {
+	return int64(len(e.payload))
+}
+
 // Validate verifies source metadata and the in-memory payload checksum.
 func (e RawEnvelope) Validate() error {
 	v := &validationCollector{}
@@ -451,6 +457,7 @@ type diagnosticWire struct {
 // It deliberately contains no Go errors or execution-only destination state.
 type RouteResult struct {
 	TenantID        string   `json:"tenant_id"`
+	EventID         string   `json:"event_id,omitempty"`
 	Route           string   `json:"route"`
 	Matched         bool     `json:"matched"`
 	Skipped         bool     `json:"skipped,omitempty"`
@@ -463,6 +470,7 @@ type RouteResult struct {
 // DeliveryResult is the stable outcome for one route/action destination attempt.
 type DeliveryResult struct {
 	TenantID        string                 `json:"tenant_id"`
+	EventID         string                 `json:"event_id,omitempty"`
 	Destination     DestinationRevisionRef `json:"destination"`
 	Route           string                 `json:"route,omitempty"`
 	Action          string                 `json:"action,omitempty"`
@@ -484,18 +492,26 @@ type CorrelationIDs struct {
 	DeliveryAttemptIDs []string `json:"delivery_attempt_ids,omitempty"`
 }
 
+// ExecutionArtifactRevisions records the exact immutable inputs used for one execution.
+type ExecutionArtifactRevisions struct {
+	Source   ArtifactRevisionRef `json:"source"`
+	Profile  ArtifactRevisionRef `json:"profile"`
+	Workflow ArtifactRevisionRef `json:"workflow"`
+}
+
 // ProcessResult is the common output contract for production and preview execution.
 type ProcessResult struct {
-	Mode                ExecutionMode       `json:"mode"`
-	TenantID            string              `json:"tenant_id"`
-	IntegrationRevision ArtifactRevisionRef `json:"integration_revision"`
-	Security            SecurityContext     `json:"security"`
-	Receipt             *Receipt            `json:"receipt,omitempty"`
-	Events              []ProcessedEvent    `json:"events,omitempty"`
-	Diagnostics         []Diagnostic        `json:"diagnostics,omitempty"`
-	Routes              []RouteResult       `json:"routes,omitempty"`
-	Deliveries          []DeliveryResult    `json:"deliveries,omitempty"`
-	Correlations        CorrelationIDs      `json:"correlations"`
+	Mode                ExecutionMode               `json:"mode"`
+	TenantID            string                      `json:"tenant_id"`
+	IntegrationRevision ArtifactRevisionRef         `json:"integration_revision"`
+	ArtifactRevisions   *ExecutionArtifactRevisions `json:"artifact_revisions,omitempty"`
+	Security            SecurityContext             `json:"security"`
+	Receipt             *Receipt                    `json:"receipt,omitempty"`
+	Events              []ProcessedEvent            `json:"events,omitempty"`
+	Diagnostics         []Diagnostic                `json:"diagnostics,omitempty"`
+	Routes              []RouteResult               `json:"routes,omitempty"`
+	Deliveries          []DeliveryResult            `json:"deliveries,omitempty"`
+	Correlations        CorrelationIDs              `json:"correlations"`
 }
 
 // Validate enforces tenant consistency and preview side-effect freedom.
@@ -504,6 +520,11 @@ func (r ProcessResult) Validate() error {
 	v.add(r.Mode == ExecutionModeProduction || r.Mode == ExecutionModePreview, "INVALID_MODE", "mode", "execution mode must be production or preview")
 	v.add(strings.TrimSpace(r.TenantID) != "", "REQUIRED", "tenant_id", "tenant ID is required")
 	validateArtifactRevision("integration_revision", r.IntegrationRevision, v)
+	if r.ArtifactRevisions != nil {
+		validateArtifactRevision("artifact_revisions.source", r.ArtifactRevisions.Source, v)
+		validateArtifactRevision("artifact_revisions.profile", r.ArtifactRevisions.Profile, v)
+		validateArtifactRevision("artifact_revisions.workflow", r.ArtifactRevisions.Workflow, v)
+	}
 	validateSecurityContext("security", r.Security, v)
 	v.add(r.Security.TenantID == r.TenantID, "TENANT_MISMATCH", "security.tenant_id", "security tenant must match result tenant")
 	v.add(strings.TrimSpace(r.Correlations.TenantID) != "", "REQUIRED", "correlations.tenant_id", "correlation tenant ID is required")
@@ -540,6 +561,7 @@ func (r ProcessResult) Validate() error {
 	for i, route := range r.Routes {
 		path := fmt.Sprintf("routes[%d]", i)
 		v.add(route.TenantID == r.TenantID, "TENANT_MISMATCH", joinPath(path, "tenant_id"), "route tenant must match result tenant")
+		validateOptionalLineageID(joinPath(path, "event_id"), route.EventID, v)
 		v.add(strings.TrimSpace(route.Route) != "", "REQUIRED", joinPath(path, "route"), "route name is required")
 		v.add(route.TransformCount >= 0, "INVALID_COUNT", joinPath(path, "transform_count"), "transform count cannot be negative")
 		if route.Skipped {
@@ -563,6 +585,7 @@ func (r ProcessResult) Validate() error {
 	for i, delivery := range r.Deliveries {
 		path := fmt.Sprintf("deliveries[%d]", i)
 		v.add(delivery.TenantID == r.TenantID, "TENANT_MISMATCH", joinPath(path, "tenant_id"), "delivery tenant must match result tenant")
+		validateOptionalLineageID(joinPath(path, "event_id"), delivery.EventID, v)
 		validateArtifactRevision(joinPath(path, "destination"), delivery.Destination.ArtifactRevisionRef, v)
 		v.add(delivery.Destination.Class == DestinationClassProduction || delivery.Destination.Class == DestinationClassSandbox, "INVALID_DESTINATION_CLASS", joinPath(path, "destination.class"), "destination class must be production or sandbox")
 		v.add(validDeliveryStatus(delivery.Status), "INVALID_DELIVERY_STATUS", joinPath(path, "status"), "delivery status is not supported")
@@ -611,6 +634,11 @@ func (r ProcessResult) ValidateAgainst(revision IntegrationDefinitionRevision) e
 	v.merge("revision", revision.Validate())
 	v.add(r.TenantID == revision.TenantID, "TENANT_MISMATCH", "tenant_id", "result tenant must match integration revision tenant")
 	v.add(r.IntegrationRevision == revision.Reference(), "REVISION_MISMATCH", "integration_revision", "result revision does not match the resolved integration revision")
+	if r.ArtifactRevisions != nil {
+		v.add(r.ArtifactRevisions.Source == revision.Source.ArtifactRevisionRef, "REVISION_MISMATCH", "artifact_revisions.source", "source revision does not match the resolved integration revision")
+		v.add(r.ArtifactRevisions.Profile == revision.Profile, "REVISION_MISMATCH", "artifact_revisions.profile", "profile revision does not match the resolved integration revision")
+		v.add(r.ArtifactRevisions.Workflow == revision.Workflow, "REVISION_MISMATCH", "artifact_revisions.workflow", "workflow revision does not match the resolved integration revision")
+	}
 	if r.Security.Principal.Kind == PrincipalKindService {
 		v.add(r.Security.Principal.SourceID == revision.Source.SourceID, "SOURCE_MISMATCH", "security.principal.source_id", "service principal source must match integration revision source")
 	}
@@ -655,6 +683,112 @@ func (r ProcessResult) ValidateFor(request ProcessRequest, revision IntegrationD
 		v.add(r.Receipt.IdempotencyKey == request.IdempotencyKey, "IDEMPOTENCY_MISMATCH", "receipt.idempotency_key", "receipt must preserve the explicit request idempotency key")
 	}
 	return v.err()
+}
+
+// ValidatePreviewFor applies the strict, event-bound contract used by the shared preview kernel.
+// Validate and ValidateFor remain compatible with legacy results that predate execution provenance.
+func (r ProcessResult) ValidatePreviewFor(request ProcessRequest, revision IntegrationDefinitionRevision) error {
+	v := &validationCollector{}
+	v.merge("", r.ValidateFor(request, revision))
+	v.add(request.Mode == ExecutionModePreview, "INVALID_MODE", "request.mode", "preview validation requires a preview request")
+	v.add(r.Mode == ExecutionModePreview, "INVALID_MODE", "mode", "preview validation requires a preview result")
+	v.add(r.ArtifactRevisions != nil, "REQUIRED", "artifact_revisions", "preview results require exact execution artifact revisions")
+	v.add(r.Receipt == nil, "PREVIEW_SIDE_EFFECT", "receipt", "preview results cannot contain a durable receipt")
+	v.add(r.Correlations.ReceiptID == "", "PREVIEW_SIDE_EFFECT", "correlations.receipt_id", "preview results cannot correlate a durable receipt")
+	v.add(len(r.Correlations.DeliveryAttemptIDs) == 0, "PREVIEW_SIDE_EFFECT", "correlations.delivery_attempt_ids", "preview results cannot correlate delivery attempts")
+
+	eventIDs := make(map[string]struct{}, len(r.Events))
+	for _, event := range r.Events {
+		eventIDs[event.ID] = struct{}{}
+	}
+	diagnosticCodes := make(map[string]struct{}, len(r.Diagnostics))
+	for _, diagnostic := range r.Diagnostics {
+		diagnosticCodes[diagnostic.Code] = struct{}{}
+	}
+
+	routePlans := make(map[previewRouteIdentity]RouteResult, len(r.Routes))
+	for i, route := range r.Routes {
+		path := fmt.Sprintf("routes[%d]", i)
+		v.add(route.EventID != "", "REQUIRED", joinPath(path, "event_id"), "preview routes require event lineage")
+		_, eventExists := eventIDs[route.EventID]
+		v.add(eventExists, "UNBOUND_EVENT", joinPath(path, "event_id"), "route event is absent from the preview result")
+		key := previewRouteIdentity{eventID: route.EventID, route: route.Route}
+		_, duplicate := routePlans[key]
+		v.add(!duplicate, "DUPLICATE", path, "preview route lineage is duplicated")
+		routePlans[key] = route
+		if len(route.PlannedActions) > 0 {
+			v.add(route.Matched && !route.Skipped, "UNEXECUTABLE_ROUTE", joinPath(path, "planned_actions"), "planned actions require a matched, non-skipped route")
+		}
+		validateDiagnosticCodeBindings(joinPath(path, "diagnostic_codes"), route.DiagnosticCodes, diagnosticCodes, v)
+	}
+
+	deliveries := make(map[previewDeliveryIdentity]struct{}, len(r.Deliveries))
+	for i, delivery := range r.Deliveries {
+		path := fmt.Sprintf("deliveries[%d]", i)
+		v.add(delivery.EventID != "", "REQUIRED", joinPath(path, "event_id"), "preview deliveries require event lineage")
+		_, eventExists := eventIDs[delivery.EventID]
+		v.add(eventExists, "UNBOUND_EVENT", joinPath(path, "event_id"), "delivery event is absent from the preview result")
+		v.add(delivery.Status == DeliveryStatusSuppressed, "PREVIEW_SIDE_EFFECT", joinPath(path, "status"), "preview deliveries must be suppressed")
+		v.add(delivery.AttemptID == "", "PREVIEW_SIDE_EFFECT", joinPath(path, "attempt_id"), "preview deliveries cannot carry an attempt ID")
+		v.add(delivery.AttemptCount == 0, "PREVIEW_SIDE_EFFECT", joinPath(path, "attempt_count"), "preview deliveries cannot carry an attempt count")
+		key := previewDeliveryIdentity{eventID: delivery.EventID, route: delivery.Route, action: delivery.Action}
+		_, duplicate := deliveries[key]
+		v.add(!duplicate, "DUPLICATE", path, "preview delivery lineage is duplicated")
+		deliveries[key] = struct{}{}
+		plan, routeExists := routePlans[previewRouteIdentity{eventID: delivery.EventID, route: delivery.Route}]
+		v.add(routeExists, "UNBOUND_ROUTE", joinPath(path, "route"), "delivery route is absent from the event-bound route plan")
+		if routeExists {
+			v.add(plan.Matched && !plan.Skipped, "UNEXECUTABLE_ROUTE", joinPath(path, "route"), "delivery route must be matched and not skipped")
+			planned := false
+			for _, action := range plan.PlannedActions {
+				if action == delivery.Action {
+					planned = true
+					break
+				}
+			}
+			v.add(planned, "UNPLANNED_ACTION", joinPath(path, "action"), "delivery action is absent from the event-bound route plan")
+		}
+		validateDiagnosticCodeBindings(joinPath(path, "diagnostic_codes"), delivery.DiagnosticCodes, diagnosticCodes, v)
+	}
+	return v.err()
+}
+
+func validateOptionalLineageID(path, id string, v *validationCollector) {
+	if id == "" {
+		return
+	}
+	valid := len(id) <= 256 && strings.TrimSpace(id) == id && strings.TrimSpace(id) != ""
+	for _, character := range id {
+		if unicode.IsControl(character) {
+			valid = false
+			break
+		}
+	}
+	v.add(valid, "INVALID_IDENTIFIER", path, "lineage identifier must be bounded, nonempty, and free of control characters or surrounding whitespace")
+}
+
+func validateDiagnosticCodeBindings(path string, codes []string, available map[string]struct{}, v *validationCollector) {
+	seen := make(map[string]struct{}, len(codes))
+	for i, code := range codes {
+		codePath := fmt.Sprintf("%s[%d]", path, i)
+		v.add(validDiagnosticCode(code), "INVALID_CODE", codePath, "diagnostic binding code is invalid")
+		_, duplicate := seen[code]
+		v.add(!duplicate, "DUPLICATE", codePath, "diagnostic binding code is duplicated")
+		seen[code] = struct{}{}
+		_, exists := available[code]
+		v.add(exists, "UNBOUND_DIAGNOSTIC", codePath, "diagnostic binding code is absent from the preview result")
+	}
+}
+
+type previewRouteIdentity struct {
+	eventID string
+	route   string
+}
+
+type previewDeliveryIdentity struct {
+	eventID string
+	route   string
+	action  string
 }
 
 func validateReceipt(receipt Receipt, result ProcessResult, v *validationCollector) {

@@ -705,6 +705,10 @@ func TestDiagnosticConstructorRejectsRawMessage(t *testing.T) {
 
 func cloneProcessResult(result integration.ProcessResult) integration.ProcessResult {
 	clone := result
+	if result.ArtifactRevisions != nil {
+		artifactRevisions := *result.ArtifactRevisions
+		clone.ArtifactRevisions = &artifactRevisions
+	}
 	if result.Receipt != nil {
 		receipt := *result.Receipt
 		clone.Receipt = &receipt

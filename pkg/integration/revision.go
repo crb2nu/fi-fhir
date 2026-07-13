@@ -440,9 +440,9 @@ func (r IntegrationDefinitionRevision) validateSemanticFields() error {
 		path := fmt.Sprintf("destinations[%d]", i)
 		validateArtifactRevision(path, destination.ArtifactRevisionRef, v)
 		v.add(destination.Class == DestinationClassProduction || destination.Class == DestinationClassSandbox, "INVALID_DESTINATION_CLASS", joinPath(path, "class"), "destination class must be production or sandbox")
-		key := destination.ArtifactID + "\x00" + destination.RevisionID
+		key := destination.ArtifactID
 		_, duplicate := seenDestinations[key]
-		v.add(!duplicate, "DUPLICATE", path, "destination revision is duplicated")
+		v.add(!duplicate, "DUPLICATE", joinPath(path, "artifact_id"), "destination artifact ID is duplicated")
 		seenDestinations[key] = struct{}{}
 	}
 	seenBindings := make(map[string]struct{}, len(r.SecretBindings))

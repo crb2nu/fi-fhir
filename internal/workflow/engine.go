@@ -3,7 +3,6 @@ package workflow
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"sync"
 	"time"
 
@@ -498,98 +497,18 @@ func (e *Engine) sendToDLQ(event interface{}, routeName, actionType string, err 
 
 // matches checks if an event matches a route filter.
 func (e *Engine) matches(event interface{}, filter Filter) bool {
-	eventType := e.getEventType(event)
-	source := e.getEventSource(event)
-
-	// Check event type filter
-	if len(filter.EventType) > 0 && !filter.EventType.Contains(eventType) {
-		return false
-	}
-
-	// Check source filter
-	if len(filter.Source) > 0 && !filter.Source.Contains(source) {
-		return false
-	}
-
-	// CEL condition evaluation
-	if filter.Condition != "" {
-		match, err := e.celEvaluator.Evaluate(filter.Condition, event)
-		if err != nil {
-			// Log error but don't match on evaluation failure
-			return false
-		}
-		if !match {
-			return false
-		}
-	}
-
-	return true
+	matched, err := matchWorkflowFilter(event, filter, e.celEvaluator)
+	return err == nil && matched
 }
 
 // getEventType extracts the event type from an event using reflection or map access.
 func (e *Engine) getEventType(event interface{}) string {
-	// Handle map types (from JSON parsing)
-	if m, ok := event.(map[string]interface{}); ok {
-		if t, ok := m["type"].(string); ok {
-			return t
-		}
-		return ""
-	}
-
-	v := reflect.ValueOf(event)
-	if v.Kind() == reflect.Pointer {
-		v = v.Elem()
-	}
-
-	if v.Kind() != reflect.Struct {
-		return ""
-	}
-
-	// Look for EventMeta.Type or Type field
-	if meta := v.FieldByName("EventMeta"); meta.IsValid() && meta.Kind() == reflect.Struct {
-		if typeField := meta.FieldByName("Type"); typeField.IsValid() {
-			return fmt.Sprintf("%v", typeField.Interface())
-		}
-	}
-
-	if typeField := v.FieldByName("Type"); typeField.IsValid() {
-		return fmt.Sprintf("%v", typeField.Interface())
-	}
-
-	return ""
+	return workflowEventType(event)
 }
 
 // getEventSource extracts the source from an event using reflection or map access.
 func (e *Engine) getEventSource(event interface{}) string {
-	// Handle map types (from JSON parsing)
-	if m, ok := event.(map[string]interface{}); ok {
-		if s, ok := m["source"].(string); ok {
-			return s
-		}
-		return ""
-	}
-
-	v := reflect.ValueOf(event)
-	if v.Kind() == reflect.Pointer {
-		v = v.Elem()
-	}
-
-	if v.Kind() != reflect.Struct {
-		return ""
-	}
-
-	// Look for EventMeta.Source or Source field
-	if meta := v.FieldByName("EventMeta"); meta.IsValid() && meta.Kind() == reflect.Struct {
-		if sourceField := meta.FieldByName("Source"); sourceField.IsValid() {
-			return fmt.Sprintf("%v", sourceField.Interface())
-		}
-	}
-
-	if sourceField := v.FieldByName("Source"); sourceField.IsValid() {
-		return fmt.Sprintf("%v", sourceField.Interface())
-	}
-
-	return ""
+	return workflowEventSource(event)
 }
 
 // DryRun simulates processing without executing actions.

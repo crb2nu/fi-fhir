@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Golden Path 001 revision fixture with strict decoding, deterministic semantic digest validation, non-serializable raw payload bytes, and preview side-effect invariants
 - Immutable Source Profile revision pointers plus exact profile/workflow artifact resolution with domain-separated content digests and single-deployment tenant enforcement
 - Required PostgreSQL CI proof that pinned profile/workflow v1 artifacts survive v2 publication, process reconstruction, owner checks, and digest verification
+- Internal preview-only `MessageProcessor` that resolves a server-owned integration revision and exact immutable artifacts, then produces deterministic, raw-free ADT A01 events, route plans, diagnostics, and suppressed deliveries
+- Strict published-workflow DSL v1 parser and pure CEL route planner with bounded YAML resources, closed action types, safe diagnostics, stable action identity, and no execution-capable dependencies
+- Strict executable Source Profile compiler plus one-message HL7v2 validation, standards-correct DTM offsets and precision, source-time precedence, and deterministic event identity
+- Blocking PostgreSQL preview-kernel proof that reconstructs fresh stores after v2 publication while preserving byte-identical v1 behavior and exact v2 semantics
 - Supported 1.0 target matrix with a pinned Kubernetes 1.36 minor and explicit remaining release-evidence gates
 
 #### Format Adapters
