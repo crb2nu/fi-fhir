@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { EventsDocument, LookupMappingDocument } from "$lib/gen/graphql";
+import { EventsDocument, HealthDocument } from "$lib/gen/graphql";
 import { graphqlFetch } from "./client";
 
 describe("Live Backend GraphQL Integration", () => {
@@ -14,15 +14,14 @@ describe("Live Backend GraphQL Integration", () => {
 
   (isCi ? describe : describe.skip)("Query execution", () => {
     it("should successfully execute EventsDocument against live backend", async () => {
-      // Create a specific fetch implementation to hit the live backend url
+      const originalFetch = globalThis.fetch;
       const liveFetch = (
-        url: RequestInfo | URL,
+        _url: RequestInfo | URL,
         init?: RequestInit,
       ): Promise<Response> => {
-        return fetch(backendUrl, init);
+        return originalFetch(backendUrl, init);
       };
 
-      const originalFetch = globalThis.fetch;
       globalThis.fetch = liveFetch as unknown as typeof fetch;
 
       try {
@@ -44,32 +43,24 @@ describe("Live Backend GraphQL Integration", () => {
       }
     });
 
-    it("should successfully execute LookupMappingDocument against live backend", async () => {
+    it("should successfully execute HealthDocument against live backend", async () => {
+      const originalFetch = globalThis.fetch;
       const liveFetch = (
-        url: RequestInfo | URL,
+        _url: RequestInfo | URL,
         init?: RequestInit,
       ): Promise<Response> => {
-        return fetch(backendUrl, init);
+        return originalFetch(backendUrl, init);
       };
 
-      const originalFetch = globalThis.fetch;
       globalThis.fetch = liveFetch as unknown as typeof fetch;
 
       try {
-        const result = await graphqlFetch(
-          LookupMappingDocument,
-          {
-            // providing variables that terminology query needs
-            sourceSystem: "http://loinc.org",
-            sourceCode: "1234-5",
-            targetSystem: "http://snomed.info/sct",
-            profileId: null,
-          },
-          { showErrorToast: false },
-        );
+        const result = await graphqlFetch(HealthDocument, {}, {
+          showErrorToast: false,
+        });
 
         expect(result).toBeDefined();
-        // Just verify it parses cleanly from the live schema
+        expect(result?.health.status).toBe("healthy");
       } finally {
         globalThis.fetch = originalFetch;
       }
