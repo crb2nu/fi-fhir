@@ -1,6 +1,6 @@
 # fi-fhir Roadmap
 
-> Last updated: 2026-07-12
+> Last updated: 2026-07-13
 > Tier: 2 (see workspace AGENTS.md "Portfolio Tiers")
 > Tracking issue: https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/19
 > Completion spec: `.loom/20-product-spec-integration-engine-ide-completion.md`
@@ -42,20 +42,26 @@ must not enter the clinical data plane before the engine spine is proven.
   - Go-1.26-compatible golangci-lint.
   - Event-store SQL identifier injection closed with regression coverage.
   - govulncheck, gosec, tests, build, MR pipeline green.
-- [ ] **Gate 0B — truthful delivery**
+- [x] **Gate 0B — truthful delivery** — MRs !90–!92 and subsequent main
+  pipelines proved benchmark, security, build, scan, and deployment truth; the
+  Slice 1.1a main pipeline `18542` remained green across all 33 jobs.
   - UI, binary, smoke, live WebSocket, contract, codegen, and security jobs run
     when applicable and cannot pass by skipping their subject.
   - npm is the canonical UI package-manager path; frozen installs are reproducible.
   - deployment/status documentation matches executable behavior.
 - [ ] **Golden Path 001 foundation**
-  - lock the 1.0 support matrix, tenancy/identity/PHI/secret contracts, minimal
-    immutable integration revision, receipt/result contracts, and side-effect-free
-    preview mode before durable schemas are created.
+  - [x] Slice 1.0 locked the 1.0 support matrix, tenancy/identity/PHI/secret
+    contracts, minimal immutable integration revision, and result invariants.
+  - [x] Slice 1.1a made exact profile/workflow revision resolution immutable and
+    proved v1-after-v2 reconstruction in required PostgreSQL CI.
+  - [ ] Slice 1.1b is proving the internal deterministic ADT A01 preview kernel;
+    authenticated transport activation remains deliberately blocked.
 
 ## Next
 
-- [ ] Shared `MessageProcessor` used by GraphQL submit, Integration Session
-  preview, and production ingress.
+- [ ] Complete and merge the deterministic `MessageProcessor` preview kernel.
+- [ ] Add authenticated, POST-only GraphQL/IDE preview adapters, explicit HTTP
+  and WebSocket origins, and fail-closed legacy submit/session containment.
 - [ ] PostgreSQL receipts, idempotency, trace, and transactional outbox.
 - [ ] Authenticated HL7v2 HTTP ingress and the restart/duplicate/IDE-parity kill-test.
 - [ ] Versioned integration deployment lifecycle and production MLLP.
@@ -68,8 +74,8 @@ must not enter the clinical data plane before the engine spine is proven.
 - [ ] Live stage/diagnostic/lineage UI and workflow simulation against session data.
 - [ ] Reviewable bundle publication and promotion of the exact tested revisions.
 - [ ] Real operator message/trace browser, deployment controls, and DLQ tooling.
-- [ ] Auth/RBAC/origin enforcement, PHI retention controls, audit, readiness,
-  metrics, multi-replica behavior, backup/restore, upgrade, DR, and performance.
+- [ ] Fine-grained RBAC, PHI retention controls, audit, readiness, metrics,
+  multi-replica behavior, backup/restore, upgrade, DR, and performance.
 
 ## 1.0 standards and release scope
 

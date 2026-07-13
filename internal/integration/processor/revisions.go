@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
@@ -23,6 +24,7 @@ import (
 const (
 	profileRevisionDigestDomain  = "fi-fhir/profile-revision/v1\x00"
 	workflowRevisionDigestDomain = "fi-fhir/workflow-revision/v1\x00"
+	maxRuntimeIdentityBytes      = 256
 )
 
 var (
@@ -244,8 +246,13 @@ func validateIdentity(name, value string) error {
 	if value == "" {
 		return fmt.Errorf("%s is required", name)
 	}
-	if strings.TrimSpace(value) != value {
-		return fmt.Errorf("%s must not contain surrounding whitespace", name)
+	if len(value) > maxRuntimeIdentityBytes || strings.TrimSpace(value) != value {
+		return fmt.Errorf("%s must be a bounded canonical identifier", name)
+	}
+	for _, character := range value {
+		if unicode.IsControl(character) {
+			return fmt.Errorf("%s must be a bounded canonical identifier", name)
+		}
 	}
 	return nil
 }

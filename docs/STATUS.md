@@ -7,8 +7,8 @@
 
 | Maturity       | Count | Description                                                                                                                                                         |
 | -------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Production** | 23    | Stable, tested, deployed                                                                                                                                            |
-| **Beta**       | 8     | Feature-complete, needs coverage or hardening                                                                                                                       |
+| **Production** | 22    | Stable, tested, deployed                                                                                                                                            |
+| **Beta**       | 9     | Feature-complete, needs coverage or hardening                                                                                                                       |
 | **Alpha**      | 3     | Functional but limited testing or scope                                                                                                                             |
 | **Planned**    | 2     | Designed but not yet implemented (tracked via [#7](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/7), [#8](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/8)) |
 
@@ -18,7 +18,7 @@
 
 | Component            | Path                             | Maturity   | Coverage | Notes                                       | Last Updated |
 | -------------------- | -------------------------------- | ---------- | -------- | ------------------------------------------- | ------------ |
-| HL7v2 Parser         | `internal/parser/hl7v2/`         | Production | 79.3%    | ADT, ORU, SIU, MDM, DFT; profile-driven     | 2026-03-24   |
+| HL7v2 Parser         | `internal/parser/hl7v2/`         | Production | 84.3%    | Legacy adapters plus strict published A01 path | 2026-07-13 |
 | CSV Parser           | `internal/parser/csv/`           | Production | 82.0%    | Schema inference for patient/lab records    | 2026-01-14   |
 | EDI X12 Parser       | `internal/parser/edi/`           | Production | 73.9%    | 837P, 835, 270/271, 276/277; loop parsing   | 2026-01-14   |
 | EDI Companion Guides | `internal/parser/edi/companion/` | Production | 89.1%    | Medicare, BlueCross, United built-in guides | 2026-01-14   |
@@ -33,7 +33,7 @@
 | Event Sourcing           | `pkg/eventsourcing/`             | Production | 72.7%    | Store, projections, snapshots, sagas, outbox     | 2026-02-27   |
 | ES Projections           | `pkg/eventsourcing/projections/` | Production | 88.9%    | Patient timeline, stats, active encounters       | 2026-01-14   |
 | Config                   | `pkg/config/`                    | Production | 89.3%    | Layered loading (defaults → file → env), secrets | 2026-02-27   |
-| Integration Contracts    | `pkg/integration/`               | Alpha      | 86.3%    | Revision/runtime contracts; processor pending    | 2026-07-13   |
+| Integration Contracts    | `pkg/integration/`               | Alpha      | 88.7%    | Exact provenance and strict preview invariants   | 2026-07-13   |
 | Source Profiles          | `pkg/profile/`                   | Beta       | 71.9%    | Inference, linting, vendor templates             | 2026-02-27   |
 | Validators               | `pkg/validate/`                  | Production | 98.2%    | NPI, MBI, SSN, DEA; Luhn/checksum                | 2026-01-09   |
 | FHIR Mapper              | `pkg/fhir/`                      | Production | 75.2%    | 24+ US Core resources, validation                | 2026-01-19   |
@@ -53,9 +53,9 @@
 
 | Component             | Path                              | Maturity   | Coverage | Notes                                            | Last Updated |
 | --------------------- | --------------------------------- | ---------- | -------- | ------------------------------------------------ | ------------ |
-| Workflow Engine       | `internal/workflow/`              | Production | 82.0%    | CEL filters, actions, replay, simulation, DLQ    | 2026-03-24   |
-| Integration Resolver  | `internal/integration/processor/` | Alpha      | 82.4%    | Exact artifact resolution; processor pending     | 2026-07-13   |
-| GraphQL API           | `internal/api/graphql/`           | Production | 4.1%\*   | Schema, resolvers, immutable stores, WebSocket   | 2026-07-13   |
+| Workflow Engine       | `internal/workflow/`              | Production | 78.6%    | Actions plus strict DSL v1 and pure planner      | 2026-07-13   |
+| Integration Processor | `internal/integration/processor/` | Alpha      | 84.5%    | Internal deterministic ADT A01 preview kernel    | 2026-07-13   |
+| GraphQL API           | `internal/api/graphql/`           | Beta       | 4.1%\*   | Functional; auth/origin/POST containment pending | 2026-07-13   |
 | FHIR Subscriptions    | `internal/fhir/subscription/`     | Production | 83.7%    | Bidirectional; client + webhook receiver         | 2026-02-27   |
 | Terminology Autoroute | `internal/terminology/autoroute/` | Beta       | 88.5%    | Automatic code-system routing engine             | 2026-03-09   |
 | Terminology Workflow  | `internal/terminology/workflow/`  | Production | 95.7%    | Temporal workflow + activity + worker unit tests | 2026-03-03   |

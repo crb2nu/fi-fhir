@@ -1,6 +1,6 @@
 # RALPH Iteration Plan: Phase 1 Slice 1.1a Immutable Artifact Resolution
 
-**Status**: proving
+**Status**: complete
 **Date**: 2026-07-13
 
 ## Riskiest assumption + kill-test
@@ -25,7 +25,8 @@ couple the runtime processor to GraphQL DTOs. Any of those outcomes invalidates
 the content-addressed foundation and blocks processor/ingress work until the
 artifact persistence boundary is redesigned.
 
-**Status**: passed 2026-07-13 (local PostgreSQL 16 proof; CI pending)
+**Status**: passed 2026-07-13 (local PostgreSQL 16 proof, MR pipeline
+`18533`, and post-merge main pipeline `18542`)
 
 Positive evidence: workflow versions already retain immutable opaque IDs and
 remain queryable after release pointers move. Disconfirming evidence: Source
@@ -196,7 +197,13 @@ Current evidence: all broad commands pass; GitLab reports the CI/CD YAML valid;
 `govulncheck` reports zero reachable vulnerabilities; `gosec` reports no
 unwaived high-confidence/high-severity findings; npm passes the high/critical
 threshold (UI: three low findings, SDK: zero); docs validation reports zero
-warnings. Two independent final reviews report no remaining P0/P1 findings.
+warnings. Two independent final reviews report no remaining P0/P1 findings. MR
+`!94` merged at main commit `2c1b297946e904cec420f0a59dabbb6315b4759e` after
+all 30 MR jobs passed. The post-merge main pipeline passed all 33 jobs and
+published binary image digest
+`sha256:58fe4b3c534d9413d153f80326a9e144e37588837f21ef5c03a03b35fecda0dc`
+plus UI image digest
+`sha256:9d422ed4e9248335dd7c2ce8fb481448c5a943302beafc46bfb8540c96730e61`.
 
 ## Handoff
 

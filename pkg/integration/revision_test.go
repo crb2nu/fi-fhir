@@ -245,6 +245,16 @@ func TestIntegrationRevisionRejectsDuplicateBindings(t *testing.T) {
 			},
 		},
 		{
+			name: "destination artifact with another revision",
+			mutate: func(input *integration.IntegrationDefinitionRevisionInput) {
+				duplicate := input.Destinations[0]
+				duplicate.RevisionID = "destination-rev-002"
+				duplicate.Digest = testDigest('9')
+				duplicate.Class = integration.DestinationClassSandbox
+				input.Destinations = append(input.Destinations, duplicate)
+			},
+		},
+		{
 			name: "secret",
 			mutate: func(input *integration.IntegrationDefinitionRevisionInput) {
 				input.SecretBindings = append(input.SecretBindings, input.SecretBindings[0])
@@ -266,6 +276,17 @@ func TestIntegrationRevisionRejectsDuplicateBindings(t *testing.T) {
 				t.Fatalf("expected duplicate %s to fail", tt.name)
 			}
 		})
+	}
+}
+
+func TestIntegrationRevisionGoldenDigestIsStable(t *testing.T) {
+	revision, err := integration.NewIntegrationDefinitionRevision(validRevisionInput())
+	if err != nil {
+		t.Fatalf("construct revision: %v", err)
+	}
+	const want = "sha256:b0de3dec889161d4af95f2bc51fa77bbb6b2adababd4eb7dd491fbec60fbc925"
+	if revision.Digest != want {
+		t.Fatalf("golden digest changed: got %s want %s", revision.Digest, want)
 	}
 }
 

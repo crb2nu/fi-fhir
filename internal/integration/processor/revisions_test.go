@@ -93,6 +93,8 @@ func TestNewProfileRevisionReferenceRejectsInvalidJSON(t *testing.T) {
 	}{
 		{name: "empty artifact", revisionID: 1, config: `{}`},
 		{name: "noncanonical artifact", artifactID: " profile-adt ", revisionID: 1, config: `{}`},
+		{name: "control artifact", artifactID: "profile\nadt", revisionID: 1, config: `{}`},
+		{name: "oversized artifact", artifactID: strings.Repeat("a", 257), revisionID: 1, config: `{}`},
 		{name: "invalid revision", artifactID: "profile-adt", revisionID: 0, config: `{}`},
 		{name: "malformed", artifactID: "profile-adt", revisionID: 1, config: `{"a":`},
 		{name: "trailing value", artifactID: "profile-adt", revisionID: 1, config: `{} {}`},

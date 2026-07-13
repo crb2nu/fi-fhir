@@ -102,8 +102,10 @@ type ExplainWarningsConfig struct {
 
 // Action executes on matched events.
 type Action struct {
-	Type   string            `yaml:"type" json:"type"`
-	Config map[string]string `yaml:"-" json:"-"` // Populated from remaining fields
+	ID          string            `yaml:"id,omitempty" json:"id,omitempty"`
+	Type        string            `yaml:"type" json:"type"`
+	Destination string            `yaml:"destination,omitempty" json:"destination,omitempty"`
+	Config      map[string]string `yaml:"-" json:"-"` // Populated from remaining fields
 }
 
 // UnmarshalYAML implements yaml.Unmarshaler for Action.
@@ -114,11 +116,19 @@ func (a *Action) UnmarshalYAML(value *yaml.Node) error {
 		return err
 	}
 
-	// Extract type
+	// Expose planner metadata as typed fields. Legacy ParseWorkflow callers still
+	// receive every field except type in Config because custom Engine handlers
+	// have historically depended on that map.
+	if id, ok := raw["id"].(string); ok {
+		a.ID = id
+	}
 	if t, ok := raw["type"].(string); ok {
 		a.Type = t
 	} else {
 		return fmt.Errorf("action missing 'type' field")
+	}
+	if destination, ok := raw["destination"].(string); ok {
+		a.Destination = destination
 	}
 
 	// Extract remaining fields as config

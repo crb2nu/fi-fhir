@@ -78,6 +78,19 @@ type ParseResult struct {
 
 	// ProfileID identifies which Source Profile was used
 	ProfileID string `json:"profile_id,omitempty"`
+
+	// MessageType is the exact MSH-9 value from the source message.
+	MessageType string `json:"message_type,omitempty"`
+
+	// ControlID is the exact MSH-10 value from the source message.
+	ControlID string `json:"control_id,omitempty"`
+
+	// MessageVersion is the exact MSH-12 value from the source message.
+	MessageVersion string `json:"message_version,omitempty"`
+
+	// OccurredAt is the source-derived event time. It remains zero when the
+	// source does not provide a usable value.
+	OccurredAt time.Time `json:"occurred_at,omitempty"`
 }
 
 // ParserConfig contains configuration for the HL7v2 parser.
@@ -139,6 +152,7 @@ type Message struct {
 	Type       string     // MSH-9 (e.g., "ADT^A01")
 	ControlID  string     // MSH-10
 	Version    string     // MSH-12
+	OccurredAt time.Time  // Source-derived event time
 }
 
 // Segment represents an HL7v2 segment.
@@ -181,9 +195,13 @@ func (p *Parser) ParseWithResult(raw string) (*ParseResult, error) {
 	}
 
 	return &ParseResult{
-		Event:     event,
-		Warnings:  p.warnings,
-		ProfileID: profileID,
+		Event:          event,
+		Warnings:       p.warnings,
+		ProfileID:      profileID,
+		MessageType:    msg.Type,
+		ControlID:      msg.ControlID,
+		MessageVersion: msg.Version,
+		OccurredAt:     msg.OccurredAt,
 	}, nil
 }
 
@@ -252,6 +270,12 @@ func (p *Parser) setEventWarnings(event interface{}) {
 
 // parseRaw parses the raw HL7v2 string into a structured Message.
 func (p *Parser) parseRaw(raw string) (*Message, error) {
+	if p.config.StrictValidation {
+		if err := p.validateStrictRawA01(raw); err != nil {
+			return nil, err
+		}
+	}
+
 	// Normalize line endings
 	raw = strings.ReplaceAll(raw, "\r\n", "\r")
 	raw = strings.ReplaceAll(raw, "\n", "\r")
@@ -291,6 +315,7 @@ func (p *Parser) parseRaw(raw string) (*Message, error) {
 		Delimiters: delimiters,
 	}
 
+	mshSeen := false
 	for _, line := range lines {
 		if line == "" {
 			continue
@@ -309,6 +334,12 @@ func (p *Parser) parseRaw(raw string) (*Message, error) {
 			ID:     fields[0],
 			Fields: fields,
 		}
+		if seg.ID == "MSH" && p.config.StrictValidation {
+			if mshSeen {
+				return nil, errors.New("multiple MSH segments are not supported")
+			}
+			mshSeen = true
+		}
 		msg.Segments = append(msg.Segments, seg)
 
 		// Extract message metadata from MSH
@@ -324,6 +355,12 @@ func (p *Parser) parseRaw(raw string) (*Message, error) {
 			if len(fields) > 12 {
 				msg.Version = fields[12] // MSH-12 (version ID)
 			}
+		}
+	}
+
+	if p.config.StrictValidation {
+		if err := p.validateStrictParsedA01(msg); err != nil {
+			return nil, err
 		}
 	}
 
@@ -530,12 +567,23 @@ func (p *Parser) parseADT_A01(msg *Message) (*events.PatientAdmitEvent, error) {
 		return nil, fmt.Errorf("failed to extract encounter: %w", err)
 	}
 
+	var sourceTimes a01SourceTimes
+	if p.config.StrictValidation {
+		sourceTimes = p.extractADTA01SourceTimes(msg)
+		encounter.AdmitDateTime = sourceTimes.AdmitDateTime
+		encounter.DischargeDateTime = sourceTimes.DischargeDateTime
+		msg.OccurredAt = sourceTimes.OccurredAt
+	}
+
 	// Use profile-driven event classification based on PV1-2 (Patient Class)
 	classifiedEventType := p.profile.GetEventClassification(msg.Type, encounter.Class)
 	encounter.ClassifiedEventType = classifiedEventType
 
 	meta := events.NewEventMeta(events.EventPatientAdmit, p.source, events.FormatHL7v2)
 	meta.SourceMessageID = msg.ControlID
+	if p.config.StrictValidation {
+		meta.Timestamp = sourceTimes.OccurredAt
+	}
 
 	return &events.PatientAdmitEvent{
 		EventMeta: meta,
@@ -1444,9 +1492,9 @@ func (p *Parser) parseHL7Date(s string) (time.Time, error) {
 	return time.ParseInLocation("20060102", s[:8], p.config.DefaultTimezone)
 }
 
-// parseHL7DateTime parses an HL7 datetime (YYYYMMDDHHMMSS).
+// parseHL7DateTime preserves the permissive legacy parser contract. The strict
+// executable A01 path uses parseHL7DTM directly.
 func (p *Parser) parseHL7DateTime(s string) (time.Time, error) {
-	// Handle various HL7 datetime formats
 	switch {
 	case len(s) >= 14:
 		return time.ParseInLocation("20060102150405", s[:14], p.config.DefaultTimezone)
