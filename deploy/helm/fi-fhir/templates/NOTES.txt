@@ -1,5 +1,23 @@
 fi-fhir has been deployed successfully!
 
+Authenticated preview:
+{{- if or (empty .Values.previewRegistry) (empty .Values.secrets.graphql.bearerToken) }}
+  WARNING: previewRegistry and/or secrets.graphql.bearerToken is empty.
+  fi-fhir intentionally fails startup closed until both are supplied.
+{{- end }}
+  - config.preview.tenantId must match previewRegistry tenant_id.
+  - config.preview.roles must include integration:preview.
+  - config.preview.allowedOrigins accepts comma-separated exact HTTP(S) origins only.
+  - Prefer an External Secret or equivalent managed secret instead of storing a
+    production bearer in Helm values.
+
+Copy the Helm-managed bearer to the macOS clipboard without printing it:
+  kubectl --namespace {{ .Release.Namespace }} get secret {{ include "fi-fhir.fullname" . }} -o jsonpath='{.data.graphql-bearer-token}' | base64 --decode | pbcopy
+
+Paste it into the Mapping Studio credential gate, then clear the clipboard.
+The UI keeps the bearer and imported raw samples only in tab memory; reload
+clears both.
+
 Get the application URL by running these commands:
 {{- if .Values.ingress.enabled }}
 {{- range $host := .Values.ingress.hosts }}
@@ -33,6 +51,8 @@ Metrics endpoint:
 
 Configuration:
   - Workflow config is mounted at {{ .Values.config.workflow.configPath }}
+  - Preview registry is mounted at {{ .Values.config.preview.registryPath }}
+  - Preview bearer is mounted at {{ .Values.config.preview.bearerTokenPath }}
   - Logs are in {{ .Values.config.observability.logFormat }} format at {{ .Values.config.observability.logLevel }} level
 {{- if .Values.config.observability.tracingEnabled }}
   - Tracing is enabled with {{ .Values.config.observability.tracingSampler }} sample rate

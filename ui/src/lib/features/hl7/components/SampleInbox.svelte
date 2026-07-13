@@ -274,7 +274,7 @@
 
 <svelte:window on:keydown={handleWindowKeydown} />
 
-<Panel title="Samples (local)">
+<Panel title="Samples (this tab)">
   <div
     class="dropzone"
     class:dragging={isDragging}
@@ -285,7 +285,7 @@
     aria-label="Samples inbox. Drag and drop HL7 files to import."
   >
   <p class="note">
-    Stored in <span class="mono">localStorage</span>. Don’t paste PHI unless you’re on an approved machine/profile.
+    Held only in this tab’s memory and cleared on reload. Don’t paste PHI unless you’re on an approved machine/profile.
   </p>
 
   <div class="controls">
@@ -498,7 +498,7 @@
 	  <ConfirmModal
 	    bind:open={bulkDeleteOpen}
 	    title="Delete selected samples?"
-	    message={`This will remove ${selectedIds.size} sample(s) from localStorage.`}
+	    message={`This will remove ${selectedIds.size} sample(s) from this tab.`}
 	    confirmText="Delete"
 	    cancelText="Cancel"
 	    variant="danger"

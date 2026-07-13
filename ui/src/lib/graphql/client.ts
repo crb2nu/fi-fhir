@@ -1,6 +1,7 @@
 import type { TypedDocumentNode } from '@graphql-typed-document-node/core';
 import { print } from 'graphql';
 import { toasts } from '$lib/ui/toastStore';
+import { requireGraphQLAuthorization } from './credentials';
 
 /** Tag errors that have already been shown as a toast so the catch block skips them. */
 const TOASTED = Symbol('toasted');
@@ -58,9 +59,13 @@ export async function graphqlFetch<TData, TVars>(
   const { showErrorToast = true, showSuccessToast = false, successMessage } = options ?? {};
 
   try {
+    const authorization = await requireGraphQLAuthorization();
     const res = await fetch('/graphql', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        Authorization: authorization,
+        'content-type': 'application/json'
+      },
       body: JSON.stringify({ query: print(document), variables })
     });
 

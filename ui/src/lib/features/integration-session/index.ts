@@ -1,13 +1,11 @@
 export {
-  buildFallbackSessionMeta,
   isIntegrationSessionEngineEnabled,
-  runSessionBackedHL7Preview,
-  subscribeSessionRunEvents
+  runAuthenticatedIntegrationPreview
 } from './api';
+export type { AuthenticatedIntegrationPreviewInput } from './api';
 export type {
+  AuthenticatedIntegrationPreviewResult,
   IntegrationSessionDiagnostic,
   IntegrationSessionPreviewMeta,
-  IntegrationSessionRun,
-  IntegrationSessionStage,
-  SessionBackedPreviewResult
+  IntegrationSessionStage
 } from './types';

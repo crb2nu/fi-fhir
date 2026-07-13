@@ -20,12 +20,14 @@ The remaining work is product assembly and operational truth:
 
 - production ingress does not yet compose profile resolution, parsing, durable
   acceptance/idempotency, workflow delivery, and traceability behind one runtime;
-- Integration Sessions are an in-memory, HL7-only prototype and are not wired to
-  the selected profile/workflow or live subscription in the shipped UI;
+- durable Integration Sessions remain an in-memory, HL7-only prototype, while
+  the current IDE preview now uses the same stateless, exact-revision kernel as
+  GraphQL;
 - no production MLLP source exists, S3/SFTP discovery is not runtime-wired, and
   `serve` loads one workflow instead of deployed integration revisions;
-- auth/tenant/PHI policy, readiness/metrics, container entrypoints, and CI gates
-  are incomplete or inconsistent;
+- a transitional single-domain preview bearer, exact-origin policy, and
+  memory-only browser handling are implemented locally; OIDC, fine-grained
+  RBAC, audited token administration, and durable PHI policy remain incomplete;
 - the current Flux deployment proves that artifacts can be deployed, not that
   the completion journeys or production-readiness contract are satisfied.
 
@@ -54,14 +56,15 @@ must not enter the clinical data plane before the engine spine is proven.
     contracts, minimal immutable integration revision, and result invariants.
   - [x] Slice 1.1a made exact profile/workflow revision resolution immutable and
     proved v1-after-v2 reconstruction in required PostgreSQL CI.
-  - [ ] Slice 1.1b is proving the internal deterministic ADT A01 preview kernel;
-    authenticated transport activation remains deliberately blocked.
+  - [ ] Slices 1.1b and 1.1c are complete in the local release candidate: one
+    deterministic ADT A01 kernel, one authenticated typed GraphQL/IDE adapter,
+    exact origins, memory-only browser data, and fail-closed legacy operations.
+    MR, main pipeline, image, and live rollout evidence remain pending.
 
 ## Next
 
-- [ ] Complete and merge the deterministic `MessageProcessor` preview kernel.
-- [ ] Add authenticated, POST-only GraphQL/IDE preview adapters, explicit HTTP
-  and WebSocket origins, and fail-closed legacy submit/session containment.
+- [ ] Ship the combined Slice 1.1b/1.1c release candidate and capture required
+  MR, default-branch pipeline, image digest, and live authenticated probes.
 - [ ] PostgreSQL receipts, idempotency, trace, and transactional outbox.
 - [ ] Authenticated HL7v2 HTTP ingress and the restart/duplicate/IDE-parity kill-test.
 - [ ] Versioned integration deployment lifecycle and production MLLP.

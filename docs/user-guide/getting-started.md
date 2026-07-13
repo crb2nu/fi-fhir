@@ -207,8 +207,9 @@ fi-fhir config show
 
 ## Quick Start with Persistence
 
-By default, `fi-fhir serve` uses in-memory stores — events vanish on restart.
-To enable persistent storage, start PostgreSQL and set environment variables.
+`fi-fhir serve` currently exposes authenticated, stateless preview. PostgreSQL
+can back the adjacent catalogs, but production message receipt and delivery do
+not ship until Slice 1.2.
 
 ### 1. Start PostgreSQL
 
@@ -229,12 +230,18 @@ export FI_FHIR_DATABASE_NAME=fi_fhir
 export FI_FHIR_DATABASE_USERNAME=fi_fhir
 export FI_FHIR_DATABASE_PASSWORD=fi_fhir_dev
 export FI_FHIR_DATABASE_SSL_MODE=disable
+export FI_FHIR_DEPLOYMENT_TENANT_ID=tenant-a
+export FI_FHIR_GRAPHQL_BEARER_TOKEN="$(openssl rand -hex 32)"
+export FI_FHIR_GRAPHQL_PRINCIPAL_ID=local-operator
+export FI_FHIR_GRAPHQL_ROLES=integration:preview
+export FI_FHIR_GRAPHQL_ALLOWED_ORIGINS=http://localhost:5173
+export FI_FHIR_INTEGRATION_REGISTRY_PATH="$PWD/testdata/golden/integration/adt-http/preview-registry.json"
 ```
 
 ### 3. Start the Server
 
 ```bash
-fi-fhir serve --workflow configs/adt-workflow.yaml
+fi-fhir serve --workflow configs/adt-workflow.yaml --no-playground --no-introspection
 ```
 
 You should see:
@@ -250,15 +257,17 @@ Or use the `make dev` shortcut which handles all of the above:
 make dev
 ```
 
-### 4. Verify Persistence
+### 4. Open the Mapping Studio
 
-Submit a message via GraphQL at `http://localhost:8081`, restart the server,
-and query events — they persist across restarts.
+Start the UI, paste the deployment bearer into its credential gate, and use the
+HL7 workspace. Preview calls the one `previewIntegrationMessage` mutation and
+does not persist the raw sample, run, event, or a delivery receipt.
 
 ### Graceful Degradation
 
-When database env vars are absent, fi-fhir falls back to in-memory stores
-with a warning. No crash, no configuration required for basic usage.
+When database env vars are absent, non-preview catalogs fall back to in-memory
+stores with a warning. The preview security variables and immutable registry
+remain mandatory; missing values stop server startup.
 
 ## Next Steps
 

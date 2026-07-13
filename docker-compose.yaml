@@ -8,8 +8,6 @@
 #   docker-compose down               # Stop all services
 #   docker-compose down -v            # Stop and remove volumes
 
-version: "3.8"
-
 services:
   # fi-fhir application
   fi-fhir:
@@ -20,6 +18,7 @@ services:
         VERSION: ${VERSION:-dev}
     image: fi-fhir:${VERSION:-dev}
     container_name: fi-fhir
+    command: ["serve"]
     ports:
       - "8080:8080"   # HTTP API
       - "9090:9090"   # Metrics
@@ -27,8 +26,15 @@ services:
       # Server
       FI_FHIR_SERVER_HOST: "0.0.0.0"
       FI_FHIR_SERVER_PORT: "8080"
+      # Authenticated stateless integration preview (local development only).
+      FI_FHIR_DEPLOYMENT_TENANT_ID: "tenant-a"
+      FI_FHIR_GRAPHQL_BEARER_TOKEN: "${FI_FHIR_GRAPHQL_BEARER_TOKEN:?Set a random local preview bearer token}"
+      FI_FHIR_GRAPHQL_PRINCIPAL_ID: "local-operator"
+      FI_FHIR_GRAPHQL_ROLES: "integration:preview"
+      FI_FHIR_GRAPHQL_ALLOWED_ORIGINS: "http://localhost:3001,http://localhost:5173"
+      FI_FHIR_INTEGRATION_REGISTRY_PATH: "/app/testdata/golden/integration/adt-http/preview-registry.json"
       # Workflow
-      FI_FHIR_WORKFLOW_CONFIG_PATH: "/app/config/workflow.yaml"
+      FI_FHIR_WORKFLOW_CONFIG_PATH: "/app/config/adt-workflow.yaml"
       # Database
       FI_FHIR_DATABASE_DRIVER: "postgres"
       FI_FHIR_DATABASE_HOST: "postgres"
@@ -53,7 +59,7 @@ services:
       TEMPORAL_ADDRESS: "temporal:7233"
       TEMPORAL_NAMESPACE: "terminology-mapping"
     volumes:
-      - ./config:/app/config:ro
+      - ./configs:/app/config:ro
       - ./testdata:/app/testdata:ro
     depends_on:
       postgres:
@@ -61,7 +67,7 @@ services:
       kafka:
         condition: service_healthy
     healthcheck:
-      test: ["/fi-fhir", "version"]
+      test: ["CMD", "/fi-fhir", "version"]
       interval: 30s
       timeout: 3s
       retries: 3

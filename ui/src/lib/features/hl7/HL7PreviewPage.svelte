@@ -13,6 +13,7 @@
   import { getHL7Value, normalizeHL7Newlines } from '$lib/domain/hl7Access';
   import SampleInbox from '$lib/features/hl7/components/SampleInbox.svelte';
   import { createHL7SampleStore } from '$lib/features/hl7/samples/sampleStore';
+  import { rememberRecentSource } from '$lib/features/hl7/samples/recentSources';
   import type { HL7Sample } from '$lib/features/hl7/samples/types';
   import { onMount } from 'svelte';
   import ProfileDraftPanel from '$lib/features/hl7/components/ProfileDraftPanel.svelte';
@@ -58,7 +59,6 @@
   let lastUsedProfileId: string | null = null;
   let lastUsedProfileVersion: string | null = null;
 
-  const RECENT_SOURCES_KEY = 'fi-fhir:hl7:recent-sources:v1';
   const MAX_RECENT_SOURCES = 8;
   let recentSources: string[] = [];
 
@@ -429,26 +429,8 @@
     return snapshot;
   }
 
-  function loadRecentSources(): void {
-    if (!browser) return;
-    try {
-      const raw = localStorage.getItem(RECENT_SOURCES_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as unknown;
-      if (!Array.isArray(parsed)) return;
-      recentSources = parsed.filter((x) => typeof x === 'string').slice(0, MAX_RECENT_SOURCES);
-    } catch {
-      // Ignore
-    }
-  }
-
   function rememberSource(source: string): void {
-    const s = source.trim();
-    if (!s) return;
-    const next = [s, ...recentSources.filter((x) => x !== s)].slice(0, MAX_RECENT_SOURCES);
-    recentSources = next;
-    if (!browser) return;
-    localStorage.setItem(RECENT_SOURCES_KEY, JSON.stringify(next));
+    recentSources = rememberRecentSource(recentSources, source, MAX_RECENT_SOURCES);
   }
 
   function setSource(source: string): void {
@@ -841,7 +823,6 @@
   })();
 
   onMount(() => {
-    loadRecentSources();
 
     const unsub = activeSample.subscribe((s) => {
       if (s) loadSample(s);

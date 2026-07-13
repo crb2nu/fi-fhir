@@ -17,7 +17,7 @@ This directory contains detailed planning and specification documents for the fi
 | [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md)           | TypeScript/JavaScript SDK                                            | ✅ SDK + distribution shipped                                                                                  |
 | [CDA-CCDA.md](CDA-CCDA.md)                       | CDA/CCDA clinical document parsing                                   | ✅ Complete                                                                                                    |
 | [FHIR-SUBSCRIPTIONS.md](FHIR-SUBSCRIPTIONS.md)   | FHIR R4 Subscriptions (bidirectional)                                | ✅ Complete                                                                                                    |
-| [GRAPHQL-API.md](GRAPHQL-API.md)                 | GraphQL API layer for events                                         | ✅ Complete                                                                                                    |
+| [GRAPHQL-API.md](GRAPHQL-API.md)                 | Authenticated GraphQL preview boundary and legacy containment         | 🟡 Preview capability implemented; durable submit/RBAC pending                                                  |
 | [EVENT-SOURCING.md](EVENT-SOURCING.md)           | Event sourcing / CQRS patterns                                       | ✅ Complete                                                                                                    |
 | [API-CONTRACT-MATRIX.md](API-CONTRACT-MATRIX.md) | Canonical vs GraphQL vs OpenAPI event contract drift matrix          | 🟡 Generated baseline (M0)                                                                                     |
 
@@ -128,7 +128,8 @@ These are the remaining “big rocks” referenced by the Document Overview stat
 
 - Multi-format parsing (HL7v2, CSV, EDI X12, CDA/CCDA) into canonical events
 - Workflow engine (filters/transforms/actions) with observability, retry, and DLQ support
-- FHIR R4 mapping (US Core-focused), event sourcing, and GraphQL API layer
+- FHIR R4 mapping (US Core-focused), event sourcing, and the authenticated
+  GraphQL preview boundary
 
 <details>
 <summary>Full shipped feature list</summary>
@@ -159,11 +160,12 @@ These are the remaining “big rocks” referenced by the Document Overview stat
 - Grafana dashboard templates (`dashboards/grafana/`)
 - Event sourcing / CQRS patterns (store, projections, CLI)
 - Workflow action for event store integration
-- GraphQL queries for projections
-- Projection resolver wiring (GraphQL → projection service layer)
+- Legacy GraphQL projection query/resolver code (authenticated operator catalog;
+  unavailable to the preview role)
 - PostgreSQL-backed snapshot store for projection recovery
 - Event replay tooling (ProjectionRebuilder with progress, dry-run, snapshot-aware)
-- Batch event submission endpoint (submitBatch mutation with parallel/sequential modes)
+- Legacy batch submission resolver (contained and unavailable by default until
+  the durable production committer ships)
 - PostgreSQL integration tests (testcontainers for EventStore, CheckpointStore, SnapshotStore)
 - Projection rebuild from time range (TimeRangeEventStore interface, point-in-time recovery)
 - Event archival and retention policies (HIPAA-aware retention, file archive, deletion)
@@ -200,9 +202,10 @@ These are the remaining “big rocks” referenced by the Document Overview stat
   - Concept normalization and search
   - Rate limiting and caching
   - Ticket-based authentication
-- GraphQL triggerWorkflow mutation - `internal/api/graphql/resolvers/schema.resolvers.go`
-- GraphQL FHIR subscription CRUD mutations - `internal/api/graphql/resolvers/schema.resolvers.go`
-- GraphQL workflow event notifications (pub/sub) - `internal/api/graphql/resolvers/resolver.go`
+- Legacy GraphQL workflow/FHIR subscription resolver code (authenticated
+  operator catalog; unavailable to the preview role)
+- Legacy GraphQL workflow notifications (unavailable to the preview role) -
+  `internal/api/graphql/resolvers/resolver.go`
 - CEL expression evaluation in FHIR subscription mapper - `internal/fhir/subscription/mapper.go`
 - OAuth2 client credentials for FHIR subscriptions - `internal/fhir/subscription/router.go`
 - Patient Matching Engine - `pkg/matching/`
@@ -307,37 +310,44 @@ The UI frontend is served via nginx, which reverse-proxies API requests to the f
 | Route         | Backend         | Purpose                              |
 | ------------- | --------------- | ------------------------------------ |
 | `/health`     | `fi-fhir serve` | Liveness/readiness probe             |
-| `/graphql`    | `fi-fhir serve` | GraphQL queries+mutations            |
-| `/graphql/ws` | `fi-fhir serve` | GraphQL subscriptions (WebSocket)    |
-| `/ready`      | `fi-fhir serve` | Readiness passthrough for k8s probes |
+| `/graphql`    | `fi-fhir serve` | Authenticated bounded POST operations |
+| `/graphql/ws` | disabled        | Returns `404` in authenticated preview |
 
-### WebSocket Upgrade
+### WebSocket Containment
 
-The nginx config must include `Upgrade` and `Connection` header passthrough for `/graphql/ws`:
-
-```
-proxy_set_header Upgrade $http_upgrade;
-proxy_set_header Connection "upgrade";
-```
-
-See `ui/nginx/default.conf.template` for the canonical config.
+The canonical nginx config returns `404` for `/graphql/ws` and does not forward
+upgrade headers on `/graphql`. Preview uses bounded JSON POST only. A future
+subscription transport must add explicit pre-authentication frame limits and
+operation authorization before this route can be exposed.
 
 ### Key Environment Variables
 
-| Variable                     | Default   | Purpose                                      |
-| ---------------------------- | --------- | -------------------------------------------- |
-| `FI_FHIR_ADDR`               | `:8080`   | Server listen address                        |
-| `FI_FHIR_UI_API_ORIGIN`      | —         | Backend origin for UI proxy                  |
-| `FI_FHIR_DATABASE_URL`       | —         | PostgreSQL DSN (if absent, uses MemoryStore) |
-| `FI_FHIR_DATABASE_HOST`      | —         | Alternative: PostgreSQL host                 |
-| `FI_FHIR_DATABASE_SSL_MODE`  | `disable` | SSL mode (defaults to disable in-cluster)    |
-| `FI_FHIR_TERMINOLOGY_DB_URL` | —         | Terminology database connection              |
-| `FI_FHIR_CORS_ORIGINS`       | —         | Allowed CORS origins                         |
-| `FI_FHIR_LLM_ENABLED`        | `false`   | Enable LLM features (autoroute, copilot)     |
-| `FI_FHIR_LLM_BASE_URL`       | in-cluster LiteLLM | Canonical LLM provider base URL       |
-| `FI_FHIR_LLM_API_KEY`        | —         | Canonical LLM provider API key               |
-| `FI_FHIR_LLM_DEFAULT_MODEL`  | `qwen3-8b-fast` | Default LLM model                       |
-| `FI_FHIR_LLM_QUALITY_MODEL`  | `qwen3-14b-quality` | Higher-quality LLM model              |
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `FI_FHIR_ADDR` | `:8080` | Server listen address |
+| `FI_FHIR_UI_API_ORIGIN` | — | Backend origin for UI proxy |
+| `FI_FHIR_DEPLOYMENT_TENANT_ID` | required | Preview security-domain ID |
+| `FI_FHIR_GRAPHQL_PRINCIPAL_ID` | required | Server-owned preview principal |
+| `FI_FHIR_GRAPHQL_ROLES` | required | Must include `integration:preview` |
+| `FI_FHIR_GRAPHQL_ALLOWED_ORIGINS` | required | Comma-separated exact HTTP(S) origins |
+| `FI_FHIR_GRAPHQL_BEARER_TOKEN` | one token source required | Local direct bearer, 24+ canonical bytes |
+| `FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE` | one token source required | Preferred production secret-file path |
+| `FI_FHIR_INTEGRATION_REGISTRY_PATH` | required | Immutable same-tenant preview registry |
+| `FI_FHIR_DATABASE_URL` | — | PostgreSQL DSN (if absent, uses MemoryStore) |
+| `FI_FHIR_DATABASE_HOST` | — | Alternative PostgreSQL host |
+| `FI_FHIR_DATABASE_SSL_MODE` | `disable` | SSL mode (defaults to disable in-cluster) |
+| `FI_FHIR_TERMINOLOGY_DB_URL` | — | Terminology database connection |
+| `FI_FHIR_LLM_ENABLED` | `false` | Enable LLM features (autoroute, copilot) |
+| `FI_FHIR_LLM_BASE_URL` | in-cluster LiteLLM | Canonical LLM provider base URL |
+| `FI_FHIR_LLM_API_KEY` | — | Canonical LLM provider API key |
+| `FI_FHIR_LLM_DEFAULT_MODEL` | `qwen3-8b-fast` | Default LLM model |
+| `FI_FHIR_LLM_QUALITY_MODEL` | `qwen3-14b-quality` | Higher-quality LLM model |
+
+`serve` fails closed if any preview value is missing, both token sources are
+set, the bearer is non-canonical, an origin is wildcard/non-HTTP(S), or the
+registry tenant and deployment tenant differ. The `integration:preview` role
+can call only `health` and `previewIntegrationMessage`; see
+[GRAPHQL-API.md](GRAPHQL-API.md).
 
 For LLM runtime configuration, `FI_FHIR_LLM_*` names are canonical. Legacy
 `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_DEFAULT_MODEL`, and `LLM_QUALITY_MODEL`

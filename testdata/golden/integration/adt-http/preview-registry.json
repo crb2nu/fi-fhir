@@ -1,0 +1,85 @@
+{
+  "integrations": [
+    {
+      "definition": {
+        "definition_id": "integration-adt",
+        "revision_id": "definition-revision-1",
+        "tenant_id": "tenant-a",
+        "source": {
+          "artifact_id": "source-adt",
+          "revision_id": "source-1",
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "source_id": "adt-east"
+        },
+        "format": "hl7v2",
+        "profile": {
+          "artifact_id": "profile-adt",
+          "revision_id": "1",
+          "digest": "sha256:79c8f575ae135f6d6c10d46fcb57c75a6094ac65c8ab6d10912e5050b26315d3"
+        },
+        "workflow": {
+          "artifact_id": "workflow-adt",
+          "revision_id": "workflow-version-1",
+          "digest": "sha256:7e20cd2b8e591c507a313eb9a422318384d7e7b7c895798c2a264182dad688dc"
+        },
+        "destinations": [
+          {
+            "artifact_id": "fhir-primary",
+            "revision_id": "destination-1",
+            "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "class": "production"
+          }
+        ],
+        "policy": {
+          "classification": "phi",
+          "raw_retention": {
+            "mode": "ephemeral",
+            "access_audit_required": false
+          }
+        },
+        "created": {
+          "tenant_id": "tenant-a",
+          "principal": {
+            "id": "publisher",
+            "kind": "human",
+            "auth_method": "oidc",
+            "roles": [
+              "publisher"
+            ]
+          },
+          "reason": "publish preview fixture",
+          "occurred_at": "2026-07-13T12:00:00Z"
+        },
+        "digest": "sha256:de394baa368059faf01e6d83860b2a6d34f6df75debe3ef3c0e897877dfcf0ad"
+      },
+      "integration_id": "adt-east",
+      "profile": {
+        "hl7v2": {
+          "default_version": "2.5.1",
+          "timezone": "UTC",
+          "event_classifications": [
+            {
+              "message_type": "ADT^A01",
+              "event_type": "patient_admit",
+              "priority": 1
+            }
+          ]
+        },
+        "identifiers": {
+          "assigning_authorities": [
+            {
+              "code": "HOSP",
+              "system": "urn:oid:1.2.3"
+            }
+          ],
+          "normalization": {
+            "ssn_strip_dashes": true,
+            "phone_normalize": false
+          }
+        }
+      },
+      "workflow": "dsl_version: \"1\"\nname: adt-preview\nversion: \"1\"\nroutes:\n  - name: admit\n    filter:\n      event_type: patient_admit\n    actions:\n      - id: send-fhir\n        type: fhir\n        destination: fhir-primary\n"
+    }
+  ],
+  "tenant_id": "tenant-a"
+}

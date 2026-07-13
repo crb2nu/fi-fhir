@@ -1,19 +1,29 @@
 package graphql
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"mime"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
+	gqlgengraphql "github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/handler/lru"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
-	"github.com/gorilla/websocket"
 	"github.com/vektah/gqlparser/v2/ast"
+	"github.com/vektah/gqlparser/v2/gqlerror"
+	"github.com/vektah/gqlparser/v2/parser"
+
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity"
 )
 
 // ServerConfig configures the GraphQL server.
@@ -40,8 +50,10 @@ type ServerConfig struct {
 	Introspection bool
 	// CORS allowed origins
 	AllowedOrigins []string
-	// ExternalHandlers mounts additional HTTP handlers at specific paths
-	ExternalHandlers map[string]http.Handler
+	// MaxRequestBodyBytes bounds the complete GraphQL JSON request body.
+	MaxRequestBodyBytes int64
+	// Authenticator establishes the deployment-owned tenant/principal context.
+	Authenticator requestsecurity.Authenticator
 }
 
 // DefaultServerConfig returns a sensible default configuration.
@@ -57,7 +69,11 @@ func DefaultServerConfig() *ServerConfig {
 		MaxComplexity:     1000,
 		Timeout:           30 * time.Second,
 		Introspection:     true,
-		AllowedOrigins:    []string{"*"},
+		AllowedOrigins: []string{
+			"http://localhost:5173",
+			"http://127.0.0.1:5173",
+		},
+		MaxRequestBodyBytes: 1 << 20,
 	}
 }
 
@@ -71,9 +87,15 @@ type Server struct {
 
 // NewServer creates a new GraphQL server.
 // resolver must implement the ResolverRoot interface defined in generated.go.
-func NewServer(resolver ResolverRoot, config *ServerConfig) *Server {
+func NewServer(resolver ResolverRoot, config *ServerConfig) (*Server, error) {
 	if config == nil {
 		config = DefaultServerConfig()
+	}
+	if resolver == nil {
+		return nil, fmt.Errorf("GraphQL resolver is required")
+	}
+	if err := validateServerConfig(config); err != nil {
+		return nil, err
 	}
 
 	// Create the GraphQL schema
@@ -83,59 +105,47 @@ func NewServer(resolver ResolverRoot, config *ServerConfig) *Server {
 
 	// Create the handler with transport configuration
 	srv := handler.New(schema)
+	srv.SetErrorPresenter(catalogSafeErrorPresenter)
 
-	// Add transports
-	srv.AddTransport(transport.Options{})
-	srv.AddTransport(transport.GET{})
+	// Raw clinical data is accepted only inside a bounded authenticated POST.
 	srv.AddTransport(transport.POST{})
-	srv.AddTransport(transport.MultipartForm{})
 
-	// WebSocket transport for subscriptions
-	srv.AddTransport(&transport.Websocket{
-		Upgrader: websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool {
-				return true // Allow all origins for development
-			},
-			ReadBufferSize:  1024,
-			WriteBufferSize: 1024,
-		},
-		KeepAlivePingInterval: 30 * time.Second,
-	})
-
-	// Add caching for persisted queries (using the auto-generated cache size)
+	// Cache parsed query documents. Persisted-query negotiation is intentionally
+	// unavailable so every request passes the same bounded JSON envelope.
 	srv.SetQueryCache(lru.New[*ast.QueryDocument](1000))
 
 	// Add extensions
 	if config.Introspection {
 		srv.Use(extension.Introspection{})
 	}
-
-	srv.Use(extension.AutomaticPersistedQuery{
-		Cache: lru.New[string](100),
-	})
+	srv.Use(operationAuthorization{})
+	srv.Use(fixedQueryDepthLimit{limit: config.MaxDepth})
+	srv.Use(extension.FixedComplexityLimit(config.MaxComplexity))
 
 	return &Server{
 		config:   config,
 		resolver: resolver,
 		handler:  srv,
-	}
+	}, nil
 }
 
 // Handler returns the production HTTP handler used by Start.
 //
 // Exposing the composed handler allows transport-level tests and embedders to
-// exercise the same GraphQL, WebSocket, profile, playground, and health routes.
+// exercise the same GraphQL, disabled-WebSocket, playground, and health routes.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
-	// GraphQL endpoint
-	mux.Handle(s.config.Path, corsMiddleware(s.handler, s.config.AllowedOrigins))
+	// GraphQL endpoint: CORS preflight is the only unauthenticated method.
+	graphqlHTTP := graphqlHTTPMiddleware(s.handler, s.config)
+	mux.Handle(s.config.Path, corsMiddleware(graphqlHTTP, s.config.AllowedOrigins))
 
-	// WebSocket endpoint (same handler)
-	mux.Handle(s.config.WebSocketPath, s.handler)
-
-	// Profile YAML endpoints (best-effort; requires resolver to expose ProfileStore)
-	registerProfileYAMLEndpoints(mux, s.resolver, s.config.AllowedOrigins)
+	// WebSocket is deliberately unavailable in the authenticated preview phase.
+	// gqlgen's transport does not expose a bounded pre-authentication frame limit,
+	// and mutations over WebSocket would bypass the POST-only request boundary.
+	mux.HandleFunc(s.config.WebSocketPath, func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	})
 
 	// Playground (if enabled)
 	if s.config.PlaygroundEnabled {
@@ -148,14 +158,6 @@ func (s *Server) Handler() http.Handler {
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprintf(w, `{"status":"healthy","service":"graphql"}`)
 	})
-
-	// Mount external handlers
-	if s.config.ExternalHandlers != nil {
-		for pattern, handler := range s.config.ExternalHandlers {
-			mux.Handle(pattern, handler)
-			log.Printf("Mounted external handler at %s", pattern)
-		}
-	}
 
 	return mux
 }
@@ -187,34 +189,378 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return s.server.Shutdown(ctx)
 }
 
-// corsMiddleware adds CORS headers.
+// corsMiddleware enforces an exact browser origin allowlist. Requests without
+// Origin remain valid for non-browser clients and health tooling.
 func corsMiddleware(next http.Handler, allowedOrigins []string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
-		allowed := false
-
-		for _, o := range allowedOrigins {
-			if o == "*" || o == origin {
-				allowed = true
-				break
-			}
+		w.Header().Add("Vary", "Origin")
+		if origin != "" && !originAllowed(origin, allowedOrigins) {
+			http.Error(w, "origin is not allowed", http.StatusForbidden)
+			return
 		}
-
-		if allowed {
+		if origin != "" {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
-		} else if len(allowedOrigins) > 0 {
-			w.Header().Set("Access-Control-Allow-Origin", allowedOrigins[0])
 		}
-
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Authorization")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
+			if r.Header.Get("Access-Control-Request-Method") != http.MethodPost {
+				http.Error(w, "CORS method is not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+			w.Header().Set("Access-Control-Max-Age", "600")
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 
 		next.ServeHTTP(w, r)
+	})
+}
+
+func validateServerConfig(config *ServerConfig) error {
+	if config.Authenticator == nil {
+		return fmt.Errorf("GraphQL authenticator is required")
+	}
+	if config.MaxRequestBodyBytes <= 0 {
+		return fmt.Errorf("GraphQL request body limit must be positive")
+	}
+	if config.MaxDepth <= 0 {
+		return fmt.Errorf("GraphQL query depth limit must be positive")
+	}
+	if config.MaxComplexity <= 0 {
+		return fmt.Errorf("GraphQL query complexity limit must be positive")
+	}
+	if config.Timeout <= 0 {
+		return fmt.Errorf("GraphQL request timeout must be positive")
+	}
+	if len(config.AllowedOrigins) == 0 {
+		return fmt.Errorf("at least one explicit GraphQL origin is required")
+	}
+	seen := make(map[string]struct{}, len(config.AllowedOrigins))
+	for _, origin := range config.AllowedOrigins {
+		if err := validateOrigin(origin); err != nil {
+			return err
+		}
+		if _, duplicate := seen[origin]; duplicate {
+			return fmt.Errorf("GraphQL origin %q is duplicated", origin)
+		}
+		seen[origin] = struct{}{}
+	}
+	paths := map[string]string{
+		"GraphQL HTTP":      config.Path,
+		"GraphQL WebSocket": config.WebSocketPath,
+	}
+	if config.PlaygroundEnabled {
+		paths["GraphQL Playground"] = config.PlaygroundPath
+	}
+	seenPaths := map[string]string{"/health": "health"}
+	for name, configuredPath := range paths {
+		if err := validateServeMuxPath(name, configuredPath); err != nil {
+			return err
+		}
+		if previous, duplicate := seenPaths[configuredPath]; duplicate {
+			return fmt.Errorf("%s path %q conflicts with %s", name, configuredPath, previous)
+		}
+		seenPaths[configuredPath] = name
+	}
+	if config.Path == "/" || config.WebSocketPath == "/" {
+		return fmt.Errorf("GraphQL HTTP and WebSocket paths must not use the root catch-all")
+	}
+	return nil
+}
+
+func validateServeMuxPath(name, configuredPath string) error {
+	if configuredPath == "" || !strings.HasPrefix(configuredPath, "/") {
+		return fmt.Errorf("%s path %q must be an absolute URL path", name, configuredPath)
+	}
+	if configuredPath != "/" && strings.HasSuffix(configuredPath, "/") {
+		return fmt.Errorf("%s path %q must not be a subtree pattern", name, configuredPath)
+	}
+	if strings.Contains(configuredPath, "//") || strings.ContainsAny(configuredPath, "{}%?#\\") || strings.IndexFunc(configuredPath, func(r rune) bool {
+		return r <= ' ' || r == 0x7f
+	}) >= 0 {
+		return fmt.Errorf("%s path %q contains unsupported ServeMux syntax", name, configuredPath)
+	}
+	for _, segment := range strings.Split(configuredPath, "/") {
+		if segment == "." || segment == ".." {
+			return fmt.Errorf("%s path %q must be canonical", name, configuredPath)
+		}
+	}
+	return nil
+}
+
+func validateOrigin(origin string) error {
+	if origin == "" || origin == "*" || strings.TrimSpace(origin) != origin {
+		return fmt.Errorf("GraphQL origin %q is not explicit", origin)
+	}
+	parsed, err := url.Parse(origin)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return fmt.Errorf("GraphQL origin %q must contain only an http(s) scheme and authority", origin)
+	}
+	return nil
+}
+
+func originAllowed(origin string, allowedOrigins []string) bool {
+	if origin == "" {
+		return true
+	}
+	for _, allowed := range allowedOrigins {
+		if origin == allowed {
+			return true
+		}
+	}
+	return false
+}
+
+func graphqlHTTPMiddleware(next http.Handler, config *ServerConfig) http.Handler {
+	authenticated := authenticatedMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(io.LimitReader(r.Body, config.MaxRequestBodyBytes+1))
+		if err != nil {
+			http.Error(w, "unable to read GraphQL request", http.StatusBadRequest)
+			return
+		}
+		if int64(len(body)) > config.MaxRequestBodyBytes {
+			http.Error(w, "GraphQL request body is too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		if err := validateGraphQLJSONBody(body); err != nil {
+			http.Error(w, "invalid GraphQL JSON request", http.StatusBadRequest)
+			return
+		}
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		next.ServeHTTP(w, r)
+	}), config.Authenticator)
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", "POST, OPTIONS")
+			http.Error(w, "GraphQL requires POST", http.StatusMethodNotAllowed)
+			return
+		}
+		if r.URL.RawQuery != "" {
+			http.Error(w, "GraphQL query parameters are not allowed", http.StatusBadRequest)
+			return
+		}
+		if encoding := r.Header.Get("Content-Encoding"); encoding != "" && !strings.EqualFold(encoding, "identity") {
+			http.Error(w, "compressed GraphQL bodies are not supported", http.StatusUnsupportedMediaType)
+			return
+		}
+		mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+		if err != nil || mediaType != "application/json" {
+			http.Error(w, "GraphQL requires application/json", http.StatusUnsupportedMediaType)
+			return
+		}
+		authenticated.ServeHTTP(w, r)
+	})
+}
+
+type graphQLJSONEnvelope struct {
+	Query         json.RawMessage `json:"query"`
+	OperationName json.RawMessage `json:"operationName"`
+	Variables     json.RawMessage `json:"variables"`
+	Extensions    json.RawMessage `json:"extensions"`
+}
+
+func validateGraphQLJSONBody(body []byte) error {
+	if err := validateGraphQLJSONStructure(body); err != nil {
+		return err
+	}
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.DisallowUnknownFields()
+	var envelope graphQLJSONEnvelope
+	if err := decoder.Decode(&envelope); err != nil {
+		return err
+	}
+	if err := ensureJSONEOF(decoder); err != nil {
+		return err
+	}
+	if !isJSONString(envelope.Query, false) {
+		return fmt.Errorf("query must be a string")
+	}
+	var query string
+	if err := json.Unmarshal(envelope.Query, &query); err != nil {
+		return err
+	}
+	if _, err := parser.ParseQuery(&ast.Source{Input: query}); err != nil {
+		return err
+	}
+	if len(envelope.OperationName) > 0 && !isJSONString(envelope.OperationName, true) {
+		return fmt.Errorf("operationName must be a string or null")
+	}
+	if len(envelope.Variables) > 0 && !isJSONObject(envelope.Variables, true) {
+		return fmt.Errorf("variables must be an object or null")
+	}
+	if len(envelope.Extensions) > 0 && !isJSONObject(envelope.Extensions, true) {
+		return fmt.Errorf("extensions must be an object or null")
+	}
+	return nil
+}
+
+func validateGraphQLJSONStructure(body []byte) error {
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.UseNumber()
+	token, err := decoder.Token()
+	if err != nil {
+		return err
+	}
+	delimiter, ok := token.(json.Delim)
+	if !ok || delimiter != '{' {
+		return fmt.Errorf("GraphQL JSON request must be an object")
+	}
+	if err := consumeJSONObject(decoder, true); err != nil {
+		return err
+	}
+	if token, err := decoder.Token(); err != io.EOF {
+		if err == nil {
+			return fmt.Errorf("unexpected trailing JSON token %v", token)
+		}
+		return err
+	}
+	return nil
+}
+
+func consumeJSONObject(decoder *json.Decoder, topLevel bool) error {
+	allowedTopLevel := map[string]struct{}{
+		"query": {}, "operationName": {}, "variables": {}, "extensions": {},
+	}
+	seen := make(map[string]struct{})
+	for decoder.More() {
+		token, err := decoder.Token()
+		if err != nil {
+			return err
+		}
+		key, ok := token.(string)
+		if !ok {
+			return fmt.Errorf("JSON object member name must be a string")
+		}
+		if topLevel {
+			if _, allowed := allowedTopLevel[key]; !allowed {
+				return fmt.Errorf("unsupported GraphQL JSON member %q", key)
+			}
+		}
+		if _, duplicate := seen[key]; duplicate {
+			return fmt.Errorf("duplicate JSON member %q", key)
+		}
+		seen[key] = struct{}{}
+		if err := consumeJSONValue(decoder); err != nil {
+			return err
+		}
+	}
+	closing, err := decoder.Token()
+	if err != nil {
+		return err
+	}
+	if delimiter, ok := closing.(json.Delim); !ok || delimiter != '}' {
+		return fmt.Errorf("JSON object is not closed")
+	}
+	return nil
+}
+
+func consumeJSONValue(decoder *json.Decoder) error {
+	token, err := decoder.Token()
+	if err != nil {
+		return err
+	}
+	delimiter, composite := token.(json.Delim)
+	if !composite {
+		return nil
+	}
+	switch delimiter {
+	case '{':
+		return consumeJSONObject(decoder, false)
+	case '[':
+		for decoder.More() {
+			if err := consumeJSONValue(decoder); err != nil {
+				return err
+			}
+		}
+		closing, err := decoder.Token()
+		if err != nil {
+			return err
+		}
+		if end, ok := closing.(json.Delim); !ok || end != ']' {
+			return fmt.Errorf("JSON array is not closed")
+		}
+		return nil
+	default:
+		return fmt.Errorf("unexpected JSON delimiter %q", delimiter)
+	}
+}
+
+func catalogSafeErrorPresenter(ctx context.Context, err error) *gqlerror.Error {
+	presented := gqlgengraphql.DefaultErrorPresenter(ctx, err)
+
+	code, _ := presented.Extensions["code"].(string)
+	safeMessageByCode := map[string]string{
+		"UNAUTHENTICATED":            "authentication required",
+		"FORBIDDEN":                  "GraphQL operation forbidden",
+		"GRAPHQL_PARSE_FAILED":       "GraphQL request is invalid",
+		"GRAPHQL_VALIDATION_FAILED":  "GraphQL request is invalid",
+		"QUERY_DEPTH_LIMIT_EXCEEDED": "GraphQL operation exceeds configured limits",
+		"COMPLEXITY_LIMIT_EXCEEDED":  "GraphQL operation exceeds configured limits",
+	}
+	if message, ok := safeMessageByCode[code]; ok {
+		return &gqlerror.Error{Message: message, Extensions: map[string]any{"code": code}}
+	}
+
+	switch presented.Message {
+	case "authentication required",
+		"integration preview unavailable",
+		"integration preview forbidden",
+		"invalid integration preview request",
+		"integration preview payload too large",
+		"integration preview failed":
+		return &gqlerror.Error{Message: presented.Message}
+	default:
+		return &gqlerror.Error{Message: "GraphQL request failed"}
+	}
+}
+
+func ensureJSONEOF(decoder *json.Decoder) error {
+	var trailing json.RawMessage
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		if err == nil {
+			return fmt.Errorf("multiple JSON values are not allowed")
+		}
+		return err
+	}
+	return nil
+}
+
+func isJSONString(raw json.RawMessage, nullable bool) bool {
+	trimmed := bytes.TrimSpace(raw)
+	if nullable && bytes.Equal(trimmed, []byte("null")) {
+		return true
+	}
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return false
+	}
+	var value string
+	return json.Unmarshal(trimmed, &value) == nil
+}
+
+func isJSONObject(raw json.RawMessage, nullable bool) bool {
+	trimmed := bytes.TrimSpace(raw)
+	if nullable && bytes.Equal(trimmed, []byte("null")) {
+		return true
+	}
+	if len(trimmed) == 0 || trimmed[0] != '{' {
+		return false
+	}
+	var value map[string]json.RawMessage
+	return json.Unmarshal(trimmed, &value) == nil
+}
+
+func authenticatedMiddleware(next http.Handler, authenticator requestsecurity.Authenticator) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		security, err := authenticator.Authenticate(r.Context(), r.Header.Get("Authorization"))
+		if err != nil {
+			w.Header().Set("WWW-Authenticate", `Bearer realm="fi-fhir"`)
+			http.Error(w, "authentication required", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r.WithContext(requestsecurity.WithSecurityContext(r.Context(), security)))
 	})
 }

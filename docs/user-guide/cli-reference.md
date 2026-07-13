@@ -483,17 +483,30 @@ fi-fhir serve [options]
 
 | Option | Description |
 |--------|-------------|
-| `--host HOST` | Bind address (default: 0.0.0.0) |
-| `--port PORT` | Port number (default: 8080) |
-| `--tls-cert FILE` | TLS certificate file |
-| `--tls-key FILE` | TLS key file |
+| `--host HOST` | Bind address (default: `0.0.0.0`) |
+| `--port PORT` | Port number (default: `8081`) |
+| `--path PATH` | GraphQL path (default: `/graphql`) |
+| `--no-playground` | Disable the development Playground |
+| `--no-introspection` | Disable GraphQL introspection |
+| `--max-depth N` | Maximum query depth |
+| `--max-complexity N` | Maximum query complexity |
+| `--timeout DURATION` | HTTP read/write timeout |
+| `--dry-run` | Print the effective non-secret server configuration |
+
+Required environment:
+
+| Variable | Purpose |
+| --- | --- |
+| `FI_FHIR_DEPLOYMENT_TENANT_ID` | Tenant bound to the immutable registry |
+| `FI_FHIR_GRAPHQL_PRINCIPAL_ID` | Server-owned preview principal |
+| `FI_FHIR_GRAPHQL_ROLES` | Must include `integration:preview` |
+| `FI_FHIR_GRAPHQL_ALLOWED_ORIGINS` | Exact comma-separated browser origins |
+| `FI_FHIR_INTEGRATION_REGISTRY_PATH` | Startup registry JSON path |
+| `FI_FHIR_GRAPHQL_BEARER_TOKEN` or `_FILE` | Exactly one bearer source |
 
 ```bash
-# Start server
-fi-fhir serve --port 8080
-
-# With TLS
-fi-fhir serve --port 8443 --tls-cert cert.pem --tls-key key.pem
+# After exporting the required preview environment
+fi-fhir serve --port 8080 --no-playground --no-introspection
 ```
 
 ---

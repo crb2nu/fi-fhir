@@ -186,6 +186,7 @@ the server with PostgreSQL persistence in a single command:
 
 ```bash
 # Start everything
+export FI_FHIR_GRAPHQL_BEARER_TOKEN="$(openssl rand -hex 32)"
 make dev
 
 # Expected output:
@@ -194,7 +195,7 @@ make dev
 # Profile store: PostgreSQL
 # Event store: PostgreSQL
 # Workflow lifecycle store: PostgreSQL
-# GraphQL playground available at http://localhost:8081
+# Authenticated bounded GraphQL POST available at http://localhost:8081/graphql
 
 # When done
 make dev-down
@@ -256,10 +257,18 @@ The UI is available at http://localhost:5173
 
 ```bash
 # Start the API server
-./bin/fi-fhir serve --port 8081
+export FI_FHIR_DEPLOYMENT_TENANT_ID=tenant-a
+export FI_FHIR_GRAPHQL_BEARER_TOKEN="$(openssl rand -hex 32)"
+export FI_FHIR_GRAPHQL_PRINCIPAL_ID=local-operator
+export FI_FHIR_GRAPHQL_ROLES=integration:preview
+export FI_FHIR_GRAPHQL_ALLOWED_ORIGINS=http://localhost:5173
+export FI_FHIR_INTEGRATION_REGISTRY_PATH="$(git rev-parse --show-toplevel)/testdata/golden/integration/adt-http/preview-registry.json"
+./bin/fi-fhir serve --port 8081 --no-playground --no-introspection
 
 # Configure UI
-VITE_API_ORIGIN=http://localhost:8081 npm run dev
+VITE_API_ORIGIN=http://localhost:8081 \
+VITE_FI_FHIR_PREVIEW_INTEGRATION_ID=adt-east \
+npm run dev
 ```
 
 ## IDE Setup

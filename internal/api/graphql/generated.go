@@ -426,6 +426,12 @@ type ComplexityRoot struct {
 		Type             func(childComplexity int) int
 	}
 
+	IntegrationArtifactRevision struct {
+		ArtifactID func(childComplexity int) int
+		Digest     func(childComplexity int) int
+		RevisionID func(childComplexity int) int
+	}
+
 	IntegrationBundle struct {
 		Artifacts   func(childComplexity int) int
 		Diagnostics func(childComplexity int) int
@@ -434,6 +440,83 @@ type ComplexityRoot struct {
 		Samples     func(childComplexity int) int
 		Session     func(childComplexity int) int
 		SessionID   func(childComplexity int) int
+	}
+
+	IntegrationExecutionArtifactRevisions struct {
+		Profile  func(childComplexity int) int
+		Source   func(childComplexity int) int
+		Workflow func(childComplexity int) int
+	}
+
+	IntegrationPreviewCorrelations struct {
+		CorrelationID   func(childComplexity int) int
+		EventIDs        func(childComplexity int) int
+		SourceMessageID func(childComplexity int) int
+		TenantID        func(childComplexity int) int
+		TraceID         func(childComplexity int) int
+		WorkflowRunID   func(childComplexity int) int
+	}
+
+	IntegrationPreviewDelivery struct {
+		Action          func(childComplexity int) int
+		Destination     func(childComplexity int) int
+		DiagnosticCodes func(childComplexity int) int
+		EventID         func(childComplexity int) int
+		Route           func(childComplexity int) int
+		Status          func(childComplexity int) int
+		TenantID        func(childComplexity int) int
+	}
+
+	IntegrationPreviewDestination struct {
+		ArtifactID func(childComplexity int) int
+		Class      func(childComplexity int) int
+		Digest     func(childComplexity int) int
+		RevisionID func(childComplexity int) int
+	}
+
+	IntegrationPreviewDiagnostic struct {
+		Classification func(childComplexity int) int
+		Code           func(childComplexity int) int
+		Message        func(childComplexity int) int
+		Path           func(childComplexity int) int
+		Severity       func(childComplexity int) int
+		Source         func(childComplexity int) int
+		Stage          func(childComplexity int) int
+		TenantID       func(childComplexity int) int
+	}
+
+	IntegrationPreviewEvent struct {
+		Classification  func(childComplexity int) int
+		CorrelationID   func(childComplexity int) int
+		ID              func(childComplexity int) int
+		Payload         func(childComplexity int) int
+		SourceMessageID func(childComplexity int) int
+		TenantID        func(childComplexity int) int
+		Type            func(childComplexity int) int
+	}
+
+	IntegrationPreviewResult struct {
+		ArtifactRevisions   func(childComplexity int) int
+		Correlations        func(childComplexity int) int
+		Deliveries          func(childComplexity int) int
+		Diagnostics         func(childComplexity int) int
+		Events              func(childComplexity int) int
+		IntegrationRevision func(childComplexity int) int
+		Mode                func(childComplexity int) int
+		Routes              func(childComplexity int) int
+		TenantID            func(childComplexity int) int
+	}
+
+	IntegrationPreviewRoute struct {
+		DiagnosticCodes func(childComplexity int) int
+		EventID         func(childComplexity int) int
+		Matched         func(childComplexity int) int
+		PlannedActions  func(childComplexity int) int
+		Route           func(childComplexity int) int
+		SkipReason      func(childComplexity int) int
+		Skipped         func(childComplexity int) int
+		TenantID        func(childComplexity int) int
+		TransformCount  func(childComplexity int) int
 	}
 
 	IntegrationSession struct {
@@ -569,6 +652,7 @@ type ComplexityRoot struct {
 		ExportIntegrationBundle      func(childComplexity int, input model.ExportIntegrationBundleInput) int
 		GenerateWorkflow             func(childComplexity int, input model.GenerateWorkflowInput) int
 		PauseFhirSubscription        func(childComplexity int, id string) int
+		PreviewIntegrationMessage    func(childComplexity int, input model.PreviewIntegrationMessageInput) int
 		PublishWorkflowVersion       func(childComplexity int, input model.PublishWorkflowVersionInput) int
 		RejectPendingAutoroute       func(childComplexity int, input model.RejectPendingAutorouteInput) int
 		RejectWorkflowVersion        func(childComplexity int, input model.RejectWorkflowVersionInput) int
@@ -1198,6 +1282,7 @@ type ComplexityRoot struct {
 }
 
 type MutationResolver interface {
+	PreviewIntegrationMessage(ctx context.Context, input model.PreviewIntegrationMessageInput) (*model.IntegrationPreviewResult, error)
 	SubmitMessage(ctx context.Context, input model.SubmitMessageInput) (*model.SubmitResult, error)
 	SubmitEvent(ctx context.Context, input model.SubmitEventInput) (*model.SubmitResult, error)
 	SubmitBatch(ctx context.Context, input model.SubmitBatchInput) (*model.BatchResult, error)
@@ -2845,6 +2930,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.ImmunizationEvent.Type(childComplexity), true
 
+	case "IntegrationArtifactRevision.artifactId":
+		if e.complexity.IntegrationArtifactRevision.ArtifactID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationArtifactRevision.ArtifactID(childComplexity), true
+	case "IntegrationArtifactRevision.digest":
+		if e.complexity.IntegrationArtifactRevision.Digest == nil {
+			break
+		}
+
+		return e.complexity.IntegrationArtifactRevision.Digest(childComplexity), true
+	case "IntegrationArtifactRevision.revisionId":
+		if e.complexity.IntegrationArtifactRevision.RevisionID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationArtifactRevision.RevisionID(childComplexity), true
+
 	case "IntegrationBundle.artifacts":
 		if e.complexity.IntegrationBundle.Artifacts == nil {
 			break
@@ -2887,6 +2991,332 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.IntegrationBundle.SessionID(childComplexity), true
+
+	case "IntegrationExecutionArtifactRevisions.profile":
+		if e.complexity.IntegrationExecutionArtifactRevisions.Profile == nil {
+			break
+		}
+
+		return e.complexity.IntegrationExecutionArtifactRevisions.Profile(childComplexity), true
+	case "IntegrationExecutionArtifactRevisions.source":
+		if e.complexity.IntegrationExecutionArtifactRevisions.Source == nil {
+			break
+		}
+
+		return e.complexity.IntegrationExecutionArtifactRevisions.Source(childComplexity), true
+	case "IntegrationExecutionArtifactRevisions.workflow":
+		if e.complexity.IntegrationExecutionArtifactRevisions.Workflow == nil {
+			break
+		}
+
+		return e.complexity.IntegrationExecutionArtifactRevisions.Workflow(childComplexity), true
+
+	case "IntegrationPreviewCorrelations.correlationId":
+		if e.complexity.IntegrationPreviewCorrelations.CorrelationID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewCorrelations.CorrelationID(childComplexity), true
+	case "IntegrationPreviewCorrelations.eventIds":
+		if e.complexity.IntegrationPreviewCorrelations.EventIDs == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewCorrelations.EventIDs(childComplexity), true
+	case "IntegrationPreviewCorrelations.sourceMessageId":
+		if e.complexity.IntegrationPreviewCorrelations.SourceMessageID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewCorrelations.SourceMessageID(childComplexity), true
+	case "IntegrationPreviewCorrelations.tenantId":
+		if e.complexity.IntegrationPreviewCorrelations.TenantID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewCorrelations.TenantID(childComplexity), true
+	case "IntegrationPreviewCorrelations.traceId":
+		if e.complexity.IntegrationPreviewCorrelations.TraceID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewCorrelations.TraceID(childComplexity), true
+	case "IntegrationPreviewCorrelations.workflowRunId":
+		if e.complexity.IntegrationPreviewCorrelations.WorkflowRunID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewCorrelations.WorkflowRunID(childComplexity), true
+
+	case "IntegrationPreviewDelivery.action":
+		if e.complexity.IntegrationPreviewDelivery.Action == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewDelivery.Action(childComplexity), true
+	case "IntegrationPreviewDelivery.destination":
+		if e.complexity.IntegrationPreviewDelivery.Destination == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewDelivery.Destination(childComplexity), true
+	case "IntegrationPreviewDelivery.diagnosticCodes":
+		if e.complexity.IntegrationPreviewDelivery.DiagnosticCodes == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewDelivery.DiagnosticCodes(childComplexity), true
+	case "IntegrationPreviewDelivery.eventId":
+		if e.complexity.IntegrationPreviewDelivery.EventID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewDelivery.EventID(childComplexity), true
+	case "IntegrationPreviewDelivery.route":
+		if e.complexity.IntegrationPreviewDelivery.Route == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewDelivery.Route(childComplexity), true
+	case "IntegrationPreviewDelivery.status":
+		if e.complexity.IntegrationPreviewDelivery.Status == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewDelivery.Status(childComplexity), true
+	case "IntegrationPreviewDelivery.tenantId":
+		if e.complexity.IntegrationPreviewDelivery.TenantID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewDelivery.TenantID(childComplexity), true
+
+	case "IntegrationPreviewDestination.artifactId":
+		if e.complexity.IntegrationPreviewDestination.ArtifactID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewDestination.ArtifactID(childComplexity), true
+	case "IntegrationPreviewDestination.class":
+		if e.complexity.IntegrationPreviewDestination.Class == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewDestination.Class(childComplexity), true
+	case "IntegrationPreviewDestination.digest":
+		if e.complexity.IntegrationPreviewDestination.Digest == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewDestination.Digest(childComplexity), true
+	case "IntegrationPreviewDestination.revisionId":
+		if e.complexity.IntegrationPreviewDestination.RevisionID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewDestination.RevisionID(childComplexity), true
+
+	case "IntegrationPreviewDiagnostic.classification":
+		if e.complexity.IntegrationPreviewDiagnostic.Classification == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewDiagnostic.Classification(childComplexity), true
+	case "IntegrationPreviewDiagnostic.code":
+		if e.complexity.IntegrationPreviewDiagnostic.Code == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewDiagnostic.Code(childComplexity), true
+	case "IntegrationPreviewDiagnostic.message":
+		if e.complexity.IntegrationPreviewDiagnostic.Message == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewDiagnostic.Message(childComplexity), true
+	case "IntegrationPreviewDiagnostic.path":
+		if e.complexity.IntegrationPreviewDiagnostic.Path == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewDiagnostic.Path(childComplexity), true
+	case "IntegrationPreviewDiagnostic.severity":
+		if e.complexity.IntegrationPreviewDiagnostic.Severity == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewDiagnostic.Severity(childComplexity), true
+	case "IntegrationPreviewDiagnostic.source":
+		if e.complexity.IntegrationPreviewDiagnostic.Source == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewDiagnostic.Source(childComplexity), true
+	case "IntegrationPreviewDiagnostic.stage":
+		if e.complexity.IntegrationPreviewDiagnostic.Stage == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewDiagnostic.Stage(childComplexity), true
+	case "IntegrationPreviewDiagnostic.tenantId":
+		if e.complexity.IntegrationPreviewDiagnostic.TenantID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewDiagnostic.TenantID(childComplexity), true
+
+	case "IntegrationPreviewEvent.classification":
+		if e.complexity.IntegrationPreviewEvent.Classification == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewEvent.Classification(childComplexity), true
+	case "IntegrationPreviewEvent.correlationId":
+		if e.complexity.IntegrationPreviewEvent.CorrelationID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewEvent.CorrelationID(childComplexity), true
+	case "IntegrationPreviewEvent.id":
+		if e.complexity.IntegrationPreviewEvent.ID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewEvent.ID(childComplexity), true
+	case "IntegrationPreviewEvent.payload":
+		if e.complexity.IntegrationPreviewEvent.Payload == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewEvent.Payload(childComplexity), true
+	case "IntegrationPreviewEvent.sourceMessageId":
+		if e.complexity.IntegrationPreviewEvent.SourceMessageID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewEvent.SourceMessageID(childComplexity), true
+	case "IntegrationPreviewEvent.tenantId":
+		if e.complexity.IntegrationPreviewEvent.TenantID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewEvent.TenantID(childComplexity), true
+	case "IntegrationPreviewEvent.type":
+		if e.complexity.IntegrationPreviewEvent.Type == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewEvent.Type(childComplexity), true
+
+	case "IntegrationPreviewResult.artifactRevisions":
+		if e.complexity.IntegrationPreviewResult.ArtifactRevisions == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewResult.ArtifactRevisions(childComplexity), true
+	case "IntegrationPreviewResult.correlations":
+		if e.complexity.IntegrationPreviewResult.Correlations == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewResult.Correlations(childComplexity), true
+	case "IntegrationPreviewResult.deliveries":
+		if e.complexity.IntegrationPreviewResult.Deliveries == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewResult.Deliveries(childComplexity), true
+	case "IntegrationPreviewResult.diagnostics":
+		if e.complexity.IntegrationPreviewResult.Diagnostics == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewResult.Diagnostics(childComplexity), true
+	case "IntegrationPreviewResult.events":
+		if e.complexity.IntegrationPreviewResult.Events == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewResult.Events(childComplexity), true
+	case "IntegrationPreviewResult.integrationRevision":
+		if e.complexity.IntegrationPreviewResult.IntegrationRevision == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewResult.IntegrationRevision(childComplexity), true
+	case "IntegrationPreviewResult.mode":
+		if e.complexity.IntegrationPreviewResult.Mode == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewResult.Mode(childComplexity), true
+	case "IntegrationPreviewResult.routes":
+		if e.complexity.IntegrationPreviewResult.Routes == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewResult.Routes(childComplexity), true
+	case "IntegrationPreviewResult.tenantId":
+		if e.complexity.IntegrationPreviewResult.TenantID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewResult.TenantID(childComplexity), true
+
+	case "IntegrationPreviewRoute.diagnosticCodes":
+		if e.complexity.IntegrationPreviewRoute.DiagnosticCodes == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewRoute.DiagnosticCodes(childComplexity), true
+	case "IntegrationPreviewRoute.eventId":
+		if e.complexity.IntegrationPreviewRoute.EventID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewRoute.EventID(childComplexity), true
+	case "IntegrationPreviewRoute.matched":
+		if e.complexity.IntegrationPreviewRoute.Matched == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewRoute.Matched(childComplexity), true
+	case "IntegrationPreviewRoute.plannedActions":
+		if e.complexity.IntegrationPreviewRoute.PlannedActions == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewRoute.PlannedActions(childComplexity), true
+	case "IntegrationPreviewRoute.route":
+		if e.complexity.IntegrationPreviewRoute.Route == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewRoute.Route(childComplexity), true
+	case "IntegrationPreviewRoute.skipReason":
+		if e.complexity.IntegrationPreviewRoute.SkipReason == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewRoute.SkipReason(childComplexity), true
+	case "IntegrationPreviewRoute.skipped":
+		if e.complexity.IntegrationPreviewRoute.Skipped == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewRoute.Skipped(childComplexity), true
+	case "IntegrationPreviewRoute.tenantId":
+		if e.complexity.IntegrationPreviewRoute.TenantID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewRoute.TenantID(childComplexity), true
+	case "IntegrationPreviewRoute.transformCount":
+		if e.complexity.IntegrationPreviewRoute.TransformCount == nil {
+			break
+		}
+
+		return e.complexity.IntegrationPreviewRoute.TransformCount(childComplexity), true
 
 	case "IntegrationSession.archived":
 		if e.complexity.IntegrationSession.Archived == nil {
@@ -3628,6 +4058,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.PauseFhirSubscription(childComplexity, args["id"].(string)), true
+	case "Mutation.previewIntegrationMessage":
+		if e.complexity.Mutation.PreviewIntegrationMessage == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_previewIntegrationMessage_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.PreviewIntegrationMessage(childComplexity, args["input"].(model.PreviewIntegrationMessageInput)), true
 	case "Mutation.publishWorkflowVersion":
 		if e.complexity.Mutation.PublishWorkflowVersion == nil {
 			break
@@ -6759,6 +7200,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputPagingInput,
 		ec.unmarshalInputParseWarningInput,
 		ec.unmarshalInputPatientFilter,
+		ec.unmarshalInputPreviewIntegrationMessageInput,
 		ec.unmarshalInputPublishWorkflowVersionInput,
 		ec.unmarshalInputRejectPendingAutorouteInput,
 		ec.unmarshalInputRejectWorkflowVersionInput,
@@ -7237,6 +7679,17 @@ func (ec *executionContext) field_Mutation_pauseFhirSubscription_args(ctx contex
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_previewIntegrationMessage_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNPreviewIntegrationMessageInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPreviewIntegrationMessageInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -15957,6 +16410,93 @@ func (ec *executionContext) fieldContext_ImmunizationEvent_administeredDate(_ co
 	return fc, nil
 }
 
+func (ec *executionContext) _IntegrationArtifactRevision_artifactId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationArtifactRevision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationArtifactRevision_artifactId,
+		func(ctx context.Context) (any, error) {
+			return obj.ArtifactID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationArtifactRevision_artifactId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationArtifactRevision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationArtifactRevision_revisionId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationArtifactRevision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationArtifactRevision_revisionId,
+		func(ctx context.Context) (any, error) {
+			return obj.RevisionID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationArtifactRevision_revisionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationArtifactRevision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationArtifactRevision_digest(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationArtifactRevision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationArtifactRevision_digest,
+		func(ctx context.Context) (any, error) {
+			return obj.Digest, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationArtifactRevision_digest(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationArtifactRevision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _IntegrationBundle_sessionId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationBundle) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -16265,6 +16805,1677 @@ func (ec *executionContext) fieldContext_IntegrationBundle_diagnostics(_ context
 				return ec.fieldContext_SessionDiagnostic_lineage(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type SessionDiagnostic", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationExecutionArtifactRevisions_source(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationExecutionArtifactRevisions) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationExecutionArtifactRevisions_source,
+		func(ctx context.Context) (any, error) {
+			return obj.Source, nil
+		},
+		nil,
+		ec.marshalNIntegrationArtifactRevision2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationArtifactRevision,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationExecutionArtifactRevisions_source(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationExecutionArtifactRevisions",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "artifactId":
+				return ec.fieldContext_IntegrationArtifactRevision_artifactId(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_IntegrationArtifactRevision_revisionId(ctx, field)
+			case "digest":
+				return ec.fieldContext_IntegrationArtifactRevision_digest(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationArtifactRevision", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationExecutionArtifactRevisions_profile(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationExecutionArtifactRevisions) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationExecutionArtifactRevisions_profile,
+		func(ctx context.Context) (any, error) {
+			return obj.Profile, nil
+		},
+		nil,
+		ec.marshalNIntegrationArtifactRevision2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationArtifactRevision,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationExecutionArtifactRevisions_profile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationExecutionArtifactRevisions",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "artifactId":
+				return ec.fieldContext_IntegrationArtifactRevision_artifactId(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_IntegrationArtifactRevision_revisionId(ctx, field)
+			case "digest":
+				return ec.fieldContext_IntegrationArtifactRevision_digest(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationArtifactRevision", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationExecutionArtifactRevisions_workflow(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationExecutionArtifactRevisions) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationExecutionArtifactRevisions_workflow,
+		func(ctx context.Context) (any, error) {
+			return obj.Workflow, nil
+		},
+		nil,
+		ec.marshalNIntegrationArtifactRevision2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationArtifactRevision,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationExecutionArtifactRevisions_workflow(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationExecutionArtifactRevisions",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "artifactId":
+				return ec.fieldContext_IntegrationArtifactRevision_artifactId(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_IntegrationArtifactRevision_revisionId(ctx, field)
+			case "digest":
+				return ec.fieldContext_IntegrationArtifactRevision_digest(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationArtifactRevision", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewCorrelations_tenantId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewCorrelations) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewCorrelations_tenantId,
+		func(ctx context.Context) (any, error) {
+			return obj.TenantID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewCorrelations_tenantId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewCorrelations",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewCorrelations_correlationId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewCorrelations) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewCorrelations_correlationId,
+		func(ctx context.Context) (any, error) {
+			return obj.CorrelationID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewCorrelations_correlationId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewCorrelations",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewCorrelations_traceId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewCorrelations) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewCorrelations_traceId,
+		func(ctx context.Context) (any, error) {
+			return obj.TraceID, nil
+		},
+		nil,
+		ec.marshalOID2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewCorrelations_traceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewCorrelations",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewCorrelations_sourceMessageId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewCorrelations) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewCorrelations_sourceMessageId,
+		func(ctx context.Context) (any, error) {
+			return obj.SourceMessageID, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewCorrelations_sourceMessageId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewCorrelations",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewCorrelations_eventIds(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewCorrelations) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewCorrelations_eventIds,
+		func(ctx context.Context) (any, error) {
+			return obj.EventIDs, nil
+		},
+		nil,
+		ec.marshalNID2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewCorrelations_eventIds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewCorrelations",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewCorrelations_workflowRunId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewCorrelations) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewCorrelations_workflowRunId,
+		func(ctx context.Context) (any, error) {
+			return obj.WorkflowRunID, nil
+		},
+		nil,
+		ec.marshalOID2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewCorrelations_workflowRunId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewCorrelations",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewDelivery_tenantId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewDelivery) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewDelivery_tenantId,
+		func(ctx context.Context) (any, error) {
+			return obj.TenantID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewDelivery_tenantId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewDelivery",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewDelivery_eventId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewDelivery) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewDelivery_eventId,
+		func(ctx context.Context) (any, error) {
+			return obj.EventID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewDelivery_eventId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewDelivery",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewDelivery_destination(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewDelivery) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewDelivery_destination,
+		func(ctx context.Context) (any, error) {
+			return obj.Destination, nil
+		},
+		nil,
+		ec.marshalNIntegrationPreviewDestination2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationPreviewDestination,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewDelivery_destination(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewDelivery",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "artifactId":
+				return ec.fieldContext_IntegrationPreviewDestination_artifactId(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_IntegrationPreviewDestination_revisionId(ctx, field)
+			case "digest":
+				return ec.fieldContext_IntegrationPreviewDestination_digest(ctx, field)
+			case "class":
+				return ec.fieldContext_IntegrationPreviewDestination_class(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationPreviewDestination", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewDelivery_route(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewDelivery) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewDelivery_route,
+		func(ctx context.Context) (any, error) {
+			return obj.Route, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewDelivery_route(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewDelivery",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewDelivery_action(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewDelivery) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewDelivery_action,
+		func(ctx context.Context) (any, error) {
+			return obj.Action, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewDelivery_action(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewDelivery",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewDelivery_status(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewDelivery) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewDelivery_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewDelivery_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewDelivery",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewDelivery_diagnosticCodes(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewDelivery) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewDelivery_diagnosticCodes,
+		func(ctx context.Context) (any, error) {
+			return obj.DiagnosticCodes, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewDelivery_diagnosticCodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewDelivery",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewDestination_artifactId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewDestination) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewDestination_artifactId,
+		func(ctx context.Context) (any, error) {
+			return obj.ArtifactID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewDestination_artifactId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewDestination",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewDestination_revisionId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewDestination) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewDestination_revisionId,
+		func(ctx context.Context) (any, error) {
+			return obj.RevisionID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewDestination_revisionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewDestination",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewDestination_digest(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewDestination) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewDestination_digest,
+		func(ctx context.Context) (any, error) {
+			return obj.Digest, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewDestination_digest(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewDestination",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewDestination_class(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewDestination) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewDestination_class,
+		func(ctx context.Context) (any, error) {
+			return obj.Class, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewDestination_class(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewDestination",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewDiagnostic_tenantId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewDiagnostic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewDiagnostic_tenantId,
+		func(ctx context.Context) (any, error) {
+			return obj.TenantID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewDiagnostic_tenantId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewDiagnostic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewDiagnostic_severity(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewDiagnostic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewDiagnostic_severity,
+		func(ctx context.Context) (any, error) {
+			return obj.Severity, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewDiagnostic_severity(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewDiagnostic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewDiagnostic_stage(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewDiagnostic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewDiagnostic_stage,
+		func(ctx context.Context) (any, error) {
+			return obj.Stage, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewDiagnostic_stage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewDiagnostic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewDiagnostic_code(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewDiagnostic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewDiagnostic_code,
+		func(ctx context.Context) (any, error) {
+			return obj.Code, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewDiagnostic_code(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewDiagnostic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewDiagnostic_message(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewDiagnostic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewDiagnostic_message,
+		func(ctx context.Context) (any, error) {
+			return obj.Message, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewDiagnostic_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewDiagnostic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewDiagnostic_path(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewDiagnostic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewDiagnostic_path,
+		func(ctx context.Context) (any, error) {
+			return obj.Path, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewDiagnostic_path(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewDiagnostic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewDiagnostic_source(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewDiagnostic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewDiagnostic_source,
+		func(ctx context.Context) (any, error) {
+			return obj.Source, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewDiagnostic_source(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewDiagnostic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewDiagnostic_classification(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewDiagnostic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewDiagnostic_classification,
+		func(ctx context.Context) (any, error) {
+			return obj.Classification, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewDiagnostic_classification(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewDiagnostic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewEvent_tenantId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewEvent_tenantId,
+		func(ctx context.Context) (any, error) {
+			return obj.TenantID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewEvent_tenantId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewEvent_id(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewEvent_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewEvent_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewEvent_type(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewEvent_type,
+		func(ctx context.Context) (any, error) {
+			return obj.Type, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewEvent_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewEvent_sourceMessageId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewEvent_sourceMessageId,
+		func(ctx context.Context) (any, error) {
+			return obj.SourceMessageID, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewEvent_sourceMessageId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewEvent_correlationId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewEvent_correlationId,
+		func(ctx context.Context) (any, error) {
+			return obj.CorrelationID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewEvent_correlationId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewEvent_classification(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewEvent_classification,
+		func(ctx context.Context) (any, error) {
+			return obj.Classification, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewEvent_classification(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewEvent_payload(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewEvent_payload,
+		func(ctx context.Context) (any, error) {
+			return obj.Payload, nil
+		},
+		nil,
+		ec.marshalNJSON2map,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewEvent_payload(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type JSON does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewResult_mode(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewResult_mode,
+		func(ctx context.Context) (any, error) {
+			return obj.Mode, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewResult_mode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewResult_tenantId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewResult_tenantId,
+		func(ctx context.Context) (any, error) {
+			return obj.TenantID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewResult_tenantId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewResult_integrationRevision(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewResult_integrationRevision,
+		func(ctx context.Context) (any, error) {
+			return obj.IntegrationRevision, nil
+		},
+		nil,
+		ec.marshalNIntegrationArtifactRevision2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationArtifactRevision,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewResult_integrationRevision(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "artifactId":
+				return ec.fieldContext_IntegrationArtifactRevision_artifactId(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_IntegrationArtifactRevision_revisionId(ctx, field)
+			case "digest":
+				return ec.fieldContext_IntegrationArtifactRevision_digest(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationArtifactRevision", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewResult_artifactRevisions(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewResult_artifactRevisions,
+		func(ctx context.Context) (any, error) {
+			return obj.ArtifactRevisions, nil
+		},
+		nil,
+		ec.marshalNIntegrationExecutionArtifactRevisions2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationExecutionArtifactRevisions,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewResult_artifactRevisions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "source":
+				return ec.fieldContext_IntegrationExecutionArtifactRevisions_source(ctx, field)
+			case "profile":
+				return ec.fieldContext_IntegrationExecutionArtifactRevisions_profile(ctx, field)
+			case "workflow":
+				return ec.fieldContext_IntegrationExecutionArtifactRevisions_workflow(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationExecutionArtifactRevisions", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewResult_events(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewResult_events,
+		func(ctx context.Context) (any, error) {
+			return obj.Events, nil
+		},
+		nil,
+		ec.marshalNIntegrationPreviewEvent2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationPreviewEventᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewResult_events(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "tenantId":
+				return ec.fieldContext_IntegrationPreviewEvent_tenantId(ctx, field)
+			case "id":
+				return ec.fieldContext_IntegrationPreviewEvent_id(ctx, field)
+			case "type":
+				return ec.fieldContext_IntegrationPreviewEvent_type(ctx, field)
+			case "sourceMessageId":
+				return ec.fieldContext_IntegrationPreviewEvent_sourceMessageId(ctx, field)
+			case "correlationId":
+				return ec.fieldContext_IntegrationPreviewEvent_correlationId(ctx, field)
+			case "classification":
+				return ec.fieldContext_IntegrationPreviewEvent_classification(ctx, field)
+			case "payload":
+				return ec.fieldContext_IntegrationPreviewEvent_payload(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationPreviewEvent", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewResult_diagnostics(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewResult_diagnostics,
+		func(ctx context.Context) (any, error) {
+			return obj.Diagnostics, nil
+		},
+		nil,
+		ec.marshalNIntegrationPreviewDiagnostic2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationPreviewDiagnosticᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewResult_diagnostics(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "tenantId":
+				return ec.fieldContext_IntegrationPreviewDiagnostic_tenantId(ctx, field)
+			case "severity":
+				return ec.fieldContext_IntegrationPreviewDiagnostic_severity(ctx, field)
+			case "stage":
+				return ec.fieldContext_IntegrationPreviewDiagnostic_stage(ctx, field)
+			case "code":
+				return ec.fieldContext_IntegrationPreviewDiagnostic_code(ctx, field)
+			case "message":
+				return ec.fieldContext_IntegrationPreviewDiagnostic_message(ctx, field)
+			case "path":
+				return ec.fieldContext_IntegrationPreviewDiagnostic_path(ctx, field)
+			case "source":
+				return ec.fieldContext_IntegrationPreviewDiagnostic_source(ctx, field)
+			case "classification":
+				return ec.fieldContext_IntegrationPreviewDiagnostic_classification(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationPreviewDiagnostic", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewResult_routes(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewResult_routes,
+		func(ctx context.Context) (any, error) {
+			return obj.Routes, nil
+		},
+		nil,
+		ec.marshalNIntegrationPreviewRoute2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationPreviewRouteᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewResult_routes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "tenantId":
+				return ec.fieldContext_IntegrationPreviewRoute_tenantId(ctx, field)
+			case "eventId":
+				return ec.fieldContext_IntegrationPreviewRoute_eventId(ctx, field)
+			case "route":
+				return ec.fieldContext_IntegrationPreviewRoute_route(ctx, field)
+			case "matched":
+				return ec.fieldContext_IntegrationPreviewRoute_matched(ctx, field)
+			case "skipped":
+				return ec.fieldContext_IntegrationPreviewRoute_skipped(ctx, field)
+			case "skipReason":
+				return ec.fieldContext_IntegrationPreviewRoute_skipReason(ctx, field)
+			case "transformCount":
+				return ec.fieldContext_IntegrationPreviewRoute_transformCount(ctx, field)
+			case "plannedActions":
+				return ec.fieldContext_IntegrationPreviewRoute_plannedActions(ctx, field)
+			case "diagnosticCodes":
+				return ec.fieldContext_IntegrationPreviewRoute_diagnosticCodes(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationPreviewRoute", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewResult_deliveries(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewResult_deliveries,
+		func(ctx context.Context) (any, error) {
+			return obj.Deliveries, nil
+		},
+		nil,
+		ec.marshalNIntegrationPreviewDelivery2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationPreviewDeliveryᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewResult_deliveries(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "tenantId":
+				return ec.fieldContext_IntegrationPreviewDelivery_tenantId(ctx, field)
+			case "eventId":
+				return ec.fieldContext_IntegrationPreviewDelivery_eventId(ctx, field)
+			case "destination":
+				return ec.fieldContext_IntegrationPreviewDelivery_destination(ctx, field)
+			case "route":
+				return ec.fieldContext_IntegrationPreviewDelivery_route(ctx, field)
+			case "action":
+				return ec.fieldContext_IntegrationPreviewDelivery_action(ctx, field)
+			case "status":
+				return ec.fieldContext_IntegrationPreviewDelivery_status(ctx, field)
+			case "diagnosticCodes":
+				return ec.fieldContext_IntegrationPreviewDelivery_diagnosticCodes(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationPreviewDelivery", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewResult_correlations(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewResult_correlations,
+		func(ctx context.Context) (any, error) {
+			return obj.Correlations, nil
+		},
+		nil,
+		ec.marshalNIntegrationPreviewCorrelations2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationPreviewCorrelations,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewResult_correlations(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "tenantId":
+				return ec.fieldContext_IntegrationPreviewCorrelations_tenantId(ctx, field)
+			case "correlationId":
+				return ec.fieldContext_IntegrationPreviewCorrelations_correlationId(ctx, field)
+			case "traceId":
+				return ec.fieldContext_IntegrationPreviewCorrelations_traceId(ctx, field)
+			case "sourceMessageId":
+				return ec.fieldContext_IntegrationPreviewCorrelations_sourceMessageId(ctx, field)
+			case "eventIds":
+				return ec.fieldContext_IntegrationPreviewCorrelations_eventIds(ctx, field)
+			case "workflowRunId":
+				return ec.fieldContext_IntegrationPreviewCorrelations_workflowRunId(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationPreviewCorrelations", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewRoute_tenantId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewRoute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewRoute_tenantId,
+		func(ctx context.Context) (any, error) {
+			return obj.TenantID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewRoute_tenantId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewRoute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewRoute_eventId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewRoute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewRoute_eventId,
+		func(ctx context.Context) (any, error) {
+			return obj.EventID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewRoute_eventId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewRoute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewRoute_route(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewRoute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewRoute_route,
+		func(ctx context.Context) (any, error) {
+			return obj.Route, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewRoute_route(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewRoute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewRoute_matched(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewRoute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewRoute_matched,
+		func(ctx context.Context) (any, error) {
+			return obj.Matched, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewRoute_matched(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewRoute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewRoute_skipped(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewRoute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewRoute_skipped,
+		func(ctx context.Context) (any, error) {
+			return obj.Skipped, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewRoute_skipped(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewRoute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewRoute_skipReason(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewRoute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewRoute_skipReason,
+		func(ctx context.Context) (any, error) {
+			return obj.SkipReason, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewRoute_skipReason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewRoute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewRoute_transformCount(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewRoute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewRoute_transformCount,
+		func(ctx context.Context) (any, error) {
+			return obj.TransformCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewRoute_transformCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewRoute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewRoute_plannedActions(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewRoute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewRoute_plannedActions,
+		func(ctx context.Context) (any, error) {
+			return obj.PlannedActions, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewRoute_plannedActions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewRoute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationPreviewRoute_diagnosticCodes(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationPreviewRoute) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationPreviewRoute_diagnosticCodes,
+		func(ctx context.Context) (any, error) {
+			return obj.DiagnosticCodes, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationPreviewRoute_diagnosticCodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationPreviewRoute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -18588,6 +20799,67 @@ func (ec *executionContext) fieldContext_MessageClassification_summary(_ context
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_previewIntegrationMessage(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_previewIntegrationMessage,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().PreviewIntegrationMessage(ctx, fc.Args["input"].(model.PreviewIntegrationMessageInput))
+		},
+		nil,
+		ec.marshalNIntegrationPreviewResult2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationPreviewResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_previewIntegrationMessage(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "mode":
+				return ec.fieldContext_IntegrationPreviewResult_mode(ctx, field)
+			case "tenantId":
+				return ec.fieldContext_IntegrationPreviewResult_tenantId(ctx, field)
+			case "integrationRevision":
+				return ec.fieldContext_IntegrationPreviewResult_integrationRevision(ctx, field)
+			case "artifactRevisions":
+				return ec.fieldContext_IntegrationPreviewResult_artifactRevisions(ctx, field)
+			case "events":
+				return ec.fieldContext_IntegrationPreviewResult_events(ctx, field)
+			case "diagnostics":
+				return ec.fieldContext_IntegrationPreviewResult_diagnostics(ctx, field)
+			case "routes":
+				return ec.fieldContext_IntegrationPreviewResult_routes(ctx, field)
+			case "deliveries":
+				return ec.fieldContext_IntegrationPreviewResult_deliveries(ctx, field)
+			case "correlations":
+				return ec.fieldContext_IntegrationPreviewResult_correlations(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationPreviewResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_previewIntegrationMessage_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -38982,6 +41254,54 @@ func (ec *executionContext) unmarshalInputPatientFilter(ctx context.Context, obj
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputPreviewIntegrationMessageInput(ctx context.Context, obj any) (model.PreviewIntegrationMessageInput, error) {
+	var it model.PreviewIntegrationMessageInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"integrationId", "data", "correlationId", "reason"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "integrationId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("integrationId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IntegrationID = data
+		case "data":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("data"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Data = data
+		case "correlationId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("correlationId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CorrelationID = data
+		case "reason":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("reason"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Reason = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputPublishWorkflowVersionInput(ctx context.Context, obj any) (model.PublishWorkflowVersionInput, error) {
 	var it model.PublishWorkflowVersionInput
 	asMap := map[string]any{}
@@ -43012,6 +45332,55 @@ func (ec *executionContext) _ImmunizationEvent(ctx context.Context, sel ast.Sele
 	return out
 }
 
+var integrationArtifactRevisionImplementors = []string{"IntegrationArtifactRevision"}
+
+func (ec *executionContext) _IntegrationArtifactRevision(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationArtifactRevision) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationArtifactRevisionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationArtifactRevision")
+		case "artifactId":
+			out.Values[i] = ec._IntegrationArtifactRevision_artifactId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "revisionId":
+			out.Values[i] = ec._IntegrationArtifactRevision_revisionId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "digest":
+			out.Values[i] = ec._IntegrationArtifactRevision_digest(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var integrationBundleImplementors = []string{"IntegrationBundle"}
 
 func (ec *executionContext) _IntegrationBundle(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationBundle) graphql.Marshaler {
@@ -43055,6 +45424,522 @@ func (ec *executionContext) _IntegrationBundle(ctx context.Context, sel ast.Sele
 			}
 		case "diagnostics":
 			out.Values[i] = ec._IntegrationBundle_diagnostics(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var integrationExecutionArtifactRevisionsImplementors = []string{"IntegrationExecutionArtifactRevisions"}
+
+func (ec *executionContext) _IntegrationExecutionArtifactRevisions(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationExecutionArtifactRevisions) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationExecutionArtifactRevisionsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationExecutionArtifactRevisions")
+		case "source":
+			out.Values[i] = ec._IntegrationExecutionArtifactRevisions_source(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "profile":
+			out.Values[i] = ec._IntegrationExecutionArtifactRevisions_profile(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workflow":
+			out.Values[i] = ec._IntegrationExecutionArtifactRevisions_workflow(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var integrationPreviewCorrelationsImplementors = []string{"IntegrationPreviewCorrelations"}
+
+func (ec *executionContext) _IntegrationPreviewCorrelations(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationPreviewCorrelations) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationPreviewCorrelationsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationPreviewCorrelations")
+		case "tenantId":
+			out.Values[i] = ec._IntegrationPreviewCorrelations_tenantId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "correlationId":
+			out.Values[i] = ec._IntegrationPreviewCorrelations_correlationId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "traceId":
+			out.Values[i] = ec._IntegrationPreviewCorrelations_traceId(ctx, field, obj)
+		case "sourceMessageId":
+			out.Values[i] = ec._IntegrationPreviewCorrelations_sourceMessageId(ctx, field, obj)
+		case "eventIds":
+			out.Values[i] = ec._IntegrationPreviewCorrelations_eventIds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workflowRunId":
+			out.Values[i] = ec._IntegrationPreviewCorrelations_workflowRunId(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var integrationPreviewDeliveryImplementors = []string{"IntegrationPreviewDelivery"}
+
+func (ec *executionContext) _IntegrationPreviewDelivery(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationPreviewDelivery) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationPreviewDeliveryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationPreviewDelivery")
+		case "tenantId":
+			out.Values[i] = ec._IntegrationPreviewDelivery_tenantId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "eventId":
+			out.Values[i] = ec._IntegrationPreviewDelivery_eventId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "destination":
+			out.Values[i] = ec._IntegrationPreviewDelivery_destination(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "route":
+			out.Values[i] = ec._IntegrationPreviewDelivery_route(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "action":
+			out.Values[i] = ec._IntegrationPreviewDelivery_action(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._IntegrationPreviewDelivery_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "diagnosticCodes":
+			out.Values[i] = ec._IntegrationPreviewDelivery_diagnosticCodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var integrationPreviewDestinationImplementors = []string{"IntegrationPreviewDestination"}
+
+func (ec *executionContext) _IntegrationPreviewDestination(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationPreviewDestination) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationPreviewDestinationImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationPreviewDestination")
+		case "artifactId":
+			out.Values[i] = ec._IntegrationPreviewDestination_artifactId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "revisionId":
+			out.Values[i] = ec._IntegrationPreviewDestination_revisionId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "digest":
+			out.Values[i] = ec._IntegrationPreviewDestination_digest(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "class":
+			out.Values[i] = ec._IntegrationPreviewDestination_class(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var integrationPreviewDiagnosticImplementors = []string{"IntegrationPreviewDiagnostic"}
+
+func (ec *executionContext) _IntegrationPreviewDiagnostic(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationPreviewDiagnostic) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationPreviewDiagnosticImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationPreviewDiagnostic")
+		case "tenantId":
+			out.Values[i] = ec._IntegrationPreviewDiagnostic_tenantId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "severity":
+			out.Values[i] = ec._IntegrationPreviewDiagnostic_severity(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "stage":
+			out.Values[i] = ec._IntegrationPreviewDiagnostic_stage(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "code":
+			out.Values[i] = ec._IntegrationPreviewDiagnostic_code(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "message":
+			out.Values[i] = ec._IntegrationPreviewDiagnostic_message(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "path":
+			out.Values[i] = ec._IntegrationPreviewDiagnostic_path(ctx, field, obj)
+		case "source":
+			out.Values[i] = ec._IntegrationPreviewDiagnostic_source(ctx, field, obj)
+		case "classification":
+			out.Values[i] = ec._IntegrationPreviewDiagnostic_classification(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var integrationPreviewEventImplementors = []string{"IntegrationPreviewEvent"}
+
+func (ec *executionContext) _IntegrationPreviewEvent(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationPreviewEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationPreviewEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationPreviewEvent")
+		case "tenantId":
+			out.Values[i] = ec._IntegrationPreviewEvent_tenantId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "id":
+			out.Values[i] = ec._IntegrationPreviewEvent_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "type":
+			out.Values[i] = ec._IntegrationPreviewEvent_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sourceMessageId":
+			out.Values[i] = ec._IntegrationPreviewEvent_sourceMessageId(ctx, field, obj)
+		case "correlationId":
+			out.Values[i] = ec._IntegrationPreviewEvent_correlationId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "classification":
+			out.Values[i] = ec._IntegrationPreviewEvent_classification(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "payload":
+			out.Values[i] = ec._IntegrationPreviewEvent_payload(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var integrationPreviewResultImplementors = []string{"IntegrationPreviewResult"}
+
+func (ec *executionContext) _IntegrationPreviewResult(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationPreviewResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationPreviewResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationPreviewResult")
+		case "mode":
+			out.Values[i] = ec._IntegrationPreviewResult_mode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "tenantId":
+			out.Values[i] = ec._IntegrationPreviewResult_tenantId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "integrationRevision":
+			out.Values[i] = ec._IntegrationPreviewResult_integrationRevision(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "artifactRevisions":
+			out.Values[i] = ec._IntegrationPreviewResult_artifactRevisions(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "events":
+			out.Values[i] = ec._IntegrationPreviewResult_events(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "diagnostics":
+			out.Values[i] = ec._IntegrationPreviewResult_diagnostics(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "routes":
+			out.Values[i] = ec._IntegrationPreviewResult_routes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deliveries":
+			out.Values[i] = ec._IntegrationPreviewResult_deliveries(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "correlations":
+			out.Values[i] = ec._IntegrationPreviewResult_correlations(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var integrationPreviewRouteImplementors = []string{"IntegrationPreviewRoute"}
+
+func (ec *executionContext) _IntegrationPreviewRoute(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationPreviewRoute) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationPreviewRouteImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationPreviewRoute")
+		case "tenantId":
+			out.Values[i] = ec._IntegrationPreviewRoute_tenantId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "eventId":
+			out.Values[i] = ec._IntegrationPreviewRoute_eventId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "route":
+			out.Values[i] = ec._IntegrationPreviewRoute_route(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "matched":
+			out.Values[i] = ec._IntegrationPreviewRoute_matched(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "skipped":
+			out.Values[i] = ec._IntegrationPreviewRoute_skipped(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "skipReason":
+			out.Values[i] = ec._IntegrationPreviewRoute_skipReason(ctx, field, obj)
+		case "transformCount":
+			out.Values[i] = ec._IntegrationPreviewRoute_transformCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "plannedActions":
+			out.Values[i] = ec._IntegrationPreviewRoute_plannedActions(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "diagnosticCodes":
+			out.Values[i] = ec._IntegrationPreviewRoute_diagnosticCodes(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -43738,6 +46623,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Mutation")
+		case "previewIntegrationMessage":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_previewIntegrationMessage(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "submitMessage":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_submitMessage(ctx, field)
@@ -50436,6 +53328,36 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 	return res
 }
 
+func (ec *executionContext) unmarshalNID2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNID2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNID2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNID2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) marshalNIDPreferenceRule2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIDPreferenceRule(ctx context.Context, sel ast.SelectionSet, v model.IDPreferenceRule) graphql.Marshaler {
 	return ec._IDPreferenceRule(ctx, sel, &v)
 }
@@ -50557,6 +53479,10 @@ func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.Selecti
 	return res
 }
 
+func (ec *executionContext) marshalNIntegrationArtifactRevision2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationArtifactRevision(ctx context.Context, sel ast.SelectionSet, v model.IntegrationArtifactRevision) graphql.Marshaler {
+	return ec._IntegrationArtifactRevision(ctx, sel, &v)
+}
+
 func (ec *executionContext) marshalNIntegrationBundle2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationBundle(ctx context.Context, sel ast.SelectionSet, v model.IntegrationBundle) graphql.Marshaler {
 	return ec._IntegrationBundle(ctx, sel, &v)
 }
@@ -50569,6 +53495,224 @@ func (ec *executionContext) marshalNIntegrationBundle2ᚖgitlabᚗflexinferᚗai
 		return graphql.Null
 	}
 	return ec._IntegrationBundle(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNIntegrationExecutionArtifactRevisions2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationExecutionArtifactRevisions(ctx context.Context, sel ast.SelectionSet, v model.IntegrationExecutionArtifactRevisions) graphql.Marshaler {
+	return ec._IntegrationExecutionArtifactRevisions(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNIntegrationPreviewCorrelations2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationPreviewCorrelations(ctx context.Context, sel ast.SelectionSet, v model.IntegrationPreviewCorrelations) graphql.Marshaler {
+	return ec._IntegrationPreviewCorrelations(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNIntegrationPreviewDelivery2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationPreviewDelivery(ctx context.Context, sel ast.SelectionSet, v model.IntegrationPreviewDelivery) graphql.Marshaler {
+	return ec._IntegrationPreviewDelivery(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNIntegrationPreviewDelivery2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationPreviewDeliveryᚄ(ctx context.Context, sel ast.SelectionSet, v []model.IntegrationPreviewDelivery) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNIntegrationPreviewDelivery2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationPreviewDelivery(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNIntegrationPreviewDestination2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationPreviewDestination(ctx context.Context, sel ast.SelectionSet, v model.IntegrationPreviewDestination) graphql.Marshaler {
+	return ec._IntegrationPreviewDestination(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNIntegrationPreviewDiagnostic2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationPreviewDiagnostic(ctx context.Context, sel ast.SelectionSet, v model.IntegrationPreviewDiagnostic) graphql.Marshaler {
+	return ec._IntegrationPreviewDiagnostic(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNIntegrationPreviewDiagnostic2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationPreviewDiagnosticᚄ(ctx context.Context, sel ast.SelectionSet, v []model.IntegrationPreviewDiagnostic) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNIntegrationPreviewDiagnostic2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationPreviewDiagnostic(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNIntegrationPreviewEvent2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationPreviewEvent(ctx context.Context, sel ast.SelectionSet, v model.IntegrationPreviewEvent) graphql.Marshaler {
+	return ec._IntegrationPreviewEvent(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNIntegrationPreviewEvent2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationPreviewEventᚄ(ctx context.Context, sel ast.SelectionSet, v []model.IntegrationPreviewEvent) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNIntegrationPreviewEvent2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationPreviewEvent(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNIntegrationPreviewResult2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationPreviewResult(ctx context.Context, sel ast.SelectionSet, v model.IntegrationPreviewResult) graphql.Marshaler {
+	return ec._IntegrationPreviewResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNIntegrationPreviewResult2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationPreviewResult(ctx context.Context, sel ast.SelectionSet, v *model.IntegrationPreviewResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._IntegrationPreviewResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNIntegrationPreviewRoute2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationPreviewRoute(ctx context.Context, sel ast.SelectionSet, v model.IntegrationPreviewRoute) graphql.Marshaler {
+	return ec._IntegrationPreviewRoute(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNIntegrationPreviewRoute2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationPreviewRouteᚄ(ctx context.Context, sel ast.SelectionSet, v []model.IntegrationPreviewRoute) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNIntegrationPreviewRoute2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationPreviewRoute(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) marshalNIntegrationSession2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSession(ctx context.Context, sel ast.SelectionSet, v model.IntegrationSession) graphql.Marshaler {
@@ -51170,6 +54314,11 @@ func (ec *executionContext) unmarshalNPendingAutorouteStatus2gitlabᚗflexinfer�
 
 func (ec *executionContext) marshalNPendingAutorouteStatus2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPendingAutorouteStatus(ctx context.Context, sel ast.SelectionSet, v model.PendingAutorouteStatus) graphql.Marshaler {
 	return v
+}
+
+func (ec *executionContext) unmarshalNPreviewIntegrationMessageInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPreviewIntegrationMessageInput(ctx context.Context, v any) (model.PreviewIntegrationMessageInput, error) {
+	res, err := ec.unmarshalInputPreviewIntegrationMessageInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNProcedure2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐProcedure(ctx context.Context, sel ast.SelectionSet, v model.Procedure) graphql.Marshaler {

@@ -2,9 +2,11 @@
 
 This UI is built for fi-fhir’s GraphQL server and expects these same-origin endpoints:
 
-- `POST /graphql` (and `WS /graphql/ws`)
+- authenticated `POST /graphql`
 - `GET /health`
-- `GET/PUT /api/profiles/*` (profile YAML helpers)
+
+`/graphql/ws` and the legacy profile-YAML helper routes are unavailable in the
+authenticated preview phase.
 
 ## Local development (recommended)
 
@@ -13,7 +15,13 @@ This UI is built for fi-fhir’s GraphQL server and expects these same-origin en
 From the repo root:
 
 ```bash
-go run ./cmd/fi-fhir serve --port 8081
+export FI_FHIR_DEPLOYMENT_TENANT_ID=tenant-a
+export FI_FHIR_GRAPHQL_BEARER_TOKEN="$(openssl rand -hex 32)"
+export FI_FHIR_GRAPHQL_PRINCIPAL_ID=local-operator
+export FI_FHIR_GRAPHQL_ROLES=integration:preview
+export FI_FHIR_GRAPHQL_ALLOWED_ORIGINS=http://localhost:5173
+export FI_FHIR_INTEGRATION_REGISTRY_PATH="$PWD/testdata/golden/integration/adt-http/preview-registry.json"
+go run ./cmd/fi-fhir serve --port 8081 --no-playground --no-introspection
 ```
 
 Optional: build a binary first:
@@ -25,13 +33,18 @@ make build
 
 ### 2) Start the UI dev server (with API proxy)
 
-The UI dev server proxies `/graphql`, `/api`, and `/health` to `VITE_API_ORIGIN` (default: `http://localhost:8081`).
+The UI dev server proxies only `/graphql` and `/health` to `VITE_API_ORIGIN`
+(default: `http://localhost:8081`). Legacy `/api` profile-YAML calls fail locally
+during authenticated preview hardening.
 
 ```bash
 cd ui
 npm ci
-VITE_API_ORIGIN=http://localhost:8081 npm run dev
+VITE_FI_FHIR_PREVIEW_INTEGRATION_ID=adt-east VITE_API_ORIGIN=http://localhost:8081 npm run dev
 ```
+
+Paste the same bearer into the credential gate. The token and imported raw
+samples stay only in tab memory and are cleared on reload.
 
 ## Contract/codegen workflow
 
@@ -98,4 +111,4 @@ The production image bakes build metadata into the UI via build args:
 - `VITE_BUILD_SHA`
 - `VITE_BUILD_TAG`
 - `VITE_BUILD_TIME`
-
+- `VITE_FI_FHIR_PREVIEW_INTEGRATION_ID` (a public registry alias, never a credential)

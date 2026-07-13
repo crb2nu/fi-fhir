@@ -1,6 +1,8 @@
 package resolvers
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -13,16 +15,27 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/projections"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/store"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/fhir/subscription"
+	integrationpreview "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/preview"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/explain"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/extract"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/quality"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/terminology/autoroute"
 	termworkflow "gitlab.flexinfer.ai/libs/fi-fhir/internal/terminology/workflow"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/workflow"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm/copilot"
 	termdb "gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/db"
 )
+
+// ErrLegacyExecutionUnavailable keeps direct parser/store/action and retained
+// session paths unreachable until they are rebuilt on the shared runtime spine.
+var ErrLegacyExecutionUnavailable = errors.New("legacy integration execution is unavailable")
+
+// enableLegacyUnsafeExecutionForTests is nil outside this package's test binary.
+// It preserves focused coverage of superseded helpers without an exported or
+// production-reachable opt-in.
+var enableLegacyUnsafeExecutionForTests func(*Resolver)
 
 // This file will not be regenerated automatically.
 //
@@ -44,6 +57,11 @@ type SubscriptionRecord struct {
 type workflowSubscriber struct {
 	ch           chan *model.WorkflowEventNotification
 	workflowName string // empty means all workflows
+}
+
+// IntegrationPreviewService is the only runtime semantic path exposed to the IDE.
+type IntegrationPreviewService interface {
+	Preview(ctx context.Context, security integration.SecurityContext, input integrationpreview.Input) (integration.ProcessResult, error)
 }
 
 // Resolver is the root resolver for the GraphQL API.
@@ -118,6 +136,13 @@ type Resolver struct {
 	// Integration sessions back the Mapping Studio session workspace.
 	integrationSessions *integrationSessionService
 
+	// IntegrationPreview evaluates stateless previews through MessageProcessor.
+	IntegrationPreview IntegrationPreviewService
+
+	// False in every production composition. Superseded helper tests opt in
+	// directly so the public server remains fail-closed by default.
+	legacyUnsafeExecution bool
+
 	// Server metadata
 	Version   string
 	StartTime time.Time
@@ -147,6 +172,9 @@ func NewResolver(opts ...ResolverOption) *Resolver {
 
 	for _, opt := range opts {
 		opt(r)
+	}
+	if enableLegacyUnsafeExecutionForTests != nil {
+		enableLegacyUnsafeExecutionForTests(r)
 	}
 
 	return r
@@ -194,6 +222,13 @@ func WithProjectionService(p *projections.Service) ResolverOption {
 func WithProfileStore(s store.ProfileStore) ResolverOption {
 	return func(r *Resolver) {
 		r.ProfileStore = s
+	}
+}
+
+// WithPreviewService installs the authenticated, stateless preview adapter.
+func WithPreviewService(service IntegrationPreviewService) ResolverOption {
+	return func(r *Resolver) {
+		r.IntegrationPreview = service
 	}
 }
 

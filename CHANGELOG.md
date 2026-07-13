@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Strict published-workflow DSL v1 parser and pure CEL route planner with bounded YAML resources, closed action types, safe diagnostics, stable action identity, and no execution-capable dependencies
 - Strict executable Source Profile compiler plus one-message HL7v2 validation, standards-correct DTM offsets and precision, source-time precedence, and deterministic event identity
 - Blocking PostgreSQL preview-kernel proof that reconstructs fresh stores after v2 publication while preserving byte-identical v1 behavior and exact v2 semantics
+- One typed `previewIntegrationMessage` adapter backed by a strict server-owned
+  integration registry and the canonical `MessageProcessor`, plus a Mapping
+  Studio credential gate that keeps the bearer and raw samples in tab memory
 - Supported 1.0 target matrix with a pinned Kubernetes 1.36 minor and explicit remaining release-evidence gates
 
 #### Format Adapters
@@ -211,6 +214,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   silently skipped records. The calibrated benchmark job is now blocking.
 
 ### Security
+- GraphQL now fails startup closed without a deployment tenant, principal,
+  preview role, exact HTTP origins, one canonical bearer secret, and a matching
+  immutable integration registry. HTTP accepts only bounded JSON POST requests;
+  WebSocket transport is unmounted and UI subscription consumers fail locally.
+- GraphQL rejects duplicate, case-aliased, malformed, wrongly typed, or trailing
+  JSON before gqlgen and presents catalog-safe errors without reflecting raw
+  request/query content. nginx and Kubernetes ingress stream bounded request
+  bodies without proxy temp-file buffering.
+- The `integration:preview` role can invoke only `health` and
+  `previewIntegrationMessage`. Legacy submit, batch, workflow-trigger, parse,
+  session execution/raw retention, export, and live-parse paths are unavailable
+  by default. Profile-YAML and unauthenticated generic-ingest HTTP bypasses are
+  no longer mounted by `serve`; canonical UI and cluster proxies expose no
+  legacy `/api` fallback.
+- Mapping Studio preview now compiles its public registry alias through the
+  Vite environment namespace, validates complete tenant/provenance/correlation
+  lineage, keeps raw samples and filename-derived labels in tab memory, and
+  purges their two legacy localStorage keys during startup.
 - Security evidence is now enforced: govulncheck, high-confidence/high-severity
   gosec, Trivy filesystem critical/secret checks, UI and TypeScript SDK npm
   audits, pinned go-licenses policy checks, and both runtime image scans are

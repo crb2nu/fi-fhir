@@ -12,8 +12,8 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ENV_EXAMPLE="${ROOT}/.env.example"
-FULL_STACK_ENV="${ROOT}/configs/full-stack.env"
 NGINX_CONF="${ROOT}/ui/nginx/default.conf.template"
+VITE_CONF="${ROOT}/ui/vite.config.ts"
 passed=0
 warned=0
 
@@ -72,10 +72,20 @@ echo "─── Proxy Config ───"
 if [ -f "$NGINX_CONF" ]; then
   check "nginx proxies /graphql" grep -q '/graphql' "$NGINX_CONF"
   check "nginx proxies /health"  grep -q '/health'  "$NGINX_CONF"
-  check "nginx WS upgrade"      grep -q -i 'upgrade' "$NGINX_CONF"
+  check "nginx disables WebSocket" grep -q 'location = /graphql/ws' "$NGINX_CONF"
+  check "nginx avoids request buffering" grep -q 'proxy_request_buffering off' "$NGINX_CONF"
+  check "nginx does not forward upgrades" bash -c "! grep -q 'proxy_set_header Upgrade' '$NGINX_CONF'"
+  check "nginx does not proxy legacy /api" bash -c "! grep -q 'location /api' '$NGINX_CONF'"
+  check "nginx rejects legacy /api root" grep -Fq 'location = /api {' "$NGINX_CONF"
+  check "nginx rejects legacy /api subtree" grep -Fq 'location ^~ /api/ {' "$NGINX_CONF"
 else
   echo "  [nginx conf] ... ⚠ $NGINX_CONF not found"
   ((warned++))
+fi
+
+if [ -f "$VITE_CONF" ]; then
+  check "Vite does not proxy legacy /api" bash -c "! grep -q \"'/api'\" '$VITE_CONF'"
+  check "Vite does not enable WebSocket proxying" bash -c "! grep -q 'ws: true' '$VITE_CONF'"
 fi
 
 # --------------------------------------------------------------------------
@@ -88,6 +98,11 @@ echo "  The following env vars control proxy/runtime behavior:"
 echo ""
 echo "  FI_FHIR_ADDR            Listen address for serve command (default :8080)"
 echo "  FI_FHIR_UI_API_ORIGIN   Backend origin for UI reverse proxy"
+echo "  VITE_FI_FHIR_PREVIEW_INTEGRATION_ID Public preview registry alias"
+echo "  FI_FHIR_DEPLOYMENT_TENANT_ID Preview deployment tenant"
+echo "  FI_FHIR_GRAPHQL_BEARER_TOKEN or _FILE  Preview credential source"
+echo "  FI_FHIR_GRAPHQL_ALLOWED_ORIGINS Exact browser origins"
+echo "  FI_FHIR_INTEGRATION_REGISTRY_PATH Immutable preview registry"
 echo "  FI_FHIR_DATABASE_URL    PostgreSQL connection string"
 echo "  FI_FHIR_DATABASE_HOST   PostgreSQL host (alternative to URL)"
 echo "  FI_FHIR_DATABASE_NAME   PostgreSQL database name"

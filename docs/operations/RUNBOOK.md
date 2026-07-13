@@ -142,6 +142,53 @@ helm upgrade fi-fhir deploy/helm/fi-fhir/ \
   --reuse-values
 ```
 
+### Authenticated Preview Access
+
+`fi-fhir serve` fails startup closed unless all preview inputs are present:
+
+- deployment tenant and server-owned principal IDs;
+- roles containing `integration:preview`;
+- one or more comma-separated exact HTTP(S) origins;
+- exactly one bearer source with at least 24 canonical bytes; and
+- an immutable integration registry for the same deployment tenant.
+
+Use `FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE` for production. The direct
+`FI_FHIR_GRAPHQL_BEARER_TOKEN` variable is intended for local development.
+Never set both.
+
+To copy a Helm-managed token into the macOS clipboard without writing it to
+terminal output, shell history, or a temporary file:
+
+```bash
+NAMESPACE=fi-fhir
+SECRET_NAME=fi-fhir
+kubectl --namespace "$NAMESPACE" get secret "$SECRET_NAME" \
+  -o jsonpath='{.data.graphql-bearer-token}' | base64 --decode | pbcopy
+unset NAMESPACE SECRET_NAME
+```
+
+Adjust `SECRET_NAME` when the Helm release fullname differs. Paste the value
+into the Mapping Studio credential gate, then clear the clipboard. The UI holds
+the bearer only in tab memory and clears it on reload or **Clear access**. Raw
+HL7 samples are also tab-memory only and disappear on reload.
+
+The transitional `integration:preview` role can call only GraphQL `health` and
+`previewIntegrationMessage`. A successful credential does not unlock legacy
+submit, workflow execution, session retention/export, or subscriptions. Those
+paths remain unavailable until their production security and durability
+boundaries ship.
+
+When preview startup fails, inspect only catalog-safe logs:
+
+```bash
+kubectl -n fi-fhir logs deployment/fi-fhir --tail=100 | \
+  grep -E 'GraphQL|integration registry|deployment tenant'
+```
+
+Do not log, echo, or add the bearer or raw clinical message to an incident
+ticket. Validate exact origins, registry tenant/digests, secret mount, and role
+configuration before rotating the credential.
+
 ### Deployment
 
 **Rolling update**:

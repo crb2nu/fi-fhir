@@ -107,7 +107,7 @@ and the live v1-after-v2 kill-test passes.
 MR !94 and required pipeline 18533 passed that boundary; post-merge main
 pipeline 18542 passed all 33 jobs, including the isolated PostgreSQL proof.
 
-### Slice 1.1b: canonical MessageProcessor preview semantics — proving
+### Slice 1.1b: canonical MessageProcessor preview semantics — complete locally
 
 Introduce a small application service—not another parser abstraction—that owns:
 
@@ -127,18 +127,29 @@ Acceptance:
 - Raw payload, parser text, workflow configuration, secrets, and executable
   clients are absent from the result and processor boundary.
 
-### Slice 1.1c: authenticated preview adapters and legacy containment
+### Slice 1.1c: authenticated preview adapters and legacy containment — complete locally
 
-- Establish one authenticated tenant/principal request context for the GraphQL
-  and IDE boundary before it can call the processor.
-- Require POST for raw clinical payloads, enforce an explicit HTTP/WebSocket
-  origin allowlist, bounded bodies, and no credentialed wildcard/reflection.
-- Route GraphQL and Integration Session preview through the exact 1.1b kernel;
-  remove raw sample/run persistence from the canonical preview path.
+- Establish one deployment-owned tenant/principal request context before the
+  GraphQL and IDE boundary can call the processor.
+- Require POST for raw clinical payloads, enforce an explicit HTTP origin
+  allowlist and bounded bodies, and leave WebSocket transport unmounted.
+- Route GraphQL and the former Integration Session preview client through one
+  typed `previewIntegrationMessage` mutation and the exact 1.1b kernel.
+- Hold the browser bearer, raw samples, and filename-derived source labels only
+  in tab memory. Reload discards all three; **Clear access** discards the
+  bearer. Purge the two legacy localStorage keys on startup. No preview path
+  writes raw sample/run state.
 - Fail legacy direct submit/session execution closed. Production GraphQL submit
   remains unavailable until Slice 1.2 supplies the durable committer.
+- Restrict the temporary `integration:preview` role to `health` and
+  `previewIntegrationMessage`; it cannot use the legacy GraphQL catalog.
 - Prove adapter/kernel parity and wrong-tenant/origin/method/body rejection with
   transport-level tests before any IDE activation.
+
+Local exit evidence is recorded in
+`.loom/iteration-plan-phase-1-slice-1-1c-authenticated-preview-adapters.md`.
+MR, default-branch pipeline, image, and live rollout evidence remain pending
+until the combined 1.1b/1.1c working tree ships.
 
 ### Slice 1.2: durable receipt and idempotency
 

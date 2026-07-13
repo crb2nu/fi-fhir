@@ -7,3 +7,5 @@ metadata:
 data:
   workflow.yaml: |
     {{- .Values.workflowConfig | nindent 4 }}
+  registry.json: |
+    {{- .Values.previewRegistry | nindent 4 }}

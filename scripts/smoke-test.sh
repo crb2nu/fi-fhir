@@ -2,12 +2,12 @@
 # smoke-test.sh — Verify core fi-fhir runtime endpoint reachability.
 #
 # Usage:
-#   BASE_URL=http://localhost:8080 bash scripts/smoke-test.sh
+#   GRAPHQL_BEARER_TOKEN=... BASE_URL=http://localhost:8080 bash scripts/smoke-test.sh
 #
 # Checks:
 #   1. GET  /health             → HTTP 200, body contains "status"
-#   2. POST /graphql            → HTTP 200, introspection succeeds
-#   3. GET  /graphql/ws (probe) → HTTP 101 (WebSocket upgrade)
+#   2. POST /graphql            → HTTP 200, authenticated health query succeeds
+#   3. GET  /graphql/ws (probe) → rejected; preview has no WS transport
 #
 # Exit codes:
 #   0  All checks passed
@@ -20,6 +20,13 @@ TIMEOUT="${TIMEOUT:-5}"
 RETRIES="${RETRIES:-3}"
 RETRY_DELAY="${RETRY_DELAY:-2}"
 CURL_BIN="${CURL_BIN:-curl}"
+GRAPHQL_BEARER_TOKEN="${GRAPHQL_BEARER_TOKEN:-}"
+GRAPHQL_ALLOWED_ORIGIN="${GRAPHQL_ALLOWED_ORIGIN:-http://localhost:5173}"
+
+if [ -z "$GRAPHQL_BEARER_TOKEN" ]; then
+  echo "GRAPHQL_BEARER_TOKEN is required for authenticated smoke checks" >&2
+  exit 1
+fi
 
 passed=0
 failed=0
@@ -58,12 +65,13 @@ check_health() {
 check_graphql() {
   local body
   body=$(retry_curl -sf --max-time "$TIMEOUT" -X POST "$BASE_URL/graphql" \
+    -H "Authorization: Bearer $GRAPHQL_BEARER_TOKEN" \
     -H 'Content-Type: application/json' \
-    -d '{"query":"{__schema{queryType{name}}}"}') || return 1
-  printf '%s' "$body" | grep -q '__schema'
+    -d '{"query":"{health{status}}"}') || return 1
+  printf '%s' "$body" | grep -q 'health'
 }
 
-check_websocket_upgrade() {
+check_websocket_disabled() {
   local status
   status=$("$CURL_BIN" -s -o /dev/null -w '%{http_code}' --max-time "$TIMEOUT" \
     --http1.1 \
@@ -72,8 +80,9 @@ check_websocket_upgrade() {
     -H 'Sec-WebSocket-Protocol: graphql-transport-ws' \
     -H 'Sec-WebSocket-Version: 13' \
     -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
+    -H "Origin: $GRAPHQL_ALLOWED_ORIGIN" \
     "$BASE_URL/graphql/ws" || true)
-  if [ "$status" != "101" ]; then
+  if [ "$status" != "404" ]; then
     echo "Unexpected status: $status"
     return 1
   fi
@@ -89,10 +98,10 @@ echo ""
 check "GET /health" check_health
 
 # 2. GraphQL introspection
-check "POST /graphql (introspection)" check_graphql
+check "POST /graphql (authenticated health query)" check_graphql
 
-# 3. WebSocket upgrade probe
-check "GET /graphql/ws (upgrade probe)" check_websocket_upgrade
+# 3. WebSocket transport containment
+check "GET /graphql/ws (transport disabled)" check_websocket_disabled
 
 echo ""
 echo "Results: $passed passed, $failed failed"

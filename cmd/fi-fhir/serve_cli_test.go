@@ -97,6 +97,7 @@ func TestRunServe_Execution_GracefulShutdown(t *testing.T) {
 	defer signalTestMu.Unlock()
 
 	// Temporarily disable stores via env vars to avoid DB connection delays/errors
+	configurePreviewRuntimeForTest(t)
 	t.Setenv("FI_FHIR_DATABASE_URL", "")
 	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "")
 	t.Setenv("FI_FHIR_CORS_ORIGINS", "")
@@ -116,6 +117,7 @@ func TestRunServe_Execution_GracefulShutdown(t *testing.T) {
 func TestRunServe_Execution_InvalidHost(t *testing.T) {
 	signalTestMu.Lock()
 	defer signalTestMu.Unlock()
+	configurePreviewRuntimeForTest(t)
 
 	// An invalid host should trigger an immediate error from the server
 	err := runServe([]string{"--host", "invalid-host-name-123456", "--port", "0"})

@@ -36,7 +36,7 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["/fi-fhir"]
-          args: ["serve"]
+          args: ["serve", "--no-playground", "--no-introspection"]
           ports:
             - name: http
               containerPort: {{ .Values.config.server.port }}
@@ -56,6 +56,20 @@ spec:
               value: {{ .Values.config.server.writeTimeout | quote }}
             - name: FI_FHIR_SERVER_SHUTDOWN_TIMEOUT
               value: {{ .Values.config.server.shutdownTimeout | quote }}
+
+            # Authenticated stateless preview configuration
+            - name: FI_FHIR_DEPLOYMENT_TENANT_ID
+              value: {{ .Values.config.preview.tenantId | quote }}
+            - name: FI_FHIR_GRAPHQL_PRINCIPAL_ID
+              value: {{ .Values.config.preview.principalId | quote }}
+            - name: FI_FHIR_GRAPHQL_ROLES
+              value: {{ .Values.config.preview.roles | quote }}
+            - name: FI_FHIR_GRAPHQL_ALLOWED_ORIGINS
+              value: {{ .Values.config.preview.allowedOrigins | quote }}
+            - name: FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE
+              value: {{ .Values.config.preview.bearerTokenPath | quote }}
+            - name: FI_FHIR_INTEGRATION_REGISTRY_PATH
+              value: {{ .Values.config.preview.registryPath | quote }}
 
             # Workflow configuration
             - name: FI_FHIR_WORKFLOW_CONFIG_PATH
@@ -139,6 +153,9 @@ spec:
             - name: config
               mountPath: /app/config
               readOnly: true
+            - name: graphql-auth
+              mountPath: /var/run/secrets/fi-fhir-graphql
+              readOnly: true
 
           livenessProbe:
             httpGet:
@@ -165,6 +182,13 @@ spec:
         - name: config
           configMap:
             name: {{ include "fi-fhir.fullname" . }}
+        - name: graphql-auth
+          secret:
+            secretName: {{ include "fi-fhir.fullname" . }}
+            defaultMode: 0440
+            items:
+              - key: graphql-bearer-token
+                path: bearer-token
 
       {{- with .Values.nodeSelector }}
       nodeSelector:

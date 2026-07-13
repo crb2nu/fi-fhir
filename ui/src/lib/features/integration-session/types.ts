@@ -1,4 +1,4 @@
-import type { ParsePreviewQuery } from '$lib/gen/graphql';
+import type { ParsePreviewQuery, PreviewIntegrationMessageMutation } from '$lib/gen/graphql';
 
 export type IntegrationSessionDiagnostic = {
   id: string;
@@ -20,15 +20,6 @@ export type IntegrationSessionStage = {
   durationMs: number | null;
 };
 
-export type IntegrationSessionRun = {
-  id: string;
-  status: string;
-  events: ParsePreviewQuery['parsePreview']['events'];
-  warnings: ParsePreviewQuery['parsePreview']['warnings'];
-  diagnostics: IntegrationSessionDiagnostic[];
-  stages: IntegrationSessionStage[];
-};
-
 export type IntegrationSessionPreviewMeta = {
   mode: 'session' | 'fallback';
   id: string | null;
@@ -40,7 +31,11 @@ export type IntegrationSessionPreviewMeta = {
   error: string | null;
 };
 
-export type SessionBackedPreviewResult = {
+/**
+ * Safe compatibility view for the current HL7 inspector plus the complete,
+ * immutable preview provenance returned by the integration engine.
+ */
+export type AuthenticatedIntegrationPreviewResult = {
   parsePreview: ParsePreviewQuery['parsePreview'];
-  session: IntegrationSessionPreviewMeta;
+  preview: PreviewIntegrationMessageMutation['previewIntegrationMessage'];
 };
