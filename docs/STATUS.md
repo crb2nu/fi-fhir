@@ -54,8 +54,8 @@
 | Component             | Path                              | Maturity   | Coverage | Notes                                            | Last Updated |
 | --------------------- | --------------------------------- | ---------- | -------- | ------------------------------------------------ | ------------ |
 | Workflow Engine       | `internal/workflow/`              | Production | 78.6%    | Actions plus strict DSL v1 and pure planner      | 2026-07-13   |
-| Integration Processor | `internal/integration/processor/` | Alpha      | 84.5%    | A01 kernel shared by stateless preview service   | 2026-07-13   |
-| GraphQL API           | `internal/api/graphql/`           | Beta       | 9.5%\*   | Authenticated POST preview; WebSocket disabled | 2026-07-13 |
+| Integration Processor | `internal/integration/processor/` | Alpha      | 84.5%    | Deployed A01 preview; production unavailable     | 2026-07-13   |
+| GraphQL API           | `internal/api/graphql/`           | Beta       | 9.5%\*   | Preview role: health/preview; legacy + WS disabled | 2026-07-13 |
 | FHIR Subscriptions    | `internal/fhir/subscription/`     | Production | 83.7%    | Bidirectional; client + webhook receiver         | 2026-02-27   |
 | Terminology Autoroute | `internal/terminology/autoroute/` | Beta       | 88.5%    | Automatic code-system routing engine             | 2026-03-09   |
 | Terminology Workflow  | `internal/terminology/workflow/`  | Production | 95.7%    | Temporal workflow + activity + worker unit tests | 2026-03-03   |
@@ -67,19 +67,20 @@
 >
 > † Copilot coverage is per-package (leaf package not exercised cross-package).
 
-Slice 1.1c local evidence includes focused CLI, registry, GraphQL transport,
-smoke, Helm, Kustomize, and UI checks recorded in
+Slice 1.1c shipped in MR `!96`; main pipeline `18621` passed every blocking
+gate and published matching API/UI images. GitOps MRs `!368` and `!369` rolled
+out their verified digests, passed public auth/origin/containment/provenance/PHI
+probes, and resumed healthy automation. Exact evidence is recorded in
 `.loom/iteration-plan-phase-1-slice-1-1c-authenticated-preview-adapters.md`.
-Release and live-rollout evidence remain pending until the working tree ships.
 
 ## Infrastructure
 
 | CLI | `cmd/fi-fhir/` | Production | 83.9% | parse, workflow, config, etl, terminology, eventstore, subscription | 2026-03-24 |
 | TypeScript SDK | `sdk/typescript/` | Production | — | CLI wrapper + type definitions; npm publishable | 2026-01-19 |
-| UI / Mapping Studio | `ui/src/` | Beta | — | Credential-gated preview; bearer and raw samples stay in tab memory | 2026-07-13 |
+| UI / Mapping Studio | `ui/src/` | Beta | — | Deployed credential gate; bearer/raw samples stay in tab memory | 2026-07-13 |
 | Helm Chart | `deploy/helm/fi-fhir/` | Production | — | Full templating; HPA, PDB, ServiceMonitor | 2026-02-03 |
 | Kubernetes Manifests | `deploy/kubernetes/` | Production | — | Kustomize base + production overlay | 2026-02-03 |
-| CI/CD Pipeline | `.gitlab-ci.yml` | Production | — | 7 lint + 5 test + 7 security + 4 build + 6 release jobs | 2026-02-06 |
+| CI/CD Pipeline | `.gitlab-ci.yml` | Production | — | Blocking lint, test, security, build, scan, and API/UI publish gates | 2026-07-13 |
 | Grafana Dashboards | `dashboards/grafana/` | Production | — | Workflow overview dashboard | 2026-01-14 |
 | Alerting Rules | `dashboards/alerting/` | Production | — | Prometheus rules + K8s PrometheusRule CRD | 2026-01-14 |
 | OpenAPI Spec | `api/openapi.yaml` | Production | — | REST API documentation | 2026-01-14 |

@@ -26,10 +26,12 @@ The remaining work is product assembly and operational truth:
 - no production MLLP source exists, S3/SFTP discovery is not runtime-wired, and
   `serve` loads one workflow instead of deployed integration revisions;
 - a transitional single-domain preview bearer, exact-origin policy, and
-  memory-only browser handling are implemented locally; OIDC, fine-grained
-  RBAC, audited token administration, and durable PHI policy remain incomplete;
-- the current Flux deployment proves that artifacts can be deployed, not that
-  the completion journeys or production-readiness contract are satisfied.
+  memory-only browser handling are deployed and live-verified; OIDC,
+  fine-grained RBAC, audited token administration, and durable PHI policy remain
+  incomplete;
+- the current Flux deployment proves the authenticated ADT A01 preview and
+  legacy-containment boundary, not the remaining completion journeys or the
+  production-readiness contract.
 
 The June 28 Integration Session Engine merge is preserved as useful foundation.
 The July 12 completion review supersedes the earlier sibling-integration-first
@@ -56,15 +58,16 @@ must not enter the clinical data plane before the engine spine is proven.
     contracts, minimal immutable integration revision, and result invariants.
   - [x] Slice 1.1a made exact profile/workflow revision resolution immutable and
     proved v1-after-v2 reconstruction in required PostgreSQL CI.
-  - [ ] Slices 1.1b and 1.1c are complete in the local release candidate: one
-    deterministic ADT A01 kernel, one authenticated typed GraphQL/IDE adapter,
-    exact origins, memory-only browser data, and fail-closed legacy operations.
-    MR, main pipeline, image, and live rollout evidence remain pending.
+  - [x] Slices 1.1b and 1.1c shipped in MR `!96`: one deterministic ADT A01
+    kernel, one authenticated typed GraphQL/IDE adapter, exact origins,
+    memory-only browser data, and fail-closed legacy operations. MR pipeline
+    `18604` passed 30/30 jobs; main pipeline `18621` passed 33/33 and published
+    matching `v0.1.18621` images. GitOps MRs `!368` and `!369` rolled out the
+    verified digests, passed the public live gate, and resumed healthy image
+    automation.
 
 ## Next
 
-- [ ] Ship the combined Slice 1.1b/1.1c release candidate and capture required
-  MR, default-branch pipeline, image digest, and live authenticated probes.
 - [ ] PostgreSQL receipts, idempotency, trace, and transactional outbox.
 - [ ] Authenticated HL7v2 HTTP ingress and the restart/duplicate/IDE-parity kill-test.
 - [ ] Versioned integration deployment lifecycle and production MLLP.

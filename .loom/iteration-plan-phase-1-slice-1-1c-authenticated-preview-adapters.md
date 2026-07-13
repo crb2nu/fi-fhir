@@ -1,5 +1,8 @@
 # Iteration Plan: Phase 1 Slice 1.1c Authenticated Preview Adapters
 
+**Status**: complete
+**Date**: 2026-07-13
+
 ## Outcome
 
 Expose the Slice 1.1b `MessageProcessor` to GraphQL and the Integration Session
@@ -109,14 +112,70 @@ removed the legacy `/api` ingress. Flux applied revision
 `2c8855be65a77426702550a9c49c64dc83e23970`; the existing rollback image
 `v0.1.18548` remained healthy while automation stayed suspended.
 
-Application merge-request, default-branch pipeline, published-image, live
-authenticated rollout, and image-automation resume evidence remain pending
-until this working tree ships.
+## CI and merge
 
-## Evidence to harvest
+- Application MR `!96` merged at `2026-07-13T16:54:12Z` as
+  `9eac738a12da7d0837d470ed2b1ab8764a2ebb15`.
+- MR pipeline `18604` passed all 30 jobs. The required benchmark job `179305`
+  passed, and merged coverage was 44.50%.
+- Default-branch pipeline `18621` passed all 33 jobs at
+  `2026-07-13T17:24:23Z`, including blocking lint, test, benchmark, security,
+  build, image-scan, and API/UI publish gates.
 
-- Red-to-green test commands and exact parity assertion.
-- Focused Go and Vitest results plus full `go test ./...`, UI typecheck/lint/test.
-- `go test -race` on changed backend packages, gosec/govulncheck, generated-code
-  cleanliness, MR pipeline, post-merge main pipeline, and image digests.
-- Updated roadmap/implementation status with the next bounded slice identified.
+## Published images
+
+- API `registry.harbor.lan/library/fi-fhir:v0.1.18621` resolved to
+  `sha256:233085b9927063e1811bd9e87104bc5a05bbe231bc8ffaeae28f737d6b591fab`.
+- UI `registry.harbor.lan/library/fi-fhir-ui:v0.1.18621` resolved to
+  `sha256:9dd708b303e65c75fb7132b2e041636a969dc0afecc95a156649612e6d20deea`.
+- Independent manifest inspection matched the digests reported by both Harbor
+  publish jobs. The pre-rollout rollback tag remained `v0.1.18548`.
+
+## GitOps rollout
+
+- GitOps MR `!368`, pipeline `18630` (13/13 jobs), merged as
+  `ce05b41c368acacd9961241c5f06723e8a449a45`. It pinned the matching images,
+  disabled playground/introspection, and corrected UI probes to `/ui/health`.
+- Flux applied `main@sha1:ce05b41c368acacd9961241c5f06723e8a449a45`.
+  Both deployments rolled out successfully and reported Ready on the exact
+  published image IDs while image automation remained suspended.
+
+## Live acceptance probes
+
+The pre-resume public-ingress gate passed while image automation still reported
+`suspend=true`, after both release ReplicaSets were created at
+`2026-07-13T17:29:10Z` and before the automation-resume pipeline was created at
+`2026-07-13T17:33:13Z`. The same gate was reverified from
+`2026-07-13T17:39:01Z` through `2026-07-13T17:39:02Z` after the resume:
+
+- missing and wrong bearer credentials returned `401`; a disallowed Origin with
+  the valid deployment credential returned `403`;
+- authenticated health returned `200`; the legacy event catalog returned a
+  GraphQL `FORBIDDEN` error;
+- the supported ADT A01 preview returned one `patient_admit` event, one matched
+  route, and one `suppressed` delivery with exact tenant, correlation,
+  integration, source, profile, workflow, and destination provenance;
+- the raw sentinel plus `rawPayload`, `security`, and `receipt` fields were
+  absent from the response, and the sentinel was absent from API and ingress
+  logs;
+- `/graphql/ws`, `/api`, and `/api/v1/parse` returned `404`; the UI root and
+  `/ui/health` returned `200`.
+
+No bearer value or raw clinical payload is retained in this evidence.
+
+## Automation resume
+
+- GitOps MR `!369`, pipeline `18634` (13/13 jobs), merged as
+  `756faa46725db828fa3f35d83c6d4c129d17dc7f` after the live gate passed.
+- Flux applied `main@sha1:756faa46725db828fa3f35d83c6d4c129d17dc7f`.
+  `ImageUpdateAutomation/fi-fhir` reported `suspend=false`, Ready `True`,
+  reason `Succeeded`, and `repository up-to-date`; both image policies and
+  running deployments remained on `v0.1.18621` and the verified digests.
+
+## Evidence harvested and handoff
+
+Slice 1.1c is complete. Its red-to-green, focused, race, full-suite, generated
+code, security, build, image, GitOps, live-containment, PHI-leakage, rollback,
+and automation-resume evidence is recorded above. Slice 1.2 is the next bounded
+slice: add durable receipts, effective idempotency, trace/event/outbox writes,
+restart proof, and concurrency semantics around the same evaluator.

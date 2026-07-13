@@ -107,7 +107,7 @@ and the live v1-after-v2 kill-test passes.
 MR !94 and required pipeline 18533 passed that boundary; post-merge main
 pipeline 18542 passed all 33 jobs, including the isolated PostgreSQL proof.
 
-### Slice 1.1b: canonical MessageProcessor preview semantics — complete locally
+### Slice 1.1b: canonical MessageProcessor preview semantics — complete
 
 Introduce a small application service—not another parser abstraction—that owns:
 
@@ -127,7 +127,7 @@ Acceptance:
 - Raw payload, parser text, workflow configuration, secrets, and executable
   clients are absent from the result and processor boundary.
 
-### Slice 1.1c: authenticated preview adapters and legacy containment — complete locally
+### Slice 1.1c: authenticated preview adapters and legacy containment — complete
 
 - Establish one deployment-owned tenant/principal request context before the
   GraphQL and IDE boundary can call the processor.
@@ -146,10 +146,12 @@ Acceptance:
 - Prove adapter/kernel parity and wrong-tenant/origin/method/body rejection with
   transport-level tests before any IDE activation.
 
-Local exit evidence is recorded in
+The combined 1.1b/1.1c release shipped in MR `!96`. Default-branch pipeline
+`18621` passed all 33 jobs and published matching `v0.1.18621` API/UI images.
+GitOps MRs `!368` and `!369` rolled out the verified digests behind a suspended
+automation barrier, passed the public auth/origin/containment/provenance/PHI
+gate, and resumed healthy image automation. Exact evidence is recorded in
 `.loom/iteration-plan-phase-1-slice-1-1c-authenticated-preview-adapters.md`.
-MR, default-branch pipeline, image, and live rollout evidence remain pending
-until the combined 1.1b/1.1c working tree ships.
 
 ### Slice 1.2: durable receipt and idempotency
 
@@ -319,13 +321,13 @@ revisions, and observe the expected warning/event delta without raw retention.
 
 ## Immediate backlog
 
-1. Finish and merge Slice 1.0 foundation contracts.
-2. Golden Path 001 shared MessageProcessor semantics.
-3. Durable receipt/idempotency/outbox.
-4. Profile-driven HTTP ingress kill-test.
-5. Expanded IntegrationDefinition lifecycle.
-6. MLLP adapter.
-7. Restart-safe Session Workspace.
+1. Slice 1.2 durable receipts, effective idempotency, trace, and outbox.
+2. Slice 1.3 authenticated HL7v2 HTTP ingress and Golden Path 001 kill-test.
+3. Expanded IntegrationDefinition publication and deployment lifecycle.
+4. Production MLLP adapter.
+5. Durable delivery attempts, replay, and one real queue transport.
+6. Runtime-wired S3/SFTP ingestion with checkpoint/resume.
+7. Restart-safe Integration Session workspace.
 
 ## Scope controls
 

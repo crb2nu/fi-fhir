@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One typed `previewIntegrationMessage` adapter backed by a strict server-owned
   integration registry and the canonical `MessageProcessor`, plus a Mapping
   Studio credential gate that keeps the bearer and raw samples in tab memory
-- Supported 1.0 target matrix with a pinned Kubernetes 1.36 minor and explicit remaining release-evidence gates
+- Supported 1.0 target matrix with a pinned Kubernetes 1.36 minor and explicit phase release gates
 
 #### Format Adapters
 - CDA/CCDA clinical document parser with namespace-aware XML handling (`internal/parser/cda/`)
@@ -69,7 +69,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### GraphQL API
 - GraphQL schema with queries, mutations, and subscriptions (`internal/api/graphql/schema.graphql`)
-- GraphQL HTTP server with WebSocket support for real-time notifications
+- GraphQL schema retains legacy query, mutation, and subscription types; the
+  deployed preview-role configuration authorizes only authenticated POST
+  health/preview and leaves WebSocket unmounted
 - Resolver implementations: event queries, workflow triggers, FHIR subscription CRUD
 - Batch event submission endpoint (`submitBatch` mutation with parallel/sequential modes)
 - DataLoaders for N+1 query prevention (`internal/api/graphql/dataloaders/`)
@@ -122,7 +124,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - LLM Extraction Panel
 - Generate-from-description (natural language → workflow)
 - Reusable UI component library: Badge, Button, Toast, Tooltip, Tabs, etc.
-- GraphQL client with subscription support
+- Authenticated GraphQL HTTP preview client; subscription consumers fail locally
+  while production WebSocket transport is disabled
 - OpenAPI-generated type-safe API client
 
 #### Source Profiles
@@ -174,9 +177,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Multi-stage Dockerfile with distroless base (enhanced)
 - Kubernetes manifests with Kustomize overlays
 - Helm chart with full templating: HPA, PDB, ServiceMonitor (`deploy/helm/fi-fhir/`)
-- GitLab CI/CD pipeline: 7 lint + 5 test + 7 security + 4 build + 6 release jobs
+- GitLab CI/CD pipeline with blocking lint, test, benchmark, security, build,
+  image-scan, and API/UI publish gates
 - Harbor container registry integration with automated pushes
 - UI Docker image with Nginx serving
+- Coordinated Kubernetes rollout of matching API/UI images behind suspended
+  Flux automation, with live auth, origin, containment, provenance, and
+  PHI-leakage probes before a reviewed automation resume
 - Cross-platform release binaries (linux/darwin/windows × amd64/arm64)
 - Helm OCI + npm registry publishing on tags
 
@@ -202,8 +209,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Runtime verification CI now requires the fi-fhir binary for UI, TypeScript
   SDK, and smoke consumers; waits for the configured server port; runs the
   complete SvelteKit/Vitest suite; aggregates every smoke assertion safely
-  under strict shell mode; and proves GraphQL WebSocket subscription delivery
-  through the production handler. npm 10.9.3 is the canonical UI package
+  under strict shell mode; and proves the production handler rejects GraphQL
+  WebSocket upgrades and legacy routes. npm 10.9.3 is the canonical UI package
   manager and the stale pnpm lock has been removed.
 
 - Workflow benchmarks now replace terminal log actions with a benchmark-only

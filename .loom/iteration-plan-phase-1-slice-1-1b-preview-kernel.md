@@ -1,6 +1,6 @@
 # RALPH Iteration Plan: Phase 1 Slice 1.1b Deterministic Preview Kernel
 
-**Status**: proving
+**Status**: complete
 **Date**: 2026-07-13
 
 ## Riskiest assumption + kill-test
@@ -235,13 +235,16 @@ found no unwaived high-confidence/high-severity findings; UI and SDK npm audits
 passed the high/critical gate (three known low UI findings, zero SDK findings).
 Three independent final reviews reported no remaining P0/P1 findings across the
 processor/security boundary, parser/time semantics plus CI/docs, and workflow/
-contract/resource-limit surface. MR and post-merge evidence remain pending.
+contract/resource-limit surface. The kernel shipped with Slice 1.1c in MR `!96`;
+default-branch pipeline `18621`, matching API/UI images, GitOps rollout, and
+public-ingress evidence are recorded in the Slice 1.1c iteration plan.
 
 ## Handoff
 
-- Slice 1.1c adds authenticated request-security context, POST-only GraphQL/IDE
-  adapters, server-owned static integration registry wiring, and parity tests
-  that invoke this exact kernel without raw/session persistence.
+- Slice 1.1c completed authenticated request-security context, POST-only
+  GraphQL/IDE adapters, server-owned static integration registry wiring, and
+  parity/live tests that invoke this exact kernel without raw/session
+  persistence.
 - Slice 1.2 remains the first slice authorized to return a valid production
   result because it owns durable receipts, effective idempotency, trace/outbox
   writes, restart proof, and concurrency semantics.
