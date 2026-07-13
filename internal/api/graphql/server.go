@@ -121,8 +121,11 @@ func NewServer(resolver ResolverRoot, config *ServerConfig) *Server {
 	}
 }
 
-// Start starts the HTTP server.
-func (s *Server) Start() error {
+// Handler returns the production HTTP handler used by Start.
+//
+// Exposing the composed handler allows transport-level tests and embedders to
+// exercise the same GraphQL, WebSocket, profile, playground, and health routes.
+func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
 	// GraphQL endpoint
@@ -154,11 +157,16 @@ func (s *Server) Start() error {
 		}
 	}
 
+	return mux
+}
+
+// Start starts the HTTP server.
+func (s *Server) Start() error {
 	addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
 
 	s.server = &http.Server{
 		Addr:         addr,
-		Handler:      mux,
+		Handler:      s.Handler(),
 		ReadTimeout:  s.config.Timeout,
 		WriteTimeout: s.config.Timeout,
 	}

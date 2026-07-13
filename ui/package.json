@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "packageManager": "npm@10.9.3",
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
@@ -14,7 +15,7 @@
     "lint:fix": "eslint . --fix",
     "lint:css": "stylelint \"src/**/*.svelte\"",
     "test": "vitest",
-    "test:run": "vitest run",
+    "test:run": "npm run sync && vitest run",
     "test:coverage": "vitest run --coverage",
     "codegen:graphql": "node scripts/graphql-codegen.cjs --config codegen.yml",
     "codegen:openapi": "openapi-typescript ../api/openapi.yaml -o src/lib/gen/openapi.ts",

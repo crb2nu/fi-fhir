@@ -185,6 +185,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Runtime verification CI now requires the fi-fhir binary for UI, TypeScript
+  SDK, and smoke consumers; waits for the configured server port; runs the
+  complete SvelteKit/Vitest suite; aggregates every smoke assertion safely
+  under strict shell mode; and proves GraphQL WebSocket subscription delivery
+  through the production handler. npm 10.9.3 is the canonical UI package
+  manager and the stale pnpm lock has been removed.
+
 - Workflow benchmarks now replace terminal log actions with a benchmark-only
   no-op handler, parse `events/sec`, and fail when a thresholded result is
   missing; benchmark test failures now propagate through the artifact-capture
