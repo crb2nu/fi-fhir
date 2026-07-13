@@ -3,14 +3,17 @@
 # NOTE: build args used in `FROM ...` must be declared before the first `FROM`
 # to be available for all stages.
 ARG NODE_IMAGE=node:22-alpine
-ARG NGINX_IMAGE=nginx:alpine
+ARG NPM_VERSION=10.9.3
+ARG NGINX_IMAGE=nginx:1.31.2-alpine-slim@sha256:dd722b8ee8794f3c273bfaf8b5351b0652a68ccd73c17e5f0d029857a58f25ef
 FROM ${NODE_IMAGE} AS builder
+ARG NPM_VERSION
 
 WORKDIR /app
 
 # Copy package files first for better layer caching
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm install --global "npm@${NPM_VERSION}" && \
+    npm ci --no-audit --no-fund
 
 # Copy source code
 COPY . .

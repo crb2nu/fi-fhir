@@ -15,6 +15,7 @@ GOLANGCI_LINT_VERSION := v2.12.2
 GOVULNCHECK_VERSION := v1.6.0
 GOSEC_VERSION := v2.27.1
 GO_MIN_VERSION := 1.26.5
+NPM_VERSION := 10.9.3
 
 # Build the CLI
 build:
@@ -290,9 +291,10 @@ security-gosec:
 
 # Security: npm audit (matches security:npm-audit in CI)
 security-npm-audit:
-	@echo "Running npm audit..."
-	cd ui && npm audit --audit-level=high || true
-	@echo "✓ npm audit complete"
+	@echo "Running UI and TypeScript SDK npm audits..."
+	cd ui && npx --yes npm@$(NPM_VERSION) audit --audit-level=high
+	cd sdk/typescript && npx --yes npm@$(NPM_VERSION) audit --audit-level=high
+	@echo "✓ No high or critical npm vulnerabilities found"
 
 # Build with version info (matches build:binary in CI)
 build-release:

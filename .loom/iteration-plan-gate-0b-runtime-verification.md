@@ -1,6 +1,6 @@
 # RALPH Iteration Plan: Gate 0B Truthful Runtime Verification
 
-**Status**: implementing
+**Status**: complete
 **Date**: 2026-07-12
 
 ## Review
@@ -123,7 +123,11 @@
 
 ## Handoff
 
-- Gate 0B remains open after this slice for truthful security-job promotion and
-  vulnerability remediation.
+- MR !91 merged as commit `6bdcc8e0` after pipeline 18494 passed. Main pipeline
+  18498 then passed after one benchmark retry confirmed runner noise rather than
+  a threshold regression. GitLab now requires a successful pipeline before
+  merge.
+- Gate 0B remains open only for truthful security-job promotion and vulnerability
+  remediation.
 - Once Gate 0B closes, execute Phase 1 Slice 1.0 foundation contracts, then the
   shared MessageProcessor.

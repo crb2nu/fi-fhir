@@ -11,7 +11,9 @@
 # Build artifacts
 bin/
 dist/
+fi-fhir
 *.exe
+coverage/
 
 # Test files
 *_test.go
@@ -31,6 +33,14 @@ docs/
 
 # TypeScript SDK (separate deployment)
 sdk/
+
+# Mapping Studio (separate UI image)
+ui/
+
+# Local tool and agent scratch data
+.tmp/
+.go/
+.cache/
 
 # Kubernetes/Helm (deployment configs)
 deploy/

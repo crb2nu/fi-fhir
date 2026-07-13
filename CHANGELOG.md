@@ -200,6 +200,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   silently skipped records. The calibrated benchmark job is now blocking.
 
 ### Security
+- Security evidence is now enforced: govulncheck, high-confidence/high-severity
+  gosec, Trivy filesystem critical/secret checks, UI and TypeScript SDK npm
+  audits, pinned go-licenses policy checks, and both runtime image scans are
+  required merge-request jobs with their reports retained as artifacts.
+- Refreshed the UI dependency lock within declared ranges, pinned the patched
+  same-major Lodash resolution required by the current GraphQL Codegen
+  toolchain, moved the UI to the compatible Vite 7/Svelte plugin 6 pair, and
+  upgraded the TypeScript SDK to Vitest 4.1.10; both frozen npm 10.9.3 trees now
+  contain no HIGH or CRITICAL audit findings.
+- Replaced the mutable full nginx UI runtime base with a digest-pinned nginx
+  Alpine slim image that removes the four vulnerable unused packages; backend
+  and UI images are now built and scanned before merge and reject every
+  CRITICAL plus every fixed HIGH finding. Main deploys wait for those scans,
+  and tagged releases retag the exact scanned artifacts instead of rebuilding
+  mutable inputs. The backend Docker context now excludes UI dependencies and
+  local build/tool scratch data.
 - Upgraded the Go build/runtime baseline to 1.26.5 and the Go-1.26-compatible
   golangci-lint baseline to 2.12.2; govulncheck and gosec versions are now pinned.
 - Event-store and database workflow actions now reject configuration-controlled
@@ -217,8 +233,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Network policy templates
 - govulncheck + gosec in CI pipeline
 - Trivy filesystem and image scanning
-- npm audit for UI dependencies
-- License compliance checking (go-licenses)
+- Required npm audits for UI and TypeScript SDK dependencies
+- Required pinned license compliance checking (go-licenses)
 
 ## [0.1.0] - 2024-01-15
 
