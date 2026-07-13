@@ -1,6 +1,6 @@
 # RALPH Iteration Plan: Gate 0B Truthful Security Gates
 
-**Status**: implementing
+**Status**: complete
 **Date**: 2026-07-12
 
 ## Review
@@ -140,6 +140,12 @@ allowed to fail.
 
 ## Handoff
 
-- Completion of this slice closes Gate 0B.
+- MR !92 required pipeline 18520 passed and merged as
+  `367bab796fa73f1eb45f529ad2d4a9fba9172eba`.
+- Post-merge main pipeline 18521 passed all 31 jobs: 9 lint, 9 test, 6 security,
+  3 build, 2 image scan, and 2 deploy. Every promoted security/image job was
+  required (`allow_failure=false`). Both deploy jobs started only after all
+  required upstream stages were green and then published successfully.
+- This evidence closes Gate 0B.
 - Next: Phase 1 Slice 1.0 foundation contracts and the minimal immutable
   IntegrationDefinitionRevision, followed by the shared MessageProcessor.

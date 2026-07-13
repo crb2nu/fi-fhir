@@ -9,7 +9,7 @@
 | -------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Production** | 23    | Stable, tested, deployed                                                                                                                                            |
 | **Beta**       | 8     | Feature-complete, needs coverage or hardening                                                                                                                       |
-| **Alpha**      | 2     | Functional but limited testing or scope                                                                                                                             |
+| **Alpha**      | 3     | Functional but limited testing or scope                                                                                                                             |
 | **Planned**    | 2     | Designed but not yet implemented (tracked via [#7](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/7), [#8](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/8)) |
 
 ---
@@ -33,6 +33,7 @@
 | Event Sourcing           | `pkg/eventsourcing/`             | Production | 72.7%    | Store, projections, snapshots, sagas, outbox     | 2026-02-27   |
 | ES Projections           | `pkg/eventsourcing/projections/` | Production | 88.9%    | Patient timeline, stats, active encounters       | 2026-01-14   |
 | Config                   | `pkg/config/`                    | Production | 89.3%    | Layered loading (defaults → file → env), secrets | 2026-02-27   |
+| Integration Contracts    | `pkg/integration/`               | Alpha      | 86.3%    | Revision/runtime contracts; processor pending    | 2026-07-13   |
 | Source Profiles          | `pkg/profile/`                   | Beta       | 71.9%    | Inference, linting, vendor templates             | 2026-02-27   |
 | Validators               | `pkg/validate/`                  | Production | 98.2%    | NPI, MBI, SSN, DEA; Luhn/checksum                | 2026-01-09   |
 | FHIR Mapper              | `pkg/fhir/`                      | Production | 75.2%    | 24+ US Core resources, validation                | 2026-01-19   |

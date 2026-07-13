@@ -34,14 +34,16 @@ Exit:
 - No unwaived HIGH/HIGH SQL identifier finding remains at a discovered runtime
   configuration boundary; validation and suppression rationales have tests.
 
-### Gate 0B: truthful CI and local reproducibility
+### Gate 0B: truthful CI and local reproducibility — complete
 
 The first Gate 0B tranche is complete in MR !91: binary production, real
 readiness, frozen npm install plus SvelteKit sync, full Vitest with live HTTP
 queries, aggregate smoke checks, and transport-level GraphQL WebSocket event
-delivery all passed required pipeline 18494 and main pipeline 18498. The active
-final tranche remediates dependency and runtime-image findings before promoting
-security jobs to required merge gates.
+delivery all passed required pipeline 18494 and main pipeline 18498. MR !92
+closed the final tranche: required pipeline 18520 passed, then post-merge main
+pipeline 18521 passed all 31 jobs. Its eight security/image gates had
+`allow_failure=false`, and both deploy jobs remained stage-blocked until every
+required test, security, build, and image-scan prerequisite was green.
 
 Scope:
 
@@ -66,7 +68,7 @@ Exit:
 
 ## Phase 1 — Golden Path 001: shared runtime spine
 
-### Slice 1.0: foundation and minimal integration revision
+### Slice 1.0: foundation and minimal integration revision — proving
 
 Lock the decisions that would be expensive or unsafe to retrofit after schemas
 and ingress ship:
@@ -266,16 +268,15 @@ revisions, and observe the expected warning/event delta without raw retention.
 | Release Candidate | 4.1-4.4, journeys 1-5, and numeric/accessibility gates |
 | 1.0 | 5.1-5.3, Phase 6 release evidence, and all six journeys |
 
-## Immediate backlog after Gate 0A
+## Immediate backlog
 
-1. Gate 0B truthful CI and live subscription proof.
-2. Slice 1.0 foundation contracts and minimal immutable integration revision.
-3. Golden Path 001 shared MessageProcessor semantics.
-4. Durable receipt/idempotency/outbox.
-5. Profile-driven HTTP ingress kill-test.
-6. Expanded IntegrationDefinition lifecycle.
-7. MLLP adapter.
-8. Restart-safe Session Workspace.
+1. Finish and merge Slice 1.0 foundation contracts.
+2. Golden Path 001 shared MessageProcessor semantics.
+3. Durable receipt/idempotency/outbox.
+4. Profile-driven HTTP ingress kill-test.
+5. Expanded IntegrationDefinition lifecycle.
+6. MLLP adapter.
+7. Restart-safe Session Workspace.
 
 ## Scope controls
 

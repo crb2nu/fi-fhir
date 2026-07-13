@@ -6,6 +6,7 @@ Documentation for deploying and operating fi-fhir in production environments.
 
 - [Production Hardening](PRODUCTION-HARDENING.md) - Security best practices
 - [Operations Runbook](RUNBOOK.md) - Troubleshooting and procedures
+- [Supported 1.0 Baseline](SUPPORTED-1.0.md) - Pinned release target and evidence gaps
 
 ## Quick Links
 
@@ -13,6 +14,7 @@ Documentation for deploying and operating fi-fhir in production environments.
 |------|----------|
 | Secure a deployment | [Production Hardening](PRODUCTION-HARDENING.md) |
 | Troubleshoot issues | [Operations Runbook](RUNBOOK.md) |
+| Review the 1.0 support target | [Supported 1.0 Baseline](SUPPORTED-1.0.md) |
 | Monitor performance | [Observability](#observability) |
 | Configure health checks | [Health Endpoints](#health-endpoints) |
 
