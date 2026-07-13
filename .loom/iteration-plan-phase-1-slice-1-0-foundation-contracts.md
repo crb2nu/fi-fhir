@@ -1,6 +1,6 @@
 # RALPH Iteration Plan: Phase 1 Slice 1.0 Foundation Contracts
 
-**Status**: proving
+**Status**: complete
 **Date**: 2026-07-13
 
 ## Review
@@ -180,6 +180,17 @@ Current local evidence: all commands pass. `govulncheck` reports zero reachable
 vulnerabilities; `gosec` reports no unwaived high-confidence/high-severity
 findings; the npm high/critical threshold passes (UI: three low findings, SDK:
 zero); documentation validation reports zero warnings.
+
+### CI and merge
+
+- Commit: `f8ba00b781a83ae72746504b7f9021436d483c9f`
+- Merge request: `!93`
+- Required MR pipeline `18526`: 20/20 jobs succeeded, including the manually
+  started non-optional benchmark; coverage reported 42.70% repository-wide.
+- Merge commit: `2cd27af2d0750052615a2fff87496265d01e856e`
+- Post-merge `main` pipeline `18527`: 22/22 jobs succeeded (lint 5, test 9,
+  security 4, build 2, scan 1, deploy 1); `deploy:docker` was required and
+  succeeded. No release jobs were expected on the non-tag pipeline.
 
 ## Handoff
 

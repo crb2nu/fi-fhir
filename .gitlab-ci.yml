@@ -546,6 +546,55 @@ test:integration:
     - when: never
   allow_failure: true
 
+# Blocking proof for the immutable profile/workflow revision boundary used by
+# the shared MessageProcessor. Keep this isolated from the broad integration job:
+# it owns a dedicated PostgreSQL service and must never pass because a test was
+# skipped or absent.
+test:artifact-revisions:
+  stage: test
+  <<: *go-image-debian
+  <<: *go-cache
+  services:
+    - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
+      alias: postgres
+  variables:
+    CGO_ENABLED: "1"
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
+    POSTGRES_DB: fi_fhir_artifact_test
+    POSTGRES_USER: testuser
+    POSTGRES_PASSWORD: testpass
+    POSTGRES_HOST_AUTH_METHOD: trust
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_artifact_test?sslmode=disable"
+  script:
+    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates ripgrep && rm -rf /var/lib/apt/lists/*
+    - >-
+      go test -tags=integration
+      -list '^(TestPostgresProfileStore_ImmutableRevisionLifecycleAndBackfill|TestPostgresWorkflowLifecycleStore_PublishRejectsVersionOwnedByAnotherWorkflow|TestPostgresWorkflowLifecycleStore_ConcurrentSavesAllocateUniqueVersions)$'
+      ./internal/api/graphql/store
+      | rg -x 'TestPostgres(ProfileStore_ImmutableRevisionLifecycleAndBackfill|WorkflowLifecycleStore_(PublishRejectsVersionOwnedByAnotherWorkflow|ConcurrentSavesAllocateUniqueVersions))'
+      | awk 'END { if (NR != 3) exit 1 }'
+    - >-
+      go test -tags=integration -count=1 -timeout=180s
+      -run '^(TestPostgresProfileStore_ImmutableRevisionLifecycleAndBackfill|TestPostgresWorkflowLifecycleStore_PublishRejectsVersionOwnedByAnotherWorkflow|TestPostgresWorkflowLifecycleStore_ConcurrentSavesAllocateUniqueVersions)$'
+      ./internal/api/graphql/store
+    - >-
+      go test -tags=integration -list '^TestArtifactRevisionResolver_PostgresV1SurvivesV2$'
+      ./internal/integration/processor
+      | rg -x 'TestArtifactRevisionResolver_PostgresV1SurvivesV2'
+    - >-
+      go test -tags=integration -count=1 -timeout=180s
+      -run '^TestArtifactRevisionResolver_PostgresV1SurvivesV2$'
+      ./internal/integration/processor
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *go-changes
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *go-changes
+    - when: never
+  allow_failure: false
+
 test:ui:
   stage: test
   <<: *node-image

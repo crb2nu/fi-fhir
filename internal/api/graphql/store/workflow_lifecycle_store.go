@@ -140,6 +140,7 @@ type WorkflowLifecycleStore interface {
 
 	SaveWorkflowVersion(ctx context.Context, version *WorkflowVersionRecord) (*WorkflowVersionRecord, error)
 	GetWorkflowVersion(ctx context.Context, versionID string) (*WorkflowVersionRecord, error)
+	GetWorkflowVersionForWorkflow(ctx context.Context, workflowID, versionID string) (*WorkflowVersionRecord, error)
 	ListWorkflowVersions(ctx context.Context, workflowID string, paging Paging) ([]*WorkflowVersionRecord, error)
 	GetLatestWorkflowVersion(ctx context.Context, workflowID string) (*WorkflowVersionRecord, error)
 
@@ -514,6 +515,21 @@ func (s *MemoryWorkflowLifecycleStore) GetWorkflowVersion(_ context.Context, ver
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return cloneVersion(s.versionsByID[versionID]), nil
+}
+
+// GetWorkflowVersionForWorkflow returns a version only when both immutable IDs match.
+func (s *MemoryWorkflowLifecycleStore) GetWorkflowVersionForWorkflow(
+	_ context.Context,
+	workflowID string,
+	versionID string,
+) (*WorkflowVersionRecord, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	version := s.versionsByID[versionID]
+	if version == nil || version.WorkflowID != workflowID {
+		return nil, nil
+	}
+	return cloneVersion(version), nil
 }
 
 // ListWorkflowVersions returns workflow versions for a definition.

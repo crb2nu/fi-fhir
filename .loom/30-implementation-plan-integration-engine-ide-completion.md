@@ -68,7 +68,7 @@ Exit:
 
 ## Phase 1 — Golden Path 001: shared runtime spine
 
-### Slice 1.0: foundation and minimal integration revision — proving
+### Slice 1.0: foundation and minimal integration revision — complete
 
 Lock the decisions that would be expensive or unsafe to retrofit after schemas
 and ingress ship:
@@ -87,7 +87,24 @@ and ingress ship:
 Exit: migrations and processor implementation cannot begin until a fixture can
 construct and validate one revision without embedding secrets or retained raw PHI.
 
-### Slice 1.1: canonical MessageProcessor semantics
+### Slice 1.1a: immutable artifact resolution — proving
+
+Repair the persistence boundary before runtime composition:
+
+- Source Profile creation/update owns an immutable current-revision pointer and
+  exact historical lookup.
+- Workflow versions allocate serially per workflow and publication rejects
+  cross-workflow version ownership.
+- A storage-neutral, single-deployment-tenant resolver verifies domain-separated
+  profile/workflow content digests before returning defensive executable bytes.
+- A required PostgreSQL CI test proves v1 remains resolvable after v2 becomes
+  current/published and fresh store/resolver objects are constructed.
+
+Exit: Slice 1.1b remains blocked until wrong tenant, owner, digest, nonexistent
+revision, malformed content, and concurrent version-allocation cases fail closed
+and the live v1-after-v2 kill-test passes.
+
+### Slice 1.1b: canonical MessageProcessor preview semantics
 
 Introduce a small application service—not another parser abstraction—that owns:
 
@@ -96,10 +113,12 @@ Introduce a small application service—not another parser abstraction—that ow
 Acceptance:
 
 - HL7v2 first; the selected published profile demonstrably changes behavior.
-- GraphQL submit and Integration Session preview call the same service; the HTTP
-  adapter is added after durability in Slice 1.3.
-- Preview and production share parsing/routing semantics, while preview cannot
-  invoke production destinations.
+- GraphQL preview and Integration Session preview call the same evaluation
+  service. GraphQL submit moves behind its durable committer in Slice 1.2; the
+  authenticated HTTP adapter is added in Slice 1.3.
+- Preview owns the shared parsing/routing semantics and cannot invoke any
+  destination. Production remains explicitly unavailable until Slice 1.2 wraps
+  the same evaluator with durable receipt/idempotency/outbox work.
 - Event, diagnostics, artifact revisions, planned routes/actions, and correlation
   identifiers are deterministic for the same request.
 - Raw payload retention follows explicit policy.
@@ -107,6 +126,8 @@ Acceptance:
 ### Slice 1.2: durable receipt and idempotency
 
 - Add PostgreSQL receipt, event, trace, attempt, and outbox storage and migrations.
+- Route GraphQL submit through the shared evaluator plus durable production
+  committer; remove its direct parse/store/execute path.
 - Define idempotency key precedence: explicit key, then source + MSH-10 + active
   integration revision.
 - Persist before acknowledging; duplicate submissions reuse the durable receipt
