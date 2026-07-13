@@ -1,6 +1,7 @@
 {
   "name": "@fi-fhir/sdk",
   "version": "0.1.0",
+  "packageManager": "npm@10.9.3",
   "description": "TypeScript SDK for fi-fhir healthcare integration library",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -44,7 +45,7 @@
     "@types/node": "^20.10.0",
     "tsup": "^8.0.0",
     "typescript": "^5.3.0",
-    "vitest": "^1.0.0"
+    "vitest": "^4.1.10"
   },
   "engines": {
     "node": ">=18.0.0"

@@ -36,11 +36,12 @@ Exit:
 
 ### Gate 0B: truthful CI and local reproducibility
 
-The first Gate 0B tranche is implementing required live runtime verification:
-binary production, real readiness, frozen npm install plus SvelteKit sync, full
-Vitest with live HTTP queries, aggregate smoke checks, and transport-level
-GraphQL WebSocket event delivery. Security-gate promotion remains a separate
-tranche so its existing findings are remediated rather than hidden.
+The first Gate 0B tranche is complete in MR !91: binary production, real
+readiness, frozen npm install plus SvelteKit sync, full Vitest with live HTTP
+queries, aggregate smoke checks, and transport-level GraphQL WebSocket event
+delivery all passed required pipeline 18494 and main pipeline 18498. The active
+final tranche remediates dependency and runtime-image findings before promoting
+security jobs to required merge gates.
 
 Scope:
 

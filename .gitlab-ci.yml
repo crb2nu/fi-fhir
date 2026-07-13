@@ -20,7 +20,10 @@ variables:
   GOLANGCI_LINT_VERSION: "v2.12.2"
   GOVULNCHECK_VERSION: "v1.6.0"
   GOSEC_VERSION: "v2.27.1"
+  GO_LICENSES_VERSION: "v1.6.0"
   NODE_VERSION: "22"
+  NPM_VERSION: "10.9.3"
+  NGINX_IMAGE_REF: "1.31.2-alpine-slim@sha256:dd722b8ee8794f3c273bfaf8b5351b0652a68ccd73c17e5f0d029857a58f25ef"
   CGO_ENABLED: "0"
   DOCKER_DRIVER: overlay2
   DOCKER_TLS_CERTDIR: "/certs"
@@ -73,6 +76,7 @@ variables:
 
 .sdk-ts-changes: &sdk-ts-changes
   - sdk/typescript/**/*
+  - .gitlab-ci.yml
 
 .runtime-verification-changes: &runtime-verification-changes
   - go.mod
@@ -143,7 +147,7 @@ default:
     - node --version
     - npm --version
     # Work around occasional npm v10.9.4 failures in k8s CI ("Exit handler never called!").
-    - npm i -g npm@10.9.3
+    - npm i -g npm@${NPM_VERSION}
     - npm --version
     - npm config set cache "${CI_PROJECT_DIR}/ui/.npm" --global
 
@@ -858,7 +862,6 @@ security:govulncheck:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes: *go-changes
     - when: never
-  allow_failure: true
 
 security:gosec:
   stage: security
@@ -905,7 +908,6 @@ security:gosec:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes: *go-changes
     - when: never
-  allow_failure: true
 
 security:trivy:
   stage: security
@@ -913,9 +915,11 @@ security:trivy:
     name: ${DOCKERHUB_CACHE_PREFIX}/aquasec/trivy:${TRIVY_VERSION}
     entrypoint: [""]
   script:
-    # Skip generated CI/tool caches; scan tracked project manifests and source inputs.
-    - trivy fs --skip-dirs .tmp --skip-dirs .go --skip-dirs .cache --skip-dirs ui/.pnpm-store --exit-code 0 --severity HIGH,CRITICAL --format sarif -o trivy-report.sarif .
-    - trivy fs --skip-dirs .tmp --skip-dirs .go --skip-dirs .cache --skip-dirs ui/.pnpm-store --exit-code 1 --severity CRITICAL .
+    # Preserve all HIGH/CRITICAL vulnerability and secret findings for review.
+    - trivy fs --scanners vuln,secret --skip-dirs .tmp --skip-dirs .go --skip-dirs .cache --skip-dirs ui/.npm --skip-dirs sdk/typescript/.npm --exit-code 0 --severity HIGH,CRITICAL --format sarif -o trivy-report.sarif .
+    # Required gates: no CRITICAL dependency finding and no detected HIGH/CRITICAL secret.
+    - trivy fs --scanners vuln --skip-dirs .tmp --skip-dirs .go --skip-dirs .cache --skip-dirs ui/.npm --skip-dirs sdk/typescript/.npm --exit-code 1 --severity CRITICAL .
+    - trivy fs --scanners secret --skip-dirs .tmp --skip-dirs .go --skip-dirs .cache --skip-dirs ui/.npm --skip-dirs sdk/typescript/.npm --exit-code 1 --severity HIGH,CRITICAL .
   artifacts:
     reports:
       sast: trivy-report.sarif
@@ -931,9 +935,8 @@ security:trivy:
       changes:
         - "**/*"
     - when: never
-  allow_failure: true
 
-security:npm-audit:
+security:npm-audit-ui:
   stage: security
   <<: *node-image
   cache:
@@ -944,10 +947,9 @@ security:npm-audit:
   script:
     - cd ui
     - npm ci --no-audit --no-fund
-    # Run npm audit with JSON output for processing
+    # Preserve the complete report, then propagate the HIGH/CRITICAL gate exit.
     - npm audit --audit-level=high --json > npm-audit.json || true
-    # Display human-readable summary
-    - npm audit --audit-level=high || true
+    - npm audit --audit-level=high
   artifacts:
     paths:
       - ui/npm-audit.json
@@ -960,7 +962,34 @@ security:npm-audit:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes: *ui-changes
     - when: never
-  allow_failure: true
+
+security:npm-audit-sdk:
+  stage: security
+  <<: *node-image
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}-sdk-typescript-npm
+    paths:
+      - sdk/typescript/.npm/
+    policy: pull
+  script:
+    - cd sdk/typescript
+    - npm config set cache "${CI_PROJECT_DIR}/sdk/typescript/.npm" --global
+    - npm ci --no-audit --no-fund
+    # Preserve the complete report, then propagate the HIGH/CRITICAL gate exit.
+    - npm audit --audit-level=high --json > npm-audit.json || true
+    - npm audit --audit-level=high
+  artifacts:
+    paths:
+      - sdk/typescript/npm-audit.json
+    when: always
+    expire_in: 1 week
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *sdk-ts-changes
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *sdk-ts-changes
+    - when: never
 
 security:trivy-image:
   stage: scan
@@ -969,14 +998,12 @@ security:trivy-image:
     entrypoint: [""]
   needs:
     - job: build:docker
-      optional: true
       artifacts: true
   script:
-    # Load the built image from artifact
-    - tar -xOf docker-image.tar > /tmp/image-layers.tar || true
     # Scan the image tarball directly
     - trivy image --input docker-image.tar --exit-code 0 --severity HIGH,CRITICAL --format sarif -o trivy-image-report.sarif
-    - trivy image --input docker-image.tar --exit-code 1 --severity CRITICAL --ignore-unfixed
+    - trivy image --input docker-image.tar --exit-code 1 --severity CRITICAL
+    - trivy image --input docker-image.tar --exit-code 1 --severity HIGH --ignore-unfixed
   artifacts:
     reports:
       sast: trivy-image-report.sarif
@@ -986,10 +1013,11 @@ security:trivy-image:
     expire_in: 1 week
   rules:
     - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes: *go-changes
     - when: never
-  allow_failure: true
 
 security:license-check:
   stage: security
@@ -997,10 +1025,16 @@ security:license-check:
   <<: *go-cache-pull
   script:
     - apk add --no-cache git
-    - go install github.com/google/go-licenses@latest
-    # Check licenses and save report (allow failure for now as some licenses may need review)
-    - go-licenses check ./... 2>&1 | tee go-licenses.txt || true
-    - go-licenses csv ./... > go-licenses.csv 2>/dev/null || true
+    - go install github.com/google/go-licenses@${GO_LICENSES_VERSION}
+    - |
+      if go-licenses check --disallowed_types=forbidden,unknown ./... > go-licenses.txt 2>&1; then
+        cat go-licenses.txt
+      else
+        rc=$?
+        cat go-licenses.txt
+        exit "$rc"
+      fi
+    - go-licenses csv ./... > go-licenses.csv
   artifacts:
     paths:
       - go-licenses.txt
@@ -1014,7 +1048,6 @@ security:license-check:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes: *go-changes
     - when: never
-  allow_failure: true
 
 security:trivy-ui-image:
   stage: scan
@@ -1023,12 +1056,12 @@ security:trivy-ui-image:
     entrypoint: [""]
   needs:
     - job: build:docker-ui
-      optional: true
       artifacts: true
   script:
     # Scan the UI image tarball
     - trivy image --input docker-ui-image.tar --exit-code 0 --severity HIGH,CRITICAL --format sarif -o trivy-ui-image-report.sarif
-    - trivy image --input docker-ui-image.tar --exit-code 1 --severity CRITICAL --ignore-unfixed
+    - trivy image --input docker-ui-image.tar --exit-code 1 --severity CRITICAL
+    - trivy image --input docker-ui-image.tar --exit-code 1 --severity HIGH --ignore-unfixed
   artifacts:
     reports:
       sast: trivy-ui-image-report.sarif
@@ -1038,10 +1071,11 @@ security:trivy-ui-image:
     expire_in: 1 week
   rules:
     - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *ui-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes: *ui-changes
     - when: never
-  allow_failure: true
 
 # =============================================================================
 # Build Stage
@@ -1108,6 +1142,7 @@ build:docker:
       fi
     - |
       docker build \
+        --pull \
         --build-arg GO_IMAGE="${DOCKERHUB_CACHE_PREFIX}/library/golang:${GO_VERSION}-alpine" \
         --build-arg VERSION="${CI_COMMIT_TAG:-${CI_COMMIT_SHORT_SHA}}" \
         -t "${IMAGE_TAG}" \
@@ -1119,6 +1154,8 @@ build:docker:
     expire_in: 1 day
   rules:
     - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes: *go-changes
     - when: never
@@ -1159,8 +1196,9 @@ build:docker-ui:
     - |
       BUILD_TAG="v0.1.${CI_PIPELINE_IID}"
       docker build \
+        --pull \
         --build-arg NODE_IMAGE="${DOCKERHUB_CACHE_PREFIX}/library/node:${NODE_VERSION}-alpine" \
-        --build-arg NGINX_IMAGE="${DOCKERHUB_CACHE_PREFIX}/library/nginx:alpine" \
+        --build-arg NGINX_IMAGE="${DOCKERHUB_CACHE_PREFIX}/library/nginx:${NGINX_IMAGE_REF}" \
         --build-arg VITE_BUILD_SHA="${CI_COMMIT_SHORT_SHA}" \
         --build-arg VITE_BUILD_TAG="${BUILD_TAG}" \
         --build-arg VITE_BUILD_TIME="${CI_PIPELINE_CREATED_AT}" \
@@ -1200,10 +1238,10 @@ deploy:docker:
     KUBERNETES_MEMORY_LIMIT: "4Gi"
     KUBERNETES_SERVICE_CPU_LIMIT: "2"
     KUBERNETES_SERVICE_MEMORY_LIMIT: "6Gi"
-  needs:
-    - job: build:docker
-      optional: true
-      artifacts: true
+  # Keep normal stage barriers so every required test/security/scan gate passes
+  # before publish; dependencies selects only the scanned image artifact.
+  dependencies:
+    - build:docker
   before_script:
     - |
       set -e
@@ -1339,10 +1377,10 @@ deploy:docker-ui:
     KUBERNETES_MEMORY_LIMIT: "4Gi"
     KUBERNETES_SERVICE_CPU_LIMIT: "2"
     KUBERNETES_SERVICE_MEMORY_LIMIT: "6Gi"
-  needs:
-    - job: build:docker-ui
-      optional: true
-      artifacts: true
+  # Keep normal stage barriers so every required test/security/scan gate passes
+  # before publish; dependencies selects only the scanned image artifact.
+  dependencies:
+    - build:docker-ui
   before_script:
     - |
       set -e
@@ -1515,6 +1553,10 @@ release:docker:
   variables:
     DOCKER_HOST: tcp://localhost:2375
     DOCKER_TLS_CERTDIR: ""
+  # Tag publication waits for all earlier stages, then consumes the exact
+  # build artifact already checked by security:trivy-image.
+  dependencies:
+    - build:docker
   before_script:
     - docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
   script:
@@ -1525,16 +1567,13 @@ release:docker:
       MAJOR="${VERSION%%.*}"
       MINOR="${VERSION%.*}"
 
-      # Build image
-      docker build \
-        --build-arg GO_IMAGE="${DOCKERHUB_CACHE_PREFIX}/library/golang:${GO_VERSION}-alpine" \
-        --build-arg VERSION="${CI_COMMIT_TAG}" \
-        -t "${IMAGE_BASE}:${CI_COMMIT_TAG}" \
-        -t "${IMAGE_BASE}:${VERSION}" \
-        -t "${IMAGE_BASE}:${MINOR}" \
-        -t "${IMAGE_BASE}:${MAJOR}" \
-        -t "${IMAGE_BASE}:latest" \
-        .
+      # Retag the exact artifact that passed security:trivy-image.
+      docker load --input docker-image.tar
+      SOURCE_IMAGE="${IMAGE_BASE}:${CI_COMMIT_TAG}"
+      docker tag "${SOURCE_IMAGE}" "${IMAGE_BASE}:${VERSION}"
+      docker tag "${SOURCE_IMAGE}" "${IMAGE_BASE}:${MINOR}"
+      docker tag "${SOURCE_IMAGE}" "${IMAGE_BASE}:${MAJOR}"
+      docker tag "${SOURCE_IMAGE}" "${IMAGE_BASE}:latest"
 
       # Push all tags
       docker push "${IMAGE_BASE}:${CI_COMMIT_TAG}"
@@ -1553,6 +1592,10 @@ release:docker-ui:
   variables:
     DOCKER_HOST: tcp://localhost:2375
     DOCKER_TLS_CERTDIR: ""
+  # Tag publication waits for all earlier stages, then consumes the exact
+  # build artifact already checked by security:trivy-ui-image.
+  dependencies:
+    - build:docker-ui
   before_script:
     - docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
   script:
@@ -1562,16 +1605,13 @@ release:docker-ui:
       MAJOR="${VERSION%%.*}"
       MINOR="${VERSION%.*}"
 
-      # Build UI image
-      docker build \
-        --build-arg NODE_IMAGE="${DOCKERHUB_CACHE_PREFIX}/library/node:${NODE_VERSION}-alpine" \
-        --build-arg NGINX_IMAGE="${DOCKERHUB_CACHE_PREFIX}/library/nginx:alpine" \
-        -t "${IMAGE_BASE}:${CI_COMMIT_TAG}" \
-        -t "${IMAGE_BASE}:${VERSION}" \
-        -t "${IMAGE_BASE}:${MINOR}" \
-        -t "${IMAGE_BASE}:${MAJOR}" \
-        -t "${IMAGE_BASE}:latest" \
-        ./ui
+      # Retag the exact artifact that passed security:trivy-ui-image.
+      docker load --input docker-ui-image.tar
+      SOURCE_IMAGE="${IMAGE_BASE}:${CI_COMMIT_TAG}"
+      docker tag "${SOURCE_IMAGE}" "${IMAGE_BASE}:${VERSION}"
+      docker tag "${SOURCE_IMAGE}" "${IMAGE_BASE}:${MINOR}"
+      docker tag "${SOURCE_IMAGE}" "${IMAGE_BASE}:${MAJOR}"
+      docker tag "${SOURCE_IMAGE}" "${IMAGE_BASE}:latest"
 
       # Push all tags
       docker push "${IMAGE_BASE}:${CI_COMMIT_TAG}"
