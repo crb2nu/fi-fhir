@@ -55,7 +55,7 @@
 | --------------------- | --------------------------------- | ---------- | -------- | ------------------------------------------------ | ------------ |
 | Workflow Engine       | `internal/workflow/`              | Production | 78.6%    | Actions plus strict DSL v1 and pure planner      | 2026-07-13   |
 | Integration Processor | `internal/integration/processor/` | Alpha      | 84.5%    | A01 kernel shared by stateless preview service   | 2026-07-13   |
-| GraphQL API           | `internal/api/graphql/`           | Beta       | 4.1%\*   | Authenticated POST preview; WebSocket disabled | 2026-07-13 |
+| GraphQL API           | `internal/api/graphql/`           | Beta       | 9.5%\*   | Authenticated POST preview; WebSocket disabled | 2026-07-13 |
 | FHIR Subscriptions    | `internal/fhir/subscription/`     | Production | 83.7%    | Bidirectional; client + webhook receiver         | 2026-02-27   |
 | Terminology Autoroute | `internal/terminology/autoroute/` | Beta       | 88.5%    | Automatic code-system routing engine             | 2026-03-09   |
 | Terminology Workflow  | `internal/terminology/workflow/`  | Production | 95.7%    | Temporal workflow + activity + worker unit tests | 2026-03-03   |
