@@ -324,9 +324,8 @@ lint:sdk-typescript:
 
 lint:helm:
   stage: lint
-  image: ${DOCKERHUB_CACHE_PREFIX}/alpine/helm:latest
+  image: ${DOCKERHUB_CACHE_PREFIX}/dtzar/helm-kubectl:4.1.1
   script:
-    - apk add --no-cache kubectl
     - helm lint deploy/helm/fi-fhir/
     - helm template fi-fhir deploy/helm/fi-fhir/ > /dev/null
     - sh scripts/validate-kustomize-preview.sh
