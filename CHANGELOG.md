@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Integration Runtime Foundation
+- Public `pkg/integration` contracts for content-addressed integration revisions, tenant/actor identity, typed secret references, PHI/raw-retention policy, production/preview requests, and stable processing results
+- Golden Path 001 revision fixture with strict decoding, deterministic semantic digest validation, non-serializable raw payload bytes, and preview side-effect invariants
+- Supported 1.0 target matrix with a pinned Kubernetes 1.36 minor and explicit remaining release-evidence gates
+
 #### Format Adapters
 - CDA/CCDA clinical document parser with namespace-aware XML handling (`internal/parser/cda/`)
 - CDA section handlers for structured data extraction (`internal/parser/cda/sections/`)

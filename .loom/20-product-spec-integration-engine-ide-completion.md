@@ -77,8 +77,9 @@ Completion is primarily an assembly and lifecycle problem, not a parser rewrite.
   receipts, and traces are PHI-capable. Raw payload is ephemeral by default;
   retention requires an encrypted store, TTL, purpose, actor, and access audit.
 - **Execution modes**: production mode may persist and deliver; preview mode uses
-  the same parsing/routing semantics but is side-effect-free unless an explicit
-  sandbox destination is selected.
+  the same parsing/routing semantics but never persists or delivers. Sandbox
+  destinations may be selected for planning and simulation, but an executed
+  sandbox action requires a separately audited production request.
 - **Collaboration**: 1.0 requires optimistic concurrency, immutable revisions, and
   explicit conflict resolution. Real-time character-level co-editing is not a
   1.0 requirement.

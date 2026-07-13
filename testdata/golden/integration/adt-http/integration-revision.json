@@ -1,0 +1,67 @@
+{
+  "definition_id": "adt-to-fhir",
+  "revision_id": "rev-001",
+  "tenant_id": "acme-health",
+  "source": {
+    "artifact_id": "source-adt-east",
+    "revision_id": "source-rev-001",
+    "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "source_id": "adt-east"
+  },
+  "format": "hl7v2",
+  "profile": {
+    "artifact_id": "strict-adt-profile",
+    "revision_id": "profile-rev-001",
+    "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "workflow": {
+    "artifact_id": "adt-fhir-workflow",
+    "revision_id": "workflow-rev-001",
+    "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "destinations": [
+    {
+      "artifact_id": "fhir-r4-primary",
+      "revision_id": "destination-rev-001",
+      "digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+      "class": "production"
+    },
+    {
+      "artifact_id": "fhir-r4-sandbox",
+      "revision_id": "destination-rev-001",
+      "digest": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+      "class": "sandbox"
+    }
+  ],
+  "secret_bindings": [
+    {
+      "name": "fhir_oauth_client_secret",
+      "reference": {
+        "provider": "k8s",
+        "key": "fi-fhir/fhir-client-secret",
+        "version": "1"
+      }
+    }
+  ],
+  "policy": {
+    "classification": "phi",
+    "raw_retention": {
+      "mode": "ephemeral",
+      "access_audit_required": false
+    }
+  },
+  "created": {
+    "tenant_id": "acme-health",
+    "principal": {
+      "id": "engineer-42",
+      "kind": "human",
+      "auth_method": "oidc",
+      "roles": [
+        "integration_engineer"
+      ]
+    },
+    "reason": "Golden Path 001 foundation fixture",
+    "occurred_at": "2026-07-13T00:00:00Z"
+  },
+  "digest": "sha256:b0de3dec889161d4af95f2bc51fa77bbb6b2adababd4eb7dd491fbec60fbc925"
+}
