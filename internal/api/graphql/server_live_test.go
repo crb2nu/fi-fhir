@@ -139,6 +139,9 @@ func TestLiveIntegrationSessionSubscription(t *testing.T) {
 	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http") + config.WebSocketPath
 	dialer := websocket.Dialer{Subprotocols: []string{"graphql-transport-ws"}}
 	connection, response, err := dialer.Dial(wsURL, nil)
+	if response != nil {
+		defer response.Body.Close()
+	}
 	if err != nil {
 		status := 0
 		if response != nil {
