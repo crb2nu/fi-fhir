@@ -290,6 +290,8 @@ lint:ui:
     - npm run codegen:check
     - npm run check
     - npm run typecheck
+    - grep -F -q 'location = /api {' nginx/default.conf.template
+    - grep -F -q 'location ^~ /api/ {' nginx/default.conf.template
     - VITE_FI_FHIR_PREVIEW_INTEGRATION_ID=ci-preview-alias npm run build
     - grep -R -F -q 'ci-preview-alias' build/_app/immutable
   rules:
