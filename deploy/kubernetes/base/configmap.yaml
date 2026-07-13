@@ -7,6 +7,10 @@ metadata:
     app.kubernetes.io/name: fi-fhir
     app.kubernetes.io/component: config
 data:
+  # Populate with a published, immutable registry whose tenant matches the
+  # Deployment. Empty is intentionally fail-closed.
+  registry.json: ""
+
   # Application configuration
   config.yaml: |
     server:

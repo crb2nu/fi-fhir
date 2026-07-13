@@ -25,7 +25,6 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/resolvers"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/fhir/subscription"
-	"gitlab.flexinfer.ai/libs/fi-fhir/internal/ingest"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/explain"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/extract"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/quality"
@@ -4677,6 +4676,10 @@ func runServe(args []string) error {
 
 	runtimeConfig := config.Default()
 	runtimeConfig.ApplyEnv()
+	securePreviewRuntime, err := loadPreviewRuntimeFromEnv()
+	if err != nil {
+		return fmt.Errorf("configure authenticated integration preview: %w", err)
+	}
 
 	// Enforce terminology version pins (if configured)
 	dbURL, pins, policy := loadTerminologyPinConfigFromEnv()
@@ -4692,6 +4695,7 @@ func runServe(args []string) error {
 	// Build resolver options
 	resolverOpts := []resolvers.ResolverOption{
 		resolvers.WithVersion(version),
+		resolvers.WithPreviewService(securePreviewRuntime.previewService),
 	}
 
 	if profileStore, err := initProfileStoreFromEnv(context.Background()); err != nil {
@@ -4875,31 +4879,28 @@ func runServe(args []string) error {
 	// Create resolver
 	resolver := resolvers.NewResolver(resolverOpts...)
 
-	// Set up external handlers (e.g., generic generic webhook ingest)
-	externalHandlers := make(map[string]http.Handler)
-	if workflowEngine != nil {
-		logger := workflow.NewStructuredLogger(nil)
-		externalHandlers["/ingest/webhook"] = ingest.NewHandler(logger, workflowEngine, nil)
-	}
-
 	// Create server config
 	serverConfig := &graphql.ServerConfig{
-		Host:              host,
-		Port:              port,
-		Path:              path,
-		PlaygroundEnabled: playground,
-		PlaygroundPath:    playgroundPath,
-		WebSocketPath:     path + "/ws",
-		MaxDepth:          maxDepth,
-		MaxComplexity:     maxComplexity,
-		Timeout:           timeout,
-		Introspection:     introspection,
-		AllowedOrigins:    []string{"*"},
-		ExternalHandlers:  externalHandlers,
+		Host:                host,
+		Port:                port,
+		Path:                path,
+		PlaygroundEnabled:   playground,
+		PlaygroundPath:      playgroundPath,
+		WebSocketPath:       path + "/ws",
+		MaxDepth:            maxDepth,
+		MaxComplexity:       maxComplexity,
+		Timeout:             timeout,
+		Introspection:       introspection,
+		AllowedOrigins:      securePreviewRuntime.allowedOrigins,
+		MaxRequestBodyBytes: graphqlRequestBodyLimit,
+		Authenticator:       securePreviewRuntime.authenticator,
 	}
 
 	// Create and start server
-	server := graphql.NewServer(resolver, serverConfig)
+	server, err := graphql.NewServer(resolver, serverConfig)
+	if err != nil {
+		return fmt.Errorf("configure GraphQL server: %w", err)
+	}
 
 	// Set up signal handling for graceful shutdown
 	sigCh := make(chan os.Signal, 1)
@@ -4962,10 +4963,13 @@ func printServeUsage() {
 	fmt.Println(`fi-fhir serve - Start GraphQL API server
 
 Start a GraphQL API server for healthcare event management. The server provides:
-- Queries for events and patients
-- Mutations to submit messages and events
-- Subscriptions for real-time event streaming
+- An authenticated, side-effect-free integration preview mutation
+- A health query for validating preview credentials
 - Interactive GraphQL Playground (optional)
+
+The server fails closed unless the authenticated preview runtime is configured.
+The integration:preview role can call only health and previewIntegrationMessage;
+legacy GraphQL operations require the separate graphql:operator role.
 
 Usage:
   fi-fhir serve [options]
@@ -4990,16 +4994,25 @@ Options:
 
 Endpoints:
   GET  /          - GraphQL Playground (if enabled)
-  POST /graphql   - GraphQL query endpoint
-  WS   /graphql/ws - GraphQL WebSocket subscriptions
+  POST /graphql   - Authenticated JSON GraphQL endpoint (POST only)
+  GET  /graphql/ws - Not mounted during the authenticated preview phase
   GET  /health    - Health check endpoint
 
-Examples:
-  # Start server with defaults
-  fi-fhir serve
+Required environment:
+  FI_FHIR_DEPLOYMENT_TENANT_ID       Deployment tenant bound to the registry
+  FI_FHIR_GRAPHQL_PRINCIPAL_ID       Server-owned principal identifier
+  FI_FHIR_GRAPHQL_ROLES              Must include integration:preview
+  FI_FHIR_GRAPHQL_ALLOWED_ORIGINS    Comma-separated exact http(s) origins
+  FI_FHIR_INTEGRATION_REGISTRY_PATH  Immutable preview registry JSON path
+  FI_FHIR_GRAPHQL_BEARER_TOKEN       Bearer secret (24+ canonical bytes), or
+  FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE  path to the bearer secret; set exactly one
 
-  # Start on custom port with workflow
-  fi-fhir serve --port 8080 --workflow workflow.yaml
+Examples:
+  # Generate a deployment secret without writing it to shell history
+  export FI_FHIR_GRAPHQL_BEARER_TOKEN="$(openssl rand -hex 32)"
+
+  # Start after setting the remaining required environment above
+  fi-fhir serve --port 8080
 
   # Production mode (no playground, no introspection)
   fi-fhir serve --no-playground --no-introspection --port 443
@@ -5008,12 +5021,20 @@ Examples:
   fi-fhir serve --timeout 60s --max-depth 15
 
 GraphQL Query Examples:
-  # List recent events
-  query { events(first: 10) { edges { node { id type timestamp } } } }
+  query { health { status version } }
 
-  # Get patient info
-  query { patient(mrn: "MRN001") { familyName givenName dateOfBirth } }
-
-  # Subscribe to events
-  subscription { eventStream { ... on LabResultEvent { patient { mrn } } } }`)
+  mutation Preview($input: PreviewIntegrationMessageInput!) {
+    previewIntegrationMessage(input: $input) {
+      events { type payload }
+      diagnostics { severity code message path }
+      deliveries { destination { artifactId revisionId digest } status }
+      integrationRevision { artifactId revisionId digest }
+      artifactRevisions {
+        source { artifactId revisionId digest }
+        profile { artifactId revisionId digest }
+        workflow { artifactId revisionId digest }
+      }
+      correlations { correlationId eventIds }
+    }
+  }`)
 }

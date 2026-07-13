@@ -32,6 +32,8 @@ spec:
         - name: fi-fhir
           image: fi-fhir:latest
           imagePullPolicy: IfNotPresent
+          command: ["/fi-fhir"]
+          args: ["serve", "--no-playground", "--no-introspection"]
 
           ports:
             - name: http
@@ -47,6 +49,20 @@ spec:
               value: "0.0.0.0"
             - name: FI_FHIR_SERVER_PORT
               value: "8080"
+
+            # Authenticated stateless integration preview
+            - name: FI_FHIR_DEPLOYMENT_TENANT_ID
+              value: "tenant-a"
+            - name: FI_FHIR_GRAPHQL_PRINCIPAL_ID
+              value: "fi-fhir-operator"
+            - name: FI_FHIR_GRAPHQL_ROLES
+              value: "integration:preview"
+            - name: FI_FHIR_GRAPHQL_ALLOWED_ORIGINS
+              value: "https://fi-fhir.example.com"
+            - name: FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE
+              value: "/var/run/secrets/fi-fhir/GRAPHQL_BEARER_TOKEN"
+            - name: FI_FHIR_INTEGRATION_REGISTRY_PATH
+              value: "/app/config/registry.json"
 
             # Config file paths
             - name: FI_FHIR_WORKFLOW_CONFIG_PATH
@@ -144,6 +160,7 @@ spec:
         - name: secrets
           secret:
             secretName: fi-fhir-secrets
+            defaultMode: 0440
 
       affinity:
         podAntiAffinity:

@@ -3,6 +3,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { graphqlFetch, isErrorToasted } from './client';
+import { setGraphQLCredentialProvider } from './credentials';
 import { toasts, toastList } from '$lib/ui/toastStore';
 import { get } from 'svelte/store';
 
@@ -18,10 +19,12 @@ describe('graphqlFetch', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     mockFetch.mockReset();
+    setGraphQLCredentialProvider(() => 'ui-test-access-token');
     toasts.dismissAll();
   });
 
   afterEach(() => {
+    setGraphQLCredentialProvider(null);
     toasts.dismissAll();
     vi.useRealTimers();
   });
@@ -36,9 +39,22 @@ describe('graphqlFetch', () => {
 
     expect(mockFetch).toHaveBeenCalledWith('/graphql', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        Authorization: 'Bearer ui-test-access-token',
+        'content-type': 'application/json'
+      },
       body: expect.stringContaining('"variables":{"foo":"bar"}')
     });
+  });
+
+  it('fails before fetch when runtime credentials are unavailable', async () => {
+    setGraphQLCredentialProvider(null);
+
+    await expect(
+      graphqlFetch(mockDocument, undefined, { showErrorToast: false })
+    ).rejects.toThrow('GraphQL credentials unavailable');
+
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it('should return data from successful response', async () => {
@@ -141,10 +157,12 @@ describe('isErrorToasted (B4 dedupe contract)', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     mockFetch.mockReset();
+    setGraphQLCredentialProvider(() => 'ui-test-access-token');
     toasts.dismissAll();
   });
 
   afterEach(() => {
+    setGraphQLCredentialProvider(null);
     toasts.dismissAll();
     vi.useRealTimers();
   });

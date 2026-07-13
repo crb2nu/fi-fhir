@@ -239,6 +239,36 @@ models:
   SubmitMessageInput:
     model:
       - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.SubmitMessageInput
+  PreviewIntegrationMessageInput:
+    model:
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.PreviewIntegrationMessageInput
+  IntegrationArtifactRevision:
+    model:
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.IntegrationArtifactRevision
+  IntegrationExecutionArtifactRevisions:
+    model:
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.IntegrationExecutionArtifactRevisions
+  IntegrationPreviewEvent:
+    model:
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.IntegrationPreviewEvent
+  IntegrationPreviewDiagnostic:
+    model:
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.IntegrationPreviewDiagnostic
+  IntegrationPreviewRoute:
+    model:
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.IntegrationPreviewRoute
+  IntegrationPreviewDestination:
+    model:
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.IntegrationPreviewDestination
+  IntegrationPreviewDelivery:
+    model:
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.IntegrationPreviewDelivery
+  IntegrationPreviewCorrelations:
+    model:
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.IntegrationPreviewCorrelations
+  IntegrationPreviewResult:
+    model:
+      - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.IntegrationPreviewResult
   SubmitEventInput:
     model:
       - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.SubmitEventInput

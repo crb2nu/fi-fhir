@@ -50,6 +50,16 @@ config:
     writeTimeout: "30s"
     shutdownTimeout: "10s"
 
+  # Authenticated stateless integration preview. The registry and bearer are
+  # required runtime inputs; empty values intentionally fail startup closed.
+  preview:
+    tenantId: "tenant-a"
+    principalId: "fi-fhir-operator"
+    roles: "integration:preview"
+    allowedOrigins: "https://fi-fhir.example.com"
+    registryPath: "/app/config/registry.json"
+    bearerTokenPath: "/var/run/secrets/fi-fhir-graphql/bearer-token"
+
   # Workflow engine settings
   workflow:
     configPath: "/app/config/workflow.yaml"
@@ -84,6 +94,11 @@ config:
 
 # External secrets (values should be overridden or use external secrets operator)
 secrets:
+  graphql:
+    # Supply a random value of at least 24 bytes with a production values file
+    # or external secret workflow. Never commit the live value.
+    bearerToken: ""
+
   # Database credentials
   database:
     host: ""
@@ -122,6 +137,10 @@ workflowConfig: |
             level: info
             message: "Processed event: {{.Type}}"
 
+# Immutable integration registry JSON loaded at process startup. Supply a
+# published registry whose tenant matches config.preview.tenantId.
+previewRegistry: ""
+
 service:
   type: ClusterIP
   port: 80
@@ -132,6 +151,8 @@ ingress:
   className: "nginx"
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "1m"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
   hosts:
     - host: fi-fhir.example.com

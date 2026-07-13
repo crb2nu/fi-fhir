@@ -8,6 +8,7 @@ import (
 )
 
 func TestServe_PortInUse_ReturnsError(t *testing.T) {
+	configurePreviewRuntimeForTest(t)
 	// Ensure optional integrations do not attempt external connections in this test.
 	t.Setenv("FI_FHIR_TERMINOLOGY_DB_URL", "")
 	t.Setenv("FI_FHIR_DATABASE_URL", "")
@@ -42,6 +43,7 @@ func TestServe_PortInUse_ReturnsError(t *testing.T) {
 }
 
 func TestServe_PortInUse_WithOptionalIntegrationWarnings(t *testing.T) {
+	configurePreviewRuntimeForTest(t)
 	// Trigger additional (but safe/fast-failing) branches in runServe:
 	// - Profile store initialization fails (connection refused) -> warning path
 	// - Terminology DB URL set but pins empty -> mapping store ping fails -> warning path

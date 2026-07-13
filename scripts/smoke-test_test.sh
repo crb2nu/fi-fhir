@@ -28,10 +28,10 @@ write_fake_curl() {
     '    fi' \
     '    printf "%s" "{\"status\":\"healthy\"}"' \
     '    ;;' \
-    '  *"/graphql/ws"*) printf "%s" "101" ;;' \
+    '  *"/graphql/ws"*) printf "%s" "404" ;;' \
     '  *"/graphql"*)' \
     '    [ "${FAKE_CURL_MODE:-success}" != "graphql-failure" ] || exit 22' \
-    '    printf "%s" "{\"data\":{\"__schema\":{}}}"' \
+    '    printf "%s" "{\"data\":{\"health\":{\"status\":\"ok\"}}}"' \
     '    ;;' \
     '  *) exit 22 ;;' \
     'esac' > "$path"
@@ -43,14 +43,20 @@ write_fake_curl "$FAKE_CURL"
 
 success_log="$TMP_DIR/success.log"
 success_output=$(FAKE_CURL_LOG="$success_log" CURL_BIN="$FAKE_CURL" \
+  GRAPHQL_BEARER_TOKEN="smoke-test-bearer-token-value" \
   RETRIES=1 RETRY_DELAY=0 bash "$SMOKE_SCRIPT")
 grep -q 'Results: 3 passed, 0 failed' <<<"$success_output" ||
   fail "positive path did not report all three checks"
+grep -q 'Authorization: Bearer smoke-test-bearer-token-value' "$success_log" ||
+  fail "GraphQL check omitted bearer authorization"
+grep -q 'Origin: http://localhost:5173' "$success_log" ||
+  fail "WebSocket containment check omitted the configured origin"
 
 failure_log="$TMP_DIR/failure.log"
 set +e
 failure_output=$(FAKE_CURL_LOG="$failure_log" FAKE_CURL_MODE=graphql-failure \
-  CURL_BIN="$FAKE_CURL" RETRIES=1 RETRY_DELAY=0 bash "$SMOKE_SCRIPT" 2>&1)
+  CURL_BIN="$FAKE_CURL" GRAPHQL_BEARER_TOKEN="smoke-test-bearer-token-value" \
+  RETRIES=1 RETRY_DELAY=0 bash "$SMOKE_SCRIPT" 2>&1)
 failure_status=$?
 set -e
 [ "$failure_status" -eq 1 ] || fail "negative path exited $failure_status, want 1"
@@ -61,10 +67,20 @@ grep -q '/graphql/ws' "$failure_log" ||
 
 retry_log="$TMP_DIR/retry.log"
 retry_output=$(FAKE_CURL_LOG="$retry_log" FAKE_CURL_MODE=retry-health \
-  CURL_BIN="$FAKE_CURL" RETRIES=2 RETRY_DELAY=0 bash "$SMOKE_SCRIPT")
+  CURL_BIN="$FAKE_CURL" GRAPHQL_BEARER_TOKEN="smoke-test-bearer-token-value" \
+  RETRIES=2 RETRY_DELAY=0 bash "$SMOKE_SCRIPT")
 grep -q 'Results: 3 passed, 0 failed' <<<"$retry_output" ||
   fail "retry path did not recover"
 [ "$(grep -c '/health' "$retry_log")" -eq 2 ] ||
   fail "health check did not retry exactly once"
+
+set +e
+missing_token_output=$(FAKE_CURL_LOG="$TMP_DIR/missing-token.log" CURL_BIN="$FAKE_CURL" \
+  RETRIES=1 RETRY_DELAY=0 bash "$SMOKE_SCRIPT" 2>&1)
+missing_token_status=$?
+set -e
+[ "$missing_token_status" -eq 1 ] || fail "missing token exited $missing_token_status, want 1"
+grep -q 'GRAPHQL_BEARER_TOKEN is required' <<<"$missing_token_output" ||
+  fail "missing token did not fail with a safe configuration error"
 
 echo "smoke-test_test: all assertions passed"

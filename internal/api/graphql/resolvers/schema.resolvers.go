@@ -34,8 +34,16 @@ import (
 	workflowservice "go.temporal.io/api/workflowservice/v1"
 )
 
+// PreviewIntegrationMessage is the resolver for the previewIntegrationMessage field.
+func (r *mutationResolver) PreviewIntegrationMessage(ctx context.Context, input model.PreviewIntegrationMessageInput) (*model.IntegrationPreviewResult, error) {
+	return r.previewIntegrationMessage(ctx, input)
+}
+
 // SubmitMessage is the resolver for the submitMessage field.
 func (r *mutationResolver) SubmitMessage(ctx context.Context, input model.SubmitMessageInput) (*model.SubmitResult, error) {
+	if !r.legacyUnsafeExecution {
+		return nil, ErrLegacyExecutionUnavailable
+	}
 	result := &model.SubmitResult{
 		Warnings:        []model.ParseWarning{},
 		Errors:          []string{},
@@ -207,6 +215,9 @@ func (r *mutationResolver) SubmitMessage(ctx context.Context, input model.Submit
 
 // SubmitEvent is the resolver for the submitEvent field.
 func (r *mutationResolver) SubmitEvent(ctx context.Context, input model.SubmitEventInput) (*model.SubmitResult, error) {
+	if !r.legacyUnsafeExecution {
+		return nil, ErrLegacyExecutionUnavailable
+	}
 	result := &model.SubmitResult{
 		Warnings:        []model.ParseWarning{},
 		Errors:          []string{},
@@ -234,6 +245,9 @@ func (r *mutationResolver) SubmitEvent(ctx context.Context, input model.SubmitEv
 
 // SubmitBatch is the resolver for the submitBatch field.
 func (r *mutationResolver) SubmitBatch(ctx context.Context, input model.SubmitBatchInput) (*model.BatchResult, error) {
+	if !r.legacyUnsafeExecution {
+		return nil, ErrLegacyExecutionUnavailable
+	}
 	startTime := time.Now()
 
 	// Calculate total items
@@ -310,6 +324,9 @@ func (r *mutationResolver) SubmitBatch(ctx context.Context, input model.SubmitBa
 
 // TriggerWorkflow is the resolver for the triggerWorkflow field.
 func (r *mutationResolver) TriggerWorkflow(ctx context.Context, name string, event map[string]any, environment *string, versionID *string) (*model.WorkflowResult, error) {
+	if !r.legacyUnsafeExecution {
+		return nil, ErrLegacyExecutionUnavailable
+	}
 	env := "production"
 	if environment != nil && strings.TrimSpace(*environment) != "" {
 		env = strings.TrimSpace(*environment)
@@ -980,6 +997,9 @@ func (r *mutationResolver) ArchiveIntegrationSession(ctx context.Context, id str
 
 // AddSessionSample is the resolver for the addSessionSample field.
 func (r *mutationResolver) AddSessionSample(ctx context.Context, input model.AddSessionSampleInput) (*model.SessionSample, error) {
+	if !r.legacyUnsafeExecution {
+		return nil, ErrLegacyExecutionUnavailable
+	}
 	return r.integrationSessions.addSample(input)
 }
 
@@ -995,6 +1015,9 @@ func (r *mutationResolver) UpdateSessionWorkflowDraft(ctx context.Context, input
 
 // RunSessionPreview is the resolver for the runSessionPreview field.
 func (r *mutationResolver) RunSessionPreview(ctx context.Context, input model.RunSessionPreviewInput) (*model.SessionRun, error) {
+	if !r.legacyUnsafeExecution {
+		return nil, ErrLegacyExecutionUnavailable
+	}
 	return r.integrationSessions.runPreview(input)
 }
 
@@ -1005,6 +1028,9 @@ func (r *mutationResolver) AcceptDiagnosticFix(ctx context.Context, input model.
 
 // ExportIntegrationBundle is the resolver for the exportIntegrationBundle field.
 func (r *mutationResolver) ExportIntegrationBundle(ctx context.Context, input model.ExportIntegrationBundleInput) (*model.IntegrationBundle, error) {
+	if !r.legacyUnsafeExecution {
+		return nil, ErrLegacyExecutionUnavailable
+	}
 	return r.integrationSessions.exportBundle(input)
 }
 
@@ -2062,6 +2088,9 @@ func (r *queryResolver) Health(ctx context.Context) (*model.HealthStatus, error)
 
 // ParsePreview is the resolver for the parsePreview field.
 func (r *queryResolver) ParsePreview(ctx context.Context, format model.SourceFormat, data string, source *string) (*model.ParseResult, error) {
+	if !r.legacyUnsafeExecution {
+		return nil, ErrLegacyExecutionUnavailable
+	}
 	result := &model.ParseResult{
 		Events:   []model.Event{},
 		Warnings: []model.ParseWarning{},
@@ -2341,6 +2370,9 @@ func (r *queryResolver) ProfileRevisions(ctx context.Context, id string) ([]mode
 
 // ParsePreviewWithProfile is the resolver for the parsePreviewWithProfile field.
 func (r *queryResolver) ParsePreviewWithProfile(ctx context.Context, format model.SourceFormat, data string, source *string, profileID *string) (*model.ParseResult, error) {
+	if !r.legacyUnsafeExecution {
+		return nil, ErrLegacyExecutionUnavailable
+	}
 	// For now, delegate to the standard parsePreview
 	// Profile-aware parsing will be added when profile integration is complete
 	return r.ParsePreview(ctx, format, data, source)
@@ -3200,6 +3232,9 @@ func (r *subscriptionResolver) SessionRunEvents(ctx context.Context, sessionID s
 
 // LiveParseStream is the resolver for the liveParseStream subscription.
 func (r *subscriptionResolver) LiveParseStream(ctx context.Context, input model.LiveParseInput) (<-chan *model.ParseEventModel, error) {
+	if !r.legacyUnsafeExecution {
+		return nil, ErrLegacyExecutionUnavailable
+	}
 	parser := hl7v2.NewParser("live-parse", hl7v2.ParserConfig{})
 	liveParser := hl7v2.NewLiveParser(parser)
 

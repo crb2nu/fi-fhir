@@ -1,4 +1,3 @@
-import { browser } from '$app/environment';
 import { derived, writable } from 'svelte/store';
 import type { HL7Sample, NewHL7Sample } from './types';
 import { parseHL7Message } from '$lib/domain/hl7v2';
@@ -9,17 +8,15 @@ type State = {
   activeId: string | null;
 };
 
-const STORAGE_KEY = 'fi-fhir:hl7:samples:v1';
-
 function nowIso(): string {
   return new Date().toISOString();
 }
 
 function makeId(): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID();
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
   }
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  throw new Error('secure random UUID generation is unavailable');
 }
 
 function summarize(raw: string): Partial<Pick<HL7Sample, 'messageType' | 'controlId' | 'version'>> {
@@ -38,33 +35,11 @@ function summarize(raw: string): Partial<Pick<HL7Sample, 'messageType' | 'contro
   };
 }
 
-function load(): State {
-  if (!browser) return { samples: [], activeId: null };
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { samples: [], activeId: null };
-    const parsed = JSON.parse(raw) as State;
-    if (!parsed || !Array.isArray(parsed.samples)) return { samples: [], activeId: null };
-    return {
-      samples: parsed.samples,
-      activeId: typeof parsed.activeId === 'string' ? parsed.activeId : null
-    };
-  } catch {
-    return { samples: [], activeId: null };
-  }
-}
-
-function save(state: State): void {
-  if (!browser) return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
-
 export function createHL7SampleStore() {
-  const state = writable<State>(load());
-
-  if (browser) {
-    state.subscribe((s) => save(s));
-  }
+  // Raw clinical messages are intentionally scoped to this store instance.
+  // Reloading the page or creating a new tab clears them; never persist PHI in
+  // browser storage implicitly.
+  const state = writable<State>({ samples: [], activeId: null });
 
   const samples = derived(state, ($s) => $s.samples);
   const activeId = derived(state, ($s) => $s.activeId);

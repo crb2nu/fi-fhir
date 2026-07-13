@@ -9,8 +9,7 @@ export default defineConfig(({ mode }) => {
     plugins: [sveltekit()],
     server: {
       proxy: {
-        '/api': { target: apiOrigin, changeOrigin: true },
-        '/graphql': { target: apiOrigin, changeOrigin: true, ws: true },
+        '/graphql': { target: apiOrigin, changeOrigin: true },
         '/health': { target: apiOrigin, changeOrigin: true }
       }
     }

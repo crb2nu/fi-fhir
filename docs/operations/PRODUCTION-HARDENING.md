@@ -513,6 +513,60 @@ rules:
 
 ## Access Control
 
+### Transitional Preview Authentication
+
+Slice 1.1c uses one static deployment bearer to activate stateless preview in a
+single security domain. This is a narrow transitional control, not the Phase 4
+OIDC, fine-grained RBAC, audited token-administration, or durable-session model.
+
+Harden this boundary as follows:
+
+- mount `FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE` from Vault, External Secrets, or an
+  equivalent managed secret; do not put the bearer in Git, Helm values, a
+  `PUBLIC_*` build variable, ConfigMap, localStorage, or sessionStorage;
+- generate at least 24 canonical random bytes and rotate through the secret
+  manager plus a controlled rollout;
+- set `FI_FHIR_DEPLOYMENT_TENANT_ID`, `FI_FHIR_GRAPHQL_PRINCIPAL_ID`, and
+  `FI_FHIR_GRAPHQL_ROLES=integration:preview` from deployment-owned config;
+- list every browser origin exactly in
+  `FI_FHIR_GRAPHQL_ALLOWED_ORIGINS`; wildcards, paths, user information, query
+  strings, and fragments are invalid;
+- mount a strict immutable registry at
+  `FI_FHIR_INTEGRATION_REGISTRY_PATH`; its tenant must equal the deployment
+  tenant and its profile/workflow digests must match the definition; and
+- disable Playground and introspection on internet-reachable deployments even
+  though operation authorization still applies.
+
+The `integration:preview` role permits only GraphQL `health` and
+`previewIntegrationMessage`. Do not grant `graphql:operator` to an IDE token;
+that role is a temporary authenticated escape hatch for legacy operations.
+
+GraphQL HTTP accepts only bounded JSON POST requests and browser requests
+require an exact allowed origin. GraphQL WebSocket transport is unmounted; the
+UI fails subscription attempts locally without opening a socket. The preview service owns no receipt,
+sample/run store, destination, or action client. Legacy submit, workflow,
+session retention/export, and live-parse operations fail closed by default.
+
+The Mapping Studio holds its bearer, imported raw HL7 samples, and
+filename-derived source labels only in the current tab's JavaScript memory.
+This prevents implicit browser persistence but does not make the open tab
+PHI-free. Require approved workstations, session locking, and redacted fixtures
+where possible.
+
+The layout startup purges the two known legacy localStorage keys that stored raw
+HL7 samples and recent source labels. This upgrade cleanup preserves unrelated
+UI preferences.
+
+Copy a Helm-managed bearer directly to the macOS clipboard without printing it:
+
+```bash
+kubectl -n fi-fhir get secret fi-fhir \
+  -o jsonpath='{.data.graphql-bearer-token}' | base64 --decode | pbcopy
+```
+
+Adjust the secret name for the Helm release fullname, paste it only into the
+credential gate, and clear the clipboard afterward.
+
 ### RBAC Configuration
 
 ```yaml
@@ -669,6 +723,8 @@ kubectl get secret fi-fhir -n fi-fhir -o yaml | \
 - [ ] Vulnerability scan passed (no CRITICAL/HIGH)
 - [ ] Image signed with cosign
 - [ ] Secrets stored in Vault/External Secrets
+- [ ] Preview bearer is mounted from a managed secret file and is not in Git or Helm release values
+- [ ] Deployment tenant, principal, preview role, exact origins, and registry tenant/digests agree
 - [ ] Network policies applied
 - [ ] RBAC configured (principle of least privilege)
 - [ ] TLS certificates provisioned
@@ -677,6 +733,8 @@ kubectl get secret fi-fhir -n fi-fhir -o yaml | \
 ### Post-Deployment
 
 - [ ] Health checks passing (`/health`, `/ready`)
+- [ ] Missing/wrong bearer and disallowed origins fail; preview role cannot call legacy operations
+- [ ] Mapping Studio reload clears bearer and imported raw samples
 - [ ] Metrics being scraped
 - [ ] Alerts configured and tested
 - [ ] Backup procedures tested

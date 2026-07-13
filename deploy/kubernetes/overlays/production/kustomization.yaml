@@ -37,27 +37,26 @@ patches:
       kind: Deployment
       name: fi-fhir
 
-  # Update log level for production
+  # Override selected production values without replacing the base env array.
+  # The strategic merge key is each env entry's name, so preview auth and
+  # secret-backed database/queue settings remain present.
   - patch: |-
-      - op: replace
-        path: /spec/template/spec/containers/0/env
-        value:
-          - name: FI_FHIR_SERVER_HOST
-            value: "0.0.0.0"
-          - name: FI_FHIR_SERVER_PORT
-            value: "8080"
-          - name: FI_FHIR_WORKFLOW_CONFIG_PATH
-            value: "/app/config/workflow.yaml"
-          - name: FI_FHIR_LOG_LEVEL
-            value: "info"
-          - name: FI_FHIR_LOG_FORMAT
-            value: "json"
-          - name: FI_FHIR_METRICS_ENABLED
-            value: "true"
-          - name: FI_FHIR_TRACING_ENABLED
-            value: "true"
-          - name: FI_FHIR_TRACING_SAMPLER
-            value: "0.01"
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: fi-fhir
+      spec:
+        template:
+          spec:
+            containers:
+              - name: fi-fhir
+                env:
+                  - name: FI_FHIR_GRAPHQL_ALLOWED_ORIGINS
+                    value: "https://fi-fhir.prod.example.com"
+                  - name: FI_FHIR_LOG_LEVEL
+                    value: "info"
+                  - name: FI_FHIR_TRACING_SAMPLER
+                    value: "0.01"
     target:
       kind: Deployment
       name: fi-fhir

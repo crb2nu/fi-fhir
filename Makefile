@@ -516,6 +516,7 @@ docs-all: docs-mermaid docs-status docs-validate
 # Start postgres + qdrant + fi-fhir serve with persistent storage.
 # Ctrl-C stops the server; docker services keep running until `make dev-down`.
 dev: build
+	@test -n "$$FI_FHIR_GRAPHQL_BEARER_TOKEN" || { echo "FI_FHIR_GRAPHQL_BEARER_TOKEN is required; generate one with: export FI_FHIR_GRAPHQL_BEARER_TOKEN=\$$(openssl rand -hex 32)" >&2; exit 1; }
 	docker-compose up -d postgres qdrant
 	@echo "Waiting for postgres..."
 	@until docker-compose exec -T postgres pg_isready -U fi_fhir -d fi_fhir 2>/dev/null; do sleep 1; done
@@ -526,8 +527,14 @@ dev: build
 	FI_FHIR_DATABASE_USERNAME=fi_fhir \
 	FI_FHIR_DATABASE_PASSWORD=fi_fhir_dev \
 	FI_FHIR_DATABASE_SSL_MODE=disable \
+	FI_FHIR_DEPLOYMENT_TENANT_ID=tenant-a \
+	FI_FHIR_GRAPHQL_BEARER_TOKEN="$$FI_FHIR_GRAPHQL_BEARER_TOKEN" \
+	FI_FHIR_GRAPHQL_PRINCIPAL_ID=local-operator \
+	FI_FHIR_GRAPHQL_ROLES=integration:preview \
+	FI_FHIR_GRAPHQL_ALLOWED_ORIGINS=http://localhost:5173 \
+	FI_FHIR_INTEGRATION_REGISTRY_PATH="$(CURDIR)/testdata/golden/integration/adt-http/preview-registry.json" \
 	QDRANT_URL=http://localhost:6333 \
-	./bin/fi-fhir serve $(ARGS)
+	./bin/fi-fhir serve --no-playground --no-introspection $(ARGS)
 
 # Stop docker-compose services started by `make dev`.
 dev-down:

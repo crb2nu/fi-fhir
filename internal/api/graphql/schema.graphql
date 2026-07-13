@@ -575,6 +575,98 @@ input SubmitMessageInput {
   correlationId: String
 }
 
+# Stateless, authenticated preview input. Tenant, principal, source, format,
+# classification, and every executable revision are selected by the server.
+input PreviewIntegrationMessageInput {
+  integrationId: ID!
+  data: String!
+  correlationId: ID!
+  reason: String!
+}
+
+type IntegrationArtifactRevision {
+  artifactId: ID!
+  revisionId: ID!
+  digest: String!
+}
+
+type IntegrationExecutionArtifactRevisions {
+  source: IntegrationArtifactRevision!
+  profile: IntegrationArtifactRevision!
+  workflow: IntegrationArtifactRevision!
+}
+
+type IntegrationPreviewEvent {
+  tenantId: ID!
+  id: ID!
+  type: String!
+  sourceMessageId: String
+  correlationId: ID!
+  classification: String!
+  payload: JSON!
+}
+
+type IntegrationPreviewDiagnostic {
+  tenantId: ID!
+  severity: String!
+  stage: String!
+  code: String!
+  message: String!
+  path: String
+  source: String
+  classification: String!
+}
+
+type IntegrationPreviewRoute {
+  tenantId: ID!
+  eventId: ID!
+  route: String!
+  matched: Boolean!
+  skipped: Boolean!
+  skipReason: String
+  transformCount: Int!
+  plannedActions: [String!]!
+  diagnosticCodes: [String!]!
+}
+
+type IntegrationPreviewDestination {
+  artifactId: ID!
+  revisionId: ID!
+  digest: String!
+  class: String!
+}
+
+type IntegrationPreviewDelivery {
+  tenantId: ID!
+  eventId: ID!
+  destination: IntegrationPreviewDestination!
+  route: String!
+  action: String!
+  status: String!
+  diagnosticCodes: [String!]!
+}
+
+type IntegrationPreviewCorrelations {
+  tenantId: ID!
+  correlationId: ID!
+  traceId: ID
+  sourceMessageId: String
+  eventIds: [ID!]!
+  workflowRunId: ID
+}
+
+type IntegrationPreviewResult {
+  mode: String!
+  tenantId: ID!
+  integrationRevision: IntegrationArtifactRevision!
+  artifactRevisions: IntegrationExecutionArtifactRevisions!
+  events: [IntegrationPreviewEvent!]!
+  diagnostics: [IntegrationPreviewDiagnostic!]!
+  routes: [IntegrationPreviewRoute!]!
+  deliveries: [IntegrationPreviewDelivery!]!
+  correlations: IntegrationPreviewCorrelations!
+}
+
 input SubmitEventInput {
   type: EventType!
   data: JSON!
@@ -737,6 +829,10 @@ type FhirSubscription {
 }
 
 type Mutation {
+  # Evaluate one raw message with exact server-owned revisions. This operation
+  # never persists a receipt/sample/run or invokes a destination.
+  previewIntegrationMessage(input: PreviewIntegrationMessageInput!): IntegrationPreviewResult!
+
   # Submit a raw message for parsing and processing
   submitMessage(input: SubmitMessageInput!): SubmitResult!
 

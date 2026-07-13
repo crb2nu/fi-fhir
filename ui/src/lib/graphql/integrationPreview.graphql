@@ -1,0 +1,80 @@
+mutation PreviewIntegrationMessage($input: PreviewIntegrationMessageInput!) {
+  previewIntegrationMessage(input: $input) {
+    mode
+    tenantId
+    integrationRevision {
+      artifactId
+      revisionId
+      digest
+    }
+    artifactRevisions {
+      source {
+        artifactId
+        revisionId
+        digest
+      }
+      profile {
+        artifactId
+        revisionId
+        digest
+      }
+      workflow {
+        artifactId
+        revisionId
+        digest
+      }
+    }
+    events {
+      tenantId
+      id
+      type
+      sourceMessageId
+      correlationId
+      classification
+      payload
+    }
+    diagnostics {
+      tenantId
+      severity
+      stage
+      code
+      message
+      path
+      source
+      classification
+    }
+    routes {
+      tenantId
+      eventId
+      route
+      matched
+      skipped
+      skipReason
+      transformCount
+      plannedActions
+      diagnosticCodes
+    }
+    deliveries {
+      tenantId
+      eventId
+      destination {
+        artifactId
+        revisionId
+        digest
+        class
+      }
+      route
+      action
+      status
+      diagnosticCodes
+    }
+    correlations {
+      tenantId
+      correlationId
+      traceId
+      sourceMessageId
+      eventIds
+      workflowRunId
+    }
+  }
+}

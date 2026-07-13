@@ -15,6 +15,7 @@ Documentation for deploying and operating fi-fhir in production environments.
 | Secure a deployment | [Production Hardening](PRODUCTION-HARDENING.md) |
 | Troubleshoot issues | [Operations Runbook](RUNBOOK.md) |
 | Review the 1.0 support target | [Supported 1.0 Baseline](SUPPORTED-1.0.md) |
+| Configure authenticated preview | [Operations Runbook](RUNBOOK.md#authenticated-preview-access) |
 | Monitor performance | [Observability](#observability) |
 | Configure health checks | [Health Endpoints](#health-endpoints) |
 
@@ -23,8 +24,14 @@ Documentation for deploying and operating fi-fhir in production environments.
 ### Docker Compose (Development)
 
 ```bash
-docker-compose up -d
+export FI_FHIR_GRAPHQL_BEARER_TOKEN="$(openssl rand -hex 32)"
+docker compose up -d
+unset FI_FHIR_GRAPHQL_BEARER_TOKEN
 ```
+
+Compose deliberately has no default preview bearer. Generate a fresh local
+value as above; never commit or print it. Production deployments should mount a
+managed secret file instead.
 
 ### Kubernetes (Production)
 
@@ -35,6 +42,11 @@ kubectl apply -k deploy/kubernetes/overlays/production/
 # Using Helm
 helm install fi-fhir deploy/helm/fi-fhir/ -f values-prod.yaml
 ```
+
+`fi-fhir serve` requires a deployment tenant, principal, `integration:preview`
+role, exact HTTP(S) origins, one bearer source, and an immutable same-tenant
+integration registry. Missing or inconsistent values fail startup closed. See
+[Production Hardening](PRODUCTION-HARDENING.md#transitional-preview-authentication).
 
 ## Observability
 

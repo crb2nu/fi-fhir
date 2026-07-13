@@ -60,6 +60,11 @@ variables:
   - pkg/**/*
   - sdk/**/*
   - Dockerfile
+  - docker-compose.yaml
+  - deploy/**/*
+  - configs/**/*
+  - testdata/**/*
+  - .env.example
   - .gitlab-ci.yml
   - .golangci.yml
   - .golangci.yaml
@@ -73,6 +78,7 @@ variables:
   - internal/api/graphql/schema.graphql
   - api/openapi.yaml
   - .gitlab-ci.yml
+  - testdata/**/*
 
 .sdk-ts-changes: &sdk-ts-changes
   - sdk/typescript/**/*
@@ -89,6 +95,11 @@ variables:
   - scripts/smoke-test.sh
   - scripts/smoke-test_test.sh
   - Dockerfile
+  - docker-compose.yaml
+  - deploy/**/*
+  - configs/**/*
+  - testdata/**/*
+  - .env.example
   - api/openapi.yaml
   - .gitlab-ci.yml
   - .golangci.yml
@@ -279,6 +290,8 @@ lint:ui:
     - npm run codegen:check
     - npm run check
     - npm run typecheck
+    - VITE_FI_FHIR_PREVIEW_INTEGRATION_ID=ci-preview-alias npm run build
+    - grep -R -F -q 'ci-preview-alias' build/_app/immutable
   rules:
     - if: $CI_COMMIT_TAG
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -313,8 +326,10 @@ lint:helm:
   stage: lint
   image: ${DOCKERHUB_CACHE_PREFIX}/alpine/helm:latest
   script:
+    - apk add --no-cache kubectl
     - helm lint deploy/helm/fi-fhir/
     - helm template fi-fhir deploy/helm/fi-fhir/ > /dev/null
+    - sh scripts/validate-kustomize-preview.sh
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -612,6 +627,15 @@ test:ui:
     - |
       set -eu
       test -x bin/fi-fhir
+      export FI_FHIR_DEPLOYMENT_TENANT_ID="tenant-a"
+      export FI_FHIR_GRAPHQL_BEARER_TOKEN="ci-authenticated-preview-token-1"
+      export FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE=""
+      export FI_FHIR_GRAPHQL_PRINCIPAL_ID="ci-ui"
+      export FI_FHIR_GRAPHQL_ROLES="integration:preview"
+      export FI_FHIR_GRAPHQL_ALLOWED_ORIGINS="http://localhost:5173"
+      export FI_FHIR_INTEGRATION_REGISTRY_PATH="${CI_PROJECT_DIR}/testdata/golden/integration/adt-http/preview-registry.json"
+      export GRAPHQL_BEARER_TOKEN="${FI_FHIR_GRAPHQL_BEARER_TOKEN}"
+      export VITE_FI_FHIR_PREVIEW_INTEGRATION_ID="adt-east"
       bin/fi-fhir serve --port 8081 > fi-fhir-ui-server.log 2>&1 &
       server_pid=$!
       cleanup() {
@@ -846,6 +870,14 @@ test:smoke:
       set -eu
       bash scripts/smoke-test_test.sh
       test -x bin/fi-fhir
+      export FI_FHIR_DEPLOYMENT_TENANT_ID="tenant-a"
+      export FI_FHIR_GRAPHQL_BEARER_TOKEN="ci-authenticated-preview-token-1"
+      export FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE=""
+      export FI_FHIR_GRAPHQL_PRINCIPAL_ID="ci-smoke"
+      export FI_FHIR_GRAPHQL_ROLES="integration:preview"
+      export FI_FHIR_GRAPHQL_ALLOWED_ORIGINS="http://localhost:5173"
+      export FI_FHIR_INTEGRATION_REGISTRY_PATH="${CI_PROJECT_DIR}/testdata/golden/integration/adt-http/preview-registry.json"
+      export GRAPHQL_BEARER_TOKEN="${FI_FHIR_GRAPHQL_BEARER_TOKEN}"
       bin/fi-fhir serve --port 8081 > fi-fhir-smoke-server.log 2>&1 &
       server_pid=$!
       cleanup() {
@@ -868,7 +900,7 @@ test:smoke:
         tail -100 fi-fhir-smoke-server.log || true
         exit 1
       fi
-      BASE_URL=http://localhost:8081 TIMEOUT=5 RETRIES=2 bash scripts/smoke-test.sh
+      BASE_URL=http://localhost:8081 GRAPHQL_ALLOWED_ORIGIN=http://localhost:5173 TIMEOUT=5 RETRIES=2 bash scripts/smoke-test.sh
   after_script:
     - |
       if [ "$CI_JOB_STATUS" = "failed" ]; then
@@ -1253,6 +1285,7 @@ build:docker-ui:
         --build-arg VITE_BUILD_SHA="${CI_COMMIT_SHORT_SHA}" \
         --build-arg VITE_BUILD_TAG="${BUILD_TAG}" \
         --build-arg VITE_BUILD_TIME="${CI_PIPELINE_CREATED_AT}" \
+        --build-arg VITE_FI_FHIR_PREVIEW_INTEGRATION_ID="adt-east" \
         -t "${IMAGE_TAG}" \
         ./ui
     - docker save "${IMAGE_TAG}" > docker-ui-image.tar
