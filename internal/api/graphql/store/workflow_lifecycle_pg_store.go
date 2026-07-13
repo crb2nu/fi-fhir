@@ -391,7 +391,8 @@ func (s *PostgresWorkflowLifecycleStore) SaveWorkflowVersion(ctx context.Context
 	if version == nil {
 		return nil, fmt.Errorf("workflow version is required")
 	}
-	if strings.TrimSpace(version.WorkflowID) == "" {
+	workflowID := strings.TrimSpace(version.WorkflowID)
+	if workflowID == "" {
 		return nil, fmt.Errorf("workflow ID is required")
 	}
 	if strings.TrimSpace(version.Yaml) == "" {
@@ -418,12 +419,26 @@ func (s *PostgresWorkflowLifecycleStore) SaveWorkflowVersion(ctx context.Context
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	var lockedWorkflowID string
+	err = tx.QueryRowContext(ctx, `
+		SELECT id
+		FROM workflow_definitions
+		WHERE id = $1
+		FOR UPDATE
+	`, workflowID).Scan(&lockedWorkflowID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("workflow definition not found: %s", workflowID)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("lock workflow definition: %w", err)
+	}
+
 	var nextVersion int
 	if err := tx.QueryRowContext(ctx, `
 		SELECT COALESCE(MAX(version_number), 0) + 1
 		FROM workflow_versions
 		WHERE workflow_id = $1
-	`, version.WorkflowID).Scan(&nextVersion); err != nil {
+	`, workflowID).Scan(&nextVersion); err != nil {
 		return nil, fmt.Errorf("compute next workflow version number: %w", err)
 	}
 
@@ -434,7 +449,7 @@ func (s *PostgresWorkflowLifecycleStore) SaveWorkflowVersion(ctx context.Context
 
 	record := &WorkflowVersionRecord{
 		ID:            id,
-		WorkflowID:    strings.TrimSpace(version.WorkflowID),
+		WorkflowID:    workflowID,
 		VersionNumber: nextVersion,
 		Yaml:          version.Yaml,
 		Validation:    version.Validation,
@@ -483,6 +498,47 @@ func (s *PostgresWorkflowLifecycleStore) GetWorkflowVersion(ctx context.Context,
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get workflow version: %w", err)
+	}
+
+	validation, err := unmarshalValidation(rawValidation)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal workflow validation: %w", err)
+	}
+	record.Validation = validation
+	if notes.Valid {
+		record.Notes = notes.String
+	}
+	return record, nil
+}
+
+// GetWorkflowVersionForWorkflow gets a version only when both immutable IDs match.
+func (s *PostgresWorkflowLifecycleStore) GetWorkflowVersionForWorkflow(
+	ctx context.Context,
+	workflowID string,
+	versionID string,
+) (*WorkflowVersionRecord, error) {
+	var rawValidation []byte
+	var notes sql.NullString
+	record := &WorkflowVersionRecord{}
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id, workflow_id, version_number, yaml, validation, created_by, created_at, notes
+		FROM workflow_versions
+		WHERE workflow_id = $1 AND id = $2
+	`, workflowID, versionID).Scan(
+		&record.ID,
+		&record.WorkflowID,
+		&record.VersionNumber,
+		&record.Yaml,
+		&rawValidation,
+		&record.CreatedBy,
+		&record.CreatedAt,
+		&notes,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get workflow version for workflow: %w", err)
 	}
 
 	validation, err := unmarshalValidation(rawValidation)
@@ -593,8 +649,23 @@ func (s *PostgresWorkflowLifecycleStore) PublishWorkflowVersion(ctx context.Cont
 		PublishedAt:           publishedAt,
 		RollbackFromReleaseID: release.RollbackFromReleaseID,
 	}
-
+	var versionWorkflowID string
 	err := s.db.QueryRowContext(ctx, `
+		SELECT workflow_id
+		FROM workflow_versions
+		WHERE id = $1
+	`, record.VersionID).Scan(&versionWorkflowID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("workflow version not found: %s", record.VersionID)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get workflow version owner: %w", err)
+	}
+	if versionWorkflowID != record.WorkflowID {
+		return nil, fmt.Errorf("workflow version %s does not belong to workflow %s", record.VersionID, record.WorkflowID)
+	}
+
+	err = s.db.QueryRowContext(ctx, `
 		INSERT INTO workflow_releases (
 			id, workflow_id, environment, version_id, published_by, published_at, rollback_from_release_id
 		)

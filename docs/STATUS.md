@@ -54,7 +54,8 @@
 | Component             | Path                              | Maturity   | Coverage | Notes                                            | Last Updated |
 | --------------------- | --------------------------------- | ---------- | -------- | ------------------------------------------------ | ------------ |
 | Workflow Engine       | `internal/workflow/`              | Production | 82.0%    | CEL filters, actions, replay, simulation, DLQ    | 2026-03-24   |
-| GraphQL API           | `internal/api/graphql/`           | Production | 4.1%\*   | Schema, resolvers, dataloaders, WebSocket        | 2026-03-24   |
+| Integration Resolver  | `internal/integration/processor/` | Alpha      | 82.4%    | Exact artifact resolution; processor pending     | 2026-07-13   |
+| GraphQL API           | `internal/api/graphql/`           | Production | 4.1%\*   | Schema, resolvers, immutable stores, WebSocket   | 2026-07-13   |
 | FHIR Subscriptions    | `internal/fhir/subscription/`     | Production | 83.7%    | Bidirectional; client + webhook receiver         | 2026-02-27   |
 | Terminology Autoroute | `internal/terminology/autoroute/` | Beta       | 88.5%    | Automatic code-system routing engine             | 2026-03-09   |
 | Terminology Workflow  | `internal/terminology/workflow/`  | Production | 95.7%    | Temporal workflow + activity + worker unit tests | 2026-03-03   |

@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -74,6 +75,46 @@ func TestMemoryWorkflowLifecycleStore_VersioningAndPublishPointers(t *testing.T)
 	}
 	if published.VersionID != v2.ID {
 		t.Fatalf("expected version %q, got %q", v2.ID, published.VersionID)
+	}
+}
+
+func TestMemoryWorkflowLifecycleStore_PublishRejectsVersionOwnedByAnotherWorkflow(t *testing.T) {
+	s := NewMemoryWorkflowLifecycleStore()
+	ctx := context.Background()
+
+	owner, err := s.CreateWorkflowDefinition(ctx, &WorkflowDefinitionRecord{Name: "owner"})
+	if err != nil {
+		t.Fatalf("CreateWorkflowDefinition(owner) failed: %v", err)
+	}
+	other, err := s.CreateWorkflowDefinition(ctx, &WorkflowDefinitionRecord{Name: "other"})
+	if err != nil {
+		t.Fatalf("CreateWorkflowDefinition(other) failed: %v", err)
+	}
+	version, err := s.SaveWorkflowVersion(ctx, &WorkflowVersionRecord{
+		WorkflowID: owner.ID,
+		Yaml:       "name: owner\nroutes: []\n",
+	})
+	if err != nil {
+		t.Fatalf("SaveWorkflowVersion failed: %v", err)
+	}
+
+	_, err = s.PublishWorkflowVersion(ctx, &WorkflowReleaseRecord{
+		WorkflowID:  other.ID,
+		VersionID:   version.ID,
+		Environment: "production",
+	})
+	if err == nil {
+		t.Fatal("expected cross-workflow publication to fail")
+	}
+	if !strings.Contains(err.Error(), "does not belong") {
+		t.Fatalf("expected ownership error, got %v", err)
+	}
+	releases, err := s.ListWorkflowReleases(ctx, other.ID)
+	if err != nil {
+		t.Fatalf("ListWorkflowReleases failed: %v", err)
+	}
+	if len(releases) != 0 {
+		t.Fatalf("expected no release after rejected publication, got %d", len(releases))
 	}
 }
 

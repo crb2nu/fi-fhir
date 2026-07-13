@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -31,6 +32,12 @@ type ProfileStore interface {
 	// GetProfileRevisions retrieves revision history for a profile.
 	GetProfileRevisions(ctx context.Context, id string) ([]*ProfileRevision, error)
 
+	// GetProfileRevision retrieves one exact immutable revision owned by a profile.
+	GetProfileRevision(ctx context.Context, profileID string, revisionID int) (*ProfileRevision, error)
+
+	// GetCurrentProfileRevision retrieves the immutable revision selected by a profile's current pointer.
+	GetCurrentProfileRevision(ctx context.Context, profileID string) (*ProfileRevision, error)
+
 	// DuplicateProfile creates a copy of an existing profile with a new ID and name.
 	DuplicateProfile(ctx context.Context, sourceID, newID, newName string) (*Profile, error)
 }
@@ -45,6 +52,8 @@ type Profile struct {
 	UpdatedAt time.Time       `json:"updated_at"`
 	CreatedBy string          `json:"created_by,omitempty"`
 	IsActive  bool            `json:"is_active"`
+	// CurrentRevisionID is the immutable revision selected by this mutable profile row.
+	CurrentRevisionID int `json:"current_revision_id"`
 }
 
 // ProfileConfig represents the full profile configuration structure.
@@ -165,6 +174,18 @@ func NewPostgresProfileStore(db *sql.DB) *PostgresProfileStore {
 
 // InitSchema creates the profile tables and indexes.
 func (s *PostgresProfileStore) InitSchema(ctx context.Context) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("starting profile schema transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// Serialize the upgrade because CREATE TABLE IF NOT EXISTS does not protect the
+	// subsequent backfill from two application instances starting concurrently.
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext('fi-fhir-profile-schema'))`); err != nil {
+		return fmt.Errorf("locking profile schema upgrade: %w", err)
+	}
+
 	schema := `
 		CREATE TABLE IF NOT EXISTS source_profiles (
 			id VARCHAR(64) PRIMARY KEY,
@@ -174,7 +195,8 @@ func (s *PostgresProfileStore) InitSchema(ctx context.Context) error {
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			created_by VARCHAR(255),
-			is_active BOOLEAN NOT NULL DEFAULT true
+			is_active BOOLEAN NOT NULL DEFAULT true,
+			current_revision_id INTEGER
 		);
 
 		CREATE TABLE IF NOT EXISTS profile_revisions (
@@ -187,31 +209,214 @@ func (s *PostgresProfileStore) InitSchema(ctx context.Context) error {
 			change_summary TEXT
 		);
 
-		CREATE INDEX IF NOT EXISTS idx_profiles_active ON source_profiles(is_active) WHERE is_active = true;
-		CREATE INDEX IF NOT EXISTS idx_revisions_profile ON profile_revisions(profile_id);
+		ALTER TABLE source_profiles
+			ADD COLUMN IF NOT EXISTS current_revision_id INTEGER;
+
+		LOCK TABLE source_profiles IN SHARE ROW EXCLUSIVE MODE;
+
+		WITH profiles_without_pointer AS (
+			SELECT id, version, config, updated_at, created_by
+			FROM source_profiles
+			WHERE current_revision_id IS NULL
+			FOR UPDATE
+		), inserted_revisions AS (
+			INSERT INTO profile_revisions (
+				profile_id, version, config, created_at, created_by, change_summary
+			)
+			SELECT id, version, config, updated_at, created_by, 'Backfilled current revision'
+			FROM profiles_without_pointer
+			RETURNING id, profile_id
+		)
+		UPDATE source_profiles AS profile
+		SET current_revision_id = revision.id
+		FROM inserted_revisions AS revision
+		WHERE profile.id = revision.profile_id;
+
+		DO $$
+		BEGIN
+			IF NOT EXISTS (
+				SELECT 1
+				FROM pg_constraint
+				WHERE conrelid = 'profile_revisions'::regclass
+				  AND conname = 'profile_revisions_profile_id_id_key'
+			) THEN
+				ALTER TABLE profile_revisions
+					ADD CONSTRAINT profile_revisions_profile_id_id_key
+					UNIQUE (profile_id, id);
+			END IF;
+		END
+		$$;
+
+		DO $$
+		BEGIN
+			IF NOT EXISTS (
+				SELECT 1
+				FROM pg_constraint
+				WHERE conrelid = 'source_profiles'::regclass
+				  AND conname = 'source_profiles_current_revision_fk'
+			) THEN
+				ALTER TABLE source_profiles
+					ADD CONSTRAINT source_profiles_current_revision_fk
+					FOREIGN KEY (id, current_revision_id)
+					REFERENCES profile_revisions(profile_id, id)
+					DEFERRABLE INITIALLY DEFERRED;
+			END IF;
+		END
+		$$;
+
+		CREATE OR REPLACE FUNCTION fi_fhir_profile_after_insert_revision()
+		RETURNS trigger
+		LANGUAGE plpgsql
+		AS $$
+		DECLARE
+			revision_id INTEGER;
+		BEGIN
+			IF NEW.current_revision_id IS NOT NULL THEN
+				RETURN NEW;
+			END IF;
+
+			INSERT INTO profile_revisions (
+				profile_id, version, config, created_at, created_by, change_summary
+			)
+			VALUES (
+				NEW.id, NEW.version, NEW.config, NEW.created_at, NEW.created_by,
+				'Initial revision'
+			)
+			RETURNING id INTO revision_id;
+
+			UPDATE source_profiles
+			SET current_revision_id = revision_id
+			WHERE id = NEW.id;
+			RETURN NEW;
+		END
+		$$;
+
+		CREATE OR REPLACE FUNCTION fi_fhir_profile_before_update_revision()
+		RETURNS trigger
+		LANGUAGE plpgsql
+		AS $$
+		DECLARE
+			pointer_matches BOOLEAN;
+			revision_actor TEXT;
+			revision_id INTEGER;
+		BEGIN
+			SELECT EXISTS (
+				SELECT 1
+				FROM profile_revisions AS revision
+				WHERE revision.profile_id = NEW.id
+				  AND revision.id = NEW.current_revision_id
+				  AND revision.version = NEW.version
+				  AND revision.config = NEW.config
+			) INTO pointer_matches;
+
+			IF pointer_matches THEN
+				RETURN NEW;
+			END IF;
+
+			IF OLD.version IS DISTINCT FROM NEW.version
+			   OR OLD.config IS DISTINCT FROM NEW.config
+			   OR NEW.current_revision_id IS NULL THEN
+				revision_actor := COALESCE(
+					NULLIF(current_setting('fi_fhir.profile_actor', true), ''),
+					NEW.created_by
+				);
+				INSERT INTO profile_revisions (
+					profile_id, version, config, created_at, created_by, change_summary
+				)
+				VALUES (
+					NEW.id, NEW.version, NEW.config, NEW.updated_at, revision_actor,
+					'Advanced current revision'
+				)
+				RETURNING id INTO revision_id;
+				NEW.current_revision_id := revision_id;
+				RETURN NEW;
+			END IF;
+
+			RAISE EXCEPTION
+				'profile % current revision does not match mutable content', NEW.id
+				USING ERRCODE = '23514';
+		END
+		$$;
+
+		DROP TRIGGER IF EXISTS fi_fhir_profile_after_insert_revision
+			ON source_profiles;
+		CREATE TRIGGER fi_fhir_profile_after_insert_revision
+			AFTER INSERT ON source_profiles
+			FOR EACH ROW
+			EXECUTE FUNCTION fi_fhir_profile_after_insert_revision();
+
+		DROP TRIGGER IF EXISTS fi_fhir_profile_before_update_revision
+			ON source_profiles;
+		CREATE TRIGGER fi_fhir_profile_before_update_revision
+			BEFORE UPDATE ON source_profiles
+			FOR EACH ROW
+			EXECUTE FUNCTION fi_fhir_profile_before_update_revision();
+
+		CREATE INDEX IF NOT EXISTS idx_profiles_active
+			ON source_profiles(is_active) WHERE is_active = true;
+		CREATE INDEX IF NOT EXISTS idx_revisions_profile
+			ON profile_revisions(profile_id);
+		CREATE INDEX IF NOT EXISTS idx_profiles_current_revision
+			ON source_profiles(current_revision_id);
 	`
 
-	_, err := s.db.ExecContext(ctx, schema)
-	return err
+	if _, err := tx.ExecContext(ctx, schema); err != nil {
+		return fmt.Errorf("upgrading profile schema: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("committing profile schema upgrade: %w", err)
+	}
+	return nil
 }
 
 // CreateProfile creates a new profile.
 func (s *PostgresProfileStore) CreateProfile(ctx context.Context, profile *Profile) error {
-	if profile.Version == "" {
-		profile.Version = "1.0.0"
-	}
-	if profile.Config == nil {
-		profile.Config = json.RawMessage("{}")
+	if profile == nil {
+		return fmt.Errorf("creating profile: profile is nil")
 	}
 
-	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO source_profiles (id, name, version, config, created_by, is_active)
-		VALUES ($1, $2, $3, $4, $5, true)
-	`, profile.ID, profile.Name, profile.Version, profile.Config, profile.CreatedBy)
+	version := profile.Version
+	if version == "" {
+		version = "1.0.0"
+	}
+	config := normalizedProfileConfig(profile.Config)
 
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
+		return fmt.Errorf("starting create profile transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var createdAt, updatedAt time.Time
+	if err := tx.QueryRowContext(ctx, `
+		INSERT INTO source_profiles (
+			id, name, version, config, created_by, is_active, current_revision_id
+		)
+		VALUES ($1, $2, $3, $4, $5, true, NULL)
+		RETURNING created_at, updated_at
+	`, profile.ID, profile.Name, version, config, profile.CreatedBy).Scan(&createdAt, &updatedAt); err != nil {
 		return fmt.Errorf("creating profile: %w", err)
 	}
+
+	var revisionID int
+	if err := tx.QueryRowContext(ctx, `
+		SELECT current_revision_id, config
+		FROM source_profiles
+		WHERE id = $1
+	`, profile.ID).Scan(&revisionID, &config); err != nil {
+		return fmt.Errorf("reading initial profile revision: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("committing profile creation: %w", err)
+	}
+
+	profile.Version = version
+	profile.Config = cloneRawMessage(config)
+	profile.CreatedAt = createdAt
+	profile.UpdatedAt = updatedAt
+	profile.IsActive = true
+	profile.CurrentRevisionID = revisionID
 
 	return nil
 }
@@ -219,8 +424,11 @@ func (s *PostgresProfileStore) CreateProfile(ctx context.Context, profile *Profi
 // GetProfile retrieves a profile by ID.
 func (s *PostgresProfileStore) GetProfile(ctx context.Context, id string) (*Profile, error) {
 	var profile Profile
+	var createdBy sql.NullString
+	var currentRevisionID sql.NullInt64
 	err := s.db.QueryRowContext(ctx, `
-		SELECT id, name, version, config, created_at, updated_at, created_by, is_active
+		SELECT id, name, version, config, created_at, updated_at, created_by, is_active,
+		       current_revision_id
 		FROM source_profiles
 		WHERE id = $1
 	`, id).Scan(
@@ -230,24 +438,29 @@ func (s *PostgresProfileStore) GetProfile(ctx context.Context, id string) (*Prof
 		&profile.Config,
 		&profile.CreatedAt,
 		&profile.UpdatedAt,
-		&profile.CreatedBy,
+		&createdBy,
 		&profile.IsActive,
+		&currentRevisionID,
 	)
 
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("getting profile: %w", err)
 	}
 
+	profile.CreatedBy = createdBy.String
+	profile.CurrentRevisionID = int(currentRevisionID.Int64)
+	profile.Config = cloneRawMessage(profile.Config)
 	return &profile, nil
 }
 
 // ListProfiles retrieves all profiles.
 func (s *PostgresProfileStore) ListProfiles(ctx context.Context, activeOnly bool) ([]*Profile, error) {
 	query := `
-		SELECT id, name, version, config, created_at, updated_at, created_by, is_active
+		SELECT id, name, version, config, created_at, updated_at, created_by, is_active,
+		       current_revision_id
 		FROM source_profiles
 	`
 	if activeOnly {
@@ -264,12 +477,18 @@ func (s *PostgresProfileStore) ListProfiles(ctx context.Context, activeOnly bool
 	var profiles []*Profile
 	for rows.Next() {
 		var p Profile
+		var createdBy sql.NullString
+		var currentRevisionID sql.NullInt64
 		if err := rows.Scan(
 			&p.ID, &p.Name, &p.Version, &p.Config,
-			&p.CreatedAt, &p.UpdatedAt, &p.CreatedBy, &p.IsActive,
+			&p.CreatedAt, &p.UpdatedAt, &createdBy, &p.IsActive,
+			&currentRevisionID,
 		); err != nil {
 			return nil, fmt.Errorf("scanning profile: %w", err)
 		}
+		p.CreatedBy = createdBy.String
+		p.CurrentRevisionID = int(currentRevisionID.Int64)
+		p.Config = cloneRawMessage(p.Config)
 		profiles = append(profiles, &p)
 	}
 
@@ -282,42 +501,72 @@ func (s *PostgresProfileStore) ListProfiles(ctx context.Context, activeOnly bool
 
 // UpdateProfile updates an existing profile and creates a revision.
 func (s *PostgresProfileStore) UpdateProfile(ctx context.Context, profile *Profile) error {
+	if profile == nil {
+		return fmt.Errorf("updating profile: profile is nil")
+	}
+
+	version := profile.Version
+	if version == "" {
+		version = "1.0.0"
+	}
+	config := normalizedProfileConfig(profile.Config)
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("starting transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// Get current profile for revision
-	var currentVersion string
-	var currentConfig json.RawMessage
+	// Lock the mutable pointer so concurrent updates serialize before allocating
+	// and selecting a new immutable current revision.
+	var currentRevisionID sql.NullInt64
 	err = tx.QueryRowContext(ctx, `
-		SELECT version, config FROM source_profiles WHERE id = $1
-	`, profile.ID).Scan(&currentVersion, &currentConfig)
+		SELECT current_revision_id
+		FROM source_profiles
+		WHERE id = $1
+		FOR UPDATE
+	`, profile.ID).Scan(&currentRevisionID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("updating profile: profile not found: %s", profile.ID)
+	}
 	if err != nil {
 		return fmt.Errorf("getting current profile: %w", err)
 	}
-
-	// Create revision
-	_, err = tx.ExecContext(ctx, `
-		INSERT INTO profile_revisions (profile_id, version, config, created_by, change_summary)
-		VALUES ($1, $2, $3, $4, $5)
-	`, profile.ID, currentVersion, currentConfig, profile.CreatedBy, "Updated via UI")
-	if err != nil {
-		return fmt.Errorf("creating revision: %w", err)
+	if !currentRevisionID.Valid || currentRevisionID.Int64 <= 0 {
+		return fmt.Errorf("updating profile: profile %s has no current revision", profile.ID)
 	}
 
-	// Update profile
-	_, err = tx.ExecContext(ctx, `
+	if _, err := tx.ExecContext(ctx, `
+		SELECT set_config('fi_fhir.profile_actor', $1, true)
+	`, profile.CreatedBy); err != nil {
+		return fmt.Errorf("setting profile revision actor: %w", err)
+	}
+
+	var revisionID int
+	var storedConfig json.RawMessage
+	var updatedAt time.Time
+	err = tx.QueryRowContext(ctx, `
 		UPDATE source_profiles
-		SET name = $2, version = $3, config = $4, updated_at = NOW()
+		SET name = $2,
+		    version = $3,
+		    config = $4,
+		    updated_at = NOW()
 		WHERE id = $1
-	`, profile.ID, profile.Name, profile.Version, profile.Config)
+		RETURNING updated_at, current_revision_id, config
+	`, profile.ID, profile.Name, version, config).Scan(&updatedAt, &revisionID, &storedConfig)
 	if err != nil {
 		return fmt.Errorf("updating profile: %w", err)
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("committing profile update: %w", err)
+	}
+
+	profile.Version = version
+	profile.Config = cloneRawMessage(storedConfig)
+	profile.UpdatedAt = updatedAt
+	profile.CurrentRevisionID = revisionID
+	return nil
 }
 
 // DeleteProfile marks a profile as inactive (soft delete).
@@ -338,7 +587,7 @@ func (s *PostgresProfileStore) GetProfileRevisions(ctx context.Context, id strin
 		SELECT id, profile_id, version, config, created_at, created_by, change_summary
 		FROM profile_revisions
 		WHERE profile_id = $1
-		ORDER BY created_at DESC
+		ORDER BY created_at DESC, id DESC
 	`, id)
 	if err != nil {
 		return nil, fmt.Errorf("querying revisions: %w", err)
@@ -357,6 +606,7 @@ func (s *PostgresProfileStore) GetProfileRevisions(ctx context.Context, id strin
 		}
 		r.CreatedBy = createdBy.String
 		r.ChangeSummary = changeSummary.String
+		r.Config = cloneRawMessage(r.Config)
 		revisions = append(revisions, &r)
 	}
 
@@ -365,6 +615,49 @@ func (s *PostgresProfileStore) GetProfileRevisions(ctx context.Context, id strin
 	}
 
 	return revisions, nil
+}
+
+// GetProfileRevision retrieves one exact immutable revision owned by a profile.
+func (s *PostgresProfileStore) GetProfileRevision(
+	ctx context.Context,
+	profileID string,
+	revisionID int,
+) (*ProfileRevision, error) {
+	revision, err := scanProfileRevision(s.db.QueryRowContext(ctx, `
+		SELECT id, profile_id, version, config, created_at, created_by, change_summary
+		FROM profile_revisions
+		WHERE profile_id = $1 AND id = $2
+	`, profileID, revisionID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("getting profile revision: %w", err)
+	}
+	return revision, nil
+}
+
+// GetCurrentProfileRevision retrieves the immutable revision selected by a profile's current pointer.
+func (s *PostgresProfileStore) GetCurrentProfileRevision(
+	ctx context.Context,
+	profileID string,
+) (*ProfileRevision, error) {
+	revision, err := scanProfileRevision(s.db.QueryRowContext(ctx, `
+		SELECT revision.id, revision.profile_id, revision.version, revision.config,
+		       revision.created_at, revision.created_by, revision.change_summary
+		FROM source_profiles AS profile
+		JOIN profile_revisions AS revision
+		  ON revision.profile_id = profile.id
+		 AND revision.id = profile.current_revision_id
+		WHERE profile.id = $1
+	`, profileID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("getting current profile revision: %w", err)
+	}
+	return revision, nil
 }
 
 // DuplicateProfile creates a copy of an existing profile with a new ID and name.
@@ -381,7 +674,7 @@ func (s *PostgresProfileStore) DuplicateProfile(ctx context.Context, sourceID, n
 		ID:        newID,
 		Name:      newName,
 		Version:   "1.0.0",
-		Config:    source.Config,
+		Config:    cloneRawMessage(source.Config),
 		CreatedBy: source.CreatedBy,
 		IsActive:  true,
 	}
@@ -391,4 +684,42 @@ func (s *PostgresProfileStore) DuplicateProfile(ctx context.Context, sourceID, n
 	}
 
 	return s.GetProfile(ctx, newID)
+}
+
+type profileRevisionScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanProfileRevision(scanner profileRevisionScanner) (*ProfileRevision, error) {
+	var revision ProfileRevision
+	var createdBy, changeSummary sql.NullString
+	if err := scanner.Scan(
+		&revision.ID,
+		&revision.ProfileID,
+		&revision.Version,
+		&revision.Config,
+		&revision.CreatedAt,
+		&createdBy,
+		&changeSummary,
+	); err != nil {
+		return nil, err
+	}
+	revision.CreatedBy = createdBy.String
+	revision.ChangeSummary = changeSummary.String
+	revision.Config = cloneRawMessage(revision.Config)
+	return &revision, nil
+}
+
+func normalizedProfileConfig(config json.RawMessage) json.RawMessage {
+	if config == nil {
+		return json.RawMessage("{}")
+	}
+	return cloneRawMessage(config)
+}
+
+func cloneRawMessage(message json.RawMessage) json.RawMessage {
+	if message == nil {
+		return nil
+	}
+	return append(json.RawMessage(nil), message...)
 }
