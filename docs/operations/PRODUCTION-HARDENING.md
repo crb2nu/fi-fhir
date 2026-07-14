@@ -557,6 +557,24 @@ The layout startup purges the two known legacy localStorage keys that stored raw
 HL7 samples and recent source labels. This upgrade cleanup preserves unrelated
 UI preferences.
 
+### HL7v2 Production Ingress
+
+The endpoint is absent unless `FI_FHIR_HTTP_INGRESS_AUTH_MODE` is `bearer` or
+`hmac-sha256`. Enabling it requires PostgreSQL and applies the fixed submission
+migration during startup. It never falls back to an in-memory committer.
+
+- Bind each credential to one service principal and one server-owned integration.
+- Prefer `FI_FHIR_HTTP_INGRESS_SECRET_FILE`; never reuse the GraphQL preview bearer.
+- Keep the body limit at or below 1 MiB and terminate TLS at the approved proxy.
+- Do not send browser `Origin` headers or compressed bodies; both fail closed.
+- Treat `202` as durable admission, not downstream delivery completion.
+- Retry `503`/`504` with the same idempotency key. A changed valid body under a
+  committed key returns `409`.
+- Leave the mode unset to roll back exposure without affecting GraphQL preview.
+
+`make golden-path-001` reproduces the duplicate/restart/profile/IDE parity and
+leakage gate. It writes disposable evidence under `.tmp/golden-path-001/`.
+
 Copy a Helm-managed bearer directly to the macOS clipboard without printing it:
 
 ```bash

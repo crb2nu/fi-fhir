@@ -33,6 +33,12 @@ services:
       FI_FHIR_GRAPHQL_ROLES: "integration:preview"
       FI_FHIR_GRAPHQL_ALLOWED_ORIGINS: "http://localhost:3001,http://localhost:5173"
       FI_FHIR_INTEGRATION_REGISTRY_PATH: "/app/testdata/golden/integration/adt-http/preview-registry.json"
+      # Optional durable HL7v2 ingress. Empty AUTH_MODE keeps it unmounted.
+      FI_FHIR_HTTP_INGRESS_AUTH_MODE: "${FI_FHIR_HTTP_INGRESS_AUTH_MODE:-}"
+      FI_FHIR_HTTP_INGRESS_PRINCIPAL_ID: "${FI_FHIR_HTTP_INGRESS_PRINCIPAL_ID:-}"
+      FI_FHIR_HTTP_INGRESS_INTEGRATION_ID: "${FI_FHIR_HTTP_INGRESS_INTEGRATION_ID:-}"
+      FI_FHIR_HTTP_INGRESS_SECRET: "${FI_FHIR_HTTP_INGRESS_SECRET:-}"
+      FI_FHIR_HTTP_INGRESS_SECRET_FILE: "${FI_FHIR_HTTP_INGRESS_SECRET_FILE:-}"
       # Workflow
       FI_FHIR_WORKFLOW_CONFIG_PATH: "/app/config/adt-workflow.yaml"
       # Database

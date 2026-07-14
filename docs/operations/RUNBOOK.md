@@ -189,6 +189,29 @@ Do not log, echo, or add the bearer or raw clinical message to an incident
 ticket. Validate exact origins, registry tenant/digests, secret mount, and role
 configuration before rotating the credential.
 
+### Durable HL7v2 Ingress
+
+Check whether the endpoint is intentionally enabled:
+
+```bash
+kubectl -n fi-fhir get deployment fi-fhir \
+  -o jsonpath='{.spec.template.spec.containers[0].env}' | \
+  jq '.[] | select(.name | startswith("FI_FHIR_HTTP_INGRESS")) | .name'
+```
+
+Startup fails closed when the credential, integration binding, or PostgreSQL is
+invalid. For request failures, use the structured response code:
+
+- `401`: rotate or correct the bound bearer/HMAC credential.
+- `404 INTEGRATION_UNAVAILABLE`: verify the credential-bound integration exists.
+- `409 IDEMPOTENCY_CONFLICT`: stop retries; the key was committed for other bytes.
+- `422 INVALID_HL7V2_MESSAGE`: correct the message or selected Source Profile.
+- `503`/`504`: retry with the same idempotency key after database recovery.
+
+Never place raw HL7, credentials, or persisted JSON in logs or tickets. To
+disable only production ingress, remove `FI_FHIR_HTTP_INGRESS_AUTH_MODE` through
+GitOps and reconcile; authenticated GraphQL preview remains available.
+
 ### Deployment
 
 **Rolling update**:

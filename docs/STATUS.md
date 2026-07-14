@@ -54,7 +54,8 @@
 | Component             | Path                              | Maturity   | Coverage | Notes                                            | Last Updated |
 | --------------------- | --------------------------------- | ---------- | -------- | ------------------------------------------------ | ------------ |
 | Workflow Engine       | `internal/workflow/`              | Production | 78.6%    | Actions plus strict DSL v1 and pure planner      | 2026-07-13   |
-| Integration Processor | `internal/integration/processor/` | Alpha      | 84.5%    | A01 preview plus PostgreSQL atomic admission; ingress pending | 2026-07-14 |
+| Integration Processor | `internal/integration/processor/` | Alpha      | 84.5%    | Shared A01 preview/production kernel plus PostgreSQL atomic admission | 2026-07-14 |
+| HL7v2 HTTP Ingress    | `internal/integration/ingress/`   | Alpha      | —        | Bearer/HMAC, bounded body, durable response; GitOps activation pending | 2026-07-14 |
 | GraphQL API           | `internal/api/graphql/`           | Beta       | 9.5%\*   | Preview role: health/preview; legacy + WS disabled | 2026-07-13 |
 | FHIR Subscriptions    | `internal/fhir/subscription/`     | Production | 83.7%    | Bidirectional; client + webhook receiver         | 2026-02-27   |
 | Terminology Autoroute | `internal/terminology/autoroute/` | Beta       | 88.5%    | Automatic code-system routing engine             | 2026-03-09   |
@@ -72,6 +73,12 @@ gate and published matching API/UI images. GitOps MRs `!368` and `!369` rolled
 out their verified digests, passed public auth/origin/containment/provenance/PHI
 probes, and resumed healthy automation. Exact evidence is recorded in
 `.loom/iteration-plan-phase-1-slice-1-1c-authenticated-preview-adapters.md`.
+
+Slice 1.3 adds exact `POST /v1/hl7v2` as the first production adapter. Local
+`make golden-path-001` passed 20 assertions against PostgreSQL 16, including
+process restart, duplicate collapse, selected-profile divergence, IDE parity,
+preview side-effect freedom, and raw/credential leakage scans. Production
+GitOps activation and external outbox delivery remain intentionally pending.
 
 ## Infrastructure
 

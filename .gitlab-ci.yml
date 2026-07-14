@@ -59,6 +59,8 @@ variables:
   - internal/**/*
   - pkg/**/*
   - sdk/**/*
+  - scripts/**/*
+  - Makefile
   - Dockerfile
   - docker-compose.yaml
   - deploy/**/*
@@ -645,6 +647,51 @@ test:durable-submission:
       go test -tags=integration -race -count=1 -timeout=180s
       -run '^TestPostgresProductionSubmission_64WayDuplicateFaultRestart$'
       ./internal/integration/processor
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *go-changes
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *go-changes
+    - when: never
+  allow_failure: false
+
+# Blocking end-to-end proof for Slice 1.3. The same make target owns the real
+# serve process, migrations, authenticated duplicate/restart journey, IDE
+# preview parity, SQL evidence, and raw/credential leakage scan.
+test:golden-path-001:
+  stage: test
+  <<: *go-image-debian
+  <<: *go-cache
+  services:
+    - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
+      alias: postgres
+  variables:
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
+    POSTGRES_DB: fi_fhir_golden
+    POSTGRES_USER: testuser
+    POSTGRES_PASSWORD: testpass
+    POSTGRES_HOST_AUTH_METHOD: trust
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_golden?sslmode=disable"
+    GOLDEN_PATH_ALLOW_DATABASE_RESET: "1"
+    FI_FHIR_DATABASE_DRIVER: postgres
+    FI_FHIR_DATABASE_HOST: postgres
+    FI_FHIR_DATABASE_PORT: "5432"
+    FI_FHIR_DATABASE_NAME: fi_fhir_golden
+    FI_FHIR_DATABASE_USERNAME: testuser
+    FI_FHIR_DATABASE_PASSWORD: testpass
+    FI_FHIR_DATABASE_SSL_MODE: disable
+  script:
+    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates curl jq postgresql-client ripgrep && rm -rf /var/lib/apt/lists/*
+    - make golden-path-001
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - .tmp/golden-path-001/
+    reports:
+      junit: .tmp/golden-path-001/junit.xml
   rules:
     - if: $CI_COMMIT_TAG
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"

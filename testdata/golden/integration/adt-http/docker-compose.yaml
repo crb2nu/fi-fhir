@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: fi_fhir_golden
+      POSTGRES_USER: golden
+      POSTGRES_PASSWORD: golden-test-only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U golden -d fi_fhir_golden"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  fi-fhir:
+    build:
+      context: ../../../..
+    command: ["serve", "--port", "8080", "--no-playground", "--no-introspection"]
+    environment:
+      FI_FHIR_DEPLOYMENT_TENANT_ID: tenant-a
+      FI_FHIR_GRAPHQL_PRINCIPAL_ID: golden-ide-user
+      FI_FHIR_GRAPHQL_ROLES: integration:preview
+      FI_FHIR_GRAPHQL_ALLOWED_ORIGINS: https://ide.golden.test
+      FI_FHIR_GRAPHQL_BEARER_TOKEN: golden-graphql-preview-token-0001
+      FI_FHIR_INTEGRATION_REGISTRY_PATH: /app/config/registry.json
+      FI_FHIR_HTTP_INGRESS_AUTH_MODE: bearer
+      FI_FHIR_HTTP_INGRESS_PRINCIPAL_ID: golden-ingress-service
+      FI_FHIR_HTTP_INGRESS_INTEGRATION_ID: adt-tolerant
+      FI_FHIR_HTTP_INGRESS_SECRET: golden-http-ingress-token-000001
+      FI_FHIR_HTTP_INGRESS_MAX_BODY_BYTES: "1048576"
+      FI_FHIR_DATABASE_DRIVER: postgres
+      FI_FHIR_DATABASE_HOST: postgres
+      FI_FHIR_DATABASE_PORT: "5432"
+      FI_FHIR_DATABASE_NAME: fi_fhir_golden
+      FI_FHIR_DATABASE_USERNAME: golden
+      FI_FHIR_DATABASE_PASSWORD: golden-test-only
+      FI_FHIR_DATABASE_SSL_MODE: disable
+    volumes:
+      - ${GOLDEN_PATH_REGISTRY_PATH:?generated registry required}:/app/config/registry.json:ro
+    ports:
+      - "${GOLDEN_PATH_PORT:-18081}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"

@@ -4676,10 +4676,11 @@ func runServe(args []string) error {
 
 	runtimeConfig := config.Default()
 	runtimeConfig.ApplyEnv()
-	securePreviewRuntime, err := loadPreviewRuntimeFromEnv()
+	securePreviewRuntime, err := loadServeIntegrationRuntimeFromEnv(context.Background())
 	if err != nil {
-		return fmt.Errorf("configure authenticated integration preview: %w", err)
+		return fmt.Errorf("configure integration runtime: %w", err)
 	}
+	defer func() { _ = securePreviewRuntime.Close() }()
 
 	// Enforce terminology version pins (if configured)
 	dbURL, pins, policy := loadTerminologyPinConfigFromEnv()
@@ -4894,6 +4895,8 @@ func runServe(args []string) error {
 		AllowedOrigins:      securePreviewRuntime.allowedOrigins,
 		MaxRequestBodyBytes: graphqlRequestBodyLimit,
 		Authenticator:       securePreviewRuntime.authenticator,
+		HL7IngressPath:      securePreviewRuntime.ingressPath,
+		HL7IngressHandler:   securePreviewRuntime.ingressHandler,
 	}
 
 	// Create and start server
@@ -4995,6 +4998,7 @@ Options:
 Endpoints:
   GET  /          - GraphQL Playground (if enabled)
   POST /graphql   - Authenticated JSON GraphQL endpoint (POST only)
+  POST /v1/hl7v2  - Authenticated durable HL7v2 ingress (when enabled)
   GET  /graphql/ws - Not mounted during the authenticated preview phase
   GET  /health    - Health check endpoint
 
@@ -5006,6 +5010,15 @@ Required environment:
   FI_FHIR_INTEGRATION_REGISTRY_PATH  Immutable preview registry JSON path
   FI_FHIR_GRAPHQL_BEARER_TOKEN       Bearer secret (24+ canonical bytes), or
   FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE  path to the bearer secret; set exactly one
+
+Optional durable HL7v2 ingress environment:
+  FI_FHIR_HTTP_INGRESS_AUTH_MODE       bearer or hmac-sha256; unset disables
+  FI_FHIR_HTTP_INGRESS_PRINCIPAL_ID    Bound service principal
+  FI_FHIR_HTTP_INGRESS_INTEGRATION_ID  Bound server-owned integration
+  FI_FHIR_HTTP_INGRESS_SECRET          Credential (direct local use), or
+  FI_FHIR_HTTP_INGRESS_SECRET_FILE     credential file; set exactly one
+  FI_FHIR_HTTP_INGRESS_MAX_BODY_BYTES  Positive value no greater than 1048576
+  FI_FHIR_DATABASE_*                   PostgreSQL settings; no memory fallback
 
 Examples:
   # Generate a deployment secret without writing it to shell history

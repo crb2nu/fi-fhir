@@ -1,0 +1,11 @@
+dsl_version: "1"
+name: golden-path-001
+version: "1"
+routes:
+  - name: admit
+    filter:
+      event_type: patient_admit
+    actions:
+      - id: send-fhir
+        type: fhir
+        destination: fhir-primary

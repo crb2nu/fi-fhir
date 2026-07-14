@@ -129,6 +129,61 @@ func TestLoadPreviewRuntimeFromEnvFailsClosed(t *testing.T) {
 	})
 }
 
+func TestLoadHTTPIngressAuthenticatorFromEnv(t *testing.T) {
+	t.Setenv("FI_FHIR_HTTP_INGRESS_AUTH_MODE", "bearer")
+	t.Setenv("FI_FHIR_HTTP_INGRESS_PRINCIPAL_ID", "adt-service")
+	t.Setenv("FI_FHIR_HTTP_INGRESS_INTEGRATION_ID", "adt-east")
+	t.Setenv("FI_FHIR_HTTP_INGRESS_SECRET", "correct-http-ingress-token-001")
+	t.Setenv("FI_FHIR_HTTP_INGRESS_SECRET_FILE", "")
+	t.Setenv("FI_FHIR_HTTP_INGRESS_MAX_BODY_BYTES", "4096")
+
+	authenticator, maxBodyBytes, err := loadHTTPIngressAuthenticatorFromEnv()
+	if err != nil {
+		t.Fatalf("loadHTTPIngressAuthenticatorFromEnv: %v", err)
+	}
+	if authenticator.PrincipalID() != "adt-service" || authenticator.IntegrationID() != "adt-east" || maxBodyBytes != 4096 {
+		t.Fatalf("ingress configuration = principal %q integration %q max %d", authenticator.PrincipalID(), authenticator.IntegrationID(), maxBodyBytes)
+	}
+
+	secretFile := filepath.Join(t.TempDir(), "ingress-token")
+	if err := os.WriteFile(secretFile, []byte("file-backed-http-ingress-token-001\n"), 0o600); err != nil {
+		t.Fatalf("write ingress secret: %v", err)
+	}
+	t.Setenv("FI_FHIR_HTTP_INGRESS_SECRET", "")
+	t.Setenv("FI_FHIR_HTTP_INGRESS_SECRET_FILE", secretFile)
+	if _, _, err := loadHTTPIngressAuthenticatorFromEnv(); err != nil {
+		t.Fatalf("file-backed ingress secret: %v", err)
+	}
+}
+
+func TestLoadServeIntegrationRuntimeFailsBeforeDatabaseMutation(t *testing.T) {
+	configurePreviewRuntimeForTest(t)
+	t.Setenv("FI_FHIR_HTTP_INGRESS_AUTH_MODE", "bearer")
+	t.Setenv("FI_FHIR_HTTP_INGRESS_PRINCIPAL_ID", "adt-service")
+	t.Setenv("FI_FHIR_HTTP_INGRESS_INTEGRATION_ID", "adt-east")
+	t.Setenv("FI_FHIR_HTTP_INGRESS_SECRET", "")
+	t.Setenv("FI_FHIR_HTTP_INGRESS_SECRET_FILE", "")
+	for _, name := range []string{
+		"FI_FHIR_DATABASE_HOST",
+		"FI_FHIR_DATABASE_NAME",
+		"FI_FHIR_DATABASE_USERNAME",
+		"FI_FHIR_DATABASE_USER",
+	} {
+		t.Setenv(name, "")
+	}
+
+	_, err := loadServeIntegrationRuntimeFromEnv(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "FI_FHIR_HTTP_INGRESS_SECRET") {
+		t.Fatalf("missing ingress secret error = %v", err)
+	}
+
+	t.Setenv("FI_FHIR_HTTP_INGRESS_SECRET", "correct-http-ingress-token-001")
+	_, err = loadServeIntegrationRuntimeFromEnv(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "FI_FHIR_DATABASE_HOST") {
+		t.Fatalf("missing PostgreSQL configuration error = %v", err)
+	}
+}
+
 func configurePreviewRuntimeForTest(t *testing.T) {
 	t.Helper()
 	t.Setenv("FI_FHIR_DEPLOYMENT_TENANT_ID", "tenant-a")

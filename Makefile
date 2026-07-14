@@ -7,6 +7,7 @@
 	deploy deploy-ui deploy-all deploy-status deploy-logs deploy-delete deploy-forward \
 	docs-status docs-status-quick docs-validate docs-all \
 	contract-check contract-check-strict contract-matrix \
+	golden-path-001 \
 	smoke-test smoke-test-local check-runtime-config \
 	dev dev-down dev-ui dev-ui-down
 
@@ -86,6 +87,11 @@ test-e2e-full: build e2e-up
 # Update golden files
 test-golden: build
 	UPDATE_GOLDEN=1 go test -tags=e2e -v ./test/e2e/...
+
+# Golden Path 001: authenticated HL7v2 -> durable PostgreSQL admission -> IDE parity.
+# Uses self-owned Compose locally and POSTGRES_TEST_URL in CI.
+golden-path-001:
+	bash scripts/golden-path-001.sh
 
 # Clean build artifacts
 clean:
