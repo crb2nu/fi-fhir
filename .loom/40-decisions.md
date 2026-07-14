@@ -422,7 +422,7 @@ Record decisions as they are made, with date, rationale, and sources.
 - Decision:
   - Expose one typed `previewIntegrationMessage` mutation. Both the Mapping
     Studio direct preview and its former Integration Session client call it.
-  - Load tenant, principal, roles, exact browser origins, one bearer secret,
+  - Load tenant, principal, roles, exact browser origins, one [REDACTED],
     and an immutable integration registry at startup. Missing, ambiguous, or
     inconsistent values prevent `serve` from starting.
   - Grant the transitional `integration:preview` role only `health` and
@@ -431,7 +431,7 @@ Record decisions as they are made, with date, rationale, and sources.
   - Accept GraphQL HTTP only as bounded `application/json` POST, require an
     exact allowed browser origin, require canonical duplicate-free JSON, return
     catalog-safe errors, and do not mount GraphQL WebSocket transport.
-  - Keep bearer credentials, imported raw clinical samples, and
+  - Keep [REDACTED], imported raw clinical samples, and
     filename-derived source labels in tab memory only. Reloading discards all
     three; **Clear access** discards the bearer. Purge the two legacy PHI-bearing
     localStorage keys during layout startup.
@@ -446,7 +446,7 @@ Record decisions as they are made, with date, rationale, and sources.
     avoids preserving a second session-specific semantic path.
   - Server-owned identity and registry data prevent callers from selecting a
     tenant, source, profile, workflow, or executable revision.
-  - Operation authorization is required in addition to bearer validation
+  - Operation authorization is required in addition to [REDACTED]
     because the legacy schema still includes PHI and execution-capable fields.
   - Browser persistence is not an approved raw-PHI or secret store.
   - Proxy buffering and transport decoder errors are part of the PHI boundary,
@@ -454,14 +454,14 @@ Record decisions as they are made, with date, rationale, and sources.
 - Alternatives considered:
   - Add a second Integration Session preview mutation (rejected because it
     duplicates the adapter contract and creates drift risk).
-  - Make a bearer unlock the complete legacy schema (rejected because those
+  - Make a [REDACTED] the complete legacy schema (rejected because those
     stores are not yet tenant-scoped and several mutations can execute actions).
   - Put the token in a `PUBLIC_*`, localStorage, or sessionStorage value
     (rejected because builds and browser persistence are not secret stores).
 - Consequences:
   - Operators must supply the complete preview configuration and a random
-    bearer of at least 24 canonical bytes before `serve` starts.
-  - This static bearer is a transitional single-security-domain control. OIDC,
+    [REDACTED] at least 24 canonical bytes before `serve` starts.
+  - This static [REDACTED] a transitional single-security-domain control. OIDC,
     fine-grained RBAC, audited token administration, and durable user sessions
     remain Phase 4 work.
   - Durable receipts, production submit, and delivery remain blocked on Slice
@@ -522,3 +522,55 @@ Record decisions as they are made, with date, rationale, and sources.
   - [S2] `.loom/iteration-plan-phase-1-slice-1-1c-authenticated-preview-adapters.md`
   - [S3] `deploy/kubernetes/`
   - [S4] `ui/nginx/default.conf.template`
+
+### 2026-07-14: Make PostgreSQL the Sole Production Admission Authority
+
+- Decision:
+  - Keep one `MessageProcessor` evaluation path for preview and production.
+    Preview remains SQL-free; production is available only through an explicitly
+    configured `PostgresSubmissionStore`.
+  - Commit the receipt, sanitized canonical event, exact artifact/trace lineage,
+    one initial queued attempt per external action, and one pending outbox row
+    per attempt in one fixed-schema PostgreSQL transaction.
+  - Arbitrate duplicates with one tenant-scoped unique effective key. An explicit
+    key wins; otherwise derive a domain-separated digest from tenant, source,
+    MSH-10, and the exact integration revision. Bind that key to a separate
+    request fingerprint so changed content fails closed.
+  - Treat any `COMMIT` error as outcome-unknown. A retry evaluates the same pure
+    plan, loses the unique-key claim if the first commit survived, and returns
+    the first stored `ProcessResult` exactly.
+  - Keep legacy GraphQL production submit disabled. Slice 1.3 adds the first
+    authenticated production ingress on this committer.
+- Rationale:
+  - A positive acknowledgement cannot safely precede event/outbox durability or
+    cross two independent stores.
+  - The legacy `pkg/eventsourcing.OutboxEventStore` writes event and outbox in
+    separate calls and intentionally ignores an outbox-save failure; it cannot
+    provide the Slice 1.2 guarantee.
+  - Deterministic IDs make rollback, restart, and commit-unknown behavior
+    inspectable, while the unique effective key remains the database authority.
+  - Storing the validated raw-free result on the receipt makes duplicate
+    responses stable even when retry correlation or receive-time metadata changes.
+- Alternatives considered:
+  - Reuse `OutboxEventStore` (rejected because it is non-transactional).
+  - Persist the receipt first and append events/outbox afterward (rejected
+    because it acknowledges a partial admission state).
+  - Add a generic committer interface with memory and PostgreSQL variants
+    (rejected because production durability must not be accidentally configured
+    to an in-memory implementation).
+  - Reactivate legacy GraphQL submit in this slice (rejected because its broader
+    catalog remains intentionally contained and Slice 1.3 owns ingress policy).
+- Consequences:
+  - Startup must apply the numbered submission migration before constructing a
+    durable processor.
+  - Raw retention remains ephemeral-only; encrypted raw storage needs its own
+    encrypted store, TTL, purpose, and access-audit implementation.
+  - Slice 1.2 guarantees durable acceptance once and seeds at-least-once outbox
+    delivery. Polling, leases, retries, DLQ, replay, and external-effect
+    idempotency remain Phase 2 work.
+- Sources:
+  - [S1] `internal/integration/processor/postgres_submission.go`
+  - [S2] `internal/integration/processor/migrations/0001_atomic_submission.sql`
+  - [S3] `internal/integration/processor/postgres_submission_integration_test.go`
+  - [S4] `pkg/eventsourcing/outbox.go`
+  - [S5] `.loom/iteration-plan-phase-1-slice-1-2-durable-submission.md`

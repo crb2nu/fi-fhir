@@ -156,14 +156,21 @@ gate, and resumed healthy image automation. Exact evidence is recorded in
 ### Slice 1.2: durable receipt and idempotency
 
 - Add PostgreSQL receipt, event, trace, attempt, and outbox storage and migrations.
-- Route GraphQL submit through the shared evaluator plus durable production
-  committer; remove its direct parse/store/execute path.
+- Add the durable production committer to the shared evaluator while keeping
+  legacy GraphQL submit disabled; Slice 1.3 owns the first authenticated
+  production ingress rather than reviving the direct parse/store/execute path.
 - Define idempotency key precedence: explicit key, then source + MSH-10 + active
   integration revision.
 - Persist before acknowledging; duplicate submissions reuse the durable receipt
   and do not create duplicate outbox work.
 - State the guarantee precisely: durable acceptance once; at-least-once outbox
   delivery with duplicate suppression/idempotency where supported.
+
+MR `!98` implements this slice. Pipeline `18854` job `181669` passed the
+blocking PostgreSQL 16 race/fault/restart proof: six pre-commit fault positions
+left all five record classes empty, one post-commit-unknown result recovered by
+idempotent retry after restart, and 64 callers converged on one raw-free durable
+admission unit with byte-identical results.
 
 ### Slice 1.3: authenticated HL7v2 HTTP ingress
 
@@ -321,13 +328,12 @@ revisions, and observe the expected warning/event delta without raw retention.
 
 ## Immediate backlog
 
-1. Slice 1.2 durable receipts, effective idempotency, trace, and outbox.
-2. Slice 1.3 authenticated HL7v2 HTTP ingress and Golden Path 001 kill-test.
-3. Expanded IntegrationDefinition publication and deployment lifecycle.
-4. Production MLLP adapter.
-5. Durable delivery attempts, replay, and one real queue transport.
-6. Runtime-wired S3/SFTP ingestion with checkpoint/resume.
-7. Restart-safe Integration Session workspace.
+1. Slice 1.3 authenticated HL7v2 HTTP ingress and Golden Path 001 kill-test.
+2. Expanded IntegrationDefinition publication and deployment lifecycle.
+3. Production MLLP adapter.
+4. Durable delivery attempts, replay, and one real queue transport.
+5. Runtime-wired S3/SFTP ingestion with checkpoint/resume.
+6. Restart-safe Integration Session workspace.
 
 ## Scope controls
 

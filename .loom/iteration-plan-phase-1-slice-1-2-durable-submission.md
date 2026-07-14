@@ -1,6 +1,6 @@
 # RALPH Iteration Plan: Phase 1 Slice 1.2 Durable Submission
 
-**Status**: implementing
+**Status**: complete
 **Date**: 2026-07-14
 
 ## Riskiest assumption + kill-test
@@ -37,7 +37,15 @@ ingress. Do not acknowledge production submissions through a split receipt/event
 store or the legacy non-transactional outbox wrapper; redesign the admission
 boundary first.
 
-**Status**: not run.
+**Status**: passed on 2026-07-14. MR `!98` pipeline `18854`, blocking job
+`181669`, ran the exact PostgreSQL 16 test under the race detector. The test
+finished in 1.786 seconds (124.9 seconds including runner setup) and proved zero
+rows after each of six injected pre-commit faults, then exactly one receipt,
+event, lineage record, attempt, and outbox row after the 64-caller race and a
+full handle restart. The single post-commit-unknown caller recovered the stored
+result; all 64 results were byte-identical, changed content conflicted, the
+migration ledger remained singular, and persisted JSON passed the raw/secret
+sentinel scan.
 
 Positive evidence: PostgreSQL 16 documents transaction blocks as all-or-nothing
 and invisible until commit, and documents unique constraints plus `ON CONFLICT`
@@ -161,7 +169,7 @@ the complete admission unit. The precise guarantee is:
 ```bash
 go test -race -count=1 ./pkg/integration ./internal/integration/processor
 POSTGRES_TEST_URL=... go test -tags=integration -race -count=1 \
-  -run 'TestPostgresProductionSubmission_(AtomicFaultRestart|Duplicate64Way)' \
+  -run '^TestPostgresProductionSubmission_64WayDuplicateFaultRestart$' \
   ./internal/integration/processor
 go test -count=1 ./...
 go vet ./...

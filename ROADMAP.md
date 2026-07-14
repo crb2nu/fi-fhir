@@ -1,6 +1,6 @@
 # fi-fhir Roadmap
 
-> Last updated: 2026-07-13
+> Last updated: 2026-07-14
 > Tier: 2 (see workspace AGENTS.md "Portfolio Tiers")
 > Tracking issue: https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/19
 > Completion spec: `.loom/20-product-spec-integration-engine-ide-completion.md`
@@ -18,8 +18,9 @@ debug surfaces.
 
 The remaining work is product assembly and operational truth:
 
-- production ingress does not yet compose profile resolution, parsing, durable
-  acceptance/idempotency, workflow delivery, and traceability behind one runtime;
+- production ingress is not yet exposed; the shared processor now composes exact
+  revision resolution, parsing, durable acceptance/idempotency, route planning,
+  lineage, and transactional outbox admission behind one PostgreSQL boundary;
 - durable Integration Sessions remain an in-memory, HL7-only prototype, while
   the current IDE preview now uses the same stateless, exact-revision kernel as
   GraphQL;
@@ -65,10 +66,13 @@ must not enter the clinical data plane before the engine spine is proven.
     matching `v0.1.18621` images. GitOps MRs `!368` and `!369` rolled out the
     verified digests, passed the public live gate, and resumed healthy image
     automation.
+  - [x] Slice 1.2 added the PostgreSQL-only production committer: one transaction
+    records the receipt, canonical event, lineage, initial attempt, and outbox
+    work. MR `!98` job `181669` passed the blocking PostgreSQL 16 race/fault/restart
+    proof, collapsing 64 callers to one raw-free durable admission unit.
 
 ## Next
 
-- [ ] PostgreSQL receipts, idempotency, trace, and transactional outbox.
 - [ ] Authenticated HL7v2 HTTP ingress and the restart/duplicate/IDE-parity kill-test.
 - [ ] Versioned integration deployment lifecycle and production MLLP.
 - [ ] Durable delivery attempts, DLQ/replay/resubmit, and one real queue transport.
