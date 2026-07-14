@@ -49,3 +49,6 @@ claude_desktop_config/
 # Binaries (built by make build)
 /bin/
 /fi-fhir
+
+# Golden-path evidence is generated locally and uploaded by CI, never committed.
+/.tmp/golden-path-001/

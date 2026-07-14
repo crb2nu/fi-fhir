@@ -18,9 +18,10 @@ debug surfaces.
 
 The remaining work is product assembly and operational truth:
 
-- production ingress is not yet exposed; the shared processor now composes exact
-  revision resolution, parsing, durable acceptance/idempotency, route planning,
-  lineage, and transactional outbox admission behind one PostgreSQL boundary;
+- authenticated HL7v2 HTTP ingress is implemented but not yet activated in the
+  production GitOps deployment; when enabled, one shared processor composes
+  exact revision resolution, parsing, durable acceptance/idempotency, route
+  planning, lineage, and transactional outbox admission behind PostgreSQL;
 - durable Integration Sessions remain an in-memory, HL7-only prototype, while
   the current IDE preview now uses the same stateless, exact-revision kernel as
   GraphQL;
@@ -70,10 +71,15 @@ must not enter the clinical data plane before the engine spine is proven.
     records the receipt, canonical event, lineage, initial attempt, and outbox
     work. MR `!98` job `181669` passed the blocking PostgreSQL 16 race/fault/restart
     proof, collapsing 64 callers to one raw-free durable admission unit.
+  - [x] Slice 1.3 added the first authenticated production adapter at exact
+    `POST /v1/hl7v2`, with bearer/HMAC credentials, server-owned integration and
+    source identity, bounded bodies, structured failures, and PHI-free durable
+    responses. `make golden-path-001` passed 20 local assertions across duplicate,
+    restart, profile-delta, PostgreSQL cardinality, IDE parity, and leakage gates;
+    the required CI job is the merge gate.
 
 ## Next
 
-- [ ] Authenticated HL7v2 HTTP ingress and the restart/duplicate/IDE-parity kill-test.
 - [ ] Versioned integration deployment lifecycle and production MLLP.
 - [ ] Durable delivery attempts, DLQ/replay/resubmit, and one real queue transport.
 - [ ] Runtime-wired S3/SFTP streaming ingestion with checkpoint/resume.

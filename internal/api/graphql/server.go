@@ -54,6 +54,10 @@ type ServerConfig struct {
 	MaxRequestBodyBytes int64
 	// Authenticator establishes the deployment-owned tenant/principal context.
 	Authenticator requestsecurity.Authenticator
+	// HL7IngressPath is the exact authenticated raw-HL7v2 endpoint when enabled.
+	HL7IngressPath string
+	// HL7IngressHandler owns production authentication and durable submission.
+	HL7IngressHandler http.Handler
 }
 
 // DefaultServerConfig returns a sensible default configuration.
@@ -147,6 +151,10 @@ func (s *Server) Handler() http.Handler {
 		http.NotFound(w, r)
 	})
 
+	if s.config.HL7IngressHandler != nil {
+		mux.Handle(s.config.HL7IngressPath, s.config.HL7IngressHandler)
+	}
+
 	// Playground (if enabled)
 	if s.config.PlaygroundEnabled {
 		mux.Handle(s.config.PlaygroundPath, playground.Handler("fi-fhir GraphQL", s.config.Path))
@@ -176,6 +184,9 @@ func (s *Server) Start() error {
 	log.Printf("GraphQL server listening on http://%s%s", addr, s.config.Path)
 	if s.config.PlaygroundEnabled {
 		log.Printf("GraphQL Playground available at http://%s%s", addr, s.config.PlaygroundPath)
+	}
+	if s.config.HL7IngressHandler != nil {
+		log.Printf("Authenticated HL7v2 ingress available at http://%s%s", addr, s.config.HL7IngressPath)
 	}
 
 	return s.server.ListenAndServe()
@@ -251,6 +262,12 @@ func validateServerConfig(config *ServerConfig) error {
 	paths := map[string]string{
 		"GraphQL HTTP":      config.Path,
 		"GraphQL WebSocket": config.WebSocketPath,
+	}
+	if (config.HL7IngressHandler == nil) != (config.HL7IngressPath == "") {
+		return fmt.Errorf("HL7v2 ingress path and handler must be configured together")
+	}
+	if config.HL7IngressHandler != nil {
+		paths["HL7v2 ingress"] = config.HL7IngressPath
 	}
 	if config.PlaygroundEnabled {
 		paths["GraphQL Playground"] = config.PlaygroundPath

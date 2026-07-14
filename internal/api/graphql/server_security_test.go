@@ -251,6 +251,32 @@ func TestGraphQLWebSocketTransportIsDisabled(t *testing.T) {
 	}
 }
 
+func TestGraphQLServerMountsOptionalHL7IngressExactly(t *testing.T) {
+	config := secureServerConfig(testAuthenticator(t))
+	config.HL7IngressPath = "/v1/hl7v2"
+	config.HL7IngressHandler = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	server, err := graphqlapi.NewServer(resolvers.NewResolver(), config)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	recorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, config.HL7IngressPath, nil))
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("ingress status = %d", recorder.Code)
+	}
+
+	config.HL7IngressPath = config.Path
+	if _, err := graphqlapi.NewServer(resolvers.NewResolver(), config); err == nil {
+		t.Fatal("conflicting ingress path was accepted")
+	}
+	config.HL7IngressPath = ""
+	if _, err := graphqlapi.NewServer(resolvers.NewResolver(), config); err == nil {
+		t.Fatal("ingress handler without exact path was accepted")
+	}
+}
+
 func TestGraphQLMalformedBodiesNeverReflectPHI(t *testing.T) {
 	config := secureServerConfig(testAuthenticator(t))
 	server, err := graphqlapi.NewServer(resolvers.NewResolver(), config)

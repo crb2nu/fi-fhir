@@ -153,7 +153,7 @@ automation barrier, passed the public auth/origin/containment/provenance/PHI
 gate, and resumed healthy image automation. Exact evidence is recorded in
 `.loom/iteration-plan-phase-1-slice-1-1c-authenticated-preview-adapters.md`.
 
-### Slice 1.2: durable receipt and idempotency
+### Slice 1.2: durable receipt and idempotency — complete
 
 - Add PostgreSQL receipt, event, trace, attempt, and outbox storage and migrations.
 - Add the durable production committer to the shared evaluator while keeping
@@ -172,7 +172,7 @@ left all five record classes empty, one post-commit-unknown result recovered by
 idempotent retry after restart, and 64 callers converged on one raw-free durable
 admission unit with byte-identical results.
 
-### Slice 1.3: authenticated HL7v2 HTTP ingress
+### Slice 1.3: authenticated HL7v2 HTTP ingress — implementation complete
 
 - Bounded body, bearer/HMAC auth, explicit integration/source identity.
 - Structured 4xx diagnostics and durable 5xx/retry semantics.
@@ -180,6 +180,13 @@ admission unit with byte-identical results.
 - Add `make golden-path-001` and its fixture/evidence contract, then run the full
   restart/duplicate/profile-delta/IDE-parity kill-test. Block later phases if it
   fails or produces disconfirming evidence.
+
+The local gate passed 20 assertions against PostgreSQL 16 and a real restarted
+`serve` process. It proved one durable receipt/event/lineage/attempt/outbox unit,
+byte-identical duplicate responses before and after restart, selected-profile
+divergence, exact production/IDE semantic parity, suppressed preview delivery,
+and no raw/credential sentinel in responses or persisted JSON. The required
+`test:golden-path-001` CI job remains the merge authority.
 
 ## Phase 2 — Production channel runtime
 
@@ -328,12 +335,11 @@ revisions, and observe the expected warning/event delta without raw retention.
 
 ## Immediate backlog
 
-1. Slice 1.3 authenticated HL7v2 HTTP ingress and Golden Path 001 kill-test.
-2. Expanded IntegrationDefinition publication and deployment lifecycle.
-3. Production MLLP adapter.
-4. Durable delivery attempts, replay, and one real queue transport.
-5. Runtime-wired S3/SFTP ingestion with checkpoint/resume.
-6. Restart-safe Integration Session workspace.
+1. Expanded IntegrationDefinition publication and deployment lifecycle.
+2. Production MLLP adapter.
+3. Durable delivery attempts, replay, and one real queue transport.
+4. Runtime-wired S3/SFTP ingestion with checkpoint/resume.
+5. Restart-safe Integration Session workspace.
 
 ## Scope controls
 

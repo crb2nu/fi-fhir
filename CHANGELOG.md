@@ -27,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Blocking PostgreSQL 16 race gate that injects every transaction-boundary fault,
   restarts all handles, and collapses 64 concurrent submissions to one durable
   admission unit without persisting raw source bytes
+- Authenticated, bounded `POST /v1/hl7v2` production ingress with bearer or
+  domain-separated HMAC-SHA256 credentials, service-principal attribution,
+  server-owned integration/source identity, structured retry semantics, and a
+  PHI-free receipt/event/warning/provenance/delivery response
+- `make golden-path-001` Compose/CI gate with PostgreSQL 16 migrations, valid
+  duplicate and idempotency-conflict probes, real process restart, strict versus
+  tolerant profile proof, production/IDE semantic parity, durable cardinality,
+  JUnit/JSON/SQL evidence, and raw/credential leakage scans
 - One typed `previewIntegrationMessage` adapter backed by a strict server-owned
   integration registry and the canonical `MessageProcessor`, plus a Mapping
   Studio credential gate that keeps the [REDACTED] raw samples in tab memory

@@ -207,9 +207,8 @@ fi-fhir config show
 
 ## Quick Start with Persistence
 
-`fi-fhir serve` currently exposes authenticated, stateless preview. PostgreSQL
-can back the adjacent catalogs, but production message receipt and delivery do
-not ship until Slice 1.2.
+`fi-fhir serve` always exposes authenticated, stateless preview. It can also
+mount the PostgreSQL-only HL7v2 production ingress when explicitly enabled.
 
 ### 1. Start PostgreSQL
 
@@ -238,6 +237,16 @@ export FI_FHIR_GRAPHQL_ALLOWED_ORIGINS=http://localhost:5173
 export FI_FHIR_INTEGRATION_REGISTRY_PATH="$PWD/testdata/golden/integration/adt-http/preview-registry.json"
 ```
 
+To enable the durable endpoint, bind one credential to one integration in that
+registry. Use a managed secret file outside local development.
+
+```bash
+export FI_FHIR_HTTP_INGRESS_AUTH_MODE=bearer
+export FI_FHIR_HTTP_INGRESS_PRINCIPAL_ID=local-adt-service
+export FI_FHIR_HTTP_INGRESS_INTEGRATION_ID=adt-east
+export FI_FHIR_HTTP_INGRESS_SECRET="$(openssl rand -hex 32)"
+```
+
 ### 3. Start the Server
 
 ```bash
@@ -263,11 +272,17 @@ Start the UI, paste the deployment bearer into its credential gate, and use the
 HL7 workspace. Preview calls the one `previewIntegrationMessage` mutation and
 does not persist the raw sample, run, event, or a delivery receipt.
 
+The production endpoint accepts exact `POST /v1/hl7v2` with media type
+`application/hl7-v2+er7`, `X-Fi-Fhir-Integration-ID`, bearer or HMAC
+credentials, and optional `Idempotency-Key` and `X-Correlation-ID`. A `202`
+means the receipt, canonical event, lineage, initial attempt, and outbox row
+committed atomically. It does not mean the external destination completed.
+
 ### Graceful Degradation
 
 When database env vars are absent, non-preview catalogs fall back to in-memory
-stores with a warning. The preview security variables and immutable registry
-remain mandatory; missing values stop server startup.
+stores with a warning. Durable ingress never falls back: enabling it without
+PostgreSQL, a valid credential, or an exact registry binding stops startup.
 
 ## Next Steps
 

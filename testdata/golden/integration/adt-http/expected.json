@@ -1,0 +1,15 @@
+{
+  "counts": {
+    "receipts": 1,
+    "events": 1,
+    "lineage": 1,
+    "attempts": 1,
+    "outbox": 1
+  },
+  "warning_codes": ["MISSING_PV1"],
+  "route": "admit",
+  "action": "send-fhir",
+  "production_delivery_status": "queued",
+  "preview_delivery_status": "suppressed",
+  "event_type": "patient_admit"
+}

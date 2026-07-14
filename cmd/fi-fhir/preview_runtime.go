@@ -1,16 +1,22 @@
 package main
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity"
+	integrationingress "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/ingress"
 	integrationpreview "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/preview"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/registry"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/config"
 )
 
 const (
@@ -19,12 +25,27 @@ const (
 )
 
 type previewRuntime struct {
-	authenticator  requestsecurity.Authenticator
-	allowedOrigins []string
-	previewService *integrationpreview.Service
+	authenticator    requestsecurity.Authenticator
+	allowedOrigins   []string
+	previewService   *integrationpreview.Service
+	messageProcessor *processor.MessageProcessor
+	ingressPath      string
+	ingressHandler   http.Handler
+	submissionDB     *sql.DB
 }
 
 func loadPreviewRuntimeFromEnv() (*previewRuntime, error) {
+	return loadIntegrationRuntimeFromEnv(context.Background(), false)
+}
+
+func loadServeIntegrationRuntimeFromEnv(ctx context.Context) (*previewRuntime, error) {
+	return loadIntegrationRuntimeFromEnv(ctx, true)
+}
+
+func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress bool) (*previewRuntime, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("integration runtime context is required")
+	}
 	tenantID, err := requiredEnv("FI_FHIR_DEPLOYMENT_TENANT_ID")
 	if err != nil {
 		return nil, err
@@ -93,9 +114,55 @@ func loadPreviewRuntimeFromEnv() (*previewRuntime, error) {
 	if err != nil {
 		return nil, fmt.Errorf("configure artifact resolver: %w", err)
 	}
-	messageProcessor, err := processor.NewMessageProcessor(definitionResolver, artifactResolver)
-	if err != nil {
-		return nil, fmt.Errorf("configure message processor: %w", err)
+
+	var (
+		messageProcessor *processor.MessageProcessor
+		ingressHandler   http.Handler
+		submissionDB     *sql.DB
+	)
+	ingressMode := os.Getenv("FI_FHIR_HTTP_INGRESS_AUTH_MODE")
+	if allowProductionIngress && ingressMode != "" {
+		ingressAuthenticator, maxBodyBytes, err := loadHTTPIngressAuthenticatorFromEnv()
+		if err != nil {
+			return nil, err
+		}
+		submissionDB, err = openSubmissionDatabaseFromEnv(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("configure HTTP ingress database: %w", err)
+		}
+		closeOnError := true
+		defer func() {
+			if closeOnError {
+				_ = submissionDB.Close()
+			}
+		}()
+		submissionStore, err := processor.NewPostgresSubmissionStore(submissionDB, processor.PostgresSubmissionConfig{})
+		if err != nil {
+			return nil, fmt.Errorf("configure durable submission store: %w", err)
+		}
+		if err := submissionStore.Migrate(ctx); err != nil {
+			return nil, fmt.Errorf("migrate durable submission store: %w", err)
+		}
+		messageProcessor, err = processor.NewDurableMessageProcessor(definitionResolver, artifactResolver, submissionStore)
+		if err != nil {
+			return nil, fmt.Errorf("configure durable message processor: %w", err)
+		}
+		ingressHandler, err = newHTTPIngressHandler(
+			tenantID,
+			staticRegistry,
+			messageProcessor,
+			ingressAuthenticator,
+			maxBodyBytes,
+		)
+		if err != nil {
+			return nil, err
+		}
+		closeOnError = false
+	} else {
+		messageProcessor, err = processor.NewMessageProcessor(definitionResolver, artifactResolver)
+		if err != nil {
+			return nil, fmt.Errorf("configure message processor: %w", err)
+		}
 	}
 	previewService, err := integrationpreview.NewService(staticRegistry, messageProcessor, func() time.Time {
 		return time.Now().UTC()
@@ -103,44 +170,178 @@ func loadPreviewRuntimeFromEnv() (*previewRuntime, error) {
 	if err != nil {
 		return nil, fmt.Errorf("configure integration preview: %w", err)
 	}
+	ingressPath := ""
+	if ingressHandler != nil {
+		ingressPath = integrationingress.Path
+	}
 	return &previewRuntime{
-		authenticator:  authenticator,
-		allowedOrigins: allowedOrigins,
-		previewService: previewService,
+		authenticator:    authenticator,
+		allowedOrigins:   allowedOrigins,
+		previewService:   previewService,
+		messageProcessor: messageProcessor,
+		ingressPath:      ingressPath,
+		ingressHandler:   ingressHandler,
+		submissionDB:     submissionDB,
 	}, nil
 }
 
+func (r *previewRuntime) Close() error {
+	if r == nil || r.submissionDB == nil {
+		return nil
+	}
+	err := r.submissionDB.Close()
+	r.submissionDB = nil
+	return err
+}
+
+func loadHTTPIngressAuthenticatorFromEnv() (*integrationingress.Authenticator, int64, error) {
+	mode := integrationingress.AuthMode(os.Getenv("FI_FHIR_HTTP_INGRESS_AUTH_MODE"))
+	principalID, err := requiredEnv("FI_FHIR_HTTP_INGRESS_PRINCIPAL_ID")
+	if err != nil {
+		return nil, 0, err
+	}
+	integrationID, err := requiredEnv("FI_FHIR_HTTP_INGRESS_INTEGRATION_ID")
+	if err != nil {
+		return nil, 0, err
+	}
+	secret, err := loadSingleLineSecret(
+		"FI_FHIR_HTTP_INGRESS_SECRET",
+		"FI_FHIR_HTTP_INGRESS_SECRET_FILE",
+		"HTTP ingress secret",
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	authenticator, err := integrationingress.NewAuthenticator(integrationingress.AuthConfig{
+		Mode:          mode,
+		Secret:        secret,
+		PrincipalID:   principalID,
+		IntegrationID: integrationID,
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("configure HTTP ingress authenticator: %w", err)
+	}
+	maxBodyBytes := integrationingress.DefaultMaxBodyBytes
+	if raw := os.Getenv("FI_FHIR_HTTP_INGRESS_MAX_BODY_BYTES"); raw != "" {
+		parsed, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			return nil, 0, fmt.Errorf("FI_FHIR_HTTP_INGRESS_MAX_BODY_BYTES must be a base-10 integer")
+		}
+		maxBodyBytes = parsed
+	}
+	if maxBodyBytes <= 0 || maxBodyBytes > integrationingress.DefaultMaxBodyBytes {
+		return nil, 0, fmt.Errorf("FI_FHIR_HTTP_INGRESS_MAX_BODY_BYTES must be between 1 and %d", integrationingress.DefaultMaxBodyBytes)
+	}
+	return authenticator, maxBodyBytes, nil
+}
+
+func newHTTPIngressHandler(
+	tenantID string,
+	staticRegistry *registry.StaticRegistry,
+	messageProcessor *processor.MessageProcessor,
+	authenticator *integrationingress.Authenticator,
+	maxBodyBytes int64,
+) (http.Handler, error) {
+	service, err := integrationingress.NewService(integrationingress.ServiceConfig{
+		TenantID:    tenantID,
+		PrincipalID: authenticator.PrincipalID(),
+		AuthMethod:  authenticator.AuthMethod(),
+		Registry:    staticRegistry,
+		Processor:   messageProcessor,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("configure HTTP ingress service: %w", err)
+	}
+	handler, err := integrationingress.NewHandler(integrationingress.HandlerConfig{
+		MaxBodyBytes:  maxBodyBytes,
+		Authenticator: authenticator,
+		Service:       service,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("configure HTTP ingress handler: %w", err)
+	}
+	return handler, nil
+}
+
+func openSubmissionDatabaseFromEnv(ctx context.Context) (*sql.DB, error) {
+	cfg := config.LoadFromEnv()
+	if cfg.Database.Username == "" {
+		cfg.Database.Username = os.Getenv("FI_FHIR_DATABASE_USER")
+	}
+	if cfg.Database.Host == "" || cfg.Database.Database == "" || cfg.Database.Username == "" {
+		return nil, fmt.Errorf("FI_FHIR_DATABASE_HOST, FI_FHIR_DATABASE_NAME, and FI_FHIR_DATABASE_USERNAME are required")
+	}
+	if cfg.Database.Driver == "" {
+		cfg.Database.Driver = "postgres"
+	}
+	if cfg.Database.Driver != "postgres" {
+		return nil, fmt.Errorf("durable HTTP ingress requires the postgres database driver")
+	}
+	dsn := cfg.DatabaseDSN()
+	if dsn == "" {
+		return nil, fmt.Errorf("database DSN is empty")
+	}
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("open database: %w", err)
+	}
+	if cfg.Database.MaxOpenConns > 0 {
+		db.SetMaxOpenConns(cfg.Database.MaxOpenConns)
+	}
+	if cfg.Database.MaxIdleConns > 0 {
+		db.SetMaxIdleConns(cfg.Database.MaxIdleConns)
+	}
+	if cfg.Database.ConnMaxLifetime > 0 {
+		db.SetConnMaxLifetime(cfg.Database.ConnMaxLifetime)
+	}
+	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := db.PingContext(pingCtx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("ping database: %w", err)
+	}
+	return db, nil
+}
+
 func loadBearerToken() (string, error) {
-	direct := os.Getenv("FI_FHIR_GRAPHQL_BEARER_TOKEN")
-	path := os.Getenv("FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE")
+	return loadSingleLineSecret(
+		"FI_FHIR_GRAPHQL_BEARER_TOKEN",
+		"FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE",
+		"GraphQL bearer token",
+	)
+}
+
+func loadSingleLineSecret(directName, fileName, label string) (string, error) {
+	direct := os.Getenv(directName)
+	path := os.Getenv(fileName)
 	if direct != "" && path != "" {
-		return "", fmt.Errorf("configure exactly one GraphQL bearer token source")
+		return "", fmt.Errorf("configure exactly one %s source", label)
 	}
 	if direct != "" {
 		return direct, nil
 	}
 	if path == "" {
-		return "", fmt.Errorf("FI_FHIR_GRAPHQL_BEARER_TOKEN or FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE is required")
+		return "", fmt.Errorf("%s or %s is required", directName, fileName)
 	}
 	file, err := os.Open(path)
 	if err != nil {
-		return "", fmt.Errorf("open GraphQL bearer token file: %w", err)
+		return "", fmt.Errorf("open %s file: %w", label, err)
 	}
 	raw, readErr := io.ReadAll(io.LimitReader(file, maxBearerTokenFileBytes+1))
 	closeErr := file.Close()
 	if readErr != nil {
-		return "", fmt.Errorf("read GraphQL bearer token file: %w", readErr)
+		return "", fmt.Errorf("read %s file: %w", label, readErr)
 	}
 	if closeErr != nil {
-		return "", fmt.Errorf("close GraphQL bearer token file: %w", closeErr)
+		return "", fmt.Errorf("close %s file: %w", label, closeErr)
 	}
 	if len(raw) == 0 || len(raw) > maxBearerTokenFileBytes {
-		return "", fmt.Errorf("GraphQL bearer token file has an invalid size")
+		return "", fmt.Errorf("%s file has an invalid size", label)
 	}
 	token := strings.TrimSuffix(string(raw), "\n")
 	token = strings.TrimSuffix(token, "\r")
 	if strings.ContainsAny(token, "\r\n") {
-		return "", fmt.Errorf("GraphQL bearer token file contains multiple lines")
+		return "", fmt.Errorf("%s file contains multiple lines", label)
 	}
 	return token, nil
 }
