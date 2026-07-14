@@ -33,7 +33,7 @@
 | Event Sourcing           | `pkg/eventsourcing/`             | Production | 72.7%    | Store, projections, snapshots, sagas, outbox     | 2026-02-27   |
 | ES Projections           | `pkg/eventsourcing/projections/` | Production | 88.9%    | Patient timeline, stats, active encounters       | 2026-01-14   |
 | Config                   | `pkg/config/`                    | Production | 89.3%    | Layered loading (defaults → file → env), secrets | 2026-02-27   |
-| Integration Contracts    | `pkg/integration/`               | Alpha      | 88.7%    | Exact provenance and strict preview invariants   | 2026-07-13   |
+| Integration Contracts    | `pkg/integration/`               | Alpha      | 88.7%    | Exact provenance plus strict preview/production invariants | 2026-07-14 |
 | Source Profiles          | `pkg/profile/`                   | Beta       | 71.9%    | Inference, linting, vendor templates             | 2026-02-27   |
 | Validators               | `pkg/validate/`                  | Production | 98.2%    | NPI, MBI, SSN, DEA; Luhn/checksum                | 2026-01-09   |
 | FHIR Mapper              | `pkg/fhir/`                      | Production | 75.2%    | 24+ US Core resources, validation                | 2026-01-19   |
@@ -54,7 +54,7 @@
 | Component             | Path                              | Maturity   | Coverage | Notes                                            | Last Updated |
 | --------------------- | --------------------------------- | ---------- | -------- | ------------------------------------------------ | ------------ |
 | Workflow Engine       | `internal/workflow/`              | Production | 78.6%    | Actions plus strict DSL v1 and pure planner      | 2026-07-13   |
-| Integration Processor | `internal/integration/processor/` | Alpha      | 84.5%    | Deployed A01 preview; production unavailable     | 2026-07-13   |
+| Integration Processor | `internal/integration/processor/` | Alpha      | 84.5%    | A01 preview plus PostgreSQL atomic admission; ingress pending | 2026-07-14 |
 | GraphQL API           | `internal/api/graphql/`           | Beta       | 9.5%\*   | Preview role: health/preview; legacy + WS disabled | 2026-07-13 |
 | FHIR Subscriptions    | `internal/fhir/subscription/`     | Production | 83.7%    | Bidirectional; client + webhook receiver         | 2026-02-27   |
 | Terminology Autoroute | `internal/terminology/autoroute/` | Beta       | 88.5%    | Automatic code-system routing engine             | 2026-03-09   |

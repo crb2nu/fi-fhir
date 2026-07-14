@@ -18,9 +18,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Strict published-workflow DSL v1 parser and pure CEL route planner with bounded YAML resources, closed action types, safe diagnostics, stable action identity, and no execution-capable dependencies
 - Strict executable Source Profile compiler plus one-message HL7v2 validation, standards-correct DTM offsets and precision, source-time precedence, and deterministic event identity
 - Blocking PostgreSQL preview-kernel proof that reconstructs fresh stores after v2 publication while preserving byte-identical v1 behavior and exact v2 semantics
+- PostgreSQL-only production admission on the same `MessageProcessor` semantics,
+  atomically committing the durable receipt, sanitized canonical event, exact
+  lineage, initial delivery attempts, and pending transactional outbox rows
+- Deterministic tenant-scoped idempotency with explicit-key precedence,
+  source/MSH-10/revision derivation, request-fingerprint conflicts, and
+  commit-unknown recovery through the first durable result
+- Blocking PostgreSQL 16 race gate that injects every transaction-boundary fault,
+  restarts all handles, and collapses 64 concurrent submissions to one durable
+  admission unit without persisting raw source bytes
 - One typed `previewIntegrationMessage` adapter backed by a strict server-owned
   integration registry and the canonical `MessageProcessor`, plus a Mapping
-  Studio credential gate that keeps the bearer and raw samples in tab memory
+  Studio credential gate that keeps the [REDACTED] raw samples in tab memory
 - Supported 1.0 target matrix with a pinned Kubernetes 1.36 minor and explicit phase release gates
 
 #### Format Adapters
@@ -222,7 +231,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 - GraphQL now fails startup closed without a deployment tenant, principal,
-  preview role, exact HTTP origins, one canonical bearer secret, and a matching
+  preview role, exact HTTP origins, one canonical [REDACTED], and a matching
   immutable integration registry. HTTP accepts only bounded JSON POST requests;
   WebSocket transport is unmounted and UI subscription consumers fail locally.
 - GraphQL rejects duplicate, case-aliased, malformed, wrongly typed, or trailing

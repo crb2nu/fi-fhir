@@ -17,12 +17,16 @@ var (
 	ErrInvalidWorkflowPlan = errors.New("invalid workflow plan")
 )
 
-func planPreviewWorkflow(
+func planWorkflow(
 	resolved ResolvedArtifactRevisions,
 	event integration.ProcessedEvent,
 	revision integration.IntegrationDefinitionRevision,
+	mode integration.ExecutionMode,
 ) ([]integration.RouteResult, []integration.DeliveryResult, []integration.Diagnostic, error) {
 	if event.TenantID != revision.TenantID || event.Classification != revision.Policy.Classification || event.ID == "" {
+		return nil, nil, nil, ErrInvalidWorkflowPlan
+	}
+	if mode != integration.ExecutionModePreview && mode != integration.ExecutionModeProduction {
 		return nil, nil, nil, ErrInvalidWorkflowPlan
 	}
 	workflowRef := resolved.WorkflowReference()
@@ -111,12 +115,19 @@ func planPreviewWorkflow(
 				Destination: destination,
 				Route:       plannedRoute.Name,
 				Action:      action.ID,
-				Status:      integration.DeliveryStatusSuppressed,
+				Status:      deliveryPlanStatus(mode),
 			})
 		}
 		routes = append(routes, route)
 	}
 	return routes, deliveries, diagnostics, nil
+}
+
+func deliveryPlanStatus(mode integration.ExecutionMode) integration.DeliveryStatus {
+	if mode == integration.ExecutionModeProduction {
+		return integration.DeliveryStatusPlanned
+	}
+	return integration.DeliveryStatusSuppressed
 }
 
 func processedEventWorkflowInput(event integration.ProcessedEvent) (map[string]any, error) {

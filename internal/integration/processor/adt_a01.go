@@ -29,7 +29,8 @@ func projectADTA01(
 	revision integration.IntegrationDefinitionRevision,
 	ordinal uint32,
 ) (integration.ProcessedEvent, []integration.Diagnostic, error) {
-	if err := request.ValidateAgainst(revision); err != nil || request.Mode != integration.ExecutionModePreview {
+	if err := request.ValidateAgainst(revision); err != nil ||
+		(request.Mode != integration.ExecutionModePreview && request.Mode != integration.ExecutionModeProduction) {
 		return integration.ProcessedEvent{}, nil, ErrInvalidADTA01
 	}
 	if result == nil {

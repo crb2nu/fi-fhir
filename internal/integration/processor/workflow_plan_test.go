@@ -55,7 +55,7 @@ func TestPlanPreviewWorkflowBindsExactSuppressedDestinations(t *testing.T) {
 		t.Fatalf("projectADTA01: %v", err)
 	}
 
-	routes, deliveries, diagnostics, err := planPreviewWorkflow(resolved, event, revision)
+	routes, deliveries, diagnostics, err := planWorkflow(resolved, event, revision, integration.ExecutionModePreview)
 	if err != nil {
 		t.Fatalf("planPreviewWorkflow: %v", err)
 	}
@@ -119,11 +119,11 @@ func TestPlanPreviewWorkflowIsDeterministicAndNeverExposesArtifactBytes(t *testi
 	if err != nil {
 		t.Fatalf("projectADTA01: %v", err)
 	}
-	firstRoutes, firstDeliveries, firstDiagnostics, err := planPreviewWorkflow(resolved, event, revision)
+	firstRoutes, firstDeliveries, firstDiagnostics, err := planWorkflow(resolved, event, revision, integration.ExecutionModePreview)
 	if err != nil {
 		t.Fatalf("plan first: %v", err)
 	}
-	secondRoutes, secondDeliveries, secondDiagnostics, err := planPreviewWorkflow(resolved, event, revision)
+	secondRoutes, secondDeliveries, secondDiagnostics, err := planWorkflow(resolved, event, revision, integration.ExecutionModePreview)
 	if err != nil {
 		t.Fatalf("plan second: %v", err)
 	}
@@ -155,7 +155,7 @@ func TestPlanPreviewWorkflowFailsClosedOnDestinationBinding(t *testing.T) {
 			if err != nil {
 				t.Fatalf("projectADTA01: %v", err)
 			}
-			if _, _, _, err := planPreviewWorkflow(resolved, event, revision); !errors.Is(err, ErrInvalidWorkflowPlan) {
+			if _, _, _, err := planWorkflow(resolved, event, revision, integration.ExecutionModePreview); !errors.Is(err, ErrInvalidWorkflowPlan) {
 				t.Fatalf("plan error = %v, want invalid workflow plan", err)
 			}
 		})
