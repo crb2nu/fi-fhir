@@ -14,6 +14,10 @@ var (
 	ErrProcessorUnavailable = errors.New("message processor unavailable")
 	// ErrProductionCommitterRequired keeps production fail-closed until Slice 1.2 durability exists.
 	ErrProductionCommitterRequired = errors.New("production processing requires durable committer")
+	// ErrDurableSubmissionFailed maps PostgreSQL admission failures to a catalog-safe error.
+	ErrDurableSubmissionFailed = errors.New("durable production submission failed")
+	// ErrIdempotencyConflict means an effective key was reused for different request content.
+	ErrIdempotencyConflict = errors.New("idempotency key conflicts with durable submission")
 	// ErrInvalidProcessRequest means the request does not match the server-owned revision.
 	ErrInvalidProcessRequest = errors.New("invalid process request")
 	// ErrDefinitionResolutionFailed maps server definition lookup details to a catalog-safe error.
@@ -34,11 +38,14 @@ var (
 // Transport adapters must apply an equal or smaller limit before buffering.
 const MaxPreviewSourceBytes int64 = 1 << 20
 
-// MessageProcessor is the single preview semantic path. It owns no committer,
-// destination client, action handler, event store, session store, or clock.
+// MessageProcessor is the single preview and production semantic path. Preview
+// owns no side effects. Production is available only when the PostgreSQL
+// submission store is explicitly configured; destination execution remains an
+// outbox consumer responsibility.
 type MessageProcessor struct {
 	definitions *DefinitionRevisionResolver
 	artifacts   *RevisionResolver
+	submissions *PostgresSubmissionStore
 }
 
 // NewMessageProcessor composes server-owned definition and exact artifact resolvers.
@@ -52,13 +59,34 @@ func NewMessageProcessor(
 	return &MessageProcessor{definitions: definitions, artifacts: artifacts}, nil
 }
 
-// Process evaluates one exact, side-effect-free preview request.
+// NewDurableMessageProcessor composes the shared evaluator with the only
+// supported production admission implementation: PostgreSQL.
+func NewDurableMessageProcessor(
+	definitions *DefinitionRevisionResolver,
+	artifacts *RevisionResolver,
+	submissions *PostgresSubmissionStore,
+) (*MessageProcessor, error) {
+	if definitions == nil || artifacts == nil || submissions == nil {
+		return nil, ErrProcessorUnavailable
+	}
+	return &MessageProcessor{
+		definitions: definitions,
+		artifacts:   artifacts,
+		submissions: submissions,
+	}, nil
+}
+
+// Process evaluates one exact request. Preview is side-effect-free; production
+// returns only after its complete admission unit commits in PostgreSQL.
 func (p *MessageProcessor) Process(
 	ctx context.Context,
 	request integration.ProcessRequest,
 ) (integration.ProcessResult, error) {
-	if request.Mode != integration.ExecutionModePreview {
+	if request.Mode == integration.ExecutionModeProduction && (p == nil || p.submissions == nil) {
 		return integration.ProcessResult{}, ErrProductionCommitterRequired
+	}
+	if request.Mode != integration.ExecutionModePreview && request.Mode != integration.ExecutionModeProduction {
+		return integration.ProcessResult{}, ErrInvalidProcessRequest
 	}
 	if p == nil || p.definitions == nil || p.artifacts == nil || ctx == nil {
 		return integration.ProcessResult{}, ErrProcessorUnavailable
@@ -117,14 +145,14 @@ func (p *MessageProcessor) Process(
 		return integration.ProcessResult{}, ErrInvalidSourceMessage
 	}
 
-	routes, deliveries, workflowDiagnostics, err := planPreviewWorkflow(resolved, event, revision)
+	routes, deliveries, workflowDiagnostics, err := planWorkflow(resolved, event, revision, request.Mode)
 	if err != nil {
 		return integration.ProcessResult{}, ErrWorkflowPlanningFailed
 	}
 	security := request.Security
 	security.Principal.Roles = append([]string(nil), request.Security.Principal.Roles...)
 	result := integration.ProcessResult{
-		Mode:                integration.ExecutionModePreview,
+		Mode:                request.Mode,
 		TenantID:            revision.TenantID,
 		IntegrationRevision: revision.Reference(),
 		ArtifactRevisions: &integration.ExecutionArtifactRevisions{
@@ -144,10 +172,20 @@ func (p *MessageProcessor) Process(
 			EventIDs:        []string{event.ID},
 		},
 	}
-	if err := result.ValidatePreviewFor(request, revision); err != nil {
-		return integration.ProcessResult{}, ErrInvalidProcessResult
+	if request.Mode == integration.ExecutionModePreview {
+		if err := result.ValidatePreviewFor(request, revision); err != nil {
+			return integration.ProcessResult{}, ErrInvalidProcessResult
+		}
+		return result, nil
 	}
-	return result, nil
+	durable, err := p.submissions.commit(ctx, request, revision, result)
+	if err != nil {
+		if errors.Is(err, ErrIdempotencyConflict) {
+			return integration.ProcessResult{}, ErrIdempotencyConflict
+		}
+		return integration.ProcessResult{}, ErrDurableSubmissionFailed
+	}
+	return durable, nil
 }
 
 func contextError(err error, ctx context.Context) error {

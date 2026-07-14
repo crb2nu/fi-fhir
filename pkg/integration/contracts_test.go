@@ -185,6 +185,9 @@ func TestProcessRequestMatchesRevision(t *testing.T) {
 		{name: "revision", mutate: func(request *integration.ProcessRequest) { request.IntegrationRevision.RevisionID = "other" }},
 		{name: "anonymous", mutate: func(request *integration.ProcessRequest) { request.Security.Principal = integration.Principal{} }},
 		{name: "principal source", mutate: func(request *integration.ProcessRequest) { request.Security.Principal.SourceID = "other" }},
+		{name: "whitespace idempotency", mutate: func(request *integration.ProcessRequest) { request.IdempotencyKey = " idem " }},
+		{name: "control idempotency", mutate: func(request *integration.ProcessRequest) { request.IdempotencyKey = "idem\nkey" }},
+		{name: "oversized idempotency", mutate: func(request *integration.ProcessRequest) { request.IdempotencyKey = strings.Repeat("i", 513) }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -354,6 +357,46 @@ func validProductionResult(t *testing.T) (integration.IntegrationDefinitionRevis
 		},
 	}
 	return revision, result
+}
+
+func TestProductionResultRequiresExactDurableLineage(t *testing.T) {
+	revision, base := validProductionResult(t)
+	base.ArtifactRevisions = &integration.ExecutionArtifactRevisions{
+		Source:   revision.Source.ArtifactRevisionRef,
+		Profile:  revision.Profile,
+		Workflow: revision.Workflow,
+	}
+	base.Routes[0].EventID = base.Events[0].ID
+	base.Deliveries[0].EventID = base.Events[0].ID
+	if err := base.ValidateProductionAgainst(revision); err != nil {
+		t.Fatalf("valid strict production result: %v", err)
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(*integration.ProcessResult)
+	}{
+		{name: "artifact provenance", mutate: func(result *integration.ProcessResult) { result.ArtifactRevisions = nil }},
+		{name: "trace", mutate: func(result *integration.ProcessResult) { result.Correlations.TraceID = "" }},
+		{name: "route event", mutate: func(result *integration.ProcessResult) { result.Routes[0].EventID = "" }},
+		{name: "delivery event", mutate: func(result *integration.ProcessResult) { result.Deliveries[0].EventID = "" }},
+		{name: "initial status", mutate: func(result *integration.ProcessResult) {
+			result.Deliveries[0].Status = integration.DeliveryStatusPlanned
+		}},
+		{name: "initial attempt count", mutate: func(result *integration.ProcessResult) { result.Deliveries[0].AttemptCount = 2 }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			candidate := cloneProcessResult(base)
+			candidate.Routes = append([]integration.RouteResult(nil), base.Routes...)
+			candidate.Deliveries = append([]integration.DeliveryResult(nil), base.Deliveries...)
+			tt.mutate(&candidate)
+			if err := candidate.ValidateProductionAgainst(revision); err == nil {
+				t.Fatalf("strict production result accepted missing %s", tt.name)
+			}
+		})
+	}
 }
 
 func TestProcessResultJSONContract(t *testing.T) {

@@ -152,9 +152,21 @@ func (r ProcessRequest) ValidateAgainst(revision IntegrationDefinitionRevision) 
 	}
 	v.add(strings.TrimSpace(r.CorrelationID) != "", "REQUIRED", "correlation_id", "correlation ID is required")
 	if r.IdempotencyKey != "" {
-		v.add(strings.TrimSpace(r.IdempotencyKey) != "", "INVALID_IDEMPOTENCY_KEY", "idempotency_key", "explicit idempotency key cannot be whitespace")
+		v.add(validExplicitIdempotencyKey(r.IdempotencyKey), "INVALID_IDEMPOTENCY_KEY", "idempotency_key", "explicit idempotency key must be at most 512 bytes and free of controls or surrounding whitespace")
 	}
 	return v.err()
+}
+
+func validExplicitIdempotencyKey(value string) bool {
+	if len(value) == 0 || len(value) > 512 || strings.TrimSpace(value) != value {
+		return false
+	}
+	for _, character := range value {
+		if unicode.IsControl(character) {
+			return false
+		}
+	}
+	return true
 }
 
 // ReceiptStatus records whether an ingress request was durably accepted or rejected.
@@ -747,6 +759,79 @@ func (r ProcessResult) ValidatePreviewFor(request ProcessRequest, revision Integ
 				}
 			}
 			v.add(planned, "UNPLANNED_ACTION", joinPath(path, "action"), "delivery action is absent from the event-bound route plan")
+		}
+		validateDiagnosticCodeBindings(joinPath(path, "diagnostic_codes"), delivery.DiagnosticCodes, diagnosticCodes, v)
+	}
+	return v.err()
+}
+
+// ValidateProductionAgainst applies the strict, event-bound contract for a
+// newly accepted durable production result. Historical delivery results may
+// later transition beyond queued, but the admission result always represents
+// one accepted receipt and one initial attempt per external action.
+func (r ProcessResult) ValidateProductionAgainst(revision IntegrationDefinitionRevision) error {
+	v := &validationCollector{}
+	v.merge("", r.ValidateAgainst(revision))
+	v.add(r.Mode == ExecutionModeProduction, "INVALID_MODE", "mode", "production validation requires a production result")
+	v.add(r.ArtifactRevisions != nil, "REQUIRED", "artifact_revisions", "production results require exact execution artifact revisions")
+	v.add(r.Receipt != nil, "REQUIRED", "receipt", "production results require a durable receipt")
+	if r.Receipt != nil {
+		v.add(r.Receipt.Status == ReceiptStatusAccepted, "INVALID_RECEIPT_STATUS", "receipt.status", "production admission requires an accepted receipt")
+	}
+	v.add(len(r.Events) > 0, "REQUIRED", "events", "accepted production results require a canonical event")
+	v.add(strings.TrimSpace(r.Correlations.TraceID) != "", "REQUIRED", "correlations.trace_id", "production results require a durable trace identifier")
+	validateOptionalLineageID("correlations.trace_id", r.Correlations.TraceID, v)
+
+	eventIDs := make(map[string]struct{}, len(r.Events))
+	for _, event := range r.Events {
+		eventIDs[event.ID] = struct{}{}
+	}
+	diagnosticCodes := make(map[string]struct{}, len(r.Diagnostics))
+	for _, diagnostic := range r.Diagnostics {
+		diagnosticCodes[diagnostic.Code] = struct{}{}
+	}
+
+	routePlans := make(map[previewRouteIdentity]RouteResult, len(r.Routes))
+	for i, route := range r.Routes {
+		path := fmt.Sprintf("routes[%d]", i)
+		v.add(route.EventID != "", "REQUIRED", joinPath(path, "event_id"), "production routes require event lineage")
+		_, eventExists := eventIDs[route.EventID]
+		v.add(eventExists, "UNBOUND_EVENT", joinPath(path, "event_id"), "route event is absent from the production result")
+		key := previewRouteIdentity{eventID: route.EventID, route: route.Route}
+		_, duplicate := routePlans[key]
+		v.add(!duplicate, "DUPLICATE", path, "production route lineage is duplicated")
+		routePlans[key] = route
+		if len(route.PlannedActions) > 0 {
+			v.add(route.Matched && !route.Skipped, "UNEXECUTABLE_ROUTE", joinPath(path, "planned_actions"), "planned actions require a matched, non-skipped route")
+		}
+		validateDiagnosticCodeBindings(joinPath(path, "diagnostic_codes"), route.DiagnosticCodes, diagnosticCodes, v)
+	}
+
+	deliveries := make(map[previewDeliveryIdentity]struct{}, len(r.Deliveries))
+	for i, delivery := range r.Deliveries {
+		path := fmt.Sprintf("deliveries[%d]", i)
+		v.add(delivery.EventID != "", "REQUIRED", joinPath(path, "event_id"), "production deliveries require event lineage")
+		_, eventExists := eventIDs[delivery.EventID]
+		v.add(eventExists, "UNBOUND_EVENT", joinPath(path, "event_id"), "delivery event is absent from the production result")
+		v.add(delivery.Status == DeliveryStatusQueued, "INVALID_DELIVERY_STATUS", joinPath(path, "status"), "new production deliveries must be queued")
+		v.add(strings.TrimSpace(delivery.AttemptID) != "", "REQUIRED", joinPath(path, "attempt_id"), "queued production deliveries require an attempt ID")
+		v.add(delivery.AttemptCount == 1, "INVALID_COUNT", joinPath(path, "attempt_count"), "new production deliveries require attempt count one")
+		key := previewDeliveryIdentity{eventID: delivery.EventID, route: delivery.Route, action: delivery.Action}
+		_, duplicate := deliveries[key]
+		v.add(!duplicate, "DUPLICATE", path, "production delivery lineage is duplicated")
+		deliveries[key] = struct{}{}
+		plan, routeExists := routePlans[previewRouteIdentity{eventID: delivery.EventID, route: delivery.Route}]
+		v.add(routeExists, "UNBOUND_ROUTE", joinPath(path, "route"), "delivery route is absent from the event-bound production plan")
+		if routeExists {
+			v.add(plan.Matched && !plan.Skipped, "UNEXECUTABLE_ROUTE", joinPath(path, "route"), "delivery route must be matched and not skipped")
+			planned := false
+			for _, action := range plan.PlannedActions {
+				if action == delivery.Action {
+					planned = true
+					break
+				}
+			}
+			v.add(planned, "UNPLANNED_ACTION", joinPath(path, "action"), "delivery action is absent from the event-bound production plan")
 		}
 		validateDiagnosticCodeBindings(joinPath(path, "diagnostic_codes"), delivery.DiagnosticCodes, diagnosticCodes, v)
 	}
