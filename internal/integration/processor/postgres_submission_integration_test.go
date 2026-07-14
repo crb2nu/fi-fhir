@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -80,15 +81,17 @@ func TestPostgresProductionSubmission_64WayDuplicateFaultRestart(t *testing.T) {
 	const handleCount = 8
 	handles := make([]*sql.DB, 0, handleCount)
 	processors := make([]*MessageProcessor, 0, handleCount)
+	var commitOutcomeUnknownInjected atomic.Bool
+	commitOutcomeUnknownFault := func(checkpoint submissionCheckpoint) error {
+		if checkpoint == checkpointAfterCommit && commitOutcomeUnknownInjected.CompareAndSwap(false, true) {
+			return ErrCommitOutcomeUnknown
+		}
+		return nil
+	}
 	for index := 0; index < handleCount; index++ {
 		db := openSubmissionDB(t, schemaDSN)
 		store := newSubmissionStore(t, db, fixedClock)
-		store.faultHook = func(checkpoint submissionCheckpoint) error {
-			if checkpoint == checkpointAfterCommit {
-				return ErrCommitOutcomeUnknown
-			}
-			return nil
-		}
+		store.faultHook = commitOutcomeUnknownFault
 		handles = append(handles, db)
 		processors = append(processors, newDurableFixtureProcessor(t, fixture, store))
 	}
@@ -127,6 +130,9 @@ func TestPostgresProductionSubmission_64WayDuplicateFaultRestart(t *testing.T) {
 	}
 	if unknownCaller == -1 {
 		t.Fatal("64-way gate did not exercise the post-COMMIT unknown outcome")
+	}
+	if !commitOutcomeUnknownInjected.Load() {
+		t.Fatal("64-way gate did not inject the post-COMMIT unknown outcome")
 	}
 	assertSubmissionCounts(t, handles[0], submissionCounts{receipts: 1, events: 1, lineage: 1, attempts: 1, outbox: 1})
 
