@@ -101,8 +101,11 @@ content-addressed UTF-8 listener applies framing/timeouts, TLS 1.3 mutual auth,
 CIDR, connection, deployed capacity, and ACK policy. Positive ACKs follow the
 atomic submission commit, and transaction-scoped admission serializes with
 pause/retire. Unit/race tests and required CI test discovery pass locally; the
-PostgreSQL 16/TCP CI proof is pending. GraphQL and Mapping Studio lifecycle
-controls, production GitOps activation, and external delivery remain open.
+PostgreSQL 16/TCP proof passed in MR `!104` job `184996`; pipeline `19175`
+passed 33/33 and merged as `6205fa39`. Main pipeline `19193` passed 36/36 and
+independently repeated the proof in job `185093`. GraphQL and Mapping Studio
+lifecycle controls, production GitOps activation, and external delivery remain
+open.
 
 ## Infrastructure
 

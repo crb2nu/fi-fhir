@@ -4,7 +4,7 @@
 
 - Milestone: Phase 2 production channel runtime / Engine Beta
 - Slice: deployed-release production MLLP source adapter
-- Status: implementation and local non-PostgreSQL proof complete; CI/merge pending
+- Status: complete, merged, and independently verified on the default branch
 
 ## What Landed
 
@@ -28,7 +28,14 @@
 - `go test -race -count=1 ./internal/integration/mllp` passes.
 - Focused lifecycle, processor, and `cmd/fi-fhir` tests pass.
 - The required integration test is discoverable with `-tags=integration`.
-- PostgreSQL execution, MR pipeline, merge commit, and main evidence are pending.
+- Feature MR: `https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/104`
+- Feature pipeline: `https://gitlab.flexinfer.ai/libs/fi-fhir/-/pipelines/19175`
+  passed 33/33; required MLLP job `184996` passed.
+- MR `!104` merged as `6205fa39`; main pipeline
+  `https://gitlab.flexinfer.ai/libs/fi-fhir/-/pipelines/19193` passed 36/36 and
+  independently repeated the MLLP proof in job `185093`.
+- Main API image: `sha256:5f7d38548fb41c036c390b035289f87a5e7f57019fba50ee2303b75f0387b52a`.
+- Main UI image: `sha256:4971dee5c020febc7f31499393477b300dab08fb622b84d2421b980ea72c47fa`.
 - Key files:
   - `internal/integration/mllp/`
   - `internal/integration/lifecycle/admission.go`
@@ -45,7 +52,6 @@ merge without its required kill-test or operational constraints.
 
 ## What Is Still Open
 
-- Authoritative PostgreSQL CI and merge evidence.
 - Production GitOps Service/port/secret activation is intentionally pending.
 - Authenticated HTTP remains on its verified startup definition registry.
 - Destination workers, DLQ/replay/resubmit, S3/SFTP runtime wiring, and IDE
@@ -53,9 +59,9 @@ merge without its required kill-test or operational constraints.
 
 ## Next Action
 
-Pass the required MR/main gates and record exact evidence. Then implement Slice
-2.3 durable delivery attempts, retry/DLQ/replay/resubmit, and one real queue
-transport without conflating durable admission with external delivery.
+Implement Slice 2.3 durable delivery attempts, retry/DLQ/replay/resubmit, and one
+real queue transport without conflating durable admission with external
+delivery.
 
 ## Context
 
