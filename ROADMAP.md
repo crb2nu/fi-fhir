@@ -74,9 +74,10 @@ must not enter the clinical data plane before the engine spine is proven.
   - [x] Slice 1.3 added the first authenticated production adapter at exact
     `POST /v1/hl7v2`, with bearer/HMAC credentials, server-owned integration and
     source identity, bounded bodies, structured failures, and PHI-free durable
-    responses. `make golden-path-001` passed 20 local assertions across duplicate,
-    restart, profile-delta, PostgreSQL cardinality, IDE parity, and leakage gates;
-    the required CI job is the merge gate.
+    responses. `make golden-path-001` passed 20 assertions across duplicate,
+    restart, profile-delta, PostgreSQL cardinality, IDE parity, and leakage gates.
+    MR `!99` pipeline `18898` passed 32/32; main pipeline `18951` repeated the
+    Golden Path proof and passed 35/35 on merge commit `48d156d2`.
 
 ## Next
 
