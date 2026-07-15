@@ -107,9 +107,20 @@ func TestPostgresMLLPRuntime_DurableACKPauseRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	processorErrors := make(chan error, 1)
+	capturedProcessor := processorFunc(func(ctx context.Context, request integration.ProcessRequest) (integration.ProcessResult, error) {
+		result, processErr := durableProcessor.Process(ctx, request)
+		if processErr != nil {
+			select {
+			case processorErrors <- processErr:
+			default:
+			}
+		}
+		return result, processErr
+	})
 	server, err := NewServer(ServerConfig{Service: ServiceConfig{
 		TenantID: "tenant-a", DefinitionID: revision.DefinitionID, PrincipalID: "mllp-listener",
-		Source: source, Resolver: catalog, Processor: durableProcessor,
+		Source: source, Resolver: catalog, Processor: capturedProcessor,
 	}})
 	if err != nil {
 		t.Fatal(err)
@@ -153,7 +164,12 @@ func TestPostgresMLLPRuntime_DurableACKPauseRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	if code := readMLLPAcknowledgement(t, connection, source); code != "AA" {
-		t.Fatalf("first ACK = %s", code)
+		select {
+		case processErr := <-processorErrors:
+			t.Fatalf("first ACK = %s; processor error: %s", code, formatErrorChain(processErr))
+		default:
+			t.Fatalf("first ACK = %s; processor returned no captured error", code)
+		}
 	}
 	_ = connection.Close()
 	paused := <-pauseResult
@@ -250,6 +266,18 @@ func TestPostgresMLLPRuntime_DurableACKPauseRestart(t *testing.T) {
 	if snapshot.State != integration.DeploymentStateRetired {
 		t.Fatalf("final lifecycle state = %s", snapshot.State)
 	}
+}
+
+func formatErrorChain(err error) string {
+	if err == nil {
+		return "<nil>"
+	}
+	chain := make([]string, 0, 4)
+	for err != nil {
+		chain = append(chain, err.Error())
+		err = errors.Unwrap(err)
+	}
+	return strings.Join(chain, ": ")
 }
 
 type integrationArtifactLoader struct {
