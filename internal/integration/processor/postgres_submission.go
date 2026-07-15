@@ -434,7 +434,7 @@ func finalizeProductionResult(
 	result := plan
 	result.Security.Principal.Roles = append([]string(nil), plan.Security.Principal.Roles...)
 	result.Events = append([]integration.ProcessedEvent(nil), plan.Events...)
-	result.Diagnostics = append([]integration.Diagnostic(nil), plan.Diagnostics...)
+	result.Diagnostics = append([]integration.Diagnostic{}, plan.Diagnostics...)
 	result.Routes = cloneRoutes(plan.Routes)
 	result.Deliveries = append([]integration.DeliveryResult(nil), plan.Deliveries...)
 	result.Correlations.EventIDs = append([]string(nil), plan.Correlations.EventIDs...)
