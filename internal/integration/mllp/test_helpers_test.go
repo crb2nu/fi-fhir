@@ -14,6 +14,10 @@ import (
 const testDigest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
 func testSource(t *testing.T) SourceRevision {
+	return testSourceWithMaxConnections(t, 4)
+}
+
+func testSourceWithMaxConnections(t *testing.T, maxConnections int) SourceRevision {
 	t.Helper()
 	revision, err := NewSourceRevision(SourceRevisionInput{
 		ArtifactID: "mllp-source", RevisionID: "source-v1", SourceID: "hospital-a",
@@ -22,7 +26,7 @@ func testSource(t *testing.T) SourceRevision {
 		Timeouts: TimeoutPolicy{ReadSeconds: 2, WriteSeconds: 2, IdleSeconds: 3, ProcessSeconds: 2},
 		TLS:      TLSPolicy{Mode: TLSModeDisabled}, Clients: ClientPolicy{AllowedCIDRs: []string{"127.0.0.0/8"}},
 		Acknowledgements: AcknowledgementPolicy{Mode: AcknowledgementModeApplication, IncludeErrorSegment: true},
-		MaxMessageBytes:  4096, MaxConnections: 4,
+		MaxMessageBytes:  4096, MaxConnections: maxConnections,
 	})
 	if err != nil {
 		t.Fatalf("create source: %v", err)

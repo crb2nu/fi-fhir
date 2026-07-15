@@ -26,6 +26,8 @@ import (
 
 const integrationProfileJSON = `{"hl7v2":{"default_version":"2.5.1","timezone":"UTC","event_classifications":[{"message_type":"ADT^A01","condition":"PV1.2 == 'I'","event_type":"inpatient_admit","priority":1},{"message_type":"ADT^A01","event_type":"patient_admit","priority":2}]},"identifiers":{"assigning_authorities":[{"code":"HOSP","system":"urn:oid:1.2.3"}],"normalization":{"ssn_strip_dashes":true,"phone_normalize":false}}}`
 
+const duplicateClients = 32
+
 const integrationWorkflowYAML = `dsl_version: "1"
 name: mllp-admission
 version: "1"
@@ -53,7 +55,7 @@ func TestPostgresMLLPRuntime_DurableACKPauseRestart(t *testing.T) {
 	schemaDSN := mllpSchemaDSN(t, dsn, schema)
 	db := openMLLPDB(t, schemaDSN)
 
-	source := testSource(t)
+	source := testSourceWithMaxConnections(t, duplicateClients)
 	profileRef, err := processor.NewProfileRevisionReference("profile-adt", 1, []byte(integrationProfileJSON))
 	if err != nil {
 		t.Fatal(err)
@@ -189,7 +191,6 @@ func TestPostgresMLLPRuntime_DurableACKPauseRestart(t *testing.T) {
 	if code := roundTripMLLP(t, address, source, firstMessage); code != "AA" {
 		t.Fatalf("resumed duplicate ACK = %s", code)
 	}
-	const duplicateClients = 32
 	type duplicateResult struct {
 		code string
 		err  error
@@ -300,7 +301,7 @@ func integrationMLLPRevision(t *testing.T, source SourceRevision, profile, workf
 		ConnectionValidation: integration.ConnectionValidationPolicy{TimeoutSeconds: 5, MaxAgeSeconds: 300},
 		Schedule:             integration.SchedulePolicy{Mode: integration.ScheduleModeContinuous},
 		Health:               integration.HealthPolicy{StartupGraceSeconds: 5, CheckIntervalSeconds: 10, TimeoutSeconds: 2, FailureThreshold: 3},
-		Capacity:             integration.CapacityPolicy{MaxInFlight: 2, MaxQueued: 8, MaxMessagesPerSecond: 100},
+		Capacity:             integration.CapacityPolicy{MaxInFlight: 2, MaxQueued: duplicateClients, MaxMessagesPerSecond: 100},
 	}
 	revision, err := integration.NewIntegrationDefinitionRevision(integration.IntegrationDefinitionRevisionInput{
 		DefinitionID: "integration-mllp", RevisionID: "definition-v1", TenantID: "tenant-a",
