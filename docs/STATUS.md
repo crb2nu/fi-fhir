@@ -74,11 +74,13 @@ out their verified digests, passed public auth/origin/containment/provenance/PHI
 probes, and resumed healthy automation. Exact evidence is recorded in
 `.loom/iteration-plan-phase-1-slice-1-1c-authenticated-preview-adapters.md`.
 
-Slice 1.3 adds exact `POST /v1/hl7v2` as the first production adapter. Local
-`make golden-path-001` passed 20 assertions against PostgreSQL 16, including
-process restart, duplicate collapse, selected-profile divergence, IDE parity,
-preview side-effect freedom, and raw/credential leakage scans. Production
-GitOps activation and external outbox delivery remain intentionally pending.
+Slice 1.3 adds exact `POST /v1/hl7v2` as the first production adapter. MR `!99`
+pipeline `18898` passed 32/32 jobs; required job `182088` ran all 20 PostgreSQL
+16 restart, duplicate-collapse, profile-divergence, IDE-parity, preview-side-
+effect, and leakage assertions. Merge commit `48d156d2` repeated the proof in
+main job `182694`; pipeline `18951` passed 35/35 and published digest-addressed
+API/UI images. Production GitOps activation and external outbox delivery remain
+intentionally pending.
 
 ## Infrastructure
 

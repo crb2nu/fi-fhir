@@ -1,6 +1,6 @@
 # RALPH Iteration Plan — Phase 1 Slice 1.3 Authenticated HTTP + Golden Path 001
 
-**Status**: Local proof complete; required CI and merge pending
+**Status**: Merged; MR and default-branch proof complete
 **Date**: 2026-07-14
 **Plan**: `plan-complete-fi-fhir-as-a-production-integration-engine-and-ide-341d98#6`
 **Branch**: `codex/phase1-authenticated-http`
@@ -45,15 +45,19 @@ parallel engines with revision or diagnostic drift, or the HTTP acknowledgement
 could escape the durable transaction. Phase 2 must remain blocked until the
 runtime boundary is redesigned.
 
-**Status**: passed locally. Positive code evidence is the shared evaluator and durable
-committer in `internal/integration/processor`; negative evidence is that the
+**Status**: passed locally and in required CI. Positive code evidence is the
+shared evaluator and durable committer in `internal/integration/processor`;
+negative evidence is that the
 existing `internal/ingest` handler wraps generic JSON, permits auth-disabled
 configuration, calls the workflow engine directly, and cannot satisfy the
 receipt/provenance contract. Golden Path 001 passed 20 assertions with exact
 duplicate responses before/after restart, one five-row durable unit, selected-
 profile divergence, exact IDE parity, suppressed preview delivery, and clean
 raw/credential scans. Machine evidence is generated under
-`.tmp/golden-path-001/`; the required CI job remains the merge authority.
+`.tmp/golden-path-001/`. MR `!99` pipeline `18898` passed 32/32 jobs; required
+job `182088` passed the same 20 assertions. Merge commit `48d156d2` then passed
+35/35 jobs in main pipeline `18951`, including independent Golden Path job
+`182694`, and published API/UI images by digest.
 
 ## Review
 

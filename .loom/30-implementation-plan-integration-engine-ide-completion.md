@@ -172,7 +172,7 @@ left all five record classes empty, one post-commit-unknown result recovered by
 idempotent retry after restart, and 64 callers converged on one raw-free durable
 admission unit with byte-identical results.
 
-### Slice 1.3: authenticated HL7v2 HTTP ingress — implementation complete
+### Slice 1.3: authenticated HL7v2 HTTP ingress — complete
 
 - Bounded body, bearer/HMAC auth, explicit integration/source identity.
 - Structured 4xx diagnostics and durable 5xx/retry semantics.
@@ -185,8 +185,10 @@ The local gate passed 20 assertions against PostgreSQL 16 and a real restarted
 `serve` process. It proved one durable receipt/event/lineage/attempt/outbox unit,
 byte-identical duplicate responses before and after restart, selected-profile
 divergence, exact production/IDE semantic parity, suppressed preview delivery,
-and no raw/credential sentinel in responses or persisted JSON. The required
-`test:golden-path-001` CI job remains the merge authority.
+and no raw/credential sentinel in responses or persisted JSON. MR `!99`
+pipeline `18898` passed 32/32 jobs, including required Golden Path job `182088`.
+Merge commit `48d156d2` passed 35/35 jobs in main pipeline `18951`; independent
+Golden Path job `182694` repeated the 20-assertion proof.
 
 ## Phase 2 — Production channel runtime
 
