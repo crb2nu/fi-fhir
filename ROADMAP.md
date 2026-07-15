@@ -25,8 +25,9 @@ The remaining work is product assembly and operational truth:
 - durable Integration Sessions remain an in-memory, HL7-only prototype, while
   the current IDE preview now uses the same stateless, exact-revision kernel as
   GraphQL;
-- no production MLLP source exists, S3/SFTP discovery is not runtime-wired, and
-  `serve` loads one workflow instead of deployed integration revisions;
+- a PostgreSQL-backed versioned deployment lifecycle now exists, but `serve`
+  still uses the startup registry instead of that catalog; no production MLLP
+  source exists and S3/SFTP discovery is not runtime-wired;
 - a transitional single-domain preview bearer, exact-origin policy, and
   memory-only browser handling are deployed and live-verified; OIDC,
   fine-grained RBAC, audited token administration, and durable PHI policy remain
@@ -78,10 +79,19 @@ must not enter the clinical data plane before the engine spine is proven.
     restart, profile-delta, PostgreSQL cardinality, IDE parity, and leakage gates.
     MR `!99` pipeline `18898` passed 32/32; main pipeline `18951` repeated the
     Golden Path proof and passed 35/35 on merge commit `48d156d2`.
+- [ ] **Phase 2 production channel runtime**
+  - [x] Slice 2.1 adds digest-bound connection-validation freshness, schedules,
+    health thresholds, and capacity to immutable integration revisions. Its
+    PostgreSQL catalog enforces draft/validate/approve/publish/deploy/pause/
+    resume/retire, optimistic versions, append-only evidence, immutable release
+    records, health projection, and deployed-only exact revision resolution.
+    The required PostgreSQL 16 race/restart/immutability job is pending terminal
+    MR evidence.
+  - [ ] Slice 2.2 production MLLP consumes only the catalog's runnable binding.
 
 ## Next
 
-- [ ] Versioned integration deployment lifecycle and production MLLP.
+- [ ] Production MLLP with bounded concurrency, TLS/client policy, and durable ACK/NACK.
 - [ ] Durable delivery attempts, DLQ/replay/resubmit, and one real queue transport.
 - [ ] Runtime-wired S3/SFTP streaming ingestion with checkpoint/resume.
 

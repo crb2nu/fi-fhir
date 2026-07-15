@@ -150,6 +150,12 @@ processor.
 - ACK/NACK and HTTP responses reflect durable acceptance, not merely receipt in
   process memory.
 
+Slice 2.1 implements the versioned backend lifecycle portion of this section:
+digest-bound deployment policy, append-only validation/release/history records,
+optimistic deployment state, and exact deployed-only revision resolution.
+MLLP, destination workers/replay, runtime catalog wiring, and IDE lifecycle
+controls remain open, so the secure data plane is not yet complete.
+
 ### 2. Durable integration IDE
 
 - Stable project/session URLs support create, reopen, archive, and collaboration.

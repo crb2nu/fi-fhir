@@ -175,25 +175,27 @@ type IntegrationDefinitionRevisionInput struct {
 	Destinations     []DestinationRevisionRef
 	SecretBindings   []SecretBinding
 	Policy           IntegrationPolicy
+	Deployment       *IntegrationDeploymentPolicy
 	Created          AuditEnvelope
 }
 
 // IntegrationDefinitionRevision is an immutable-by-contract integration binding.
 // Any semantic mutation invalidates Digest.
 type IntegrationDefinitionRevision struct {
-	DefinitionID     string                   `json:"definition_id"`
-	RevisionID       string                   `json:"revision_id"`
-	ParentRevisionID string                   `json:"parent_revision_id,omitempty"`
-	TenantID         string                   `json:"tenant_id"`
-	Source           SourceRevisionRef        `json:"source"`
-	Format           events.SourceFormat      `json:"format"`
-	Profile          ArtifactRevisionRef      `json:"profile"`
-	Workflow         ArtifactRevisionRef      `json:"workflow"`
-	Destinations     []DestinationRevisionRef `json:"destinations"`
-	SecretBindings   []SecretBinding          `json:"secret_bindings,omitempty"`
-	Policy           IntegrationPolicy        `json:"policy"`
-	Created          AuditEnvelope            `json:"created"`
-	Digest           string                   `json:"digest"`
+	DefinitionID     string                       `json:"definition_id"`
+	RevisionID       string                       `json:"revision_id"`
+	ParentRevisionID string                       `json:"parent_revision_id,omitempty"`
+	TenantID         string                       `json:"tenant_id"`
+	Source           SourceRevisionRef            `json:"source"`
+	Format           events.SourceFormat          `json:"format"`
+	Profile          ArtifactRevisionRef          `json:"profile"`
+	Workflow         ArtifactRevisionRef          `json:"workflow"`
+	Destinations     []DestinationRevisionRef     `json:"destinations"`
+	SecretBindings   []SecretBinding              `json:"secret_bindings,omitempty"`
+	Policy           IntegrationPolicy            `json:"policy"`
+	Deployment       *IntegrationDeploymentPolicy `json:"deployment,omitempty"`
+	Created          AuditEnvelope                `json:"created"`
+	Digest           string                       `json:"digest"`
 }
 
 // NewIntegrationDefinitionRevision validates, copies, and content-addresses a revision.
@@ -210,6 +212,7 @@ func NewIntegrationDefinitionRevision(input IntegrationDefinitionRevisionInput) 
 		Destinations:     append([]DestinationRevisionRef(nil), input.Destinations...),
 		SecretBindings:   append([]SecretBinding(nil), input.SecretBindings...),
 		Policy:           clonePolicy(input.Policy),
+		Deployment:       cloneDeploymentPolicy(input.Deployment),
 		Created:          cloneAuditEnvelope(input.Created),
 	}
 	if revision.Policy.RawRetention.Mode == "" {
@@ -456,6 +459,9 @@ func (r IntegrationDefinitionRevision) validateSemanticFields() error {
 	}
 	v.add(r.Policy.Classification == DataClassificationPHI, "INVALID_CLASSIFICATION", "policy.classification", "data classification must be phi")
 	v.merge("policy.raw_retention", r.Policy.RawRetention.Validate())
+	if r.Deployment != nil {
+		v.merge("deployment", r.Deployment.Validate())
+	}
 	v.add(strings.TrimSpace(r.Created.TenantID) != "", "REQUIRED", "created.tenant_id", "audit tenant ID is required")
 	v.add(r.Created.TenantID == r.TenantID, "TENANT_MISMATCH", "created.tenant_id", "audit tenant must match revision tenant")
 	validatePrincipal("created.principal", r.Created.Principal, v)
@@ -470,6 +476,7 @@ func (r IntegrationDefinitionRevision) semanticDigest() (string, error) {
 	destinations := append([]DestinationRevisionRef(nil), r.Destinations...)
 	secretBindings := append([]SecretBinding(nil), r.SecretBindings...)
 	policy := clonePolicy(r.Policy)
+	deployment := cloneDeploymentPolicy(r.Deployment)
 	policy.RawRetention.Mode = policy.RawRetention.EffectiveMode()
 	if policy.RawRetention.EffectiveMode() == RawRetentionModeEphemeral {
 		policy.RawRetention = RawRetentionPolicy{Mode: RawRetentionModeEphemeral}
@@ -496,17 +503,18 @@ func (r IntegrationDefinitionRevision) semanticDigest() (string, error) {
 	// Digest is omitted from its own preimage. Every other field, including the
 	// normalized creation audit, is integrity-protected.
 	canonical := struct {
-		DefinitionID     string                   `json:"definition_id"`
-		RevisionID       string                   `json:"revision_id"`
-		ParentRevisionID string                   `json:"parent_revision_id,omitempty"`
-		TenantID         string                   `json:"tenant_id"`
-		Source           SourceRevisionRef        `json:"source"`
-		Format           events.SourceFormat      `json:"format"`
-		Profile          ArtifactRevisionRef      `json:"profile"`
-		Workflow         ArtifactRevisionRef      `json:"workflow"`
-		Destinations     []DestinationRevisionRef `json:"destinations"`
-		SecretBindings   []SecretBinding          `json:"secret_bindings,omitempty"`
-		Policy           IntegrationPolicy        `json:"policy"`
+		DefinitionID     string                       `json:"definition_id"`
+		RevisionID       string                       `json:"revision_id"`
+		ParentRevisionID string                       `json:"parent_revision_id,omitempty"`
+		TenantID         string                       `json:"tenant_id"`
+		Source           SourceRevisionRef            `json:"source"`
+		Format           events.SourceFormat          `json:"format"`
+		Profile          ArtifactRevisionRef          `json:"profile"`
+		Workflow         ArtifactRevisionRef          `json:"workflow"`
+		Destinations     []DestinationRevisionRef     `json:"destinations"`
+		SecretBindings   []SecretBinding              `json:"secret_bindings,omitempty"`
+		Policy           IntegrationPolicy            `json:"policy"`
+		Deployment       *IntegrationDeploymentPolicy `json:"deployment,omitempty"`
 		Created          struct {
 			TenantID   string    `json:"tenant_id"`
 			Principal  Principal `json:"principal"`
@@ -525,6 +533,7 @@ func (r IntegrationDefinitionRevision) semanticDigest() (string, error) {
 		Destinations:     destinations,
 		SecretBindings:   secretBindings,
 		Policy:           policy,
+		Deployment:       deployment,
 	}
 	canonical.Created.TenantID = r.Created.TenantID
 	canonical.Created.Principal = createdPrincipal
