@@ -189,7 +189,7 @@ func (s *PostgresSubmissionStore) commit(
 			integration_revision, status, recorded_at, correlation_id,
 			raw_retention_mode, principal_json, reason, result_json
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-		ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
+		ON CONFLICT DO NOTHING
 		RETURNING receipt_id
 	`,
 		result.TenantID,

@@ -123,6 +123,9 @@ func TestPostgresProductionSubmission_64WayDuplicateFaultRestart(t *testing.T) {
 		if !errors.Is(err, ErrDurableSubmissionFailed) {
 			t.Fatalf("caller %d unexpected error: %v", caller, err)
 		}
+		if !errors.Is(err, ErrCommitOutcomeUnknown) {
+			t.Fatalf("caller %d unexpected durable failure: %v", caller, durableSubmissionCause(err))
+		}
 		if unknownCaller != -1 {
 			t.Fatalf("multiple commit-unknown callers: first=%d second=%d", unknownCaller, caller)
 		}
