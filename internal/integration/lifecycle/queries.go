@@ -152,9 +152,12 @@ func (c *PostgresCatalog) ResolveRunnable(ctx context.Context, tenantID, definit
 		return RunnableBinding{}, ErrImmutableRecord
 	}
 	binding.IntegrationRevision = revision.Reference()
+	binding.SourceRevision = revision.Source.ArtifactRevisionRef
 	binding.SourceID = revision.Source.SourceID
 	binding.Format = revision.Format
 	binding.Classification = revision.Policy.Classification
+	binding.Deployment = *revision.Deployment
+	binding.SecretBindings = append([]integration.SecretBinding(nil), revision.SecretBindings...)
 	return binding, nil
 }
 

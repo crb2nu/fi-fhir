@@ -55,7 +55,8 @@
 | --------------------- | --------------------------------- | ---------- | -------- | ------------------------------------------------ | ------------ |
 | Workflow Engine       | `internal/workflow/`              | Production | 78.6%    | Actions plus strict DSL v1 and pure planner      | 2026-07-13   |
 | Integration Processor | `internal/integration/processor/` | Alpha      | 84.5%    | Shared A01 preview/production kernel plus PostgreSQL atomic admission | 2026-07-14 |
-| Integration Lifecycle | `internal/integration/lifecycle/` | Alpha      | —        | PostgreSQL versioned state, immutable releases, deployed-only resolver; runtime wiring pending | 2026-07-14 |
+| Integration Lifecycle | `internal/integration/lifecycle/` | Alpha      | —        | PostgreSQL versioned state, immutable releases, deployed-only MLLP admission | 2026-07-15 |
+| HL7v2 MLLP Ingress    | `internal/integration/mllp/`      | Alpha      | —        | Lifecycle-gated durable ACK, TLS/client/capacity bounds; GitOps pending | 2026-07-15 |
 | HL7v2 HTTP Ingress    | `internal/integration/ingress/`   | Alpha      | —        | Bearer/HMAC, bounded body, durable response; GitOps activation pending | 2026-07-14 |
 | GraphQL API           | `internal/api/graphql/`           | Beta       | 9.5%\*   | Preview role: health/preview; legacy + WS disabled | 2026-07-13 |
 | FHIR Subscriptions    | `internal/fhir/subscription/`     | Production | 83.7%    | Bidirectional; client + webhook receiver         | 2026-02-27   |
@@ -93,9 +94,15 @@ job `183463`; merge commit `a95bb44f` repeated the lifecycle proof in main job
 conflict. MR `!102` changed receipt insertion to arbitrate either deterministic
 unique key before the authoritative tenant/idempotency lookup; pipeline `19045`
 passed 24/24. Final main pipeline `19052` passed 26/26, including durable-
-submission job `183938` and lifecycle job `183940`. `serve`, GraphQL, and the
-Mapping Studio do not yet mutate or consume this catalog; MLLP runtime wiring
-remains Slice 2.2 and production GitOps activation remains intentionally pending.
+submission job `183938` and lifecycle job `183940`.
+
+Slice 2.2 adds the optional production MLLP consumer of that catalog. A strict
+content-addressed UTF-8 listener applies framing/timeouts, TLS 1.3 mutual auth,
+CIDR, connection, deployed capacity, and ACK policy. Positive ACKs follow the
+atomic submission commit, and transaction-scoped admission serializes with
+pause/retire. Unit/race tests and required CI test discovery pass locally; the
+PostgreSQL 16/TCP CI proof is pending. GraphQL and Mapping Studio lifecycle
+controls, production GitOps activation, and external delivery remain open.
 
 ## Infrastructure
 

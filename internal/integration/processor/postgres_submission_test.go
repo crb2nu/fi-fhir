@@ -105,8 +105,13 @@ func TestFinalizeProductionResultCreatesDeterministicQueuedLineage(t *testing.T)
 	request.IdempotencyKey = "caller-key-123"
 	plan := preview
 	plan.Mode = integration.ExecutionModeProduction
+	plan.Diagnostics = nil
+	for index := range plan.Routes {
+		plan.Routes[index].DiagnosticCodes = nil
+	}
 	for index := range plan.Deliveries {
 		plan.Deliveries[index].Status = integration.DeliveryStatusPlanned
+		plan.Deliveries[index].DiagnosticCodes = nil
 	}
 	recordedAt := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
 	first, err := finalizeProductionResult(request, fixture.revision, plan, request.IdempotencyKey, recordedAt)
@@ -127,6 +132,10 @@ func TestFinalizeProductionResultCreatesDeterministicQueuedLineage(t *testing.T)
 	}
 	if !bytes.Equal(firstJSON, secondJSON) {
 		t.Fatalf("final production result is not deterministic:\nfirst: %s\nsecond: %s", firstJSON, secondJSON)
+	}
+	diagnosticsJSON, err := json.Marshal(first.Diagnostics)
+	if err != nil || first.Diagnostics == nil || !bytes.Equal(diagnosticsJSON, []byte(`[]`)) {
+		t.Fatalf("empty diagnostics were not normalized as a JSON array: %#v, %s, %v", first.Diagnostics, diagnosticsJSON, err)
 	}
 	if err := first.ValidateProductionAgainst(fixture.revision); err != nil {
 		t.Fatalf("strict production validation: %v", err)

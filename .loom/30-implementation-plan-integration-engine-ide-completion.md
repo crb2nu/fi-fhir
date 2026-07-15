@@ -229,12 +229,28 @@ Evidence:
   `183938` and lifecycle job `183940`. Production GitOps activation remains a
   separate reviewed operation.
 
-### Slice 2.2: MLLP source adapter
+### Slice 2.2: MLLP source adapter — implementation complete, CI pending
 
 - Configurable framing/timeouts/TLS/client allowlist and ACK/NACK policy.
 - Backpressure and bounded concurrency.
 - Durable acceptance before positive ACK.
 - Real-world framing, split-packet, duplicate, timeout, and reconnect tests.
+
+Implementation:
+
+- `internal/integration/mllp` owns a strict content-addressed UTF-8 source
+  revision, configurable single-byte framing, validated ACK projection, TLS 1.3
+  mutual auth, CIDR policy, and bounded connections/capacity/rate.
+- Each frame resolves `PostgresCatalog.ResolveRunnable`, verifies the exact
+  source revision and deployed policy, and uses the shared production processor.
+- `PostgresSubmissionStore` accepts an optional transaction authorizer. MLLP
+  takes a shared lifecycle snapshot lock through admission commit; pause and
+  retire take the conflicting update lock.
+- `serve` enables MLLP only when its immutable source path is configured. HTTP
+  ingress and preview keep their prior registry behavior; profile/workflow bytes
+  remain digest-verified through the static artifact registry.
+- `test:mllp-runtime` discovers and runs the PostgreSQL 16/TCP race proof. Local
+  unit/race and test discovery pass; authoritative CI evidence is pending.
 
 ### Slice 2.3: delivery reliability
 

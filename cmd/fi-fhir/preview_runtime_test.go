@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/mllp"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
@@ -184,6 +185,41 @@ func TestLoadServeIntegrationRuntimeFailsBeforeDatabaseMutation(t *testing.T) {
 	}
 }
 
+func TestLoadMLLPRuntimeFromEnv(t *testing.T) {
+	source := writeMLLPSourceRevision(t, mllp.TLSPolicy{Mode: mllp.TLSModeDisabled})
+	t.Setenv("FI_FHIR_MLLP_DEFINITION_ID", "integration-mllp")
+	t.Setenv("FI_FHIR_MLLP_PRINCIPAL_ID", "mllp-listener")
+	loaded, definitionID, principalID, material, err := loadMLLPRuntimeFromEnv(source)
+	if err != nil {
+		t.Fatalf("loadMLLPRuntimeFromEnv: %v", err)
+	}
+	if loaded.SourceID != "adt-east" || definitionID != "integration-mllp" || principalID != "mllp-listener" {
+		t.Fatalf("unexpected MLLP runtime: %#v %q %q", loaded, definitionID, principalID)
+	}
+	if len(material.CertificatePEM) != 0 || len(material.PrivateKeyPEM) != 0 || len(material.ClientCAPEM) != 0 {
+		t.Fatalf("plaintext mode loaded TLS material: %#v", material)
+	}
+}
+
+func TestLoadMLLPRuntimeFromEnvFailsClosedBeforeDatabase(t *testing.T) {
+	source := writeMLLPSourceRevision(t, mllp.TLSPolicy{Mode: mllp.TLSModeDisabled})
+	t.Setenv("FI_FHIR_MLLP_DEFINITION_ID", "")
+	t.Setenv("FI_FHIR_MLLP_PRINCIPAL_ID", "mllp-listener")
+	if _, _, _, _, err := loadMLLPRuntimeFromEnv(source); err == nil || !strings.Contains(err.Error(), "FI_FHIR_MLLP_DEFINITION_ID") {
+		t.Fatalf("missing definition error = %v", err)
+	}
+
+	mutualSource := writeMLLPSourceRevision(t, mllp.TLSPolicy{
+		Mode: mllp.TLSModeMutual, ServerCertificateBinding: "mllp-cert",
+		ServerPrivateKeyBinding: "mllp-key", ClientCABinding: "mllp-client-ca",
+	})
+	t.Setenv("FI_FHIR_MLLP_DEFINITION_ID", "integration-mllp")
+	t.Setenv("FI_FHIR_MLLP_TLS_CERT_FILE", "")
+	if _, _, _, _, err := loadMLLPRuntimeFromEnv(mutualSource); err == nil || !strings.Contains(err.Error(), "FI_FHIR_MLLP_TLS_CERT_FILE") {
+		t.Fatalf("missing TLS file error = %v", err)
+	}
+}
+
 func configurePreviewRuntimeForTest(t *testing.T) {
 	t.Helper()
 	t.Setenv("FI_FHIR_DEPLOYMENT_TENANT_ID", "tenant-a")
@@ -244,6 +280,31 @@ func writeRuntimeRegistry(t *testing.T, tenantID string) string {
 	path := filepath.Join(t.TempDir(), "registry.json")
 	if err := os.WriteFile(path, document, 0o600); err != nil {
 		t.Fatalf("write registry: %v", err)
+	}
+	return path
+}
+
+func writeMLLPSourceRevision(t *testing.T, tlsPolicy mllp.TLSPolicy) string {
+	t.Helper()
+	revision, err := mllp.NewSourceRevision(mllp.SourceRevisionInput{
+		ArtifactID: "source-adt", RevisionID: "source-1", SourceID: "adt-east",
+		ListenAddress: "127.0.0.1:2575", Encoding: "utf-8",
+		Framing:  mllp.FramingPolicy{StartByte: mllp.StandardStartByte, EndByte: mllp.StandardEndByte, TrailerByte: mllp.StandardTrailerByte},
+		Timeouts: mllp.TimeoutPolicy{ReadSeconds: 5, WriteSeconds: 5, IdleSeconds: 30, ProcessSeconds: 30},
+		TLS:      tlsPolicy, Clients: mllp.ClientPolicy{AllowedCIDRs: []string{"127.0.0.0/8"}},
+		Acknowledgements: mllp.AcknowledgementPolicy{Mode: mllp.AcknowledgementModeApplication, IncludeErrorSegment: true},
+		MaxMessageBytes:  1048576, MaxConnections: 32,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "mllp-source.json")
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatal(err)
 	}
 	return path
 }

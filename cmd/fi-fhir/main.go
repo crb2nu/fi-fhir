@@ -4676,7 +4676,9 @@ func runServe(args []string) error {
 
 	runtimeConfig := config.Default()
 	runtimeConfig.ApplyEnv()
-	securePreviewRuntime, err := loadServeIntegrationRuntimeFromEnv(context.Background())
+	serveCtx, cancelServe := context.WithCancel(context.Background())
+	defer cancelServe()
+	securePreviewRuntime, err := loadServeIntegrationRuntimeFromEnv(serveCtx)
 	if err != nil {
 		return fmt.Errorf("configure integration runtime: %w", err)
 	}
@@ -4910,42 +4912,79 @@ func runServe(args []string) error {
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(sigCh)
 
-	// Start server in goroutine
-	errCh := make(chan error, 1)
+	// Start all configured ingress servers under one cancellation boundary.
+	type componentError struct {
+		name string
+		err  error
+	}
+	errCh := make(chan componentError, 2)
 	go func() {
-		errCh <- server.Start()
+		errCh <- componentError{name: "GraphQL", err: server.Start()}
 	}()
+	if securePreviewRuntime.mllpServer != nil {
+		go func() {
+			errCh <- componentError{name: "MLLP", err: securePreviewRuntime.mllpServer.ListenAndServe(serveCtx)}
+		}()
+		fmt.Println("MLLP listener enabled from immutable source revision")
+	}
+	cleanupExternalRuntimes := func() {
+		if temporalWorker != nil {
+			temporalWorker.Stop()
+		}
+		if temporalClient != nil {
+			temporalClient.Close()
+		}
+	}
+	waitForMLLPStop := func(alreadyStopped bool) error {
+		if securePreviewRuntime.mllpServer == nil || alreadyStopped {
+			return nil
+		}
+		timer := time.NewTimer(10 * time.Second)
+		defer timer.Stop()
+		for {
+			select {
+			case component := <-errCh:
+				if component.name != "MLLP" {
+					continue
+				}
+				return component.err
+			case <-timer.C:
+				return fmt.Errorf("MLLP server shutdown timed out")
+			}
+		}
+	}
 
 	// Wait for signal or error
 	select {
 	case sig := <-sigCh:
 		fmt.Printf("\nReceived %v, shutting down...\n", sig)
+		cancelServe()
 
 		// Stop Temporal worker first (allows in-flight workflows to complete)
 		if temporalWorker != nil {
 			fmt.Println("Stopping Temporal worker...")
-			temporalWorker.Stop()
 		}
-
-		// Close Temporal client
-		if temporalClient != nil {
-			temporalClient.Close()
-		}
+		cleanupExternalRuntimes()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		return server.Shutdown(ctx)
-	case err := <-errCh:
-		// Clean up Temporal on error path too
-		if temporalWorker != nil {
-			temporalWorker.Stop()
-		}
-		if temporalClient != nil {
-			temporalClient.Close()
-		}
-
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := server.Shutdown(ctx); err != nil {
 			return err
+		}
+		return waitForMLLPStop(false)
+	case component := <-errCh:
+		cancelServe()
+		cleanupExternalRuntimes()
+		if component.name == "MLLP" {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			_ = server.Shutdown(shutdownCtx)
+		}
+		if err := waitForMLLPStop(component.name == "MLLP"); err != nil {
+			return err
+		}
+		if component.err != nil && !errors.Is(component.err, http.ErrServerClosed) {
+			return fmt.Errorf("%s server stopped: %w", component.name, component.err)
 		}
 		return nil
 	}
@@ -4967,6 +5006,7 @@ func printServeUsage() {
 
 Start a GraphQL API server for healthcare event management. The server provides:
 - An authenticated, side-effect-free integration preview mutation
+- An optional deployed-release MLLP listener with durable ACK semantics
 - A health query for validating preview credentials
 - Interactive GraphQL Playground (optional)
 
@@ -5019,6 +5059,15 @@ Optional durable HL7v2 ingress environment:
   FI_FHIR_HTTP_INGRESS_SECRET_FILE     credential file; set exactly one
   FI_FHIR_HTTP_INGRESS_MAX_BODY_BYTES  Positive value no greater than 1048576
   FI_FHIR_DATABASE_*                   PostgreSQL settings; no memory fallback
+
+Optional deployed MLLP environment:
+  FI_FHIR_MLLP_SOURCE_CONFIG_PATH      Immutable content-addressed source JSON
+  FI_FHIR_MLLP_DEFINITION_ID           Lifecycle definition selected by server config
+  FI_FHIR_MLLP_PRINCIPAL_ID            Bound MLLP service principal
+  FI_FHIR_MLLP_TLS_CERT_FILE           Server certificate PEM (mutual TLS mode)
+  FI_FHIR_MLLP_TLS_KEY_FILE            Server private key PEM (mutual TLS mode)
+  FI_FHIR_MLLP_TLS_CLIENT_CA_FILE      Trusted client CA PEM (mutual TLS mode)
+  FI_FHIR_DATABASE_*                   Shared PostgreSQL lifecycle/submission store
 
 Examples:
   # Generate a deployment secret without writing it to shell history

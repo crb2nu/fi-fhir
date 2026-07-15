@@ -1,0 +1,37 @@
+{
+  "schema_version": "1",
+  "artifact_id": "source-adt-mllp",
+  "revision_id": "source-v1",
+  "source_id": "adt-east",
+  "listen_address": "0.0.0.0:2575",
+  "encoding": "utf-8",
+  "framing": {
+    "start_byte": 11,
+    "end_byte": 28,
+    "trailer_byte": 13
+  },
+  "timeouts": {
+    "read_seconds": 5,
+    "write_seconds": 5,
+    "idle_seconds": 60,
+    "process_seconds": 30
+  },
+  "tls": {
+    "mode": "mutual",
+    "server_certificate_binding": "mllp-server-cert",
+    "server_private_key_binding": "mllp-server-key",
+    "client_ca_binding": "mllp-client-ca"
+  },
+  "clients": {
+    "allowed_cidrs": [
+      "10.0.0.0/8"
+    ]
+  },
+  "acknowledgements": {
+    "mode": "application",
+    "include_error_segment": true
+  },
+  "max_message_bytes": 1048576,
+  "max_connections": 128,
+  "digest": "sha256:1d9517bcdec7c6617fcd2191777db477cf27adc777a27a260ca552b3320a6399"
+}

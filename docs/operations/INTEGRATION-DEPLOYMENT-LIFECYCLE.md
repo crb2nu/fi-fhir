@@ -5,9 +5,10 @@
 Slice 2.1 adds a durable backend catalog for exact integration releases. The
 catalog separates immutable tested content from mutable operational state.
 
-This slice does not expose lifecycle controls through GraphQL, REST, the CLI, or
-the Mapping Studio. `serve` and authenticated HTTP ingress still use the
-startup registry. Slice 2.2 will consume the catalog for production MLLP.
+Lifecycle controls are not yet exposed through GraphQL, REST, the CLI, or the
+Mapping Studio. Slice 2.2's optional production MLLP adapter consumes the
+catalog's deployed binding; authenticated HTTP ingress remains on the verified
+startup registry.
 
 ## Versioned policy
 
@@ -73,9 +74,15 @@ and policy. It does not accept raw message bytes or inline secret values.
 ## Runtime resolution
 
 `PostgresCatalog.ResolveRunnable` returns a server-owned binding containing the
-release ID, snapshot version, health, exact integration revision, source ID,
-format, and classification. It returns no binding for draft, validated,
-approved, published, paused, or retired state.
+release ID, snapshot version, health, exact integration/source revisions,
+source ID, format, classification, deployment policy, and secret-binding names.
+It returns no binding for draft, validated, approved, published, paused, or
+retired state.
+
+MLLP durable admission repeats this authorization inside the submission
+transaction while holding a shared snapshot lock through commit. Pause and
+retire take the conflicting update lock, so an admitted message linearizes
+before the stop transition or fails closed after it.
 
 The exact revision remains available for audit after pause or retirement. It is
 not runnable until the state machine permits it.
@@ -111,5 +118,6 @@ apply a reviewed forward migration.
 
 - [Operations Runbook](RUNBOOK.md)
 - [Production Hardening](PRODUCTION-HARDENING.md)
+- [Production MLLP](PRODUCTION-MLLP.md)
 - [Supported 1.0 Baseline](SUPPORTED-1.0.md)
 - [Phase 2 iteration plan](../../.loom/iteration-plan-phase-2-slice-2-1-versioned-deployment-lifecycle.md)

@@ -47,6 +47,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Blocking PostgreSQL 16 lifecycle gate covering the full state journey,
   32-caller concurrency, immutable-row rejection, restart reconstruction, and
   raw/secret leakage scans
+- Content-addressed UTF-8 MLLP source revisions with bounded framing, timeouts,
+  TLS 1.3 mutual authentication, canonical client CIDRs, capacity, and
+  application/commit acknowledgement policy
+- Optional `serve` MLLP runtime that resolves only the lifecycle catalog's exact
+  deployed release and serializes pause/retire authorization inside the durable
+  PostgreSQL admission transaction before a positive ACK
+- Blocking PostgreSQL 16/TCP MLLP gate covering pre-commit ACK exclusion,
+  concurrent pause serialization, 32 reconnecting duplicates, resume,
+  retirement, restart, durable cardinality, and raw-message leakage
 
 #### Format Adapters
 - CDA/CCDA clinical document parser with namespace-aware XML handling (`internal/parser/cda/`)

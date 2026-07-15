@@ -45,9 +45,21 @@ var (
 //go:embed migrations/0001_atomic_submission.sql
 var atomicSubmissionMigration string
 
-// PostgresSubmissionConfig configures deterministic admission timestamps.
+// AdmissionAuthorizer runs inside the durable submission transaction before
+// any receipt rows are written. Implementations may take database locks that
+// must remain held through commit.
+type AdmissionAuthorizer func(
+	context.Context,
+	*sql.Tx,
+	integration.ProcessRequest,
+	integration.IntegrationDefinitionRevision,
+) error
+
+// PostgresSubmissionConfig configures deterministic timestamps and an optional
+// transaction-scoped deployment authorization gate.
 type PostgresSubmissionConfig struct {
-	Clock func() time.Time
+	Clock     func() time.Time
+	Authorize AdmissionAuthorizer
 }
 
 // PostgresSubmissionStore owns the fixed PostgreSQL schema and transaction for
@@ -55,6 +67,7 @@ type PostgresSubmissionConfig struct {
 type PostgresSubmissionStore struct {
 	db        *sql.DB
 	clock     func() time.Time
+	authorize AdmissionAuthorizer
 	faultHook submissionFaultHook
 }
 
@@ -81,7 +94,7 @@ func NewPostgresSubmissionStore(db *sql.DB, config PostgresSubmissionConfig) (*P
 	if clock == nil {
 		clock = time.Now
 	}
-	return &PostgresSubmissionStore{db: db, clock: clock}, nil
+	return &PostgresSubmissionStore{db: db, clock: clock, authorize: config.Authorize}, nil
 }
 
 // Migrate applies the fixed, numbered submission schema exactly once. An
@@ -173,6 +186,11 @@ func (s *PostgresSubmissionStore) commit(
 		return integration.ProcessResult{}, fmt.Errorf("begin production submission: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	if s.authorize != nil {
+		if err := s.authorize(ctx, tx, request, revision); err != nil {
+			return integration.ProcessResult{}, fmt.Errorf("authorize production submission: %w", err)
+		}
+	}
 
 	principalJSON, err := json.Marshal(result.Security.Principal)
 	if err != nil {
@@ -416,7 +434,7 @@ func finalizeProductionResult(
 	result := plan
 	result.Security.Principal.Roles = append([]string(nil), plan.Security.Principal.Roles...)
 	result.Events = append([]integration.ProcessedEvent(nil), plan.Events...)
-	result.Diagnostics = append([]integration.Diagnostic(nil), plan.Diagnostics...)
+	result.Diagnostics = append([]integration.Diagnostic{}, plan.Diagnostics...)
 	result.Routes = cloneRoutes(plan.Routes)
 	result.Deliveries = append([]integration.DeliveryResult(nil), plan.Deliveries...)
 	result.Correlations.EventIDs = append([]string(nil), plan.Correlations.EventIDs...)
