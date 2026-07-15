@@ -33,6 +33,8 @@ var (
 	ErrInvalidCommand = errors.New("invalid integration lifecycle command")
 	// ErrImmutableRecord means stored content no longer matches its digest.
 	ErrImmutableRecord = errors.New("invalid immutable integration lifecycle record")
+	// ErrNotRunnable means the exact release is not deployed at admission time.
+	ErrNotRunnable = errors.New("integration release is not runnable")
 )
 
 var validationCodePattern = regexp.MustCompile(`^[A-Z][A-Z0-9_]{0,63}$`)
@@ -122,9 +124,12 @@ type RunnableBinding struct {
 	SnapshotVersion     int64
 	Health              integration.DeploymentHealthStatus
 	IntegrationRevision integration.ArtifactRevisionRef
+	SourceRevision      integration.ArtifactRevisionRef
 	SourceID            string
 	Format              events.SourceFormat
 	Classification      integration.DataClassification
+	Deployment          integration.IntegrationDeploymentPolicy
+	SecretBindings      []integration.SecretBinding
 }
 
 func (c Command) audit(now time.Time) (integration.AuditEnvelope, error) {

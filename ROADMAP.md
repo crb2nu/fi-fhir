@@ -1,6 +1,6 @@
 # fi-fhir Roadmap
 
-> Last updated: 2026-07-14
+> Last updated: 2026-07-15
 > Tier: 2 (see workspace AGENTS.md "Portfolio Tiers")
 > Tracking issue: https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/19
 > Completion spec: `.loom/20-product-spec-integration-engine-ide-completion.md`
@@ -25,9 +25,9 @@ The remaining work is product assembly and operational truth:
 - durable Integration Sessions remain an in-memory, HL7-only prototype, while
   the current IDE preview now uses the same stateless, exact-revision kernel as
   GraphQL;
-- a PostgreSQL-backed versioned deployment lifecycle now exists, but `serve`
-  still uses the startup registry instead of that catalog; no production MLLP
-  source exists and S3/SFTP discovery is not runtime-wired;
+- a PostgreSQL-backed versioned deployment lifecycle now authorizes the optional
+  production MLLP listener; profile/workflow bytes remain in the immutable
+  startup registry and S3/SFTP discovery is not runtime-wired;
 - a transitional single-domain preview bearer, exact-origin policy, and
   memory-only browser handling are deployed and live-verified; OIDC,
   fine-grained RBAC, audited token administration, and durable PHI policy remain
@@ -91,11 +91,15 @@ must not enter the clinical data plane before the engine spine is proven.
     primary-key arbitration defect. MR `!102` fixed it, pipeline `19045` passed
     24/24, and final main pipeline `19052` passed 26/26 with durable-submission
     job `183938` and lifecycle job `183940` independently green.
-  - [ ] Slice 2.2 production MLLP consumes only the catalog's runnable binding.
+  - [x] Slice 2.2 adds a content-addressed UTF-8 MLLP source, fragmented/multi-
+    frame transport, TLS 1.3 mutual authentication and CIDR policy, bounded
+    capacity, safe application/commit ACKs, and optional `serve` composition.
+    Each frame starts from the lifecycle catalog's exact deployed binding and
+    repeats authorization inside durable admission before a positive ACK. Local
+    unit/race and CI-discovery gates pass; required PostgreSQL CI is pending.
 
 ## Next
 
-- [ ] Production MLLP with bounded concurrency, TLS/client policy, and durable ACK/NACK.
 - [ ] Durable delivery attempts, DLQ/replay/resubmit, and one real queue transport.
 - [ ] Runtime-wired S3/SFTP streaming ingestion with checkpoint/resume.
 

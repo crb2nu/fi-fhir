@@ -7,7 +7,7 @@
 	deploy deploy-ui deploy-all deploy-status deploy-logs deploy-delete deploy-forward \
 	docs-status docs-status-quick docs-validate docs-all \
 	contract-check contract-check-strict contract-matrix \
-	golden-path-001 \
+	golden-path-001 mllp-runtime \
 	smoke-test smoke-test-local check-runtime-config \
 	dev dev-down dev-ui dev-ui-down
 
@@ -92,6 +92,13 @@ test-golden: build
 # Uses self-owned Compose locally and POSTGRES_TEST_URL in CI.
 golden-path-001:
 	bash scripts/golden-path-001.sh
+
+# Slice 2.2: real TCP MLLP -> lifecycle-gated durable PostgreSQL admission.
+# Requires POSTGRES_TEST_URL and fails rather than skipping in CI.
+mllp-runtime:
+	go test -tags=integration -race -count=1 -timeout=180s \
+		-run '^TestPostgresMLLPRuntime_DurableACKPauseRestart$$' \
+		./internal/integration/mllp
 
 # Clean build artifacts
 clean:

@@ -742,6 +742,44 @@ test:deployment-lifecycle:
     - when: never
   allow_failure: false
 
+# Blocking PostgreSQL 16/TCP proof for Slice 2.2. It holds durable admission,
+# verifies that no positive MLLP ACK precedes COMMIT, serializes a concurrent
+# pause with the admitted transaction, collapses 32 reconnecting duplicates,
+# and proves resume/retire/restart behavior against the exact deployed release.
+test:mllp-runtime:
+  stage: test
+  <<: *go-image-debian
+  <<: *go-cache
+  services:
+    - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
+      alias: postgres
+  variables:
+    CGO_ENABLED: "1"
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
+    POSTGRES_DB: fi_fhir_mllp_test
+    POSTGRES_USER: testuser
+    POSTGRES_PASSWORD: testpass
+    POSTGRES_HOST_AUTH_METHOD: trust
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_mllp_test?sslmode=disable"
+  script:
+    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates ripgrep build-essential && rm -rf /var/lib/apt/lists/*
+    - >-
+      go test -tags=integration
+      -list '^TestPostgresMLLPRuntime_DurableACKPauseRestart$'
+      ./internal/integration/mllp
+      | rg -x 'TestPostgresMLLPRuntime_DurableACKPauseRestart'
+      | awk 'END { if (NR != 1) exit 1 }'
+    - make mllp-runtime
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *go-changes
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *go-changes
+    - when: never
+  allow_failure: false
+
 test:ui:
   stage: test
   <<: *node-image

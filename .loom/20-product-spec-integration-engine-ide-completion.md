@@ -156,8 +156,11 @@ optimistic deployment state, and exact deployed-only revision resolution.
 MR `!101` pipeline `19014` passed all 32 jobs, including required PostgreSQL 16
 lifecycle job `183463`; final main pipeline `19052` passed all 26 jobs with
 durable-submission job `183938` and lifecycle job `183940` independently green.
-MLLP, destination workers/replay, runtime catalog wiring, and IDE lifecycle
-controls remain open, so the secure data plane is not yet complete.
+Slice 2.2 implements the production MLLP portion with UTF-8 byte framing,
+TLS/client/capacity bounds, lifecycle-catalog selection, transaction-scoped
+deployment authorization, and positive ACK only after durable admission.
+Destination workers/replay, HTTP catalog migration, GitOps exposure, and IDE
+lifecycle controls remain open, so the secure data plane is not yet complete.
 
 ### 2. Durable integration IDE
 
