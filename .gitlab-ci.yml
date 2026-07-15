@@ -701,6 +701,47 @@ test:golden-path-001:
     - when: never
   allow_failure: false
 
+# Blocking PostgreSQL 16 proof for Slice 2.1. The exact test records a failed
+# connection check, completes the full deployment lifecycle, resolves runnable
+# state only while deployed, races 32 pause commands, rejects immutable-row
+# mutation, restarts the catalog, and verifies byte-identical release/history.
+test:deployment-lifecycle:
+  stage: test
+  <<: *go-image-debian
+  <<: *go-cache
+  services:
+    - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
+      alias: postgres
+  variables:
+    CGO_ENABLED: "1"
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
+    POSTGRES_DB: fi_fhir_lifecycle_test
+    POSTGRES_USER: testuser
+    POSTGRES_PASSWORD: testpass
+    POSTGRES_HOST_AUTH_METHOD: trust
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_lifecycle_test?sslmode=disable"
+  script:
+    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates ripgrep build-essential && rm -rf /var/lib/apt/lists/*
+    - >-
+      go test -tags=integration
+      -list '^TestPostgresDeploymentLifecycle_RaceRestartImmutableRelease$'
+      ./internal/integration/lifecycle
+      | rg -x 'TestPostgresDeploymentLifecycle_RaceRestartImmutableRelease'
+      | awk 'END { if (NR != 1) exit 1 }'
+    - >-
+      go test -tags=integration -race -count=1 -timeout=180s
+      -run '^TestPostgresDeploymentLifecycle_RaceRestartImmutableRelease$'
+      ./internal/integration/lifecycle
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *go-changes
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *go-changes
+    - when: never
+  allow_failure: false
+
 test:ui:
   stage: test
   <<: *node-image

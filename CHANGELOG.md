@@ -39,6 +39,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   integration registry and the canonical `MessageProcessor`, plus a Mapping
   Studio credential gate that keeps the [REDACTED] raw samples in tab memory
 - Supported 1.0 target matrix with a pinned Kubernetes 1.36 minor and explicit phase release gates
+- Backward-compatible integration deployment policy for connection-validation
+  freshness, continuous/cron schedules, health thresholds, and capacity limits
+- PostgreSQL versioned integration lifecycle with optimistic commands, auditable
+  failed validation, immutable releases/history, pause/resume/retire, health
+  projection, and exact revision resolution only while deployed
+- Blocking PostgreSQL 16 lifecycle gate covering the full state journey,
+  32-caller concurrency, immutable-row rejection, restart reconstruction, and
+  raw/secret leakage scans
 
 #### Format Adapters
 - CDA/CCDA clinical document parser with namespace-aware XML handling (`internal/parser/cda/`)

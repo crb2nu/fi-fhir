@@ -33,7 +33,7 @@
 | Event Sourcing           | `pkg/eventsourcing/`             | Production | 72.7%    | Store, projections, snapshots, sagas, outbox     | 2026-02-27   |
 | ES Projections           | `pkg/eventsourcing/projections/` | Production | 88.9%    | Patient timeline, stats, active encounters       | 2026-01-14   |
 | Config                   | `pkg/config/`                    | Production | 89.3%    | Layered loading (defaults → file → env), secrets | 2026-02-27   |
-| Integration Contracts    | `pkg/integration/`               | Alpha      | 88.7%    | Exact provenance plus strict preview/production invariants | 2026-07-14 |
+| Integration Contracts    | `pkg/integration/`               | Alpha      | 89.8%    | Exact provenance plus deployment policy and strict runtime invariants | 2026-07-14 |
 | Source Profiles          | `pkg/profile/`                   | Beta       | 71.9%    | Inference, linting, vendor templates             | 2026-02-27   |
 | Validators               | `pkg/validate/`                  | Production | 98.2%    | NPI, MBI, SSN, DEA; Luhn/checksum                | 2026-01-09   |
 | FHIR Mapper              | `pkg/fhir/`                      | Production | 75.2%    | 24+ US Core resources, validation                | 2026-01-19   |
@@ -55,6 +55,7 @@
 | --------------------- | --------------------------------- | ---------- | -------- | ------------------------------------------------ | ------------ |
 | Workflow Engine       | `internal/workflow/`              | Production | 78.6%    | Actions plus strict DSL v1 and pure planner      | 2026-07-13   |
 | Integration Processor | `internal/integration/processor/` | Alpha      | 84.5%    | Shared A01 preview/production kernel plus PostgreSQL atomic admission | 2026-07-14 |
+| Integration Lifecycle | `internal/integration/lifecycle/` | Alpha      | —        | PostgreSQL versioned state, immutable releases, deployed-only resolver; runtime wiring pending | 2026-07-14 |
 | HL7v2 HTTP Ingress    | `internal/integration/ingress/`   | Alpha      | —        | Bearer/HMAC, bounded body, durable response; GitOps activation pending | 2026-07-14 |
 | GraphQL API           | `internal/api/graphql/`           | Beta       | 9.5%\*   | Preview role: health/preview; legacy + WS disabled | 2026-07-13 |
 | FHIR Subscriptions    | `internal/fhir/subscription/`     | Production | 83.7%    | Bidirectional; client + webhook receiver         | 2026-02-27   |
@@ -81,6 +82,13 @@ effect, and leakage assertions. Merge commit `48d156d2` repeated the proof in
 main job `182694`; pipeline `18951` passed 35/35 and published digest-addressed
 API/UI images. Production GitOps activation and external outbox delivery remain
 intentionally pending.
+
+Slice 2.1 adds the backend deployment lifecycle contract and PostgreSQL catalog.
+It keeps legacy integration revision digests stable, records failed and successful
+connection checks, enforces optimistic lifecycle transitions, prevents revision/
+release/history mutation with database triggers, and resolves an exact release
+only while deployed. `serve`, GraphQL, and the Mapping Studio do not yet mutate
+or consume this catalog; MLLP runtime wiring remains Slice 2.2.
 
 ## Infrastructure
 

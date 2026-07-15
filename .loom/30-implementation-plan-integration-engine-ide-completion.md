@@ -192,12 +192,30 @@ Golden Path job `182694` repeated the 20-assertion proof.
 
 ## Phase 2 — Production channel runtime
 
-### Slice 2.1: expand the integration deployment lifecycle
+### Slice 2.1: expand the integration deployment lifecycle — implementation complete; CI pending
 
 - Expand the minimal revision with connection validation, schedules, health,
   capacity and deployment state without changing its identity/audit contracts.
 - Draft -> validate -> approve -> publish -> deploy -> pause/resume -> retire.
 - Optimistic concurrency and immutable release records.
+
+Implementation:
+
+- `IntegrationDefinitionRevision` accepts an optional deployment policy without
+  changing legacy Slice 1 JSON or digests. Lifecycle-managed revisions require
+  bounded connection-validation freshness, a continuous or cron schedule,
+  health thresholds, and capacity limits.
+- `internal/integration/lifecycle` persists exact revision JSON, failed/successful
+  validation evidence, releases, and lifecycle events as append-only PostgreSQL
+  records. A versioned snapshot is the only mutable projection.
+- The state machine is closed to
+  `draft -> validated -> approved -> published -> deployed -> paused -> deployed`
+  with retirement from published/deployed/paused. Human commands require a
+  reason and every command uses an expected version.
+- Runtime resolution returns the exact immutable release only while deployed.
+  Static registry/runtime wiring remains intentionally unchanged until Slice 2.2.
+- Required CI job `test:deployment-lifecycle` discovers and runs the PostgreSQL
+  16 race/restart/immutable-row proof with `allow_failure: false`.
 
 ### Slice 2.2: MLLP source adapter
 
@@ -337,11 +355,10 @@ revisions, and observe the expected warning/event delta without raw retention.
 
 ## Immediate backlog
 
-1. Expanded IntegrationDefinition publication and deployment lifecycle.
-2. Production MLLP adapter.
-3. Durable delivery attempts, replay, and one real queue transport.
-4. Runtime-wired S3/SFTP ingestion with checkpoint/resume.
-5. Restart-safe Integration Session workspace.
+1. Production MLLP adapter consuming the deployed exact release.
+2. Durable delivery attempts, replay, and one real queue transport.
+3. Runtime-wired S3/SFTP ingestion with checkpoint/resume.
+4. Restart-safe Integration Session workspace.
 
 ## Scope controls
 
