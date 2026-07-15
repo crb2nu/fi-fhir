@@ -85,8 +85,12 @@ must not enter the clinical data plane before the engine spine is proven.
     PostgreSQL catalog enforces draft/validate/approve/publish/deploy/pause/
     resume/retire, optimistic versions, append-only evidence, immutable release
     records, health projection, and deployed-only exact revision resolution.
-    The required PostgreSQL 16 race/restart/immutability job is pending terminal
-    MR evidence.
+    MR `!101` pipeline `19014` passed 32/32, including required PostgreSQL 16
+    lifecycle job `183463`; merge commit `a95bb44f` repeated that proof in main
+    job `183702`. The first main run also exposed an existing concurrent receipt
+    primary-key arbitration defect. MR `!102` fixed it, pipeline `19045` passed
+    24/24, and final main pipeline `19052` passed 26/26 with durable-submission
+    job `183938` and lifecycle job `183940` independently green.
   - [ ] Slice 2.2 production MLLP consumes only the catalog's runnable binding.
 
 ## Next

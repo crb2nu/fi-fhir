@@ -153,6 +153,9 @@ processor.
 Slice 2.1 implements the versioned backend lifecycle portion of this section:
 digest-bound deployment policy, append-only validation/release/history records,
 optimistic deployment state, and exact deployed-only revision resolution.
+MR `!101` pipeline `19014` passed all 32 jobs, including required PostgreSQL 16
+lifecycle job `183463`; final main pipeline `19052` passed all 26 jobs with
+durable-submission job `183938` and lifecycle job `183940` independently green.
 MLLP, destination workers/replay, runtime catalog wiring, and IDE lifecycle
 controls remain open, so the secure data plane is not yet complete.
 

@@ -87,8 +87,15 @@ Slice 2.1 adds the backend deployment lifecycle contract and PostgreSQL catalog.
 It keeps legacy integration revision digests stable, records failed and successful
 connection checks, enforces optimistic lifecycle transitions, prevents revision/
 release/history mutation with database triggers, and resolves an exact release
-only while deployed. `serve`, GraphQL, and the Mapping Studio do not yet mutate
-or consume this catalog; MLLP runtime wiring remains Slice 2.2.
+only while deployed. MR `!101` pipeline `19014` passed 32/32, including lifecycle
+job `183463`; merge commit `a95bb44f` repeated the lifecycle proof in main job
+`183702`. That main run exposed a pre-existing concurrent receipt primary-key
+conflict. MR `!102` changed receipt insertion to arbitrate either deterministic
+unique key before the authoritative tenant/idempotency lookup; pipeline `19045`
+passed 24/24. Final main pipeline `19052` passed 26/26, including durable-
+submission job `183938` and lifecycle job `183940`. `serve`, GraphQL, and the
+Mapping Studio do not yet mutate or consume this catalog; MLLP runtime wiring
+remains Slice 2.2 and production GitOps activation remains intentionally pending.
 
 ## Infrastructure
 

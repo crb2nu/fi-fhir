@@ -652,6 +652,16 @@ Record decisions as they are made, with date, rationale, and sources.
   - `serve` and the current authenticated HTTP ingress remain on the verified
     static registry until an adapter explicitly consumes runnable catalog state.
   - Staged/canary rollout and shared multi-tenant hosting remain later work.
+- Evidence:
+  - MR `!101` pipeline `19014` passed 32/32, including required lifecycle job
+    `183463`; merge commit `a95bb44f` repeated it in main job `183702`.
+  - The first main run exposed a pre-existing concurrent receipt insert that
+    could select the deterministic receipt primary key before the named
+    tenant/idempotency constraint. MR `!102` replaced the constraint-specific
+    insert with `ON CONFLICT DO NOTHING`; the following tenant/idempotency lookup
+    and fingerprint validation remain authoritative and fail closed.
+  - MR `!102` pipeline `19045` passed 24/24. Final main pipeline `19052` passed
+    26/26 with durable-submission job `183938` and lifecycle job `183940` green.
 - Sources:
   - [S1] `pkg/integration/deployment.go`
   - [S2] `internal/integration/lifecycle/`

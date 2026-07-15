@@ -231,6 +231,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Concurrent durable receipt insertion now arbitrates both the deterministic
+  receipt primary key and tenant/idempotency key before the authoritative stored-
+  result lookup and request-fingerprint validation, preventing valid duplicate
+  callers from surfacing a primary-key error.
+
 - Runtime verification CI now requires the fi-fhir binary for UI, TypeScript
   SDK, and smoke consumers; waits for the configured server port; runs the
   complete SvelteKit/Vitest suite; aggregates every smoke assertion safely
