@@ -345,8 +345,10 @@ func openSubmissionDB(t *testing.T, dsn string) *sql.DB {
 	if err != nil {
 		t.Fatalf("open submission PostgreSQL: %v", err)
 	}
-	db.SetMaxOpenConns(12)
-	db.SetMaxIdleConns(12)
+	// Eight independent handles still race 64 callers, while the bounded pools
+	// keep the single CI PostgreSQL service below connection-pressure failures.
+	db.SetMaxOpenConns(4)
+	db.SetMaxIdleConns(4)
 	if err := db.PingContext(t.Context()); err != nil {
 		_ = db.Close()
 		t.Fatalf("ping submission PostgreSQL: %v", err)
