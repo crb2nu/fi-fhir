@@ -56,6 +56,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Blocking PostgreSQL 16/TCP MLLP gate covering pre-commit ACK exclusion,
   concurrent pause serialization, 32 reconnecting duplicates, resume,
   retirement, restart, durable cardinality, and raw-message leakage
+- Slice 2.2 evidence: MR `!104` pipeline `19175` passed 33/33, required MLLP job
+  `184996` passed, merge commit `6205fa39` repeated the proof in main job
+  `185093`, and main pipeline `19193` passed 36/36
 
 #### Format Adapters
 - CDA/CCDA clinical document parser with namespace-aware XML handling (`internal/parser/cda/`)

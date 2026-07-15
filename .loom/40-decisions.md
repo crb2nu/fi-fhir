@@ -709,7 +709,12 @@ Record decisions as they are made, with date, rationale, and sources.
 - Evidence:
   - Unit and race tests cover framing, ACK safety, TLS, client policy, capacity,
     lifecycle mismatch, and pre-return ACK exclusion.
-  - Required `test:mllp-runtime` PostgreSQL 16/TCP evidence is pending CI.
+  - MR `!104` pipeline `19175` passed 33/33; required PostgreSQL 16/TCP job
+    `184996` passed. Merge commit `6205fa39` repeated the proof in main job
+    `185093`; main pipeline `19193` passed 36/36.
+  - CI exposed and closed two test-contract defects before merge: empty
+    diagnostics persist as JSON `[]`, and the 32-client duplicate proof now
+    declares matching bounded connection/queue capacity.
 - Sources:
   - [S1] `internal/integration/mllp/`
   - [S2] `internal/integration/lifecycle/admission.go`

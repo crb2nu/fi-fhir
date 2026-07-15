@@ -159,6 +159,9 @@ durable-submission job `183938` and lifecycle job `183940` independently green.
 Slice 2.2 implements the production MLLP portion with UTF-8 byte framing,
 TLS/client/capacity bounds, lifecycle-catalog selection, transaction-scoped
 deployment authorization, and positive ACK only after durable admission.
+MR `!104` pipeline `19175` passed all 33 jobs, including required PostgreSQL
+16/TCP MLLP job `184996`; merge commit `6205fa39` repeated the proof in main job
+`185093`, and main pipeline `19193` passed all 36 jobs.
 Destination workers/replay, HTTP catalog migration, GitOps exposure, and IDE
 lifecycle controls remain open, so the secure data plane is not yet complete.
 

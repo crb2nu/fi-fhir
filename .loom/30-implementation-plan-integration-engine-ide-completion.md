@@ -229,7 +229,7 @@ Evidence:
   `183938` and lifecycle job `183940`. Production GitOps activation remains a
   separate reviewed operation.
 
-### Slice 2.2: MLLP source adapter — implementation complete, CI pending
+### Slice 2.2: MLLP source adapter — complete and merged
 
 - Configurable framing/timeouts/TLS/client allowlist and ACK/NACK policy.
 - Backpressure and bounded concurrency.
@@ -249,8 +249,13 @@ Implementation:
 - `serve` enables MLLP only when its immutable source path is configured. HTTP
   ingress and preview keep their prior registry behavior; profile/workflow bytes
   remain digest-verified through the static artifact registry.
-- `test:mllp-runtime` discovers and runs the PostgreSQL 16/TCP race proof. Local
-  unit/race and test discovery pass; authoritative CI evidence is pending.
+- `test:mllp-runtime` discovers and runs the PostgreSQL 16/TCP race proof. MR
+  `!104` pipeline `19175` passed 33/33, including required job `184996`, and
+  merged as `6205fa39`. Main pipeline `19193` passed 36/36 and independently
+  repeated the proof in job `185093`.
+- CI exposed and closed two proof defects before merge: empty diagnostics now
+  persist as JSON `[]`, and the 32-client duplicate fixture declares matching
+  bounded TCP/queue capacity. Production GitOps activation remains separate.
 
 ### Slice 2.3: delivery reliability
 

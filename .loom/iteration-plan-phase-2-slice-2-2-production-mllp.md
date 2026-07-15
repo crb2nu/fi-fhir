@@ -1,6 +1,6 @@
 # RALPH Iteration Plan — Phase 2 Slice 2.2 Production MLLP
 
-**Status**: Implemented locally; authoritative PostgreSQL CI pending
+**Status**: Merged; MR and default-branch proof complete
 **Date**: 2026-07-15
 **Plan**: `plan-complete-fi-fhir-as-a-production-integration-engine-and-ide-341d98#8`
 **Branch**: `codex/phase2-production-mllp`
@@ -38,10 +38,15 @@ ACK for uncommitted work or continue submitting after pause/retire, making the
 lifecycle catalog advisory instead of authoritative. Slice 2.2 must not merge
 until admission and lifecycle transitions share a database serialization point.
 
-**Status**: Unit/race and CI discovery pass. The PostgreSQL 16/TCP proof is
-implemented but could not run locally because `POSTGRES_TEST_URL` and a local
-PostgreSQL service were unavailable; required CI remains the merge gate. Positive evidence is Slice 2.1's deployed-only
-`PostgresCatalog.ResolveRunnable` and Slice 1.2's atomic submission transaction.
+**Status**: passed locally where dependencies allowed and in required PostgreSQL
+CI. MR `!104` pipeline `19175` passed 33/33; job `184996` completed the real TCP,
+pre-commit ACK exclusion, concurrent pause, 32-client duplicate, restart,
+cardinality, and leakage proof. Merge commit `6205fa39` repeated it in main job
+`185093`; main pipeline `19193` passed 36/36. CI first exposed a nullable empty
+diagnostics array and a four-connection fixture running 32 clients; both proof
+defects were corrected before the terminal green pipeline. Positive evidence is
+Slice 2.1's deployed-only `PostgresCatalog.ResolveRunnable` and Slice 1.2's atomic
+submission transaction.
 Disconfirming evidence is that a preflight resolver call alone races a concurrent
 pause, and the current startup registry contains no MLLP source artifact. HAPI's
 MLLP constants confirm standard frame bytes 11/28/13, while its lower-layer

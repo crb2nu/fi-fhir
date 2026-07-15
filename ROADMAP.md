@@ -95,8 +95,11 @@ must not enter the clinical data plane before the engine spine is proven.
     frame transport, TLS 1.3 mutual authentication and CIDR policy, bounded
     capacity, safe application/commit ACKs, and optional `serve` composition.
     Each frame starts from the lifecycle catalog's exact deployed binding and
-    repeats authorization inside durable admission before a positive ACK. Local
-    unit/race and CI-discovery gates pass; required PostgreSQL CI is pending.
+    repeats authorization inside durable admission before a positive ACK. MR
+    `!104` pipeline `19175` passed 33/33, including PostgreSQL 16/TCP MLLP job
+    `184996`; merge commit `6205fa39` repeated the proof in main job `185093`.
+    Main pipeline `19193` passed 36/36. Production GitOps activation remains
+    intentionally pending.
 
 ## Next
 
