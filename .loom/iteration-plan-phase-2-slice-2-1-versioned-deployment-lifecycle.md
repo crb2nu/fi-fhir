@@ -1,6 +1,6 @@
 # RALPH Iteration Plan — Phase 2 Slice 2.1 Versioned Deployment Lifecycle
 
-**Status**: Implementation complete; required PostgreSQL CI pending
+**Status**: Merged; MR and default-branch proof complete
 **Date**: 2026-07-14
 **Plan**: `plan-complete-fi-fhir-as-a-production-integration-engine-and-ide-341d98#7`
 **Branch**: `codex/phase2-versioned-deployments`
@@ -32,15 +32,23 @@ mutable/current artifacts, continue after an operator pause, or race lifecycle
 commands into an unauditable state. Slice 2.2 must remain blocked until the
 catalog/state boundary is redesigned.
 
-**Status**: required PostgreSQL run pending. Focused race tests, vet, golangci-lint,
-the full `go test -count=1 ./...` suite, documentation validation, and CI test
-discovery are locally green. Docker Desktop and a local PostgreSQL service were
-unavailable, so only the required CI service can close the kill-test. Positive
-evidence is the existing content-addressed
-revision and exact loader boundary in `pkg/integration` and
-`internal/integration/processor`. Disconfirming evidence is the startup-only
-`internal/integration/registry.StaticRegistry`, which has no durable lifecycle,
-optimistic concurrency, health state, pause control, or immutable release record.
+**Status**: passed locally where dependencies allowed and in required PostgreSQL
+CI. Focused race tests, vet, golangci-lint, the full `go test -count=1 ./...`
+suite, documentation validation, and CI test discovery were locally green. MR
+`!101` pipeline `19014` passed 32/32; required lifecycle job `183463` completed
+the full state, 32-caller race, restart, mutation-rejection, and leakage proof.
+Merge commit `a95bb44f` repeated the lifecycle proof in main job `183702`.
+
+That first main pipeline found disconfirming evidence outside the new catalog:
+concurrent durable receipt insertion could encounter the deterministic receipt
+primary key before the named tenant/idempotency constraint. MR `!102` changed the
+insert to `ON CONFLICT DO NOTHING` so either deterministic uniqueness claim is
+arbitrated before the authoritative tenant/idempotency lookup and fingerprint
+check. Its pipeline `19045` passed 24/24. Final main pipeline `19052` passed
+26/26 with durable-submission job `183938` and lifecycle job `183940` green.
+The remaining disconfirming boundary is intentional: startup-only
+`internal/integration/registry.StaticRegistry` has no durable lifecycle and will
+not be replaced until Slice 2.2 consumes the catalog's runnable binding.
 
 ## Review
 

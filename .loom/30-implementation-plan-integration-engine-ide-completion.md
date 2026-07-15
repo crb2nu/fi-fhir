@@ -192,7 +192,7 @@ Golden Path job `182694` repeated the 20-assertion proof.
 
 ## Phase 2 — Production channel runtime
 
-### Slice 2.1: expand the integration deployment lifecycle — implementation complete; CI pending
+### Slice 2.1: expand the integration deployment lifecycle — complete
 
 - Expand the minimal revision with connection validation, schedules, health,
   capacity and deployment state without changing its identity/audit contracts.
@@ -216,6 +216,18 @@ Implementation:
   Static registry/runtime wiring remains intentionally unchanged until Slice 2.2.
 - Required CI job `test:deployment-lifecycle` discovers and runs the PostgreSQL
   16 race/restart/immutable-row proof with `allow_failure: false`.
+
+Evidence:
+
+- MR `!101` pipeline `19014` passed 32/32; required lifecycle job `183463`
+  passed, and merge commit `a95bb44f` repeated the proof in main job `183702`.
+- The first main pipeline exposed an existing concurrent durable-receipt primary-
+  key conflict. MR `!102` made insertion arbitrate either deterministic unique
+  key before the authoritative lookup and fingerprint check; pipeline `19045`
+  passed 24/24.
+- Final main pipeline `19052` passed 26/26, including durable-submission job
+  `183938` and lifecycle job `183940`. Production GitOps activation remains a
+  separate reviewed operation.
 
 ### Slice 2.2: MLLP source adapter
 
