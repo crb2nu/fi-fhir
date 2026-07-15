@@ -98,6 +98,22 @@ func TestMessageProcessorRejectsProductionAndWrongTenantBeforeLoading(t *testing
 	}
 }
 
+func TestDurableSubmissionErrorKeepsCatalogSafeMessageAndCause(t *testing.T) {
+	t.Parallel()
+
+	cause := errors.New("database detail must stay private")
+	err := &durableSubmissionError{cause: cause}
+	if err.Error() != ErrDurableSubmissionFailed.Error() {
+		t.Fatalf("error text = %q", err.Error())
+	}
+	if !errors.Is(err, ErrDurableSubmissionFailed) || !errors.Is(err, cause) {
+		t.Fatalf("error chain does not preserve catalog kind and cause: %v", err)
+	}
+	if durableSubmissionCause(err) != cause {
+		t.Fatalf("durable submission cause was not recoverable")
+	}
+}
+
 func TestMessageProcessorRejectsOversizedSourceBeforeLoading(t *testing.T) {
 	t.Parallel()
 

@@ -123,6 +123,9 @@ func TestPostgresProductionSubmission_64WayDuplicateFaultRestart(t *testing.T) {
 		if !errors.Is(err, ErrDurableSubmissionFailed) {
 			t.Fatalf("caller %d unexpected error: %v", caller, err)
 		}
+		if !errors.Is(err, ErrCommitOutcomeUnknown) {
+			t.Fatalf("caller %d unexpected durable failure: %v", caller, durableSubmissionCause(err))
+		}
 		if unknownCaller != -1 {
 			t.Fatalf("multiple commit-unknown callers: first=%d second=%d", unknownCaller, caller)
 		}
@@ -345,10 +348,8 @@ func openSubmissionDB(t *testing.T, dsn string) *sql.DB {
 	if err != nil {
 		t.Fatalf("open submission PostgreSQL: %v", err)
 	}
-	// Eight independent handles still race 64 callers, while the bounded pools
-	// keep the single CI PostgreSQL service below connection-pressure failures.
-	db.SetMaxOpenConns(4)
-	db.SetMaxIdleConns(4)
+	db.SetMaxOpenConns(12)
+	db.SetMaxIdleConns(12)
 	if err := db.PingContext(t.Context()); err != nil {
 		_ = db.Close()
 		t.Fatalf("ping submission PostgreSQL: %v", err)

@@ -48,6 +48,30 @@ type MessageProcessor struct {
 	submissions *PostgresSubmissionStore
 }
 
+type durableSubmissionError struct {
+	cause error
+}
+
+func (e *durableSubmissionError) Error() string {
+	return ErrDurableSubmissionFailed.Error()
+}
+
+func (e *durableSubmissionError) Unwrap() error {
+	return e.cause
+}
+
+func (e *durableSubmissionError) Is(target error) bool {
+	return target == ErrDurableSubmissionFailed
+}
+
+func durableSubmissionCause(err error) error {
+	var submissionError *durableSubmissionError
+	if !errors.As(err, &submissionError) {
+		return nil
+	}
+	return submissionError.cause
+}
+
 // NewMessageProcessor composes server-owned definition and exact artifact resolvers.
 func NewMessageProcessor(
 	definitions *DefinitionRevisionResolver,
@@ -183,7 +207,7 @@ func (p *MessageProcessor) Process(
 		if errors.Is(err, ErrIdempotencyConflict) {
 			return integration.ProcessResult{}, ErrIdempotencyConflict
 		}
-		return integration.ProcessResult{}, ErrDurableSubmissionFailed
+		return integration.ProcessResult{}, &durableSubmissionError{cause: err}
 	}
 	return durable, nil
 }
