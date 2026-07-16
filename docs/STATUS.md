@@ -125,6 +125,15 @@ passed 35/35 with required provider recovery job `186259` and merged as
 PostgreSQL 16/MinIO/SSH-SFTP proof in job `186476`. Production GitOps activation
 remains intentionally pending.
 
+Slice 3.1 adds an opt-in PostgreSQL Integration Session workspace with durable
+sessions, redacted-by-default samples, AES-256-GCM explicit retention,
+append-only artifact revisions, immutable terminal runs, accepted decisions,
+reopenable exports, and exact profile revision/digest execution. MR `!111`
+pipeline `19409` passed 37/37 with required restart/raw-PHI job `187425` and
+merged as `15746ccd`. Main pipeline `19424` passed 40/40 and independently
+repeated the proof in job `187618`. Production GitOps activation remains
+intentionally pending.
+
 ## Infrastructure
 
 | CLI | `cmd/fi-fhir/` | Production | 83.9% | parse, workflow, config, etl, terminology, eventstore, subscription | 2026-03-24 |

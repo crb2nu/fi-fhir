@@ -1,6 +1,6 @@
 # RALPH Iteration Plan — Phase 3 Slice 3.1 Integration Session Workspace
 
-**Status**: Ready for CI
+**Status**: Complete, merged, verified, and reconciled
 **Date**: 2026-07-16
 **Branch**: `codex/phase3-integration-session-workspace`
 **Base**: `main` at `304fcb39`
@@ -45,8 +45,9 @@ that survives restart but cannot reproduce the exact profile behavior it claims
 to have tested, or it would make raw clinical data durable by default. Slice 3.2
 and later publish/deploy work must not proceed on that foundation.
 
-**Status**: the integration test compiles locally. The live PostgreSQL proof is
-pending the required CI job because the local Docker daemon is unavailable.
+**Status**: passed twice against PostgreSQL 16. MR job `187425` passed on the
+reviewed source SHA, and main job `187618` independently repeated the proof on
+merge commit `15746ccd`.
 
 ## Align
 
@@ -139,7 +140,12 @@ pending the required CI job because the local Docker daemon is unavailable.
   - scoped golangci-lint reports zero issues;
   - Svelte check reports zero errors and nine pre-existing CSS warnings;
   - documentation validation passes.
-- Required CI evidence: `test:integration-session` against PostgreSQL 16.
+- Required CI evidence:
+  - MR `!111` pipeline `19409` passed 37/37, including PostgreSQL 16 restart/
+    raw-leakage job `187425`;
+  - MR `!111` merged as `15746ccd`;
+  - main pipeline `19424` passed 40/40 and independently repeated the proof in
+    job `187618`.
 
 - Docs to update:
   - this plan and a Slice 3.1 handoff;
