@@ -40,6 +40,8 @@
 - MR `!111` merged as `15746ccd`.
 - Main pipeline `19424` passed 40/40 and independently repeated the PostgreSQL
   restart/exact-profile/raw-PHI proof in job `187618`.
+- Evidence MR `!113` reconciles the canonical roadmap, implementation plan,
+  decision log, changelog, status, iteration plan, and this handoff.
 - The first MR proof exposed PostgreSQL JSONB byte normalization of executable
   artifacts. Commit `1504a316` moved exact content to `BYTEA`; the replacement
   MR job and main job both passed against that correction.
