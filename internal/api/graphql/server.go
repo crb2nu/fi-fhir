@@ -26,6 +26,11 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity"
 )
 
+// AuthStatusPath is the unauthenticated browser probe for optional trusted-
+// network access. It never grants access by itself; GraphQL re-evaluates the
+// request address on every operation.
+const AuthStatusPath = "/api/auth/status"
+
 // ServerConfig configures the GraphQL server.
 type ServerConfig struct {
 	// Host to bind to
@@ -54,6 +59,9 @@ type ServerConfig struct {
 	MaxRequestBodyBytes int64
 	// Authenticator establishes the deployment-owned tenant/principal context.
 	Authenticator requestsecurity.Authenticator
+	// TrustedNetworkAuthenticator optionally establishes the same deployment-
+	// owned identity for explicitly allowlisted LAN clients.
+	TrustedNetworkAuthenticator *requestsecurity.TrustedNetworkAuthenticator
 	// HL7IngressPath is the exact authenticated raw-HL7v2 endpoint when enabled.
 	HL7IngressPath string
 	// HL7IngressHandler owns production authentication and durable submission.
@@ -167,6 +175,22 @@ func (s *Server) Handler() http.Handler {
 		_, _ = fmt.Fprintf(w, `{"status":"healthy","service":"graphql"}`)
 	})
 
+	mux.HandleFunc(AuthStatusPath, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.Header().Set("Allow", http.MethodGet)
+			http.Error(w, "auth status requires GET", http.StatusMethodNotAllowed)
+			return
+		}
+		_, trusted := s.config.TrustedNetworkAuthenticator.AuthenticateRequest(r)
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Content-Type", "application/json")
+		if trusted {
+			_ = json.NewEncoder(w).Encode(map[string]any{"authenticated": true, "authVia": "network"})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"authenticated": false})
+	})
+
 	return mux
 }
 
@@ -272,7 +296,10 @@ func validateServerConfig(config *ServerConfig) error {
 	if config.PlaygroundEnabled {
 		paths["GraphQL Playground"] = config.PlaygroundPath
 	}
-	seenPaths := map[string]string{"/health": "health"}
+	seenPaths := map[string]string{
+		"/health":      "health",
+		AuthStatusPath: "auth status",
+	}
 	for name, configuredPath := range paths {
 		if err := validateServeMuxPath(name, configuredPath); err != nil {
 			return err
@@ -348,7 +375,7 @@ func graphqlHTTPMiddleware(next http.Handler, config *ServerConfig) http.Handler
 		}
 		r.Body = io.NopCloser(bytes.NewReader(body))
 		next.ServeHTTP(w, r)
-	}), config.Authenticator)
+	}), config.Authenticator, config.TrustedNetworkAuthenticator)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -570,8 +597,12 @@ func isJSONObject(raw json.RawMessage, nullable bool) bool {
 	return json.Unmarshal(trimmed, &value) == nil
 }
 
-func authenticatedMiddleware(next http.Handler, authenticator requestsecurity.Authenticator) http.Handler {
+func authenticatedMiddleware(next http.Handler, authenticator requestsecurity.Authenticator, trusted *requestsecurity.TrustedNetworkAuthenticator) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if security, ok := trusted.AuthenticateRequest(r); ok {
+			next.ServeHTTP(w, r.WithContext(requestsecurity.WithSecurityContext(r.Context(), security)))
+			return
+		}
 		security, err := authenticator.Authenticate(r.Context(), r.Header.Get("Authorization"))
 		if err != nil {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="fi-fhir"`)

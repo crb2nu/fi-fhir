@@ -60,12 +60,15 @@ export async function graphqlFetch<TData, TVars>(
 
   try {
     const authorization = await requireGraphQLAuthorization();
+    const headers: Record<string, string> = {
+      'content-type': 'application/json'
+    };
+    if (authorization) {
+      headers.Authorization = authorization;
+    }
     const res = await fetch('/graphql', {
       method: 'POST',
-      headers: {
-        Authorization: authorization,
-        'content-type': 'application/json'
-      },
+      headers,
       body: JSON.stringify({ query: print(document), variables })
     });
 

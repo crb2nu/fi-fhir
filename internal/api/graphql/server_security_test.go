@@ -34,6 +34,7 @@ func TestServerRejectsIncompleteSecurityConfiguration(t *testing.T) {
 		{name: "zero timeout", mutate: func(c *graphqlapi.ServerConfig) { c.Timeout = 0 }},
 		{name: "negative timeout", mutate: func(c *graphqlapi.ServerConfig) { c.Timeout = -1 }},
 		{name: "HTTP path collision", mutate: func(c *graphqlapi.ServerConfig) { c.Path = "/health" }},
+		{name: "auth status path collision", mutate: func(c *graphqlapi.ServerConfig) { c.Path = graphqlapi.AuthStatusPath }},
 		{name: "WebSocket path collision", mutate: func(c *graphqlapi.ServerConfig) { c.WebSocketPath = "/health" }},
 		{name: "playground path collision", mutate: func(c *graphqlapi.ServerConfig) {
 			c.PlaygroundEnabled = true
@@ -218,6 +219,72 @@ func TestGraphQLHTTPBoundary(t *testing.T) {
 					t.Fatalf("forbidden = %v, want %v, status=%d body=%s", forbidden, tt.wantForbidden, recorder.Code, recorder.Body.String())
 				}
 			})
+		}
+	})
+}
+
+func TestTrustedNetworkGraphQLAccess(t *testing.T) {
+	config := secureServerConfig(testAuthenticator(t))
+	trusted, err := requestsecurity.NewTrustedNetworkAuthenticator(requestsecurity.TrustedNetworkConfig{
+		CIDRs:       "192.168.50.0/24",
+		TenantID:    "tenant-a",
+		PrincipalID: "engineer-1",
+		Roles:       []string{"integration:preview"},
+	})
+	if err != nil {
+		t.Fatalf("NewTrustedNetworkAuthenticator: %v", err)
+	}
+	config.TrustedNetworkAuthenticator = trusted
+	server, err := graphqlapi.NewServer(resolvers.NewResolver(), config)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	handler := server.Handler()
+	query := []byte(`{"query":"query { health { status } }"}`)
+
+	t.Run("trusted status unlocks browser gate", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, graphqlapi.AuthStatusPath, nil)
+		req.Header.Set("X-Real-IP", "192.168.50.24")
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, req)
+		if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"authenticated":true`) || !strings.Contains(recorder.Body.String(), `"authVia":"network"`) {
+			t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+		}
+		if recorder.Header().Get("Cache-Control") != "no-store" {
+			t.Fatalf("Cache-Control = %q", recorder.Header().Get("Cache-Control"))
+		}
+	})
+
+	t.Run("trusted GraphQL does not require bearer token", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, config.Path, bytes.NewReader(query))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer stale-browser-token")
+		req.Header.Set("X-Real-IP", "192.168.50.24")
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, req)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+		}
+	})
+
+	t.Run("off-network status keeps credential gate", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, graphqlapi.AuthStatusPath, nil)
+		req.Header.Set("X-Real-IP", "203.0.113.9")
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, req)
+		if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"authenticated":false`) {
+			t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+		}
+	})
+
+	t.Run("off-network GraphQL still requires bearer token", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, config.Path, bytes.NewReader(query))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Real-IP", "203.0.113.9")
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, req)
+		if recorder.Code != http.StatusUnauthorized {
+			t.Fatalf("status = %d, want 401, body=%s", recorder.Code, recorder.Body.String())
 		}
 	})
 }

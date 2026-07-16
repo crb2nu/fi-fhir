@@ -13,6 +13,7 @@ export class GraphQLCredentialsUnavailableError extends Error {
 }
 
 let credentialProvider: GraphQLCredentialProvider | null = null;
+let trustedNetworkAccess = false;
 
 /**
  * Installs the runtime access-token provider owned by the authentication shell.
@@ -25,8 +26,16 @@ export function setGraphQLCredentialProvider(provider: GraphQLCredentialProvider
   credentialProvider = provider;
 }
 
-/** Returns a validated Bearer authorization value or fails closed. */
-export async function requireGraphQLAuthorization(): Promise<string> {
+/** Enables headerless GraphQL requests after the server confirms LAN trust. */
+export function setGraphQLTrustedNetworkAccess(enabled: boolean): void {
+  trustedNetworkAccess = enabled;
+}
+
+/** Returns a validated Bearer value, null for trusted LAN access, or fails closed. */
+export async function requireGraphQLAuthorization(): Promise<string | null> {
+  if (trustedNetworkAccess) {
+    return null;
+  }
   if (!credentialProvider) {
     throw new GraphQLCredentialsUnavailableError();
   }

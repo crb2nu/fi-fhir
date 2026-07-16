@@ -57,6 +57,9 @@ config:
     principalId: "fi-fhir-operator"
     roles: "integration:preview"
     allowedOrigins: "https://fi-fhir.example.com"
+    # Optional single-tenant LAN CIDRs allowed without a bearer token.
+    # Never include pod or service CIDRs.
+    trustedCIDRs: ""
     registryPath: "/app/config/registry.json"
     bearerTokenPath: "/var/run/secrets/fi-fhir-graphql/bearer-token"
 

@@ -4890,21 +4890,22 @@ func runServe(args []string) error {
 
 	// Create server config
 	serverConfig := &graphql.ServerConfig{
-		Host:                host,
-		Port:                port,
-		Path:                path,
-		PlaygroundEnabled:   playground,
-		PlaygroundPath:      playgroundPath,
-		WebSocketPath:       path + "/ws",
-		MaxDepth:            maxDepth,
-		MaxComplexity:       maxComplexity,
-		Timeout:             timeout,
-		Introspection:       introspection,
-		AllowedOrigins:      securePreviewRuntime.allowedOrigins,
-		MaxRequestBodyBytes: graphqlRequestBodyLimit,
-		Authenticator:       securePreviewRuntime.authenticator,
-		HL7IngressPath:      securePreviewRuntime.ingressPath,
-		HL7IngressHandler:   securePreviewRuntime.ingressHandler,
+		Host:                        host,
+		Port:                        port,
+		Path:                        path,
+		PlaygroundEnabled:           playground,
+		PlaygroundPath:              playgroundPath,
+		WebSocketPath:               path + "/ws",
+		MaxDepth:                    maxDepth,
+		MaxComplexity:               maxComplexity,
+		Timeout:                     timeout,
+		Introspection:               introspection,
+		AllowedOrigins:              securePreviewRuntime.allowedOrigins,
+		MaxRequestBodyBytes:         graphqlRequestBodyLimit,
+		Authenticator:               securePreviewRuntime.authenticator,
+		TrustedNetworkAuthenticator: securePreviewRuntime.trustedNetwork,
+		HL7IngressPath:              securePreviewRuntime.ingressPath,
+		HL7IngressHandler:           securePreviewRuntime.ingressHandler,
 	}
 
 	// Create and start server
@@ -5086,6 +5087,10 @@ Required environment:
   FI_FHIR_INTEGRATION_REGISTRY_PATH  Immutable preview registry JSON path
   FI_FHIR_GRAPHQL_BEARER_TOKEN       Bearer secret (24+ canonical bytes), or
   FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE  path to the bearer secret; set exactly one
+
+Optional trusted-network access:
+  FI_FHIR_GRAPHQL_TRUSTED_CIDRS      Comma-separated LAN CIDRs allowed without
+                                     a bearer token; never include pod/service CIDRs
 
 Optional durable HL7v2 ingress environment:
   FI_FHIR_HTTP_INGRESS_AUTH_MODE       bearer or hmac-sha256; unset disables

@@ -2,11 +2,13 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   GraphQLCredentialsUnavailableError,
   requireGraphQLAuthorization,
-  setGraphQLCredentialProvider
+  setGraphQLCredentialProvider,
+  setGraphQLTrustedNetworkAccess
 } from './credentials';
 
 afterEach(() => {
   setGraphQLCredentialProvider(null);
+  setGraphQLTrustedNetworkAccess(false);
 });
 
 describe('GraphQL runtime credentials', () => {
@@ -30,5 +32,11 @@ describe('GraphQL runtime credentials', () => {
     await expect(requireGraphQLAuthorization()).rejects.toBeInstanceOf(
       GraphQLCredentialsUnavailableError
     );
+  });
+
+  it('allows an explicit trusted-network request without an authorization header', async () => {
+    setGraphQLTrustedNetworkAccess(true);
+
+    await expect(requireGraphQLAuthorization()).resolves.toBeNull();
   });
 });
