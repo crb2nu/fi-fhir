@@ -80,6 +80,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Required PostgreSQL 16 restart gate that reconstructs the workspace service,
   compares strict/tolerant profile outcomes, and proves no raw-PHI sentinel is
   persisted in session records
+- Slice 3.1 evidence: MR `!111` pipeline `19409` passed 37/37, required session
+  job `187425` passed, merge commit `15746ccd` repeated the change on main, and
+  main pipeline `19424` passed 40/40 with independent session job `187618`
 - Blocking PostgreSQL 16/TCP MLLP gate covering pre-commit ACK exclusion,
   concurrent pause serialization, 32 reconnecting duplicates, resume,
   retirement, restart, durable cardinality, and raw-message leakage

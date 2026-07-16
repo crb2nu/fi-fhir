@@ -854,8 +854,11 @@ Record decisions as they are made, with date, rationale, and sources.
     fine-grained RBAC, and production GitOps activation remain separate work.
 - Evidence:
   - Local focused/race/full tests, vet, scoped lint, UI type checks, and docs
-    validation pass. Required PostgreSQL 16 restart/raw-leakage CI and merge
-    evidence are pending.
+    validation pass.
+  - MR `!111` pipeline `19409` passed 37/37, including required PostgreSQL 16
+    restart/raw-leakage job `187425`, and merged as `15746ccd`.
+  - Main pipeline `19424` passed 40/40 and independently repeated the proof in
+    job `187618`.
 - Sources:
   - [S1] `internal/integration/session/`
   - [S2] `internal/integration/processor/profile_public.go`

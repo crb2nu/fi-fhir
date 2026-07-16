@@ -119,12 +119,15 @@ must not enter the clinical data plane before the engine spine is proven.
 
 ## Next
 
-- [ ] Phase 3 Slice 3.1 restart-safe Integration Session Workspace — implementation
-  complete locally; required PostgreSQL restart proof and merge evidence pending.
+- [x] Phase 3 Slice 3.1 restart-safe Integration Session Workspace — MR `!111`
+  pipeline `19409` passed 37/37, including required PostgreSQL restart/raw-PHI
+  job `187425`, and merged as `15746ccd`. Main pipeline `19424` passed 40/40
+  and independently repeated the proof in job `187618`.
+- [ ] Phase 3 Slice 3.2 streaming diagnostics and server lineage.
 
 ## Then
 
-- [ ] Live stage/diagnostic/lineage UI and workflow simulation against session data.
+- [ ] Workflow simulation against durable session data.
 - [ ] Reviewable bundle publication and promotion of the exact tested revisions.
 - [ ] Real operator message/trace browser, deployment controls, and DLQ tooling.
 - [ ] Fine-grained RBAC, PHI retention controls, audit, readiness, metrics,
