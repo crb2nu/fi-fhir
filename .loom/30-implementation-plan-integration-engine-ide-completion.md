@@ -318,6 +318,10 @@ Implementation status:
 Kill test: restart backend, reopen session, run one sample against two profile
 revisions, and observe the expected warning/event delta without raw retention.
 
+Implementation status (2026-07-16): complete locally with an opt-in PostgreSQL
+runtime, exact profile revision/digest provenance, AES-256-GCM explicit retention,
+and a required PostgreSQL 16 restart/raw-leakage CI gate. Merge evidence pending.
+
 ### Slice 3.2: streaming diagnostics and server lineage
 
 - Subscribe before runs and render real stage progression.

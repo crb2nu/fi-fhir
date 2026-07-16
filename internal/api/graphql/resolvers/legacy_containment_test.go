@@ -16,7 +16,6 @@ func init() {
 
 func TestLegacyRawAndExecutionResolversFailClosedByDefault(t *testing.T) {
 	resolver := NewResolver()
-	resolver.legacyUnsafeExecution = false
 	mutation := &mutationResolver{resolver}
 	query := &queryResolver{resolver}
 	subscription := &subscriptionResolver{resolver}
@@ -26,6 +25,7 @@ func TestLegacyRawAndExecutionResolversFailClosedByDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateIntegrationSession: %v", err)
 	}
+	resolver.legacyUnsafeExecution = false
 	retain := true
 	includeRaw := true
 	legacyCalls := []struct {

@@ -21,6 +21,7 @@ import (
 	integrationpreview "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/preview"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/registry"
+	integrationsession "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/session"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/config"
 )
 
@@ -41,6 +42,7 @@ type previewRuntime struct {
 	batchProvider    integrationbatch.Provider
 	deliveryWorker   *integrationdelivery.Dispatcher
 	submissionDB     *sql.DB
+	sessionStore     integrationsession.Store
 }
 
 func loadPreviewRuntimeFromEnv() (*previewRuntime, error) {
@@ -140,6 +142,13 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 	if err != nil {
 		return nil, err
 	}
+	sessionWorkspaceEnabled, err := optionalBoolEnv("FI_FHIR_INTEGRATION_SESSION_ENABLED")
+	if err != nil {
+		return nil, err
+	}
+	if sessionWorkspaceEnabled && !allowProductionIngress {
+		return nil, fmt.Errorf("FI_FHIR_INTEGRATION_SESSION_ENABLED is available only with serve")
+	}
 
 	var (
 		ingressAuthenticator *integrationingress.Authenticator
@@ -151,6 +160,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 		batchRunner          *integrationbatch.Runner
 		batchProvider        integrationbatch.Provider
 		deliveryWorker       *integrationdelivery.Dispatcher
+		sessionStore         integrationsession.Store
 	)
 	if productionHTTPEnabled {
 		ingressAuthenticator, maxBodyBytes, err = loadHTTPIngressAuthenticatorFromEnv()
@@ -164,7 +174,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 			return nil, err
 		}
 	}
-	if productionHTTPEnabled || productionMLLPEnabled || productionBatchEnabled || productionDeliveryEnabled {
+	if productionHTTPEnabled || productionMLLPEnabled || productionBatchEnabled || productionDeliveryEnabled || sessionWorkspaceEnabled {
 		submissionDB, err = openSubmissionDatabaseFromEnv(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("configure production ingress database: %w", err)
@@ -178,12 +188,14 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 				_ = submissionDB.Close()
 			}
 		}()
-		migrationStore, err := processor.NewPostgresSubmissionStore(submissionDB, processor.PostgresSubmissionConfig{})
-		if err != nil {
-			return nil, fmt.Errorf("configure submission migrations: %w", err)
-		}
-		if err := migrationStore.Migrate(ctx); err != nil {
-			return nil, fmt.Errorf("migrate submission store: %w", err)
+		if productionHTTPEnabled || productionMLLPEnabled || productionBatchEnabled || productionDeliveryEnabled {
+			migrationStore, err := processor.NewPostgresSubmissionStore(submissionDB, processor.PostgresSubmissionConfig{})
+			if err != nil {
+				return nil, fmt.Errorf("configure submission migrations: %w", err)
+			}
+			if err := migrationStore.Migrate(ctx); err != nil {
+				return nil, fmt.Errorf("migrate submission store: %w", err)
+			}
 		}
 
 		if productionHTTPEnabled {
@@ -254,6 +266,23 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 				return nil, err
 			}
 		}
+		if sessionWorkspaceEnabled {
+			protector, err := loadSessionRetentionProtector()
+			if err != nil {
+				return nil, err
+			}
+			postgresSessions, err := integrationsession.NewPostgresStore(submissionDB, integrationsession.PostgresConfig{
+				TenantID:  tenantID,
+				Protector: protector,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("configure Integration Session store: %w", err)
+			}
+			if err := postgresSessions.Migrate(ctx); err != nil {
+				return nil, fmt.Errorf("migrate Integration Session store: %w", err)
+			}
+			sessionStore = postgresSessions
+		}
 		closeOnError = false
 	}
 	if messageProcessor == nil {
@@ -284,7 +313,30 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 		batchProvider:    batchProvider,
 		deliveryWorker:   deliveryWorker,
 		submissionDB:     submissionDB,
+		sessionStore:     sessionStore,
 	}, nil
+}
+
+func loadSessionRetentionProtector() (integrationsession.PayloadProtector, error) {
+	path := os.Getenv("FI_FHIR_INTEGRATION_SESSION_RETENTION_KEY_FILE")
+	if path == "" {
+		return nil, nil
+	}
+	key, err := loadBoundedRuntimeFile("FI_FHIR_INTEGRATION_SESSION_RETENTION_KEY_FILE", "Integration Session retention key")
+	if err != nil {
+		return nil, err
+	}
+	if len(key) != 32 {
+		return nil, fmt.Errorf("Integration Session retention key must contain exactly 32 bytes")
+	}
+	protector, err := integrationsession.NewAESGCMProtector(key)
+	for i := range key {
+		key[i] = 0
+	}
+	if err != nil {
+		return nil, fmt.Errorf("configure Integration Session retention protector: %w", err)
+	}
+	return protector, nil
 }
 
 func loadMLLPRuntimeFromEnv(sourcePath string) (mllp.SourceRevision, string, string, mllp.TLSMaterial, error) {

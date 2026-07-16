@@ -987,17 +987,23 @@ func (r *mutationResolver) ResumeFhirSubscription(ctx context.Context, id string
 
 // CreateIntegrationSession is the resolver for the createIntegrationSession field.
 func (r *mutationResolver) CreateIntegrationSession(ctx context.Context, input model.CreateIntegrationSessionInput) (*model.IntegrationSession, error) {
+	if !r.sessionWorkspaceEnabled() {
+		return nil, ErrLegacyExecutionUnavailable
+	}
 	return r.integrationSessions.createSession(input)
 }
 
 // ArchiveIntegrationSession is the resolver for the archiveIntegrationSession field.
 func (r *mutationResolver) ArchiveIntegrationSession(ctx context.Context, id string) (*model.IntegrationSession, error) {
+	if !r.sessionWorkspaceEnabled() {
+		return nil, ErrLegacyExecutionUnavailable
+	}
 	return r.integrationSessions.archiveSession(id)
 }
 
 // AddSessionSample is the resolver for the addSessionSample field.
 func (r *mutationResolver) AddSessionSample(ctx context.Context, input model.AddSessionSampleInput) (*model.SessionSample, error) {
-	if !r.legacyUnsafeExecution {
+	if !r.legacyUnsafeExecution && !r.durableSessionWorkspace {
 		return nil, ErrLegacyExecutionUnavailable
 	}
 	return r.integrationSessions.addSample(input)
@@ -1005,17 +1011,23 @@ func (r *mutationResolver) AddSessionSample(ctx context.Context, input model.Add
 
 // UpdateSessionProfileDraft is the resolver for the updateSessionProfileDraft field.
 func (r *mutationResolver) UpdateSessionProfileDraft(ctx context.Context, input model.UpdateSessionArtifactInput) (*model.SessionArtifact, error) {
+	if !r.sessionWorkspaceEnabled() {
+		return nil, ErrLegacyExecutionUnavailable
+	}
 	return r.integrationSessions.saveArtifact(input.SessionID, "profile", input)
 }
 
 // UpdateSessionWorkflowDraft is the resolver for the updateSessionWorkflowDraft field.
 func (r *mutationResolver) UpdateSessionWorkflowDraft(ctx context.Context, input model.UpdateSessionArtifactInput) (*model.SessionArtifact, error) {
+	if !r.sessionWorkspaceEnabled() {
+		return nil, ErrLegacyExecutionUnavailable
+	}
 	return r.integrationSessions.saveArtifact(input.SessionID, "workflow", input)
 }
 
 // RunSessionPreview is the resolver for the runSessionPreview field.
 func (r *mutationResolver) RunSessionPreview(ctx context.Context, input model.RunSessionPreviewInput) (*model.SessionRun, error) {
-	if !r.legacyUnsafeExecution {
+	if !r.legacyUnsafeExecution && !r.durableSessionWorkspace {
 		return nil, ErrLegacyExecutionUnavailable
 	}
 	return r.integrationSessions.runPreview(input)
@@ -1023,12 +1035,15 @@ func (r *mutationResolver) RunSessionPreview(ctx context.Context, input model.Ru
 
 // AcceptDiagnosticFix is the resolver for the acceptDiagnosticFix field.
 func (r *mutationResolver) AcceptDiagnosticFix(ctx context.Context, input model.AcceptDiagnosticFixInput) (*model.SessionDiagnostic, error) {
-	return r.integrationSessions.acceptDiagnostic(input)
+	if !r.sessionWorkspaceEnabled() {
+		return nil, ErrLegacyExecutionUnavailable
+	}
+	return r.integrationSessions.acceptDiagnostic(ctx, input)
 }
 
 // ExportIntegrationBundle is the resolver for the exportIntegrationBundle field.
 func (r *mutationResolver) ExportIntegrationBundle(ctx context.Context, input model.ExportIntegrationBundleInput) (*model.IntegrationBundle, error) {
-	if !r.legacyUnsafeExecution {
+	if !r.legacyUnsafeExecution && !r.durableSessionWorkspace {
 		return nil, ErrLegacyExecutionUnavailable
 	}
 	return r.integrationSessions.exportBundle(input)
@@ -2231,37 +2246,58 @@ func (r *queryResolver) ParsePreview(ctx context.Context, format model.SourceFor
 
 // IntegrationSession is the resolver for the integrationSession field.
 func (r *queryResolver) IntegrationSession(ctx context.Context, id string) (*model.IntegrationSession, error) {
+	if !r.sessionWorkspaceEnabled() {
+		return nil, ErrLegacyExecutionUnavailable
+	}
 	return r.integrationSessions.getSession(id)
 }
 
 // IntegrationSessions is the resolver for the integrationSessions field.
 func (r *queryResolver) IntegrationSessions(ctx context.Context, includeArchived *bool) ([]model.IntegrationSession, error) {
+	if !r.sessionWorkspaceEnabled() {
+		return nil, ErrLegacyExecutionUnavailable
+	}
 	archived := includeArchived != nil && *includeArchived
 	return r.integrationSessions.listSessions(archived)
 }
 
 // SessionSamples is the resolver for the sessionSamples field.
 func (r *queryResolver) SessionSamples(ctx context.Context, sessionID string) ([]model.SessionSample, error) {
+	if !r.sessionWorkspaceEnabled() {
+		return nil, ErrLegacyExecutionUnavailable
+	}
 	return r.integrationSessions.listSamples(sessionID)
 }
 
 // SessionArtifacts is the resolver for the sessionArtifacts field.
 func (r *queryResolver) SessionArtifacts(ctx context.Context, sessionID string) ([]model.SessionArtifact, error) {
+	if !r.sessionWorkspaceEnabled() {
+		return nil, ErrLegacyExecutionUnavailable
+	}
 	return r.integrationSessions.listArtifacts(sessionID)
 }
 
 // SessionRuns is the resolver for the sessionRuns field.
 func (r *queryResolver) SessionRuns(ctx context.Context, sessionID string) ([]model.SessionRun, error) {
+	if !r.sessionWorkspaceEnabled() {
+		return nil, ErrLegacyExecutionUnavailable
+	}
 	return r.integrationSessions.listRuns(sessionID)
 }
 
 // SessionRun is the resolver for the sessionRun field.
 func (r *queryResolver) SessionRun(ctx context.Context, id string) (*model.SessionRun, error) {
+	if !r.sessionWorkspaceEnabled() {
+		return nil, ErrLegacyExecutionUnavailable
+	}
 	return r.integrationSessions.getRun(id)
 }
 
 // SessionDiagnostics is the resolver for the sessionDiagnostics field.
 func (r *queryResolver) SessionDiagnostics(ctx context.Context, sessionID string, runID *string) ([]model.SessionDiagnostic, error) {
+	if !r.sessionWorkspaceEnabled() {
+		return nil, ErrLegacyExecutionUnavailable
+	}
 	return r.integrationSessions.listDiagnostics(sessionID, runID)
 }
 

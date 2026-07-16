@@ -220,6 +220,31 @@ func TestLoadMLLPRuntimeFromEnvFailsClosedBeforeDatabase(t *testing.T) {
 	}
 }
 
+func TestLoadSessionRetentionProtector(t *testing.T) {
+	t.Setenv("FI_FHIR_INTEGRATION_SESSION_RETENTION_KEY_FILE", "")
+	protector, err := loadSessionRetentionProtector()
+	if err != nil || protector != nil {
+		t.Fatalf("disabled protector = %#v, %v", protector, err)
+	}
+
+	keyPath := filepath.Join(t.TempDir(), "session-retention.key")
+	if err := os.WriteFile(keyPath, []byte("0123456789abcdef0123456789abcdef"), 0o600); err != nil {
+		t.Fatalf("write retention key: %v", err)
+	}
+	t.Setenv("FI_FHIR_INTEGRATION_SESSION_RETENTION_KEY_FILE", keyPath)
+	protector, err = loadSessionRetentionProtector()
+	if err != nil || protector == nil {
+		t.Fatalf("configured protector = %#v, %v", protector, err)
+	}
+
+	if err := os.WriteFile(keyPath, []byte("too-short"), 0o600); err != nil {
+		t.Fatalf("rewrite retention key: %v", err)
+	}
+	if _, err := loadSessionRetentionProtector(); err == nil || !strings.Contains(err.Error(), "exactly 32 bytes") {
+		t.Fatalf("short retention key error = %v", err)
+	}
+}
+
 func configurePreviewRuntimeForTest(t *testing.T) {
 	t.Helper()
 	t.Setenv("FI_FHIR_DEPLOYMENT_TENANT_ID", "tenant-a")

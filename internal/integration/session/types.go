@@ -99,14 +99,16 @@ type AddSampleRequest struct {
 }
 
 type ArtifactDraft struct {
-	ID        string          `json:"id"`
-	SessionID string          `json:"session_id"`
-	Kind      ArtifactKind    `json:"kind"`
-	Name      string          `json:"name"`
-	Content   json.RawMessage `json:"content"`
-	Version   int             `json:"version"`
-	CreatedAt time.Time       `json:"created_at"`
-	UpdatedAt time.Time       `json:"updated_at"`
+	ID         string          `json:"id"`
+	RevisionID string          `json:"revision_id"`
+	SessionID  string          `json:"session_id"`
+	Kind       ArtifactKind    `json:"kind"`
+	Name       string          `json:"name"`
+	Content    json.RawMessage `json:"content"`
+	Version    int             `json:"version"`
+	Digest     string          `json:"digest"`
+	CreatedAt  time.Time       `json:"created_at"`
+	UpdatedAt  time.Time       `json:"updated_at"`
 }
 
 type SaveArtifactDraftRequest struct {
@@ -117,21 +119,23 @@ type SaveArtifactDraftRequest struct {
 }
 
 type Run struct {
-	ID          string        `json:"id"`
-	SessionID   string        `json:"session_id"`
-	SampleID    string        `json:"sample_id"`
-	Status      RunStatus     `json:"status"`
-	Source      string        `json:"source,omitempty"`
-	ProfileID   string        `json:"profile_id,omitempty"`
-	Stages      []RunStage    `json:"stages,omitempty"`
-	Diagnostics []Diagnostic  `json:"diagnostics,omitempty"`
-	Lineage     []LineageLink `json:"lineage,omitempty"`
-	Events      []ParsedEvent `json:"events,omitempty"`
-	Error       string        `json:"error,omitempty"`
-	StartedAt   *time.Time    `json:"started_at,omitempty"`
-	FinishedAt  *time.Time    `json:"finished_at,omitempty"`
-	CreatedAt   time.Time     `json:"created_at"`
-	UpdatedAt   time.Time     `json:"updated_at"`
+	ID                    string        `json:"id"`
+	SessionID             string        `json:"session_id"`
+	SampleID              string        `json:"sample_id"`
+	Status                RunStatus     `json:"status"`
+	Source                string        `json:"source,omitempty"`
+	ProfileID             string        `json:"profile_id,omitempty"`
+	ProfileRevisionID     string        `json:"profile_revision_id,omitempty"`
+	ProfileRevisionDigest string        `json:"profile_revision_digest,omitempty"`
+	Stages                []RunStage    `json:"stages,omitempty"`
+	Diagnostics           []Diagnostic  `json:"diagnostics,omitempty"`
+	Lineage               []LineageLink `json:"lineage,omitempty"`
+	Events                []ParsedEvent `json:"events,omitempty"`
+	Error                 string        `json:"error,omitempty"`
+	StartedAt             *time.Time    `json:"started_at,omitempty"`
+	FinishedAt            *time.Time    `json:"finished_at,omitempty"`
+	CreatedAt             time.Time     `json:"created_at"`
+	UpdatedAt             time.Time     `json:"updated_at"`
 }
 
 type RunStage struct {
@@ -170,15 +174,37 @@ type LineageLink struct {
 }
 
 type ExportBundle struct {
+	ID         string          `json:"id"`
 	Session    Session         `json:"session"`
 	Samples    []Sample        `json:"samples,omitempty"`
 	Drafts     []ArtifactDraft `json:"drafts,omitempty"`
 	Runs       []Run           `json:"runs,omitempty"`
+	Decisions  []Decision      `json:"decisions,omitempty"`
 	ExportedAt time.Time       `json:"exported_at"`
 }
 
 type RunRequest struct {
-	SessionID string
-	SampleID  string
-	Source    string
+	SessionID         string
+	SampleID          string
+	Source            string
+	ProfileRevisionID string
+}
+
+// Decision records one accepted diagnostic outcome without mutating the run.
+type Decision struct {
+	ID           string    `json:"id"`
+	SessionID    string    `json:"session_id"`
+	RunID        string    `json:"run_id"`
+	DiagnosticID string    `json:"diagnostic_id"`
+	AcceptedBy   string    `json:"accepted_by"`
+	Reason       string    `json:"reason,omitempty"`
+	AcceptedAt   time.Time `json:"accepted_at"`
+}
+
+type AcceptDecisionRequest struct {
+	SessionID    string
+	RunID        string
+	DiagnosticID string
+	AcceptedBy   string
+	Reason       string
 }

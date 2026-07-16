@@ -9,7 +9,7 @@
 | -------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Production** | 22    | Stable, tested, deployed                                                                                                                                            |
 | **Beta**       | 9     | Feature-complete, needs coverage or hardening                                                                                                                       |
-| **Alpha**      | 4     | Functional but limited testing or scope                                                                                                                             |
+| **Alpha**      | 5     | Functional but limited testing or scope                                                                                                                             |
 | **Planned**    | 2     | Designed but not yet implemented (tracked via [#7](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/7), [#8](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/8)) |
 
 ---
@@ -60,6 +60,7 @@
 | HL7v2 HTTP Ingress    | `internal/integration/ingress/`   | Alpha      | —        | Bearer/HMAC, bounded body, durable response; GitOps activation pending | 2026-07-14 |
 | Delivery Reliability  | `internal/integration/delivery/`  | Alpha      | —        | PostgreSQL leases/retry/circuit/DLQ/recovery plus real Kafka publisher | 2026-07-15 |
 | Batch Ingestion       | `internal/integration/batch/`     | Alpha      | —        | S3/SFTP streaming, PostgreSQL checkpoint/resume, verified archive | 2026-07-16 |
+| Integration Sessions  | `internal/integration/session/`   | Alpha      | —        | PostgreSQL restart-safe workspace, immutable revisions/runs, redacted samples | 2026-07-16 |
 | GraphQL API           | `internal/api/graphql/`           | Beta       | 9.5%\*   | Preview role: health/preview; legacy + WS disabled | 2026-07-13 |
 | FHIR Subscriptions    | `internal/fhir/subscription/`     | Production | 83.7%    | Bidirectional; client + webhook receiver         | 2026-02-27   |
 | Terminology Autoroute | `internal/terminology/autoroute/` | Beta       | 88.5%    | Automatic code-system routing engine             | 2026-03-09   |

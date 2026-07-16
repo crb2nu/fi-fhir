@@ -73,6 +73,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Slice 2.4 evidence: MR `!108` pipeline `19331` passed 35/35, required batch job
   `186259` passed, merge commit `ed32915f` repeated the change on main, and main
   pipeline `19344` passed 38/38 with independent batch job `186476`
+- Opt-in PostgreSQL Integration Session workspace with stable create/list/reopen/
+  archive routes, redacted samples by default, AES-256-GCM explicit retention,
+  append-only artifact revisions, immutable terminal runs, durable accepted
+  decisions/exports, and exact profile revision/digest preview provenance
+- Required PostgreSQL 16 restart gate that reconstructs the workspace service,
+  compares strict/tolerant profile outcomes, and proves no raw-PHI sentinel is
+  persisted in session records
 - Blocking PostgreSQL 16/TCP MLLP gate covering pre-commit ACK exclusion,
   concurrent pause serialization, 32 reconnecting duplicates, resume,
   retirement, restart, durable cardinality, and raw-message leakage

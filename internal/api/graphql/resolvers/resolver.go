@@ -16,6 +16,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/store"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/fhir/subscription"
 	integrationpreview "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/preview"
+	enginesession "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/session"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/explain"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/extract"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/quality"
@@ -134,7 +135,8 @@ type Resolver struct {
 	workflowSubMu       sync.RWMutex
 
 	// Integration sessions back the Mapping Studio session workspace.
-	integrationSessions *integrationSessionService
+	integrationSessions     *integrationSessionService
+	durableSessionWorkspace bool
 
 	// IntegrationPreview evaluates stateless previews through MessageProcessor.
 	IntegrationPreview IntegrationPreviewService
@@ -230,6 +232,21 @@ func WithPreviewService(service IntegrationPreviewService) ResolverOption {
 	return func(r *Resolver) {
 		r.IntegrationPreview = service
 	}
+}
+
+// WithIntegrationSessionStore enables the restart-safe session workspace.
+func WithIntegrationSessionStore(sessionStore enginesession.Store) ResolverOption {
+	return func(r *Resolver) {
+		if sessionStore == nil {
+			return
+		}
+		r.integrationSessions = newIntegrationSessionServiceWithStore(sessionStore)
+		r.durableSessionWorkspace = true
+	}
+}
+
+func (r *Resolver) sessionWorkspaceEnabled() bool {
+	return r != nil && (r.legacyUnsafeExecution || r.durableSessionWorkspace)
 }
 
 // WithWarningExplainer sets the LLM-powered warning explainer.

@@ -22,9 +22,9 @@ The remaining work is product assembly and operational truth:
   production GitOps deployment; when enabled, one shared processor composes
   exact revision resolution, parsing, durable acceptance/idempotency, route
   planning, lineage, and transactional outbox admission behind PostgreSQL;
-- durable Integration Sessions remain an in-memory, HL7-only prototype, while
-  the current IDE preview now uses the same stateless, exact-revision kernel as
-  GraphQL;
+- the restart-safe PostgreSQL Integration Session workspace now persists
+  redacted samples, immutable profile revisions/runs, decisions, and exports;
+  live streaming, workflow simulation, and publish/deploy remain Phase 3 work;
 - a PostgreSQL-backed versioned deployment lifecycle now authorizes the optional
   production MLLP listener; profile/workflow bytes remain in the immutable
   startup registry and S3/SFTP discovery is not runtime-wired;
@@ -119,11 +119,11 @@ must not enter the clinical data plane before the engine spine is proven.
 
 ## Next
 
-- [ ] Phase 3 Slice 3.1 restart-safe Integration Session Workspace.
+- [ ] Phase 3 Slice 3.1 restart-safe Integration Session Workspace — implementation
+  complete locally; required PostgreSQL restart proof and merge evidence pending.
 
 ## Then
 
-- [ ] Restart-safe Integration Session workspace with exact artifact revisions.
 - [ ] Live stage/diagnostic/lineage UI and workflow simulation against session data.
 - [ ] Reviewable bundle publication and promotion of the exact tested revisions.
 - [ ] Real operator message/trace browser, deployment controls, and DLQ tooling.

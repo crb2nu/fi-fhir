@@ -950,13 +950,16 @@ type ComplexityRoot struct {
 	}
 
 	SessionArtifact struct {
-		Content   func(childComplexity int) int
-		CreatedAt func(childComplexity int) int
-		ID        func(childComplexity int) int
-		Kind      func(childComplexity int) int
-		Name      func(childComplexity int) int
-		SessionID func(childComplexity int) int
-		UpdatedAt func(childComplexity int) int
+		Content    func(childComplexity int) int
+		CreatedAt  func(childComplexity int) int
+		Digest     func(childComplexity int) int
+		ID         func(childComplexity int) int
+		Kind       func(childComplexity int) int
+		Name       func(childComplexity int) int
+		RevisionID func(childComplexity int) int
+		SessionID  func(childComplexity int) int
+		UpdatedAt  func(childComplexity int) int
+		Version    func(childComplexity int) int
 	}
 
 	SessionDiagnostic struct {
@@ -975,16 +978,18 @@ type ComplexityRoot struct {
 	}
 
 	SessionRun struct {
-		CompletedAt func(childComplexity int) int
-		CreatedAt   func(childComplexity int) int
-		Diagnostics func(childComplexity int) int
-		Events      func(childComplexity int) int
-		ID          func(childComplexity int) int
-		SampleID    func(childComplexity int) int
-		SessionID   func(childComplexity int) int
-		Stages      func(childComplexity int) int
-		Status      func(childComplexity int) int
-		Warnings    func(childComplexity int) int
+		CompletedAt           func(childComplexity int) int
+		CreatedAt             func(childComplexity int) int
+		Diagnostics           func(childComplexity int) int
+		Events                func(childComplexity int) int
+		ID                    func(childComplexity int) int
+		ProfileRevisionDigest func(childComplexity int) int
+		ProfileRevisionID     func(childComplexity int) int
+		SampleID              func(childComplexity int) int
+		SessionID             func(childComplexity int) int
+		Stages                func(childComplexity int) int
+		Status                func(childComplexity int) int
+		Warnings              func(childComplexity int) int
 	}
 
 	SessionSample struct {
@@ -5761,6 +5766,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.SessionArtifact.CreatedAt(childComplexity), true
+	case "SessionArtifact.digest":
+		if e.complexity.SessionArtifact.Digest == nil {
+			break
+		}
+
+		return e.complexity.SessionArtifact.Digest(childComplexity), true
 	case "SessionArtifact.id":
 		if e.complexity.SessionArtifact.ID == nil {
 			break
@@ -5779,6 +5790,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.SessionArtifact.Name(childComplexity), true
+	case "SessionArtifact.revisionId":
+		if e.complexity.SessionArtifact.RevisionID == nil {
+			break
+		}
+
+		return e.complexity.SessionArtifact.RevisionID(childComplexity), true
 	case "SessionArtifact.sessionId":
 		if e.complexity.SessionArtifact.SessionID == nil {
 			break
@@ -5791,6 +5808,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.SessionArtifact.UpdatedAt(childComplexity), true
+	case "SessionArtifact.version":
+		if e.complexity.SessionArtifact.Version == nil {
+			break
+		}
+
+		return e.complexity.SessionArtifact.Version(childComplexity), true
 
 	case "SessionDiagnostic.accepted":
 		if e.complexity.SessionDiagnostic.Accepted == nil {
@@ -5895,6 +5918,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.SessionRun.ID(childComplexity), true
+	case "SessionRun.profileRevisionDigest":
+		if e.complexity.SessionRun.ProfileRevisionDigest == nil {
+			break
+		}
+
+		return e.complexity.SessionRun.ProfileRevisionDigest(childComplexity), true
+	case "SessionRun.profileRevisionId":
+		if e.complexity.SessionRun.ProfileRevisionID == nil {
+			break
+		}
+
+		return e.complexity.SessionRun.ProfileRevisionID(childComplexity), true
 	case "SessionRun.sampleId":
 		if e.complexity.SessionRun.SampleID == nil {
 			break
@@ -16685,6 +16720,8 @@ func (ec *executionContext) fieldContext_IntegrationBundle_artifacts(_ context.C
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_SessionArtifact_id(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_SessionArtifact_revisionId(ctx, field)
 			case "sessionId":
 				return ec.fieldContext_SessionArtifact_sessionId(ctx, field)
 			case "kind":
@@ -16693,6 +16730,10 @@ func (ec *executionContext) fieldContext_IntegrationBundle_artifacts(_ context.C
 				return ec.fieldContext_SessionArtifact_name(ctx, field)
 			case "content":
 				return ec.fieldContext_SessionArtifact_content(ctx, field)
+			case "version":
+				return ec.fieldContext_SessionArtifact_version(ctx, field)
+			case "digest":
+				return ec.fieldContext_SessionArtifact_digest(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_SessionArtifact_createdAt(ctx, field)
 			case "updatedAt":
@@ -16736,6 +16777,10 @@ func (ec *executionContext) fieldContext_IntegrationBundle_runs(_ context.Contex
 				return ec.fieldContext_SessionRun_sampleId(ctx, field)
 			case "status":
 				return ec.fieldContext_SessionRun_status(ctx, field)
+			case "profileRevisionId":
+				return ec.fieldContext_SessionRun_profileRevisionId(ctx, field)
+			case "profileRevisionDigest":
+				return ec.fieldContext_SessionRun_profileRevisionDigest(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_SessionRun_createdAt(ctx, field)
 			case "completedAt":
@@ -18730,6 +18775,8 @@ func (ec *executionContext) fieldContext_IntegrationSession_artifacts(_ context.
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_SessionArtifact_id(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_SessionArtifact_revisionId(ctx, field)
 			case "sessionId":
 				return ec.fieldContext_SessionArtifact_sessionId(ctx, field)
 			case "kind":
@@ -18738,6 +18785,10 @@ func (ec *executionContext) fieldContext_IntegrationSession_artifacts(_ context.
 				return ec.fieldContext_SessionArtifact_name(ctx, field)
 			case "content":
 				return ec.fieldContext_SessionArtifact_content(ctx, field)
+			case "version":
+				return ec.fieldContext_SessionArtifact_version(ctx, field)
+			case "digest":
+				return ec.fieldContext_SessionArtifact_digest(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_SessionArtifact_createdAt(ctx, field)
 			case "updatedAt":
@@ -18781,6 +18832,10 @@ func (ec *executionContext) fieldContext_IntegrationSession_runs(_ context.Conte
 				return ec.fieldContext_SessionRun_sampleId(ctx, field)
 			case "status":
 				return ec.fieldContext_SessionRun_status(ctx, field)
+			case "profileRevisionId":
+				return ec.fieldContext_SessionRun_profileRevisionId(ctx, field)
+			case "profileRevisionDigest":
+				return ec.fieldContext_SessionRun_profileRevisionDigest(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_SessionRun_createdAt(ctx, field)
 			case "completedAt":
@@ -18881,6 +18936,8 @@ func (ec *executionContext) fieldContext_IntegrationSession_currentProfileDraft(
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_SessionArtifact_id(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_SessionArtifact_revisionId(ctx, field)
 			case "sessionId":
 				return ec.fieldContext_SessionArtifact_sessionId(ctx, field)
 			case "kind":
@@ -18889,6 +18946,10 @@ func (ec *executionContext) fieldContext_IntegrationSession_currentProfileDraft(
 				return ec.fieldContext_SessionArtifact_name(ctx, field)
 			case "content":
 				return ec.fieldContext_SessionArtifact_content(ctx, field)
+			case "version":
+				return ec.fieldContext_SessionArtifact_version(ctx, field)
+			case "digest":
+				return ec.fieldContext_SessionArtifact_digest(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_SessionArtifact_createdAt(ctx, field)
 			case "updatedAt":
@@ -18926,6 +18987,8 @@ func (ec *executionContext) fieldContext_IntegrationSession_currentWorkflowDraft
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_SessionArtifact_id(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_SessionArtifact_revisionId(ctx, field)
 			case "sessionId":
 				return ec.fieldContext_SessionArtifact_sessionId(ctx, field)
 			case "kind":
@@ -18934,6 +18997,10 @@ func (ec *executionContext) fieldContext_IntegrationSession_currentWorkflowDraft
 				return ec.fieldContext_SessionArtifact_name(ctx, field)
 			case "content":
 				return ec.fieldContext_SessionArtifact_content(ctx, field)
+			case "version":
+				return ec.fieldContext_SessionArtifact_version(ctx, field)
+			case "digest":
+				return ec.fieldContext_SessionArtifact_digest(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_SessionArtifact_createdAt(ctx, field)
 			case "updatedAt":
@@ -19206,6 +19273,10 @@ func (ec *executionContext) fieldContext_IntegrationSessionEvent_run(_ context.C
 				return ec.fieldContext_SessionRun_sampleId(ctx, field)
 			case "status":
 				return ec.fieldContext_SessionRun_status(ctx, field)
+			case "profileRevisionId":
+				return ec.fieldContext_SessionRun_profileRevisionId(ctx, field)
+			case "profileRevisionDigest":
+				return ec.fieldContext_SessionRun_profileRevisionDigest(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_SessionRun_createdAt(ctx, field)
 			case "completedAt":
@@ -22049,6 +22120,8 @@ func (ec *executionContext) fieldContext_Mutation_updateSessionProfileDraft(ctx 
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_SessionArtifact_id(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_SessionArtifact_revisionId(ctx, field)
 			case "sessionId":
 				return ec.fieldContext_SessionArtifact_sessionId(ctx, field)
 			case "kind":
@@ -22057,6 +22130,10 @@ func (ec *executionContext) fieldContext_Mutation_updateSessionProfileDraft(ctx 
 				return ec.fieldContext_SessionArtifact_name(ctx, field)
 			case "content":
 				return ec.fieldContext_SessionArtifact_content(ctx, field)
+			case "version":
+				return ec.fieldContext_SessionArtifact_version(ctx, field)
+			case "digest":
+				return ec.fieldContext_SessionArtifact_digest(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_SessionArtifact_createdAt(ctx, field)
 			case "updatedAt":
@@ -22106,6 +22183,8 @@ func (ec *executionContext) fieldContext_Mutation_updateSessionWorkflowDraft(ctx
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_SessionArtifact_id(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_SessionArtifact_revisionId(ctx, field)
 			case "sessionId":
 				return ec.fieldContext_SessionArtifact_sessionId(ctx, field)
 			case "kind":
@@ -22114,6 +22193,10 @@ func (ec *executionContext) fieldContext_Mutation_updateSessionWorkflowDraft(ctx
 				return ec.fieldContext_SessionArtifact_name(ctx, field)
 			case "content":
 				return ec.fieldContext_SessionArtifact_content(ctx, field)
+			case "version":
+				return ec.fieldContext_SessionArtifact_version(ctx, field)
+			case "digest":
+				return ec.fieldContext_SessionArtifact_digest(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_SessionArtifact_createdAt(ctx, field)
 			case "updatedAt":
@@ -22169,6 +22252,10 @@ func (ec *executionContext) fieldContext_Mutation_runSessionPreview(ctx context.
 				return ec.fieldContext_SessionRun_sampleId(ctx, field)
 			case "status":
 				return ec.fieldContext_SessionRun_status(ctx, field)
+			case "profileRevisionId":
+				return ec.fieldContext_SessionRun_profileRevisionId(ctx, field)
+			case "profileRevisionDigest":
+				return ec.fieldContext_SessionRun_profileRevisionDigest(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_SessionRun_createdAt(ctx, field)
 			case "completedAt":
@@ -28505,6 +28592,8 @@ func (ec *executionContext) fieldContext_Query_sessionArtifacts(ctx context.Cont
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_SessionArtifact_id(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_SessionArtifact_revisionId(ctx, field)
 			case "sessionId":
 				return ec.fieldContext_SessionArtifact_sessionId(ctx, field)
 			case "kind":
@@ -28513,6 +28602,10 @@ func (ec *executionContext) fieldContext_Query_sessionArtifacts(ctx context.Cont
 				return ec.fieldContext_SessionArtifact_name(ctx, field)
 			case "content":
 				return ec.fieldContext_SessionArtifact_content(ctx, field)
+			case "version":
+				return ec.fieldContext_SessionArtifact_version(ctx, field)
+			case "digest":
+				return ec.fieldContext_SessionArtifact_digest(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_SessionArtifact_createdAt(ctx, field)
 			case "updatedAt":
@@ -28568,6 +28661,10 @@ func (ec *executionContext) fieldContext_Query_sessionRuns(ctx context.Context, 
 				return ec.fieldContext_SessionRun_sampleId(ctx, field)
 			case "status":
 				return ec.fieldContext_SessionRun_status(ctx, field)
+			case "profileRevisionId":
+				return ec.fieldContext_SessionRun_profileRevisionId(ctx, field)
+			case "profileRevisionDigest":
+				return ec.fieldContext_SessionRun_profileRevisionDigest(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_SessionRun_createdAt(ctx, field)
 			case "completedAt":
@@ -28631,6 +28728,10 @@ func (ec *executionContext) fieldContext_Query_sessionRun(ctx context.Context, f
 				return ec.fieldContext_SessionRun_sampleId(ctx, field)
 			case "status":
 				return ec.fieldContext_SessionRun_status(ctx, field)
+			case "profileRevisionId":
+				return ec.fieldContext_SessionRun_profileRevisionId(ctx, field)
+			case "profileRevisionDigest":
+				return ec.fieldContext_SessionRun_profileRevisionDigest(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_SessionRun_createdAt(ctx, field)
 			case "completedAt":
@@ -31229,6 +31330,35 @@ func (ec *executionContext) fieldContext_SessionArtifact_id(_ context.Context, f
 	return fc, nil
 }
 
+func (ec *executionContext) _SessionArtifact_revisionId(ctx context.Context, field graphql.CollectedField, obj *model.SessionArtifact) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionArtifact_revisionId,
+		func(ctx context.Context) (any, error) {
+			return obj.RevisionID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionArtifact_revisionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionArtifact",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _SessionArtifact_sessionId(ctx context.Context, field graphql.CollectedField, obj *model.SessionArtifact) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -31333,6 +31463,64 @@ func (ec *executionContext) _SessionArtifact_content(ctx context.Context, field 
 }
 
 func (ec *executionContext) fieldContext_SessionArtifact_content(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionArtifact",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionArtifact_version(ctx context.Context, field graphql.CollectedField, obj *model.SessionArtifact) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionArtifact_version,
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionArtifact_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionArtifact",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionArtifact_digest(ctx context.Context, field graphql.CollectedField, obj *model.SessionArtifact) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionArtifact_digest,
+		func(ctx context.Context) (any, error) {
+			return obj.Digest, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionArtifact_digest(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "SessionArtifact",
 		Field:      field,
@@ -31863,6 +32051,64 @@ func (ec *executionContext) _SessionRun_status(ctx context.Context, field graphq
 }
 
 func (ec *executionContext) fieldContext_SessionRun_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionRun",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionRun_profileRevisionId(ctx context.Context, field graphql.CollectedField, obj *model.SessionRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionRun_profileRevisionId,
+		func(ctx context.Context) (any, error) {
+			return obj.ProfileRevisionID, nil
+		},
+		nil,
+		ec.marshalOID2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionRun_profileRevisionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionRun",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionRun_profileRevisionDigest(ctx context.Context, field graphql.CollectedField, obj *model.SessionRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionRun_profileRevisionDigest,
+		func(ctx context.Context) (any, error) {
+			return obj.ProfileRevisionDigest, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionRun_profileRevisionDigest(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "SessionRun",
 		Field:      field,
@@ -49552,6 +49798,11 @@ func (ec *executionContext) _SessionArtifact(ctx context.Context, sel ast.Select
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "revisionId":
+			out.Values[i] = ec._SessionArtifact_revisionId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "sessionId":
 			out.Values[i] = ec._SessionArtifact_sessionId(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -49569,6 +49820,16 @@ func (ec *executionContext) _SessionArtifact(ctx context.Context, sel ast.Select
 			}
 		case "content":
 			out.Values[i] = ec._SessionArtifact_content(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "version":
+			out.Values[i] = ec._SessionArtifact_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "digest":
+			out.Values[i] = ec._SessionArtifact_digest(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -49712,6 +49973,10 @@ func (ec *executionContext) _SessionRun(ctx context.Context, sel ast.SelectionSe
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "profileRevisionId":
+			out.Values[i] = ec._SessionRun_profileRevisionId(ctx, field, obj)
+		case "profileRevisionDigest":
+			out.Values[i] = ec._SessionRun_profileRevisionDigest(ctx, field, obj)
 		case "createdAt":
 			out.Values[i] = ec._SessionRun_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
