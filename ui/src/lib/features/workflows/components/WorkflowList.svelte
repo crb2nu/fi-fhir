@@ -416,7 +416,7 @@
     <EmptyState
       icon="inbox"
       title="No managed workflows found"
-      description="Switch to Builder and create a managed definition to start versioning and publishing."
+      description="Create a managed definition in Builder to version and publish."
     />
   {:else}
     <div class="workflow-list cards">

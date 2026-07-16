@@ -363,7 +363,7 @@
       <EmptyState
         icon="search"
         title="No candidates found"
-        description="Try providing a more descriptive source display name to improve match quality."
+        description="Add a more descriptive source name to improve matches."
         compact
       />
     </Panel>

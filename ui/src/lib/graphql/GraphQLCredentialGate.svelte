@@ -97,11 +97,11 @@
   <div class="access-strip" role="status" aria-live="polite">
     <span class="status-dot" aria-hidden="true"></span>
     <div class="access-copy">
-      <strong>{networkAccess ? 'Trusted network access active' : 'Authenticated preview access active'}</strong>
+      <strong>{networkAccess ? 'Trusted network access active' : 'Preview access active'}</strong>
       <span>
         {networkAccess
-          ? 'This browser is connected from the deployment trusted network.'
-          : "Credential held only in this tab's memory. Reloading clears it."}
+          ? 'Connected from the deployment trusted network.'
+          : 'Held in memory only — cleared on reload.'}
       </span>
     </div>
     {#if !networkAccess}
@@ -111,16 +111,12 @@
 {:else}
   <main class="gate-shell" aria-labelledby="credential-gate-title">
     <section class="gate-card">
-      <div class="eyebrow">Transitional operator access</div>
-      <h1 id="credential-gate-title">Unlock the integration IDE</h1>
-      <p class="intro">
-        Enter the deployment bearer credential to use authenticated, stateless previews. The
-        credential is held only in this tab's JavaScript memory.
-      </p>
+      <div class="eyebrow">Operator access</div>
+      <h1 id="credential-gate-title">Enter access token</h1>
+      <p class="intro">Paste the deployment bearer token to continue.</p>
 
       <div class="privacy-note" id="credential-storage-note">
-        It is never written to localStorage or sessionStorage, and it is not compiled into the UI.
-        Reloading this page clears access.
+        Held in this tab's memory only — never stored. Reloading clears access.
       </div>
 
       <form on:submit|preventDefault={installCredential} aria-label="Install preview credential">
@@ -141,14 +137,9 @@
           <p class="error" id="credential-error" role="alert">{error}</p>
         {/if}
         <button class="install-button" type="submit" disabled={busy || !accessToken.trim()}>
-          {busy ? 'Installing access…' : 'Open authenticated IDE'}
+          {busy ? 'Verifying…' : 'Continue'}
         </button>
       </form>
-
-      <p class="footnote">
-        This gate supports the current single-tenant preview phase. Federated sign-in and durable
-        user sessions belong to the identity phase.
-      </p>
     </section>
   </main>
 {/if}
@@ -281,13 +272,6 @@
   .clear-button:focus-visible {
     outline: none;
     box-shadow: var(--shadow-focus);
-  }
-
-  .footnote {
-    margin: var(--space-5) 0 0;
-    color: var(--color-text-muted);
-    font-size: var(--text-xs);
-    line-height: var(--leading-relaxed);
   }
 
   .access-strip {

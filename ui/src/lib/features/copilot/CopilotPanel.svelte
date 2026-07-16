@@ -383,9 +383,7 @@
           </svg>
         </div>
         <h3 class="disconnected-title">Platform connection required</h3>
-        <p class="disconnected-text">
-          Connect to the platform to use the Copilot assistant for healthcare integration tasks.
-        </p>
+        <p class="disconnected-text">Connect to the platform to use the Copilot.</p>
       </div>
     </div>
   {/if}

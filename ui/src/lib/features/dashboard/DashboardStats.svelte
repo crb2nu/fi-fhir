@@ -54,7 +54,7 @@
 <div class="telemetry">
   <div class="intro">
     <div class="intro-label">Operator signals</div>
-    <p>Track throughput, shape, and review pressure at a glance while you move through the workspace.</p>
+    <p>Throughput, shape, and review pressure at a glance.</p>
   </div>
 
   <div class="stats" class:loading>
