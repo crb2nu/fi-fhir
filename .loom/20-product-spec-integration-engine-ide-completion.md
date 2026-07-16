@@ -175,8 +175,9 @@ resume with deterministic admission identity. SFTP requires pinned host keys;
 both providers verify a digest-addressed archive before deletion. S3 addresses
 the exact version ID; SFTP requires immutable atomic publication and repeats the
 content digest immediately before removal.
-Local PostgreSQL/MinIO/SFTP kill-and-resume proof passes; required CI and merge
-evidence are pending.
+MR `!108` pipeline `19331` passed all 35 jobs, including required PostgreSQL 16/
+MinIO/SSH-SFTP job `186259`, and merged as `ed32915f`. Main pipeline `19344`
+passed all 38 jobs and independently repeated the proof in job `186476`.
 HTTP catalog migration, GitOps exposure, and IDE
 lifecycle controls remain open, so the secure data plane is not yet complete.
 

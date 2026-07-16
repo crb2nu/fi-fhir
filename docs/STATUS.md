@@ -115,6 +115,15 @@ MR `!106` pipeline `19226` passed 34/34 with required job `185433` and merged
 as `ca968fbf`. Main pipeline `19235` passed 37/37 and independently repeated the
 PostgreSQL 16/Kafka proof in job `185505`.
 
+Slice 2.4 adds an optional lifecycle-gated S3/SFTP batch worker with bounded
+concatenated-HL7v2 streaming, release-pinned PostgreSQL leases/checkpoints,
+deterministic admission identity, mandatory S3 versioning/SFTP host-key trust,
+and verified digest-addressed archive-before-delete. MR `!108` pipeline `19331`
+passed 35/35 with required provider recovery job `186259` and merged as
+`ed32915f`. Main pipeline `19344` passed 38/38 and independently repeated the
+PostgreSQL 16/MinIO/SSH-SFTP proof in job `186476`. Production GitOps activation
+remains intentionally pending.
+
 ## Infrastructure
 
 | CLI | `cmd/fi-fhir/` | Production | 83.9% | parse, workflow, config, etl, terminology, eventstore, subscription | 2026-03-24 |

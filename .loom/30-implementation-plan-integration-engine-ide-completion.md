@@ -278,7 +278,7 @@ Implementation status:
   34/34, including PostgreSQL 16/Kafka job `185433`, and merged as `ca968fbf`.
   Main pipeline `19235` passed 37/37 and repeated the proof in job `185505`.
 
-### Slice 2.4: batch sources — implemented locally, CI evidence pending
+### Slice 2.4: batch sources — complete and merged
 
 - Register S3/SFTP providers into runtime configuration.
 - Replace discovery-only completion with streaming parse/checkpoint/resume.
@@ -300,6 +300,10 @@ Implementation status:
   PostgreSQL 16, MinIO, and a real SSH/SFTP server to prove replica exclusion,
   lease reclaim, kill/resume, mutation isolation, secure host keys, archive
   integrity, exact durable cardinality, and raw-PHI exclusion.
+- MR `!108` pipeline `19331` passed 35/35, including required batch job `186259`,
+  and merged as `ed32915f`. Main pipeline `19344` passed 38/38 and repeated the
+  provider recovery proof in job `186476`. Production GitOps activation remains
+  a separate reviewed operation.
 
 ## Phase 3 — Durable IDE lifecycle
 

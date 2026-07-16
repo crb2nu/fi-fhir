@@ -1,6 +1,6 @@
 # Slice Handoff — Phase 2 Slice 2.4 Batch Ingestion
 
-**Status**: Implementation and local kill proof complete; CI/merge reconciliation pending
+**Status**: Complete, merged, verified, and reconciled
 **Date**: 2026-07-16
 **Branch**: `codex/phase2-batch-ingestion`
 
@@ -36,8 +36,13 @@
 - Focused unit/runtime race tests: green.
 - Full `go test ./...`, `go vet ./...`, and scoped golangci-lint: green.
 - PostgreSQL/MinIO/SFTP kill-and-resume test under `-race`: green.
-- Implementation MR, required CI job, merge commit, main pipeline, and evidence
-  MR: pending reconciliation.
+- MR `!108` pipeline `19331` passed 35/35; required batch job `186259` passed.
+- MR `!108` merged as `ed32915f`.
+- Main pipeline `19344` passed 38/38 and independently repeated the proof in
+  batch job `186476`.
+- Evidence MR `!109` reconciles the canonical roadmap/spec/plan/decision/status
+  records with that proof.
+- Production GitOps activation remains intentionally pending.
 
 ## Recommended next slice
 
