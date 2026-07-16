@@ -1,6 +1,7 @@
 <script lang="ts">
   import Panel from '$lib/ui/Panel.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import MermaidDiagram from '$lib/ui/MermaidDiagram.svelte';
   import { workflowDraft } from '../workflowStore';
   import { draftToYaml } from '../workflowYaml';
   import { explainWorkflow } from '../workflowApi';
@@ -11,6 +12,7 @@
   let explanation = '';
   let explainSummary = '';
   let explainWarnings: string[] = [];
+  let explainDiagram = '';
   let explaining = false;
   let copied = false;
 
@@ -21,10 +23,12 @@
     explanation = '';
     explainSummary = '';
     explainWarnings = [];
+    explainDiagram = '';
     try {
       const result = await explainWorkflow(yamlOutput, 'business');
       explainSummary = result.explainWorkflow.summary;
       explainWarnings = result.explainWorkflow.warnings;
+      explainDiagram = result.explainWorkflow.diagram ?? '';
       explanation = result.explainWorkflow.description;
       if (result.explainWorkflow.routeExplanations.length > 0) {
         explanation +=
@@ -90,6 +94,11 @@
               <li>{warning}</li>
             {/each}
           </ul>
+        </div>
+      {/if}
+      {#if explainDiagram.trim()}
+        <div class="explanation-diagram">
+          <MermaidDiagram source={explainDiagram} />
         </div>
       {/if}
     </div>
@@ -165,5 +174,9 @@
     color: var(--color-text-secondary);
     font-size: 0.85rem;
     line-height: 1.5;
+  }
+
+  .explanation-diagram {
+    margin-top: 12px;
   }
 </style>
