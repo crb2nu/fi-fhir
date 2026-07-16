@@ -110,7 +110,9 @@ lifecycle controls and production GitOps activation remain open.
 Slice 2.3 adds a PostgreSQL-leased delivery worker, bounded retry and circuit
 state, durable DLQ, authenticated/idempotent replay and resubmit, and a real
 Kafka producer with stable attempt keys. Local unit/race/full-suite gates pass;
-the required PostgreSQL 16/Kafka pipeline proof is pending before merge.
+MR `!106` pipeline `19226` passed 34/34 with required job `185433` and merged
+as `ca968fbf`. Main pipeline `19235` passed 37/37 and independently repeated the
+PostgreSQL 16/Kafka proof in job `185505`.
 
 ## Infrastructure
 

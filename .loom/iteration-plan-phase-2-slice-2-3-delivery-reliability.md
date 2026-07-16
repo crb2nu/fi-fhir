@@ -143,3 +143,13 @@ universal exactly-once claim and makes the stable attempt ID the Kafka key.
   invariants, Kafka configuration, disconfirming findings, and exact CI evidence.
 - Next-slice candidate: Phase 2 Slice 2.4 runtime-wired S3/SFTP ingestion with
   checkpoint/resume and secure archive semantics.
+
+## Completion Evidence
+
+- MR `!106` merged as `ca968fbf07748cd76c4b01b545e571242d3ef02a`.
+- MR pipeline `19226` passed 34/34; required delivery-reliability job `185433`
+  passed the race-enabled PostgreSQL 16/Kafka failure/replay proof.
+- Main pipeline `19235` passed 37/37; job `185505` independently repeated the
+  delivery-reliability proof on the merge commit.
+- Main gosec attempt `185513` was OOM-killed by the runner; GitLab's unchanged
+  automatic retry `185585` passed. Production GitOps activation remains pending.

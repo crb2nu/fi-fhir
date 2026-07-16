@@ -274,8 +274,9 @@ Implementation status:
 - Optional `serve` wiring fails closed on partial configuration, requires TLS for
   credentials, and shuts down with GraphQL/MLLP. PostgreSQL-authenticated CLI
   replay/resubmit records `current_user`, reason, and operation idempotency key.
-- Unit/race/full-suite gates pass locally. The blocking PostgreSQL 16/Kafka
-  failure/replay job and terminal MR/main evidence remain pending.
+- Unit/race/full-suite gates pass locally. MR `!106` pipeline `19226` passed
+  34/34, including PostgreSQL 16/Kafka job `185433`, and merged as `ca968fbf`.
+  Main pipeline `19235` passed 37/37 and repeated the proof in job `185505`.
 
 ### Slice 2.4: batch sources
 
