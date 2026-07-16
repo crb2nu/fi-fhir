@@ -40,4 +40,8 @@ HL7 inspector.
 
 ## Landing evidence
 
-MR, merge, and canonical-main pipeline evidence are added during landing.
+- MR `!115` pipeline `19464` passed 34/34, including required session job
+  `187950` and benchmark job `187953`.
+- MR `!115` merged as `36f2bb8c`.
+- Main pipeline `19482` passed 37/37 and independently repeated the session
+  proof in job `188135`.

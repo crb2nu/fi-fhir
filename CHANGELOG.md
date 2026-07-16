@@ -89,6 +89,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Mapping Studio live server progression, deduplicated Problems diagnostics,
   and canonical HL7 inspector lineage navigation including repeated OBX fields;
   raw retained samples and persisted lineage value previews stay server-side
+- Slice 3.2 evidence: MR `!115` pipeline `19464` passed 34/34, required session
+  job `187950` and benchmark job `187953` passed, merge commit `36f2bb8c`
+  repeated the change on main, and main pipeline `19482` passed 37/37 with
+  independent session job `188135`
 - Blocking PostgreSQL 16/TCP MLLP gate covering pre-commit ACK exclusion,
   concurrent pause serialization, 32 reconnecting duplicates, resume,
   retirement, restart, durable cardinality, and raw-message leakage

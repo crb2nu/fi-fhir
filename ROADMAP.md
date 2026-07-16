@@ -125,7 +125,10 @@ must not enter the clinical data plane before the engine spine is proven.
   and independently repeated the proof in job `187618`.
 - [x] Phase 3 Slice 3.2 streaming diagnostics and server lineage: feature-gated
   authenticated GraphQL SSE, durable run reconciliation, Problems diagnostics,
-  and canonical inspector lineage. Production GitOps activation remains pending.
+  and canonical inspector lineage. MR `!115` pipeline `19464` passed 34/34,
+  including required session job `187950` and benchmark job `187953`, and merged
+  as `36f2bb8c`. Main pipeline `19482` passed 37/37 and repeated the session
+  proof in job `188135`. Production GitOps activation remains pending.
 
 ## Then
 
