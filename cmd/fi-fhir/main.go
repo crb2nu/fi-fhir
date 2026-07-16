@@ -4906,6 +4906,7 @@ func runServe(args []string) error {
 		Introspection:               introspection,
 		AllowedOrigins:              securePreviewRuntime.allowedOrigins,
 		MaxRequestBodyBytes:         graphqlRequestBodyLimit,
+		IntegrationSessionStreaming: securePreviewRuntime.sessionStore != nil,
 		Authenticator:               securePreviewRuntime.authenticator,
 		TrustedNetworkAuthenticator: securePreviewRuntime.trustedNetwork,
 		HL7IngressPath:              securePreviewRuntime.ingressPath,

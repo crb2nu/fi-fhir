@@ -46,6 +46,16 @@ VITE_FI_FHIR_PREVIEW_INTEGRATION_ID=adt-east VITE_API_ORIGIN=http://localhost:80
 Paste the same bearer into the credential gate. The token and imported raw
 samples stay only in tab memory and are cleared on reload.
 
+To exercise durable session streaming, first enable the PostgreSQL workspace as
+described in `docs/operations/INTEGRATION-SESSIONS.md`. Include
+`graphql:operator` in the API role list, then start the UI with:
+
+```bash
+VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED=true \
+VITE_API_ORIGIN=http://localhost:8081 \
+npm run dev
+```
+
 ## Contract/codegen workflow
 
 ```bash
@@ -112,3 +122,4 @@ The production image bakes build metadata into the UI via build args:
 - `VITE_BUILD_TAG`
 - `VITE_BUILD_TIME`
 - `VITE_FI_FHIR_PREVIEW_INTEGRATION_ID` (a public registry alias, never a credential)
+- `VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED` (defaults to `false`)

@@ -983,6 +983,7 @@ type ComplexityRoot struct {
 		Diagnostics           func(childComplexity int) int
 		Events                func(childComplexity int) int
 		ID                    func(childComplexity int) int
+		Lineage               func(childComplexity int) int
 		ProfileRevisionDigest func(childComplexity int) int
 		ProfileRevisionID     func(childComplexity int) int
 		SampleID              func(childComplexity int) int
@@ -5918,6 +5919,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.SessionRun.ID(childComplexity), true
+	case "SessionRun.lineage":
+		if e.complexity.SessionRun.Lineage == nil {
+			break
+		}
+
+		return e.complexity.SessionRun.Lineage(childComplexity), true
 	case "SessionRun.profileRevisionDigest":
 		if e.complexity.SessionRun.ProfileRevisionDigest == nil {
 			break
@@ -16789,6 +16796,8 @@ func (ec *executionContext) fieldContext_IntegrationBundle_runs(_ context.Contex
 				return ec.fieldContext_SessionRun_stages(ctx, field)
 			case "diagnostics":
 				return ec.fieldContext_SessionRun_diagnostics(ctx, field)
+			case "lineage":
+				return ec.fieldContext_SessionRun_lineage(ctx, field)
 			case "events":
 				return ec.fieldContext_SessionRun_events(ctx, field)
 			case "warnings":
@@ -18844,6 +18853,8 @@ func (ec *executionContext) fieldContext_IntegrationSession_runs(_ context.Conte
 				return ec.fieldContext_SessionRun_stages(ctx, field)
 			case "diagnostics":
 				return ec.fieldContext_SessionRun_diagnostics(ctx, field)
+			case "lineage":
+				return ec.fieldContext_SessionRun_lineage(ctx, field)
 			case "events":
 				return ec.fieldContext_SessionRun_events(ctx, field)
 			case "warnings":
@@ -19285,6 +19296,8 @@ func (ec *executionContext) fieldContext_IntegrationSessionEvent_run(_ context.C
 				return ec.fieldContext_SessionRun_stages(ctx, field)
 			case "diagnostics":
 				return ec.fieldContext_SessionRun_diagnostics(ctx, field)
+			case "lineage":
+				return ec.fieldContext_SessionRun_lineage(ctx, field)
 			case "events":
 				return ec.fieldContext_SessionRun_events(ctx, field)
 			case "warnings":
@@ -22264,6 +22277,8 @@ func (ec *executionContext) fieldContext_Mutation_runSessionPreview(ctx context.
 				return ec.fieldContext_SessionRun_stages(ctx, field)
 			case "diagnostics":
 				return ec.fieldContext_SessionRun_diagnostics(ctx, field)
+			case "lineage":
+				return ec.fieldContext_SessionRun_lineage(ctx, field)
 			case "events":
 				return ec.fieldContext_SessionRun_events(ctx, field)
 			case "warnings":
@@ -28673,6 +28688,8 @@ func (ec *executionContext) fieldContext_Query_sessionRuns(ctx context.Context, 
 				return ec.fieldContext_SessionRun_stages(ctx, field)
 			case "diagnostics":
 				return ec.fieldContext_SessionRun_diagnostics(ctx, field)
+			case "lineage":
+				return ec.fieldContext_SessionRun_lineage(ctx, field)
 			case "events":
 				return ec.fieldContext_SessionRun_events(ctx, field)
 			case "warnings":
@@ -28740,6 +28757,8 @@ func (ec *executionContext) fieldContext_Query_sessionRun(ctx context.Context, f
 				return ec.fieldContext_SessionRun_stages(ctx, field)
 			case "diagnostics":
 				return ec.fieldContext_SessionRun_diagnostics(ctx, field)
+			case "lineage":
+				return ec.fieldContext_SessionRun_lineage(ctx, field)
 			case "events":
 				return ec.fieldContext_SessionRun_events(ctx, field)
 			case "warnings":
@@ -32274,6 +32293,43 @@ func (ec *executionContext) fieldContext_SessionRun_diagnostics(_ context.Contex
 				return ec.fieldContext_SessionDiagnostic_lineage(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type SessionDiagnostic", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionRun_lineage(ctx context.Context, field graphql.CollectedField, obj *model.SessionRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionRun_lineage,
+		func(ctx context.Context) (any, error) {
+			return obj.Lineage, nil
+		},
+		nil,
+		ec.marshalNLineageLink2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐLineageLinkᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionRun_lineage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionRun",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "sourcePath":
+				return ec.fieldContext_LineageLink_sourcePath(ctx, field)
+			case "targetPath":
+				return ec.fieldContext_LineageLink_targetPath(ctx, field)
+			case "description":
+				return ec.fieldContext_LineageLink_description(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type LineageLink", field.Name)
 		},
 	}
 	return fc, nil
@@ -49991,6 +50047,11 @@ func (ec *executionContext) _SessionRun(ctx context.Context, sel ast.SelectionSe
 			}
 		case "diagnostics":
 			out.Values[i] = ec._SessionRun_diagnostics(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lineage":
+			out.Values[i] = ec._SessionRun_lineage(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

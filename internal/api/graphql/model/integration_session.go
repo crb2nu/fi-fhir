@@ -53,6 +53,7 @@ type SessionRun struct {
 	CompletedAt           *time.Time          `json:"completedAt,omitempty"`
 	Stages                []RunStage          `json:"stages"`
 	Diagnostics           []SessionDiagnostic `json:"diagnostics"`
+	Lineage               []LineageLink       `json:"lineage"`
 	Events                []Event             `json:"events"`
 	Warnings              []ParseWarning      `json:"warnings"`
 }

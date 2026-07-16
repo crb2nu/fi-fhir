@@ -1,0 +1,117 @@
+fragment IntegrationSessionRunFields on SessionRun {
+  id
+  sessionId
+  sampleId
+  status
+  profileRevisionId
+  profileRevisionDigest
+  createdAt
+  completedAt
+  stages {
+    id
+    name
+    status
+    startedAt
+    completedAt
+    durationMs
+    summary
+  }
+  diagnostics {
+    id
+    sessionId
+    runId
+    sampleId
+    severity
+    code
+    message
+    path
+    fixSuggestion
+    accepted
+    acceptedAt
+    lineage {
+      sourcePath
+      targetPath
+      description
+    }
+  }
+  lineage {
+    sourcePath
+    targetPath
+    description
+  }
+  events {
+    __typename
+    id
+    type
+    timestamp
+    source
+    sourceFormat
+    correlationId
+    ... on PatientAdmitEvent {
+      patient { mrn familyName givenName dateOfBirth gender }
+      encounter { class location { facility unit room bed } }
+    }
+    ... on PatientDischargeEvent {
+      patient { mrn familyName givenName dateOfBirth gender }
+      encounter { class location { facility unit room bed } }
+    }
+    ... on LabResultEvent {
+      patient { mrn familyName givenName dateOfBirth gender }
+      test { loincCode localCode description }
+      result { value unit status }
+      isCritical
+    }
+    ... on AppointmentEvent {
+      patient { mrn familyName givenName dateOfBirth gender }
+      appointment {
+        id
+        status
+        startTime
+        endTime
+        reason
+        location { facility unit room bed }
+        provider { familyName givenName npi }
+      }
+    }
+    ... on DocumentEvent { documentType title }
+  }
+  warnings {
+    phase
+    code
+    message
+    path
+    explanation
+    fixSuggestion
+    impact
+    severity
+    fromCache
+  }
+}
+
+mutation CreateStreamingIntegrationSession($input: CreateIntegrationSessionInput!) {
+  createIntegrationSession(input: $input) { id }
+}
+
+mutation AddStreamingSessionSample($input: AddSessionSampleInput!) {
+  addSessionSample(input: $input) { id sessionId }
+}
+
+mutation UpdateStreamingSessionProfile($input: UpdateSessionArtifactInput!) {
+  updateSessionProfileDraft(input: $input) { revisionId digest }
+}
+
+mutation RunStreamingSessionPreview($input: RunSessionPreviewInput!) {
+  runSessionPreview(input: $input) { ...IntegrationSessionRunFields }
+}
+
+subscription StreamIntegrationSessionEvents($sessionId: ID!) {
+  integrationSessionEvents(sessionId: $sessionId) {
+    id
+    type
+    sessionId
+    runId
+    message
+    timestamp
+    run { ...IntegrationSessionRunFields }
+  }
+}

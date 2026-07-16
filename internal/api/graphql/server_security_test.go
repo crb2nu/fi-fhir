@@ -291,6 +291,7 @@ func TestTrustedNetworkGraphQLAccess(t *testing.T) {
 
 func TestGraphQLWebSocketTransportIsDisabled(t *testing.T) {
 	config := secureServerConfig(testAuthenticator(t))
+	config.IntegrationSessionStreaming = true
 	server, err := graphqlapi.NewServer(resolvers.NewResolver(), config)
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
@@ -316,6 +317,81 @@ func TestGraphQLWebSocketTransportIsDisabled(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestIntegrationSessionSSEBoundary(t *testing.T) {
+	const sessionSubscription = `subscription SessionEvents { integrationSessionEvents(sessionId: "missing") { id type } }`
+
+	t.Run("disabled by default", func(t *testing.T) {
+		config := secureServerConfig(testOperatorAuthenticator(t))
+		server, err := graphqlapi.NewServer(resolvers.NewResolver(), config)
+		if err != nil {
+			t.Fatalf("NewServer: %v", err)
+		}
+		response := executeSSE(t, server.Handler(), config.Path, sessionSubscription)
+		if response.Code != http.StatusNotFound {
+			t.Fatalf("status = %d, want 404, body=%s", response.Code, response.Body.String())
+		}
+	})
+
+	t.Run("operator is limited to session subscription roots", func(t *testing.T) {
+		config := secureServerConfig(testOperatorAuthenticator(t))
+		config.IntegrationSessionStreaming = true
+		server, err := graphqlapi.NewServer(resolvers.NewResolver(), config)
+		if err != nil {
+			t.Fatalf("NewServer: %v", err)
+		}
+		response := executeSSE(t, server.Handler(), config.Path, `subscription Legacy { eventStream { id } }`)
+		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"code":"FORBIDDEN"`) {
+			t.Fatalf("legacy stream response = status %d body=%s", response.Code, response.Body.String())
+		}
+	})
+
+	t.Run("preview role cannot open session stream", func(t *testing.T) {
+		config := secureServerConfig(testAuthenticator(t))
+		config.IntegrationSessionStreaming = true
+		server, err := graphqlapi.NewServer(resolvers.NewResolver(), config)
+		if err != nil {
+			t.Fatalf("NewServer: %v", err)
+		}
+		response := executeSSE(t, server.Handler(), config.Path, sessionSubscription)
+		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"code":"FORBIDDEN"`) {
+			t.Fatalf("preview stream response = status %d body=%s", response.Code, response.Body.String())
+		}
+	})
+
+	t.Run("operator reaches session resolver over bounded authenticated POST", func(t *testing.T) {
+		config := secureServerConfig(testOperatorAuthenticator(t))
+		config.IntegrationSessionStreaming = true
+		server, err := graphqlapi.NewServer(resolvers.NewResolver(), config)
+		if err != nil {
+			t.Fatalf("NewServer: %v", err)
+		}
+		response := executeSSE(t, server.Handler(), config.Path, sessionSubscription)
+		body := response.Body.String()
+		if response.Code != http.StatusOK || response.Header().Get("Content-Type") != "text/event-stream" {
+			t.Fatalf("session stream response = status %d content-type=%q body=%s", response.Code, response.Header().Get("Content-Type"), body)
+		}
+		if strings.Contains(body, `"code":"FORBIDDEN"`) || !strings.Contains(body, "event: complete") {
+			t.Fatalf("session stream did not reach resolver: %s", body)
+		}
+	})
+}
+
+func executeSSE(t *testing.T, handler http.Handler, path, query string) *httptest.ResponseRecorder {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{"query": query})
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	request := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Accept", "text/event-stream")
+	request.Header.Set("Authorization", "Bearer "+testBearerToken)
+	request.Header.Set("Origin", "https://ide.example.test")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	return response
 }
 
 func TestGraphQLServerMountsOptionalHL7IngressExactly(t *testing.T) {

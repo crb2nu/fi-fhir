@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model"
@@ -499,6 +500,7 @@ func (s *integrationSessionService) toGraphQLRun(run enginesession.Run) (*model.
 		stages = append(stages, toGraphQLStage(stage))
 	}
 	diagnostics := make([]model.SessionDiagnostic, 0, len(run.Diagnostics))
+	lineage := make([]model.LineageLink, 0, len(run.Lineage))
 	warnings := make([]model.ParseWarning, 0, len(run.Diagnostics))
 	for _, diagnostic := range run.Diagnostics {
 		diagnostics = append(diagnostics, s.toGraphQLDiagnostic(run, diagnostic))
@@ -512,6 +514,9 @@ func (s *integrationSessionService) toGraphQLRun(run enginesession.Run) (*model.
 				Severity: strPtrEmpty(diagnostic.Severity),
 			})
 		}
+	}
+	for _, link := range run.Lineage {
+		lineage = append(lineage, toGraphQLLineageLink(link))
 	}
 	eventsOut := make([]model.Event, 0, len(run.Events))
 	for _, parsed := range run.Events {
@@ -537,6 +542,7 @@ func (s *integrationSessionService) toGraphQLRun(run enginesession.Run) (*model.
 		CompletedAt:           run.FinishedAt,
 		Stages:                stages,
 		Diagnostics:           diagnostics,
+		Lineage:               lineage,
 		Events:                eventsOut,
 		Warnings:              warnings,
 	}, nil
@@ -574,13 +580,7 @@ func (s *integrationSessionService) toGraphQLDiagnostic(run enginesession.Run, d
 		if diagnostic.Path != "" && link.SourcePath != diagnostic.Path {
 			continue
 		}
-		target := strPtrEmpty(link.TargetPath)
-		description := strPtrEmpty(link.ValuePreview)
-		lineage = append(lineage, model.LineageLink{
-			SourcePath:  link.SourcePath,
-			TargetPath:  target,
-			Description: description,
-		})
+		lineage = append(lineage, toGraphQLLineageLink(link))
 	}
 	if len(lineage) == 0 && diagnostic.Path != "" {
 		lineage = append(lineage, model.LineageLink{SourcePath: diagnostic.Path})
@@ -621,10 +621,10 @@ func (s *integrationSessionService) toGraphQLEvent(event enginesession.StreamEve
 		Type:      string(event.Type),
 		SessionID: event.SessionID,
 		RunID:     runID,
-		Message:   fmt.Sprint(event.Payload),
+		Message:   streamEventMessage(event.Type),
 		Timestamp: event.At,
 	}
-	if session, err := s.cloneSession(event.SessionID, true); err == nil {
+	if session, err := s.cloneSession(event.SessionID, false); err == nil {
 		gql.Session = session
 	}
 	if event.RunID != "" {
@@ -633,6 +633,32 @@ func (s *integrationSessionService) toGraphQLEvent(event enginesession.StreamEve
 		}
 	}
 	return gql
+}
+
+func toGraphQLLineageLink(link enginesession.LineageLink) model.LineageLink {
+	return model.LineageLink{
+		SourcePath: link.SourcePath,
+		TargetPath: strPtrEmpty(link.TargetPath),
+	}
+}
+
+func streamEventMessage(eventType enginesession.StreamEventType) string {
+	switch eventType {
+	case enginesession.StreamEventRunStarted:
+		return "session preview started"
+	case enginesession.StreamEventStageStarted:
+		return "session preview stage started"
+	case enginesession.StreamEventStageCompleted:
+		return "session preview stage completed"
+	case enginesession.StreamEventDiagnostic:
+		return "session diagnostic reported"
+	case enginesession.StreamEventRunCompleted:
+		return "session preview completed"
+	case enginesession.StreamEventRunFailed:
+		return "session preview failed"
+	default:
+		return strings.ReplaceAll(string(eventType), ".", " ")
+	}
 }
 
 func parsedEventToGraphQL(parsed enginesession.ParsedEvent, source string) (model.Event, error) {
@@ -720,6 +746,7 @@ func cloneRuns(in []model.SessionRun) []model.SessionRun {
 		out[i] = run
 		out[i].Stages = append([]model.RunStage(nil), run.Stages...)
 		out[i].Diagnostics = append([]model.SessionDiagnostic(nil), run.Diagnostics...)
+		out[i].Lineage = append([]model.LineageLink(nil), run.Lineage...)
 		out[i].Events = append([]model.Event(nil), run.Events...)
 		out[i].Warnings = append([]model.ParseWarning(nil), run.Warnings...)
 	}

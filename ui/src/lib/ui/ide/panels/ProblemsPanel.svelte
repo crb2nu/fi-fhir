@@ -1,17 +1,17 @@
 <script lang="ts">
   import {
-    workflowDiagnostics,
+    navigateToProblem,
+    problemsDiagnostics,
     type WorkflowProblem,
     type WorkflowProblemSeverity,
   } from './workflowProblemsStore';
 
   // ── Derived view model ────────────────────────────────────────────────
-  // All validation logic lives in `validateWorkflowDraft`; this panel only
-  // renders the derived `workflowDiagnostics` so there is a single source of
-  // truth for "is the draft shippable?".
+  // Workflow validation stays in `validateWorkflowDraft`; server diagnostics
+  // join that derived view without duplicating validation rules in the panel.
 
-  let issues = $derived($workflowDiagnostics.issues);
-  let isValid = $derived($workflowDiagnostics.isValid);
+  let issues = $derived($problemsDiagnostics.issues);
+  let isValid = $derived($problemsDiagnostics.isValid);
   let errorCount = $derived(issues.filter((i) => i.severity === 'error').length);
   let warningCount = $derived(issues.filter((i) => i.severity === 'warning').length);
   let infoCount = $derived(issues.filter((i) => i.severity === 'info').length);
@@ -57,11 +57,11 @@
         <div class="state-title">Ready for runtime verification</div>
         <div class="state-body">No blocking problems detected.</div>
         <div class="state-meta">
-          <span class="meta-chip">{pluralize($workflowDiagnostics.routeCount, 'route')}</span>
-          <span class="meta-chip">{pluralize($workflowDiagnostics.actionCount, 'action')}</span>
-          {#if $workflowDiagnostics.transformCount > 0}
+          <span class="meta-chip">{pluralize($problemsDiagnostics.routeCount, 'route')}</span>
+          <span class="meta-chip">{pluralize($problemsDiagnostics.actionCount, 'action')}</span>
+          {#if $problemsDiagnostics.transformCount > 0}
             <span class="meta-chip">
-              {pluralize($workflowDiagnostics.transformCount, 'transform')}
+              {pluralize($problemsDiagnostics.transformCount, 'transform')}
             </span>
           {/if}
         </div>
@@ -78,23 +78,35 @@
         </svg>
       </div>
       <div class="state-text">
-        <div class="state-title">Workflow draft needs attention</div>
+        <div class="state-title">
+          {$problemsDiagnostics.sessionCount > 0 ? 'Session diagnostics need attention' : 'Workflow draft needs attention'}
+        </div>
         <div class="state-count">{countSummary()}</div>
         <div class="state-body">
-          Fix the listed issues before you trust the destination behavior.
+          {$problemsDiagnostics.sessionCount > 0
+            ? 'Select a server diagnostic to inspect its exact HL7 source field.'
+            : 'Fix the listed issues before you trust the destination behavior.'}
         </div>
       </div>
     </div>
 
-    <ul class="issue-list" aria-label="Workflow draft problems">
+    <ul class="issue-list" aria-label="Workflow and session problems">
       {#each issues as issue (issue.id)}
-        <li class="issue-row severity-{issue.severity}">
-          <span class="issue-strip severity-{issue.severity}" aria-hidden="true"></span>
-          <span class="issue-severity severity-{issue.severity}">
-            {severityLabel(issue.severity)}
-          </span>
-          <span class="issue-location">{issue.location}</span>
-          <span class="issue-message">{issue.message}</span>
+        <li>
+          <button
+            class="issue-row severity-{issue.severity}"
+            class:navigable={Boolean(issue.targetPath)}
+            type="button"
+            disabled={!issue.targetPath}
+            onclick={() => navigateToProblem(issue)}
+          >
+            <span class="issue-strip severity-{issue.severity}" aria-hidden="true"></span>
+            <span class="issue-severity severity-{issue.severity}">
+              {severityLabel(issue.severity)}
+            </span>
+            <span class="issue-location">{issue.location}</span>
+            <span class="issue-message">{issue.message}</span>
+          </button>
         </li>
       {/each}
     </ul>
@@ -213,11 +225,29 @@
     padding: var(--space-1) var(--space-2);
     border-radius: var(--radius-md);
     overflow: hidden;
+    width: 100%;
+    border: 0;
+    background: transparent;
+    text-align: left;
     animation: slideInUp var(--duration-normal) var(--ease-out);
   }
 
   .issue-row:hover {
     background: var(--color-bg-hover);
+  }
+
+  .issue-row:disabled {
+    cursor: default;
+    opacity: 1;
+  }
+
+  .issue-row.navigable {
+    cursor: pointer;
+  }
+
+  .issue-row.navigable:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
   }
 
   .issue-strip {

@@ -1,15 +1,18 @@
-import { derived } from 'svelte/store';
+import { derived, writable } from 'svelte/store';
 import { workflowDraft } from '$lib/features/workflows/workflowStore';
 import { validateWorkflowDraft, type WorkflowDraft } from '$lib/features/workflows/workflowTypes';
+import type { IntegrationSessionPreviewMeta } from '$lib/features/integration-session';
 
 export type WorkflowProblemSeverity = 'error' | 'warning' | 'info';
 
 export type WorkflowProblem = {
   id: string;
-  scope: 'workflow' | 'route' | 'transform' | 'action';
+  source: 'workflow' | 'session';
+  scope: 'workflow' | 'route' | 'transform' | 'action' | 'session';
   location: string;
   message: string;
   severity: WorkflowProblemSeverity;
+  targetPath: string | null;
 };
 
 export type WorkflowDiagnostics = {
@@ -44,10 +47,12 @@ function toProblem(issue: string): WorkflowProblem {
   const parsed = messageFromIssue(issue);
   return {
     id: issue,
+    source: 'workflow',
     scope: scopeFromLocation(parsed.location),
     location: parsed.location,
     message: parsed.message,
-    severity: 'error'
+    severity: 'error',
+    targetPath: null
   };
 }
 
@@ -71,6 +76,55 @@ export const workflowDiagnostics = derived(workflowDraft, ($draft): WorkflowDiag
   };
 });
 
+const sessionProblems = writable<WorkflowProblem[]>([]);
+
+export const problemNavigation = writable<{ path: string; sequence: number } | null>(null);
+
+let navigationSequence = 0;
+
+export function setSessionDiagnostics(session: IntegrationSessionPreviewMeta | null): void {
+  if (!session?.runId) {
+    sessionProblems.set([]);
+    return;
+  }
+  const deduplicated = new Map<string, WorkflowProblem>();
+  for (const diagnostic of session.diagnostics) {
+    const id = `${session.runId}:${diagnostic.id}`;
+    const targetPath = diagnostic.lineage[0]?.sourcePath || diagnostic.path;
+    deduplicated.set(id, {
+      id,
+      source: 'session',
+      scope: 'session',
+      location: targetPath || diagnostic.code,
+      message: diagnostic.message,
+      severity: normalizeSeverity(diagnostic.severity),
+      targetPath
+    });
+  }
+  sessionProblems.set([...deduplicated.values()]);
+}
+
+export function navigateToProblem(problem: WorkflowProblem): void {
+  if (!problem.targetPath) return;
+  navigationSequence += 1;
+  problemNavigation.set({ path: problem.targetPath, sequence: navigationSequence });
+}
+
+function normalizeSeverity(severity: string | null): WorkflowProblemSeverity {
+  if (severity === 'error' || severity === 'warning') return severity;
+  return 'info';
+}
+
+export const problemsDiagnostics = derived(
+  [workflowDiagnostics, sessionProblems],
+  ([$workflow, $session]) => ({
+    ...$workflow,
+    issues: [...$session, ...$workflow.issues],
+    isValid: $session.length === 0 && $workflow.isValid,
+    sessionCount: $session.length
+  })
+);
+
 /**
  * Severity-banded counts for the workflow draft diagnostics.
  *
@@ -80,7 +134,7 @@ export const workflowDiagnostics = derived(workflowDraft, ($draft): WorkflowDiag
  * badge's variant logic stays correct if validation grows softer severities.
  */
 export const workflowProblemCounts = derived(
-  workflowDiagnostics,
+  problemsDiagnostics,
   ($diag): WorkflowProblemCounts => {
     let error = 0;
     let warning = 0;

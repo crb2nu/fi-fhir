@@ -20,6 +20,8 @@ const (
 
 type operationAuthorization struct{}
 
+type integrationSessionStreamContextKey struct{}
+
 var _ interface {
 	gqlgengraphql.HandlerExtension
 	gqlgengraphql.OperationContextMutator
@@ -40,6 +42,11 @@ func (operationAuthorization) MutateOperationContext(ctx context.Context, operat
 		errcode.Set(authError, "UNAUTHENTICATED")
 		return authError
 	}
+	if isIntegrationSessionStream(ctx) && !integrationSessionStreamOperationAllowed(operationContext) {
+		forbiddenError := gqlerror.Errorf("GraphQL stream operation forbidden")
+		errcode.Set(forbiddenError, "FORBIDDEN")
+		return forbiddenError
+	}
 	if hasOperationRole(security.Principal.Roles, GraphQLOperatorRole) {
 		return nil
 	}
@@ -49,6 +56,35 @@ func (operationAuthorization) MutateOperationContext(ctx context.Context, operat
 		return forbiddenError
 	}
 	return nil
+}
+
+func withIntegrationSessionStream(ctx context.Context) context.Context {
+	return context.WithValue(ctx, integrationSessionStreamContextKey{}, true)
+}
+
+func isIntegrationSessionStream(ctx context.Context) bool {
+	enabled, _ := ctx.Value(integrationSessionStreamContextKey{}).(bool)
+	return enabled
+}
+
+func integrationSessionStreamOperationAllowed(operationContext *gqlgengraphql.OperationContext) bool {
+	if operationContext == nil || operationContext.Doc == nil {
+		return false
+	}
+	operation := operationContext.Doc.Operations.ForName(operationContext.OperationName)
+	if operation == nil || operation.Operation != ast.Subscription {
+		return false
+	}
+	fields := rootFieldNames(operation.SelectionSet, make(map[*ast.FragmentDefinition]bool))
+	if len(fields) == 0 {
+		return false
+	}
+	for _, field := range fields {
+		if field != "integrationSessionEvents" && field != "sessionRunEvents" && field != "__typename" {
+			return false
+		}
+	}
+	return true
 }
 
 func previewOperationAllowed(operationContext *gqlgengraphql.OperationContext) bool {
