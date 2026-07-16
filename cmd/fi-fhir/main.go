@@ -4923,7 +4923,7 @@ func runServe(args []string) error {
 		name string
 		err  error
 	}
-	errCh := make(chan componentError, 3)
+	errCh := make(chan componentError, 4)
 	go func() {
 		errCh <- componentError{name: "GraphQL", err: server.Start()}
 	}()
@@ -4939,6 +4939,12 @@ func runServe(args []string) error {
 		}()
 		fmt.Println("Durable Kafka delivery worker enabled")
 	}
+	if securePreviewRuntime.batchRunner != nil {
+		go func() {
+			errCh <- componentError{name: "batch", err: securePreviewRuntime.batchRunner.Run(serveCtx)}
+		}()
+		fmt.Println("Lifecycle-gated S3/SFTP batch ingestion enabled")
+	}
 	cleanupExternalRuntimes := func() {
 		if temporalWorker != nil {
 			temporalWorker.Stop()
@@ -4951,6 +4957,7 @@ func runServe(args []string) error {
 		waiting := map[string]bool{
 			"MLLP":     securePreviewRuntime.mllpServer != nil && alreadyStopped != "MLLP",
 			"delivery": securePreviewRuntime.deliveryWorker != nil && alreadyStopped != "delivery",
+			"batch":    securePreviewRuntime.batchRunner != nil && alreadyStopped != "batch",
 		}
 		remaining := 0
 		for _, enabled := range waiting {
@@ -5034,6 +5041,7 @@ func printServeUsage() {
 Start a GraphQL API server for healthcare event management. The server provides:
 - An authenticated, side-effect-free integration preview mutation
 - An optional deployed-release MLLP listener with durable ACK semantics
+- An optional deployed-release S3/SFTP batch ingestion worker
 - An optional PostgreSQL-backed Kafka delivery worker
 - A health query for validating preview credentials
 - Interactive GraphQL Playground (optional)
@@ -5096,6 +5104,18 @@ Optional deployed MLLP environment:
   FI_FHIR_MLLP_TLS_KEY_FILE            Server private key PEM (mutual TLS mode)
   FI_FHIR_MLLP_TLS_CLIENT_CA_FILE      Trusted client CA PEM (mutual TLS mode)
   FI_FHIR_DATABASE_*                   Shared PostgreSQL lifecycle/submission store
+
+Optional deployed S3/SFTP batch environment:
+  FI_FHIR_BATCH_SOURCE_CONFIG_PATH     Immutable content-addressed source JSON
+  FI_FHIR_BATCH_DEFINITION_ID          Lifecycle definition selected by server config
+  FI_FHIR_BATCH_PRINCIPAL_ID           Bound batch service principal
+  FI_FHIR_BATCH_WORKER_ID              Canonical PostgreSQL lease owner
+  FI_FHIR_BATCH_S3_ACCESS_KEY[_FILE]   S3 access key source
+  FI_FHIR_BATCH_S3_SECRET_KEY[_FILE]   S3 secret key source
+  FI_FHIR_BATCH_SFTP_KNOWN_HOSTS_FILE  Required pinned SSH host keys
+  FI_FHIR_BATCH_SFTP_PASSWORD[_FILE]   Password auth source, or
+  FI_FHIR_BATCH_SFTP_PRIVATE_KEY_FILE  Private-key auth source
+  FI_FHIR_DATABASE_*                   Shared lifecycle/submission/checkpoint store
 
 Optional durable Kafka delivery environment:
   FI_FHIR_DELIVERY_WORKER_ENABLED      true enables the worker; unset disables

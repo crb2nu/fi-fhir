@@ -1,6 +1,6 @@
 # fi-fhir Roadmap
 
-> Last updated: 2026-07-15
+> Last updated: 2026-07-16
 > Tier: 2 (see workspace AGENTS.md "Portfolio Tiers")
 > Tracking issue: https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/19
 > Completion spec: `.loom/20-product-spec-integration-engine-ide-completion.md`
@@ -84,7 +84,10 @@ must not enter the clinical data plane before the engine spine is proven.
     health thresholds, and capacity to immutable integration revisions. Its
     PostgreSQL catalog enforces draft/validate/approve/publish/deploy/pause/
     resume/retire, optimistic versions, append-only evidence, immutable release
-    records, health projection, and deployed-only exact revision resolution.
+  records, health projection, and deployed-only exact revision resolution;
+- optional runtime-wired S3/SFTP batch ingestion now streams concatenated HL7v2
+  through the shared durable processor with PostgreSQL lease/checkpoint recovery,
+  pinned SFTP host keys, and verified digest-addressed archive-before-delete;
     MR `!101` pipeline `19014` passed 32/32, including required PostgreSQL 16
     lifecycle job `183463`; merge commit `a95bb44f` repeated that proof in main
     job `183702`. The first main run also exposed an existing concurrent receipt
@@ -100,13 +103,21 @@ must not enter the clinical data plane before the engine spine is proven.
     `184996`; merge commit `6205fa39` repeated the proof in main job `185093`.
     Main pipeline `19193` passed 36/36. Production GitOps activation remains
     intentionally pending.
+  - [x] Slice 2.3 adds durable delivery attempts, bounded retry/circuit policy,
+    DLQ replay/resubmit, and a real Kafka publisher. MR `!106` pipeline `19226`
+    passed 34/34, including kill-test job `185433`; main pipeline `19235` passed
+    37/37 and repeated the proof in job `185505`. Evidence MR `!107` reconciled
+    the exact proof on main.
+  - [ ] Slice 2.4 implementation is locally complete: exact deployed S3/SFTP
+    sources, bounded streaming, PostgreSQL lease/checkpoint resume, deterministic
+    admission identity, pinned host keys, and verified digest archive semantics.
+    Unit/race/full-suite/vet/scoped-lint and real PostgreSQL/MinIO/SSH-SFTP
+    kill-and-resume gates pass locally; required CI and merge evidence remain
+    pending.
 
 ## Next
 
-- [ ] Durable delivery attempts, DLQ/replay/resubmit, and one real queue transport
-  (Slice 2.3 implementation and local gates complete; required PostgreSQL/Kafka
-  CI and merge evidence pending).
-- [ ] Runtime-wired S3/SFTP streaming ingestion with checkpoint/resume.
+- [ ] Reconcile Slice 2.4 required PostgreSQL/MinIO/SFTP CI and merge evidence.
 
 ## Then
 

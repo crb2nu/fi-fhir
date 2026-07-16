@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity"
+	integrationbatch "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/batch"
 	integrationdelivery "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/delivery"
 	integrationingress "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/ingress"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
@@ -36,6 +37,8 @@ type previewRuntime struct {
 	ingressPath      string
 	ingressHandler   http.Handler
 	mllpServer       *mllp.Server
+	batchRunner      *integrationbatch.Runner
+	batchProvider    integrationbatch.Provider
 	deliveryWorker   *integrationdelivery.Dispatcher
 	submissionDB     *sql.DB
 }
@@ -129,8 +132,10 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 	)
 	ingressMode := os.Getenv("FI_FHIR_HTTP_INGRESS_AUTH_MODE")
 	mllpSourcePath := os.Getenv("FI_FHIR_MLLP_SOURCE_CONFIG_PATH")
+	batchSourcePath := os.Getenv("FI_FHIR_BATCH_SOURCE_CONFIG_PATH")
 	productionHTTPEnabled := allowProductionIngress && ingressMode != ""
 	productionMLLPEnabled := allowProductionIngress && mllpSourcePath != ""
+	productionBatchEnabled := allowProductionIngress && batchSourcePath != ""
 	productionDeliveryEnabled, err := deliveryWorkerEnabledFromEnv(allowProductionIngress)
 	if err != nil {
 		return nil, err
@@ -143,6 +148,8 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 		mllpDefinitionID     string
 		mllpPrincipalID      string
 		mllpTLSMaterial      mllp.TLSMaterial
+		batchRunner          *integrationbatch.Runner
+		batchProvider        integrationbatch.Provider
 		deliveryWorker       *integrationdelivery.Dispatcher
 	)
 	if productionHTTPEnabled {
@@ -157,7 +164,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 			return nil, err
 		}
 	}
-	if productionHTTPEnabled || productionMLLPEnabled || productionDeliveryEnabled {
+	if productionHTTPEnabled || productionMLLPEnabled || productionBatchEnabled || productionDeliveryEnabled {
 		submissionDB, err = openSubmissionDatabaseFromEnv(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("configure production ingress database: %w", err)
@@ -165,6 +172,9 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 		closeOnError := true
 		defer func() {
 			if closeOnError {
+				if batchProvider != nil {
+					_ = batchProvider.Close()
+				}
 				_ = submissionDB.Close()
 			}
 		}()
@@ -230,6 +240,14 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 				return nil, fmt.Errorf("configure MLLP listener: %w", err)
 			}
 		}
+		if productionBatchEnabled {
+			batchRunner, batchProvider, err = loadBatchRuntimeFromEnv(
+				ctx, tenantID, batchSourcePath, submissionDB, artifactResolver,
+			)
+			if err != nil {
+				return nil, err
+			}
+		}
 		if productionDeliveryEnabled {
 			deliveryWorker, err = loadDeliveryDispatcherFromEnv(submissionDB)
 			if err != nil {
@@ -262,6 +280,8 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 		ingressPath:      ingressPath,
 		ingressHandler:   ingressHandler,
 		mllpServer:       mllpServer,
+		batchRunner:      batchRunner,
+		batchProvider:    batchProvider,
 		deliveryWorker:   deliveryWorker,
 		submissionDB:     submissionDB,
 	}, nil
@@ -336,6 +356,12 @@ func (r *previewRuntime) Close() error {
 			errs = append(errs, err)
 		}
 		r.deliveryWorker = nil
+	}
+	if r.batchProvider != nil {
+		if err := r.batchProvider.Close(); err != nil {
+			errs = append(errs, err)
+		}
+		r.batchProvider = nil
 	}
 	if r.submissionDB != nil {
 		if err := r.submissionDB.Close(); err != nil {
