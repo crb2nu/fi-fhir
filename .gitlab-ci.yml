@@ -780,6 +780,56 @@ test:mllp-runtime:
     - when: never
   allow_failure: false
 
+# Blocking PostgreSQL 16/Kafka proof for Slice 2.3. It races outbox leases,
+# expires and reclaims a worker lease, follows bounded retry/circuit/DLQ state,
+# idempotently resubmits and replays with audit, and proves stable at-least-once
+# Kafka identity across a publish-before-database-ack crash.
+test:delivery-reliability:
+  stage: test
+  <<: *go-image-debian
+  <<: *go-cache
+  services:
+    - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
+      alias: postgres
+    - name: ${DOCKERHUB_CACHE_PREFIX}/bitnami/kafka:3.6
+      alias: kafka
+  variables:
+    CGO_ENABLED: "1"
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
+    POSTGRES_DB: fi_fhir_delivery_test
+    POSTGRES_USER: testuser
+    POSTGRES_PASSWORD: testpass
+    POSTGRES_HOST_AUTH_METHOD: trust
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_delivery_test?sslmode=disable"
+    KAFKA_TEST_BROKERS: "kafka:9092"
+    KAFKA_CFG_NODE_ID: "0"
+    KAFKA_CFG_PROCESS_ROLES: "controller,broker"
+    KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: "0@kafka:9093"
+    KAFKA_CFG_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+    KAFKA_CFG_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
+    KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+    KAFKA_CFG_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+    KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ALLOW_PLAINTEXT_LISTENER: "yes"
+  script:
+    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates ripgrep build-essential && rm -rf /var/lib/apt/lists/*
+    - >-
+      go test -tags=integration
+      -list '^TestDeliveryReliability_PostgresKafkaFailureReplay$'
+      ./internal/integration/delivery
+      | rg -x 'TestDeliveryReliability_PostgresKafkaFailureReplay'
+      | awk 'END { if (NR != 1) exit 1 }'
+    - make delivery-reliability
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *go-changes
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *go-changes
+    - when: never
+  allow_failure: false
+
 test:ui:
   stage: test
   <<: *node-image

@@ -101,6 +101,11 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
+	case "delivery":
+		if err := runDelivery(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 	case "eventstore":
 		if err := runEventStore(os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -160,6 +165,7 @@ Commands:
   config       Manage application configuration
   subscription Manage FHIR subscriptions for bidirectional integration
   serve        Start the GraphQL API server
+  delivery     Inspect help or replay/resubmit a durable dead letter
   eventstore   Manage event store (init, stats, streams, read)
   projection   Manage projections (list, status, run, rebuild)
   terminology  Manage terminology database (init, load, status, crosswalk)
@@ -4917,7 +4923,7 @@ func runServe(args []string) error {
 		name string
 		err  error
 	}
-	errCh := make(chan componentError, 2)
+	errCh := make(chan componentError, 3)
 	go func() {
 		errCh <- componentError{name: "GraphQL", err: server.Start()}
 	}()
@@ -4927,6 +4933,12 @@ func runServe(args []string) error {
 		}()
 		fmt.Println("MLLP listener enabled from immutable source revision")
 	}
+	if securePreviewRuntime.deliveryWorker != nil {
+		go func() {
+			errCh <- componentError{name: "delivery", err: securePreviewRuntime.deliveryWorker.Run(serveCtx)}
+		}()
+		fmt.Println("Durable Kafka delivery worker enabled")
+	}
 	cleanupExternalRuntimes := func() {
 		if temporalWorker != nil {
 			temporalWorker.Stop()
@@ -4935,23 +4947,38 @@ func runServe(args []string) error {
 			temporalClient.Close()
 		}
 	}
-	waitForMLLPStop := func(alreadyStopped bool) error {
-		if securePreviewRuntime.mllpServer == nil || alreadyStopped {
+	waitForBackgroundStops := func(alreadyStopped string) error {
+		waiting := map[string]bool{
+			"MLLP":     securePreviewRuntime.mllpServer != nil && alreadyStopped != "MLLP",
+			"delivery": securePreviewRuntime.deliveryWorker != nil && alreadyStopped != "delivery",
+		}
+		remaining := 0
+		for _, enabled := range waiting {
+			if enabled {
+				remaining++
+			}
+		}
+		if remaining == 0 {
 			return nil
 		}
 		timer := time.NewTimer(10 * time.Second)
 		defer timer.Stop()
-		for {
+		for remaining > 0 {
 			select {
 			case component := <-errCh:
-				if component.name != "MLLP" {
+				if !waiting[component.name] {
 					continue
 				}
-				return component.err
+				waiting[component.name] = false
+				remaining--
+				if component.err != nil {
+					return fmt.Errorf("%s component shutdown: %w", component.name, component.err)
+				}
 			case <-timer.C:
-				return fmt.Errorf("MLLP server shutdown timed out")
+				return fmt.Errorf("integration component shutdown timed out")
 			}
 		}
+		return nil
 	}
 
 	// Wait for signal or error
@@ -4971,20 +4998,20 @@ func runServe(args []string) error {
 		if err := server.Shutdown(ctx); err != nil {
 			return err
 		}
-		return waitForMLLPStop(false)
+		return waitForBackgroundStops("")
 	case component := <-errCh:
 		cancelServe()
 		cleanupExternalRuntimes()
-		if component.name == "MLLP" {
+		if component.name != "GraphQL" {
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			_ = server.Shutdown(shutdownCtx)
 		}
-		if err := waitForMLLPStop(component.name == "MLLP"); err != nil {
+		if err := waitForBackgroundStops(component.name); err != nil {
 			return err
 		}
 		if component.err != nil && !errors.Is(component.err, http.ErrServerClosed) {
-			return fmt.Errorf("%s server stopped: %w", component.name, component.err)
+			return fmt.Errorf("%s component stopped: %w", component.name, component.err)
 		}
 		return nil
 	}
@@ -5007,6 +5034,7 @@ func printServeUsage() {
 Start a GraphQL API server for healthcare event management. The server provides:
 - An authenticated, side-effect-free integration preview mutation
 - An optional deployed-release MLLP listener with durable ACK semantics
+- An optional PostgreSQL-backed Kafka delivery worker
 - A health query for validating preview credentials
 - Interactive GraphQL Playground (optional)
 
@@ -5068,6 +5096,22 @@ Optional deployed MLLP environment:
   FI_FHIR_MLLP_TLS_KEY_FILE            Server private key PEM (mutual TLS mode)
   FI_FHIR_MLLP_TLS_CLIENT_CA_FILE      Trusted client CA PEM (mutual TLS mode)
   FI_FHIR_DATABASE_*                   Shared PostgreSQL lifecycle/submission store
+
+Optional durable Kafka delivery environment:
+  FI_FHIR_DELIVERY_WORKER_ENABLED      true enables the worker; unset disables
+  FI_FHIR_DELIVERY_WORKER_ID           Canonical lease owner (hostname-pid default)
+  FI_FHIR_QUEUE_DRIVER                 Must be kafka
+  FI_FHIR_QUEUE_BROKERS                Comma-separated broker addresses
+  FI_FHIR_QUEUE_CLIENT_ID              Kafka client identifier
+  FI_FHIR_QUEUE_TLS                    true enables TLS 1.3+
+  FI_FHIR_QUEUE_TLS_ROOT_CA_FILE       Optional trusted root CA PEM
+  FI_FHIR_QUEUE_USERNAME               Optional SASL/PLAIN username (TLS required)
+  FI_FHIR_QUEUE_PASSWORD               Password, or use the file setting below
+  FI_FHIR_QUEUE_PASSWORD_FILE          Single-line password file
+  FI_FHIR_DELIVERY_MAX_ATTEMPTS        Bounded attempts including first publish
+  FI_FHIR_DELIVERY_RETRY_BASE_DELAY    Initial retry delay
+  FI_FHIR_DELIVERY_RETRY_MAX_DELAY     Maximum retry delay
+  FI_FHIR_DATABASE_*                   Shared PostgreSQL submission store
 
 Examples:
   # Generate a deployment secret without writing it to shell history

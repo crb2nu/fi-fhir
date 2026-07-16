@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity"
+	integrationdelivery "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/delivery"
 	integrationingress "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/ingress"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/mllp"
@@ -34,6 +36,7 @@ type previewRuntime struct {
 	ingressPath      string
 	ingressHandler   http.Handler
 	mllpServer       *mllp.Server
+	deliveryWorker   *integrationdelivery.Dispatcher
 	submissionDB     *sql.DB
 }
 
@@ -128,6 +131,10 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 	mllpSourcePath := os.Getenv("FI_FHIR_MLLP_SOURCE_CONFIG_PATH")
 	productionHTTPEnabled := allowProductionIngress && ingressMode != ""
 	productionMLLPEnabled := allowProductionIngress && mllpSourcePath != ""
+	productionDeliveryEnabled, err := deliveryWorkerEnabledFromEnv(allowProductionIngress)
+	if err != nil {
+		return nil, err
+	}
 
 	var (
 		ingressAuthenticator *integrationingress.Authenticator
@@ -136,6 +143,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 		mllpDefinitionID     string
 		mllpPrincipalID      string
 		mllpTLSMaterial      mllp.TLSMaterial
+		deliveryWorker       *integrationdelivery.Dispatcher
 	)
 	if productionHTTPEnabled {
 		ingressAuthenticator, maxBodyBytes, err = loadHTTPIngressAuthenticatorFromEnv()
@@ -149,7 +157,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 			return nil, err
 		}
 	}
-	if productionHTTPEnabled || productionMLLPEnabled {
+	if productionHTTPEnabled || productionMLLPEnabled || productionDeliveryEnabled {
 		submissionDB, err = openSubmissionDatabaseFromEnv(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("configure production ingress database: %w", err)
@@ -160,14 +168,18 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 				_ = submissionDB.Close()
 			}
 		}()
+		migrationStore, err := processor.NewPostgresSubmissionStore(submissionDB, processor.PostgresSubmissionConfig{})
+		if err != nil {
+			return nil, fmt.Errorf("configure submission migrations: %w", err)
+		}
+		if err := migrationStore.Migrate(ctx); err != nil {
+			return nil, fmt.Errorf("migrate submission store: %w", err)
+		}
 
 		if productionHTTPEnabled {
 			submissionStore, err := processor.NewPostgresSubmissionStore(submissionDB, processor.PostgresSubmissionConfig{})
 			if err != nil {
 				return nil, fmt.Errorf("configure durable HTTP submission store: %w", err)
-			}
-			if err := submissionStore.Migrate(ctx); err != nil {
-				return nil, fmt.Errorf("migrate durable HTTP submission store: %w", err)
 			}
 			messageProcessor, err = processor.NewDurableMessageProcessor(definitionResolver, artifactResolver, submissionStore)
 			if err != nil {
@@ -199,9 +211,6 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 			if err != nil {
 				return nil, fmt.Errorf("configure durable MLLP submission store: %w", err)
 			}
-			if err := submissionStore.Migrate(ctx); err != nil {
-				return nil, fmt.Errorf("migrate durable MLLP submission store: %w", err)
-			}
 			mllpDefinitionResolver, err := processor.NewDefinitionRevisionResolver(tenantID, catalog)
 			if err != nil {
 				return nil, fmt.Errorf("configure MLLP definition resolver: %w", err)
@@ -219,6 +228,12 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 			})
 			if err != nil {
 				return nil, fmt.Errorf("configure MLLP listener: %w", err)
+			}
+		}
+		if productionDeliveryEnabled {
+			deliveryWorker, err = loadDeliveryDispatcherFromEnv(submissionDB)
+			if err != nil {
+				return nil, err
 			}
 		}
 		closeOnError = false
@@ -247,6 +262,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 		ingressPath:      ingressPath,
 		ingressHandler:   ingressHandler,
 		mllpServer:       mllpServer,
+		deliveryWorker:   deliveryWorker,
 		submissionDB:     submissionDB,
 	}, nil
 }
@@ -311,12 +327,23 @@ func loadBoundedRuntimeFile(envName, label string) ([]byte, error) {
 }
 
 func (r *previewRuntime) Close() error {
-	if r == nil || r.submissionDB == nil {
+	if r == nil {
 		return nil
 	}
-	err := r.submissionDB.Close()
+	var errs []error
+	if r.deliveryWorker != nil {
+		if err := r.deliveryWorker.Close(); err != nil {
+			errs = append(errs, err)
+		}
+		r.deliveryWorker = nil
+	}
+	if r.submissionDB != nil {
+		if err := r.submissionDB.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
 	r.submissionDB = nil
-	return err
+	return errors.Join(errs...)
 }
 
 func loadHTTPIngressAuthenticatorFromEnv() (*integrationingress.Authenticator, int64, error) {

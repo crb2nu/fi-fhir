@@ -9,7 +9,7 @@
 | -------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Production** | 22    | Stable, tested, deployed                                                                                                                                            |
 | **Beta**       | 9     | Feature-complete, needs coverage or hardening                                                                                                                       |
-| **Alpha**      | 3     | Functional but limited testing or scope                                                                                                                             |
+| **Alpha**      | 4     | Functional but limited testing or scope                                                                                                                             |
 | **Planned**    | 2     | Designed but not yet implemented (tracked via [#7](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/7), [#8](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/8)) |
 
 ---
@@ -58,6 +58,7 @@
 | Integration Lifecycle | `internal/integration/lifecycle/` | Alpha      | —        | PostgreSQL versioned state, immutable releases, deployed-only MLLP admission | 2026-07-15 |
 | HL7v2 MLLP Ingress    | `internal/integration/mllp/`      | Alpha      | —        | Lifecycle-gated durable ACK, TLS/client/capacity bounds; GitOps pending | 2026-07-15 |
 | HL7v2 HTTP Ingress    | `internal/integration/ingress/`   | Alpha      | —        | Bearer/HMAC, bounded body, durable response; GitOps activation pending | 2026-07-14 |
+| Delivery Reliability  | `internal/integration/delivery/`  | Alpha      | —        | PostgreSQL leases/retry/circuit/DLQ/recovery plus real Kafka publisher | 2026-07-15 |
 | GraphQL API           | `internal/api/graphql/`           | Beta       | 9.5%\*   | Preview role: health/preview; legacy + WS disabled | 2026-07-13 |
 | FHIR Subscriptions    | `internal/fhir/subscription/`     | Production | 83.7%    | Bidirectional; client + webhook receiver         | 2026-02-27   |
 | Terminology Autoroute | `internal/terminology/autoroute/` | Beta       | 88.5%    | Automatic code-system routing engine             | 2026-03-09   |
@@ -104,8 +105,12 @@ pause/retire. Unit/race tests and required CI test discovery pass locally; the
 PostgreSQL 16/TCP proof passed in MR `!104` job `184996`; pipeline `19175`
 passed 33/33 and merged as `6205fa39`. Main pipeline `19193` passed 36/36 and
 independently repeated the proof in job `185093`. GraphQL and Mapping Studio
-lifecycle controls, production GitOps activation, and external delivery remain
-open.
+lifecycle controls and production GitOps activation remain open.
+
+Slice 2.3 adds a PostgreSQL-leased delivery worker, bounded retry and circuit
+state, durable DLQ, authenticated/idempotent replay and resubmit, and a real
+Kafka producer with stable attempt keys. Local unit/race/full-suite gates pass;
+the required PostgreSQL 16/Kafka pipeline proof is pending before merge.
 
 ## Infrastructure
 
