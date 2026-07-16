@@ -2,6 +2,10 @@
   "extends": "./.svelte-kit/tsconfig.json",
   "compilerOptions": {
     "strict": true,
+    // Third-party .d.ts are not ours to fix: mermaid's types import a
+    // transitively-hoisted type-fest@0.21 whose ts41 typings fail under
+    // modern TS. App code stays fully strict-checked.
+    "skipLibCheck": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "noImplicitOverride": true,
