@@ -19,7 +19,9 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	kafkacontainer "github.com/testcontainers/testcontainers-go/modules/kafka"
 	postgrescontainer "github.com/testcontainers/testcontainers-go/modules/postgres"
+	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/pkg/kmsg"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
@@ -160,6 +162,7 @@ func TestDeliveryReliability_PostgresKafkaFailureReplay(t *testing.T) {
 		t.Fatalf("NewKafkaPublisher: %v", err)
 	}
 	t.Cleanup(func() { _ = publisher.Close() })
+	createDeliveryTopic(t, ctx, publisher.client, deliveryCommandSchema)
 	recordingPublisher := &deliveryRecordingPublisher{Publisher: publisher}
 	dispatcherConfig := DefaultConfig()
 	dispatcherConfig.PublishTimeout = 15 * time.Second
@@ -207,6 +210,27 @@ func TestDeliveryReliability_PostgresKafkaFailureReplay(t *testing.T) {
 	}
 	assertCounts(t, db, 1, 1, 3, 3, 2)
 	assertDatabaseRawFree(t, db)
+}
+
+func createDeliveryTopic(t *testing.T, ctx context.Context, client *kgo.Client, topic string) {
+	t.Helper()
+	request := kmsg.NewPtrCreateTopicsRequest()
+	request.Topics = append(request.Topics, kmsg.CreateTopicsRequestTopic{
+		Topic:             topic,
+		NumPartitions:     1,
+		ReplicationFactor: 1,
+	})
+	response, err := request.RequestWith(ctx, client)
+	if err != nil {
+		t.Fatalf("create Kafka delivery topic: %v", err)
+	}
+	if len(response.Topics) != 1 {
+		t.Fatalf("create Kafka delivery topic returned %d results", len(response.Topics))
+	}
+	if topicErr := kerr.ErrorForCode(response.Topics[0].ErrorCode); topicErr != nil &&
+		!errors.Is(topicErr, kerr.TopicAlreadyExists) {
+		t.Fatalf("create Kafka delivery topic %q: %v", topic, topicErr)
+	}
 }
 
 type deliveryRecordingPublisher struct {
