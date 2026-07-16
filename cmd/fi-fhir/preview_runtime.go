@@ -31,6 +31,7 @@ const (
 
 type previewRuntime struct {
 	authenticator    requestsecurity.Authenticator
+	trustedNetwork   *requestsecurity.TrustedNetworkAuthenticator
 	allowedOrigins   []string
 	previewService   *integrationpreview.Service
 	messageProcessor *processor.MessageProcessor
@@ -94,6 +95,18 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 	})
 	if err != nil {
 		return nil, fmt.Errorf("configure GraphQL authenticator: %w", err)
+	}
+	var trustedNetwork *requestsecurity.TrustedNetworkAuthenticator
+	if trustedCIDRs := strings.TrimSpace(os.Getenv("FI_FHIR_GRAPHQL_TRUSTED_CIDRS")); trustedCIDRs != "" {
+		trustedNetwork, err = requestsecurity.NewTrustedNetworkAuthenticator(requestsecurity.TrustedNetworkConfig{
+			CIDRs:       trustedCIDRs,
+			TenantID:    tenantID,
+			PrincipalID: principalID,
+			Roles:       roles,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("configure GraphQL trusted network: %w", err)
+		}
 	}
 
 	registryPath, err := requiredEnv("FI_FHIR_INTEGRATION_REGISTRY_PATH")
@@ -274,6 +287,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 	}
 	return &previewRuntime{
 		authenticator:    authenticator,
+		trustedNetwork:   trustedNetwork,
 		allowedOrigins:   allowedOrigins,
 		previewService:   previewService,
 		messageProcessor: messageProcessor,

@@ -66,6 +66,8 @@ spec:
               value: {{ .Values.config.preview.roles | quote }}
             - name: FI_FHIR_GRAPHQL_ALLOWED_ORIGINS
               value: {{ .Values.config.preview.allowedOrigins | quote }}
+            - name: FI_FHIR_GRAPHQL_TRUSTED_CIDRS
+              value: {{ .Values.config.preview.trustedCIDRs | quote }}
             - name: FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE
               value: {{ .Values.config.preview.bearerTokenPath | quote }}
             - name: FI_FHIR_INTEGRATION_REGISTRY_PATH

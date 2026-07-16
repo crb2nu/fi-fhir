@@ -1,8 +1,11 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { HealthDocument } from '$lib/gen/graphql';
   import { graphqlFetch } from './client';
-  import { setGraphQLCredentialProvider } from './credentials';
+  import {
+    setGraphQLCredentialProvider,
+    setGraphQLTrustedNetworkAccess
+  } from './credentials';
   import { disposeClient } from './subscriptions';
 
   const MIN_TOKEN_LENGTH = 24;
@@ -13,6 +16,28 @@
   let memoryToken = '';
   let error: string | null = null;
   let busy = false;
+  let networkAccess = false;
+
+  async function activateTrustedNetworkAccess(): Promise<void> {
+    try {
+      const response = await fetch('/api/auth/status', {
+        headers: { Accept: 'application/json' },
+        cache: 'no-store'
+      });
+      if (!response.ok) return;
+      const status = (await response.json()) as { authenticated?: boolean; authVia?: string };
+      if (!status.authenticated || status.authVia !== 'network') return;
+
+      await disposeClient();
+      setGraphQLCredentialProvider(null);
+      setGraphQLTrustedNetworkAccess(true);
+      await graphqlFetch(HealthDocument, {}, { showErrorToast: false });
+      networkAccess = true;
+      authenticated = true;
+    } catch {
+      setGraphQLTrustedNetworkAccess(false);
+    }
+  }
 
   async function installCredential(): Promise<void> {
     const candidate = accessToken.trim();
@@ -25,6 +50,7 @@
     error = null;
     try {
       await disposeClient();
+      setGraphQLTrustedNetworkAccess(false);
       memoryToken = candidate;
       setGraphQLCredentialProvider(() => memoryToken || null);
       await graphqlFetch(HealthDocument, {}, { showErrorToast: false });
@@ -44,8 +70,10 @@
     authenticated = false;
     accessToken = '';
     memoryToken = '';
+    networkAccess = false;
     error = null;
     setGraphQLCredentialProvider(null);
+    setGraphQLTrustedNetworkAccess(false);
     try {
       await disposeClient();
     } catch {
@@ -53,9 +81,14 @@
     }
   }
 
+  onMount(() => {
+    void activateTrustedNetworkAccess();
+  });
+
   onDestroy(() => {
     memoryToken = '';
     setGraphQLCredentialProvider(null);
+    setGraphQLTrustedNetworkAccess(false);
     void disposeClient();
   });
 </script>
@@ -64,10 +97,16 @@
   <div class="access-strip" role="status" aria-live="polite">
     <span class="status-dot" aria-hidden="true"></span>
     <div class="access-copy">
-      <strong>Authenticated preview access active</strong>
-      <span>Credential held only in this tab's memory. Reloading clears it.</span>
+      <strong>{networkAccess ? 'Trusted network access active' : 'Authenticated preview access active'}</strong>
+      <span>
+        {networkAccess
+          ? 'This browser is connected from the deployment trusted network.'
+          : "Credential held only in this tab's memory. Reloading clears it."}
+      </span>
     </div>
-    <button class="clear-button" type="button" on:click={clearCredential}>Clear access</button>
+    {#if !networkAccess}
+      <button class="clear-button" type="button" on:click={clearCredential}>Clear access</button>
+    {/if}
   </div>
 {:else}
   <main class="gate-shell" aria-labelledby="credential-gate-title">

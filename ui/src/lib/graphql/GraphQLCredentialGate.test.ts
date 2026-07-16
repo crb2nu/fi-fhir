@@ -3,12 +3,14 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 
 const mocks = vi.hoisted(() => ({
   setProvider: vi.fn(),
+  setTrustedNetworkAccess: vi.fn(),
   disposeClient: vi.fn().mockResolvedValue(undefined),
   graphqlFetch: vi.fn().mockResolvedValue({ health: { status: 'healthy' } })
 }));
 
 vi.mock('./credentials', () => ({
-  setGraphQLCredentialProvider: mocks.setProvider
+  setGraphQLCredentialProvider: mocks.setProvider,
+  setGraphQLTrustedNetworkAccess: mocks.setTrustedNetworkAccess
 }));
 
 vi.mock('./subscriptions', () => ({
@@ -23,13 +25,32 @@ import GraphQLCredentialGate from './GraphQLCredentialGate.svelte';
 
 beforeEach(() => {
   mocks.setProvider.mockReset();
+  mocks.setTrustedNetworkAccess.mockReset();
   mocks.disposeClient.mockReset();
   mocks.disposeClient.mockResolvedValue(undefined);
   mocks.graphqlFetch.mockReset();
   mocks.graphqlFetch.mockResolvedValue({ health: { status: 'healthy' } });
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ authenticated: false })
+  }));
 });
 
 describe('GraphQLCredentialGate', () => {
+  it('automatically unlocks trusted-network access without a token', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ authenticated: true, authVia: 'network' })
+    } as Response);
+
+    render(GraphQLCredentialGate);
+
+    await screen.findByText('Trusted network access active');
+    expect(screen.queryByLabelText('Deployment bearer credential')).not.toBeInTheDocument();
+    expect(mocks.setTrustedNetworkAccess).toHaveBeenCalledWith(true);
+    expect(mocks.graphqlFetch).toHaveBeenCalledTimes(1);
+  });
+
   it('installs a memory-only provider and clears the password input', async () => {
     render(GraphQLCredentialGate);
     const input = screen.getByLabelText('Deployment bearer credential');

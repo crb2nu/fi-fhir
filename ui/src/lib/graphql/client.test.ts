@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { graphqlFetch, isErrorToasted } from './client';
-import { setGraphQLCredentialProvider } from './credentials';
+import { setGraphQLCredentialProvider, setGraphQLTrustedNetworkAccess } from './credentials';
 import { toasts, toastList } from '$lib/ui/toastStore';
 import { get } from 'svelte/store';
 
@@ -20,11 +20,13 @@ describe('graphqlFetch', () => {
     vi.useFakeTimers();
     mockFetch.mockReset();
     setGraphQLCredentialProvider(() => 'ui-test-access-token');
+    setGraphQLTrustedNetworkAccess(false);
     toasts.dismissAll();
   });
 
   afterEach(() => {
     setGraphQLCredentialProvider(null);
+    setGraphQLTrustedNetworkAccess(false);
     toasts.dismissAll();
     vi.useRealTimers();
   });
@@ -55,6 +57,23 @@ describe('graphqlFetch', () => {
     ).rejects.toThrow('GraphQL credentials unavailable');
 
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('omits Authorization for trusted-network access', async () => {
+    setGraphQLCredentialProvider(null);
+    setGraphQLTrustedNetworkAccess(true);
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ data: { test: 'value' } })
+    });
+
+    await graphqlFetch(mockDocument);
+
+    expect(mockFetch).toHaveBeenCalledWith('/graphql', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: expect.any(String)
+    });
   });
 
   it('should return data from successful response', async () => {
@@ -158,11 +177,13 @@ describe('isErrorToasted (B4 dedupe contract)', () => {
     vi.useFakeTimers();
     mockFetch.mockReset();
     setGraphQLCredentialProvider(() => 'ui-test-access-token');
+    setGraphQLTrustedNetworkAccess(false);
     toasts.dismissAll();
   });
 
   afterEach(() => {
     setGraphQLCredentialProvider(null);
+    setGraphQLTrustedNetworkAccess(false);
     toasts.dismissAll();
     vi.useRealTimers();
   });

@@ -38,13 +38,14 @@ func TestLoadPreviewRuntimeFromEnv(t *testing.T) {
 	t.Setenv("FI_FHIR_GRAPHQL_PRINCIPAL_ID", "engineer-1")
 	t.Setenv("FI_FHIR_GRAPHQL_ROLES", "integration:preview,author")
 	t.Setenv("FI_FHIR_GRAPHQL_ALLOWED_ORIGINS", "https://ide.example.test,http://localhost:5173")
+	t.Setenv("FI_FHIR_GRAPHQL_TRUSTED_CIDRS", "192.168.50.0/24")
 	t.Setenv("FI_FHIR_INTEGRATION_REGISTRY_PATH", registryPath)
 
 	runtime, err := loadPreviewRuntimeFromEnv()
 	if err != nil {
 		t.Fatalf("loadPreviewRuntimeFromEnv: %v", err)
 	}
-	if runtime.previewService == nil || runtime.authenticator == nil {
+	if runtime.previewService == nil || runtime.authenticator == nil || runtime.trustedNetwork == nil {
 		t.Fatalf("incomplete preview runtime: %#v", runtime)
 	}
 	if got := strings.Join(runtime.allowedOrigins, ","); got != "https://ide.example.test,http://localhost:5173" {
@@ -126,6 +127,16 @@ func TestLoadPreviewRuntimeFromEnvFailsClosed(t *testing.T) {
 		t.Setenv("FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE", tokenFile)
 		if _, err := loadPreviewRuntimeFromEnv(); err == nil {
 			t.Fatal("multiple bearer token sources were accepted")
+		}
+	})
+
+	t.Run("invalid trusted network", func(t *testing.T) {
+		for key, value := range valid {
+			t.Setenv(key, value)
+		}
+		t.Setenv("FI_FHIR_GRAPHQL_TRUSTED_CIDRS", "192.168.50.0/24,not-a-network")
+		if _, err := loadPreviewRuntimeFromEnv(); err == nil || !strings.Contains(err.Error(), "trusted network") {
+			t.Fatalf("invalid trusted network error = %v", err)
 		}
 	})
 }
