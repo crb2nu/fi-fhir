@@ -26,6 +26,18 @@ server {
         return 404;
     }
 
+    # The UI uses this read-only endpoint to discover trusted-network access
+    # before it creates a GraphQL client. Keep every other REST path closed.
+    location = /api/auth/status {
+        limit_except GET { deny all; }
+        proxy_pass ${FI_FHIR_UI_API_ORIGIN}/api/auth/status;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_buffering off;
+    }
+
     # Legacy REST ingress is intentionally unavailable in preview mode. Keep
     # these paths out of the SPA fallback so stale clients fail closed.
     location = /api {
