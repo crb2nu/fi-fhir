@@ -108,16 +108,17 @@ must not enter the clinical data plane before the engine spine is proven.
     passed 34/34, including kill-test job `185433`; main pipeline `19235` passed
     37/37 and repeated the proof in job `185505`. Evidence MR `!107` reconciled
     the exact proof on main.
-  - [ ] Slice 2.4 implementation is locally complete: exact deployed S3/SFTP
+  - [x] Slice 2.4 adds exact deployed S3/SFTP
     sources, bounded streaming, PostgreSQL lease/checkpoint resume, deterministic
     admission identity, pinned host keys, and verified digest archive semantics.
-    Unit/race/full-suite/vet/scoped-lint and real PostgreSQL/MinIO/SSH-SFTP
-    kill-and-resume gates pass locally; required CI and merge evidence remain
-    pending.
+    MR `!108` pipeline `19331` passed 35/35, including required PostgreSQL 16/
+    MinIO/SSH-SFTP job `186259`, and merged as `ed32915f`. Main pipeline `19344`
+    passed 38/38 and independently repeated the proof in job `186476`.
+    Production GitOps activation remains intentionally pending.
 
 ## Next
 
-- [ ] Reconcile Slice 2.4 required PostgreSQL/MinIO/SFTP CI and merge evidence.
+- [ ] Phase 3 Slice 3.1 restart-safe Integration Session Workspace.
 
 ## Then
 

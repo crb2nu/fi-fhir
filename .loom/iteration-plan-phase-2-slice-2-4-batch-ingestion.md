@@ -1,6 +1,6 @@
 # RALPH Iteration Plan — Phase 2 Slice 2.4 Batch Ingestion
 
-**Status**: Ready for review; all local proof green, CI/merge evidence pending
+**Status**: Complete, merged, and independently verified on main
 **Date**: 2026-07-16
 **Branch**: `codex/phase2-batch-ingestion`
 **Base**: `main` at `6d4fd184`
@@ -107,7 +107,18 @@ Local evidence:
   object mutation/release isolation, wrong-host-key rejection, digest-verified
   archive, S3 overwrite-safe exact-version deletion, source deletion ordering,
   and raw-PHI exclusion.
-- Full repository and CI evidence will be recorded before this iteration closes.
+
+CI and merge evidence:
+
+- MR `!108` pipeline `19331` passed 35/35; required batch job `186259` passed.
+- MR `!108` merged as `ed32915f`.
+- Main pipeline `19344` passed 38/38; batch job `186476` independently repeated
+  the provider recovery proof.
+- The main pipeline briefly exposed a Harbor proxy-cache miss for already pinned
+  Go/nginx images. The exact upstream references remained available; retries
+  `186557` and `186558` passed with no source or pin change, followed by green
+  image scans and deploy jobs.
+- Production GitOps activation remains intentionally pending.
 
 - Tests to run:
   - `go test ./internal/integration/batch ./cmd/fi-fhir`;

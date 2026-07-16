@@ -761,8 +761,9 @@ Record decisions as they are made, with date, rationale, and sources.
   - Webhook/FHIR/database/file execution and production GitOps activation remain
     separate reviewed work.
 - Evidence:
-  - Local unit/race/full-suite tests pass. Required PostgreSQL 16/Kafka CI and
-    merge/default-branch evidence are pending.
+  - MR `!106` pipeline `19226` passed 34/34, including PostgreSQL 16/Kafka job
+    `185433`, and merged as `ca968fbf`. Main pipeline `19235` passed 37/37 and
+    repeated the proof in job `185505`; evidence MR `!107` reconciled the record.
 - Sources:
   - [S1] `internal/integration/delivery/`
   - [S2] `internal/integration/processor/migrations/0002_delivery_reliability.sql`
@@ -811,6 +812,11 @@ Record decisions as they are made, with date, rationale, and sources.
     archive; the completed-object cleanup path safely retries deletion.
   - Source mutation produces a new object identity rather than inheriting an
     old checkpoint.
+- Evidence:
+  - MR `!108` pipeline `19331` passed 35/35, including required PostgreSQL 16/
+    MinIO/SSH-SFTP job `186259`, and merged as `ed32915f`.
+  - Main pipeline `19344` passed 38/38 and independently repeated the proof in
+    job `186476`.
 - Sources:
   - [S1] `internal/integration/batch/service.go`
   - [S2] `internal/integration/batch/store.go`
