@@ -122,6 +122,29 @@ query ExplainWorkflow($input: ExplainWorkflowInput!) {
 }
 
 # =============================================================================
+# LLM Capability (honest availability state)
+# =============================================================================
+
+query LlmCapability {
+  llmCapability {
+    enabled
+    configured
+    providerBaseURLHost
+    defaultModel
+    qualityModel
+    status
+    warnings
+    features {
+      name
+      enabled
+      status
+      reason
+      model
+    }
+  }
+}
+
+# =============================================================================
 # Message Classification
 # =============================================================================
 

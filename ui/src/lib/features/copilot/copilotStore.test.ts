@@ -2,12 +2,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { get } from 'svelte/store';
 
 vi.mock('./copilotDispatch', () => ({ dispatchCopilotAction: vi.fn() }));
-vi.mock('$lib/graphql/client', () => ({ isErrorToasted: vi.fn(() => true) }));
+vi.mock('$lib/graphql/client', () => ({
+  isErrorToasted: vi.fn(() => true),
+  graphqlFetch: vi.fn()
+}));
 
 import { dispatchCopilotAction } from './copilotDispatch';
 import { isErrorToasted } from '$lib/graphql/client';
 import { platformState } from '$lib/platform';
 import { copilotState, sendAction, cancelStream, clearMessages } from './copilotStore';
+import { llmCapabilityState, resetLlmCapability } from './llmCapabilityStore';
 
 const mockDispatch = dispatchCopilotAction as unknown as ReturnType<typeof vi.fn>;
 const mockIsToasted = isErrorToasted as unknown as ReturnType<typeof vi.fn>;
@@ -21,6 +25,7 @@ beforeEach(() => {
   mockIsToasted.mockReset();
   mockIsToasted.mockReturnValue(true);
   clearMessages();
+  resetLlmCapability();
   platformState.update((s) => ({ ...s, connected: true }));
 });
 
@@ -51,6 +56,33 @@ describe('sendAction', () => {
     await sendAction('generate', 'x');
     expect(mockDispatch).not.toHaveBeenCalled();
     expect(get(copilotState).error).toMatch(/Connect to the platform/);
+  });
+
+  it('does not dispatch when the backend reports LLM disabled', async () => {
+    llmCapabilityState.set({
+      status: 'disabled',
+      capability: {
+        enabled: false,
+        configured: false,
+        providerBaseURLHost: null,
+        defaultModel: null,
+        qualityModel: null,
+        status: 'disabled',
+        warnings: ['LLM features are disabled'],
+        features: []
+      }
+    });
+
+    await sendAction('generate', 'x');
+
+    expect(mockDispatch).not.toHaveBeenCalled();
+    expect(get(copilotState).error).toBe('LLM features are disabled');
+  });
+
+  it('still dispatches when the capability state is unknown (fail-open)', async () => {
+    mockDispatch.mockResolvedValue({ content: 'ok', model: null });
+    await sendAction('generate', 'x');
+    expect(mockDispatch).toHaveBeenCalled();
   });
 
   it('surfaces an inline error without re-toasting when the net already toasted', async () => {
