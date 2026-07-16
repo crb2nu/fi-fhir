@@ -97,7 +97,10 @@
 
 ## Implementation Status
 
-- Implemented on `codex/phase3-streaming-diagnostics-lineage`.
-- Targeted backend tests and the complete UI check/type/test gate pass.
-- Production feature gates remain disabled; MR and canonical-main evidence are
-  recorded during landing.
+- Implemented on `codex/phase3-streaming-diagnostics-lineage` and merged as
+  `36f2bb8c` through MR `!115`.
+- MR pipeline `19464` passed 34/34, including required session job `187950` and
+  benchmark job `187953`.
+- Main pipeline `19482` passed 37/37 and independently repeated the session
+  proof in job `188135`.
+- Production feature gates remain disabled.
