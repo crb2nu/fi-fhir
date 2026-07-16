@@ -1,11 +1,32 @@
 import { graphqlFetch } from '$lib/graphql/client';
+import { subscribe } from '$lib/graphql/subscriptions';
 import {
+  AddStreamingSessionSampleDocument,
+  CreateStreamingIntegrationSessionDocument,
   PreviewIntegrationMessageDocument,
+  RunStreamingSessionPreviewDocument,
+  StreamIntegrationSessionEventsDocument,
+  UpdateStreamingSessionProfileDocument,
+  type AddStreamingSessionSampleMutation,
+  type AddStreamingSessionSampleMutationVariables,
+  type CreateStreamingIntegrationSessionMutation,
+  type CreateStreamingIntegrationSessionMutationVariables,
+  type IntegrationSessionRunFieldsFragment,
   type ParsePreviewQuery,
   type PreviewIntegrationMessageMutation,
-  type PreviewIntegrationMessageMutationVariables
+  type PreviewIntegrationMessageMutationVariables,
+  type RunStreamingSessionPreviewMutation,
+  type RunStreamingSessionPreviewMutationVariables,
+  type SourceProfile,
+  type StreamIntegrationSessionEventsSubscription,
+  type StreamIntegrationSessionEventsSubscriptionVariables,
+  type UpdateStreamingSessionProfileMutation,
+  type UpdateStreamingSessionProfileMutationVariables
 } from '$lib/gen/graphql';
-import type { AuthenticatedIntegrationPreviewResult } from './types';
+import type {
+  AuthenticatedIntegrationPreviewResult,
+  IntegrationSessionPreviewMeta
+} from './types';
 
 const DEFAULT_PREVIEW_REASON = 'interactive IDE preview';
 
@@ -20,16 +41,20 @@ export type AuthenticatedIntegrationPreviewInput = {
   source?: string | null;
   profileId?: string | null;
   sessionId?: string | null;
+  profile?: SourceProfile | null;
+  onSessionUpdate?: (session: IntegrationSessionPreviewMeta) => void;
 };
 
-/** Legacy UI switch retained until the active HL7 layout branch lands. */
 export function isIntegrationSessionEngineEnabled(): boolean {
-  return false;
+  return import.meta.env.VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED === 'true';
 }
 
 export async function runAuthenticatedIntegrationPreview(
   input: AuthenticatedIntegrationPreviewInput
 ): Promise<AuthenticatedIntegrationPreviewResult> {
+  if (isIntegrationSessionEngineEnabled()) {
+    return runStreamingSessionPreview(input);
+  }
   const integrationId =
     input.integrationId?.trim() || import.meta.env.VITE_FI_FHIR_PREVIEW_INTEGRATION_ID?.trim();
   if (!integrationId) {
@@ -56,6 +81,218 @@ export async function runAuthenticatedIntegrationPreview(
   return {
     parsePreview: projectCurrentInspectorView(response.previewIntegrationMessage),
     preview: response.previewIntegrationMessage
+  };
+}
+
+async function runStreamingSessionPreview(
+  input: AuthenticatedIntegrationPreviewInput
+): Promise<AuthenticatedIntegrationPreviewResult> {
+  const sessionId = input.sessionId?.trim() || (await createSession());
+  const sampleId = await addSessionSample(sessionId, input);
+  if (input.profile) {
+    await updateSessionProfile(sessionId, input.profile);
+  }
+  input.onSessionUpdate?.({
+    mode: 'session',
+    id: sessionId,
+    sampleId,
+    runId: null,
+    state: 'pending',
+    diagnostics: [],
+    stages: [],
+    lineage: [],
+    streamState: 'connecting',
+    error: null
+  });
+
+  let streamError: string | null = null;
+  let opened = false;
+  let runFinished = false;
+  let resolveOpen: () => void = () => {};
+  let rejectOpen: (error: Error) => void = () => {};
+  const open = new Promise<void>((resolve, reject) => {
+    resolveOpen = resolve;
+    rejectOpen = reject;
+  });
+  const seenEvents = new Set<string>();
+  const unsubscribe = subscribe<
+    StreamIntegrationSessionEventsSubscription,
+    StreamIntegrationSessionEventsSubscriptionVariables
+  >(
+    StreamIntegrationSessionEventsDocument,
+    { sessionId },
+    {
+      onOpen: () => {
+        opened = true;
+        resolveOpen();
+      },
+      onData: (data) => {
+        const event = data.integrationSessionEvents;
+        if (seenEvents.has(event.id)) return;
+        seenEvents.add(event.id);
+        if (event.run) input.onSessionUpdate?.(projectSessionMeta(sessionId, sampleId, event.run, 'running', null));
+      },
+      onError: (error) => {
+        streamError = error.message;
+        if (!opened) rejectOpen(error);
+      },
+      onComplete: () => {
+        if (!runFinished) streamError = 'Integration Session stream ended before the run completed';
+      }
+    }
+  );
+
+  try {
+    await waitForStreamOpen(open);
+    const response = await graphqlFetch<
+      RunStreamingSessionPreviewMutation,
+      RunStreamingSessionPreviewMutationVariables
+    >(RunStreamingSessionPreviewDocument, {
+      input: { sessionId, sampleId, data: null, format: null, source: input.source?.trim() || null }
+    });
+    runFinished = true;
+    const run = response.runSessionPreview;
+    const streamState = streamError ? 'error' : run.status === 'completed' ? 'complete' : 'error';
+    const session = projectSessionMeta(sessionId, sampleId, run, streamState, streamError);
+    input.onSessionUpdate?.(session);
+    return {
+      preview: null,
+      parsePreview: projectSessionInspectorView(run),
+      session
+    };
+  } finally {
+    unsubscribe();
+  }
+}
+
+async function waitForStreamOpen(open: Promise<void>): Promise<void> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      open,
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error('Integration Session stream timed out')), 5000);
+      })
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
+async function createSession(): Promise<string> {
+  const response = await graphqlFetch<
+    CreateStreamingIntegrationSessionMutation,
+    CreateStreamingIntegrationSessionMutationVariables
+  >(CreateStreamingIntegrationSessionDocument, {
+    input: { name: 'HL7 source profile workspace', description: 'Mapping Studio live preview session' }
+  });
+  return response.createIntegrationSession.id;
+}
+
+async function addSessionSample(
+  sessionId: string,
+  input: AuthenticatedIntegrationPreviewInput
+): Promise<string> {
+  const response = await graphqlFetch<
+    AddStreamingSessionSampleMutation,
+    AddStreamingSessionSampleMutationVariables
+  >(AddStreamingSessionSampleDocument, {
+    input: {
+      sessionId,
+      name: 'Mapping Studio preview',
+      format: 'HL7V2',
+      data: input.data,
+      source: input.source?.trim() || null,
+      retainRawPayload: false,
+      payloadRef: null
+    }
+  });
+  return response.addSessionSample.id;
+}
+
+async function updateSessionProfile(sessionId: string, profile: SourceProfile): Promise<void> {
+  await graphqlFetch<
+    UpdateStreamingSessionProfileMutation,
+    UpdateStreamingSessionProfileMutationVariables
+  >(UpdateStreamingSessionProfileDocument, {
+    input: {
+      sessionId,
+      name: profile.name,
+      content: JSON.stringify(projectExecutableProfile(profile))
+    }
+  });
+}
+
+function projectExecutableProfile(profile: SourceProfile): Record<string, unknown> {
+  const hl7v2 = profile.hl7v2;
+  return {
+    hl7v2: {
+      default_version: hl7v2?.defaultVersion || '2.5.1',
+      timezone: hl7v2?.timezone || 'UTC',
+      tolerance: {
+        missing_segments: hl7v2?.tolerance?.missingSegments || [],
+        nte_anywhere: hl7v2?.tolerance?.nteAnywhere ?? false,
+        extra_components: hl7v2?.tolerance?.extraComponents ?? false,
+        unknown_segments: hl7v2?.tolerance?.unknownSegments ?? false,
+        non_standard_delimiters: hl7v2?.tolerance?.nonStandardDelimiters ?? false
+      },
+      event_classifications: (hl7v2?.eventClassifications || []).map((classification) => ({
+        message_type: classification.messageType,
+        event_type: classification.eventType.toLowerCase(),
+        priority: classification.priority
+      }))
+    }
+  };
+}
+
+function projectSessionInspectorView(
+  run: IntegrationSessionRunFieldsFragment
+): ParsePreviewQuery['parsePreview'] {
+  return {
+    __typename: 'ParseResult',
+    success: run.status === 'completed',
+    errors: run.diagnostics.filter((entry) => entry.severity === 'error').map((entry) => entry.message),
+    events: run.events,
+    warnings: run.warnings
+  };
+}
+
+function projectSessionMeta(
+  sessionId: string,
+  sampleId: string,
+  run: IntegrationSessionRunFieldsFragment,
+  streamState: IntegrationSessionPreviewMeta['streamState'],
+  error: string | null
+): IntegrationSessionPreviewMeta {
+  return {
+    mode: 'session',
+    id: sessionId,
+    sampleId,
+    runId: run.id,
+    state: run.status,
+    diagnostics: run.diagnostics.map((diagnostic) => ({
+      id: diagnostic.id,
+      runId: diagnostic.runId,
+      code: diagnostic.code,
+      message: diagnostic.message,
+      path: diagnostic.path,
+      severity: diagnostic.severity,
+      fixSuggestion: diagnostic.fixSuggestion,
+      accepted: diagnostic.accepted,
+      acceptedAt: diagnostic.acceptedAt,
+      lineage: diagnostic.lineage
+    })),
+    stages: run.stages.map((stage) => ({
+      id: stage.id,
+      name: stage.name,
+      status: stage.status,
+      startedAt: stage.startedAt,
+      completedAt: stage.completedAt,
+      durationMs: stage.durationMs
+    })),
+    lineage: run.lineage,
+    streamState,
+    error
   };
 }
 

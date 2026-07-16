@@ -123,7 +123,9 @@ must not enter the clinical data plane before the engine spine is proven.
   pipeline `19409` passed 37/37, including required PostgreSQL restart/raw-PHI
   job `187425`, and merged as `15746ccd`. Main pipeline `19424` passed 40/40
   and independently repeated the proof in job `187618`.
-- [ ] Phase 3 Slice 3.2 streaming diagnostics and server lineage.
+- [x] Phase 3 Slice 3.2 streaming diagnostics and server lineage: feature-gated
+  authenticated GraphQL SSE, durable run reconciliation, Problems diagnostics,
+  and canonical inspector lineage. Production GitOps activation remains pending.
 
 ## Then
 

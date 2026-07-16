@@ -23,9 +23,9 @@ func BuildHL7v2Lineage(raw string, event any) []LineageLink {
 		if value == "" {
 			return
 		}
-		sourcePath := fmt.Sprintf("%s.%d", segmentID, field)
-		if occurrence > 0 {
-			sourcePath = fmt.Sprintf("%s[%d].%d", segmentID, occurrence+1, field)
+		sourcePath := fmt.Sprintf("%s-%d", segmentID, field)
+		if segmentID == "OBX" || occurrence > 0 {
+			sourcePath = fmt.Sprintf("%s[%d]-%d", segmentID, occurrence, field)
 		}
 		links = append(links, LineageLink{
 			SourcePath:    sourcePath,
@@ -104,7 +104,7 @@ func findSegment(segments []hl7Segment, segmentID string, occurrence int) (hl7Se
 }
 
 func previewValue(path, value string) string {
-	for _, sensitive := range []string{"PID.3", "PID.5", "PID.7", "PID.11", "PID.13", "PID.19"} {
+	for _, sensitive := range []string{"PID-3", "PID-5", "PID-7", "PID-11", "PID-13", "PID-19"} {
 		if path == sensitive {
 			return "[redacted]"
 		}

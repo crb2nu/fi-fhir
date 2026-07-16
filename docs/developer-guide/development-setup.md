@@ -271,6 +271,14 @@ VITE_FI_FHIR_PREVIEW_INTEGRATION_ID=adt-east \
 npm run dev
 ```
 
+The default path is the stateless authenticated preview. To enable durable
+Integration Session streaming, follow `docs/operations/INTEGRATION-SESSIONS.md`,
+add `graphql:operator` to the API roles, and add this public UI build flag:
+
+```bash
+VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED=true npm run dev
+```
+
 ## IDE Setup
 
 ### VS Code

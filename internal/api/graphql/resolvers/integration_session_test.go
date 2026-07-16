@@ -152,7 +152,7 @@ func TestIntegrationSession_SubscriptionFanout(t *testing.T) {
 		t.Fatalf("IntegrationSessionEvents failed: %v", err)
 	}
 
-	_, err = mutationResolver.AddSessionSample(context.Background(), model.AddSessionSampleInput{
+	sample, err := mutationResolver.AddSessionSample(context.Background(), model.AddSessionSampleInput{
 		SessionID:        session.ID,
 		Name:             "ADT A01",
 		Format:           model.SourceFormatHL7v2,
@@ -171,8 +171,75 @@ func TestIntegrationSession_SubscriptionFanout(t *testing.T) {
 		if event.Session == nil || event.Session.ID != session.ID {
 			t.Fatalf("expected event session payload, got %#v", event.Session)
 		}
+		if len(event.Session.Samples) != 0 {
+			t.Fatalf("stream envelope exposed retained samples: %#v", event.Session.Samples)
+		}
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for integration session event")
+	}
+
+	profile, err := mutationResolver.UpdateSessionProfileDraft(context.Background(), model.UpdateSessionArtifactInput{
+		SessionID: session.ID,
+		Content:   `{"hl7v2":{"default_version":"2.5","timezone":"UTC","event_classifications":[{"message_type":"ADT^A01","event_type":"patient_admit","priority":1}]}}`,
+	})
+	if err != nil {
+		t.Fatalf("UpdateSessionProfileDraft failed: %v", err)
+	}
+	// The draft event is outside the run progression asserted below.
+	select {
+	case <-events:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for draft event")
+	}
+
+	run, err := mutationResolver.RunSessionPreview(context.Background(), model.RunSessionPreviewInput{
+		SessionID: session.ID,
+		SampleID:  &sample.ID,
+	})
+	if err != nil {
+		t.Fatalf("RunSessionPreview failed: %v", err)
+	}
+	wantTypes := []string{
+		"run_started",
+		"stage_started", "stage_completed",
+		"stage_started", "stage_completed",
+		"stage_started", "stage_completed",
+		"stage_started", "stage_completed",
+		"run_completed",
+	}
+	gotTypes := make([]string, 0, len(wantTypes))
+	var terminal *model.SessionRun
+	deadline := time.After(2 * time.Second)
+	for len(gotTypes) < len(wantTypes) {
+		select {
+		case event := <-events:
+			gotTypes = append(gotTypes, event.Type)
+			if event.Run != nil {
+				terminal = event.Run
+			}
+		case <-deadline:
+			t.Fatalf("timed out waiting for run progression: %#v", gotTypes)
+		}
+	}
+	for index := range wantTypes {
+		if gotTypes[index] != wantTypes[index] {
+			t.Fatalf("stream event %d = %q, want %q; all=%#v", index, gotTypes[index], wantTypes[index], gotTypes)
+		}
+	}
+	if terminal == nil || terminal.ID != run.ID || terminal.Status != run.Status {
+		t.Fatalf("terminal stream snapshot = %#v, mutation run = %#v", terminal, run)
+	}
+	if terminal.ProfileRevisionID == nil || *terminal.ProfileRevisionID != profile.RevisionID ||
+		terminal.ProfileRevisionDigest == nil || *terminal.ProfileRevisionDigest != profile.Digest {
+		t.Fatalf("terminal stream provenance = %#v, profile = %#v", terminal, profile)
+	}
+	if !hasGraphQLLineage(terminal.Lineage, "PID-5", "event.patient.name") {
+		t.Fatalf("terminal stream lineage = %#v", terminal.Lineage)
+	}
+	for _, link := range terminal.Lineage {
+		if link.Description != nil {
+			t.Fatalf("raw lineage previews must not cross the GraphQL boundary: %+v", link)
+		}
 	}
 }
 
@@ -278,6 +345,15 @@ func addTestIntegrationSample(t *testing.T, mutationResolver *mutationResolver, 
 func hasRunStage(stages []model.RunStage, name string) bool {
 	for _, stage := range stages {
 		if stage.Name == name && stage.DurationMs >= 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func hasGraphQLLineage(links []model.LineageLink, sourcePath, targetPath string) bool {
+	for _, link := range links {
+		if link.SourcePath == sourcePath && link.TargetPath != nil && *link.TargetPath == targetPath {
 			return true
 		}
 	}

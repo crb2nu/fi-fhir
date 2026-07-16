@@ -5,9 +5,11 @@
   import type { ParsePreviewQuery } from '$lib/gen/graphql';
   import { createEventDispatcher } from 'svelte';
   import Badge from '$lib/ui/Badge.svelte';
+  import type { IntegrationSessionLineage } from '$lib/features/integration-session';
 
   export let events: ParsePreviewQuery['parsePreview']['events'];
   export let message: HL7Message;
+  export let lineage: IntegrationSessionLineage[] = [];
 
   const dispatch = createEventDispatcher<{ inspectPath: { path: string } }>();
 
@@ -59,6 +61,30 @@
   <div class="empty">No semantic events extracted.</div>
 {:else}
   <div class="stack">
+    {#if lineage.length > 0}
+      <section class="server-lineage" aria-label="Server lineage">
+        <div class="server-lineage-head">
+          <div>
+            <div class="section-title">Server lineage</div>
+            <div class="note">Select a mapping to inspect the exact source field used by this run.</div>
+          </div>
+          <Badge variant="info">{lineage.length} links</Badge>
+        </div>
+        <div class="grid">
+          {#each lineage as link (`${link.sourcePath}:${link.targetPath ?? ''}`)}
+            <button
+              class="row server-row"
+              type="button"
+              on:click={() => dispatch('inspectPath', { path: link.sourcePath })}
+            >
+              <span class="k mono">{link.sourcePath}</span>
+              <span class="v">{link.targetPath ?? 'canonical event'}</span>
+              <span class="hint">{link.description ?? 'inspect'}</span>
+            </button>
+          {/each}
+        </div>
+      </section>
+    {/if}
     {#each events as ev (ev.id)}
       <div class="card">
         <div class="head">
@@ -227,6 +253,26 @@
     gap: 12px;
   }
 
+  .server-lineage {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--color-info-border);
+    border-radius: 12px;
+    background: var(--color-info-bg);
+  }
+
+  .server-lineage-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .server-lineage .note {
+    margin-bottom: 0;
+  }
+
 	  .card {
 	    border-radius: 12px;
 	    border: 1px solid var(--color-border-default);
@@ -317,9 +363,28 @@
     align-items: baseline;
   }
 
-	  .row:hover {
+  .row:hover {
 	    background: var(--color-bg-hover);
-	  }
+  }
+
+  .row:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+  }
+
+  @media (max-width: 640px) {
+    .server-lineage-head {
+      flex-direction: column;
+    }
+
+    .row {
+      grid-template-columns: 1fr;
+    }
+
+    .v {
+      white-space: normal;
+    }
+  }
 
 	  .k {
 	    color: var(--color-text-primary);

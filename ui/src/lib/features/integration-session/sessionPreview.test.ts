@@ -3,16 +3,22 @@ import type { DefinitionNode, DocumentNode } from 'graphql';
 import { graphqlFetch } from '$lib/graphql/client';
 import {
   PreviewIntegrationMessageDocument,
+  type RunStreamingSessionPreviewMutation,
   type PreviewIntegrationMessageMutation
 } from '$lib/gen/graphql';
+import { subscribe } from '$lib/graphql/subscriptions';
 import { parseHL7Preview } from '$lib/features/hl7/hl7Preview';
 import { runAuthenticatedIntegrationPreview } from './api';
 
 vi.mock('$lib/graphql/client', () => ({
   graphqlFetch: vi.fn()
 }));
+vi.mock('$lib/graphql/subscriptions', () => ({
+  subscribe: vi.fn()
+}));
 
 const mockFetch = graphqlFetch as unknown as ReturnType<typeof vi.fn>;
+const mockSubscribe = subscribe as unknown as ReturnType<typeof vi.fn>;
 
 const rawMessage =
   'MSH|^~\\&|SENDING|FAC|RECEIVING|FAC|20260713120000||ADT^A01|control-123|P|2.5.1';
@@ -118,9 +124,123 @@ function operationName(document: unknown): string {
 
 beforeEach(() => {
   mockFetch.mockReset();
+  mockSubscribe.mockReset();
 });
 
 describe('authenticated integration preview routing', () => {
+  it('subscribes before a session run and projects server diagnostics and lineage', async () => {
+    const env = import.meta.env as Record<string, string | undefined>;
+    const previous = env.VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED;
+    env.VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED = 'true';
+    const operations: string[] = [];
+    const run = {
+      __typename: 'SessionRun' as const,
+      id: 'run-1',
+      sessionId: 'session-1',
+      sampleId: 'sample-1',
+      status: 'completed',
+      profileRevisionId: null,
+      profileRevisionDigest: null,
+      createdAt: '2026-07-16T20:00:00Z',
+      completedAt: '2026-07-16T20:00:01Z',
+      stages: [
+        {
+          __typename: 'RunStage' as const,
+          id: 'parse_hl7v2',
+          name: 'parse_hl7v2',
+          status: 'succeeded',
+          startedAt: '2026-07-16T20:00:00Z',
+          completedAt: '2026-07-16T20:00:01Z',
+          durationMs: 4,
+          summary: null
+        }
+      ],
+      diagnostics: [
+        {
+          __typename: 'SessionDiagnostic' as const,
+          id: 'diag-1',
+          sessionId: 'session-1',
+          runId: 'run-1',
+          sampleId: 'sample-1',
+          severity: 'warning',
+          code: 'MISSING_PV1',
+          message: 'PV1 is missing',
+          path: 'PV1-2',
+          fixSuggestion: 'Review the source profile or sample payload for this warning.',
+          accepted: false,
+          acceptedAt: null,
+          lineage: [{ __typename: 'LineageLink' as const, sourcePath: 'PV1-2', targetPath: null, description: null }]
+        }
+      ],
+      lineage: [
+        {
+          __typename: 'LineageLink' as const,
+          sourcePath: 'PID-5',
+          targetPath: 'event.patient.name',
+          description: '[redacted]'
+        }
+      ],
+      events: [],
+      warnings: [
+        {
+          __typename: 'ParseWarning' as const,
+          phase: 'semantic',
+          code: 'MISSING_PV1',
+          message: 'PV1 is missing',
+          path: 'PV1-2',
+          explanation: null,
+          fixSuggestion: null,
+          impact: null,
+          severity: 'warning',
+          fromCache: null
+        }
+      ]
+    } satisfies RunStreamingSessionPreviewMutation['runSessionPreview'];
+
+    mockSubscribe.mockImplementation((_document, _variables, callbacks) => {
+      operations.push('StreamIntegrationSessionEvents');
+      callbacks.onOpen?.();
+      return vi.fn();
+    });
+    mockFetch.mockImplementation((document) => {
+      const name = operationName(document);
+      operations.push(name);
+      if (name === 'CreateStreamingIntegrationSession') {
+        return Promise.resolve({ createIntegrationSession: { id: 'session-1' } });
+      }
+      if (name === 'AddStreamingSessionSample') {
+        return Promise.resolve({ addSessionSample: { id: 'sample-1', sessionId: 'session-1' } });
+      }
+      if (name === 'RunStreamingSessionPreview') {
+        return Promise.resolve({ runSessionPreview: run });
+      }
+      return Promise.reject(new Error(`unexpected operation ${name}`));
+    });
+    const onSessionUpdate = vi.fn();
+
+    try {
+      const result = await runAuthenticatedIntegrationPreview({ data: rawMessage, onSessionUpdate });
+
+      expect(operations).toEqual([
+        'CreateStreamingIntegrationSession',
+        'AddStreamingSessionSample',
+        'StreamIntegrationSessionEvents',
+        'RunStreamingSessionPreview'
+      ]);
+      expect(result.preview).toBeNull();
+      expect(result.session).toMatchObject({
+        id: 'session-1',
+        runId: 'run-1',
+        streamState: 'complete',
+        lineage: [{ sourcePath: 'PID-5', targetPath: 'event.patient.name' }]
+      });
+      expect(result.parsePreview.warnings).toHaveLength(1);
+      expect(onSessionUpdate).toHaveBeenLastCalledWith(expect.objectContaining({ runId: 'run-1' }));
+    } finally {
+      env.VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED = previous;
+    }
+  });
+
   it('uses one stateless mutation and excludes all browser-owned binding fields', async () => {
     mockFetch.mockResolvedValue({ previewIntegrationMessage: enginePreview });
 

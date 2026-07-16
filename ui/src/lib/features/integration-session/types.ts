@@ -1,5 +1,11 @@
 import type { ParsePreviewQuery, PreviewIntegrationMessageMutation } from '$lib/gen/graphql';
 
+export type IntegrationSessionLineage = {
+  sourcePath: string;
+  targetPath: string | null;
+  description: string | null;
+};
+
 export type IntegrationSessionDiagnostic = {
   id: string;
   code: string;
@@ -9,6 +15,8 @@ export type IntegrationSessionDiagnostic = {
   fixSuggestion: string | null;
   accepted: boolean;
   acceptedAt: string | null;
+  runId: string | null;
+  lineage: IntegrationSessionLineage[];
 };
 
 export type IntegrationSessionStage = {
@@ -28,6 +36,8 @@ export type IntegrationSessionPreviewMeta = {
   state: string | null;
   diagnostics: IntegrationSessionDiagnostic[];
   stages: IntegrationSessionStage[];
+  lineage: IntegrationSessionLineage[];
+  streamState: 'connecting' | 'running' | 'complete' | 'error';
   error: string | null;
 };
 
@@ -37,5 +47,6 @@ export type IntegrationSessionPreviewMeta = {
  */
 export type AuthenticatedIntegrationPreviewResult = {
   parsePreview: ParsePreviewQuery['parsePreview'];
-  preview: PreviewIntegrationMessageMutation['previewIntegrationMessage'];
+  preview: PreviewIntegrationMessageMutation['previewIntegrationMessage'] | null;
+  session?: IntegrationSessionPreviewMeta | null;
 };

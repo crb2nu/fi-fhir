@@ -83,6 +83,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Slice 3.1 evidence: MR `!111` pipeline `19409` passed 37/37, required session
   job `187425` passed, merge commit `15746ccd` repeated the change on main, and
   main pipeline `19424` passed 40/40 with independent session job `187618`
+- Feature-gated authenticated GraphQL SSE for Integration Session run/stage/
+  diagnostic snapshots while WebSocket remains closed, with a transport-level
+  session-subscription allowlist and durable terminal-run reconciliation
+- Mapping Studio live server progression, deduplicated Problems diagnostics,
+  and canonical HL7 inspector lineage navigation including repeated OBX fields;
+  raw retained samples and persisted lineage value previews stay server-side
 - Blocking PostgreSQL 16/TCP MLLP gate covering pre-commit ACK exclusion,
   concurrent pause serialization, 32 reconnecting duplicates, resume,
   retirement, restart, durable cardinality, and raw-message leakage

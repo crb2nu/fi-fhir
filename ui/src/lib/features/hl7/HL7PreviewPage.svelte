@@ -41,6 +41,11 @@
   import { toasts } from '$lib/ui/toastStore';
   import { SvelteSet } from 'svelte/reactivity';
   import { isIntegrationSessionEngineEnabled } from '$lib/features/integration-session';
+  import SessionRunProgress from '$lib/features/integration-session/SessionRunProgress.svelte';
+  import {
+    problemNavigation,
+    setSessionDiagnostics
+  } from '$lib/ui/ide/panels/workflowProblemsStore';
 
   const store = createHL7PreviewStore();
   const sessionEngineEnabled = isIntegrationSessionEngineEnabled();
@@ -391,7 +396,12 @@
         source: snapshot.source,
         data,
         profileId,
-        sessionId: $state.session?.mode === 'session' ? $state.session.id : null
+        profile: $selectedProfile,
+        sessionId: $state.session?.mode === 'session' ? $state.session.id : null,
+        onSessionUpdate: (session) => {
+          state.update((current) => ({ ...current, session }));
+          setSessionDiagnostics(session);
+        }
       });
       lastUsedProfileId = profileId;
       lastUsedProfileVersion = $selectedProfile?.version ?? null;
@@ -823,9 +833,14 @@
   })();
 
   onMount(() => {
-
     const unsub = activeSample.subscribe((s) => {
       if (s) loadSample(s);
+    });
+    let lastNavigationSequence = 0;
+    const unsubProblemNavigation = problemNavigation.subscribe((navigation) => {
+      if (!navigation || navigation.sequence === lastNavigationSequence) return;
+      lastNavigationSequence = navigation.sequence;
+      inspectPath(navigation.path);
     });
 
     const onKeyDown = (e: KeyboardEvent) => {
@@ -900,6 +915,8 @@
 
     return () => {
       unsub();
+      unsubProblemNavigation();
+      setSessionDiagnostics(null);
       window.removeEventListener('keydown', onKeyDown);
     };
   });
@@ -1082,6 +1099,9 @@
   </Panel>
 
   <Panel title="Results" tone={$state.error ? 'error' : 'default'}>
+    {#if sessionEngineEnabled && $state.session}
+      <SessionRunProgress session={$state.session} />
+    {/if}
     {#if !$state.result}
       {#if !$state.data.trim()}
         <div class="empty">Paste an HL7v2 message to enable preview.</div>
@@ -1252,7 +1272,12 @@
           on:resolve={(e) => handleResolveWarning(e.detail)}
         />
       {:else if activeTab === 'events'}
-        <EventLineagePanel events={$events} message={$hl7} on:inspectPath={(e) => inspectPath(e.detail.path)} />
+        <EventLineagePanel
+          events={$events}
+          message={$hl7}
+          lineage={$state.session?.lineage ?? []}
+          on:inspectPath={(e) => inspectPath(e.detail.path)}
+        />
       {:else if activeTab === 'extraction'}
         <ExtractionPanel text={$state.data} />
       {:else if activeTab === 'inspector'}

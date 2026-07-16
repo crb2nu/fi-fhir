@@ -64,11 +64,11 @@ func TestRunnerHL7v2LifecycleDiagnosticsLineageAndStream(t *testing.T) {
 	if run.Diagnostics[0].Code != "MISSING_PV1" || run.Diagnostics[0].Severity != "warning" {
 		t.Fatalf("diagnostic = %+v", run.Diagnostics[0])
 	}
-	if !hasLineage(run.Lineage, "MSH.9", "event.type") {
-		t.Fatalf("missing MSH.9 event.type lineage: %+v", run.Lineage)
+	if !hasLineage(run.Lineage, "MSH-9", "event.type") {
+		t.Fatalf("missing MSH-9 event.type lineage: %+v", run.Lineage)
 	}
-	if !hasLineage(run.Lineage, "PID.5", "event.patient.name") {
-		t.Fatalf("missing PID.5 patient lineage: %+v", run.Lineage)
+	if !hasLineage(run.Lineage, "PID-5", "event.patient.name") {
+		t.Fatalf("missing PID-5 patient lineage: %+v", run.Lineage)
 	}
 
 	seen := map[StreamEventType]bool{}
@@ -93,7 +93,7 @@ func TestNormalizeDiagnosticsDefaults(t *testing.T) {
 	diagnostics := NormalizeDiagnostics([]events.ParseWarning{{
 		Code:    "ODD_FIELD",
 		Message: "field looked odd",
-		Path:    "PID.3",
+		Path:    "PID-3",
 	}})
 	if len(diagnostics) != 1 {
 		t.Fatalf("diagnostics = %d, want 1", len(diagnostics))

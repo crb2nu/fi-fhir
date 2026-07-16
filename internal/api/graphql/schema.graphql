@@ -948,6 +948,7 @@ type SessionRun {
   completedAt: DateTime
   stages: [RunStage!]!
   diagnostics: [SessionDiagnostic!]!
+  lineage: [LineageLink!]!
   events: [Event!]!
   warnings: [ParseWarning!]!
 }

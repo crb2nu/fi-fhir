@@ -60,8 +60,8 @@
 | HL7v2 HTTP Ingress    | `internal/integration/ingress/`   | Alpha      | —        | Bearer/HMAC, bounded body, durable response; GitOps activation pending | 2026-07-14 |
 | Delivery Reliability  | `internal/integration/delivery/`  | Alpha      | —        | PostgreSQL leases/retry/circuit/DLQ/recovery plus real Kafka publisher | 2026-07-15 |
 | Batch Ingestion       | `internal/integration/batch/`     | Alpha      | —        | S3/SFTP streaming, PostgreSQL checkpoint/resume, verified archive | 2026-07-16 |
-| Integration Sessions  | `internal/integration/session/`   | Alpha      | —        | PostgreSQL restart-safe workspace, immutable revisions/runs, redacted samples | 2026-07-16 |
-| GraphQL API           | `internal/api/graphql/`           | Beta       | 9.5%\*   | Preview role: health/preview; legacy + WS disabled | 2026-07-13 |
+| Integration Sessions  | `internal/integration/session/`   | Alpha      | —        | Restart-safe workspace, immutable runs, live diagnostics, canonical lineage | 2026-07-16 |
+| GraphQL API           | `internal/api/graphql/`           | Beta       | 9.5%\*   | Bounded POST plus session-only SSE; WebSocket disabled | 2026-07-16 |
 | FHIR Subscriptions    | `internal/fhir/subscription/`     | Production | 83.7%    | Bidirectional; client + webhook receiver         | 2026-02-27   |
 | Terminology Autoroute | `internal/terminology/autoroute/` | Beta       | 88.5%    | Automatic code-system routing engine             | 2026-03-09   |
 | Terminology Workflow  | `internal/terminology/workflow/`  | Production | 95.7%    | Temporal workflow + activity + worker unit tests | 2026-03-03   |

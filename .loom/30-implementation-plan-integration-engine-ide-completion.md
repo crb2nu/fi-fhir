@@ -329,6 +329,13 @@ pipeline `19424` passed 40/40 and repeated the proof in job `187618`.
 - Feed diagnostics into Problems; deduplicate debug/session events.
 - Navigate server lineage into HL7 inspector fields.
 
+Implementation status (2026-07-16): implemented and locally verified. The
+feature-gated authenticated SSE transport permits only Integration Session
+subscriptions on bounded `POST /graphql`; WebSocket remains closed. Mapping
+Studio subscribes before runs, reconciles durable terminal snapshots, deduplicates
+Problems diagnostics, and navigates canonical repeated-segment lineage. Production
+GitOps activation and durable cross-replica fanout remain pending.
+
 ### Slice 3.3: workflow draft simulation
 
 - Session event set + exact workflow revision -> route/transform/action trace.

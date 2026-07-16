@@ -57,6 +57,9 @@ type ServerConfig struct {
 	AllowedOrigins []string
 	// MaxRequestBodyBytes bounds the complete GraphQL JSON request body.
 	MaxRequestBodyBytes int64
+	// IntegrationSessionStreaming enables the authenticated, session-only
+	// GraphQL SSE transport on the existing bounded POST endpoint.
+	IntegrationSessionStreaming bool
 	// Authenticator establishes the deployment-owned tenant/principal context.
 	Authenticator requestsecurity.Authenticator
 	// TrustedNetworkAuthenticator optionally establishes the same deployment-
@@ -120,6 +123,11 @@ func NewServer(resolver ResolverRoot, config *ServerConfig) (*Server, error) {
 	srv.SetErrorPresenter(catalogSafeErrorPresenter)
 
 	// Raw clinical data is accepted only inside a bounded authenticated POST.
+	// Session subscriptions deliberately reuse that boundary through SSE instead
+	// of opening an unbounded pre-authentication WebSocket frame.
+	if config.IntegrationSessionStreaming {
+		srv.AddTransport(transport.SSE{KeepAlivePingInterval: 15 * time.Second})
+	}
 	srv.AddTransport(transport.POST{})
 
 	// Cache parsed query documents. Persisted-query negotiation is intentionally
@@ -144,7 +152,8 @@ func NewServer(resolver ResolverRoot, config *ServerConfig) (*Server, error) {
 // Handler returns the production HTTP handler used by Start.
 //
 // Exposing the composed handler allows transport-level tests and embedders to
-// exercise the same GraphQL, disabled-WebSocket, playground, and health routes.
+// exercise the same GraphQL, session stream, disabled-WebSocket, playground,
+// and health routes.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
@@ -152,9 +161,8 @@ func (s *Server) Handler() http.Handler {
 	graphqlHTTP := graphqlHTTPMiddleware(s.handler, s.config)
 	mux.Handle(s.config.Path, corsMiddleware(graphqlHTTP, s.config.AllowedOrigins))
 
-	// WebSocket is deliberately unavailable in the authenticated preview phase.
-	// gqlgen's transport does not expose a bounded pre-authentication frame limit,
-	// and mutations over WebSocket would bypass the POST-only request boundary.
+	// WebSocket remains unavailable. Session streaming uses authenticated SSE on
+	// the bounded GraphQL POST endpoint, so mutations cannot bypass that boundary.
 	mux.HandleFunc(s.config.WebSocketPath, func(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 	})
@@ -374,6 +382,13 @@ func graphqlHTTPMiddleware(next http.Handler, config *ServerConfig) http.Handler
 			return
 		}
 		r.Body = io.NopCloser(bytes.NewReader(body))
+		if acceptsEventStream(r) {
+			if !config.IntegrationSessionStreaming {
+				http.Error(w, "Integration Session streaming is unavailable", http.StatusNotFound)
+				return
+			}
+			r = r.WithContext(withIntegrationSessionStream(r.Context()))
+		}
 		next.ServeHTTP(w, r)
 	}), config.Authenticator, config.TrustedNetworkAuthenticator)
 
@@ -398,6 +413,10 @@ func graphqlHTTPMiddleware(next http.Handler, config *ServerConfig) http.Handler
 		}
 		authenticated.ServeHTTP(w, r)
 	})
+}
+
+func acceptsEventStream(request *http.Request) bool {
+	return strings.Contains(strings.ToLower(request.Header.Get("Accept")), "text/event-stream")
 }
 
 type graphQLJSONEnvelope struct {

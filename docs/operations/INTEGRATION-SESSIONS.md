@@ -1,13 +1,15 @@
 # Restart-Safe Integration Sessions
 
-Phase 3 Slice 3.1 adds an opt-in PostgreSQL workspace for Integration Sessions.
+Phase 3 Slices 3.1 and 3.2 add an opt-in PostgreSQL workspace for Integration Sessions.
 Sessions, redacted samples, append-only artifact revisions, immutable terminal
 runs, accepted decisions, and export records survive a backend restart. Preview
-runs record the exact profile revision ID and SHA-256 digest they executed.
+runs record the exact profile revision ID and SHA-256 digest they executed, and
+authenticated server-sent events (SSE) expose live stage, diagnostic, and
+lineage snapshots to Mapping Studio.
 
 This is an author/test foundation, not a production deployment control plane.
-WebSocket stage streaming, workflow simulation, bundle publication, and GitOps
-activation remain separate slices.
+Workflow simulation, bundle publication, multi-replica stream fanout, and GitOps
+activation remain separate slices. GraphQL WebSocket transport stays closed.
 
 ## Enable the workspace
 
@@ -23,6 +25,12 @@ export FI_FHIR_DATABASE_PASSWORD='use-a-secret-provider'
 export FI_FHIR_DATABASE_SSL_MODE=verify-full
 ```
 
+Build or start the UI with its separate public feature gate:
+
+```bash
+VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED=true npm --prefix ui run dev
+```
+
 Startup opens PostgreSQL, takes a migration advisory lock, applies the session
 schema once, and wires the GraphQL session routes to the durable store. Startup
 fails closed when the database or migration is unavailable.
@@ -31,9 +39,35 @@ The authenticated GraphQL server still requires the existing deployment tenant,
 origin, and bearer configuration. Until fine-grained Phase 4 authorization is
 implemented, session operations require the temporary `graphql:operator` role;
 the narrower `integration:preview` role remains limited to the typed stateless
-preview operation.
+preview operation. Local operators enabling the session workspace must include
+`graphql:operator` in `FI_FHIR_GRAPHQL_ROLES`.
 
-Production GitOps does not enable this setting in Slice 3.1.
+Production GitOps does not enable either feature gate in Slice 3.2.
+
+## Streaming diagnostics and lineage
+
+When both feature gates are enabled, Mapping Studio creates or reuses a durable
+session, adds a redacted sample, saves the current executable profile revision,
+and opens the `integrationSessionEvents` subscription before starting the run.
+The UI renders connecting/running/complete/error states and reconciles streamed
+progress with the immutable terminal run returned by the mutation.
+
+The stream is an authenticated `POST /graphql` request with
+`Accept: text/event-stream`. It retains the existing request body, origin,
+tenant, bearer-token, timeout, depth, and complexity checks. A transport-level
+allowlist permits only `integrationSessionEvents` and `sessionRunEvents` on SSE;
+legacy subscriptions and mutations fail closed even for `graphql:operator`.
+`/graphql/ws` remains a 404.
+
+Run snapshots include canonical source paths such as `PID-5`, `OBX[0]-3`, and
+`OBX[1]-5`. Problems-panel diagnostics are deduplicated by run and diagnostic
+identity, and selecting a diagnostic or lineage link focuses that exact field
+in the HL7 inspector. Raw retained samples and persisted lineage value previews
+do not cross the GraphQL stream boundary.
+
+Fanout is process-local in this slice. The terminal mutation response remains
+the reconciliation source if an intermediate stage event is missed. Durable
+cross-replica fanout/replay is Phase 4 work.
 
 ## Raw sample policy
 
@@ -87,6 +121,11 @@ one redacted sample against strict and tolerant profile revisions, checks the
 warning/event delta and exact provenance, and scans session records for its raw
 PHI sentinel. It also proves encrypted explicit retention, terminal-run
 immutability, durable decisions/exports, and archive/list/reopen behavior.
+
+The normal GraphQL and UI suites additionally prove stream-before-run ordering,
+exact revision/digest reconciliation, canonical repeated-OBX lineage, operation
+authorization, raw-preview exclusion, diagnostic deduplication, and inspector
+navigation.
 
 ## Rollback
 
