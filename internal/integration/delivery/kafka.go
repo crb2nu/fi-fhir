@@ -115,7 +115,7 @@ func (p *KafkaPublisher) Publish(ctx context.Context, message Message) error {
 		record.Headers = append(record.Headers, kgo.RecordHeader{Key: name, Value: []byte(value)})
 	}
 	if err := p.client.ProduceSync(ctx, record).FirstErr(); err != nil {
-		return errors.New("Kafka delivery was not acknowledged")
+		return fmt.Errorf("Kafka delivery was not acknowledged: %w", err)
 	}
 	return nil
 }

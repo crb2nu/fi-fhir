@@ -160,14 +160,15 @@ func TestDeliveryReliability_PostgresKafkaFailureReplay(t *testing.T) {
 		t.Fatalf("NewKafkaPublisher: %v", err)
 	}
 	t.Cleanup(func() { _ = publisher.Close() })
+	recordingPublisher := &deliveryRecordingPublisher{Publisher: publisher}
 	dispatcherConfig := DefaultConfig()
 	dispatcherConfig.PublishTimeout = 15 * time.Second
-	dispatcher, err := NewDispatcher(storeA, publisher, "worker-kafka", dispatcherConfig)
+	dispatcher, err := NewDispatcher(storeA, recordingPublisher, "worker-kafka", dispatcherConfig)
 	if err != nil {
 		t.Fatalf("NewDispatcher: %v", err)
 	}
 	if outcome, err := dispatcher.RunOnce(ctx); err != nil || outcome != OutcomePublished {
-		t.Fatalf("RunOnce replay outcome=%q error=%v", outcome, err)
+		t.Fatalf("RunOnce replay outcome=%q error=%v publish_error=%v", outcome, err, recordingPublisher.LastError())
 	}
 	assertDeliveryState(t, db, childAttemptID, "succeeded", 1, "published", "inactive")
 
@@ -206,6 +207,26 @@ func TestDeliveryReliability_PostgresKafkaFailureReplay(t *testing.T) {
 	}
 	assertCounts(t, db, 1, 1, 3, 3, 2)
 	assertDatabaseRawFree(t, db)
+}
+
+type deliveryRecordingPublisher struct {
+	Publisher
+	mu      sync.Mutex
+	lastErr error
+}
+
+func (p *deliveryRecordingPublisher) Publish(ctx context.Context, message Message) error {
+	err := p.Publisher.Publish(ctx, message)
+	p.mu.Lock()
+	p.lastErr = err
+	p.mu.Unlock()
+	return err
+}
+
+func (p *deliveryRecordingPublisher) LastError() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.lastErr
 }
 
 func deliveryPostgresDSN(t *testing.T, ctx context.Context) string {
