@@ -15,6 +15,13 @@ vi.mock('$lib/graphql/client', () => ({
   isErrorToasted: vi.fn(() => false)
 }));
 
+vi.mock('mermaid', () => ({
+  default: {
+    initialize: vi.fn(),
+    render: vi.fn().mockResolvedValue({ svg: '<svg data-testid="workflow-diagram-svg"></svg>' })
+  }
+}));
+
 describe('WorkflowPreview', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -109,6 +116,26 @@ describe('WorkflowPreview', () => {
     expect(warningsBlock).toHaveTextContent('Warnings');
     expect(screen.getByText('Route critical_labs has no error handling')).toBeInTheDocument();
     expect(screen.getByText('No route matches PATIENT_ADMIT events')).toBeInTheDocument();
+  });
+
+  it('renders the explain diagram as mermaid when the op returns one', async () => {
+    vi.mocked(explainWorkflow).mockResolvedValue({
+      explainWorkflow: {
+        summary: '',
+        description: 'Routes lab events.',
+        diagram: 'graph TD; LAB_RESULT-->webhook;',
+        routeExplanations: [],
+        warnings: []
+      }
+    } as Awaited<ReturnType<typeof explainWorkflow>>);
+
+    render(WorkflowPreview);
+
+    await fireEvent.click(screen.getByRole('button', { name: /Explain with AI/ }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workflow-diagram-svg')).toBeInTheDocument();
+    });
   });
 
   it('shows a loading label while the explanation is in flight', async () => {

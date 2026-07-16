@@ -217,7 +217,12 @@ Gated by the **kill-test above (Slice 0)**. Only proceeds if the LLM path is pro
   optional — not required for "wired to the real query." → **DONE (2026-07-16, shipped with Slice 2c
   follow-up): `WorkflowPreview` now renders the op's `summary` (headline) and `warnings` (warning-toned
   `role="alert"` list) alongside description + routes. `diagram` (mermaid text) intentionally still dropped —
-  rendering it is a build (needs a mermaid renderer), not polish.**
+  rendering it is a build (needs a mermaid renderer), not polish.** **Diagram follow-up DONE (2026-07-16,
+  operator-requested): new lazy-loading `$lib/ui/MermaidDiagram.svelte` (dynamic `import('mermaid')` — no
+  initial-bundle cost; `securityLevel: 'strict'`; follows `appliedTheme`; invalid LLM-generated mermaid falls
+  back to raw source instead of breaking the panel) wired into `WorkflowPreview`. Live-verified in the browser:
+  real SVG renders, fallback works; `fontFamily: 'inherit'` clips node labels (mermaid measures with different
+  font metrics) — use mermaid's default font.**
 
 - **Slice 2c — Copilot honest LLM-state badge (UI → `llmCapability`). ✅ SHIPPED (2026-07-16, branch
   `feat/funcgap-w2-copilot-llm-capability`).** Closes the follow-up deferred from Slices 2a/3e/3f.
