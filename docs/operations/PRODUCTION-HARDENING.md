@@ -14,6 +14,7 @@ This guide covers security hardening for fi-fhir deployments in healthcare envir
 8. [Access Control](#access-control)
 9. [Monitoring & Alerting](#monitoring--alerting)
 10. [Disaster Recovery](#disaster-recovery)
+11. [Batch Source Security](#batch-source-security)
 
 ---
 
@@ -34,6 +35,37 @@ fi-fhir deployments handling PHI must implement:
 ### Security Checklist
 
 ```
+
+## Batch Source Security
+
+S3/SFTP ingestion is opt-in and must be activated through reviewed deployment
+configuration. Follow the complete operator contract in
+[`BATCH-INGESTION.md`](BATCH-INGESTION.md).
+
+- Mount S3 credentials, SFTP private keys/passwords, and SFTP `known_hosts` as
+  separate read-only secrets. Never embed secret values in the immutable source
+  revision.
+- Require TLS for remote S3 endpoints. Plaintext S3 is accepted only on
+  loopback for local testing or a same-pod sidecar.
+- Enable S3 bucket versioning. Polling fails closed without it so source cleanup
+  can delete the immutable version that was actually admitted and archived.
+- Build `known_hosts` out of band from a verified host-key fingerprint. Do not
+  populate it with an unauthenticated runtime `ssh-keyscan`.
+- Grant the source principal list/read/delete only under its input prefix and
+  create/read only under its archive prefix. Deny bucket-wide administrative
+  operations.
+- Keep the input and archive prefixes/directories disjoint. SFTP symlinks are
+  rejected; preserve that boundary in server-side filesystem permissions.
+- Require SFTP producers to upload under a temporary name and atomically rename
+  complete files into the input directory. Deny overwrite/truncate after
+  publication; SFTP lacks a conditional unlink primitive, so immutable-drop
+  ACLs are part of the pre-delete digest-verification boundary.
+- Encrypt PostgreSQL and archive storage at rest and restrict checkpoint/audit
+  table access. Although checkpoint state is raw-free, it remains operational
+  metadata for a PHI-bearing data flow.
+- Alert on repeated lease reclaim, invalid-stream quarantine, archive collision,
+  host-key failure, or provider unavailability. Do not include source paths or
+  message bytes in alert labels.
 [ ] Container runs as non-root user
 [ ] Read-only root filesystem
 [ ] No privileged containers

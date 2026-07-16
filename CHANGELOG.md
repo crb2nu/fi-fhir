@@ -60,6 +60,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SASL credentials
 - Authenticated PostgreSQL operator commands for audited `delivery replay` and
   `delivery resubmit`, plus a blocking PostgreSQL 16/Kafka failure-recovery gate
+- Content-addressed S3/SFTP batch sources with exact deployed-release binding,
+  bounded concatenated-HL7v2 streaming, PostgreSQL leases/checkpoints, and
+  deterministic crash-safe durable admission identity
+- Optional `serve` batch worker with TLS-protected S3 credentials, mandatory
+  SFTP `known_hosts`, symlink rejection, and verified SHA-256-addressed
+  archive-before-delete semantics with S3 version IDs and an immutable SFTP
+  drop contract plus immediate pre-delete digest verification
+- Blocking PostgreSQL 16/MinIO/SSH-SFTP gate covering replica exclusion, lease
+  reclaim, the admission/checkpoint kill window, source mutation, host-key
+  rejection, archive integrity, exact durable cardinality, and raw-PHI exclusion
 - Blocking PostgreSQL 16/TCP MLLP gate covering pre-commit ACK exclusion,
   concurrent pause serialization, 32 reconnecting duplicates, resume,
   retirement, restart, durable cardinality, and raw-message leakage

@@ -1,0 +1,23 @@
+{
+  "schema_version": "1",
+  "artifact_id": "source-adt-batch-s3",
+  "revision_id": "source-v1",
+  "source_id": "adt-east",
+  "provider": "s3",
+  "s3": {
+    "endpoint": "objects.example.com:443",
+    "region": "us-east-1",
+    "bucket": "adt-drop",
+    "input_prefix": "incoming",
+    "archive_prefix": "archive",
+    "use_tls": true,
+    "access_key_binding": "batch-s3-access-key",
+    "secret_access_key_binding": "batch-s3-secret-key"
+  },
+  "poll_seconds": 15,
+  "lease_seconds": 120,
+  "process_seconds": 60,
+  "max_files_per_poll": 100,
+  "max_message_bytes": 1048576,
+  "digest": "sha256:d8b2381b638b3efec433cdda4a851df08c748643429231dd0cfd2939762961c3"
+}

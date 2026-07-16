@@ -212,6 +212,40 @@ Never place raw HL7, credentials, or persisted JSON in logs or tickets. To
 disable only production ingress, remove `FI_FHIR_HTTP_INGRESS_AUTH_MODE` through
 GitOps and reconcile; authenticated GraphQL preview remains available.
 
+### S3/SFTP Batch Ingestion
+
+Check whether polling is intentionally enabled without printing secret values:
+
+```bash
+kubectl -n fi-fhir get deployment fi-fhir \
+  -o jsonpath='{.spec.template.spec.containers[0].env}' | \
+  jq '.[] | select(.name == "FI_FHIR_BATCH_SOURCE_CONFIG_PATH") | .name'
+```
+
+Startup fails closed when the immutable source, deployed lifecycle binding,
+PostgreSQL, provider credentials, TLS policy, or SFTP host key is invalid. For an
+outage:
+
+1. Preserve the source object and PostgreSQL state; do not rename, rewrite, or
+   manually archive an in-flight file.
+2. Restore PostgreSQL and provider connectivity while retaining the same source
+   revision and credentials/host-key binding.
+3. Restart the worker. The expired lease is reclaimed and processing resumes
+   from the last checkpoint; the first replayed admission is idempotent.
+4. Confirm the digest-addressed archive exists before any manual source cleanup.
+   The normal worker commits completion before deletion; S3 targets its exact
+   version ID and SFTP re-verifies the unchanged path's content digest.
+
+Safe diagnostic state is available in `integration_batch_objects` and
+`integration_batch_audit`. Query only object hashes, phase, checkpoint counters,
+lease timestamps, and safe error codes. Do not copy source paths, credentials,
+or message content into logs or incident tickets.
+
+To disable only polling, remove `FI_FHIR_BATCH_SOURCE_CONFIG_PATH` through
+GitOps and reconcile. PostgreSQL checkpoints remain available for a later
+restart. See [`BATCH-INGESTION.md`](BATCH-INGESTION.md) for configuration and
+the recovery proof.
+
 ### Deployment
 
 **Rolling update**:

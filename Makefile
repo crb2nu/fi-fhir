@@ -7,7 +7,7 @@
 	deploy deploy-ui deploy-all deploy-status deploy-logs deploy-delete deploy-forward \
 	docs-status docs-status-quick docs-validate docs-all \
 	contract-check contract-check-strict contract-matrix \
-	golden-path-001 mllp-runtime delivery-reliability \
+	golden-path-001 mllp-runtime delivery-reliability batch-ingestion \
 	smoke-test smoke-test-local check-runtime-config \
 	dev dev-down dev-ui dev-ui-down
 
@@ -106,6 +106,13 @@ delivery-reliability:
 	go test -tags=integration -race -count=1 -timeout=240s \
 		-run '^TestDeliveryReliability_PostgresKafkaFailureReplay$$' \
 		./internal/integration/delivery
+
+# Slice 2.4: lifecycle-gated S3/SFTP -> checkpoint/resume -> verified archive.
+# Requires PostgreSQL and MinIO settings in CI; SFTP is a real in-process SSH server.
+batch-ingestion:
+	go test -tags=integration -race -count=1 -timeout=240s \
+		-run '^TestBatchIngestion_PostgresS3SFTPKillResumeArchive$$' \
+		./internal/integration/batch
 
 # Clean build artifacts
 clean:

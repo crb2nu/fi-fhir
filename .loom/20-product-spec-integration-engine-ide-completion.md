@@ -166,7 +166,17 @@ Slice 2.3 implements the backend delivery-reliability portion with PostgreSQL
 leases, bounded retries/circuits, a durable DLQ, audited idempotent replay and
 resubmit, and a real Kafka publisher using stable attempt IDs for downstream
 duplicate suppression. Local unit/race/full-suite gates pass; required
-PostgreSQL 16/Kafka CI and merge evidence are pending.
+PostgreSQL 16/Kafka CI and merge evidence passed in MR `!106` pipeline `19226`
+and main pipeline `19235`.
+Slice 2.4 implements runtime-wired S3/SFTP batch ingestion: an immutable source
+is matched to the exact deployed release, a bounded reader streams concatenated
+HL7v2 through the shared durable processor, and PostgreSQL leases/checkpoints
+resume with deterministic admission identity. SFTP requires pinned host keys;
+both providers verify a digest-addressed archive before deletion. S3 addresses
+the exact version ID; SFTP requires immutable atomic publication and repeats the
+content digest immediately before removal.
+Local PostgreSQL/MinIO/SFTP kill-and-resume proof passes; required CI and merge
+evidence are pending.
 HTTP catalog migration, GitOps exposure, and IDE
 lifecycle controls remain open, so the secure data plane is not yet complete.
 

@@ -837,6 +837,52 @@ test:delivery-reliability:
     - when: never
   allow_failure: false
 
+# Blocking PostgreSQL 16/MinIO/SFTP proof for Slice 2.4. It rejects an unknown
+# SSH host key, proves replica lease exclusion/reclaim and source-version
+# isolation, kills the worker after durable admission but before checkpoint,
+# resumes without duplicate durable rows, and verifies archive-before-delete.
+test:batch-ingestion:
+  stage: test
+  <<: *go-image-debian
+  <<: *go-cache
+  services:
+    - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
+      alias: postgres
+    - name: ${DOCKERHUB_CACHE_PREFIX}/minio/minio:RELEASE.2024-01-16T16-07-38Z
+      alias: minio
+      command: ["server", "/data"]
+  variables:
+    CGO_ENABLED: "1"
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
+    POSTGRES_DB: fi_fhir_batch_test
+    POSTGRES_USER: testuser
+    POSTGRES_PASSWORD: testpass
+    POSTGRES_HOST_AUTH_METHOD: trust
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_batch_test?sslmode=disable"
+    MINIO_ROOT_USER: batchaccess
+    MINIO_ROOT_PASSWORD: batchsecret123
+    BATCH_S3_ENDPOINT: "localhost:9000"
+    BATCH_S3_ACCESS_KEY: batchaccess
+    BATCH_S3_SECRET_KEY: batchsecret123
+  script:
+    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates ripgrep build-essential && rm -rf /var/lib/apt/lists/*
+    - >-
+      go test -tags=integration
+      -list '^TestBatchIngestion_PostgresS3SFTPKillResumeArchive$'
+      ./internal/integration/batch
+      | rg -x 'TestBatchIngestion_PostgresS3SFTPKillResumeArchive'
+      | awk 'END { if (NR != 1) exit 1 }'
+    - make batch-ingestion
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *go-changes
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *go-changes
+    - when: never
+  allow_failure: false
+
 test:ui:
   stage: test
   <<: *node-image

@@ -278,11 +278,28 @@ Implementation status:
   34/34, including PostgreSQL 16/Kafka job `185433`, and merged as `ca968fbf`.
   Main pipeline `19235` passed 37/37 and repeated the proof in job `185505`.
 
-### Slice 2.4: batch sources
+### Slice 2.4: batch sources — implemented locally, CI evidence pending
 
 - Register S3/SFTP providers into runtime configuration.
 - Replace discovery-only completion with streaming parse/checkpoint/resume.
 - Secure SFTP host-key verification and implement archive semantics.
+
+Implementation status:
+
+- `internal/integration/batch` defines content-addressed S3/SFTP sources,
+  validates the exact deployed lifecycle binding, and streams concatenated
+  HL7v2 with a bounded reader.
+- PostgreSQL leases exact object versions and advances byte/message checkpoints
+  only after durable admission. Deterministic object/offset identity collapses
+  the admission-before-checkpoint crash window without storing raw paths or PHI.
+- S3 and SFTP copy to digest-addressed archives, verify bytes, commit completion,
+  and only then delete the source. S3 targets its exact version ID. SFTP requires
+  `known_hosts`, immutable atomic publication, immediate pre-delete digest
+  verification, and rejects symlinked inputs/archive targets.
+- Optional `serve` wiring is fail closed. The required integration target uses
+  PostgreSQL 16, MinIO, and a real SSH/SFTP server to prove replica exclusion,
+  lease reclaim, kill/resume, mutation isolation, secure host keys, archive
+  integrity, exact durable cardinality, and raw-PHI exclusion.
 
 ## Phase 3 — Durable IDE lifecycle
 
