@@ -7,7 +7,7 @@
 	deploy deploy-ui deploy-all deploy-status deploy-logs deploy-delete deploy-forward \
 	docs-status docs-status-quick docs-validate docs-all \
 	contract-check contract-check-strict contract-matrix \
-	golden-path-001 mllp-runtime delivery-reliability batch-ingestion \
+	golden-path-001 mllp-runtime delivery-reliability batch-ingestion integration-session \
 	smoke-test smoke-test-local check-runtime-config \
 	dev dev-down dev-ui dev-ui-down
 
@@ -113,6 +113,13 @@ batch-ingestion:
 	go test -tags=integration -race -count=1 -timeout=240s \
 		-run '^TestBatchIngestion_PostgresS3SFTPKillResumeArchive$$' \
 		./internal/integration/batch
+
+# Slice 3.1: restart-safe PostgreSQL Integration Session workspace.
+# Uses testcontainers locally and POSTGRES_TEST_URL in CI.
+integration-session:
+	go test -tags=integration -race -count=1 -timeout=180s \
+		-run '^TestPostgresSessionWorkspace_RestartExactProfilesAndRawPolicy$$' \
+		./internal/integration/session
 
 # Clean build artifacts
 clean:

@@ -2,21 +2,23 @@ package session
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"time"
 
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/hl7v2"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 )
 
 type Runner struct {
-	store *MemoryStore
+	store Store
 	hub   *Hub
 	now   func() time.Time
 }
 
-func NewRunner(store *MemoryStore, hub *Hub) *Runner {
+func NewRunner(store Store, hub *Hub) *Runner {
 	if hub == nil {
 		hub = NewHub()
 	}
@@ -70,15 +72,57 @@ func (r *Runner) RunHL7v2(ctx context.Context, req RunRequest) (*Run, error) {
 	if err := r.startStage(ctx, run, "parse_hl7v2"); err != nil {
 		return nil, err
 	}
-	parser := hl7v2.NewParser(source, hl7v2.ParserConfig{})
+	parserConfig := hl7v2.ParserConfig{}
+	if req.ProfileRevisionID != "" {
+		revision, revisionErr := r.store.GetArtifactRevision(ctx, req.SessionID, req.ProfileRevisionID)
+		if revisionErr != nil {
+			return r.finishFailed(ctx, run, fmt.Errorf("load profile revision: %w", revisionErr))
+		}
+		if revision.Kind != ArtifactKindMappingProfile {
+			return r.finishFailed(ctx, run, fmt.Errorf("%w: artifact revision is not a mapping profile", ErrInvalid))
+		}
+		digest := sha256.Sum256(revision.Content)
+		if revision.Digest != fmt.Sprintf("sha256:%x", digest) {
+			return r.finishFailed(ctx, run, fmt.Errorf("%w: profile revision digest mismatch", ErrImmutable))
+		}
+		profileRef, revisionErr := processor.NewProfileRevisionReference(revision.ID, revision.Version, revision.Content)
+		if revisionErr != nil {
+			return r.finishFailed(ctx, run, fmt.Errorf("compile profile revision: %w", revisionErr))
+		}
+		compiled, timezone, revisionErr := processor.CompileProfileRevision(profileRef, revision.Content)
+		if revisionErr != nil {
+			return r.finishFailed(ctx, run, fmt.Errorf("compile profile revision: %w", revisionErr))
+		}
+		parserConfig.DefaultTimezone = timezone
+		run.ProfileID = revision.ID
+		run.ProfileRevisionID = revision.RevisionID
+		run.ProfileRevisionDigest = revision.Digest
+		parser := hl7v2.NewParser(source, parserConfig)
+		parser.SetProfile(compiled)
+		result, parseErr := parser.ParseWithResult(sample.Raw)
+		return r.finishParsed(ctx, run, sample, result, parseErr)
+	}
+	parser := hl7v2.NewParser(source, parserConfig)
 	result, parseErr := parser.ParseWithResult(sample.Raw)
+	return r.finishParsed(ctx, run, sample, result, parseErr)
+}
+
+func (r *Runner) finishParsed(
+	ctx context.Context,
+	run *Run,
+	sample *Sample,
+	result *hl7v2.ParseResult,
+	parseErr error,
+) (*Run, error) {
 	if parseErr != nil {
 		if err := r.failStage(ctx, run, "parse_hl7v2", parseErr.Error()); err != nil {
 			return nil, err
 		}
 		return r.finishFailed(ctx, run, parseErr)
 	}
-	run.ProfileID = result.ProfileID
+	if run.ProfileID == "" {
+		run.ProfileID = result.ProfileID
+	}
 	if err := r.completeStage(ctx, run, "parse_hl7v2", ""); err != nil {
 		return nil, err
 	}

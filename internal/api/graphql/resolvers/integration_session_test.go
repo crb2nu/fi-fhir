@@ -6,6 +6,9 @@ import (
 	"time"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity"
+	enginesession "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/session"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
 
 const integrationSessionHL7Sample = `MSH|^~\&|SENDING_APP|SENDING_FAC|RECEIVING_APP|RECEIVING_FAC|20240115120000||ADT^A01|MSG00001|P|2.5
@@ -170,6 +173,80 @@ func TestIntegrationSession_SubscriptionFanout(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for integration session event")
+	}
+}
+
+func TestIntegrationSession_DurableStoreEnablesContainedRoutes(t *testing.T) {
+	store := enginesession.NewMemoryStore()
+	resolver := NewResolver(WithIntegrationSessionStore(store))
+	resolver.legacyUnsafeExecution = false
+	mutation := &mutationResolver{resolver}
+	query := &queryResolver{resolver}
+
+	session, err := mutation.CreateIntegrationSession(context.Background(), model.CreateIntegrationSessionInput{Name: "durable workspace"})
+	if err != nil {
+		t.Fatalf("CreateIntegrationSession: %v", err)
+	}
+	sample, err := mutation.AddSessionSample(context.Background(), model.AddSessionSampleInput{
+		SessionID: session.ID, Name: "ADT", Format: model.SourceFormatHL7v2,
+		Data: integrationSessionHL7Sample,
+	})
+	if err != nil {
+		t.Fatalf("AddSessionSample: %v", err)
+	}
+	if sample.RawPayload != nil {
+		t.Fatal("default durable sample exposed raw payload")
+	}
+	profile, err := mutation.UpdateSessionProfileDraft(context.Background(), model.UpdateSessionArtifactInput{
+		SessionID: session.ID,
+		Name:      strPtr("ADT profile"),
+		Content:   `{"hl7v2":{"default_version":"2.5","timezone":"UTC","event_classifications":[{"message_type":"ADT^A01","event_type":"patient_admit","priority":1}]}}`,
+	})
+	if err != nil {
+		t.Fatalf("UpdateSessionProfileDraft: %v", err)
+	}
+	if profile.RevisionID == "" || profile.Version != 1 || profile.Digest == "" {
+		t.Fatalf("profile provenance = %#v", profile)
+	}
+	run, err := mutation.RunSessionPreview(context.Background(), model.RunSessionPreviewInput{
+		SessionID: session.ID,
+		SampleID:  &sample.ID,
+	})
+	if err != nil {
+		t.Fatalf("RunSessionPreview: %v", err)
+	}
+	if run.ProfileRevisionID == nil || *run.ProfileRevisionID != profile.RevisionID ||
+		run.ProfileRevisionDigest == nil || *run.ProfileRevisionDigest != profile.Digest {
+		t.Fatalf("run profile provenance = %#v, want revision %q digest %q", run, profile.RevisionID, profile.Digest)
+	}
+	listed, err := query.IntegrationSessions(context.Background(), nil)
+	if err != nil || len(listed) != 1 || listed[0].ID != session.ID {
+		t.Fatalf("IntegrationSessions = %#v, %v", listed, err)
+	}
+
+	format := model.SourceFormatCSV
+	failed, err := mutation.RunSessionPreview(context.Background(), model.RunSessionPreviewInput{
+		SessionID: session.ID, Data: strPtr("not,hl7"), Format: &format,
+	})
+	if err != nil || len(failed.Diagnostics) != 1 {
+		t.Fatalf("failed preview = %#v, %v", failed, err)
+	}
+	acceptedBy := "client-spoofed"
+	operatorCtx := requestsecurity.WithSecurityContext(context.Background(), integration.SecurityContext{
+		TenantID: "tenant-a",
+		Principal: integration.Principal{
+			ID: "operator-1", Kind: integration.PrincipalKindHuman, AuthMethod: "bearer",
+			Roles: []string{"graphql:operator"},
+		},
+	})
+	if _, err := mutation.AcceptDiagnosticFix(operatorCtx, model.AcceptDiagnosticFixInput{
+		SessionID: session.ID, DiagnosticID: failed.Diagnostics[0].ID, AcceptedBy: &acceptedBy,
+	}); err != nil {
+		t.Fatalf("AcceptDiagnosticFix: %v", err)
+	}
+	decisions, err := store.ListDecisions(context.Background(), session.ID)
+	if err != nil || len(decisions) != 1 || decisions[0].AcceptedBy != "operator-1" {
+		t.Fatalf("authenticated decisions = %#v, %v", decisions, err)
 	}
 }
 

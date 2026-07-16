@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -15,26 +16,56 @@ import (
 )
 
 var (
-	ErrNotFound = errors.New("integration session: not found")
-	ErrInvalid  = errors.New("integration session: invalid")
+	ErrNotFound  = errors.New("integration session: not found")
+	ErrInvalid   = errors.New("integration session: invalid")
+	ErrImmutable = errors.New("integration session: immutable record")
 )
 
+// Store is the restart-safe Integration Session persistence boundary.
+type Store interface {
+	CreateSession(context.Context, CreateSessionRequest) (*Session, error)
+	UpdateSession(context.Context, string, UpdateSessionRequest) (*Session, error)
+	ArchiveSession(context.Context, string) (*Session, error)
+	GetSession(context.Context, string) (*Session, error)
+	ListSessions(context.Context, ListSessionsOptions) ([]Session, error)
+	AddSample(context.Context, string, AddSampleRequest) (*Sample, error)
+	GetSample(context.Context, string, string) (*Sample, error)
+	ListSamples(context.Context, string) ([]Sample, error)
+	SaveArtifactDraft(context.Context, string, SaveArtifactDraftRequest) (*ArtifactDraft, error)
+	GetArtifactDraft(context.Context, string, string) (*ArtifactDraft, error)
+	GetArtifactRevision(context.Context, string, string) (*ArtifactDraft, error)
+	ListArtifactDrafts(context.Context, string) ([]ArtifactDraft, error)
+	CreateRun(context.Context, string, string, string) (*Run, error)
+	UpdateRun(context.Context, Run) (*Run, error)
+	GetRun(context.Context, string, string) (*Run, error)
+	ListRuns(context.Context, string) ([]Run, error)
+	AcceptDecision(context.Context, AcceptDecisionRequest) (*Decision, error)
+	ListDecisions(context.Context, string) ([]Decision, error)
+	ExportBundle(context.Context, string) (*ExportBundle, error)
+	GetExport(context.Context, string, string) (*ExportBundle, error)
+	ListExports(context.Context, string) ([]ExportBundle, error)
+}
+
 type MemoryStore struct {
-	mu       sync.RWMutex
-	now      func() time.Time
-	sessions map[string]*Session
-	samples  map[string]*Sample
-	drafts   map[string]*ArtifactDraft
-	runs     map[string]*Run
+	mu        sync.RWMutex
+	now       func() time.Time
+	sessions  map[string]*Session
+	samples   map[string]*Sample
+	drafts    map[string]*ArtifactDraft
+	runs      map[string]*Run
+	decisions map[string]*Decision
+	exports   map[string]*ExportBundle
 }
 
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
-		now:      func() time.Time { return time.Now().UTC() },
-		sessions: make(map[string]*Session),
-		samples:  make(map[string]*Sample),
-		drafts:   make(map[string]*ArtifactDraft),
-		runs:     make(map[string]*Run),
+		now:       func() time.Time { return time.Now().UTC() },
+		sessions:  make(map[string]*Session),
+		samples:   make(map[string]*Sample),
+		drafts:    make(map[string]*ArtifactDraft),
+		runs:      make(map[string]*Run),
+		decisions: make(map[string]*Decision),
+		exports:   make(map[string]*ExportBundle),
 	}
 }
 
@@ -147,7 +178,7 @@ func (s *MemoryStore) AddSample(_ context.Context, sessionID string, req AddSamp
 	}
 	policy := req.PHIPolicy
 	if policy == "" {
-		policy = PHIPolicyRetain
+		policy = PHIPolicyRedact
 	}
 	if policy != PHIPolicyRetain && policy != PHIPolicyRedact {
 		return nil, fmt.Errorf("%w: unsupported PHI policy %q", ErrInvalid, policy)
@@ -221,30 +252,37 @@ func (s *MemoryStore) SaveArtifactDraft(_ context.Context, sessionID string, req
 	}
 
 	now := s.now()
-	if req.ID != "" {
-		draft, ok := s.drafts[req.ID]
-		if !ok || draft.SessionID != sessionID {
+	artifactID := req.ID
+	version := 1
+	createdAt := now
+	if artifactID != "" {
+		latest, ok := s.drafts[artifactID]
+		if !ok || latest.SessionID != sessionID {
 			return nil, ErrNotFound
 		}
-		draft.Kind = req.Kind
-		draft.Name = strings.TrimSpace(req.Name)
-		draft.Content = cloneRaw(req.Content)
-		draft.Version++
-		draft.UpdatedAt = now
-		return cloneDraft(draft), nil
+		if latest.Kind != req.Kind {
+			return nil, fmt.Errorf("%w: artifact kind cannot change", ErrImmutable)
+		}
+		version = latest.Version + 1
+		createdAt = latest.CreatedAt
+	} else {
+		artifactID = newID("artifact")
 	}
-
+	digest := sha256.Sum256(req.Content)
 	draft := &ArtifactDraft{
-		ID:        newID("draft"),
-		SessionID: sessionID,
-		Kind:      req.Kind,
-		Name:      strings.TrimSpace(req.Name),
-		Content:   cloneRaw(req.Content),
-		Version:   1,
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:         artifactID,
+		RevisionID: newID("revision"),
+		SessionID:  sessionID,
+		Kind:       req.Kind,
+		Name:       strings.TrimSpace(req.Name),
+		Content:    cloneRaw(req.Content),
+		Version:    version,
+		Digest:     "sha256:" + hex.EncodeToString(digest[:]),
+		CreatedAt:  createdAt,
+		UpdatedAt:  now,
 	}
 	s.drafts[draft.ID] = draft
+	s.drafts[draft.RevisionID] = draft
 	return cloneDraft(draft), nil
 }
 
@@ -259,6 +297,10 @@ func (s *MemoryStore) GetArtifactDraft(_ context.Context, sessionID, draftID str
 	return cloneDraft(draft), nil
 }
 
+func (s *MemoryStore) GetArtifactRevision(ctx context.Context, sessionID, revisionID string) (*ArtifactDraft, error) {
+	return s.GetArtifactDraft(ctx, sessionID, revisionID)
+}
+
 func (s *MemoryStore) ListArtifactDrafts(_ context.Context, sessionID string) ([]ArtifactDraft, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -267,13 +309,16 @@ func (s *MemoryStore) ListArtifactDrafts(_ context.Context, sessionID string) ([
 		return nil, ErrNotFound
 	}
 	out := make([]ArtifactDraft, 0)
-	for _, draft := range s.drafts {
-		if draft.SessionID == sessionID {
+	for key, draft := range s.drafts {
+		if key == draft.RevisionID && draft.SessionID == sessionID {
 			out = append(out, *cloneDraft(draft))
 		}
 	}
 	sort.Slice(out, func(i, j int) bool {
-		return out[i].CreatedAt.Before(out[j].CreatedAt)
+		if out[i].UpdatedAt.Equal(out[j].UpdatedAt) {
+			return out[i].Version < out[j].Version
+		}
+		return out[i].UpdatedAt.Before(out[j].UpdatedAt)
 	})
 	return out, nil
 }
@@ -311,11 +356,58 @@ func (s *MemoryStore) UpdateRun(_ context.Context, run Run) (*Run, error) {
 	if !ok {
 		return nil, ErrNotFound
 	}
+	if terminalRun(existing.Status) {
+		return nil, ErrImmutable
+	}
+	if run.SessionID != existing.SessionID || run.SampleID != existing.SampleID || run.Source != existing.Source {
+		return nil, ErrImmutable
+	}
 	run.CreatedAt = existing.CreatedAt
 	run.UpdatedAt = s.now()
 	copied := cloneRun(&run)
 	s.runs[run.ID] = copied
 	return cloneRun(copied), nil
+}
+
+func (s *MemoryStore) AcceptDecision(_ context.Context, req AcceptDecisionRequest) (*Decision, error) {
+	if strings.TrimSpace(req.AcceptedBy) == "" {
+		return nil, fmt.Errorf("%w: accepted by is required", ErrInvalid)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	run, ok := s.runs[req.RunID]
+	if !ok || run.SessionID != req.SessionID || !runHasDiagnostic(run, req.DiagnosticID) {
+		return nil, ErrNotFound
+	}
+	key := req.RunID + "\x00" + req.DiagnosticID
+	if existing, ok := s.decisions[key]; ok {
+		result := *existing
+		return &result, nil
+	}
+	decision := &Decision{
+		ID: newID("decision"), SessionID: req.SessionID, RunID: req.RunID,
+		DiagnosticID: req.DiagnosticID, AcceptedBy: strings.TrimSpace(req.AcceptedBy),
+		Reason: strings.TrimSpace(req.Reason), AcceptedAt: s.now(),
+	}
+	s.decisions[key] = decision
+	result := *decision
+	return &result, nil
+}
+
+func (s *MemoryStore) ListDecisions(_ context.Context, sessionID string) ([]Decision, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if _, ok := s.sessions[sessionID]; !ok {
+		return nil, ErrNotFound
+	}
+	out := make([]Decision, 0)
+	for _, decision := range s.decisions {
+		if decision.SessionID == sessionID {
+			out = append(out, *decision)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].AcceptedAt.Before(out[j].AcceptedAt) })
+	return out, nil
 }
 
 func (s *MemoryStore) GetRun(_ context.Context, sessionID, runID string) (*Run, error) {
@@ -365,13 +457,63 @@ func (s *MemoryStore) ExportBundle(ctx context.Context, sessionID string) (*Expo
 	if err != nil {
 		return nil, err
 	}
-	return &ExportBundle{
-		Session:    *session,
-		Samples:    samples,
-		Drafts:     drafts,
-		Runs:       runs,
-		ExportedAt: s.now(),
-	}, nil
+	decisions, err := s.ListDecisions(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range samples {
+		if samples[i].PHIPolicy == PHIPolicyRetain {
+			samples[i].Raw = ""
+		}
+	}
+	exportID := newID("export")
+	bundle := &ExportBundle{
+		ID: exportID, Session: *session, Samples: samples, Drafts: drafts,
+		Runs: runs, Decisions: decisions, ExportedAt: s.now(),
+	}
+	s.mu.Lock()
+	s.exports[exportID] = cloneBundle(bundle)
+	s.mu.Unlock()
+	return bundle, nil
+}
+
+func (s *MemoryStore) GetExport(_ context.Context, sessionID, exportID string) (*ExportBundle, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	bundle, ok := s.exports[exportID]
+	if !ok || bundle.Session.ID != sessionID {
+		return nil, ErrNotFound
+	}
+	return cloneBundle(bundle), nil
+}
+
+func (s *MemoryStore) ListExports(_ context.Context, sessionID string) ([]ExportBundle, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if _, ok := s.sessions[sessionID]; !ok {
+		return nil, ErrNotFound
+	}
+	out := make([]ExportBundle, 0)
+	for _, bundle := range s.exports {
+		if bundle.Session.ID == sessionID {
+			out = append(out, *cloneBundle(bundle))
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ExportedAt.Before(out[j].ExportedAt) })
+	return out, nil
+}
+
+func terminalRun(status RunStatus) bool {
+	return status == RunStatusSucceeded || status == RunStatusFailed
+}
+
+func runHasDiagnostic(run *Run, diagnosticID string) bool {
+	for _, diagnostic := range run.Diagnostics {
+		if diagnostic.ID == diagnosticID {
+			return true
+		}
+	}
+	return false
 }
 
 func redactSample(format events.SourceFormat, raw string) string {
@@ -486,4 +628,23 @@ func cloneMap(in map[string]string) map[string]string {
 		out[k] = v
 	}
 	return out
+}
+
+func cloneBundle(in *ExportBundle) *ExportBundle {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	out.Session = *cloneSession(&in.Session)
+	out.Samples = append([]Sample(nil), in.Samples...)
+	out.Drafts = make([]ArtifactDraft, len(in.Drafts))
+	for i := range in.Drafts {
+		out.Drafts[i] = *cloneDraft(&in.Drafts[i])
+	}
+	out.Runs = make([]Run, len(in.Runs))
+	for i := range in.Runs {
+		out.Runs[i] = *cloneRun(&in.Runs[i])
+	}
+	out.Decisions = append([]Decision(nil), in.Decisions...)
+	return &out
 }

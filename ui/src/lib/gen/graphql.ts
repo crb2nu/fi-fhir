@@ -1904,11 +1904,14 @@ export type SessionArtifact = {
   __typename?: 'SessionArtifact';
   content: Scalars['String']['output'];
   createdAt: Scalars['DateTime']['output'];
+  digest: Scalars['String']['output'];
   id: Scalars['ID']['output'];
   kind: Scalars['String']['output'];
   name: Scalars['String']['output'];
+  revisionId: Scalars['ID']['output'];
   sessionId: Scalars['ID']['output'];
   updatedAt: Scalars['DateTime']['output'];
+  version: Scalars['Int']['output'];
 };
 
 export type SessionDiagnostic = {
@@ -1934,6 +1937,8 @@ export type SessionRun = {
   diagnostics: Array<SessionDiagnostic>;
   events: Array<Event>;
   id: Scalars['ID']['output'];
+  profileRevisionDigest: Maybe<Scalars['String']['output']>;
+  profileRevisionId: Maybe<Scalars['ID']['output']>;
   sampleId: Maybe<Scalars['ID']['output']>;
   sessionId: Scalars['ID']['output'];
   stages: Array<RunStage>;

@@ -926,10 +926,13 @@ type SessionSample {
 
 type SessionArtifact {
   id: ID!
+  revisionId: ID!
   sessionId: ID!
   kind: String!
   name: String!
   content: String!
+  version: Int!
+  digest: String!
   createdAt: DateTime!
   updatedAt: DateTime!
 }
@@ -939,6 +942,8 @@ type SessionRun {
   sessionId: ID!
   sampleId: ID
   status: String!
+  profileRevisionId: ID
+  profileRevisionDigest: String
   createdAt: DateTime!
   completedAt: DateTime
   stages: [RunStage!]!

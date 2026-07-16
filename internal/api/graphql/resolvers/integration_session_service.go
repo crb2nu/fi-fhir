@@ -9,25 +9,28 @@ import (
 	"time"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity"
 	enginesession "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/session"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 )
 
 type integrationSessionService struct {
-	store    *enginesession.MemoryStore
-	runner   *enginesession.Runner
-	hub      *enginesession.Hub
-	accepted map[string]time.Time
+	store  enginesession.Store
+	runner *enginesession.Runner
+	hub    *enginesession.Hub
 }
 
 func newIntegrationSessionService() *integrationSessionService {
-	store := enginesession.NewMemoryStore()
+	return newIntegrationSessionServiceWithStore(enginesession.NewMemoryStore())
+}
+
+func newIntegrationSessionServiceWithStore(store enginesession.Store) *integrationSessionService {
+	if store == nil {
+		store = enginesession.NewMemoryStore()
+	}
 	hub := enginesession.NewHub()
 	return &integrationSessionService{
-		store:    store,
-		runner:   enginesession.NewRunner(store, hub),
-		hub:      hub,
-		accepted: make(map[string]time.Time),
+		store: store, runner: enginesession.NewRunner(store, hub), hub: hub,
 	}
 }
 
@@ -120,8 +123,20 @@ func (s *integrationSessionService) saveArtifact(sessionID, kind string, input m
 	if input.Name != nil && *input.Name != "" {
 		name = *input.Name
 	}
+	artifactKind := toArtifactKind(kind)
+	artifactID := ""
+	existing, err := s.store.ListArtifactDrafts(context.Background(), sessionID)
+	if err != nil {
+		return nil, err
+	}
+	for _, revision := range existing {
+		if revision.Kind == artifactKind {
+			artifactID = revision.ID
+		}
+	}
 	draft, err := s.store.SaveArtifactDraft(context.Background(), sessionID, enginesession.SaveArtifactDraftRequest{
-		Kind:    toArtifactKind(kind),
+		ID:      artifactID,
+		Kind:    artifactKind,
 		Name:    name,
 		Content: json.RawMessage(input.Content),
 	})
@@ -167,10 +182,21 @@ func (s *integrationSessionService) runPreview(input model.RunSessionPreviewInpu
 	if input.Source != nil {
 		source = *input.Source
 	}
+	profileRevisionID := ""
+	artifacts, err := s.store.ListArtifactDrafts(context.Background(), input.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	for _, revision := range artifacts {
+		if revision.Kind == enginesession.ArtifactKindMappingProfile {
+			profileRevisionID = revision.RevisionID
+		}
+	}
 	run, err := s.runner.RunHL7v2(context.Background(), enginesession.RunRequest{
-		SessionID: input.SessionID,
-		SampleID:  sampleID,
-		Source:    source,
+		SessionID:         input.SessionID,
+		SampleID:          sampleID,
+		Source:            source,
+		ProfileRevisionID: profileRevisionID,
 	})
 	if err != nil {
 		if run != nil {
@@ -201,7 +227,7 @@ func (s *integrationSessionService) ensurePreviewSample(input model.RunSessionPr
 		Format:    convertToEventsSourceFormat(format),
 		Source:    source,
 		Raw:       *input.Data,
-		PHIPolicy: enginesession.PHIPolicyRetain,
+		PHIPolicy: enginesession.PHIPolicyRedact,
 	})
 	if err != nil {
 		return "", nil, err
@@ -291,18 +317,28 @@ func (s *integrationSessionService) listDiagnostics(sessionID string, runID *str
 	return out, nil
 }
 
-func (s *integrationSessionService) acceptDiagnostic(input model.AcceptDiagnosticFixInput) (*model.SessionDiagnostic, error) {
-	runs, err := s.store.ListRuns(context.Background(), input.SessionID)
+func (s *integrationSessionService) acceptDiagnostic(ctx context.Context, input model.AcceptDiagnosticFixInput) (*model.SessionDiagnostic, error) {
+	runs, err := s.store.ListRuns(ctx, input.SessionID)
 	if err != nil {
 		return nil, err
 	}
-	now := time.Now().UTC()
 	for _, run := range runs {
 		for _, diagnostic := range run.Diagnostics {
 			if diagnostic.ID != input.DiagnosticID {
 				continue
 			}
-			s.accepted[diagnosticKey(run.ID, diagnostic.ID)] = now
+			acceptedBy := "integration-engineer"
+			if security, authenticated := requestsecurity.SecurityContextFromContext(ctx); authenticated {
+				acceptedBy = security.Principal.ID
+			} else if input.AcceptedBy != nil && *input.AcceptedBy != "" {
+				acceptedBy = *input.AcceptedBy
+			}
+			if _, err := s.store.AcceptDecision(ctx, enginesession.AcceptDecisionRequest{
+				SessionID: input.SessionID, RunID: run.ID, DiagnosticID: diagnostic.ID,
+				AcceptedBy: acceptedBy,
+			}); err != nil {
+				return nil, err
+			}
 			out := s.toGraphQLDiagnostic(run, diagnostic)
 			s.publish("diagnostic.accepted", input.SessionID, run.ID, "diagnostic fix accepted")
 			return &out, nil
@@ -450,13 +486,10 @@ func (s *integrationSessionService) toGraphQLSample(sample enginesession.Sample)
 
 func toGraphQLArtifact(draft enginesession.ArtifactDraft) *model.SessionArtifact {
 	return &model.SessionArtifact{
-		ID:        draft.ID,
-		SessionID: draft.SessionID,
-		Kind:      string(draft.Kind),
-		Name:      draft.Name,
-		Content:   string(draft.Content),
-		CreatedAt: draft.CreatedAt,
-		UpdatedAt: draft.UpdatedAt,
+		ID: draft.ID, RevisionID: draft.RevisionID, SessionID: draft.SessionID,
+		Kind: string(draft.Kind), Name: draft.Name, Content: string(draft.Content),
+		Version: draft.Version, Digest: draft.Digest,
+		CreatedAt: draft.CreatedAt, UpdatedAt: draft.UpdatedAt,
 	}
 }
 
@@ -491,17 +524,21 @@ func (s *integrationSessionService) toGraphQLRun(run enginesession.Run) (*model.
 		}
 	}
 	sampleID := strPtrEmpty(run.SampleID)
+	profileRevisionID := strPtrEmpty(run.ProfileRevisionID)
+	profileRevisionDigest := strPtrEmpty(run.ProfileRevisionDigest)
 	return &model.SessionRun{
-		ID:          run.ID,
-		SessionID:   run.SessionID,
-		SampleID:    sampleID,
-		Status:      toGraphQLRunStatus(run.Status),
-		CreatedAt:   run.CreatedAt,
-		CompletedAt: run.FinishedAt,
-		Stages:      stages,
-		Diagnostics: diagnostics,
-		Events:      eventsOut,
-		Warnings:    warnings,
+		ID:                    run.ID,
+		SessionID:             run.SessionID,
+		SampleID:              sampleID,
+		Status:                toGraphQLRunStatus(run.Status),
+		ProfileRevisionID:     profileRevisionID,
+		ProfileRevisionDigest: profileRevisionDigest,
+		CreatedAt:             run.CreatedAt,
+		CompletedAt:           run.FinishedAt,
+		Stages:                stages,
+		Diagnostics:           diagnostics,
+		Events:                eventsOut,
+		Warnings:              warnings,
 	}, nil
 }
 
@@ -527,7 +564,7 @@ func (s *integrationSessionService) toGraphQLDiagnostic(run enginesession.Run, d
 	sampleID := run.SampleID
 	path := strPtrEmpty(diagnostic.Path)
 	fix := "Review the source profile or sample payload for this warning."
-	acceptedAt, accepted := s.accepted[diagnosticKey(run.ID, diagnostic.ID)]
+	acceptedAt, accepted := s.acceptedDecision(run.ID, diagnostic.ID, run.SessionID)
 	var acceptedAtPtr *time.Time
 	if accepted {
 		acceptedAtPtr = &acceptedAt
@@ -562,6 +599,19 @@ func (s *integrationSessionService) toGraphQLDiagnostic(run enginesession.Run, d
 		AcceptedAt:    acceptedAtPtr,
 		Lineage:       lineage,
 	}
+}
+
+func (s *integrationSessionService) acceptedDecision(runID, diagnosticID, sessionID string) (time.Time, bool) {
+	decisions, err := s.store.ListDecisions(context.Background(), sessionID)
+	if err != nil {
+		return time.Time{}, false
+	}
+	for _, decision := range decisions {
+		if decision.RunID == runID && decision.DiagnosticID == diagnosticID {
+			return decision.AcceptedAt, true
+		}
+	}
+	return time.Time{}, false
 }
 
 func (s *integrationSessionService) toGraphQLEvent(event enginesession.StreamEvent) *model.IntegrationSessionEvent {
@@ -662,10 +712,6 @@ func toGraphQLRunStatus(status enginesession.RunStatus) string {
 	default:
 		return string(status)
 	}
-}
-
-func diagnosticKey(runID, diagnosticID string) string {
-	return runID + ":" + diagnosticID
 }
 
 func cloneRuns(in []model.SessionRun) []model.SessionRun {

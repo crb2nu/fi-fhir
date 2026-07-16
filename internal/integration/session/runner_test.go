@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -145,6 +146,80 @@ func TestBundleExportIncludesSessionArtifactsAndRuns(t *testing.T) {
 	if _, err := json.Marshal(bundle); err != nil {
 		t.Fatalf("bundle should marshal to JSON: %v", err)
 	}
+}
+
+func TestRunnerPinsExactProfileRevision(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	runner := NewRunner(store, NewHub())
+	sess, err := store.CreateSession(ctx, CreateSessionRequest{Name: "exact profile"})
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	raw, err := os.ReadFile("../../../testdata/integration-session/adt_a01_missing_pv1.hl7")
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	sample, err := store.AddSample(ctx, sess.ID, AddSampleRequest{
+		Name: "redacted default", Format: events.FormatHL7v2, Raw: string(raw),
+	})
+	if err != nil {
+		t.Fatalf("AddSample: %v", err)
+	}
+	if sample.PHIPolicy != PHIPolicyRedact {
+		t.Fatalf("default PHI policy = %q, want redact", sample.PHIPolicy)
+	}
+	profileJSON := json.RawMessage(`{"hl7v2":{"default_version":"2.5.1","timezone":"UTC","tolerance":{"missing_segments":["PV1"],"nte_anywhere":false,"extra_components":false,"unknown_segments":false,"non_standard_delimiters":false},"event_classifications":[{"message_type":"ADT^A01","event_type":"patient_admit","priority":1}]}}`)
+	revision, err := store.SaveArtifactDraft(ctx, sess.ID, SaveArtifactDraftRequest{
+		Kind: ArtifactKindMappingProfile, Name: "tolerant profile", Content: profileJSON,
+	})
+	if err != nil {
+		t.Fatalf("SaveArtifactDraft: %v", err)
+	}
+	run, err := runner.RunHL7v2(ctx, RunRequest{
+		SessionID: sess.ID, SampleID: sample.ID, ProfileRevisionID: revision.RevisionID,
+	})
+	if err != nil {
+		t.Fatalf("RunHL7v2: %v", err)
+	}
+	if run.ProfileID != revision.ID || run.ProfileRevisionID != revision.RevisionID || run.ProfileRevisionDigest != revision.Digest {
+		t.Fatalf("run profile reference = %#v, revision = %#v", run, revision)
+	}
+	if !hasDiagnosticCode(run.Diagnostics, "MISSING_PV1") {
+		t.Fatalf("diagnostics = %#v, want MISSING_PV1", run.Diagnostics)
+	}
+	if _, err := store.UpdateRun(ctx, *run); !errors.Is(err, ErrImmutable) {
+		t.Fatalf("terminal run update error = %v, want ErrImmutable", err)
+	}
+
+	decision, err := store.AcceptDecision(ctx, AcceptDecisionRequest{
+		SessionID: sess.ID, RunID: run.ID, DiagnosticID: run.Diagnostics[0].ID,
+		AcceptedBy: "engineer-1",
+	})
+	if err != nil || decision.ID == "" {
+		t.Fatalf("AcceptDecision = %#v, %v", decision, err)
+	}
+	bundle, err := store.ExportBundle(ctx, sess.ID)
+	if err != nil || bundle.ID == "" || len(bundle.Decisions) != 1 {
+		t.Fatalf("ExportBundle = %#v, %v", bundle, err)
+	}
+	reopened, err := store.GetExport(ctx, sess.ID, bundle.ID)
+	if err != nil || reopened.ID != bundle.ID {
+		t.Fatalf("GetExport = %#v, %v", reopened, err)
+	}
+	exports, err := store.ListExports(ctx, sess.ID)
+	if err != nil || len(exports) != 1 || exports[0].ID != bundle.ID {
+		t.Fatalf("ListExports = %#v, %v", exports, err)
+	}
+}
+
+func hasDiagnosticCode(diagnostics []Diagnostic, code string) bool {
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Code == code {
+			return true
+		}
+	}
+	return false
 }
 
 func hasLineage(links []LineageLink, source, target string) bool {

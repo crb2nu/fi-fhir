@@ -4706,6 +4706,10 @@ func runServe(args []string) error {
 		resolvers.WithVersion(version),
 		resolvers.WithPreviewService(securePreviewRuntime.previewService),
 	}
+	if securePreviewRuntime.sessionStore != nil {
+		resolverOpts = append(resolverOpts, resolvers.WithIntegrationSessionStore(securePreviewRuntime.sessionStore))
+		fmt.Println("Integration Session workspace: PostgreSQL")
+	}
 
 	if profileStore, err := initProfileStoreFromEnv(context.Background()); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: profile store disabled: %v\n", err)

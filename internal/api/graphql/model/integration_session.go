@@ -30,26 +30,31 @@ type SessionSample struct {
 }
 
 type SessionArtifact struct {
-	ID        string    `json:"id"`
-	SessionID string    `json:"sessionId"`
-	Kind      string    `json:"kind"`
-	Name      string    `json:"name"`
-	Content   string    `json:"content"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	ID         string    `json:"id"`
+	RevisionID string    `json:"revisionId"`
+	SessionID  string    `json:"sessionId"`
+	Kind       string    `json:"kind"`
+	Name       string    `json:"name"`
+	Content    string    `json:"content"`
+	Version    int       `json:"version"`
+	Digest     string    `json:"digest"`
+	CreatedAt  time.Time `json:"createdAt"`
+	UpdatedAt  time.Time `json:"updatedAt"`
 }
 
 type SessionRun struct {
-	ID          string              `json:"id"`
-	SessionID   string              `json:"sessionId"`
-	SampleID    *string             `json:"sampleId,omitempty"`
-	Status      string              `json:"status"`
-	CreatedAt   time.Time           `json:"createdAt"`
-	CompletedAt *time.Time          `json:"completedAt,omitempty"`
-	Stages      []RunStage          `json:"stages"`
-	Diagnostics []SessionDiagnostic `json:"diagnostics"`
-	Events      []Event             `json:"events"`
-	Warnings    []ParseWarning      `json:"warnings"`
+	ID                    string              `json:"id"`
+	SessionID             string              `json:"sessionId"`
+	SampleID              *string             `json:"sampleId,omitempty"`
+	Status                string              `json:"status"`
+	ProfileRevisionID     *string             `json:"profileRevisionId,omitempty"`
+	ProfileRevisionDigest *string             `json:"profileRevisionDigest,omitempty"`
+	CreatedAt             time.Time           `json:"createdAt"`
+	CompletedAt           *time.Time          `json:"completedAt,omitempty"`
+	Stages                []RunStage          `json:"stages"`
+	Diagnostics           []SessionDiagnostic `json:"diagnostics"`
+	Events                []Event             `json:"events"`
+	Warnings              []ParseWarning      `json:"warnings"`
 }
 
 type RunStage struct {
