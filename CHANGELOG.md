@@ -53,6 +53,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Optional `serve` MLLP runtime that resolves only the lifecycle catalog's exact
   deployed release and serializes pause/retire authorization inside the durable
   PostgreSQL admission transaction before a positive ACK
+- PostgreSQL delivery leases, bounded exponential retry, destination-revision
+  circuit state, durable DLQ, append-only audit, and idempotent replay/resubmit
+- Optional `serve` Kafka outbox worker with stable attempt keys, sanitized
+  canonical-event commands, all-ISR acknowledgement, TLS 1.3, and TLS-required
+  SASL credentials
+- Authenticated PostgreSQL operator commands for audited `delivery replay` and
+  `delivery resubmit`, plus a blocking PostgreSQL 16/Kafka failure-recovery gate
 - Blocking PostgreSQL 16/TCP MLLP gate covering pre-commit ACK exclusion,
   concurrent pause serialization, 32 reconnecting duplicates, resume,
   retirement, restart, durable cardinality, and raw-message leakage

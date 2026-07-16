@@ -263,6 +263,20 @@ Implementation:
   resubmit with reason/audit.
 - Wire one real queue transport in addition to webhook/FHIR/database/file.
 
+Implementation status:
+
+- PostgreSQL migration v2 adds expiring leases, attempt schedules, parent links,
+  circuit state, durable DLQ, idempotent operator operations, and append-only
+  audit while preserving Slice 1.2's atomic initial unit.
+- `internal/integration/delivery` claims with `FOR UPDATE SKIP LOCKED`, applies
+  bounded retry/circuit policy, and emits raw-free Kafka commands with the stable
+  attempt ID as key and lineage headers.
+- Optional `serve` wiring fails closed on partial configuration, requires TLS for
+  credentials, and shuts down with GraphQL/MLLP. PostgreSQL-authenticated CLI
+  replay/resubmit records `current_user`, reason, and operation idempotency key.
+- Unit/race/full-suite gates pass locally. The blocking PostgreSQL 16/Kafka
+  failure/replay job and terminal MR/main evidence remain pending.
+
 ### Slice 2.4: batch sources
 
 - Register S3/SFTP providers into runtime configuration.

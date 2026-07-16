@@ -21,7 +21,6 @@ import (
 )
 
 const (
-	submissionMigrationVersion = 1
 	submissionMigrationLockKey = int64(5064657639792058881)
 	derivedIdempotencyDomain   = "fi-fhir/idempotency/v1\x00"
 	requestFingerprintDomain   = "fi-fhir/submission-fingerprint/v1\x00"
@@ -44,6 +43,18 @@ var (
 
 //go:embed migrations/0001_atomic_submission.sql
 var atomicSubmissionMigration string
+
+//go:embed migrations/0002_delivery_reliability.sql
+var deliveryReliabilityMigration string
+
+var submissionMigrations = []struct {
+	version int64
+	name    string
+	sql     string
+}{
+	{version: 1, name: "0001_atomic_submission", sql: atomicSubmissionMigration},
+	{version: 2, name: "0002_delivery_reliability", sql: deliveryReliabilityMigration},
+}
 
 // AdmissionAuthorizer runs inside the durable submission transaction before
 // any receipt rows are written. Implementations may take database locks that
@@ -120,23 +131,26 @@ func (s *PostgresSubmissionStore) Migrate(ctx context.Context) error {
 	`); err != nil {
 		return fmt.Errorf("create submission migration ledger: %w", err)
 	}
-	var applied bool
-	if err := tx.QueryRowContext(ctx,
-		`SELECT EXISTS (SELECT 1 FROM integration_submission_schema_migrations WHERE version = $1)`,
-		submissionMigrationVersion,
-	).Scan(&applied); err != nil {
-		return fmt.Errorf("read submission migration ledger: %w", err)
-	}
-	if !applied {
-		if _, err := tx.ExecContext(ctx, atomicSubmissionMigration); err != nil {
-			return fmt.Errorf("apply atomic submission migration: %w", err)
+	for _, migration := range submissionMigrations {
+		var applied bool
+		if err := tx.QueryRowContext(ctx,
+			`SELECT EXISTS (SELECT 1 FROM integration_submission_schema_migrations WHERE version = $1)`,
+			migration.version,
+		).Scan(&applied); err != nil {
+			return fmt.Errorf("read submission migration ledger: %w", err)
+		}
+		if applied {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, migration.sql); err != nil {
+			return fmt.Errorf("apply submission migration %s: %w", migration.name, err)
 		}
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO integration_submission_schema_migrations (version, name) VALUES ($1, $2)`,
-			submissionMigrationVersion,
-			"0001_atomic_submission",
+			migration.version,
+			migration.name,
 		); err != nil {
-			return fmt.Errorf("record atomic submission migration: %w", err)
+			return fmt.Errorf("record submission migration %s: %w", migration.name, err)
 		}
 	}
 	if err := tx.Commit(); err != nil {
@@ -313,8 +327,8 @@ func (s *PostgresSubmissionStore) commit(
 			INSERT INTO integration_delivery_attempts (
 				tenant_id, attempt_id, receipt_id, event_id, trace_id,
 				destination_revision_json, route_name, action_id, status,
-				attempt_count, recorded_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+				attempt_count, recorded_at, scheduled_at
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
 		`,
 			delivery.TenantID,
 			delivery.AttemptID,
@@ -353,8 +367,8 @@ func (s *PostgresSubmissionStore) commit(
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO integration_delivery_outbox (
 				tenant_id, outbox_id, attempt_id, topic, status,
-				payload_json, created_at, scheduled_at
-			) VALUES ($1, $2, $3, $4, 'pending', $5, $6, $6)
+				payload_json, created_at, scheduled_at, updated_at
+			) VALUES ($1, $2, $3, $4, 'pending', $5, $6, $6, $6)
 		`,
 			result.TenantID,
 			outboxID,

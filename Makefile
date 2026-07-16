@@ -7,7 +7,7 @@
 	deploy deploy-ui deploy-all deploy-status deploy-logs deploy-delete deploy-forward \
 	docs-status docs-status-quick docs-validate docs-all \
 	contract-check contract-check-strict contract-matrix \
-	golden-path-001 mllp-runtime \
+	golden-path-001 mllp-runtime delivery-reliability \
 	smoke-test smoke-test-local check-runtime-config \
 	dev dev-down dev-ui dev-ui-down
 
@@ -99,6 +99,13 @@ mllp-runtime:
 	go test -tags=integration -race -count=1 -timeout=180s \
 		-run '^TestPostgresMLLPRuntime_DurableACKPauseRestart$$' \
 		./internal/integration/mllp
+
+# Slice 2.3: PostgreSQL leases/retry/DLQ/recovery -> acknowledged Kafka records.
+# Requires POSTGRES_TEST_URL and KAFKA_TEST_BROKERS in CI; uses containers locally.
+delivery-reliability:
+	go test -tags=integration -race -count=1 -timeout=240s \
+		-run '^TestDeliveryReliability_PostgresKafkaFailureReplay$$' \
+		./internal/integration/delivery
 
 # Clean build artifacts
 clean:

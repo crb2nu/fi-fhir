@@ -345,6 +345,14 @@ kubectl -n fi-fhir logs deployment/fi-fhir | grep -i oauth
 
 ### Dead Letter Queue Growing
 
+For the production integration outbox, use
+[`DELIVERY-RELIABILITY.md`](DELIVERY-RELIABILITY.md). Inspect only bounded DLQ
+metadata, repair Kafka first, then use the audited `fi-fhir delivery replay` or
+`resubmit` command with a unique operation key and reason. Disable
+`FI_FHIR_DELIVERY_WORKER_ENABLED` to stop publication without deleting work.
+
+The commands below apply only to the legacy in-process workflow DLQ.
+
 **Symptoms**: `FiFhirDLQBacklog` alert firing
 
 **Check**:

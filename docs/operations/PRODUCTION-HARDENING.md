@@ -575,6 +575,27 @@ migration during startup. It never falls back to an in-memory committer.
 `make golden-path-001` reproduces the duplicate/restart/profile/IDE parity and
 leakage gate. It writes disposable evidence under `.tmp/golden-path-001/`.
 
+### Durable Kafka delivery
+
+The production delivery worker is opt-in and shares the PostgreSQL submission
+database. Keep it disabled until broker ACLs, TLS trust, topic policy, retry
+bounds, and consumer duplicate suppression have been reviewed.
+
+- Require TLS 1.3 when credentials are present and mount the password/CA as
+  files. SASL without TLS fails startup.
+- Grant the producer only write/describe access to the configured delivery topic.
+- Treat the stable attempt ID as the consumer idempotency key. PostgreSQL and
+  Kafka cannot commit atomically, so a publish-before-database-ack crash may
+  repeat one record.
+- Bound lease, publish timeout, retry delay/count, and circuit-open duration.
+- Use individual PostgreSQL operator credentials for replay/resubmit so
+  `current_user`, reason, and operation key form useful immutable audit evidence.
+- Never repair delivery state with ad hoc SQL. Disable the worker to stop sends;
+  preserve outbox/DLQ/audit rows for controlled recovery.
+
+See [`DELIVERY-RELIABILITY.md`](DELIVERY-RELIABILITY.md) for exact configuration,
+state transitions, inspection queries, and recovery commands.
+
 Copy a Helm-managed bearer directly to the macOS clipboard without printing it:
 
 ```bash

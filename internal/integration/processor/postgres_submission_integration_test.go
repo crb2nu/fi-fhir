@@ -206,8 +206,8 @@ func TestPostgresProductionSubmission_64WayDuplicateFaultRestart(t *testing.T) {
 	if err := restartedDB.QueryRow(`SELECT COUNT(*) FROM integration_submission_schema_migrations`).Scan(&migrationCount); err != nil {
 		t.Fatalf("count submission migrations: %v", err)
 	}
-	if migrationCount != 1 {
-		t.Fatalf("migration rows = %d, want 1", migrationCount)
+	if migrationCount != len(submissionMigrations) {
+		t.Fatalf("migration rows = %d, want %d", migrationCount, len(submissionMigrations))
 	}
 	if err := restartedDB.Close(); err != nil {
 		t.Fatalf("close restarted database handle: %v", err)

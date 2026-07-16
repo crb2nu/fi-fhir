@@ -103,7 +103,9 @@ must not enter the clinical data plane before the engine spine is proven.
 
 ## Next
 
-- [ ] Durable delivery attempts, DLQ/replay/resubmit, and one real queue transport.
+- [ ] Durable delivery attempts, DLQ/replay/resubmit, and one real queue transport
+  (Slice 2.3 implementation and local gates complete; required PostgreSQL/Kafka
+  CI and merge evidence pending).
 - [ ] Runtime-wired S3/SFTP streaming ingestion with checkpoint/resume.
 
 ## Then

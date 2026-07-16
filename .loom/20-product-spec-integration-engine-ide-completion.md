@@ -162,7 +162,12 @@ deployment authorization, and positive ACK only after durable admission.
 MR `!104` pipeline `19175` passed all 33 jobs, including required PostgreSQL
 16/TCP MLLP job `184996`; merge commit `6205fa39` repeated the proof in main job
 `185093`, and main pipeline `19193` passed all 36 jobs.
-Destination workers/replay, HTTP catalog migration, GitOps exposure, and IDE
+Slice 2.3 implements the backend delivery-reliability portion with PostgreSQL
+leases, bounded retries/circuits, a durable DLQ, audited idempotent replay and
+resubmit, and a real Kafka publisher using stable attempt IDs for downstream
+duplicate suppression. Local unit/race/full-suite gates pass; required
+PostgreSQL 16/Kafka CI and merge evidence are pending.
+HTTP catalog migration, GitOps exposure, and IDE
 lifecycle controls remain open, so the secure data plane is not yet complete.
 
 ### 2. Durable integration IDE
