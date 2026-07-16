@@ -396,7 +396,7 @@
               <section class="workspace-card workspace-summary">
                 <div class="workspace-eyebrow">Split workspace</div>
                 <h2>{secondaryDocument?.title ?? currentWorkspaceTab.title}</h2>
-                <p>Keep another workspace surface open while you move between routes.</p>
+                <p>Open a second workspace pane side by side.</p>
                 <div class="workspace-path">{secondaryDocument?.route ?? currentWorkspaceTab.path}</div>
                 <button type="button" class="workspace-toggle" on:click={toggleWorkspaceSplit}>
                   Close split workspace

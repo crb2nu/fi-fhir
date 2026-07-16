@@ -192,8 +192,8 @@
   // ── Header greeting ────────────────────────────────────────────────────────
   $: heroGreeting = hasRecents ? 'Welcome back' : 'Build the interface from source to destination';
   $: heroSubtext = hasRecents
-    ? 'Your recent work is waiting. Pick up a thread or start something new.'
-    : 'Keep intake, normalization, translation, delivery, and verification in one guided workspace so each decision stays traceable.';
+    ? 'Pick up recent work or start something new.'
+    : 'Intake to verification in one workspace, every decision traceable.';
 
   // ── Signal chips ───────────────────────────────────────────────────────────
   $: signalChips = buildSignalChips(connected, hasRecents);

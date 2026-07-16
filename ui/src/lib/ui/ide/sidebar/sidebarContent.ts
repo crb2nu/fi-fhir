@@ -46,8 +46,7 @@ const contexts: Record<SidebarView, Omit<SidebarContext, 'journey'>> = {
     view: 'home',
     eyebrow: 'Overview',
     title: 'Mission control',
-    description:
-      'Keep the entire source-to-destination journey in view, then jump straight to the next stage without losing context.',
+    description: 'The full source-to-destination journey at a glance.',
     highlights: ['Source intake', 'Normalization', 'Translation', 'Delivery', 'Verification'],
     actions: [
       { label: 'Start source intake', href: '/hl7', hint: 'Open inbound messages and review recoverable warnings.' },
@@ -64,8 +63,7 @@ const contexts: Record<SidebarView, Omit<SidebarContext, 'journey'>> = {
     view: 'hl7',
     eyebrow: 'Stage 1',
     title: 'Source intake',
-    description:
-      'Load inbound messages, inspect raw payloads, and keep recoverable warnings close while you decide what should normalize next.',
+    description: 'Load inbound messages, inspect raw payloads, and review recoverable warnings.',
     highlights: ['Raw payloads', 'Warnings', 'Source profile'],
     actions: [
       { label: 'Open normalization', href: '/profiles', hint: 'Tune identifiers and tolerance rules.' },
@@ -82,8 +80,7 @@ const contexts: Record<SidebarView, Omit<SidebarContext, 'journey'>> = {
     view: 'profiles',
     eyebrow: 'Stage 2',
     title: 'Normalization',
-    description:
-      'Shape the source profile so identifiers, tolerances, and recoverable rules read like the domain instead of the wire format.',
+    description: 'Tune identifiers, tolerances, and recoverable-anomaly rules in the source profile.',
     highlights: ['Identifiers', 'Tolerances', 'Profile rules'],
     actions: [
       { label: 'Return to source intake', href: '/hl7', hint: 'Recheck raw messages against your profile rules.' },
@@ -100,8 +97,7 @@ const contexts: Record<SidebarView, Omit<SidebarContext, 'journey'>> = {
     view: 'terminology',
     eyebrow: 'Stage 3',
     title: 'Translation',
-    description:
-      'Translate source codes into shared semantic terms while keeping every candidate and decision explainable.',
+    description: 'Map source codes to shared semantic terms, with every decision traceable.',
     highlights: ['Mappings', 'Candidates', 'Traceability'],
     actions: [
       { label: 'Return to normalization', href: '/profiles', hint: 'Revisit profile-driven identifier and tolerance rules.' },
@@ -118,8 +114,7 @@ const contexts: Record<SidebarView, Omit<SidebarContext, 'journey'>> = {
     view: 'workflows',
     eyebrow: 'Stage 4',
     title: 'Delivery',
-    description:
-      'Package normalized events into workflows, destinations, and action chains that move the interface forward.',
+    description: 'Route normalized events into workflows, destinations, and action chains.',
     highlights: ['Routes', 'Actions', 'Destinations'],
     actions: [
       { label: 'Return to translation', href: '/terminology', hint: 'Check the semantic terms before you ship them.' },
@@ -136,8 +131,7 @@ const contexts: Record<SidebarView, Omit<SidebarContext, 'journey'>> = {
     view: 'events',
     eyebrow: 'Stage 5',
     title: 'Verification',
-    description:
-      'Compare routed outcomes with source intent, then use the timeline to decide what should change next.',
+    description: 'Compare routed outcomes with source intent on the timeline.',
     highlights: ['Timeline', 'Outcomes', 'Feedback'],
     actions: [
       { label: 'Return to delivery', href: '/workflows', hint: 'Trace the route that delivered the event.' },

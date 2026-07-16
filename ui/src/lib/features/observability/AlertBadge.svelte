@@ -83,7 +83,7 @@
       <div class="dropdown-header">
         <span class="dropdown-title">Alerts</span>
         {#if $isSimulated}
-          <span class="sim-tag" title="The platform monitoring connection is unavailable. These alerts are demo data, not live signals.">Demo data</span>
+          <span class="sim-tag" title="Platform not connected — showing demo data.">Demo data</span>
         {/if}
         <span class="dropdown-count">{alerts.length} total</span>
       </div>

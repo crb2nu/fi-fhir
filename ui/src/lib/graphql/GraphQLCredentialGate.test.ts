@@ -59,7 +59,7 @@ describe('GraphQLCredentialGate', () => {
     await fireEvent.input(input, { target: { value: token } });
     await fireEvent.submit(screen.getByRole('form', { name: 'Install preview credential' }));
 
-    await screen.findByText('Authenticated preview access active');
+    await screen.findByText('Preview access active');
     expect(screen.queryByDisplayValue(token)).not.toBeInTheDocument();
     const provider = mocks.setProvider.mock.calls.find((call) => typeof call[0] === 'function')?.[0];
     expect(provider).toBeTypeOf('function');
@@ -106,7 +106,7 @@ describe('GraphQLCredentialGate', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Credential validation failed');
     expect(screen.queryByDisplayValue(token)).not.toBeInTheDocument();
-    expect(screen.queryByText('Authenticated preview access active')).not.toBeInTheDocument();
+    expect(screen.queryByText('Preview access active')).not.toBeInTheDocument();
     expect(mocks.setProvider).toHaveBeenLastCalledWith(null);
   });
 });
