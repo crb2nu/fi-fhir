@@ -80,8 +80,35 @@ describe('WorkflowPreview', () => {
     expect(yamlOutput).toContain('name: critical_labs');
     expect(yamlOutput).toContain('event_type: LAB_RESULT');
     expect(audience).toBe('business');
+    expect(screen.getByText('Critical lab alert routing')).toBeInTheDocument();
     expect(screen.getByText(/Routes critical lab events to an alert webhook/)).toBeInTheDocument();
     expect(screen.getByText(/critical_labs: Sends critical lab results/)).toBeInTheDocument();
+    // No warnings from the op → no warnings block.
+    expect(screen.queryByText('Warnings')).toBeNull();
+  });
+
+  it('surfaces the explain warnings returned by the op', async () => {
+    vi.mocked(explainWorkflow).mockResolvedValue({
+      explainWorkflow: {
+        summary: 'Routing with gaps',
+        description: 'Routes lab events.',
+        diagram: null,
+        routeExplanations: [],
+        warnings: [
+          'Route critical_labs has no error handling',
+          'No route matches PATIENT_ADMIT events'
+        ]
+      }
+    } as Awaited<ReturnType<typeof explainWorkflow>>);
+
+    render(WorkflowPreview);
+
+    await fireEvent.click(screen.getByRole('button', { name: /Explain with AI/ }));
+
+    const warningsBlock = await screen.findByRole('alert');
+    expect(warningsBlock).toHaveTextContent('Warnings');
+    expect(screen.getByText('Route critical_labs has no error handling')).toBeInTheDocument();
+    expect(screen.getByText('No route matches PATIENT_ADMIT events')).toBeInTheDocument();
   });
 
   it('shows a loading label while the explanation is in flight', async () => {
