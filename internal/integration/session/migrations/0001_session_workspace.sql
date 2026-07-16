@@ -34,6 +34,7 @@ CREATE TABLE integration_session_artifact_revisions (
     kind TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
     record_json JSONB NOT NULL,
+    content_bytes BYTEA NOT NULL,
     PRIMARY KEY (tenant_id, revision_id),
     UNIQUE (tenant_id, artifact_id, version),
     FOREIGN KEY (tenant_id, session_id)

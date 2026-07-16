@@ -394,15 +394,17 @@ func (s *PostgresStore) SaveArtifactDraft(ctx context.Context, sessionID string,
 		Kind: req.Kind, Name: strings.TrimSpace(req.Name), Content: cloneRaw(req.Content),
 		Version: version, Digest: digest, CreatedAt: createdAt, UpdatedAt: now,
 	}
-	raw, err := encodeRecord(record)
+	stored := *record
+	stored.Content = nil
+	raw, err := encodeRecord(stored)
 	if err != nil {
 		return nil, err
 	}
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO integration_session_artifact_revisions
-			(tenant_id, session_id, artifact_id, revision_id, version, kind, created_at, record_json)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-	`, s.tenantID, sessionID, record.ID, record.RevisionID, record.Version, record.Kind, record.UpdatedAt, raw)
+			(tenant_id, session_id, artifact_id, revision_id, version, kind, created_at, record_json, content_bytes)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`, s.tenantID, sessionID, record.ID, record.RevisionID, record.Version, record.Kind, record.UpdatedAt, raw, []byte(record.Content))
 	if err != nil {
 		return nil, fmt.Errorf("create artifact revision: %w", err)
 	}
@@ -421,23 +423,16 @@ func (s *PostgresStore) GetArtifactRevision(ctx context.Context, sessionID, revi
 }
 
 func (s *PostgresStore) getArtifact(ctx context.Context, sessionID, predicate, value, suffix string) (*ArtifactDraft, error) {
-	var raw []byte
-	query := `SELECT record_json FROM integration_session_artifact_revisions WHERE tenant_id = $1 AND session_id = $2 AND ` + predicate + ` ` + suffix
-	err := s.db.QueryRowContext(ctx, query, s.tenantID, sessionID, value).Scan(&raw)
+	var raw, content []byte
+	query := `SELECT record_json, content_bytes FROM integration_session_artifact_revisions WHERE tenant_id = $1 AND session_id = $2 AND ` + predicate + ` ` + suffix
+	err := s.db.QueryRowContext(ctx, query, s.tenantID, sessionID, value).Scan(&raw, &content)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("load artifact revision: %w", err)
 	}
-	var record ArtifactDraft
-	if err := decodeRecord(raw, &record); err != nil || record.SessionID != sessionID {
-		return nil, ErrImmutable
-	}
-	if record.Digest != recordDigest(record.Content) {
-		return nil, ErrImmutable
-	}
-	return cloneDraft(&record), nil
+	return decodeArtifact(raw, content, sessionID)
 }
 
 func (s *PostgresStore) ListArtifactDrafts(ctx context.Context, sessionID string) ([]ArtifactDraft, error) {
@@ -445,7 +440,7 @@ func (s *PostgresStore) ListArtifactDrafts(ctx context.Context, sessionID string
 		return nil, err
 	}
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT record_json FROM integration_session_artifact_revisions
+		SELECT record_json, content_bytes FROM integration_session_artifact_revisions
 		WHERE tenant_id = $1 AND session_id = $2
 		ORDER BY created_at, artifact_id, version
 	`, s.tenantID, sessionID)
@@ -453,17 +448,20 @@ func (s *PostgresStore) ListArtifactDrafts(ctx context.Context, sessionID string
 		return nil, fmt.Errorf("list artifact revisions: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
-	records, err := scanRecords[ArtifactDraft](rows)
-	if err != nil {
-		return nil, err
+	records := make([]ArtifactDraft, 0)
+	for rows.Next() {
+		var raw, content []byte
+		if err := rows.Scan(&raw, &content); err != nil {
+			return nil, err
+		}
+		record, err := decodeArtifact(raw, content, sessionID)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, *record)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
-	}
-	for _, record := range records {
-		if record.SessionID != sessionID || record.Digest != recordDigest(record.Content) {
-			return nil, ErrImmutable
-		}
 	}
 	return records, nil
 }
@@ -760,6 +758,18 @@ func decodeRecord(raw []byte, value any) error {
 		return ErrImmutable
 	}
 	return nil
+}
+
+func decodeArtifact(raw, content []byte, sessionID string) (*ArtifactDraft, error) {
+	var record ArtifactDraft
+	if err := decodeRecord(raw, &record); err != nil || record.SessionID != sessionID || len(content) == 0 {
+		return nil, ErrImmutable
+	}
+	record.Content = cloneRaw(content)
+	if record.Digest != recordDigest(record.Content) {
+		return nil, ErrImmutable
+	}
+	return cloneDraft(&record), nil
 }
 
 type jsonRows interface {
