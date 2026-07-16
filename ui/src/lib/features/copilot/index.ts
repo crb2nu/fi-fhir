@@ -11,3 +11,11 @@ export {
   type CopilotMessage,
   type CopilotState,
 } from './copilotStore';
+export {
+  llmCapabilityState,
+  refreshLlmCapability,
+  actionBlockReason,
+  type LlmStatus,
+  type LlmCapabilityState,
+  type LlmCapabilitySnapshot,
+} from './llmCapabilityStore';

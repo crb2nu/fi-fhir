@@ -182,7 +182,7 @@ Gated by the **kill-test above (Slice 0)**. Only proceeds if the LLM path is pro
   vite/rollup `.d.ts` error only). `model` chip added to `CopilotPanel`.
   *Deferred within scope*: the backend now exposes `llmCapability` with feature rows (Slice 3f), but the
   Copilot UI still needs to query it and render an honest disabled/unavailable/degraded badge instead of
-  inferring state from operation errors.
+  inferring state from operation errors. → **RESOLVED by Slice 2c below.**
 - **Slice 2b — Workflow generate/explain wired through. ✅ SHIPPED as a regression-lock (2026-06-18, branch
   `feat/funcgap-w2b-workflow-generate`).**
   **Plan-vs-reality correction (verify-before-build):** the Class-B audit claims for "Workflow generate" and
@@ -215,6 +215,24 @@ Gated by the **kill-test above (Slice 0)**. Only proceeds if the LLM path is pro
   *Deferred within scope (polish, not wiring)*: `WorkflowPreview` explain renders only `description` + routes,
   dropping the op's `summary`/`diagram`/`warnings`; surfacing the explain `warnings` would aid honesty. Small,
   optional — not required for "wired to the real query."
+
+- **Slice 2c — Copilot honest LLM-state badge (UI → `llmCapability`). ✅ SHIPPED (2026-07-16, branch
+  `feat/funcgap-w2-copilot-llm-capability`).** Closes the follow-up deferred from Slices 2a/3e/3f.
+  New `LlmCapability` query op in `ui/src/lib/graphql/llm.graphql` (codegen'd) + pure store
+  `features/copilot/llmCapabilityStore.ts`: silent probe on platform-connect (`showErrorToast: false` —
+  a probe blip must not spend toast budget), status normalized to
+  `unknown|available|degraded|disabled|unavailable`. **Fail-open design**: `unknown` (unprobed/probe
+  failed) and `degraded` never block; only a definitive backend verdict blocks — top-level
+  `disabled`/`unavailable`, or the selected action's own feature row `enabled: false`
+  (action→feature map: explain→explainWorkflow, suggest→suggestMappings, generate→generateWorkflow,
+  review→analyzeQuality). `CopilotPanel` renders a header chip (`LLM off`/`LLM unavailable`/`LLM
+  degraded`, warnings in title), a visible block note (D2 disabled-control policy), and an explanatory
+  send-button `title`; `copilotStore.sendAction` carries the same guard (defense-in-depth, mirrors the
+  platform-connected gate). *Done*: 15 new vitest (9 store + 4 panel component + 2 sendAction gate),
+  616 pass (601→616), lint + typecheck clean. **Live kill-test run**: local `fi-fhir serve` with no LLM
+  env accepted the exact UI query document and returned `status: "disabled"` + actionable warning
+  ("set FI_FHIR_LLM_ENABLED=true to enable"), which the UI surfaces verbatim — the serve path's runtime
+  warning is more actionable than `DefaultLLMCapability()`'s static text, and the store passes it through.
 
 ### Wave 3 — Backend capability fills (close end-to-end loops)
 
@@ -271,8 +289,8 @@ Pulled forward because Wave 2 is blocked on an LLM provider (no backend dependen
   disabled/enabled/unset/client-error paths.
   *Remaining follow-ups*: (1) per-feature toggles (Extraction/Copilot/DataQuality/etc.) still are not wired
   into serve; (2) embedding/semantic-terminology config still uses the `LLM_EMBEDDING_*`/`LLM_*` path (out of
-  the serve chat path); (3) the Slice-2a UI "LLM off" honest badge still needs frontend wiring to the
-  `llmCapability` query.
+  the serve chat path); (3) ~~the Slice-2a UI "LLM off" honest badge still needs frontend wiring to the
+  `llmCapability` query~~ — DONE (Slice 2c, 2026-07-16).
 
 - **Slice 3f — GraphQL LLM capability query. ✅ SHIPPED LOCALLY (2026-06-28, branch
   `feat/funcgap-w3-llm-config-namespace`).** Extended the read-only `llmCapability` query to report

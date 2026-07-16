@@ -16,6 +16,12 @@
     type CopilotAction,
     type CopilotContext,
   } from './copilotStore';
+  import {
+    llmCapabilityState,
+    refreshLlmCapability,
+    actionBlockReason,
+    type LlmStatus,
+  } from './llmCapabilityStore';
 
   let selectedAction: CopilotAction = 'explain';
   let inputText = '';
@@ -26,8 +32,29 @@
   $: streaming = $copilotState.isStreaming;
   $: messages = $copilotState.messages;
   $: context = $copilotState.context;
-  $: canSend = inputText.trim().length > 0 && !streaming;
   $: available = $isAvailable;
+
+  // ── LLM capability (honest availability state) ──
+  // Probe once each time the platform connection comes up.
+  let wasConnected = false;
+  $: {
+    if (available && !wasConnected) {
+      refreshLlmCapability();
+    }
+    wasConnected = available;
+  }
+
+  $: llmStatus = $llmCapabilityState.status;
+  $: llmWarnings = $llmCapabilityState.capability?.warnings ?? [];
+  $: blockReason = actionBlockReason($llmCapabilityState, selectedAction);
+  $: canSend = inputText.trim().length > 0 && !streaming && !blockReason;
+
+  const llmStatusLabels: Partial<Record<LlmStatus, string>> = {
+    degraded: 'LLM degraded',
+    disabled: 'LLM off',
+    unavailable: 'LLM unavailable',
+  };
+  $: llmStatusLabel = llmStatusLabels[llmStatus];
 
   // ── Action definitions ──
   const actions: { key: CopilotAction; label: string; colorClass: string }[] = [
@@ -211,6 +238,15 @@
       {/if}
     </div>
     <div class="header-actions">
+      {#if llmStatusLabel}
+        <span
+          class="llm-status-chip llm-{llmStatus}"
+          role="status"
+          title={llmWarnings.join('; ') || llmStatusLabel}
+        >
+          {llmStatusLabel}
+        </span>
+      {/if}
       <button
         type="button"
         class="header-btn"
@@ -293,6 +329,10 @@
       {/each}
     </div>
 
+    {#if blockReason}
+      <p class="llm-block-note" role="status">{blockReason}</p>
+    {/if}
+
     <div class="input-row">
       <textarea
         bind:this={textareaEl}
@@ -319,7 +359,7 @@
         <button
           type="button"
           class="send-btn"
-          title="Send (Enter)"
+          title={blockReason ?? 'Send (Enter)'}
           disabled={!canSend}
           on:click={handleSend}
         >
@@ -409,8 +449,40 @@
 
   .header-actions {
     display: flex;
+    align-items: center;
     gap: var(--space-1);
     flex-shrink: 0;
+  }
+
+  .llm-status-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px var(--space-2);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-full);
+    font-size: var(--text-2xs);
+    font-weight: var(--font-medium);
+    letter-spacing: var(--tracking-wider);
+    text-transform: uppercase;
+    line-height: 1.5;
+    white-space: nowrap;
+  }
+
+  .llm-status-chip.llm-degraded {
+    color: var(--color-warning);
+    border-color: var(--color-warning-border);
+    background: var(--color-warning-bg);
+  }
+
+  .llm-status-chip.llm-unavailable {
+    color: var(--color-danger-text);
+    border-color: var(--color-danger-border);
+    background: var(--color-danger-bg);
+  }
+
+  .llm-status-chip.llm-disabled {
+    color: var(--color-text-tertiary);
+    background: var(--color-bg-elevated);
   }
 
   .header-btn {
@@ -658,6 +730,12 @@
   .action-bar {
     display: flex;
     gap: var(--space-1);
+  }
+
+  .llm-block-note {
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
   }
 
   .action-btn {

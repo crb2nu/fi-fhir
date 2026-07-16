@@ -12,6 +12,7 @@ import { writable, derived, get } from 'svelte/store';
 import { platformState } from '$lib/platform';
 import { isErrorToasted } from '$lib/graphql/client';
 import { dispatchCopilotAction } from './copilotDispatch';
+import { llmCapabilityState, actionBlockReason } from './llmCapabilityStore';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -204,6 +205,14 @@ export async function sendAction(
       ...s,
       error: 'Connect to the platform to use the Copilot'
     }));
+    return;
+  }
+
+  // Honest LLM-state gate: never dispatch an action the backend has said it
+  // cannot serve (disabled/unavailable, or this action's feature row off).
+  const blockReason = actionBlockReason(get(llmCapabilityState), action);
+  if (blockReason) {
+    copilotState.update((s) => ({ ...s, error: blockReason }));
     return;
   }
 
