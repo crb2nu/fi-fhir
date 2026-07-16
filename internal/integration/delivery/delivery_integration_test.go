@@ -288,33 +288,53 @@ func seedDelivery(t *testing.T, db *sql.DB, now time.Time, attemptID, outboxID s
 	destinationJSON, _ := json.Marshal(destination)
 	payload := fmt.Sprintf(`{"schema":"%s","tenant_id":"tenant-a","receipt_id":"receipt-a","event_id":"event-a","trace_id":"trace-a","attempt_id":%q,"destination":%s,"route":"admit","action":"send-kafka","attempt_count":1}`,
 		deliveryCommandSchema, attemptID, destinationJSON)
-	if _, err := db.Exec(`
+	tx, err := db.Begin()
+	if err != nil {
+		t.Fatalf("begin seed delivery: %v", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.Exec(`
 		INSERT INTO integration_receipts (
 			tenant_id, receipt_id, idempotency_key, request_fingerprint,
 			integration_revision, status, recorded_at, correlation_id,
 			raw_retention_mode, principal_json, result_json
 		) VALUES ('tenant-a', 'receipt-a', 'key-a', 'fingerprint-a', '{}',
 			'accepted', $1, 'correlation-a', 'ephemeral', '{}', '{}')
-		ON CONFLICT DO NOTHING;
+		ON CONFLICT DO NOTHING
+	`, now); err != nil {
+		t.Fatalf("seed receipt: %v", err)
+	}
+	if _, err := tx.Exec(`
 		INSERT INTO integration_canonical_events (
 			tenant_id, event_id, receipt_id, event_type, source_message_id,
 			correlation_id, classification, payload_json, recorded_at
 		) VALUES ('tenant-a', 'event-a', 'receipt-a', 'patient_admit',
 			'message-a', 'correlation-a', 'phi',
 			'{"id":"event-a","type":"patient_admit","patient":{"mrn":"123"}}', $1)
-		ON CONFLICT DO NOTHING;
+		ON CONFLICT DO NOTHING
+	`, now); err != nil {
+		t.Fatalf("seed canonical event: %v", err)
+	}
+	if _, err := tx.Exec(`
 		INSERT INTO integration_delivery_attempts (
 			tenant_id, attempt_id, receipt_id, event_id, trace_id,
 			destination_revision_json, route_name, action_id, status,
 			attempt_count, recorded_at, scheduled_at
 		) VALUES ('tenant-a', $2, 'receipt-a', 'event-a', 'trace-a', $3,
-			'admit', 'send-kafka', 'queued', 1, $1, $1);
+			'admit', 'send-kafka', 'queued', 1, $1, $1)
+	`, now, attemptID, destinationJSON); err != nil {
+		t.Fatalf("seed delivery attempt: %v", err)
+	}
+	if _, err := tx.Exec(`
 		INSERT INTO integration_delivery_outbox (
 			tenant_id, outbox_id, attempt_id, topic, status, payload_json,
 			created_at, scheduled_at, updated_at
-		) VALUES ('tenant-a', $4, $2, $5, 'pending', $6, $1, $1, $1)
-	`, now, attemptID, destinationJSON, outboxID, deliveryCommandSchema, payload); err != nil {
-		t.Fatalf("seed delivery: %v", err)
+		) VALUES ('tenant-a', $2, $3, $4, 'pending', $5, $1, $1, $1)
+	`, now, outboxID, attemptID, deliveryCommandSchema, payload); err != nil {
+		t.Fatalf("seed delivery outbox: %v", err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("commit seed delivery: %v", err)
 	}
 }
 
