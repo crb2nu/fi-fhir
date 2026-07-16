@@ -75,7 +75,8 @@ if [ -f "$NGINX_CONF" ]; then
   check "nginx disables WebSocket" grep -q 'location = /graphql/ws' "$NGINX_CONF"
   check "nginx avoids request buffering" grep -q 'proxy_request_buffering off' "$NGINX_CONF"
   check "nginx does not forward upgrades" bash -c "! grep -q 'proxy_set_header Upgrade' '$NGINX_CONF'"
-  check "nginx does not proxy legacy /api" bash -c "! grep -q 'location /api' '$NGINX_CONF'"
+  check "nginx proxies trusted-network auth status" grep -Fq 'location = /api/auth/status {' "$NGINX_CONF"
+  check "nginx does not proxy general legacy /api" bash -c "! grep -q 'location /api' '$NGINX_CONF'"
   check "nginx rejects legacy /api root" grep -Fq 'location = /api {' "$NGINX_CONF"
   check "nginx rejects legacy /api subtree" grep -Fq 'location ^~ /api/ {' "$NGINX_CONF"
 else
