@@ -40,6 +40,8 @@
 - MR `!108` merged as `ed32915f`.
 - Main pipeline `19344` passed 38/38 and independently repeated the proof in
   batch job `186476`.
+- Evidence MR `!109` reconciles the canonical roadmap/spec/plan/decision/status
+  records with that proof.
 - Production GitOps activation remains intentionally pending.
 
 ## Recommended next slice
