@@ -1,60 +1,77 @@
 <script lang="ts">
+  /**
+   * AlertsPanel — firing alerts from the observability store.
+   *
+   * Previously rendered a hardcoded fictional alert list; now it shares the
+   * real alertmanager-backed store with the StatusBar AlertBadge. When the
+   * platform is disconnected the store falls back to demo data and sets
+   * `isSimulated` — surfaced here as an unmissable "Demo data" tag so
+   * operators never mistake demo alerts for live signals.
+   */
+  import { onMount } from 'svelte';
   import Panel from '$lib/ui/Panel.svelte';
   import Badge from '$lib/ui/Badge.svelte';
-  import { resolve } from '$app/paths';
-  import type { IDEAppRoute } from '$lib/ui/ide/types';
+  import {
+    observabilityState,
+    isSimulated,
+    fetchAlerts,
+    severityLabel,
+    type Alert,
+  } from '$lib/features/observability/observabilityStore';
 
-  const alerts: Array<{
-    id: string;
-    title: string;
-    description: string;
-    actionLabel: string;
-    href: IDEAppRoute;
-    type: 'warning' | 'error';
-  }> = [
-    {
-      id: 'a1',
-      title: 'New message type detected',
-      description: 'Feed "epic_adt" sent ADT^A08 messages which have no active routing rules.',
-      actionLabel: 'Create route',
-      href: '/workflows',
-      type: 'warning'
-    },
-    {
-      id: 'a2',
-      title: 'Parser drift detected',
-      description: 'Unmapped segments (Z-segments) spiked to 12% in the last hour.',
-      actionLabel: 'Review profile',
-      href: '/profiles',
-      type: 'error'
-    }
-  ];
+  $: firing = $observabilityState.alerts.filter((a) => a.state === 'firing');
+
+  const severityVariant: Record<Alert['severity'], 'danger' | 'warning' | 'info'> = {
+    critical: 'danger',
+    warning: 'warning',
+    info: 'info',
+  };
+
+  onMount(() => {
+    void fetchAlerts();
+  });
 </script>
 
 <Panel title="Active Alerts" padding="md">
-  {#if alerts.length === 0}
+  <svelte:fragment slot="actions">
+    {#if $isSimulated}
+      <span class="sim-tag" title="Platform not connected — showing demo data.">Demo data</span>
+    {/if}
+  </svelte:fragment>
+
+  {#if firing.length === 0}
     <div class="empty">No active alerts.</div>
   {:else}
-    <div class="alerts-list">
-      {#each alerts as alert (alert.id)}
-        <div class="alert-card">
-          <div class="alert-content">
-            <div class="alert-header">
-              <Badge variant={alert.type === 'error' ? 'danger' : 'warning'} size="sm">
-                {alert.type}
-              </Badge>
-              <h4 class="title">{alert.title}</h4>
-            </div>
-            <p class="description">{alert.description}</p>
+    <ul class="alerts-list">
+      {#each firing as alert (alert.id)}
+        <li class="alert-card" class:critical={alert.severity === 'critical'}>
+          <div class="alert-header">
+            <Badge variant={severityVariant[alert.severity]} size="sm">
+              {severityLabel(alert.severity)}
+            </Badge>
+            <h4 class="title">{alert.name}</h4>
           </div>
-          <a class="action-link" href={resolve(alert.href)}>{alert.actionLabel}</a>
-        </div>
+          <p class="description">{alert.summary}</p>
+        </li>
       {/each}
-    </div>
+    </ul>
   {/if}
 </Panel>
 
 <style>
+  .sim-tag {
+    padding: 1px var(--space-1);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-warning-border);
+    background: var(--color-warning-bg);
+    color: var(--color-warning-text);
+    font-size: var(--text-2xs, 10px);
+    font-weight: var(--font-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+  }
+
   .empty {
     color: var(--color-text-tertiary);
     font-size: var(--text-sm);
@@ -66,12 +83,15 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
   }
 
   .alert-card {
     display: flex;
     flex-direction: column;
-    gap: var(--space-3);
+    gap: var(--space-2);
     padding: var(--space-3);
     background: var(--color-bg-surface);
     border: 1px solid var(--color-border-default);
@@ -79,7 +99,7 @@
     border-radius: var(--radius-md);
   }
 
-  .alert-card:first-child {
+  .alert-card.critical {
     border-left-color: var(--color-danger);
   }
 
@@ -87,7 +107,6 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    margin-bottom: var(--space-1);
   }
 
   .title {
@@ -102,25 +121,5 @@
     font-size: var(--text-sm);
     color: var(--color-text-secondary);
     line-height: var(--leading-snug);
-  }
-
-  .action-link {
-    align-self: flex-start;
-    display: inline-flex;
-    align-items: center;
-    padding: 6px 12px;
-    background: var(--color-bg-elevated);
-    border: 1px solid var(--color-border-strong);
-    border-radius: var(--radius-md);
-    color: var(--color-text-primary);
-    text-decoration: none;
-    font-size: var(--text-xs);
-    font-weight: var(--font-semibold);
-    transition: var(--transition-colors);
-  }
-
-  .action-link:hover {
-    background: var(--color-bg-hover);
-    border-color: var(--color-primary-border);
   }
 </style>
