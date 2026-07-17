@@ -24,9 +24,28 @@
   $: description = !journey.stage && isCompact
     ? 'Track the five-stage operator flow without leaving the current workspace.'
     : journey.description;
+  // The strip's "Next up" chip already announces intent, so the verb prefix
+  // ("Continue to X") only costs horizontal space on small screens.
+  $: nextShortLabel = journey.nextAction.label.replace(/^(?:Continue to|Return to|Start)\s+/, '');
 </script>
 
 <section class="journey {variant}" aria-label={heading}>
+  {#if isCompact}
+    <!-- Single-line summary shown below 760px in place of the card grid. -->
+    <div class="journey-strip">
+      <span class="strip-stage">
+        {#if journey.stage}
+          <span class="strip-count">{journey.stage.order}/{journey.totalStages}</span>
+        {/if}
+        <span class="strip-title">{heading}</span>
+      </span>
+      <a class="strip-next" href={resolve(journey.nextAction.href)}>
+        <span class="strip-next-label">Next up</span>
+        <span class="strip-next-action">{nextShortLabel}</span>
+      </a>
+    </div>
+  {/if}
+
   <div class="journey-top">
     <div class="copy">
       <div class="eyebrow">{eyebrow}</div>
@@ -403,6 +422,80 @@
     text-align: right;
   }
 
+  .journey-strip {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+
+  .strip-stage {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+
+  .strip-count {
+    padding: 3px 8px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--color-primary-border);
+    background: var(--color-primary-muted);
+    color: var(--color-primary);
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    font-weight: var(--font-bold);
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+
+  .strip-title {
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .strip-next {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-surface);
+    color: var(--color-text-primary);
+    text-decoration: none;
+    transition: var(--transition-all);
+    min-width: 0;
+    flex: 0 1 auto;
+  }
+
+  .strip-next:hover {
+    border-color: var(--color-border-strong);
+    background: var(--color-bg-hover);
+  }
+
+  .strip-next-label {
+    color: var(--color-text-muted);
+    font-size: var(--text-2xs);
+    font-weight: var(--font-bold);
+    letter-spacing: var(--tracking-wider);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .strip-next-action {
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   @media (max-width: 1180px) {
     .journey.full .stage-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -420,9 +513,26 @@
       width: 100%;
     }
 
-    .journey.compact .stage-grid,
+    /* Compact keeps its five-across row down to 760px; below that the
+       strip takes over entirely (see the 759px block). */
     .journey.full .stage-grid {
       grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 759px) {
+    .journey.compact {
+      padding: 10px 12px;
+      gap: 0;
+    }
+
+    .journey.compact .journey-top,
+    .journey.compact .stage-grid {
+      display: none;
+    }
+
+    .journey.compact .journey-strip {
+      display: flex;
     }
   }
 </style>
