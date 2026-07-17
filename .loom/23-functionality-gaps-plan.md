@@ -134,6 +134,12 @@ Removes mock-masquerade. Low effort, no backend dependency, immediately de-risks
   (1 pre-existing vite/rollup dep `.d.ts` error only).
   *Deferred within scope*: `MetricsPanel`/`LogViewer` are not mounted anywhere — when they are surfaced,
   drive the same `isSimulated` flag into them (1-line each). Logged here so it isn't silently dropped.
+  **2026-07-16 follow-up (dashboard status-console redesign)**: found two more Class-A surfaces the audit
+  missed — the dashboard `AlertsPanel` rendered a *hardcoded* fictional alert list (not even the store's
+  mock fallback), and the "Health at a glance" stage row + "Active investigations" column were static
+  placeholders with no data source. AlertsPanel is now wired to the real `observabilityStore`
+  (`fetchAlerts` + `isSimulated` "Demo data" tag, same contract as `AlertBadge`); the fake stage-health
+  row and investigations column were removed outright.
 
 - **~~Slice 1a — Debug panel~~**: WITHDRAWN — already honest in production (see Class-A verification note).
 

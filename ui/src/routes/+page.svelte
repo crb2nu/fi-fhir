@@ -3,7 +3,6 @@
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import type { IDEAppRoute } from '$lib/ui/ide/types';
-  import Badge from '$lib/ui/Badge.svelte';
   import SystemStatusPanel from '$lib/features/system/SystemStatusPanel.svelte';
   import DashboardStats from '$lib/features/dashboard/DashboardStats.svelte';
   import RecentEventsFeed from '$lib/features/dashboard/RecentEventsFeed.svelte';
@@ -12,13 +11,6 @@
   import UnmappedCodesWidget from '$lib/features/dashboard/UnmappedCodesWidget.svelte';
   import { recents } from '$lib/features/dashboard/recentsStore';
   import { hasRestoredLayout, restoreLayout } from '$lib/ui/ide/ideStore';
-  import { platformState } from '$lib/platform/platformStore';
-  import { getJourneyStages } from '$lib/ui/ide/journey';
-  import type { JourneyStage } from '$lib/ui/ide/journey';
-
-  // ── Stage definitions ──────────────────────────────────────────────────────
-  const stages: JourneyStage[] = getJourneyStages();
-
   const stageColors: Record<string, string> = {
     'source-intake': 'var(--color-info)',
     normalization: 'var(--palette-violet-600)',
@@ -36,23 +28,12 @@
     profile: 'var(--palette-violet-600)',
   };
 
-  // ── Tier 1 journey shortcuts ───────────────────────────────────────────────
-  // Deterministic entry points into the pipeline: start, mid-pipeline, and the
-  // end-of-line review. These are stable so the dashboard always offers a clear
-  // way in regardless of session state.
-  const journeyLinks: { label: string; href: IDEAppRoute; hint: string }[] = [
-    { label: 'Start Source Intake', href: '/hl7', hint: 'Load and inspect inbound interfaces' },
-    { label: 'Continue to Normalization', href: '/profiles', hint: 'Tighten identifiers and profile rules' },
-    { label: 'Review Verification', href: '/events', hint: 'Confirm outcomes against source intent' },
-  ];
-
   // ── Launch pads (operator surfaces, Tier 3) ────────────────────────────────
   const launchPads: Array<{
     eyebrow: string;
     label: string;
     href: IDEAppRoute;
     hint: string;
-    detail: string;
     stageId: string;
   }> = [
     {
@@ -60,7 +41,6 @@
       label: 'Source intake lab',
       href: '/hl7',
       hint: 'Raw payloads, warnings, source profile',
-      detail: 'Review inbound messages, parser drift, and feed-specific anomalies before they spill downstream.',
       stageId: 'source-intake',
     },
     {
@@ -68,7 +48,6 @@
       label: 'Normalization rules',
       href: '/profiles',
       hint: 'Identifiers, tolerances, profile rules',
-      detail: 'Tighten assigning authorities, tolerance settings, and feed behavior in one editing surface.',
       stageId: 'normalization',
     },
     {
@@ -76,7 +55,6 @@
       label: 'Terminology queue',
       href: '/terminology',
       hint: 'Mappings, candidates, traceability',
-      detail: 'Move from local codes to canonical semantics with enough traceability for review and correction.',
       stageId: 'translation',
     },
     {
@@ -84,7 +62,6 @@
       label: 'Workflow workbench',
       href: '/workflows',
       hint: 'Routes, actions, destinations',
-      detail: 'Author routes, dry-run changes, and inspect delivery behavior before traffic reaches live destinations.',
       stageId: 'delivery',
     },
     {
@@ -92,29 +69,28 @@
       label: 'Outcome timeline',
       href: '/events',
       hint: 'Timeline, outcomes, feedback',
-      detail: 'Compare what landed against source intent and decide what to tune next.',
       stageId: 'verification',
     },
   ];
 
   // ── Tier 3 progressive disclosure ──────────────────────────────────────────
   // Only the active panel mounts, keeping the default screen quiet and the
-  // on-load element count low. Tab labels stay in the DOM as the disclosure.
+  // on-load element count low. Live data leads; navigation cards come last —
+  // the shell banner and sidebar already cover navigation.
   type OnDemandTab = 'surfaces' | 'telemetry' | 'events' | 'trends';
   const onDemandTabs: { id: OnDemandTab; label: string }[] = [
-    { id: 'surfaces', label: 'Operator surfaces' },
-    { id: 'telemetry', label: 'Operational telemetry' },
     { id: 'events', label: 'Recent events' },
+    { id: 'telemetry', label: 'Operational telemetry' },
     { id: 'trends', label: 'Signals & trends' },
+    { id: 'surfaces', label: 'Operator surfaces' },
   ];
-  let activeTab: OnDemandTab = 'surfaces';
+  let activeTab: OnDemandTab = 'events';
 
   // ── Reactive state ─────────────────────────────────────────────────────────
   let mounted = false;
 
   $: recentEntries = $recents.slice(0, 3);
   $: hasRecents = recentEntries.length > 0;
-  $: connected = $platformState.connected;
   $: hasSavedLayout = $hasRestoredLayout;
 
   // ── Recommended action logic ───────────────────────────────────────────────
@@ -171,40 +147,11 @@
     (tabs?.[next] as HTMLElement | undefined)?.focus();
   }
 
-  // ── Stage health placeholder (static; cross-stage diagnostics scaffolding retired) ──
-  type StageHealth = {
-    id: string;
-    label: string;
-    color: string;
-    errors: number;
-    warnings: number;
-  };
-
-  // eslint-disable-next-line svelte/no-immutable-reactive-statements -- static placeholder; no per-stage health signal exists yet
-  $: stageHealth = stages.map((s): StageHealth => ({
-    id: s.id,
-    label: s.label,
-    color: stageColors[s.id] ?? 'var(--color-text-muted)',
-    errors: 0,
-    warnings: 0,
-  }));
-
   // ── Header greeting ────────────────────────────────────────────────────────
   $: heroGreeting = hasRecents ? 'Welcome back' : 'Build the interface from source to destination';
   $: heroSubtext = hasRecents
     ? 'Pick up recent work or start something new.'
     : 'Intake to verification in one workspace, every decision traceable.';
-
-  // ── Signal chips ───────────────────────────────────────────────────────────
-  $: signalChips = buildSignalChips(connected, hasRecents);
-
-  function buildSignalChips(isConnected: boolean, hasRecentWork: boolean): string[] {
-    const chips: string[] = [];
-    if (isConnected) chips.push('Platform connected');
-    if (hasRecentWork) chips.push(`${$recents.length} recent items`);
-    chips.push('Five-stage guided workspace');
-    return chips;
-  }
 
   // ── Mount ──────────────────────────────────────────────────────────────────
   onMount(() => {
@@ -222,14 +169,8 @@
   <section class="now" aria-label="Now">
     <div class="now-head">
       <div class="now-intro">
-        <div class="eyebrow">Mission control</div>
         <h1>{heroGreeting}</h1>
         <p>{heroSubtext}</p>
-        <div class="signal-row" aria-label="Workspace signals">
-          {#each signalChips as signal (signal)}
-            <Badge variant="default" size="sm" pill>{signal}</Badge>
-          {/each}
-        </div>
       </div>
 
       <aside class="recommended" aria-label="Recommended move">
@@ -246,21 +187,11 @@
       </aside>
     </div>
 
-    <nav class="journey-links" aria-label="Pipeline shortcuts">
-      {#each journeyLinks as link (link.href)}
-        <a class="journey-link" href={resolve(link.href)} aria-label={link.label}>
-          <span class="journey-link-label">{link.label}</span>
-          <span class="journey-link-hint">{link.hint}</span>
-        </a>
-      {/each}
-    </nav>
-
-    <div class="now-active">
-      <section class="now-col" aria-label="Recent work">
+    <section aria-label="Recent work">
+      {#if hasRecents}
         <h2 class="section-title">Continue where you left off</h2>
-        {#if hasRecents}
-          <div class="recents-grid">
-            {#each recentEntries as entry (entry.id)}
+        <div class="recents-grid">
+          {#each recentEntries as entry (entry.id)}
               <button class="recent-card" on:click={() => navigateTo(entry.route ?? '/hl7')}>
                 <span
                   class="recent-type-strip"
@@ -288,63 +219,22 @@
                   </span>
                 </div>
               </button>
-            {/each}
-          </div>
-        {:else}
-          <div class="empty-section">
-            <p>No recent work — start from a pipeline shortcut above.</p>
-          </div>
-        {/if}
-      </section>
-
-      <section class="now-col" aria-label="Active investigations">
-        <h2 class="section-title">Active investigations</h2>
-        <div class="investigations-card">
-          <div class="empty-investigations">
-            <span class="inv-icon" aria-hidden="true">&#9678;</span>
-            <p>No active investigations</p>
-            <span class="inv-hint">Debug sessions and dry runs will appear here</span>
-          </div>
+          {/each}
         </div>
-      </section>
-    </div>
+      {:else}
+        <div class="empty-section">
+          <p>No recent work yet.</p>
+        </div>
+      {/if}
+    </section>
   </section>
 
-  <!-- ── Tier 2 — Health at a glance ───────────────────────────────────────── -->
+  <!-- ── Tier 2 — Health at a glance (live signals only) ───────────────────── -->
   <section class="health" aria-label="Health at a glance">
     <h2 class="section-title">Health at a glance</h2>
     <div class="health-grid">
-      <div class="stage-health-grid">
-        {#each stageHealth as stage (stage.id)}
-          <div class="stage-health-card">
-            <div class="stage-health-top">
-              <span
-                class="health-dot"
-                class:healthy={stage.errors === 0 && stage.warnings === 0}
-                class:warn={stage.errors === 0 && stage.warnings > 0}
-                class:error={stage.errors > 0}
-                style:--stage-color={stage.color}
-              ></span>
-              <span class="stage-health-label">{stage.label}</span>
-            </div>
-            <div class="stage-health-counts">
-              {#if stage.errors > 0}
-                <Badge variant="danger" size="sm">{stage.errors} err</Badge>
-              {/if}
-              {#if stage.warnings > 0}
-                <Badge variant="warning" size="sm">{stage.warnings} warn</Badge>
-              {/if}
-              {#if stage.errors === 0 && stage.warnings === 0}
-                <span class="stage-clean">Clean</span>
-              {/if}
-            </div>
-          </div>
-        {/each}
-      </div>
-      <div class="health-side">
-        <SystemStatusPanel />
-        <AlertsPanel />
-      </div>
+      <SystemStatusPanel />
+      <AlertsPanel />
     </div>
   </section>
 
@@ -387,7 +277,6 @@
               </div>
               <span class="launch-label">{pad.label}</span>
               <span class="launch-hint">{pad.hint}</span>
-              <span class="launch-detail">{pad.detail}</span>
             </a>
           {/each}
         </div>
@@ -462,19 +351,11 @@
     max-width: 70ch;
   }
 
-  .eyebrow {
-    color: var(--color-text-muted);
-    font-size: var(--text-xs);
-    font-weight: var(--font-bold);
-    letter-spacing: var(--tracking-wider);
-    text-transform: uppercase;
-  }
-
   h1 {
     margin: 0;
     font-family: var(--font-heading);
     color: var(--color-text-primary);
-    font-size: clamp(var(--text-2xl), 3vw, 2.4rem);
+    font-size: clamp(var(--text-xl), 2.4vw, 2rem);
     line-height: var(--leading-tight);
     letter-spacing: var(--tracking-tight);
   }
@@ -485,12 +366,6 @@
     max-width: 64ch;
     font-size: var(--text-base);
     line-height: var(--leading-relaxed);
-  }
-
-  .signal-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
   }
 
   .recommended {
@@ -556,56 +431,6 @@
   .secondary-action:hover {
     background: var(--color-bg-hover);
     border-color: var(--color-border-strong);
-  }
-
-  /* ── Journey shortcuts ── */
-
-  .journey-links {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--space-3);
-  }
-
-  .journey-link {
-    display: grid;
-    gap: 4px;
-    padding: var(--space-3) var(--space-4);
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--color-border-subtle);
-    background: var(--color-bg-elevated);
-    text-decoration: none;
-    color: inherit;
-    transition: var(--transition-all);
-  }
-
-  .journey-link:hover {
-    border-color: var(--color-border-strong);
-    background: var(--color-bg-hover);
-  }
-
-  .journey-link-label {
-    font-size: var(--text-sm);
-    font-weight: var(--font-semibold);
-    color: var(--color-text-primary);
-  }
-
-  .journey-link-hint {
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-    line-height: var(--leading-snug);
-  }
-
-  /* ── Active now (recents + investigations) ── */
-
-  .now-active {
-    display: grid;
-    grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.8fr);
-    gap: var(--space-4);
-    align-items: start;
-  }
-
-  .now-col {
-    min-width: 0;
   }
 
   .section-title {
@@ -711,42 +536,6 @@
     flex-shrink: 0;
   }
 
-  .investigations-card {
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--color-border-subtle);
-    background: var(--color-bg-elevated);
-    overflow: hidden;
-  }
-
-  .empty-investigations {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: var(--space-5) var(--space-4);
-    text-align: center;
-    gap: 4px;
-  }
-
-  .inv-icon {
-    font-size: 1.5rem;
-    color: var(--color-text-muted);
-    opacity: 0.5;
-    margin-bottom: var(--space-1);
-  }
-
-  .empty-investigations p {
-    margin: 0;
-    color: var(--color-text-secondary);
-    font-size: var(--text-sm);
-    font-weight: var(--font-medium);
-  }
-
-  .inv-hint {
-    color: var(--color-text-muted);
-    font-size: var(--text-xs);
-  }
-
   .empty-section {
     display: flex;
     align-items: center;
@@ -769,81 +558,9 @@
 
   .health-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
     gap: var(--space-4);
     align-items: start;
-  }
-
-  .stage-health-grid {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: var(--space-2);
-    align-content: start;
-  }
-
-  .health-side {
-    display: grid;
-    gap: var(--space-4);
-  }
-
-  .stage-health-card {
-    display: grid;
-    gap: 8px;
-    padding: var(--space-3);
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--color-border-subtle);
-    background: var(--color-bg-elevated);
-    transition: var(--transition-all);
-  }
-
-  .stage-health-card:hover {
-    border-color: var(--color-border-strong);
-    box-shadow: var(--shadow-sm);
-  }
-
-  .stage-health-top {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .health-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-    background: var(--stage-color, var(--color-text-muted));
-  }
-
-  /* Solid state dots — color carries state, no glow or pulsing (Slice 2). */
-  .health-dot.healthy {
-    background: var(--color-success);
-  }
-
-  .health-dot.warn {
-    background: var(--color-warning);
-  }
-
-  .health-dot.error {
-    background: var(--color-danger);
-  }
-
-  .stage-health-label {
-    font-size: var(--text-xs);
-    font-weight: var(--font-semibold);
-    color: var(--color-text-primary);
-  }
-
-  .stage-health-counts {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-
-  .stage-clean {
-    font-size: var(--text-2xs);
-    color: var(--color-text-muted);
-    font-weight: var(--font-medium);
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════
@@ -923,7 +640,6 @@
     text-decoration: none;
     color: inherit;
     transition: var(--transition-all);
-    min-height: 150px;
   }
 
   .launch-card:hover {
@@ -966,37 +682,18 @@
     font-weight: var(--font-medium);
   }
 
-  .launch-detail {
-    color: var(--color-text-secondary);
-    font-size: var(--text-sm);
-    line-height: var(--leading-relaxed);
-  }
-
   /* ═══════════════════════════════════════════════════════════════════════════
    * RESPONSIVE
    * ═══════════════════════════════════════════════════════════════════════════ */
 
   @media (max-width: 1080px) {
     .now-head,
-    .now-active,
     .health-grid {
       grid-template-columns: 1fr;
-    }
-
-    .stage-health-grid {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
   }
 
   @media (max-width: 760px) {
-    .journey-links {
-      grid-template-columns: 1fr;
-    }
-
-    .stage-health-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
     .recents-grid {
       grid-template-columns: 1fr;
     }
