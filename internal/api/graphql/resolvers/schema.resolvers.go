@@ -17,6 +17,7 @@ import (
 	graphql1 "gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/store"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/fhir/subscription"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/extract"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/quality"
@@ -1041,6 +1042,30 @@ func (r *mutationResolver) SimulateSessionWorkflow(ctx context.Context, input mo
 	return r.integrationSessions.simulateWorkflow(input)
 }
 
+// PublishIntegrationSession is the resolver for the publishIntegrationSession field.
+func (r *mutationResolver) PublishIntegrationSession(ctx context.Context, input model.PublishIntegrationSessionInput) (*model.SessionPublication, error) {
+	if !r.durableSessionWorkspace {
+		return nil, ErrLegacyExecutionUnavailable
+	}
+	return r.integrationSessions.publishSession(ctx, input)
+}
+
+// ApproveSessionPublication is the resolver for the approveSessionPublication field.
+func (r *mutationResolver) ApproveSessionPublication(ctx context.Context, input model.PromoteSessionPublicationInput) (*model.SessionDeploymentSnapshot, error) {
+	if !r.durableSessionWorkspace {
+		return nil, ErrLegacyExecutionUnavailable
+	}
+	return r.integrationSessions.approvePublication(ctx, input)
+}
+
+// DeploySessionPublication is the resolver for the deploySessionPublication field.
+func (r *mutationResolver) DeploySessionPublication(ctx context.Context, input model.PromoteSessionPublicationInput) (*model.SessionDeploymentSnapshot, error) {
+	if !r.durableSessionWorkspace {
+		return nil, ErrLegacyExecutionUnavailable
+	}
+	return r.integrationSessions.deployPublication(ctx, input)
+}
+
 // AcceptDiagnosticFix is the resolver for the acceptDiagnosticFix field.
 func (r *mutationResolver) AcceptDiagnosticFix(ctx context.Context, input model.AcceptDiagnosticFixInput) (*model.SessionDiagnostic, error) {
 	if !r.sessionWorkspaceEnabled() {
@@ -1097,6 +1122,16 @@ func (r *mutationResolver) UpdateProfile(ctx context.Context, id string, input m
 	}
 	if existing == nil {
 		return nil, fmt.Errorf("profile not found: %s", id)
+	}
+	changeSummary := strings.TrimSpace(input.ChangeSummary)
+	if changeSummary == "" || len(changeSummary) > 1024 {
+		return nil, fmt.Errorf("profile change summary is required and must be at most 1024 bytes")
+	}
+	existing.ChangeSummary = changeSummary
+	if security, authenticated := requestsecurity.SecurityContextFromContext(ctx); authenticated {
+		existing.CreatedBy = security.Principal.ID
+	} else if existing.CreatedBy == "" {
+		existing.CreatedBy = "graphql"
 	}
 
 	// Update fields
@@ -2299,6 +2334,14 @@ func (r *queryResolver) SessionWorkflowSimulations(ctx context.Context, sessionI
 		return nil, ErrLegacyExecutionUnavailable
 	}
 	return r.integrationSessions.listWorkflowSimulations(sessionID)
+}
+
+// SessionPublications is the resolver for the sessionPublications field.
+func (r *queryResolver) SessionPublications(ctx context.Context, sessionID string) ([]model.SessionPublication, error) {
+	if !r.durableSessionWorkspace {
+		return nil, ErrLegacyExecutionUnavailable
+	}
+	return r.integrationSessions.listPublications(sessionID)
 }
 
 // SessionRun is the resolver for the sessionRun field.

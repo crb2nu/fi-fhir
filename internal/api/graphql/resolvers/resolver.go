@@ -136,6 +136,7 @@ type Resolver struct {
 
 	// Integration sessions back the Mapping Studio session workspace.
 	integrationSessions     *integrationSessionService
+	sessionPublication      *enginesession.PublicationService
 	durableSessionWorkspace bool
 
 	// IntegrationPreview evaluates stateless previews through MessageProcessor.
@@ -175,6 +176,7 @@ func NewResolver(opts ...ResolverOption) *Resolver {
 	for _, opt := range opts {
 		opt(r)
 	}
+	r.integrationSessions.publisher = r.sessionPublication
 	if enableLegacyUnsafeExecutionForTests != nil {
 		enableLegacyUnsafeExecutionForTests(r)
 	}
@@ -241,7 +243,17 @@ func WithIntegrationSessionStore(sessionStore enginesession.Store) ResolverOptio
 			return
 		}
 		r.integrationSessions = newIntegrationSessionServiceWithStore(sessionStore)
+		r.integrationSessions.publisher = r.sessionPublication
 		r.durableSessionWorkspace = true
+	}
+}
+
+// WithIntegrationSessionPublication enables signed session publication and
+// closed lifecycle promotion for the durable workspace.
+func WithIntegrationSessionPublication(service *enginesession.PublicationService) ResolverOption {
+	return func(r *Resolver) {
+		r.sessionPublication = service
+		r.integrationSessions.publisher = service
 	}
 }
 

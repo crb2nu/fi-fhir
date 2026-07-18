@@ -206,6 +206,7 @@ func TestPostgresProfileStore_ImmutableRevisionLifecycleAndBackfill(t *testing.T
 	profile.Version = "release" // Display labels are not immutable identities or uniqueness keys.
 	profile.Config = json.RawMessage(`{"generation":2,"mapping":{"event":"patient_update"}}`)
 	profile.CreatedBy = "bob"
+	profile.ChangeSummary = "Route updates as patient_update events"
 	if err := store.UpdateProfile(ctx, profile); err != nil {
 		t.Fatalf("UpdateProfile: %v", err)
 	}
@@ -216,6 +217,9 @@ func TestPostgresProfileStore_ImmutableRevisionLifecycleAndBackfill(t *testing.T
 	}
 	if v2 == nil || v2.ID == v1.ID {
 		t.Fatalf("update must advance to a new immutable revision: v1=%#v v2=%#v", v1, v2)
+	}
+	if v2.ChangeSummary != profile.ChangeSummary || v2.CreatedBy != "bob" {
+		t.Fatalf("revision audit metadata = actor %q summary %q", v2.CreatedBy, v2.ChangeSummary)
 	}
 	assertJSONEqual(t, v2.Config, `{"generation":2,"mapping":{"event":"patient_update"}}`)
 
@@ -269,6 +273,7 @@ func TestPostgresProfileStore_ImmutableRevisionLifecycleAndBackfill(t *testing.T
 	installProfileRevisionFailureTrigger(t, ctx, db, profile.ID)
 	profile.Name = "must roll back"
 	profile.Config = json.RawMessage(`{"generation":3}`)
+	profile.ChangeSummary = "Exercise transactional rollback"
 	err = store.UpdateProfile(ctx, profile)
 	if err == nil {
 		t.Fatal("expected forced update revision failure")

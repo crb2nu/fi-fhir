@@ -31,6 +31,7 @@ export type ProfileState = {
   profiles: ProfileSummary[];
   selectedProfileId: string | null;
   selectedProfile: SourceProfile | null;
+  originalProfile: SourceProfile | null;
   activeOnly: boolean;
   loading: boolean;
   saving: boolean;
@@ -43,6 +44,7 @@ const initialState: ProfileState = {
   profiles: [],
   selectedProfileId: null,
   selectedProfile: null,
+  originalProfile: null,
   activeOnly: true,
   loading: false,
   saving: false,
@@ -93,6 +95,7 @@ function createProfileStore() {
           ...s,
           selectedProfileId: null,
           selectedProfile: null,
+          originalProfile: null,
           dirty: false
         }));
         return;
@@ -100,11 +103,12 @@ function createProfileStore() {
 
       update((s) => ({ ...s, loading: true, error: null }));
       try {
-        const profile = await getProfile(id);
+        const profile = (await getProfile(id)) as SourceProfile | null;
         update((s) => ({
           ...s,
           selectedProfileId: id,
-          selectedProfile: profile as SourceProfile | null,
+          selectedProfile: cloneProfile(profile),
+          originalProfile: cloneProfile(profile),
           loading: false,
           dirty: false
         }));
@@ -137,6 +141,7 @@ function createProfileStore() {
           })),
           selectedProfileId: created.id,
           selectedProfile: created as SourceProfile,
+          originalProfile: cloneProfile(created as SourceProfile),
           saving: false,
           dirty: false
         }));
@@ -187,13 +192,20 @@ function createProfileStore() {
     /**
      * Save the current profile to the backend
      */
-    async saveProfile(): Promise<boolean> {
+    async saveProfile(changeSummary: string): Promise<boolean> {
       const state = get({ subscribe });
       if (!state.selectedProfile || !state.dirty) return true;
+
+      const summary = changeSummary.trim();
+      if (!summary || summary.length > 1024) {
+        update((s) => ({ ...s, error: 'A change summary of 1–1024 characters is required' }));
+        return false;
+      }
 
       update((s) => ({ ...s, saving: true, error: null }));
       try {
         const input: UpdateProfileInput = {
+          changeSummary: summary,
           name: state.selectedProfile.name,
           hl7v2: toHL7v2Input(state.selectedProfile.hl7v2),
           identifiers: toIdentifierInput(state.selectedProfile.identifiers),
@@ -214,6 +226,7 @@ function createProfileStore() {
             isActive: p.isActive
           })),
           selectedProfile: updated as SourceProfile,
+          originalProfile: cloneProfile(updated as SourceProfile),
           saving: false,
           dirty: false
         }));
@@ -249,6 +262,7 @@ function createProfileStore() {
           })),
           selectedProfileId: null,
           selectedProfile: null,
+          originalProfile: null,
           saving: false,
           dirty: false
         }));
@@ -319,6 +333,10 @@ function createProfileStore() {
       set(initialState);
     }
   };
+}
+
+function cloneProfile(profile: SourceProfile | null): SourceProfile | null {
+  return profile === null ? null : (JSON.parse(JSON.stringify(profile)) as SourceProfile);
 }
 
 // Helper functions for merging nested config
@@ -563,6 +581,7 @@ export const profileStore = createProfileStore();
 
 // Derived stores for convenience
 export const selectedProfile = derived(profileStore, ($s) => $s.selectedProfile);
+export const originalProfile = derived(profileStore, ($s) => $s.originalProfile);
 export const profileList = derived(profileStore, ($s) => $s.profiles);
 export const isLoading = derived(profileStore, ($s) => $s.loading);
 export const isSaving = derived(profileStore, ($s) => $s.saving);

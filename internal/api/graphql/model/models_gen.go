@@ -402,6 +402,22 @@ type ProfileRevision struct {
 	ChangeSummary *string   `json:"changeSummary,omitempty"`
 }
 
+type PromoteSessionPublicationInput struct {
+	SessionID       string `json:"sessionId"`
+	PublicationID   string `json:"publicationId"`
+	ExpectedVersion int    `json:"expectedVersion"`
+	Reason          string `json:"reason"`
+}
+
+type PublishIntegrationSessionInput struct {
+	SessionID            string `json:"sessionId"`
+	ProfileRevisionID    string `json:"profileRevisionId"`
+	WorkflowSimulationID string `json:"workflowSimulationId"`
+	DefinitionID         string `json:"definitionId"`
+	DefinitionRevisionID string `json:"definitionRevisionId"`
+	Reason               string `json:"reason"`
+}
+
 type PublishWorkflowVersionInput struct {
 	WorkflowID  string  `json:"workflowId"`
 	VersionID   string  `json:"versionId"`
@@ -487,6 +503,34 @@ type SaveWorkflowVersionInput struct {
 	Yaml       string  `json:"yaml"`
 	Notes      *string `json:"notes,omitempty"`
 	CreatedBy  *string `json:"createdBy,omitempty"`
+}
+
+type SessionDeploymentSnapshot struct {
+	DefinitionRevision *IntegrationArtifactRevision `json:"definitionRevision"`
+	State              string                       `json:"state"`
+	Version            int                          `json:"version"`
+	ReleaseID          *string                      `json:"releaseId,omitempty"`
+	Health             string                       `json:"health"`
+}
+
+type SessionPublication struct {
+	ID                   string                       `json:"id"`
+	SessionID            string                       `json:"sessionId"`
+	Version              int                          `json:"version"`
+	SessionProfile       *IntegrationArtifactRevision `json:"sessionProfile"`
+	SessionWorkflow      *IntegrationArtifactRevision `json:"sessionWorkflow"`
+	WorkflowSimulationID string                       `json:"workflowSimulationId"`
+	DefinitionRevision   *IntegrationArtifactRevision `json:"definitionRevision"`
+	DefinitionVersion    int                          `json:"definitionVersion"`
+	ProductionProfile    *IntegrationArtifactRevision `json:"productionProfile"`
+	ProductionWorkflow   *IntegrationArtifactRevision `json:"productionWorkflow"`
+	SourceRunIds         []string                     `json:"sourceRunIds"`
+	ManifestDigest       string                       `json:"manifestDigest"`
+	SignatureAlgorithm   string                       `json:"signatureAlgorithm"`
+	SigningKeyID         string                       `json:"signingKeyId"`
+	PublishedBy          string                       `json:"publishedBy"`
+	Reason               string                       `json:"reason"`
+	CreatedAt            time.Time                    `json:"createdAt"`
 }
 
 type SessionWorkflowActionTrace struct {
@@ -685,10 +729,11 @@ type UpdateMappingInput struct {
 }
 
 type UpdateProfileInput struct {
-	Name        *string                 `json:"name,omitempty"`
-	Hl7v2       *HL7v2ConfigInput       `json:"hl7v2,omitempty"`
-	Identifiers *IdentifierConfigInput  `json:"identifiers,omitempty"`
-	Terminology *TerminologyConfigInput `json:"terminology,omitempty"`
+	ChangeSummary string                  `json:"changeSummary"`
+	Name          *string                 `json:"name,omitempty"`
+	Hl7v2         *HL7v2ConfigInput       `json:"hl7v2,omitempty"`
+	Identifiers   *IdentifierConfigInput  `json:"identifiers,omitempty"`
+	Terminology   *TerminologyConfigInput `json:"terminology,omitempty"`
 }
 
 type UpdateWorkflowDefinitionInput struct {

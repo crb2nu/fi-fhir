@@ -17,6 +17,8 @@
   export let cancelText = 'Cancel';
   export let variant: 'primary' | 'danger' = 'primary';
   export let loading = false;
+  export let confirmDisabled = false;
+  export let closeOnConfirm = true;
 
   const dispatch = createEventDispatcher<{
     confirm: void;
@@ -43,8 +45,9 @@
   });
 
   function handleConfirm() {
+    if (loading || confirmDisabled) return;
     dispatch('confirm');
-    if (!loading) {
+    if (closeOnConfirm) {
       open = false;
     }
   }
@@ -100,7 +103,7 @@
         <Button variant="secondary" on:click={handleCancel} disabled={loading}>
           {cancelText}
         </Button>
-        <Button {variant} on:click={handleConfirm} {loading}>
+        <Button {variant} on:click={handleConfirm} {loading} disabled={confirmDisabled}>
           {confirmText}
         </Button>
       </footer>

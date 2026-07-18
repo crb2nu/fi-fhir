@@ -102,6 +102,7 @@ func TestArtifactRevisionResolver_PostgresV1SurvivesV2(t *testing.T) {
 
 	profile.Version = "v2"
 	profile.Config = json.RawMessage(`{"generation":2,"mapping":{"event":"patient_update"},"threshold":2.460e-5}`)
+	profile.ChangeSummary = "Advance processor revision fixture"
 	if err := profiles.UpdateProfile(ctx, profile); err != nil {
 		t.Fatalf("UpdateProfile(v2): %v", err)
 	}

@@ -141,6 +141,7 @@ func TestMessageProcessorPreviewKernel_PostgresV1SurvivesV2(t *testing.T) {
 
 	profileRecord.Version = "v2"
 	profileRecord.Config = json.RawMessage(integrationStrictProfile)
+	profileRecord.ChangeSummary = "Advance message processor fixture"
 	if err := profiles.UpdateProfile(ctx, profileRecord); err != nil {
 		t.Fatalf("UpdateProfile(v2): %v", err)
 	}

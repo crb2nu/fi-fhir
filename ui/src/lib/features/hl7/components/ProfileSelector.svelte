@@ -22,6 +22,8 @@
   let showDeleteConfirm = false;
   let showDuplicateModal = false;
   let showDiscardConfirm = false;
+  let showSaveConfirm = false;
+  let saveChangeSummary = '';
   let pendingProfileId: string | null = null;
   let newProfileId = '';
   let newProfileName = '';
@@ -85,7 +87,15 @@
 
   // Save current profile
   async function handleSave() {
-    await profileStore.saveProfile();
+    saveChangeSummary = '';
+    showSaveConfirm = true;
+  }
+
+  async function handleSaveConfirm() {
+    if (await profileStore.saveProfile(saveChangeSummary)) {
+      showSaveConfirm = false;
+      saveChangeSummary = '';
+    }
   }
 
   // Delete profile
@@ -406,6 +416,27 @@
 
 <!-- Discard Changes Confirmation Modal -->
 <ConfirmModal
+  bind:open={showSaveConfirm}
+  title="Save Profile Revision"
+  message="Summarize this revision for reviewers and the audit trail."
+  confirmText="Save"
+  loading={$isSaving}
+  confirmDisabled={!saveChangeSummary.trim() || saveChangeSummary.trim().length > 1024}
+  closeOnConfirm={false}
+  on:confirm={handleSaveConfirm}
+  on:cancel={() => (saveChangeSummary = '')}
+>
+  <textarea
+    class="change-summary"
+    bind:value={saveChangeSummary}
+    maxlength="1024"
+    aria-label="Profile change summary"
+    placeholder="Describe the parsing or mapping change"
+  ></textarea>
+</ConfirmModal>
+
+<!-- Discard Changes Confirmation Modal -->
+<ConfirmModal
   bind:open={showDiscardConfirm}
   title="Discard Changes?"
   message="You have unsaved changes. Discard them and switch profiles?"
@@ -415,6 +446,12 @@
 />
 
 <style>
+  .change-summary {
+    width: 100%;
+    min-height: 88px;
+    margin-top: var(--space-3);
+  }
+
   .selector-row {
     display: flex;
     gap: 10px;

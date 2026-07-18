@@ -22,6 +22,9 @@ import {
   ListWorkflowSimulationSessionsDocument,
   SaveSessionWorkflowDraftDocument,
   SimulateSessionWorkflowDocument,
+  PublishIntegrationSessionDocument,
+  ApproveSessionPublicationDocument,
+  DeploySessionPublicationDocument,
   type ListWorkflowsQuery,
   type ListWorkflowDefinitionsQuery,
   type ListWorkflowDefinitionsQueryVariables,
@@ -63,7 +66,13 @@ import {
   type SaveSessionWorkflowDraftMutation,
   type SaveSessionWorkflowDraftMutationVariables,
   type SimulateSessionWorkflowMutation,
-  type SimulateSessionWorkflowMutationVariables
+  type SimulateSessionWorkflowMutationVariables,
+  type PublishIntegrationSessionMutation,
+  type PublishIntegrationSessionMutationVariables,
+  type ApproveSessionPublicationMutation,
+  type ApproveSessionPublicationMutationVariables,
+  type DeploySessionPublicationMutation,
+  type DeploySessionPublicationMutationVariables
 } from '$lib/gen/graphql';
 
 export function fetchWorkflows(): Promise<ListWorkflowsQuery> {
@@ -345,5 +354,32 @@ export function simulateSessionWorkflow(input: {
         baselineSimulationId: input.baselineSimulationId ?? null
       }
     }
+  );
+}
+
+export function publishIntegrationSession(
+  input: PublishIntegrationSessionMutationVariables['input']
+): Promise<PublishIntegrationSessionMutation> {
+  return graphqlFetch<PublishIntegrationSessionMutation, PublishIntegrationSessionMutationVariables>(
+    PublishIntegrationSessionDocument,
+    { input }
+  );
+}
+
+export function approveSessionPublication(
+  input: ApproveSessionPublicationMutationVariables['input']
+): Promise<ApproveSessionPublicationMutation> {
+  return graphqlFetch<ApproveSessionPublicationMutation, ApproveSessionPublicationMutationVariables>(
+    ApproveSessionPublicationDocument,
+    { input }
+  );
+}
+
+export function deploySessionPublication(
+  input: DeploySessionPublicationMutationVariables['input']
+): Promise<DeploySessionPublicationMutation> {
+  return graphqlFetch<DeploySessionPublicationMutation, DeploySessionPublicationMutationVariables>(
+    DeploySessionPublicationDocument,
+    { input }
   );
 }

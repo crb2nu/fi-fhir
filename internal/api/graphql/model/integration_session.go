@@ -14,6 +14,7 @@ type IntegrationSession struct {
 	Runs                 []SessionRun                `json:"runs"`
 	Diagnostics          []SessionDiagnostic         `json:"diagnostics"`
 	WorkflowSimulations  []SessionWorkflowSimulation `json:"workflowSimulations"`
+	Publications         []SessionPublication        `json:"publications"`
 	CurrentProfileDraft  *SessionArtifact            `json:"currentProfileDraft,omitempty"`
 	CurrentWorkflowDraft *SessionArtifact            `json:"currentWorkflowDraft,omitempty"`
 }
@@ -98,6 +99,7 @@ type IntegrationBundle struct {
 	Artifacts           []SessionArtifact           `json:"artifacts"`
 	Runs                []SessionRun                `json:"runs"`
 	WorkflowSimulations []SessionWorkflowSimulation `json:"workflowSimulations"`
+	Publications        []SessionPublication        `json:"publications"`
 	Diagnostics         []SessionDiagnostic         `json:"diagnostics"`
 }
 

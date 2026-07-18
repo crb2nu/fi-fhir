@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -52,6 +53,8 @@ type Profile struct {
 	UpdatedAt time.Time       `json:"updated_at"`
 	CreatedBy string          `json:"created_by,omitempty"`
 	IsActive  bool            `json:"is_active"`
+	// ChangeSummary is transient revision metadata consumed by UpdateProfile.
+	ChangeSummary string `json:"-"`
 	// CurrentRevisionID is the immutable revision selected by this mutable profile row.
 	CurrentRevisionID int `json:"current_revision_id"`
 }
@@ -298,6 +301,7 @@ func (s *PostgresProfileStore) InitSchema(ctx context.Context) error {
 		DECLARE
 			pointer_matches BOOLEAN;
 			revision_actor TEXT;
+			revision_summary TEXT;
 			revision_id INTEGER;
 		BEGIN
 			SELECT EXISTS (
@@ -320,12 +324,16 @@ func (s *PostgresProfileStore) InitSchema(ctx context.Context) error {
 					NULLIF(current_setting('fi_fhir.profile_actor', true), ''),
 					NEW.created_by
 				);
+				revision_summary := COALESCE(
+					NULLIF(current_setting('fi_fhir.profile_change_summary', true), ''),
+					'Profile updated'
+				);
 				INSERT INTO profile_revisions (
 					profile_id, version, config, created_at, created_by, change_summary
 				)
 				VALUES (
 					NEW.id, NEW.version, NEW.config, NEW.updated_at, revision_actor,
-					'Advanced current revision'
+					revision_summary
 				)
 				RETURNING id INTO revision_id;
 				NEW.current_revision_id := revision_id;
@@ -504,6 +512,10 @@ func (s *PostgresProfileStore) UpdateProfile(ctx context.Context, profile *Profi
 	if profile == nil {
 		return fmt.Errorf("updating profile: profile is nil")
 	}
+	profile.ChangeSummary = strings.TrimSpace(profile.ChangeSummary)
+	if profile.ChangeSummary == "" || len(profile.ChangeSummary) > 1024 {
+		return fmt.Errorf("updating profile: change summary is required and must be at most 1024 bytes")
+	}
 
 	version := profile.Version
 	if version == "" {
@@ -540,6 +552,11 @@ func (s *PostgresProfileStore) UpdateProfile(ctx context.Context, profile *Profi
 		SELECT set_config('fi_fhir.profile_actor', $1, true)
 	`, profile.CreatedBy); err != nil {
 		return fmt.Errorf("setting profile revision actor: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `
+		SELECT set_config('fi_fhir.profile_change_summary', $1, true)
+	`, profile.ChangeSummary); err != nil {
+		return fmt.Errorf("setting profile revision change summary: %w", err)
 	}
 
 	var revisionID int

@@ -24,7 +24,11 @@ import (
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/resolvers"
+	graphqlstore "gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/store"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/fhir/subscription"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
+	integrationsession "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/session"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/explain"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/extract"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/quality"
@@ -4711,15 +4715,51 @@ func runServe(args []string) error {
 		fmt.Println("Integration Session workspace: PostgreSQL")
 	}
 
-	if profileStore, err := initProfileStoreFromEnv(context.Background()); err != nil {
+	var profileStore graphqlstore.ProfileStore
+	if configuredProfileStore, err := initProfileStoreFromEnv(context.Background()); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: profile store disabled: %v\n", err)
-	} else if profileStore != nil {
+	} else if configuredProfileStore != nil {
+		profileStore = configuredProfileStore
 		resolverOpts = append(resolverOpts, resolvers.WithProfileStore(profileStore))
 	}
-	if workflowLifecycleStore, err := initWorkflowLifecycleStoreFromEnv(context.Background()); err != nil {
+	var workflowLifecycleStore graphqlstore.WorkflowLifecycleStore
+	if configuredWorkflowStore, err := initWorkflowLifecycleStoreFromEnv(context.Background()); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: workflow lifecycle store disabled: %v\n", err)
-	} else if workflowLifecycleStore != nil {
+	} else if configuredWorkflowStore != nil {
+		workflowLifecycleStore = configuredWorkflowStore
 		resolverOpts = append(resolverOpts, resolvers.WithWorkflowLifecycleStore(workflowLifecycleStore))
+	}
+	publicationCrypto, publicationConfigured, err := loadSessionPublicationCrypto()
+	if err != nil {
+		return fmt.Errorf("configure Integration Session publication: %w", err)
+	}
+	if publicationConfigured {
+		if securePreviewRuntime.sessionStore == nil || securePreviewRuntime.submissionDB == nil || profileStore == nil || workflowLifecycleStore == nil {
+			return fmt.Errorf("configure Integration Session publication: durable session, lifecycle, profile, and workflow stores are required")
+		}
+		catalog, err := lifecycle.NewPostgresCatalog(securePreviewRuntime.submissionDB, lifecycle.Config{})
+		if err != nil {
+			return fmt.Errorf("configure Integration Session lifecycle catalog: %w", err)
+		}
+		if err := catalog.Migrate(context.Background()); err != nil {
+			return fmt.Errorf("migrate Integration Session lifecycle catalog: %w", err)
+		}
+		artifactResolver, err := processor.NewRevisionResolver(
+			securePreviewRuntime.tenantID,
+			graphqlstore.NewArtifactRevisionLoader(profileStore, workflowLifecycleStore),
+		)
+		if err != nil {
+			return fmt.Errorf("configure Integration Session artifact resolver: %w", err)
+		}
+		publicationService, err := integrationsession.NewPublicationService(
+			securePreviewRuntime.sessionStore, securePreviewRuntime.tenantID,
+			artifactResolver, catalog, publicationCrypto, nil,
+		)
+		if err != nil {
+			return fmt.Errorf("configure Integration Session publication service: %w", err)
+		}
+		resolverOpts = append(resolverOpts, resolvers.WithIntegrationSessionPublication(publicationService))
+		fmt.Println("Integration Session publication: signed lifecycle promotion enabled")
 	}
 	if eventStore, err := initEventStoreFromEnv(context.Background()); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: event store disabled (using in-memory): %v\n", err)

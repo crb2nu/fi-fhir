@@ -18,6 +18,7 @@
   import { debugSession } from '$lib/features/debug/debugStore';
   import { runtimeOutputState } from '$lib/ui/ide/panels/runtimeOutputStore';
   import { isIntegrationSessionEngineEnabled } from '$lib/features/integration-session';
+  import SessionPublicationPanel from './SessionPublicationPanel.svelte';
   import type {
     DryRunWorkflowMutation,
     ListWorkflowSimulationSessionsQuery,
@@ -78,6 +79,13 @@
   $: selectedSessionEventCount = selectedSession?.runs
     .filter((run) => selectedSessionRunIds.includes(run.id))
     .reduce((count, run) => count + run.events.length, 0) ?? 0;
+  $: selectedProfileRevisionIds = Array.from(new Set(
+    selectedSession?.runs
+      .filter((run) => selectedSessionRunIds.includes(run.id))
+      .map((run) => run.profileRevisionId)
+      .filter((revisionId): revisionId is string => Boolean(revisionId)) ?? []
+  ));
+  $: selectedProfileRevisionId = selectedProfileRevisionIds.length === 1 ? selectedProfileRevisionIds[0]! : '';
 
   onMount(() => {
     if (sessionEngineEnabled) void loadSimulationSessions();
@@ -320,6 +328,12 @@
             <span>{sessionResult.sourceRunIds.length}</span>
           </div>
         </div>
+
+        <SessionPublicationPanel
+          sessionId={sessionResult.sessionId}
+          profileRevisionId={selectedProfileRevisionId}
+          workflowSimulationId={sessionResult.id}
+        />
 
         {#if sessionResult.delta}
           <div class="delta-summary" aria-label="Simulation delta">

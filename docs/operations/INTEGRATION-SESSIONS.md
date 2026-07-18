@@ -1,6 +1,6 @@
 # Restart-Safe Integration Sessions
 
-Phase 3 Slices 3.1 through 3.3 add an opt-in PostgreSQL workspace for Integration Sessions.
+Phase 3 Slices 3.1 through 3.4 add an opt-in PostgreSQL workspace for Integration Sessions.
 Sessions, redacted samples, append-only artifact revisions, immutable terminal
 runs, accepted decisions, and export records survive a backend restart. Preview
 runs record the exact profile revision ID and SHA-256 digest they executed, and
@@ -9,9 +9,10 @@ lineage snapshots to Mapping Studio. Workflow Builder can bind the current
 workflow draft to those immutable runs and persist a side-effect-free route,
 transform, and action plan for one exact workflow revision.
 
-This is an author/test foundation, not a production deployment control plane.
-Bundle publication, multi-replica stream fanout, and GitOps activation remain
-separate slices. GraphQL WebSocket transport stays closed.
+Signed publication can advance an existing validated lifecycle definition, but
+it does not create artifacts, validate connections, mutate Kubernetes/GitOps, or
+execute workflow actions. Multi-replica stream fanout and GitOps activation
+remain separate operations work. GraphQL WebSocket transport stays closed.
 
 ## Enable the workspace
 
@@ -45,6 +46,20 @@ preview operation. Local operators enabling the session workspace must include
 `graphql:operator` in `FI_FHIR_GRAPHQL_ROLES`.
 
 Production GitOps does not enable either feature gate in Slice 3.3.
+
+Signed publication is separately disabled unless all three key settings are
+present:
+
+```bash
+export FI_FHIR_INTEGRATION_SESSION_SIGNING_KEY_ID=release-key-2026-07
+export FI_FHIR_INTEGRATION_SESSION_SIGNING_KEY_FILE=/var/run/secrets/fi-fhir/session-signing-key.pem
+export FI_FHIR_INTEGRATION_SESSION_TRUST_ROOT_FILE=/var/run/secrets/fi-fhir/session-signing-public.pem
+```
+
+The private key must be one PEM PKCS#8 Ed25519 key and the trust root must be
+its matching PEM PKIX public key. Partial or mismatched configuration fails
+startup. When all settings are absent, authoring and simulation remain available
+but publish/approve/deploy return unavailable.
 
 ## Streaming diagnostics and lineage
 
@@ -98,9 +113,35 @@ exact workflow revision ID/digest survive a backend restart and are included in
 session exports. YAML and JSON artifact bodies are stored as exact opaque bytes
 so both formats round-trip through an export snapshot.
 
-The planner reports transforms as `planned`; Slice 3.3 does not claim transform
-execution semantics. Publication, signing, approval, or deployment of a tested
-revision remains Slice 3.4 work.
+The planner reports transforms as `planned`; the session path does not claim
+transform execution semantics.
+
+## Signed publication and deployment
+
+After a successful simulation, Workflow Builder can target one exact production
+definition revision that is already in lifecycle state `validated`. Publication:
+
+1. reloads the selected session profile, workflow simulation, ordered successful
+   runs, and redacted-policy samples;
+2. loads the immutable production definition and resolves its exact profile and
+   workflow bytes through the production artifact loader;
+3. recomputes production-domain references from the tested session bytes and
+   rejects any content mismatch;
+4. creates a canonical manifest containing fixture digests and bounded expected
+   event/diagnostic/route/transform/action identities, never payloads or action
+   configuration; and
+5. appends the manifest and detached Ed25519 signature as a versioned publication.
+
+Approval verifies the signature against the configured trust root before calling
+the existing lifecycle `Approve` transition. Deployment verifies it again,
+creates the immutable lifecycle release from `approved`, and advances that exact
+definition revision to `deployed`. Expected snapshot versions are mandatory. A
+retry from `published` safely resumes at deploy; no current profile/workflow
+pointer is consulted.
+
+Publication rejects samples explicitly marked for raw retention. It does not
+copy session artifacts into production stores and performs no network,
+destination, transform, action, or GitOps call.
 
 ## Raw sample policy
 
@@ -138,6 +179,8 @@ Key rotation and retention expiry are Phase 4 work; prefer redacted samples.
   digest, and uses the production pure planner over explicit immutable runs.
 - Successful and failed terminal runs cannot be changed through the store.
 - Workflow simulation records are append-only and configuration-free.
+- Publication and workflow-simulation rows reject update/delete; exact manifest
+  bytes and detached signatures survive restart and are included in exports.
 - Accepted diagnostic decisions and exports are separate durable audit records.
 - Archive is a state transition. Archived sessions are hidden from the default
   list but remain reopenable by stable ID and visible when explicitly requested.
@@ -158,14 +201,15 @@ warning/event delta and exact provenance, and scans session records for its raw
 PHI sentinel. It also proves encrypted explicit retention, terminal-run
 immutability, durable decisions/exports, archive/list/reopen behavior, and two
 workflow revisions over the same run. After another store reconstruction it
-restores both simulations, compares the expected route/action delta, and proves
+restores both simulations and a signed publication, compares the expected route/action delta, and proves
 that raw-PHI, action-config, and filesystem-side-effect sentinels are absent.
 
 The normal GraphQL and UI suites additionally prove stream-before-run ordering,
 exact revision/digest reconciliation, canonical repeated-OBX lineage, operation
 authorization, raw-preview exclusion, diagnostic deduplication, and inspector
 navigation. Workflow Builder tests additionally prove that durable simulation
-sends only revision/run identities and renders server trace provenance/deltas.
+sends only revision/run identities, renders server trace provenance/deltas, and
+gates signed publish/approve/deploy on exact immutable identities.
 
 ## Rollback
 

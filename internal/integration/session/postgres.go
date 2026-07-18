@@ -20,6 +20,9 @@ var sessionWorkspaceMigration string
 //go:embed migrations/0002_workflow_simulations.sql
 var workflowSimulationsMigration string
 
+//go:embed migrations/0003_publications.sql
+var publicationsMigration string
+
 // PayloadProtector encrypts explicitly retained raw sample bytes outside SQL.
 type PayloadProtector interface {
 	Protect(context.Context, []byte, []byte) ([]byte, error)
@@ -101,6 +104,21 @@ func (s *PostgresStore) Migrate(ctx context.Context) error {
 			`INSERT INTO integration_session_schema_migrations (version, name) VALUES (2, '0002_workflow_simulations')`,
 		); err != nil {
 			return fmt.Errorf("record workflow simulation migration: %w", err)
+		}
+	}
+	if err := tx.QueryRowContext(ctx,
+		`SELECT EXISTS (SELECT 1 FROM integration_session_schema_migrations WHERE version = 3)`,
+	).Scan(&applied); err != nil {
+		return fmt.Errorf("read publication migration ledger: %w", err)
+	}
+	if !applied {
+		if _, err := tx.ExecContext(ctx, publicationsMigration); err != nil {
+			return fmt.Errorf("apply publication migration: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO integration_session_schema_migrations (version, name) VALUES (3, '0003_publications')`,
+		); err != nil {
+			return fmt.Errorf("record publication migration: %w", err)
 		}
 	}
 	if err := tx.Commit(); err != nil {
@@ -658,6 +676,112 @@ func (s *PostgresStore) ListWorkflowSimulations(ctx context.Context, sessionID s
 	return records, rows.Err()
 }
 
+func (s *PostgresStore) CreatePublication(ctx context.Context, sessionID string, req CreatePublicationRequest) (*Publication, error) {
+	if err := validateCreatePublicationRequest(sessionID, req); err != nil {
+		return nil, err
+	}
+	if _, err := s.GetSession(ctx, sessionID); err != nil {
+		return nil, err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin session publication: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, s.tenantID+"\x00"+sessionID+"\x00publication"); err != nil {
+		return nil, fmt.Errorf("lock session publication version: %w", err)
+	}
+	var version int
+	if err := tx.QueryRowContext(ctx, `
+		SELECT COALESCE(MAX(version), 0) + 1
+		FROM integration_session_publications
+		WHERE tenant_id = $1 AND session_id = $2
+	`, s.tenantID, sessionID).Scan(&version); err != nil {
+		return nil, fmt.Errorf("allocate session publication version: %w", err)
+	}
+	record := &Publication{
+		ID: req.ID, SessionID: sessionID, Version: version,
+		ProfileArtifactID: req.ProfileArtifactID, ProfileRevisionID: req.ProfileRevisionID,
+		ProfileRevisionDigest: req.ProfileRevisionDigest, WorkflowArtifactID: req.WorkflowArtifactID,
+		WorkflowRevisionID: req.WorkflowRevisionID, WorkflowRevisionDigest: req.WorkflowRevisionDigest,
+		WorkflowSimulationID: req.WorkflowSimulationID, DefinitionRevision: req.DefinitionRevision,
+		DefinitionVersion: req.DefinitionVersion,
+		ProductionProfile: req.ProductionProfile, ProductionWorkflow: req.ProductionWorkflow,
+		SourceRunIDs: cloneStrings(req.SourceRunIDs), Manifest: cloneRaw(req.Manifest),
+		ManifestDigest: req.ManifestDigest, Signature: cloneRaw(req.Signature),
+		SignatureAlgorithm: req.SignatureAlgorithm, SigningKeyID: req.SigningKeyID,
+		PublishedBy: req.PublishedBy, Reason: req.Reason, CreatedAt: req.CreatedAt,
+	}
+	metadata := *clonePublication(record)
+	metadata.Manifest = nil
+	metadata.Signature = nil
+	raw, err := encodeRecord(metadata)
+	if err != nil {
+		return nil, err
+	}
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO integration_session_publications (
+			tenant_id, session_id, publication_id, version, definition_id,
+			definition_revision_id, workflow_simulation_id, created_at,
+			record_json, manifest_bytes, signature_bytes
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	`, s.tenantID, sessionID, record.ID, record.Version,
+		record.DefinitionRevision.ArtifactID, record.DefinitionRevision.RevisionID,
+		record.WorkflowSimulationID, record.CreatedAt, raw, record.Manifest, record.Signature)
+	if err != nil {
+		return nil, fmt.Errorf("create session publication: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit session publication: %w", err)
+	}
+	return clonePublication(record), nil
+}
+
+func (s *PostgresStore) GetPublication(ctx context.Context, sessionID, publicationID string) (*Publication, error) {
+	var raw, manifest, signature []byte
+	err := s.db.QueryRowContext(ctx, `
+		SELECT record_json, manifest_bytes, signature_bytes
+		FROM integration_session_publications
+		WHERE tenant_id = $1 AND session_id = $2 AND publication_id = $3
+	`, s.tenantID, sessionID, publicationID).Scan(&raw, &manifest, &signature)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("load session publication: %w", err)
+	}
+	return decodePublication(raw, manifest, signature, sessionID, publicationID)
+}
+
+func (s *PostgresStore) ListPublications(ctx context.Context, sessionID string) ([]Publication, error) {
+	if _, err := s.GetSession(ctx, sessionID); err != nil {
+		return nil, err
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT record_json, manifest_bytes, signature_bytes
+		FROM integration_session_publications
+		WHERE tenant_id = $1 AND session_id = $2
+		ORDER BY version, publication_id
+	`, s.tenantID, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("list session publications: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := make([]Publication, 0)
+	for rows.Next() {
+		var raw, manifest, signature []byte
+		if err := rows.Scan(&raw, &manifest, &signature); err != nil {
+			return nil, err
+		}
+		record, err := decodePublication(raw, manifest, signature, sessionID, "")
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *record)
+	}
+	return out, rows.Err()
+}
+
 func (s *PostgresStore) AcceptDecision(ctx context.Context, req AcceptDecisionRequest) (*Decision, error) {
 	if strings.TrimSpace(req.AcceptedBy) == "" {
 		return nil, fmt.Errorf("%w: accepted by is required", ErrInvalid)
@@ -750,13 +874,18 @@ func (s *PostgresStore) ExportBundle(ctx context.Context, sessionID string) (*Ex
 	if err != nil {
 		return nil, err
 	}
+	publications, err := s.ListPublications(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
 	decisions, err := s.ListDecisions(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
 	bundle := &ExportBundle{
 		ID: newID("export"), Session: *session, Samples: samples, Drafts: drafts,
-		Runs: runs, Simulations: simulations, Decisions: decisions, ExportedAt: s.now(),
+		Runs: runs, Simulations: simulations, Publications: publications,
+		Decisions: decisions, ExportedAt: s.now(),
 	}
 	raw, err := encodeRecord(bundle)
 	if err != nil {
@@ -863,6 +992,20 @@ func decodeArtifact(raw, content []byte, sessionID string) (*ArtifactDraft, erro
 		return nil, ErrImmutable
 	}
 	return cloneDraft(&record), nil
+}
+
+func decodePublication(raw, manifest, signature []byte, sessionID, publicationID string) (*Publication, error) {
+	var record Publication
+	if err := decodeRecord(raw, &record); err != nil || record.SessionID != sessionID ||
+		(publicationID != "" && record.ID != publicationID) || len(manifest) == 0 || len(signature) == 0 {
+		return nil, ErrImmutable
+	}
+	record.Manifest = cloneRaw(manifest)
+	record.Signature = cloneRaw(signature)
+	if err := validateStoredPublication(record); err != nil {
+		return nil, ErrImmutable
+	}
+	return clonePublication(&record), nil
 }
 
 type jsonRows interface {
