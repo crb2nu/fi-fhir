@@ -42,4 +42,7 @@ deterministic delta from the latest simulation over the same run set.
 
 ## Landing evidence
 
-- Pending MR and post-merge main pipeline evidence.
+- MR `!122` pipeline `19872` passed 37/37, including required session job
+  `191685` and benchmark job `191688`, and merged as `d42f7233`.
+- Main pipeline `19878` passed 40/40 and independently repeated the PostgreSQL
+  session proof in job `191786` and benchmark proof in job `191789`.
