@@ -101,6 +101,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Integration Session exports now preserve arbitrary artifact content as opaque
   bytes, allowing YAML workflow revisions to round-trip safely alongside JSON
   profiles
+- Slice 3.3 evidence: MR `!122` pipeline `19872` passed 37/37 with required
+  session job `191685` and benchmark job `191688`, merge commit `d42f7233`
+  repeated the change on main, and main pipeline `19878` passed 40/40 with
+  independent session job `191786` and benchmark job `191789`
 - Blocking PostgreSQL 16/TCP MLLP gate covering pre-commit ACK exclusion,
   concurrent pause serialization, 32 reconnecting duplicates, resume,
   retirement, restart, durable cardinality, and raw-message leakage

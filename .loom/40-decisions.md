@@ -939,6 +939,9 @@ Record decisions as they are made, with date, rationale, and sources.
   - Workflow/parser, session/store, GraphQL resolver, and Workflow Builder tests
     pass; the PostgreSQL 16 race/restart kill test restores two simulations and
     proves the expected delta and sentinel exclusion.
+  - MR `!122` pipeline `19872` passed 37/37 with session job `191685` and
+    benchmark job `191688`; merge commit `d42f7233` passed main pipeline `19878`
+    40/40 with independent session job `191786` and benchmark job `191789`.
 - Sources:
   - [S1] `internal/workflow/plan.go`
   - [S2] `internal/integration/session/workflow_simulation.go`

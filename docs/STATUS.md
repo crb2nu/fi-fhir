@@ -139,7 +139,10 @@ immutable session runs. The production pure planner emits PHI-minimal
 event/route/transform/action traces without executing transforms or actions;
 PostgreSQL persists those traces and deterministic comparison deltas across
 restart. Workflow Builder sends revision and run identities rather than browser
-event payloads. Signed publish/deploy and production GitOps activation remain
+event payloads. MR `!122` pipeline `19872` passed 37/37 with required session
+job `191685` and benchmark job `191688`, and merged as `d42f7233`; main pipeline
+`19878` passed 40/40 with independent session job `191786` and benchmark job
+`191789`. Signed publish/deploy and production GitOps activation remain
 intentionally pending.
 
 ## Infrastructure

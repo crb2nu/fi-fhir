@@ -347,8 +347,8 @@ MR `!115` pipeline `19464` passed 34/34, including required session job
 - Session event set + exact workflow revision -> route/transform/action trace.
 - Compare run deltas and promote fixes without browser-local draft drift.
 
-Implementation status (2026-07-18): complete locally and awaiting landing
-evidence. Workflow Builder can save the current YAML as an append-only session
+Implementation status (2026-07-18): complete and merged. Workflow Builder can
+save the current YAML as an append-only session
 revision, plan explicit successful immutable runs through the production pure
 planner, render PHI-minimal event/route/transform/action traces, and compare the
 result with the prior simulation over the same run set. PostgreSQL migration 2
@@ -359,6 +359,11 @@ Kill test: parse one redacted ADT sample, simulate two exact workflow revisions
 over the same immutable run, reconstruct the PostgreSQL store, compare the
 restored route/action delta, and prove filesystem-side-effect, action-config,
 and raw-PHI sentinels are absent.
+
+MR `!122` pipeline `19872` passed 37/37, including required session job
+`191685` and benchmark job `191688`, and merged as `d42f7233`. Main pipeline
+`19878` passed 40/40 and independently repeated the session proof in job
+`191786` and benchmark proof in job `191789`.
 
 ### Slice 3.4: publish and deploy
 
