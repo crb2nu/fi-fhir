@@ -688,7 +688,8 @@ func (s *PostgresStore) CreatePublication(ctx context.Context, sessionID string,
 		return nil, fmt.Errorf("begin session publication: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, s.tenantID+"\x00"+sessionID+"\x00publication"); err != nil {
+	lockKey := fmt.Sprintf("%d:%s%d:%s:publication", len(s.tenantID), s.tenantID, len(sessionID), sessionID)
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, lockKey); err != nil {
 		return nil, fmt.Errorf("lock session publication version: %w", err)
 	}
 	var version int
