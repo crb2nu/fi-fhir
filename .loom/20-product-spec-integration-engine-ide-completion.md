@@ -109,11 +109,15 @@ authenticated ADT A01 twice with one idempotency key and verifies:
    semantically equivalent canonical event and diagnostics without a production
    delivery.
 
-Phase 3 Slice 3.1 implements the restart-safe workspace foundation: PostgreSQL
+Phase 3 Slices 3.1 through 3.3 implement the restart-safe workspace and workflow
+simulation foundation: PostgreSQL
 persists redacted samples, append-only artifact revisions, immutable terminal
 runs, accepted decisions, and exports; each profile-aware run records the exact
 revision ID and digest executed by the shared production profile compiler.
-Streaming UI, workflow simulation, and publish/deploy remain subsequent slices.
+Authenticated streaming projects server diagnostics and canonical lineage, while
+Workflow Builder plans explicit durable run events against one exact workflow
+revision and persists configuration-free route/transform/action traces and
+deterministic deltas. Publish/deploy remains a subsequent slice.
 
 Semantic equivalence ignores generated timestamps/transport IDs but requires the
 same event type, business payload, warning/error codes and paths, profile/workflow

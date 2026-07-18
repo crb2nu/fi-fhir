@@ -460,6 +460,9 @@ func getTransformType(t Transform) string {
 	if t.Redact != nil {
 		return "redact"
 	}
+	if t.ExplainWarnings != nil {
+		return "explain_warnings"
+	}
 	return "unknown"
 }
 

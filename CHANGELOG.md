@@ -93,6 +93,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   job `187950` and benchmark job `187953` passed, merge commit `36f2bb8c`
   repeated the change on main, and main pipeline `19482` passed 37/37 with
   independent session job `188135`
+- Durable Workflow Builder simulation against explicit immutable Integration
+  Session runs and one exact append-only workflow revision, with production-pure
+  route planning, configuration-free event/route/transform/action traces,
+  deterministic prior-run deltas, restart-safe PostgreSQL storage, and no
+  browser-supplied event payloads or action execution
+- Integration Session exports now preserve arbitrary artifact content as opaque
+  bytes, allowing YAML workflow revisions to round-trip safely alongside JSON
+  profiles
 - Blocking PostgreSQL 16/TCP MLLP gate covering pre-commit ACK exclusion,
   concurrent pause serialization, 32 reconnecting duplicates, resume,
   retirement, restart, durable cardinality, and raw-message leakage

@@ -115,3 +115,73 @@ subscription StreamIntegrationSessionEvents($sessionId: ID!) {
     run { ...IntegrationSessionRunFields }
   }
 }
+
+fragment SessionWorkflowSimulationFields on SessionWorkflowSimulation {
+  id
+  sessionId
+  workflowArtifactId
+  workflowRevisionId
+  workflowRevisionDigest
+  sourceRunIds
+  createdAt
+  events {
+    runId
+    eventId
+    eventType
+    routes {
+      name
+      matched
+      skipReason
+      diagnosticCodes
+      transforms { index type status }
+      actions { id type destinationArtifactId }
+    }
+  }
+  delta {
+    baselineSimulationId
+    candidateSimulationId
+    addedEvents
+    removedEvents
+    addedMatchedRoutes
+    removedMatchedRoutes
+    addedTransforms
+    removedTransforms
+    addedActions
+    removedActions
+  }
+}
+
+query ListWorkflowSimulationSessions {
+  integrationSessions {
+    id
+    name
+    archived
+    runs {
+      id
+      status
+      events { id type }
+    }
+    workflowSimulations {
+      id
+      workflowRevisionId
+      workflowRevisionDigest
+      sourceRunIds
+      createdAt
+    }
+  }
+}
+
+mutation SaveSessionWorkflowDraft($input: UpdateSessionArtifactInput!) {
+  updateSessionWorkflowDraft(input: $input) {
+    id
+    revisionId
+    digest
+    version
+  }
+}
+
+mutation SimulateSessionWorkflow($input: SimulateSessionWorkflowInput!) {
+  simulateSessionWorkflow(input: $input) {
+    ...SessionWorkflowSimulationFields
+  }
+}

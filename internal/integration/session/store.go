@@ -39,6 +39,9 @@ type Store interface {
 	UpdateRun(context.Context, Run) (*Run, error)
 	GetRun(context.Context, string, string) (*Run, error)
 	ListRuns(context.Context, string) ([]Run, error)
+	CreateWorkflowSimulation(context.Context, string, CreateWorkflowSimulationRequest) (*WorkflowSimulation, error)
+	GetWorkflowSimulation(context.Context, string, string) (*WorkflowSimulation, error)
+	ListWorkflowSimulations(context.Context, string) ([]WorkflowSimulation, error)
 	AcceptDecision(context.Context, AcceptDecisionRequest) (*Decision, error)
 	ListDecisions(context.Context, string) ([]Decision, error)
 	ExportBundle(context.Context, string) (*ExportBundle, error)
@@ -47,26 +50,77 @@ type Store interface {
 }
 
 type MemoryStore struct {
-	mu        sync.RWMutex
-	now       func() time.Time
-	sessions  map[string]*Session
-	samples   map[string]*Sample
-	drafts    map[string]*ArtifactDraft
-	runs      map[string]*Run
-	decisions map[string]*Decision
-	exports   map[string]*ExportBundle
+	mu          sync.RWMutex
+	now         func() time.Time
+	sessions    map[string]*Session
+	samples     map[string]*Sample
+	drafts      map[string]*ArtifactDraft
+	runs        map[string]*Run
+	simulations map[string]*WorkflowSimulation
+	decisions   map[string]*Decision
+	exports     map[string]*ExportBundle
 }
 
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
-		now:       func() time.Time { return time.Now().UTC() },
-		sessions:  make(map[string]*Session),
-		samples:   make(map[string]*Sample),
-		drafts:    make(map[string]*ArtifactDraft),
-		runs:      make(map[string]*Run),
-		decisions: make(map[string]*Decision),
-		exports:   make(map[string]*ExportBundle),
+		now:         func() time.Time { return time.Now().UTC() },
+		sessions:    make(map[string]*Session),
+		samples:     make(map[string]*Sample),
+		drafts:      make(map[string]*ArtifactDraft),
+		runs:        make(map[string]*Run),
+		simulations: make(map[string]*WorkflowSimulation),
+		decisions:   make(map[string]*Decision),
+		exports:     make(map[string]*ExportBundle),
 	}
+}
+
+func (s *MemoryStore) CreateWorkflowSimulation(ctx context.Context, sessionID string, req CreateWorkflowSimulationRequest) (*WorkflowSimulation, error) {
+	if err := validateWorkflowSimulationReferences(ctx, s, sessionID, req); err != nil {
+		return nil, err
+	}
+	record := &WorkflowSimulation{
+		ID: newID("simulation"), SessionID: sessionID,
+		WorkflowArtifactID:     req.WorkflowArtifactID,
+		WorkflowRevisionID:     req.WorkflowRevisionID,
+		WorkflowRevisionDigest: req.WorkflowRevisionDigest,
+		SourceRunIDs:           cloneStrings(req.SourceRunIDs),
+		Events:                 cloneWorkflowEventTraces(req.Events), CreatedAt: s.now(),
+	}
+	s.mu.Lock()
+	s.simulations[record.ID] = cloneWorkflowSimulation(record)
+	s.mu.Unlock()
+	return cloneWorkflowSimulation(record), nil
+}
+
+func (s *MemoryStore) GetWorkflowSimulation(_ context.Context, sessionID, simulationID string) (*WorkflowSimulation, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	record, ok := s.simulations[simulationID]
+	if !ok || record.SessionID != sessionID {
+		return nil, ErrNotFound
+	}
+	return cloneWorkflowSimulation(record), nil
+}
+
+func (s *MemoryStore) ListWorkflowSimulations(_ context.Context, sessionID string) ([]WorkflowSimulation, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if _, ok := s.sessions[sessionID]; !ok {
+		return nil, ErrNotFound
+	}
+	out := make([]WorkflowSimulation, 0)
+	for _, record := range s.simulations {
+		if record.SessionID == sessionID {
+			out = append(out, *cloneWorkflowSimulation(record))
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].CreatedAt.Equal(out[j].CreatedAt) {
+			return out[i].ID < out[j].ID
+		}
+		return out[i].CreatedAt.Before(out[j].CreatedAt)
+	})
+	return out, nil
 }
 
 func (s *MemoryStore) CreateSession(_ context.Context, req CreateSessionRequest) (*Session, error) {
@@ -457,6 +511,10 @@ func (s *MemoryStore) ExportBundle(ctx context.Context, sessionID string) (*Expo
 	if err != nil {
 		return nil, err
 	}
+	simulations, err := s.ListWorkflowSimulations(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
 	decisions, err := s.ListDecisions(ctx, sessionID)
 	if err != nil {
 		return nil, err
@@ -469,7 +527,7 @@ func (s *MemoryStore) ExportBundle(ctx context.Context, sessionID string) (*Expo
 	exportID := newID("export")
 	bundle := &ExportBundle{
 		ID: exportID, Session: *session, Samples: samples, Drafts: drafts,
-		Runs: runs, Decisions: decisions, ExportedAt: s.now(),
+		Runs: runs, Simulations: simulations, Decisions: decisions, ExportedAt: s.now(),
 	}
 	s.mu.Lock()
 	s.exports[exportID] = cloneBundle(bundle)
@@ -605,6 +663,31 @@ func cloneRun(in *Run) *Run {
 	return &out
 }
 
+func cloneWorkflowSimulation(in *WorkflowSimulation) *WorkflowSimulation {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	out.SourceRunIDs = cloneStrings(in.SourceRunIDs)
+	out.Events = cloneWorkflowEventTraces(in.Events)
+	return &out
+}
+
+func cloneWorkflowEventTraces(in []WorkflowEventTrace) []WorkflowEventTrace {
+	out := make([]WorkflowEventTrace, len(in))
+	for i := range in {
+		out[i] = in[i]
+		out[i].Routes = make([]WorkflowRouteTrace, len(in[i].Routes))
+		for j := range in[i].Routes {
+			out[i].Routes[j] = in[i].Routes[j]
+			out[i].Routes[j].DiagnosticCodes = cloneStrings(in[i].Routes[j].DiagnosticCodes)
+			out[i].Routes[j].Transforms = append([]WorkflowTransformTrace(nil), in[i].Routes[j].Transforms...)
+			out[i].Routes[j].Actions = append([]WorkflowActionTrace(nil), in[i].Routes[j].Actions...)
+		}
+	}
+	return out
+}
+
 func cloneRaw(in []byte) []byte {
 	if in == nil {
 		return nil
@@ -644,6 +727,10 @@ func cloneBundle(in *ExportBundle) *ExportBundle {
 	out.Runs = make([]Run, len(in.Runs))
 	for i := range in.Runs {
 		out.Runs[i] = *cloneRun(&in.Runs[i])
+	}
+	out.Simulations = make([]WorkflowSimulation, len(in.Simulations))
+	for i := range in.Simulations {
+		out.Simulations[i] = *cloneWorkflowSimulation(&in.Simulations[i])
 	}
 	out.Decisions = append([]Decision(nil), in.Decisions...)
 	return &out

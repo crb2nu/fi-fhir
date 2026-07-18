@@ -2,6 +2,8 @@ package resolvers
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -81,6 +83,103 @@ func TestIntegrationSession_RunPreview(t *testing.T) {
 	}
 	if !hasRunStage(run.Stages, "parse_hl7v2") {
 		t.Fatalf("expected parse stage with duration, got %#v", run.Stages)
+	}
+}
+
+func TestIntegrationSession_WorkflowSimulationUsesDurableRevisionAndRun(t *testing.T) {
+	resolver := NewResolver()
+	queryResolver := &queryResolver{resolver}
+	mutationResolver := &mutationResolver{resolver}
+	sessionRecord := createTestIntegrationSession(t, mutationResolver)
+	sample := addTestIntegrationSample(t, mutationResolver, sessionRecord.ID)
+	parsedRun, err := mutationResolver.RunSessionPreview(context.Background(), model.RunSessionPreviewInput{
+		SessionID: sessionRecord.ID, SampleID: &sample.ID,
+	})
+	if err != nil || parsedRun.Status != "completed" {
+		t.Fatalf("RunSessionPreview() = %#v, %v", parsedRun, err)
+	}
+	baselineDraft, err := mutationResolver.UpdateSessionWorkflowDraft(context.Background(), model.UpdateSessionArtifactInput{
+		SessionID: sessionRecord.ID, Name: strPtr("routing"), Content: `name: baseline
+version: "1"
+routes:
+  - name: labs
+    filter: {event_type: lab_result}
+    actions:
+      - id: log-lab
+        type: log
+`,
+	})
+	if err != nil {
+		t.Fatalf("UpdateSessionWorkflowDraft(baseline) error = %v", err)
+	}
+	baseline, err := mutationResolver.SimulateSessionWorkflow(context.Background(), model.SimulateSessionWorkflowInput{
+		SessionID: sessionRecord.ID, WorkflowRevisionID: baselineDraft.RevisionID, SourceRunIds: []string{parsedRun.ID},
+	})
+	if err != nil {
+		t.Fatalf("SimulateSessionWorkflow(baseline) error = %v", err)
+	}
+	candidateDraft, err := mutationResolver.UpdateSessionWorkflowDraft(context.Background(), model.UpdateSessionArtifactInput{
+		SessionID: sessionRecord.ID, Name: strPtr("routing"), Content: `name: candidate
+version: "2"
+routes:
+  - name: admits
+    filter: {event_type: patient_admit}
+    transform:
+      - redact: {fields: [patient.identifiers]}
+    actions:
+      - id: notify
+        type: exec
+        destination: notification-sandbox
+        command: ACTION-CONFIG-SENTINEL
+`,
+	})
+	if err != nil {
+		t.Fatalf("UpdateSessionWorkflowDraft(candidate) error = %v", err)
+	}
+	if candidateDraft.ID != baselineDraft.ID || candidateDraft.Version != baselineDraft.Version+1 {
+		t.Fatalf("workflow draft lineage = baseline %#v, candidate %#v", baselineDraft, candidateDraft)
+	}
+	candidate, err := mutationResolver.SimulateSessionWorkflow(context.Background(), model.SimulateSessionWorkflowInput{
+		SessionID: sessionRecord.ID, WorkflowRevisionID: candidateDraft.RevisionID,
+		SourceRunIds: []string{parsedRun.ID}, BaselineSimulationID: &baseline.ID,
+	})
+	if err != nil {
+		t.Fatalf("SimulateSessionWorkflow(candidate) error = %v", err)
+	}
+	if candidate.WorkflowRevisionID != candidateDraft.RevisionID || candidate.WorkflowRevisionDigest != candidateDraft.Digest {
+		t.Fatalf("candidate provenance = %#v, draft = %#v", candidate, candidateDraft)
+	}
+	if candidate.Delta == nil || len(candidate.Delta.AddedMatchedRoutes) != 1 || len(candidate.Delta.AddedTransforms) != 1 || len(candidate.Delta.AddedActions) != 1 {
+		t.Fatalf("candidate delta = %#v", candidate.Delta)
+	}
+	if len(candidate.Events) != 1 || len(candidate.Events[0].Routes) != 1 || !candidate.Events[0].Routes[0].Matched {
+		t.Fatalf("candidate traces = %#v", candidate.Events)
+	}
+	encoded, err := json.Marshal(candidate)
+	if err != nil {
+		t.Fatalf("json.Marshal(candidate) error = %v", err)
+	}
+	if strings.Contains(string(encoded), "ACTION-CONFIG-SENTINEL") || strings.Contains(string(encoded), "DOE") {
+		t.Fatalf("simulation exposed config or PHI: %s", encoded)
+	}
+	listed, err := queryResolver.SessionWorkflowSimulations(context.Background(), sessionRecord.ID)
+	if err != nil || len(listed) != 2 || listed[1].Delta != nil {
+		t.Fatalf("SessionWorkflowSimulations() = %#v, %v", listed, err)
+	}
+	missingBaseline := "simulation_missing"
+	if _, err := mutationResolver.SimulateSessionWorkflow(context.Background(), model.SimulateSessionWorkflowInput{
+		SessionID: sessionRecord.ID, WorkflowRevisionID: candidateDraft.RevisionID,
+		SourceRunIds: []string{parsedRun.ID}, BaselineSimulationID: &missingBaseline,
+	}); err == nil {
+		t.Fatal("SimulateSessionWorkflow() accepted a missing baseline")
+	}
+	listed, err = queryResolver.SessionWorkflowSimulations(context.Background(), sessionRecord.ID)
+	if err != nil || len(listed) != 2 {
+		t.Fatalf("failed baseline persisted a simulation: %#v, %v", listed, err)
+	}
+	bundle, err := mutationResolver.ExportIntegrationBundle(context.Background(), model.ExportIntegrationBundleInput{SessionID: sessionRecord.ID})
+	if err != nil || len(bundle.WorkflowSimulations) != 2 {
+		t.Fatalf("ExportIntegrationBundle() simulations = %#v, %v", bundle, err)
 	}
 }
 

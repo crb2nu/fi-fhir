@@ -883,11 +883,12 @@ test:batch-ingestion:
     - when: never
   allow_failure: false
 
-# Blocking PostgreSQL 16 proof for Slice 3.1. It restarts the workspace service,
+# Blocking PostgreSQL 16 proof for Slices 3.1 and 3.3. It restarts the workspace service,
 # reopens an archived session, executes the same redacted sample against two
 # immutable profile revisions, and proves exact-revision warning/event deltas,
-# durable decisions/exports, encrypted explicit retention, and no raw PHI in
-# workspace records.
+# durable decisions/exports and workflow simulations, exact workflow deltas,
+# encrypted explicit retention, side-effect exclusion, and no raw PHI or action
+# configuration in workspace records.
 test:integration-session:
   stage: test
   <<: *go-image-debian

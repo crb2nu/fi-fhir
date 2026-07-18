@@ -60,7 +60,7 @@
 | HL7v2 HTTP Ingress    | `internal/integration/ingress/`   | Alpha      | —        | Bearer/HMAC, bounded body, durable response; GitOps activation pending | 2026-07-14 |
 | Delivery Reliability  | `internal/integration/delivery/`  | Alpha      | —        | PostgreSQL leases/retry/circuit/DLQ/recovery plus real Kafka publisher | 2026-07-15 |
 | Batch Ingestion       | `internal/integration/batch/`     | Alpha      | —        | S3/SFTP streaming, PostgreSQL checkpoint/resume, verified archive | 2026-07-16 |
-| Integration Sessions  | `internal/integration/session/`   | Alpha      | —        | Restart-safe workspace, immutable runs, live diagnostics, canonical lineage | 2026-07-16 |
+| Integration Sessions  | `internal/integration/session/`   | Alpha      | —        | Restart-safe workspace, immutable runs, live diagnostics, lineage, workflow simulation | 2026-07-18 |
 | GraphQL API           | `internal/api/graphql/`           | Beta       | 9.5%\*   | Bounded POST plus session-only SSE; WebSocket disabled | 2026-07-16 |
 | FHIR Subscriptions    | `internal/fhir/subscription/`     | Production | 83.7%    | Bidirectional; client + webhook receiver         | 2026-02-27   |
 | Terminology Autoroute | `internal/terminology/autoroute/` | Beta       | 88.5%    | Automatic code-system routing engine             | 2026-03-09   |
@@ -132,6 +132,14 @@ reopenable exports, and exact profile revision/digest execution. MR `!111`
 pipeline `19409` passed 37/37 with required restart/raw-PHI job `187425` and
 merged as `15746ccd`. Main pipeline `19424` passed 40/40 and independently
 repeated the proof in job `187618`. Production GitOps activation remains
+intentionally pending.
+
+Slice 3.3 adds exact-revision workflow draft simulation over server-owned
+immutable session runs. The production pure planner emits PHI-minimal
+event/route/transform/action traces without executing transforms or actions;
+PostgreSQL persists those traces and deterministic comparison deltas across
+restart. Workflow Builder sends revision and run identities rather than browser
+event payloads. Signed publish/deploy and production GitOps activation remain
 intentionally pending.
 
 ## Infrastructure

@@ -19,15 +19,23 @@ type ActionPlan struct {
 	DestinationArtifactID string `json:"destination_artifact_id,omitempty"`
 }
 
+// TransformPlan identifies one transform without exposing its configuration or
+// applying it to PHI-capable event data.
+type TransformPlan struct {
+	Index int    `json:"index"`
+	Type  string `json:"type"`
+}
+
 // RoutePlan is the deterministic, side-effect-free plan for one workflow route.
 type RoutePlan struct {
-	Name            string       `json:"name"`
-	Matched         bool         `json:"matched"`
-	Skipped         bool         `json:"skipped,omitempty"`
-	SkipReason      string       `json:"skip_reason,omitempty"`
-	TransformCount  int          `json:"transform_count"`
-	Actions         []ActionPlan `json:"actions,omitempty"`
-	DiagnosticCodes []string     `json:"diagnostic_codes,omitempty"`
+	Name            string          `json:"name"`
+	Matched         bool            `json:"matched"`
+	Skipped         bool            `json:"skipped,omitempty"`
+	SkipReason      string          `json:"skip_reason,omitempty"`
+	TransformCount  int             `json:"transform_count"`
+	Transforms      []TransformPlan `json:"transforms,omitempty"`
+	Actions         []ActionPlan    `json:"actions,omitempty"`
+	DiagnosticCodes []string        `json:"diagnostic_codes,omitempty"`
 }
 
 // PlanResult contains route plans and safe diagnostics in declaration order.
@@ -41,6 +49,7 @@ type plannerRoute struct {
 	filter         Filter
 	invalidCEL     bool
 	transformCount int
+	transforms     []TransformPlan
 	actions        []ActionPlan
 }
 
@@ -86,7 +95,14 @@ func NewPlanner(workflow *Workflow) (*Planner, error) {
 				Condition: route.Filter.Condition,
 			},
 			transformCount: len(route.Transforms),
+			transforms:     make([]TransformPlan, len(route.Transforms)),
 			actions:        make([]ActionPlan, len(route.Actions)),
+		}
+		for transformIndex, transform := range route.Transforms {
+			plannedRoute.transforms[transformIndex] = TransformPlan{
+				Index: transformIndex,
+				Type:  getTransformType(transform),
+			}
 		}
 		if plannedRoute.filter.Condition != "" {
 			if err := evaluator.CompileBoolean(plannedRoute.filter.Condition); err != nil {
@@ -153,6 +169,7 @@ func (p *Planner) Plan(event interface{}) (PlanResult, error) {
 		plan.Matched = matched
 		if matched {
 			plan.TransformCount = route.transformCount
+			plan.Transforms = append([]TransformPlan(nil), route.transforms...)
 			plan.Actions = append([]ActionPlan(nil), route.actions...)
 		}
 		result.Routes[routeIndex] = plan
