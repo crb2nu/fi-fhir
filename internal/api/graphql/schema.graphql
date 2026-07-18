@@ -909,6 +909,7 @@ type IntegrationSession {
   runs: [SessionRun!]!
   diagnostics: [SessionDiagnostic!]!
   workflowSimulations: [SessionWorkflowSimulation!]!
+  publications: [SessionPublication!]!
   currentProfileDraft: SessionArtifact
   currentWorkflowDraft: SessionArtifact
 }
@@ -993,7 +994,36 @@ type IntegrationBundle {
   artifacts: [SessionArtifact!]!
   runs: [SessionRun!]!
   workflowSimulations: [SessionWorkflowSimulation!]!
+  publications: [SessionPublication!]!
   diagnostics: [SessionDiagnostic!]!
+}
+
+type SessionPublication {
+  id: ID!
+  sessionId: ID!
+  version: Int!
+  sessionProfile: IntegrationArtifactRevision!
+  sessionWorkflow: IntegrationArtifactRevision!
+  workflowSimulationId: ID!
+  definitionRevision: IntegrationArtifactRevision!
+  definitionVersion: Int!
+  productionProfile: IntegrationArtifactRevision!
+  productionWorkflow: IntegrationArtifactRevision!
+  sourceRunIds: [ID!]!
+  manifestDigest: String!
+  signatureAlgorithm: String!
+  signingKeyId: ID!
+  publishedBy: ID!
+  reason: String!
+  createdAt: DateTime!
+}
+
+type SessionDeploymentSnapshot {
+  definitionRevision: IntegrationArtifactRevision!
+  state: String!
+  version: Int!
+  releaseId: ID
+  health: String!
 }
 
 type SessionWorkflowSimulation {
@@ -1107,6 +1137,22 @@ input ExportIntegrationBundleInput {
   includeRawPayload: Boolean
 }
 
+input PublishIntegrationSessionInput {
+  sessionId: ID!
+  profileRevisionId: ID!
+  workflowSimulationId: ID!
+  definitionId: ID!
+  definitionRevisionId: ID!
+  reason: String!
+}
+
+input PromoteSessionPublicationInput {
+  sessionId: ID!
+  publicationId: ID!
+  expectedVersion: Int!
+  reason: String!
+}
+
 extend type Query {
   integrationSession(id: ID!): IntegrationSession
   integrationSessions(includeArchived: Boolean): [IntegrationSession!]!
@@ -1114,6 +1160,7 @@ extend type Query {
   sessionArtifacts(sessionId: ID!): [SessionArtifact!]!
   sessionRuns(sessionId: ID!): [SessionRun!]!
   sessionWorkflowSimulations(sessionId: ID!): [SessionWorkflowSimulation!]!
+  sessionPublications(sessionId: ID!): [SessionPublication!]!
   sessionRun(id: ID!): SessionRun
   sessionDiagnostics(sessionId: ID!, runId: ID): [SessionDiagnostic!]!
 }
@@ -1126,6 +1173,9 @@ extend type Mutation {
   updateSessionWorkflowDraft(input: UpdateSessionArtifactInput!): SessionArtifact!
   runSessionPreview(input: RunSessionPreviewInput!): SessionRun!
   simulateSessionWorkflow(input: SimulateSessionWorkflowInput!): SessionWorkflowSimulation!
+  publishIntegrationSession(input: PublishIntegrationSessionInput!): SessionPublication!
+  approveSessionPublication(input: PromoteSessionPublicationInput!): SessionDeploymentSnapshot!
+  deploySessionPublication(input: PromoteSessionPublicationInput!): SessionDeploymentSnapshot!
   acceptDiagnosticFix(input: AcceptDiagnosticFixInput!): SessionDiagnostic!
   exportIntegrationBundle(input: ExportIntegrationBundleInput!): IntegrationBundle!
 }
@@ -1368,6 +1418,7 @@ input CreateProfileInput {
 }
 
 input UpdateProfileInput {
+  changeSummary: String!
   name: String
   hl7v2: HL7v2ConfigInput
   identifiers: IdentifierConfigInput

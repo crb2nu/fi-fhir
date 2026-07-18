@@ -21,6 +21,7 @@ import (
 	postgrescontainer "github.com/testcontainers/testcontainers-go/modules/postgres"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
 
 const (
@@ -193,6 +194,31 @@ routes:
 			t.Fatalf("restored simulation leaked %q: %s", forbidden, simulationJSON)
 		}
 	}
+	digest := "sha256:" + strings.Repeat("a", 64)
+	publication, err := store.CreatePublication(ctx, workspace.ID, CreatePublicationRequest{
+		ID: "publication-restart-fixture", ProfileArtifactID: tolerant.ID,
+		ProfileRevisionID: tolerant.RevisionID, ProfileRevisionDigest: tolerant.Digest,
+		WorkflowArtifactID: candidateWorkflow.ID, WorkflowRevisionID: candidateWorkflow.RevisionID,
+		WorkflowRevisionDigest: candidateWorkflow.Digest, WorkflowSimulationID: candidateSimulation.ID,
+		DefinitionRevision: integration.ArtifactRevisionRef{ArtifactID: "adt-http", RevisionID: "definition-1", Digest: digest},
+		DefinitionVersion:  2,
+		ProductionProfile:  integration.ArtifactRevisionRef{ArtifactID: "profile-adt", RevisionID: "1", Digest: digest},
+		ProductionWorkflow: integration.ArtifactRevisionRef{ArtifactID: "workflow-adt", RevisionID: "workflow-1", Digest: digest},
+		SourceRunIDs:       []string{tolerantRun.ID}, Manifest: []byte(`{"schema":"storage-test"}`),
+		ManifestDigest: digest, Signature: bytes.Repeat([]byte{0x42}, 64), SignatureAlgorithm: publicationAlgorithm,
+		SigningKeyID: "release-key", PublishedBy: "engineer-1", Reason: "verify restart-safe publication storage", CreatedAt: time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatalf("CreatePublication: %v", err)
+	}
+	store = newMigratedSessionStore(t, ctx, db, protector)
+	reopenedPublication, err := store.GetPublication(ctx, workspace.ID, publication.ID)
+	if err != nil || reopenedPublication.ManifestDigest != publication.ManifestDigest || !bytes.Equal(reopenedPublication.Signature, publication.Signature) {
+		t.Fatalf("GetPublication after restart = %#v, %v", reopenedPublication, err)
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE integration_session_publications SET version = version + 1 WHERE publication_id = $1`, publication.ID); err == nil {
+		t.Fatal("append-only publication table accepted an update")
+	}
 
 	decision, err := store.AcceptDecision(ctx, AcceptDecisionRequest{
 		SessionID: workspace.ID, RunID: tolerantRun.ID,
@@ -217,7 +243,7 @@ routes:
 	if err != nil {
 		t.Fatalf("ExportBundle: %v", err)
 	}
-	if bundle.ID == "" || len(bundle.Runs) != 2 || len(bundle.Simulations) != 2 || len(bundle.Decisions) != 1 {
+	if bundle.ID == "" || len(bundle.Runs) != 2 || len(bundle.Simulations) != 2 || len(bundle.Publications) != 1 || len(bundle.Decisions) != 1 {
 		t.Fatalf("bundle = %#v", bundle)
 	}
 	for _, sample := range bundle.Samples {
@@ -275,6 +301,7 @@ func assertNoRawPHIInSessionTables(t *testing.T, ctx context.Context, db *sql.DB
 	for _, table := range []string{
 		"integration_sessions", "integration_session_samples", "integration_session_artifact_revisions",
 		"integration_session_runs", "integration_session_decisions", "integration_session_exports",
+		"integration_session_publications",
 	} {
 		var leaked bool
 		query := fmt.Sprintf(`SELECT EXISTS (SELECT 1 FROM %s WHERE record_json::text LIKE '%%RAW-PHI-SENTINEL%%')`, pq.QuoteIdentifier(table))

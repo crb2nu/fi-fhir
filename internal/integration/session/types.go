@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
 
 type SessionStatus string
@@ -174,14 +175,117 @@ type LineageLink struct {
 }
 
 type ExportBundle struct {
-	ID          string               `json:"id"`
-	Session     Session              `json:"session"`
-	Samples     []Sample             `json:"samples,omitempty"`
-	Drafts      []ArtifactDraft      `json:"drafts,omitempty"`
-	Runs        []Run                `json:"runs,omitempty"`
-	Simulations []WorkflowSimulation `json:"workflow_simulations,omitempty"`
-	Decisions   []Decision           `json:"decisions,omitempty"`
-	ExportedAt  time.Time            `json:"exported_at"`
+	ID           string               `json:"id"`
+	Session      Session              `json:"session"`
+	Samples      []Sample             `json:"samples,omitempty"`
+	Drafts       []ArtifactDraft      `json:"drafts,omitempty"`
+	Runs         []Run                `json:"runs,omitempty"`
+	Simulations  []WorkflowSimulation `json:"workflow_simulations,omitempty"`
+	Publications []Publication        `json:"publications,omitempty"`
+	Decisions    []Decision           `json:"decisions,omitempty"`
+	ExportedAt   time.Time            `json:"exported_at"`
+}
+
+// Publication is immutable evidence that exact tested session revisions match
+// one validated production definition. Manifest bytes are signed separately and
+// must be verified before any lifecycle transition.
+type Publication struct {
+	ID                     string                          `json:"id"`
+	SessionID              string                          `json:"session_id"`
+	Version                int                             `json:"version"`
+	ProfileArtifactID      string                          `json:"profile_artifact_id"`
+	ProfileRevisionID      string                          `json:"profile_revision_id"`
+	ProfileRevisionDigest  string                          `json:"profile_revision_digest"`
+	WorkflowArtifactID     string                          `json:"workflow_artifact_id"`
+	WorkflowRevisionID     string                          `json:"workflow_revision_id"`
+	WorkflowRevisionDigest string                          `json:"workflow_revision_digest"`
+	WorkflowSimulationID   string                          `json:"workflow_simulation_id"`
+	DefinitionRevision     integration.ArtifactRevisionRef `json:"definition_revision"`
+	DefinitionVersion      int64                           `json:"definition_version"`
+	ProductionProfile      integration.ArtifactRevisionRef `json:"production_profile"`
+	ProductionWorkflow     integration.ArtifactRevisionRef `json:"production_workflow"`
+	SourceRunIDs           []string                        `json:"source_run_ids"`
+	Manifest               []byte                          `json:"manifest"`
+	ManifestDigest         string                          `json:"manifest_digest"`
+	Signature              []byte                          `json:"signature"`
+	SignatureAlgorithm     string                          `json:"signature_algorithm"`
+	SigningKeyID           string                          `json:"signing_key_id"`
+	PublishedBy            string                          `json:"published_by"`
+	Reason                 string                          `json:"reason"`
+	CreatedAt              time.Time                       `json:"created_at"`
+}
+
+// PublicationManifest is the bounded canonical document covered by a detached
+// signature. It intentionally excludes raw/event payloads and action config.
+type PublicationManifest struct {
+	SchemaVersion         string                          `json:"schema_version"`
+	PublicationID         string                          `json:"publication_id"`
+	SessionID             string                          `json:"session_id"`
+	SessionProfile        integration.ArtifactRevisionRef `json:"session_profile"`
+	SessionWorkflow       integration.ArtifactRevisionRef `json:"session_workflow"`
+	WorkflowSimulationID  string                          `json:"workflow_simulation_id"`
+	DefinitionRevision    integration.ArtifactRevisionRef `json:"definition_revision"`
+	DefinitionVersion     int64                           `json:"definition_version"`
+	ProductionProfile     integration.ArtifactRevisionRef `json:"production_profile"`
+	ProductionWorkflow    integration.ArtifactRevisionRef `json:"production_workflow"`
+	Fixtures              []PublicationFixture            `json:"fixtures"`
+	ExpectedMatchedRoutes []string                        `json:"expected_matched_routes,omitempty"`
+	ExpectedTransforms    []string                        `json:"expected_transforms,omitempty"`
+	ExpectedActions       []string                        `json:"expected_actions,omitempty"`
+	PublishedBy           string                          `json:"published_by"`
+	Reason                string                          `json:"reason"`
+	CreatedAt             time.Time                       `json:"created_at"`
+}
+
+type PublicationFixture struct {
+	RunID                   string              `json:"run_id"`
+	SampleID                string              `json:"sample_id"`
+	SampleFormat            events.SourceFormat `json:"sample_format"`
+	SampleDigest            string              `json:"sample_digest"`
+	ExpectedEventTypes      []string            `json:"expected_event_types"`
+	ExpectedDiagnosticCodes []string            `json:"expected_diagnostic_codes,omitempty"`
+}
+
+type CreatePublicationRequest struct {
+	ID                     string
+	ProfileArtifactID      string
+	ProfileRevisionID      string
+	ProfileRevisionDigest  string
+	WorkflowArtifactID     string
+	WorkflowRevisionID     string
+	WorkflowRevisionDigest string
+	WorkflowSimulationID   string
+	DefinitionRevision     integration.ArtifactRevisionRef
+	DefinitionVersion      int64
+	ProductionProfile      integration.ArtifactRevisionRef
+	ProductionWorkflow     integration.ArtifactRevisionRef
+	SourceRunIDs           []string
+	Manifest               []byte
+	ManifestDigest         string
+	Signature              []byte
+	SignatureAlgorithm     string
+	SigningKeyID           string
+	PublishedBy            string
+	Reason                 string
+	CreatedAt              time.Time
+}
+
+type PublishRequest struct {
+	SessionID            string
+	ProfileRevisionID    string
+	WorkflowSimulationID string
+	DefinitionID         string
+	DefinitionRevisionID string
+	PublishedBy          string
+	Reason               string
+}
+
+type PromotePublicationRequest struct {
+	SessionID       string
+	PublicationID   string
+	ExpectedVersion int64
+	Actor           integration.Principal
+	Reason          string
 }
 
 // WorkflowSimulation is immutable, PHI-minimal evidence that one exact session

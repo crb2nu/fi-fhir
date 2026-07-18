@@ -98,6 +98,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   route planning, configuration-free event/route/transform/action traces,
   deterministic prior-run deltas, restart-safe PostgreSQL storage, and no
   browser-supplied event payloads or action execution
+- Append-only, versioned Integration Session publication with PHI-minimal
+  fixture/expectation manifests, domain-separated digests, detached Ed25519
+  signatures, exact session-to-production content verification, trust-root-gated
+  approval/deployment through the existing lifecycle catalog, and safe resume
+  from an already-published release
+- Source Profile review now compares the loaded immutable baseline with the
+  edited draft using aligned line diffs and stores a required authenticated
+  change summary with each immutable revision
 - Integration Session exports now preserve arbitrary artifact content as opaque
   bytes, allowing YAML workflow revisions to round-trip safely alongside JSON
   profiles

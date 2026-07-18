@@ -159,6 +159,7 @@ query ListWorkflowSimulationSessions {
     runs {
       id
       status
+      profileRevisionId
       events { id type }
     }
     workflowSimulations {
@@ -183,5 +184,49 @@ mutation SaveSessionWorkflowDraft($input: UpdateSessionArtifactInput!) {
 mutation SimulateSessionWorkflow($input: SimulateSessionWorkflowInput!) {
   simulateSessionWorkflow(input: $input) {
     ...SessionWorkflowSimulationFields
+  }
+}
+
+fragment SessionPublicationFields on SessionPublication {
+  id
+  sessionId
+  version
+  sessionProfile { artifactId revisionId digest }
+  sessionWorkflow { artifactId revisionId digest }
+  workflowSimulationId
+  definitionRevision { artifactId revisionId digest }
+  definitionVersion
+  productionProfile { artifactId revisionId digest }
+  productionWorkflow { artifactId revisionId digest }
+  sourceRunIds
+  manifestDigest
+  signatureAlgorithm
+  signingKeyId
+  publishedBy
+  reason
+  createdAt
+}
+
+mutation PublishIntegrationSession($input: PublishIntegrationSessionInput!) {
+  publishIntegrationSession(input: $input) { ...SessionPublicationFields }
+}
+
+mutation ApproveSessionPublication($input: PromoteSessionPublicationInput!) {
+  approveSessionPublication(input: $input) {
+    definitionRevision { artifactId revisionId digest }
+    state
+    version
+    releaseId
+    health
+  }
+}
+
+mutation DeploySessionPublication($input: PromoteSessionPublicationInput!) {
+  deploySessionPublication(input: $input) {
+    definitionRevision { artifactId revisionId digest }
+    state
+    version
+    releaseId
+    health
   }
 }

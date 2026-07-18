@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/x509"
 	"database/sql"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -31,6 +34,7 @@ const (
 )
 
 type previewRuntime struct {
+	tenantID         string
 	authenticator    requestsecurity.Authenticator
 	trustedNetwork   *requestsecurity.TrustedNetworkAuthenticator
 	allowedOrigins   []string
@@ -315,6 +319,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 		ingressPath = integrationingress.Path
 	}
 	return &previewRuntime{
+		tenantID:         tenantID,
 		authenticator:    authenticator,
 		trustedNetwork:   trustedNetwork,
 		allowedOrigins:   allowedOrigins,
@@ -329,6 +334,55 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 		submissionDB:     submissionDB,
 		sessionStore:     sessionStore,
 	}, nil
+}
+
+func loadSessionPublicationCrypto() (*integrationsession.PublicationCrypto, bool, error) {
+	privatePath := os.Getenv("FI_FHIR_INTEGRATION_SESSION_SIGNING_KEY_FILE")
+	trustPath := os.Getenv("FI_FHIR_INTEGRATION_SESSION_TRUST_ROOT_FILE")
+	keyID := os.Getenv("FI_FHIR_INTEGRATION_SESSION_SIGNING_KEY_ID")
+	if privatePath == "" && trustPath == "" && keyID == "" {
+		return nil, false, nil
+	}
+	if privatePath == "" || trustPath == "" || keyID == "" {
+		return nil, false, fmt.Errorf("Integration Session publication requires signing key, trust root, and signing key ID")
+	}
+	privatePEM, err := loadBoundedRuntimeFile("FI_FHIR_INTEGRATION_SESSION_SIGNING_KEY_FILE", "Integration Session signing key")
+	if err != nil {
+		return nil, false, err
+	}
+	privateBlock, rest := pem.Decode(privatePEM)
+	if privateBlock == nil || len(strings.TrimSpace(string(rest))) != 0 {
+		return nil, false, fmt.Errorf("Integration Session signing key must contain one PEM PKCS#8 key")
+	}
+	parsedPrivate, err := x509.ParsePKCS8PrivateKey(privateBlock.Bytes)
+	if err != nil {
+		return nil, false, fmt.Errorf("parse Integration Session signing key: %w", err)
+	}
+	privateKey, ok := parsedPrivate.(ed25519.PrivateKey)
+	if !ok {
+		return nil, false, fmt.Errorf("Integration Session signing key must be Ed25519")
+	}
+	trustPEM, err := loadBoundedRuntimeFile("FI_FHIR_INTEGRATION_SESSION_TRUST_ROOT_FILE", "Integration Session trust root")
+	if err != nil {
+		return nil, false, err
+	}
+	trustBlock, rest := pem.Decode(trustPEM)
+	if trustBlock == nil || len(strings.TrimSpace(string(rest))) != 0 {
+		return nil, false, fmt.Errorf("Integration Session trust root must contain one PEM public key")
+	}
+	parsedPublic, err := x509.ParsePKIXPublicKey(trustBlock.Bytes)
+	if err != nil {
+		return nil, false, fmt.Errorf("parse Integration Session trust root: %w", err)
+	}
+	publicKey, ok := parsedPublic.(ed25519.PublicKey)
+	if !ok {
+		return nil, false, fmt.Errorf("Integration Session trust root must be Ed25519")
+	}
+	crypto, err := integrationsession.NewPublicationCrypto(keyID, privateKey, map[string]ed25519.PublicKey{keyID: publicKey})
+	if err != nil {
+		return nil, false, err
+	}
+	return crypto, true, nil
 }
 
 func loadSessionRetentionProtector() (integrationsession.PayloadProtector, error) {

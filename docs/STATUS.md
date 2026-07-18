@@ -60,7 +60,7 @@
 | HL7v2 HTTP Ingress    | `internal/integration/ingress/`   | Alpha      | —        | Bearer/HMAC, bounded body, durable response; GitOps activation pending | 2026-07-14 |
 | Delivery Reliability  | `internal/integration/delivery/`  | Alpha      | —        | PostgreSQL leases/retry/circuit/DLQ/recovery plus real Kafka publisher | 2026-07-15 |
 | Batch Ingestion       | `internal/integration/batch/`     | Alpha      | —        | S3/SFTP streaming, PostgreSQL checkpoint/resume, verified archive | 2026-07-16 |
-| Integration Sessions  | `internal/integration/session/`   | Alpha      | —        | Restart-safe workspace, immutable runs, live diagnostics, lineage, workflow simulation | 2026-07-18 |
+| Integration Sessions  | `internal/integration/session/`   | Alpha      | —        | Restart-safe workspace, simulation, signed tested-revision publication, exact lifecycle promotion | 2026-07-18 |
 | GraphQL API           | `internal/api/graphql/`           | Beta       | 9.5%\*   | Bounded POST plus session-only SSE; WebSocket disabled | 2026-07-16 |
 | FHIR Subscriptions    | `internal/fhir/subscription/`     | Production | 83.7%    | Bidirectional; client + webhook receiver         | 2026-02-27   |
 | Terminology Autoroute | `internal/terminology/autoroute/` | Beta       | 88.5%    | Automatic code-system routing engine             | 2026-03-09   |
@@ -142,8 +142,11 @@ restart. Workflow Builder sends revision and run identities rather than browser
 event payloads. MR `!122` pipeline `19872` passed 37/37 with required session
 job `191685` and benchmark job `191688`, and merged as `d42f7233`; main pipeline
 `19878` passed 40/40 with independent session job `191786` and benchmark job
-`191789`. Signed publish/deploy and production GitOps activation remain
-intentionally pending.
+`191789`. Slice 3.4 adds append-only signed publications that prove session
+profile/workflow content against exact production references before lifecycle
+approval and deployment. Source Profile reviews now retain a real baseline diff
+and required actor-attributed change summary. Production GitOps activation
+remains intentionally pending.
 
 ## Infrastructure
 

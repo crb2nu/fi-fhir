@@ -19,7 +19,7 @@
   import ConfirmModal from '$lib/ui/ConfirmModal.svelte';
   import ProfileDiffModal from './ProfileDiffModal.svelte';
 
-  import { selectedProfile, isDirty as isProfileDirty, profileStore } from '$lib/features/hl7/profile/profileStore';
+  import { selectedProfile, originalProfile, isDirty as isProfileDirty, isSaving as isProfileSaving, profileStore } from '$lib/features/hl7/profile/profileStore';
   import { fetchProfileYaml, saveProfileYaml } from '$lib/features/hl7/profile/profileYamlApi';
   import { getProfileRevisions } from '$lib/features/hl7/profile/profileApi';
   import { toSourceProfileYAML } from '$lib/features/hl7/profile/yaml';
@@ -49,15 +49,18 @@
   let yamlError: string | null = null;
   let copied = false;
   let showPublishModal = false;
+  let changeSummary = '';
 
   async function handlePublish() {
+    changeSummary = '';
     showPublishModal = true;
   }
 
   async function handleConfirmPublish() {
-    showPublishModal = false;
-    const ok = await profileStore.saveProfile();
+    const ok = await profileStore.saveProfile(changeSummary);
     if (ok) {
+      showPublishModal = false;
+      changeSummary = '';
       if ($selectedProfile) {
         await loadYaml($selectedProfile.id);
         await loadRevisions($selectedProfile.id);
@@ -459,17 +462,25 @@
   confirmText="Publish"
   cancelText="Back to Editing"
   on:confirm={handleConfirmPublish}
+  on:cancel={() => (changeSummary = '')}
+  loading={$isProfileSaving}
+  confirmDisabled={!changeSummary.trim() || changeSummary.trim().length > 1024}
+  closeOnConfirm={false}
 >
   <div class="publish-dialog">
     <p class="publish-hint">Provide a summary of what changed in this version.</p>
-    <textarea class="summary-input" placeholder="e.g., Added tolerance for missing MSH-15..."></textarea>
+    <textarea
+      class="summary-input"
+      bind:value={changeSummary}
+      maxlength="1024"
+      aria-label="Profile change summary"
+      placeholder="e.g., Added tolerance for missing MSH-15..."
+    ></textarea>
     
-    {#if $selectedProfile}
+    {#if $originalProfile && $selectedProfile}
       <ProfileDiffModal 
-        original={$selectedProfile} 
-        draft={$selectedProfile} 
-        on:confirm={handleConfirmPublish}
-        on:cancel={() => showPublishModal = false}
+        original={$originalProfile}
+        draft={$selectedProfile}
       />
     {/if}
   </div>

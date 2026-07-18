@@ -371,6 +371,21 @@ MR `!122` pipeline `19872` passed 37/37, including required session job
 - Export signed/versioned bundle with fixtures and expected results.
 - Approval and deployment actions target the exact tested revisions.
 
+Implementation status (2026-07-18): implemented and locally verified; landing
+pipeline evidence pending. Integration Session publications are append-only,
+versioned, and signed with Ed25519 over a canonical PHI-minimal manifest. The
+service independently resolves the exact production profile/workflow bytes,
+proves content equivalence under production digest rules, and reuses the closed
+lifecycle catalog for optimistic approval, immutable release publication, and
+deployment. Workflow Builder exposes the bounded flow, and Source Profile review
+now compares an immutable baseline and persists a required actor-attributed
+change summary. Production GitOps activation remains a separate reviewed action.
+
+Kill-test status: unit/adversarial, full Go, and full UI proofs pass. The required
+PostgreSQL restart/append-only test is implemented but could not run locally
+because Docker and `POSTGRES_TEST_URL` were unavailable; CI must supply the
+terminal database proof before merge.
+
 ## Phase 4 — Operations, governance, and scale
 
 ### Slice 4.1: enforce identity, authorization, and PHI policy

@@ -11,14 +11,17 @@ import (
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
 	enginesession "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/session"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
 
 type integrationSessionService struct {
 	store     enginesession.Store
 	runner    *enginesession.Runner
 	simulator *enginesession.WorkflowSimulator
+	publisher *enginesession.PublicationService
 	hub       *enginesession.Hub
 }
 
@@ -329,6 +332,81 @@ func (s *integrationSessionService) listWorkflowSimulations(sessionID string) ([
 	return out, nil
 }
 
+func (s *integrationSessionService) listPublications(sessionID string) ([]model.SessionPublication, error) {
+	records, err := s.store.ListPublications(context.Background(), sessionID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.SessionPublication, len(records))
+	for index := range records {
+		out[index] = *toGraphQLPublication(records[index])
+	}
+	return out, nil
+}
+
+func (s *integrationSessionService) publishSession(ctx context.Context, input model.PublishIntegrationSessionInput) (*model.SessionPublication, error) {
+	if s.publisher == nil {
+		return nil, enginesession.ErrPublicationUnavailable
+	}
+	security, authenticated := requestsecurity.SecurityContextFromContext(ctx)
+	if !authenticated {
+		return nil, requestsecurity.ErrMissingCredentials
+	}
+	record, err := s.publisher.Publish(ctx, enginesession.PublishRequest{
+		SessionID: input.SessionID, ProfileRevisionID: input.ProfileRevisionID,
+		WorkflowSimulationID: input.WorkflowSimulationID, DefinitionID: input.DefinitionID,
+		DefinitionRevisionID: input.DefinitionRevisionID, PublishedBy: security.Principal.ID,
+		Reason: input.Reason,
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.publish("session.published", input.SessionID, "", "integration session publication signed")
+	return toGraphQLPublication(*record), nil
+}
+
+func (s *integrationSessionService) approvePublication(ctx context.Context, input model.PromoteSessionPublicationInput) (*model.SessionDeploymentSnapshot, error) {
+	return s.promotePublication(ctx, input, false)
+}
+
+func (s *integrationSessionService) deployPublication(ctx context.Context, input model.PromoteSessionPublicationInput) (*model.SessionDeploymentSnapshot, error) {
+	return s.promotePublication(ctx, input, true)
+}
+
+func (s *integrationSessionService) promotePublication(ctx context.Context, input model.PromoteSessionPublicationInput, deploy bool) (*model.SessionDeploymentSnapshot, error) {
+	if s.publisher == nil {
+		return nil, enginesession.ErrPublicationUnavailable
+	}
+	security, authenticated := requestsecurity.SecurityContextFromContext(ctx)
+	if !authenticated {
+		return nil, requestsecurity.ErrMissingCredentials
+	}
+	req := enginesession.PromotePublicationRequest{
+		SessionID: input.SessionID, PublicationID: input.PublicationID,
+		ExpectedVersion: int64(input.ExpectedVersion), Actor: security.Principal, Reason: input.Reason,
+	}
+	var (
+		snapshot lifecycle.Snapshot
+		err      error
+	)
+	if deploy {
+		snapshot, err = s.publisher.Deploy(ctx, req)
+	} else {
+		snapshot, err = s.publisher.Approve(ctx, req)
+	}
+	if err != nil {
+		return nil, err
+	}
+	eventType := "session.publication.approved"
+	message := "session publication approved"
+	if deploy {
+		eventType = "session.publication.deployed"
+		message = "session publication deployed"
+	}
+	s.publish(eventType, input.SessionID, "", message)
+	return toGraphQLDeploymentSnapshot(snapshot), nil
+}
+
 func (s *integrationSessionService) getRun(id string) (*model.SessionRun, error) {
 	sessions, err := s.store.ListSessions(context.Background(), enginesession.ListSessionsOptions{IncludeArchived: true})
 	if err != nil {
@@ -412,6 +490,7 @@ func (s *integrationSessionService) exportBundle(input model.ExportIntegrationBu
 		Artifacts:           append([]model.SessionArtifact(nil), session.Artifacts...),
 		Runs:                cloneRuns(session.Runs),
 		WorkflowSimulations: cloneWorkflowSimulations(session.WorkflowSimulations),
+		Publications:        clonePublications(session.Publications),
 		Diagnostics:         append([]model.SessionDiagnostic(nil), session.Diagnostics...),
 	}, nil
 }
@@ -470,6 +549,7 @@ func (s *integrationSessionService) toGraphQLSession(session enginesession.Sessi
 		Runs:                []model.SessionRun{},
 		Diagnostics:         []model.SessionDiagnostic{},
 		WorkflowSimulations: []model.SessionWorkflowSimulation{},
+		Publications:        []model.SessionPublication{},
 	}
 	if !includeChildren {
 		return out, nil
@@ -507,6 +587,12 @@ func (s *integrationSessionService) toGraphQLSession(session enginesession.Sessi
 		return nil, err
 	}
 	out.WorkflowSimulations = simulations
+
+	publications, err := s.listPublications(session.ID)
+	if err != nil {
+		return nil, err
+	}
+	out.Publications = publications
 
 	diagnostics, err := s.listDiagnostics(session.ID, nil)
 	if err != nil {
@@ -584,6 +670,37 @@ func toGraphQLWorkflowSimulationDelta(delta enginesession.WorkflowSimulationDelt
 		AddedMatchedRoutes: append([]string(nil), delta.AddedMatchedRoutes...), RemovedMatchedRoutes: append([]string(nil), delta.RemovedMatchedRoutes...),
 		AddedTransforms: append([]string(nil), delta.AddedTransforms...), RemovedTransforms: append([]string(nil), delta.RemovedTransforms...),
 		AddedActions: append([]string(nil), delta.AddedActions...), RemovedActions: append([]string(nil), delta.RemovedActions...),
+	}
+}
+
+func toGraphQLPublication(record enginesession.Publication) *model.SessionPublication {
+	return &model.SessionPublication{
+		ID: record.ID, SessionID: record.SessionID, Version: record.Version,
+		SessionProfile: &model.IntegrationArtifactRevision{
+			ArtifactID: record.ProfileArtifactID, RevisionID: record.ProfileRevisionID, Digest: record.ProfileRevisionDigest,
+		},
+		SessionWorkflow: &model.IntegrationArtifactRevision{
+			ArtifactID: record.WorkflowArtifactID, RevisionID: record.WorkflowRevisionID, Digest: record.WorkflowRevisionDigest,
+		},
+		WorkflowSimulationID: record.WorkflowSimulationID,
+		DefinitionRevision:   toGraphQLIntegrationArtifactRevision(record.DefinitionRevision),
+		DefinitionVersion:    int(record.DefinitionVersion),
+		ProductionProfile:    toGraphQLIntegrationArtifactRevision(record.ProductionProfile),
+		ProductionWorkflow:   toGraphQLIntegrationArtifactRevision(record.ProductionWorkflow),
+		SourceRunIds:         append([]string(nil), record.SourceRunIDs...),
+		ManifestDigest:       record.ManifestDigest, SignatureAlgorithm: record.SignatureAlgorithm,
+		SigningKeyID: record.SigningKeyID, PublishedBy: record.PublishedBy, Reason: record.Reason, CreatedAt: record.CreatedAt,
+	}
+}
+
+func toGraphQLIntegrationArtifactRevision(ref integration.ArtifactRevisionRef) *model.IntegrationArtifactRevision {
+	return &model.IntegrationArtifactRevision{ArtifactID: ref.ArtifactID, RevisionID: ref.RevisionID, Digest: ref.Digest}
+}
+
+func toGraphQLDeploymentSnapshot(snapshot lifecycle.Snapshot) *model.SessionDeploymentSnapshot {
+	return &model.SessionDeploymentSnapshot{
+		DefinitionRevision: toGraphQLIntegrationArtifactRevision(snapshot.DefinitionRevision),
+		State:              string(snapshot.State), Version: int(snapshot.Version), ReleaseID: strPtrEmpty(snapshot.ReleaseID), Health: string(snapshot.Health),
 	}
 }
 
@@ -864,6 +981,15 @@ func cloneWorkflowSimulations(in []model.SessionWorkflowSimulation) []model.Sess
 			}
 		}
 		out[simulationIndex].Delta = nil
+	}
+	return out
+}
+
+func clonePublications(in []model.SessionPublication) []model.SessionPublication {
+	out := make([]model.SessionPublication, len(in))
+	copy(out, in)
+	for index := range out {
+		out[index].SourceRunIds = append([]string(nil), out[index].SourceRunIds...)
 	}
 	return out
 }

@@ -1,43 +1,15 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
-  import Button from '$lib/ui/Button.svelte';
   import { toSourceProfileYAML } from '../hl7/profile/yaml';
   import type { SourceProfile } from '$lib/gen/graphql';
+  import { lineDiff } from './profileDiff';
 
   export let original: SourceProfile;
   export let draft: SourceProfile;
 
-  const dispatch = createEventDispatcher<{
-    confirm: void;
-    cancel: void;
-  }>();
-
   $: originalYaml = toSourceProfileYAML(original);
   $: draftYaml = toSourceProfileYAML(draft);
 
-  // Basic line-by-line diff for visualization.
-  // Takes the YAML strings as args so the reactive statement below tracks them
-  // (referencing them only inside the function body would leave $: diff non-reactive).
-  function getDiff(originalYaml: string, draftYaml: string) {
-    const origLines = originalYaml.split('\n');
-    const draftLines = draftYaml.split('\n');
-    const max = Math.max(origLines.length, draftLines.length);
-    const result = [];
-
-    for (let i = 0; i < max; i++) {
-      const o = origLines[i];
-      const d = draftLines[i];
-      if (o === d) {
-        result.push({ type: 'same', text: o });
-      } else {
-        if (o !== undefined) result.push({ type: 'removed', text: o });
-        if (d !== undefined) result.push({ type: 'added', text: d });
-      }
-    }
-    return result;
-  }
-
-  $: diff = getDiff(originalYaml, draftYaml);
+  $: diff = lineDiff(originalYaml, draftYaml);
 </script>
 
 <div class="diff-container">
@@ -57,11 +29,6 @@
     {/each}
   </div>
 
-  <div class="diff-footer">
-    <Button variant="secondary" on:click={() => dispatch('cancel')}>Discard Draft</Button>
-    <div class="spacer"></div>
-    <Button on:click={() => dispatch('confirm')}>Publish Changes</Button>
-  </div>
 </div>
 
 <style>
@@ -120,14 +87,6 @@
     user-select: none;
     opacity: 0.5;
   }
-
-  .diff-footer {
-    display: flex;
-    gap: var(--space-3);
-    margin-top: var(--space-2);
-  }
-
-  .spacer { flex: 1; }
 
   .mono { font-family: var(--font-mono); }
 </style>
