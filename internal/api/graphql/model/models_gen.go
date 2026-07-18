@@ -489,6 +489,59 @@ type SaveWorkflowVersionInput struct {
 	CreatedBy  *string `json:"createdBy,omitempty"`
 }
 
+type SessionWorkflowActionTrace struct {
+	ID                    string  `json:"id"`
+	Type                  string  `json:"type"`
+	DestinationArtifactID *string `json:"destinationArtifactId,omitempty"`
+}
+
+type SessionWorkflowEventTrace struct {
+	RunID     string                      `json:"runId"`
+	EventID   string                      `json:"eventId"`
+	EventType string                      `json:"eventType"`
+	Routes    []SessionWorkflowRouteTrace `json:"routes"`
+}
+
+type SessionWorkflowRouteTrace struct {
+	Name            string                          `json:"name"`
+	Matched         bool                            `json:"matched"`
+	SkipReason      *string                         `json:"skipReason,omitempty"`
+	DiagnosticCodes []string                        `json:"diagnosticCodes"`
+	Transforms      []SessionWorkflowTransformTrace `json:"transforms"`
+	Actions         []SessionWorkflowActionTrace    `json:"actions"`
+}
+
+type SessionWorkflowSimulation struct {
+	ID                     string                          `json:"id"`
+	SessionID              string                          `json:"sessionId"`
+	WorkflowArtifactID     string                          `json:"workflowArtifactId"`
+	WorkflowRevisionID     string                          `json:"workflowRevisionId"`
+	WorkflowRevisionDigest string                          `json:"workflowRevisionDigest"`
+	SourceRunIds           []string                        `json:"sourceRunIds"`
+	Events                 []SessionWorkflowEventTrace     `json:"events"`
+	CreatedAt              time.Time                       `json:"createdAt"`
+	Delta                  *SessionWorkflowSimulationDelta `json:"delta,omitempty"`
+}
+
+type SessionWorkflowSimulationDelta struct {
+	BaselineSimulationID  string   `json:"baselineSimulationId"`
+	CandidateSimulationID string   `json:"candidateSimulationId"`
+	AddedEvents           []string `json:"addedEvents"`
+	RemovedEvents         []string `json:"removedEvents"`
+	AddedMatchedRoutes    []string `json:"addedMatchedRoutes"`
+	RemovedMatchedRoutes  []string `json:"removedMatchedRoutes"`
+	AddedTransforms       []string `json:"addedTransforms"`
+	RemovedTransforms     []string `json:"removedTransforms"`
+	AddedActions          []string `json:"addedActions"`
+	RemovedActions        []string `json:"removedActions"`
+}
+
+type SessionWorkflowTransformTrace struct {
+	Index  int    `json:"index"`
+	Type   string `json:"type"`
+	Status string `json:"status"`
+}
+
 type SignalReviewDecisionInput struct {
 	WorkflowID          string              `json:"workflowId"`
 	Approved            bool                `json:"approved"`
@@ -496,6 +549,13 @@ type SignalReviewDecisionInput struct {
 	EquivalenceOverride *MappingEquivalence `json:"equivalenceOverride,omitempty"`
 	Comment             *string             `json:"comment,omitempty"`
 	RejectionReason     *string             `json:"rejectionReason,omitempty"`
+}
+
+type SimulateSessionWorkflowInput struct {
+	SessionID            string   `json:"sessionId"`
+	WorkflowRevisionID   string   `json:"workflowRevisionId"`
+	SourceRunIds         []string `json:"sourceRunIds"`
+	BaselineSimulationID *string  `json:"baselineSimulationId,omitempty"`
 }
 
 type SourceProfile struct {

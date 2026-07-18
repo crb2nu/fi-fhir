@@ -908,6 +908,7 @@ type IntegrationSession {
   artifacts: [SessionArtifact!]!
   runs: [SessionRun!]!
   diagnostics: [SessionDiagnostic!]!
+  workflowSimulations: [SessionWorkflowSimulation!]!
   currentProfileDraft: SessionArtifact
   currentWorkflowDraft: SessionArtifact
 }
@@ -991,7 +992,61 @@ type IntegrationBundle {
   samples: [SessionSample!]!
   artifacts: [SessionArtifact!]!
   runs: [SessionRun!]!
+  workflowSimulations: [SessionWorkflowSimulation!]!
   diagnostics: [SessionDiagnostic!]!
+}
+
+type SessionWorkflowSimulation {
+  id: ID!
+  sessionId: ID!
+  workflowArtifactId: ID!
+  workflowRevisionId: ID!
+  workflowRevisionDigest: String!
+  sourceRunIds: [ID!]!
+  events: [SessionWorkflowEventTrace!]!
+  createdAt: DateTime!
+  delta: SessionWorkflowSimulationDelta
+}
+
+type SessionWorkflowEventTrace {
+  runId: ID!
+  eventId: ID!
+  eventType: String!
+  routes: [SessionWorkflowRouteTrace!]!
+}
+
+type SessionWorkflowRouteTrace {
+  name: String!
+  matched: Boolean!
+  skipReason: String
+  diagnosticCodes: [String!]!
+  transforms: [SessionWorkflowTransformTrace!]!
+  actions: [SessionWorkflowActionTrace!]!
+}
+
+type SessionWorkflowTransformTrace {
+  index: Int!
+  type: String!
+  status: String!
+}
+
+type SessionWorkflowActionTrace {
+  id: ID!
+  type: String!
+  destinationArtifactId: ID
+}
+
+type SessionWorkflowSimulationDelta {
+  baselineSimulationId: ID!
+  candidateSimulationId: ID!
+  addedEvents: [String!]!
+  removedEvents: [String!]!
+  addedMatchedRoutes: [String!]!
+  removedMatchedRoutes: [String!]!
+  addedTransforms: [String!]!
+  removedTransforms: [String!]!
+  addedActions: [String!]!
+  removedActions: [String!]!
 }
 
 type IntegrationSessionEvent {
@@ -1034,6 +1089,13 @@ input RunSessionPreviewInput {
   source: String
 }
 
+input SimulateSessionWorkflowInput {
+  sessionId: ID!
+  workflowRevisionId: ID!
+  sourceRunIds: [ID!]!
+  baselineSimulationId: ID
+}
+
 input AcceptDiagnosticFixInput {
   sessionId: ID!
   diagnosticId: ID!
@@ -1051,6 +1113,7 @@ extend type Query {
   sessionSamples(sessionId: ID!): [SessionSample!]!
   sessionArtifacts(sessionId: ID!): [SessionArtifact!]!
   sessionRuns(sessionId: ID!): [SessionRun!]!
+  sessionWorkflowSimulations(sessionId: ID!): [SessionWorkflowSimulation!]!
   sessionRun(id: ID!): SessionRun
   sessionDiagnostics(sessionId: ID!, runId: ID): [SessionDiagnostic!]!
 }
@@ -1062,6 +1125,7 @@ extend type Mutation {
   updateSessionProfileDraft(input: UpdateSessionArtifactInput!): SessionArtifact!
   updateSessionWorkflowDraft(input: UpdateSessionArtifactInput!): SessionArtifact!
   runSessionPreview(input: RunSessionPreviewInput!): SessionRun!
+  simulateSessionWorkflow(input: SimulateSessionWorkflowInput!): SessionWorkflowSimulation!
   acceptDiagnosticFix(input: AcceptDiagnosticFixInput!): SessionDiagnostic!
   exportIntegrationBundle(input: ExportIntegrationBundleInput!): IntegrationBundle!
 }

@@ -3,18 +3,19 @@ package model
 import "time"
 
 type IntegrationSession struct {
-	ID                   string              `json:"id"`
-	Name                 string              `json:"name"`
-	Description          *string             `json:"description,omitempty"`
-	Archived             bool                `json:"archived"`
-	CreatedAt            time.Time           `json:"createdAt"`
-	UpdatedAt            time.Time           `json:"updatedAt"`
-	Samples              []SessionSample     `json:"samples"`
-	Artifacts            []SessionArtifact   `json:"artifacts"`
-	Runs                 []SessionRun        `json:"runs"`
-	Diagnostics          []SessionDiagnostic `json:"diagnostics"`
-	CurrentProfileDraft  *SessionArtifact    `json:"currentProfileDraft,omitempty"`
-	CurrentWorkflowDraft *SessionArtifact    `json:"currentWorkflowDraft,omitempty"`
+	ID                   string                      `json:"id"`
+	Name                 string                      `json:"name"`
+	Description          *string                     `json:"description,omitempty"`
+	Archived             bool                        `json:"archived"`
+	CreatedAt            time.Time                   `json:"createdAt"`
+	UpdatedAt            time.Time                   `json:"updatedAt"`
+	Samples              []SessionSample             `json:"samples"`
+	Artifacts            []SessionArtifact           `json:"artifacts"`
+	Runs                 []SessionRun                `json:"runs"`
+	Diagnostics          []SessionDiagnostic         `json:"diagnostics"`
+	WorkflowSimulations  []SessionWorkflowSimulation `json:"workflowSimulations"`
+	CurrentProfileDraft  *SessionArtifact            `json:"currentProfileDraft,omitempty"`
+	CurrentWorkflowDraft *SessionArtifact            `json:"currentWorkflowDraft,omitempty"`
 }
 
 type SessionSample struct {
@@ -90,13 +91,14 @@ type LineageLink struct {
 }
 
 type IntegrationBundle struct {
-	SessionID   string              `json:"sessionId"`
-	ExportedAt  time.Time           `json:"exportedAt"`
-	Session     IntegrationSession  `json:"session"`
-	Samples     []SessionSample     `json:"samples"`
-	Artifacts   []SessionArtifact   `json:"artifacts"`
-	Runs        []SessionRun        `json:"runs"`
-	Diagnostics []SessionDiagnostic `json:"diagnostics"`
+	SessionID           string                      `json:"sessionId"`
+	ExportedAt          time.Time                   `json:"exportedAt"`
+	Session             IntegrationSession          `json:"session"`
+	Samples             []SessionSample             `json:"samples"`
+	Artifacts           []SessionArtifact           `json:"artifacts"`
+	Runs                []SessionRun                `json:"runs"`
+	WorkflowSimulations []SessionWorkflowSimulation `json:"workflowSimulations"`
+	Diagnostics         []SessionDiagnostic         `json:"diagnostics"`
 }
 
 type IntegrationSessionEvent struct {

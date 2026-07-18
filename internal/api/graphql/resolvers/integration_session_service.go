@@ -16,9 +16,10 @@ import (
 )
 
 type integrationSessionService struct {
-	store  enginesession.Store
-	runner *enginesession.Runner
-	hub    *enginesession.Hub
+	store     enginesession.Store
+	runner    *enginesession.Runner
+	simulator *enginesession.WorkflowSimulator
+	hub       *enginesession.Hub
 }
 
 func newIntegrationSessionService() *integrationSessionService {
@@ -31,7 +32,8 @@ func newIntegrationSessionServiceWithStore(store enginesession.Store) *integrati
 	}
 	hub := enginesession.NewHub()
 	return &integrationSessionService{
-		store: store, runner: enginesession.NewRunner(store, hub), hub: hub,
+		store: store, runner: enginesession.NewRunner(store, hub),
+		simulator: enginesession.NewWorkflowSimulator(store), hub: hub,
 	}
 }
 
@@ -287,6 +289,46 @@ func (s *integrationSessionService) listRuns(sessionID string) ([]model.SessionR
 	return out, nil
 }
 
+func (s *integrationSessionService) simulateWorkflow(input model.SimulateSessionWorkflowInput) (*model.SessionWorkflowSimulation, error) {
+	var baseline *enginesession.WorkflowSimulation
+	if input.BaselineSimulationID != nil && *input.BaselineSimulationID != "" {
+		var err error
+		baseline, err = s.store.GetWorkflowSimulation(context.Background(), input.SessionID, *input.BaselineSimulationID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	record, err := s.simulator.Simulate(context.Background(), enginesession.SimulateWorkflowRequest{
+		SessionID: input.SessionID, WorkflowRevisionID: input.WorkflowRevisionID,
+		SourceRunIDs: append([]string(nil), input.SourceRunIds...),
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := toGraphQLWorkflowSimulation(*record)
+	if baseline != nil {
+		delta, err := enginesession.CompareWorkflowSimulations(*baseline, *record)
+		if err != nil {
+			return nil, err
+		}
+		result.Delta = toGraphQLWorkflowSimulationDelta(delta)
+	}
+	s.publish("workflow.simulated", input.SessionID, "", "session workflow simulated")
+	return result, nil
+}
+
+func (s *integrationSessionService) listWorkflowSimulations(sessionID string) ([]model.SessionWorkflowSimulation, error) {
+	records, err := s.store.ListWorkflowSimulations(context.Background(), sessionID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.SessionWorkflowSimulation, len(records))
+	for index := range records {
+		out[index] = *toGraphQLWorkflowSimulation(records[index])
+	}
+	return out, nil
+}
+
 func (s *integrationSessionService) getRun(id string) (*model.SessionRun, error) {
 	sessions, err := s.store.ListSessions(context.Background(), enginesession.ListSessionsOptions{IncludeArchived: true})
 	if err != nil {
@@ -363,13 +405,14 @@ func (s *integrationSessionService) exportBundle(input model.ExportIntegrationBu
 		}
 	}
 	return &model.IntegrationBundle{
-		SessionID:   input.SessionID,
-		ExportedAt:  bundle.ExportedAt,
-		Session:     *session,
-		Samples:     append([]model.SessionSample(nil), session.Samples...),
-		Artifacts:   append([]model.SessionArtifact(nil), session.Artifacts...),
-		Runs:        cloneRuns(session.Runs),
-		Diagnostics: append([]model.SessionDiagnostic(nil), session.Diagnostics...),
+		SessionID:           input.SessionID,
+		ExportedAt:          bundle.ExportedAt,
+		Session:             *session,
+		Samples:             append([]model.SessionSample(nil), session.Samples...),
+		Artifacts:           append([]model.SessionArtifact(nil), session.Artifacts...),
+		Runs:                cloneRuns(session.Runs),
+		WorkflowSimulations: cloneWorkflowSimulations(session.WorkflowSimulations),
+		Diagnostics:         append([]model.SessionDiagnostic(nil), session.Diagnostics...),
 	}, nil
 }
 
@@ -416,16 +459,17 @@ func (s *integrationSessionService) cloneSession(id string, includeChildren bool
 func (s *integrationSessionService) toGraphQLSession(session enginesession.Session, includeChildren bool) (*model.IntegrationSession, error) {
 	description := strPtrEmpty(session.Description)
 	out := &model.IntegrationSession{
-		ID:          session.ID,
-		Name:        session.Name,
-		Description: description,
-		Archived:    session.Status == enginesession.SessionStatusArchived,
-		CreatedAt:   session.CreatedAt,
-		UpdatedAt:   session.UpdatedAt,
-		Samples:     []model.SessionSample{},
-		Artifacts:   []model.SessionArtifact{},
-		Runs:        []model.SessionRun{},
-		Diagnostics: []model.SessionDiagnostic{},
+		ID:                  session.ID,
+		Name:                session.Name,
+		Description:         description,
+		Archived:            session.Status == enginesession.SessionStatusArchived,
+		CreatedAt:           session.CreatedAt,
+		UpdatedAt:           session.UpdatedAt,
+		Samples:             []model.SessionSample{},
+		Artifacts:           []model.SessionArtifact{},
+		Runs:                []model.SessionRun{},
+		Diagnostics:         []model.SessionDiagnostic{},
+		WorkflowSimulations: []model.SessionWorkflowSimulation{},
 	}
 	if !includeChildren {
 		return out, nil
@@ -457,6 +501,12 @@ func (s *integrationSessionService) toGraphQLSession(session enginesession.Sessi
 		return nil, err
 	}
 	out.Runs = runs
+
+	simulations, err := s.listWorkflowSimulations(session.ID)
+	if err != nil {
+		return nil, err
+	}
+	out.WorkflowSimulations = simulations
 
 	diagnostics, err := s.listDiagnostics(session.ID, nil)
 	if err != nil {
@@ -491,6 +541,49 @@ func toGraphQLArtifact(draft enginesession.ArtifactDraft) *model.SessionArtifact
 		Kind: string(draft.Kind), Name: draft.Name, Content: string(draft.Content),
 		Version: draft.Version, Digest: draft.Digest,
 		CreatedAt: draft.CreatedAt, UpdatedAt: draft.UpdatedAt,
+	}
+}
+
+func toGraphQLWorkflowSimulation(record enginesession.WorkflowSimulation) *model.SessionWorkflowSimulation {
+	eventsOut := make([]model.SessionWorkflowEventTrace, len(record.Events))
+	for eventIndex, event := range record.Events {
+		routes := make([]model.SessionWorkflowRouteTrace, len(event.Routes))
+		for routeIndex, route := range event.Routes {
+			transforms := make([]model.SessionWorkflowTransformTrace, len(route.Transforms))
+			for transformIndex, transform := range route.Transforms {
+				transforms[transformIndex] = model.SessionWorkflowTransformTrace{Index: transform.Index, Type: transform.Type, Status: transform.Status}
+			}
+			actions := make([]model.SessionWorkflowActionTrace, len(route.Actions))
+			for actionIndex, action := range route.Actions {
+				actions[actionIndex] = model.SessionWorkflowActionTrace{
+					ID: action.ID, Type: action.Type,
+					DestinationArtifactID: strPtrEmpty(action.DestinationArtifactID),
+				}
+			}
+			routes[routeIndex] = model.SessionWorkflowRouteTrace{
+				Name: route.Name, Matched: route.Matched, SkipReason: strPtrEmpty(route.SkipReason),
+				DiagnosticCodes: append([]string(nil), route.DiagnosticCodes...),
+				Transforms:      transforms, Actions: actions,
+			}
+		}
+		eventsOut[eventIndex] = model.SessionWorkflowEventTrace{
+			RunID: event.RunID, EventID: event.EventID, EventType: event.EventType, Routes: routes,
+		}
+	}
+	return &model.SessionWorkflowSimulation{
+		ID: record.ID, SessionID: record.SessionID, WorkflowArtifactID: record.WorkflowArtifactID,
+		WorkflowRevisionID: record.WorkflowRevisionID, WorkflowRevisionDigest: record.WorkflowRevisionDigest,
+		SourceRunIds: append([]string(nil), record.SourceRunIDs...), Events: eventsOut, CreatedAt: record.CreatedAt,
+	}
+}
+
+func toGraphQLWorkflowSimulationDelta(delta enginesession.WorkflowSimulationDelta) *model.SessionWorkflowSimulationDelta {
+	return &model.SessionWorkflowSimulationDelta{
+		BaselineSimulationID: delta.BaselineSimulationID, CandidateSimulationID: delta.CandidateSimulationID,
+		AddedEvents: append([]string(nil), delta.AddedEvents...), RemovedEvents: append([]string(nil), delta.RemovedEvents...),
+		AddedMatchedRoutes: append([]string(nil), delta.AddedMatchedRoutes...), RemovedMatchedRoutes: append([]string(nil), delta.RemovedMatchedRoutes...),
+		AddedTransforms: append([]string(nil), delta.AddedTransforms...), RemovedTransforms: append([]string(nil), delta.RemovedTransforms...),
+		AddedActions: append([]string(nil), delta.AddedActions...), RemovedActions: append([]string(nil), delta.RemovedActions...),
 	}
 }
 
@@ -749,6 +842,28 @@ func cloneRuns(in []model.SessionRun) []model.SessionRun {
 		out[i].Lineage = append([]model.LineageLink(nil), run.Lineage...)
 		out[i].Events = append([]model.Event(nil), run.Events...)
 		out[i].Warnings = append([]model.ParseWarning(nil), run.Warnings...)
+	}
+	return out
+}
+
+func cloneWorkflowSimulations(in []model.SessionWorkflowSimulation) []model.SessionWorkflowSimulation {
+	out := make([]model.SessionWorkflowSimulation, len(in))
+	for simulationIndex := range in {
+		out[simulationIndex] = in[simulationIndex]
+		out[simulationIndex].SourceRunIds = append([]string(nil), in[simulationIndex].SourceRunIds...)
+		out[simulationIndex].Events = make([]model.SessionWorkflowEventTrace, len(in[simulationIndex].Events))
+		for eventIndex := range in[simulationIndex].Events {
+			out[simulationIndex].Events[eventIndex] = in[simulationIndex].Events[eventIndex]
+			out[simulationIndex].Events[eventIndex].Routes = make([]model.SessionWorkflowRouteTrace, len(in[simulationIndex].Events[eventIndex].Routes))
+			for routeIndex := range in[simulationIndex].Events[eventIndex].Routes {
+				route := in[simulationIndex].Events[eventIndex].Routes[routeIndex]
+				out[simulationIndex].Events[eventIndex].Routes[routeIndex] = route
+				out[simulationIndex].Events[eventIndex].Routes[routeIndex].DiagnosticCodes = append([]string(nil), route.DiagnosticCodes...)
+				out[simulationIndex].Events[eventIndex].Routes[routeIndex].Transforms = append([]model.SessionWorkflowTransformTrace(nil), route.Transforms...)
+				out[simulationIndex].Events[eventIndex].Routes[routeIndex].Actions = append([]model.SessionWorkflowActionTrace(nil), route.Actions...)
+			}
+		}
+		out[simulationIndex].Delta = nil
 	}
 	return out
 }

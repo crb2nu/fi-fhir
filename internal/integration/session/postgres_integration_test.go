@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -113,6 +114,86 @@ func TestPostgresSessionWorkspace_RestartExactProfilesAndRawPolicy(t *testing.T)
 		t.Fatalf("tolerant diagnostics = %#v", tolerantRun.Diagnostics)
 	}
 
+	baselineWorkflow, err := store.SaveArtifactDraft(ctx, workspace.ID, SaveArtifactDraftRequest{
+		Kind: ArtifactKindWorkflowDraft, Name: "adt-routing", Content: json.RawMessage(`name: baseline
+version: "1"
+routes:
+  - name: labs
+    filter: {event_type: lab_result}
+    actions:
+      - id: log-lab
+        type: log
+`),
+	})
+	if err != nil {
+		t.Fatalf("SaveArtifactDraft(baseline workflow): %v", err)
+	}
+	simulator := NewWorkflowSimulator(store)
+	baselineSimulation, err := simulator.Simulate(ctx, SimulateWorkflowRequest{
+		SessionID: workspace.ID, WorkflowRevisionID: baselineWorkflow.RevisionID,
+		SourceRunIDs: []string{tolerantRun.ID},
+	})
+	if err != nil {
+		t.Fatalf("Simulate(baseline workflow): %v", err)
+	}
+	trapPath := filepath.Join(t.TempDir(), "simulation-must-not-execute")
+	candidateWorkflowYAML := fmt.Sprintf(`name: candidate
+version: "2"
+routes:
+  - name: admits
+    filter: {event_type: patient_admit}
+    transform:
+      - redact: {fields: [patient.identifiers]}
+    actions:
+      - id: notify
+        type: exec
+        destination: notification-sandbox
+        command: touch %s
+        secret: ACTION-CONFIG-SENTINEL
+`, trapPath)
+	candidateWorkflow, err := store.SaveArtifactDraft(ctx, workspace.ID, SaveArtifactDraftRequest{
+		ID: baselineWorkflow.ID, Kind: ArtifactKindWorkflowDraft, Name: "adt-routing",
+		Content: json.RawMessage(candidateWorkflowYAML),
+	})
+	if err != nil {
+		t.Fatalf("SaveArtifactDraft(candidate workflow): %v", err)
+	}
+	candidateSimulation, err := simulator.Simulate(ctx, SimulateWorkflowRequest{
+		SessionID: workspace.ID, WorkflowRevisionID: candidateWorkflow.RevisionID,
+		SourceRunIDs: []string{tolerantRun.ID},
+	})
+	if err != nil {
+		t.Fatalf("Simulate(candidate workflow): %v", err)
+	}
+	if _, err := os.Stat(trapPath); !os.IsNotExist(err) {
+		t.Fatalf("workflow simulation executed side effect at %s: %v", trapPath, err)
+	}
+
+	// Reconstruct the store before reading/comparing simulation evidence. The
+	// exact revision/run binding and PHI-minimal trace must survive restart.
+	store = newMigratedSessionStore(t, ctx, db, protector)
+	baselineAfterRestart, err := store.GetWorkflowSimulation(ctx, workspace.ID, baselineSimulation.ID)
+	if err != nil {
+		t.Fatalf("GetWorkflowSimulation(baseline after restart): %v", err)
+	}
+	candidateAfterRestart, err := store.GetWorkflowSimulation(ctx, workspace.ID, candidateSimulation.ID)
+	if err != nil {
+		t.Fatalf("GetWorkflowSimulation(candidate after restart): %v", err)
+	}
+	delta, err := CompareWorkflowSimulations(*baselineAfterRestart, *candidateAfterRestart)
+	if err != nil || len(delta.AddedMatchedRoutes) != 1 || len(delta.AddedTransforms) != 1 || len(delta.AddedActions) != 1 {
+		t.Fatalf("simulation delta = %#v, %v", delta, err)
+	}
+	simulationJSON, err := json.Marshal(candidateAfterRestart)
+	if err != nil {
+		t.Fatalf("marshal restored simulation: %v", err)
+	}
+	for _, forbidden := range []string{"RAW-PHI-SENTINEL", "ACTION-CONFIG-SENTINEL", trapPath, "SENTINEL^PATIENT"} {
+		if strings.Contains(string(simulationJSON), forbidden) {
+			t.Fatalf("restored simulation leaked %q: %s", forbidden, simulationJSON)
+		}
+	}
+
 	decision, err := store.AcceptDecision(ctx, AcceptDecisionRequest{
 		SessionID: workspace.ID, RunID: tolerantRun.ID,
 		DiagnosticID: tolerantRun.Diagnostics[0].ID, AcceptedBy: "engineer-1",
@@ -136,7 +217,7 @@ func TestPostgresSessionWorkspace_RestartExactProfilesAndRawPolicy(t *testing.T)
 	if err != nil {
 		t.Fatalf("ExportBundle: %v", err)
 	}
-	if bundle.ID == "" || len(bundle.Runs) != 2 || len(bundle.Decisions) != 1 {
+	if bundle.ID == "" || len(bundle.Runs) != 2 || len(bundle.Simulations) != 2 || len(bundle.Decisions) != 1 {
 		t.Fatalf("bundle = %#v", bundle)
 	}
 	for _, sample := range bundle.Samples {
@@ -149,6 +230,16 @@ func TestPostgresSessionWorkspace_RestartExactProfilesAndRawPolicy(t *testing.T)
 	reopenedExport, err := store.GetExport(ctx, workspace.ID, bundle.ID)
 	if err != nil || reopenedExport.ID != bundle.ID || len(reopenedExport.Decisions) != 1 {
 		t.Fatalf("GetExport after restart = %#v, %v", reopenedExport, err)
+	}
+	var exportedWorkflow *ArtifactDraft
+	for index := range reopenedExport.Drafts {
+		if reopenedExport.Drafts[index].RevisionID == candidateWorkflow.RevisionID {
+			exportedWorkflow = &reopenedExport.Drafts[index]
+			break
+		}
+	}
+	if exportedWorkflow == nil || string(exportedWorkflow.Content) != candidateWorkflowYAML || exportedWorkflow.Digest != candidateWorkflow.Digest {
+		t.Fatalf("workflow YAML export did not round-trip exactly: %#v", exportedWorkflow)
 	}
 	exports, err := store.ListExports(ctx, workspace.ID)
 	if err != nil || len(exports) != 1 || exports[0].ID != bundle.ID {

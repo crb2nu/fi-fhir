@@ -114,7 +114,8 @@ batch-ingestion:
 		-run '^TestBatchIngestion_PostgresS3SFTPKillResumeArchive$$' \
 		./internal/integration/batch
 
-# Slice 3.1: restart-safe PostgreSQL Integration Session workspace.
+# Slices 3.1 and 3.3: restart-safe PostgreSQL Integration Session workspace and
+# exact-revision workflow simulation over durable run events.
 # Uses testcontainers locally and POSTGRES_TEST_URL in CI.
 integration-session:
 	go test -tags=integration -race -count=1 -timeout=180s \

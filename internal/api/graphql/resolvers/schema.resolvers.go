@@ -1033,6 +1033,14 @@ func (r *mutationResolver) RunSessionPreview(ctx context.Context, input model.Ru
 	return r.integrationSessions.runPreview(input)
 }
 
+// SimulateSessionWorkflow is the resolver for the simulateSessionWorkflow field.
+func (r *mutationResolver) SimulateSessionWorkflow(ctx context.Context, input model.SimulateSessionWorkflowInput) (*model.SessionWorkflowSimulation, error) {
+	if !r.sessionWorkspaceEnabled() {
+		return nil, ErrLegacyExecutionUnavailable
+	}
+	return r.integrationSessions.simulateWorkflow(input)
+}
+
 // AcceptDiagnosticFix is the resolver for the acceptDiagnosticFix field.
 func (r *mutationResolver) AcceptDiagnosticFix(ctx context.Context, input model.AcceptDiagnosticFixInput) (*model.SessionDiagnostic, error) {
 	if !r.sessionWorkspaceEnabled() {
@@ -2283,6 +2291,14 @@ func (r *queryResolver) SessionRuns(ctx context.Context, sessionID string) ([]mo
 		return nil, ErrLegacyExecutionUnavailable
 	}
 	return r.integrationSessions.listRuns(sessionID)
+}
+
+// SessionWorkflowSimulations is the resolver for the sessionWorkflowSimulations field.
+func (r *queryResolver) SessionWorkflowSimulations(ctx context.Context, sessionID string) ([]model.SessionWorkflowSimulation, error) {
+	if !r.sessionWorkspaceEnabled() {
+		return nil, ErrLegacyExecutionUnavailable
+	}
+	return r.integrationSessions.listWorkflowSimulations(sessionID)
 }
 
 // SessionRun is the resolver for the sessionRun field.

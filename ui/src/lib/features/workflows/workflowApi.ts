@@ -19,6 +19,9 @@ import {
   GenerateWorkflowDocument,
   ExplainWorkflowDocument,
   DryRunWorkflowDocument,
+  ListWorkflowSimulationSessionsDocument,
+  SaveSessionWorkflowDraftDocument,
+  SimulateSessionWorkflowDocument,
   type ListWorkflowsQuery,
   type ListWorkflowDefinitionsQuery,
   type ListWorkflowDefinitionsQueryVariables,
@@ -55,7 +58,12 @@ import {
   type ExplainWorkflowQuery,
   type ExplainWorkflowQueryVariables,
   type DryRunWorkflowMutation,
-  type DryRunWorkflowMutationVariables
+  type DryRunWorkflowMutationVariables,
+  type ListWorkflowSimulationSessionsQuery,
+  type SaveSessionWorkflowDraftMutation,
+  type SaveSessionWorkflowDraftMutationVariables,
+  type SimulateSessionWorkflowMutation,
+  type SimulateSessionWorkflowMutationVariables
 } from '$lib/gen/graphql';
 
 export function fetchWorkflows(): Promise<ListWorkflowsQuery> {
@@ -304,5 +312,38 @@ export function dryRunWorkflow(
   return graphqlFetch<DryRunWorkflowMutation, DryRunWorkflowMutationVariables>(
     DryRunWorkflowDocument,
     { input: { yaml, events } }
+  );
+}
+
+export function fetchWorkflowSimulationSessions(): Promise<ListWorkflowSimulationSessionsQuery> {
+  return graphqlFetch(ListWorkflowSimulationSessionsDocument);
+}
+
+export function saveSessionWorkflowDraft(
+  sessionId: string,
+  yaml: string
+): Promise<SaveSessionWorkflowDraftMutation> {
+  return graphqlFetch<SaveSessionWorkflowDraftMutation, SaveSessionWorkflowDraftMutationVariables>(
+    SaveSessionWorkflowDraftDocument,
+    { input: { sessionId, name: 'Workflow Builder draft', content: yaml } }
+  );
+}
+
+export function simulateSessionWorkflow(input: {
+  sessionId: string;
+  workflowRevisionId: string;
+  sourceRunIds: string[];
+  baselineSimulationId?: string | null;
+}): Promise<SimulateSessionWorkflowMutation> {
+  return graphqlFetch<SimulateSessionWorkflowMutation, SimulateSessionWorkflowMutationVariables>(
+    SimulateSessionWorkflowDocument,
+    {
+      input: {
+        sessionId: input.sessionId,
+        workflowRevisionId: input.workflowRevisionId,
+        sourceRunIds: input.sourceRunIds,
+        baselineSimulationId: input.baselineSimulationId ?? null
+      }
+    }
   );
 }

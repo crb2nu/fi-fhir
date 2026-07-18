@@ -99,23 +99,23 @@ type AddSampleRequest struct {
 }
 
 type ArtifactDraft struct {
-	ID         string          `json:"id"`
-	RevisionID string          `json:"revision_id"`
-	SessionID  string          `json:"session_id"`
-	Kind       ArtifactKind    `json:"kind"`
-	Name       string          `json:"name"`
-	Content    json.RawMessage `json:"content"`
-	Version    int             `json:"version"`
-	Digest     string          `json:"digest"`
-	CreatedAt  time.Time       `json:"created_at"`
-	UpdatedAt  time.Time       `json:"updated_at"`
+	ID         string       `json:"id"`
+	RevisionID string       `json:"revision_id"`
+	SessionID  string       `json:"session_id"`
+	Kind       ArtifactKind `json:"kind"`
+	Name       string       `json:"name"`
+	Content    []byte       `json:"content"`
+	Version    int          `json:"version"`
+	Digest     string       `json:"digest"`
+	CreatedAt  time.Time    `json:"created_at"`
+	UpdatedAt  time.Time    `json:"updated_at"`
 }
 
 type SaveArtifactDraftRequest struct {
 	ID      string
 	Kind    ArtifactKind
 	Name    string
-	Content json.RawMessage
+	Content []byte
 }
 
 type Run struct {
@@ -174,13 +174,82 @@ type LineageLink struct {
 }
 
 type ExportBundle struct {
-	ID         string          `json:"id"`
-	Session    Session         `json:"session"`
-	Samples    []Sample        `json:"samples,omitempty"`
-	Drafts     []ArtifactDraft `json:"drafts,omitempty"`
-	Runs       []Run           `json:"runs,omitempty"`
-	Decisions  []Decision      `json:"decisions,omitempty"`
-	ExportedAt time.Time       `json:"exported_at"`
+	ID          string               `json:"id"`
+	Session     Session              `json:"session"`
+	Samples     []Sample             `json:"samples,omitempty"`
+	Drafts      []ArtifactDraft      `json:"drafts,omitempty"`
+	Runs        []Run                `json:"runs,omitempty"`
+	Simulations []WorkflowSimulation `json:"workflow_simulations,omitempty"`
+	Decisions   []Decision           `json:"decisions,omitempty"`
+	ExportedAt  time.Time            `json:"exported_at"`
+}
+
+// WorkflowSimulation is immutable, PHI-minimal evidence that one exact session
+// workflow revision was planned against an explicit set of immutable parse runs.
+type WorkflowSimulation struct {
+	ID                     string               `json:"id"`
+	SessionID              string               `json:"session_id"`
+	WorkflowArtifactID     string               `json:"workflow_artifact_id"`
+	WorkflowRevisionID     string               `json:"workflow_revision_id"`
+	WorkflowRevisionDigest string               `json:"workflow_revision_digest"`
+	SourceRunIDs           []string             `json:"source_run_ids"`
+	Events                 []WorkflowEventTrace `json:"events"`
+	CreatedAt              time.Time            `json:"created_at"`
+}
+
+type WorkflowEventTrace struct {
+	RunID     string               `json:"run_id"`
+	EventID   string               `json:"event_id"`
+	EventType string               `json:"event_type"`
+	Routes    []WorkflowRouteTrace `json:"routes"`
+}
+
+type WorkflowRouteTrace struct {
+	Name            string                   `json:"name"`
+	Matched         bool                     `json:"matched"`
+	SkipReason      string                   `json:"skip_reason,omitempty"`
+	DiagnosticCodes []string                 `json:"diagnostic_codes,omitempty"`
+	Transforms      []WorkflowTransformTrace `json:"transforms,omitempty"`
+	Actions         []WorkflowActionTrace    `json:"actions,omitempty"`
+}
+
+type WorkflowTransformTrace struct {
+	Index  int    `json:"index"`
+	Type   string `json:"type"`
+	Status string `json:"status"`
+}
+
+type WorkflowActionTrace struct {
+	ID                    string `json:"id"`
+	Type                  string `json:"type"`
+	DestinationArtifactID string `json:"destination_artifact_id,omitempty"`
+}
+
+type CreateWorkflowSimulationRequest struct {
+	WorkflowArtifactID     string
+	WorkflowRevisionID     string
+	WorkflowRevisionDigest string
+	SourceRunIDs           []string
+	Events                 []WorkflowEventTrace
+}
+
+type SimulateWorkflowRequest struct {
+	SessionID          string
+	WorkflowRevisionID string
+	SourceRunIDs       []string
+}
+
+type WorkflowSimulationDelta struct {
+	BaselineSimulationID  string   `json:"baseline_simulation_id"`
+	CandidateSimulationID string   `json:"candidate_simulation_id"`
+	AddedEvents           []string `json:"added_events,omitempty"`
+	RemovedEvents         []string `json:"removed_events,omitempty"`
+	AddedMatchedRoutes    []string `json:"added_matched_routes,omitempty"`
+	RemovedMatchedRoutes  []string `json:"removed_matched_routes,omitempty"`
+	AddedTransforms       []string `json:"added_transforms,omitempty"`
+	RemovedTransforms     []string `json:"removed_transforms,omitempty"`
+	AddedActions          []string `json:"added_actions,omitempty"`
+	RemovedActions        []string `json:"removed_actions,omitempty"`
 }
 
 type RunRequest struct {

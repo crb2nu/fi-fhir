@@ -17,6 +17,9 @@ const sessionMigrationLockKey = int64(5064657639792058879)
 //go:embed migrations/0001_session_workspace.sql
 var sessionWorkspaceMigration string
 
+//go:embed migrations/0002_workflow_simulations.sql
+var workflowSimulationsMigration string
+
 // PayloadProtector encrypts explicitly retained raw sample bytes outside SQL.
 type PayloadProtector interface {
 	Protect(context.Context, []byte, []byte) ([]byte, error)
@@ -83,6 +86,21 @@ func (s *PostgresStore) Migrate(ctx context.Context) error {
 			`INSERT INTO integration_session_schema_migrations (version, name) VALUES (1, '0001_session_workspace')`,
 		); err != nil {
 			return fmt.Errorf("record session workspace migration: %w", err)
+		}
+	}
+	if err := tx.QueryRowContext(ctx,
+		`SELECT EXISTS (SELECT 1 FROM integration_session_schema_migrations WHERE version = 2)`,
+	).Scan(&applied); err != nil {
+		return fmt.Errorf("read workflow simulation migration ledger: %w", err)
+	}
+	if !applied {
+		if _, err := tx.ExecContext(ctx, workflowSimulationsMigration); err != nil {
+			return fmt.Errorf("apply workflow simulation migration: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO integration_session_schema_migrations (version, name) VALUES (2, '0002_workflow_simulations')`,
+		); err != nil {
+			return fmt.Errorf("record workflow simulation migration: %w", err)
 		}
 	}
 	if err := tx.Commit(); err != nil {
@@ -404,7 +422,7 @@ func (s *PostgresStore) SaveArtifactDraft(ctx context.Context, sessionID string,
 		INSERT INTO integration_session_artifact_revisions
 			(tenant_id, session_id, artifact_id, revision_id, version, kind, created_at, record_json, content_bytes)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	`, s.tenantID, sessionID, record.ID, record.RevisionID, record.Version, record.Kind, record.UpdatedAt, raw, []byte(record.Content))
+	`, s.tenantID, sessionID, record.ID, record.RevisionID, record.Version, record.Kind, record.UpdatedAt, raw, record.Content)
 	if err != nil {
 		return nil, fmt.Errorf("create artifact revision: %w", err)
 	}
@@ -569,6 +587,77 @@ func (s *PostgresStore) ListRuns(ctx context.Context, sessionID string) ([]Run, 
 	return records, nil
 }
 
+func (s *PostgresStore) CreateWorkflowSimulation(ctx context.Context, sessionID string, req CreateWorkflowSimulationRequest) (*WorkflowSimulation, error) {
+	if err := validateWorkflowSimulationReferences(ctx, s, sessionID, req); err != nil {
+		return nil, err
+	}
+	record := &WorkflowSimulation{
+		ID: newID("simulation"), SessionID: sessionID,
+		WorkflowArtifactID:     req.WorkflowArtifactID,
+		WorkflowRevisionID:     req.WorkflowRevisionID,
+		WorkflowRevisionDigest: req.WorkflowRevisionDigest,
+		SourceRunIDs:           cloneStrings(req.SourceRunIDs), Events: cloneWorkflowEventTraces(req.Events),
+		CreatedAt: s.now(),
+	}
+	raw, err := encodeRecord(record)
+	if err != nil {
+		return nil, err
+	}
+	_, err = s.db.ExecContext(ctx, `
+		INSERT INTO integration_session_workflow_simulations
+			(tenant_id, session_id, simulation_id, workflow_revision_id, created_at, record_json)
+		VALUES ($1, $2, $3, $4, $5, $6)
+	`, s.tenantID, record.SessionID, record.ID, record.WorkflowRevisionID, record.CreatedAt, raw)
+	if err != nil {
+		return nil, fmt.Errorf("create workflow simulation: %w", err)
+	}
+	return cloneWorkflowSimulation(record), nil
+}
+
+func (s *PostgresStore) GetWorkflowSimulation(ctx context.Context, sessionID, simulationID string) (*WorkflowSimulation, error) {
+	var raw []byte
+	err := s.db.QueryRowContext(ctx, `
+		SELECT record_json FROM integration_session_workflow_simulations
+		WHERE tenant_id = $1 AND session_id = $2 AND simulation_id = $3
+	`, s.tenantID, sessionID, simulationID).Scan(&raw)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("load workflow simulation: %w", err)
+	}
+	var record WorkflowSimulation
+	if err := decodeRecord(raw, &record); err != nil || record.SessionID != sessionID || record.ID != simulationID {
+		return nil, ErrImmutable
+	}
+	return cloneWorkflowSimulation(&record), nil
+}
+
+func (s *PostgresStore) ListWorkflowSimulations(ctx context.Context, sessionID string) ([]WorkflowSimulation, error) {
+	if _, err := s.GetSession(ctx, sessionID); err != nil {
+		return nil, err
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT record_json FROM integration_session_workflow_simulations
+		WHERE tenant_id = $1 AND session_id = $2 ORDER BY created_at, simulation_id
+	`, s.tenantID, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("list workflow simulations: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	records, err := scanRecords[WorkflowSimulation](rows)
+	if err != nil {
+		return nil, err
+	}
+	for index := range records {
+		if records[index].SessionID != sessionID {
+			return nil, ErrImmutable
+		}
+		records[index] = *cloneWorkflowSimulation(&records[index])
+	}
+	return records, rows.Err()
+}
+
 func (s *PostgresStore) AcceptDecision(ctx context.Context, req AcceptDecisionRequest) (*Decision, error) {
 	if strings.TrimSpace(req.AcceptedBy) == "" {
 		return nil, fmt.Errorf("%w: accepted by is required", ErrInvalid)
@@ -657,13 +746,17 @@ func (s *PostgresStore) ExportBundle(ctx context.Context, sessionID string) (*Ex
 	if err != nil {
 		return nil, err
 	}
+	simulations, err := s.ListWorkflowSimulations(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
 	decisions, err := s.ListDecisions(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
 	bundle := &ExportBundle{
 		ID: newID("export"), Session: *session, Samples: samples, Drafts: drafts,
-		Runs: runs, Decisions: decisions, ExportedAt: s.now(),
+		Runs: runs, Simulations: simulations, Decisions: decisions, ExportedAt: s.now(),
 	}
 	raw, err := encodeRecord(bundle)
 	if err != nil {
