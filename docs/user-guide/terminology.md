@@ -407,6 +407,7 @@ Use terminology operations within workflow transforms:
 ```yaml
 workflow:
   name: standardize_codes
+  version: "1.0"
   routes:
     - name: map_lab_codes
       filter:
@@ -415,25 +416,37 @@ workflow:
         # Map local codes to LOINC
         - map_terminology:
             field: observation.code
-            source_system: hospital_lis
-            target_system: http://loinc.org
-            autoroute: true
-            min_confidence: 0.8
+            from: hospital_lis
+            to: http://loinc.org
       actions:
         - type: fhir
-          endpoint: ${FHIR_ENDPOINT}
+          endpoint: https://fhir.example.com/r4
+          token: my-static-bearer-token
 ```
 
+Workflow YAML values are literal — `${VAR}` references are **not** expanded by
+`fi-fhir`. Render the file with `envsubst` before loading it if you need
+environment-specific values.
+
 ### Transform Options
+
+`map_terminology` accepts exactly these three keys; any other key is silently
+ignored when the workflow loads.
 
 | Option | Description |
 |--------|-------------|
 | `field` | Event field containing the code to map |
-| `source_system` | Source code system identifier |
-| `target_system` | Target code system URI |
-| `autoroute` | Enable LLM-powered fallback (default: false) |
-| `min_confidence` | Minimum confidence for autoroute matches |
-| `fail_on_unmapped` | Fail the route if no mapping found |
+| `from` | Source code system identifier |
+| `to` | Target code system identifier |
+
+If no mapping is found, the field is left unchanged and the route continues.
+When the matched mapping carries a display name, it is written to a parallel
+`<field>_display` key (here, `observation.code_display`).
+
+Autoroute is not a workflow transform option. Enable it in the
+`terminology.autoroute` service config (see
+[LLM-Powered Autoroute](#llm-powered-autoroute)), or per-invocation with
+`fi-fhir terminology mapping resolve --autoroute`.
 
 ---
 
