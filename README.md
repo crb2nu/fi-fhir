@@ -158,6 +158,10 @@ fi-fhir config show
 | 276 | Claim status inquiry | `claim_status_inquiry` |
 | 277 | Claim status response | `claim_status_response` |
 
+`fi-fhir parse --format edi` emits semantic events for every transaction set above.
+The parser also recognizes 278 and 834, but no event mappers exist for them yet;
+those transaction sets parse to a generic `unknown_transaction` record.
+
 ### CSV/Flatfiles
 
 - Automatic schema inference
