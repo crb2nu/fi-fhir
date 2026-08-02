@@ -2165,8 +2165,11 @@ release:gitlab:
 # GitLab, which is the primary. Runs last on default-branch pushes.
 #
 # One-time setup by the project owner (the job skips until this exists):
-#   glab variable set GITHUB_MIRROR_TOKEN --repo libs/fi-fhir --masked \
-#     --value <github-pat-with-repo-scope>
+#   glab variable set GITHUB_MIRROR_TOKEN --repo libs/fi-fhir \
+#     --masked --protected --value <github-pat-with-repo-scope>
+#
+# --protected is safe because main is a protected branch and this job only
+# runs there.
 #
 # Only main and tags are mirrored. Work-in-progress branches stay on GitLab.
 mirror:github:
