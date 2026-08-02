@@ -18,6 +18,7 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/minio v0.40.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.40.0
 	github.com/twmb/franz-go v1.21.5
+	github.com/twmb/franz-go/pkg/kmsg v1.13.1
 	github.com/vektah/gqlparser/v2 v2.5.31
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.39.0
@@ -25,7 +26,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.43.0
 	go.temporal.io/api v1.59.0
 	go.temporal.io/sdk v1.39.0
-	golang.org/x/crypto v0.52.0
+	golang.org/x/crypto v0.53.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -104,7 +105,6 @@ require (
 	github.com/tinylib/msgp v1.6.1 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
-	github.com/twmb/franz-go/pkg/kmsg v1.13.1 // indirect
 	github.com/urfave/cli/v3 v3.6.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
@@ -113,15 +113,15 @@ require (
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/exp v0.0.0-20240325151524-a685a6edb6d8 // indirect
-	golang.org/x/mod v0.35.0 // indirect
-	golang.org/x/net v0.55.0 // indirect
-	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.45.0 // indirect
-	golang.org/x/text v0.37.0 // indirect
+	golang.org/x/mod v0.37.0 // indirect
+	golang.org/x/net v0.56.0 // indirect
+	golang.org/x/sync v0.21.0 // indirect
+	golang.org/x/sys v0.46.0 // indirect
+	golang.org/x/text v0.39.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
-	golang.org/x/tools v0.44.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20251222181119-0a764e51fe1b // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20251222181119-0a764e51fe1b // indirect
-	google.golang.org/grpc v1.79.3 // indirect
+	golang.org/x/tools v0.47.0 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260414002931-afd174a4e478 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260414002931-afd174a4e478 // indirect
+	google.golang.org/grpc v1.82.1 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
