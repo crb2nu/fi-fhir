@@ -1173,6 +1173,42 @@ func runParse(args []string) error {
 						r.ParseWarnings = append(r.ParseWarnings, warnings...)
 						allEvents = append(allEvents, r)
 					}
+				case edi.Transaction270:
+					inquiries, err := edi.Map270ToEvents(tx, source)
+					if err != nil {
+						return fmt.Errorf("failed to map 270: %w", err)
+					}
+					for _, i := range inquiries {
+						i.ParseWarnings = append(i.ParseWarnings, warnings...)
+						allEvents = append(allEvents, i)
+					}
+				case edi.Transaction271:
+					responses, err := edi.Map271ToEvents(tx, source)
+					if err != nil {
+						return fmt.Errorf("failed to map 271: %w", err)
+					}
+					for _, r := range responses {
+						r.ParseWarnings = append(r.ParseWarnings, warnings...)
+						allEvents = append(allEvents, r)
+					}
+				case edi.Transaction276:
+					requests, err := edi.Map276ToEvents(tx, source)
+					if err != nil {
+						return fmt.Errorf("failed to map 276: %w", err)
+					}
+					for _, r := range requests {
+						r.ParseWarnings = append(r.ParseWarnings, warnings...)
+						allEvents = append(allEvents, r)
+					}
+				case edi.Transaction277:
+					statuses, err := edi.Map277ToEvents(tx, source)
+					if err != nil {
+						return fmt.Errorf("failed to map 277: %w", err)
+					}
+					for _, s := range statuses {
+						s.ParseWarnings = append(s.ParseWarnings, warnings...)
+						allEvents = append(allEvents, s)
+					}
 				default:
 					// Unknown transaction type - output raw transaction info
 					allEvents = append(allEvents, map[string]interface{}{

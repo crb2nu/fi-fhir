@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -1826,68 +1827,46 @@ func TestParse_EDI_WithoutCompanion(t *testing.T) {
 	_ = stdout
 }
 
-func TestParse_EDI_270_Inquiry(t *testing.T) {
-	ediPath := filepath.Join("..", "..", "testdata", "edi", "270_inquiry.edi")
-	if _, err := os.Stat(ediPath); os.IsNotExist(err) {
-		t.Skip("EDI 270 test file not found")
+func TestParse_EDI_SemanticEventTypes(t *testing.T) {
+	cases := []struct {
+		fixture   string
+		eventType string
+	}{
+		{"270_inquiry.edi", "eligibility_inquiry"},
+		{"271_response.edi", "eligibility_response"},
+		{"271_rejected.edi", "eligibility_response"},
+		{"276_request.edi", "claim_status_request"},
+		{"277_response.edi", "claim_status_response"},
+		{"277_denied.edi", "claim_status_response"},
 	}
 
-	stdout, _, err := runCLI(t, "parse",
-		"--format", "edi",
-		"--edi-companion", "auto",
-		ediPath)
-	if err != nil {
-		t.Logf("Parse EDI 270 error: %v", err)
-	}
-	_ = stdout
-}
+	for _, tc := range cases {
+		t.Run(tc.fixture, func(t *testing.T) {
+			ediPath := filepath.Join("..", "..", "testdata", "edi", tc.fixture)
+			if _, err := os.Stat(ediPath); os.IsNotExist(err) {
+				t.Skipf("EDI test file %s not found", tc.fixture)
+			}
 
-func TestParse_EDI_271_Response(t *testing.T) {
-	ediPath := filepath.Join("..", "..", "testdata", "edi", "271_response.edi")
-	if _, err := os.Stat(ediPath); os.IsNotExist(err) {
-		t.Skip("EDI 271 test file not found")
-	}
+			stdout, _, err := runCLI(t, "parse",
+				"--format", "edi",
+				"--edi-companion", "auto",
+				ediPath)
+			assertNoError(t, err)
 
-	stdout, _, err := runCLI(t, "parse",
-		"--format", "edi",
-		"--edi-companion", "auto",
-		ediPath)
-	if err != nil {
-		t.Logf("Parse EDI 271 error: %v", err)
+			var parsed []map[string]interface{}
+			if err := json.Unmarshal([]byte(stdout), &parsed); err != nil {
+				t.Fatalf("failed to unmarshal parse output: %v", err)
+			}
+			if len(parsed) == 0 {
+				t.Fatal("expected at least one event, got none")
+			}
+			for _, ev := range parsed {
+				if got := ev["type"]; got != tc.eventType {
+					t.Errorf("event type = %v, want %s", got, tc.eventType)
+				}
+			}
+		})
 	}
-	_ = stdout
-}
-
-func TestParse_EDI_276_Request(t *testing.T) {
-	ediPath := filepath.Join("..", "..", "testdata", "edi", "276_request.edi")
-	if _, err := os.Stat(ediPath); os.IsNotExist(err) {
-		t.Skip("EDI 276 test file not found")
-	}
-
-	stdout, _, err := runCLI(t, "parse",
-		"--format", "edi",
-		"--edi-companion", "auto",
-		ediPath)
-	if err != nil {
-		t.Logf("Parse EDI 276 error: %v", err)
-	}
-	_ = stdout
-}
-
-func TestParse_EDI_277_Response(t *testing.T) {
-	ediPath := filepath.Join("..", "..", "testdata", "edi", "277_response.edi")
-	if _, err := os.Stat(ediPath); os.IsNotExist(err) {
-		t.Skip("EDI 277 test file not found")
-	}
-
-	stdout, _, err := runCLI(t, "parse",
-		"--format", "edi",
-		"--edi-companion", "auto",
-		ediPath)
-	if err != nil {
-		t.Logf("Parse EDI 277 error: %v", err)
-	}
-	_ = stdout
 }
 
 func TestParse_EDI_WithInvalidCompanionGuide(t *testing.T) {
