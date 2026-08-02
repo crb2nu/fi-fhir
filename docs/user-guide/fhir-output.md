@@ -286,21 +286,40 @@ fi-fhir fhir validate bundle.json --profile us-core
 
 ## Authentication
 
+Action configuration is a flat map of string values. Nested YAML blocks under
+an action are ignored — always use the flat keys shown below. Values are also
+literal: `${VAR}` references are **not** expanded by `fi-fhir`. Render the file
+before loading it if you need environment-specific secrets:
+
+```bash
+envsubst < workflow.yaml.tmpl > workflow.yaml
+```
+
 ### OAuth2 Client Credentials
 
 ```yaml
 actions:
   - type: fhir
     endpoint: https://fhir.example.com/r4
-    auth:
-      type: oauth2
-      tokenUrl: https://auth.example.com/token
-      clientId: ${FHIR_CLIENT_ID}
-      clientSecret: ${FHIR_CLIENT_SECRET}
-      scopes:
-        - system/Patient.read
-        - system/Patient.write
-        - system/Encounter.write
+    token_url: https://auth.example.com/oauth2/token
+    client_id: my-client-id
+    client_secret: my-client-secret
+    scopes: system/Patient.read,system/Patient.write,system/Encounter.write
+```
+
+`token_url`, `client_id`, and `client_secret` must all be present; if any is
+missing, OAuth2 is skipped and the action falls back to the static `token`
+below. `scopes` is a single string — separate multiple scopes with commas or
+spaces.
+
+### Static Bearer Token
+
+```yaml
+actions:
+  - type: fhir
+    endpoint: https://fhir.example.com/r4
+    token: my-static-bearer-token        # Sends "Authorization: Bearer <token>"
+    # authorization: "Basic ..."         # Or set the Authorization header verbatim
 ```
 
 ### Token Caching
@@ -316,17 +335,21 @@ If a 401 is received:
 
 ## Batch Operations
 
-For high-volume scenarios:
+When an event produces more than one resource, they are sent as a single FHIR
+transaction bundle automatically. Set `bundle` to force a transaction bundle
+even for a single resource:
 
 ```yaml
 actions:
   - type: fhir
     endpoint: https://fhir.example.com/r4
-    batch:
-      enabled: true
-      size: 100                      # Bundle size
-      timeout: 30s
+    token: my-static-bearer-token
+    bundle: "true"                   # Send as a transaction bundle
+    timeout: 30s                     # Request timeout (default: 30s)
 ```
+
+Bundle size is not configurable — a bundle carries exactly the resources
+produced by the event being processed.
 
 ## US Core Profile Compliance
 
