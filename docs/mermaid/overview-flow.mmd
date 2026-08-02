@@ -1,60 +1,61 @@
 flowchart TB
-  subgraph IN["Input formats"]
-    HL7[HL7v2<br/>ADT / ORU / SIU]
-    CSV[CSV / Flatfiles]
-    X12[EDI X12<br/>837 / 835 / 270-271 / 276-277]
-    CDA[CDA / CCDA]
-    FHIR[FHIR R4]
+  subgraph AUTHOR["Authoring — Mapping Studio IDE"]
+    SAMPLE[Sample messages]
+    SESSION[Integration session<br/>profile draft + workflow draft]
+    PREVIEW[Preview run<br/>diagnostics + lineage, no side effects]
+    SIMULATE[Workflow simulation<br/>baseline vs candidate]
+    SAMPLE --> SESSION --> PREVIEW --> SIMULATE
   end
 
-  subgraph CFG["Configuration (per feed)"]
-    P[Source Profile<br/>YAML]
-    W[Workflow Config<br/>YAML + CEL]
+  subgraph LIFECYCLE["Deployment lifecycle — signed, versioned"]
+    LC[draft → validated → approved<br/>→ published → deployed]
+    RETIRE[paused / retired]
+    LC --> RETIRE
   end
 
-  subgraph PARSE["Parse pipeline (3 phases)"]
-    B[Phase 1<br/>Byte normalization]
-    S[Phase 2<br/>Syntactic parse]
-    E[Phase 3<br/>Semantic extraction]
-    B --> S --> E
+  subgraph INGEST["Ingestion — fi-fhir serve"]
+    MLLP[MLLP listener<br/>mTLS, CIDR allowlist, AA/AE/AR ACK]
+    HTTP[HTTP POST /v1/hl7v2<br/>bearer or HMAC]
+    BATCH[Batch worker<br/>S3 / SFTP, leases + checkpoints]
   end
 
-  subgraph CANON["Canonical layer"]
-    EV[Canonical events]
-    WARN[Warnings<br/>recoverable anomalies]
+  subgraph KERNEL["Message processor — shared kernel"]
+    RESOLVE[Resolve immutable revision<br/>sha256 digest verified]
+    PARSE[Parse + project<br/>HL7v2 ADT^A01]
+    PLAN[Workflow planner<br/>routes + CEL filters, plans only]
+    RESOLVE --> PARSE --> PLAN
   end
 
-  subgraph FLOW["Workflow engine"]
-    R[Routes + filters<br/>CEL]
-    T[Transforms]
-    A[Actions]
-    R --> T --> A
+  subgraph DURABLE["Durable submission — single PostgreSQL transaction"]
+    RECEIPT[Receipts, canonical events, lineage]
+    OUTBOX[(Delivery outbox)]
+    RECEIPT --> OUTBOX
   end
 
-  subgraph OUT["Side effects"]
-    OFHIR[FHIR API]
-    WH[Webhook]
-    DB[(Database)]
-    MQ[(Queue)]
-    LOG[Logs / metrics]
+  subgraph DELIVER["Delivery dispatcher"]
+    RETRY[Retry with backoff<br/>per-destination circuit breaker]
+    KAFKA[Kafka]
+    DLQ[(Dead letter queue)]
+    RETRY --> KAFKA
+    RETRY --> DLQ
   end
 
-  HL7 --> B
-  CSV --> B
-  X12 --> B
-  CDA --> B
-  FHIR --> B
+  subgraph CLIPLANE["CLI plane — fi-fhir parse / workflow"]
+    FORMATS[HL7v2 · CSV · EDI X12 · CDA]
+    EVENTS[Canonical events + warnings]
+    ENGINE[Workflow engine<br/>routes → transforms → actions]
+    ACTIONS[log · webhook · fhir · email · exec<br/>file · database · queue · event_store]
+    FORMATS --> EVENTS --> ENGINE --> ACTIONS
+  end
 
-  P -. configures .-> B
-  P -. configures .-> E
-  W -. configures .-> R
+  SIMULATE --> LC
+  LC -. gates every message .-> INGEST
 
-  E --> EV
-  E --> WARN
-  EV --> R
+  MLLP --> RESOLVE
+  HTTP --> RESOLVE
+  BATCH --> RESOLVE
+  PLAN --> RECEIPT
+  OUTBOX --> RETRY
+  DLQ -. replay / resubmit .-> RETRY
 
-  A --> OFHIR
-  A --> WH
-  A --> DB
-  A --> MQ
-  A --> LOG
+  PREVIEW -. same kernel, preview mode .-> RESOLVE

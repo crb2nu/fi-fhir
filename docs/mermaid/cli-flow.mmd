@@ -1,5 +1,14 @@
 flowchart TB
-  MSG[Input message] -->|fi-fhir parse| EVT[event.json<br/>events + warnings]
-  CFG[Workflow config<br/>YAML] -.->|--config| RUN
-  EVT --> RUN[fi-fhir workflow run<br/>--dry-run optional]
-  RUN --> OUT[Side effects<br/>FHIR / webhook / DB / queue / log]
+  MSG[Input message or stdin] -->|fi-fhir parse<br/>--format hl7v2 / csv / edi / cda| EVT[event JSON<br/>events + parse_warnings]
+  PROF[Source Profile<br/>YAML] -.->|--profile| MSG
+  CFG[Workflow config<br/>YAML + CEL] -.->|--config| RUN
+
+  EVT --> RUN[fi-fhir workflow]
+
+  RUN --> SUBRUN[run<br/>executes actions]
+  RUN --> SUBDRY[dry-run<br/>shows matches only]
+  RUN --> SUBSIM[simulate<br/>mock actions]
+
+  SUBRUN --> OUT[Side effects<br/>log · webhook · fhir · email · exec<br/>file · database · queue · event_store]
+
+  SERVE[fi-fhir serve] --> NOTE[GraphQL API + HTTP ingress<br/>+ MLLP + batch + delivery worker]

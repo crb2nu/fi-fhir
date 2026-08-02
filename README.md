@@ -2,7 +2,7 @@
 
 # fi-fhir
 
-A format-agnostic healthcare integration platform that transforms legacy formats (HL7v2, CSV, EDI X12) into semantic events and routes them through configurable workflows.
+A format-agnostic healthcare integration platform that transforms legacy formats (HL7v2, CSV, EDI X12, CDA) into semantic events and routes them through configurable workflows.
 
 [![pipeline status](https://gitlab.flexinfer.ai/libs/fi-fhir/badges/main/pipeline.svg)](https://gitlab.flexinfer.ai/libs/fi-fhir/-/commits/main)
 [![coverage report](https://gitlab.flexinfer.ai/libs/fi-fhir/badges/main/coverage.svg)](https://gitlab.flexinfer.ai/libs/fi-fhir/-/commits/main)
@@ -13,13 +13,26 @@ fi-fhir addresses a core problem in healthcare integration: **users think in wor
 
 Instead of writing code that references `PID.3.1` or `OBX.5`, you work with semantic events like `patient_admit` and `lab_result`. The library handles format parsing, field mapping, validation, and routing automatically.
 
+fi-fhir runs as two planes. The CLI plane (`fi-fhir parse`, `fi-fhir workflow`)
+parses any supported format and executes actions directly, which suits scripting
+and local iteration. The integration engine (`fi-fhir serve`) accepts HL7v2 over
+MLLP, an authenticated HTTP endpoint, or S3/SFTP batch, resolves an immutable
+content-addressed revision, records a durable receipt, and delivers through an
+outbox with retry and circuit breaking.
+
 ![Overview Dataflow](docs/mermaid/overview-flow.svg)
 
 ![CLI Dataflow](docs/mermaid/cli-flow.svg)
 
 ## Mapping Studio (UI)
 
-The `ui/` app is a SvelteKit 5 “Mapping Studio” designed to make ETL approachable for non-developers: iterate on **samples → warnings → profile/workflow drafts → run/dry-run**.
+The `ui/` app is a SvelteKit 5 "Mapping Studio": a VS Code-style shell with an
+activity bar, editor tabs, and a bottom panel for Output, Problems, Debug,
+Trace, and Copilot. Work is organized as a five-stage journey — source intake,
+normalization, translation, delivery, and verification — around a mission
+control dashboard. Preview runs stream stage events, diagnostics, and field
+lineage over GraphQL SSE, and a workflow draft can be simulated and then
+published, approved, and deployed.
 
 ![Mapping Studio Loop](docs/mermaid/ui-mapping-flow.svg)
 
@@ -44,13 +57,21 @@ See `ui/README.md` for the current UI roadmap and dev commands.
 
 ## Features
 
-- **Multi-format parsing**: HL7v2, CSV/flatfiles, EDI X12 (837, 835, 270/271, 276/277)
+- **Multi-format parsing**: HL7v2, CSV/flatfiles, EDI X12, CDA/CCDA
 - **Workflow DSL**: YAML-based routing with CEL expression filters
 - **FHIR R4 output**: US Core profile mapper with Patient, Encounter, Observation, DiagnosticReport
-- **Multiple actions**: FHIR, webhook, database (PostgreSQL/MySQL/SQLite), message queue (Kafka)
+- **Multiple actions**: log, webhook, FHIR, email, exec, file, database (PostgreSQL/MySQL/SQLite), message queue (Kafka), event store
+- **Production ingestion**: MLLP listener with mTLS and ACK semantics, authenticated HTTP endpoint, S3/SFTP batch worker
+- **Deployment lifecycle**: immutable content-addressed revisions, draft → validated → approved → published → deployed
 - **Reliability**: Retry with backoff, circuit breaker, dead letter queue, rate limiting
 - **Observability**: Prometheus metrics, OpenTelemetry tracing, structured logging
 - **Production-ready**: Helm chart, CI/CD pipelines, security hardening guide
+
+### Companion tool
+
+[edilint](https://github.com/crb2nu/edilint) is a single-binary pre-send linter for interchange files from the same author.
+It began as fi-fhir's lint pass and now runs as the gate in front of the pipeline fi-fhir provides, catching malformed
+files before they are transmitted.
 
 ## Installation
 
@@ -70,14 +91,19 @@ make build
 
 ```bash
 docker pull registry.gitlab.flexinfer.ai/libs/fi-fhir:latest
-docker run -p 8080:8080 registry.gitlab.flexinfer.ai/libs/fi-fhir:latest
+
+# The entrypoint is the CLI, so pass a subcommand
+docker run --rm registry.gitlab.flexinfer.ai/libs/fi-fhir:latest version
 ```
+
+`fi-fhir serve` fails closed unless the authenticated preview runtime is
+configured. Use `docker-compose up -d` below for a runnable local stack.
 
 ### Helm
 
 ```bash
 helm install fi-fhir deploy/helm/fi-fhir/ \
-  --set config.fhir.endpoint=https://fhir.example.com
+  --set secrets.fhir.baseUrl=https://fhir.example.com
 ```
 
 ## Quick Start
@@ -113,7 +139,7 @@ workflow:
           resource: Patient
         - type: log
           level: info
-          message: "Patient admitted: {{.Patient.Name.Family}}"
+          message: "Patient admitted: {{.patient.family_name}}"
 EOF
 
 # Process events through workflow
@@ -121,8 +147,12 @@ fi-fhir parse --format hl7v2 message.hl7 | \
   fi-fhir workflow run --config workflow.yaml
 
 # Dry-run mode (no side effects)
-fi-fhir workflow run --dry-run --config workflow.yaml event.json
+fi-fhir workflow dry-run --config workflow.yaml event.json
 ```
+
+Action templates are Go templates evaluated against the event JSON, so field
+paths use the JSON key names (`{{.patient.family_name}}`), not Go struct field
+names.
 
 ### 3. Validate Configuration
 
@@ -144,7 +174,11 @@ fi-fhir config show
 | ADT^A04 | Register (outpatient) | `patient_admit` |
 | ADT^A08 | Update patient info | `patient_update` |
 | ORU^R01 | Lab result | `lab_result` |
-| SIU^S12-S15, S26 | Scheduling | `appointment_booked`, `appointment_cancelled` |
+| RDE^O11 | Pharmacy order | `medication_request` |
+| VXU^V04 | Immunization update | `immunization` |
+| SIU^S12-S15, S26 | Scheduling | `appointment_scheduled`, `appointment_rescheduled`, `appointment_modified`, `appointment_cancelled`, `appointment_noshow` |
+| MDM^T01-T11 | Clinical documents | `document_original`, `document_status_change`, `document_addendum`, `document_edit`, `document_replacement` |
+| DFT^P03, P11 | Financial transaction | `financial_transaction` |
 
 ### EDI X12
 
@@ -152,15 +186,22 @@ fi-fhir config show
 |-------------|-------------|----------------|
 | 837P | Professional claim | `claim_submitted` |
 | 837I | Institutional claim | `claim_submitted` |
-| 835 | Remittance advice | `claim_response` |
+| 835 | Remittance advice | `claim_adjudicated` |
 | 270 | Eligibility inquiry | `eligibility_inquiry` |
 | 271 | Eligibility response | `eligibility_response` |
-| 276 | Claim status inquiry | `claim_status_inquiry` |
+| 276 | Claim status request | `claim_status_request` |
 | 277 | Claim status response | `claim_status_response` |
 
 `fi-fhir parse --format edi` emits semantic events for every transaction set above.
 The parser also recognizes 278 and 834, but no event mappers exist for them yet;
-those transaction sets parse to a generic `unknown_transaction` record.
+those transaction sets parse to a generic `unknown_transaction` record. Payer
+companion guide validation is available via `--edi-companion`; see
+`fi-fhir companion list`.
+
+### CDA/CCDA
+
+- Section parsers for medications, allergies, and social history
+- Narrative extraction
 
 ### CSV/Flatfiles
 
@@ -225,20 +266,20 @@ actions:
     operation: upsert
     table: events
     fields:
-      patient_mrn: "{{.Patient.MRN}}"
-      event_type: "{{.Type}}"
+      patient_mrn: "{{.patient.mrn}}"
+      event_type: "{{.type}}"
 
   # Message queue
   - type: queue
     driver: kafka
     brokers: ${KAFKA_BROKERS}
     topic: healthcare-events
-    key: "{{.Patient.MRN}}"
+    key: "{{.patient.mrn}}"
 
   # Logging
   - type: log
     level: info
-    message: "Processed: {{.Type}} for {{.Patient.MRN}}"
+    message: "Processed: {{.type}} for {{.patient.mrn}}"
 ```
 
 ## TypeScript SDK
@@ -346,12 +387,16 @@ helm install fi-fhir deploy/helm/fi-fhir/ \
 
 ### Metrics (Prometheus)
 
+Metrics use the `fi_fhir` namespace and `workflow` subsystem:
+
 ```
-workflow_events_processed_total
-workflow_action_duration_seconds
-workflow_action_errors_total
-workflow_dlq_size
-workflow_circuit_breaker_state
+fi_fhir_workflow_events_processed_total
+fi_fhir_workflow_events_processed_duration_seconds
+fi_fhir_workflow_actions_executed_total
+fi_fhir_workflow_actions_executed_duration_seconds
+fi_fhir_workflow_action_retries_total
+fi_fhir_workflow_circuit_breaker_state_changes_total
+fi_fhir_workflow_dlq_depth
 ```
 
 ### Tracing (OpenTelemetry)
@@ -375,14 +420,23 @@ export OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
 fi-fhir/
 ├── cmd/fi-fhir/           # CLI entry point
 ├── internal/
-│   ├── parser/            # Format parsers (hl7v2, csv, edi)
-│   ├── semantic/          # Event transformation
-│   └── workflow/          # Workflow engine
+│   ├── parser/            # Format parsers (hl7v2, csv, edi, cda, fhir)
+│   ├── integration/       # Integration engine (ingress, mllp, batch,
+│   │                      #   processor, lifecycle, delivery, session)
+│   ├── workflow/          # Workflow engine and actions
+│   ├── api/               # GraphQL server and resolvers
+│   ├── terminology/       # Terminology services
+│   ├── fhir/              # FHIR client and subscriptions
+│   └── llm/               # LLM-backed operations
 ├── pkg/
 │   ├── events/            # Public semantic event types
+│   ├── integration/       # Immutable revision and policy types
 │   ├── config/            # Configuration management
 │   ├── profile/           # Source profiles
+│   ├── eventsourcing/     # Event store and projections
+│   ├── storage/           # Object storage
 │   └── validate/          # Identifier validators (NPI, MBI, SSN)
+├── ui/                    # SvelteKit Mapping Studio
 ├── api/                   # OpenAPI specification
 ├── deploy/
 │   ├── helm/              # Helm chart
