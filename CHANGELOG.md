@@ -303,6 +303,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- README action templates now use the JSON key paths the workflow engine
+  actually evaluates (`{{.patient.family_name}}`), replacing Go struct field
+  paths (`{{.Patient.Name.Family}}`) that silently rendered `<no value>`.
+- README dry-run example now calls the `fi-fhir workflow dry-run` subcommand;
+  `fi-fhir workflow run` has no `--dry-run` flag.
+- README Prometheus metric names corrected to the emitted `fi_fhir_workflow_*`
+  namespace, replacing names that matched no registered metric.
+- README project structure, format tables, semantic event names, and Helm
+  install flag corrected against the current code.
+- Mermaid diagram sources regenerated to reflect the integration engine,
+  deployment lifecycle, and IDE journey added in phases 1 through 3.
+
 - Concurrent durable receipt insertion now arbitrates both the deterministic
   receipt primary key and tenant/idempotency key before the authoritative stored-
   result lookup and request-fingerprint validation, preventing valid duplicate

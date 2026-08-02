@@ -1,26 +1,43 @@
 flowchart TB
-  subgraph USER["User / analyst"]
-    SAMPLES[Sample HL7 feed messages]
+  SAMPLES[Sample HL7 feed messages] --> GATE
+
+  subgraph SHELL["Mapping Studio — IDE shell"]
+    GATE[Credential gate]
+    CHROME[Activity bar · editor tabs · split pane<br/>command palette · status bar]
+    PANEL[Bottom panel<br/>Output · Problems · Debug · Trace · Copilot]
+    GATE --> CHROME --> PANEL
   end
 
-  subgraph UI["Mapping Studio (SvelteKit UI)"]
-    INBOX[Inbox<br/>collect + label samples]
-    TRIAGE[Preview & triage<br/>phase warnings]
-    PROFILE[Profile draft<br/>tolerance + identifiers]
-    WORKFLOW[Workflow draft<br/>routes + transforms + actions]
-    INBOX --> TRIAGE --> PROFILE --> WORKFLOW
+  subgraph JOURNEY["Five-stage journey"]
+    HUB[Mission control]
+    S1[1 Source intake · /hl7]
+    S2[2 Normalization · /profiles]
+    S3[3 Translation · /terminology]
+    S4[4 Delivery · /workflows]
+    S5[5 Verification · /events]
+    HUB --> S1 --> S2 --> S3 --> S4 --> S5 --> HUB
   end
+
+  TRANSPORT[POST /graphql<br/>typed queries and mutations<br/>SSE subscriptions on the same endpoint<br/>WebSocket transport closed]
 
   subgraph CORE["fi-fhir core"]
-    PARSE[Parse pipeline<br/>3 phases]
-    EVT[Canonical events<br/>+ warnings]
-    RUN[Workflow engine]
-    OUT[Actions<br/>FHIR/webhook/DB/queue/log]
-    PARSE --> EVT --> RUN --> OUT
+    SESSION[Integration session<br/>durable, PostgreSQL]
+    EVT[Canonical events<br/>diagnostics + lineage]
+    SIM[Workflow simulation]
+    PUB[Publish → approve → deploy<br/>Ed25519 signed manifest]
+    LLM[LLM operations]
+    SESSION --> EVT --> SIM --> PUB
   end
 
-  SAMPLES --> INBOX
-  INBOX -. preview .-> PARSE
-  PROFILE -. exports YAML .-> PARSE
-  TRIAGE -. explains .-> EVT
-  WORKFLOW -. run / dry-run .-> RUN
+  SHELL --> JOURNEY
+  JOURNEY --> TRANSPORT
+  TRANSPORT --> CORE
+
+  S1 -. sample + profile revision, run preview .-> SESSION
+  S2 -. profile revisions .-> SESSION
+  S3 -. terminology mappings .-> EVT
+  S4 -. workflow draft, simulate, publish .-> SIM
+  S5 -. browse + live stream .-> EVT
+
+  EVT -. SSE stage, diagnostic, lineage events .-> PANEL
+  PANEL -. explain · generate · suggest · review .-> LLM

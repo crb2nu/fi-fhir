@@ -14,6 +14,7 @@ stages:
   - scan # Post-build security (trivy image scans)
   - deploy
   - release
+  - mirror # Push main + tags to the public GitHub mirror
 
 variables:
   GO_VERSION: "1.26.5"
@@ -2155,6 +2156,42 @@ release:gitlab:
           link_type: package
   rules:
     - if: $CI_COMMIT_TAG
+
+# =============================================================================
+# Mirror Stage
+# =============================================================================
+
+# Keeps the public GitHub mirror (github.com/crb2nu/fi-fhir) in sync with
+# GitLab, which is the primary. Runs last on default-branch pushes.
+#
+# One-time setup by the project owner (the job skips until this exists):
+#   glab variable set GITHUB_MIRROR_TOKEN --repo libs/fi-fhir --masked \
+#     --value <github-pat-with-repo-scope>
+#
+# Only main and tags are mirrored. Work-in-progress branches stay on GitLab.
+mirror:github:
+  stage: mirror
+  image: ${DOCKERHUB_CACHE_PREFIX}/alpine/git:latest
+  variables:
+    GIT_STRATEGY: clone
+    GIT_DEPTH: 0
+  script:
+    - |
+      set -eu
+      if [ -z "${GITHUB_MIRROR_TOKEN:-}" ]; then
+        echo "GITHUB_MIRROR_TOKEN is not set; skipping GitHub mirror push."
+        echo "Set it with: glab variable set GITHUB_MIRROR_TOKEN --repo libs/fi-fhir --masked"
+        exit 0
+      fi
+      git remote remove github 2>/dev/null || true
+      git remote add github "https://x-access-token:${GITHUB_MIRROR_TOKEN}@github.com/crb2nu/fi-fhir.git"
+      # Fetch first so --force-with-lease has an accurate remote-tracking ref.
+      git fetch github --prune --tags
+      git push --force-with-lease github "HEAD:refs/heads/${CI_DEFAULT_BRANCH}"
+      git push --force-with-lease --tags github
+      echo "Mirrored ${CI_COMMIT_SHA} to github.com/crb2nu/fi-fhir"
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 radar-scan:
   extends: .radar-scan

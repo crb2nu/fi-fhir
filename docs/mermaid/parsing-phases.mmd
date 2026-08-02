@@ -1,6 +1,8 @@
 flowchart LR
-  RAW[Raw bytes] --> B[Phase 1: Byte normalization]
-  B --> S[Phase 2: Syntactic parse]
-  S --> E[Phase 3: Semantic extraction]
+  RAW[Raw bytes] --> B[byte<br/>normalization + framing]
+  B --> S[syntactic<br/>segment and field structure]
+  S --> E[semantic<br/>event projection]
   E --> EV[Canonical events + warnings]
 
+  NOTE[Phase labels carried on HL7v2 warnings.<br/>EDI uses envelope, CSV uses parse,<br/>CDA uses cda and mapping.]
+  NOTE -.-> B
