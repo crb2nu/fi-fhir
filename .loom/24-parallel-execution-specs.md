@@ -353,8 +353,13 @@ Break `.loom/20-product-spec.md` and the P3 backlog into independent child specs
 
 ## Suggested Execution Order
 
-1. **Wave P1 (parallel)**: Lane A, Lane B, Lane D, Lane F.
+1. ~~**Wave P1 (parallel)**: Lane A, Lane B, Lane D, Lane F.~~ **Done 2026-06-19.**
 2. **Wave P2 (after D baseline)**: Lane C, Lane E CI promotion changes.
+   - Lane C1 (expiry sweep) **done 2026-08-03**.
+   - **Next: Lane C2** (notifications) and **Lane E**. Lane E now has stronger
+     promotion evidence than when this doc was written: `test:integration`
+     covers the terminology DB store (Lane D) and the sweep kill-test (C1), but
+     is still `allow_failure: true`.
 3. **Wave P3**: Child speclet implementation MRs selected from Lane F based on customer pull or issue priority.
 
 ## Sources
