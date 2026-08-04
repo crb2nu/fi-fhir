@@ -96,7 +96,20 @@ type TerminologyConfig struct {
 	// Policy controls behavior when pins do not match the active DB release:
 	// pass (ignore), warn (emit warnings), error (fail).
 	Policy string `yaml:"policy" json:"policy"`
+
+	// AutorouteSweepInterval is how often serve reconciles the stored status of
+	// pending autoroutes whose expiry has passed. A non-positive value disables
+	// the sweep. Disabling it is safe for correctness of the review queue —
+	// reads already treat time-expired pending rows as expired — but leaves the
+	// stored status column stale.
+	AutorouteSweepInterval time.Duration `yaml:"autoroute_sweep_interval" json:"autoroute_sweep_interval"`
 }
+
+// DefaultAutorouteSweepInterval is the default pending-autoroute expiry sweep
+// cadence. Expiry is not latency-sensitive: the review queue already hides and
+// counts time-expired rows as expired at query time, so the sweep only
+// reconciles the stored status column.
+const DefaultAutorouteSweepInterval = 15 * time.Minute
 
 // DatabaseConfig holds database connection settings.
 type DatabaseConfig struct {
@@ -301,8 +314,9 @@ func Default() *Config {
 			AuthType: "none",
 		},
 		Terminology: TerminologyConfig{
-			Pins:   make(map[string]string),
-			Policy: "warn",
+			Pins:                   make(map[string]string),
+			Policy:                 "warn",
+			AutorouteSweepInterval: DefaultAutorouteSweepInterval,
 		},
 		LLM: LLMConfig{
 			Enabled:      false, // Disabled by default, enable explicitly
@@ -462,6 +476,8 @@ func (c *Config) ApplyEnv() {
 	if pinsRaw := os.Getenv("FI_FHIR_TERMINOLOGY_PINS"); pinsRaw != "" {
 		c.Terminology.Pins = parseKeyValueList(pinsRaw)
 	}
+	c.Terminology.AutorouteSweepInterval = getEnvDuration(
+		"FI_FHIR_TERMINOLOGY_AUTOROUTE_SWEEP_INTERVAL", c.Terminology.AutorouteSweepInterval)
 
 	// LLM
 	c.LLM.Enabled = getEnvBool("FI_FHIR_LLM_ENABLED", c.LLM.Enabled)

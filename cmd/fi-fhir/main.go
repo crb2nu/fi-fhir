@@ -3168,6 +3168,7 @@ func runConfigEnv(args []string) error {
 		{"terminology", "FI_FHIR_TERMINOLOGY_DB_URL", "PostgreSQL connection string for terminology database", ""},
 		{"terminology", "FI_FHIR_TERMINOLOGY_PINS", "Terminology version pins (e.g. \"loinc=2.77,icd10cm=FY2024\")", ""},
 		{"terminology", "FI_FHIR_TERMINOLOGY_POLICY", "Pin enforcement policy (pass, warn, error)", "warn"},
+		{"terminology", "FI_FHIR_TERMINOLOGY_AUTOROUTE_SWEEP_INTERVAL", "Pending autoroute expiry sweep cadence (0 disables)", "15m"},
 
 		// Database
 		{"database", "FI_FHIR_DATABASE_DRIVER", "Database driver (postgres, mysql, sqlite)", "postgres"},
@@ -4817,6 +4818,7 @@ func runServe(args []string) error {
 	var temporalWorker *termworkflow.Worker
 	var autorouteEngine *autoroute.Engine
 	var mappingStore *termdb.MappingStore
+	var autorouteSweeper *autoroute.Sweeper
 
 	if dbURL != "" {
 		// Initialize mapping store from terminology database.
@@ -4828,6 +4830,33 @@ func runServe(args []string) error {
 		} else {
 			mappingStore = termdb.NewMappingStore(mappingDB)
 			resolverOpts = append(resolverOpts, resolvers.WithMappingStore(mappingStore))
+		}
+	}
+
+	// Pending autoroute expiry sweep. Reads already treat time-expired pending
+	// rows as expired, so this only reconciles the stored status column; a
+	// non-positive interval disables it.
+	if mappingStore != nil {
+		sweepInterval := runtimeConfig.Terminology.AutorouteSweepInterval
+		if sweepInterval <= 0 {
+			fmt.Println("Pending autoroute expiry sweep: disabled")
+		} else if sweeper, sweepErr := autoroute.NewSweeper(autoroute.SweeperConfig{
+			Store:    mappingStore,
+			Interval: sweepInterval,
+			Observe: func(result autoroute.SweepResult, observeErr error) {
+				if observeErr != nil {
+					fmt.Fprintf(os.Stderr, "Warning: pending autoroute sweep failed: %v\n", observeErr)
+					return
+				}
+				if result.Expired > 0 {
+					fmt.Printf("Pending autoroute sweep: expired=%d duration=%s\n",
+						result.Expired, result.Duration.Round(time.Millisecond))
+				}
+			},
+		}); sweepErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: pending autoroute sweep disabled: %v\n", sweepErr)
+		} else {
+			autorouteSweeper = sweeper
 		}
 	}
 
@@ -5005,7 +5034,7 @@ func runServe(args []string) error {
 		name string
 		err  error
 	}
-	errCh := make(chan componentError, 4)
+	errCh := make(chan componentError, 5)
 	go func() {
 		errCh <- componentError{name: "GraphQL", err: server.Start()}
 	}()
@@ -5027,6 +5056,12 @@ func runServe(args []string) error {
 		}()
 		fmt.Println("Lifecycle-gated S3/SFTP batch ingestion enabled")
 	}
+	if autorouteSweeper != nil {
+		go func() {
+			errCh <- componentError{name: "autoroute-sweep", err: autorouteSweeper.Run(serveCtx)}
+		}()
+		fmt.Printf("Pending autoroute expiry sweep enabled (every %s)\n", autorouteSweeper.Interval())
+	}
 	cleanupExternalRuntimes := func() {
 		if temporalWorker != nil {
 			temporalWorker.Stop()
@@ -5037,9 +5072,10 @@ func runServe(args []string) error {
 	}
 	waitForBackgroundStops := func(alreadyStopped string) error {
 		waiting := map[string]bool{
-			"MLLP":     securePreviewRuntime.mllpServer != nil && alreadyStopped != "MLLP",
-			"delivery": securePreviewRuntime.deliveryWorker != nil && alreadyStopped != "delivery",
-			"batch":    securePreviewRuntime.batchRunner != nil && alreadyStopped != "batch",
+			"MLLP":            securePreviewRuntime.mllpServer != nil && alreadyStopped != "MLLP",
+			"delivery":        securePreviewRuntime.deliveryWorker != nil && alreadyStopped != "delivery",
+			"batch":           securePreviewRuntime.batchRunner != nil && alreadyStopped != "batch",
+			"autoroute-sweep": autorouteSweeper != nil && alreadyStopped != "autoroute-sweep",
 		}
 		remaining := 0
 		for _, enabled := range waiting {

@@ -263,6 +263,33 @@ func TestApplyEnvLLMLegacyFallback(t *testing.T) {
 	}
 }
 
+func TestApplyEnvAutorouteSweepInterval(t *testing.T) {
+	tests := []struct {
+		name string
+		env  string
+		want time.Duration
+	}{
+		{"unset keeps default", "", DefaultAutorouteSweepInterval},
+		{"override", "90s", 90 * time.Second},
+		{"zero disables", "0", 0},
+		{"explicit zero duration disables", "0s", 0},
+		{"unparseable keeps default", "not-a-duration", DefaultAutorouteSweepInterval},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("FI_FHIR_TERMINOLOGY_AUTOROUTE_SWEEP_INTERVAL", tt.env)
+
+			cfg := Default()
+			cfg.ApplyEnv()
+
+			if cfg.Terminology.AutorouteSweepInterval != tt.want {
+				t.Errorf("AutorouteSweepInterval = %s, want %s",
+					cfg.Terminology.AutorouteSweepInterval, tt.want)
+			}
+		})
+	}
+}
+
 func TestLoad(t *testing.T) {
 	// Create temp config file
 	tmpDir := t.TempDir()

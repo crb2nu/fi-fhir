@@ -63,7 +63,7 @@
 | Integration Sessions  | `internal/integration/session/`   | Alpha      | —        | Restart-safe workspace, simulation, signed tested-revision publication, exact lifecycle promotion | 2026-07-18 |
 | GraphQL API           | `internal/api/graphql/`           | Beta       | 9.5%\*   | Bounded POST plus session-only SSE; WebSocket disabled | 2026-07-16 |
 | FHIR Subscriptions    | `internal/fhir/subscription/`     | Production | 83.7%    | Bidirectional; client + webhook receiver         | 2026-02-27   |
-| Terminology Autoroute | `internal/terminology/autoroute/` | Beta       | 88.5%    | Automatic code-system routing engine             | 2026-03-09   |
+| Terminology Autoroute | `internal/terminology/autoroute/` | Beta       | 91.6%    | Routing engine + serve-time pending-expiry sweep  | 2026-08-03   |
 | Terminology Workflow  | `internal/terminology/workflow/`  | Production | 95.7%    | Temporal workflow + activity + worker unit tests | 2026-03-03   |
 | LLM Explain           | `internal/llm/explain/`           | Production | 99.7%    | Warning + workflow explanation generation        | 2026-02-28   |
 | LLM Extract           | `internal/llm/extract/`           | Production | 84.3%    | Structured data extraction from documents        | 2026-03-09   |

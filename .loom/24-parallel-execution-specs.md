@@ -143,7 +143,43 @@ Run a unit test where both `FI_FHIR_LLM_BASE_URL` and `LLM_BASE_URL` are set to 
 
 ## Lane C - Pending Autoroute Sweep + Notifications
 
-**Branch suggestion**: `codex/autoroute-review-automation`
+**Status**: split into C1 and C2.
+- **C1 — expiry sweep: SHIPPED (2026-08-03, branch `feat/autoroute-expiry-sweep`)**.
+  Covers tasks 1-2 and the Lane C kill-test.
+- **C2 — notifications: OPEN**. Covers tasks 3-5.
+
+**Branch suggestion**: `codex/autoroute-review-automation` (C2)
+
+### C1 as shipped
+
+`internal/terminology/autoroute/sweeper.go` adds a `Sweeper` with
+`SweepOnce(ctx)` / `Run(ctx)`, wired into `serve` as a background component
+under the existing `serveCtx` / `errCh` / `waitForBackgroundStops` boundary, so
+it cancels with the server like the MLLP, delivery, and batch runners.
+
+Decisions worth preserving:
+- The sweeper depends on a narrow `PendingAutorouteExpirer` interface, not on
+  `*db.MappingStore`. Scheduling stays out of the DB package (the Lane C
+  non-goal, generalized) and sweep logic is unit-testable without Postgres.
+- Cadence is `FI_FHIR_TERMINOLOGY_AUTOROUTE_SWEEP_INTERVAL`, default `15m`,
+  `0` disables. Config owns the default; the constructor rejects a
+  non-positive interval rather than silently no-opping.
+- `Run` sweeps immediately on boot (reconciling rows that expired while the
+  process was down), then on each tick. A failing iteration is reported and the
+  loop continues — a database blip must not take down serve. Cancellation
+  returns `nil` so normal shutdown is not reported as a component failure.
+- Observability is a typed `SweepResult` plus an `Observe` hook that serve
+  prints. There is no serve-wide Prometheus registry to hook today: the only
+  Prometheus code is `internal/workflow/metrics_prometheus.go`, whose interface
+  is events/actions/DLQ shaped. The hook keeps a metrics adapter cheap later.
+- The kill-test lives in the **external** `db_test` package at
+  `pkg/terminology/db/sweeper_integration_test.go`, because
+  `internal/terminology/autoroute` transitively imports `pkg/terminology/db`
+  and an in-package test would be an import cycle. It needs no
+  `.gitlab-ci.yml` change: CI already runs `./pkg/terminology/db/`.
+
+C1 limitation to carry into Lane E: `test:integration` is still
+`allow_failure: true`, so the kill-test runs in CI but does not block.
 
 ### Goal
 
@@ -157,16 +193,17 @@ Finish the deferred operational loop for pending autoroutes: keep the status col
 
 ### Tasks
 
-1. Add a serve-time background sweep that periodically calls `MappingStore.ExpirePendingAutoroutes(ctx)`.
+1. **[C1 done]** Add a serve-time background sweep that periodically calls `MappingStore.ExpirePendingAutoroutes(ctx)`.
    - Scope it to serve/runtime initialization where `mappingStore` exists.
    - Use context cancellation on server shutdown.
    - Make interval configurable, with a conservative default.
-2. Add structured logging/metrics for sweep count and failures.
-3. Design a notification interface around "new pending autoroute created" or "high-confidence pending review".
+2. **[C1 done, logging only]** Add structured logging/metrics for sweep count and failures.
+   Metrics deferred: no shared serve-wide registry exists yet (see decisions above).
+3. **[C2]** Design a notification interface around "new pending autoroute created" or "high-confidence pending review".
    - Initial implementation can be webhook-only using existing workflow/webhook utilities or a small HTTP client.
    - Config should align with the planning key `notification_webhook`: `docs/planning/TERMINOLOGY-MAPPING.md:1493-1494`.
-4. Ensure notification dispatch cannot block creation of a pending autoroute.
-5. Add tests for sweep invocation and notification error handling.
+4. **[C2]** Ensure notification dispatch cannot block creation of a pending autoroute.
+5. **[C1 done for sweep; C2 for notifications]** Add tests for sweep invocation and notification error handling.
 
 ### Acceptance Criteria
 
@@ -316,8 +353,13 @@ Break `.loom/20-product-spec.md` and the P3 backlog into independent child specs
 
 ## Suggested Execution Order
 
-1. **Wave P1 (parallel)**: Lane A, Lane B, Lane D, Lane F.
+1. ~~**Wave P1 (parallel)**: Lane A, Lane B, Lane D, Lane F.~~ **Done 2026-06-19.**
 2. **Wave P2 (after D baseline)**: Lane C, Lane E CI promotion changes.
+   - Lane C1 (expiry sweep) **done 2026-08-03**.
+   - **Next: Lane C2** (notifications) and **Lane E**. Lane E now has stronger
+     promotion evidence than when this doc was written: `test:integration`
+     covers the terminology DB store (Lane D) and the sweep kill-test (C1), but
+     is still `allow_failure: true`.
 3. **Wave P3**: Child speclet implementation MRs selected from Lane F based on customer pull or issue priority.
 
 ## Sources
