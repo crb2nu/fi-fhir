@@ -1505,6 +1505,37 @@ FI_FHIR_MAPPING_LLM_MODEL=gpt-4o-mini
 FI_FHIR_MAPPING_QDRANT_URL=http://qdrant:6333
 ```
 
+### Pending Autoroute Expiry Sweep (implemented)
+
+Unlike the `FI_FHIR_MAPPING_*` names above, which are design intent, this
+variable is read by `serve` today:
+
+```bash
+# Cadence for reconciling the stored status of expired pending autoroutes.
+# Default 15m. Set to 0 to disable the sweep.
+FI_FHIR_TERMINOLOGY_AUTOROUTE_SWEEP_INTERVAL=15m
+```
+
+Expiry is enforced in two independent places, and the review queue depends only
+on the first:
+
+1. **At query time (authoritative).** `ListPendingAutoroutes` hides, and
+   `CountPendingAutoroutes` counts as expired, any pending row whose
+   `expires_at` has passed. This holds even if the sweep has never run.
+2. **By the background sweep (reconciliation).** When a terminology DB is
+   configured, `serve` runs an interval sweep that calls
+   `MappingStore.ExpirePendingAutoroutes` so the stored `status` column
+   eventually agrees with what those reads already report.
+
+Disabling the sweep is therefore safe for review-queue correctness; it only
+leaves the stored `status` column stale for reporting or direct SQL access. The
+sweep starts immediately on boot — so rows that expired while the process was
+down are reconciled at startup — stops with the server, and a failing sweep is
+logged without terminating the loop or the server.
+
+Source: `internal/terminology/autoroute/sweeper.go`,
+`pkg/terminology/db/mappings.go`.
+
 ## Implementation Phases
 
 ### Phase 1: CSV Upload + Persistent Storage (2-3 days) ✅

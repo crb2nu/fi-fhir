@@ -24,10 +24,13 @@
 - [x] Audit IDE + backend for functional gaps (UI mock-masquerade + unwired capability; backend reach gaps).
 - [x] Produce sequenced 3-wave program with riskiest-assumption kill-test.
 - [x] Convert latest brainstorm/spec docs into parallel execution lanes (`24-parallel-execution-specs.md`).
-- [ ] **Lane A**: verify/harden Workflow AI generate/explain surfaces now that code is wired.
-- [ ] **Lane B**: unify LLM config namespace and add truthful capability surface.
-- [ ] **Lane D**: recover terminology DB integration tests and CI path before more store automation.
-- [ ] **Lane C**: add pending-autoroute sweep + notifications after terminology DB baseline is stable.
+- [x] **Lane A**: verify/harden Workflow AI generate/explain surfaces now that code is wired.
+- [x] **Lane B**: unify LLM config namespace and add truthful capability surface.
+- [x] **Lane D**: recover terminology DB integration tests and CI path before more store automation.
+- [x] **Lane F**: split the product backlog into speclets `25`-`29`.
+- [x] **Lane C1**: serve-time pending-autoroute expiry sweep (2026-08-03).
+- [ ] **Lane C2**: pending-autoroute notifications (webhook, thresholds, non-blocking dispatch).
+- [ ] **Lane E**: integration/contract CI hardening; `test:integration` is still `allow_failure: true`.
 
 ### Prior goal (platform integration M0–M3) — parked
 - [x] Backend-to-frontend integration planning; sibling-repo integration points (`flexinfer`, `loom-core`, `mentatlab`).
