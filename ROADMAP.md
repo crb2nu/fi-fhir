@@ -1,6 +1,6 @@
 # fi-fhir Roadmap
 
-> Last updated: 2026-07-16
+> Last updated: 2026-08-07
 > Tier: 2 (see workspace AGENTS.md "Portfolio Tiers")
 > Tracking issue: https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/19
 > Completion spec: `.loom/20-product-spec-integration-engine-ide-completion.md`
@@ -28,10 +28,11 @@ The remaining work is product assembly and operational truth:
 - a PostgreSQL-backed versioned deployment lifecycle now authorizes the optional
   production MLLP listener; profile/workflow bytes remain in the immutable
   startup registry and S3/SFTP discovery is not runtime-wired;
-- a transitional single-domain preview bearer, exact-origin policy, and
-  memory-only browser handling are deployed and live-verified; OIDC,
-  fine-grained RBAC, audited token administration, and durable PHI policy remain
-  incomplete;
+- exact-origin policy, memory-only browser handling, and per-request OIDC human
+  identity are implemented for GraphQL; the production HTTP path now supports
+  allowlisted OAuth service identity and one exact submit decision, while broad
+  object/action policy, audited token administration, and durable PHI policy
+  remain incomplete;
 - the current Flux deployment proves the authenticated ADT A01 preview and
   legacy-containment boundary, not the remaining completion journeys or the
   production-readiness contract.

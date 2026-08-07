@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity/oidctest"
+	integrationingress "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/ingress"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/mllp"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
@@ -324,6 +326,7 @@ func TestLoadGraphQLAuthenticationModesFailClosed(t *testing.T) {
 }
 
 func TestLoadHTTPIngressAuthenticatorFromEnv(t *testing.T) {
+	clearHTTPIngressAuthenticationEnv(t)
 	t.Setenv("FI_FHIR_HTTP_INGRESS_AUTH_MODE", "bearer")
 	t.Setenv("FI_FHIR_HTTP_INGRESS_PRINCIPAL_ID", "adt-service")
 	t.Setenv("FI_FHIR_HTTP_INGRESS_INTEGRATION_ID", "adt-east")
@@ -331,12 +334,18 @@ func TestLoadHTTPIngressAuthenticatorFromEnv(t *testing.T) {
 	t.Setenv("FI_FHIR_HTTP_INGRESS_SECRET_FILE", "")
 	t.Setenv("FI_FHIR_HTTP_INGRESS_MAX_BODY_BYTES", "4096")
 
-	authenticator, maxBodyBytes, err := loadHTTPIngressAuthenticatorFromEnv()
+	authenticator, maxBodyBytes, err := loadHTTPIngressAuthenticatorFromEnv(context.Background(), "tenant-a")
 	if err != nil {
 		t.Fatalf("loadHTTPIngressAuthenticatorFromEnv: %v", err)
 	}
-	if authenticator.PrincipalID() != "adt-service" || authenticator.IntegrationID() != "adt-east" || maxBodyBytes != 4096 {
-		t.Fatalf("ingress configuration = principal %q integration %q max %d", authenticator.PrincipalID(), authenticator.IntegrationID(), maxBodyBytes)
+	request := httptest.NewRequest("POST", integrationingress.Path, nil)
+	request.Header.Set("Authorization", "Bearer correct-http-ingress-token-001")
+	security, err := authenticator.AuthenticateRequest(context.Background(), request, nil)
+	if err != nil {
+		t.Fatalf("authenticate configured ingress: %v", err)
+	}
+	if security.TenantID != "tenant-a" || security.Principal.ID != "adt-service" || authenticator.IntegrationID() != "adt-east" || maxBodyBytes != 4096 {
+		t.Fatalf("ingress configuration = security %#v integration %q max %d", security, authenticator.IntegrationID(), maxBodyBytes)
 	}
 
 	secretFile := filepath.Join(t.TempDir(), "ingress-token")
@@ -345,8 +354,115 @@ func TestLoadHTTPIngressAuthenticatorFromEnv(t *testing.T) {
 	}
 	t.Setenv("FI_FHIR_HTTP_INGRESS_SECRET", "")
 	t.Setenv("FI_FHIR_HTTP_INGRESS_SECRET_FILE", secretFile)
-	if _, _, err := loadHTTPIngressAuthenticatorFromEnv(); err != nil {
+	if _, _, err := loadHTTPIngressAuthenticatorFromEnv(context.Background(), "tenant-a"); err != nil {
 		t.Fatalf("file-backed ingress secret: %v", err)
+	}
+}
+
+func TestLoadHTTPIngressOAuthAuthenticatorFromEnv(t *testing.T) {
+	issuer, err := oidctest.New()
+	if err != nil {
+		t.Fatalf("create OIDC issuer: %v", err)
+	}
+	t.Cleanup(issuer.Close)
+	clearHTTPIngressAuthenticationEnv(t)
+	t.Setenv("FI_FHIR_HTTP_INGRESS_AUTH_MODE", "oauth2")
+	t.Setenv("FI_FHIR_HTTP_INGRESS_INTEGRATION_ID", "adt-east")
+	t.Setenv("FI_FHIR_HTTP_INGRESS_OAUTH_ISSUER_URL", issuer.IssuerURL())
+	t.Setenv("FI_FHIR_HTTP_INGRESS_OAUTH_AUDIENCE", "fi-fhir-http-ingress")
+	t.Setenv("FI_FHIR_HTTP_INGRESS_OAUTH_ALLOWED_CLIENT_IDS", "client-a,client-b")
+
+	authenticator, maxBodyBytes, err := loadHTTPIngressAuthenticatorFromEnv(issuer.Context(), "tenant-a")
+	if err != nil {
+		t.Fatalf("load OAuth ingress authenticator: %v", err)
+	}
+	claims := issuer.Claims()
+	claims["sub"] = "client-a"
+	claims["client_id"] = "client-a"
+	claims["aud"] = "fi-fhir-http-ingress"
+	claims["roles"] = []string{integrationingress.SubmitRole}
+	token, err := issuer.Sign(claims, "RS256")
+	if err != nil {
+		t.Fatalf("sign service token: %v", err)
+	}
+	request := httptest.NewRequest("POST", integrationingress.Path, nil)
+	request.Header.Set("Authorization", "Bearer "+token)
+	security, err := authenticator.AuthenticateRequest(issuer.Context(), request, nil)
+	if err != nil {
+		t.Fatalf("authenticate service token: %v", err)
+	}
+	if authenticator.IntegrationID() != "adt-east" || maxBodyBytes != integrationingress.DefaultMaxBodyBytes || security.TenantID != "tenant-a" || security.Principal.ID != "client-a" || security.Principal.AuthMethod != "oauth2-client-credentials" {
+		t.Fatalf("OAuth ingress configuration = integration %q max %d security %#v", authenticator.IntegrationID(), maxBodyBytes, security)
+	}
+}
+
+func TestLoadHTTPIngressAuthenticationModesFailClosed(t *testing.T) {
+	t.Run("unknown mode", func(t *testing.T) {
+		clearHTTPIngressAuthenticationEnv(t)
+		t.Setenv("FI_FHIR_HTTP_INGRESS_AUTH_MODE", "legacy")
+		t.Setenv("FI_FHIR_HTTP_INGRESS_INTEGRATION_ID", "adt-east")
+		_, _, err := loadHTTPIngressAuthenticatorFromEnv(context.Background(), "tenant-a")
+		if err == nil || !strings.Contains(err.Error(), "must be") {
+			t.Fatalf("unknown mode error = %v", err)
+		}
+	})
+
+	for _, name := range []string{
+		"FI_FHIR_HTTP_INGRESS_OAUTH_ISSUER_URL",
+		"FI_FHIR_HTTP_INGRESS_OAUTH_AUDIENCE",
+		"FI_FHIR_HTTP_INGRESS_OAUTH_TENANT_CLAIM",
+		"FI_FHIR_HTTP_INGRESS_OAUTH_ROLES_CLAIM",
+		"FI_FHIR_HTTP_INGRESS_OAUTH_CLIENT_ID_CLAIM",
+		"FI_FHIR_HTTP_INGRESS_OAUTH_SIGNING_ALGS",
+		"FI_FHIR_HTTP_INGRESS_OAUTH_ALLOWED_CLIENT_IDS",
+	} {
+		t.Run("static rejects "+name, func(t *testing.T) {
+			clearHTTPIngressAuthenticationEnv(t)
+			t.Setenv("FI_FHIR_HTTP_INGRESS_AUTH_MODE", "bearer")
+			t.Setenv("FI_FHIR_HTTP_INGRESS_INTEGRATION_ID", "adt-east")
+			t.Setenv(name, "configured")
+			_, _, err := loadHTTPIngressAuthenticatorFromEnv(context.Background(), "tenant-a")
+			if err == nil || !strings.Contains(err.Error(), name) {
+				t.Fatalf("static conflict error = %v", err)
+			}
+		})
+	}
+
+	for _, name := range []string{
+		"FI_FHIR_HTTP_INGRESS_SECRET",
+		"FI_FHIR_HTTP_INGRESS_SECRET_FILE",
+		"FI_FHIR_HTTP_INGRESS_PRINCIPAL_ID",
+	} {
+		t.Run("oauth2 rejects "+name, func(t *testing.T) {
+			clearHTTPIngressAuthenticationEnv(t)
+			t.Setenv("FI_FHIR_HTTP_INGRESS_AUTH_MODE", "oauth2")
+			t.Setenv("FI_FHIR_HTTP_INGRESS_INTEGRATION_ID", "adt-east")
+			t.Setenv(name, "configured")
+			_, _, err := loadHTTPIngressAuthenticatorFromEnv(context.Background(), "tenant-a")
+			if err == nil || !strings.Contains(err.Error(), name) {
+				t.Fatalf("OAuth conflict error = %v", err)
+			}
+		})
+	}
+
+	for _, missing := range []string{
+		"FI_FHIR_HTTP_INGRESS_OAUTH_ISSUER_URL",
+		"FI_FHIR_HTTP_INGRESS_OAUTH_AUDIENCE",
+		"FI_FHIR_HTTP_INGRESS_OAUTH_ALLOWED_CLIENT_IDS",
+	} {
+		t.Run("oauth2 requires "+missing, func(t *testing.T) {
+			clearHTTPIngressAuthenticationEnv(t)
+			t.Setenv("FI_FHIR_HTTP_INGRESS_AUTH_MODE", "oauth2")
+			t.Setenv("FI_FHIR_HTTP_INGRESS_INTEGRATION_ID", "adt-east")
+			t.Setenv("FI_FHIR_HTTP_INGRESS_OAUTH_ISSUER_URL", "https://identity.example.test")
+			t.Setenv("FI_FHIR_HTTP_INGRESS_OAUTH_AUDIENCE", "fi-fhir-http-ingress")
+			t.Setenv("FI_FHIR_HTTP_INGRESS_OAUTH_ALLOWED_CLIENT_IDS", "client-a")
+			t.Setenv(missing, "")
+			_, _, err := loadHTTPIngressAuthenticatorFromEnv(context.Background(), "tenant-a")
+			if err == nil || !strings.Contains(err.Error(), missing) {
+				t.Fatalf("missing OAuth setting error = %v", err)
+			}
+		})
 	}
 }
 
@@ -463,6 +579,27 @@ func clearGraphQLAuthenticationEnv(t *testing.T) {
 		"FI_FHIR_GRAPHQL_OIDC_TENANT_CLAIM",
 		"FI_FHIR_GRAPHQL_OIDC_ROLES_CLAIM",
 		"FI_FHIR_GRAPHQL_OIDC_SIGNING_ALGS",
+	} {
+		t.Setenv(name, "")
+	}
+}
+
+func clearHTTPIngressAuthenticationEnv(t *testing.T) {
+	t.Helper()
+	for _, name := range []string{
+		"FI_FHIR_HTTP_INGRESS_AUTH_MODE",
+		"FI_FHIR_HTTP_INGRESS_PRINCIPAL_ID",
+		"FI_FHIR_HTTP_INGRESS_INTEGRATION_ID",
+		"FI_FHIR_HTTP_INGRESS_SECRET",
+		"FI_FHIR_HTTP_INGRESS_SECRET_FILE",
+		"FI_FHIR_HTTP_INGRESS_MAX_BODY_BYTES",
+		"FI_FHIR_HTTP_INGRESS_OAUTH_ISSUER_URL",
+		"FI_FHIR_HTTP_INGRESS_OAUTH_AUDIENCE",
+		"FI_FHIR_HTTP_INGRESS_OAUTH_TENANT_CLAIM",
+		"FI_FHIR_HTTP_INGRESS_OAUTH_ROLES_CLAIM",
+		"FI_FHIR_HTTP_INGRESS_OAUTH_CLIENT_ID_CLAIM",
+		"FI_FHIR_HTTP_INGRESS_OAUTH_SIGNING_ALGS",
+		"FI_FHIR_HTTP_INGRESS_OAUTH_ALLOWED_CLIENT_IDS",
 	} {
 		t.Setenv(name, "")
 	}

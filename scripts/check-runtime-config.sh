@@ -3,7 +3,8 @@
 #
 # Checks:
 #   1. .env.example covers all FI_FHIR_* env vars referenced in Go source.
-#   2. Proxy config assumptions are documented.
+#   2. Docker Compose forwards HTTP ingress OAuth settings.
+#   3. Proxy config assumptions are documented.
 #
 # Usage:
 #   bash scripts/check-runtime-config.sh
@@ -14,8 +15,10 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ENV_EXAMPLE="${ROOT}/.env.example"
 NGINX_CONF="${ROOT}/ui/nginx/default.conf.template"
 VITE_CONF="${ROOT}/ui/vite.config.ts"
+COMPOSE_FILE="${ROOT}/docker-compose.yaml"
 passed=0
 warned=0
+failed=0
 
 check() {
   local name="$1"
@@ -27,6 +30,19 @@ check() {
   else
     echo "⚠"
     ((warned++))
+  fi
+}
+
+check_required() {
+  local name="$1"
+  shift
+  echo -n "  [$name] ... "
+  if "$@"; then
+    echo "✓"
+    ((passed++))
+  else
+    echo "✗"
+    ((failed++))
   fi
 }
 
@@ -64,7 +80,32 @@ else
 fi
 
 # --------------------------------------------------------------------------
-# 2. Proxy config: nginx template references
+# 2. Docker Compose: OAuth ingress environment forwarding
+# --------------------------------------------------------------------------
+echo ""
+echo "─── Compose Config ───"
+
+oauth_ingress_vars=$(printf '%s\n' "$go_vars" | grep '^FI_FHIR_HTTP_INGRESS_OAUTH_' || true)
+missing_compose=""
+if [ -f "$COMPOSE_FILE" ]; then
+  for var in $oauth_ingress_vars; do
+    if ! grep -q "$var" "$COMPOSE_FILE"; then
+      missing_compose="$missing_compose $var"
+    fi
+  done
+  check_required "Compose forwards ingress OAuth vars" bash -c "
+    if [ -n '$missing_compose' ]; then
+      echo 'Missing:$missing_compose'
+      exit 1
+    fi
+  "
+else
+  echo "  [docker-compose.yaml] ... ⚠ file not found"
+  ((warned++))
+fi
+
+# --------------------------------------------------------------------------
+# 3. Proxy config: nginx template references
 # --------------------------------------------------------------------------
 echo ""
 echo "─── Proxy Config ───"
@@ -116,8 +157,13 @@ echo ""
 # Summary
 # --------------------------------------------------------------------------
 echo ""
-echo "Results: $passed passed, $warned warnings"
+echo "Results: $passed passed, $warned warnings, $failed failures"
 echo ""
+
+if [ "$failed" -gt 0 ]; then
+  echo "❌ Required runtime config checks failed"
+  exit 1
+fi
 
 if [ "$warned" -gt 0 ]; then
   echo "⚠ Some config checks had warnings (non-blocking)"

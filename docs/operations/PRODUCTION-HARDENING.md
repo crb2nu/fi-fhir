@@ -571,8 +571,6 @@ path until a separate production GitOps activation review.
 Static mode preserves the Slice 1.1c single-deployment bearer for local and
 preview compatibility. Harden that boundary as follows:
 
-Harden this boundary as follows:
-
 - mount `FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE` from Vault, External Secrets, or an
   equivalent managed secret; do not put the bearer in Git, Helm values, a
   `PUBLIC_*` build variable, ConfigMap, localStorage, or sessionStorage;
@@ -611,11 +609,39 @@ UI preferences.
 
 ### HL7v2 Production Ingress
 
-The endpoint is absent unless `FI_FHIR_HTTP_INGRESS_AUTH_MODE` is `bearer` or
-`hmac-sha256`. Enabling it requires PostgreSQL and applies the fixed submission
-migration during startup. It never falls back to an in-memory committer.
+The endpoint is absent unless `FI_FHIR_HTTP_INGRESS_AUTH_MODE` is `bearer`,
+`hmac-sha256`, or `oauth2`. Enabling it requires PostgreSQL and applies the fixed
+submission migration during startup. It never falls back to an in-memory
+committer.
 
-- Bind each credential to one service principal and one server-owned integration.
+OAuth2 mode authenticates each confidential client as a distinct service
+principal. Configure an exact HTTPS issuer and audience, the deployment tenant,
+and a deployment-owned allowlist in
+`FI_FHIR_HTTP_INGRESS_OAUTH_ALLOWED_CLIENT_IDS`. The authorization server must
+issue a signed JWT access token with protected `typ=at+jwt`, exact issuer and
+single audience, valid time window, the deployment tenant, a strict roles array
+containing `integration:submit`, and canonical `sub` and `client_id` claims that
+are equal. fi-fhir projects only the required submit grant; extra token roles do
+not expand authority. The immutable registry, not the token or request headers,
+owns the integration revision and source identity.
+
+This is a constrained resource-server profile, not a token endpoint or a claim
+of universal OAuth support. OAuth 2.0 client credentials does not prescribe the
+access-token representation, so providers that issue opaque tokens require a
+future introspection slice. See [RFC 6749 section 4.4](https://www.rfc-editor.org/rfc/rfc6749.html#section-4.4)
+and the [RFC 9068 JWT access-token profile](https://www.rfc-editor.org/rfc/rfc9068.html).
+Discovery/JWKS transport uses the same HTTPS-only, bounded, redirect-rejecting,
+refresh-rate-limited verifier as GraphQL human OIDC.
+
+OAuth settings are mutually exclusive with the static ingress principal and
+secret. Bearer/HMAC modes remain compatibility paths: each deployment secret
+still maps to one configured service principal rather than distinguishing
+callers.
+
+- In OAuth2 mode, allow only reviewed client IDs and rotate keys by publishing
+  the new JWKS entry before issuing tokens that use it.
+- In bearer/HMAC mode, bind each credential to one service principal and one
+  server-owned integration.
 - Prefer `FI_FHIR_HTTP_INGRESS_SECRET_FILE`; never reuse the GraphQL preview bearer.
 - Keep the body limit at or below 1 MiB and terminate TLS at the approved proxy.
 - Do not send browser `Origin` headers or compressed bodies; both fail closed.

@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity/oidctest"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/registry"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
@@ -147,6 +149,142 @@ func TestHandlerDoesNotRevealBoundIntegrationBeforeAuthentication(t *testing.T) 
 	}
 }
 
+func TestHandlerOAuthServiceIdentityBindsAuthorizedClientAndIgnoresSpoofedIdentity(t *testing.T) {
+	issuer, err := oidctest.New()
+	if err != nil {
+		t.Fatalf("new OIDC fixture: %v", err)
+	}
+	t.Cleanup(issuer.Close)
+	serviceAuthenticator, err := requestsecurity.NewOIDCServiceAuthenticator(issuer.Context(), requestsecurity.OIDCServiceConfig{
+		IssuerURL:              issuer.IssuerURL(),
+		Audience:               "fi-fhir-http-ingress",
+		TenantID:               "tenant-a",
+		HTTPClient:             issuer.HTTPClient(),
+		JWKSRefreshMinInterval: time.Hour,
+		AllowedClientIDs:       []string{"client-a", "client-b"},
+		RequiredRoles:          []string{SubmitRole},
+	})
+	if err != nil {
+		t.Fatalf("NewOIDCServiceAuthenticator: %v", err)
+	}
+	authenticator, err := NewOAuthRequestAuthenticator("adt-tolerant", serviceAuthenticator)
+	if err != nil {
+		t.Fatalf("NewOAuthRequestAuthenticator: %v", err)
+	}
+	registryFake := &countingRegistry{}
+	processorFake := &fakeProcessor{result: acceptedResult()}
+	service, err := NewService(ServiceConfig{TenantID: "tenant-a", Registry: registryFake, Processor: processorFake})
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	handler, err := NewHandler(HandlerConfig{Authenticator: authenticator, Service: service})
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+
+	for _, clientID := range []string{"client-a", "client-b"} {
+		token := signServiceToken(t, issuer, clientID, clientID, "tenant-a", []string{SubmitRole, "graphql:operator"}, "fi-fhir-http-ingress")
+		request := validRequest([]byte("MSH|^~\\&|APP|FAC"))
+		request.Header.Set("Authorization", "Bearer "+token)
+		request.Header.Set("X-Fi-Fhir-Tenant-ID", "tenant-spoofed")
+		request.Header.Set("X-Fi-Fhir-Principal-ID", "principal-spoofed")
+		request.Header.Set("X-Fi-Fhir-Source-ID", "source-spoofed")
+		request.Header.Set("X-Fi-Fhir-Roles", "admin")
+		request.Header.Set("X-Fi-Fhir-Auth-Method", "trusted-network")
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusAccepted {
+			t.Fatalf("client %q status = %d body=%s", clientID, recorder.Code, recorder.Body.String())
+		}
+		processed := processorFake.request
+		if processed.Security.TenantID != "tenant-a" || processed.Security.Principal.ID != clientID || processed.Security.Principal.Kind != integration.PrincipalKindService || processed.Security.Principal.AuthMethod != "oauth2-client-credentials" || processed.Security.Principal.SourceID != "adt-east" {
+			t.Fatalf("client %q trusted identity = %#v", clientID, processed.Security)
+		}
+		if len(processed.Security.Principal.Roles) != 1 || processed.Security.Principal.Roles[0] != SubmitRole {
+			t.Fatalf("client %q trusted roles = %#v", clientID, processed.Security.Principal.Roles)
+		}
+	}
+	if registryFake.calls != 2 || processorFake.calls != 2 {
+		t.Fatalf("successful calls registry=%d processor=%d", registryFake.calls, processorFake.calls)
+	}
+
+	expiredToken := signServiceTokenWithMutation(
+		t, issuer, "client-a", "client-a", "tenant-a", []string{SubmitRole}, "fi-fhir-http-ingress",
+		func(claims map[string]any) { claims["exp"] = time.Now().Add(-time.Hour).Unix() },
+	)
+	negative := []struct {
+		name          string
+		token         string
+		integrationID string
+		wantStatus    int
+	}{
+		{name: "missing token", wantStatus: http.StatusUnauthorized},
+		{name: "static bearer", token: testBearerSecret, wantStatus: http.StatusUnauthorized},
+		{name: "wrong tenant", token: signServiceToken(t, issuer, "client-a", "client-a", "tenant-b", []string{SubmitRole}, "fi-fhir-http-ingress"), wantStatus: http.StatusUnauthorized},
+		{name: "missing submit role", token: signServiceToken(t, issuer, "client-a", "client-a", "tenant-a", []string{"integration:preview"}, "fi-fhir-http-ingress"), wantStatus: http.StatusUnauthorized},
+		{name: "unlisted client", token: signServiceToken(t, issuer, "client-c", "client-c", "tenant-a", []string{SubmitRole}, "fi-fhir-http-ingress"), wantStatus: http.StatusUnauthorized},
+		{name: "client ID mismatch", token: signServiceToken(t, issuer, "subject-a", "client-a", "tenant-a", []string{SubmitRole}, "fi-fhir-http-ingress"), wantStatus: http.StatusUnauthorized},
+		{name: "wrong audience", token: signServiceToken(t, issuer, "client-a", "client-a", "tenant-a", []string{SubmitRole}, "other-audience"), wantStatus: http.StatusUnauthorized},
+		{name: "expired", token: expiredToken, wantStatus: http.StatusUnauthorized},
+		{name: "unbound integration", token: signServiceToken(t, issuer, "client-a", "client-a", "tenant-a", []string{SubmitRole}, "fi-fhir-http-ingress"), integrationID: "other", wantStatus: http.StatusNotFound},
+	}
+	if err := issuer.Rotate("unknown-handler-key"); err != nil {
+		t.Fatalf("rotate issuer key: %v", err)
+	}
+	negative = append(negative, struct {
+		name          string
+		token         string
+		integrationID string
+		wantStatus    int
+	}{
+		name:       "unknown key",
+		token:      signServiceToken(t, issuer, "client-a", "client-a", "tenant-a", []string{SubmitRole}, "fi-fhir-http-ingress"),
+		wantStatus: http.StatusUnauthorized,
+	})
+	for _, test := range negative {
+		t.Run(test.name, func(t *testing.T) {
+			request := validRequest([]byte("MSH|^~\\&|APP|FAC"))
+			if test.token != "" {
+				request.Header.Set("Authorization", "Bearer "+test.token)
+			}
+			if test.integrationID != "" {
+				request.Header.Set(integrationHeader, test.integrationID)
+			}
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, request)
+			if recorder.Code != test.wantStatus {
+				t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+			}
+			if registryFake.calls != 2 || processorFake.calls != 2 {
+				t.Fatalf("rejected request reached downstream: registry=%d processor=%d", registryFake.calls, processorFake.calls)
+			}
+		})
+	}
+}
+
+func signServiceToken(t *testing.T, issuer *oidctest.Fixture, subject, clientID, tenantID string, roles []string, audience string) string {
+	t.Helper()
+	return signServiceTokenWithMutation(t, issuer, subject, clientID, tenantID, roles, audience, nil)
+}
+
+func signServiceTokenWithMutation(t *testing.T, issuer *oidctest.Fixture, subject, clientID, tenantID string, roles []string, audience string, mutate func(map[string]any)) string {
+	t.Helper()
+	claims := issuer.Claims()
+	claims["sub"] = subject
+	claims["client_id"] = clientID
+	claims["tenant_id"] = tenantID
+	claims["roles"] = roles
+	claims["aud"] = audience
+	if mutate != nil {
+		mutate(claims)
+	}
+	token, err := issuer.Sign(claims, "RS256")
+	if err != nil {
+		t.Fatalf("sign service token: %v", err)
+	}
+	return token
+}
+
 func TestHandlerOptionalIdempotencyAndCorrelationHeaders(t *testing.T) {
 	processorFake := &fakeProcessor{result: acceptedResult()}
 	handler := newTestHandler(t, AuthModeBearer, processorFake, DefaultMaxBodyBytes)
@@ -173,6 +311,7 @@ func TestHandlerMapsSubmissionErrorsWithoutLeakingDetails(t *testing.T) {
 	}{
 		{err: processor.ErrInvalidSourceMessage, wantStatus: http.StatusUnprocessableEntity, wantCode: "INVALID_HL7V2_MESSAGE"},
 		{err: processor.ErrIdempotencyConflict, wantStatus: http.StatusConflict, wantCode: "IDEMPOTENCY_CONFLICT"},
+		{err: processor.ErrProcessForbidden, wantStatus: http.StatusNotFound, wantCode: "INTEGRATION_UNAVAILABLE"},
 		{err: processor.ErrDurableSubmissionFailed, wantStatus: http.StatusServiceUnavailable, wantCode: "SUBMISSION_UNAVAILABLE", retryable: true},
 		{err: context.DeadlineExceeded, wantStatus: http.StatusGatewayTimeout, wantCode: "SUBMISSION_TIMEOUT", retryable: true},
 	}
@@ -206,10 +345,10 @@ func newTestHandler(t *testing.T, mode AuthMode, processorFake *fakeProcessor, m
 		secret = testHMACKey
 	}
 	authenticator := mustAuthenticator(t, AuthConfig{
-		Mode: mode, Secret: secret, PrincipalID: "source-service", IntegrationID: "adt-tolerant",
+		Mode: mode, Secret: secret, TenantID: "tenant-a", PrincipalID: "source-service", IntegrationID: "adt-tolerant",
 	})
 	service, err := NewService(ServiceConfig{
-		TenantID: "tenant-a", PrincipalID: authenticator.PrincipalID(), AuthMethod: authenticator.AuthMethod(),
+		TenantID: "tenant-a",
 		Registry: fakeRegistry{}, Processor: processorFake,
 		Clock: func() time.Time { return time.Date(2026, 7, 14, 18, 0, 0, 0, time.UTC) },
 		NewID: func() string { return "generated-correlation" },
@@ -248,6 +387,15 @@ func (fakeRegistry) LookupPreviewBinding(_ context.Context, tenantID, integratio
 		Format:              events.FormatHL7v2,
 		Classification:      integration.DataClassificationPHI,
 	}, nil
+}
+
+type countingRegistry struct {
+	calls int
+}
+
+func (r *countingRegistry) LookupPreviewBinding(ctx context.Context, tenantID, integrationID string) (Binding, error) {
+	r.calls++
+	return fakeRegistry{}.LookupPreviewBinding(ctx, tenantID, integrationID)
 }
 
 type fakeProcessor struct {

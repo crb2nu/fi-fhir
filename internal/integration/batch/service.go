@@ -9,6 +9,7 @@ import (
 	"io"
 	"time"
 
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/authorization"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
@@ -273,6 +274,14 @@ func (r *Runner) processMessage(
 		},
 		Envelope: envelope, IdempotencyKey: "batch:v1:" + identity,
 		CorrelationID: deterministicUUID(identity),
+	}
+	if err := authorization.AuthorizeSubmission(
+		request.Security,
+		r.tenantID,
+		binding.IntegrationRevision,
+		binding.SourceID,
+	); err != nil {
+		return ErrUnavailable
 	}
 	_, err = r.processor.Process(ctx, request)
 	if err == nil {

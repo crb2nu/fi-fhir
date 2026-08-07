@@ -5224,11 +5224,18 @@ Optional static-mode trusted-network access:
                                      a bearer token; never include pod/service CIDRs
 
 Optional durable HL7v2 ingress environment:
-  FI_FHIR_HTTP_INGRESS_AUTH_MODE       bearer or hmac-sha256; unset disables
-  FI_FHIR_HTTP_INGRESS_PRINCIPAL_ID    Bound service principal
+  FI_FHIR_HTTP_INGRESS_AUTH_MODE       bearer, hmac-sha256, or oauth2; unset disables
+  FI_FHIR_HTTP_INGRESS_PRINCIPAL_ID    Bound service principal (bearer/HMAC)
   FI_FHIR_HTTP_INGRESS_INTEGRATION_ID  Bound server-owned integration
-  FI_FHIR_HTTP_INGRESS_SECRET          Credential (direct local use), or
+  FI_FHIR_HTTP_INGRESS_SECRET          Bearer/HMAC credential (direct local use), or
   FI_FHIR_HTTP_INGRESS_SECRET_FILE     credential file; set exactly one
+  FI_FHIR_HTTP_INGRESS_OAUTH_ISSUER_URL          OAuth2 issuer discovery URL
+  FI_FHIR_HTTP_INGRESS_OAUTH_AUDIENCE            Required access-token audience
+  FI_FHIR_HTTP_INGRESS_OAUTH_TENANT_CLAIM        Tenant claim (default tenant_id)
+  FI_FHIR_HTTP_INGRESS_OAUTH_ROLES_CLAIM         Roles claim (default roles)
+  FI_FHIR_HTTP_INGRESS_OAUTH_CLIENT_ID_CLAIM     Client ID claim (default client_id)
+  FI_FHIR_HTTP_INGRESS_OAUTH_SIGNING_ALGS        Allowed algorithms (default RS256)
+  FI_FHIR_HTTP_INGRESS_OAUTH_ALLOWED_CLIENT_IDS  Comma-separated allowed OAuth2 clients
   FI_FHIR_HTTP_INGRESS_MAX_BODY_BYTES  Positive value no greater than 1048576
   FI_FHIR_DATABASE_*                   PostgreSQL settings; no memory fallback
 

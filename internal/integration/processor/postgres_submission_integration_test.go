@@ -18,6 +18,7 @@ import (
 
 	"github.com/lib/pq"
 
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/authorization"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
 
@@ -39,6 +40,7 @@ func TestPostgresProductionSubmission_64WayDuplicateFaultRestart(t *testing.T) {
 	fixture := newMessageProcessorFixture(t, strictExecutableProfileJSON(false), processorPublishedWorkflow, processorA01Message(true))
 	request := fixture.request
 	request.Mode = integration.ExecutionModeProduction
+	request.Security.Principal.Roles = []string{authorization.HTTPSubmitGrant}
 	request.IdempotencyKey = "explicit-submission-key-123"
 
 	initialDB := openSubmissionDB(t, schemaDSN)

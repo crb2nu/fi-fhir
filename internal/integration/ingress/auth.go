@@ -1,6 +1,7 @@
 package ingress
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -10,6 +11,8 @@ import (
 	"net/http"
 	"strings"
 	"unicode"
+
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
 
 const (
@@ -25,6 +28,7 @@ type AuthMode string
 const (
 	AuthModeBearer AuthMode = "bearer"
 	AuthModeHMAC   AuthMode = "hmac-sha256"
+	AuthModeOAuth2 AuthMode = "oauth2"
 )
 
 var (
@@ -37,8 +41,18 @@ var (
 type AuthConfig struct {
 	Mode          AuthMode
 	Secret        string
+	TenantID      string
 	PrincipalID   string
 	IntegrationID string
+}
+
+// RequestAuthenticator authenticates one HTTP request and returns only
+// server-owned identity fields. Source identity is bound later from the exact
+// immutable integration revision.
+type RequestAuthenticator interface {
+	IntegrationID() string
+	RequiresBody() bool
+	AuthenticateRequest(context.Context, *http.Request, []byte) (integration.SecurityContext, error)
 }
 
 // Authenticator verifies a bounded request without retaining the credential.
@@ -46,11 +60,15 @@ type Authenticator struct {
 	mode          AuthMode
 	secret        []byte
 	bearerHash    [sha256.Size]byte
+	tenantID      string
 	principalID   string
 	integrationID string
 }
 
 func NewAuthenticator(config AuthConfig) (*Authenticator, error) {
+	if err := validateIdentity("tenant ID", config.TenantID); err != nil {
+		return nil, err
+	}
 	if err := validateIdentity("principal ID", config.PrincipalID); err != nil {
 		return nil, err
 	}
@@ -59,6 +77,7 @@ func NewAuthenticator(config AuthConfig) (*Authenticator, error) {
 	}
 	authenticator := &Authenticator{
 		mode:          config.Mode,
+		tenantID:      config.TenantID,
 		principalID:   config.PrincipalID,
 		integrationID: config.IntegrationID,
 	}
@@ -102,6 +121,29 @@ func (a *Authenticator) AuthMethod() string {
 
 func (a *Authenticator) RequiresBody() bool {
 	return a != nil && a.mode == AuthModeHMAC
+}
+
+// AuthenticateRequest verifies a static bearer or HMAC credential and returns
+// the deployment-bound compatibility identity.
+func (a *Authenticator) AuthenticateRequest(ctx context.Context, request *http.Request, body []byte) (integration.SecurityContext, error) {
+	if ctx == nil || a == nil || request == nil {
+		return integration.SecurityContext{}, ErrInvalidCredentials
+	}
+	if err := ctx.Err(); err != nil {
+		return integration.SecurityContext{}, err
+	}
+	if err := a.Authenticate(request, body); err != nil {
+		return integration.SecurityContext{}, err
+	}
+	return integration.SecurityContext{
+		TenantID: a.tenantID,
+		Principal: integration.Principal{
+			ID:         a.principalID,
+			Kind:       integration.PrincipalKindService,
+			AuthMethod: string(a.mode),
+			Roles:      []string{SubmitRole},
+		},
+	}, nil
 }
 
 // Authenticate verifies bearer credentials or a domain-separated HMAC over

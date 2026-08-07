@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/authorization"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/hl7v2"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
@@ -20,6 +21,8 @@ var (
 	ErrIdempotencyConflict = errors.New("idempotency key conflicts with durable submission")
 	// ErrInvalidProcessRequest means the request does not match the server-owned revision.
 	ErrInvalidProcessRequest = errors.New("invalid process request")
+	// ErrProcessForbidden means authenticated identity lacks the server-owned action grant.
+	ErrProcessForbidden = errors.New("process request forbidden")
 	// ErrDefinitionResolutionFailed maps server definition lookup details to a catalog-safe error.
 	ErrDefinitionResolutionFailed = errors.New("integration definition resolution failed")
 	// ErrArtifactResolutionFailed maps executable artifact lookup details to a catalog-safe error.
@@ -134,6 +137,16 @@ func (p *MessageProcessor) Process(
 	}
 	if err := request.ValidateAgainst(revision); err != nil {
 		return integration.ProcessResult{}, ErrInvalidProcessRequest
+	}
+	if request.Mode == integration.ExecutionModeProduction {
+		if err := authorization.AuthorizeSubmission(
+			request.Security,
+			revision.TenantID,
+			revision.Reference(),
+			revision.Source.SourceID,
+		); err != nil {
+			return integration.ProcessResult{}, ErrProcessForbidden
+		}
 	}
 
 	resolved, err := p.artifacts.Resolve(ctx, revision.TenantID, revision.Profile, revision.Workflow)

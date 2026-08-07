@@ -519,6 +519,27 @@ static bearer, principal, role, and trusted-CIDR setting. Bearers must be signed
 JWT access tokens with the protected header `typ=at+jwt`; generic `typ=JWT` and
 typeless tokens are rejected.
 
+Optional production HL7v2 HTTP ingress is mounted at `/v1/hl7v2` when
+`FI_FHIR_HTTP_INGRESS_AUTH_MODE` is set. Every mode also requires
+`FI_FHIR_HTTP_INGRESS_INTEGRATION_ID`; leaving the mode unset keeps the endpoint
+unmounted.
+
+| Mode | Additional configuration |
+| --- | --- |
+| `bearer` or `hmac-sha256` | `FI_FHIR_HTTP_INGRESS_PRINCIPAL_ID` and exactly one of `FI_FHIR_HTTP_INGRESS_SECRET` or `FI_FHIR_HTTP_INGRESS_SECRET_FILE` |
+| `oauth2` | `FI_FHIR_HTTP_INGRESS_OAUTH_ISSUER_URL`, `_AUDIENCE`, and `_ALLOWED_CLIENT_IDS` |
+
+OAuth2 ingress additionally accepts claim/algorithm controls
+`FI_FHIR_HTTP_INGRESS_OAUTH_TENANT_CLAIM` (default `tenant_id`),
+`FI_FHIR_HTTP_INGRESS_OAUTH_ROLES_CLAIM` (default `roles`),
+`FI_FHIR_HTTP_INGRESS_OAUTH_CLIENT_ID_CLAIM` (default `client_id`), and
+`FI_FHIR_HTTP_INGRESS_OAUTH_SIGNING_ALGS` (default `RS256`). It accepts only
+allowlisted clients whose signed JWT access token has protected `typ=at+jwt`,
+`sub == client_id`, the deployment tenant, the exact audience, and
+`integration:submit`. Static and OAuth2 settings are mutually exclusive. This
+server validates externally obtained tokens; it does not issue tokens or
+introspect opaque access tokens.
+
 ```bash
 # After exporting the required preview environment
 fi-fhir serve --port 8080 --no-playground --no-introspection

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"unicode"
 
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/authorization"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
@@ -23,7 +24,7 @@ import (
 
 const (
 	SourceSchemaVersion   = "1"
-	SubmitRole            = "integration:batch"
+	SubmitRole            = authorization.BatchSubmitGrant
 	maxSourceRevisionSize = 1 << 20
 	sourceDigestDomain    = "fi-fhir/batch-source/v1\x00"
 )
