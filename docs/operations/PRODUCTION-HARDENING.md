@@ -545,11 +545,31 @@ rules:
 
 ## Access Control
 
-### Transitional Preview Authentication
+### GraphQL Human Authentication
 
-Slice 1.1c uses one static deployment bearer to activate stateless preview in a
-single security domain. This is a narrow transitional control, not the Phase 4
-OIDC, fine-grained RBAC, audited token-administration, or durable-session model.
+Phase 4 Slice 4.1a supports per-request OIDC human identity for GraphQL POST and
+SSE. Configure `FI_FHIR_GRAPHQL_AUTH_MODE=oidc`, an exact HTTPS issuer URL and
+audience, the deployment tenant, and exact allowed origins. The default claims
+are `sub`, `tenant_id`, and a strict `roles` string array; claim names and the
+default `RS256` algorithm allowlist are deployment configurable. The runtime
+requires a signed JWT access token with protected `typ=at+jwt`, then validates
+issuer, one exact audience, signature, time window, subject, and exact tenant
+before operation authorization. This token-class boundary is not a claim of
+complete RFC 9068 conformance.
+
+Discovery metadata, `jwks_uri`, and outbound requests are HTTPS-only; redirects
+are rejected.
+The runtime bounds each request to at most 10 seconds, caps discovery and JWKS
+responses at 1 MiB, and allows at most one outbound JWKS refresh per 30-second
+default window. Publish rotated keys before issuing tokens that use them so the
+abuse bound does not create an avoidable authentication delay.
+
+OIDC mode rejects static bearer, principal, roles, and trusted-CIDR settings.
+The checked-in Helm/Kustomize deployment remains on the static compatibility
+path until a separate production GitOps activation review.
+
+Static mode preserves the Slice 1.1c single-deployment bearer for local and
+preview compatibility. Harden that boundary as follows:
 
 Harden this boundary as follows:
 

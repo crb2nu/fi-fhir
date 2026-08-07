@@ -493,16 +493,31 @@ fi-fhir serve [options]
 | `--timeout DURATION` | HTTP read/write timeout |
 | `--dry-run` | Print the effective non-secret server configuration |
 
-Required environment:
+Required in both authentication modes:
 
 | Variable | Purpose |
 | --- | --- |
 | `FI_FHIR_DEPLOYMENT_TENANT_ID` | Tenant bound to the immutable registry |
-| `FI_FHIR_GRAPHQL_PRINCIPAL_ID` | Server-owned preview principal |
-| `FI_FHIR_GRAPHQL_ROLES` | Must include `integration:preview` |
+| `FI_FHIR_GRAPHQL_AUTH_MODE` | `static` (default) or `oidc` |
 | `FI_FHIR_GRAPHQL_ALLOWED_ORIGINS` | Exact comma-separated browser origins |
 | `FI_FHIR_INTEGRATION_REGISTRY_PATH` | Startup registry JSON path |
+
+Static compatibility mode additionally requires:
+
+| Variable | Purpose |
+| --- | --- |
+| `FI_FHIR_GRAPHQL_PRINCIPAL_ID` | Server-owned preview principal |
+| `FI_FHIR_GRAPHQL_ROLES` | Must include `integration:preview` |
 | `FI_FHIR_GRAPHQL_BEARER_TOKEN` or `_FILE` | Exactly one bearer source |
+
+OIDC mode instead requires `FI_FHIR_GRAPHQL_OIDC_ISSUER_URL` and
+`FI_FHIR_GRAPHQL_OIDC_AUDIENCE`. Optional claim/algorithm controls are
+`FI_FHIR_GRAPHQL_OIDC_TENANT_CLAIM` (default `tenant_id`),
+`FI_FHIR_GRAPHQL_OIDC_ROLES_CLAIM` (default `roles`), and
+`FI_FHIR_GRAPHQL_OIDC_SIGNING_ALGS` (default `RS256`). OIDC mode rejects every
+static bearer, principal, role, and trusted-CIDR setting. Bearers must be signed
+JWT access tokens with the protected header `typ=at+jwt`; generic `typ=JWT` and
+typeless tokens are rejected.
 
 ```bash
 # After exporting the required preview environment

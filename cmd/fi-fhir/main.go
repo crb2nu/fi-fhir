@@ -5165,8 +5165,10 @@ Start a GraphQL API server for healthcare event management. The server provides:
 - Interactive GraphQL Playground (optional)
 
 The server fails closed unless the authenticated preview runtime is configured.
-The integration:preview role can call only health and previewIntegrationMessage;
-legacy GraphQL operations require the separate graphql:operator role.
+Static mode preserves the local/preview compatibility bearer; OIDC mode verifies
+each caller through issuer discovery and JWKS. The integration:preview role can
+call only health and previewIntegrationMessage; legacy GraphQL operations require
+the separate graphql:operator role.
 
 Usage:
   fi-fhir serve [options]
@@ -5198,14 +5200,26 @@ Endpoints:
 
 Required environment:
   FI_FHIR_DEPLOYMENT_TENANT_ID       Deployment tenant bound to the registry
-  FI_FHIR_GRAPHQL_PRINCIPAL_ID       Server-owned principal identifier
-  FI_FHIR_GRAPHQL_ROLES              Must include integration:preview
+  FI_FHIR_GRAPHQL_AUTH_MODE          static (default) or oidc
   FI_FHIR_GRAPHQL_ALLOWED_ORIGINS    Comma-separated exact http(s) origins
   FI_FHIR_INTEGRATION_REGISTRY_PATH  Immutable preview registry JSON path
+
+Static authentication environment:
+  FI_FHIR_GRAPHQL_PRINCIPAL_ID       Server-owned compatibility principal
+  FI_FHIR_GRAPHQL_ROLES              Must include integration:preview
   FI_FHIR_GRAPHQL_BEARER_TOKEN       Bearer secret (24+ canonical bytes), or
   FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE  path to the bearer secret; set exactly one
 
-Optional trusted-network access:
+OIDC authentication environment:
+  FI_FHIR_GRAPHQL_OIDC_ISSUER_URL    HTTPS issuer discovery URL
+  FI_FHIR_GRAPHQL_OIDC_AUDIENCE      Required token audience
+  FI_FHIR_GRAPHQL_OIDC_TENANT_CLAIM  Tenant claim name (default: tenant_id)
+  FI_FHIR_GRAPHQL_OIDC_ROLES_CLAIM   Roles claim name (default: roles)
+  FI_FHIR_GRAPHQL_OIDC_SIGNING_ALGS  Allowlist (default: RS256)
+  OIDC bearer tokens must carry a protected typ=at+jwt header. Discovery and
+  JWKS requests remain HTTPS-only and bounded; redirects are rejected.
+
+Optional static-mode trusted-network access:
   FI_FHIR_GRAPHQL_TRUSTED_CIDRS      Comma-separated LAN CIDRs allowed without
                                      a bearer token; never include pod/service CIDRs
 

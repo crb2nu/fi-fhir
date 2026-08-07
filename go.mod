@@ -5,6 +5,7 @@ go 1.26.5
 require (
 	github.com/99designs/gqlgen v0.17.85
 	github.com/antchfx/xmlquery v1.5.0
+	github.com/coreos/go-oidc/v3 v3.20.0
 	github.com/google/cel-go v0.26.1
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.0
@@ -27,6 +28,7 @@ require (
 	go.temporal.io/api v1.59.0
 	go.temporal.io/sdk v1.39.0
 	golang.org/x/crypto v0.53.0
+	golang.org/x/oauth2 v0.36.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -56,6 +58,7 @@ require (
 	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect

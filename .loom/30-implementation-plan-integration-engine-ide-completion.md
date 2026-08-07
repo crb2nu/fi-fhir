@@ -371,9 +371,10 @@ MR `!122` pipeline `19872` passed 37/37, including required session job
 - Export signed/versioned bundle with fixtures and expected results.
 - Approval and deployment actions target the exact tested revisions.
 
-Implementation status (2026-07-18): implemented and locally verified; landing
-pipeline evidence pending. Integration Session publications are append-only,
-versioned, and signed with Ed25519 over a canonical PHI-minimal manifest. The
+Implementation status (2026-07-18): shipped in MR `!124`; MR pipeline `19939`
+and post-merge main pipeline `19944` passed, with merge commit `84d2fab2`.
+Integration Session publications are append-only, versioned, and signed with
+Ed25519 over a canonical PHI-minimal manifest. The
 service independently resolves the exact production profile/workflow bytes,
 proves content equivalence under production digest rules, and reuses the closed
 lifecycle catalog for optimistic approval, immutable release publication, and
@@ -381,10 +382,8 @@ deployment. Workflow Builder exposes the bounded flow, and Source Profile review
 now compares an immutable baseline and persists a required actor-attributed
 change summary. Production GitOps activation remains a separate reviewed action.
 
-Kill-test status: unit/adversarial, full Go, and full UI proofs pass. The required
-PostgreSQL restart/append-only test is implemented but could not run locally
-because Docker and `POSTGRES_TEST_URL` were unavailable; CI must supply the
-terminal database proof before merge.
+Kill-test status: unit/adversarial, full Go, full UI, and the required CI
+PostgreSQL restart/append-only proofs passed before merge.
 
 ## Phase 4 — Operations, governance, and scale
 
@@ -394,6 +393,31 @@ terminal database proof before merge.
   secret resolution, immutable audit, retention/TTL/encryption, and export controls.
 - Proof: cross-tenant/object access, privilege escalation, secret/PHI logging, and
   expired-retention tests fail closed across REST, GraphQL, WebSocket, and adapters.
+
+#### Slice 4.1a: OIDC-authenticated GraphQL human identity
+
+- Add a long-lived OIDC discovery/JWKS verifier behind the existing GraphQL
+  authenticator seam. Require HTTPS discovery/JWKS, rejected redirects, bounded
+  remote refresh, a signed `typ=at+jwt` access-token class, an exact issuer, one exact
+  audience, an asymmetric algorithm allowlist, valid expiry/not-before,
+  nonempty subject, exact deployment-tenant claim, and a strict nonempty role
+  array.
+- Project verified caller identity into the server-owned security context used
+  by GraphQL POST/SSE operation authorization. Keep static bearer/trusted-network
+  handling only in an explicit compatibility mode; OIDC mode rejects those
+  settings, and static mode rejects OIDC settings.
+- Keep browser login/refresh, service identity for production adapters,
+  fine-grained policy administration, immutable audit storage, PHI retention,
+  export controls, WebSocket enablement, and GitOps activation in later 4.1
+  slices.
+
+Implementation status (2026-08-06): implemented and locally verified; landing
+pipeline evidence pending. The real-handler kill-test proves expected-tenant
+preview and operator tokens reach the authorized GraphQL POST/SSE resolvers,
+cross-tenant and malformed claims fail authentication, unprivileged roles fail
+before resolver data, and JWKS rotation succeeds through a time/rate-bounded
+unknown-key refresh. The focused and full repository race suites, lint, vet,
+documentation, module-integrity, and reachable-vulnerability gates pass.
 
 ### Slice 4.2: operator control plane
 
