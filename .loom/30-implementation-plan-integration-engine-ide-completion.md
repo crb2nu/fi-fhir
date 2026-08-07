@@ -411,13 +411,36 @@ PostgreSQL restart/append-only proofs passed before merge.
   export controls, WebSocket enablement, and GitOps activation in later 4.1
   slices.
 
-Implementation status (2026-08-06): implemented and locally verified; landing
-pipeline evidence pending. The real-handler kill-test proves expected-tenant
+Implementation status (2026-08-06): merged in MR !131 as `036f7acd`; exact main
+pipeline 22300 passed all 32 jobs. The real-handler kill-test proves expected-tenant
 preview and operator tokens reach the authorized GraphQL POST/SSE resolvers,
 cross-tenant and malformed claims fail authentication, unprivileged roles fail
 before resolver data, and JWKS rotation succeeds through a time/rate-bounded
 unknown-key refresh. The focused and full repository race suites, lint, vet,
 documentation, module-integrity, and reachable-vulnerability gates pass.
+
+#### Slice 4.1b1: OAuth HTTP service identity and submit authorization
+
+- Add a constrained OAuth2 client-credentials resource-server mode for the
+  production HL7v2 HTTP ingress. Reuse the Slice 4.1a verifier and require the
+  exact trust domain, `typ=at+jwt`, time window, deployment tenant, allowlisted
+  canonical `sub == client_id`, and a signed `integration:submit` grant.
+- Carry the verified service identity per request while keeping the integration
+  revision and source server-owned. Add one explicit `integration.submit`
+  authorization decision over the exact tenant, revision, and source.
+- Enforce the same decision at the adapter boundary, before processor artifact
+  loading, and in transaction-scoped runnable admission. Preserve existing
+  HTTP, MLLP, and batch grant names as compatible submit grants.
+- Keep token issuance/introspection, MLLP certificate identity, batch workload
+  identity, GraphQL control actions, delivery/export policy, immutable audit,
+  PHI controls, and GitOps activation in later slices.
+
+Implementation status (2026-08-07): implemented and locally verified; landing
+pipeline evidence pending. The load-bearing kill-test proves two allowlisted
+clients through one real handler remain distinct despite spoofed provenance
+headers, and proves a no-grant production request stops before artifact loading
+or durability. Focused and full-repository race suites, lint, vet,
+documentation, module-integrity, and local vulnerability/security scans pass.
 
 ### Slice 4.2: operator control plane
 

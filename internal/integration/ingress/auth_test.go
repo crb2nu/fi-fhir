@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
 
 const testBearerSecret = "correct-horse-battery-staple"
@@ -18,7 +20,7 @@ var testHMACKey = strings.Repeat("test-hmac-key-", 3)
 func TestAuthenticatorBearer(t *testing.T) {
 	authenticator := mustAuthenticator(t, AuthConfig{
 		Mode: AuthModeBearer, Secret: testBearerSecret,
-		PrincipalID: "source-service", IntegrationID: "adt-tolerant",
+		TenantID: "tenant-a", PrincipalID: "source-service", IntegrationID: "adt-tolerant",
 	})
 	tests := []struct {
 		name   string
@@ -47,10 +49,29 @@ func TestAuthenticatorBearer(t *testing.T) {
 	}
 }
 
+func TestAuthenticatorReturnsDeploymentBoundServiceIdentity(t *testing.T) {
+	authenticator := mustAuthenticator(t, AuthConfig{
+		Mode: AuthModeBearer, Secret: testBearerSecret,
+		TenantID: "tenant-a", PrincipalID: "source-service", IntegrationID: "adt-tolerant",
+	})
+	request := httptest.NewRequest("POST", Path, nil)
+	request.Header.Set("Authorization", "Bearer "+testBearerSecret)
+	security, err := authenticator.AuthenticateRequest(request.Context(), request, nil)
+	if err != nil {
+		t.Fatalf("AuthenticateRequest: %v", err)
+	}
+	if security.TenantID != "tenant-a" || security.Principal.ID != "source-service" || security.Principal.Kind != integration.PrincipalKindService || security.Principal.AuthMethod != "bearer" || security.Principal.SourceID != "" {
+		t.Fatalf("security context = %#v", security)
+	}
+	if len(security.Principal.Roles) != 1 || security.Principal.Roles[0] != SubmitRole {
+		t.Fatalf("service roles = %#v", security.Principal.Roles)
+	}
+}
+
 func TestAuthenticatorHMACBindsTransportFieldsAndBody(t *testing.T) {
 	authenticator := mustAuthenticator(t, AuthConfig{
 		Mode: AuthModeHMAC, Secret: testHMACKey,
-		PrincipalID: "source-service", IntegrationID: "adt-tolerant",
+		TenantID: "tenant-a", PrincipalID: "source-service", IntegrationID: "adt-tolerant",
 	})
 	body := []byte("MSH|^~\\&|APP|FAC")
 	request := httptest.NewRequest("POST", Path, nil)
@@ -79,11 +100,11 @@ func TestAuthenticatorHMACBindsTransportFieldsAndBody(t *testing.T) {
 func TestNewAuthenticatorRejectsUnsafeConfig(t *testing.T) {
 	tests := []AuthConfig{
 		{},
-		{Mode: AuthModeBearer, Secret: "short", PrincipalID: "source", IntegrationID: "adt"},
-		{Mode: AuthModeHMAC, Secret: strings.Repeat("x", 31), PrincipalID: "source", IntegrationID: "adt"},
-		{Mode: AuthModeHMAC, Secret: strings.Repeat("x", 32) + "\n", PrincipalID: "source", IntegrationID: "adt"},
-		{Mode: AuthModeBearer, Secret: testBearerSecret, PrincipalID: "bad principal", IntegrationID: "adt"},
-		{Mode: AuthModeBearer, Secret: testBearerSecret, PrincipalID: "source", IntegrationID: "bad integration"},
+		{Mode: AuthModeBearer, Secret: "short", TenantID: "tenant-a", PrincipalID: "source", IntegrationID: "adt"},
+		{Mode: AuthModeHMAC, Secret: strings.Repeat("x", 31), TenantID: "tenant-a", PrincipalID: "source", IntegrationID: "adt"},
+		{Mode: AuthModeHMAC, Secret: strings.Repeat("x", 32) + "\n", TenantID: "tenant-a", PrincipalID: "source", IntegrationID: "adt"},
+		{Mode: AuthModeBearer, Secret: testBearerSecret, TenantID: "tenant-a", PrincipalID: "bad principal", IntegrationID: "adt"},
+		{Mode: AuthModeBearer, Secret: testBearerSecret, TenantID: "tenant-a", PrincipalID: "source", IntegrationID: "bad integration"},
 	}
 	for index, config := range tests {
 		if _, err := NewAuthenticator(config); err == nil {

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/authorization"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
 
@@ -23,6 +24,14 @@ func (c *PostgresCatalog) AuthorizeRunnableSubmission(
 	}
 	if request.Security.TenantID != revision.TenantID ||
 		request.IntegrationRevision != revision.Reference() {
+		return ErrNotRunnable
+	}
+	if err := authorization.AuthorizeSubmission(
+		request.Security,
+		revision.TenantID,
+		revision.Reference(),
+		revision.Source.SourceID,
+	); err != nil {
 		return ErrNotRunnable
 	}
 

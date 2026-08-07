@@ -7,13 +7,14 @@ import (
 
 	"github.com/google/uuid"
 
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/authorization"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
 
-const SubmitRole = "integration:mllp"
+const SubmitRole = authorization.MLLPSubmitGrant
 
 var (
 	ErrUnavailable         = errors.New("MLLP source is unavailable")
@@ -136,6 +137,14 @@ func (s *Service) Submit(ctx context.Context, payload []byte) (integration.Proce
 			},
 		},
 		Envelope: envelope, CorrelationID: correlationID,
+	}
+	if err := authorization.AuthorizeSubmission(
+		request.Security,
+		s.tenantID,
+		binding.IntegrationRevision,
+		binding.SourceID,
+	); err != nil {
+		return integration.ProcessResult{}, ErrUnavailable
 	}
 	result, err := s.processor.Process(processCtx, request)
 	if err == nil {

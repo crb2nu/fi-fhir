@@ -57,10 +57,43 @@ type OIDCConfig struct {
 	JWKSRefreshMinInterval time.Duration
 }
 
+// OIDCServiceConfig defines deployment-owned trust, claim mapping, and client
+// authorization used to authenticate OAuth2 client-credentials callers.
+type OIDCServiceConfig struct {
+	IssuerURL            string
+	Audience             string
+	TenantID             string
+	TenantClaim          string
+	RolesClaim           string
+	ClientIDClaim        string
+	SupportedSigningAlgs []string
+	// HTTPClient optionally supplies private trust roots or other deployment
+	// transport settings. The client is cloned and hardened before use.
+	HTTPClient *http.Client
+	// JWKSRefreshMinInterval bounds outbound refreshes caused by unknown key IDs.
+	// Zero selects the hardened default; negative values are rejected.
+	JWKSRefreshMinInterval time.Duration
+	AllowedClientIDs       []string
+	RequiredRoles          []string
+}
+
 // OIDCAuthenticator verifies signed access tokens against one discovered OIDC
 // issuer. The verifier is deliberately constructed once so its RemoteKeySet can
 // cache keys and refresh the JWKS when a token presents an unknown key ID.
 type OIDCAuthenticator struct {
+	accessToken *oidcAccessTokenVerifier
+}
+
+// OIDCServiceAuthenticator verifies signed access tokens and projects only
+// deployment-authorized service identity data.
+type OIDCServiceAuthenticator struct {
+	accessToken     *oidcAccessTokenVerifier
+	clientIDClaim   string
+	allowedClientID map[string]struct{}
+	requiredRoles   []string
+}
+
+type oidcAccessTokenVerifier struct {
 	verifier    *oidc.IDTokenVerifier
 	audience    string
 	tenantID    string
@@ -68,30 +101,122 @@ type OIDCAuthenticator struct {
 	rolesClaim  string
 }
 
+type oidcAccessTokenConfig struct {
+	issuerURL              string
+	audience               string
+	tenantID               string
+	tenantClaim            string
+	rolesClaim             string
+	supportedSigningAlgs   []string
+	httpClient             *http.Client
+	jwksRefreshMinInterval time.Duration
+}
+
+type verifiedOIDCAccessToken struct {
+	subject  string
+	tenantID string
+	roles    []string
+	claims   map[string]json.RawMessage
+}
+
 // NewOIDCAuthenticator discovers the issuer and creates a long-lived verifier.
 func NewOIDCAuthenticator(ctx context.Context, config OIDCConfig) (*OIDCAuthenticator, error) {
+	verifier, err := newOIDCAccessTokenVerifier(ctx, oidcAccessTokenConfig{
+		issuerURL:              config.IssuerURL,
+		audience:               config.Audience,
+		tenantID:               config.TenantID,
+		tenantClaim:            config.TenantClaim,
+		rolesClaim:             config.RolesClaim,
+		supportedSigningAlgs:   config.SupportedSigningAlgs,
+		httpClient:             config.HTTPClient,
+		jwksRefreshMinInterval: config.JWKSRefreshMinInterval,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &OIDCAuthenticator{accessToken: verifier}, nil
+}
+
+// NewOIDCServiceAuthenticator discovers the issuer and creates a long-lived
+// verifier for OAuth2 client-credentials access tokens.
+func NewOIDCServiceAuthenticator(ctx context.Context, config OIDCServiceConfig) (*OIDCServiceAuthenticator, error) {
+	clientIDClaim := config.ClientIDClaim
+	if clientIDClaim == "" {
+		clientIDClaim = "client_id"
+	}
+	if err := validateClaimName("client ID claim", clientIDClaim); err != nil {
+		return nil, err
+	}
+	tenantClaim := config.TenantClaim
+	if tenantClaim == "" {
+		tenantClaim = defaultOIDCTenantClaim
+	}
+	rolesClaim := config.RolesClaim
+	if rolesClaim == "" {
+		rolesClaim = defaultOIDCRolesClaim
+	}
+	if clientIDClaim == tenantClaim || clientIDClaim == rolesClaim || clientIDClaim == "sub" {
+		return nil, fmt.Errorf("OIDC service client ID claim must be distinct from subject, tenant, and roles claims")
+	}
+
+	allowedClientIDs, err := validateCanonicalIdentitySet("allowed client ID", config.AllowedClientIDs)
+	if err != nil {
+		return nil, err
+	}
+	requiredRoleSet, err := validateCanonicalIdentitySet("required role", config.RequiredRoles)
+	if err != nil {
+		return nil, err
+	}
+	requiredRoles := make([]string, 0, len(requiredRoleSet))
+	for role := range requiredRoleSet {
+		requiredRoles = append(requiredRoles, role)
+	}
+	slices.Sort(requiredRoles)
+
+	verifier, err := newOIDCAccessTokenVerifier(ctx, oidcAccessTokenConfig{
+		issuerURL:              config.IssuerURL,
+		audience:               config.Audience,
+		tenantID:               config.TenantID,
+		tenantClaim:            config.TenantClaim,
+		rolesClaim:             config.RolesClaim,
+		supportedSigningAlgs:   config.SupportedSigningAlgs,
+		httpClient:             config.HTTPClient,
+		jwksRefreshMinInterval: config.JWKSRefreshMinInterval,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &OIDCServiceAuthenticator{
+		accessToken:     verifier,
+		clientIDClaim:   clientIDClaim,
+		allowedClientID: allowedClientIDs,
+		requiredRoles:   requiredRoles,
+	}, nil
+}
+
+func newOIDCAccessTokenVerifier(ctx context.Context, config oidcAccessTokenConfig) (*oidcAccessTokenVerifier, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("OIDC discovery context is required")
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	issuerURL, err := validateOIDCIssuerURL(config.IssuerURL)
+	issuerURL, err := validateOIDCIssuerURL(config.issuerURL)
 	if err != nil {
 		return nil, err
 	}
-	if err := validateOIDCAudience(config.Audience); err != nil {
+	if err := validateOIDCAudience(config.audience); err != nil {
 		return nil, err
 	}
-	if err := validateIdentity("tenant ID", config.TenantID); err != nil {
+	if err := validateIdentity("tenant ID", config.tenantID); err != nil {
 		return nil, err
 	}
 
-	tenantClaim := config.TenantClaim
+	tenantClaim := config.tenantClaim
 	if tenantClaim == "" {
 		tenantClaim = defaultOIDCTenantClaim
 	}
-	rolesClaim := config.RolesClaim
+	rolesClaim := config.rolesClaim
 	if rolesClaim == "" {
 		rolesClaim = defaultOIDCRolesClaim
 	}
@@ -105,11 +230,11 @@ func NewOIDCAuthenticator(ctx context.Context, config OIDCConfig) (*OIDCAuthenti
 		return nil, fmt.Errorf("OIDC tenant and roles claims must be distinct")
 	}
 
-	signingAlgorithms, err := validateOIDCSigningAlgorithms(config.SupportedSigningAlgs)
+	signingAlgorithms, err := validateOIDCSigningAlgorithms(config.supportedSigningAlgs)
 	if err != nil {
 		return nil, err
 	}
-	refreshMinInterval := config.JWKSRefreshMinInterval
+	refreshMinInterval := config.jwksRefreshMinInterval
 	if refreshMinInterval < 0 {
 		return nil, fmt.Errorf("OIDC JWKS refresh minimum interval must not be negative")
 	}
@@ -117,7 +242,7 @@ func NewOIDCAuthenticator(ctx context.Context, config OIDCConfig) (*OIDCAuthenti
 		refreshMinInterval = defaultJWKSRefreshMinInterval
 	}
 
-	httpClient := config.HTTPClient
+	httpClient := config.httpClient
 	if httpClient == nil {
 		// Preserve the go-oidc context convention for existing callers while the
 		// explicit config field remains the preferred transport boundary.
@@ -145,13 +270,13 @@ func NewOIDCAuthenticator(ctx context.Context, config OIDCConfig) (*OIDCAuthenti
 	jwksContext := oidc.ClientContext(context.Background(), &jwksClient)
 	keySet := oidc.NewRemoteKeySet(jwksContext, jwksURL)
 
-	return &OIDCAuthenticator{
+	return &oidcAccessTokenVerifier{
 		verifier: oidc.NewVerifier(issuerURL, keySet, &oidc.Config{
-			ClientID:             config.Audience,
+			ClientID:             config.audience,
 			SupportedSigningAlgs: signingAlgorithms,
 		}),
-		audience:    config.Audience,
-		tenantID:    config.TenantID,
+		audience:    config.audience,
+		tenantID:    config.tenantID,
 		tenantClaim: tenantClaim,
 		rolesClaim:  rolesClaim,
 	}, nil
@@ -159,56 +284,108 @@ func NewOIDCAuthenticator(ctx context.Context, config OIDCConfig) (*OIDCAuthenti
 
 // Authenticate verifies one bearer JWT and builds server-owned identity data.
 func (a *OIDCAuthenticator) Authenticate(ctx context.Context, authorization string) (integration.SecurityContext, error) {
-	if ctx == nil || a == nil || a.verifier == nil {
+	if a == nil || a.accessToken == nil {
 		return integration.SecurityContext{}, ErrInvalidCredentials
 	}
-	if err := ctx.Err(); err != nil {
-		return integration.SecurityContext{}, err
-	}
-	credential, err := bearerCredential(authorization)
+	verified, err := a.accessToken.verify(ctx, authorization)
 	if err != nil {
 		return integration.SecurityContext{}, err
 	}
-	if !validOIDCAccessTokenHeader(credential) {
+	return integration.SecurityContext{
+		TenantID: verified.tenantID,
+		Principal: integration.Principal{
+			ID:         verified.subject,
+			Kind:       integration.PrincipalKindHuman,
+			AuthMethod: "oidc",
+			Roles:      verified.roles,
+		},
+	}, nil
+}
+
+// Authenticate verifies one OAuth2 client-credentials bearer JWT and builds a
+// least-privilege, server-owned service identity.
+func (a *OIDCServiceAuthenticator) Authenticate(ctx context.Context, authorization string) (integration.SecurityContext, error) {
+	if a == nil || a.accessToken == nil {
 		return integration.SecurityContext{}, ErrInvalidCredentials
+	}
+	verified, err := a.accessToken.verify(ctx, authorization)
+	if err != nil {
+		return integration.SecurityContext{}, err
+	}
+	if err := validateIdentity("OIDC service subject", verified.subject); err != nil {
+		return integration.SecurityContext{}, ErrInvalidCredentials
+	}
+	clientID, ok := strictStringClaim(verified.claims[a.clientIDClaim])
+	if !ok || clientID != verified.subject {
+		return integration.SecurityContext{}, ErrInvalidCredentials
+	}
+	if _, allowed := a.allowedClientID[clientID]; !allowed {
+		return integration.SecurityContext{}, ErrInvalidCredentials
+	}
+	tokenRoles := make(map[string]struct{}, len(verified.roles))
+	for _, role := range verified.roles {
+		tokenRoles[role] = struct{}{}
+	}
+	for _, required := range a.requiredRoles {
+		if _, present := tokenRoles[required]; !present {
+			return integration.SecurityContext{}, ErrInvalidCredentials
+		}
+	}
+
+	return integration.SecurityContext{
+		TenantID: verified.tenantID,
+		Principal: integration.Principal{
+			ID:         verified.subject,
+			Kind:       integration.PrincipalKindService,
+			AuthMethod: "oauth2-client-credentials",
+			Roles:      append([]string(nil), a.requiredRoles...),
+		},
+	}, nil
+}
+
+func (a *oidcAccessTokenVerifier) verify(ctx context.Context, authorization string) (verifiedOIDCAccessToken, error) {
+	if ctx == nil || a == nil || a.verifier == nil {
+		return verifiedOIDCAccessToken{}, ErrInvalidCredentials
+	}
+	if err := ctx.Err(); err != nil {
+		return verifiedOIDCAccessToken{}, err
+	}
+	credential, err := bearerCredential(authorization)
+	if err != nil {
+		return verifiedOIDCAccessToken{}, err
+	}
+	if !validOIDCAccessTokenHeader(credential) {
+		return verifiedOIDCAccessToken{}, ErrInvalidCredentials
 	}
 
 	token, err := a.verifier.Verify(ctx, credential)
 	if err != nil {
-		return integration.SecurityContext{}, ErrInvalidCredentials
+		return verifiedOIDCAccessToken{}, ErrInvalidCredentials
 	}
 	if err := validateOIDCSubject(token.Subject); err != nil {
-		return integration.SecurityContext{}, ErrInvalidCredentials
+		return verifiedOIDCAccessToken{}, ErrInvalidCredentials
 	}
 	// This runtime accepts one API audience, not a token issued jointly to other
 	// relying parties. go-oidc proves membership; tighten that to exact equality
 	// so a multi-audience token cannot broaden its use here.
 	if len(token.Audience) != 1 || token.Audience[0] != a.audience {
-		return integration.SecurityContext{}, ErrInvalidCredentials
+		return verifiedOIDCAccessToken{}, ErrInvalidCredentials
 	}
 
 	claims := make(map[string]json.RawMessage)
 	if err := token.Claims(&claims); err != nil {
-		return integration.SecurityContext{}, ErrInvalidCredentials
+		return verifiedOIDCAccessToken{}, ErrInvalidCredentials
 	}
 	tenantID, ok := strictStringClaim(claims[a.tenantClaim])
 	if !ok || tenantID != a.tenantID {
-		return integration.SecurityContext{}, ErrInvalidCredentials
+		return verifiedOIDCAccessToken{}, ErrInvalidCredentials
 	}
 	roles, ok := strictRolesClaim(claims[a.rolesClaim])
 	if !ok {
-		return integration.SecurityContext{}, ErrInvalidCredentials
+		return verifiedOIDCAccessToken{}, ErrInvalidCredentials
 	}
 
-	return integration.SecurityContext{
-		TenantID: tenantID,
-		Principal: integration.Principal{
-			ID:         token.Subject,
-			Kind:       integration.PrincipalKindHuman,
-			AuthMethod: "oidc",
-			Roles:      roles,
-		},
-	}, nil
+	return verifiedOIDCAccessToken{subject: token.Subject, tenantID: tenantID, roles: roles, claims: claims}, nil
 }
 
 func validateOIDCIssuerURL(raw string) (string, error) {
@@ -464,6 +641,23 @@ func validateClaimName(label, value string) error {
 		return fmt.Errorf("OIDC %s is invalid", label)
 	}
 	return nil
+}
+
+func validateCanonicalIdentitySet(label string, configured []string) (map[string]struct{}, error) {
+	if len(configured) == 0 {
+		return nil, fmt.Errorf("OIDC service %ss must not be empty", label)
+	}
+	values := make(map[string]struct{}, len(configured))
+	for _, value := range configured {
+		if err := validateIdentity("OIDC service "+label, value); err != nil {
+			return nil, err
+		}
+		if _, duplicate := values[value]; duplicate {
+			return nil, fmt.Errorf("OIDC service %s %q is duplicated", label, value)
+		}
+		values[value] = struct{}{}
+	}
+	return values, nil
 }
 
 func validateOIDCSigningAlgorithms(configured []string) ([]string, error) {

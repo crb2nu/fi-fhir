@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/authorization"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
@@ -95,6 +96,42 @@ func TestMessageProcessorRejectsProductionAndWrongTenantBeforeLoading(t *testing
 	}
 	if fixture.definitionLoader.callCount() != 0 || fixture.artifactLoader.callCount() != 0 {
 		t.Fatalf("wrong tenant reached loaders: definition=%d artifact=%d", fixture.definitionLoader.callCount(), fixture.artifactLoader.callCount())
+	}
+}
+
+func TestMessageProcessorRejectsProductionWithoutSubmitGrantBeforeArtifactsOrDurability(t *testing.T) {
+	t.Parallel()
+
+	fixture := newMessageProcessorFixture(t, strictExecutableProfileJSON(false), processorPublishedWorkflow, processorA01Message(true))
+	durable, err := NewDurableMessageProcessor(
+		fixture.processor.definitions,
+		fixture.processor.artifacts,
+		&PostgresSubmissionStore{},
+	)
+	if err != nil {
+		t.Fatalf("NewDurableMessageProcessor: %v", err)
+	}
+	request := fixture.request
+	request.Mode = integration.ExecutionModeProduction
+	request.Security.Principal.Roles = []string{"integration:read"}
+
+	if _, err := durable.Process(context.Background(), request); !errors.Is(err, ErrProcessForbidden) {
+		t.Fatalf("Process() error = %v, want ErrProcessForbidden", err)
+	}
+	if fixture.definitionLoader.callCount() != 1 {
+		t.Fatalf("definition loader calls = %d, want 1 exact resolution", fixture.definitionLoader.callCount())
+	}
+	if fixture.artifactLoader.callCount() != 0 {
+		t.Fatalf("forbidden request reached artifact loader %d times", fixture.artifactLoader.callCount())
+	}
+
+	request.Security.Principal.Roles = []string{authorization.HTTPSubmitGrant}
+	request.Security.Principal.SourceID = "adt-west"
+	if _, err := durable.Process(context.Background(), request); !errors.Is(err, ErrInvalidProcessRequest) {
+		t.Fatalf("source-spoof error = %v, want ErrInvalidProcessRequest", err)
+	}
+	if fixture.artifactLoader.callCount() != 0 {
+		t.Fatalf("source-spoof request reached artifact loader %d times", fixture.artifactLoader.callCount())
 	}
 }
 

@@ -105,6 +105,200 @@ func TestOIDCAuthenticatorAuthenticate(t *testing.T) {
 	}
 }
 
+func TestOIDCServiceAuthenticatorAuthenticatesAllowedClientsAndProjectsRequiredRoles(t *testing.T) {
+	issuer, err := oidctest.New()
+	if err != nil {
+		t.Fatalf("new OIDC issuer: %v", err)
+	}
+	t.Cleanup(issuer.Close)
+
+	authenticator, err := NewOIDCServiceAuthenticator(issuer.Context(), OIDCServiceConfig{
+		IssuerURL:        issuer.IssuerURL(),
+		Audience:         "fi-fhir-ingress",
+		TenantID:         "tenant-a",
+		AllowedClientIDs: []string{"service-b", "service-a"},
+		RequiredRoles:    []string{"integration:write", "integration:submit"},
+	})
+	if err != nil {
+		t.Fatalf("NewOIDCServiceAuthenticator: %v", err)
+	}
+
+	for _, clientID := range []string{"service-a", "service-b"} {
+		t.Run(clientID, func(t *testing.T) {
+			claims := issuer.Claims()
+			claims["sub"] = clientID
+			claims["client_id"] = clientID
+			claims["aud"] = "fi-fhir-ingress"
+			claims["roles"] = []string{"destination:admin", "integration:submit", "integration:write"}
+			token := mustSignToken(t, issuer, claims, "RS256")
+
+			security, err := authenticator.Authenticate(context.Background(), "Bearer "+token)
+			if err != nil {
+				t.Fatalf("Authenticate: %v", err)
+			}
+			if security.TenantID != "tenant-a" {
+				t.Fatalf("tenant ID = %q, want tenant-a", security.TenantID)
+			}
+			principal := security.Principal
+			if principal.ID != clientID || principal.Kind != integration.PrincipalKindService {
+				t.Fatalf("principal = %#v", principal)
+			}
+			if principal.AuthMethod != "oauth2-client-credentials" {
+				t.Fatalf("auth method = %q", principal.AuthMethod)
+			}
+			if principal.SourceID != "" {
+				t.Fatalf("service authenticator projected source ID %q", principal.SourceID)
+			}
+			if got := strings.Join(principal.Roles, ","); got != "integration:submit,integration:write" {
+				t.Fatalf("projected roles = %q", got)
+			}
+		})
+	}
+}
+
+func TestOIDCServiceAuthenticatorSupportsConfiguredClaimsAndTrust(t *testing.T) {
+	issuer, err := oidctest.New()
+	if err != nil {
+		t.Fatalf("new OIDC issuer: %v", err)
+	}
+	t.Cleanup(issuer.Close)
+
+	authenticator, err := NewOIDCServiceAuthenticator(issuer.Context(), OIDCServiceConfig{
+		IssuerURL:            issuer.IssuerURL(),
+		Audience:             "https://fi-fhir.example.test/ingress",
+		TenantID:             "tenant-a",
+		TenantClaim:          "organization",
+		RolesClaim:           "permissions",
+		ClientIDClaim:        "azp",
+		SupportedSigningAlgs: []string{"RS384"},
+		AllowedClientIDs:     []string{"service-a"},
+		RequiredRoles:        []string{"integration:submit"},
+	})
+	if err != nil {
+		t.Fatalf("NewOIDCServiceAuthenticator: %v", err)
+	}
+	claims := issuer.Claims()
+	delete(claims, "tenant_id")
+	delete(claims, "roles")
+	claims["sub"] = "service-a"
+	claims["aud"] = "https://fi-fhir.example.test/ingress"
+	claims["organization"] = "tenant-a"
+	claims["permissions"] = []string{"integration:submit"}
+	claims["azp"] = "service-a"
+	token := mustSignToken(t, issuer, claims, "RS384")
+	if _, err := authenticator.Authenticate(context.Background(), "Bearer "+token); err != nil {
+		t.Fatalf("Authenticate configured claims and trust: %v", err)
+	}
+}
+
+func TestOIDCServiceAuthenticatorRejectsUntrustedServiceClaims(t *testing.T) {
+	issuer, err := oidctest.New()
+	if err != nil {
+		t.Fatalf("new OIDC issuer: %v", err)
+	}
+	t.Cleanup(issuer.Close)
+	authenticator, err := NewOIDCServiceAuthenticator(issuer.Context(), OIDCServiceConfig{
+		IssuerURL:        issuer.IssuerURL(),
+		Audience:         "fi-fhir-ingress",
+		TenantID:         "tenant-a",
+		AllowedClientIDs: []string{"service-a", "service-b"},
+		RequiredRoles:    []string{"integration:submit", "integration:write"},
+	})
+	if err != nil {
+		t.Fatalf("NewOIDCServiceAuthenticator: %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		mutate    func(map[string]any)
+		tokenType string
+	}{
+		{name: "wrong issuer", mutate: func(c map[string]any) { c["iss"] = "https://other.example.test" }},
+		{name: "wrong audience", mutate: func(c map[string]any) { c["aud"] = "other-api" }},
+		{name: "additional audience", mutate: func(c map[string]any) { c["aud"] = []string{"fi-fhir-ingress", "other-api"} }},
+		{name: "expired", mutate: func(c map[string]any) { c["exp"] = time.Now().Add(-time.Minute).Unix() }},
+		{name: "not before", mutate: func(c map[string]any) { c["nbf"] = time.Now().Add(10 * time.Minute).Unix() }},
+		{name: "missing subject", mutate: func(c map[string]any) { delete(c, "sub") }},
+		{name: "unlisted client", mutate: func(c map[string]any) { c["sub"], c["client_id"] = "service-c", "service-c" }},
+		{name: "subject client mismatch", mutate: func(c map[string]any) { c["client_id"] = "service-b" }},
+		{name: "missing client ID", mutate: func(c map[string]any) { delete(c, "client_id") }},
+		{name: "array client ID", mutate: func(c map[string]any) { c["client_id"] = []string{"service-a"} }},
+		{name: "numeric client ID", mutate: func(c map[string]any) { c["client_id"] = 42 }},
+		{name: "null client ID", mutate: func(c map[string]any) { c["client_id"] = nil }},
+		{name: "blank client ID", mutate: func(c map[string]any) { c["client_id"] = "" }},
+		{name: "noncanonical client ID", mutate: func(c map[string]any) { c["client_id"] = " service-a" }},
+		{name: "noncanonical subject", mutate: func(c map[string]any) { c["sub"], c["client_id"] = "service a", "service a" }},
+		{name: "missing roles", mutate: func(c map[string]any) { delete(c, "roles") }},
+		{name: "string roles", mutate: func(c map[string]any) { c["roles"] = "integration:submit" }},
+		{name: "duplicate roles", mutate: func(c map[string]any) { c["roles"] = []string{"integration:submit", "integration:submit"} }},
+		{name: "missing required role", mutate: func(c map[string]any) { c["roles"] = []string{"integration:submit"} }},
+		{name: "cross tenant", mutate: func(c map[string]any) { c["tenant_id"] = "tenant-b" }},
+		{name: "wrong token type", tokenType: "JWT"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			claims := issuer.Claims()
+			claims["sub"] = "service-a"
+			claims["client_id"] = "service-a"
+			claims["aud"] = "fi-fhir-ingress"
+			claims["roles"] = []string{"integration:write", "integration:submit"}
+			if test.mutate != nil {
+				test.mutate(claims)
+			}
+			var token string
+			if test.tokenType != "" {
+				token, err = issuer.SignWithType(claims, "RS256", test.tokenType)
+				if err != nil {
+					t.Fatalf("sign token: %v", err)
+				}
+			} else {
+				token = mustSignToken(t, issuer, claims, "RS256")
+			}
+			_, err := authenticator.Authenticate(context.Background(), "Bearer "+token)
+			assertGenericInvalidCredentials(t, err, token)
+		})
+	}
+}
+
+func TestOIDCServiceAuthenticatorRejectsUnsafeConfiguration(t *testing.T) {
+	issuer, err := oidctest.New()
+	if err != nil {
+		t.Fatalf("new OIDC issuer: %v", err)
+	}
+	t.Cleanup(issuer.Close)
+
+	tests := []struct {
+		name   string
+		mutate func(*OIDCServiceConfig)
+	}{
+		{name: "missing allowed clients", mutate: func(c *OIDCServiceConfig) { c.AllowedClientIDs = nil }},
+		{name: "duplicate allowed client", mutate: func(c *OIDCServiceConfig) { c.AllowedClientIDs = []string{"service-a", "service-a"} }},
+		{name: "noncanonical allowed client", mutate: func(c *OIDCServiceConfig) { c.AllowedClientIDs = []string{"service a"} }},
+		{name: "missing required roles", mutate: func(c *OIDCServiceConfig) { c.RequiredRoles = nil }},
+		{name: "duplicate required role", mutate: func(c *OIDCServiceConfig) { c.RequiredRoles = []string{"integration:submit", "integration:submit"} }},
+		{name: "noncanonical required role", mutate: func(c *OIDCServiceConfig) { c.RequiredRoles = []string{"integration submit"} }},
+		{name: "client ID tenant claim collision", mutate: func(c *OIDCServiceConfig) { c.ClientIDClaim = "tenant_id" }},
+		{name: "client ID roles claim collision", mutate: func(c *OIDCServiceConfig) { c.ClientIDClaim = "roles" }},
+		{name: "client ID subject claim collision", mutate: func(c *OIDCServiceConfig) { c.ClientIDClaim = "sub" }},
+		{name: "invalid client ID claim", mutate: func(c *OIDCServiceConfig) { c.ClientIDClaim = " client_id" }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			config := OIDCServiceConfig{
+				IssuerURL:        issuer.IssuerURL(),
+				Audience:         "fi-fhir-ingress",
+				TenantID:         "tenant-a",
+				AllowedClientIDs: []string{"service-a"},
+				RequiredRoles:    []string{"integration:submit"},
+			}
+			test.mutate(&config)
+			if _, err := NewOIDCServiceAuthenticator(issuer.Context(), config); err == nil {
+				t.Fatal("unsafe OIDC service configuration was accepted")
+			}
+		})
+	}
+}
+
 func TestOIDCAuthenticatorSupportsConfiguredClaimsAndAlgorithm(t *testing.T) {
 	issuer, err := oidctest.New()
 	if err != nil {

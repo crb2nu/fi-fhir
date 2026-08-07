@@ -142,7 +142,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 	}
 
 	var (
-		ingressAuthenticator *integrationingress.Authenticator
+		ingressAuthenticator integrationingress.RequestAuthenticator
 		maxBodyBytes         int64
 		mllpSource           mllp.SourceRevision
 		mllpDefinitionID     string
@@ -154,7 +154,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 		sessionStore         integrationsession.Store
 	)
 	if productionHTTPEnabled {
-		ingressAuthenticator, maxBodyBytes, err = loadHTTPIngressAuthenticatorFromEnv()
+		ingressAuthenticator, maxBodyBytes, err = loadHTTPIngressAuthenticatorFromEnv(ctx, tenantID)
 		if err != nil {
 			return nil, err
 		}
@@ -466,32 +466,112 @@ func (r *previewRuntime) Close() error {
 	return errors.Join(errs...)
 }
 
-func loadHTTPIngressAuthenticatorFromEnv() (*integrationingress.Authenticator, int64, error) {
+func loadHTTPIngressAuthenticatorFromEnv(ctx context.Context, tenantID string) (integrationingress.RequestAuthenticator, int64, error) {
 	mode := integrationingress.AuthMode(os.Getenv("FI_FHIR_HTTP_INGRESS_AUTH_MODE"))
-	principalID, err := requiredEnv("FI_FHIR_HTTP_INGRESS_PRINCIPAL_ID")
-	if err != nil {
-		return nil, 0, err
-	}
 	integrationID, err := requiredEnv("FI_FHIR_HTTP_INGRESS_INTEGRATION_ID")
 	if err != nil {
 		return nil, 0, err
 	}
-	secret, err := loadSingleLineSecret(
-		"FI_FHIR_HTTP_INGRESS_SECRET",
-		"FI_FHIR_HTTP_INGRESS_SECRET_FILE",
-		"HTTP ingress secret",
-	)
-	if err != nil {
-		return nil, 0, err
-	}
-	authenticator, err := integrationingress.NewAuthenticator(integrationingress.AuthConfig{
-		Mode:          mode,
-		Secret:        secret,
-		PrincipalID:   principalID,
-		IntegrationID: integrationID,
-	})
-	if err != nil {
-		return nil, 0, fmt.Errorf("configure HTTP ingress authenticator: %w", err)
+	var authenticator integrationingress.RequestAuthenticator
+	switch mode {
+	case integrationingress.AuthModeBearer, integrationingress.AuthModeHMAC:
+		if err := rejectHTTPIngressConfiguredEnv(mode,
+			"FI_FHIR_HTTP_INGRESS_OAUTH_ISSUER_URL",
+			"FI_FHIR_HTTP_INGRESS_OAUTH_AUDIENCE",
+			"FI_FHIR_HTTP_INGRESS_OAUTH_TENANT_CLAIM",
+			"FI_FHIR_HTTP_INGRESS_OAUTH_ROLES_CLAIM",
+			"FI_FHIR_HTTP_INGRESS_OAUTH_CLIENT_ID_CLAIM",
+			"FI_FHIR_HTTP_INGRESS_OAUTH_SIGNING_ALGS",
+			"FI_FHIR_HTTP_INGRESS_OAUTH_ALLOWED_CLIENT_IDS",
+		); err != nil {
+			return nil, 0, err
+		}
+		principalID, err := requiredEnv("FI_FHIR_HTTP_INGRESS_PRINCIPAL_ID")
+		if err != nil {
+			return nil, 0, err
+		}
+		secret, err := loadSingleLineSecret(
+			"FI_FHIR_HTTP_INGRESS_SECRET",
+			"FI_FHIR_HTTP_INGRESS_SECRET_FILE",
+			"HTTP ingress secret",
+		)
+		if err != nil {
+			return nil, 0, err
+		}
+		authenticator, err = integrationingress.NewAuthenticator(integrationingress.AuthConfig{
+			Mode:          mode,
+			Secret:        secret,
+			TenantID:      tenantID,
+			PrincipalID:   principalID,
+			IntegrationID: integrationID,
+		})
+		if err != nil {
+			return nil, 0, fmt.Errorf("configure HTTP ingress authenticator: %w", err)
+		}
+	case integrationingress.AuthModeOAuth2:
+		if err := rejectHTTPIngressConfiguredEnv(mode,
+			"FI_FHIR_HTTP_INGRESS_SECRET",
+			"FI_FHIR_HTTP_INGRESS_SECRET_FILE",
+			"FI_FHIR_HTTP_INGRESS_PRINCIPAL_ID",
+		); err != nil {
+			return nil, 0, err
+		}
+		issuerURL, err := requiredEnv("FI_FHIR_HTTP_INGRESS_OAUTH_ISSUER_URL")
+		if err != nil {
+			return nil, 0, err
+		}
+		audience, err := requiredEnv("FI_FHIR_HTTP_INGRESS_OAUTH_AUDIENCE")
+		if err != nil {
+			return nil, 0, err
+		}
+		allowedClientIDsValue, err := requiredEnv("FI_FHIR_HTTP_INGRESS_OAUTH_ALLOWED_CLIENT_IDS")
+		if err != nil {
+			return nil, 0, err
+		}
+		allowedClientIDs, err := parseCSVConfig("FI_FHIR_HTTP_INGRESS_OAUTH_ALLOWED_CLIENT_IDS", allowedClientIDsValue)
+		if err != nil {
+			return nil, 0, err
+		}
+		tenantClaim, err := canonicalEnvOrDefault("FI_FHIR_HTTP_INGRESS_OAUTH_TENANT_CLAIM", "tenant_id")
+		if err != nil {
+			return nil, 0, err
+		}
+		rolesClaim, err := canonicalEnvOrDefault("FI_FHIR_HTTP_INGRESS_OAUTH_ROLES_CLAIM", "roles")
+		if err != nil {
+			return nil, 0, err
+		}
+		clientIDClaim, err := canonicalEnvOrDefault("FI_FHIR_HTTP_INGRESS_OAUTH_CLIENT_ID_CLAIM", "client_id")
+		if err != nil {
+			return nil, 0, err
+		}
+		signingAlgorithmsValue, err := canonicalEnvOrDefault("FI_FHIR_HTTP_INGRESS_OAUTH_SIGNING_ALGS", "RS256")
+		if err != nil {
+			return nil, 0, err
+		}
+		signingAlgorithms, err := parseCSVConfig("FI_FHIR_HTTP_INGRESS_OAUTH_SIGNING_ALGS", signingAlgorithmsValue)
+		if err != nil {
+			return nil, 0, err
+		}
+		serviceAuthenticator, err := requestsecurity.NewOIDCServiceAuthenticator(ctx, requestsecurity.OIDCServiceConfig{
+			IssuerURL:            issuerURL,
+			Audience:             audience,
+			TenantID:             tenantID,
+			TenantClaim:          tenantClaim,
+			RolesClaim:           rolesClaim,
+			ClientIDClaim:        clientIDClaim,
+			SupportedSigningAlgs: signingAlgorithms,
+			AllowedClientIDs:     allowedClientIDs,
+			RequiredRoles:        []string{integrationingress.SubmitRole},
+		})
+		if err != nil {
+			return nil, 0, fmt.Errorf("configure HTTP ingress OAuth authenticator: %w", err)
+		}
+		authenticator, err = integrationingress.NewOAuthRequestAuthenticator(integrationID, serviceAuthenticator)
+		if err != nil {
+			return nil, 0, fmt.Errorf("configure HTTP ingress OAuth adapter: %w", err)
+		}
+	default:
+		return nil, 0, fmt.Errorf("FI_FHIR_HTTP_INGRESS_AUTH_MODE must be %q, %q, or %q", integrationingress.AuthModeBearer, integrationingress.AuthModeHMAC, integrationingress.AuthModeOAuth2)
 	}
 	maxBodyBytes := integrationingress.DefaultMaxBodyBytes
 	if raw := os.Getenv("FI_FHIR_HTTP_INGRESS_MAX_BODY_BYTES"); raw != "" {
@@ -507,19 +587,26 @@ func loadHTTPIngressAuthenticatorFromEnv() (*integrationingress.Authenticator, i
 	return authenticator, maxBodyBytes, nil
 }
 
+func rejectHTTPIngressConfiguredEnv(mode integrationingress.AuthMode, names ...string) error {
+	for _, name := range names {
+		if os.Getenv(name) != "" {
+			return fmt.Errorf("%s cannot be set when FI_FHIR_HTTP_INGRESS_AUTH_MODE=%s", name, mode)
+		}
+	}
+	return nil
+}
+
 func newHTTPIngressHandler(
 	tenantID string,
 	staticRegistry *registry.StaticRegistry,
 	messageProcessor *processor.MessageProcessor,
-	authenticator *integrationingress.Authenticator,
+	authenticator integrationingress.RequestAuthenticator,
 	maxBodyBytes int64,
 ) (http.Handler, error) {
 	service, err := integrationingress.NewService(integrationingress.ServiceConfig{
-		TenantID:    tenantID,
-		PrincipalID: authenticator.PrincipalID(),
-		AuthMethod:  authenticator.AuthMethod(),
-		Registry:    staticRegistry,
-		Processor:   messageProcessor,
+		TenantID:  tenantID,
+		Registry:  staticRegistry,
+		Processor: messageProcessor,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("configure HTTP ingress service: %w", err)

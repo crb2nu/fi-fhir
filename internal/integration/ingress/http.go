@@ -24,13 +24,13 @@ const (
 
 type HandlerConfig struct {
 	MaxBodyBytes  int64
-	Authenticator *Authenticator
+	Authenticator RequestAuthenticator
 	Service       *Service
 }
 
 type Handler struct {
 	maxBodyBytes  int64
-	authenticator *Authenticator
+	authenticator RequestAuthenticator
 	service       *Service
 }
 
@@ -86,8 +86,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", "HL7v2 payload exceeds the configured limit", false, "request.body")
 		return
 	}
+	var security integration.SecurityContext
 	if !h.authenticator.RequiresBody() {
-		if err := h.authenticator.Authenticate(r, nil); err != nil {
+		security, err = h.authenticator.AuthenticateRequest(r.Context(), r, nil)
+		if err != nil {
 			writeAuthenticationError(w, err, true)
 			return
 		}
@@ -106,7 +108,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if h.authenticator.RequiresBody() {
-		if err := h.authenticator.Authenticate(r, body); err != nil {
+		security, err = h.authenticator.AuthenticateRequest(r.Context(), r, body)
+		if err != nil {
 			writeAuthenticationError(w, err, false)
 			return
 		}
@@ -134,6 +137,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Payload:        body,
 		IdempotencyKey: idempotencyKey,
 		CorrelationID:  correlationID,
+		Security:       security,
 	})
 	if err != nil {
 		writeSubmissionError(w, err)

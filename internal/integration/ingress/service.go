@@ -8,13 +8,14 @@ import (
 
 	"github.com/google/uuid"
 
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/authorization"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/registry"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
 
-const SubmitRole = "integration:submit"
+const SubmitRole = authorization.HTTPSubmitGrant
 
 var (
 	ErrUnavailable            = errors.New("HTTP ingress is unavailable")
@@ -38,6 +39,7 @@ type Processor interface {
 }
 
 type Input struct {
+	Security       integration.SecurityContext
 	IntegrationID  string
 	Payload        []byte
 	IdempotencyKey string
@@ -45,33 +47,23 @@ type Input struct {
 }
 
 type Service struct {
-	tenantID    string
-	principalID string
-	authMethod  string
-	registry    Registry
-	processor   Processor
-	now         func() time.Time
-	newID       func() string
+	tenantID  string
+	registry  Registry
+	processor Processor
+	now       func() time.Time
+	newID     func() string
 }
 
 type ServiceConfig struct {
-	TenantID    string
-	PrincipalID string
-	AuthMethod  string
-	Registry    Registry
-	Processor   Processor
-	Clock       func() time.Time
-	NewID       func() string
+	TenantID  string
+	Registry  Registry
+	Processor Processor
+	Clock     func() time.Time
+	NewID     func() string
 }
 
 func NewService(config ServiceConfig) (*Service, error) {
 	if err := validateIdentity("tenant ID", config.TenantID); err != nil {
-		return nil, err
-	}
-	if err := validateIdentity("principal ID", config.PrincipalID); err != nil {
-		return nil, err
-	}
-	if err := validateIdentity("auth method", config.AuthMethod); err != nil {
 		return nil, err
 	}
 	if config.Registry == nil || config.Processor == nil {
@@ -86,13 +78,11 @@ func NewService(config ServiceConfig) (*Service, error) {
 		newID = uuid.NewString
 	}
 	return &Service{
-		tenantID:    config.TenantID,
-		principalID: config.PrincipalID,
-		authMethod:  config.AuthMethod,
-		registry:    config.Registry,
-		processor:   config.Processor,
-		now:         clock,
-		newID:       newID,
+		tenantID:  config.TenantID,
+		registry:  config.Registry,
+		processor: config.Processor,
+		now:       clock,
+		newID:     newID,
 	}, nil
 }
 
@@ -102,6 +92,9 @@ func (s *Service) Submit(ctx context.Context, input Input) (integration.ProcessR
 	}
 	if err := ctx.Err(); err != nil {
 		return integration.ProcessResult{}, err
+	}
+	if !validServiceSecurity(input.Security, s.tenantID) {
+		return integration.ProcessResult{}, ErrForbidden
 	}
 	if err := validateIdentity("integration ID", input.IntegrationID); err != nil {
 		return integration.ProcessResult{}, ErrInvalidInput
@@ -133,6 +126,18 @@ func (s *Service) Submit(ctx context.Context, input Input) (integration.ProcessR
 	if binding.Format != events.FormatHL7v2 {
 		return integration.ProcessResult{}, ErrInvalidInput
 	}
+	security := input.Security
+	security.TenantID = s.tenantID
+	security.Principal.Roles = append([]string(nil), input.Security.Principal.Roles...)
+	security.Principal.SourceID = binding.SourceID
+	if err := authorization.AuthorizeSubmission(
+		security,
+		s.tenantID,
+		binding.IntegrationRevision,
+		binding.SourceID,
+	); err != nil {
+		return integration.ProcessResult{}, ErrForbidden
+	}
 	receivedAt := s.now().UTC()
 	if receivedAt.IsZero() {
 		return integration.ProcessResult{}, ErrUnavailable
@@ -158,19 +163,10 @@ func (s *Service) Submit(ctx context.Context, input Input) (integration.ProcessR
 	request := integration.ProcessRequest{
 		Mode:                integration.ExecutionModeProduction,
 		IntegrationRevision: binding.IntegrationRevision,
-		Security: integration.SecurityContext{
-			TenantID: s.tenantID,
-			Principal: integration.Principal{
-				ID:         s.principalID,
-				Kind:       integration.PrincipalKindService,
-				AuthMethod: s.authMethod,
-				Roles:      []string{SubmitRole},
-				SourceID:   binding.SourceID,
-			},
-		},
-		Envelope:       envelope,
-		IdempotencyKey: input.IdempotencyKey,
-		CorrelationID:  correlationID,
+		Security:            security,
+		Envelope:            envelope,
+		IdempotencyKey:      input.IdempotencyKey,
+		CorrelationID:       correlationID,
 	}
 	result, err := s.processor.Process(ctx, request)
 	if err == nil {
@@ -181,6 +177,8 @@ func (s *Service) Submit(ctx context.Context, input Input) (integration.ProcessR
 		return integration.ProcessResult{}, err
 	case errors.Is(err, processor.ErrTenantMismatch):
 		return integration.ProcessResult{}, ErrForbidden
+	case errors.Is(err, processor.ErrProcessForbidden):
+		return integration.ProcessResult{}, ErrForbidden
 	case errors.Is(err, processor.ErrInvalidSourceMessage):
 		return integration.ProcessResult{}, ErrInvalidMessage
 	case errors.Is(err, processor.ErrIdempotencyConflict):
@@ -190,6 +188,13 @@ func (s *Service) Submit(ctx context.Context, input Input) (integration.ProcessR
 	default:
 		return integration.ProcessResult{}, ErrRetryable
 	}
+}
+
+func validServiceSecurity(security integration.SecurityContext, tenantID string) bool {
+	return security.TenantID == tenantID &&
+		validateIdentity("principal ID", security.Principal.ID) == nil &&
+		security.Principal.Kind == integration.PrincipalKindService &&
+		validateIdentity("auth method", security.Principal.AuthMethod) == nil
 }
 
 func validHeaderValue(value string, maxBytes int) bool {
