@@ -28,8 +28,8 @@ type Authenticator interface {
 	Authenticate(ctx context.Context, authorization string) (integration.SecurityContext, error)
 }
 
-// StaticBearerConfig configures the temporary single-security-domain bearer
-// boundary used before the Phase 4 OIDC/RBAC implementation.
+// StaticBearerConfig configures the local/preview single-security-domain
+// compatibility boundary. Production human identity should use OIDC.
 type StaticBearerConfig struct {
 	Token       string
 	TenantID    string
@@ -92,21 +92,33 @@ func (a *StaticBearerAuthenticator) Authenticate(ctx context.Context, authorizat
 	if err := ctx.Err(); err != nil {
 		return integration.SecurityContext{}, err
 	}
-	if strings.TrimSpace(authorization) == "" {
-		return integration.SecurityContext{}, ErrMissingCredentials
+	credential, err := bearerCredential(authorization)
+	if err != nil {
+		return integration.SecurityContext{}, err
 	}
-	// RFC 6750 uses one ASCII SP between the scheme and credentials. Do not
-	// normalize tabs, controls, Unicode whitespace, or repeated spaces because
-	// intermediaries can disagree about their meaning.
-	parts := strings.Split(authorization, " ")
-	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || parts[1] == "" || containsControl(authorization) || a == nil {
+	if a == nil {
 		return integration.SecurityContext{}, ErrInvalidCredentials
 	}
-	candidateHash := sha256.Sum256([]byte(parts[1]))
+	candidateHash := sha256.Sum256([]byte(credential))
 	if subtle.ConstantTimeCompare(candidateHash[:], a.tokenHash[:]) != 1 {
 		return integration.SecurityContext{}, ErrInvalidCredentials
 	}
 	return cloneSecurityContext(a.security), nil
+}
+
+// bearerCredential applies one strict Authorization grammar for every bearer
+// authenticator. RFC 6750 uses one ASCII SP between the scheme and credentials.
+// Do not normalize tabs, controls, Unicode whitespace, or repeated spaces
+// because intermediaries can disagree about their meaning.
+func bearerCredential(authorization string) (string, error) {
+	if strings.TrimSpace(authorization) == "" {
+		return "", ErrMissingCredentials
+	}
+	parts := strings.Split(authorization, " ")
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || parts[1] == "" || containsControl(authorization) {
+		return "", ErrInvalidCredentials
+	}
+	return parts[1], nil
 }
 
 type securityContextKey struct{}

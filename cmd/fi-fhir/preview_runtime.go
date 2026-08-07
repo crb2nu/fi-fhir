@@ -31,7 +31,17 @@ import (
 const (
 	maxBearerTokenFileBytes = 4096
 	graphqlRequestBodyLimit = 1 << 20
+	graphqlAuthModeStatic   = "static"
+	graphqlAuthModeOIDC     = "oidc"
 )
+
+type graphQLOIDCSettings struct {
+	issuerURL         string
+	audience          string
+	tenantClaim       string
+	rolesClaim        string
+	signingAlgorithms []string
+}
 
 type previewRuntime struct {
 	tenantID         string
@@ -66,21 +76,6 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 	if err != nil {
 		return nil, err
 	}
-	principalID, err := requiredEnv("FI_FHIR_GRAPHQL_PRINCIPAL_ID")
-	if err != nil {
-		return nil, err
-	}
-	rolesValue, err := requiredEnv("FI_FHIR_GRAPHQL_ROLES")
-	if err != nil {
-		return nil, err
-	}
-	roles, err := parseCSVConfig("FI_FHIR_GRAPHQL_ROLES", rolesValue)
-	if err != nil {
-		return nil, err
-	}
-	if !containsExact(roles, integrationpreview.PreviewRole) {
-		return nil, fmt.Errorf("FI_FHIR_GRAPHQL_ROLES must include %q", integrationpreview.PreviewRole)
-	}
 	originsValue, err := requiredEnv("FI_FHIR_GRAPHQL_ALLOWED_ORIGINS")
 	if err != nil {
 		return nil, err
@@ -89,30 +84,9 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 	if err != nil {
 		return nil, err
 	}
-	token, err := loadBearerToken()
+	authenticator, trustedNetwork, err := loadGraphQLAuthenticationFromEnv(ctx, tenantID)
 	if err != nil {
 		return nil, err
-	}
-	authenticator, err := requestsecurity.NewStaticBearerAuthenticator(requestsecurity.StaticBearerConfig{
-		Token:       token,
-		TenantID:    tenantID,
-		PrincipalID: principalID,
-		Roles:       roles,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("configure GraphQL authenticator: %w", err)
-	}
-	var trustedNetwork *requestsecurity.TrustedNetworkAuthenticator
-	if trustedCIDRs := strings.TrimSpace(os.Getenv("FI_FHIR_GRAPHQL_TRUSTED_CIDRS")); trustedCIDRs != "" {
-		trustedNetwork, err = requestsecurity.NewTrustedNetworkAuthenticator(requestsecurity.TrustedNetworkConfig{
-			CIDRs:       trustedCIDRs,
-			TenantID:    tenantID,
-			PrincipalID: principalID,
-			Roles:       roles,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("configure GraphQL trusted network: %w", err)
-		}
 	}
 
 	registryPath, err := requiredEnv("FI_FHIR_INTEGRATION_REGISTRY_PATH")
@@ -599,6 +573,152 @@ func openSubmissionDatabaseFromEnv(ctx context.Context) (*sql.DB, error) {
 		return nil, fmt.Errorf("ping database: %w", err)
 	}
 	return db, nil
+}
+
+func loadGraphQLAuthenticationFromEnv(ctx context.Context, tenantID string) (requestsecurity.Authenticator, *requestsecurity.TrustedNetworkAuthenticator, error) {
+	mode, err := canonicalEnvOrDefault("FI_FHIR_GRAPHQL_AUTH_MODE", graphqlAuthModeStatic)
+	if err != nil {
+		return nil, nil, err
+	}
+	switch mode {
+	case graphqlAuthModeStatic:
+		return loadStaticGraphQLAuthenticationFromEnv(tenantID)
+	case graphqlAuthModeOIDC:
+		settings, err := loadGraphQLOIDCSettingsFromEnv()
+		if err != nil {
+			return nil, nil, err
+		}
+		authenticator, err := requestsecurity.NewOIDCAuthenticator(ctx, requestsecurity.OIDCConfig{
+			IssuerURL:            settings.issuerURL,
+			Audience:             settings.audience,
+			TenantID:             tenantID,
+			TenantClaim:          settings.tenantClaim,
+			RolesClaim:           settings.rolesClaim,
+			SupportedSigningAlgs: settings.signingAlgorithms,
+		})
+		if err != nil {
+			return nil, nil, fmt.Errorf("configure GraphQL OIDC authenticator: %w", err)
+		}
+		return authenticator, nil, nil
+	default:
+		return nil, nil, fmt.Errorf("FI_FHIR_GRAPHQL_AUTH_MODE must be %q or %q", graphqlAuthModeStatic, graphqlAuthModeOIDC)
+	}
+}
+
+func loadStaticGraphQLAuthenticationFromEnv(tenantID string) (requestsecurity.Authenticator, *requestsecurity.TrustedNetworkAuthenticator, error) {
+	if err := rejectConfiguredEnv(graphqlAuthModeStatic,
+		"FI_FHIR_GRAPHQL_OIDC_ISSUER_URL",
+		"FI_FHIR_GRAPHQL_OIDC_AUDIENCE",
+		"FI_FHIR_GRAPHQL_OIDC_TENANT_CLAIM",
+		"FI_FHIR_GRAPHQL_OIDC_ROLES_CLAIM",
+		"FI_FHIR_GRAPHQL_OIDC_SIGNING_ALGS",
+	); err != nil {
+		return nil, nil, err
+	}
+	principalID, err := requiredEnv("FI_FHIR_GRAPHQL_PRINCIPAL_ID")
+	if err != nil {
+		return nil, nil, err
+	}
+	rolesValue, err := requiredEnv("FI_FHIR_GRAPHQL_ROLES")
+	if err != nil {
+		return nil, nil, err
+	}
+	roles, err := parseCSVConfig("FI_FHIR_GRAPHQL_ROLES", rolesValue)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !containsExact(roles, integrationpreview.PreviewRole) {
+		return nil, nil, fmt.Errorf("FI_FHIR_GRAPHQL_ROLES must include %q", integrationpreview.PreviewRole)
+	}
+	token, err := loadBearerToken()
+	if err != nil {
+		return nil, nil, err
+	}
+	authenticator, err := requestsecurity.NewStaticBearerAuthenticator(requestsecurity.StaticBearerConfig{
+		Token:       token,
+		TenantID:    tenantID,
+		PrincipalID: principalID,
+		Roles:       roles,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("configure GraphQL authenticator: %w", err)
+	}
+	var trustedNetwork *requestsecurity.TrustedNetworkAuthenticator
+	if trustedCIDRs := strings.TrimSpace(os.Getenv("FI_FHIR_GRAPHQL_TRUSTED_CIDRS")); trustedCIDRs != "" {
+		trustedNetwork, err = requestsecurity.NewTrustedNetworkAuthenticator(requestsecurity.TrustedNetworkConfig{
+			CIDRs:       trustedCIDRs,
+			TenantID:    tenantID,
+			PrincipalID: principalID,
+			Roles:       roles,
+		})
+		if err != nil {
+			return nil, nil, fmt.Errorf("configure GraphQL trusted network: %w", err)
+		}
+	}
+	return authenticator, trustedNetwork, nil
+}
+
+func loadGraphQLOIDCSettingsFromEnv() (graphQLOIDCSettings, error) {
+	if err := rejectConfiguredEnv(graphqlAuthModeOIDC,
+		"FI_FHIR_GRAPHQL_BEARER_TOKEN",
+		"FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE",
+		"FI_FHIR_GRAPHQL_PRINCIPAL_ID",
+		"FI_FHIR_GRAPHQL_ROLES",
+		"FI_FHIR_GRAPHQL_TRUSTED_CIDRS",
+	); err != nil {
+		return graphQLOIDCSettings{}, err
+	}
+	issuerURL, err := requiredEnv("FI_FHIR_GRAPHQL_OIDC_ISSUER_URL")
+	if err != nil {
+		return graphQLOIDCSettings{}, err
+	}
+	audience, err := requiredEnv("FI_FHIR_GRAPHQL_OIDC_AUDIENCE")
+	if err != nil {
+		return graphQLOIDCSettings{}, err
+	}
+	tenantClaim, err := canonicalEnvOrDefault("FI_FHIR_GRAPHQL_OIDC_TENANT_CLAIM", "tenant_id")
+	if err != nil {
+		return graphQLOIDCSettings{}, err
+	}
+	rolesClaim, err := canonicalEnvOrDefault("FI_FHIR_GRAPHQL_OIDC_ROLES_CLAIM", "roles")
+	if err != nil {
+		return graphQLOIDCSettings{}, err
+	}
+	signingAlgorithmsValue, err := canonicalEnvOrDefault("FI_FHIR_GRAPHQL_OIDC_SIGNING_ALGS", "RS256")
+	if err != nil {
+		return graphQLOIDCSettings{}, err
+	}
+	signingAlgorithms, err := parseCSVConfig("FI_FHIR_GRAPHQL_OIDC_SIGNING_ALGS", signingAlgorithmsValue)
+	if err != nil {
+		return graphQLOIDCSettings{}, err
+	}
+	return graphQLOIDCSettings{
+		issuerURL:         issuerURL,
+		audience:          audience,
+		tenantClaim:       tenantClaim,
+		rolesClaim:        rolesClaim,
+		signingAlgorithms: signingAlgorithms,
+	}, nil
+}
+
+func rejectConfiguredEnv(mode string, names ...string) error {
+	for _, name := range names {
+		if os.Getenv(name) != "" {
+			return fmt.Errorf("%s cannot be set when FI_FHIR_GRAPHQL_AUTH_MODE=%s", name, mode)
+		}
+	}
+	return nil
+}
+
+func canonicalEnvOrDefault(name, defaultValue string) (string, error) {
+	value := os.Getenv(name)
+	if value == "" {
+		return defaultValue, nil
+	}
+	if strings.TrimSpace(value) != value {
+		return "", fmt.Errorf("%s must be canonical", name)
+	}
+	return value, nil
 }
 
 func loadBearerToken() (string, error) {

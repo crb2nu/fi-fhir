@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity/oidctest"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/mllp"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
@@ -141,6 +142,187 @@ func TestLoadPreviewRuntimeFromEnvFailsClosed(t *testing.T) {
 	})
 }
 
+func TestLoadGraphQLAuthenticationStaticModeCompatibility(t *testing.T) {
+	for _, mode := range []string{"", graphqlAuthModeStatic} {
+		t.Run("mode="+mode, func(t *testing.T) {
+			clearGraphQLAuthenticationEnv(t)
+			t.Setenv("FI_FHIR_GRAPHQL_AUTH_MODE", mode)
+			t.Setenv("FI_FHIR_GRAPHQL_BEARER_TOKEN", "correct-horse-battery-staple")
+			t.Setenv("FI_FHIR_GRAPHQL_PRINCIPAL_ID", "engineer-1")
+			t.Setenv("FI_FHIR_GRAPHQL_ROLES", "integration:preview,author")
+			t.Setenv("FI_FHIR_GRAPHQL_TRUSTED_CIDRS", "192.168.50.0/24")
+
+			authenticator, trustedNetwork, err := loadGraphQLAuthenticationFromEnv(context.Background(), "tenant-a")
+			if err != nil {
+				t.Fatalf("load GraphQL authentication: %v", err)
+			}
+			if trustedNetwork == nil {
+				t.Fatal("static mode did not configure the trusted network authenticator")
+			}
+			security, err := authenticator.Authenticate(context.Background(), "Bearer correct-horse-battery-staple")
+			if err != nil {
+				t.Fatalf("Authenticate: %v", err)
+			}
+			if security.TenantID != "tenant-a" || security.Principal.ID != "engineer-1" {
+				t.Fatalf("security = %#v", security)
+			}
+		})
+	}
+}
+
+func TestLoadGraphQLOIDCSettingsFromEnv(t *testing.T) {
+	t.Run("defaults", func(t *testing.T) {
+		clearGraphQLAuthenticationEnv(t)
+		t.Setenv("FI_FHIR_GRAPHQL_AUTH_MODE", graphqlAuthModeOIDC)
+		t.Setenv("FI_FHIR_GRAPHQL_OIDC_ISSUER_URL", "https://identity.example.test")
+		t.Setenv("FI_FHIR_GRAPHQL_OIDC_AUDIENCE", "fi-fhir")
+
+		settings, err := loadGraphQLOIDCSettingsFromEnv()
+		if err != nil {
+			t.Fatalf("load OIDC settings: %v", err)
+		}
+		if settings.issuerURL != "https://identity.example.test" || settings.audience != "fi-fhir" {
+			t.Fatalf("issuer/audience = %q/%q", settings.issuerURL, settings.audience)
+		}
+		if settings.tenantClaim != "tenant_id" || settings.rolesClaim != "roles" {
+			t.Fatalf("default claims = %q/%q", settings.tenantClaim, settings.rolesClaim)
+		}
+		if got := strings.Join(settings.signingAlgorithms, ","); got != "RS256" {
+			t.Fatalf("default signing algorithms = %q", got)
+		}
+	})
+
+	t.Run("custom claims and algorithms", func(t *testing.T) {
+		clearGraphQLAuthenticationEnv(t)
+		t.Setenv("FI_FHIR_GRAPHQL_AUTH_MODE", graphqlAuthModeOIDC)
+		t.Setenv("FI_FHIR_GRAPHQL_OIDC_ISSUER_URL", "https://identity.example.test")
+		t.Setenv("FI_FHIR_GRAPHQL_OIDC_AUDIENCE", "fi-fhir")
+		t.Setenv("FI_FHIR_GRAPHQL_OIDC_TENANT_CLAIM", "organization_id")
+		t.Setenv("FI_FHIR_GRAPHQL_OIDC_ROLES_CLAIM", "permissions")
+		t.Setenv("FI_FHIR_GRAPHQL_OIDC_SIGNING_ALGS", "RS256,ES256")
+
+		settings, err := loadGraphQLOIDCSettingsFromEnv()
+		if err != nil {
+			t.Fatalf("load OIDC settings: %v", err)
+		}
+		if settings.tenantClaim != "organization_id" || settings.rolesClaim != "permissions" {
+			t.Fatalf("custom claims = %q/%q", settings.tenantClaim, settings.rolesClaim)
+		}
+		if got := strings.Join(settings.signingAlgorithms, ","); got != "RS256,ES256" {
+			t.Fatalf("custom signing algorithms = %q", got)
+		}
+	})
+}
+
+func TestLoadGraphQLAuthenticationOIDCMode(t *testing.T) {
+	issuer, err := oidctest.New()
+	if err != nil {
+		t.Fatalf("create OIDC issuer: %v", err)
+	}
+	t.Cleanup(issuer.Close)
+	clearGraphQLAuthenticationEnv(t)
+	t.Setenv("FI_FHIR_GRAPHQL_AUTH_MODE", graphqlAuthModeOIDC)
+	t.Setenv("FI_FHIR_GRAPHQL_OIDC_ISSUER_URL", issuer.IssuerURL())
+	t.Setenv("FI_FHIR_GRAPHQL_OIDC_AUDIENCE", "fi-fhir-graphql")
+
+	authenticator, trustedNetwork, err := loadGraphQLAuthenticationFromEnv(issuer.Context(), "tenant-a")
+	if err != nil {
+		t.Fatalf("load OIDC authentication: %v", err)
+	}
+	if trustedNetwork != nil {
+		t.Fatal("OIDC mode configured a trusted-network compatibility bypass")
+	}
+	token, err := issuer.Sign(issuer.Claims(), "RS256")
+	if err != nil {
+		t.Fatalf("sign OIDC token: %v", err)
+	}
+	security, err := authenticator.Authenticate(issuer.Context(), "Bearer "+token)
+	if err != nil {
+		t.Fatalf("authenticate OIDC token: %v", err)
+	}
+	if security.TenantID != "tenant-a" || security.Principal.ID != "clinician-1" || security.Principal.AuthMethod != graphqlAuthModeOIDC {
+		t.Fatalf("OIDC security context = %#v", security)
+	}
+}
+
+func TestLoadGraphQLAuthenticationModesFailClosed(t *testing.T) {
+	t.Run("unknown mode", func(t *testing.T) {
+		clearGraphQLAuthenticationEnv(t)
+		t.Setenv("FI_FHIR_GRAPHQL_AUTH_MODE", "legacy")
+		_, _, err := loadGraphQLAuthenticationFromEnv(context.Background(), "tenant-a")
+		if err == nil || !strings.Contains(err.Error(), "must be") {
+			t.Fatalf("unknown mode error = %v", err)
+		}
+	})
+
+	t.Run("noncanonical mode", func(t *testing.T) {
+		clearGraphQLAuthenticationEnv(t)
+		t.Setenv("FI_FHIR_GRAPHQL_AUTH_MODE", " oidc")
+		_, _, err := loadGraphQLAuthenticationFromEnv(context.Background(), "tenant-a")
+		if err == nil || !strings.Contains(err.Error(), "canonical") {
+			t.Fatalf("noncanonical mode error = %v", err)
+		}
+	})
+
+	for _, name := range []string{
+		"FI_FHIR_GRAPHQL_OIDC_ISSUER_URL",
+		"FI_FHIR_GRAPHQL_OIDC_AUDIENCE",
+		"FI_FHIR_GRAPHQL_OIDC_TENANT_CLAIM",
+		"FI_FHIR_GRAPHQL_OIDC_ROLES_CLAIM",
+		"FI_FHIR_GRAPHQL_OIDC_SIGNING_ALGS",
+	} {
+		t.Run("static rejects "+name, func(t *testing.T) {
+			clearGraphQLAuthenticationEnv(t)
+			t.Setenv("FI_FHIR_GRAPHQL_AUTH_MODE", graphqlAuthModeStatic)
+			t.Setenv("FI_FHIR_GRAPHQL_BEARER_TOKEN", "correct-horse-battery-staple")
+			t.Setenv("FI_FHIR_GRAPHQL_PRINCIPAL_ID", "engineer-1")
+			t.Setenv("FI_FHIR_GRAPHQL_ROLES", "integration:preview")
+			t.Setenv(name, "configured")
+			_, _, err := loadGraphQLAuthenticationFromEnv(context.Background(), "tenant-a")
+			if err == nil || !strings.Contains(err.Error(), name) {
+				t.Fatalf("static conflict error = %v", err)
+			}
+		})
+	}
+
+	for _, name := range []string{
+		"FI_FHIR_GRAPHQL_BEARER_TOKEN",
+		"FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE",
+		"FI_FHIR_GRAPHQL_PRINCIPAL_ID",
+		"FI_FHIR_GRAPHQL_ROLES",
+		"FI_FHIR_GRAPHQL_TRUSTED_CIDRS",
+	} {
+		t.Run("oidc rejects "+name, func(t *testing.T) {
+			clearGraphQLAuthenticationEnv(t)
+			t.Setenv("FI_FHIR_GRAPHQL_AUTH_MODE", graphqlAuthModeOIDC)
+			t.Setenv("FI_FHIR_GRAPHQL_OIDC_ISSUER_URL", "https://identity.example.test")
+			t.Setenv("FI_FHIR_GRAPHQL_OIDC_AUDIENCE", "fi-fhir")
+			t.Setenv(name, "configured")
+			_, _, err := loadGraphQLAuthenticationFromEnv(context.Background(), "tenant-a")
+			if err == nil || !strings.Contains(err.Error(), name) {
+				t.Fatalf("OIDC conflict error = %v", err)
+			}
+		})
+	}
+
+	for _, missing := range []string{
+		"FI_FHIR_GRAPHQL_OIDC_ISSUER_URL",
+		"FI_FHIR_GRAPHQL_OIDC_AUDIENCE",
+	} {
+		t.Run("oidc requires "+missing, func(t *testing.T) {
+			clearGraphQLAuthenticationEnv(t)
+			t.Setenv("FI_FHIR_GRAPHQL_AUTH_MODE", graphqlAuthModeOIDC)
+			t.Setenv("FI_FHIR_GRAPHQL_OIDC_ISSUER_URL", "https://identity.example.test")
+			t.Setenv("FI_FHIR_GRAPHQL_OIDC_AUDIENCE", "fi-fhir")
+			t.Setenv(missing, "")
+			_, _, err := loadGraphQLAuthenticationFromEnv(context.Background(), "tenant-a")
+			if err == nil || !strings.Contains(err.Error(), missing) {
+				t.Fatalf("missing OIDC setting error = %v", err)
+			}
+		})
+	}
+}
+
 func TestLoadHTTPIngressAuthenticatorFromEnv(t *testing.T) {
 	t.Setenv("FI_FHIR_HTTP_INGRESS_AUTH_MODE", "bearer")
 	t.Setenv("FI_FHIR_HTTP_INGRESS_PRINCIPAL_ID", "adt-service")
@@ -265,6 +447,25 @@ func configurePreviewRuntimeForTest(t *testing.T) {
 	t.Setenv("FI_FHIR_GRAPHQL_ROLES", "integration:preview")
 	t.Setenv("FI_FHIR_GRAPHQL_ALLOWED_ORIGINS", "http://localhost:5173")
 	t.Setenv("FI_FHIR_INTEGRATION_REGISTRY_PATH", writeRuntimeRegistry(t, "tenant-a"))
+}
+
+func clearGraphQLAuthenticationEnv(t *testing.T) {
+	t.Helper()
+	for _, name := range []string{
+		"FI_FHIR_GRAPHQL_AUTH_MODE",
+		"FI_FHIR_GRAPHQL_BEARER_TOKEN",
+		"FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE",
+		"FI_FHIR_GRAPHQL_PRINCIPAL_ID",
+		"FI_FHIR_GRAPHQL_ROLES",
+		"FI_FHIR_GRAPHQL_TRUSTED_CIDRS",
+		"FI_FHIR_GRAPHQL_OIDC_ISSUER_URL",
+		"FI_FHIR_GRAPHQL_OIDC_AUDIENCE",
+		"FI_FHIR_GRAPHQL_OIDC_TENANT_CLAIM",
+		"FI_FHIR_GRAPHQL_OIDC_ROLES_CLAIM",
+		"FI_FHIR_GRAPHQL_OIDC_SIGNING_ALGS",
+	} {
+		t.Setenv(name, "")
+	}
 }
 
 func writeRuntimeRegistry(t *testing.T, tenantID string) string {

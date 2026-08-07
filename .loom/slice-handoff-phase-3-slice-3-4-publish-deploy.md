@@ -55,4 +55,6 @@ all publication key settings are absent.
 
 ## Landing evidence
 
-- MR, terminal pipeline, merge commit, and post-merge main pipeline: pending.
+- MR `!124` pipeline `19939` passed and the slice merged as `84d2fab2` on
+  2026-07-18.
+- Post-merge main pipeline `19944` passed on the same merge commit.

@@ -6,7 +6,8 @@ type reference.
 
 ## Current status
 
-Slice 1.1c exposes one authenticated preview capability:
+Slice 1.1c exposes one authenticated preview capability. Phase 4 Slice 4.1a
+adds per-request OIDC human identity to the same bounded transport:
 
 ```text
 Mapping Studio or GraphQL client
@@ -17,31 +18,66 @@ Mapping Studio or GraphQL client
   -> raw-free ProcessResult projection
 ```
 
-The preview path is stateless and cannot persist a receipt, sample, or run. It
-cannot invoke a destination. Durable submit and delivery remain blocked on
-Slice 1.2.
+The preview mutation remains side-effect-free and cannot persist a receipt or
+invoke a destination. Durable production submission and delivery use the
+separate authenticated ingress and shared processor paths; Integration Session
+operations retain their own PostgreSQL-backed authoring lifecycle.
 
 The response omits the source bytes, secrets, and executable configuration. Its
 canonical event payload can still contain PHI and must be handled accordingly.
 
 ## Startup security boundary
 
-`fi-fhir serve` fails startup unless every value below is present and valid.
-Identity and artifact facts come from deployment configuration, never GraphQL
-input.
+`fi-fhir serve` fails startup unless its common values and exactly one
+authentication mode are valid. Artifact and tenant boundaries come from
+deployment configuration, never GraphQL input.
 
 | Variable | Requirement |
 | --- | --- |
 | `FI_FHIR_DEPLOYMENT_TENANT_ID` | Canonical deployment security-domain ID |
-| `FI_FHIR_GRAPHQL_PRINCIPAL_ID` | Server-owned principal ID |
-| `FI_FHIR_GRAPHQL_ROLES` | Comma-separated roles containing `integration:preview` |
+| `FI_FHIR_GRAPHQL_AUTH_MODE` | `static` (default compatibility path) or `oidc` |
 | `FI_FHIR_GRAPHQL_ALLOWED_ORIGINS` | Comma-separated exact HTTP(S) origins; no wildcard |
 | `FI_FHIR_INTEGRATION_REGISTRY_PATH` | Strict immutable registry JSON for the same tenant |
+
+Static mode additionally requires:
+
+| Variable | Requirement |
+| --- | --- |
+| `FI_FHIR_GRAPHQL_PRINCIPAL_ID` | Server-owned compatibility principal ID |
+| `FI_FHIR_GRAPHQL_ROLES` | Comma-separated roles containing `integration:preview` |
 | `FI_FHIR_GRAPHQL_BEARER_TOKEN` | Direct secret of at least 24 canonical bytes |
 | `FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE` | Preferred production secret-file path |
 
 Set exactly one token source. The registry is bounded, rejects unknown fields,
 and verifies the definition, profile, and workflow digests before startup.
+
+OIDC mode instead requires:
+
+| Variable | Requirement |
+| --- | --- |
+| `FI_FHIR_GRAPHQL_OIDC_ISSUER_URL` | Exact HTTPS issuer discovery URL |
+| `FI_FHIR_GRAPHQL_OIDC_AUDIENCE` | Exact accepted token audience |
+| `FI_FHIR_GRAPHQL_OIDC_TENANT_CLAIM` | Optional claim name; defaults to `tenant_id` |
+| `FI_FHIR_GRAPHQL_OIDC_ROLES_CLAIM` | Optional claim name; defaults to `roles` |
+| `FI_FHIR_GRAPHQL_OIDC_SIGNING_ALGS` | Optional allowlist; defaults to `RS256` |
+
+The verifier accepts signed JWT access tokens with the protected header
+`typ=at+jwt`; generic JWT/typeless tokens are rejected to prevent ID-token
+substitution. It validates the issuer, one exact audience, signature, allowed
+algorithm, expiry, not-before, and subject before accepting exact
+deployment-tenant and strict role claims. It maps `sub` to a human request
+principal. This token-class check is not a claim of complete RFC 9068
+conformance.
+
+The discovered `jwks_uri` and all outbound requests must remain HTTPS; redirects
+are rejected.
+The client has a 10-second maximum request timeout, a 1 MiB response cap for
+discovery and JWKS documents, and a 30-second default floor between outbound
+unknown-key refreshes. Providers
+should publish new keys before issuing tokens that use them; a token for a newly
+introduced key can otherwise fail until the refresh floor elapses. OIDC mode
+rejects all static principal, roles, bearer-token, token-file, and trusted-CIDR
+settings so no compatibility bypass is ambiguous.
 
 Implementation: `cmd/fi-fhir/preview_runtime.go`,
 `internal/api/requestsecurity/auth.go`, and
@@ -58,9 +94,9 @@ The transitional `integration:preview` role permits only:
 Aliases and fragments do not bypass this root-field allowlist. Subscriptions
 and every legacy query or mutation are forbidden for the preview role.
 
-`graphql:operator` is an explicit temporary escape hatch for authenticated
-legacy capabilities. Do not assign it to the IDE bearer. Fine-grained RBAC,
-OIDC, and audited user sessions remain Phase 4 work.
+`graphql:operator` remains a broad compatibility role for authenticated legacy
+capabilities. Do not assign it to a normal IDE caller. Fine-grained RBAC and
+durable audited user sessions remain Phase 4 work.
 
 Implementation: `internal/api/graphql/operation_authorization.go`.
 
@@ -72,7 +108,8 @@ Implementation: `internal/api/graphql/operation_authorization.go`.
 - Method: `POST` only; `OPTIONS` is accepted only for CORS preflight
 - Content type: `application/json`
 - Maximum complete request body: 1 MiB
-- Authentication: `Authorization: Bearer <token>`
+- Authentication: `Authorization: Bearer <token>` verified by the selected
+  static or OIDC authenticator
 - Origins: exact allowlist match for browser requests
 - Rejected: query-string operations, multipart, compressed bodies, wildcard or
   reflected origins, and GET queries
