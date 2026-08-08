@@ -28,7 +28,7 @@ const (
 
 // StreamLog is the durable fanout log.
 //
-// It carries envelopes only — see migrations/0004_session_stream_events.sql for
+// It carries envelopes only — see migrations/0005_session_stream_events.sql for
 // why a payload column would be a mistake rather than a convenience.
 type StreamLog interface {
 	// AppendStreamEvent records one envelope and returns its cursor position.

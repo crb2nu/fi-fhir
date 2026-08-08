@@ -939,7 +939,7 @@ Chronological notes while executing the plan (useful for handoffs and debugging)
     **body only**; no schema change, `generated.go` byte-identical.
   - `internal/api/graphql/resolvers/resolver.go` (health reporter option).
   - `internal/integration/session/{hub.go,runner.go,postgres.go,stream.go}` and
-    session migration **`0004_session_stream_events.sql`**.
+    a session migration (claimed as `0004`; landed as `0005` — see below).
   - `internal/integration/mllp/service.go`, `internal/integration/delivery/dispatcher.go`,
     `internal/integration/batch/runner.go` — `Observe` seams only.
   - `internal/terminology/autoroute/notify.go`, `pkg/terminology/db/mappings.go`
@@ -953,10 +953,12 @@ Chronological notes while executing the plan (useful for handoffs and debugging)
     `test` stage. No existing job modified.
   - `Makefile`: new `observability-replicas` target only.
 - Migration numbers claimed:
-  - `internal/integration/session/migrations/0004_session_stream_events.sql` —
-    **claimed by S3-A**. This corrects `.loom/31`'s file-ownership table, which
-    assigned session `0004_*` to S3-C without noticing that S3-A task 6 needs a
-    session migration. **S3-C1 takes `0005_*`** for session export attribution.
+  - `internal/integration/session/migrations/` — S3-A needs one for the durable
+    fanout log. `.loom/31`'s file-ownership table assigned session `0004_*` to
+    S3-C without noticing that S3-A task 6 also needs a session migration.
+    **Outcome: S3-C merged first and took `0004_export_attribution.sql`, so this
+    lane renumbered to `0005_session_stream_events.sql` on rebase.** A worklog
+    claim does not reserve a number against a lane that merges ahead of you.
   - `internal/integration/processor/migrations/` — untouched by this lane;
     `0004_*` remains S3-C's.
 - Why:
@@ -982,7 +984,7 @@ Chronological notes while executing the plan (useful for handoffs and debugging)
   - Added `Observe` seams to the MLLP service, delivery `Dispatcher`, batch
     `Runner`, and session `Hub`, and bound them to the registry in `runServe`.
   - Replaced the process-local session SSE fanout with an envelope-only durable
-    log (session migration `0004`) plus a per-replica relay.
+    log (session migration `0005`) plus a per-replica relay.
   - Derived the batch worker ID from hostname+pid, moved autoroute notification
     de-duplication into a durable `notified_at` claim (terminology schema v3),
     and documented MLLP `CapacityPolicy` as per-replica.
@@ -1017,8 +1019,10 @@ Chronological notes while executing the plan (useful for handoffs and debugging)
     `scripts/validate-kustomize-preview.sh` passed,
     `bash scripts/smoke-test_test.sh` all assertions passed.
 - Corrections made to `.loom/31-sprint3-execution-specs.md` before coding:
-  - Session migration `0004` was assigned to S3-C although S3-A task 6 needs it
-    and S3-A merges first. S3-A takes `0004`; **S3-C1 takes `0005`**.
+  - The session-migration row assigned `0004_*` to S3-C without noticing that
+    S3-A task 6 also needs one. Settled by merge order rather than by claim:
+    S3-C took `0004_export_attribution.sql`, so S3-A landed
+    `0005_session_stream_events.sql`.
   - The kill-test's "stop PostgreSQL via the remote Docker context" is not
     runnable in a GitLab job whose PostgreSQL is a service container. Replaced
     with an in-test TCP proxy, which is portable and exercises pool reconnect.

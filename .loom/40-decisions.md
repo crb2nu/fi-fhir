@@ -1407,8 +1407,9 @@ Record decisions as they are made, with date, rationale, and sources.
     (metrics fields). `TracingEnabled`/`TracingEndpoint`/`TracingSampler` remain
     inert and are now labelled "not implemented" in `.env.example` and
     `docs/operations/README.md` rather than implying an exporter exists.
-  - The session workspace schema gains migration `0004`; S3-C1 takes `0005` for
-    session export attribution (see `.loom/50-worklog.md` claim).
+  - The session workspace schema gains a migration. S3-C1 merged first and took
+    `0004_export_attribution.sql`, so this lane's fanout log landed as
+    `0005_session_stream_events.sql`.
   - `pending_autoroutes` gains a `notified_at` column. Existing rows are
     backfilled to `NULL`, so the first scan after upgrade re-pages the current
     backlog exactly once and never again.

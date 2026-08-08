@@ -151,6 +151,7 @@ phi-audit:
 	go test -tags=integration -race -count=1 -timeout=300s \
 		-run '^TestPhiRetentionPosture_ProductionRejectsRetainedRawAndCanonicalEventsCarryNoPolicy$$' \
 		./internal/integration/processor
+
 # Slice 4.3 observability kill-test: two `fi-fhir serve` replicas against one
 # PostgreSQL, started from the documented environment block, plus the legacy
 # negative control that must fail assertions 1-4.

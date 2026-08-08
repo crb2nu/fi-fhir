@@ -33,7 +33,7 @@ type StreamEvent struct {
 	// Seq is the durable fanout cursor position. It is set by the durable log
 	// on append and on replay, and is zero for purely in-process delivery.
 	//
-	// Payload is never persisted; see migrations/0004_session_stream_events.sql.
+	// Payload is never persisted; see migrations/0005_session_stream_events.sql.
 	Seq int64 `json:"seq,omitempty"`
 }
 

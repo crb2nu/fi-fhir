@@ -10,7 +10,7 @@ import (
 // AppendStreamEvent records one envelope in the durable fanout log.
 //
 // The payload is deliberately not written. See
-// migrations/0004_session_stream_events.sql: the GraphQL projection reproduces
+// migrations/0005_session_stream_events.sql: the GraphQL projection reproduces
 // a subscriber's view from (session_id, run_id, event_type) by re-reading the
 // durable session and run, so persisting clinical content here would add PHI at
 // rest for no observable benefit.

@@ -22,7 +22,7 @@
 
 The plan text assumed in-process fanout was the only one. It was one of five.
 
-1. **Session SSE fanout** — new envelope-only log (session migration `0004`) plus a per-replica relay. The log carries `(tenant_id, session_id, run_id, event_type, seq)` and **never a payload**, because `toGraphQLEvent` already ignores `StreamEvent.Payload` and re-reads the session and run from the durable store. The multi-replica fix therefore adds zero new PHI at rest, leaving retention entirely to S3-C.
+1. **Session SSE fanout** — new envelope-only log (session migration `0005`) plus a per-replica relay. The log carries `(tenant_id, session_id, run_id, event_type, seq)` and **never a payload**, because `toGraphQLEvent` already ignores `StreamEvent.Payload` and re-reads the session and run from the durable store. The multi-replica fix therefore adds zero new PHI at rest, leaving retention entirely to S3-C.
 2. **Batch worker identity** — `FI_FHIR_BATCH_WORKER_ID` was required and our own `.env.example` and `docs/operations/BATCH-INGESTION.md` handed out `fi-fhir-batch-1`. The batch store treats a matching owner as a lease renewal, so two replicas on the documented configuration stole each other's live leases. Now derived `hostname-pid` when unset, exactly as the delivery worker already did, and the documentation publishes no value.
 3. **Autoroute notifier** — de-duplication moved from a per-process `seen` map to a durable `notified_at` claim (terminology schema v3) taken with `UPDATE … WHERE id = ANY($1) AND notified_at IS NULL RETURNING id`.
 4. **Autoroute sweeper** — accepted as a benign duplicate and documented: `ExpirePendingAutoroutes` is an idempotent guarded `UPDATE`; two replicas waste one query and have no external effect.
@@ -62,7 +62,7 @@ a value, so re-publishing a shared literal fails the build.
 
 ## Two corrections made to `.loom/31` before coding
 
-1. **Session migration ownership.** The file-ownership table assigned session migration `0004_*` to S3-C without noticing that S3-A task 6 needs a session migration and S3-A merges first. **S3-A took `0004_session_stream_events.sql`; S3-C1 takes `0005_*`.** Claimed in `.loom/50-worklog.md`.
+1. **Session migration ownership.** The file-ownership table assigned session migration `0004_*` to S3-C alone, without noticing that S3-A task 6 also needs a session migration. Both lanes needed one, and the suggested merge order (S3-A first) did not hold: S3-C merged ahead and took `0004_export_attribution.sql`, so this lane renumbered to **`0005_session_stream_events.sql`** on rebase. The durable lesson is that a migration number cannot be reserved in a worklog while another lane can merge ahead of you; the schema ledger is the authority, and a lane must re-check it on every rebase.
 2. **Kill-test database outage method.** The spec said "stop PostgreSQL via the remote Docker context". That is not runnable inside `test:observability-replicas`, whose PostgreSQL is a GitLab service container with no Docker socket, so the assertion would have been forced to skip in the one place it must block — the same cannot-fail shape corrections 6 and 28 exist to remove. The proof interposes an in-test TCP proxy instead: identical locally and in CI, no Docker dependency, and it exercises pool-level reconnect rather than container restart timing.
 
 ## Notes for the sibling lanes
