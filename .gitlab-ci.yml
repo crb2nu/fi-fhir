@@ -280,6 +280,17 @@ lint:gqlgen:
 lint:ui:
   stage: lint
   <<: *node-image
+  # The Vite production build is the memory-heaviest step in this pipeline.
+  # Node derives its default old-space cap from the cgroup memory limit (~half),
+  # so the global 2Gi default silently capped the V8 heap at 1048Mi while the
+  # build peaked at 1040Mi -- 99% of the ceiling, which tipped into
+  # "FATAL ERROR: Reached heap limit" on ~20% of runs. Raising the limit alone
+  # would fix it only implicitly, so the heap budget is stated explicitly below.
+  # Measured at these settings: V8 peak 1201Mi/3120Mi cap, container peak 1717Mi.
+  variables:
+    KUBERNETES_MEMORY_REQUEST: "2Gi"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
+    NODE_OPTIONS: "--max-old-space-size=3072"
   cache:
     key: ${CI_COMMIT_REF_SLUG}-ui-npm
     paths:
