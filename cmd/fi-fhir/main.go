@@ -3169,6 +3169,10 @@ func runConfigEnv(args []string) error {
 		{"terminology", "FI_FHIR_TERMINOLOGY_PINS", "Terminology version pins (e.g. \"loinc=2.77,icd10cm=FY2024\")", ""},
 		{"terminology", "FI_FHIR_TERMINOLOGY_POLICY", "Pin enforcement policy (pass, warn, error)", "warn"},
 		{"terminology", "FI_FHIR_TERMINOLOGY_AUTOROUTE_SWEEP_INTERVAL", "Pending autoroute expiry sweep cadence (0 disables)", "15m"},
+		{"terminology", "FI_FHIR_TERMINOLOGY_AUTOROUTE_NOTIFY_WEBHOOK", "Webhook URL for pending autoroute review notifications (empty disables)", ""},
+		{"terminology", "FI_FHIR_TERMINOLOGY_AUTOROUTE_NOTIFY_INTERVAL", "Review notification scan cadence", "15m"},
+		{"terminology", "FI_FHIR_TERMINOLOGY_AUTOROUTE_NOTIFY_MIN_CONFIDENCE", "Confidence floor for review notifications", "0.90"},
+		{"terminology", "FI_FHIR_TERMINOLOGY_AUTOROUTE_NOTIFY_TIMEOUT", "Per-attempt webhook delivery timeout", "5s"},
 
 		// Database
 		{"database", "FI_FHIR_DATABASE_DRIVER", "Database driver (postgres, mysql, sqlite)", "postgres"},
@@ -4819,6 +4823,7 @@ func runServe(args []string) error {
 	var autorouteEngine *autoroute.Engine
 	var mappingStore *termdb.MappingStore
 	var autorouteSweeper *autoroute.Sweeper
+	var autorouteNotifier *autoroute.ReviewNotifier
 
 	if dbURL != "" {
 		// Initialize mapping store from terminology database.
@@ -4857,6 +4862,50 @@ func runServe(args []string) error {
 			fmt.Fprintf(os.Stderr, "Warning: pending autoroute sweep disabled: %v\n", sweepErr)
 		} else {
 			autorouteSweeper = sweeper
+		}
+	}
+
+	// Pending autoroute review notifications. Disabled unless a webhook URL is
+	// configured, so the default deployment starts no component and makes no
+	// network calls. Dispatch is asynchronous and bounded: a slow or failing
+	// webhook can only drop notifications, never slow or fail resolution.
+	if mappingStore != nil && runtimeConfig.Terminology.AutorouteNotify.Webhook != "" {
+		notifyCfg := runtimeConfig.Terminology.AutorouteNotify
+		if sink, sinkErr := autoroute.NewWebhookSink(notifyCfg.Webhook, notifyCfg.Timeout); sinkErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: pending autoroute review notifications disabled: %v\n", sinkErr)
+		} else if notifier, notifyErr := autoroute.NewReviewNotifier(autoroute.ReviewNotifierConfig{
+			Store:         mappingStore,
+			Sink:          sink,
+			Interval:      notifyCfg.Interval,
+			MinConfidence: notifyCfg.MinConfidence,
+			Observe: func(result autoroute.NotifyResult, observeErr error) {
+				if observeErr != nil {
+					fmt.Fprintf(os.Stderr, "Warning: pending autoroute review scan failed: %v\n", observeErr)
+					return
+				}
+				if result.Dropped > 0 {
+					fmt.Fprintf(os.Stderr,
+						"Warning: pending autoroute review notification dropped (dispatch queue full): eligible=%d new=%d\n",
+						result.Eligible, result.New)
+					return
+				}
+				if result.Queued > 0 {
+					fmt.Printf("Pending autoroute review: eligible=%d new=%d queued duration=%s\n",
+						result.Eligible, result.New, result.Duration.Round(time.Millisecond))
+				}
+			},
+			ObserveDelivery: func(result autoroute.DeliveryResult, deliverErr error) {
+				if deliverErr != nil {
+					fmt.Fprintf(os.Stderr, "Warning: pending autoroute review notification delivery failed: %v\n", deliverErr)
+					return
+				}
+				fmt.Printf("Pending autoroute review notification delivered: items=%d duration=%s\n",
+					result.Items, result.Duration.Round(time.Millisecond))
+			},
+		}); notifyErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: pending autoroute review notifications disabled: %v\n", notifyErr)
+		} else {
+			autorouteNotifier = notifier
 		}
 	}
 
@@ -5034,7 +5083,7 @@ func runServe(args []string) error {
 		name string
 		err  error
 	}
-	errCh := make(chan componentError, 5)
+	errCh := make(chan componentError, 6)
 	go func() {
 		errCh <- componentError{name: "GraphQL", err: server.Start()}
 	}()
@@ -5062,6 +5111,13 @@ func runServe(args []string) error {
 		}()
 		fmt.Printf("Pending autoroute expiry sweep enabled (every %s)\n", autorouteSweeper.Interval())
 	}
+	if autorouteNotifier != nil {
+		go func() {
+			errCh <- componentError{name: "autoroute-notify", err: autorouteNotifier.Run(serveCtx)}
+		}()
+		fmt.Printf("Pending autoroute review notifications enabled (every %s, confidence >= %.2f)\n",
+			autorouteNotifier.Interval(), autorouteNotifier.MinConfidence())
+	}
 	cleanupExternalRuntimes := func() {
 		if temporalWorker != nil {
 			temporalWorker.Stop()
@@ -5072,10 +5128,11 @@ func runServe(args []string) error {
 	}
 	waitForBackgroundStops := func(alreadyStopped string) error {
 		waiting := map[string]bool{
-			"MLLP":            securePreviewRuntime.mllpServer != nil && alreadyStopped != "MLLP",
-			"delivery":        securePreviewRuntime.deliveryWorker != nil && alreadyStopped != "delivery",
-			"batch":           securePreviewRuntime.batchRunner != nil && alreadyStopped != "batch",
-			"autoroute-sweep": autorouteSweeper != nil && alreadyStopped != "autoroute-sweep",
+			"MLLP":             securePreviewRuntime.mllpServer != nil && alreadyStopped != "MLLP",
+			"delivery":         securePreviewRuntime.deliveryWorker != nil && alreadyStopped != "delivery",
+			"batch":            securePreviewRuntime.batchRunner != nil && alreadyStopped != "batch",
+			"autoroute-sweep":  autorouteSweeper != nil && alreadyStopped != "autoroute-sweep",
+			"autoroute-notify": autorouteNotifier != nil && alreadyStopped != "autoroute-notify",
 		}
 		remaining := 0
 		for _, enabled := range waiting {

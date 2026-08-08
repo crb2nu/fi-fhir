@@ -1536,6 +1536,88 @@ logged without terminating the loop or the server.
 Source: `internal/terminology/autoroute/sweeper.go`,
 `pkg/terminology/db/mappings.go`.
 
+### Pending Autoroute Review Notifications (implemented)
+
+The `review.notification_webhook` key above is implemented by `serve` today. It
+is generic webhook delivery, not Slack-specific: any endpoint that accepts a
+JSON `POST` works.
+
+```bash
+# Webhook that receives review notifications. Empty (the default) disables the
+# feature entirely: no background component, no network calls.
+FI_FHIR_TERMINOLOGY_AUTOROUTE_NOTIFY_WEBHOOK=https://hooks.example.com/terminology-review
+
+# How often serve scans the review queue for newly eligible rows. Default 15m.
+FI_FHIR_TERMINOLOGY_AUTOROUTE_NOTIFY_INTERVAL=15m
+
+# Inclusive confidence floor for paging a reviewer. Default 0.90.
+FI_FHIR_TERMINOLOGY_AUTOROUTE_NOTIFY_MIN_CONFIDENCE=0.90
+
+# Per-attempt webhook delivery timeout. Default 5s.
+FI_FHIR_TERMINOLOGY_AUTOROUTE_NOTIFY_TIMEOUT=5s
+```
+
+Equivalent YAML:
+
+```yaml
+terminology:
+  autoroute_notify:
+    notification_webhook: ${secret:REVIEW_WEBHOOK_URL}
+    interval: 15m
+    min_confidence: 0.90
+    timeout: 5s
+```
+
+**Delivery model.** A background component scans `ListPendingAutoroutes` on the
+configured interval, filters to `status = pending` rows at or above the
+confidence floor, and sends a digest of the rows it has not sent before. Each
+pending row is notified once (de-duplication is by row ID), so a quiet review
+queue produces no traffic. The digest also reports `eligible_count`, the size of
+the whole above-threshold backlog, so a receiver can page on queue depth.
+
+**Isolation.** Dispatch is asynchronous through a bounded in-memory queue. A
+slow or failing webhook can only cause notifications to be dropped — never a
+delay or failure in mapping resolution or pending-autoroute creation. Delivery
+is one attempt plus one bounded retry; failures are logged as warnings and the
+loop continues. Dropping is safe because the next scan restates the backlog.
+
+**PHI minimality.** The payload carries only coded identity and lifecycle
+metadata: `id`, `source_system`, `source_code`, `target_system`,
+`suggested_code`, `confidence`, `equivalence`, `created_at`, `expires_at`. Every
+free-text or LLM-authored column on `pending_autoroutes` is excluded —
+`source_display`, `suggested_display`, `reasoning`, `decision_trace`,
+`alternates`, `reviewed_by`, `rejection_reason` — because those can quote source
+message content and the webhook is an untrusted egress point. Reviewers follow
+the `id` back into the approval UI for the full decision trace.
+
+Example payload:
+
+```json
+{
+  "event": "terminology.pending_autoroute.review_required",
+  "generated_at": "2026-08-08T14:05:00Z",
+  "min_confidence": 0.9,
+  "new_count": 1,
+  "eligible_count": 4,
+  "items": [
+    {
+      "id": 812,
+      "source_system": "epic_labs",
+      "source_code": "GLU",
+      "target_system": "http://loinc.org",
+      "suggested_code": "2345-7",
+      "confidence": 0.97,
+      "equivalence": "equivalent",
+      "created_at": "2026-08-08T14:02:11Z",
+      "expires_at": "2026-09-07T14:02:11Z"
+    }
+  ]
+}
+```
+
+Source: `internal/terminology/autoroute/notify.go`, `pkg/config/config.go`,
+`cmd/fi-fhir/main.go`.
+
 ## Implementation Phases
 
 ### Phase 1: CSV Upload + Persistent Storage (2-3 days) ✅
@@ -1571,7 +1653,7 @@ Source: `internal/terminology/autoroute/sweeper.go`,
 ### Phase 5: Analytics + Polish (2-3 days)
 - [ ] `MappingStats` query with aggregations (current: `pendingAutorouteStats`) — #3
 - [ ] UI: `MappingStats.svelte` dashboard — #3
-- [ ] Notification webhooks for new pending items — #3
+- [x] Notification webhooks for new pending items — see `internal/terminology/autoroute/notify.go`
 - [ ] Performance optimization and load testing — #3
 - [ ] Documentation and examples — #3
 

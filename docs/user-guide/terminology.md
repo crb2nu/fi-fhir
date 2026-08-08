@@ -54,6 +54,9 @@ export QDRANT_URL="http://localhost:6333"
 # Optional: Embedding service for semantic search
 export LLM_EMBEDDING_BASE_URL="http://localhost:8000/v1"
 export LLM_EMBEDDING_MODEL="text-embedding-3-small"
+
+# Optional: webhook notifications for pending autoroute review
+export FI_FHIR_TERMINOLOGY_AUTOROUTE_NOTIFY_WEBHOOK="https://hooks.example.com/terminology-review"
 ```
 
 | Variable | Required | Description |
@@ -63,6 +66,11 @@ export LLM_EMBEDDING_MODEL="text-embedding-3-small"
 | `LLM_EMBEDDING_BASE_URL` | No | Embedding API endpoint |
 | `LLM_EMBEDDING_MODEL` | No | Model for generating embeddings |
 | `LLM_EMBEDDING_TIMEOUT` | No | Timeout for embedding requests (default: 30s) |
+| `FI_FHIR_TERMINOLOGY_AUTOROUTE_SWEEP_INTERVAL` | No | Pending autoroute expiry sweep cadence (default: 15m; `0` disables) |
+| `FI_FHIR_TERMINOLOGY_AUTOROUTE_NOTIFY_WEBHOOK` | No | Webhook for pending review notifications (empty disables) |
+| `FI_FHIR_TERMINOLOGY_AUTOROUTE_NOTIFY_INTERVAL` | No | Review notification scan cadence (default: 15m) |
+| `FI_FHIR_TERMINOLOGY_AUTOROUTE_NOTIFY_MIN_CONFIDENCE` | No | Confidence floor for notifications (default: 0.90) |
+| `FI_FHIR_TERMINOLOGY_AUTOROUTE_NOTIFY_TIMEOUT` | No | Per-attempt webhook delivery timeout (default: 5s) |
 
 ---
 
@@ -278,6 +286,64 @@ terminology:
     max_alternatives: 3        # Number of alternatives to return
     embedding_model: text-embedding-3-small
 ```
+
+### Review Notifications
+
+When autoroute cannot commit a mapping on its own it files a pending autoroute
+for human review. `serve` can notify an external system when high-confidence
+suggestions are waiting.
+
+```yaml
+terminology:
+  autoroute_notify:
+    notification_webhook: https://hooks.example.com/terminology-review
+    interval: 15m           # How often to scan the review queue
+    min_confidence: 0.90    # Only page reviewers at or above this confidence
+    timeout: 5s             # Per-attempt delivery timeout
+```
+
+Notifications are off unless `notification_webhook` is set. The receiver gets a
+JSON `POST` per digest:
+
+```json
+{
+  "event": "terminology.pending_autoroute.review_required",
+  "generated_at": "2026-08-08T14:05:00Z",
+  "min_confidence": 0.9,
+  "new_count": 1,
+  "eligible_count": 4,
+  "items": [
+    {
+      "id": 812,
+      "source_system": "epic_labs",
+      "source_code": "GLU",
+      "target_system": "http://loinc.org",
+      "suggested_code": "2345-7",
+      "confidence": 0.97,
+      "equivalence": "equivalent",
+      "created_at": "2026-08-08T14:02:11Z",
+      "expires_at": "2026-09-07T14:02:11Z"
+    }
+  ]
+}
+```
+
+Behavior worth knowing before you wire an on-call route to it:
+
+- **Each pending row is announced once.** De-duplication is by row ID, so a
+  quiet review queue produces no traffic. `eligible_count` always reports the
+  full above-threshold backlog, so you can alert on queue depth rather than on
+  individual arrivals.
+- **The payload is deliberately code-only.** Display names, LLM reasoning, the
+  decision trace, and alternates are never sent, because they can quote source
+  message content. Follow the `id` into the review UI (or
+  `fi-fhir terminology mapping pending`) for the full trace.
+- **Notifications never affect mapping resolution.** Delivery is asynchronous
+  and bounded. A hung or erroring webhook logs a warning and drops the
+  notification; resolution and pending-autoroute creation are unaffected. The
+  next scan restates the backlog, so a drop loses nothing durable.
+- **Delivery is one attempt plus one retry.** Any non-2xx response is a failure.
+  If you need at-least-once semantics, terminate the webhook at a queue.
 
 ---
 
