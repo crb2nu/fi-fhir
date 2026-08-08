@@ -539,6 +539,62 @@ digest over normalized rather than raw bytes — each fail the test.
 - Proof: failure/replay and operator-audit golden journeys pass without SQL/manual
   filesystem intervention.
 
+Delivered as two sequential merge requests. Plan:
+`.loom/iteration-plan-phase-4-slice-4-2-operator-control-plane.md`.
+
+#### Slice 4.2a: control-plane GraphQL API
+
+- `internal/integration/operator` adds a tenant-scoped, PHI-minimal read surface
+  over the existing Slice 2.3 delivery tables and Slice 2.1 lifecycle catalog,
+  with keyset pagination, opaque cursors, a default page size of 25, and a hard
+  server-side maximum of 100.
+- Canonical event payloads render structurally. An operator sees dotted field
+  coordinates, JSON kinds, and repetition flags; never a stored value, never a
+  value length, and never a caller-influenced map key (those collapse to `*`).
+- Control mutations `replayDelivery`, `resubmitMessage`, `discardDeadLetter`,
+  `pauseIntegrationDeployment`, `resumeIntegrationDeployment`,
+  `retireIntegrationDeployment`, and `deployIntegrationRelease` all require a
+  nonempty actor reason, use the verified OIDC identity as the actor, enforce
+  explicit privileged roles, and delegate to the existing durable machinery.
+  DLQ requeue is `replayDelivery`, which already refuses anything that is not an
+  active dead letter.
+- Roles are least-privilege and additive: `integration.operator` for every read,
+  plus `integration.delivery.operator` for delivery recovery (the Slice 2.3
+  constant, still enforced a second time inside the durable operation) and
+  `integration.deployment.operator` for lifecycle commands.
+- Migration `0003_operator_control_plane` extends the delivery operation-kind and
+  audit event-kind constraints for the new `discard` decision and records a DLQ
+  resolution so a closed dead letter states why it closed.
+- Required CI job `test:operator-control-plane` runs the PostgreSQL 16
+  race-enabled kill-test with `allow_failure: false`.
+
+Implementation status (2026-08-08): implemented and locally verified; landing
+pipeline evidence pending. The kill-test drives the real GraphQL handler with a
+Slice 4.1a OIDC operator token and proves: the failure/replay and operator-audit
+journeys complete with no SQL; replay records one requeued attempt plus one
+append-only audit row carrying actor and reason and one operation-ledger row
+carrying the idempotency key; a repeated mutation with the same key leaves
+durable state byte-identical and appends nothing; a reused key for a different
+action is refused; resubmit forks exactly one idempotent child; discard closes a
+dead letter attributably without requeueing; stale expected versions surface as
+conflicts while pause/resume record the verified actor and reason; an
+unprivileged role is refused before any resolver data; another tenant's failure
+is invisible, unmutatable, and unchanged; and a raw-PHI sentinel proven present
+in the durable payload appears in no GraphQL response. A negative control
+confirmed the sentinel assertion is not vacuous: emitting scalar values from the
+payload summarizer makes the job fail.
+
+The required delivery-reliability proof caught one real defect before merge: the
+DLQ resolution label for resubmit was derived by string concatenation and wrote
+an invalid value. The kill-test now covers that path directly.
+
+#### Slice 4.2b: operator UI
+
+- New operator feature area in the IDE consuming 4.2a: message/receipt browser
+  with trace drill-down, delivery attempt/circuit/DLQ views, reason-required
+  control dialogs, and expected-version conflict surfacing.
+- Status: pending; branches from main after 4.2a merges.
+
 ### Slice 4.3: truthful observability and multi-replica behavior
 
 - Real `/health`, `/ready`, `/metrics`, correlation-safe logs/traces, durable

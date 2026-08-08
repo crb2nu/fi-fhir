@@ -15,6 +15,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/projections"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/store"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/fhir/subscription"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/operator"
 	integrationpreview "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/preview"
 	enginesession "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/session"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/explain"
@@ -142,6 +143,11 @@ type Resolver struct {
 	// IntegrationPreview evaluates stateless previews through MessageProcessor.
 	IntegrationPreview IntegrationPreviewService
 
+	// OperatorControlPlane exposes durable delivery/lifecycle operator actions.
+	// It is nil until a PostgreSQL submission database and lifecycle catalog
+	// are configured, which keeps the control plane fail-closed by default.
+	OperatorControlPlane *operator.Service
+
 	// False in every production composition. Superseded helper tests opt in
 	// directly so the public server remains fail-closed by default.
 	legacyUnsafeExecution bool
@@ -245,6 +251,14 @@ func WithIntegrationSessionStore(sessionStore enginesession.Store) ResolverOptio
 		r.integrationSessions = newIntegrationSessionServiceWithStore(sessionStore)
 		r.integrationSessions.publisher = r.sessionPublication
 		r.durableSessionWorkspace = true
+	}
+}
+
+// WithOperatorControlPlane enables the durable operator control plane. A nil
+// service leaves every operator query and mutation fail-closed.
+func WithOperatorControlPlane(service *operator.Service) ResolverOption {
+	return func(r *Resolver) {
+		r.OperatorControlPlane = service
 	}
 }
 

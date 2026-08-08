@@ -8,6 +8,7 @@
 	docs-status docs-status-quick docs-validate docs-all \
 	contract-check contract-check-strict contract-matrix \
 	golden-path-001 mllp-runtime delivery-reliability batch-ingestion integration-session \
+	operator-control-plane \
 	smoke-test smoke-test-local check-runtime-config \
 	dev dev-down dev-ui dev-ui-down
 
@@ -123,6 +124,12 @@ integration-session:
 	go test -tags=integration -race -count=1 -timeout=180s \
 		-run '^TestPostgresSessionWorkspace_RestartExactProfilesAndRawPolicy$$' \
 		./internal/integration/session
+
+# Slice 4.2a operator control-plane kill-test (PostgreSQL 16 required)
+operator-control-plane:
+	go test -tags=integration -race -count=1 -timeout=300s \
+		-run '^TestOperatorControlPlane_FailureReplayAndAuditGoldenJourneys$$' \
+		./internal/api/graphql
 
 # Clean build artifacts
 clean:

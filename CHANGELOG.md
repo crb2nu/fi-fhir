@@ -165,6 +165,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `digest_state` (migration `0002_batch_provenance`). The provenance CHECK is
   `NOT VALID` so rows admitted before this revision stay visibly distinguishable
   rather than being given invented provenance
+- Operator control-plane GraphQL API over the existing durable delivery and
+  lifecycle records: tenant-scoped, keyset-paginated browsing of receipts,
+  canonical events, receipt-to-delivery lineage, delivery attempts, dead
+  letters, destination circuits, delivery audit, and deployment inventory
+- Policy-aware semantic payload rendering that returns a canonical event's
+  field coordinates, JSON kinds, and repetition flags while never returning a
+  stored value, a value length, or a caller-influenced map key
+- Reason-required, role-gated, idempotent operator mutations for delivery
+  replay, resubmit, and dead-letter discard, plus lifecycle pause, resume,
+  retire, and deploy with expected-version optimistic concurrency, all
+  delegating to the existing operation ledger and append-only audit trail
+- Durable `discard` recovery decision with a dead-letter resolution column, so a
+  closed dead letter records whether it was replayed, resubmitted, or abandoned
+- Blocking PostgreSQL 16 operator gate that completes the failure/replay and
+  operator-audit golden journeys over the real GraphQL handler with a verified
+  OIDC operator identity, proves duplicate control actions do not double-execute,
+  proves unprivileged and cross-tenant callers reach no data and change no state,
+  and proves a planted raw-PHI sentinel never leaves the process
 
 #### Format Adapters
 - CDA/CCDA clinical document parser with namespace-aware XML handling (`internal/parser/cda/`)
