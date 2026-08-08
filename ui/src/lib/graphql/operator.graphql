@@ -1,0 +1,322 @@
+fragment OperatorPrincipalFields on OperatorPrincipal {
+  id
+  kind
+  authMethod
+  roles
+}
+
+fragment OperatorPageInfoFields on OperatorPageInfo {
+  hasNextPage
+  endCursor
+}
+
+fragment OperatorDeadLetterFields on OperatorDeadLetter {
+  attemptId
+  active
+  failureCode
+  failureDetail
+  failedAt
+  replayCount
+  lastReplayedAt
+  resolution
+  resolvedAt
+}
+
+fragment OperatorAttemptFields on OperatorDeliveryAttempt {
+  tenantId
+  attemptId
+  parentAttemptId
+  receiptId
+  eventId
+  traceId
+  destination {
+    artifactId
+    revisionId
+    digest
+    class
+  }
+  route
+  action
+  status
+  attemptCount
+  recordedAt
+  scheduledAt
+  completedAt
+  lastErrorCode
+  lastErrorDetail
+  outboxStatus
+  topic
+  leaseOwner
+  leaseExpiresAt
+  deadLetter {
+    ...OperatorDeadLetterFields
+  }
+}
+
+fragment OperatorReceiptFields on OperatorReceipt {
+  tenantId
+  receiptId
+  status
+  recordedAt
+  correlationId
+  rawRetentionMode
+  integrationRevision {
+    artifactId
+    revisionId
+    digest
+  }
+  principal {
+    ...OperatorPrincipalFields
+  }
+  reason
+  eventCount
+  attemptCount
+  failedAttemptCount
+  deadLetterCount
+}
+
+fragment OperatorAuditFields on OperatorAuditRecord {
+  auditId
+  attemptId
+  eventKind
+  attemptCount
+  reason
+  recordedAt
+  detail
+  principal {
+    ...OperatorPrincipalFields
+  }
+}
+
+fragment OperatorDeploymentFields on OperatorDeployment {
+  definitionRevision {
+    artifactId
+    revisionId
+    digest
+  }
+  state
+  version
+  releaseId
+  health
+  validationPassed
+  validationExpiresAt
+  updatedReason
+  updatedAt
+  updatedBy {
+    ...OperatorPrincipalFields
+  }
+}
+
+query OperatorReceipts($filter: OperatorReceiptFilter, $page: OperatorPageInput) {
+  operatorReceipts(filter: $filter, page: $page) {
+    nodes {
+      ...OperatorReceiptFields
+    }
+    pageInfo {
+      ...OperatorPageInfoFields
+    }
+  }
+}
+
+query OperatorMessageTrace($receiptId: ID!) {
+  operatorMessageTrace(receiptId: $receiptId) {
+    receipt {
+      ...OperatorReceiptFields
+    }
+    events {
+      eventId
+      receiptId
+      eventType
+      sourceMessageId
+      correlationId
+      classification
+      recordedAt
+      payloadTruncated
+      payloadFields {
+        path
+        kind
+        repeated
+      }
+    }
+    lineage {
+      lineageId
+      receiptId
+      eventId
+      traceId
+      correlationId
+      sourceMessageId
+      recordedAt
+      artifactRevisions {
+        source {
+          artifactId
+          revisionId
+          digest
+        }
+        profile {
+          artifactId
+          revisionId
+          digest
+        }
+        workflow {
+          artifactId
+          revisionId
+          digest
+        }
+      }
+      routes {
+        route
+        matched
+        skipped
+        skipReason
+        transformCount
+        plannedActions
+        diagnosticCodes
+      }
+      diagnostics {
+        severity
+        stage
+        code
+        path
+        classification
+      }
+    }
+    attempts {
+      ...OperatorAttemptFields
+    }
+    audit {
+      ...OperatorAuditFields
+    }
+  }
+}
+
+query OperatorDeliveryAttempt($attemptId: ID!) {
+  operatorDeliveryAttempt(attemptId: $attemptId) {
+    ...OperatorAttemptFields
+  }
+}
+
+query OperatorDeliveryAttempts($filter: OperatorAttemptFilter, $page: OperatorPageInput) {
+  operatorDeliveryAttempts(filter: $filter, page: $page) {
+    nodes {
+      ...OperatorAttemptFields
+    }
+    pageInfo {
+      ...OperatorPageInfoFields
+    }
+  }
+}
+
+query OperatorDeadLetters($activeOnly: Boolean, $page: OperatorPageInput) {
+  operatorDeadLetters(activeOnly: $activeOnly, page: $page) {
+    nodes {
+      ...OperatorDeadLetterFields
+    }
+    pageInfo {
+      ...OperatorPageInfoFields
+    }
+  }
+}
+
+query OperatorCircuits {
+  operatorCircuits {
+    state
+    consecutiveFailures
+    openUntil
+    updatedAt
+    destination {
+      artifactId
+      revisionId
+      digest
+    }
+  }
+}
+
+query OperatorAttemptAudit($attemptId: ID!, $page: OperatorPageInput) {
+  operatorAttemptAudit(attemptId: $attemptId, page: $page) {
+    nodes {
+      ...OperatorAuditFields
+    }
+    pageInfo {
+      ...OperatorPageInfoFields
+    }
+  }
+}
+
+query OperatorDeployments {
+  operatorDeployments {
+    ...OperatorDeploymentFields
+  }
+}
+
+query OperatorDeploymentEvents($definitionId: ID!, $revisionId: ID!) {
+  operatorDeploymentEvents(definitionId: $definitionId, revisionId: $revisionId) {
+    eventId
+    version
+    action
+    fromState
+    toState
+    health
+    releaseId
+    reason
+    occurredAt
+    actor {
+      ...OperatorPrincipalFields
+    }
+  }
+}
+
+fragment OperatorControlResultFields on OperatorControlResult {
+  kind
+  sourceAttemptId
+  resultAttemptId
+  reason
+  idempotencyKey
+  actor {
+    ...OperatorPrincipalFields
+  }
+  attempt {
+    ...OperatorAttemptFields
+  }
+}
+
+mutation ReplayDelivery($input: OperatorDeliveryControlInput!) {
+  replayDelivery(input: $input) {
+    ...OperatorControlResultFields
+  }
+}
+
+mutation ResubmitMessage($input: OperatorDeliveryControlInput!) {
+  resubmitMessage(input: $input) {
+    ...OperatorControlResultFields
+  }
+}
+
+mutation DiscardDeadLetter($input: OperatorDeliveryControlInput!) {
+  discardDeadLetter(input: $input) {
+    ...OperatorControlResultFields
+  }
+}
+
+mutation PauseIntegrationDeployment($input: OperatorDeploymentCommandInput!) {
+  pauseIntegrationDeployment(input: $input) {
+    ...OperatorDeploymentFields
+  }
+}
+
+mutation ResumeIntegrationDeployment($input: OperatorDeploymentCommandInput!) {
+  resumeIntegrationDeployment(input: $input) {
+    ...OperatorDeploymentFields
+  }
+}
+
+mutation RetireIntegrationDeployment($input: OperatorDeploymentCommandInput!) {
+  retireIntegrationDeployment(input: $input) {
+    ...OperatorDeploymentFields
+  }
+}
+
+mutation DeployIntegrationRelease($input: OperatorDeploymentCommandInput!) {
+  deployIntegrationRelease(input: $input) {
+    ...OperatorDeploymentFields
+  }
+}

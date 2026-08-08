@@ -2,8 +2,8 @@
  * Type definitions for the IDE shell layout.
  */
 
-export type IDEView = 'hl7' | 'workflows' | 'events' | 'profiles' | 'terminology' | 'system';
-export type IDEAppRoute = '/' | '/hl7' | '/workflows' | '/events' | '/profiles' | '/terminology';
+export type IDEView = 'hl7' | 'workflows' | 'events' | 'profiles' | 'terminology' | 'operator' | 'system';
+export type IDEAppRoute = '/' | '/hl7' | '/workflows' | '/events' | '/profiles' | '/terminology' | '/operator';
 
 /** Artifact types that can live in a workspace document tab. */
 export type DocumentType = 'route' | 'workflow-draft' | 'debug-session' | 'trace' | 'event' | 'profile';

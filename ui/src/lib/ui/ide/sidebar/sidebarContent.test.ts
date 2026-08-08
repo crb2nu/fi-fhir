@@ -29,6 +29,7 @@ describe('sidebarContent', () => {
       '/terminology',
       '/workflows',
       '/events',
+      '/operator',
     ]);
   });
 });

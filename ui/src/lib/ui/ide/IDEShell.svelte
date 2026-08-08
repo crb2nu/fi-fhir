@@ -63,6 +63,7 @@
     events: '/events',
     profiles: '/profiles',
     terminology: '/terminology',
+    operator: '/operator',
     system: '/',
   };
 
@@ -72,6 +73,7 @@
     '/events': 'events',
     '/profiles': 'profiles',
     '/terminology': 'terminology',
+    '/operator': 'operator',
     '/': 'system',
   };
 
@@ -89,6 +91,7 @@
     { id: 'nav:events', label: 'Go to Events', hint: '/events', category: 'Navigation', keywords: ['navigate', 'events', 'verification'], run: () => goto(resolve('/events')) },
     { id: 'nav:profiles', label: 'Go to Profiles', hint: '/profiles', category: 'Navigation', keywords: ['navigate', 'profiles', 'normalization'], run: () => goto(resolve('/profiles')) },
     { id: 'nav:terminology', label: 'Go to Terminology', hint: '/terminology', category: 'Navigation', keywords: ['navigate', 'terminology', 'translation'], run: () => goto(resolve('/terminology')) },
+    { id: 'nav:operator', label: 'Go to Operations', hint: '/operator', category: 'Navigation', keywords: ['navigate', 'operator', 'operations', 'replay', 'dead letter', 'deployments'], run: () => goto(resolve('/operator')) },
     { id: 'nav:system', label: 'Go to Dashboard', hint: '/', category: 'Navigation', keywords: ['navigate', 'mission control', 'home', 'dashboard'], run: () => goto(resolve('/')) },
     { id: 'cmd:toggle-sidebar', label: 'Toggle Sidebar', category: 'Workspace', keywords: ['sidebar', 'panel'], run: () => toggleSidebar() },
     { id: 'cmd:toggle-panel', label: 'Toggle Bottom Panel', category: 'Workspace', keywords: ['panel', 'output', 'problems'], run: () => toggleBottomPanel() },
