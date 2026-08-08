@@ -57,8 +57,17 @@ echo ""
 # --------------------------------------------------------------------------
 echo "─── Env Var Coverage ───"
 
-go_vars=$(grep -roh 'FI_FHIR_[A-Z_]*' "${ROOT}/cmd/" "${ROOT}/internal/" "${ROOT}/pkg/" 2>/dev/null \
-  | grep -v '_test.go' | sort -u || true)
+# Keep filenames in the grep output (-o without -h) so the test-file filter has
+# something to match on, then strip the path off the surviving lines. An earlier
+# version used `grep -roh ... | grep -v '_test.go'`, but -h suppresses filenames,
+# so the filter saw bare tokens, never matched, and reported every test-only var
+# as missing from .env.example.
+#
+# --include/--exclude would read better but are GNU/BSD extensions that busybox
+# grep ignores, silently yielding an empty var list on the alpine CI image --
+# which would make the compose check_required gates below pass vacuously.
+go_vars=$(grep -ro 'FI_FHIR_[A-Z_]*' "${ROOT}/cmd/" "${ROOT}/internal/" "${ROOT}/pkg/" 2>/dev/null \
+  | grep '\.go:' | grep -v '_test\.go:' | sed 's/.*://' | sort -u || true)
 
 if [ -f "$ENV_EXAMPLE" ]; then
   example_contents=$(cat "$ENV_EXAMPLE")
