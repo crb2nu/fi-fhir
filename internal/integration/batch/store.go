@@ -19,6 +19,19 @@ var (
 //go:embed migrations/0001_batch_ingestion.sql
 var batchMigration string
 
+//go:embed migrations/0002_batch_provenance.sql
+var batchProvenanceMigration string
+
+// batchMigrations is the ordered ledger of batch schema revisions.
+var batchMigrations = []struct {
+	version int64
+	name    string
+	body    string
+}{
+	{version: 1, name: "0001_batch_ingestion", body: batchMigration},
+	{version: 2, name: "0002_batch_provenance", body: batchProvenanceMigration},
+}
+
 type Phase string
 
 const (
@@ -29,6 +42,12 @@ const (
 )
 
 // WorkItem is raw-free durable recovery state for one exact object version.
+//
+// ReceivedAt is the server-owned custody timestamp recorded when this exact
+// object version was first durably admitted. It is the authoritative
+// received-at for every receipt and canonical event derived from the object.
+// ObjectVersion and ObjectETag are the provider-owned exact-version identity.
+// DigestState is the marshaled continuation point of the streaming digest.
 type WorkItem struct {
 	TenantID                  string
 	SourceID                  string
@@ -37,17 +56,21 @@ type WorkItem struct {
 	ObjectID                  string
 	Provider                  ProviderType
 	ObjectSize                int64
+	ObjectVersion             string
+	ObjectETag                string
 	Phase                     Phase
 	CheckpointOffset          int64
 	CheckpointMessage         int64
+	DigestState               string
 	ContentDigest             string
 	LeaseOwner                string
 	LeaseExpiresAt            time.Time
+	ReceivedAt                time.Time
 }
 
 type CheckpointStore interface {
 	Claim(context.Context, string, SourceRevision, string, Object, string, time.Duration) (*WorkItem, error)
-	Advance(context.Context, WorkItem, int64, int64, time.Duration) (WorkItem, error)
+	Advance(context.Context, WorkItem, int64, int64, string, time.Duration) (WorkItem, error)
 	MarkArchivePending(context.Context, WorkItem, string, time.Duration) (WorkItem, error)
 	MarkCompleted(context.Context, WorkItem) error
 	Release(context.Context, WorkItem, string) error
@@ -90,20 +113,25 @@ func (s *PostgresStore) Migrate(ctx context.Context) error {
 	`); err != nil {
 		return fmt.Errorf("create batch migration ledger: %w", err)
 	}
-	var applied bool
-	if err := tx.QueryRowContext(ctx,
-		`SELECT EXISTS (SELECT 1 FROM integration_batch_schema_migrations WHERE version = 1)`,
-	).Scan(&applied); err != nil {
-		return fmt.Errorf("read batch migration ledger: %w", err)
-	}
-	if !applied {
-		if _, err := tx.ExecContext(ctx, batchMigration); err != nil {
-			return fmt.Errorf("apply batch migration: %w", err)
+	for _, migration := range batchMigrations {
+		var applied bool
+		if err := tx.QueryRowContext(ctx,
+			`SELECT EXISTS (SELECT 1 FROM integration_batch_schema_migrations WHERE version = $1)`,
+			migration.version,
+		).Scan(&applied); err != nil {
+			return fmt.Errorf("read batch migration ledger: %w", err)
+		}
+		if applied {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, migration.body); err != nil {
+			return fmt.Errorf("apply batch migration %s: %w", migration.name, err)
 		}
 		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO integration_batch_schema_migrations (version, name) VALUES (1, '0001_batch_ingestion')`,
+			`INSERT INTO integration_batch_schema_migrations (version, name) VALUES ($1, $2)`,
+			migration.version, migration.name,
 		); err != nil {
-			return fmt.Errorf("record batch migration: %w", err)
+			return fmt.Errorf("record batch migration %s: %w", migration.name, err)
 		}
 	}
 	if err := tx.Commit(); err != nil {
@@ -136,22 +164,28 @@ func (s *PostgresStore) Claim(
 		return nil, fmt.Errorf("begin batch claim: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	// created_at is the server-owned custody timestamp. It is written once, on
+	// first discovery, and is deliberately not refreshed by later claims so the
+	// authoritative received-at survives reclaim, restart, and resume.
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO integration_batch_objects (
 			tenant_id, source_id, source_revision_digest, integration_revision_digest,
-			object_id, provider, object_size, object_modified_at, phase, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'processing', $9, $9)
+			object_id, provider, object_size, object_version, object_etag,
+			remote_modified_at_advisory, phase, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'processing', $11, $11)
 		ON CONFLICT DO NOTHING
 	`, tenantID, source.SourceID, source.Digest, integrationRevisionDigest, id,
-		object.Provider, object.Size, object.ModifiedAt.UTC(), now); err != nil {
+		object.Provider, object.Size, object.Version, object.ETag,
+		object.RemoteModifiedAtAdvisory.UTC(), now); err != nil {
 		return nil, fmt.Errorf("discover batch object: %w", err)
 	}
 
 	item, err := scanWorkItem(tx.QueryRowContext(ctx, `
 		SELECT tenant_id, source_id, source_revision_digest, integration_revision_digest,
 			object_id, provider,
-			object_size, phase, checkpoint_offset, checkpoint_message,
-			content_digest, lease_owner, lease_expires_at
+			object_size, object_version, object_etag, phase,
+			checkpoint_offset, checkpoint_message, digest_state,
+			content_digest, lease_owner, lease_expires_at, created_at
 		FROM integration_batch_objects
 		WHERE tenant_id = $1 AND source_id = $2
 		  AND source_revision_digest = $3 AND object_id = $4
@@ -161,8 +195,32 @@ func (s *PostgresStore) Claim(
 		return nil, fmt.Errorf("lock batch object: %w", err)
 	}
 	if item.IntegrationRevisionDigest != integrationRevisionDigest ||
-		item.ObjectSize != object.Size || item.Provider != object.Provider {
+		item.ObjectSize != object.Size || item.Provider != object.Provider ||
+		item.ReceivedAt.IsZero() {
 		return nil, ErrObjectChanged
+	}
+	// Rows admitted before the provenance migration carry empty exact-version
+	// columns. Adopting the observed values is sound rather than trusting: the
+	// primary key already contains objectID = H(source digest, provider, path,
+	// version), so a row under this key was necessarily written for this exact
+	// version. Populated columns must still match exactly.
+	legacy := item.ObjectVersion == "" && item.ObjectETag == ""
+	if !legacy && (item.ObjectVersion != object.Version || item.ObjectETag != object.ETag) {
+		return nil, ErrObjectChanged
+	}
+	if legacy {
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE integration_batch_objects
+			SET object_version = $1, object_etag = $2, updated_at = $3
+			WHERE tenant_id = $4 AND source_id = $5
+			  AND source_revision_digest = $6 AND object_id = $7
+			  AND object_version = '' AND object_etag = ''
+		`, object.Version, object.ETag, now, item.TenantID, item.SourceID,
+			item.SourceRevisionDigest, item.ObjectID); err != nil {
+			return nil, fmt.Errorf("adopt batch object provenance: %w", err)
+		}
+		item.ObjectVersion = object.Version
+		item.ObjectETag = object.ETag
 	}
 	if item.Phase == PhaseFailed {
 		if err := tx.Commit(); err != nil {
@@ -208,8 +266,18 @@ func (s *PostgresStore) Claim(
 	return &item, nil
 }
 
-func (s *PostgresStore) Advance(ctx context.Context, item WorkItem, offset, message int64, leaseDuration time.Duration) (WorkItem, error) {
-	if offset <= item.CheckpointOffset || message != item.CheckpointMessage+1 || leaseDuration <= 0 {
+// Advance moves the byte/message checkpoint forward together with the streaming
+// digest continuation state, so a resumed poll continues the same hash over the
+// exact bytes already admitted.
+func (s *PostgresStore) Advance(
+	ctx context.Context,
+	item WorkItem,
+	offset, message int64,
+	digestState string,
+	leaseDuration time.Duration,
+) (WorkItem, error) {
+	if offset <= item.CheckpointOffset || message != item.CheckpointMessage+1 ||
+		digestState == "" || len(digestState) > maxDigestStateBytes || leaseDuration <= 0 {
 		return WorkItem{}, ErrLeaseLost
 	}
 	now := s.clock().UTC()
@@ -221,7 +289,7 @@ func (s *PostgresStore) Advance(ctx context.Context, item WorkItem, offset, mess
 	defer func() { _ = tx.Rollback() }()
 	result, err := tx.ExecContext(ctx, `
 		UPDATE integration_batch_objects
-		SET checkpoint_offset = $1, checkpoint_message = $2,
+		SET checkpoint_offset = $1, checkpoint_message = $2, digest_state = $12,
 			lease_expires_at = $3, updated_at = $4, last_error_code = ''
 		WHERE tenant_id = $5 AND source_id = $6
 		  AND source_revision_digest = $7 AND object_id = $8
@@ -229,7 +297,7 @@ func (s *PostgresStore) Advance(ctx context.Context, item WorkItem, offset, mess
 		  AND checkpoint_offset = $10 AND checkpoint_message = $11
 	`, offset, message, nextExpiry, now, item.TenantID, item.SourceID,
 		item.SourceRevisionDigest, item.ObjectID, item.LeaseOwner,
-		item.CheckpointOffset, item.CheckpointMessage)
+		item.CheckpointOffset, item.CheckpointMessage, digestState)
 	if err != nil {
 		return WorkItem{}, fmt.Errorf("advance batch checkpoint: %w", err)
 	}
@@ -238,6 +306,7 @@ func (s *PostgresStore) Advance(ctx context.Context, item WorkItem, offset, mess
 	}
 	item.CheckpointOffset = offset
 	item.CheckpointMessage = message
+	item.DigestState = digestState
 	item.LeaseExpiresAt = nextExpiry
 	if err := insertBatchAudit(ctx, tx, item, "checkpoint_advanced", "{}", now); err != nil {
 		return WorkItem{}, err
@@ -375,13 +444,16 @@ type rowScanner interface{ Scan(...any) error }
 func scanWorkItem(row rowScanner) (WorkItem, error) {
 	var item WorkItem
 	var leaseExpires sql.NullTime
+	var receivedAt time.Time
 	err := row.Scan(&item.TenantID, &item.SourceID, &item.SourceRevisionDigest,
-		&item.IntegrationRevisionDigest, &item.ObjectID, &item.Provider, &item.ObjectSize, &item.Phase,
-		&item.CheckpointOffset, &item.CheckpointMessage, &item.ContentDigest,
-		&item.LeaseOwner, &leaseExpires)
+		&item.IntegrationRevisionDigest, &item.ObjectID, &item.Provider, &item.ObjectSize,
+		&item.ObjectVersion, &item.ObjectETag, &item.Phase,
+		&item.CheckpointOffset, &item.CheckpointMessage, &item.DigestState, &item.ContentDigest,
+		&item.LeaseOwner, &leaseExpires, &receivedAt)
 	if leaseExpires.Valid {
 		item.LeaseExpiresAt = leaseExpires.Time.UTC()
 	}
+	item.ReceivedAt = receivedAt.UTC()
 	return item, err
 }
 

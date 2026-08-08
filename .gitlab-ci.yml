@@ -881,10 +881,14 @@ test:delivery-reliability:
     - when: never
   allow_failure: false
 
-# Blocking PostgreSQL 16/MinIO/SFTP proof for Slice 2.4. It rejects an unknown
-# SSH host key, proves replica lease exclusion/reclaim and source-version
+# Blocking PostgreSQL 16/MinIO/SFTP proof for Slices 2.4 and 4.1b3. It rejects an
+# unknown SSH host key, proves replica lease exclusion/reclaim and source-version
 # isolation, kills the worker after durable admission but before checkpoint,
-# resumes without duplicate durable rows, and verifies archive-before-delete.
+# resumes without duplicate durable rows, verifies archive-before-delete, keeps
+# two bound workload subjects distinct at transaction-scoped admission, halts an
+# ungranted subject before any durable record exists, and proves receipt
+# provenance is server-owned custody time plus verified content identity rather
+# than remote object modification time.
 test:batch-ingestion:
   stage: test
   <<: *go-image-debian
@@ -913,10 +917,10 @@ test:batch-ingestion:
     - apt-get update && apt-get install -y --no-install-recommends git ca-certificates ripgrep build-essential && rm -rf /var/lib/apt/lists/*
     - >-
       go test -tags=integration
-      -list '^TestBatchIngestion_PostgresS3SFTPKillResumeArchive$'
+      -list '^TestBatchIngestion_PostgresS3SFTP(KillResumeArchive|WorkloadIdentityProvenance)$'
       ./internal/integration/batch
-      | rg -x 'TestBatchIngestion_PostgresS3SFTPKillResumeArchive'
-      | awk 'END { if (NR != 1) exit 1 }'
+      | rg -x 'TestBatchIngestion_PostgresS3SFTP(KillResumeArchive|WorkloadIdentityProvenance)'
+      | awk 'END { if (NR != 2) exit 1 }'
     - make batch-ingestion
   rules:
     - if: $CI_COMMIT_TAG

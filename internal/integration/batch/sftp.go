@@ -75,7 +75,7 @@ func (p *SFTPProvider) List(ctx context.Context, limit int) ([]Object, error) {
 		}
 		object := Object{
 			Provider: ProviderSFTP, Path: objectPath, Version: sftpVersion(entry),
-			Size: entry.Size(), ModifiedAt: entry.ModTime().UTC(),
+			Size: entry.Size(), RemoteModifiedAtAdvisory: entry.ModTime().UTC(),
 		}
 		if object.validate() != nil {
 			return nil, ErrInvalidObject
@@ -299,9 +299,13 @@ func (p *SFTPProvider) verifyObject(object Object) error {
 		}
 		return fmt.Errorf("%w: stat SFTP object", ErrProviderUnavailable)
 	}
+	// The synthetic version folds size, modification time, and permissions into
+	// a change-detection value. It is deliberately not provenance: the remote
+	// side controls modification time, so content trust comes from the digest
+	// computed over the exact bytes streamed during admission.
 	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 ||
 		sftpVersion(info) != object.Version || info.Size() != object.Size ||
-		!info.ModTime().UTC().Equal(object.ModifiedAt.UTC()) {
+		!info.ModTime().UTC().Equal(object.RemoteModifiedAtAdvisory.UTC()) {
 		return ErrObjectChanged
 	}
 	return nil

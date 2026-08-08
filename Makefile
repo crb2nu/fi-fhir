@@ -108,11 +108,12 @@ delivery-reliability:
 		-run '^TestDeliveryReliability_PostgresKafkaFailureReplay$$' \
 		./internal/integration/delivery
 
-# Slice 2.4: lifecycle-gated S3/SFTP -> checkpoint/resume -> verified archive.
+# Slice 2.4/4.1b3: lifecycle-gated S3/SFTP -> checkpoint/resume -> verified
+# archive, plus bound workload identity and trusted receipt provenance.
 # Requires PostgreSQL and MinIO settings in CI; SFTP is a real in-process SSH server.
 batch-ingestion:
-	go test -tags=integration -race -count=1 -timeout=240s \
-		-run '^TestBatchIngestion_PostgresS3SFTPKillResumeArchive$$' \
+	go test -tags=integration -race -count=1 -timeout=300s \
+		-run '^TestBatchIngestion_PostgresS3SFTP(KillResumeArchive|WorkloadIdentityProvenance)$$' \
 		./internal/integration/batch
 
 # Slices 3.1 and 3.3: restart-safe PostgreSQL Integration Session workspace and

@@ -33,6 +33,9 @@ func loadBatchRuntimeFromEnv(
 	if closeErr != nil {
 		return nil, nil, fmt.Errorf("close batch source revision: %w", closeErr)
 	}
+	if err := requireBatchWorkloadIdentity(source); err != nil {
+		return nil, nil, err
+	}
 	definitionID, err := requiredEnv("FI_FHIR_BATCH_DEFINITION_ID")
 	if err != nil {
 		return nil, nil, err
@@ -95,6 +98,23 @@ func loadBatchRuntimeFromEnv(
 	}
 	closeProvider = false
 	return runner, provider, nil
+}
+
+// requireBatchWorkloadIdentity enforces the deployment-owned switch that
+// refuses compatibility mode. Workload identity lives in the immutable source
+// revision, so this is what stops a swapped source document from silently
+// downgrading a bound source to the shared connector principal.
+func requireBatchWorkloadIdentity(source integrationbatch.SourceRevision) error {
+	required, err := optionalBoolEnv("FI_FHIR_BATCH_REQUIRE_WORKLOAD_IDENTITY")
+	if err != nil {
+		return err
+	}
+	if required && !source.WorkloadIdentityEnabled() {
+		return fmt.Errorf(
+			"FI_FHIR_BATCH_REQUIRE_WORKLOAD_IDENTITY requires a workload block in the batch source revision",
+		)
+	}
+	return nil
 }
 
 func loadBatchProviderFromEnv(source integrationbatch.SourceRevision) (integrationbatch.Provider, error) {

@@ -183,8 +183,9 @@ func proveBatchLeaseAndMutation(t *testing.T, ctx context.Context, db *sql.DB) {
 	}
 	source := testS3Source(t)
 	object := Object{
-		Provider: ProviderS3, Path: "incoming/lease.hl7", Version: "etag:v1", Size: 10,
-		ModifiedAt: now.Add(-time.Minute),
+		Provider: ProviderS3, Path: "incoming/lease.hl7", Version: "etag:v1",
+		ETag: "0cc175b9c0f1b6a831c399e269772661", Size: 10,
+		RemoteModifiedAtAdvisory: now.Add(-time.Minute),
 	}
 	integrationDigest := testDigest('a')
 	first, err := store.Claim(ctx, "tenant-a", source, integrationDigest, object, "worker-a", time.Minute)
@@ -202,7 +203,8 @@ func proveBatchLeaseAndMutation(t *testing.T, ctx context.Context, db *sql.DB) {
 	}
 	mutated := object
 	mutated.Version = "etag:v2"
-	mutated.ModifiedAt = now
+	mutated.ETag = "92eb5ffee6ae2fec3ad71c777531578f"
+	mutated.RemoteModifiedAtAdvisory = now
 	newVersion, err := store.Claim(ctx, "tenant-a", source, integrationDigest, mutated, "worker-c", time.Minute)
 	if err != nil || newVersion == nil || newVersion.ObjectID == first.ObjectID || newVersion.CheckpointOffset != 0 {
 		t.Fatalf("mutated object lease = %#v, %v", newVersion, err)

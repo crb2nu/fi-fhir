@@ -3,7 +3,8 @@
 #
 # Checks:
 #   1. .env.example covers all FI_FHIR_* env vars referenced in Go source.
-#   2. Docker Compose forwards HTTP ingress OAuth and MLLP listener settings.
+#   2. Docker Compose forwards HTTP ingress OAuth, MLLP listener, and batch
+#      source settings.
 #   3. Proxy config assumptions are documented.
 #
 # Usage:
@@ -87,8 +88,10 @@ echo "─── Compose Config ───"
 
 oauth_ingress_vars=$(printf '%s\n' "$go_vars" | grep '^FI_FHIR_HTTP_INGRESS_OAUTH_' || true)
 mllp_vars=$(printf '%s\n' "$go_vars" | grep '^FI_FHIR_MLLP_' || true)
+batch_vars=$(printf '%s\n' "$go_vars" | grep '^FI_FHIR_BATCH_' || true)
 missing_compose=""
 missing_mllp=""
+missing_batch=""
 if [ -f "$COMPOSE_FILE" ]; then
   for var in $oauth_ingress_vars; do
     if ! grep -q "$var" "$COMPOSE_FILE"; then
@@ -109,6 +112,17 @@ if [ -f "$COMPOSE_FILE" ]; then
   check_required "Compose forwards MLLP listener vars" bash -c "
     if [ -n '$missing_mllp' ]; then
       echo 'Missing:$missing_mllp'
+      exit 1
+    fi
+  "
+  for var in $batch_vars; do
+    if ! grep -q "$var" "$COMPOSE_FILE"; then
+      missing_batch="$missing_batch $var"
+    fi
+  done
+  check_required "Compose forwards batch source vars" bash -c "
+    if [ -n '$missing_batch' ]; then
+      echo 'Missing:$missing_batch'
       exit 1
     fi
   "

@@ -112,6 +112,15 @@ func (r *Runner) PollOnce(ctx context.Context) (int, error) {
 		}
 		return 0, ErrUnavailable
 	}
+	// Connector boundary. The workload identity is evaluated against the exact
+	// deployed tenant, integration revision, and source before this poll lists,
+	// leases, opens, reads, loads an artifact, or writes any durable row. A
+	// denied source therefore leaves no lease or checkpoint state to poison a
+	// retry once its grant is repaired.
+	security, err := r.authorizeSource(binding)
+	if err != nil {
+		return 0, err
+	}
 	objects, err := r.provider.List(ctx, r.source.MaxFilesPerPoll)
 	if err != nil {
 		return 0, fmt.Errorf("%w: list source", ErrRetryable)
@@ -131,7 +140,7 @@ func (r *Runner) PollOnce(ctx context.Context) (int, error) {
 		if item == nil {
 			continue
 		}
-		if err := r.processObject(ctx, binding, object, *item); err != nil {
+		if err := r.processObject(ctx, binding, security, object, *item); err != nil {
 			if errors.Is(err, ErrInvalidMessage) {
 				processed++
 				continue
@@ -148,9 +157,28 @@ func recoverablePollError(err error) bool {
 		errors.Is(err, ErrArchiveFailed) || errors.Is(err, ErrCompletedObject)
 }
 
+// authorizeSource evaluates the shared fail-closed submit decision for this
+// source's workload identity. It returns the exact security context every
+// later decision for this poll reuses, so the connector boundary, the processor
+// boundary, and transaction-scoped admission cannot disagree.
+func (r *Runner) authorizeSource(binding lifecycle.RunnableBinding) (integration.SecurityContext, error) {
+	principal, err := r.resolvePrincipal(binding.SourceID)
+	if err != nil {
+		return integration.SecurityContext{}, err
+	}
+	security := integration.SecurityContext{TenantID: r.tenantID, Principal: principal}
+	if err := authorization.AuthorizeSubmission(
+		security, r.tenantID, binding.IntegrationRevision, binding.SourceID,
+	); err != nil {
+		return integration.SecurityContext{}, ErrUnavailable
+	}
+	return security, nil
+}
+
 func (r *Runner) processObject(
 	ctx context.Context,
 	binding lifecycle.RunnableBinding,
+	security integration.SecurityContext,
 	object Object,
 	item WorkItem,
 ) error {
@@ -167,6 +195,14 @@ func (r *Runner) processObject(
 		return r.archive(ctx, object, item)
 	}
 
+	// The streaming digest resumes the exact hash state persisted with the last
+	// checkpoint, so it covers the whole object once, in order, even when the
+	// worker that started it died mid-object.
+	streaming, err := newStreamDigest(item.DigestState)
+	if err != nil {
+		_ = r.store.Release(ctx, item, "DIGEST_STATE_LOST")
+		return fmt.Errorf("%w: resume streaming digest", ErrRetryable)
+	}
 	reader, err := r.provider.OpenAt(ctx, object, item.CheckpointOffset)
 	if err != nil {
 		_ = r.store.Release(ctx, item, "OPEN_FAILED")
@@ -188,13 +224,14 @@ func (r *Runner) processObject(
 			_ = r.store.Fail(ctx, item, "INVALID_STREAM")
 			return ErrInvalidMessage
 		}
-		if message.StartOffset != item.CheckpointOffset || message.EndOffset <= message.StartOffset {
+		if message.StartOffset != item.CheckpointOffset || message.EndOffset <= message.StartOffset ||
+			int64(len(message.Raw)) != message.EndOffset-message.StartOffset {
 			_ = reader.Close()
 			_ = r.store.Fail(ctx, item, "INVALID_CHECKPOINT")
 			return ErrInvalidMessage
 		}
 		processCtx, cancel := context.WithTimeout(ctx, time.Duration(r.source.ProcessSeconds)*time.Second)
-		err := r.processMessage(processCtx, binding, object, item, message)
+		err := r.processMessage(processCtx, binding, security, item, message)
 		cancel()
 		if err != nil {
 			_ = reader.Close()
@@ -205,12 +242,18 @@ func (r *Runner) processObject(
 			}
 			return err
 		}
+		digestState, digestErr := advanceStreamDigest(streaming, message.Raw)
+		if digestErr != nil {
+			_ = reader.Close()
+			_ = r.store.Release(ctx, item, "DIGEST_STATE_LOST")
+			return fmt.Errorf("%w: extend streaming digest", ErrRetryable)
+		}
 		if err := r.checkpoint("after_admission"); err != nil {
 			_ = reader.Close()
 			return err
 		}
 		item, err = r.store.Advance(
-			ctx, item, message.EndOffset, item.CheckpointMessage+1,
+			ctx, item, message.EndOffset, item.CheckpointMessage+1, digestState,
 			time.Duration(r.source.LeaseSeconds)*time.Second,
 		)
 		if err != nil {
@@ -226,13 +269,25 @@ func (r *Runner) processObject(
 		_ = r.store.Fail(ctx, item, "INVALID_STREAM")
 		return ErrInvalidMessage
 	}
+	streamedDigest, err := streaming.sum()
+	if err != nil || !validSHA256Digest(streamedDigest) {
+		_ = r.store.Release(ctx, item, "DIGEST_STATE_LOST")
+		return fmt.Errorf("%w: finalize streaming digest", ErrRetryable)
+	}
 	digest, err := r.provider.Digest(ctx, object)
 	if err != nil || !validSHA256Digest(digest) {
 		_ = r.store.Release(ctx, item, "DIGEST_FAILED")
 		return fmt.Errorf("%w: digest object", ErrRetryable)
 	}
+	// The re-read must agree with the bytes actually admitted. A disagreement
+	// means the remote object was rewritten under a preserved exact-version
+	// identity, so the object is quarantined rather than archived.
+	if digest != streamedDigest {
+		_ = r.store.Fail(ctx, item, "DIGEST_MISMATCH")
+		return ErrInvalidMessage
+	}
 	item, err = r.store.MarkArchivePending(
-		ctx, item, digest, time.Duration(r.source.LeaseSeconds)*time.Second,
+		ctx, item, streamedDigest, time.Duration(r.source.LeaseSeconds)*time.Second,
 	)
 	if err != nil {
 		return err
@@ -246,13 +301,19 @@ func (r *Runner) processObject(
 func (r *Runner) processMessage(
 	ctx context.Context,
 	binding lifecycle.RunnableBinding,
-	object Object,
+	security integration.SecurityContext,
 	item WorkItem,
 	message Message,
 ) error {
+	// Authoritative received-at is the server-owned custody timestamp recorded
+	// when this exact object version was first durably admitted. Remote object
+	// modification time is advisory metadata and never reaches a receipt.
+	if item.ReceivedAt.IsZero() {
+		return ErrUnavailable
+	}
 	envelope, err := integration.NewRawEnvelope(integration.RawEnvelopeMetadata{
 		TenantID: r.tenantID, SourceID: binding.SourceID, Format: events.FormatHL7v2,
-		ContentType: "application/hl7-v2+er7", ReceivedAt: object.ModifiedAt.UTC(),
+		ContentType: "application/hl7-v2+er7", ReceivedAt: item.ReceivedAt.UTC(),
 		Classification: binding.Classification,
 	}, message.Payload)
 	if err != nil {
@@ -264,17 +325,12 @@ func (r *Runner) processMessage(
 	)
 	request := integration.ProcessRequest{
 		Mode: integration.ExecutionModeProduction, IntegrationRevision: binding.IntegrationRevision,
-		Security: integration.SecurityContext{
-			TenantID: r.tenantID,
-			Principal: integration.Principal{
-				ID: r.principalID, Kind: integration.PrincipalKindService,
-				AuthMethod: "batch-" + string(r.source.Provider), Roles: []string{SubmitRole},
-				SourceID: binding.SourceID,
-			},
-		},
+		Security: security,
 		Envelope: envelope, IdempotencyKey: "batch:v1:" + identity,
 		CorrelationID: deterministicUUID(identity),
 	}
+	// Re-evaluated immediately before the processor loads any artifact. The
+	// same decision runs again inside transaction-scoped runnable admission.
 	if err := authorization.AuthorizeSubmission(
 		request.Security,
 		r.tenantID,
@@ -325,6 +381,13 @@ func (r *Runner) checkpoint(name string) error {
 		return nil
 	}
 	return r.faultHook(name)
+}
+
+func advanceStreamDigest(streaming *streamDigest, raw []byte) (string, error) {
+	if err := streaming.write(raw); err != nil {
+		return "", err
+	}
+	return streaming.state()
 }
 
 func messageIdentity(source SourceRevision, integrationRevisionDigest, objectID string, message, offset int64) string {

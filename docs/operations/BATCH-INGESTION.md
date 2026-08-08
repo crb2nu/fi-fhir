@@ -27,6 +27,57 @@ Each input file must contain one or more HL7v2 messages beginning with `MSH`.
 Messages may be separated with CR, LF, or CRLF. The configured
 `max_message_bytes` bounds memory used by the streaming reader.
 
+## Workload identity
+
+Slice 4.1b3 lets a source declare the canonical service subject it submits under.
+Add a `workload` block to the immutable source document:
+
+```json
+{
+  "workload": {
+    "subject": "svc-batch-east",
+    "grants": ["integration:batch"]
+  }
+}
+```
+
+- Binding is all-or-nothing per source. With a `workload` block the
+  deployment-fixed `FI_FHIR_BATCH_PRINCIPAL_ID` is never used. Without one the
+  source stays in compatibility mode and keeps the deployment-fixed principal
+  and the server-issued `integration:batch` grant.
+- The subject and its grants come only from the source document. Object keys,
+  remote directories, remote metadata, and MSH content cannot select, influence,
+  or impersonate an identity.
+- The same fail-closed `integration.submit` decision runs at the connector
+  boundary before the worker lists, leases, opens, or reads anything, again
+  before the processor loads artifacts, and again inside transaction-scoped
+  runnable admission. A subject without a recognized submit grant therefore
+  creates no lease, no checkpoint, and no durable record, so repairing the grant
+  later reprocesses the object cleanly.
+- Set `FI_FHIR_BATCH_REQUIRE_WORKLOAD_IDENTITY=true` in production so the process
+  refuses to start if the mounted source document ever drops its `workload`
+  block.
+- The block is part of the content-addressed source revision, so changing a
+  subject or a grant requires a new source revision, a new integration definition
+  revision, and a lifecycle redeploy.
+
+## Receipt provenance
+
+Receipts and canonical events derived from batch objects are grounded in facts
+fi-fhir can verify:
+
+| Fact | Trust | Source |
+| --- | --- | --- |
+| `received_at` | trusted | Server-owned custody timestamp written when the exact object version was first durably admitted (`integration_batch_objects.created_at`). Stable across lease reclaim, restart, and resume. |
+| `content_digest` | trusted | SHA-256 over the exact bytes streamed during admission, resumed across checkpoints and cross-checked against a full re-read before archive. |
+| `object_version` | trusted | Exact S3 version ID, or the SFTP synthetic change-detection version. Re-verified at every read, archive, and delete. |
+| `object_etag` | trusted | S3 entity tag observed at listing and re-verified at every read, archive, and delete. Empty for SFTP. |
+| `remote_modified_at_advisory` | **advisory only** | Remote modification time. A sender controls it (SFTP exposes `SSH_FXP_SETSTAT`), so it takes no part in any trust or audit decision. |
+
+If the streaming digest and the pre-archive re-read disagree, the object was
+rewritten under a preserved exact-version identity. It is quarantined with
+`DIGEST_MISMATCH` instead of being archived.
+
 ## Configuration
 
 Set the common runtime values:
@@ -35,8 +86,12 @@ Set the common runtime values:
 FI_FHIR_BATCH_SOURCE_CONFIG_PATH=/etc/fi-fhir/batch-source.json
 FI_FHIR_BATCH_DEFINITION_ID=integration-batch
 FI_FHIR_BATCH_PRINCIPAL_ID=batch-ingest
+FI_FHIR_BATCH_REQUIRE_WORKLOAD_IDENTITY=true
 FI_FHIR_BATCH_WORKER_ID=fi-fhir-batch-1
 ```
+
+`FI_FHIR_BATCH_PRINCIPAL_ID` applies only in compatibility mode. A source that
+declares a `workload` block submits under its declared subject instead.
 
 The definition must be deployed and its exact source ID, revision ID, digest,
 provider, and secret bindings must match the source document. Startup or polling
@@ -99,4 +154,8 @@ make batch-ingestion
 The required integration gate uses PostgreSQL 16, a real MinIO API, and a real
 SSH/SFTP protocol server. It kills processing in the admission/checkpoint window
 and verifies exact durable cardinality, resume, mutation isolation, host-key
-rejection, archive bytes, and raw-PHI exclusion.
+rejection, archive bytes, and raw-PHI exclusion. It also keeps two bound workload
+subjects distinct at transaction-scoped admission while their object keys and MSH
+fields impersonate each other, halts an ungranted subject before any durable
+record exists, and proves a spoofed remote modification time never becomes a
+receipt's `received_at`.
