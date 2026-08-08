@@ -113,10 +113,13 @@ check_graphql() {
   body=$(retry_curl -sf --max-time "$TIMEOUT" -X POST "$BASE_URL/graphql" \
     -H "Authorization: Bearer $GRAPHQL_BEARER_TOKEN" \
     -H 'Content-Type: application/json' \
-    -d '{"query":"{health{status}}"}') || return 1
+    -d '{"query":"{health{status components{name status}}}"}') || return 1
   printf '%s' "$body" | grep -q 'health' || return 1
-  # The resolver must project components rather than answering from a literal.
-  printf '%s' "$body" | grep -q 'components'
+  # The query selects components on purpose. Before Slice 4.3 this resolver
+  # returned a hardcoded "healthy" and a hardcoded {event_store, healthy}
+  # without touching the database, so `{health{status}}` proved only that the
+  # resolver executes. Selecting the projection is what makes the check real.
+  printf '%s' "$body" | grep -q '"components"'
 }
 
 check_websocket_disabled() {
