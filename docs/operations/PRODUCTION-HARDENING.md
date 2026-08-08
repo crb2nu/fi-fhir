@@ -751,6 +751,28 @@ bounds, and consumer duplicate suppression have been reviewed.
 See [`DELIVERY-RELIABILITY.md`](DELIVERY-RELIABILITY.md) for exact configuration,
 state transitions, inspection queries, and recovery commands.
 
+### Destination-scoped delivery identity
+
+The engine contacts no destination: the durable worker publishes one command per
+attempt to the constant topic `integration.delivery.v1`, and an external consumer
+performs the destination call. Slice 4.1c-a adds one fail-closed
+`integration.deliver` decision on that dispatch path, evaluated after the outbox
+row is claimed and before the broker is contacted.
+
+- Leave `FI_FHIR_DELIVERY_IDENTITY_MODE` unset until a destination registry
+  exists. Any other `FI_FHIR_DELIVERY_IDENTITY_*` setting without a mode refuses
+  startup, so the decision cannot be half-applied.
+- `strict` and `compatibility` reject each other's configuration. Prefer strict.
+- Every declared secret binding is resolved once at startup and discarded; a
+  credential that does not resolve refuses startup rather than failing at
+  dispatch. Secret values enter no revision, record, log, metric, or broker field.
+- `DELIVERY_FORBIDDEN` and `DELIVERY_DESTINATION_UNVERIFIED` are non-retryable
+  dead letters. They mean the deployed revision and the planned attempt disagree;
+  fix the revision and replay rather than editing attempt rows.
+
+See [`DESTINATION-IDENTITY.md`](DESTINATION-IDENTITY.md) for the contract, the
+registry document, mode semantics, secret resolution, and provenance columns.
+
 Copy a Helm-managed bearer directly to the macOS clipboard without printing it:
 
 ```bash

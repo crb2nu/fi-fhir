@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -14,6 +15,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/twmb/franz-go/pkg/kgo"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/authorization"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
@@ -153,8 +156,12 @@ func newDurableSubmissionFixture(
 					Roles: []string{authorization.HTTPSubmitGrant},
 				},
 			},
-			Envelope:      envelope,
-			CorrelationID: "correlation-4-1c-a",
+			Envelope: envelope,
+			// Unique per run so the derived receipt and attempt identifiers are
+			// unique, and per-attempt Kafka assertions stay exact on a broker that
+			// retains records from earlier runs.
+			IdempotencyKey: fmt.Sprintf("destination-proof-%d", time.Now().UnixNano()),
+			CorrelationID:  "correlation-4-1c-a",
 		},
 	}
 }
@@ -303,6 +310,56 @@ func submissionCount(t *testing.T, db *sql.DB, table string) int {
 		t.Fatalf("count %s: %v", table, err)
 	}
 	return count
+}
+
+// drainDeliveryRecords reads the delivery topic from the beginning and returns
+// every record, stopping once the topic goes quiet. Assertions then filter by
+// attempt key, so a broker retaining records from an earlier run cannot make a
+// per-attempt count look right by accident.
+func drainDeliveryRecords(
+	t *testing.T,
+	ctx context.Context,
+	brokers []string,
+	topic string,
+) []*kgo.Record {
+	t.Helper()
+	consumer, err := kgo.NewClient(
+		kgo.SeedBrokers(brokers...),
+		kgo.ConsumeTopics(topic),
+		kgo.ConsumeResetOffset(kgo.NewOffset().AtStart()),
+	)
+	if err != nil {
+		t.Fatalf("create Kafka consumer: %v", err)
+	}
+	defer consumer.Close()
+	records := make([]*kgo.Record, 0, 8)
+	for {
+		pollCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		fetches := consumer.PollFetches(pollCtx)
+		cancel()
+		if errs := fetches.Errors(); len(errs) > 0 {
+			if errors.Is(errs[0].Err, context.DeadlineExceeded) {
+				return records
+			}
+			t.Fatalf("consume Kafka records: %v", errs[0].Err)
+		}
+		empty := true
+		fetches.EachRecord(func(record *kgo.Record) {
+			records = append(records, record)
+			empty = false
+		})
+		if empty {
+			return records
+		}
+	}
+}
+
+func recordsByKey(records []*kgo.Record) map[string][]*kgo.Record {
+	byKey := make(map[string][]*kgo.Record, len(records))
+	for _, record := range records {
+		byKey[string(record.Key)] = append(byKey[string(record.Key)], record)
+	}
+	return byKey
 }
 
 func fixedDestinationClock() func() time.Time {

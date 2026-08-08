@@ -532,6 +532,83 @@ deployment-fixed principal in bound mode, no connector-boundary decision, remote
 modification time as received-at, ignored per-identity grants, and a streaming
 digest over normalized rather than raw bytes — each fail the test.
 
+#### Slice 4.1c-a: destination-scoped identity contract
+
+The sprint scope assumed the engine authenticates to destinations, so 4.1c would
+be "scope an existing credential". It does not. The durable worker publishes one
+command per attempt to the constant Kafka topic `integration.delivery.v1`
+(`internal/integration/delivery/dispatcher.go`,
+`internal/integration/processor/postgres_submission.go`); an external consumer
+performs the destination call. `webhook`, `fhir`, `database`, and `file` are
+plan-level action classes validated in
+`internal/integration/processor/workflow_plan.go`, never executed transports.
+There was no destination artifact behind the digest carried on every attempt, and
+no `SecretReference` resolver of any kind — the Slice 1.0 secret contract was a
+name-presence check.
+
+4.1c is therefore two slices:
+
+- **4.1c-a (this slice)** — the missing contract and the missing decision.
+- **4.1c-b (next)** — the first durable HTTPS destination consumer that presents
+  the scoped identity.
+
+4.1c-a delivers:
+
+- `DestinationRevision` in a new `internal/integration/destination` package:
+  schema version, artifact/revision/destination identity, class, transport kind,
+  a non-secret transport policy carrying binding **names** only, an optional
+  client identity block, a domain-separated semantic digest, `Validate()`, and
+  `ValidateAgainst(lifecycle.RunnableBinding)` applying the same
+  `hasSecretBinding` discipline as `mllp/source.go` and `batch/source.go`.
+- A server-owned destination registry that resolves an attempt's reference to the
+  exact deployed revision and requires the reference to match byte for byte —
+  revision ID, digest, and class included — so an attempt carrying another
+  destination's digest cannot be published under the wrong identity.
+- `integration.SecretResolver` in `pkg/integration` with one file/env
+  implementation wired in `cmd/fi-fhir/`, never inside `internal/integration/*`.
+  Every declared binding is resolved once at startup and discarded, so a
+  credential that does not resolve refuses startup rather than failing at
+  dispatch.
+- `ActionDeliver = "integration.deliver"`, `ObjectDestinationRevision`, and the
+  dotted grant `integration.destination.client`, matching the convention 2.3 and
+  4.2a already use. `Authorize` is restructured into per-action decisions with
+  the submit path's conditions unchanged, and the deliver path requires an empty
+  `SourceID` so a source principal can never be replayed as a destination client
+  or the reverse.
+- Enforcement in `Dispatcher.RunOnce` after `Claim` and before the command is
+  built or published. A refusal is a non-retryable `DELIVERY_FORBIDDEN` or
+  `DELIVERY_DESTINATION_UNVERIFIED` routed through the existing `MarkFailed`, so
+  it enters the DLQ with `attempt_count` unchanged and is visible to 4.2a's
+  control plane instead of spinning. An infrastructure failure in the decision
+  path is surfaced and retried, never converted into a dead letter.
+- 4.1b1-style `strict` and `compatibility` modes that reject each other's
+  configuration, plus refusal of any `FI_FHIR_DELIVERY_IDENTITY_*` setting
+  without a mode, so the decision cannot be half-applied.
+- Server-owned decision provenance in the package's own migration set. The
+  destination-declared endpoint is labeled `_advisory` with a `COMMENT ON COLUMN`
+  stating it is never a trust input, and the provenance CHECK lands `NOT VALID`
+  so no later backfill can silently claim it governed rows it never saw. Absence
+  of a decision row means the decision was never made, never that it was allowed.
+
+Keep the HTTPS transport, token issuance/introspection, cloud workload
+federation, GraphQL destination authoring, and PHI retention in later slices.
+
+Implementation status (2026-08-08): implemented and locally verified; landing
+pipeline evidence recorded in the Slice 4.1c-a handoff. The day-1 gate
+`TestDeliveryDispatch_ContactsNoDestination` **passed against unmodified main**,
+which is what converted the slice from "scope the existing credential" into
+"build the missing contract": a live loopback TLS endpoint standing where a
+webhook destination would be reached recorded zero accepted connections and zero
+served requests across one complete production submission, while Kafka received
+exactly one command; no durable record or broker payload carried a scheme, host,
+or port; and a URL-named destination was rejected at planning before any durable
+row existed. The load-bearing kill-test
+`TestDeliveryIdentity_PostgresKafkaScopedDispatch` drives PostgreSQL 16 and Kafka
+with two bound destinations, one crossed digest, and one orphan. Two independent
+negative controls each fail it: stubbing the decision to return nil publishes all
+four attempts and records no provenance, and removing the registry's digest
+equality check publishes the crossed-digest attempt.
+
 ### Slice 4.2: operator control plane
 
 - Real message/trace browser, deployment/channel controls, replay/resubmit/DLQ,

@@ -121,12 +121,10 @@ func TestDeliveryDispatch_ContactsNoDestination(t *testing.T) {
 
 	// Assertion 2: exactly one Kafka command, on the one constant topic, and it
 	// carries no destination address of any kind.
-	records := consumeDeliveryRecords(t, ctx, brokers, deliveryCommandSchema, 1)
+	drained := drainDeliveryRecords(t, ctx, brokers, deliveryCommandSchema)
+	records := recordsByKey(drained)[attemptID]
 	if len(records) != 1 {
-		t.Fatalf("Kafka records = %d, want 1", len(records))
-	}
-	if string(records[0].Key) != attemptID {
-		t.Fatalf("Kafka key = %q, want attempt %q", records[0].Key, attemptID)
+		t.Fatalf("Kafka records for attempt %s = %d, want exactly 1", attemptID, len(records))
 	}
 	if records[0].Topic != "integration.delivery.v1" {
 		t.Fatalf("Kafka topic = %q, want the constant delivery topic", records[0].Topic)

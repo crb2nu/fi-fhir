@@ -18,6 +18,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity"
 	integrationbatch "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/batch"
 	integrationdelivery "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/delivery"
+	integrationdestination "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/destination"
 	integrationingress "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/ingress"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/mllp"
@@ -56,6 +57,7 @@ type previewRuntime struct {
 	batchRunner      *integrationbatch.Runner
 	batchProvider    integrationbatch.Provider
 	deliveryWorker   *integrationdelivery.Dispatcher
+	deliveryIdentity integrationdestination.Mode
 	submissionDB     *sql.DB
 	sessionStore     integrationsession.Store
 }
@@ -151,6 +153,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 		batchRunner          *integrationbatch.Runner
 		batchProvider        integrationbatch.Provider
 		deliveryWorker       *integrationdelivery.Dispatcher
+		deliveryIdentity     integrationdestination.Mode
 		sessionStore         integrationsession.Store
 	)
 	if productionHTTPEnabled {
@@ -252,7 +255,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 			}
 		}
 		if productionDeliveryEnabled {
-			deliveryWorker, err = loadDeliveryDispatcherFromEnv(submissionDB)
+			deliveryWorker, deliveryIdentity, err = loadDeliveryDispatcherFromEnv(ctx, submissionDB)
 			if err != nil {
 				return nil, err
 			}
@@ -305,6 +308,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 		batchRunner:      batchRunner,
 		batchProvider:    batchProvider,
 		deliveryWorker:   deliveryWorker,
+		deliveryIdentity: deliveryIdentity,
 		submissionDB:     submissionDB,
 		sessionStore:     sessionStore,
 	}, nil
