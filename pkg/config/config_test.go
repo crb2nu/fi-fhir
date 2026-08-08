@@ -290,6 +290,121 @@ func TestApplyEnvAutorouteSweepInterval(t *testing.T) {
 	}
 }
 
+func TestApplyEnvAutorouteNotify(t *testing.T) {
+	t.Run("unset keeps disabled defaults", func(t *testing.T) {
+		cfg := Default()
+		cfg.ApplyEnv()
+
+		notify := cfg.Terminology.AutorouteNotify
+		if notify.Webhook != "" {
+			t.Errorf("Webhook = %q, want empty (notifications disabled by default)", notify.Webhook)
+		}
+		if notify.Interval != DefaultAutorouteNotifyInterval {
+			t.Errorf("Interval = %s, want %s", notify.Interval, DefaultAutorouteNotifyInterval)
+		}
+		if notify.MinConfidence != DefaultAutorouteNotifyMinConfidence {
+			t.Errorf("MinConfidence = %v, want %v", notify.MinConfidence, DefaultAutorouteNotifyMinConfidence)
+		}
+		if notify.Timeout != DefaultAutorouteNotifyTimeout {
+			t.Errorf("Timeout = %s, want %s", notify.Timeout, DefaultAutorouteNotifyTimeout)
+		}
+	})
+
+	t.Run("env overrides", func(t *testing.T) {
+		t.Setenv("FI_FHIR_TERMINOLOGY_AUTOROUTE_NOTIFY_WEBHOOK", "https://hooks.example.com/review")
+		t.Setenv("FI_FHIR_TERMINOLOGY_AUTOROUTE_NOTIFY_INTERVAL", "90s")
+		t.Setenv("FI_FHIR_TERMINOLOGY_AUTOROUTE_NOTIFY_MIN_CONFIDENCE", "0.75")
+		t.Setenv("FI_FHIR_TERMINOLOGY_AUTOROUTE_NOTIFY_TIMEOUT", "2s")
+
+		cfg := Default()
+		cfg.ApplyEnv()
+
+		notify := cfg.Terminology.AutorouteNotify
+		if notify.Webhook != "https://hooks.example.com/review" {
+			t.Errorf("Webhook = %q, want the configured URL", notify.Webhook)
+		}
+		if notify.Interval != 90*time.Second {
+			t.Errorf("Interval = %s, want 90s", notify.Interval)
+		}
+		if notify.MinConfidence != 0.75 {
+			t.Errorf("MinConfidence = %v, want 0.75", notify.MinConfidence)
+		}
+		if notify.Timeout != 2*time.Second {
+			t.Errorf("Timeout = %s, want 2s", notify.Timeout)
+		}
+	})
+
+	t.Run("unparseable values keep defaults", func(t *testing.T) {
+		t.Setenv("FI_FHIR_TERMINOLOGY_AUTOROUTE_NOTIFY_INTERVAL", "not-a-duration")
+		t.Setenv("FI_FHIR_TERMINOLOGY_AUTOROUTE_NOTIFY_MIN_CONFIDENCE", "not-a-float")
+
+		cfg := Default()
+		cfg.ApplyEnv()
+
+		notify := cfg.Terminology.AutorouteNotify
+		if notify.Interval != DefaultAutorouteNotifyInterval {
+			t.Errorf("Interval = %s, want %s", notify.Interval, DefaultAutorouteNotifyInterval)
+		}
+		if notify.MinConfidence != DefaultAutorouteNotifyMinConfidence {
+			t.Errorf("MinConfidence = %v, want %v", notify.MinConfidence, DefaultAutorouteNotifyMinConfidence)
+		}
+	})
+}
+
+func TestValidateAutorouteNotify(t *testing.T) {
+	tests := []struct {
+		name    string
+		mutate  func(*AutorouteNotifyConfig)
+		wantErr bool
+	}{
+		{"disabled by default", func(_ *AutorouteNotifyConfig) {}, false},
+		{"valid https webhook", func(c *AutorouteNotifyConfig) {
+			c.Webhook = "https://hooks.example.com/review"
+		}, false},
+		{"valid http webhook", func(c *AutorouteNotifyConfig) {
+			c.Webhook = "http://localhost:9000/review"
+		}, false},
+		{"non-http scheme", func(c *AutorouteNotifyConfig) {
+			c.Webhook = "ftp://hooks.example.com/review"
+		}, true},
+		{"zero interval with webhook", func(c *AutorouteNotifyConfig) {
+			c.Webhook = "https://hooks.example.com/review"
+			c.Interval = 0
+		}, true},
+		{"zero timeout with webhook", func(c *AutorouteNotifyConfig) {
+			c.Webhook = "https://hooks.example.com/review"
+			c.Timeout = 0
+		}, true},
+		{"confidence above range", func(c *AutorouteNotifyConfig) {
+			c.Webhook = "https://hooks.example.com/review"
+			c.MinConfidence = 1.5
+		}, true},
+		{"confidence below range", func(c *AutorouteNotifyConfig) {
+			c.Webhook = "https://hooks.example.com/review"
+			c.MinConfidence = -0.5
+		}, true},
+		// A bad interval with no webhook is inert: the feature is off.
+		{"bad interval without webhook", func(c *AutorouteNotifyConfig) {
+			c.Interval = 0
+			c.MinConfidence = 42
+		}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Default()
+			tt.mutate(&cfg.Terminology.AutorouteNotify)
+
+			err := cfg.Validate()
+			if tt.wantErr && err == nil {
+				t.Errorf("Validate() = nil, want error")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("Validate() = %v, want nil", err)
+			}
+		})
+	}
+}
+
 func TestLoad(t *testing.T) {
 	// Create temp config file
 	tmpDir := t.TempDir()

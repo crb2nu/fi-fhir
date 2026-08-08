@@ -143,12 +143,11 @@ Run a unit test where both `FI_FHIR_LLM_BASE_URL` and `LLM_BASE_URL` are set to 
 
 ## Lane C - Pending Autoroute Sweep + Notifications
 
-**Status**: split into C1 and C2.
+**Status**: **COMPLETE** — split into C1 and C2, both shipped.
 - **C1 — expiry sweep: SHIPPED (2026-08-03, branch `feat/autoroute-expiry-sweep`)**.
   Covers tasks 1-2 and the Lane C kill-test.
-- **C2 — notifications: OPEN**. Covers tasks 3-5.
-
-**Branch suggestion**: `codex/autoroute-review-automation` (C2)
+- **C2 — notifications: SHIPPED (2026-08-08, branch `feat/autoroute-notifications`)**.
+  Covers tasks 3-5.
 
 ### C1 as shipped
 
@@ -181,6 +180,57 @@ Decisions worth preserving:
 C1 limitation to carry into Lane E: `test:integration` is still
 `allow_failure: true`, so the kill-test runs in CI but does not block.
 
+### C2 as shipped
+
+`internal/terminology/autoroute/notify.go` adds a `ReviewNotifier` with
+`ScanOnce(ctx)` / `Run(ctx)` and a `WebhookSink`, wired into `serve` as a
+background component beside the C1 sweeper, under the same `serveCtx` / `errCh`
+/ `waitForBackgroundStops` boundary.
+
+Decisions worth preserving:
+- **Periodic digest, not a per-event hook in the creation path.** Nothing on the
+  resolution or `CreatePendingAutoroute` path calls the notifier, so "a failing
+  notification cannot affect resolution" is structural rather than a discipline
+  every call site has to maintain. A digest is also the more useful signal (the
+  current queue, with `eligible_count` for depth alerting) and it avoids firing
+  on every re-resolution of the same code, since creation upserts on the natural
+  key. Rationale and the rejected alternative are recorded in
+  `.loom/iteration-plan-lane-c2-autoroute-notifications.md`.
+- The per-event door is left open and is not dead code: `Notify` is the
+  non-blocking bounded-queue entry point, and the scan loop itself calls it. A
+  future per-event hook calls the same method and inherits drop-rather-than-block.
+- Same narrow-interface discipline as C1: the notifier depends on
+  `PendingAutorouteLister`, not `*db.MappingStore`. Notification policy stays out
+  of the DB package and is unit-testable without Postgres.
+- Config mirrors C1's shape: `FI_FHIR_TERMINOLOGY_AUTOROUTE_NOTIFY_WEBHOOK`
+  (empty disables — no component, no network), plus `_INTERVAL` (15m),
+  `_MIN_CONFIDENCE` (0.90), `_TIMEOUT` (5s). The YAML key is
+  `terminology.autoroute_notify.notification_webhook`, matching the planning key
+  at `docs/planning/TERMINOLOGY-MAPPING.md`. Validation only runs when a webhook
+  is set, so a disabled feature cannot fail startup.
+- The payload is PHI-minimal by construction: coded identity, confidence, and
+  lifecycle timestamps only. `source_display`, `suggested_display`, `reasoning`,
+  `decision_trace`, `alternates`, `reviewed_by`, and `rejection_reason` are all
+  excluded because they can quote source message content, and a webhook is an
+  untrusted egress point. Both a unit test and the integration kill-test assert
+  poisoned free text never reaches the wire.
+- De-duplication is by pending row ID in a bounded (1024) FIFO set, so a quiet
+  queue produces no traffic. The first scan announces the current backlog, which
+  mirrors C1's boot-time sweep.
+- Dispatch drops rather than grows: an 8-deep queue, and a full queue logs a
+  warning and discards. Each digest restates the backlog, so a drop loses nothing
+  durable. Delivery is one attempt plus one bounded retry — notifications are
+  advisory and a determined retry loop would be a second failure domain.
+- Observability follows C1: typed `NotifyResult` / `DeliveryResult` plus
+  `Observe` / `ObserveDelivery` hooks that serve prints. Still no serve-wide
+  Prometheus registry; still not invented here.
+- The kill-test lives in the external `db_test` package at
+  `pkg/terminology/db/notify_integration_test.go`, for the same import-cycle
+  reason as C1, and needs no `.gitlab-ci.yml` change.
+
+C2 inherits C1's Lane E limitation: `test:integration` is still
+`allow_failure: true`.
+
 ### Goal
 
 Finish the deferred operational loop for pending autoroutes: keep the status column truthful over time and notify humans when high-confidence mappings need review.
@@ -199,11 +249,14 @@ Finish the deferred operational loop for pending autoroutes: keep the status col
    - Make interval configurable, with a conservative default.
 2. **[C1 done, logging only]** Add structured logging/metrics for sweep count and failures.
    Metrics deferred: no shared serve-wide registry exists yet (see decisions above).
-3. **[C2]** Design a notification interface around "new pending autoroute created" or "high-confidence pending review".
-   - Initial implementation can be webhook-only using existing workflow/webhook utilities or a small HTTP client.
-   - Config should align with the planning key `notification_webhook`: `docs/planning/TERMINOLOGY-MAPPING.md:1493-1494`.
-4. **[C2]** Ensure notification dispatch cannot block creation of a pending autoroute.
-5. **[C1 done for sweep; C2 for notifications]** Add tests for sweep invocation and notification error handling.
+3. **[C2 done]** Design a notification interface around "new pending autoroute created" or "high-confidence pending review".
+   - Shipped: "high-confidence pending review", as a periodic digest. Webhook-only,
+     via a small HTTP client behind a `NotificationSink` interface.
+   - Config aligns with the planning key `notification_webhook`.
+4. **[C2 done]** Ensure notification dispatch cannot block creation of a pending autoroute.
+   Guaranteed structurally (nothing on the creation path notifies) and by a
+   bounded, drop-on-full dispatch queue behind `Notify`.
+5. **[C1 done for sweep; C2 done for notifications]** Add tests for sweep invocation and notification error handling.
 
 ### Acceptance Criteria
 
@@ -214,7 +267,9 @@ Finish the deferred operational loop for pending autoroutes: keep the status col
 
 ### Kill-Test
 
-Create an expired pending autoroute in an integration test, start only the sweep runner with a short interval, and assert status becomes `expired` without calling `ListPendingAutoroutes`.
+**C1**: Create an expired pending autoroute in an integration test, start only the sweep runner with a short interval, and assert status becomes `expired` without calling `ListPendingAutoroutes`. Shipped as `TestAutorouteExpirySweep_FlipsStoredStatus`.
+
+**C2**: Create pending autoroutes above and below the confidence floor, run the notifier against a local HTTP receiver, and assert exactly the above-threshold rows are delivered with a PHI-minimal payload; then wedge the receiver and assert pending-autoroute creation keeps succeeding promptly. Shipped as `TestReviewNotifier_HighConfidenceRowsReachWebhook` and `TestReviewNotifier_HangingWebhookDoesNotSlowCreation` in `pkg/terminology/db/notify_integration_test.go`.
 
 ### Verification
 

@@ -103,6 +103,33 @@ type TerminologyConfig struct {
 	// reads already treat time-expired pending rows as expired — but leaves the
 	// stored status column stale.
 	AutorouteSweepInterval time.Duration `yaml:"autoroute_sweep_interval" json:"autoroute_sweep_interval"`
+
+	// AutorouteNotify configures webhook notification of pending autoroutes
+	// awaiting human review.
+	AutorouteNotify AutorouteNotifyConfig `yaml:"autoroute_notify" json:"autoroute_notify"`
+}
+
+// AutorouteNotifyConfig configures review notifications for pending autoroutes.
+//
+// Notifications are advisory: they never gate, slow, or fail mapping
+// resolution. An empty Webhook disables the feature entirely, so the default
+// configuration starts no background component and makes no network calls.
+type AutorouteNotifyConfig struct {
+	// Webhook is the HTTP(S) endpoint that receives review notifications. The
+	// key name matches the `notification_webhook` planning key in
+	// docs/planning/TERMINOLOGY-MAPPING.md. Empty disables notifications.
+	Webhook string `yaml:"notification_webhook" json:"notification_webhook"`
+
+	// Interval is how often serve scans the review queue for newly eligible
+	// pending autoroutes.
+	Interval time.Duration `yaml:"interval" json:"interval"`
+
+	// MinConfidence is the inclusive confidence floor for notification. Rows
+	// below it are left for the review UI without paging anyone.
+	MinConfidence float64 `yaml:"min_confidence" json:"min_confidence"`
+
+	// Timeout bounds a single webhook delivery attempt.
+	Timeout time.Duration `yaml:"timeout" json:"timeout"`
 }
 
 // DefaultAutorouteSweepInterval is the default pending-autoroute expiry sweep
@@ -110,6 +137,21 @@ type TerminologyConfig struct {
 // counts time-expired rows as expired at query time, so the sweep only
 // reconciles the stored status column.
 const DefaultAutorouteSweepInterval = 15 * time.Minute
+
+const (
+	// DefaultAutorouteNotifyInterval is the default review-notification scan
+	// cadence. It matches the sweep cadence: neither is latency-sensitive, and
+	// one shared mental model is easier to operate.
+	DefaultAutorouteNotifyInterval = 15 * time.Minute
+
+	// DefaultAutorouteNotifyMinConfidence is the default confidence floor for
+	// paging a reviewer, matching the documented high-confidence threshold in
+	// docs/planning/TERMINOLOGY-MAPPING.md.
+	DefaultAutorouteNotifyMinConfidence = 0.90
+
+	// DefaultAutorouteNotifyTimeout bounds a single webhook delivery attempt.
+	DefaultAutorouteNotifyTimeout = 5 * time.Second
+)
 
 // DatabaseConfig holds database connection settings.
 type DatabaseConfig struct {
@@ -317,6 +359,11 @@ func Default() *Config {
 			Pins:                   make(map[string]string),
 			Policy:                 "warn",
 			AutorouteSweepInterval: DefaultAutorouteSweepInterval,
+			AutorouteNotify: AutorouteNotifyConfig{
+				Interval:      DefaultAutorouteNotifyInterval,
+				MinConfidence: DefaultAutorouteNotifyMinConfidence,
+				Timeout:       DefaultAutorouteNotifyTimeout,
+			},
 		},
 		LLM: LLMConfig{
 			Enabled:      false, // Disabled by default, enable explicitly
@@ -478,6 +525,14 @@ func (c *Config) ApplyEnv() {
 	}
 	c.Terminology.AutorouteSweepInterval = getEnvDuration(
 		"FI_FHIR_TERMINOLOGY_AUTOROUTE_SWEEP_INTERVAL", c.Terminology.AutorouteSweepInterval)
+	c.Terminology.AutorouteNotify.Webhook = getEnvString(
+		"FI_FHIR_TERMINOLOGY_AUTOROUTE_NOTIFY_WEBHOOK", c.Terminology.AutorouteNotify.Webhook)
+	c.Terminology.AutorouteNotify.Interval = getEnvDuration(
+		"FI_FHIR_TERMINOLOGY_AUTOROUTE_NOTIFY_INTERVAL", c.Terminology.AutorouteNotify.Interval)
+	c.Terminology.AutorouteNotify.MinConfidence = getEnvFloat(
+		"FI_FHIR_TERMINOLOGY_AUTOROUTE_NOTIFY_MIN_CONFIDENCE", c.Terminology.AutorouteNotify.MinConfidence)
+	c.Terminology.AutorouteNotify.Timeout = getEnvDuration(
+		"FI_FHIR_TERMINOLOGY_AUTOROUTE_NOTIFY_TIMEOUT", c.Terminology.AutorouteNotify.Timeout)
 
 	// LLM
 	c.LLM.Enabled = getEnvBool("FI_FHIR_LLM_ENABLED", c.LLM.Enabled)
@@ -604,6 +659,23 @@ func (c *Config) Validate() []error {
 		}
 		if strings.TrimSpace(ver) == "" {
 			errs = append(errs, fmt.Errorf("terminology.pins.%s must be non-empty", strings.TrimSpace(vocab)))
+		}
+	}
+
+	// Review notifications are only validated when a webhook is configured:
+	// an empty webhook is the disabled default, not a misconfiguration.
+	if notify := c.Terminology.AutorouteNotify; notify.Webhook != "" {
+		if !strings.HasPrefix(notify.Webhook, "http://") && !strings.HasPrefix(notify.Webhook, "https://") {
+			errs = append(errs, fmt.Errorf("terminology.autoroute_notify.notification_webhook must start with http:// or https://"))
+		}
+		if notify.Interval <= 0 {
+			errs = append(errs, fmt.Errorf("terminology.autoroute_notify.interval must be positive when a webhook is configured"))
+		}
+		if notify.Timeout <= 0 {
+			errs = append(errs, fmt.Errorf("terminology.autoroute_notify.timeout must be positive when a webhook is configured"))
+		}
+		if notify.MinConfidence < 0 || notify.MinConfidence > 1 {
+			errs = append(errs, fmt.Errorf("terminology.autoroute_notify.min_confidence must be within [0,1]"))
 		}
 	}
 
