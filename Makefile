@@ -186,10 +186,18 @@ docker-build:
 bench:
 	go test -bench=. -benchmem -run=^$$ -count=1 ./internal/workflow/... ./pkg/terminology/... ./pkg/validate/...
 
-# Run benchmarks and validate against thresholds
+# Run benchmarks and validate against the thresholds calibrated for this CPU.
+# Thresholds are per-CPU-model (see internal/workflow/benchmark_util.go); a
+# machine with no calibrated profile falls back to the most permissive one and
+# says so.
 bench-check:
 	@go test -bench=. -benchmem -run=^$$ -count=1 ./internal/workflow/... ./pkg/terminology/... ./pkg/validate/... > benchmark.txt 2>&1; status=$$?; cat benchmark.txt; exit $$status
-	go run ./cmd/bench-check benchmark.txt
+	go run ./cmd/bench-check -confirm=3 benchmark.txt
+
+# Print calibrated CPUProfile entries from downloaded benchmark.txt artifacts.
+# Usage: make bench-calibrate ARTIFACTS="path/to/*.txt"
+bench-calibrate:
+	go run ./cmd/bench-check -suggest $(ARTIFACTS)
 
 # Format Go code
 fmt:
