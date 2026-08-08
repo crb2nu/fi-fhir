@@ -543,7 +543,14 @@ test:integration:
     POSTGRES_HOST_AUTH_METHOD: trust
     FI_FHIR_DATABASE_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_test?sslmode=disable"
     FI_FHIR_TERMINOLOGY_DB_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_test?sslmode=disable"
-    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_test?sslmode=disable"
+    # pkg/terminology/db gets its OWN database, created below. Both it and
+    # ./cmd/fi-fhir/... reset the `terminology` schema, so sharing one database
+    # made this package's schema DDL run against rows left behind by the cmd
+    # suite. That is Lane D's documented isolation recommendation
+    # (.loom/24-parallel-execution-specs.md) and it is now load-bearing: see the
+    # -timeout note on the second script step.
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_terms_test?sslmode=disable"
+    TERMINOLOGY_TEST_DB: fi_fhir_terms_test
     # MinIO service container. MINIO_ROOT_USER/PASSWORD are read by minio/minio;
     # the test bucket is created by ensureMinioBucket() in
     # cmd/fi-fhir/integration_helpers_test.go, not by an image-level auto-provision
@@ -560,14 +567,30 @@ test:integration:
     FI_FHIR_MINIO_ACCESS_KEY: minioadmin
     FI_FHIR_MINIO_SECRET_KEY: minioadmin
   script:
-    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates build-essential && rm -rf /var/lib/apt/lists/*
+    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates build-essential postgresql-client && rm -rf /var/lib/apt/lists/*
     - mkdir -p coverage/integration
+    # Provision the isolated terminology database before either step runs.
+    - |
+      for i in $(seq 1 60); do
+        pg_isready -h postgres -p 5432 -U testuser && break
+        echo "waiting for postgres ($i/60)"; sleep 2
+      done
+      psql "postgres://testuser:testpass@postgres:5432/fi_fhir_test?sslmode=disable" \
+        -v ON_ERROR_STOP=1 -c "CREATE DATABASE ${TERMINOLOGY_TEST_DB} OWNER testuser"
     - go test -tags=integration -cover -covermode=atomic -timeout=300s ./cmd/fi-fhir/...
       -args -test.gocoverdir=$PWD/coverage/integration
-    # Keep terminology DB integration tests in this job, after cmd tests, because both
-    # paths reset the shared terminology schema. POSTGRES_TEST_URL uses the CI
-    # Postgres service directly and avoids Docker-in-Docker/testcontainers.
-    - go test -tags=integration -p 1 -cover -covermode=atomic -timeout=300s ./pkg/terminology/db/
+    # Terminology DB integration tests run second, in their OWN database
+    # (POSTGRES_TEST_URL -> $TERMINOLOGY_TEST_DB), avoiding Docker-in-Docker.
+    #
+    # -timeout: this package needed 204.7s of the old 300s budget on main (job
+    # 218601) while sharing a database with the cmd suite that was, at the time,
+    # skipping all its MinIO-backed tests. Once those tests actually ran, the
+    # shared database pushed this package past 300s and it panicked mid-run
+    # (jobs 220075 / 220246, ~47.5% coverage reached). Separate databases remove
+    # the contamination; the larger budget removes the shared-runner cliff that
+    # left only 32% headroom. This is a slow-suite allowance, not a correctness
+    # gate — a genuine hang still fails the job, just later.
+    - go test -tags=integration -p 1 -cover -covermode=atomic -timeout=900s ./pkg/terminology/db/
       -args -test.gocoverdir=$PWD/coverage/integration
     - go tool covdata percent -i=coverage/integration
   artifacts:

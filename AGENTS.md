@@ -226,22 +226,35 @@ go test -tags=integration ./cmd/fi-fhir/...
 go test -tags=integration -p 1 ./pkg/terminology/db/
 ```
 
-Both paths `DROP SCHEMA terminology CASCADE`, so they are serialized in one job
-(`-p 1`) rather than run in parallel against the same database.
+Both paths `DROP SCHEMA terminology CASCADE`, so they run **against separate
+databases** in the same PostgreSQL service: `fi_fhir_test` for the cmd suite and
+`fi_fhir_terms_test` (created by the job script) for `pkg/terminology/db`. Do not
+collapse them back onto one database — sharing it makes the terminology package's
+schema teardown/rebuild run against rows left by the cmd suite, which blew the
+go-test timeout in CI. `-p 1` does not help here: it limits parallel packages
+within a single `go test` invocation, and these are two separate commands.
 
 Reproduce the job locally — no Docker-in-Docker needed, and no Docker Desktop on
 this machine, so use the remote context:
 
 ```bash
+# Use the workspace's remote Docker context (see the workspace AGENTS.md);
+# there is no local Docker Desktop. Substitute your context's host for <docker-host>.
 docker --context 7900xtx run --rm -d --name pg -e POSTGRES_USER=testuser \
   -e POSTGRES_PASSWORD=testpass -e POSTGRES_DB=fi_fhir_test -p 15503:5432 postgres:16
+# `server /data` is required — the image's default CMD prints usage and exits.
 docker --context 7900xtx run --rm -d --name mio -e MINIO_ROOT_USER=minioadmin \
   -e MINIO_ROOT_PASSWORD=minioadmin -p 15504:9000 minio/minio:latest server /data
 
-export FI_FHIR_DATABASE_URL="postgres://testuser:testpass@cblevins-7900xtx:15503/fi_fhir_test?sslmode=disable"
-export FI_FHIR_TERMINOLOGY_DB_URL="$FI_FHIR_DATABASE_URL"
-export POSTGRES_TEST_URL="$FI_FHIR_DATABASE_URL"
-export FI_FHIR_MINIO_ENDPOINT="cblevins-7900xtx:15504"
+# NOTE: assign each var on its own line. In `export A=1 B="$A"` bash expands
+# $A before the assignment, so B ends up empty and the tests silently skip.
+PGHOST_PORT="<docker-host>:15503"
+export FI_FHIR_DATABASE_URL="postgres://testuser:testpass@${PGHOST_PORT}/fi_fhir_test?sslmode=disable"
+export FI_FHIR_TERMINOLOGY_DB_URL="postgres://testuser:testpass@${PGHOST_PORT}/fi_fhir_test?sslmode=disable"
+# Separate database, mirroring CI:
+psql "$FI_FHIR_DATABASE_URL" -c 'CREATE DATABASE fi_fhir_terms_test OWNER testuser'
+export POSTGRES_TEST_URL="postgres://testuser:testpass@${PGHOST_PORT}/fi_fhir_terms_test?sslmode=disable"
+export FI_FHIR_MINIO_ENDPOINT="<docker-host>:15504"
 export FI_FHIR_MINIO_ACCESS_KEY=minioadmin FI_FHIR_MINIO_SECRET_KEY=minioadmin
 go test -tags=integration ./cmd/fi-fhir/...
 go test -tags=integration -p 1 ./pkg/terminology/db/

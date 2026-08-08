@@ -1097,9 +1097,18 @@ Record decisions as they are made, with date, rationale, and sources.
 
     | Job | Green streak on main (18521..22333, 2026-07-13..2026-08-07) | Classification | Action in this MR |
     |---|---|---|---|
-    | `test:integration` | 24/24 success | Ready to promote | **Promoted to `allow_failure: false`** |
+    | `test:integration` | 24/24 success — but see caveat below | Ready to promote | **Promoted to `allow_failure: false`** |
     | `lint:docs` | 33/33 success | Ready to promote | **Promoted to `allow_failure: false`** |
     | `test:docs-status` | 29/29 success | Intentionally advisory (for now) | Left advisory, promotion criteria documented inline |
+
+  - **Caveat on the `test:integration` streak — it was never a full-execution
+    proof.** All 24 of those runs executed with the `minio` service container
+    dead, so all 30 MinIO-backed tests in `./cmd/fi-fhir/...` skipped. The
+    streak validated the Postgres-only path and nothing more. This MR's own
+    pipelines are the first true full-execution evidence, and they immediately
+    found two defects the streak could not have caught (the truncated-column
+    assertion, and the shared-database contamination below). Read the 24/24 as
+    "the Postgres path is stable", not "the job was meaningful".
 
   - Repair the `minio` service container in `test:integration` before promoting
     it, because the job's green history was partly an artifact of tests that
@@ -1168,6 +1177,37 @@ Record decisions as they are made, with date, rationale, and sources.
     residual risk; see the cleanup issue on `setupTestInfra` skip semantics.
   - `test:docs-status` remains advisory, so STATUS.md coverage drift can still
     reach main. That is an accepted, dated, and now-documented gap.
+- Follow-up within the same MR: shared-database contamination (found by this gate).
+  - Once the MinIO fix let the 30 skipped tests actually run in CI,
+    `test:integration` failed deterministically (jobs 220075 and 220246, retried
+    on a quiet runner). `./cmd/fi-fhir/...` passed at the full 75.9%, then
+    `./pkg/terminology/db/` panicked with `test timed out after 5m0s` at ~47.5%
+    coverage, blocked in `Migrator.Initialize`
+    (`pkg/terminology/db/migrations.go:79`) inside a lib/pq `simpleExec` network
+    read.
+  - Root cause is budget exhaustion from shared state, not a deadlock. The two
+    steps are separate `go test` invocations, so no connection or lock can
+    survive between them, and the panic's `running tests:` line shows the
+    blamed test had run only 3s — the 300s was consumed by everything before it.
+    Both suites reset the same `terminology` schema in the same database. While
+    the cmd suite was skipping, it left that database empty; now it populates it,
+    so every subsequent schema teardown/rebuild in `pkg/terminology/db` does real
+    work. That package already needed 204.7s of a 300s budget on main (job
+    218601) — only 32% headroom — so the added cost pushed it over.
+  - Fix: give `pkg/terminology/db` its own database (`fi_fhir_terms_test`,
+    created in the job script), which is exactly the isolation Lane D
+    recommended, and raise that step's `-timeout` to 900s to remove the
+    shared-runner cliff. The pre-existing `-p 1` was never sufficient: it limits
+    parallel *packages* within one `go test` invocation and does nothing across
+    two separate commands, and it never addressed data contamination at all.
+  - Verified locally against PostgreSQL 16 and a live MinIO, running the CI
+    steps in CI order: shared database reproduced no failure on fast hardware
+    (33.5s vs a 33.4s clean baseline — the contamination cost is only visible on
+    the constrained CI Postgres), and with separate databases both steps pass
+    (cmd 23.2s / 75.6%, terminology 36.4s / 69.7%).
+  - The timeout increase is a slow-suite allowance, not a weakened gate: a
+    genuine hang still fails the job, just later.
+
 - Cleanup issues to file:
   1. **`setupTestInfra` skips instead of failing when CI infra is down.** In CI,
      unavailable Postgres/MinIO should be a hard failure, not `t.Skipf` — the
@@ -1202,4 +1242,9 @@ Record decisions as they are made, with date, rationale, and sources.
     `--- PASS: TestAutorouteExpirySweep_FlipsStoredStatus`.
   - [S9] `scripts/smoke-test.sh:98-104` — `/health`, `/graphql`, `/graphql/ws`
     assertions already present (Gate 0B); `/ready` absent by design.
-  - [S10] `.loom/24-parallel-execution-specs.md` — Lane E scope and kill-test.
+  - [S10] `.loom/24-parallel-execution-specs.md` — Lane E scope and kill-test;
+    line 306 records Lane D's "distinct databases/schemas" recommendation.
+  - [S11] CI jobs 220075 and 220246 — `panic: test timed out after 5m0s`,
+    `FAIL pkg/terminology/db 300.05s`, after `ok cmd/fi-fhir 50.436s coverage: 75.9%`.
+  - [S12] CI job 218601 — `ok pkg/terminology/db 204.737s`, the pre-existing
+    68%-of-budget baseline.
