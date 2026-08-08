@@ -574,7 +574,20 @@ func catalogSafeErrorPresenter(ctx context.Context, err error) *gqlerror.Error {
 		"integration preview forbidden",
 		"invalid integration preview request",
 		"integration preview payload too large",
-		"integration preview failed":
+		"integration preview failed",
+		// Operator control-plane outcomes are deliberately catalog-safe: they
+		// name the decision, never the inventory. An operator must be able to
+		// tell a stale expected version from a spent idempotency key without
+		// learning whether an unseen record exists.
+		"operator control plane unavailable",
+		"operator control-plane action forbidden",
+		"invalid operator control-plane request",
+		"operator control-plane record not found",
+		"delivery attempt is not dead-lettered",
+		"operator operation idempotency conflict",
+		"integration deployment version conflict",
+		"invalid integration deployment transition",
+		"operator control-plane request failed":
 		return &gqlerror.Error{Message: presented.Message}
 	default:
 		return &gqlerror.Error{Message: "GraphQL request failed"}

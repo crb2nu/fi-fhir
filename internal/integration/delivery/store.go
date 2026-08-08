@@ -306,13 +306,15 @@ func (s *PostgresStore) MarkFailed(ctx context.Context, item WorkItem, failure F
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO integration_delivery_dlq (
 			tenant_id, attempt_id, outbox_id, failure_code,
-			failure_detail, failed_at, active
-		) VALUES ($1, $2, $3, $4, $5, $6, true)
+			failure_detail, failed_at, active, resolution, resolved_at
+		) VALUES ($1, $2, $3, $4, $5, $6, true, '', NULL)
 		ON CONFLICT (tenant_id, attempt_id) DO UPDATE
 		SET failure_code = EXCLUDED.failure_code,
 			failure_detail = EXCLUDED.failure_detail,
 			failed_at = EXCLUDED.failed_at,
-			active = true
+			active = true,
+			resolution = '',
+			resolved_at = NULL
 	`, item.TenantID, item.AttemptID, item.OutboxID, failure.Code, failure.Detail, now); err != nil {
 		return false, fmt.Errorf("dead-letter delivery: %w", err)
 	}
@@ -352,9 +354,9 @@ func (s *PostgresStore) recover(
 		!validToken(attemptID, 256) || !validOperation(operation) {
 		return "", ErrInvalidOperation
 	}
-	kind := "replay"
+	kind, resolution := "replay", "replayed"
 	if resubmit {
-		kind = "resubmit"
+		kind, resolution = "resubmit", "resubmitted"
 	}
 	now := s.clock().UTC()
 	principalJSON, err := json.Marshal(operation.Principal)
@@ -463,9 +465,10 @@ func (s *PostgresStore) recover(
 
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE integration_delivery_dlq
-		SET active = false, replay_count = replay_count + 1, last_replayed_at = $1
+		SET active = false, replay_count = replay_count + 1, last_replayed_at = $1,
+			resolution = $4, resolved_at = $1
 		WHERE tenant_id = $2 AND attempt_id = $3
-	`, now, tenantID, attemptID); err != nil {
+	`, now, tenantID, attemptID, resolution); err != nil {
 		return "", fmt.Errorf("resolve replayed dead letter: %w", err)
 	}
 	if err := closeCircuit(ctx, tx, tenantID, destination, now); err != nil {
@@ -498,6 +501,81 @@ func (s *PostgresStore) recover(
 		return "", fmt.Errorf("commit delivery %s: %w", kind, err)
 	}
 	return resultAttemptID, nil
+}
+
+// Discard closes one active dead letter without requeueing it. It reuses the
+// same idempotent operation ledger and append-only audit trail as replay and
+// resubmit so an abandoned message is still attributable to an actor, a
+// reason, and one operation key.
+func (s *PostgresStore) Discard(ctx context.Context, tenantID, attemptID string, operation Operation) (string, error) {
+	if s == nil || s.db == nil || ctx == nil || !validToken(tenantID, 256) ||
+		!validToken(attemptID, 256) || !validOperation(operation) {
+		return "", ErrInvalidOperation
+	}
+	now := s.clock().UTC()
+	principalJSON, err := json.Marshal(operation.Principal)
+	if err != nil {
+		return "", ErrInvalidOperation
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return "", fmt.Errorf("begin delivery discard: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if existing, err := loadOperation(ctx, tx, tenantID, operation.IdempotencyKey, "discard", attemptID); err != nil {
+		return "", err
+	} else if existing != "" {
+		if err := tx.Commit(); err != nil {
+			return "", fmt.Errorf("commit duplicate delivery discard: %w", err)
+		}
+		return existing, nil
+	}
+
+	var attemptCount int
+	if err := tx.QueryRowContext(ctx, `
+		SELECT a.attempt_count
+		FROM integration_delivery_attempts a
+		JOIN integration_delivery_dlq d
+		  ON d.tenant_id = a.tenant_id AND d.attempt_id = a.attempt_id
+		WHERE a.tenant_id = $1 AND a.attempt_id = $2
+		  AND a.status = 'failed' AND d.active = true
+		FOR UPDATE OF a, d
+	`, tenantID, attemptID).Scan(&attemptCount); errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotDeadLettered
+	} else if err != nil {
+		return "", fmt.Errorf("lock discarded dead letter: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE integration_delivery_dlq
+		SET active = false, resolution = 'discarded', resolved_at = $1
+		WHERE tenant_id = $2 AND attempt_id = $3
+	`, now, tenantID, attemptID); err != nil {
+		return "", fmt.Errorf("discard dead letter: %w", err)
+	}
+	operationID := deterministicID(operationIDDomain, tenantID, operation.IdempotencyKey)
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO integration_delivery_operations (
+			tenant_id, operation_id, idempotency_key, operation_kind,
+			source_attempt_id, result_attempt_id, principal_json, reason, recorded_at
+		) VALUES ($1, $2, $3, 'discard', $4, $4, $5, $6, $7)
+	`, tenantID, operationID, operation.IdempotencyKey, attemptID,
+		principalJSON, operation.Reason, now); err != nil {
+		return "", fmt.Errorf("record delivery discard operation: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO integration_delivery_audit (
+			tenant_id, attempt_id, event_kind, attempt_count,
+			principal_json, reason, detail_json, recorded_at
+		) VALUES ($1, $2, 'discarded', $3, $4, $5, '{}', $6)
+	`, tenantID, attemptID, attemptCount, principalJSON, operation.Reason, now); err != nil {
+		return "", fmt.Errorf("audit delivery discard: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return "", fmt.Errorf("commit delivery discard: %w", err)
+	}
+	return attemptID, nil
 }
 
 type deliveryAttemptRow struct {

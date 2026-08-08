@@ -26,7 +26,9 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/resolvers"
 	graphqlstore "gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/store"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/fhir/subscription"
+	integrationdelivery "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/delivery"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
+	operatorplane "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/operator"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
 	integrationsession "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/session"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/explain"
@@ -4770,20 +4772,42 @@ func runServe(args []string) error {
 		workflowLifecycleStore = configuredWorkflowStore
 		resolverOpts = append(resolverOpts, resolvers.WithWorkflowLifecycleStore(workflowLifecycleStore))
 	}
+	// The operator control plane and Integration Session publication share one
+	// lifecycle catalog over the durable submission database. It is built once
+	// and only when that database exists, so both stay fail-closed otherwise.
+	var lifecycleCatalog *lifecycle.PostgresCatalog
+	if securePreviewRuntime.submissionDB != nil {
+		lifecycleCatalog, err = lifecycle.NewPostgresCatalog(securePreviewRuntime.submissionDB, lifecycle.Config{})
+		if err != nil {
+			return fmt.Errorf("configure integration lifecycle catalog: %w", err)
+		}
+		if err := lifecycleCatalog.Migrate(context.Background()); err != nil {
+			return fmt.Errorf("migrate integration lifecycle catalog: %w", err)
+		}
+		operatorReads, err := operatorplane.NewPostgresReadStore(securePreviewRuntime.submissionDB)
+		if err != nil {
+			return fmt.Errorf("configure operator control-plane reads: %w", err)
+		}
+		deliveryRecovery, err := integrationdelivery.NewPostgresStore(securePreviewRuntime.submissionDB, nil)
+		if err != nil {
+			return fmt.Errorf("configure operator delivery recovery: %w", err)
+		}
+		operatorService, err := operatorplane.NewService(
+			operatorReads, deliveryRecovery, lifecycleCatalog, securePreviewRuntime.tenantID,
+		)
+		if err != nil {
+			return fmt.Errorf("configure operator control plane: %w", err)
+		}
+		resolverOpts = append(resolverOpts, resolvers.WithOperatorControlPlane(operatorService))
+		fmt.Println("Operator control plane: PostgreSQL delivery and lifecycle records")
+	}
 	publicationCrypto, publicationConfigured, err := loadSessionPublicationCrypto()
 	if err != nil {
 		return fmt.Errorf("configure Integration Session publication: %w", err)
 	}
 	if publicationConfigured {
-		if securePreviewRuntime.sessionStore == nil || securePreviewRuntime.submissionDB == nil || profileStore == nil || workflowLifecycleStore == nil {
+		if securePreviewRuntime.sessionStore == nil || lifecycleCatalog == nil || profileStore == nil || workflowLifecycleStore == nil {
 			return fmt.Errorf("configure Integration Session publication: durable session, lifecycle, profile, and workflow stores are required")
-		}
-		catalog, err := lifecycle.NewPostgresCatalog(securePreviewRuntime.submissionDB, lifecycle.Config{})
-		if err != nil {
-			return fmt.Errorf("configure Integration Session lifecycle catalog: %w", err)
-		}
-		if err := catalog.Migrate(context.Background()); err != nil {
-			return fmt.Errorf("migrate Integration Session lifecycle catalog: %w", err)
 		}
 		artifactResolver, err := processor.NewRevisionResolver(
 			securePreviewRuntime.tenantID,
@@ -4794,7 +4818,7 @@ func runServe(args []string) error {
 		}
 		publicationService, err := integrationsession.NewPublicationService(
 			securePreviewRuntime.sessionStore, securePreviewRuntime.tenantID,
-			artifactResolver, catalog, publicationCrypto, nil,
+			artifactResolver, lifecycleCatalog, publicationCrypto, nil,
 		)
 		if err != nil {
 			return fmt.Errorf("configure Integration Session publication service: %w", err)

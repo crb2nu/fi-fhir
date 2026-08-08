@@ -79,6 +79,39 @@ func (c *PostgresCatalog) GetRelease(ctx context.Context, releaseID string) (Rel
 	return release, nil
 }
 
+// ListSnapshots returns the bounded current lifecycle projection for one
+// tenant. It is the operator control plane's deployment/channel inventory and
+// never returns another tenant's rows.
+func (c *PostgresCatalog) ListSnapshots(ctx context.Context, tenantID string, limit int) ([]Snapshot, error) {
+	if c == nil || c.db == nil || ctx == nil {
+		return nil, ErrUnavailable
+	}
+	if !validIdentity(tenantID) || limit <= 0 || limit > 500 {
+		return nil, ErrInvalidCommand
+	}
+	rows, err := c.db.QueryContext(ctx, snapshotSelect+`
+		WHERE tenant_id = $1
+		ORDER BY definition_id, revision_id
+		LIMIT $2
+	`, tenantID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list lifecycle snapshots: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	snapshots := make([]Snapshot, 0)
+	for rows.Next() {
+		snapshot, err := scanSnapshot(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan lifecycle snapshot: %w", err)
+		}
+		snapshots = append(snapshots, snapshot)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate lifecycle snapshots: %w", err)
+	}
+	return snapshots, nil
+}
+
 // ListEvents returns the append-only lifecycle history in snapshot-version order.
 func (c *PostgresCatalog) ListEvents(ctx context.Context, tenantID, definitionID, revisionID string) ([]EventRecord, error) {
 	if c == nil || c.db == nil || ctx == nil {

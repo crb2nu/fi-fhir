@@ -961,19 +961,26 @@ export type Mutation = {
   deleteMapping: Scalars['Boolean']['output'];
   deleteMappingBatch: Scalars['Int']['output'];
   deleteProfile: Scalars['Boolean']['output'];
+  deployIntegrationRelease: OperatorDeployment;
   deploySessionPublication: SessionDeploymentSnapshot;
+  discardDeadLetter: OperatorControlResult;
   dryRunWorkflow: DryRunResult;
   duplicateProfile: SourceProfile;
   exportIntegrationBundle: IntegrationBundle;
   generateWorkflow: GeneratedWorkflow;
   pauseFhirSubscription: FhirSubscription;
+  pauseIntegrationDeployment: OperatorDeployment;
   previewIntegrationMessage: IntegrationPreviewResult;
   publishIntegrationSession: SessionPublication;
   publishWorkflowVersion: WorkflowRelease;
   rejectPendingAutoroute: Scalars['Boolean']['output'];
   rejectWorkflowVersion: WorkflowApprovalRequest;
+  replayDelivery: OperatorControlResult;
   requestWorkflowApproval: WorkflowApprovalRequest;
+  resubmitMessage: OperatorControlResult;
   resumeFhirSubscription: FhirSubscription;
+  resumeIntegrationDeployment: OperatorDeployment;
+  retireIntegrationDeployment: OperatorDeployment;
   rollbackWorkflowVersion: WorkflowRelease;
   runSessionPreview: SessionRun;
   saveWorkflowVersion: WorkflowVersion;
@@ -1111,8 +1118,18 @@ export type MutationDeleteProfileArgs = {
 };
 
 
+export type MutationDeployIntegrationReleaseArgs = {
+  input: OperatorDeploymentCommandInput;
+};
+
+
 export type MutationDeploySessionPublicationArgs = {
   input: PromoteSessionPublicationInput;
+};
+
+
+export type MutationDiscardDeadLetterArgs = {
+  input: OperatorDeliveryControlInput;
 };
 
 
@@ -1143,6 +1160,11 @@ export type MutationPauseFhirSubscriptionArgs = {
 };
 
 
+export type MutationPauseIntegrationDeploymentArgs = {
+  input: OperatorDeploymentCommandInput;
+};
+
+
 export type MutationPreviewIntegrationMessageArgs = {
   input: PreviewIntegrationMessageInput;
 };
@@ -1168,13 +1190,33 @@ export type MutationRejectWorkflowVersionArgs = {
 };
 
 
+export type MutationReplayDeliveryArgs = {
+  input: OperatorDeliveryControlInput;
+};
+
+
 export type MutationRequestWorkflowApprovalArgs = {
   input: RequestWorkflowApprovalInput;
 };
 
 
+export type MutationResubmitMessageArgs = {
+  input: OperatorDeliveryControlInput;
+};
+
+
 export type MutationResumeFhirSubscriptionArgs = {
   id: Scalars['ID']['input'];
+};
+
+
+export type MutationResumeIntegrationDeploymentArgs = {
+  input: OperatorDeploymentCommandInput;
+};
+
+
+export type MutationRetireIntegrationDeploymentArgs = {
+  input: OperatorDeploymentCommandInput;
 };
 
 
@@ -1279,6 +1321,264 @@ export type NormalizationSettingsInput = {
   phoneNormalize: InputMaybe<Scalars['Boolean']['input']>;
   ssnRejectPatterns: InputMaybe<Array<Scalars['String']['input']>>;
   ssnStripDashes: InputMaybe<Scalars['Boolean']['input']>;
+};
+
+export type OperatorAttemptFilter = {
+  destinationArtifactId: InputMaybe<Scalars['ID']['input']>;
+  from: InputMaybe<Scalars['DateTime']['input']>;
+  receiptId: InputMaybe<Scalars['ID']['input']>;
+  route: InputMaybe<Scalars['String']['input']>;
+  status: InputMaybe<Scalars['String']['input']>;
+  to: InputMaybe<Scalars['DateTime']['input']>;
+};
+
+export type OperatorAuditConnection = {
+  __typename?: 'OperatorAuditConnection';
+  nodes: Array<OperatorAuditRecord>;
+  pageInfo: OperatorPageInfo;
+};
+
+export type OperatorAuditRecord = {
+  __typename?: 'OperatorAuditRecord';
+  attemptCount: Scalars['Int']['output'];
+  attemptId: Scalars['ID']['output'];
+  auditId: Scalars['ID']['output'];
+  detail: Scalars['JSON']['output'];
+  eventKind: Scalars['String']['output'];
+  principal: OperatorPrincipal;
+  reason: Scalars['String']['output'];
+  recordedAt: Scalars['DateTime']['output'];
+};
+
+export type OperatorCircuit = {
+  __typename?: 'OperatorCircuit';
+  consecutiveFailures: Scalars['Int']['output'];
+  destination: IntegrationArtifactRevision;
+  openUntil: Maybe<Scalars['DateTime']['output']>;
+  state: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+};
+
+export type OperatorControlResult = {
+  __typename?: 'OperatorControlResult';
+  actor: OperatorPrincipal;
+  attempt: OperatorDeliveryAttempt;
+  idempotencyKey: Scalars['String']['output'];
+  kind: Scalars['String']['output'];
+  reason: Scalars['String']['output'];
+  resultAttemptId: Scalars['ID']['output'];
+  sourceAttemptId: Scalars['ID']['output'];
+};
+
+export type OperatorDeadLetter = {
+  __typename?: 'OperatorDeadLetter';
+  active: Scalars['Boolean']['output'];
+  attemptId: Scalars['ID']['output'];
+  failedAt: Scalars['DateTime']['output'];
+  failureCode: Scalars['String']['output'];
+  failureDetail: Scalars['String']['output'];
+  lastReplayedAt: Maybe<Scalars['DateTime']['output']>;
+  replayCount: Scalars['Int']['output'];
+  resolution: Scalars['String']['output'];
+  resolvedAt: Maybe<Scalars['DateTime']['output']>;
+};
+
+export type OperatorDeadLetterConnection = {
+  __typename?: 'OperatorDeadLetterConnection';
+  nodes: Array<OperatorDeadLetter>;
+  pageInfo: OperatorPageInfo;
+};
+
+export type OperatorDeliveryAttempt = {
+  __typename?: 'OperatorDeliveryAttempt';
+  action: Scalars['String']['output'];
+  attemptCount: Scalars['Int']['output'];
+  attemptId: Scalars['ID']['output'];
+  completedAt: Maybe<Scalars['DateTime']['output']>;
+  deadLetter: Maybe<OperatorDeadLetter>;
+  destination: IntegrationPreviewDestination;
+  eventId: Scalars['ID']['output'];
+  lastErrorCode: Scalars['String']['output'];
+  lastErrorDetail: Scalars['String']['output'];
+  leaseExpiresAt: Maybe<Scalars['DateTime']['output']>;
+  leaseOwner: Scalars['String']['output'];
+  outboxStatus: Scalars['String']['output'];
+  parentAttemptId: Maybe<Scalars['ID']['output']>;
+  receiptId: Scalars['ID']['output'];
+  recordedAt: Scalars['DateTime']['output'];
+  route: Scalars['String']['output'];
+  scheduledAt: Scalars['DateTime']['output'];
+  status: Scalars['String']['output'];
+  tenantId: Scalars['ID']['output'];
+  topic: Scalars['String']['output'];
+  traceId: Scalars['String']['output'];
+};
+
+export type OperatorDeliveryAttemptConnection = {
+  __typename?: 'OperatorDeliveryAttemptConnection';
+  nodes: Array<OperatorDeliveryAttempt>;
+  pageInfo: OperatorPageInfo;
+};
+
+export type OperatorDeliveryControlInput = {
+  attemptId: Scalars['ID']['input'];
+  /** Caller-owned key that makes a repeated control action a no-op. */
+  idempotencyKey: Scalars['String']['input'];
+  /** Required operator justification recorded in the append-only audit trail. */
+  reason: Scalars['String']['input'];
+};
+
+export type OperatorDeployment = {
+  __typename?: 'OperatorDeployment';
+  definitionRevision: IntegrationArtifactRevision;
+  health: Scalars['String']['output'];
+  releaseId: Maybe<Scalars['ID']['output']>;
+  state: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  updatedBy: OperatorPrincipal;
+  updatedReason: Scalars['String']['output'];
+  validationExpiresAt: Maybe<Scalars['DateTime']['output']>;
+  validationPassed: Scalars['Boolean']['output'];
+  version: Scalars['Int']['output'];
+};
+
+export type OperatorDeploymentCommandInput = {
+  definitionId: Scalars['ID']['input'];
+  /** Optimistic concurrency guard; a stale version is rejected, never retried. */
+  expectedVersion: Scalars['Int']['input'];
+  reason: Scalars['String']['input'];
+  revisionId: Scalars['ID']['input'];
+};
+
+export type OperatorDeploymentEvent = {
+  __typename?: 'OperatorDeploymentEvent';
+  action: Scalars['String']['output'];
+  actor: OperatorPrincipal;
+  eventId: Scalars['ID']['output'];
+  fromState: Scalars['String']['output'];
+  health: Scalars['String']['output'];
+  occurredAt: Scalars['DateTime']['output'];
+  reason: Scalars['String']['output'];
+  releaseId: Maybe<Scalars['ID']['output']>;
+  toState: Scalars['String']['output'];
+  version: Scalars['Int']['output'];
+};
+
+export type OperatorDiagnostic = {
+  __typename?: 'OperatorDiagnostic';
+  classification: Scalars['String']['output'];
+  code: Scalars['String']['output'];
+  path: Maybe<Scalars['String']['output']>;
+  severity: Scalars['String']['output'];
+  stage: Scalars['String']['output'];
+};
+
+export type OperatorEvent = {
+  __typename?: 'OperatorEvent';
+  classification: Scalars['String']['output'];
+  correlationId: Scalars['String']['output'];
+  eventId: Scalars['ID']['output'];
+  eventType: Scalars['String']['output'];
+  payloadFields: Array<OperatorPayloadField>;
+  payloadTruncated: Scalars['Boolean']['output'];
+  receiptId: Scalars['ID']['output'];
+  recordedAt: Scalars['DateTime']['output'];
+  sourceMessageId: Scalars['String']['output'];
+};
+
+export type OperatorLineage = {
+  __typename?: 'OperatorLineage';
+  artifactRevisions: IntegrationExecutionArtifactRevisions;
+  correlationId: Scalars['String']['output'];
+  diagnostics: Array<OperatorDiagnostic>;
+  eventId: Scalars['ID']['output'];
+  lineageId: Scalars['ID']['output'];
+  receiptId: Scalars['ID']['output'];
+  recordedAt: Scalars['DateTime']['output'];
+  routes: Array<OperatorRoute>;
+  sourceMessageId: Scalars['String']['output'];
+  traceId: Scalars['String']['output'];
+};
+
+export type OperatorMessageTrace = {
+  __typename?: 'OperatorMessageTrace';
+  attempts: Array<OperatorDeliveryAttempt>;
+  audit: Array<OperatorAuditRecord>;
+  events: Array<OperatorEvent>;
+  lineage: Array<OperatorLineage>;
+  receipt: OperatorReceipt;
+};
+
+export type OperatorPageInfo = {
+  __typename?: 'OperatorPageInfo';
+  endCursor: Maybe<Scalars['String']['output']>;
+  hasNextPage: Scalars['Boolean']['output'];
+};
+
+export type OperatorPageInput = {
+  /** Opaque forward cursor returned by a previous page. */
+  after: InputMaybe<Scalars['String']['input']>;
+  /** Bounded page size. Omitted uses 25; the server caps every page at 100. */
+  first: InputMaybe<Scalars['Int']['input']>;
+};
+
+/** One structural coordinate of a canonical event payload. Never a value. */
+export type OperatorPayloadField = {
+  __typename?: 'OperatorPayloadField';
+  kind: Scalars['String']['output'];
+  path: Scalars['String']['output'];
+  repeated: Scalars['Boolean']['output'];
+};
+
+export type OperatorPrincipal = {
+  __typename?: 'OperatorPrincipal';
+  authMethod: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  kind: Scalars['String']['output'];
+  roles: Array<Scalars['String']['output']>;
+};
+
+export type OperatorReceipt = {
+  __typename?: 'OperatorReceipt';
+  attemptCount: Scalars['Int']['output'];
+  correlationId: Scalars['String']['output'];
+  deadLetterCount: Scalars['Int']['output'];
+  eventCount: Scalars['Int']['output'];
+  failedAttemptCount: Scalars['Int']['output'];
+  integrationRevision: IntegrationArtifactRevision;
+  principal: OperatorPrincipal;
+  rawRetentionMode: Scalars['String']['output'];
+  reason: Scalars['String']['output'];
+  receiptId: Scalars['ID']['output'];
+  recordedAt: Scalars['DateTime']['output'];
+  status: Scalars['String']['output'];
+  tenantId: Scalars['ID']['output'];
+};
+
+export type OperatorReceiptConnection = {
+  __typename?: 'OperatorReceiptConnection';
+  nodes: Array<OperatorReceipt>;
+  pageInfo: OperatorPageInfo;
+};
+
+export type OperatorReceiptFilter = {
+  correlationId: InputMaybe<Scalars['String']['input']>;
+  from: InputMaybe<Scalars['DateTime']['input']>;
+  integrationArtifactId: InputMaybe<Scalars['ID']['input']>;
+  sourceMessageId: InputMaybe<Scalars['String']['input']>;
+  status: InputMaybe<Scalars['String']['input']>;
+  to: InputMaybe<Scalars['DateTime']['input']>;
+};
+
+export type OperatorRoute = {
+  __typename?: 'OperatorRoute';
+  diagnosticCodes: Array<Scalars['String']['output']>;
+  matched: Scalars['Boolean']['output'];
+  plannedActions: Array<Scalars['String']['output']>;
+  route: Scalars['String']['output'];
+  skipReason: Maybe<Scalars['String']['output']>;
+  skipped: Scalars['Boolean']['output'];
+  transformCount: Scalars['Int']['output'];
 };
 
 export type OrderDirection =
@@ -1568,6 +1868,15 @@ export type Query = {
   listPendingAutoroutes: PendingAutorouteConnection;
   llmCapability: LlmCapability;
   lookupMapping: Maybe<CodeMapping>;
+  operatorAttemptAudit: OperatorAuditConnection;
+  operatorCircuits: Array<OperatorCircuit>;
+  operatorDeadLetters: OperatorDeadLetterConnection;
+  operatorDeliveryAttempt: Maybe<OperatorDeliveryAttempt>;
+  operatorDeliveryAttempts: OperatorDeliveryAttemptConnection;
+  operatorDeploymentEvents: Array<OperatorDeploymentEvent>;
+  operatorDeployments: Array<OperatorDeployment>;
+  operatorMessageTrace: Maybe<OperatorMessageTrace>;
+  operatorReceipts: OperatorReceiptConnection;
   parsePreview: ParseResult;
   parsePreviewWithProfile: ParseResult;
   patient: Maybe<Patient>;
@@ -1709,6 +2018,46 @@ export type QueryLookupMappingArgs = {
   sourceCode: Scalars['String']['input'];
   sourceSystem: Scalars['String']['input'];
   targetSystem: Scalars['String']['input'];
+};
+
+
+export type QueryOperatorAttemptAuditArgs = {
+  attemptId: Scalars['ID']['input'];
+  page: InputMaybe<OperatorPageInput>;
+};
+
+
+export type QueryOperatorDeadLettersArgs = {
+  activeOnly: InputMaybe<Scalars['Boolean']['input']>;
+  page: InputMaybe<OperatorPageInput>;
+};
+
+
+export type QueryOperatorDeliveryAttemptArgs = {
+  attemptId: Scalars['ID']['input'];
+};
+
+
+export type QueryOperatorDeliveryAttemptsArgs = {
+  filter: InputMaybe<OperatorAttemptFilter>;
+  page: InputMaybe<OperatorPageInput>;
+};
+
+
+export type QueryOperatorDeploymentEventsArgs = {
+  definitionId: Scalars['ID']['input'];
+  revisionId: Scalars['ID']['input'];
+};
+
+
+export type QueryOperatorMessageTraceArgs = {
+  receiptId: Scalars['ID']['input'];
+};
+
+
+export type QueryOperatorReceiptsArgs = {
+  filter: InputMaybe<OperatorReceiptFilter>;
+  page: InputMaybe<OperatorPageInput>;
 };
 
 

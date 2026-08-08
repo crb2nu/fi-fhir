@@ -2439,3 +2439,275 @@ extend type Subscription {
   liveParseStream(input: LiveParseInput!): ParseEvent!
   debugStepEvent(sessionId: ID!): WorkflowDebugStep!
 }
+
+# =============================================================================
+# Operator Control Plane (Phase 4 Slice 4.2a)
+#
+# Read queries project the durable engine records an operator needs and never
+# return a raw clinical payload. Canonical event payloads are rendered
+# structurally: field coordinates and JSON kinds only, never stored values.
+# Every mutation requires a nonempty actor reason, uses the caller's verified
+# identity as the actor, enforces a privileged operator role, and lands in the
+# same idempotent operation ledger and append-only audit trail the delivery and
+# lifecycle runtimes already own.
+# =============================================================================
+
+type OperatorPrincipal {
+  id: ID!
+  kind: String!
+  authMethod: String!
+  roles: [String!]!
+}
+
+type OperatorPageInfo {
+  hasNextPage: Boolean!
+  endCursor: String
+}
+
+input OperatorPageInput {
+  """Bounded page size. Omitted uses 25; the server caps every page at 100."""
+  first: Int
+  """Opaque forward cursor returned by a previous page."""
+  after: String
+}
+
+input OperatorReceiptFilter {
+  status: String
+  integrationArtifactId: ID
+  correlationId: String
+  sourceMessageId: String
+  from: DateTime
+  to: DateTime
+}
+
+input OperatorAttemptFilter {
+  status: String
+  destinationArtifactId: ID
+  receiptId: ID
+  route: String
+  from: DateTime
+  to: DateTime
+}
+
+input OperatorDeliveryControlInput {
+  attemptId: ID!
+  """Required operator justification recorded in the append-only audit trail."""
+  reason: String!
+  """Caller-owned key that makes a repeated control action a no-op."""
+  idempotencyKey: String!
+}
+
+input OperatorDeploymentCommandInput {
+  definitionId: ID!
+  revisionId: ID!
+  """Optimistic concurrency guard; a stale version is rejected, never retried."""
+  expectedVersion: Int!
+  reason: String!
+}
+
+type OperatorReceipt {
+  tenantId: ID!
+  receiptId: ID!
+  status: String!
+  recordedAt: DateTime!
+  correlationId: String!
+  rawRetentionMode: String!
+  integrationRevision: IntegrationArtifactRevision!
+  principal: OperatorPrincipal!
+  reason: String!
+  eventCount: Int!
+  attemptCount: Int!
+  failedAttemptCount: Int!
+  deadLetterCount: Int!
+}
+
+type OperatorReceiptConnection {
+  nodes: [OperatorReceipt!]!
+  pageInfo: OperatorPageInfo!
+}
+
+"""One structural coordinate of a canonical event payload. Never a value."""
+type OperatorPayloadField {
+  path: String!
+  kind: String!
+  repeated: Boolean!
+}
+
+type OperatorEvent {
+  eventId: ID!
+  receiptId: ID!
+  eventType: String!
+  sourceMessageId: String!
+  correlationId: String!
+  classification: String!
+  recordedAt: DateTime!
+  payloadFields: [OperatorPayloadField!]!
+  payloadTruncated: Boolean!
+}
+
+type OperatorRoute {
+  route: String!
+  matched: Boolean!
+  skipped: Boolean!
+  skipReason: String
+  transformCount: Int!
+  plannedActions: [String!]!
+  diagnosticCodes: [String!]!
+}
+
+type OperatorDiagnostic {
+  severity: String!
+  stage: String!
+  code: String!
+  path: String
+  classification: String!
+}
+
+type OperatorLineage {
+  lineageId: ID!
+  receiptId: ID!
+  eventId: ID!
+  traceId: String!
+  correlationId: String!
+  sourceMessageId: String!
+  artifactRevisions: IntegrationExecutionArtifactRevisions!
+  routes: [OperatorRoute!]!
+  diagnostics: [OperatorDiagnostic!]!
+  recordedAt: DateTime!
+}
+
+type OperatorDeadLetter {
+  attemptId: ID!
+  active: Boolean!
+  failureCode: String!
+  failureDetail: String!
+  failedAt: DateTime!
+  replayCount: Int!
+  lastReplayedAt: DateTime
+  resolution: String!
+  resolvedAt: DateTime
+}
+
+type OperatorDeadLetterConnection {
+  nodes: [OperatorDeadLetter!]!
+  pageInfo: OperatorPageInfo!
+}
+
+type OperatorDeliveryAttempt {
+  tenantId: ID!
+  attemptId: ID!
+  parentAttemptId: ID
+  receiptId: ID!
+  eventId: ID!
+  traceId: String!
+  destination: IntegrationPreviewDestination!
+  route: String!
+  action: String!
+  status: String!
+  attemptCount: Int!
+  recordedAt: DateTime!
+  scheduledAt: DateTime!
+  completedAt: DateTime
+  lastErrorCode: String!
+  lastErrorDetail: String!
+  outboxStatus: String!
+  topic: String!
+  leaseOwner: String!
+  leaseExpiresAt: DateTime
+  deadLetter: OperatorDeadLetter
+}
+
+type OperatorDeliveryAttemptConnection {
+  nodes: [OperatorDeliveryAttempt!]!
+  pageInfo: OperatorPageInfo!
+}
+
+type OperatorCircuit {
+  destination: IntegrationArtifactRevision!
+  state: String!
+  consecutiveFailures: Int!
+  openUntil: DateTime
+  updatedAt: DateTime!
+}
+
+type OperatorAuditRecord {
+  auditId: ID!
+  attemptId: ID!
+  eventKind: String!
+  attemptCount: Int!
+  principal: OperatorPrincipal!
+  reason: String!
+  detail: JSON!
+  recordedAt: DateTime!
+}
+
+type OperatorAuditConnection {
+  nodes: [OperatorAuditRecord!]!
+  pageInfo: OperatorPageInfo!
+}
+
+type OperatorMessageTrace {
+  receipt: OperatorReceipt!
+  events: [OperatorEvent!]!
+  lineage: [OperatorLineage!]!
+  attempts: [OperatorDeliveryAttempt!]!
+  audit: [OperatorAuditRecord!]!
+}
+
+type OperatorControlResult {
+  kind: String!
+  sourceAttemptId: ID!
+  resultAttemptId: ID!
+  attempt: OperatorDeliveryAttempt!
+  reason: String!
+  idempotencyKey: String!
+  actor: OperatorPrincipal!
+}
+
+type OperatorDeployment {
+  definitionRevision: IntegrationArtifactRevision!
+  state: String!
+  version: Int!
+  releaseId: ID
+  health: String!
+  validationPassed: Boolean!
+  validationExpiresAt: DateTime
+  updatedBy: OperatorPrincipal!
+  updatedReason: String!
+  updatedAt: DateTime!
+}
+
+type OperatorDeploymentEvent {
+  eventId: ID!
+  version: Int!
+  action: String!
+  fromState: String!
+  toState: String!
+  health: String!
+  releaseId: ID
+  actor: OperatorPrincipal!
+  reason: String!
+  occurredAt: DateTime!
+}
+
+extend type Query {
+  operatorReceipts(filter: OperatorReceiptFilter, page: OperatorPageInput): OperatorReceiptConnection!
+  operatorMessageTrace(receiptId: ID!): OperatorMessageTrace
+  operatorDeliveryAttempts(filter: OperatorAttemptFilter, page: OperatorPageInput): OperatorDeliveryAttemptConnection!
+  operatorDeliveryAttempt(attemptId: ID!): OperatorDeliveryAttempt
+  operatorDeadLetters(activeOnly: Boolean, page: OperatorPageInput): OperatorDeadLetterConnection!
+  operatorCircuits: [OperatorCircuit!]!
+  operatorAttemptAudit(attemptId: ID!, page: OperatorPageInput): OperatorAuditConnection!
+  operatorDeployments: [OperatorDeployment!]!
+  operatorDeploymentEvents(definitionId: ID!, revisionId: ID!): [OperatorDeploymentEvent!]!
+}
+
+extend type Mutation {
+  replayDelivery(input: OperatorDeliveryControlInput!): OperatorControlResult!
+  resubmitMessage(input: OperatorDeliveryControlInput!): OperatorControlResult!
+  discardDeadLetter(input: OperatorDeliveryControlInput!): OperatorControlResult!
+  pauseIntegrationDeployment(input: OperatorDeploymentCommandInput!): OperatorDeployment!
+  resumeIntegrationDeployment(input: OperatorDeploymentCommandInput!): OperatorDeployment!
+  retireIntegrationDeployment(input: OperatorDeploymentCommandInput!): OperatorDeployment!
+  deployIntegrationRelease(input: OperatorDeploymentCommandInput!): OperatorDeployment!
+}

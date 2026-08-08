@@ -1884,6 +1884,41 @@ func (r *mutationResolver) DebugEndSession(ctx context.Context, sessionID string
 	return true, nil
 }
 
+// ReplayDelivery is the resolver for the replayDelivery field.
+func (r *mutationResolver) ReplayDelivery(ctx context.Context, input model.OperatorDeliveryControlInput) (*model.OperatorControlResult, error) {
+	return r.operatorDeliveryControl(ctx, input, "replay")
+}
+
+// ResubmitMessage is the resolver for the resubmitMessage field.
+func (r *mutationResolver) ResubmitMessage(ctx context.Context, input model.OperatorDeliveryControlInput) (*model.OperatorControlResult, error) {
+	return r.operatorDeliveryControl(ctx, input, "resubmit")
+}
+
+// DiscardDeadLetter is the resolver for the discardDeadLetter field.
+func (r *mutationResolver) DiscardDeadLetter(ctx context.Context, input model.OperatorDeliveryControlInput) (*model.OperatorControlResult, error) {
+	return r.operatorDeliveryControl(ctx, input, "discard")
+}
+
+// PauseIntegrationDeployment is the resolver for the pauseIntegrationDeployment field.
+func (r *mutationResolver) PauseIntegrationDeployment(ctx context.Context, input model.OperatorDeploymentCommandInput) (*model.OperatorDeployment, error) {
+	return r.operatorDeploymentControl(ctx, input, "pause")
+}
+
+// ResumeIntegrationDeployment is the resolver for the resumeIntegrationDeployment field.
+func (r *mutationResolver) ResumeIntegrationDeployment(ctx context.Context, input model.OperatorDeploymentCommandInput) (*model.OperatorDeployment, error) {
+	return r.operatorDeploymentControl(ctx, input, "resume")
+}
+
+// RetireIntegrationDeployment is the resolver for the retireIntegrationDeployment field.
+func (r *mutationResolver) RetireIntegrationDeployment(ctx context.Context, input model.OperatorDeploymentCommandInput) (*model.OperatorDeployment, error) {
+	return r.operatorDeploymentControl(ctx, input, "retire")
+}
+
+// DeployIntegrationRelease is the resolver for the deployIntegrationRelease field.
+func (r *mutationResolver) DeployIntegrationRelease(ctx context.Context, input model.OperatorDeploymentCommandInput) (*model.OperatorDeployment, error) {
+	return r.operatorDeploymentControl(ctx, input, "deploy")
+}
+
 // Event is the resolver for the event field.
 func (r *queryResolver) Event(ctx context.Context, id string) (model.Event, error) {
 	return r.Store.GetEvent(ctx, id)
@@ -3289,6 +3324,51 @@ func (r *queryResolver) WorkflowRunTrace(ctx context.Context, runID string) ([]m
 	out := make([]model.TraceSpanModel, len(spans))
 	copy(out, spans)
 	return out, nil
+}
+
+// OperatorReceipts is the resolver for the operatorReceipts field.
+func (r *queryResolver) OperatorReceipts(ctx context.Context, filter *model.OperatorReceiptFilter, page *model.OperatorPageInput) (*model.OperatorReceiptConnection, error) {
+	return r.operatorReceipts(ctx, filter, page)
+}
+
+// OperatorMessageTrace is the resolver for the operatorMessageTrace field.
+func (r *queryResolver) OperatorMessageTrace(ctx context.Context, receiptID string) (*model.OperatorMessageTrace, error) {
+	return r.operatorMessageTrace(ctx, receiptID)
+}
+
+// OperatorDeliveryAttempts is the resolver for the operatorDeliveryAttempts field.
+func (r *queryResolver) OperatorDeliveryAttempts(ctx context.Context, filter *model.OperatorAttemptFilter, page *model.OperatorPageInput) (*model.OperatorDeliveryAttemptConnection, error) {
+	return r.operatorDeliveryAttempts(ctx, filter, page)
+}
+
+// OperatorDeliveryAttempt is the resolver for the operatorDeliveryAttempt field.
+func (r *queryResolver) OperatorDeliveryAttempt(ctx context.Context, attemptID string) (*model.OperatorDeliveryAttempt, error) {
+	return r.operatorDeliveryAttempt(ctx, attemptID)
+}
+
+// OperatorDeadLetters is the resolver for the operatorDeadLetters field.
+func (r *queryResolver) OperatorDeadLetters(ctx context.Context, activeOnly *bool, page *model.OperatorPageInput) (*model.OperatorDeadLetterConnection, error) {
+	return r.operatorDeadLetters(ctx, activeOnly, page)
+}
+
+// OperatorCircuits is the resolver for the operatorCircuits field.
+func (r *queryResolver) OperatorCircuits(ctx context.Context) ([]model.OperatorCircuit, error) {
+	return r.operatorCircuits(ctx)
+}
+
+// OperatorAttemptAudit is the resolver for the operatorAttemptAudit field.
+func (r *queryResolver) OperatorAttemptAudit(ctx context.Context, attemptID string, page *model.OperatorPageInput) (*model.OperatorAuditConnection, error) {
+	return r.operatorAttemptAudit(ctx, attemptID, page)
+}
+
+// OperatorDeployments is the resolver for the operatorDeployments field.
+func (r *queryResolver) OperatorDeployments(ctx context.Context) ([]model.OperatorDeployment, error) {
+	return r.operatorDeployments(ctx)
+}
+
+// OperatorDeploymentEvents is the resolver for the operatorDeploymentEvents field.
+func (r *queryResolver) OperatorDeploymentEvents(ctx context.Context, definitionID string, revisionID string) ([]model.OperatorDeploymentEvent, error) {
+	return r.operatorDeploymentEvents(ctx, definitionID, revisionID)
 }
 
 // EventStream is the resolver for the eventStream field.

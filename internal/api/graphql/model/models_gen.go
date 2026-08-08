@@ -355,6 +355,244 @@ type NormalizationSettingsInput struct {
 	PhoneFormat       *string  `json:"phoneFormat,omitempty"`
 }
 
+type OperatorAttemptFilter struct {
+	Status                *string    `json:"status,omitempty"`
+	DestinationArtifactID *string    `json:"destinationArtifactId,omitempty"`
+	ReceiptID             *string    `json:"receiptId,omitempty"`
+	Route                 *string    `json:"route,omitempty"`
+	From                  *time.Time `json:"from,omitempty"`
+	To                    *time.Time `json:"to,omitempty"`
+}
+
+type OperatorAuditConnection struct {
+	Nodes    []OperatorAuditRecord `json:"nodes"`
+	PageInfo *OperatorPageInfo     `json:"pageInfo"`
+}
+
+type OperatorAuditRecord struct {
+	AuditID      string             `json:"auditId"`
+	AttemptID    string             `json:"attemptId"`
+	EventKind    string             `json:"eventKind"`
+	AttemptCount int                `json:"attemptCount"`
+	Principal    *OperatorPrincipal `json:"principal"`
+	Reason       string             `json:"reason"`
+	Detail       map[string]any     `json:"detail"`
+	RecordedAt   time.Time          `json:"recordedAt"`
+}
+
+type OperatorCircuit struct {
+	Destination         *IntegrationArtifactRevision `json:"destination"`
+	State               string                       `json:"state"`
+	ConsecutiveFailures int                          `json:"consecutiveFailures"`
+	OpenUntil           *time.Time                   `json:"openUntil,omitempty"`
+	UpdatedAt           time.Time                    `json:"updatedAt"`
+}
+
+type OperatorControlResult struct {
+	Kind            string                   `json:"kind"`
+	SourceAttemptID string                   `json:"sourceAttemptId"`
+	ResultAttemptID string                   `json:"resultAttemptId"`
+	Attempt         *OperatorDeliveryAttempt `json:"attempt"`
+	Reason          string                   `json:"reason"`
+	IdempotencyKey  string                   `json:"idempotencyKey"`
+	Actor           *OperatorPrincipal       `json:"actor"`
+}
+
+type OperatorDeadLetter struct {
+	AttemptID      string     `json:"attemptId"`
+	Active         bool       `json:"active"`
+	FailureCode    string     `json:"failureCode"`
+	FailureDetail  string     `json:"failureDetail"`
+	FailedAt       time.Time  `json:"failedAt"`
+	ReplayCount    int        `json:"replayCount"`
+	LastReplayedAt *time.Time `json:"lastReplayedAt,omitempty"`
+	Resolution     string     `json:"resolution"`
+	ResolvedAt     *time.Time `json:"resolvedAt,omitempty"`
+}
+
+type OperatorDeadLetterConnection struct {
+	Nodes    []OperatorDeadLetter `json:"nodes"`
+	PageInfo *OperatorPageInfo    `json:"pageInfo"`
+}
+
+type OperatorDeliveryAttempt struct {
+	TenantID        string                         `json:"tenantId"`
+	AttemptID       string                         `json:"attemptId"`
+	ParentAttemptID *string                        `json:"parentAttemptId,omitempty"`
+	ReceiptID       string                         `json:"receiptId"`
+	EventID         string                         `json:"eventId"`
+	TraceID         string                         `json:"traceId"`
+	Destination     *IntegrationPreviewDestination `json:"destination"`
+	Route           string                         `json:"route"`
+	Action          string                         `json:"action"`
+	Status          string                         `json:"status"`
+	AttemptCount    int                            `json:"attemptCount"`
+	RecordedAt      time.Time                      `json:"recordedAt"`
+	ScheduledAt     time.Time                      `json:"scheduledAt"`
+	CompletedAt     *time.Time                     `json:"completedAt,omitempty"`
+	LastErrorCode   string                         `json:"lastErrorCode"`
+	LastErrorDetail string                         `json:"lastErrorDetail"`
+	OutboxStatus    string                         `json:"outboxStatus"`
+	Topic           string                         `json:"topic"`
+	LeaseOwner      string                         `json:"leaseOwner"`
+	LeaseExpiresAt  *time.Time                     `json:"leaseExpiresAt,omitempty"`
+	DeadLetter      *OperatorDeadLetter            `json:"deadLetter,omitempty"`
+}
+
+type OperatorDeliveryAttemptConnection struct {
+	Nodes    []OperatorDeliveryAttempt `json:"nodes"`
+	PageInfo *OperatorPageInfo         `json:"pageInfo"`
+}
+
+type OperatorDeliveryControlInput struct {
+	AttemptID string `json:"attemptId"`
+	// Required operator justification recorded in the append-only audit trail.
+	Reason string `json:"reason"`
+	// Caller-owned key that makes a repeated control action a no-op.
+	IdempotencyKey string `json:"idempotencyKey"`
+}
+
+type OperatorDeployment struct {
+	DefinitionRevision  *IntegrationArtifactRevision `json:"definitionRevision"`
+	State               string                       `json:"state"`
+	Version             int                          `json:"version"`
+	ReleaseID           *string                      `json:"releaseId,omitempty"`
+	Health              string                       `json:"health"`
+	ValidationPassed    bool                         `json:"validationPassed"`
+	ValidationExpiresAt *time.Time                   `json:"validationExpiresAt,omitempty"`
+	UpdatedBy           *OperatorPrincipal           `json:"updatedBy"`
+	UpdatedReason       string                       `json:"updatedReason"`
+	UpdatedAt           time.Time                    `json:"updatedAt"`
+}
+
+type OperatorDeploymentCommandInput struct {
+	DefinitionID string `json:"definitionId"`
+	RevisionID   string `json:"revisionId"`
+	// Optimistic concurrency guard; a stale version is rejected, never retried.
+	ExpectedVersion int    `json:"expectedVersion"`
+	Reason          string `json:"reason"`
+}
+
+type OperatorDeploymentEvent struct {
+	EventID    string             `json:"eventId"`
+	Version    int                `json:"version"`
+	Action     string             `json:"action"`
+	FromState  string             `json:"fromState"`
+	ToState    string             `json:"toState"`
+	Health     string             `json:"health"`
+	ReleaseID  *string            `json:"releaseId,omitempty"`
+	Actor      *OperatorPrincipal `json:"actor"`
+	Reason     string             `json:"reason"`
+	OccurredAt time.Time          `json:"occurredAt"`
+}
+
+type OperatorDiagnostic struct {
+	Severity       string  `json:"severity"`
+	Stage          string  `json:"stage"`
+	Code           string  `json:"code"`
+	Path           *string `json:"path,omitempty"`
+	Classification string  `json:"classification"`
+}
+
+type OperatorEvent struct {
+	EventID          string                 `json:"eventId"`
+	ReceiptID        string                 `json:"receiptId"`
+	EventType        string                 `json:"eventType"`
+	SourceMessageID  string                 `json:"sourceMessageId"`
+	CorrelationID    string                 `json:"correlationId"`
+	Classification   string                 `json:"classification"`
+	RecordedAt       time.Time              `json:"recordedAt"`
+	PayloadFields    []OperatorPayloadField `json:"payloadFields"`
+	PayloadTruncated bool                   `json:"payloadTruncated"`
+}
+
+type OperatorLineage struct {
+	LineageID         string                                 `json:"lineageId"`
+	ReceiptID         string                                 `json:"receiptId"`
+	EventID           string                                 `json:"eventId"`
+	TraceID           string                                 `json:"traceId"`
+	CorrelationID     string                                 `json:"correlationId"`
+	SourceMessageID   string                                 `json:"sourceMessageId"`
+	ArtifactRevisions *IntegrationExecutionArtifactRevisions `json:"artifactRevisions"`
+	Routes            []OperatorRoute                        `json:"routes"`
+	Diagnostics       []OperatorDiagnostic                   `json:"diagnostics"`
+	RecordedAt        time.Time                              `json:"recordedAt"`
+}
+
+type OperatorMessageTrace struct {
+	Receipt  *OperatorReceipt          `json:"receipt"`
+	Events   []OperatorEvent           `json:"events"`
+	Lineage  []OperatorLineage         `json:"lineage"`
+	Attempts []OperatorDeliveryAttempt `json:"attempts"`
+	Audit    []OperatorAuditRecord     `json:"audit"`
+}
+
+type OperatorPageInfo struct {
+	HasNextPage bool    `json:"hasNextPage"`
+	EndCursor   *string `json:"endCursor,omitempty"`
+}
+
+type OperatorPageInput struct {
+	// Bounded page size. Omitted uses 25; the server caps every page at 100.
+	First *int `json:"first,omitempty"`
+	// Opaque forward cursor returned by a previous page.
+	After *string `json:"after,omitempty"`
+}
+
+// One structural coordinate of a canonical event payload. Never a value.
+type OperatorPayloadField struct {
+	Path     string `json:"path"`
+	Kind     string `json:"kind"`
+	Repeated bool   `json:"repeated"`
+}
+
+type OperatorPrincipal struct {
+	ID         string   `json:"id"`
+	Kind       string   `json:"kind"`
+	AuthMethod string   `json:"authMethod"`
+	Roles      []string `json:"roles"`
+}
+
+type OperatorReceipt struct {
+	TenantID            string                       `json:"tenantId"`
+	ReceiptID           string                       `json:"receiptId"`
+	Status              string                       `json:"status"`
+	RecordedAt          time.Time                    `json:"recordedAt"`
+	CorrelationID       string                       `json:"correlationId"`
+	RawRetentionMode    string                       `json:"rawRetentionMode"`
+	IntegrationRevision *IntegrationArtifactRevision `json:"integrationRevision"`
+	Principal           *OperatorPrincipal           `json:"principal"`
+	Reason              string                       `json:"reason"`
+	EventCount          int                          `json:"eventCount"`
+	AttemptCount        int                          `json:"attemptCount"`
+	FailedAttemptCount  int                          `json:"failedAttemptCount"`
+	DeadLetterCount     int                          `json:"deadLetterCount"`
+}
+
+type OperatorReceiptConnection struct {
+	Nodes    []OperatorReceipt `json:"nodes"`
+	PageInfo *OperatorPageInfo `json:"pageInfo"`
+}
+
+type OperatorReceiptFilter struct {
+	Status                *string    `json:"status,omitempty"`
+	IntegrationArtifactID *string    `json:"integrationArtifactId,omitempty"`
+	CorrelationID         *string    `json:"correlationId,omitempty"`
+	SourceMessageID       *string    `json:"sourceMessageId,omitempty"`
+	From                  *time.Time `json:"from,omitempty"`
+	To                    *time.Time `json:"to,omitempty"`
+}
+
+type OperatorRoute struct {
+	Route           string   `json:"route"`
+	Matched         bool     `json:"matched"`
+	Skipped         bool     `json:"skipped"`
+	SkipReason      *string  `json:"skipReason,omitempty"`
+	TransformCount  int      `json:"transformCount"`
+	PlannedActions  []string `json:"plannedActions"`
+	DiagnosticCodes []string `json:"diagnosticCodes"`
+}
+
 type PagingInput struct {
 	Limit  *int `json:"limit,omitempty"`
 	Offset *int `json:"offset,omitempty"`
