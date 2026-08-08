@@ -452,11 +452,26 @@ test:unit:
 test:integration:
   stage: test
   services:
-    - postgres:14
-    - hapiproject/hapi:latest
+    - name: postgres:16-alpine
+      alias: postgres
+    - name: minio/minio:latest
+      alias: minio
+      # Required: the image's default CMD prints usage and exits.
+      command: ["server", "/data", "--console-address", ":9001"]
   script:
-    - go test -tags=integration ./test/e2e/...
+    - go test -tags=integration ./cmd/fi-fhir/...
+    # Serialized: both paths reset the shared terminology schema.
+    - go test -tags=integration -p 1 ./pkg/terminology/db/
+  allow_failure: false # blocking merge gate since 2026-08-08
 ```
+
+> `test:integration` and `lint:docs` are blocking merge gates.
+> `test:docs-status` is still advisory. See `.loom/40-decisions.md` (2026-08-08)
+> for the soft-fail policy and per-job promotion criteria.
+>
+> `setupTestInfra()` **skips** rather than fails when Postgres or MinIO is
+> unreachable, so verify the skip count when debugging a suspiciously fast green
+> run — a broken service container makes this job pass with less coverage.
 
 ## Common Patterns
 
