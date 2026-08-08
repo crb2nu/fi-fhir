@@ -483,6 +483,55 @@ that compatibility mode is unchanged. Three independent negative controls —
 silent fallback for unmatched certificates, ignored per-identity grants, and a
 deployment-fixed principal in mapped mode — each fail the test.
 
+#### Slice 4.1b3: batch workload identity and trusted receipt provenance
+
+- Add an optional `workload` block to the immutable, content-addressed batch
+  source revision. It names one canonical service subject and its grants, and it
+  is the identity under which every object that source ingests submits. Object
+  keys, remote directories, remote metadata, and MSH content can never select,
+  influence, or impersonate it.
+- Evaluate the same fail-closed `integration.submit` decision added in Slice
+  4.1b1 at the connector boundary in `PollOnce`, immediately after deployed-
+  release binding validation and before listing, leasing, opening, reading,
+  artifact loading, or any durable write; again per message before the processor
+  loads artifacts; and again in transaction-scoped runnable admission. A denied
+  source therefore leaves no lease or checkpoint state to poison a later retry.
+- Keep binding all-or-nothing per source. An absent `workload` block preserves
+  the deployment-fixed `FI_FHIR_BATCH_PRINCIPAL_ID` principal and the
+  server-issued `integration:batch` grant, and existing source revisions keep
+  their exact digest because the block is omitted from the canonical digest
+  input. `FI_FHIR_BATCH_REQUIRE_WORKLOAD_IDENTITY` lets a deployment refuse to
+  start in compatibility mode.
+- Replace remote object modification time as trusted receipt provenance. The
+  authoritative received-at becomes the server-owned custody timestamp recorded
+  when an exact object version is first durably admitted, stable across lease
+  reclaim, restart, and checkpoint resume. Content provenance becomes a SHA-256
+  digest over the exact bytes streamed during admission, resumed across
+  checkpoints from marshaled hash state and cross-checked against a full re-read
+  before archive. S3 additionally pins the exact version ID and the entity tag
+  observed at listing and re-verified at every read, archive, and delete. The
+  remote value survives only as `remote_modified_at_advisory` and takes no part
+  in any trust or audit decision.
+- Keep destination-scoped identity, token issuance/introspection, cloud workload
+  federation transport, GraphQL control actions, immutable audit storage, PHI
+  controls, and GitOps activation in later slices.
+
+Implementation status (2026-08-08): implemented and locally verified; landing
+pipeline evidence recorded in the Slice 4.1b3 handoff. The load-bearing kill-test
+`TestBatchIngestion_PostgresS3SFTPWorkloadIdentityProvenance` drives real MinIO
+and a real SSH/SFTP server against PostgreSQL 16 with the production durable
+processor and transaction-scoped runnable admission. It proves that two bound
+subjects stay distinct at admission while both objects carry identical MSH
+sending application/facility naming one of them and the S3 key names the other,
+that an ungranted subject halts with every durable record class unchanged and the
+same object admits cleanly once the grant is repaired in a new source revision,
+that compatibility mode still admits under the deployment-fixed principal and the
+server-issued grant, and that a remote modification time spoofed to 1994 never
+becomes a canonical `received_at`. Five independent negative controls — a
+deployment-fixed principal in bound mode, no connector-boundary decision, remote
+modification time as received-at, ignored per-identity grants, and a streaming
+digest over normalized rather than raw bytes — each fail the test.
+
 ### Slice 4.2: operator control plane
 
 - Real message/trace browser, deployment/channel controls, replay/resubmit/DLQ,

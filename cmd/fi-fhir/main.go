@@ -5309,7 +5309,9 @@ Optional deployed MLLP environment:
 Optional deployed S3/SFTP batch environment:
   FI_FHIR_BATCH_SOURCE_CONFIG_PATH     Immutable content-addressed source JSON
   FI_FHIR_BATCH_DEFINITION_ID          Lifecycle definition selected by server config
-  FI_FHIR_BATCH_PRINCIPAL_ID           Bound batch service principal
+  FI_FHIR_BATCH_PRINCIPAL_ID           Compatibility-mode batch service principal
+  FI_FHIR_BATCH_REQUIRE_WORKLOAD_IDENTITY
+                                       Refuse to start without a workload block
   FI_FHIR_BATCH_WORKER_ID              Canonical PostgreSQL lease owner
   FI_FHIR_BATCH_S3_ACCESS_KEY[_FILE]   S3 access key source
   FI_FHIR_BATCH_S3_SECRET_KEY[_FILE]   S3 secret key source

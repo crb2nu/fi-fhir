@@ -148,14 +148,16 @@ func (r failingRunnableResolver) ResolveRunnable(context.Context, string, string
 }
 
 type recordingProcessor struct {
-	mu   sync.Mutex
-	keys []string
+	mu       sync.Mutex
+	keys     []string
+	requests []integration.ProcessRequest
 }
 
 func (p *recordingProcessor) Process(_ context.Context, request integration.ProcessRequest) (integration.ProcessResult, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.keys = append(p.keys, request.IdempotencyKey)
+	p.requests = append(p.requests, request)
 	return integration.ProcessResult{}, nil
 }
 
@@ -165,12 +167,19 @@ func (p *recordingProcessor) idempotencyKeys() []string {
 	return append([]string(nil), p.keys...)
 }
 
+func (p *recordingProcessor) recorded() []integration.ProcessRequest {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]integration.ProcessRequest(nil), p.requests...)
+}
+
 type memoryProvider struct {
 	object       Object
 	raw          []byte
 	archives     map[string][]byte
 	archiveError error
 	deleted      bool
+	listCalls    int
 }
 
 func newMemoryProvider(raw []byte) *memoryProvider {
@@ -178,7 +187,8 @@ func newMemoryProvider(raw []byte) *memoryProvider {
 	return &memoryProvider{
 		object: Object{
 			Provider: ProviderS3, Path: "incoming/messages.hl7", Version: "etag:version-1",
-			Size: int64(len(raw)), ModifiedAt: modified,
+			ETag: "d41d8cd98f00b204e9800998ecf8427e", Size: int64(len(raw)),
+			RemoteModifiedAtAdvisory: modified,
 		},
 		raw: append([]byte(nil), raw...), archives: map[string][]byte{},
 	}
@@ -186,6 +196,7 @@ func newMemoryProvider(raw []byte) *memoryProvider {
 
 func (p *memoryProvider) Type() ProviderType { return ProviderS3 }
 func (p *memoryProvider) List(context.Context, int) ([]Object, error) {
+	p.listCalls++
 	if p.deleted {
 		return nil, nil
 	}
@@ -228,6 +239,10 @@ func (p *memoryProvider) DeleteSource(_ context.Context, object Object, expected
 }
 func (p *memoryProvider) Close() error { return nil }
 
+// memoryCustodyTime stands in for the server-owned custody timestamp the
+// PostgreSQL store writes once, on first discovery of an exact object version.
+var memoryCustodyTime = time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
+
 type memoryCheckpointStore struct {
 	mu    sync.Mutex
 	items map[string]WorkItem
@@ -254,7 +269,10 @@ func (s *memoryCheckpointStore) Claim(
 		item = WorkItem{
 			TenantID: tenantID, SourceID: source.SourceID, SourceRevisionDigest: source.Digest,
 			IntegrationRevisionDigest: integrationRevisionDigest,
-			ObjectID:                  id, Provider: object.Provider, ObjectSize: object.Size, Phase: PhaseProcessing,
+			ObjectID:                  id, Provider: object.Provider, ObjectSize: object.Size,
+			ObjectVersion: object.Version, ObjectETag: object.ETag, Phase: PhaseProcessing,
+			// Server-owned custody timestamp, written once on first discovery.
+			ReceivedAt: memoryCustodyTime,
 		}
 	}
 	if item.IntegrationRevisionDigest != integrationRevisionDigest {
@@ -272,15 +290,25 @@ func (s *memoryCheckpointStore) Claim(
 	return &clone, nil
 }
 
-func (s *memoryCheckpointStore) Advance(_ context.Context, item WorkItem, offset, message int64, lease time.Duration) (WorkItem, error) {
+func (s *memoryCheckpointStore) Advance(
+	_ context.Context,
+	item WorkItem,
+	offset, message int64,
+	digestState string,
+	lease time.Duration,
+) (WorkItem, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	stored := s.items[item.ObjectID]
 	if stored.CheckpointOffset != item.CheckpointOffset || stored.CheckpointMessage != item.CheckpointMessage {
 		return WorkItem{}, ErrLeaseLost
 	}
+	if digestState == "" {
+		return WorkItem{}, ErrLeaseLost
+	}
 	stored.CheckpointOffset = offset
 	stored.CheckpointMessage = message
+	stored.DigestState = digestState
 	stored.LeaseExpiresAt = time.Now().Add(lease)
 	s.items[item.ObjectID] = stored
 	return stored, nil

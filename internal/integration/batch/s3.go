@@ -58,7 +58,8 @@ func (p *S3Provider) List(ctx context.Context, limit int) ([]Object, error) {
 		}
 		object := Object{
 			Provider: ProviderS3, Path: info.Key, Version: s3Version(info.VersionID),
-			Size: info.Size, ModifiedAt: info.LastModified.UTC(),
+			ETag: normalizeETag(info.ETag), Size: info.Size,
+			RemoteModifiedAtAdvisory: info.LastModified.UTC(),
 		}
 		if object.validate() != nil || parseS3Version(object.Version) == "" {
 			return nil, ErrInvalidObject
@@ -166,7 +167,7 @@ func (p *S3Provider) DeleteSource(ctx context.Context, object Object, expectedDi
 		}
 		return fmt.Errorf("%w: stat S3 source before delete", ErrProviderUnavailable)
 	}
-	if info.VersionID != versionID || info.Size != object.Size {
+	if info.VersionID != versionID || info.Size != object.Size || normalizeETag(info.ETag) != object.ETag {
 		return ErrObjectChanged
 	}
 	if err := p.client.RemoveObject(ctx, p.policy.Bucket, object.Path, minio.RemoveObjectOptions{VersionID: versionID}); err != nil {
@@ -189,7 +190,9 @@ func (p *S3Provider) verifyObject(ctx context.Context, object Object) error {
 		}
 		return fmt.Errorf("%w: stat S3 object", ErrProviderUnavailable)
 	}
-	if info.VersionID != versionID || info.Size != object.Size {
+	// Version ID plus entity tag is the exact-object identity re-verified before
+	// every read, archive, and delete. Remote modification time takes no part.
+	if info.VersionID != versionID || info.Size != object.Size || normalizeETag(info.ETag) != object.ETag {
 		return ErrObjectChanged
 	}
 	return nil
@@ -226,6 +229,14 @@ func (p *S3Provider) digestKey(ctx context.Context, key string) (string, error) 
 		return "", ErrProviderUnavailable
 	}
 	return digest, nil
+}
+
+// normalizeETag strips the optional quoting and weak-comparison prefix so the
+// listing value and the head-object value compare exactly.
+func normalizeETag(value string) string {
+	value = strings.TrimSpace(value)
+	value = strings.TrimPrefix(value, "W/")
+	return strings.Trim(value, `"`)
 }
 
 func s3Version(value string) string {

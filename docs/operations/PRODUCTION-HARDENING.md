@@ -101,6 +101,48 @@ configuration. Follow the complete operator contract in
 - Alert on repeated lease reclaim, invalid-stream quarantine, archive collision,
   host-key failure, or provider unavailability. Do not include source paths or
   message bytes in alert labels.
+
+### Batch workload identity
+
+- Declare a `workload` block in the immutable source revision so each source
+  submits under its own canonical service subject. One shared connector
+  principal across every source collapses attribution and defeats per-source
+  revocation.
+- Give each subject the minimum submit authority. A subject provisioned for
+  observation should carry no recognized submit grant; it then halts at the
+  connector boundary before any lease, checkpoint, artifact load, or durable
+  record exists.
+- Set `FI_FHIR_BATCH_REQUIRE_WORKLOAD_IDENTITY=true` in production so the process
+  refuses to start if the mounted source document ever drops its `workload`
+  block. Identity binding is all-or-nothing per source; there is no per-object
+  fallback to the deployment-fixed principal.
+- Rotate a subject by publishing a new source revision, a new integration
+  definition revision, and a lifecycle redeploy. The deployed release pins the
+  exact source digest, so editing the mounted document alone fails closed.
+- Alert on repeated ungranted-subject denials. Do not include subjects, object
+  keys, or message bytes in alert labels.
+
+### Batch receipt provenance
+
+- Treat the remote object modification time as untrusted. SFTP exposes
+  `SSH_FXP_SETSTAT`, so a producer can set any value it likes. The column is
+  named `remote_modified_at_advisory` for that reason and must never be used for
+  retention windows, ordering guarantees, audit timelines, or alerting
+  thresholds.
+- The authoritative received-at is the server-owned custody timestamp recorded
+  when an exact object version is first durably admitted. It is stable across
+  lease reclaim, worker restart, and checkpoint resume, so replays do not shift
+  a receipt's clinical timeline.
+- Content provenance is a SHA-256 digest computed over the exact bytes admitted,
+  resumed across checkpoints and cross-checked against a full re-read before
+  archive. A disagreement quarantines the object with `DIGEST_MISMATCH`; alert
+  on that code, because it means an object was rewritten while its exact-version
+  identity was preserved.
+- Keep S3 bucket versioning enabled. Version ID plus entity tag is the
+  exact-object identity re-verified before every read, archive, and delete.
+- Rows admitted before this revision keep empty `object_version`/`object_etag`
+  defaults; the provenance constraint is `NOT VALID` so historical rows are
+  visibly distinguishable rather than retroactively given invented provenance.
 [ ] Container runs as non-root user
 [ ] Read-only root filesystem
 [ ] No privileged containers

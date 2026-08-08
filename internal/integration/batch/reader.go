@@ -13,8 +13,12 @@ var (
 )
 
 // Message is one normalized HL7v2 message and its exact raw byte interval.
+// Raw holds the untouched source bytes covering [StartOffset, EndOffset), which
+// is what the streaming content digest hashes. Payload is the normalized form
+// handed to the processor and is not byte-identical to Raw.
 type Message struct {
 	Payload     []byte
+	Raw         []byte
 	StartOffset int64
 	EndOffset   int64
 }
@@ -26,6 +30,7 @@ type MessageReader struct {
 	maxMessageBytes int64
 	offset          int64
 	pendingSegment  []byte
+	pendingRaw      []byte
 	pendingStart    int64
 	pendingEnd      int64
 	finished        bool
@@ -46,12 +51,15 @@ func (r *MessageReader) Next() (Message, error) {
 		return Message{}, io.EOF
 	}
 	var payload []byte
+	var raw []byte
 	var start int64
 	if r.pendingSegment != nil {
 		payload = append(payload, r.pendingSegment...)
+		raw = append(raw, r.pendingRaw...)
 		start = r.pendingStart
 		r.offset = r.pendingEnd
 		r.pendingSegment = nil
+		r.pendingRaw = nil
 	}
 	for r.scanner.Scan() {
 		token := append([]byte(nil), r.scanner.Bytes()...)
@@ -59,16 +67,21 @@ func (r *MessageReader) Next() (Message, error) {
 		r.offset += int64(len(token))
 		segment := bytes.TrimRight(token, "\r\n")
 		if len(segment) == 0 {
+			// Blank separators carry no HL7v2 content but still occupy the raw
+			// byte interval the streaming digest must cover.
+			raw = append(raw, token...)
 			continue
 		}
 		if bytes.HasPrefix(segment, []byte("MSH")) {
 			if len(payload) != 0 {
 				r.pendingSegment = append([]byte(nil), segment...)
+				r.pendingRaw = token
 				r.pendingStart = tokenStart
 				r.pendingEnd = r.offset
-				return Message{Payload: payload, StartOffset: start, EndOffset: tokenStart}, nil
+				return Message{Payload: payload, Raw: raw, StartOffset: start, EndOffset: tokenStart}, nil
 			}
 			start = tokenStart
+			raw = nil
 		} else if len(payload) == 0 {
 			return Message{}, ErrInvalidBatchStream
 		}
@@ -76,6 +89,7 @@ func (r *MessageReader) Next() (Message, error) {
 			payload = append(payload, '\r')
 		}
 		payload = append(payload, segment...)
+		raw = append(raw, token...)
 		if int64(len(payload)) > r.maxMessageBytes {
 			return Message{}, ErrMessageTooLarge
 		}
@@ -90,7 +104,7 @@ func (r *MessageReader) Next() (Message, error) {
 	if len(payload) == 0 {
 		return Message{}, io.EOF
 	}
-	return Message{Payload: payload, StartOffset: start, EndOffset: r.offset}, nil
+	return Message{Payload: payload, Raw: raw, StartOffset: start, EndOffset: r.offset}, nil
 }
 
 func splitSegmentWithDelimiter(data []byte, atEOF bool) (advance int, token []byte, err error) {

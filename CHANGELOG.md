@@ -135,6 +135,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   certificate-identity compatibility mode; omitting the identity map preserves
   the existing deployment-fixed principal, server-issued `integration:mllp`
   grant, and exact source-revision digests
+- Batch (S3/SFTP) workload identity: an optional `workload` block in the
+  immutable source revision names one canonical service subject and its grants,
+  and nothing observed on the remote side — object keys, remote metadata, or MSH
+  content — can select or influence it
+- The batch connector evaluates the shared fail-closed `integration.submit`
+  decision before listing, leasing, opening, reading, artifact loading, or any
+  durable write, so an ungranted subject leaves no lease or checkpoint state to
+  poison a later retry
+- `FI_FHIR_BATCH_REQUIRE_WORKLOAD_IDENTITY` refuses to start a batch source in
+  compatibility mode; omitting the `workload` block preserves the existing
+  deployment-fixed principal, server-issued `integration:batch` grant, and exact
+  source-revision digests
+
+### Changed
+
+- Batch receipt provenance no longer trusts remote object modification time. The
+  authoritative `received_at` is now the server-owned custody timestamp recorded
+  when an exact object version is first durably admitted, stable across lease
+  reclaim, worker restart, and checkpoint resume
+- Batch content provenance is now a SHA-256 digest computed over the exact bytes
+  streamed during admission, resumed across checkpoints from marshaled hash state
+  and cross-checked against a full re-read before archive; a disagreement
+  quarantines the object with `DIGEST_MISMATCH` instead of archiving it
+- S3 batch objects now pin the entity tag alongside the exact version ID and
+  re-verify both at every read, archive, and delete
+- `integration_batch_objects.object_modified_at` is renamed
+  `remote_modified_at_advisory` and joined by `object_version`, `object_etag`,
+  and `digest_state` (migration `0002_batch_provenance`). The provenance CHECK is
+  `NOT VALID` so rows admitted before this revision stay visibly distinguishable
+  rather than being given invented provenance
 
 #### Format Adapters
 - CDA/CCDA clinical document parser with namespace-aware XML handling (`internal/parser/cda/`)

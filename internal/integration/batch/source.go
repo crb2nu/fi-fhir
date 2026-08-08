@@ -74,6 +74,7 @@ type SourceRevisionInput struct {
 	Provider        ProviderType
 	S3              *S3Policy
 	SFTP            *SFTPPolicy
+	Workload        *WorkloadIdentity
 	PollSeconds     int64
 	LeaseSeconds    int64
 	ProcessSeconds  int64
@@ -83,27 +84,32 @@ type SourceRevisionInput struct {
 
 // SourceRevision is the immutable runtime contract for one batch source.
 // Secret values remain out of band; only lifecycle binding names are stored.
+// An absent workload block selects compatibility mode and is omitted from the
+// canonical digest input, so existing revisions keep their exact digest.
 type SourceRevision struct {
-	SchemaVersion   string       `json:"schema_version"`
-	ArtifactID      string       `json:"artifact_id"`
-	RevisionID      string       `json:"revision_id"`
-	SourceID        string       `json:"source_id"`
-	Provider        ProviderType `json:"provider"`
-	S3              *S3Policy    `json:"s3,omitempty"`
-	SFTP            *SFTPPolicy  `json:"sftp,omitempty"`
-	PollSeconds     int64        `json:"poll_seconds"`
-	LeaseSeconds    int64        `json:"lease_seconds"`
-	ProcessSeconds  int64        `json:"process_seconds"`
-	MaxFilesPerPoll int          `json:"max_files_per_poll"`
-	MaxMessageBytes int64        `json:"max_message_bytes"`
-	Digest          string       `json:"digest"`
+	SchemaVersion   string            `json:"schema_version"`
+	ArtifactID      string            `json:"artifact_id"`
+	RevisionID      string            `json:"revision_id"`
+	SourceID        string            `json:"source_id"`
+	Provider        ProviderType      `json:"provider"`
+	S3              *S3Policy         `json:"s3,omitempty"`
+	SFTP            *SFTPPolicy       `json:"sftp,omitempty"`
+	Workload        *WorkloadIdentity `json:"workload,omitempty"`
+	PollSeconds     int64             `json:"poll_seconds"`
+	LeaseSeconds    int64             `json:"lease_seconds"`
+	ProcessSeconds  int64             `json:"process_seconds"`
+	MaxFilesPerPoll int               `json:"max_files_per_poll"`
+	MaxMessageBytes int64             `json:"max_message_bytes"`
+	Digest          string            `json:"digest"`
 }
 
 func NewSourceRevision(input SourceRevisionInput) (SourceRevision, error) {
 	revision := SourceRevision{
 		SchemaVersion: SourceSchemaVersion, ArtifactID: input.ArtifactID,
 		RevisionID: input.RevisionID, SourceID: input.SourceID, Provider: input.Provider,
-		S3: cloneS3(input.S3), SFTP: cloneSFTP(input.SFTP), PollSeconds: input.PollSeconds,
+		S3: cloneS3(input.S3), SFTP: cloneSFTP(input.SFTP),
+		Workload:     cloneWorkloadIdentity(input.Workload),
+		PollSeconds:  input.PollSeconds,
 		LeaseSeconds: input.LeaseSeconds, ProcessSeconds: input.ProcessSeconds,
 		MaxFilesPerPoll: input.MaxFilesPerPoll, MaxMessageBytes: input.MaxMessageBytes,
 	}
@@ -193,7 +199,7 @@ func (r SourceRevision) validateSemanticFields() error {
 	default:
 		return ErrInvalidSourceRevision
 	}
-	return nil
+	return validateWorkloadIdentity(r.Workload)
 }
 
 func validateS3(policy S3Policy) error {
@@ -260,6 +266,7 @@ func (r SourceRevision) secretBindingNames() []string {
 func (r SourceRevision) semanticDigest() (string, error) {
 	canonical := r
 	canonical.Digest = ""
+	canonical.Workload = canonicalWorkloadIdentity(r.Workload)
 	encoded, err := json.Marshal(canonical)
 	if err != nil {
 		return "", err

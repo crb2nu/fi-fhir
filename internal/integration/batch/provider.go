@@ -20,12 +20,20 @@ var (
 
 // Object is one exact provider object version. Path is used only in memory and
 // is never persisted by the checkpoint store.
+//
+// Trust boundary: Version and ETag are provider-owned exact-version identifiers
+// re-verified on every read. RemoteModifiedAtAdvisory is remote-controlled
+// metadata. It is retained for operator diagnostics and as a change-detection
+// input to the SFTP synthetic version, and it is excluded from every trust,
+// provenance, and audit decision. Receipt provenance uses the server-owned
+// custody timestamp and the streaming content digest instead.
 type Object struct {
-	Provider   ProviderType
-	Path       string
-	Version    string
-	Size       int64
-	ModifiedAt time.Time
+	Provider                 ProviderType
+	Path                     string
+	Version                  string
+	ETag                     string
+	Size                     int64
+	RemoteModifiedAtAdvisory time.Time
 }
 
 // Provider supplies exact-version streaming and archive operations.
@@ -43,10 +51,30 @@ func (o Object) validate() error {
 	if (o.Provider != ProviderS3 && o.Provider != ProviderSFTP) ||
 		o.Path == "" || strings.TrimSpace(o.Path) != o.Path || strings.ContainsAny(o.Path, "\r\n\x00") ||
 		o.Version == "" || len(o.Version) > 2048 || strings.TrimSpace(o.Version) != o.Version ||
-		o.Size <= 0 || o.ModifiedAt.IsZero() {
+		o.Size <= 0 || o.RemoteModifiedAtAdvisory.IsZero() {
+		return ErrInvalidObject
+	}
+	// S3 pins the entity tag alongside the version ID; SFTP has no equivalent
+	// server-issued entity tag and must not fabricate one.
+	if o.Provider == ProviderS3 && !validETag(o.ETag) {
+		return ErrInvalidObject
+	}
+	if o.Provider == ProviderSFTP && o.ETag != "" {
 		return ErrInvalidObject
 	}
 	return nil
+}
+
+func validETag(value string) bool {
+	if value == "" || len(value) > 256 || strings.TrimSpace(value) != value {
+		return false
+	}
+	for _, character := range value {
+		if character < '!' || character > '~' || character == '"' {
+			return false
+		}
+	}
+	return true
 }
 
 func objectID(source SourceRevision, object Object) (string, error) {
