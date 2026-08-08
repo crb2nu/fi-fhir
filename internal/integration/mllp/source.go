@@ -71,8 +71,14 @@ type TLSPolicy struct {
 	ClientCABinding          string  `json:"client_ca_binding,omitempty"`
 }
 
+// ClientPolicy bounds which network peers may connect and, when identities are
+// declared, which verified client certificates may submit. An empty identity
+// list selects compatibility mode for existing deployments; the field is
+// omitted from the canonical digest input so existing revisions keep their
+// exact digest.
 type ClientPolicy struct {
-	AllowedCIDRs []string `json:"allowed_cidrs"`
+	AllowedCIDRs []string         `json:"allowed_cidrs"`
+	Identities   []ClientIdentity `json:"identities,omitempty"`
 }
 
 type AcknowledgementPolicy struct {
@@ -117,16 +123,19 @@ type SourceRevision struct {
 
 func NewSourceRevision(input SourceRevisionInput) (SourceRevision, error) {
 	revision := SourceRevision{
-		SchemaVersion:    SourceSchemaVersion,
-		ArtifactID:       input.ArtifactID,
-		RevisionID:       input.RevisionID,
-		SourceID:         input.SourceID,
-		ListenAddress:    input.ListenAddress,
-		Encoding:         input.Encoding,
-		Framing:          input.Framing,
-		Timeouts:         input.Timeouts,
-		TLS:              input.TLS,
-		Clients:          ClientPolicy{AllowedCIDRs: append([]string(nil), input.Clients.AllowedCIDRs...)},
+		SchemaVersion: SourceSchemaVersion,
+		ArtifactID:    input.ArtifactID,
+		RevisionID:    input.RevisionID,
+		SourceID:      input.SourceID,
+		ListenAddress: input.ListenAddress,
+		Encoding:      input.Encoding,
+		Framing:       input.Framing,
+		Timeouts:      input.Timeouts,
+		TLS:           input.TLS,
+		Clients: ClientPolicy{
+			AllowedCIDRs: append([]string(nil), input.Clients.AllowedCIDRs...),
+			Identities:   cloneClientIdentities(input.Clients.Identities),
+		},
 		Acknowledgements: input.Acknowledgements,
 		MaxMessageBytes:  input.MaxMessageBytes,
 		MaxConnections:   input.MaxConnections,
@@ -285,6 +294,13 @@ func (r SourceRevision) validateSemanticFields() error {
 	if err := validateClientCIDRs(r.Clients.AllowedCIDRs); err != nil {
 		return err
 	}
+	if err := validateClientIdentities(r.Clients.Identities); err != nil {
+		return err
+	}
+	// Certificate identity is meaningless without a verified peer certificate.
+	if r.Clients.IdentityMappingEnabled() && r.TLS.Mode != TLSModeMutual {
+		return ErrInvalidSourceRevision
+	}
 	if r.Acknowledgements.Mode != AcknowledgementModeApplication &&
 		r.Acknowledgements.Mode != AcknowledgementModeCommit {
 		return ErrInvalidSourceRevision
@@ -401,8 +417,12 @@ func (r SourceRevision) semanticDigest() (string, error) {
 		SchemaVersion: r.SchemaVersion, ArtifactID: r.ArtifactID,
 		RevisionID: r.RevisionID, SourceID: r.SourceID, ListenAddress: r.ListenAddress,
 		Encoding: r.Encoding, Framing: r.Framing, Timeouts: r.Timeouts, TLS: r.TLS,
-		Clients: ClientPolicy{AllowedCIDRs: cidrs}, Acknowledgements: r.Acknowledgements,
-		MaxMessageBytes: r.MaxMessageBytes, MaxConnections: r.MaxConnections,
+		Clients: ClientPolicy{
+			AllowedCIDRs: cidrs,
+			Identities:   canonicalClientIdentities(r.Clients.Identities),
+		},
+		Acknowledgements: r.Acknowledgements,
+		MaxMessageBytes:  r.MaxMessageBytes, MaxConnections: r.MaxConnections,
 	}
 	encoded, err := json.Marshal(canonical)
 	if err != nil {

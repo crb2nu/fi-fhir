@@ -32,7 +32,7 @@ func TestServiceSubmitsExactDeployedProductionRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result, err := service.Submit(context.Background(), testHL7("CTRL1"))
+	result, err := service.Submit(context.Background(), ConnectionIdentity{}, testHL7("CTRL1"))
 	if err != nil {
 		t.Fatalf("submit: %v", err)
 	}
@@ -47,7 +47,7 @@ func TestServiceSubmitsExactDeployedProductionRequest(t *testing.T) {
 		t.Fatalf("wrong envelope binding: %#v", captured.Envelope)
 	}
 	if captured.Security.Principal.Kind != integration.PrincipalKindService ||
-		captured.Security.Principal.AuthMethod != "mllp-allowlist" ||
+		captured.Security.Principal.AuthMethod != AuthMethodAllowlist ||
 		len(captured.Security.Principal.Roles) != 1 || captured.Security.Principal.Roles[0] != SubmitRole {
 		t.Fatalf("wrong principal: %#v", captured.Security.Principal)
 	}
@@ -95,7 +95,7 @@ func TestServiceFailsClosedForLifecycleAndProcessorErrors(t *testing.T) {
 			if payload == nil {
 				payload = testHL7("CTRL1")
 			}
-			_, err = service.Submit(context.Background(), payload)
+			_, err = service.Submit(context.Background(), ConnectionIdentity{}, payload)
 			if !errors.Is(err, test.want) {
 				t.Fatalf("got %v, want %v", err, test.want)
 			}
@@ -121,7 +121,7 @@ func TestServiceProcessTimeoutIsRetryable(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
-	if _, err := service.Submit(ctx, testHL7("CTRL1")); !errors.Is(err, ErrRetryable) {
+	if _, err := service.Submit(ctx, ConnectionIdentity{}, testHL7("CTRL1")); !errors.Is(err, ErrRetryable) {
 		t.Fatalf("got %v", err)
 	}
 }

@@ -5299,7 +5299,8 @@ Optional durable HL7v2 ingress environment:
 Optional deployed MLLP environment:
   FI_FHIR_MLLP_SOURCE_CONFIG_PATH      Immutable content-addressed source JSON
   FI_FHIR_MLLP_DEFINITION_ID           Lifecycle definition selected by server config
-  FI_FHIR_MLLP_PRINCIPAL_ID            Bound MLLP service principal
+  FI_FHIR_MLLP_PRINCIPAL_ID            Compatibility-mode MLLP service principal
+  FI_FHIR_MLLP_REQUIRE_CLIENT_IDENTITY Refuse to start without clients.identities
   FI_FHIR_MLLP_TLS_CERT_FILE           Server certificate PEM (mutual TLS mode)
   FI_FHIR_MLLP_TLS_KEY_FILE            Server private key PEM (mutual TLS mode)
   FI_FHIR_MLLP_TLS_CLIENT_CA_FILE      Trusted client CA PEM (mutual TLS mode)

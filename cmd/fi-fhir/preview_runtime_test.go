@@ -529,6 +529,58 @@ func TestLoadMLLPRuntimeFromEnvFailsClosedBeforeDatabase(t *testing.T) {
 	}
 }
 
+func TestLoadMLLPRuntimeRequiresConfiguredClientIdentity(t *testing.T) {
+	t.Setenv("FI_FHIR_MLLP_DEFINITION_ID", "integration-mllp")
+	t.Setenv("FI_FHIR_MLLP_PRINCIPAL_ID", "mllp-listener")
+	t.Setenv("FI_FHIR_MLLP_REQUIRE_CLIENT_IDENTITY", "true")
+
+	// Compatibility mode must not start when the deployment demands mapping.
+	compatibility := writeMLLPSourceRevision(t, mllp.TLSPolicy{Mode: mllp.TLSModeDisabled})
+	if _, _, _, _, err := loadMLLPRuntimeFromEnv(compatibility); err == nil ||
+		!strings.Contains(err.Error(), "FI_FHIR_MLLP_REQUIRE_CLIENT_IDENTITY") {
+		t.Fatalf("compatibility source started under required identity mapping: %v", err)
+	}
+
+	mutual := mllp.TLSPolicy{
+		Mode: mllp.TLSModeMutual, ServerCertificateBinding: "mllp-cert",
+		ServerPrivateKeyBinding: "mllp-key", ClientCABinding: "mllp-client-ca",
+	}
+	mapped := writeMLLPSourceRevisionWithIdentities(t, mutual, []mllp.ClientIdentity{{
+		Subject: "svc-sender-a", URISAN: "spiffe://hospital-a/mllp/sender-a",
+		Grants: []string{mllp.SubmitRole},
+	}})
+	certificate := writeRuntimeSecretFile(t, "tls.crt", "certificate")
+	key := writeRuntimeSecretFile(t, "tls.key", "private key")
+	clientCA := writeRuntimeSecretFile(t, "client-ca.crt", "client ca")
+	t.Setenv("FI_FHIR_MLLP_TLS_CERT_FILE", certificate)
+	t.Setenv("FI_FHIR_MLLP_TLS_KEY_FILE", key)
+	t.Setenv("FI_FHIR_MLLP_TLS_CLIENT_CA_FILE", clientCA)
+	loaded, _, _, _, err := loadMLLPRuntimeFromEnv(mapped)
+	if err != nil {
+		t.Fatalf("mapped source: %v", err)
+	}
+	if !loaded.Clients.IdentityMappingEnabled() || len(loaded.Clients.Identities) != 1 ||
+		loaded.Clients.Identities[0].Subject != "svc-sender-a" {
+		t.Fatalf("identity map did not survive decoding: %#v", loaded.Clients)
+	}
+
+	// An invalid boolean fails closed rather than defaulting to compatibility.
+	t.Setenv("FI_FHIR_MLLP_REQUIRE_CLIENT_IDENTITY", "yes-please")
+	if _, _, _, _, err := loadMLLPRuntimeFromEnv(mapped); err == nil ||
+		!strings.Contains(err.Error(), "FI_FHIR_MLLP_REQUIRE_CLIENT_IDENTITY") {
+		t.Fatalf("invalid boolean error = %v", err)
+	}
+}
+
+func writeRuntimeSecretFile(t *testing.T, name, contents string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), name)
+	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
 func TestLoadSessionRetentionProtector(t *testing.T) {
 	t.Setenv("FI_FHIR_INTEGRATION_SESSION_RETENTION_KEY_FILE", "")
 	protector, err := loadSessionRetentionProtector()
@@ -660,12 +712,18 @@ func writeRuntimeRegistry(t *testing.T, tenantID string) string {
 
 func writeMLLPSourceRevision(t *testing.T, tlsPolicy mllp.TLSPolicy) string {
 	t.Helper()
+	return writeMLLPSourceRevisionWithIdentities(t, tlsPolicy, nil)
+}
+
+func writeMLLPSourceRevisionWithIdentities(t *testing.T, tlsPolicy mllp.TLSPolicy, identities []mllp.ClientIdentity) string {
+	t.Helper()
 	revision, err := mllp.NewSourceRevision(mllp.SourceRevisionInput{
 		ArtifactID: "source-adt", RevisionID: "source-1", SourceID: "adt-east",
 		ListenAddress: "127.0.0.1:2575", Encoding: "utf-8",
-		Framing:  mllp.FramingPolicy{StartByte: mllp.StandardStartByte, EndByte: mllp.StandardEndByte, TrailerByte: mllp.StandardTrailerByte},
-		Timeouts: mllp.TimeoutPolicy{ReadSeconds: 5, WriteSeconds: 5, IdleSeconds: 30, ProcessSeconds: 30},
-		TLS:      tlsPolicy, Clients: mllp.ClientPolicy{AllowedCIDRs: []string{"127.0.0.0/8"}},
+		Framing:          mllp.FramingPolicy{StartByte: mllp.StandardStartByte, EndByte: mllp.StandardEndByte, TrailerByte: mllp.StandardTrailerByte},
+		Timeouts:         mllp.TimeoutPolicy{ReadSeconds: 5, WriteSeconds: 5, IdleSeconds: 30, ProcessSeconds: 30},
+		TLS:              tlsPolicy,
+		Clients:          mllp.ClientPolicy{AllowedCIDRs: []string{"127.0.0.0/8"}, Identities: identities},
 		Acknowledgements: mllp.AcknowledgementPolicy{Mode: mllp.AcknowledgementModeApplication, IncludeErrorSegment: true},
 		MaxMessageBytes:  1048576, MaxConnections: 32,
 	})

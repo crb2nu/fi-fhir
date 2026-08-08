@@ -435,12 +435,53 @@ documentation, module-integrity, and reachable-vulnerability gates pass.
   identity, GraphQL control actions, delivery/export policy, immutable audit,
   PHI controls, and GitOps activation in later slices.
 
-Implementation status (2026-08-07): implemented and locally verified; landing
-pipeline evidence pending. The load-bearing kill-test proves two allowlisted
-clients through one real handler remain distinct despite spoofed provenance
-headers, and proves a no-grant production request stops before artifact loading
-or durability. Focused and full-repository race suites, lint, vet,
-documentation, module-integrity, and local vulnerability/security scans pass.
+Implementation status (2026-08-07): merged in MR !132 as `9d952552` (merge
+commit `ea760bc3`); exact main pipeline 22333 passed. The load-bearing kill-test
+proves two allowlisted clients through one real handler remain distinct despite
+spoofed provenance headers, and proves a no-grant production request stops
+before artifact loading or durability. Focused and full-repository race suites,
+lint, vet, documentation, module-integrity, and vulnerability/security scans
+pass.
+
+#### Slice 4.1b2: MLLP certificate service identity and submit authorization
+
+- Add an optional `clients.identities` allowlist to the immutable, content-
+  addressed MLLP source revision. Each entry maps one authority-scoped
+  certificate criterion — a URI subject alternative name, a subject public key
+  info pin, or both — to one canonical service subject and its grants. Common
+  names are never accepted as identity.
+- Resolve one verified `ConnectionIdentity` per accepted TLS connection
+  immediately after the handshake, before any frame is read, parsed, processed,
+  or admitted. A CA-valid certificate matching zero entries or more than one
+  entry closes the connection with no acknowledgement.
+- Carry the verified subject, auth method, and grants into the same fail-closed
+  `integration.submit` decision added in Slice 4.1b1, evaluated at the adapter
+  boundary before capacity and envelope construction, again in the shared
+  processor before artifact loading, and again in transaction-scoped runnable
+  admission. Source, tenant, and integration binding stay server-owned.
+- Keep identity mapping all-or-nothing per listener. An empty identity list
+  preserves the existing deployment-fixed principal and server-issued
+  `integration:mllp` grant, and existing source revisions keep their exact
+  digest. Declaring identities requires mutual TLS, and no connection can fall
+  back between the two modes. `FI_FHIR_MLLP_REQUIRE_CLIENT_IDENTITY` lets a
+  deployment refuse to start in compatibility mode.
+- Keep batch/S3/SFTP workload identity, destination-scoped identity, GraphQL
+  control actions, token issuance/introspection, certificate revocation
+  transport, immutable audit storage, PHI controls, and GitOps activation in
+  later slices.
+
+Implementation status (2026-08-08): implemented and locally verified; landing
+pipeline evidence recorded in the Slice 4.1b2 handoff. The load-bearing kill-test
+`TestPostgresMLLPRuntime_CertificateIdentityAuthorization` runs the real MLLP
+listener over real TLS 1.3 mutual authentication against PostgreSQL 16 with the
+production durable processor. It proves two mapped certificates stay two
+distinct verified subjects at the authorization decision even when the second
+sender's MSH provenance impersonates the first, that an unmapped CA-valid
+certificate reaches neither artifact loading nor any durable record class, that
+an ungranted mapped identity is denied for the exact tenant/revision/source, and
+that compatibility mode is unchanged. Three independent negative controls —
+silent fallback for unmatched certificates, ignored per-identity grants, and a
+deployment-fixed principal in mapped mode — each fail the test.
 
 ### Slice 4.2: operator control plane
 

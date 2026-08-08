@@ -43,16 +43,17 @@ type ServiceConfig struct {
 }
 
 type Service struct {
-	tenantID     string
-	definitionID string
-	principalID  string
-	authMethod   string
-	source       SourceRevision
-	resolver     RunnableResolver
-	processor    MessageProcessor
-	capacity     *capacityGate
-	now          func() time.Time
-	newID        func() string
+	tenantID       string
+	definitionID   string
+	principalID    string
+	authMethod     string
+	identityMapped bool
+	source         SourceRevision
+	resolver       RunnableResolver
+	processor      MessageProcessor
+	capacity       *capacityGate
+	now            func() time.Time
+	newID          func() string
 }
 
 func NewService(config ServiceConfig) (*Service, error) {
@@ -69,24 +70,54 @@ func NewService(config ServiceConfig) (*Service, error) {
 	if newID == nil {
 		newID = uuid.NewString
 	}
-	authMethod := "mllp-allowlist"
+	authMethod := AuthMethodAllowlist
 	if config.Source.TLS.Mode == TLSModeMutual {
-		authMethod = "mllp-mtls"
+		authMethod = AuthMethodMutualTLS
 	}
 	return &Service{
 		tenantID: config.TenantID, definitionID: config.DefinitionID,
 		principalID: config.PrincipalID, authMethod: authMethod,
-		source: config.Source, resolver: config.Resolver, processor: config.Processor,
+		identityMapped: config.Source.Clients.IdentityMappingEnabled(),
+		source:         config.Source, resolver: config.Resolver, processor: config.Processor,
 		capacity: newCapacityGate(clock), now: clock, newID: newID,
 	}, nil
 }
 
-func (s *Service) Submit(ctx context.Context, payload []byte) (integration.ProcessResult, error) {
+// resolvePrincipal converts the verified per-connection certificate identity
+// into server-owned principal fields. It fails closed rather than degrading a
+// mapped listener to the deployment-fixed compatibility principal.
+func (s *Service) resolvePrincipal(identity ConnectionIdentity) (integration.Principal, error) {
+	if !s.identityMapped {
+		if !identity.zero() {
+			return integration.Principal{}, ErrUnavailable
+		}
+		return integration.Principal{
+			ID: s.principalID, Kind: integration.PrincipalKindService,
+			AuthMethod: s.authMethod, Roles: []string{SubmitRole},
+		}, nil
+	}
+	if !validIdentity(identity.Subject) || identity.AuthMethod != AuthMethodCertificateIdentity {
+		return integration.Principal{}, ErrUnavailable
+	}
+	return integration.Principal{
+		ID: identity.Subject, Kind: integration.PrincipalKindService,
+		AuthMethod: identity.AuthMethod, Roles: append([]string(nil), identity.Grants...),
+	}, nil
+}
+
+// Submit admits one framed HL7v2 payload under the verified connection
+// identity. In compatibility mode the identity is the zero value and the
+// deployment-fixed principal applies.
+func (s *Service) Submit(ctx context.Context, identity ConnectionIdentity, payload []byte) (integration.ProcessResult, error) {
 	if s == nil || s.resolver == nil || s.processor == nil || s.capacity == nil ||
 		s.now == nil || s.newID == nil || ctx == nil {
 		return integration.ProcessResult{}, ErrUnavailable
 	}
 	if err := ctx.Err(); err != nil {
+		return integration.ProcessResult{}, err
+	}
+	principal, err := s.resolvePrincipal(identity)
+	if err != nil {
 		return integration.ProcessResult{}, err
 	}
 	if len(payload) == 0 || int64(len(payload)) > s.source.MaxMessageBytes {
@@ -100,6 +131,18 @@ func (s *Service) Submit(ctx context.Context, payload []byte) (integration.Proce
 		return integration.ProcessResult{}, ErrUnavailable
 	}
 	if err := s.source.ValidateAgainst(binding); err != nil {
+		return integration.ProcessResult{}, ErrUnavailable
+	}
+	// Source identity stays server-owned: it is bound from the exact deployed
+	// release, never from the certificate or the message.
+	principal.SourceID = binding.SourceID
+	security := integration.SecurityContext{TenantID: s.tenantID, Principal: principal}
+	if err := authorization.AuthorizeSubmission(
+		security,
+		s.tenantID,
+		binding.IntegrationRevision,
+		binding.SourceID,
+	); err != nil {
 		return integration.ProcessResult{}, ErrUnavailable
 	}
 
@@ -129,22 +172,7 @@ func (s *Service) Submit(ctx context.Context, payload []byte) (integration.Proce
 	}
 	request := integration.ProcessRequest{
 		Mode: integration.ExecutionModeProduction, IntegrationRevision: binding.IntegrationRevision,
-		Security: integration.SecurityContext{
-			TenantID: s.tenantID,
-			Principal: integration.Principal{
-				ID: s.principalID, Kind: integration.PrincipalKindService,
-				AuthMethod: s.authMethod, Roles: []string{SubmitRole}, SourceID: binding.SourceID,
-			},
-		},
-		Envelope: envelope, CorrelationID: correlationID,
-	}
-	if err := authorization.AuthorizeSubmission(
-		request.Security,
-		s.tenantID,
-		binding.IntegrationRevision,
-		binding.SourceID,
-	); err != nil {
-		return integration.ProcessResult{}, ErrUnavailable
+		Security: security, Envelope: envelope, CorrelationID: correlationID,
 	}
 	result, err := s.processor.Process(processCtx, request)
 	if err == nil {
