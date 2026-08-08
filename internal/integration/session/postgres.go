@@ -23,6 +23,9 @@ var workflowSimulationsMigration string
 //go:embed migrations/0003_publications.sql
 var publicationsMigration string
 
+//go:embed migrations/0004_export_attribution.sql
+var exportAttributionMigration string
+
 // PayloadProtector encrypts explicitly retained raw sample bytes outside SQL.
 type PayloadProtector interface {
 	Protect(context.Context, []byte, []byte) ([]byte, error)
@@ -119,6 +122,21 @@ func (s *PostgresStore) Migrate(ctx context.Context) error {
 			`INSERT INTO integration_session_schema_migrations (version, name) VALUES (3, '0003_publications')`,
 		); err != nil {
 			return fmt.Errorf("record publication migration: %w", err)
+		}
+	}
+	if err := tx.QueryRowContext(ctx,
+		`SELECT EXISTS (SELECT 1 FROM integration_session_schema_migrations WHERE version = 4)`,
+	).Scan(&applied); err != nil {
+		return fmt.Errorf("read export attribution migration ledger: %w", err)
+	}
+	if !applied {
+		if _, err := tx.ExecContext(ctx, exportAttributionMigration); err != nil {
+			return fmt.Errorf("apply export attribution migration: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO integration_session_schema_migrations (version, name) VALUES (4, '0004_export_attribution')`,
+		); err != nil {
+			return fmt.Errorf("record export attribution migration: %w", err)
 		}
 	}
 	if err := tx.Commit(); err != nil {
@@ -849,7 +867,14 @@ func (s *PostgresStore) ListDecisions(ctx context.Context, sessionID string) ([]
 	return records, nil
 }
 
-func (s *PostgresStore) ExportBundle(ctx context.Context, sessionID string) (*ExportBundle, error) {
+func (s *PostgresStore) ExportBundle(ctx context.Context, req ExportRequest) (*ExportBundle, error) {
+	// Attribution is checked before any session read so an unattributable export
+	// assembles no bundle and records nothing.
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
+	req = req.normalized()
+	sessionID := req.SessionID
 	session, err := s.GetSession(ctx, sessionID)
 	if err != nil {
 		return nil, err
@@ -858,6 +883,9 @@ func (s *PostgresStore) ExportBundle(ctx context.Context, sessionID string) (*Ex
 	if err != nil {
 		return nil, err
 	}
+	// Retained-policy raw stays stripped unconditionally. Slice 4.1d C1 does not
+	// lift that: req.IncludeRawPayload governs only the redacted raw the GraphQL
+	// layer returns, and is recorded here so the disclosure is auditable.
 	for index := range samples {
 		if samples[index].PHIPolicy == PHIPolicyRetain {
 			samples[index].Raw = ""
@@ -884,7 +912,10 @@ func (s *PostgresStore) ExportBundle(ctx context.Context, sessionID string) (*Ex
 		return nil, err
 	}
 	bundle := &ExportBundle{
-		ID: newID("export"), Session: *session, Samples: samples, Drafts: drafts,
+		ID: newID("export"), Session: *session,
+		Principal: clonePrincipal(req.Principal), Reason: req.Reason,
+		IncludeRawPayload: req.IncludeRawPayload,
+		Samples:           samples, Drafts: drafts,
 		Runs: runs, Simulations: simulations, Publications: publications,
 		Decisions: decisions, ExportedAt: s.now(),
 	}
@@ -892,11 +923,17 @@ func (s *PostgresStore) ExportBundle(ctx context.Context, sessionID string) (*Ex
 	if err != nil {
 		return nil, err
 	}
+	principalJSON, err := json.Marshal(bundle.Principal)
+	if err != nil {
+		return nil, fmt.Errorf("marshal session export principal: %w", err)
+	}
 	_, err = s.db.ExecContext(ctx, `
 		INSERT INTO integration_session_exports
-			(tenant_id, session_id, export_id, exported_at, record_json)
-		VALUES ($1, $2, $3, $4, $5)
-	`, s.tenantID, sessionID, bundle.ID, bundle.ExportedAt, raw)
+			(tenant_id, session_id, export_id, exported_at, record_json,
+			 principal_json, reason, include_raw_payload)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`, s.tenantID, sessionID, bundle.ID, bundle.ExportedAt, raw,
+		principalJSON, bundle.Reason, bundle.IncludeRawPayload)
 	if err != nil {
 		return nil, fmt.Errorf("record session export: %w", err)
 	}

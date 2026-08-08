@@ -3,6 +3,7 @@ package resolvers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -177,7 +178,9 @@ routes:
 	if err != nil || len(listed) != 2 {
 		t.Fatalf("failed baseline persisted a simulation: %#v, %v", listed, err)
 	}
-	bundle, err := mutationResolver.ExportIntegrationBundle(context.Background(), model.ExportIntegrationBundleInput{SessionID: sessionRecord.ID})
+	bundle, err := mutationResolver.ExportIntegrationBundle(exportContext(nil), model.ExportIntegrationBundleInput{
+		SessionID: sessionRecord.ID, Reason: "simulation coverage review",
+	})
 	if err != nil || len(bundle.WorkflowSimulations) != 2 {
 		t.Fatalf("ExportIntegrationBundle() simulations = %#v, %v", bundle, err)
 	}
@@ -222,8 +225,8 @@ func TestIntegrationSession_DiagnosticsAcceptFixAndBundle(t *testing.T) {
 		t.Fatalf("expected accepted diagnostic, got %#v", accepted)
 	}
 
-	bundle, err := mutationResolver.ExportIntegrationBundle(context.Background(), model.ExportIntegrationBundleInput{
-		SessionID: session.ID,
+	bundle, err := mutationResolver.ExportIntegrationBundle(exportContext(nil), model.ExportIntegrationBundleInput{
+		SessionID: session.ID, Reason: "diagnostic triage review",
 	})
 	if err != nil {
 		t.Fatalf("ExportIntegrationBundle failed: %v", err)
@@ -457,4 +460,52 @@ func hasGraphQLLineage(links []model.LineageLink, sourcePath, targetPath string)
 		}
 	}
 	return false
+}
+
+// exportContext builds a verified caller context for the export mutation, with
+// the supplied extra roles added to the baseline operator role.
+func exportContext(extraRoles []string) context.Context {
+	roles := append([]string{"graphql:operator"}, extraRoles...)
+	return requestsecurity.WithSecurityContext(context.Background(), integration.SecurityContext{
+		TenantID: "tenant-a",
+		Principal: integration.Principal{
+			ID: "operator-1", Kind: integration.PrincipalKindHuman, AuthMethod: "oidc", Roles: roles,
+		},
+	})
+}
+
+func TestIntegrationSessionExport_AttributionAndRawPayloadGrant(t *testing.T) {
+	resolver := NewResolver()
+	mutation := &mutationResolver{resolver}
+	session := createTestIntegrationSession(t, mutation)
+
+	if _, err := mutation.ExportIntegrationBundle(context.Background(), model.ExportIntegrationBundleInput{
+		SessionID: session.ID, Reason: "unauthenticated attempt",
+	}); err == nil {
+		t.Fatal("unauthenticated export succeeded")
+	}
+
+	if _, err := mutation.ExportIntegrationBundle(exportContext(nil), model.ExportIntegrationBundleInput{
+		SessionID: session.ID, Reason: "   ",
+	}); !errors.Is(err, enginesession.ErrInvalid) {
+		t.Fatalf("export without a reason = %v, want ErrInvalid", err)
+	}
+
+	includeRaw := true
+	_, err := mutation.ExportIntegrationBundle(exportContext(nil), model.ExportIntegrationBundleInput{
+		SessionID: session.ID, Reason: "raw payload review", IncludeRawPayload: &includeRaw,
+	})
+	if !errors.Is(err, ErrExportRawPayloadForbidden) {
+		t.Fatalf("ungranted raw export = %v, want ErrExportRawPayloadForbidden", err)
+	}
+	if strings.Contains(err.Error(), session.ID) {
+		t.Fatalf("refusal named the inventory, not the decision: %v", err)
+	}
+
+	granted := exportContext([]string{enginesession.PHIExportRole})
+	if _, err := mutation.ExportIntegrationBundle(granted, model.ExportIntegrationBundleInput{
+		SessionID: session.ID, Reason: "raw payload review", IncludeRawPayload: &includeRaw,
+	}); err != nil {
+		t.Fatalf("granted raw export failed: %v", err)
+	}
 }

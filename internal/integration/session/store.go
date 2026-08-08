@@ -13,12 +13,16 @@ import (
 	"time"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
 
 var (
 	ErrNotFound  = errors.New("integration session: not found")
 	ErrInvalid   = errors.New("integration session: invalid")
 	ErrImmutable = errors.New("integration session: immutable record")
+	// ErrForbidden means the verified caller lacks the grant a disclosure needs.
+	// It names the decision, never the inventory.
+	ErrForbidden = errors.New("integration session: disclosure forbidden")
 )
 
 // Store is the restart-safe Integration Session persistence boundary.
@@ -47,7 +51,7 @@ type Store interface {
 	ListPublications(context.Context, string) ([]Publication, error)
 	AcceptDecision(context.Context, AcceptDecisionRequest) (*Decision, error)
 	ListDecisions(context.Context, string) ([]Decision, error)
-	ExportBundle(context.Context, string) (*ExportBundle, error)
+	ExportBundle(context.Context, ExportRequest) (*ExportBundle, error)
 	GetExport(context.Context, string, string) (*ExportBundle, error)
 	ListExports(context.Context, string) ([]ExportBundle, error)
 }
@@ -560,7 +564,14 @@ func (s *MemoryStore) ListRuns(_ context.Context, sessionID string) ([]Run, erro
 	return out, nil
 }
 
-func (s *MemoryStore) ExportBundle(ctx context.Context, sessionID string) (*ExportBundle, error) {
+func (s *MemoryStore) ExportBundle(ctx context.Context, req ExportRequest) (*ExportBundle, error) {
+	// Attribution is checked before any session read so an unattributable export
+	// assembles no bundle and records nothing.
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
+	req = req.normalized()
+	sessionID := req.SessionID
 	session, err := s.GetSession(ctx, sessionID)
 	if err != nil {
 		return nil, err
@@ -596,7 +607,10 @@ func (s *MemoryStore) ExportBundle(ctx context.Context, sessionID string) (*Expo
 	}
 	exportID := newID("export")
 	bundle := &ExportBundle{
-		ID: exportID, Session: *session, Samples: samples, Drafts: drafts,
+		ID: exportID, Session: *session,
+		Principal: clonePrincipal(req.Principal), Reason: req.Reason,
+		IncludeRawPayload: req.IncludeRawPayload,
+		Samples:           samples, Drafts: drafts,
 		Runs: runs, Simulations: simulations, Publications: publications,
 		Decisions: decisions, ExportedAt: s.now(),
 	}
@@ -784,6 +798,11 @@ func cloneStrings(in []string) []string {
 	return append([]string(nil), in...)
 }
 
+func clonePrincipal(in integration.Principal) integration.Principal {
+	in.Roles = cloneStrings(in.Roles)
+	return in
+}
+
 func cloneMap(in map[string]string) map[string]string {
 	if in == nil {
 		return nil
@@ -801,6 +820,7 @@ func cloneBundle(in *ExportBundle) *ExportBundle {
 	}
 	out := *in
 	out.Session = *cloneSession(&in.Session)
+	out.Principal = clonePrincipal(in.Principal)
 	out.Samples = append([]Sample(nil), in.Samples...)
 	out.Drafts = make([]ArtifactDraft, len(in.Drafts))
 	for i := range in.Drafts {

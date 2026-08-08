@@ -136,7 +136,7 @@ func TestBundleExportIncludesSessionArtifactsAndRuns(t *testing.T) {
 		t.Fatalf("RunHL7v2 error: %v", err)
 	}
 
-	bundle, err := store.ExportBundle(ctx, sess.ID)
+	bundle, err := store.ExportBundle(ctx, testExportRequest(sess.ID))
 	if err != nil {
 		t.Fatalf("ExportBundle error: %v", err)
 	}
@@ -199,7 +199,7 @@ func TestRunnerPinsExactProfileRevision(t *testing.T) {
 	if err != nil || decision.ID == "" {
 		t.Fatalf("AcceptDecision = %#v, %v", decision, err)
 	}
-	bundle, err := store.ExportBundle(ctx, sess.ID)
+	bundle, err := store.ExportBundle(ctx, testExportRequest(sess.ID))
 	if err != nil || bundle.ID == "" || len(bundle.Decisions) != 1 {
 		t.Fatalf("ExportBundle = %#v, %v", bundle, err)
 	}

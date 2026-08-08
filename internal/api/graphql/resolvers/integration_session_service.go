@@ -468,8 +468,36 @@ func (s *integrationSessionService) acceptDiagnostic(ctx context.Context, input 
 	return nil, fmt.Errorf("session diagnostic %q not found", input.DiagnosticID)
 }
 
-func (s *integrationSessionService) exportBundle(input model.ExportIntegrationBundleInput) (*model.IntegrationBundle, error) {
-	bundle, err := s.store.ExportBundle(context.Background(), input.SessionID)
+// ErrExportUnauthenticated means no verified caller identity reached the export
+// mutation, so the disclosure could not be attributed.
+var ErrExportUnauthenticated = fmt.Errorf("integration bundle export requires a verified caller identity")
+
+// ErrExportRawPayloadForbidden names the missing decision, not the inventory:
+// it says which grant is required, never whether the session or its raw
+// payloads exist.
+var ErrExportRawPayloadForbidden = fmt.Errorf(
+	"integration bundle export with raw payloads requires the %s grant", enginesession.PHIExportRole)
+
+func (s *integrationSessionService) exportBundle(
+	ctx context.Context,
+	input model.ExportIntegrationBundleInput,
+) (*model.IntegrationBundle, error) {
+	security, authenticated := requestsecurity.SecurityContextFromContext(ctx)
+	if !authenticated {
+		return nil, ErrExportUnauthenticated
+	}
+	includeRaw := input.IncludeRawPayload != nil && *input.IncludeRawPayload
+	// The raw-payload decision runs before the store is touched, so a refused
+	// disclosure assembles no bundle and writes no export row.
+	if includeRaw && !enginesession.HasRole(security.Principal.Roles, enginesession.PHIExportRole) {
+		return nil, ErrExportRawPayloadForbidden
+	}
+	bundle, err := s.store.ExportBundle(ctx, enginesession.ExportRequest{
+		SessionID:         input.SessionID,
+		Principal:         security.Principal,
+		Reason:            input.Reason,
+		IncludeRawPayload: includeRaw,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -477,7 +505,7 @@ func (s *integrationSessionService) exportBundle(input model.ExportIntegrationBu
 	if err != nil {
 		return nil, err
 	}
-	if input.IncludeRawPayload == nil || !*input.IncludeRawPayload {
+	if !includeRaw {
 		for i := range session.Samples {
 			session.Samples[i].RawPayload = nil
 		}

@@ -22,6 +22,9 @@ var batchMigration string
 //go:embed migrations/0002_batch_provenance.sql
 var batchProvenanceMigration string
 
+//go:embed migrations/0003_batch_audit_immutability.sql
+var batchAuditImmutabilityMigration string
+
 // batchMigrations is the ordered ledger of batch schema revisions.
 var batchMigrations = []struct {
 	version int64
@@ -30,6 +33,7 @@ var batchMigrations = []struct {
 }{
 	{version: 1, name: "0001_batch_ingestion", body: batchMigration},
 	{version: 2, name: "0002_batch_provenance", body: batchProvenanceMigration},
+	{version: 3, name: "0003_batch_audit_immutability", body: batchAuditImmutabilityMigration},
 }
 
 type Phase string

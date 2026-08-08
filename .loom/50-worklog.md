@@ -725,3 +725,96 @@ Chronological notes while executing the plan (useful for handoffs and debugging)
   - [S2] `.loom/31-sprint3-execution-specs.md` Lane S3-B
   - [S3] `internal/integration/delivery/destination_identity_integration_test.go`
   - [S4] Command: `POSTGRES_TEST_URL=... KAFKA_TEST_BROKERS=... make delivery-identity`
+## 2026-08-08 — Slice 4.1d C1 lane claim (PHI audit immutability + export attribution)
+
+- Lane: **S3-C1** (`.loom/31-sprint3-execution-specs.md`, "Lane S3-C").
+  Branch `feat/phase4-slice-4-1d-phi-audit`, worktree
+  `.worktrees/phase4-slice-4-1d-phi-audit`.
+- **Claimed migration numbers** (verified free against `origin/main` @ `7111cca1`):
+  - `internal/integration/processor/migrations/0004_audit_immutability.sql`
+    (4.2a took `0003_operator_control_plane.sql`).
+  - `internal/integration/session/migrations/0004_export_attribution.sql`
+    (`0001`-`0003` used).
+  - `internal/integration/batch/migrations/0003_batch_audit_immutability.sql`
+    (4.1b3 took `0002_batch_provenance.sql`).
+- **Owned files this sprint** (one-schema-owner rule):
+  - `internal/api/graphql/schema.graphql` and every regenerated artifact —
+    `internal/api/graphql/generated.go`, `internal/api/graphql/model/*`,
+    `ui/src/lib/gen/graphql.ts`. The single schema change is
+    `reason: String!` on `ExportIntegrationBundleInput`. 4.2b rebases onto the
+    regenerated `ui/src/lib/gen/graphql.ts`; this lane touches no other `ui/`
+    file.
+  - `internal/integration/session/{types.go,store.go,postgres.go}` export path.
+  - `internal/api/graphql/resolvers/integration_session_service.go` export path.
+  - `docs/operations/PHI-RETENTION.md` (new).
+  - `.gitlab-ci.yml`: appends `test:phi-audit` at the end of the `test` stage only.
+  - `Makefile`: appends the `phi-audit` target only.
+- **Not touched** (sibling lanes): `internal/integration/delivery/store.go`
+  (4.2a), `internal/integration/authorization/policy.go` and
+  `internal/integration/delivery/dispatcher.go` (S3-B), the serve component
+  table and deploy manifests and smoke/check scripts (S3-A), `ui/src/**`
+  except the regenerated codegen output (4.2b).
+- **Day-1 gate result: both riskiest-assumption assertions PASSED**, so the
+  spec's C1/C2 split stands unchanged and no correction to `.loom/31` is needed.
+  Evidence in `.loom/iteration-plan-phase-4-slice-4-1d-c1-phi-audit.md`.
+
+## 2026-08-08 — Slice 4.1d C1 delivered (MR !139)
+
+- What:
+  - Extended schema-level immutability to the six unguarded durable-runtime
+    tables. Blanket `BEFORE UPDATE OR DELETE` on the append-only ledgers
+    (`integration_canonical_events`, `integration_message_lineage`,
+    `integration_delivery_audit`, `integration_delivery_operations`,
+    `integration_batch_audit`, and the newly guarded
+    `integration_session_exports`); column-scoped `BEFORE UPDATE` plus blanket
+    `BEFORE DELETE` on the two state tables `integration_receipts` and
+    `integration_delivery_attempts`.
+  - Made every session export an attributed disclosure: `principal_json`,
+    `reason`, `include_raw_payload` `NOT NULL` on
+    `integration_session_exports`; verified caller identity threaded from
+    `requestsecurity.SecurityContextFromContext` through a new
+    `session.ExportRequest`; `reason: String!` added to
+    `ExportIntegrationBundleInput` (the sprint's only schema change).
+  - Gated `includeRawPayload: true` behind the new dotted grant
+    `integration.phi.export`, enforced at the resolver and again as a domain
+    rule on the verified principal.
+  - Published `docs/operations/PHI-RETENTION.md` and corrected the 4.1 bullet in
+    `.loom/30-implementation-plan-integration-engine-ide-completion.md`.
+- Why:
+  - "Immutable audit storage" was 60% shipped and the durable-runtime half was
+    the missing half. Export controls were 80% shipped but unattributed, which
+    directly contradicted the product spec's requirement that data export record
+    actor, reason, timestamp, and revision.
+  - The slice's third claim — retention/TTL/encryption enforcement — has **no
+    subject**. Production rejects every non-ephemeral raw retention mode, so
+    there is no retained production raw PHI to expire; the PHI retained forever
+    carries no policy field at all. That is S3-C2, and the plan text now says so.
+- Evidence:
+  - Day-1 gate passed both riskiest-assumption assertions before any migration
+    was written, so the spec's C1/C2 split stands and `.loom/31` needed no
+    correction.
+  - Kill-test `TestPhiAudit_PostgresImmutableRecordsAndAttributedExport` green on
+    PostgreSQL 16 with `-race`, 8 subtests, with a negative control on a second
+    independently provisioned pre-migration schema where every `UPDATE`/`DELETE`
+    succeeds and exports are written unattributed.
+  - The negative control caught two real defects in the proof itself: `DELETE`
+    aimed at rows with dependents was blocked by pre-existing `ON DELETE
+    RESTRICT` foreign keys rather than by the new guards, and an `UPDATE` against
+    an empty `integration_delivery_audit` passed vacuously. Both are now
+    structurally impossible.
+  - Over-lock checks: `make integration-session`, `make delivery-reliability`
+    (Postgres + Kafka), `make operator-control-plane`, and the 64-way durable
+    submission proof all pass unchanged with the triggers active.
+  - `gofmt` clean, `golangci-lint run` 0 issues, `go vet ./...` clean,
+    `go test -race ./...` green, `make lint-gqlgen` up to date after committing
+    the regenerated artifacts, `npm run codegen:check` clean.
+- What's next:
+  - S3-C2: retention policy design for canonical events, session samples, and
+    export snapshots; TTL columns; a durable purge component that reconciles
+    with these immutability triggers. See
+    `.loom/slice-handoff-phase-4-slice-4-1d-c1-phi-audit.md` "Next Actions".
+- Sources:
+  - [S1] `.loom/iteration-plan-phase-4-slice-4-1d-c1-phi-audit.md`
+  - [S2] `.loom/slice-handoff-phase-4-slice-4-1d-c1-phi-audit.md`
+  - [S3] `docs/operations/PHI-RETENTION.md`
+  - [S4] Command: `make phi-audit` with `POSTGRES_TEST_URL` set
