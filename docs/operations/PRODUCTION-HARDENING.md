@@ -15,6 +15,7 @@ This guide covers security hardening for fi-fhir deployments in healthcare envir
 9. [Monitoring & Alerting](#monitoring--alerting)
 10. [Disaster Recovery](#disaster-recovery)
 11. [Batch Source Security](#batch-source-security)
+12. [MLLP Client Identity](#mllp-client-identity)
 
 ---
 
@@ -35,6 +36,40 @@ fi-fhir deployments handling PHI must implement:
 ### Security Checklist
 
 ```
+
+## MLLP Client Identity
+
+The deployed HL7v2 MLLP listener is opt-in. Follow the complete operator
+contract in [`PRODUCTION-MLLP.md`](PRODUCTION-MLLP.md).
+
+- Require TLS 1.3 mutual authentication for every network-reachable listener.
+  Plaintext MLLP is acceptable only on an independently protected loopback or
+  same-pod sidecar boundary.
+- Treat a CA-valid certificate as authentication, not authorization. Declare a
+  `clients.identities` map in the immutable source revision so every connection
+  resolves to one canonical service subject before any frame is read.
+- Key identity on authority-scoped values only: a URI subject alternative name
+  (`uri_san`) and/or a subject public key info pin (`spki_sha256`). Do not rely
+  on common names; RFC 6125 deprecates common-name identity matching.
+- Issue one certificate per sending system. Sharing one certificate across
+  senders collapses them into a single audited subject and defeats per-sender
+  revocation.
+- Grant the minimum submit authority per subject. An identity provisioned for
+  observation should carry no recognized submit grant; it then authenticates but
+  never reaches artifact loading or durable admission.
+- Set `FI_FHIR_MLLP_REQUIRE_CLIENT_IDENTITY=true` in production so the process
+  refuses to start if the mounted source document ever drops the identity map.
+- Rotate senders by publishing a new source revision, a new integration
+  definition revision, and a lifecycle redeploy. The deployed release pins the
+  exact source digest, so editing the mounted document alone fails closed.
+- Keep the client CA bundle scoped to the MLLP trust domain. A shared corporate
+  CA turns every certificate it issues into a candidate peer, leaving the
+  identity map as the only remaining boundary.
+- Alert on repeated unmapped-certificate rejections and on ungranted-identity
+  denials. Do not include certificate subjects, URI SANs, or message bytes in
+  alert labels.
+
+---
 
 ## Batch Source Security
 

@@ -119,6 +119,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Slice 2.2 evidence: MR `!104` pipeline `19175` passed 33/33, required MLLP job
   `184996` passed, merge commit `6205fa39` repeated the proof in main job
   `185093`, and main pipeline `19193` passed 36/36
+- Verified MLLP client-certificate service identity: an optional
+  `clients.identities` allowlist in the immutable source revision maps an
+  authority-scoped URI SAN and/or SPKI SHA-256 pin to one canonical service
+  subject and its grants, resolved per connection immediately after the TLS
+  handshake and before any frame is read
+- CA-valid MLLP certificates that map to zero or to multiple configured
+  identities are closed without an acknowledgement, before artifact loading and
+  before any durable record exists
+- Mapped MLLP identities flow into the same fail-closed `integration.submit`
+  decision as the HTTP ingress, over the exact tenant, integration revision, and
+  registry-owned source, so an identity without a recognized submit grant
+  authenticates but never admits
+- `FI_FHIR_MLLP_REQUIRE_CLIENT_IDENTITY` refuses to start a listener in
+  certificate-identity compatibility mode; omitting the identity map preserves
+  the existing deployment-fixed principal, server-issued `integration:mllp`
+  grant, and exact source-revision digests
 
 #### Format Adapters
 - CDA/CCDA clinical document parser with namespace-aware XML handling (`internal/parser/cda/`)

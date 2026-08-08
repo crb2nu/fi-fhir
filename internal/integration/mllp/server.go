@@ -52,6 +52,11 @@ func NewServer(config ServerConfig) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Identity mapping is meaningless without a verified peer certificate; a
+	// listener that declares identities never accepts an unverified connection.
+	if config.Service.Source.Clients.IdentityMappingEnabled() && tlsConfig == nil {
+		return nil, ErrUnavailable
+	}
 	return &Server{
 		source: config.Service.Source, service: service, allowedClients: allowedClients,
 		tlsConfig: tlsConfig, now: service.now, newID: service.newID,
@@ -123,6 +128,7 @@ func (s *Server) handleConnection(ctx context.Context, raw net.Conn) {
 		return
 	}
 	connection := raw
+	var identity ConnectionIdentity
 	if s.tlsConfig != nil {
 		tlsConnection := tls.Server(raw, s.tlsConfig.Clone())
 		handshakeCtx, cancel := context.WithTimeout(ctx, time.Duration(s.source.Timeouts.ReadSeconds)*time.Second)
@@ -130,6 +136,15 @@ func (s *Server) handleConnection(ctx context.Context, raw net.Conn) {
 		cancel()
 		if err != nil {
 			return
+		}
+		// A CA-valid certificate is not yet an authorized identity. Resolve the
+		// mapped service subject before any frame is read, parsed, processed, or
+		// durably admitted, and close the connection when it is unmapped.
+		if s.source.Clients.IdentityMappingEnabled() {
+			identity, err = s.source.Clients.ResolveClientIdentity(tlsConnection.ConnectionState().PeerCertificates)
+			if err != nil {
+				return
+			}
 		}
 		connection = tlsConnection
 	}
@@ -153,7 +168,7 @@ func (s *Server) handleConnection(ctx context.Context, raw net.Conn) {
 			return
 		}
 
-		result, submitErr := s.service.Submit(ctx, payload)
+		result, submitErr := s.service.Submit(ctx, identity, payload)
 		outcome, code := classifyAcknowledgement(result, submitErr)
 		acknowledgement, err := buildAcknowledgement(
 			header,

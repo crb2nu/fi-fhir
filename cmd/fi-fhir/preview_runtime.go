@@ -402,6 +402,18 @@ func loadMLLPRuntimeFromEnv(sourcePath string) (mllp.SourceRevision, string, str
 	if err != nil {
 		return mllp.SourceRevision{}, "", "", mllp.TLSMaterial{}, err
 	}
+	// Certificate identity mapping lives in the immutable source revision. This
+	// deployment-owned switch refuses to start in compatibility mode so that
+	// swapping the source document cannot silently downgrade a mapped listener.
+	requireClientIdentity, err := optionalBoolEnv("FI_FHIR_MLLP_REQUIRE_CLIENT_IDENTITY")
+	if err != nil {
+		return mllp.SourceRevision{}, "", "", mllp.TLSMaterial{}, err
+	}
+	if requireClientIdentity && !source.Clients.IdentityMappingEnabled() {
+		return mllp.SourceRevision{}, "", "", mllp.TLSMaterial{}, fmt.Errorf(
+			"FI_FHIR_MLLP_REQUIRE_CLIENT_IDENTITY requires clients.identities in the MLLP source revision",
+		)
+	}
 	material := mllp.TLSMaterial{}
 	if source.TLS.Mode == mllp.TLSModeMutual {
 		material.CertificatePEM, err = loadBoundedRuntimeFile("FI_FHIR_MLLP_TLS_CERT_FILE", "MLLP server certificate")

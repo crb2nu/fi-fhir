@@ -93,11 +93,12 @@ test-golden: build
 golden-path-001:
 	bash scripts/golden-path-001.sh
 
-# Slice 2.2: real TCP MLLP -> lifecycle-gated durable PostgreSQL admission.
+# Slice 2.2/4.1b2: real TCP MLLP -> verified certificate identity ->
+# lifecycle-gated durable PostgreSQL admission.
 # Requires POSTGRES_TEST_URL and fails rather than skipping in CI.
 mllp-runtime:
-	go test -tags=integration -race -count=1 -timeout=180s \
-		-run '^TestPostgresMLLPRuntime_DurableACKPauseRestart$$' \
+	go test -tags=integration -race -count=1 -timeout=240s \
+		-run '^TestPostgresMLLPRuntime_(DurableACKPauseRestart|CertificateIdentityAuthorization)$$' \
 		./internal/integration/mllp
 
 # Slice 2.3: PostgreSQL leases/retry/DLQ/recovery -> acknowledged Kafka records.

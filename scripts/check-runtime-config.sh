@@ -3,7 +3,7 @@
 #
 # Checks:
 #   1. .env.example covers all FI_FHIR_* env vars referenced in Go source.
-#   2. Docker Compose forwards HTTP ingress OAuth settings.
+#   2. Docker Compose forwards HTTP ingress OAuth and MLLP listener settings.
 #   3. Proxy config assumptions are documented.
 #
 # Usage:
@@ -80,13 +80,15 @@ else
 fi
 
 # --------------------------------------------------------------------------
-# 2. Docker Compose: OAuth ingress environment forwarding
+# 2. Docker Compose: production ingress environment forwarding
 # --------------------------------------------------------------------------
 echo ""
 echo "─── Compose Config ───"
 
 oauth_ingress_vars=$(printf '%s\n' "$go_vars" | grep '^FI_FHIR_HTTP_INGRESS_OAUTH_' || true)
+mllp_vars=$(printf '%s\n' "$go_vars" | grep '^FI_FHIR_MLLP_' || true)
 missing_compose=""
+missing_mllp=""
 if [ -f "$COMPOSE_FILE" ]; then
   for var in $oauth_ingress_vars; do
     if ! grep -q "$var" "$COMPOSE_FILE"; then
@@ -96,6 +98,17 @@ if [ -f "$COMPOSE_FILE" ]; then
   check_required "Compose forwards ingress OAuth vars" bash -c "
     if [ -n '$missing_compose' ]; then
       echo 'Missing:$missing_compose'
+      exit 1
+    fi
+  "
+  for var in $mllp_vars; do
+    if ! grep -q "$var" "$COMPOSE_FILE"; then
+      missing_mllp="$missing_mllp $var"
+    fi
+  done
+  check_required "Compose forwards MLLP listener vars" bash -c "
+    if [ -n '$missing_mllp' ]; then
+      echo 'Missing:$missing_mllp'
       exit 1
     fi
   "

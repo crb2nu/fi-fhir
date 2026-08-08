@@ -784,10 +784,12 @@ test:deployment-lifecycle:
     - when: never
   allow_failure: false
 
-# Blocking PostgreSQL 16/TCP proof for Slice 2.2. It holds durable admission,
-# verifies that no positive MLLP ACK precedes COMMIT, serializes a concurrent
-# pause with the admitted transaction, collapses 32 reconnecting duplicates,
-# and proves resume/retire/restart behavior against the exact deployed release.
+# Blocking PostgreSQL 16/TCP proof for Slices 2.2 and 4.1b2. It holds durable
+# admission, verifies that no positive MLLP ACK precedes COMMIT, serializes a
+# concurrent pause with the admitted transaction, collapses 32 reconnecting
+# duplicates, proves resume/retire/restart behavior against the exact deployed
+# release, and proves verified certificate service identity plus fail-closed
+# submit authorization over real TLS 1.3 mutual authentication.
 test:mllp-runtime:
   stage: test
   <<: *go-image-debian
@@ -808,10 +810,10 @@ test:mllp-runtime:
     - apt-get update && apt-get install -y --no-install-recommends git ca-certificates ripgrep build-essential && rm -rf /var/lib/apt/lists/*
     - >-
       go test -tags=integration
-      -list '^TestPostgresMLLPRuntime_DurableACKPauseRestart$'
+      -list '^TestPostgresMLLPRuntime_(DurableACKPauseRestart|CertificateIdentityAuthorization)$'
       ./internal/integration/mllp
-      | rg -x 'TestPostgresMLLPRuntime_DurableACKPauseRestart'
-      | awk 'END { if (NR != 1) exit 1 }'
+      | rg -x 'TestPostgresMLLPRuntime_(DurableACKPauseRestart|CertificateIdentityAuthorization)'
+      | awk 'END { if (NR != 2) exit 1 }'
     - make mllp-runtime
   rules:
     - if: $CI_COMMIT_TAG
