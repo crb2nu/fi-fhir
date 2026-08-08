@@ -7,11 +7,11 @@ import ActivityBar from './ActivityBar.svelte';
 
 describe('ActivityBar', () => {
   describe('rendering', () => {
-    it('should render 6 view icons', () => {
+    it('should render 7 view icons', () => {
       render(ActivityBar, { props: { activeView: 'hl7' } });
 
       const buttons = screen.getAllByRole('button');
-      expect(buttons).toHaveLength(6);
+      expect(buttons).toHaveLength(7);
     });
 
     it('should render all expected aria labels', () => {
@@ -22,6 +22,7 @@ describe('ActivityBar', () => {
       expect(screen.getByRole('button', { name: 'Events' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Profiles' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Terminology' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Operations' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Dashboard' })).toBeInTheDocument();
     });
 

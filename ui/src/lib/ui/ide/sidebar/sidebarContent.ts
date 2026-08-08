@@ -1,7 +1,7 @@
 import type { IDEAppRoute } from '../types';
 import { getJourneyState } from '../journey';
 
-export type SidebarView = 'home' | 'events' | 'hl7' | 'profiles' | 'terminology' | 'workflows';
+export type SidebarView = 'home' | 'events' | 'hl7' | 'profiles' | 'terminology' | 'workflows' | 'operator';
 
 export type SidebarAction = {
   label: string;
@@ -39,6 +39,7 @@ const viewLinks: SidebarViewLink[] = [
   { view: 'terminology', label: 'Terminology', href: '/terminology' },
   { view: 'workflows', label: 'Workflows', href: '/workflows' },
   { view: 'events', label: 'Events', href: '/events' },
+  { view: 'operator', label: 'Operations', href: '/operator' },
 ];
 
 const contexts: Record<SidebarView, Omit<SidebarContext, 'journey'>> = {
@@ -144,6 +145,23 @@ const contexts: Record<SidebarView, Omit<SidebarContext, 'journey'>> = {
       { label: 'Verification log', detail: 'Inspect what landed, what failed, and what needs tuning.' },
     ],
   },
+  operator: {
+    view: 'operator',
+    eyebrow: 'Operations',
+    title: 'Run and recover',
+    description: 'Inspect what production actually did, then recover failures with an audited reason.',
+    highlights: ['Message trace', 'Dead letters', 'Deployments'],
+    actions: [
+      { label: 'Trace a delivered message', href: '/operator', hint: 'Follow one receipt through events, lineage, and delivery.' },
+      { label: 'Review the workflow that routed it', href: '/workflows', hint: 'Open the route and action chain behind a delivery.' },
+      { label: 'Go back to mission control', href: '/', hint: 'Review the full journey and choose the next interface.' },
+    ],
+    recent: [
+      { label: 'Dead-letter queue', detail: 'Replay, resubmit, or discard failures that exhausted their retries.' },
+      { label: 'Destination circuits', detail: 'See which destinations are open and why deliveries are deferred.' },
+      { label: 'Deployment controls', detail: 'Pause, resume, or retire an integration with a recorded reason.' },
+    ],
+  },
 };
 
 function normalizePathname(pathname: string): string {
@@ -161,6 +179,7 @@ export function getSidebarView(pathname: string): SidebarView {
   if (normalized.startsWith('/terminology')) return 'terminology';
   if (normalized.startsWith('/workflows')) return 'workflows';
   if (normalized.startsWith('/events')) return 'events';
+  if (normalized.startsWith('/operator')) return 'operator';
   return 'home';
 }
 

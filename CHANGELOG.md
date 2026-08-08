@@ -183,6 +183,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   OIDC operator identity, proves duplicate control actions do not double-execute,
   proves unprivileged and cross-tenant callers reach no data and change no state,
   and proves a planted raw-PHI sentinel never leaves the process
+- Operator control-plane workspace at `/operator` in the IDE: durable message
+  browser with server-owned filters and cursor paging, receipt-to-delivery trace
+  drill-down, dead-letter and destination-circuit console, and deployment
+  controls, with one reason-required dialog fronting every mutating action
+- Operator actions the engine would refuse are disabled with an explanatory
+  reason instead of failing after the click, and optimistic-concurrency
+  conflicts reload the durable record and ask the operator to re-decide rather
+  than retrying silently
 
 #### Format Adapters
 - CDA/CCDA clinical document parser with namespace-aware XML handling (`internal/parser/cda/`)

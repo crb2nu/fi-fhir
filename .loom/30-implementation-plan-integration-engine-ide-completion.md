@@ -725,12 +725,32 @@ The required delivery-reliability proof caught one real defect before merge: the
 DLQ resolution label for resubmit was derived by string concatenation and wrote
 an invalid value. The kill-test now covers that path directly.
 
+#### Slice 4.2a evidence
+
+MR `!136` merged as `7111cca1`. The required merge-request pipeline `22548`
+passed 38/38, including the new `test:operator-control-plane` job, the blocking
+manual `test:benchmark`, `lint:gqlgen`, and every security gate. Post-merge main
+pipeline `22560` passed 42/42.
+
 #### Slice 4.2b: operator UI
 
-- New operator feature area in the IDE consuming 4.2a: message/receipt browser
-  with trace drill-down, delivery attempt/circuit/DLQ views, reason-required
-  control dialogs, and expected-version conflict surfacing.
-- Status: pending; branches from main after 4.2a merges.
+- New `/operator` area in the IDE consuming 4.2a: a durable message browser with
+  server-owned filters and cursor paging, receipt-to-delivery trace drill-down
+  (events rendered as field coordinates only, lineage, attempts, audit), a
+  dead-letter and destination-circuit console, and deployment controls.
+- Every mutating action routes through one reason-required dialog. Delivery
+  recovery derives a stable idempotency key from the action, target, and reason,
+  so repeating an identical intent is a server-side no-op while a changed reason
+  produces a new key rather than reusing a spent one.
+- Toast budget: inline homes for every failure, `isErrorToasted` is unnecessary
+  because the feature never re-toasts a GraphQL failure the global net already
+  raised; controls the server would refuse are disabled with an explanatory
+  `title` (B2) instead of firing and being rejected.
+- Expected-version conflicts and resolved dead letters are classified as stale
+  views: the panel reloads the durable record and instructs the operator to
+  re-decide rather than retrying silently.
+- No schema change: the UI consumes exactly what 4.2a shipped. No new npm
+  dependency; `npm audit --audit-level=high` is clean.
 
 ### Slice 4.3: truthful observability and multi-replica behavior
 

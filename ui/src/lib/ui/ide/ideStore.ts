@@ -93,6 +93,7 @@ const WORKSPACE_ROUTE_TITLES: Record<IDEView, string> = {
   events: 'Events',
   profiles: 'Profiles',
   terminology: 'Terminology',
+  operator: 'Operations',
 };
 
 const WORKSPACE_VIEW_ROUTES: Record<IDEView, IDEAppRoute> = {
@@ -102,6 +103,7 @@ const WORKSPACE_VIEW_ROUTES: Record<IDEView, IDEAppRoute> = {
   events: '/events',
   profiles: '/profiles',
   terminology: '/terminology',
+  operator: '/operator',
 };
 
 function normalizeWorkspacePathname(pathname: string): string {
@@ -118,6 +120,7 @@ function workspaceViewForPath(pathname: string): IDEView {
   if (normalized.startsWith('/events')) return 'events';
   if (normalized.startsWith('/hl7')) return 'hl7';
   if (normalized.startsWith('/profiles')) return 'profiles';
+  if (normalized.startsWith('/operator')) return 'operator';
   if (normalized.startsWith('/terminology')) return 'terminology';
   if (normalized.startsWith('/workflows')) return 'workflows';
   return 'system';

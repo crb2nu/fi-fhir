@@ -55,6 +55,12 @@
       icon: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20 M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15z',
     },
     {
+      view: 'operator',
+      label: 'Operations',
+      subtitle: 'Run & Recover',
+      icon: 'M12 2v4 M12 18v4 M4.93 4.93l2.83 2.83 M16.24 16.24l2.83 2.83 M2 12h4 M18 12h4 M4.93 19.07l2.83-2.83 M16.24 7.76l2.83-2.83',
+    },
+    {
       view: 'system',
       label: 'Dashboard',
       subtitle: 'Mission Control',
