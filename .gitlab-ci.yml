@@ -1005,6 +1005,68 @@ test:operator-control-plane:
     - when: never
   allow_failure: false
 
+# Blocking PostgreSQL 16/Kafka proof for Slice 4.1c-a. It proves the durable
+# dispatch path contacts no destination at all, and that the integration.deliver
+# decision runs on that path: two destinations dispatch under their own declared
+# identities, an attempt carrying another destination's digest is dead-lettered
+# before publish, a destination absent from the deployed set produces a
+# DELIVERY_FORBIDDEN dead letter with zero broker records, and a secret sentinel
+# reaches no durable record and no Kafka field.
+test:delivery-identity:
+  stage: test
+  <<: *go-image-debian
+  <<: *go-cache
+  services:
+    - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
+      alias: postgres
+    - name: ${DOCKERHUB_CACHE_PREFIX}/apache/kafka:3.9.2
+      alias: kafka
+  variables:
+    CGO_ENABLED: "1"
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
+    POSTGRES_DB: fi_fhir_delivery_identity_test
+    POSTGRES_USER: testuser
+    POSTGRES_PASSWORD: testpass
+    POSTGRES_HOST_AUTH_METHOD: trust
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_delivery_identity_test?sslmode=disable"
+    # Kubernetes-executor services share the job pod network namespace. Match the
+    # Apache single-node KRaft example, exactly as test:delivery-reliability does.
+    KAFKA_TEST_BROKERS: "localhost:9092"
+    KAFKA_NODE_ID: "1"
+    KAFKA_PROCESS_ROLES: "controller,broker"
+    KAFKA_CONTROLLER_QUORUM_VOTERS: "1@localhost:9093"
+    KAFKA_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+    KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092"
+    KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+    KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+    KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+    KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+    KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+    KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+    KAFKA_NUM_PARTITIONS: "1"
+    KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+  script:
+    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates ripgrep build-essential && rm -rf /var/lib/apt/lists/*
+    # Both proofs must exist. Integration helpers skip rather than fail when a
+    # service is unreachable, so a renamed or deleted test would otherwise make
+    # this job greener instead of redder.
+    - >-
+      go test -tags=integration
+      -list '^(TestDeliveryIdentity_PostgresKafkaScopedDispatch|TestDeliveryDispatch_ContactsNoDestination)$'
+      ./internal/integration/delivery
+      | rg -x '(TestDeliveryIdentity_PostgresKafkaScopedDispatch|TestDeliveryDispatch_ContactsNoDestination)'
+      | awk 'END { if (NR != 2) exit 1 }'
+    - make delivery-identity
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *go-changes
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *go-changes
+    - when: never
+  allow_failure: false
+
 test:ui:
   stage: test
   <<: *node-image

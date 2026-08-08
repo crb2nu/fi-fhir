@@ -27,23 +27,48 @@ const (
 	OutcomeDLQ       Outcome = "dead_lettered"
 )
 
+const (
+	// OutcomeForbidden reports a claimed item dead-lettered by the destination
+	// identity decision. It is distinguished from OutcomeDLQ so a caller can see
+	// that no broker contact was attempted at all.
+	OutcomeForbidden Outcome = "identity_forbidden"
+)
+
 // Dispatcher publishes durable work and records its terminal database outcome.
 type Dispatcher struct {
 	store     Store
 	publisher Publisher
 	workerID  string
 	config    Config
+	decider   DestinationDecider
 }
 
-// NewDispatcher validates and constructs one worker.
+// NewDispatcher validates and constructs one worker without a destination
+// identity decision. The dispatch path behaves exactly as it did before Slice
+// 4.1c-a.
 func NewDispatcher(store Store, publisher Publisher, workerID string, config Config) (*Dispatcher, error) {
+	return NewDispatcherWithIdentity(store, publisher, workerID, config, nil)
+}
+
+// NewDispatcherWithIdentity constructs one worker that evaluates the
+// integration.deliver decision for every claimed item before publishing it.
+func NewDispatcherWithIdentity(
+	store Store,
+	publisher Publisher,
+	workerID string,
+	config Config,
+	decider DestinationDecider,
+) (*Dispatcher, error) {
 	if store == nil || publisher == nil || !validToken(workerID, 128) {
 		return nil, errors.New("delivery dispatcher dependencies are required")
 	}
 	if err := config.validate(); err != nil {
 		return nil, err
 	}
-	return &Dispatcher{store: store, publisher: publisher, workerID: workerID, config: config}, nil
+	return &Dispatcher{
+		store: store, publisher: publisher, workerID: workerID,
+		config: config, decider: decider,
+	}, nil
 }
 
 // RunOnce claims at most one item, publishes it, and persists the outcome.
@@ -57,6 +82,9 @@ func (d *Dispatcher) RunOnce(ctx context.Context) (Outcome, error) {
 	}
 	if item == nil {
 		return OutcomeIdle, nil
+	}
+	if outcome, denied, err := d.decideIdentity(ctx, *item); denied || err != nil {
+		return outcome, err
 	}
 	message, err := messageForWorkItem(*item)
 	if err != nil {
@@ -83,6 +111,31 @@ func (d *Dispatcher) RunOnce(ctx context.Context) (Outcome, error) {
 		return "", err
 	}
 	return OutcomePublished, nil
+}
+
+// decideIdentity evaluates the destination identity decision for one claimed
+// item, between Claim and any broker contact.
+//
+// A denial is terminal: it is recorded through the existing MarkFailed with a
+// non-retryable failure, so it enters the DLQ and is visible to the operator
+// control plane instead of spinning the worker against a decision that cannot
+// change without a new deployed revision.
+func (d *Dispatcher) decideIdentity(ctx context.Context, item WorkItem) (Outcome, bool, error) {
+	if d.decider == nil {
+		return "", false, nil
+	}
+	err := d.decider.Decide(ctx, item.TenantID, item.AttemptID, item.Destination)
+	if err == nil {
+		return "", false, nil
+	}
+	var refusal Refusal
+	if !errors.As(err, &refusal) {
+		return "", true, err
+	}
+	if _, storeErr := d.store.MarkFailed(ctx, item, refusalFailure(refusal), d.config); storeErr != nil {
+		return "", true, storeErr
+	}
+	return OutcomeForbidden, true, nil
 }
 
 // Run polls until cancellation. Processed work drains without an idle delay.

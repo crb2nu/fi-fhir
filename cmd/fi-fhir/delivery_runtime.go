@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	integrationdelivery "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/delivery"
+	integrationdestination "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/destination"
 )
 
 const maxKafkaCABytes = 1 << 20
@@ -26,7 +28,32 @@ func deliveryWorkerEnabledFromEnv(allowProduction bool) (bool, error) {
 	return enabled, nil
 }
 
-func loadDeliveryDispatcherFromEnv(db *sql.DB) (*integrationdelivery.Dispatcher, error) {
+// loadDeliveryDispatcherFromEnv builds the durable delivery worker and, when a
+// delivery identity mode is configured, binds the Slice 4.1c-a
+// integration.deliver decision to its dispatch path. It reports the active mode
+// so serve can state it at startup.
+func loadDeliveryDispatcherFromEnv(
+	ctx context.Context,
+	db *sql.DB,
+) (*integrationdelivery.Dispatcher, integrationdestination.Mode, error) {
+	identity, err := loadDestinationIdentityFromEnv(ctx, db)
+	if err != nil {
+		return nil, "", err
+	}
+	dispatcher, err := buildDeliveryDispatcher(db, identity)
+	if err != nil {
+		return nil, "", err
+	}
+	if identity == nil {
+		return dispatcher, "", nil
+	}
+	return dispatcher, identity.mode, nil
+}
+
+func buildDeliveryDispatcher(
+	db *sql.DB,
+	identity *destinationIdentityRuntime,
+) (*integrationdelivery.Dispatcher, error) {
 	if db == nil {
 		return nil, fmt.Errorf("delivery worker requires the PostgreSQL submission database")
 	}
@@ -113,7 +140,13 @@ func loadDeliveryDispatcherFromEnv(db *sql.DB) (*integrationdelivery.Dispatcher,
 	if err != nil {
 		return nil, err
 	}
-	dispatcher, err := integrationdelivery.NewDispatcher(store, publisher, workerID, workerConfig)
+	var decider integrationdelivery.DestinationDecider
+	if identity != nil {
+		decider = identity.authorizer
+	}
+	dispatcher, err := integrationdelivery.NewDispatcherWithIdentity(
+		store, publisher, workerID, workerConfig, decider,
+	)
 	if err != nil {
 		_ = publisher.Close()
 		return nil, err

@@ -39,16 +39,19 @@ func TestLoadDeliveryDispatcherFromEnvValidatesKafkaBoundary(t *testing.T) {
 	} {
 		t.Setenv(name, value)
 	}
-	dispatcher, err := loadDeliveryDispatcherFromEnv(db)
+	dispatcher, identityMode, err := loadDeliveryDispatcherFromEnv(t.Context(), db)
 	if err != nil {
 		t.Fatalf("loadDeliveryDispatcherFromEnv: %v", err)
+	}
+	if identityMode != "" {
+		t.Fatalf("delivery identity mode = %q, want unconfigured", identityMode)
 	}
 	if err := dispatcher.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
 
 	t.Setenv("FI_FHIR_QUEUE_TLS", "invalid")
-	if _, err := loadDeliveryDispatcherFromEnv(db); err == nil || !strings.Contains(err.Error(), "true or false") {
+	if _, _, err := loadDeliveryDispatcherFromEnv(t.Context(), db); err == nil || !strings.Contains(err.Error(), "true or false") {
 		t.Fatalf("invalid TLS error = %v", err)
 	}
 }
@@ -66,7 +69,7 @@ func TestLoadDeliveryDispatcherRequiresTLSForCredentials(t *testing.T) {
 	t.Setenv("FI_FHIR_QUEUE_USERNAME", "delivery-user")
 	t.Setenv("FI_FHIR_QUEUE_PASSWORD", "delivery-password")
 	t.Setenv("FI_FHIR_QUEUE_PASSWORD_FILE", "")
-	if _, err := loadDeliveryDispatcherFromEnv(db); err == nil || !strings.Contains(err.Error(), "require TLS") {
+	if _, _, err := loadDeliveryDispatcherFromEnv(t.Context(), db); err == nil || !strings.Contains(err.Error(), "require TLS") {
 		t.Fatalf("credential transport error = %v", err)
 	}
 }

@@ -8,7 +8,7 @@
 	docs-status docs-status-quick docs-validate docs-all \
 	contract-check contract-check-strict contract-matrix \
 	golden-path-001 mllp-runtime delivery-reliability batch-ingestion integration-session \
-	operator-control-plane \
+	operator-control-plane delivery-identity \
 	smoke-test smoke-test-local check-runtime-config \
 	dev dev-down dev-ui dev-ui-down
 
@@ -124,6 +124,16 @@ integration-session:
 	go test -tags=integration -race -count=1 -timeout=180s \
 		-run '^TestPostgresSessionWorkspace_RestartExactProfilesAndRawPolicy$$' \
 		./internal/integration/session
+
+# Slice 4.1c-a: destination-scoped delivery identity. Proves the durable path
+# contacts no destination, and that the integration.deliver decision runs on that
+# path with real durable consequences: per-destination identity provenance, a
+# dead-lettered crossed digest, a DELIVERY_FORBIDDEN orphan, and no secret leak.
+# Requires POSTGRES_TEST_URL and KAFKA_TEST_BROKERS in CI; uses containers locally.
+delivery-identity:
+	go test -tags=integration -race -count=1 -timeout=300s \
+		-run '^(TestDeliveryIdentity_PostgresKafkaScopedDispatch|TestDeliveryDispatch_ContactsNoDestination)$$' \
+		./internal/integration/delivery
 
 # Slice 4.2a operator control-plane kill-test (PostgreSQL 16 required)
 operator-control-plane:

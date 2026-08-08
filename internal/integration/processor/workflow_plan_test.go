@@ -139,6 +139,12 @@ func TestPlanPreviewWorkflowIsDeterministicAndNeverExposesArtifactBytes(t *testi
 	}
 }
 
+// TestPlanPreviewWorkflowFailsClosedOnDestinationBinding is a regression guard,
+// not a new feature: unmapped destinations have failed closed since Slice 2.3.
+// Slice 4.1c-a's destination identity decision assumes it, because a destination
+// absent from the deployed revision must never reach a delivery attempt in the
+// first place. Both execution modes are covered so the durable path is pinned
+// alongside preview.
 func TestPlanPreviewWorkflowFailsClosedOnDestinationBinding(t *testing.T) {
 	t.Parallel()
 
@@ -155,8 +161,12 @@ func TestPlanPreviewWorkflowFailsClosedOnDestinationBinding(t *testing.T) {
 			if err != nil {
 				t.Fatalf("projectADTA01: %v", err)
 			}
-			if _, _, _, err := planWorkflow(resolved, event, revision, integration.ExecutionModePreview); !errors.Is(err, ErrInvalidWorkflowPlan) {
-				t.Fatalf("plan error = %v, want invalid workflow plan", err)
+			for _, mode := range []integration.ExecutionMode{
+				integration.ExecutionModePreview, integration.ExecutionModeProduction,
+			} {
+				if _, _, _, err := planWorkflow(resolved, event, revision, mode); !errors.Is(err, ErrInvalidWorkflowPlan) {
+					t.Fatalf("plan error in %s mode = %v, want invalid workflow plan", mode, err)
+				}
 			}
 		})
 	}

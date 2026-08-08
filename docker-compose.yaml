@@ -89,6 +89,13 @@ services:
       # Queue
       FI_FHIR_QUEUE_DRIVER: "kafka"
       FI_FHIR_QUEUE_BROKERS: "kafka:9092"
+      # Destination-scoped delivery identity (Slice 4.1c-a). Unset by default:
+      # the durable dispatch path runs without the integration.deliver decision
+      # until a deployment supplies a destination registry.
+      FI_FHIR_DELIVERY_IDENTITY_MODE: "${FI_FHIR_DELIVERY_IDENTITY_MODE:-}"
+      FI_FHIR_DELIVERY_IDENTITY_REGISTRY_PATH: "${FI_FHIR_DELIVERY_IDENTITY_REGISTRY_PATH:-}"
+      FI_FHIR_DELIVERY_IDENTITY_SECRET_DIR: "${FI_FHIR_DELIVERY_IDENTITY_SECRET_DIR:-}"
+      FI_FHIR_DELIVERY_IDENTITY_COMPATIBILITY_SUBJECT: "${FI_FHIR_DELIVERY_IDENTITY_COMPATIBILITY_SUBJECT:-}"
       # Observability
       FI_FHIR_METRICS_ENABLED: "true"
       FI_FHIR_METRICS_PORT: "9090"

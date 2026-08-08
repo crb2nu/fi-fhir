@@ -5122,6 +5122,11 @@ func runServe(args []string) error {
 			errCh <- componentError{name: "delivery", err: securePreviewRuntime.deliveryWorker.Run(serveCtx)}
 		}()
 		fmt.Println("Durable Kafka delivery worker enabled")
+		if securePreviewRuntime.deliveryIdentity == "" {
+			fmt.Println("Destination identity: not configured (no integration.deliver decision on the dispatch path)")
+		} else {
+			fmt.Printf("Destination identity: %s mode\n", securePreviewRuntime.deliveryIdentity)
+		}
 	}
 	if securePreviewRuntime.batchRunner != nil {
 		go func() {
