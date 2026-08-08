@@ -4,7 +4,7 @@
 package db
 
 // SchemaVersion tracks the current schema version for migrations.
-const SchemaVersion = 2
+const SchemaVersion = 3
 
 // Schema contains all SQL DDL statements for the terminology database.
 // Tables are organized in the 'terminology' schema to isolate from event sourcing tables.
@@ -707,6 +707,35 @@ CREATE INDEX IF NOT EXISTS idx_mapping_decisions_type
 -- Record v2 migration
 INSERT INTO terminology.schema_version (version, description)
 VALUES (2, 'Custom mapping tables: upload_batches, custom_mappings, pending_autoroutes, mapping_decisions')
+ON CONFLICT (version) DO NOTHING;
+`
+
+// SchemaV3Migration adds durable pending-autoroute notification claims.
+//
+// Before Slice 4.3 the review notifier de-duplicated in memory
+// (internal/terminology/autoroute/notify.go: a per-process `seen` map plus a
+// bounded FIFO), so N replicas paged reviewers N times for the same row and
+// every restart re-paged the whole backlog. `notified_at` moves that decision
+// into the database, where a conditional UPDATE ... RETURNING makes the claim
+// atomic across replicas.
+//
+// Existing rows are NULL, so the first scan after upgrade re-pages the current
+// backlog exactly once and never again.
+const SchemaV3Migration = `
+ALTER TABLE terminology.pending_autoroutes
+    ADD COLUMN IF NOT EXISTS notified_at TIMESTAMPTZ;
+
+COMMENT ON COLUMN terminology.pending_autoroutes.notified_at IS
+    'Server-owned instant at which a review notification for this row was claimed. NULL means never notified. Claimed atomically so replicas cannot double-page.';
+
+-- The notifier claims only unnotified pending rows, so the partial index is
+-- exactly the working set.
+CREATE INDEX IF NOT EXISTS idx_pending_autoroutes_unnotified
+    ON terminology.pending_autoroutes(id)
+    WHERE status = 'pending' AND notified_at IS NULL;
+
+INSERT INTO terminology.schema_version (version, description)
+VALUES (3, 'Durable pending autoroute review notification claims (notified_at)')
 ON CONFLICT (version) DO NOTHING;
 `
 

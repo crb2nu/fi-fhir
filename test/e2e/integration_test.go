@@ -320,64 +320,108 @@ workflow:
 	}
 }
 
-// TestHealthEndpoints tests the health check endpoints.
-func TestHealthEndpoints(t *testing.T) {
-	// This test requires the fi-fhir server to be running
-	// Skip if not available
-	healthURL := getEnv("TEST_FIFHIR_URL", "http://localhost:8080")
+// TestObservabilityEndpoints exercises the real liveness, readiness, and
+// metrics surfaces against a running fi-fhir server.
+//
+// The two tests this replaces (TestHealthEndpoints, TestMetricsEndpoint) could
+// not pass and could not fail. TestHealthEndpoints asserted
+// health["status"] == "ok" while the handler wrote "healthy"; TestMetricsEndpoint
+// asserted a `/metrics` endpoint that did not exist and downgraded its own
+// content check to t.Logf. Both t.Skipf on a connection error, and no CI job
+// ever passed -tags=e2e, so a false claim sat behind an assertion that could
+// never run. That is the shape Slice 4.3 exists to remove.
+//
+// The blocking cross-replica proof lives in
+// internal/observability (TestServeObservability_TwoReplicasUnderDocumentedConfiguration,
+// CI job test:observability-replicas). This test is the single-server smoke
+// equivalent and still skips when no server is reachable — but its assertions
+// are now real, so a reachable server that lies fails the test.
+func TestObservabilityEndpoints(t *testing.T) {
+	baseURL := getEnv("TEST_FIFHIR_URL", "http://localhost:8080")
+	metricsURL := getEnv("TEST_FIFHIR_METRICS_URL", "http://localhost:9090")
 
-	resp, err := http.Get(healthURL + "/health")
+	resp, err := http.Get(baseURL + "/health")
 	if err != nil {
 		t.Skipf("fi-fhir server not available: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		t.Errorf("/health returned status %d", resp.StatusCode)
+		t.Errorf("/health returned status %d, want 200", resp.StatusCode)
 	}
-
 	body, _ := io.ReadAll(resp.Body)
-	var health map[string]interface{}
+	var health struct {
+		Status     string `json:"status"`
+		Components []struct {
+			Name   string `json:"name"`
+			Status string `json:"status"`
+		} `json:"components"`
+	}
 	if err := json.Unmarshal(body, &health); err != nil {
-		t.Errorf("Invalid health response: %v", err)
+		t.Fatalf("invalid /health response: %v", err)
+	}
+	if health.Status != "healthy" && health.Status != "degraded" {
+		t.Errorf("/health status = %q, want healthy or degraded", health.Status)
 	}
 
-	if health["status"] != "ok" {
-		t.Errorf("Health status = %v, want ok", health["status"])
-	}
-}
-
-// TestMetricsEndpoint tests the Prometheus metrics endpoint.
-func TestMetricsEndpoint(t *testing.T) {
-	healthURL := getEnv("TEST_FIFHIR_URL", "http://localhost:8080")
-
-	resp, err := http.Get(healthURL + "/metrics")
+	readyResp, err := http.Get(baseURL + "/ready")
 	if err != nil {
-		t.Skipf("fi-fhir server not available: %v", err)
+		t.Fatalf("/ready is unreachable while /health answered: %v", err)
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("/metrics returned status %d", resp.StatusCode)
+	defer func() { _ = readyResp.Body.Close() }()
+	if readyResp.StatusCode != http.StatusOK && readyResp.StatusCode != http.StatusServiceUnavailable {
+		t.Errorf("/ready returned status %d, want 200 or 503", readyResp.StatusCode)
 	}
-
-	body, _ := io.ReadAll(resp.Body)
-	content := string(body)
-
-	// Check for expected metrics
-	expectedMetrics := []string{
-		"workflow_events_processed_total",
-		"workflow_action_duration_seconds",
+	readyBody, _ := io.ReadAll(readyResp.Body)
+	var ready struct {
+		Status     string `json:"status"`
+		Components []struct {
+			Name   string `json:"name"`
+			Status string `json:"status"`
+		} `json:"components"`
 	}
-
-	for _, metric := range expectedMetrics {
-		if !bytes.Contains(body, []byte(metric)) {
-			t.Logf("Warning: metric %s not found in output", metric)
-			t.Log("This may be expected if no events have been processed")
+	if err := json.Unmarshal(readyBody, &ready); err != nil {
+		t.Fatalf("invalid /ready response: %v", err)
+	}
+	if len(ready.Components) == 0 {
+		t.Error("/ready reported no components; readiness must name what it checked")
+	}
+	// A 503 must be explained by at least one unhealthy component, and a 200
+	// must not contain one. Anything else means the aggregation lies.
+	unhealthy := 0
+	for _, component := range ready.Components {
+		if component.Status == "unhealthy" {
+			unhealthy++
 		}
 	}
+	if readyResp.StatusCode == http.StatusServiceUnavailable && unhealthy == 0 {
+		t.Error("/ready returned 503 with no unhealthy component")
+	}
+	if readyResp.StatusCode == http.StatusOK && unhealthy > 0 {
+		t.Errorf("/ready returned 200 with %d unhealthy components", unhealthy)
+	}
 
-	if len(content) == 0 {
-		t.Error("Metrics endpoint returned empty response")
+	metricsResp, err := http.Get(metricsURL + "/metrics")
+	if err != nil {
+		t.Skipf("metrics listener not available at %s: %v", metricsURL, err)
+	}
+	defer func() { _ = metricsResp.Body.Close() }()
+	if metricsResp.StatusCode != http.StatusOK {
+		t.Errorf("/metrics returned status %d, want 200", metricsResp.StatusCode)
+	}
+	metricsBody, _ := io.ReadAll(metricsResp.Body)
+	for _, name := range []string{
+		"fi_fhir_build_info",
+		"fi_fhir_component_up",
+		"fi_fhir_readiness_up",
+	} {
+		if !bytes.Contains(metricsBody, []byte(name)) {
+			t.Errorf("metric %s is absent from the exposition", name)
+		}
+	}
+	// The pre-4.3 façade advertised workflow_* names nothing emitted. Assert
+	// they are gone so the dashboards and alert rules cannot silently regress.
+	if bytes.Contains(metricsBody, []byte("workflow_events_processed_total")) {
+		t.Error("legacy workflow_* metric names reappeared in the serve exposition")
 	}
 }

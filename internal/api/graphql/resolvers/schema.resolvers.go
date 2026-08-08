@@ -2153,17 +2153,48 @@ func (r *queryResolver) WorkflowApprovalRequests(ctx context.Context, filter *mo
 func (r *queryResolver) Health(ctx context.Context) (*model.HealthStatus, error) {
 	uptime := int(time.Since(r.StartTime).Seconds())
 
+	// Before Slice 4.3 this resolver returned Status "healthy" and a component
+	// {event_store, healthy} without touching the database — and it is what
+	// scripts/smoke-test.sh asserts on, so "authenticated health query succeeds"
+	// proved only that the resolver executes. It now projects the same component
+	// set the `/ready` probe evaluates.
+	if r.HealthReporter != nil {
+		report := r.HealthReporter.Ready(ctx)
+		components := make([]model.ComponentHealth, 0, len(report.Components))
+		for _, component := range report.Components {
+			message := component.Message
+			var messagePtr *string
+			if message != "" {
+				messagePtr = &message
+			}
+			components = append(components, model.ComponentHealth{
+				Name:    component.Name,
+				Status:  string(component.Status),
+				Message: messagePtr,
+			})
+		}
+		return &model.HealthStatus{
+			Status:     string(report.Status),
+			Version:    r.Version,
+			Uptime:     uptime,
+			Components: components,
+		}, nil
+	}
+
+	// No serve health surface is wired (CLI-embedded and test compositions).
+	// Report only what this resolver can prove from its own wiring.
 	components := []model.ComponentHealth{
-		{
-			Name:   "event_store",
-			Status: "healthy",
-		},
 		{
 			Name:   "graphql_server",
 			Status: "healthy",
 		},
 	}
-
+	if r.Store != nil {
+		components = append(components, model.ComponentHealth{
+			Name:   "event_store",
+			Status: "healthy",
+		})
+	}
 	if r.WorkflowEngine != nil {
 		components = append(components, model.ComponentHealth{
 			Name:   "workflow_engine",

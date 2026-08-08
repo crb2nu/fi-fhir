@@ -123,6 +123,19 @@ func (h *HealthService) RegisterReadinessCheck(name string, checker HealthChecke
 	h.readinessChecks[name] = checker
 }
 
+// InvalidateReadinessCache drops the cached readiness result.
+//
+// Readiness is cached for one second so a probe storm cannot amplify into a
+// dependency storm. That cache is harmful at exactly one moment: when a
+// component's lifecycle state changes, the next probe must see the new state
+// rather than a report computed before the transition.
+func (h *HealthService) InvalidateReadinessCache() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.cachedReadiness = nil
+	h.cacheExpiry = time.Time{}
+}
+
 // CheckLiveness runs all liveness checks and returns the aggregated result.
 func (h *HealthService) CheckLiveness(ctx context.Context) *HealthResponse {
 	return h.runChecks(ctx, h.livenessChecks)

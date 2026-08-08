@@ -21,6 +21,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/explain"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/extract"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/quality"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/observability"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/terminology/autoroute"
 	termworkflow "gitlab.flexinfer.ai/libs/fi-fhir/internal/terminology/workflow"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/workflow"
@@ -152,6 +153,13 @@ type Resolver struct {
 	// directly so the public server remains fail-closed by default.
 	legacyUnsafeExecution bool
 
+	// HealthReporter projects the same component set the HTTP `/health` and
+	// `/ready` probes serve. It is nil in compositions that have no serve
+	// runtime, and the `health` query then reports the components it can prove
+	// from the resolver's own wiring rather than asserting a hardcoded
+	// "healthy" for dependencies it never contacted.
+	HealthReporter observability.Reporter
+
 	// Server metadata
 	Version   string
 	StartTime time.Time
@@ -218,6 +226,14 @@ func WithWorkflowLifecycleStore(s store.WorkflowLifecycleStore) ResolverOption {
 func WithVersion(v string) ResolverOption {
 	return func(r *Resolver) {
 		r.Version = v
+	}
+}
+
+// WithHealthReporter binds the serve process's real health surface so the
+// `health` query stops answering from a literal.
+func WithHealthReporter(reporter observability.Reporter) ResolverOption {
+	return func(r *Resolver) {
+		r.HealthReporter = reporter
 	}
 }
 
@@ -631,4 +647,16 @@ func (r *Resolver) getOrBuildVersionEngine(versionID, yamlContent string) (*work
 	r.workflowVersionMu.Unlock()
 
 	return engine, nil
+}
+
+// IntegrationSessionHub exposes the session stream hub so the serve process can
+// attach the durable cross-replica fanout relay and the metrics observer.
+//
+// The hub is constructed with the session service, but its lifecycle and
+// observation belong to the process, not to the resolver.
+func (r *Resolver) IntegrationSessionHub() *enginesession.Hub {
+	if r == nil || r.integrationSessions == nil {
+		return nil
+	}
+	return r.integrationSessions.hub
 }

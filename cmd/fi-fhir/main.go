@@ -34,6 +34,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/explain"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/extract"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/quality"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/observability"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/cda"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/csv"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/edi"
@@ -4826,9 +4827,11 @@ func runServe(args []string) error {
 		resolverOpts = append(resolverOpts, resolvers.WithIntegrationSessionPublication(publicationService))
 		fmt.Println("Integration Session publication: signed lifecycle promotion enabled")
 	}
+	var durableEventStore graphqlstore.EventStore
 	if eventStore, err := initEventStoreFromEnv(context.Background()); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: event store disabled (using in-memory): %v\n", err)
 	} else if eventStore != nil {
+		durableEventStore = eventStore
 		resolverOpts = append(resolverOpts, resolvers.WithStore(eventStore))
 		fmt.Println("Event store: PostgreSQL")
 	} else {
@@ -4849,6 +4852,7 @@ func runServe(args []string) error {
 	var autorouteSweeper *autoroute.Sweeper
 	var autorouteNotifier *autoroute.ReviewNotifier
 
+	var terminologyDB *sql.DB
 	if dbURL != "" {
 		// Initialize mapping store from terminology database.
 		if mappingDB, err := sql.Open("postgres", dbURL); err != nil {
@@ -4857,10 +4861,46 @@ func runServe(args []string) error {
 			fmt.Fprintf(os.Stderr, "Warning: mapping store disabled (db ping failed): %v\n", err)
 			_ = mappingDB.Close()
 		} else {
+			terminologyDB = mappingDB
 			mappingStore = termdb.NewMappingStore(mappingDB)
 			resolverOpts = append(resolverOpts, resolvers.WithMappingStore(mappingStore))
 		}
 	}
+
+	// ---- Observability (Slice 4.3, Lane S3-A) ----
+	//
+	// Before this block `/health` was a string literal, `/ready` was mounted
+	// nowhere, and nothing listened on the metrics port that every checked-in
+	// deployment artifact already advertises. See `.loom/40-decisions.md`
+	// (2026-08-08) for the registry decision.
+	observabilityMode := observability.ModeFromEnv()
+	if observabilityMode.Legacy() {
+		fmt.Fprintf(os.Stderr,
+			"Warning: %s=legacy restores pre-Slice-4.3 observability behaviour "+
+				"(literal /health, no /ready, no metrics, process-local session fanout and "+
+				"notification de-duplication). It exists for the kill-test's negative control "+
+				"and is not a supported production configuration.\n", observability.ModeEnvVar)
+	}
+	observabilityConfig := runtimeConfig.Observability
+	serveHealth := observability.NewHealth(version, 3*time.Second)
+	serveMetrics := observability.NewMetrics(version)
+
+	// Readiness touches dependencies. An absent dependency reports "not
+	// configured", never "healthy": a truthful absence is the point.
+	serveHealth.RegisterDatabase(observability.ComponentSubmissionDB,
+		securePreviewRuntime.submissionDB, "durable submission database is not configured")
+	serveHealth.RegisterDatabase(observability.ComponentTerminologyDB,
+		terminologyDB, "terminology database is not configured")
+	serveHealth.RegisterPingable(observability.ComponentSessionStore,
+		securePreviewRuntime.sessionStore, "Integration Session workspace is not configured")
+	serveHealth.RegisterPingable(observability.ComponentProfileStore,
+		profileStore, "profile store is not configured")
+	serveHealth.RegisterPingable(observability.ComponentWorkflowStore,
+		workflowLifecycleStore, "workflow lifecycle store is not configured")
+	serveHealth.RegisterPingable(observability.ComponentEventStore,
+		durableEventStore, "durable event store is not configured (in-memory)")
+	serveHealth.RegisterPingable(observability.ComponentMappingStore,
+		mappingStore, "terminology mapping store is not configured")
 
 	// Pending autoroute expiry sweep. Reads already treat time-expired pending
 	// rows as expired, so this only reconciles the stored status column; a
@@ -4872,16 +4912,7 @@ func runServe(args []string) error {
 		} else if sweeper, sweepErr := autoroute.NewSweeper(autoroute.SweeperConfig{
 			Store:    mappingStore,
 			Interval: sweepInterval,
-			Observe: func(result autoroute.SweepResult, observeErr error) {
-				if observeErr != nil {
-					fmt.Fprintf(os.Stderr, "Warning: pending autoroute sweep failed: %v\n", observeErr)
-					return
-				}
-				if result.Expired > 0 {
-					fmt.Printf("Pending autoroute sweep: expired=%d duration=%s\n",
-						result.Expired, result.Duration.Round(time.Millisecond))
-				}
-			},
+			Observe:  autorouteSweepObserver(serveMetrics),
 		}); sweepErr != nil {
 			fmt.Fprintf(os.Stderr, "Warning: pending autoroute sweep disabled: %v\n", sweepErr)
 		} else {
@@ -4898,34 +4929,13 @@ func runServe(args []string) error {
 		if sink, sinkErr := autoroute.NewWebhookSink(notifyCfg.Webhook, notifyCfg.Timeout); sinkErr != nil {
 			fmt.Fprintf(os.Stderr, "Warning: pending autoroute review notifications disabled: %v\n", sinkErr)
 		} else if notifier, notifyErr := autoroute.NewReviewNotifier(autoroute.ReviewNotifierConfig{
-			Store:         mappingStore,
-			Sink:          sink,
-			Interval:      notifyCfg.Interval,
-			MinConfidence: notifyCfg.MinConfidence,
-			Observe: func(result autoroute.NotifyResult, observeErr error) {
-				if observeErr != nil {
-					fmt.Fprintf(os.Stderr, "Warning: pending autoroute review scan failed: %v\n", observeErr)
-					return
-				}
-				if result.Dropped > 0 {
-					fmt.Fprintf(os.Stderr,
-						"Warning: pending autoroute review notification dropped (dispatch queue full): eligible=%d new=%d\n",
-						result.Eligible, result.New)
-					return
-				}
-				if result.Queued > 0 {
-					fmt.Printf("Pending autoroute review: eligible=%d new=%d queued duration=%s\n",
-						result.Eligible, result.New, result.Duration.Round(time.Millisecond))
-				}
-			},
-			ObserveDelivery: func(result autoroute.DeliveryResult, deliverErr error) {
-				if deliverErr != nil {
-					fmt.Fprintf(os.Stderr, "Warning: pending autoroute review notification delivery failed: %v\n", deliverErr)
-					return
-				}
-				fmt.Printf("Pending autoroute review notification delivered: items=%d duration=%s\n",
-					result.Items, result.Duration.Round(time.Millisecond))
-			},
+			Store:                mappingStore,
+			Sink:                 sink,
+			Interval:             notifyCfg.Interval,
+			MinConfidence:        notifyCfg.MinConfidence,
+			Observe:              autorouteNotifyObserver(serveMetrics),
+			ObserveDelivery:      autorouteDeliveryObserver(serveMetrics),
+			DisableDurableClaims: observabilityMode.Legacy(),
 		}); notifyErr != nil {
 			fmt.Fprintf(os.Stderr, "Warning: pending autoroute review notifications disabled: %v\n", notifyErr)
 		} else {
@@ -5067,8 +5077,71 @@ func runServe(args []string) error {
 		}
 	}
 
+	// The GraphQL `health` query projects the same component set the probes
+	// serve, instead of the hardcoded "healthy" it returned before this slice.
+	// In legacy mode the resolver falls back to its own wiring, which is what
+	// the negative control asserts on.
+	if !observabilityMode.Legacy() {
+		resolverOpts = append(resolverOpts, resolvers.WithHealthReporter(serveHealth))
+	}
+
 	// Create resolver
 	resolver := resolvers.NewResolver(resolverOpts...)
+
+	// Durable Integration Session fanout. Without it a subscription pinned to
+	// replica A never sees a run executed on replica B.
+	sessionHub := resolver.IntegrationSessionHub()
+	sessionHub.SetObserver(sessionStreamObserver(serveMetrics))
+	sessionRelay, err := newSessionStreamRelay(
+		securePreviewRuntime.sessionStore, sessionHub, serveMetrics, observabilityMode,
+	)
+	if err != nil {
+		return fmt.Errorf("configure Integration Session stream relay: %w", err)
+	}
+	if sessionRelay != nil {
+		fmt.Printf("Integration Session durable stream fanout enabled (every %s)\n", sessionRelay.Interval())
+	}
+
+	// Bind the observation seams the four previously blind components now have.
+	bindMLLPObservation(securePreviewRuntime.mllpServer.Service(), serveMetrics)
+	bindDeliveryObservation(securePreviewRuntime.deliveryWorker, serveMetrics)
+	bindBatchObservation(securePreviewRuntime.batchRunner, serveMetrics)
+
+	// The metrics listener is the second port every checked-in deployment
+	// artifact already advertises. Binding happens here so a port conflict is a
+	// startup error rather than a silently failing scrape.
+	var metricsServer *observability.MetricsServer
+	if observabilityConfig.MetricsEnabled && !observabilityMode.Legacy() {
+		metricsServer, err = observability.NewMetricsServer(observability.MetricsServerConfig{
+			Host:        host,
+			Port:        observabilityConfig.MetricsPort,
+			Path:        observabilityConfig.MetricsEndpoint,
+			Handler:     serveMetrics.Handler(),
+			ReadTimeout: timeout,
+		})
+		if err != nil {
+			return fmt.Errorf("configure metrics listener: %w", err)
+		}
+		defer func() { _ = metricsServer.Close() }()
+		fmt.Printf("Prometheus metrics listening on http://%s%s\n", metricsServer.Addr(), metricsServer.Path())
+	} else {
+		fmt.Println("Prometheus metrics: disabled")
+	}
+
+	// Runtime health onto the deployed lifecycle snapshot. Before this slice
+	// integration_lifecycle_snapshots.health was written at deploy time and
+	// never again, because ReportHealth had no non-test caller.
+	var runtimeHealthReporter *lifecycleHealthReporter
+	if !observabilityMode.Legacy() {
+		runtimeHealthReporter = newLifecycleHealthReporter(
+			lifecycleCatalog,
+			securePreviewRuntime.tenantID,
+			serveDurableDefinitionIDs(securePreviewRuntime),
+			"fi-fhir-runtime",
+			serveHealth,
+			time.Minute,
+		)
+	}
 
 	// Create server config
 	serverConfig := &graphql.ServerConfig{
@@ -5088,7 +5161,10 @@ func runServe(args []string) error {
 		Authenticator:               securePreviewRuntime.authenticator,
 		TrustedNetworkAuthenticator: securePreviewRuntime.trustedNetwork,
 		HL7IngressPath:              securePreviewRuntime.ingressPath,
-		HL7IngressHandler:           securePreviewRuntime.ingressHandler,
+		HL7IngressHandler:           serveMetrics.IngressMiddleware(securePreviewRuntime.ingressHandler),
+	}
+	if !observabilityMode.Legacy() {
+		serverConfig.Health = serveHealth
 	}
 
 	// Create and start server
@@ -5107,17 +5183,61 @@ func runServe(args []string) error {
 		name string
 		err  error
 	}
-	errCh := make(chan componentError, 6)
+	// Background component table.
+	//
+	// Lane ownership note (`.loom/31-sprint3-execution-specs.md`): Slice 4.3 owns
+	// this table's shape. Sibling lanes append their own component *after* their
+	// own subsystem's block and add a matching entry to markComponent and
+	// waitForBackgroundStops rather than restructuring the table.
+	errCh := make(chan componentError, 9)
+
+	// markComponent keeps readiness, metrics, and the shutdown table reading from
+	// one source of truth, so `/ready` cannot claim a listener the process never
+	// started.
+	markComponent := func(name string, state observability.ComponentState) {
+		serveHealth.SetComponentState(name, state)
+		serveMetrics.SetComponentState(name, state)
+	}
+	markComponent(observability.ComponentGraphQL, observability.ComponentRunning)
+	for _, name := range []string{
+		observability.ComponentMetrics, observability.ComponentMLLP, observability.ComponentDelivery,
+		observability.ComponentBatch, observability.ComponentAutorouteSweep,
+		observability.ComponentAutorouteNotify, observability.ComponentSessionStream,
+	} {
+		markComponent(name, observability.ComponentNotConfigured)
+	}
+
 	go func() {
 		errCh <- componentError{name: "GraphQL", err: server.Start()}
 	}()
+	if metricsServer != nil {
+		markComponent(observability.ComponentMetrics, observability.ComponentRunning)
+		go func() {
+			errCh <- componentError{name: "metrics", err: metricsServer.Run(serveCtx)}
+		}()
+	}
+	if sessionRelay != nil {
+		markComponent(observability.ComponentSessionStream, observability.ComponentRunning)
+		go func() {
+			errCh <- componentError{name: "session-stream", err: sessionRelay.Run(serveCtx)}
+		}()
+	}
+	if runtimeHealthReporter != nil {
+		// Deliberately not in the component table: a health *report* failing must
+		// never stop the process, and Run only returns on cancellation.
+		go func() { _ = runtimeHealthReporter.Run(serveCtx) }()
+		fmt.Println("Lifecycle runtime health reporting enabled")
+	}
+	observability.StartReadinessRefresh(serveCtx, serveHealth, serveMetrics, 15*time.Second)
 	if securePreviewRuntime.mllpServer != nil {
+		markComponent(observability.ComponentMLLP, observability.ComponentRunning)
 		go func() {
 			errCh <- componentError{name: "MLLP", err: securePreviewRuntime.mllpServer.ListenAndServe(serveCtx)}
 		}()
 		fmt.Println("MLLP listener enabled from immutable source revision")
 	}
 	if securePreviewRuntime.deliveryWorker != nil {
+		markComponent(observability.ComponentDelivery, observability.ComponentRunning)
 		go func() {
 			errCh <- componentError{name: "delivery", err: securePreviewRuntime.deliveryWorker.Run(serveCtx)}
 		}()
@@ -5129,18 +5249,21 @@ func runServe(args []string) error {
 		}
 	}
 	if securePreviewRuntime.batchRunner != nil {
+		markComponent(observability.ComponentBatch, observability.ComponentRunning)
 		go func() {
 			errCh <- componentError{name: "batch", err: securePreviewRuntime.batchRunner.Run(serveCtx)}
 		}()
 		fmt.Println("Lifecycle-gated S3/SFTP batch ingestion enabled")
 	}
 	if autorouteSweeper != nil {
+		markComponent(observability.ComponentAutorouteSweep, observability.ComponentRunning)
 		go func() {
 			errCh <- componentError{name: "autoroute-sweep", err: autorouteSweeper.Run(serveCtx)}
 		}()
 		fmt.Printf("Pending autoroute expiry sweep enabled (every %s)\n", autorouteSweeper.Interval())
 	}
 	if autorouteNotifier != nil {
+		markComponent(observability.ComponentAutorouteNotify, observability.ComponentRunning)
 		go func() {
 			errCh <- componentError{name: "autoroute-notify", err: autorouteNotifier.Run(serveCtx)}
 		}()
@@ -5157,11 +5280,27 @@ func runServe(args []string) error {
 	}
 	waitForBackgroundStops := func(alreadyStopped string) error {
 		waiting := map[string]bool{
+			"metrics":          metricsServer != nil && alreadyStopped != "metrics",
 			"MLLP":             securePreviewRuntime.mllpServer != nil && alreadyStopped != "MLLP",
 			"delivery":         securePreviewRuntime.deliveryWorker != nil && alreadyStopped != "delivery",
 			"batch":            securePreviewRuntime.batchRunner != nil && alreadyStopped != "batch",
+			"session-stream":   sessionRelay != nil && alreadyStopped != "session-stream",
 			"autoroute-sweep":  autorouteSweeper != nil && alreadyStopped != "autoroute-sweep",
 			"autoroute-notify": autorouteNotifier != nil && alreadyStopped != "autoroute-notify",
+		}
+		// A component that stopped is no longer ready, whatever else happens
+		// during shutdown.
+		componentMetricNames := map[string]string{
+			"metrics":          observability.ComponentMetrics,
+			"MLLP":             observability.ComponentMLLP,
+			"delivery":         observability.ComponentDelivery,
+			"batch":            observability.ComponentBatch,
+			"session-stream":   observability.ComponentSessionStream,
+			"autoroute-sweep":  observability.ComponentAutorouteSweep,
+			"autoroute-notify": observability.ComponentAutorouteNotify,
+		}
+		if name, ok := componentMetricNames[alreadyStopped]; ok {
+			markComponent(name, observability.ComponentStopped)
 		}
 		remaining := 0
 		for _, enabled := range waiting {
@@ -5181,6 +5320,9 @@ func runServe(args []string) error {
 					continue
 				}
 				waiting[component.name] = false
+				if name, ok := componentMetricNames[component.name]; ok {
+					markComponent(name, observability.ComponentStopped)
+				}
 				remaining--
 				if component.err != nil {
 					return fmt.Errorf("%s component shutdown: %w", component.name, component.err)
