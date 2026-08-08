@@ -8,7 +8,7 @@
 	docs-status docs-status-quick docs-validate docs-all \
 	contract-check contract-check-strict contract-matrix \
 	golden-path-001 mllp-runtime delivery-reliability batch-ingestion integration-session \
-	operator-control-plane delivery-identity phi-audit \
+	operator-control-plane delivery-identity phi-audit observability-replicas \
 	smoke-test smoke-test-local check-runtime-config \
 	dev dev-down dev-ui dev-ui-down
 
@@ -151,6 +151,14 @@ phi-audit:
 	go test -tags=integration -race -count=1 -timeout=300s \
 		-run '^TestPhiRetentionPosture_ProductionRejectsRetainedRawAndCanonicalEventsCarryNoPolicy$$' \
 		./internal/integration/processor
+# Slice 4.3 observability kill-test: two `fi-fhir serve` replicas against one
+# PostgreSQL, started from the documented environment block, plus the legacy
+# negative control that must fail assertions 1-4.
+# Requires POSTGRES_TEST_URL and fails rather than skipping in CI.
+observability-replicas:
+	go test -tags=integration -race -count=1 -timeout=600s \
+		-run '^TestServeObservability_TwoReplicasUnderDocumentedConfiguration$$' \
+		./internal/observability
 
 # Clean build artifacts
 clean:

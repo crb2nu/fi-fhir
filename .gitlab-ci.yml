@@ -1443,6 +1443,52 @@ test:phi-audit:
     - when: never
   allow_failure: false
 
+# Slice 4.3 Lane S3-A: two `fi-fhir serve` replicas against one PostgreSQL,
+# started from the environment block `.env.example` and docs/operations/*
+# actually prescribe — not a test-crafted favorable configuration.
+#
+# The job runs the proof AND its negative control in one invocation. The control
+# restores the pre-slice behaviour through FI_FHIR_OBSERVABILITY_MODE=legacy and
+# asserts that readiness, cross-replica SSE fanout, batch worker identity, and
+# notification de-duplication all FAIL there. A pipeline where the control passes
+# is a broken test, not a green lane.
+test:observability-replicas:
+  stage: test
+  <<: *go-image-debian
+  <<: *go-cache
+  services:
+    - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
+      alias: postgres
+  variables:
+    CGO_ENABLED: "1"
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
+    POSTGRES_DB: fi_fhir_observability_test
+    POSTGRES_USER: testuser
+    POSTGRES_PASSWORD: testpass
+    POSTGRES_HOST_AUTH_METHOD: trust
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_observability_test?sslmode=disable"
+  script:
+    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates ripgrep build-essential && rm -rf /var/lib/apt/lists/*
+    # Existence guard. Integration helpers t.Skipf rather than t.Fatalf when a
+    # service is unreachable, so a renamed or deleted test would make this job
+    # greener rather than redder without this step (AGENTS.md).
+    - >-
+      go test -tags=integration
+      -list '^TestServeObservability_TwoReplicasUnderDocumentedConfiguration$'
+      ./internal/observability
+      | rg -x 'TestServeObservability_TwoReplicasUnderDocumentedConfiguration'
+      | awk 'END { if (NR != 1) exit 1 }'
+    - make observability-replicas
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *go-changes
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *go-changes
+    - when: never
+  allow_failure: false
+
 # =============================================================================
 # Security Stage
 # =============================================================================

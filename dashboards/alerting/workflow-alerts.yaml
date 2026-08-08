@@ -1,297 +1,181 @@
-# Prometheus Alerting Rules for fi-fhir Workflow Engine
+# Prometheus Alerting Rules for the fi-fhir Integration Engine
+#
+# These rules alert only on metrics the process actually emits (see
+# internal/observability/metrics.go, exposed on FI_FHIR_METRICS_PORT at
+# FI_FHIR_METRICS_ENDPOINT, default :9090/metrics). Slice 4.3 replaced the
+# entire previous rule set: every earlier rule here targeted a
+# `fi_fhir_workflow_*` metric name that nothing in this codebase has ever
+# emitted, so none of those rules could fire. See .loom/40-decisions.md
+# (2026-08-08) for the naming decision behind the current metric names.
 #
 # Usage:
 #   1. Standalone Prometheus: Add to prometheus.yml under rule_files
 #   2. Prometheus Operator: Apply as PrometheusRule CRD (see workflow-alerts-k8s.yaml)
 #
-# Customize thresholds based on your SLOs and traffic patterns.
+# Customize thresholds based on your SLOs and traffic patterns. The
+# `job="fi-fhir"` label on FiFhirScrapeTargetDown matches the job_name in
+# deploy/docker/prometheus.yml; adjust it if your scrape config uses a
+# different job or relabels the instance.
 
 groups:
-  - name: fi-fhir-workflow-availability
+  - name: fi-fhir-availability
     interval: 30s
     rules:
-      # High Error Rate - Critical
-      - alert: WorkflowHighErrorRate
+      # Absent Scrape Target - Critical
+      - alert: FiFhirScrapeTargetDown
+        expr: |
+          up{job="fi-fhir"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          service: fi-fhir
+          category: availability
+        annotations:
+          summary: "fi-fhir /metrics scrape target is down"
+          description: "Prometheus has not been able to scrape {{ $labels.instance }} for 5 minutes. The process may be down, or FI_FHIR_METRICS_PORT/FI_FHIR_METRICS_ENABLED may not match what this scrape config expects."
+
+      # Component Stopped - Critical
+      - alert: FiFhirComponentDown
+        expr: |
+          fi_fhir_component_up == 0
+        for: 5m
+        labels:
+          severity: critical
+          service: fi-fhir
+          category: availability
+        annotations:
+          summary: "fi-fhir component {{ $labels.component }} is down"
+          description: "Component {{ $labels.component }} (graphql, mllp, delivery, batch, autoroute_sweep, autoroute_notify, or session_stream) is configured but not running, for 5 minutes. Check process logs for a crashed listener or worker goroutine."
+
+      # Readiness Dependency Unhealthy - Critical
+      - alert: FiFhirReadinessComponentUnhealthy
+        expr: |
+          fi_fhir_readiness_up == 0
+        for: 5m
+        labels:
+          severity: critical
+          service: fi-fhir
+          category: availability
+        annotations:
+          summary: "fi-fhir readiness dependency {{ $labels.component }} is unhealthy"
+          description: "GET /ready has been reporting {{ $labels.component }} unhealthy for 5 minutes. The Kubernetes readiness probe returns 503 for this condition, so the Service has likely stopped routing to affected pods."
+
+  - name: fi-fhir-ingress
+    interval: 30s
+    rules:
+      # HTTP Ingress Error Rate - Warning
+      - alert: FiFhirIngressErrorRate
         expr: |
           (
-            sum(rate(fi_fhir_workflow_events_processed_total{success="false"}[5m]))
+            sum(rate(fi_fhir_http_ingress_submissions_total{outcome="error"}[5m]))
             /
-            sum(rate(fi_fhir_workflow_events_processed_total[5m]))
+            sum(rate(fi_fhir_http_ingress_submissions_total[5m]))
           ) > 0.05
         for: 5m
         labels:
-          severity: critical
+          severity: warning
           service: fi-fhir
-          category: availability
+          category: ingress
         annotations:
-          summary: "High workflow event error rate"
-          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%). Check action failures and external service health."
-          runbook_url: "https://docs.example.com/runbooks/fi-fhir/high-error-rate"
+          summary: "Elevated HTTP ingress error rate"
+          description: "{{ $value | humanizePercentage }} of authenticated HL7v2 HTTP ingress submissions are failing with an infrastructure error (threshold 5%). This excludes caller validation rejections (outcome=rejected); check downstream database and queue health."
 
-      # Action Failures - Warning
-      - alert: WorkflowActionFailures
+      # MLLP Rejection/Error Rate - Warning
+      - alert: FiFhirMLLPRejectionRate
         expr: |
-          sum(rate(fi_fhir_workflow_actions_executed_total{success="false"}[5m])) by (action_type, route_name) > 0.1
+          (
+            sum(rate(fi_fhir_mllp_messages_total{outcome=~"rejected|error"}[10m]))
+            /
+            sum(rate(fi_fhir_mllp_messages_total[10m]))
+          ) > 0.1
         for: 10m
         labels:
           severity: warning
           service: fi-fhir
-          category: availability
+          category: ingress
         annotations:
-          summary: "Workflow action failures detected"
-          description: "Action {{ $labels.action_type }} on route {{ $labels.route_name }} is failing at {{ $value | humanize }} failures/sec."
-          runbook_url: "https://docs.example.com/runbooks/fi-fhir/action-failures"
+          summary: "Elevated MLLP message rejection rate"
+          description: "{{ $value | humanizePercentage }} of MLLP frames are being rejected or erroring (threshold 10%). Check the sending system's message format and, if FI_FHIR_MLLP_REQUIRE_CLIENT_IDENTITY is set, its TLS client certificate."
 
-      # No Events Processed - Warning
-      - alert: WorkflowNoEventsProcessed
-        expr: |
-          sum(rate(fi_fhir_workflow_events_processed_total[15m])) == 0
-        for: 30m
-        labels:
-          severity: warning
-          service: fi-fhir
-          category: availability
-        annotations:
-          summary: "No workflow events processed"
-          description: "No events have been processed in the last 30 minutes. Check upstream data sources."
-          runbook_url: "https://docs.example.com/runbooks/fi-fhir/no-events"
-
-  - name: fi-fhir-workflow-latency
+  - name: fi-fhir-delivery
     interval: 30s
     rules:
-      # High Event Processing Latency - Warning
-      - alert: WorkflowHighEventLatency
+      # Delivery Failure Rate - Critical
+      - alert: FiFhirDeliveryFailureRate
         expr: |
-          histogram_quantile(0.99,
-            sum(rate(fi_fhir_workflow_events_processed_duration_seconds_bucket[5m])) by (le)
-          ) > 5
+          (
+            sum(rate(fi_fhir_delivery_attempts_total{outcome=~"failed|error"}[10m]))
+            /
+            sum(rate(fi_fhir_delivery_attempts_total[10m]))
+          ) > 0.05
         for: 10m
-        labels:
-          severity: warning
-          service: fi-fhir
-          category: latency
-        annotations:
-          summary: "High workflow event processing latency"
-          description: "p99 event processing latency is {{ $value | humanizeDuration }} (threshold: 5s)."
-          runbook_url: "https://docs.example.com/runbooks/fi-fhir/high-latency"
-
-      # High Action Latency - Warning
-      - alert: WorkflowHighActionLatency
-        expr: |
-          histogram_quantile(0.99,
-            sum(rate(fi_fhir_workflow_actions_executed_duration_seconds_bucket[5m])) by (le, action_type)
-          ) > 10
-        for: 10m
-        labels:
-          severity: warning
-          service: fi-fhir
-          category: latency
-        annotations:
-          summary: "High workflow action latency"
-          description: "p99 latency for action {{ $labels.action_type }} is {{ $value | humanizeDuration }} (threshold: 10s)."
-          runbook_url: "https://docs.example.com/runbooks/fi-fhir/action-latency"
-
-      # HTTP Request Latency - Warning
-      - alert: WorkflowHighHTTPLatency
-        expr: |
-          histogram_quantile(0.99,
-            sum(rate(fi_fhir_workflow_http_requests_duration_seconds_bucket[5m])) by (le, endpoint)
-          ) > 5
-        for: 10m
-        labels:
-          severity: warning
-          service: fi-fhir
-          category: latency
-        annotations:
-          summary: "High HTTP request latency"
-          description: "p99 HTTP latency to {{ $labels.endpoint }} is {{ $value | humanizeDuration }}."
-          runbook_url: "https://docs.example.com/runbooks/fi-fhir/http-latency"
-
-  - name: fi-fhir-workflow-resilience
-    interval: 30s
-    rules:
-      # Circuit Breaker Open - Critical
-      - alert: WorkflowCircuitBreakerOpen
-        expr: |
-          sum(increase(fi_fhir_workflow_circuit_breaker_state_changes_total{to_state="open"}[5m])) by (endpoint) > 0
-        for: 1m
         labels:
           severity: critical
           service: fi-fhir
-          category: resilience
+          category: delivery
         annotations:
-          summary: "Circuit breaker opened"
-          description: "Circuit breaker for {{ $labels.endpoint }} has opened. External service may be unavailable."
-          runbook_url: "https://docs.example.com/runbooks/fi-fhir/circuit-breaker-open"
+          summary: "Elevated outbound delivery failure rate"
+          description: "{{ $value | humanizePercentage }} of delivery dispatch cycles are ending in a terminal failure (outcome=failed) or infrastructure error (outcome=error), threshold 5%. fi-fhir has no dead-letter-queue-depth metric; this ratio is the closest available signal that outbound delivery is not keeping up. Check the downstream endpoint and dispatcher logs."
 
-      # Circuit Breaker Rejections - Warning
-      - alert: WorkflowCircuitBreakerRejections
+      # Batch Object Failure Rate - Warning
+      - alert: FiFhirBatchFailureRate
         expr: |
-          sum(rate(fi_fhir_workflow_circuit_breaker_rejections_total[5m])) by (endpoint) > 1
-        for: 5m
+          (
+            sum(rate(fi_fhir_batch_objects_total{outcome="failed"}[15m]))
+            /
+            sum(rate(fi_fhir_batch_objects_total[15m]))
+          ) > 0.1
+        for: 15m
         labels:
           severity: warning
           service: fi-fhir
-          category: resilience
+          category: delivery
         annotations:
-          summary: "Circuit breaker rejecting requests"
-          description: "Circuit breaker for {{ $labels.endpoint }} is rejecting {{ $value | humanize }} requests/sec."
-          runbook_url: "https://docs.example.com/runbooks/fi-fhir/circuit-breaker-rejections"
+          summary: "Elevated batch ingestion failure rate"
+          description: "{{ $value | humanizePercentage }} of batch objects are failing to process (threshold 10%). Check S3/SFTP source connectivity, credentials, and object format."
 
-      # High Retry Rate - Warning
-      - alert: WorkflowHighRetryRate
+      # Session Stream Drop/Error Rate - Warning
+      - alert: FiFhirSessionStreamErrorRate
         expr: |
-          sum(rate(fi_fhir_workflow_action_retries_total[5m])) by (action_type, route_name)
-          /
-          sum(rate(fi_fhir_workflow_actions_executed_total[5m])) by (action_type, route_name)
-          > 0.3
+          (
+            sum(rate(fi_fhir_session_stream_events_total{outcome=~"dropped|error"}[10m]))
+            /
+            sum(rate(fi_fhir_session_stream_events_total[10m]))
+          ) > 0.05
         for: 10m
         labels:
           severity: warning
           service: fi-fhir
-          category: resilience
+          category: delivery
         annotations:
-          summary: "High action retry rate"
-          description: "{{ $value | humanizePercentage }} of {{ $labels.action_type }} actions on {{ $labels.route_name }} are being retried."
-          runbook_url: "https://docs.example.com/runbooks/fi-fhir/high-retry-rate"
+          summary: "Integration Session stream is dropping or erroring events"
+          description: "{{ $value | humanizePercentage }} of Integration Session stream events are dropped or erroring (threshold 5%). Connected UI clients may be missing live session updates; check the durable stream log and hub fanout."
 
-      # Rate Limiting Active - Info
-      - alert: WorkflowRateLimitingActive
-        expr: |
-          sum(rate(fi_fhir_workflow_rate_limit_waits_total[5m])) by (endpoint) > 1
-        for: 15m
-        labels:
-          severity: info
-          service: fi-fhir
-          category: resilience
-        annotations:
-          summary: "Rate limiting active"
-          description: "Rate limiting is throttling requests to {{ $labels.endpoint }} at {{ $value | humanize }} waits/sec."
-          runbook_url: "https://docs.example.com/runbooks/fi-fhir/rate-limiting"
-
-      # Rate Limit Rejections - Warning
-      - alert: WorkflowRateLimitRejections
-        expr: |
-          sum(rate(fi_fhir_workflow_rate_limit_rejections_total[5m])) by (endpoint) > 0.5
-        for: 5m
-        labels:
-          severity: warning
-          service: fi-fhir
-          category: resilience
-        annotations:
-          summary: "Rate limit rejecting requests"
-          description: "Rate limiter for {{ $labels.endpoint }} is rejecting {{ $value | humanize }} requests/sec."
-          runbook_url: "https://docs.example.com/runbooks/fi-fhir/rate-limit-rejections"
-
-  - name: fi-fhir-workflow-dlq
+  - name: fi-fhir-autoroute
     interval: 30s
     rules:
-      # DLQ Growing - Warning
-      - alert: WorkflowDLQGrowing
+      # Autoroute Expiry Sweep Failing - Warning
+      - alert: FiFhirAutorouteSweepFailureRate
         expr: |
-          fi_fhir_workflow_dlq_depth > 100
+          sum(rate(fi_fhir_autoroute_sweeps_total{outcome="error"}[15m])) > 0
         for: 15m
         labels:
           severity: warning
           service: fi-fhir
-          category: dlq
+          category: autoroute
         annotations:
-          summary: "Dead letter queue growing"
-          description: "DLQ depth is {{ $value }} events. Review and reprocess failed events."
-          runbook_url: "https://docs.example.com/runbooks/fi-fhir/dlq-growing"
+          summary: "Pending autoroute expiry sweep is failing"
+          description: "The pending-autoroute expiry sweep has been erroring for 15 minutes. Pending terminology review items may not be expiring on schedule; check sweeper logs and submission_db connectivity."
 
-      # DLQ Critical Depth - Critical
-      - alert: WorkflowDLQCritical
+      # Autoroute Review Notifications Failing - Warning
+      - alert: FiFhirAutorouteNotificationFailureRate
         expr: |
-          fi_fhir_workflow_dlq_depth > 1000
-        for: 5m
-        labels:
-          severity: critical
-          service: fi-fhir
-          category: dlq
-        annotations:
-          summary: "Dead letter queue critical depth"
-          description: "DLQ depth is {{ $value }} events. Immediate attention required."
-          runbook_url: "https://docs.example.com/runbooks/fi-fhir/dlq-critical"
-
-      # DLQ Push Rate - Warning
-      - alert: WorkflowDLQHighPushRate
-        expr: |
-          sum(rate(fi_fhir_workflow_dlq_pushed_total[5m])) > 1
-        for: 10m
-        labels:
-          severity: warning
-          service: fi-fhir
-          category: dlq
-        annotations:
-          summary: "High DLQ push rate"
-          description: "Events are being pushed to DLQ at {{ $value | humanize }}/sec. Check for systemic failures."
-          runbook_url: "https://docs.example.com/runbooks/fi-fhir/dlq-push-rate"
-
-      # DLQ Reprocessing Failures - Warning
-      - alert: WorkflowDLQReprocessingFailures
-        expr: |
-          sum(rate(fi_fhir_workflow_dlq_popped_total{success="false"}[5m]))
-          /
-          sum(rate(fi_fhir_workflow_dlq_popped_total[5m]))
-          > 0.5
+          sum(rate(fi_fhir_autoroute_notifications_total{outcome=~"failed|error"}[15m])) > 0
         for: 15m
         labels:
           severity: warning
           service: fi-fhir
-          category: dlq
+          category: autoroute
         annotations:
-          summary: "DLQ reprocessing failures"
-          description: "{{ $value | humanizePercentage }} of DLQ reprocessing attempts are failing."
-          runbook_url: "https://docs.example.com/runbooks/fi-fhir/dlq-reprocessing-failures"
-
-  - name: fi-fhir-workflow-http
-    interval: 30s
-    rules:
-      # HTTP 5xx Errors - Warning
-      - alert: WorkflowHTTP5xxErrors
-        expr: |
-          sum(rate(fi_fhir_workflow_http_requests_total{status_code=~"5.."}[5m])) by (endpoint)
-          /
-          sum(rate(fi_fhir_workflow_http_requests_total[5m])) by (endpoint)
-          > 0.1
-        for: 5m
-        labels:
-          severity: warning
-          service: fi-fhir
-          category: http
-        annotations:
-          summary: "High HTTP 5xx error rate"
-          description: "{{ $value | humanizePercentage }} of requests to {{ $labels.endpoint }} are returning 5xx errors."
-          runbook_url: "https://docs.example.com/runbooks/fi-fhir/http-5xx"
-
-      # HTTP 4xx Errors - Info
-      - alert: WorkflowHTTP4xxErrors
-        expr: |
-          sum(rate(fi_fhir_workflow_http_requests_total{status_code=~"4.."}[5m])) by (endpoint)
-          /
-          sum(rate(fi_fhir_workflow_http_requests_total[5m])) by (endpoint)
-          > 0.2
-        for: 15m
-        labels:
-          severity: info
-          service: fi-fhir
-          category: http
-        annotations:
-          summary: "High HTTP 4xx error rate"
-          description: "{{ $value | humanizePercentage }} of requests to {{ $labels.endpoint }} are returning 4xx errors."
-          runbook_url: "https://docs.example.com/runbooks/fi-fhir/http-4xx"
-
-      # Authentication Failures - Warning
-      - alert: WorkflowAuthFailures
-        expr: |
-          sum(rate(fi_fhir_workflow_http_requests_total{status_code="401"}[5m])) by (endpoint) > 0.1
-        for: 5m
-        labels:
-          severity: warning
-          service: fi-fhir
-          category: http
-        annotations:
-          summary: "Authentication failures detected"
-          description: "{{ $labels.endpoint }} is returning 401 Unauthorized. Check OAuth tokens and credentials."
-          runbook_url: "https://docs.example.com/runbooks/fi-fhir/auth-failures"
+          summary: "Pending autoroute review notifications are failing"
+          description: "Pending-review notifications have been failing to send or erroring for 15 minutes; on-call reviewers may not be alerted to new items awaiting terminology mapping. Check the notification dispatch queue and delivery target."

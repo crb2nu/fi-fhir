@@ -758,6 +758,38 @@ pipeline `22560` passed 42/42.
   subscription fanout, leader/lease rules, and cardinality/PHI budgets.
 - Proof: two replicas process/stream without in-memory fanout loss or duplicate
   durable acceptance/outbox records; transport retries preserve one identity.
+- **Status: delivered (Lane S3-A).** Spec `.loom/31-sprint3-execution-specs.md`;
+  decision `.loom/40-decisions.md` (2026-08-08); handoff
+  `.loom/slice-handoff-phase-4-slice-4-3-observability.md`.
+
+**What the plan text got wrong, corrected from code before implementation.** The
+riskiest assumption above — "without in-memory fanout loss" — treats the session
+hub as the only multi-replica defect. It is one of five. `.loom/31` correction 10
+enumerates them; four were fixed and one is now documented instead of surprising:
+
+| Component | Pre-slice behaviour | Outcome |
+|---|---|---|
+| Session SSE hub | Process-local map; a subscription on replica A never saw a run on replica B | Fixed: envelope-only durable log + per-replica relay |
+| Batch worker identity | `FI_FHIR_BATCH_WORKER_ID` required, and `.env.example` plus the operations doc published one shared literal, so two replicas stole each other's live leases | Fixed: derived `hostname-pid`; documentation no longer publishes a value |
+| Autoroute notifier | Per-process `seen` map: N replicas paged reviewers N times, every restart re-paged the backlog | Fixed: durable `notified_at` claim |
+| Autoroute sweeper | Two replicas run one idempotent guarded `UPDATE` | Accepted: benign duplicate, documented |
+| MLLP capacity | One gate per process, so N replicas serve N× the declared `CapacityPolicy` | Documented as per-replica; durable token bucket deferred to 4.4 |
+
+**Also delivered.** Truthful probes in both deployment paths (the Kubernetes
+manifests probed `exec ["/fi-fhir","version"]`; the Helm chart pointed both
+probes at the same literal `/health`); a rewritten Grafana dashboard and 10
+actionable alert rules replacing 32 that targeted metrics nothing emitted; the
+`Observe` seams the MLLP service, delivery dispatcher, batch runner, and session
+hub never had; the first production caller of `PostgresCatalog.ReportHealth`; and
+replacement of the two dead e2e tests that asserted the desired behaviour behind
+assertions that could neither run nor fail.
+
+**Deferred to 4.4**, deliberately and in the lane's non-goals: the OpenTelemetry
+trace exporter (`FI_FHIR_TRACING_*` stays inert and is now labelled "not
+implemented" rather than implying an exporter), structured logging in the serve
+path (`log/slog` appears nowhere; correlation IDs are plumbed through records but
+not emitted in logs), load-generated cardinality and latency budgets, and a
+per-deployment durable MLLP token bucket.
 
 ### Slice 4.4: recovery, upgrade, and performance
 

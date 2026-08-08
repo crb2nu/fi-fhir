@@ -167,7 +167,65 @@ if [ -f "$VITE_CONF" ]; then
 fi
 
 # --------------------------------------------------------------------------
-# 3. Key runtime vars documented
+# 3. Observability truth (Slice 4.3)
+# --------------------------------------------------------------------------
+#
+# Before Slice 4.3 a complete observability façade shipped around endpoints that
+# did not exist: pod annotations, a named metrics containerPort, two Services, a
+# Prometheus scrape job, a Grafana dashboard, and 32 alert rules, all pointing at
+# nothing. These checks are what stop it regrowing.
+echo ""
+echo "─── Observability Truth ───"
+
+K8S_DEPLOYMENT="${ROOT}/deploy/kubernetes/base/deployment.yaml"
+HELM_DEPLOYMENT="${ROOT}/deploy/helm/fi-fhir/templates/deployment.yaml"
+
+check_required "Kubernetes probes address the served endpoints" bash -c '
+  file="'"$K8S_DEPLOYMENT"'"
+  [ -f "$file" ] || { echo "deployment manifest not found"; exit 1; }
+  if grep -q "command: \[\"/fi-fhir\", \"version\"\]" "$file"; then
+    echo "probes still exec /fi-fhir version, which proves only that a subprocess can print a version string"
+    exit 1
+  fi
+  grep -q "path: /health" "$file" || { echo "no liveness probe on /health"; exit 1; }
+  grep -q "path: /ready" "$file" || { echo "no readiness probe on /ready"; exit 1; }
+'
+
+check_required "Helm readiness probe is distinct from liveness" bash -c '
+  file="'"$HELM_DEPLOYMENT"'"
+  [ -f "$file" ] || { echo "helm deployment template not found"; exit 1; }
+  grep -q "path: /ready" "$file" || {
+    echo "readiness probe still hits /health, so readiness can never fail"
+    exit 1
+  }
+'
+
+check_required ".env.example documents the observability surface" bash -c '
+  file="'"$ENV_EXAMPLE"'"
+  for var in FI_FHIR_METRICS_ENABLED FI_FHIR_METRICS_PORT FI_FHIR_METRICS_ENDPOINT FI_FHIR_OBSERVABILITY_MODE; do
+    grep -q "$var" "$file" || { echo "missing $var"; exit 1; }
+  done
+'
+
+check_required "no deployment artifact selects the legacy observability mode" bash -c '
+  root="'"$ROOT"'"
+  if grep -rn "FI_FHIR_OBSERVABILITY_MODE" "$root/deploy" "$root/docker-compose.yaml" 2>/dev/null | grep -q "legacy"; then
+    echo "a deployment artifact sets FI_FHIR_OBSERVABILITY_MODE=legacy, which disables /ready, metrics, and the multi-replica fixes"
+    exit 1
+  fi
+'
+
+check_required "batch worker identity is not a shared literal" bash -c '
+  file="'"$ENV_EXAMPLE"'"
+  value=$(grep -E "^[[:space:]]*FI_FHIR_BATCH_WORKER_ID=" "$file" | head -1 | cut -d= -f2- | tr -d "\"'"'"' ")
+  if [ -n "$value" ]; then
+    echo "publishes FI_FHIR_BATCH_WORKER_ID=$value; two replicas sharing a lease owner process the same object concurrently"
+    exit 1
+  fi
+'
+
+# --------------------------------------------------------------------------
+# 4. Key runtime vars documented
 # --------------------------------------------------------------------------
 echo ""
 echo "─── Key Variables ───"

@@ -105,11 +105,15 @@ spec:
                   name: fi-fhir-secrets
                   key: QUEUE_BROKERS
 
-            # Observability
+            # Observability. Port and path here must match the "metrics"
+            # containerPort above and the prometheus.io/* scrape annotations,
+            # or the scrape config lies about where /metrics actually is.
             - name: FI_FHIR_METRICS_ENABLED
               value: "true"
             - name: FI_FHIR_METRICS_PORT
               value: "9090"
+            - name: FI_FHIR_METRICS_ENDPOINT
+              value: "/metrics"
             - name: FI_FHIR_LOG_LEVEL
               value: "info"
             - name: FI_FHIR_LOG_FORMAT
@@ -133,17 +137,29 @@ spec:
               cpu: 500m
               memory: 512Mi
 
+          # Liveness: GET /health on the main HTTP port. This proves the
+          # process can still accept connections and answer a request end to
+          # end. It does not prove any dependency is reachable — /health is
+          # process-only and returns 200 unless the process itself is dead —
+          # so a wedged database pool never triggers a restart loop here.
           livenessProbe:
-            exec:
-              command: ["/fi-fhir", "version"]
+            httpGet:
+              path: /health
+              port: http
             initialDelaySeconds: 10
             periodSeconds: 30
             timeoutSeconds: 5
             failureThreshold: 3
 
+          # Readiness: GET /ready on the main HTTP port. This proves the
+          # readiness components (submission DB, terminology DB, and whatever
+          # else this replica depends on) are actually reachable: it returns
+          # 503 when any of them is unhealthy, which pulls the pod out of the
+          # Service until the dependency recovers.
           readinessProbe:
-            exec:
-              command: ["/fi-fhir", "version"]
+            httpGet:
+              path: /ready
+              port: http
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 3

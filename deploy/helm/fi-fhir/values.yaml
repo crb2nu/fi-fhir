@@ -22,6 +22,9 @@ serviceAccount:
   # The name of the service account to use
   name: ""
 
+# Annotation-based scrape hint for a non-Operator Prometheus. port/path must
+# match config.observability.metricsPort/metricsEndpoint below and the
+# "metrics" containerPort the deployment template declares.
 podAnnotations:
   prometheus.io/scrape: "true"
   prometheus.io/port: "9090"
@@ -72,10 +75,14 @@ config:
     retryMaxAttempts: 3
     dlqEnabled: true
 
-  # Observability settings
+  # Observability settings. metricsPort/metricsEndpoint must match the
+  # "metrics" containerPort, service.metricsPort, and podAnnotations
+  # prometheus.io/* values below, or the scrape target is wrong.
   observability:
     metricsEnabled: true
     metricsPort: 9090
+    # Path the /metrics Prometheus exposition is served on.
+    metricsEndpoint: "/metrics"
     logLevel: "info"
     logFormat: "json"
     tracingEnabled: false
