@@ -301,8 +301,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Component status matrix (`docs/STATUS.md`)
 - Documentation conventions (`docs/DOCUMENTATION-CONVENTIONS.md`)
 
+### Changed
+
+- CI `test:integration` promoted from `allow_failure: true` to a blocking merge
+  gate (24/24 green on `main`, pipelines 18521..22333). It now protects the
+  terminology DB store and the Lane C1 autoroute expiry-sweep kill-test on every
+  merge request.
+- CI `lint:docs` promoted to a blocking merge gate (33/33 green on `main`). Run
+  `make docs-validate` before pushing.
+- CI `test:docs-status` deliberately remains advisory; promotion criteria are
+  documented inline in `.gitlab-ci.yml` and in `.loom/40-decisions.md`.
+
 ### Fixed
 
+- CI `test:integration` MinIO service container never started: `minio/minio`
+  ships `CMD ["minio"]`, which prints usage and exits, so the service never
+  listened on `minio:9000`. `setupTestInfra()` responded with `t.Skipf`, silently
+  skipping **30 integration tests** (event store, projections, terminology
+  init/status, storage, mapping-decision CLI) behind a green job. The service now
+  runs `server /data`. Verified by coverage delta: 73.2% degraded vs 75.9% live.
+- `TestIntegration_TerminologyMappingDecisionCLI` asserted an untruncated
+  23-character source code appeared in a decisions-table column rendered through
+  `truncate(decision.SourceCode, 12)`. The fixture now fits the column width.
 - README action templates now use the JSON key paths the workflow engine
   actually evaluates (`{{.patient.family_name}}`), replacing Go struct field
   paths (`{{.Patient.Name.Family}}`) that silently rendered `<no value>`.

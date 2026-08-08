@@ -68,7 +68,12 @@ The `lint:docs` CI job runs `scripts/validate-docs.sh` on merge requests to chec
 - CHANGELOG.md has an `[Unreleased]` section.
 - AGENTS.md doesn't contain known stale patterns.
 
-This job starts as `allow_failure: true` and should be switched to `false` once the team has a clean baseline.
+This job is a **blocking merge gate** (`allow_failure: false`) as of 2026-08-08,
+promoted after 33 consecutive green runs on `main`. Run `make docs-validate`
+before pushing.
+
+The related `test:docs-status` job (STATUS.md coverage drift) remains advisory —
+see `.loom/40-decisions.md` (2026-08-08) for the promotion criteria.
 
 ## Quick Reference
 

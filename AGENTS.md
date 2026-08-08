@@ -215,33 +215,58 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 - Edge cases: empty fields, missing segments, Z-segments
 - Use `testdata/` for sample messages (not fixtures in code)
 
-### Local-only integration tests (NOT in CI)
+### Integration tests (blocking in CI since 2026-08-08)
 
-The CI `test:integration` job (`.gitlab-ci.yml`) runs `go test -tags=integration
-./cmd/fi-fhir/...` **only**. Integration tests under `./pkg/...` that stand up
-their own PostgreSQL via testcontainers are therefore **not** exercised by the
-pipeline and can silently rot. Notably:
+The CI `test:integration` job (`.gitlab-ci.yml`) is a **blocking merge gate**
+(`allow_failure: false`). It runs, in order against shared `postgres` and `minio`
+service containers:
 
-- `pkg/terminology/db/...` — MappingStore, migrations, RxNorm/UMLS/LOINC/ICD-10
-  loaders. Run locally with Docker Desktop (context `desktop-linux`):
+```bash
+go test -tags=integration ./cmd/fi-fhir/...
+go test -tags=integration -p 1 ./pkg/terminology/db/
+```
 
-  ```bash
-  go test -tags=integration -run 'TestMappingStore_' ./pkg/terminology/db/
-  # or the whole package (some loader tests require testdata/terminology/ fixtures):
-  go test -tags=integration ./pkg/terminology/db/
-  ```
+Both paths `DROP SCHEMA terminology CASCADE`, so they run **against separate
+databases** in the same PostgreSQL service: `fi_fhir_test` for the cmd suite and
+`fi_fhir_terms_test` (created by the job script) for `pkg/terminology/db`. Do not
+collapse them back onto one database — sharing it makes the terminology package's
+schema teardown/rebuild run against rows left by the cmd suite, which blew the
+go-test timeout in CI. `-p 1` does not help here: it limits parallel packages
+within a single `go test` invocation, and these are two separate commands.
 
-  `setupPostgresContainer` honors `POSTGRES_TEST_URL` to reuse an external
-  Postgres instead of testcontainers — the same env var the CI postgres service
-  already exposes via `FI_FHIR_TERMINOLOGY_DB_URL`.
+Reproduce the job locally — no Docker-in-Docker needed, and no Docker Desktop on
+this machine, so use the remote context:
 
-**Wiring these into CI** is feasible without Docker-in-Docker (point
-`POSTGRES_TEST_URL` at the existing `postgres` service), but is deferred because
-(1) several same-package loader tests are independently red pending fixture/loader
-fixes, and (2) both `cmd/fi-fhir/...` and `pkg/terminology/db/...` `DROP SCHEMA
-terminology CASCADE`, so they must be schema-isolated (`-p 1` or a separate
-DB/job) before sharing one Postgres. Until then, run them locally before changing
-the terminology store or its schema.
+```bash
+# Use the workspace's remote Docker context (see the workspace AGENTS.md);
+# there is no local Docker Desktop. Substitute your context's host for <docker-host>.
+docker --context 7900xtx run --rm -d --name pg -e POSTGRES_USER=testuser \
+  -e POSTGRES_PASSWORD=testpass -e POSTGRES_DB=fi_fhir_test -p 15503:5432 postgres:16
+# `server /data` is required — the image's default CMD prints usage and exits.
+docker --context 7900xtx run --rm -d --name mio -e MINIO_ROOT_USER=minioadmin \
+  -e MINIO_ROOT_PASSWORD=minioadmin -p 15504:9000 minio/minio:latest server /data
+
+# NOTE: assign each var on its own line. In `export A=1 B="$A"` bash expands
+# $A before the assignment, so B ends up empty and the tests silently skip.
+PGHOST_PORT="<docker-host>:15503"
+export FI_FHIR_DATABASE_URL="postgres://testuser:testpass@${PGHOST_PORT}/fi_fhir_test?sslmode=disable"
+export FI_FHIR_TERMINOLOGY_DB_URL="postgres://testuser:testpass@${PGHOST_PORT}/fi_fhir_test?sslmode=disable"
+# Separate database, mirroring CI:
+psql "$FI_FHIR_DATABASE_URL" -c 'CREATE DATABASE fi_fhir_terms_test OWNER testuser'
+export POSTGRES_TEST_URL="postgres://testuser:testpass@${PGHOST_PORT}/fi_fhir_terms_test?sslmode=disable"
+export FI_FHIR_MINIO_ENDPOINT="<docker-host>:15504"
+export FI_FHIR_MINIO_ACCESS_KEY=minioadmin FI_FHIR_MINIO_SECRET_KEY=minioadmin
+go test -tags=integration ./cmd/fi-fhir/...
+go test -tags=integration -p 1 ./pkg/terminology/db/
+```
+
+**Watch the skip count, not just the exit code.** `setupTestInfra()` calls
+`t.Skipf` — not `t.Fatalf` — when Postgres or MinIO is unreachable, so a broken
+service makes the job *greener*, not redder. A dead `minio` service container
+hid 30 skipped tests behind a passing job until 2026-08-08. Sanity check:
+`./cmd/fi-fhir/...` should report ~75.9% coverage with both services live; ~73.2%
+means MinIO is down and 30 tests skipped. See `.loom/40-decisions.md`
+(2026-08-08) for the full analysis.
 
 ## Dependencies
 

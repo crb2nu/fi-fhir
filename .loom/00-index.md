@@ -30,7 +30,7 @@
 - [x] **Lane F**: split the product backlog into speclets `25`-`29`.
 - [x] **Lane C1**: serve-time pending-autoroute expiry sweep (2026-08-03).
 - [ ] **Lane C2**: pending-autoroute notifications (webhook, thresholds, non-blocking dispatch).
-- [ ] **Lane E**: integration/contract CI hardening; `test:integration` is still `allow_failure: true`.
+- [x] **Lane E**: integration/contract CI hardening (2026-08-08). `test:integration` and `lint:docs` are now blocking; the CI `minio` service was dead on arrival, silently skipping 30 integration tests.
 
 ### Prior goal (platform integration M0–M3) — parked
 - [x] Backend-to-frontend integration planning; sibling-repo integration points (`flexinfer`, `loom-core`, `mentatlab`).
@@ -53,7 +53,8 @@
 
 ## Risks
 
-- [ ] Contract policy drift remains possible while `lint:contracts` is still `allow_failure: true`.
+- [x] Contract policy drift: closed — `lint:contracts` was promoted to blocking on 2026-03-04.
+- [ ] STATUS.md coverage drift can still reach main while `test:docs-status` is advisory (see `.loom/40-decisions.md`, 2026-08-08).
 - [ ] Codebase-memory indexing is currently unavailable (`total_chunks: 0`), reducing semantic-search-assisted planning confidence.
 - [ ] Cross-service auth/timeouts differ (GraphQL, OpenAI-compatible proxy, REST+SSE, Streamable MCP HTTP), raising integration fragility without a unified policy.
 - [ ] Cold-start behavior in `flexinfer` can violate fi-fhir workflow latency assumptions unless retry/timeout envelopes are codified.

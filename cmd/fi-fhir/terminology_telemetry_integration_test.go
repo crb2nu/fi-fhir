@@ -33,7 +33,11 @@ func TestIntegration_TerminologyMappingDecisionCLI(t *testing.T) {
 	defer cancel()
 
 	traceID := fmt.Sprintf("cli-integration-%d", time.Now().UnixNano())
-	sourceCode := fmt.Sprintf("GLU-%d", time.Now().UnixNano())
+	// The decisions table truncates SOURCE_CODE to 12 characters
+	// (runTerminologyMappingDecisions -> truncate(decision.SourceCode, 12)), so a
+	// full nanosecond timestamp can never round-trip through the list view. Keep
+	// the fixture inside the column width and still unique per run.
+	sourceCode := fmt.Sprintf("GLU-%08d", time.Now().UnixNano()%100000000)
 	confidence := 0.94
 	decision := &db.MappingDecision{
 		TraceID:         traceID,

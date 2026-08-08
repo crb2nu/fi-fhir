@@ -37,6 +37,12 @@ Run the proposed live MinIO test against an empty test bucket twice in a row. It
 - `pkg/etl/sink/minio.go` and ETL sink/source tests that currently use mock providers.
 - `cmd/fi-fhir/storage.go` and CLI storage/live integration helpers.
 - Existing `test:integration` service variables for MinIO as reference only; CI edits belong to a later lane.
+  **Note (2026-08-08, Lane E)**: the `minio` service container was previously dead
+  on arrival (`minio/minio` default CMD prints usage and exits), so every
+  MinIO-backed test in `./cmd/fi-fhir/...` silently skipped rather than failed. It
+  now runs `server /data`, and `test:integration` is blocking. Any new storage
+  test written for this speclet will actually execute in CI — and must be
+  reliable, because it can now block merges.
 - P2 CLI/ETL coverage guidance in the planning README.
 
 ## Sources

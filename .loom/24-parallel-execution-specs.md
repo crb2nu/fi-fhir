@@ -177,8 +177,10 @@ Decisions worth preserving:
   and an in-package test would be an import cycle. It needs no
   `.gitlab-ci.yml` change: CI already runs `./pkg/terminology/db/`.
 
-C1 limitation to carry into Lane E: `test:integration` is still
-`allow_failure: true`, so the kill-test runs in CI but does not block.
+C1 limitation carried into Lane E: `test:integration` was still
+`allow_failure: true`, so the kill-test ran in CI but did not block.
+**Resolved 2026-08-08 by Lane E** — `test:integration` is now blocking, so
+`TestAutorouteExpirySweep_FlipsStoredStatus` protects the sweep on every MR.
 
 ### C2 as shipped
 
@@ -323,6 +325,29 @@ Run the new CI command twice against the same Postgres service path. It must pas
 - CI lint for `.gitlab-ci.yml` if available.
 
 ## Lane E - Integration CI Hardening
+
+**Status**: SHIPPED (2026-08-08, branch `ci/integration-ci-hardening`).
+
+### E as shipped
+
+- `test:integration` is now `allow_failure: false`. Green proof: 24/24 on main
+  across pipelines 18521..22333, plus a local run of both script steps against
+  real PostgreSQL 16 and MinIO.
+- `lint:docs` promoted to `allow_failure: false` (33/33 on main).
+- `test:docs-status` deliberately left advisory; promotion criteria are recorded
+  inline in `.gitlab-ci.yml` and in `.loom/40-decisions.md`.
+- **The promotion kill-test found a real blind spot first.** The `minio` service
+  container used `minio/minio:latest` with no command, so it printed usage and
+  exited. `setupTestInfra()` then skipped — not failed — every dependent test:
+  **30 integration tests never ran in CI**. Negative control: with MinIO
+  unreachable `./cmd/fi-fhir/...` reports exactly the 73.2% coverage CI logged;
+  with MinIO live it reports 75.9%. The service now runs `server /data`, and the
+  one real defect it had been masking
+  (`TestIntegration_TerminologyMappingDecisionCLI` asserting a 23-char code
+  against a 12-char truncated column) is fixed.
+- `/graphql`, `/graphql/ws`, and `/health` smoke assertions already existed from
+  Gate 0B and were left alone. `/ready` was **not** added: it is not mounted by
+  `fi-fhir serve` at all. Filed as a cleanup issue rather than asserting a 404.
 
 **Branch suggestion**: `codex/integration-ci-hardening`
 
