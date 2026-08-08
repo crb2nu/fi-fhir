@@ -157,7 +157,7 @@ The action namespace is dotted (`integration.submit`). Recommendation: `integrat
 | `internal/integration/authorization/policy.go` | **B only** | The `Action != ActionSubmit` guard at `:59` must be widened. C's audit work must not add an action here; if C needs `integration.export`, it lands **after** B's refactor and reuses B's shape. |
 | `internal/api/graphql/schema.graphql` + `generated.go` + `model/models_gen.go` + `ui/src/lib/gen/graphql.ts` | **C, and 4.2b** | **One schema owner per sprint.** Assign it to C (export actor/reason input). S3-A must **not** expose health/metrics via GraphQL — use plain HTTP handlers. If 4.2b is still open, C waits for 4.2b to merge or 4.2b rebases; do not run both. |
 | `internal/integration/processor/migrations/` | **C** | 4.2a took `0003_operator_control_plane.sql`. C takes `0004_*`. Claim the number in `.loom/50-worklog.md` before writing. |
-| `internal/integration/session/migrations/` | **C** | Next free is `0004_*` (0001-0003 used). |
+| `internal/integration/session/migrations/` | **A, then C** | **Corrected by S3-A, 2026-08-08.** As written this row assigned session `0004_*` to C, but Lane S3-A task 6 (durable session fanout) needs a session migration and A merges first. **A takes `0004_session_stream_events.sql`; C takes `0005_*`** for export attribution. Claimed in `.loom/50-worklog.md`. |
 | `internal/integration/batch/migrations/` | — | 4.1b3 took `0002_batch_provenance.sql`. Next free `0003_*`. |
 | `.gitlab-ci.yml` | **A, B, C** | Append new jobs at the end of the `test` stage, distinct names: `test:observability-replicas` (A), `test:delivery-identity` (B), `test:phi-audit` (C). Do not modify existing jobs' `services:` blocks. |
 | `deploy/kubernetes/base/*`, `deploy/helm/fi-fhir/*` | **A only** | Probes, ports, Services, annotations. |
@@ -238,7 +238,9 @@ Recommendation: **A**, with `internal/workflow`'s Prometheus adapter left untouc
 
 **Primary: `TestServeObservability_TwoReplicasUnderDocumentedConfiguration`** — one PostgreSQL 16, two `fi-fhir serve` processes started from the **same** environment block that `.env.example` and `docs/operations/*` prescribe (not test-crafted distinct identifiers), asserting in one test:
 
-1. `/ready` on both is `200`; stop PostgreSQL via the remote Docker context; both go `503` within the probe budget; `/health` stays `200`; restart; both return to `200`.
+1. `/ready` on both is `200`; make PostgreSQL unreachable; both go `503` within the probe budget; `/health` stays `200`; restore reachability; both return to `200`.
+
+   **Corrected by S3-A, 2026-08-08.** As written this step said "stop PostgreSQL via the remote Docker context". That is not runnable inside the required CI job: `test:observability-replicas` gets PostgreSQL as a GitLab **service container**, and a job has no Docker socket with which to stop it, so the assertion would be forced to `t.Skip` in the one place it must be blocking — the same can-not-fail shape corrections 6 and 28 exist to remove. The proof instead interposes an in-test TCP proxy between the `serve` replicas and PostgreSQL (`FI_FHIR_DATABASE_HOST`/`FI_FHIR_DATABASE_PORT` point at the proxy) and closes the proxy's listener and live connections. That is strictly stronger: it is identical locally and in CI, it needs no Docker context, and it exercises pool-level reconnect rather than container restart timing.
 2. SSE subscribe on A, run a sample on B, receive the full ordered event sequence on A within 2s.
 3. Two batch runners with the documented identical worker ID: exactly one archives and deletes the object; `integration_batch_audit` shows no interleaved `claimed` pair inside one live lease.
 4. Two notifiers against one recording HTTP receiver: exactly one digest per pending row.
