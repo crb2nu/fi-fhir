@@ -239,7 +239,7 @@ routes:
 	if err != nil || len(all) != 1 || all[0].ID != workspace.ID {
 		t.Fatalf("all sessions = %#v, %v", all, err)
 	}
-	bundle, err := store.ExportBundle(ctx, workspace.ID)
+	bundle, err := store.ExportBundle(ctx, testExportRequest(workspace.ID))
 	if err != nil {
 		t.Fatalf("ExportBundle: %v", err)
 	}

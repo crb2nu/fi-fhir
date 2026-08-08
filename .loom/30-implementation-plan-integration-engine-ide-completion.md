@@ -390,9 +390,32 @@ PostgreSQL restart/append-only proofs passed before merge.
 ### Slice 4.1: enforce identity, authorization, and PHI policy
 
 - OIDC/OAuth service and human identity, tenant scoping, roles, origin policy,
-  secret resolution, immutable audit, retention/TTL/encryption, and export controls.
+  secret resolution, immutable audit, and export controls.
 - Proof: cross-tenant/object access, privilege escalation, secret/PHI logging, and
-  expired-retention tests fail closed across REST, GraphQL, WebSocket, and adapters.
+  audit-immutability tests fail closed across REST, GraphQL, WebSocket, and adapters.
+
+**Correction (2026-08-08, Slice 4.1d C1).** This bullet previously claimed
+"retention/TTL/encryption" enforcement and an "expired-retention" proof. Read
+against the code, that claim had no subject and the proof could not have been
+written:
+
+- The durable committer **rejects** every non-ephemeral raw retention mode with
+  `ErrUnsupportedRawRetention`
+  (`internal/integration/processor/postgres_submission.go:179-181`), so there is
+  no retained production raw PHI whose TTL could expire. An "expired-retention"
+  test would assert over an empty set.
+- The PHI that *is* retained indefinitely — canonical event payloads, session
+  sample ciphertext, and session export snapshots — carries no policy field, no
+  expiry column, and no purge job at all
+  (`internal/integration/processor/migrations/0001_atomic_submission.sql:19-33`,
+  `internal/integration/session/postgres.go:306-317`).
+
+Retention is therefore not an enforcement gap over an existing policy; it is a
+policy that does not yet exist for the data that actually persists. Designing it,
+adding the expiry columns, and building the durable purge runtime is **Slice
+S3-C2** (`.loom/31-sprint3-execution-specs.md`, Lane S3-C, corrections 22-23).
+The honest current posture, with file:line citations, is
+`docs/operations/PHI-RETENTION.md`.
 
 #### Slice 4.1a: OIDC-authenticated GraphQL human identity
 
@@ -608,6 +631,43 @@ with two bound destinations, one crossed digest, and one orphan. Two independent
 negative controls each fail it: stubbing the decision to return nil publishes all
 four attempts and records no provenance, and removing the registry's digest
 equality check publishes the crossed-digest attempt.
+
+#### Slice 4.1d C1: audit immutability and export attribution
+
+- Extend schema-level immutability from the six already-guarded catalog and
+  session tables to the durable-runtime audit records: blanket
+  `BEFORE UPDATE OR DELETE` guards on `integration_canonical_events`,
+  `integration_message_lineage`, `integration_delivery_audit`,
+  `integration_delivery_operations`, and `integration_batch_audit`;
+  column-scoped `BEFORE UPDATE` guards plus blanket `BEFORE DELETE` on the two
+  state tables `integration_receipts` and `integration_delivery_attempts`, so
+  identity, provenance, and attribution freeze while the delivery state machine
+  keeps advancing status, attempt count, schedule, and error columns.
+- Make every session export an attributed disclosure: `principal_json`,
+  `reason`, and `include_raw_payload` become `NOT NULL` on
+  `integration_session_exports`, the verified caller identity is threaded from
+  `requestsecurity.SecurityContextFromContext`, `reason: String!` is added to
+  `ExportIntegrationBundleInput`, and export rows are themselves append-only.
+- Gate raw payloads behind the new dotted grant `integration.phi.export`,
+  refused before any bundle is assembled and recorded on the export row.
+- Publish `docs/operations/PHI-RETENTION.md` — the truthful, citation-backed
+  retention posture — and correct this plan's 4.1 bullet above.
+- Keep retention/TTL columns and the durable purge component in **S3-C2**.
+
+Implementation status (2026-08-08): implemented and locally verified. The day-1
+riskiest-assumption gate passed both assertions before any migration was
+written: a fully contract-valid `encrypted` raw-retention submission is rejected
+with `ErrUnsupportedRawRetention`, and a successful ephemeral submission leaves a
+PHI-classified canonical event in a table with zero ttl/expires/retention/purge
+columns. The load-bearing kill-test
+`TestPhiAudit_PostgresImmutableRecordsAndAttributedExport` runs on PostgreSQL 16
+with `-race` and carries a negative control on a second, independently
+provisioned pre-migration schema where every `UPDATE`/`DELETE` succeeds and
+exports are written with no principal and no reason. The negative control caught
+two real defects in the proof itself: `DELETE` aimed at rows with dependents was
+being blocked by pre-existing `ON DELETE RESTRICT` foreign keys rather than by
+the new guards, and an `UPDATE` against an empty `integration_delivery_audit`
+was passing vacuously. Both are now structurally impossible.
 
 ### Slice 4.2: operator control plane
 

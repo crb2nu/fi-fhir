@@ -1079,7 +1079,7 @@ func (r *mutationResolver) ExportIntegrationBundle(ctx context.Context, input mo
 	if !r.legacyUnsafeExecution && !r.durableSessionWorkspace {
 		return nil, ErrLegacyExecutionUnavailable
 	}
-	return r.integrationSessions.exportBundle(input)
+	return r.integrationSessions.exportBundle(ctx, input)
 }
 
 // CreateProfile is the resolver for the createProfile field.

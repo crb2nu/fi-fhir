@@ -151,5 +151,6 @@ type AcceptDiagnosticFixInput struct {
 
 type ExportIntegrationBundleInput struct {
 	SessionID         string `json:"sessionId"`
+	Reason            string `json:"reason"`
 	IncludeRawPayload *bool  `json:"includeRawPayload,omitempty"`
 }

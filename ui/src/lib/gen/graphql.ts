@@ -489,7 +489,17 @@ export type ExplainedWarning = {
 };
 
 export type ExportIntegrationBundleInput = {
+  /**
+   * Requesting raw sample payloads additionally requires the
+   * `integration.phi.export` grant. Without it the export is refused.
+   */
   includeRawPayload: InputMaybe<Scalars['Boolean']['input']>;
+  /**
+   * Why this PHI disclosure is being made. Recorded verbatim on the export record
+   * alongside the verified caller identity. 1-1024 bytes; an empty reason is
+   * refused before any bundle is assembled.
+   */
+  reason: Scalars['String']['input'];
   sessionId: Scalars['ID']['input'];
 };
 

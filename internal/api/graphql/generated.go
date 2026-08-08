@@ -50617,7 +50617,7 @@ func (ec *executionContext) unmarshalInputExportIntegrationBundleInput(ctx conte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"sessionId", "includeRawPayload"}
+	fieldsInOrder := [...]string{"sessionId", "reason", "includeRawPayload"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -50631,6 +50631,13 @@ func (ec *executionContext) unmarshalInputExportIntegrationBundleInput(ctx conte
 				return it, err
 			}
 			it.SessionID = data
+		case "reason":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("reason"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Reason = data
 		case "includeRawPayload":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("includeRawPayload"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)

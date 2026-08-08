@@ -2,6 +2,8 @@ package session
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
@@ -174,16 +176,95 @@ type LineageLink struct {
 	ValuePreview  string `json:"value_preview,omitempty"`
 }
 
+// PHIExportRole is the dotted fine-grained grant a caller must hold before a
+// session export may carry raw sample payloads. It follows the convention
+// established by integration.delivery.operator (Slice 2.3) and
+// integration.operator / integration.deployment.operator (Slice 4.2a) rather
+// than the older colon-separated transport roles.
+const PHIExportRole = "integration.phi.export"
+
+// maxExportReasonBytes matches the CHECK on integration_session_exports.reason
+// and the delivery-operations reason convention.
+const maxExportReasonBytes = 1024
+
+// ExportRequest attributes one session export to a verified caller. Every export
+// is a PHI disclosure, so the store refuses to assemble a bundle that cannot say
+// who exported it and why.
+type ExportRequest struct {
+	SessionID string
+	// Principal is the server-owned verified caller identity. It is never
+	// client-supplied: the resolver reads it from the request security context.
+	Principal integration.Principal
+	// Reason is the operator-supplied disclosure reason, 1-1024 bytes.
+	Reason string
+	// IncludeRawPayload records whether the caller both held PHIExportRole and
+	// asked for raw sample payloads. Retained-policy raw is stripped by the
+	// store regardless; this governs the redacted raw the GraphQL layer returns.
+	IncludeRawPayload bool
+}
+
 type ExportBundle struct {
-	ID           string               `json:"id"`
-	Session      Session              `json:"session"`
-	Samples      []Sample             `json:"samples,omitempty"`
-	Drafts       []ArtifactDraft      `json:"drafts,omitempty"`
-	Runs         []Run                `json:"runs,omitempty"`
-	Simulations  []WorkflowSimulation `json:"workflow_simulations,omitempty"`
-	Publications []Publication        `json:"publications,omitempty"`
-	Decisions    []Decision           `json:"decisions,omitempty"`
-	ExportedAt   time.Time            `json:"exported_at"`
+	ID      string  `json:"id"`
+	Session Session `json:"session"`
+	// Principal, Reason, and IncludeRawPayload attribute the disclosure.
+	Principal         integration.Principal `json:"principal"`
+	Reason            string                `json:"reason"`
+	IncludeRawPayload bool                  `json:"include_raw_payload"`
+	Samples           []Sample              `json:"samples,omitempty"`
+	Drafts            []ArtifactDraft       `json:"drafts,omitempty"`
+	Runs              []Run                 `json:"runs,omitempty"`
+	Simulations       []WorkflowSimulation  `json:"workflow_simulations,omitempty"`
+	Publications      []Publication         `json:"publications,omitempty"`
+	Decisions         []Decision            `json:"decisions,omitempty"`
+	ExportedAt        time.Time             `json:"exported_at"`
+}
+
+// Validate refuses an export that cannot be attributed. It runs before any
+// session read, so a rejected export assembles no bundle and writes no row.
+func (r ExportRequest) Validate() error {
+	if strings.TrimSpace(r.SessionID) == "" {
+		return fmt.Errorf("%w: export session id is required", ErrInvalid)
+	}
+	if strings.TrimSpace(r.Principal.ID) == "" {
+		return fmt.Errorf("%w: export requires a verified principal", ErrInvalid)
+	}
+	if r.Principal.Kind != integration.PrincipalKindHuman && r.Principal.Kind != integration.PrincipalKindService {
+		return fmt.Errorf("%w: export principal kind must be human or service", ErrInvalid)
+	}
+	if strings.TrimSpace(r.Principal.AuthMethod) == "" {
+		return fmt.Errorf("%w: export principal must record an auth method", ErrInvalid)
+	}
+	reason := strings.TrimSpace(r.Reason)
+	if reason == "" {
+		return fmt.Errorf("%w: export reason is required", ErrInvalid)
+	}
+	if len(reason) > maxExportReasonBytes {
+		return fmt.Errorf("%w: export reason exceeds %d bytes", ErrInvalid, maxExportReasonBytes)
+	}
+	// Raw payloads are a distinct disclosure, so they need a distinct grant. The
+	// roles come from the verified principal, never from the request body, and
+	// the store enforces the rule so no caller path can reach a bundle without it.
+	if r.IncludeRawPayload && !HasRole(r.Principal.Roles, PHIExportRole) {
+		return fmt.Errorf("%w: raw payload export requires the %s grant", ErrForbidden, PHIExportRole)
+	}
+	return nil
+}
+
+// HasRole reports whether a verified principal carries an exact grant.
+func HasRole(roles []string, wanted string) bool {
+	for _, role := range roles {
+		if role == wanted {
+			return true
+		}
+	}
+	return false
+}
+
+// normalized returns the request with its trimmed, storable values.
+func (r ExportRequest) normalized() ExportRequest {
+	r.SessionID = strings.TrimSpace(r.SessionID)
+	r.Reason = strings.TrimSpace(r.Reason)
+	return r
 }
 
 // Publication is immutable evidence that exact tested session revisions match

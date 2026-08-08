@@ -8,7 +8,7 @@
 	docs-status docs-status-quick docs-validate docs-all \
 	contract-check contract-check-strict contract-matrix \
 	golden-path-001 mllp-runtime delivery-reliability batch-ingestion integration-session \
-	operator-control-plane delivery-identity \
+	operator-control-plane delivery-identity phi-audit \
 	smoke-test smoke-test-local check-runtime-config \
 	dev dev-down dev-ui dev-ui-down
 
@@ -140,6 +140,17 @@ operator-control-plane:
 	go test -tags=integration -race -count=1 -timeout=300s \
 		-run '^TestOperatorControlPlane_FailureReplayAndAuditGoldenJourneys$$' \
 		./internal/api/graphql
+
+# Slice 4.1d C1 PHI audit immutability and export attribution kill-test
+# (PostgreSQL 16 required). Also runs the retention-posture gate that keeps
+# docs/operations/PHI-RETENTION.md honest.
+phi-audit:
+	go test -tags=integration -race -count=1 -timeout=300s \
+		-run '^TestPhiAudit_PostgresImmutableRecordsAndAttributedExport$$' \
+		./internal/integration/session
+	go test -tags=integration -race -count=1 -timeout=300s \
+		-run '^TestPhiRetentionPosture_ProductionRejectsRetainedRawAndCanonicalEventsCarryNoPolicy$$' \
+		./internal/integration/processor
 
 # Clean build artifacts
 clean:
