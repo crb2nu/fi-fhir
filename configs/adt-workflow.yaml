@@ -1,46 +1,97 @@
 # ADT Message Processing Workflow
-# Demonstrates routing HL7v2 ADT messages to the event store
+# Demonstrates routing HL7v2 ADT messages and reporting the outcome.
+#
+# Runs with no external dependencies. Three things this file previously got
+# wrong, all of which fail quietly rather than loudly — worth knowing before
+# editing it, and the reason it is worth reading at all:
+#
+# 1. `condition` belongs under `filter:`, not at the route's top level. An
+#    unrecognized key is silently dropped, leaving a zero-value Filter — and a
+#    zero-value Filter matches EVERY event. This file used to declare four ADT
+#    routes and a catch-all; in practice all five fired on every event,
+#    including events that were not ADT at all. Nothing errored, so nothing
+#    said so.
+#
+# 2. Templates are Go text/template rendered against the event's JSON form, so
+#    field paths are the lowercase snake_case JSON keys with no `event.` prefix
+#    and no `data.` level: `{{.type}}`, `{{.patient.mrn}}`. An `{{ event.type }}`
+#    form does not render — `event` is not a template function — and the engine
+#    logs `failed to parse template` and emits the literal text instead.
+#
+# 3. Every route's filter is evaluated; the engine does not stop at the first
+#    match. A catch-all must therefore exclude what the named routes already
+#    handle, or it fires alongside them.
+#
+# The action types the engine registers are: log, webhook, fhir, email, exec,
+# file, database, queue, event_store, athena. There is no `emit` — the previous
+# version of this file used one, and every action failed with
+# `unknown action type: emit`. To persist these events instead of logging them,
+# replace each `log` action with:
+#
+#   - type: event_store
+#     connection: postgres://user:pass@host:5432/db   # required
+#     stream: 'patient:{{.patient.mrn}}'
+#     event_type: PatientAdmitted
+#
+# `internal/workflow/shipped_config_test.go` asserts the routing below, because
+# this file is executed by the default development stack: docker-compose mounts
+# it as FI_FHIR_WORKFLOW_CONFIG_PATH and the getting-started guide passes it to
+# `fi-fhir serve --workflow`.
+#
+# Usage:
+#   fi-fhir parse --format hl7v2 adt_a01.hl7 | \
+#     fi-fhir workflow run --config configs/adt-workflow.yaml -
 
 name: adt-processor
-description: Process ADT (Admit/Discharge/Transfer) messages and emit events
+description: Process ADT (Admit/Discharge/Transfer) messages and report the outcome
 
 routes:
   # Patient Admission (A01)
   - name: patient-admit
-    condition: 'event.type == "patient_admit"'
-    actions:
-      - type: emit
-        event_type: PatientAdmitted
-        stream: 'patient:{{ event.data.patient.mrn }}'
-
-  # Patient Discharge (A03)
-  - name: patient-discharge
-    condition: 'event.type == "patient_discharge"'
-    actions:
-      - type: emit
-        event_type: PatientDischarged
-        stream: 'patient:{{ event.data.patient.mrn }}'
-
-  # Patient Transfer (A02)
-  - name: patient-transfer
-    condition: 'event.type == "patient_transfer"'
-    actions:
-      - type: emit
-        event_type: PatientTransferred
-        stream: 'patient:{{ event.data.patient.mrn }}'
-
-  # Patient Information Update (A08)
-  - name: patient-update
-    condition: 'event.type == "patient_update"'
-    actions:
-      - type: emit
-        event_type: PatientInfoUpdated
-        stream: 'patient:{{ event.data.patient.mrn }}'
-
-  # Default catch-all for other ADT messages
-  - name: adt-other
-    condition: 'event.type.startsWith("patient_")'
+    filter:
+      event_type: patient_admit
     actions:
       - type: log
         level: info
-        message: 'Unhandled ADT event: {{ event.type }}'
+        message: 'PatientAdmitted stream=patient:{{.patient.mrn}}'
+
+  # Patient Discharge (A03)
+  - name: patient-discharge
+    filter:
+      event_type: patient_discharge
+    actions:
+      - type: log
+        level: info
+        message: 'PatientDischarged stream=patient:{{.patient.mrn}}'
+
+  # Patient Transfer (A02)
+  - name: patient-transfer
+    filter:
+      event_type: patient_transfer
+    actions:
+      - type: log
+        level: info
+        message: 'PatientTransferred stream=patient:{{.patient.mrn}}'
+
+  # Patient Information Update (A08)
+  - name: patient-update
+    filter:
+      event_type: patient_update
+    actions:
+      - type: log
+        level: info
+        message: 'PatientInfoUpdated stream=patient:{{.patient.mrn}}'
+
+  # Catch-all for ADT messages the routes above do not handle. The exclusion
+  # list is load-bearing: every route's filter is evaluated, so without it this
+  # route also fires for admit/discharge/transfer/update.
+  - name: adt-other
+    filter:
+      condition: >-
+        event.type.startsWith("patient_") &&
+        !(event.type in ["patient_admit", "patient_discharge",
+                         "patient_transfer", "patient_update"])
+    actions:
+      - type: log
+        level: info
+        message: 'Unhandled ADT event: {{.type}}'

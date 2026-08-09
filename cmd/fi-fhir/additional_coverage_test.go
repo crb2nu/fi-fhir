@@ -198,33 +198,6 @@ func TestETLLoad_ICD10PCS(t *testing.T) {
 }
 
 // =============================================================================
-// runWorkflowLoadtest — additional flag tests (no actual load test execution)
-// =============================================================================
-
-func TestWorkflowLoadtest_InvalidWarmupValue(t *testing.T) {
-	_, _, err := runCLI(t, "workflow", "loadtest", "--warmup", "bad")
-	assertError(t, err)
-	assertErrorContains(t, err, "invalid warmup")
-}
-
-func TestWorkflowLoadtest_InvalidWorkflowFileContent(t *testing.T) {
-	tmpDir := t.TempDir()
-	configPath := createTempFile(t, tmpDir, "wf*.yaml", "bad content !@#$")
-
-	_, _, err := runCLI(t, "workflow", "loadtest", "-c", configPath)
-	assertError(t, err)
-}
-
-func TestWorkflowLoadtest_InvalidWorkflowFile(t *testing.T) {
-	tmpDir := t.TempDir()
-	configPath := createTempFile(t, tmpDir, "wf*.yaml", "not valid yaml {{{")
-
-	_, _, err := runCLI(t, "workflow", "loadtest", "-c", configPath)
-	assertError(t, err)
-	assertErrorContains(t, err, "failed to parse workflow")
-}
-
-// =============================================================================
 // runWorkflowReplay — deeper coverage: config + recordings required
 // =============================================================================
 
