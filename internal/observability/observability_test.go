@@ -126,6 +126,7 @@ func TestEveryLabelValueIsDrawnFromABoundedSet(t *testing.T) {
 	metrics.RecordSessionStreamEvent(OutcomeReplayed)
 	metrics.RecordAutorouteSweep(OutcomeProcessed, 3)
 	metrics.RecordAutorouteNotification(OutcomeQueued)
+	metrics.RecordRetentionPurge(OutcomeProcessed, 7)
 	metrics.SetComponentState(ComponentDelivery, ComponentRunning)
 	metrics.ObserveReadiness(Report{Components: []Component{{Name: ComponentSubmissionDB, Status: StatusHealthy}}})
 
@@ -138,7 +139,7 @@ func TestEveryLabelValueIsDrawnFromABoundedSet(t *testing.T) {
 		ComponentAutorouteSweep, ComponentAutorouteNotify, ComponentSessionStream,
 		ComponentSubmissionDB, ComponentTerminologyDB, ComponentSessionStore, ComponentProfileStore,
 		ComponentWorkflowStore, ComponentEventStore, ComponentMappingStore, ComponentProcessLiveness,
-		ComponentLifecycleCatalog,
+		ComponentLifecycleCatalog, ComponentRetentionPurge,
 	} {
 		allowed[component] = struct{}{}
 	}

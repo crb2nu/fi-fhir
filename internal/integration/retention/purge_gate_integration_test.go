@@ -24,10 +24,15 @@ import (
 // It exists to kill the framing every planning document in front of this lane
 // carried — that retention is a policy-design problem and the purge itself is a
 // DELETE statement in a lease-fenced sweeper
-// (docs/operations/PHI-RETENTION.md section 6,
-// .loom/slice-handoff-phase-4-slice-4-1d-c1-phi-audit.md:187-195). It runs
-// against the UNMODIFIED schema, so a pass is a statement about main, not about
-// this lane's code:
+// (docs/operations/PHI-RETENTION.md section 6 as it then read, and
+// .loom/slice-handoff-phase-4-slice-4-1d-c1-phi-audit.md:187-195).
+//
+// It shipped first as a standalone test-only MR and PASSED against the unmodified
+// schema, which is what forced the exemption decision before any migration was
+// written. It is kept, unchanged in substance, as a permanent regression guard:
+// every assertion below is still true after Slice 4.1e's column-scoped exemption,
+// and that is exactly the claim worth guarding. If the exemption ever widens into
+// a general write path, this test goes red before anything else does:
 //
 //	(a) DELETE of a dependent-free canonical event raises. The purge cannot
 //	    delete the row.
@@ -52,15 +57,21 @@ import (
 // place a foreign key IS the subject is the second half of (c), and there the
 // test asserts the SQLSTATE explicitly so a trigger cannot be mistaken for it.
 //
-// If this test ever fails, corrections 11-13 of .loom/32-sprint4-execution-specs.md
-// are stale and the exemption decision recorded in .loom/40-decisions.md must be
-// revisited before any purge migration is written.
+// The one thing this test deliberately does NOT assert is that a purge is
+// impossible: after Slice 4.1e it is possible, through exactly one shape, and
+// TestPhiRetention_PostgresExpiryPurgeAndAuditedTombstone proves that shape works
+// while this test proves nothing else does.
+//
+// If this test ever fails, the exemption recorded in .loom/40-decisions.md
+// (2026-08-08, "Slice 4.1e") has grown beyond a tombstone.
 func TestPhiRetention_PurgeIsStructurallyBlockedToday(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
 	db := newRetentionGateSchema(t, ctx, requireRetentionPostgres(t), "phi_retention_gate")
 	migrateDurableSchema(t, ctx, db)
+	// The seeded rows are never stamped with a purge_after, so no exemption is
+	// reachable for them and the assertions below test the guards, not the policy.
 	seedRetentionGateRecords(t, ctx, db)
 
 	before := countRetentionGateRows(t, ctx, db)

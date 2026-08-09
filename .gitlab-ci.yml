@@ -1580,11 +1580,15 @@ test:migration-compatibility:
 
 # Slice 4.1e Lane S4-B: PHI retention policy and purge runtime.
 #
-# Day 1 this job carries the structural gate alone. It asserts against the
-# UNMODIFIED durable schema that a purge can be neither a DELETE of a canonical
-# event nor a redaction UPDATE of its payload — Slice 4.1d C1's blanket guard
-# blocks both — and that an exported session and its export row are permanently
-# undeletable. A green run here is a statement about main, not about the lane.
+# Two proofs, each negative-controlled, plus Slice 4.1d C1's own kill-test in the
+# SAME job — because this lane narrows C1's blanket guard on two tables, and a
+# green purge next to a red C1 would mean the exemption ate the guarantee.
+#
+# The structural gate asserts that a purge can be neither a DELETE of a canonical
+# event nor a free redaction UPDATE of its payload; the purge proof runs two
+# purge components concurrently and asserts exactly one tombstone and exactly one
+# audit row per record, that an event with an unresolved delivery attempt is never
+# purged, and that every other mutation still raises.
 test:phi-retention-purge:
   stage: test
   <<: *go-image-debian
@@ -1608,11 +1612,14 @@ test:phi-retention-purge:
     # greener rather than redder without this step (AGENTS.md).
     - >-
       go test -tags=integration
-      -list '^TestPhiRetention_PurgeIsStructurallyBlockedToday$'
+      -list '^(TestPhiRetention_PostgresExpiryPurgeAndAuditedTombstone|TestPhiRetention_PurgeIsStructurallyBlockedToday)$'
       ./internal/integration/retention
-      | rg -x 'TestPhiRetention_PurgeIsStructurallyBlockedToday'
-      | awk 'END { if (NR != 1) exit 1 }'
+      | rg -x '(TestPhiRetention_PostgresExpiryPurgeAndAuditedTombstone|TestPhiRetention_PurgeIsStructurallyBlockedToday)'
+      | awk 'END { if (NR != 2) exit 1 }'
     - make phi-retention-purge
+    # C1's own kill-test and the rewritten posture gate, in this job, because this
+    # lane amends C1's triggers on two tables.
+    - make phi-audit
   after_script:
     - |
       if [ "$CI_JOB_STATUS" = "failed" ]; then

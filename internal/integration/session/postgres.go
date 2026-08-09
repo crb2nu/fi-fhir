@@ -29,6 +29,9 @@ var exportAttributionMigration string
 //go:embed migrations/0005_session_stream_events.sql
 var sessionStreamEventsMigration string
 
+//go:embed migrations/0006_retention_expiry.sql
+var sessionRetentionExpiryMigration string
+
 // PayloadProtector encrypts explicitly retained raw sample bytes outside SQL.
 type PayloadProtector interface {
 	Protect(context.Context, []byte, []byte) ([]byte, error)
@@ -155,6 +158,21 @@ func (s *PostgresStore) Migrate(ctx context.Context) error {
 			`INSERT INTO integration_session_schema_migrations (version, name) VALUES (5, '0005_session_stream_events')`,
 		); err != nil {
 			return fmt.Errorf("record session stream migration: %w", err)
+		}
+	}
+	if err := tx.QueryRowContext(ctx,
+		`SELECT EXISTS (SELECT 1 FROM integration_session_schema_migrations WHERE version = 6)`,
+	).Scan(&applied); err != nil {
+		return fmt.Errorf("read session retention migration ledger: %w", err)
+	}
+	if !applied {
+		if _, err := tx.ExecContext(ctx, sessionRetentionExpiryMigration); err != nil {
+			return fmt.Errorf("apply session retention migration: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO integration_session_schema_migrations (version, name) VALUES (6, '0006_retention_expiry')`,
+		); err != nil {
+			return fmt.Errorf("record session retention migration: %w", err)
 		}
 	}
 	if err := tx.Commit(); err != nil {

@@ -155,13 +155,16 @@ phi-audit:
 		-run '^TestPhiRetentionPosture_ProductionRejectsRetainedRawAndCanonicalEventsCarryNoPolicy$$' \
 		./internal/integration/processor
 
-# Slice 4.1e retention purge kill-test (PostgreSQL 16 required). Day 1 this is
-# the structural gate alone: it proves against the UNMODIFIED schema that a purge
-# can be neither a DELETE nor a redaction UPDATE, because Slice 4.1d C1 guards
-# both. See docs/operations/PHI-RETENTION.md and .loom/40-decisions.md.
+# Slice 4.1e retention purge kill-tests (PostgreSQL 16 required).
+#
+# The structural gate proves a purge can be neither a DELETE nor a free
+# redaction UPDATE; the purge proof runs two purge components concurrently and
+# asserts one tombstone and one audit row per record, the delivery interlock, and
+# that every other mutation still raises. Both carry their own negative controls.
+# See docs/operations/PHI-RETENTION.md and .loom/40-decisions.md.
 phi-retention-purge:
-	go test -tags=integration -race -count=1 -timeout=300s \
-		-run '^TestPhiRetention_PurgeIsStructurallyBlockedToday$$' \
+	go test -tags=integration -race -count=1 -timeout=600s \
+		-run '^(TestPhiRetention_PurgeIsStructurallyBlockedToday|TestPhiRetention_PostgresExpiryPurgeAndAuditedTombstone)$$' \
 		./internal/integration/retention
 
 # Slice 4.3 observability kill-test: two `fi-fhir serve` replicas against one

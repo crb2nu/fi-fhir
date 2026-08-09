@@ -405,16 +405,38 @@ written:
   no retained production raw PHI whose TTL could expire. An "expired-retention"
   test would assert over an empty set.
 - The PHI that *is* retained indefinitely — canonical event payloads, session
-  sample ciphertext, and session export snapshots — carries no policy field, no
+  sample ciphertext, and session export snapshots — carried no policy field, no
   expiry column, and no purge job at all
   (`internal/integration/processor/migrations/0001_atomic_submission.sql:19-33`,
-  `internal/integration/session/postgres.go:306-317`).
+  `internal/integration/session/postgres.go:324-333`).
 
-Retention is therefore not an enforcement gap over an existing policy; it is a
-policy that does not yet exist for the data that actually persists. Designing it,
-adding the expiry columns, and building the durable purge runtime is **Slice
-S3-C2** (`.loom/31-sprint3-execution-specs.md`, Lane S3-C, corrections 22-23).
-The honest current posture, with file:line citations, is
+Retention was therefore not an enforcement gap over an existing policy; it was a
+policy that did not exist for the data that actually persists. Designing it,
+adding the expiry columns, and building the durable purge runtime shipped as
+**Slice 4.1e** (`.loom/32-sprint4-execution-specs.md`, Lane S4-B; formerly named
+S3-C2 in `.loom/31`).
+
+**Correction (Slice 4.1e, 2026-08-08).** The framing above, and Slice 4.1d C1's
+handoff, both described the obstacle as a `DELETE` problem. That was wrong in
+three independent ways, proved against unmodified `main` by
+`TestPhiRetention_PurgeIsStructurallyBlockedToday`:
+
+1. C1's guard on `integration_canonical_events` is a **blanket** `BEFORE UPDATE
+   OR DELETE` (`0004_audit_immutability.sql:29-32`), so it blocked deletion
+   **and** payload redaction — both mechanisms a purge could use, not one.
+2. Even with that trigger lifted, the row is undeletable:
+   `integration_message_lineage` and `integration_delivery_attempts` reference it
+   `ON DELETE RESTRICT` and are themselves undeletable, and
+   `integration_delivery_outbox` chains off the attempts
+   (`0001_atomic_submission.sql:52-54,73-75,90-92`).
+3. The same is true of an exported session: the export row is append-only and the
+   session row is held by the export's foreign key, so **both** are permanently
+   undeletable once an export exists.
+
+The purge that shipped is therefore a **tombstone** under a column-scoped,
+schema-enforced exemption, never a deletion, and a tombstone is explicitly **not**
+a backup-inclusive deletion. See `.loom/40-decisions.md` (2026-08-08, "Slice
+4.1e"). The current posture, with file:line citations, is
 `docs/operations/PHI-RETENTION.md`.
 
 #### Slice 4.1a: OIDC-authenticated GraphQL human identity
