@@ -2364,9 +2364,13 @@ structurally impossible today.
     same document: the generator emits exactly the four `patient_*` types the named
     routes match. Substituting `type: log` for `type: emit` in a copy of
     `configs/adt-workflow.yaml` and changing nothing else drops the error rate from
-    100.0000% to 0.0000%. The `emit` action fails because the loadtest path configures
-    no event store. That makes the affordance's dishonesty structural rather than
-    incidental, which is what settles delete over relabel.
+    100.0000% to 0.0000%. And `emit` is not a registered action type at all
+    (`engine.go:125-134`), so no event store would have helped — every action in the
+    file failed with `unknown action type: emit`, under `workflow run` as much as
+    under the loadtest. That makes the affordance's dishonesty structural rather than
+    incidental, which is what settles delete over relabel: a harness that reports
+    100% achievement while every single action is failing is not mislabelled, it is
+    measuring the wrong thing.
   - **On repairing `configs/adt-workflow.yaml` rather than deleting it** — its
     `{{ event.type }}` / `{{ event.data.patient.mrn }}` form was never implemented; the
     engine renders Go `text/template` against the event's JSON form, so the working
@@ -2376,6 +2380,16 @@ structurally impossible today.
     directory the loadtest usage text pointed users at. It is the only first-party
     workflow config left in the repository, so repairing it finishes a pass that was
     already 90% done rather than deleting the evidence that it was incomplete.
+    **Repairing it also surfaced a third defect nobody had named: its routing never
+    worked.** `condition:` is a field of `Filter` (`types.go:19-31`) and the file put
+    it at the route's top level, where it is an unrecognized key, silently dropped,
+    leaving a zero-value `Filter` that matches every event — 4 events produced 20
+    route matches across 5 routes, including a `lab_result` event the file has no
+    route for. `docker-compose.yaml:80` mounts this file as
+    `FI_FHIR_WORKFLOW_CONFIG_PATH`, so that behaviour was live in the default
+    development stack. `internal/workflow/shipped_config_test.go` now asserts the
+    routing, because the signal that would have caught this — the route-match count —
+    was asserted nowhere.
   - **On per replica** — Kubernetes `resources` are per container; "4 vCPU across the
     deployment" has no expression in a values file, so a total reading could never be
     encoded in the artifact that is supposed to carry the profile. Making the file match
