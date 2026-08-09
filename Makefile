@@ -256,6 +256,13 @@ mllp-rate-quota:
 # work. Runs the two proofs AND their negative controls in one invocation: a
 # control that passes means the proof stopped exercising its mechanism.
 #
+# Slice 4.4c adds TestChaosRecovery_RestoreProofAssertionsAreTriggerAttributed,
+# the round-trip's fourth member and its attribution control. It drops every
+# non-internal trigger on the restored copy and requires every guarded mutation
+# to then succeed. Three of them did not, which is why it exists: a mutation a
+# foreign key refuses anyway keeps its assertion green with the guard gone.
+# Set FI_FHIR_RECOVERY_REPORT to a path to archive the measured RTO as JSON.
+#
 # The round-trip shells out to scripts/pgdump-roundtrip.sh, which needs client
 # tools whose MAJOR version matches the server. pg_dump 17+ writes
 # `SET transaction_timeout = 0` and PostgreSQL 16 rejects it, so a newer client
@@ -265,7 +272,7 @@ mllp-rate-quota:
 # Requires POSTGRES_TEST_URL and fails rather than skipping in CI.
 migration-compatibility:
 	go test -tags=integration -race -count=1 -timeout=600s \
-		-run '^TestMigrationCompatibility_(ConcurrentReplicaMigrationRollbackAndRestore|ExportInsertShapeSurvivesOneVersionRollback|NegativeControls)$$' \
+		-run '^(TestMigrationCompatibility_(ConcurrentReplicaMigrationRollbackAndRestore|ExportInsertShapeSurvivesOneVersionRollback|NegativeControls)|TestChaosRecovery_RestoreProofAssertionsAreTriggerAttributed)$$' \
 		./internal/integration/migrationcompat
 
 # Slice 4.4d structured-logging kill-test (Lane S5-C). Two halves in one
