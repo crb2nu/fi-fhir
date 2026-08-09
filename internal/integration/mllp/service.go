@@ -41,6 +41,11 @@ type ServiceConfig struct {
 	Processor    MessageProcessor
 	Clock        func() time.Time
 	NewID        func() string
+	// RateQuota distributes the deployment's declared max_messages_per_second
+	// across replicas. When nil the listener enforces the declared rate per
+	// replica, which is correct for a single replica and is what every replica
+	// did before slice 4.4e.
+	RateQuota RateQuota
 }
 
 type Service struct {
@@ -119,7 +124,7 @@ func NewService(config ServiceConfig) (*Service, error) {
 		principalID: config.PrincipalID, authMethod: authMethod,
 		identityMapped: config.Source.Clients.IdentityMappingEnabled(),
 		source:         config.Source, resolver: config.Resolver, processor: config.Processor,
-		capacity: newCapacityGate(clock), now: clock, newID: newID,
+		capacity: newCapacityGate(clock, config.RateQuota), now: clock, newID: newID,
 	}, nil
 }
 
