@@ -931,23 +931,63 @@ will not be measuring the declared policy.
 
 #### 4.4c — chaos, DR, and Kubernetes upgrade/rollback (Sprint 5)
 
-Budgets 4 and 7. Needs a cluster, and needs 4.4a's N-1 definition, which now
-exists. Contents:
+**Rewritten 2026-08-09 by Lane S5-B, from findings this list predates.** The
+version below assumed 4.4a's restore proof was sound and that 4.4c would add WAL
+archiving on top of it. It is not sound, and archiving is not what this slice
+should ship. Budgets 4 and 7, plus the provable half of 5. Needs 4.4a's N-1
+definition, which exists; needs a cluster only for the last item.
 
-- WAL archiving / point-in-time recovery. 4.4a established that the documented
-  logical `pg_dump` **cannot** meet the 5-minute RPO no matter how often it
-  runs; only continuous WAL shipping can. This is budget 5's remaining half.
+- **Repair the restore proof first.** Three of its six immutability assertions
+  were foreign-key-shadowed and would have stayed green with their triggers
+  dropped, the restored database's schema ledgers were never checked, and its
+  durable set omitted every table 4.1e added — so five of the newest
+  immutability triggers were never exercised after a restore
+  (`.loom/33` defect D3, reproduced by
+  `TestChaosRecovery_RestoreProofAssertionsAreTriggerAttributed` before the
+  fix). Assert on the SQLSTATE, target rows with no dependents, and carry a
+  negative control that drops every trigger and requires each guarded mutation
+  to succeed. A lane that opened on PITR would have built disaster recovery on
+  a proof that would not notice the disaster it was written to catch.
+- **The WAL/PITR posture is a decision, not a build item.** `.loom/40-decisions.md`
+  (2026-08-09) adopts option A: this repository certifies the **RTO** half of
+  budget 5 against the documented procedure — timed end to end, dump through
+  first successful `Claim`, archived as `recovery-rto.json` — and states the
+  **RPO** half as a method-dependent operator responsibility. PITR belongs to
+  whoever runs the database; a reference archiving configuration proved in CI is
+  filed as a follow-up with its cost written down. The product does not claim a
+  5-minute RPO.
 - Destination recovery under fault injection: queued attempts resume without
-  manual repair and without unbounded retry growth.
+  manual repair and without unbounded retry growth. Shipped as
+  `TestChaosRecovery_DestinationOutageOpensTheCircuitAndResumesOnRepair` using
+  an in-test TCP proxy, not a container stop — a runner has no Docker socket,
+  and severing the socket is the stronger fault.
+- **Deployment artifacts before the upgrade exercise, not during it.** The
+  PostgreSQL `Deployment` was a single replica on a ReadWriteOnce PVC with no
+  `strategy: Recreate`, so any template edit wedged the rollout; neither
+  application Deployment declared surge, unavailability, a grace period, or a
+  `preStop`, so a rolling-upgrade proof would have measured the Kubernetes
+  defaults. Fixed, plus `scripts/validate-k8s-schema.sh`, which renders the
+  chart at default and reference-profile values, the Kustomize base, and the
+  production overlay and schema-validates all four against the pinned 1.36 API
+  set with a negative control.
 - Kubernetes 1.36 install, upgrade, rollback, and uninstall through Helm and
-  Kustomize, with live golden-journey evidence.
-- The first real CI job for `./test/e2e/...`, which runs in no job today
-  (`.loom/32` correction 26).
+  Kustomize, with live golden-journey evidence. Render and schema validation are
+  done; **live** evidence needs a cluster and stays the last RC item.
+- The first CI job to execute `./test/e2e/...` against a running `fi-fhir`.
+  **Correction, from running it**: the suite is not correct-but-unrun, it is
+  red. `test/e2e/e2e_test.go` — nine tests, no external infrastructure, the file
+  `make test-e2e` runs — fails four ways including a nil-interface panic, and
+  two of `integration_test.go`'s tests fail with a reachable database. The cause
+  is workflow-schema drift: the tests write Go dot-path templates while the
+  engine binds JSON snake_case keys, the drift commit `5d07101c4` corrected in
+  every document three commits before this slice. Repairing nine legacy-engine
+  tests against a moved schema is its own slice; 4.4c makes the live-server
+  assertion blocking and names the rest with evidence.
 - Repair the two rollback-unsafe columns 4.4a recorded as a dated baseline:
   `integration_delivery_attempts.scheduled_at` and
-  `integration_delivery_outbox.updated_at`. Both are outside the one-version
-  window, and fixing them needs a processor migration whose number belonged to
-  Lane S4-B in Sprint 4.
+  `integration_delivery_outbox.updated_at`. **Re-filed to the purge
+  role-separation lane**, which owns the processor ledger this sprint; 4.4c
+  ships no schema change under the posture decision above.
 
 #### 4.4d — structured logging, then the tracing exporter (Sprint 5)
 

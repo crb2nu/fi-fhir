@@ -239,6 +239,14 @@ func assertLivePathStillAttributesExports(ctx context.Context, t *testing.T, db 
 // A table added here must also be seeded by seedDurableFixture:
 // assertRowCountsEqual refuses a class whose "before" count is zero rather than
 // comparing 0 to 0 and calling it preserved.
+//
+// STANDING OBLIGATION, and the whole point of D3: a lane that adds durable
+// state adds it here, in the same sprint. For Sprint 5 that is exactly one
+// table — Lane S5-D's per-deployment token-bucket ledger, lifecycle migration
+// 0002. Lane S5-F released its processor 0006 claim and ships no schema change
+// at all (its backlog gauge is a query over existing indexes), so nothing else
+// is pending. This list going stale is not a gap in coverage that shows up as a
+// failure; it shows up as a green proof that stopped watching.
 var durableClasses = []string{
 	"integration_receipts",
 	"integration_canonical_events",

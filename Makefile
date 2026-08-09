@@ -315,6 +315,21 @@ structured-logging-negative-control:
 # OIDC tokens, one case per role combination, plus exhaustiveness of the
 # per-root-field role map against the schema the server executes. No database:
 # the gate refuses or admits before any resolver touches storage.
+# Slice 4.4c: the live-server end-to-end assertion. Builds nothing itself —
+# point TEST_FIFHIR_URL and TEST_FIFHIR_METRICS_URL at a running fi-fhir and it
+# asserts /health, /ready component aggregation, and the metrics exposition.
+# FI_FHIR_E2E_REQUIRED_SERVICES turns a declared-but-unreachable dependency into
+# a failure instead of a skip; CI job test:e2e sets it.
+#
+# The rest of ./test/e2e/... is NOT run here and is red on main — see
+# ci/s5b-chaos-dr.yml for the executed evidence and the workflow-schema drift
+# that causes it.
+e2e-live:
+	FI_FHIR_E2E_REQUIRED_SERVICES=fi-fhir,fi-fhir-metrics \
+	go test -tags=e2e,integration -count=1 -timeout=300s -v \
+		-run '^TestObservabilityEndpoints$$' \
+		./test/e2e/...
+
 # Slice 4.4c budget 4: destination recovery under an injected fault. An in-test
 # TCP proxy severs the connection to a live TLS destination, the per-destination
 # circuit opens, and every queued attempt then resumes exactly once on repair

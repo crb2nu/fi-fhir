@@ -6,9 +6,16 @@
 #   docker-compose -f test/e2e/docker-compose.yaml down
 
 services:
-  # PostgreSQL for database action testing
+  # PostgreSQL for database action testing.
+  #
+  # Pinned to 16 by slice 4.4c. It said 15-alpine, which contradicted the
+  # supported matrix (docs/operations/SUPPORTED-1.0.md:22 locks PostgreSQL 16)
+  # and reintroduced exactly the client/server major-version class of bug
+  # scripts/pgdump-roundtrip.sh:123-139 exists to refuse: a workstation that
+  # brings this stack up gets a 15 server, and any dump taken against it with
+  # the 16 client the rest of the repo requires is unrestorable.
   postgres:
-    image: postgres:15-alpine
+    image: postgres:16-alpine
     environment:
       POSTGRES_DB: fi_fhir_test
       POSTGRES_USER: test
