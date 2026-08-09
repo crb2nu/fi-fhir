@@ -28,6 +28,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/fhir/subscription"
 	integrationdelivery "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/delivery"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/mllp"
 	operatorplane "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/operator"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
 	integrationretention "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/retention"
@@ -5158,6 +5159,7 @@ func runServe(args []string) error {
 
 	// Bind the observation seams the four previously blind components now have.
 	bindMLLPObservation(securePreviewRuntime.mllpServer.Service(), serveMetrics)
+	bindMLLPRateQuotaObservation(securePreviewRuntime.mllpRateQuota, serveMetrics)
 	bindDeliveryObservation(securePreviewRuntime.deliveryWorker, serveMetrics)
 	bindBatchObservation(securePreviewRuntime.batchRunner, serveMetrics)
 
@@ -5250,7 +5252,13 @@ func runServe(args []string) error {
 	// this table's shape. Sibling lanes append their own component *after* their
 	// own subsystem's block and add a matching entry to markComponent and
 	// waitForBackgroundStops rather than restructuring the table.
-	errCh := make(chan componentError, 10)
+	// Capacity 12 against eleven senders. It was 10 against nine, one slot of
+	// headroom, and waitForBackgroundStops returns early on the first non-nil
+	// error — so an overflow is a silent shutdown hang, not a compile error and
+	// not something any test covers. Slice 4.4e adds the eleventh sender and
+	// takes the repair with it (`.loom/33` correction 59); a lane adding the
+	// twelfth raises this again.
+	errCh := make(chan componentError, 12)
 
 	// markComponent keeps readiness, metrics, and the shutdown table reading from
 	// one source of truth, so `/ready` cannot claim a listener the process never
@@ -5264,7 +5272,7 @@ func runServe(args []string) error {
 		observability.ComponentMetrics, observability.ComponentMLLP, observability.ComponentDelivery,
 		observability.ComponentBatch, observability.ComponentAutorouteSweep,
 		observability.ComponentAutorouteNotify, observability.ComponentSessionStream,
-		observability.ComponentRetentionPurge,
+		observability.ComponentRetentionPurge, observability.ComponentMLLPRateQuota,
 	} {
 		markComponent(name, observability.ComponentNotConfigured)
 	}
@@ -5297,6 +5305,19 @@ func runServe(args []string) error {
 			errCh <- componentError{name: "MLLP", err: securePreviewRuntime.mllpServer.ListenAndServe(serveCtx)}
 		}()
 		fmt.Println("MLLP listener enabled from immutable source revision")
+	}
+	if securePreviewRuntime.mllpRateQuota != nil {
+		markComponent(observability.ComponentMLLPRateQuota, observability.ComponentRunning)
+		go func() {
+			errCh <- componentError{
+				name: "mllp-rate-quota",
+				err:  securePreviewRuntime.mllpRateQuota.Run(serveCtx),
+			}
+		}()
+		fmt.Printf(
+			"MLLP rate quota enabled: deployment-wide, claimed every %s on a %s lease\n",
+			mllp.DefaultClaimInterval, mllp.DefaultLeaseTTL,
+		)
 	}
 	if securePreviewRuntime.deliveryWorker != nil {
 		markComponent(observability.ComponentDelivery, observability.ComponentRunning)
@@ -5356,6 +5377,8 @@ func runServe(args []string) error {
 			"autoroute-sweep":  autorouteSweeper != nil && alreadyStopped != "autoroute-sweep",
 			"autoroute-notify": autorouteNotifier != nil && alreadyStopped != "autoroute-notify",
 			"retention-purge":  retentionPurger != nil && alreadyStopped != "retention-purge",
+			"mllp-rate-quota": securePreviewRuntime.mllpRateQuota != nil &&
+				alreadyStopped != "mllp-rate-quota",
 		}
 		// A component that stopped is no longer ready, whatever else happens
 		// during shutdown.
@@ -5368,6 +5391,7 @@ func runServe(args []string) error {
 			"autoroute-sweep":  observability.ComponentAutorouteSweep,
 			"autoroute-notify": observability.ComponentAutorouteNotify,
 			"retention-purge":  observability.ComponentRetentionPurge,
+			"mllp-rate-quota":  observability.ComponentMLLPRateQuota,
 		}
 		if name, ok := componentMetricNames[alreadyStopped]; ok {
 			markComponent(name, observability.ComponentStopped)

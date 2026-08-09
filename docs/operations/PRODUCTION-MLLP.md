@@ -39,36 +39,94 @@ Plaintext mode is intended only for an independently protected loopback or
 sidecar trust boundary. Do not expose plaintext MLLP through a node port,
 ingress, load balancer, or untrusted network.
 
-## Capacity is enforced per replica, not per deployment
+## Capacity: the message rate is deployment-wide, the rest is per replica
 
-`CapacityPolicy` (`MaxInFlight`, `MaxQueued`, `MaxMessagesPerSecond`) is
-declared once on the integration revision, but the listener enforces it with
-one in-process gate per `Service`
-(`internal/integration/mllp/service.go:46-55`,
-`pkg/integration/deployment.go:61-73`). That gate has no cross-process state:
-it bounds only the connections and messages this one replica handles.
+`CapacityPolicy` is declared once on the integration revision
+(`pkg/integration/deployment.go`) and carries three numbers. Since slice 4.4e
+they are not all enforced at the same scope, and the difference matters when
+you size a deployment.
 
-Running `N` replicas of the same deployment admits up to `N × MaxInFlight`
-concurrently and up to `N × MaxMessagesPerSecond` in aggregate. The revision
-itself still declares only a single policy value. A revision with
-`max_messages_per_second: 100` and 4 replicas can accept 400
-messages/second in total.
+| Setting | Scope | Why |
+|---|---|---|
+| `max_messages_per_second` | **the deployment** | A throughput commitment to the sending facility. It means the same thing at one replica or six. |
+| `max_in_flight` | per replica | A bound on concurrent work inside one process. |
+| `max_queued` | per replica | A bound on one process's admission queue depth. |
+| `max_connections` | per replica | From the mounted source JSON, not the revision. A per-listener socket bound. |
 
-This is documented behavior, not a pending bug fix. A durable,
-per-deployment token bucket that enforces the policy across replicas is
-future work (Slice 4.4+), not shipped today. Until it lands, an operator has
-two choices:
+`max_in_flight` and `max_queued` are deliberately per-replica: they bound a
+process's memory and concurrency, and dividing them across replicas would
+describe nothing real. Running `N` replicas therefore gives the deployment
+`N × max_in_flight` concurrent work, and that is intended.
 
-- **Divide the declared policy by the replica count** — set
-  `max_messages_per_second`, `max_in_flight`, and `max_queued` on the
-  revision to the deployment-wide target divided by the replica count, so
-  the aggregate across replicas matches the intended ceiling.
-- **Accept the multiple deliberately** — size the declared policy assuming
-  it will be multiplied by the replica count, and document that assumption
-  in the deployment's own change record.
+### How the deployment-wide rate is enforced
 
-Either way, changing the replica count without revisiting the capacity
-policy silently changes the deployment's effective ceiling.
+Each replica leases a **share** of the declared rate from a durable
+per-deployment record (`integration_mllp_rate_claims`, lifecycle migration
+0002), refills its in-memory token bucket from that share, and releases the
+share when it shuts down. The live shares sum to exactly the declared rate, so
+the aggregate is bounded by construction rather than by convention.
+
+**Admission itself never touches the database.** The claim loop runs on an
+interval measured in seconds; the per-frame decision is the same in-memory
+token take it always was. At 250 msg/s that is roughly one query per replica
+per 500 frames. A per-frame durable counter would have been exact and would
+have turned the rate limiter into a throughput ceiling; it was rejected for
+that reason. See `.loom/40-decisions.md` (2026-08-09).
+
+| Parameter | Value | Meaning |
+|---|---|---|
+| Claim interval | 2s | How often a replica renews its share and picks up a new split. |
+| Lease TTL | 6s | How long a share survives without renewal. Three intervals of headroom, so two lost round trips are a non-event. |
+| Degraded share | `max(1, declared ÷ 10)` | What a replica falls back to when it cannot reach PostgreSQL. |
+
+Neither parameter is environment-configurable. Capacity lives on the deployed
+revision, and this is its distribution mechanism rather than a separate knob.
+
+### What an operator should expect
+
+- **Scaling up or down needs no config change.** Add a replica and the split
+  re-computes within one claim interval. This is the behaviour that replaces
+  the old advice to divide `max_messages_per_second` by the replica count —
+  **do not do that any more**; it now under-provisions the deployment by the
+  replica count.
+- **Uneven load is bursty at the margin.** An idle replica holds its share for
+  up to one claim interval after a busy one could have used it. That is the
+  price of keeping admission in memory, and it is the tuning knob if the
+  trade-off ever needs revisiting.
+- **A rolling redeploy does not burst.** The quota pool is keyed on the
+  deployment, not on the revision digest, so the old and new revisions draw
+  from one budget while both are live. The token bucket is also no longer
+  refilled when the deployed revision changes — before 4.4e it was, which
+  handed every new replica a fresh full burst.
+- **A PostgreSQL outage degrades, it does not stop.** A replica keeps its
+  current share until the lease expires, then drops to the conservative share
+  and reports `fi_fhir_mllp_rate_claims_total{outcome="degraded"}`. It never
+  falls back to the full declared rate, and never to zero. The residual: if a
+  deployment runs more than ten replicas *and* every one of them loses
+  PostgreSQL at once, the aggregate can exceed the declared rate. It is bounded
+  and it is strictly better than the pre-4.4e behaviour, which was unbounded.
+- **More replicas than messages per second is a misconfiguration.** Every
+  holder is granted at least 1 msg/s, so a deployment declaring 4 msg/s across
+  6 replicas admits up to 6. Bounding it further would black-hole replicas.
+
+### Observability
+
+- `fi_fhir_mllp_rate_claims_total{outcome}` — one increment per claim attempt
+  per replica. `processed` is a healthy renewal, `degraded` is a replica on the
+  fallback share, `error` is a failed attempt inside a still-valid lease. If
+  this ever rises in step with `fi_fhir_mllp_messages_total`, admission has
+  started taking a round trip per frame and the design has regressed.
+- `fi_fhir_component_up{component="mllp_rate_quota"}` — the claim loop is a
+  first-class background component of `serve`.
+
+### Rate-limited frames
+
+A frame refused by the rate gate gets a **transient** negative acknowledgement —
+`AE` in application mode, `CE` in commit mode — carrying `RATE_EXCEEDED` in the
+ERR segment, and **the connection stays open**. `AR`/`CR` are reserved for
+permanent rejects; a throttled sender is expected to retry. This is unchanged
+by 4.4e, and it is asserted end to end for the first time by
+`TestMLLPCapacity_RateLimitedFrameGetsATransientNAKAndTheConnectionSurvives`.
 
 ## Client certificate service identity
 

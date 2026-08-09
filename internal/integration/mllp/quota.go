@@ -320,7 +320,12 @@ func (c *QuotaCoordinator) release() {
 	if !serving {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), c.claimInterval)
+	// Budgeted by the lease, not by the claim interval. Releasing is pointless
+	// once the lease would have expired anyway, so the TTL is the natural
+	// bound — and the claim interval is the wrong one: it can be far shorter
+	// than a round trip, which silently turns every graceful release into a
+	// timeout and leaves the share stranded until it expires.
+	ctx, cancel := context.WithTimeout(context.Background(), c.leaseTTL)
 	defer cancel()
 	err := c.store.Release(ctx, c.key, c.holderID)
 	c.report(QuotaOutcome{RevisionDigest: digest, Released: true, Err: err})

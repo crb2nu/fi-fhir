@@ -60,17 +60,28 @@ type HealthPolicy struct {
 
 // CapacityPolicy bounds concurrency, queued work, and accepted message rate.
 //
-// The policy is enforced PER REPLICA, not per deployment. The MLLP listener
-// holds one in-process capacity gate per Service
-// (internal/integration/mllp/service.go), so a deployment running N replicas
-// admits up to N × MaxInFlight concurrently and N × MaxMessagesPerSecond in
-// aggregate, even though the revision declares one policy.
+// The three fields are NOT enforced at the same scope, and the difference is
+// load-bearing when sizing a deployment.
 //
-// An operator therefore divides the declared policy by the replica count, or
-// accepts the multiple deliberately. Slice 4.3 documents this rather than
-// silently multiplying it; a durable per-deployment token bucket is future
-// work. See docs/operations/PRODUCTION-MLLP.md and `.loom/40-decisions.md`
-// (2026-08-08).
+// MaxMessagesPerSecond is DEPLOYMENT-WIDE. It is a throughput commitment to the
+// sending facility and means the same thing at one replica or six. Slice 4.4e
+// distributes it with a durable lease: each replica claims a share of the
+// declared rate from integration_mllp_rate_claims and refills its in-memory
+// bucket from that share, so the live shares sum to the declared rate and the
+// aggregate is bounded by construction. Admission stays an in-memory decision —
+// no database round trip per frame.
+//
+// MaxInFlight and MaxQueued are PER REPLICA, deliberately. They bound one
+// process's concurrency and admission queue depth, which is a property of a
+// process rather than of a deployment, so N replicas allow N × MaxInFlight
+// concurrent work and that is intended. MaxConnections is per replica too and
+// comes from the mounted source JSON rather than from this policy.
+//
+// Do NOT divide MaxMessagesPerSecond by the replica count. That was the advice
+// before 4.4e, when the rate was enforced per replica; it now under-provisions
+// the deployment by the replica count. See docs/operations/PRODUCTION-MLLP.md
+// and `.loom/40-decisions.md` (2026-08-09, "Distribute the MLLP rate across
+// replicas with a durable lease-partitioned quota").
 type CapacityPolicy struct {
 	MaxInFlight          int `json:"max_in_flight"`
 	MaxQueued            int `json:"max_queued"`

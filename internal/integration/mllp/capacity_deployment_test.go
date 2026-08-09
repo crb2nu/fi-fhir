@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -66,9 +67,10 @@ func TestMLLPCapacity_TwoReplicasAdmitTwiceTheDeclaredRateToday(t *testing.T) {
 	replicaA := newCapacityReplica(t, source, binding, clock, &resolverCalls)
 	replicaB := newCapacityReplica(t, source, binding, clock, &resolverCalls)
 
-	// Phase 1 — the instantaneous burst. capacity.go:110-112 seeds a new rate
-	// key with a full bucket, and burst equals the refill rate, so each replica
-	// can admit the whole declared rate before any time passes.
+	// Phase 1 — the instantaneous burst. The bucket is seeded full on a
+	// replica's first frame and burst equals the refill rate, so each replica
+	// can admit the whole declared rate before any time passes. With no quota
+	// bound, "the whole declared rate" is the deployment's, twice over.
 	burstA := drainRateBudget(t, replicaA)
 	burstB := drainRateBudget(t, replicaB)
 	if burstA != declaredRate || burstB != declaredRate {
@@ -110,8 +112,6 @@ func TestMLLPCapacity_TwoReplicasAdmitTwiceTheDeclaredRateToday(t *testing.T) {
 		"slice 4.4b budget 2 measured on this profile today would certify nothing",
 		admitted, declaredRate, float64(admitted)/float64(declaredRate))
 
-	// The other half of the gate: nothing durable took part in any of it.
-	assertNoDurableRateState(t)
 	// Capacity contributes zero queries. The only per-frame lookup is the
 	// binding resolution that lifecycle/queries.go:192 already performs, so a
 	// resolver call count equal to the attempt count proves the admission
@@ -123,19 +123,39 @@ func TestMLLPCapacity_TwoReplicasAdmitTwiceTheDeclaredRateToday(t *testing.T) {
 	}
 }
 
-// assertNoDurableRateState proves the claim that PostgreSQL is read-only with
-// respect to MLLP capacity: no ledger in the repo has a table, column, or index
-// that could record a rate decision. When 4.4e lands, lifecycle migration 0002
-// makes this assertion false by construction, which is the point — it is the
-// mechanical marker of the before state.
-func assertNoDurableRateState(t *testing.T) {
+// TestMLLPCapacity_DurableRateStateLivesInExactlyOneLedger is the day-1 gate's
+// other half, inverted by the slice that made it false.
+//
+// Before 4.4e it asserted that *no* migration in the repo carried rate state —
+// PostgreSQL was read-only with respect to MLLP capacity, and the gate proved
+// it mechanically. Lifecycle migration 0002 makes that false by construction,
+// which was always the point: the assertion is the marker, and flipping it is
+// the evidence the slice landed.
+//
+// Kept rather than deleted, and inverted rather than weakened, because the walk
+// still earns its place: it pins the durable rate state to exactly one file in
+// exactly one ledger. A second ledger sprouting a rate table, or a per-frame
+// counter appearing beside the lease, turns this red — and a per-frame counter
+// is the design this lane explicitly rejected, so it is worth a tripwire.
+func TestMLLPCapacity_DurableRateStateLivesInExactlyOneLedger(t *testing.T) {
+	const home = "internal/integration/lifecycle/migrations/0002_mllp_rate_claims.sql"
+	carriers := migrationsCarryingRateState(t)
+	if len(carriers) != 1 || carriers[0] != home {
+		t.Fatalf("durable rate state lives in %v, want exactly [%s]", carriers, home)
+	}
+	t.Logf("durable rate state is confined to %s", home)
+}
+
+// migrationsCarryingRateState walks every ledger's migrations and returns, in a
+// stable order, those that mention durable rate state.
+func migrationsCarryingRateState(t *testing.T) []string {
 	t.Helper()
 	root := repoRoot(t)
 	rateState := regexp.MustCompile(`(?i)rate_limit|token_bucket|capacity_counter|rate_quota|rate_claim|` +
 		`message_rate|messages_per_second|deployment_quota|admission_rate`)
 
 	scanned := 0
-	var offenders []string
+	var carriers []string
 	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -155,12 +175,12 @@ func assertNoDurableRateState(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if match := rateState.Find(body); match != nil {
+		if rateState.Match(body) {
 			relative, relErr := filepath.Rel(root, path)
 			if relErr != nil {
 				relative = path
 			}
-			offenders = append(offenders, relative+" matches "+string(match))
+			carriers = append(carriers, filepath.ToSlash(relative))
 		}
 		return nil
 	})
@@ -170,10 +190,9 @@ func assertNoDurableRateState(t *testing.T) {
 	if scanned == 0 {
 		t.Fatal("scanned zero migration files: the walk is wrong, not the repo")
 	}
-	if len(offenders) != 0 {
-		t.Fatalf("expected no durable rate state in any ledger, found: %s", strings.Join(offenders, "; "))
-	}
-	t.Logf("scanned %d migration files across every ledger: zero durable rate state", scanned)
+	sort.Strings(carriers)
+	t.Logf("scanned %d migration files across every ledger", scanned)
+	return carriers
 }
 
 // TestMLLPCapacity_RateLimitedFrameGetsATransientNAKAndTheConnectionSurvives

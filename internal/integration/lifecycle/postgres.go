@@ -17,18 +17,30 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
 
-const (
-	lifecycleMigrationVersion = 1
-	lifecycleMigrationLockKey = int64(5064657639792058891)
-)
+const lifecycleMigrationLockKey = int64(5064657639792058891)
+
+//go:embed migrations/0001_deployment_lifecycle.sql
+var deploymentLifecycleMigration string
+
+//go:embed migrations/0002_mllp_rate_claims.sql
+var mllpRateClaimsMigration string
+
+var lifecycleMigrations = []struct {
+	version int64
+	name    string
+	sql     string
+}{
+	{version: 1, name: "0001_deployment_lifecycle", sql: deploymentLifecycleMigration},
+	{version: 2, name: "0002_mllp_rate_claims", sql: mllpRateClaimsMigration},
+}
 
 // SchemaVersion is the lifecycle ledger version this binary expects. Slice 4.4a
 // defines N-1 as the per-package ledger version; see `.loom/40-decisions.md`
 // (2026-08-09, "What one version means").
-const SchemaVersion = lifecycleMigrationVersion
-
-//go:embed migrations/0001_deployment_lifecycle.sql
-var deploymentLifecycleMigration string
+// TestMigrationCompatibility_ConcurrentReplicaMigrationRollbackAndRestore
+// asserts this equals the highest version in lifecycleMigrations, so the two
+// cannot drift.
+const SchemaVersion = 2
 
 // PostgresCatalog owns the durable lifecycle state machine for integration revisions.
 type PostgresCatalog struct {
@@ -75,23 +87,26 @@ func (c *PostgresCatalog) Migrate(ctx context.Context) error {
 	`); err != nil {
 		return fmt.Errorf("create lifecycle migration ledger: %w", err)
 	}
-	var applied bool
-	if err := tx.QueryRowContext(ctx,
-		`SELECT EXISTS (SELECT 1 FROM integration_lifecycle_schema_migrations WHERE version = $1)`,
-		lifecycleMigrationVersion,
-	).Scan(&applied); err != nil {
-		return fmt.Errorf("read lifecycle migration ledger: %w", err)
-	}
-	if !applied {
-		if _, err := tx.ExecContext(ctx, deploymentLifecycleMigration); err != nil {
-			return fmt.Errorf("apply deployment lifecycle migration: %w", err)
+	for _, migration := range lifecycleMigrations {
+		var applied bool
+		if err := tx.QueryRowContext(ctx,
+			`SELECT EXISTS (SELECT 1 FROM integration_lifecycle_schema_migrations WHERE version = $1)`,
+			migration.version,
+		).Scan(&applied); err != nil {
+			return fmt.Errorf("read lifecycle migration ledger: %w", err)
+		}
+		if applied {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, migration.sql); err != nil {
+			return fmt.Errorf("apply lifecycle migration %s: %w", migration.name, err)
 		}
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO integration_lifecycle_schema_migrations (version, name) VALUES ($1, $2)`,
-			lifecycleMigrationVersion,
-			"0001_deployment_lifecycle",
+			migration.version,
+			migration.name,
 		); err != nil {
-			return fmt.Errorf("record deployment lifecycle migration: %w", err)
+			return fmt.Errorf("record lifecycle migration %s: %w", migration.name, err)
 		}
 	}
 	if err := tx.Commit(); err != nil {
