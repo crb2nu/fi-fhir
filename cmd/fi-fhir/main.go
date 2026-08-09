@@ -5194,6 +5194,12 @@ func runServe(args []string) error {
 	if err != nil {
 		return fmt.Errorf("configure GraphQL server: %w", err)
 	}
+	// Sprint 4 Lane S4-E: the transport gate enumerates every root field. The
+	// compatibility grant is still compiled in and still expands to the whole
+	// surface, so print it the way the delivery worker prints its identity mode
+	// — an operator should be able to see from the startup log that the
+	// deployment is relying on a deprecated blanket role.
+	fmt.Println(graphql.TransportGatePolicyLine())
 
 	// Set up signal handling for graceful shutdown
 	sigCh := make(chan os.Signal, 1)

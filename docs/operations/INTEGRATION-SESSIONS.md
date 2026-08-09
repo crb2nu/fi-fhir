@@ -39,11 +39,20 @@ schema once, and wires the GraphQL session routes to the durable store. Startup
 fails closed when the database or migration is unavailable.
 
 The authenticated GraphQL server still requires the existing deployment tenant,
-origin, and bearer configuration. Until fine-grained Phase 4 authorization is
-implemented, session operations require the temporary `graphql:operator` role;
-the narrower `integration:preview` role remains limited to the typed stateless
-preview operation. Local operators enabling the session workspace must include
-`graphql:operator` in `FI_FHIR_GRAPHQL_ROLES`.
+origin, and bearer configuration. Session operations require the
+`graphql:operator` compatibility grant; the narrower `integration:preview` role
+remains limited to the typed stateless preview operation. Local operators
+enabling the session workspace must include `graphql:operator` in
+`FI_FHIR_GRAPHQL_ROLES`.
+
+Sprint 4 narrowed the GraphQL transport gate from a blanket allow to a
+per-root-field role map, but the session workspace is not yet part of the
+narrowed surface: all nine session queries, all twelve session mutations, and
+both session subscriptions are still in the compatibility bucket. Nothing about
+this configuration changed — `graphql:operator` continues to expand to every
+root field. See [`docs/planning/GRAPHQL-API.md`](../planning/GRAPHQL-API.md) for
+the roles that now gate the operator control plane, and for the follow-up that
+will give the session workspace its own grant.
 
 Production GitOps does not enable either feature gate in Slice 3.3.
 

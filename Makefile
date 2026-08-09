@@ -12,6 +12,7 @@
 	operator-control-plane delivery-identity phi-audit observability-replicas \
 	migration-compatibility \
 	phi-retention-purge \
+	transport-gate transport-gate-negative-control \
 	smoke-test smoke-test-local check-runtime-config \
 	dev dev-down dev-ui dev-ui-down destination-transport
 
@@ -190,6 +191,28 @@ migration-compatibility:
 	go test -tags=integration -race -count=1 -timeout=300s \
 		-run '^TestMigrationCompatibility_ExportInsertShapeSurvivesOneVersionRollback$$' \
 		./internal/integration/migrationcompat
+
+# Lane S4-E transport-gate kill-test: the real GraphQL handler with real 4.1a
+# OIDC tokens, one case per role combination, plus exhaustiveness of the
+# per-root-field role map against the schema the server executes. No database:
+# the gate refuses or admits before any resolver touches storage.
+transport-gate:
+	go test -race -count=1 -timeout=120s \
+		-run '^TestTransportGate' \
+		./internal/api/graphql
+
+# Negative control for the above. The transportgateblanket tag restores the
+# pre-Sprint-4 blanket allow, so every least-privilege refusal must FAIL OPEN.
+# This target therefore inverts: a zero exit status means the kill-test is not
+# measuring the narrowing and the gate has no proof behind it.
+transport-gate-negative-control:
+	@if go test -tags transportgateblanket -count=1 -timeout=120s \
+		-run '^TestTransportGate' ./internal/api/graphql >/dev/null 2>&1; then \
+		echo "negative control FAILED: kill-test still passes with the blanket allow restored"; \
+		exit 1; \
+	else \
+		echo "negative control OK: kill-test fails open with the blanket allow restored"; \
+	fi
 
 # Clean build artifacts
 clean:

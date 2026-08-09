@@ -94,11 +94,54 @@ The transitional `integration:preview` role permits only:
 Aliases and fragments do not bypass this root-field allowlist. Subscriptions
 and every legacy query or mutation are forbidden for the preview role.
 
-`graphql:operator` remains a broad compatibility role for authenticated legacy
-capabilities. Do not assign it to a normal IDE caller. Fine-grained RBAC and
-durable audited user sessions remain Phase 4 work.
+### Per-root-field roles
 
-Implementation: `internal/api/graphql/operation_authorization.go`.
+Since Sprint 4 (Lane S4-E) the transport gate is an enumeration, not a boolean.
+Every one of the 131 root fields — 64 `Query`, 60 `Mutation`, 7 `Subscription` —
+names the roles a caller must hold, and a root field with no entry is refused.
+`TestTransportGateRoleMapIsExhaustive` compares the map against the schema the
+server actually executes, so a new root field cannot ship without a role
+decision.
+
+A field's requirement is an AND-set, matching what the service behind it demands
+(`internal/integration/operator/service.go`), so the gate can never be more
+permissive than the service. Sixteen fields have fine-grained requirements:
+
+| Requirement | Root fields |
+|---|---|
+| `integration.operator` | `operatorReceipts`, `operatorMessageTrace`, `operatorDeliveryAttempts`, `operatorDeliveryAttempt`, `operatorDeadLetters`, `operatorCircuits`, `operatorAttemptAudit`, `operatorDeployments`, `operatorDeploymentEvents` |
+| `integration.operator` + `integration.delivery.operator` | `replayDelivery`, `resubmitMessage`, `discardDeadLetter` |
+| `integration.operator` + `integration.deployment.operator` | `pauseIntegrationDeployment`, `resumeIntegrationDeployment`, `retireIntegrationDeployment`, `deployIntegrationRelease` |
+
+`integration.phi.export` is not in the table on purpose. It gates the
+`includeRawPayload` argument of `exportIntegrationBundle`, not any field, so a
+token holding only that grant reaches nothing at the transport gate. The
+colon-form `integration:submit` / `integration:mllp` / `integration:batch`
+grants are minted by the ingress, MLLP, and batch transports for their own
+principals and are never carried by a GraphQL token, so the submit mutations are
+not mapped to them either.
+
+### The compatibility grant
+
+`graphql:operator` is a **named compatibility grant** that expands to all 131
+root fields. A token holding it behaves exactly as it did before the narrowing.
+It is deprecated, not removed: the remaining 115 root fields — the event and
+patient browser, the legacy workflow catalog, FHIR subscriptions, the
+integration session workspace, profiles, LLM, terminology and autoroute review,
+Temporal, the debugger, and all seven subscriptions — have no shipped
+fine-grained role and are reachable only through it. Each one carries an
+explicit entry and a `TODO` naming its follow-up slice, so the ungoverned
+surface is enumerable rather than implicit.
+
+Do not assign `graphql:operator` to a normal IDE caller, and do not swap it out
+of an existing operator token for the fine-grained roles — that keeps the
+control plane and loses the whole IDE. `serve` prints the mapping's shape at
+startup so a deployment still relying on the grant says so in its own log.
+
+Implementation: `internal/api/graphql/operation_authorization.go` and
+`internal/api/graphql/operation_authorization_roles.go`. The narrowing is
+defence in depth: every request that clears the gate is authorized again by the
+service that answers it.
 
 ## Transport policy
 

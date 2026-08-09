@@ -464,6 +464,16 @@ func hasGraphQLLineage(links []model.LineageLink, sourcePath, targetPath string)
 
 // exportContext builds a verified caller context for the export mutation, with
 // the supplied extra roles added to the baseline operator role.
+//
+// The baseline is the graphql:operator compatibility grant because
+// exportIntegrationBundle is still in Lane S4-E's compatibility bucket: no
+// shipped fine-grained role describes the session workspace. In particular
+// integration.phi.export is NOT that role — it gates this mutation's
+// includeRawPayload argument (the extraRoles the callers below pass), which is
+// exactly why the transport-gate map never requires it for a field. These
+// resolver tests sit below the transport gate and are unaffected by the
+// narrowing; TestTransportGate_FineGrainedRolesReplaceBlanketOperator covers the
+// gate itself.
 func exportContext(extraRoles []string) context.Context {
 	roles := append([]string{"graphql:operator"}, extraRoles...)
 	return requestsecurity.WithSecurityContext(context.Background(), integration.SecurityContext{

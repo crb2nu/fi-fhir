@@ -279,6 +279,13 @@ add `graphql:operator` to the API roles, and add this public UI build flag:
 VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED=true npm run dev
 ```
 
+`graphql:operator` is the **compatibility grant**: it expands to all 131 GraphQL
+root fields. The IDE surface — sessions, workflows, profiles, terminology, the
+debugger, and every subscription — is still reachable only through it, so a
+development token needs it. It is deprecated, not removed; see
+[`docs/planning/GRAPHQL-API.md`](../planning/GRAPHQL-API.md) for the per-root-field
+roles that now gate the operator control plane.
+
 ## IDE Setup
 
 ### VS Code

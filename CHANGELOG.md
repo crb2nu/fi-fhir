@@ -147,6 +147,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   compatibility mode; omitting the `workload` block preserves the existing
   deployment-fixed principal, server-issued `integration:batch` grant, and exact
   source-revision digests
+- Per-root-field GraphQL transport-gate roles over all 131 schema root fields
+  with default-deny, a compile-time exhaustiveness test against the schema the
+  server executes, and a `transportgateblanket` build tag that restores the old
+  blanket allow as the kill-test's negative control
+- `test:transport-gate` CI job and `make transport-gate` /
+  `make transport-gate-negative-control`
 
 ### Changed
 
@@ -441,6 +447,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   by default. Profile-YAML and unauthenticated generic-ingest HTTP bypasses are
   no longer mounted by `serve`; canonical UI and cluster proxies expose no
   legacy `/api` fallback.
+- The GraphQL transport gate no longer allows every operation to any
+  `graphql:operator` holder. It enumerates all 131 root fields and refuses any
+  it has no role for. The sixteen operator control-plane fields require the same
+  roles as the service behind them — `integration.operator` for the nine reads,
+  plus `integration.delivery.operator` for replay/resubmit/discard and
+  `integration.deployment.operator` for pause/resume/retire/deploy — so a
+  control-plane operator can be issued a token that reaches nothing else.
+  `graphql:operator` is retained as a named, deprecated compatibility grant that
+  expands to the full set, so every existing operator token is unaffected; the
+  remaining 115 root fields are still reachable only through it and each carries
+  a `TODO` naming the slice that should narrow it. `serve` prints the mapping's
+  shape at startup. `integration:preview` and the SSE stream-context allowlist
+  are unchanged, and every service-layer authorization check is unchanged: this
+  is defence in depth, not a relocation.
 - Mapping Studio preview now compiles its public registry alias through the
   Vite environment namespace, validates complete tenant/provenance/correlation
   lineage, keeps raw samples and filename-derived labels in tab memory, and

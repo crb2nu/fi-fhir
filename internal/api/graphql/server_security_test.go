@@ -508,6 +508,15 @@ func testAuthenticator(t *testing.T) requestsecurity.Authenticator {
 	return authenticator
 }
 
+// testOperatorAuthenticator mints the compatibility grant deliberately. Its
+// callers exercise the legacy catalog and the session subscriptions, which Lane
+// S4-E left in the compatibility bucket because no shipped fine-grained role
+// describes them. Narrowing this fixture is the signal that a follow-up slice
+// has given those root fields a role of their own; until then it must keep
+// graphql:operator, and this file is the fixture correction 34 of
+// .loom/32-sprint4-execution-specs.md required to ship with the role mapping.
+// TestTransportGate_CompatibilityGrantBehavesExactlyAsBefore is the assertion
+// that this fixture still means what it did before the narrowing.
 func testOperatorAuthenticator(t *testing.T) requestsecurity.Authenticator {
 	t.Helper()
 	authenticator, err := requestsecurity.NewStaticBearerAuthenticator(requestsecurity.StaticBearerConfig{

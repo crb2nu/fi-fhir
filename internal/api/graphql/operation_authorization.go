@@ -12,8 +12,10 @@ import (
 )
 
 const (
-	// GraphQLOperatorRole is the explicit temporary escape hatch for legacy
-	// authenticated GraphQL capabilities while operation-level RBAC is built.
+	// GraphQLOperatorRole is the named compatibility grant. It expands to every
+	// root field, so a token that carries it behaves exactly as it did before
+	// Lane S4-E narrowed the gate. Per-root-field roles live in
+	// operation_authorization_roles.go; prefer those for new tokens.
 	GraphQLOperatorRole = "graphql:operator"
 	previewRole         = "integration:preview"
 )
@@ -47,15 +49,28 @@ func (operationAuthorization) MutateOperationContext(ctx context.Context, operat
 		errcode.Set(forbiddenError, "FORBIDDEN")
 		return forbiddenError
 	}
+	// Negative control only: the transportgateblanket build tag restores the
+	// pre-Sprint-4 allow-everything gate so the kill-test can be proven to fail
+	// open. False in every shipped build.
+	if transportGateBlanketAllow() {
+		return nil
+	}
+	// The named compatibility grant expands to the full root-field set, so every
+	// operator token minted from the docs keeps working unchanged.
 	if hasOperationRole(security.Principal.Roles, GraphQLOperatorRole) {
 		return nil
 	}
-	if !hasOperationRole(security.Principal.Roles, previewRole) || !previewOperationAllowed(operationContext) {
-		forbiddenError := gqlerror.Errorf("GraphQL operation forbidden")
-		errcode.Set(forbiddenError, "FORBIDDEN")
-		return forbiddenError
+	if hasOperationRole(security.Principal.Roles, previewRole) && previewOperationAllowed(operationContext) {
+		return nil
 	}
-	return nil
+	// Default-deny: transportGateRolesSatisfied refuses any root field that
+	// rootFieldRoles does not name.
+	if transportGateRolesSatisfied(security.Principal.Roles, operationContext) {
+		return nil
+	}
+	forbiddenError := gqlerror.Errorf("GraphQL operation forbidden")
+	errcode.Set(forbiddenError, "FORBIDDEN")
+	return forbiddenError
 }
 
 func withIntegrationSessionStream(ctx context.Context) context.Context {
