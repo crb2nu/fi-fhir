@@ -91,6 +91,12 @@ type PurgeResult struct {
 	// what the gauge publishes.
 	Backlog BacklogCounts
 
+	// BacklogKnown reports that Backlog was actually read. A zero Backlog with
+	// BacklogKnown false means "not measured", which is not the same claim as
+	// "nothing is owed" — publishing the second when the first is true would
+	// show an empty backlog at exactly the moment the purge is broken.
+	BacklogKnown bool
+
 	// Duration is how long the whole tick took, every pass included.
 	Duration time.Duration
 }
@@ -225,13 +231,14 @@ func (p *Purger) PurgeOnce(ctx context.Context) (PurgeResult, error) {
 	}
 	started := p.clock()
 	var result PurgeResult
+	var purgeErr error
 	for {
 		counts, err := p.store.PurgeExpired(ctx, p.batchSize)
 		result.Passes++
 		result.PurgeCounts.add(counts)
 		if err != nil {
-			result.Duration = p.clock().Sub(started)
-			return result, fmt.Errorf("purging expired records: %w", err)
+			purgeErr = fmt.Errorf("purging expired records: %w", err)
+			break
 		}
 		if !counts.Saturated || !drainOnFullBatch() {
 			break
@@ -246,15 +253,23 @@ func (p *Purger) PurgeOnce(ctx context.Context) (PurgeResult, error) {
 	}
 	result.Duration = p.clock().Sub(started)
 
-	// The gauge is read after the drain so it reports what is still owed, not
-	// what was owed before the tick started. A backlog read that fails does not
-	// fail the tick: the purge did its work, and losing one gauge sample must
-	// not be reported as a retention failure.
-	backlog, err := p.store.Backlog(ctx)
-	if err != nil {
-		return result, fmt.Errorf("reading retention backlog: %w", err)
+	// The gauge is read after the drain so it reports what is still owed rather
+	// than what was owed before the tick started — and it is read even when the
+	// purge failed, because a failing purge is exactly when an operator needs to
+	// know how far behind it is. A read that fails leaves BacklogKnown false so
+	// the caller publishes nothing, rather than publishing a zero that would
+	// read as "the backlog cleared".
+	backlog, backlogErr := p.store.Backlog(ctx)
+	if backlogErr == nil {
+		result.Backlog = backlog
+		result.BacklogKnown = true
 	}
-	result.Backlog = backlog
+	if purgeErr != nil {
+		return result, purgeErr
+	}
+	if backlogErr != nil {
+		return result, fmt.Errorf("reading retention backlog: %w", backlogErr)
+	}
 	return result, nil
 }
 

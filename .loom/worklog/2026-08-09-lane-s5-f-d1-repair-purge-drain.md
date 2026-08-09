@@ -54,7 +54,7 @@ topology is ratified and deferred; see the day-1 gate entry
     component — which leaves that list free for Lane S5-D to append to without a
     conflict.
   - `cmd/fi-fhir/retention_runtime.go` — the observer publishes all four gauge
-    series on **every** tick including the zeroes (a gauge written only when
+    series on **every** tick whose backlog was actually read, including the zeroes (a gauge written only when
     non-zero goes stale rather than going to zero, making "the backlog cleared"
     indistinguishable from "the purge died"), publishes them on the error path
     too, and warns with the remaining backlog when a tick exhausts its budget.
@@ -70,6 +70,17 @@ topology is ratified and deferred; see the day-1 gate entry
     independent knobs and never multiplied — that framing is what let the ceiling
     ship), two new status rows, two new operational-guidance items, and the
     role-separation row rewritten to the ratified-and-deferred answer.
+
+- One correctness catch from self-review, worth recording because the fix is
+  not obvious from the symptom: `PurgeOnce` originally returned early when the
+  purge failed, leaving `PurgeResult.Backlog` at its zero value, and the
+  observer then published four zeroes. That reads as "the backlog cleared" at
+  exactly the moment the purge is broken — the same class of lie the gauge
+  exists to remove. `PurgeOnce` now reads the backlog even after a purge error
+  (that is when an operator most needs it) and carries a `BacklogKnown` flag;
+  the observer publishes nothing when it is false, so an unmeasured zero can
+  never overwrite a real value. Asserted by the last sub-case of
+  `TestRetentionPurgeObserverPublishesTheBacklogGaugeEveryTick`.
 
 - Evidence:
   - `TestPurgeThroughput_TenThousandRecordBacklogDrainsWithinTheDocumentedTickBound`

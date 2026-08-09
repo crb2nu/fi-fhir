@@ -115,6 +115,7 @@ func TestRetentionPurgeObserverPublishesTheBacklogGaugeEveryTick(t *testing.T) {
 		Backlog: integrationretention.BacklogCounts{
 			CanonicalEvents: 800, SessionSamples: 5,
 		},
+		BacklogKnown:    true,
 		BudgetExhausted: true,
 	}, nil)
 
@@ -132,8 +133,9 @@ func TestRetentionPurgeObserverPublishesTheBacklogGaugeEveryTick(t *testing.T) {
 
 	// Drained. The gauge must return to zero rather than hold its last value.
 	observe(integrationretention.PurgeResult{
-		PurgeCounts: integrationretention.PurgeCounts{CanonicalEvents: 800},
-		Passes:      5,
+		PurgeCounts:  integrationretention.PurgeCounts{CanonicalEvents: 800},
+		Passes:       5,
+		BacklogKnown: true,
 	}, nil)
 	drained := gatherRetentionMetrics(t, metrics)
 	if !strings.Contains(drained, `fi_fhir_retention_backlog_records{record_class="canonical_event"} 0`) {
@@ -143,11 +145,22 @@ func TestRetentionPurgeObserverPublishesTheBacklogGaugeEveryTick(t *testing.T) {
 	// And a failing tick still reports the backlog: that is precisely when an
 	// operator needs to know how far behind the purge is.
 	observe(integrationretention.PurgeResult{
-		Backlog: integrationretention.BacklogCounts{CanonicalEvents: 42},
+		Backlog:      integrationretention.BacklogCounts{CanonicalEvents: 42},
+		BacklogKnown: true,
 	}, errors.New("connection reset"))
 	failed := gatherRetentionMetrics(t, metrics)
 	if !strings.Contains(failed, `fi_fhir_retention_backlog_records{record_class="canonical_event"} 42`) {
 		t.Fatalf("a failing tick published no backlog:\n%s", failed)
+	}
+
+	// And a tick that could not READ the backlog must leave the last known
+	// value alone rather than publishing an unmeasured zero. "Not measured" and
+	// "nothing is owed" are different claims, and a gauge can only carry one.
+	observe(integrationretention.PurgeResult{}, errors.New("connection reset"))
+	unmeasured := gatherRetentionMetrics(t, metrics)
+	if !strings.Contains(unmeasured, `fi_fhir_retention_backlog_records{record_class="canonical_event"} 42`) {
+		t.Fatalf("a tick with no backlog reading overwrote the gauge with an unmeasured zero:\n%s",
+			unmeasured)
 	}
 }
 

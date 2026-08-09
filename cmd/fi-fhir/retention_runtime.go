@@ -147,16 +147,20 @@ func retentionPurgeObserver(metrics *observability.Metrics) func(integrationrete
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: retention purge failed: %v\n", err)
 			metrics.RecordRetentionPurge(observability.OutcomeError, 0)
-			// The counts and the backlog reading are still published on the
-			// error path. PurgeExpired attempts every class and joins the
-			// failures, so a failing class no longer means nothing happened —
-			// and the backlog is exactly what an operator needs to see when the
-			// purge is erroring.
-			publishRetentionBacklog(metrics, result.Backlog)
+			// The backlog reading is still published on the error path when it
+			// was actually taken. PurgeExpired attempts every class and joins
+			// the failures, so a failing class no longer means nothing
+			// happened — and the backlog is exactly what an operator needs to
+			// see when the purge is erroring.
+			if result.BacklogKnown {
+				publishRetentionBacklog(metrics, result.Backlog)
+			}
 			return
 		}
 		metrics.RecordRetentionPurge(observability.OutcomeProcessed, result.Total())
-		publishRetentionBacklog(metrics, result.Backlog)
+		if result.BacklogKnown {
+			publishRetentionBacklog(metrics, result.Backlog)
+		}
 		if result.Total() > 0 || result.BudgetExhausted {
 			fmt.Printf("Retention purge: canonical_events=%d session_samples=%d "+
 				"session_exports=%d stream_events=%d passes=%d backlog=%d duration=%s\n",
@@ -177,9 +181,12 @@ func retentionPurgeObserver(metrics *observability.Metrics) func(integrationrete
 
 // publishRetentionBacklog sets the per-class backlog gauge.
 //
-// Every class is published on every tick, including the zeroes: a gauge that
-// stops being reported goes stale rather than going to zero, and "the backlog
-// cleared" must be distinguishable from "the purge stopped running".
+// Every class is published on every tick whose backlog was actually read,
+// including the zeroes: a gauge that stops being reported goes stale rather
+// than going to zero, and "the backlog cleared" must be distinguishable from
+// "the purge stopped running". A tick that could not read the backlog publishes
+// nothing rather than publishing an unmeasured zero, which would make the
+// opposite mistake.
 func publishRetentionBacklog(metrics *observability.Metrics, backlog integrationretention.BacklogCounts) {
 	metrics.SetRetentionBacklog(observability.RetentionClassCanonicalEvent, backlog.CanonicalEvents)
 	metrics.SetRetentionBacklog(observability.RetentionClassSessionSample, backlog.SessionSamples)
