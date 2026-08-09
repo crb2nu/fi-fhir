@@ -1,0 +1,29 @@
+{
+  "resourceType": "CareTeam",
+  "meta": {
+    "profile": [
+      "http://hl7.org/fhir/us/core/StructureDefinition/us-core-careteam"
+    ]
+  },
+  "status": "active",
+  "category": [
+    {
+      "coding": [
+        {
+          "system": "http://loinc.org",
+          "code": "LA27976-2",
+          "display": "Longitudinal care-coordination focused care team"
+        }
+      ],
+      "text": "longitudinal"
+    }
+  ],
+  "name": "Diabetes Care Team",
+  "subject": {
+    "reference": "Patient/MRN-000123"
+  },
+  "period": {
+    "start": "2026-01-01T00:00:00Z",
+    "end": "2026-12-31T00:00:00Z"
+  }
+}

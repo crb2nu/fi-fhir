@@ -1,0 +1,40 @@
+{
+  "resourceType": "ServiceRequest",
+  "meta": {
+    "profile": [
+      "http://hl7.org/fhir/us/core/StructureDefinition/us-core-servicerequest"
+    ]
+  },
+  "status": "active",
+  "intent": "order",
+  "category": [
+    {
+      "coding": [
+        {
+          "system": "http://snomed.info/sct",
+          "code": "108252007",
+          "display": "Laboratory procedure"
+        }
+      ],
+      "text": "laboratory"
+    }
+  ],
+  "code": {
+    "coding": [
+      {
+        "system": "http://www.ama-assn.org/go/cpt",
+        "code": "80053",
+        "display": "Comprehensive metabolic panel"
+      }
+    ],
+    "text": "Comprehensive metabolic panel"
+  },
+  "subject": {
+    "reference": "Patient/MRN-000123"
+  },
+  "authoredOn": "2026-08-01",
+  "requester": {
+    "reference": "Practitioner/doc-001",
+    "display": "Doe, John"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "resourceType": "DiagnosticReport",
+  "meta": {
+    "profile": [
+      "http://hl7.org/fhir/us/core/StructureDefinition/us-core-diagnosticreport-note"
+    ]
+  },
+  "status": "final",
+  "category": [
+    {
+      "coding": [
+        {
+          "system": "http://loinc.org",
+          "code": "LP29684-5",
+          "display": "Radiology"
+        }
+      ],
+      "text": "Radiology"
+    }
+  ],
+  "code": {
+    "coding": [
+      {
+        "system": "http://loinc.org",
+        "code": "36643-5",
+        "display": "Chest X-ray"
+      }
+    ],
+    "text": "Chest X-ray"
+  },
+  "subject": {
+    "reference": "Patient/MRN-000123"
+  },
+  "effectiveDateTime": "2026-08-01T10:30:00Z",
+  "issued": "2026-08-01T12:00:00Z"
+}
