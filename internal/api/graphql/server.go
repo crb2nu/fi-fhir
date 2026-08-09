@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"mime"
 	"net/http"
 	"net/url"
@@ -76,6 +76,12 @@ type ServerConfig struct {
 	// pre-Slice-4.3 literal `/health` and mounts no `/ready`, which is what
 	// FI_FHIR_OBSERVABILITY_MODE=legacy and the in-package transport tests use.
 	Health observability.Reporter
+	// Logger is the process's structured logger (Slice 4.4d). `runServe` owns
+	// it and passes it in; a Server constructed without one — an in-package
+	// transport test, a fixture — logs nothing rather than falling back to an
+	// unstructured stdlib writer, because a second logging path is exactly what
+	// this slice's decision refused.
+	Logger *slog.Logger
 }
 
 // ReadinessPath is the dependency-touching probe. It is unauthenticated for the
@@ -155,7 +161,7 @@ func NewServer(resolver ResolverRoot, config *ServerConfig) (*Server, error) {
 	if config.Introspection {
 		srv.Use(extension.Introspection{})
 	}
-	srv.Use(operationAuthorization{})
+	srv.Use(operationAuthorization{logger: config.Logger})
 	srv.Use(fixedQueryDepthLimit{limit: config.MaxDepth})
 	srv.Use(extension.FixedComplexityLimit(config.MaxComplexity))
 
@@ -239,12 +245,25 @@ func (s *Server) Start() error {
 		WriteTimeout: s.config.Timeout,
 	}
 
-	log.Printf("GraphQL server listening on http://%s%s", addr, s.config.Path)
+	logger := s.config.Logger
+	if logger == nil {
+		logger = observability.NewDiscardLogger()
+	}
+	logger.Info("GraphQL server listening",
+		observability.F(observability.FieldComponent, "graphql"),
+		observability.F(observability.FieldAddress, addr),
+		observability.F(observability.FieldPath, s.config.Path))
 	if s.config.PlaygroundEnabled {
-		log.Printf("GraphQL Playground available at http://%s%s", addr, s.config.PlaygroundPath)
+		logger.Info("GraphQL playground available",
+			observability.F(observability.FieldComponent, "graphql-playground"),
+			observability.F(observability.FieldAddress, addr),
+			observability.F(observability.FieldPath, s.config.PlaygroundPath))
 	}
 	if s.config.HL7IngressHandler != nil {
-		log.Printf("Authenticated HL7v2 ingress available at http://%s%s", addr, s.config.HL7IngressPath)
+		logger.Info("authenticated HL7v2 ingress available",
+			observability.F(observability.FieldComponent, "http-ingress"),
+			observability.F(observability.FieldAddress, addr),
+			observability.F(observability.FieldPath, s.config.HL7IngressPath))
 	}
 
 	return s.server.ListenAndServe()

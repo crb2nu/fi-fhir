@@ -60,7 +60,7 @@ func TestResolveBatchWorkerIDLegacyModeRequiresTheVariable(t *testing.T) {
 
 func TestSessionStreamObserverMapsEveryOutcome(t *testing.T) {
 	metrics := observability.NewMetrics("test")
-	observe := sessionStreamObserver(metrics)
+	observe := sessionStreamObserver(metrics, nil)
 	if observe == nil {
 		t.Fatal("observer is nil for a configured registry")
 	}
@@ -88,7 +88,7 @@ func TestSessionStreamObserverMapsEveryOutcome(t *testing.T) {
 }
 
 func TestSessionStreamObserverIsNilWithoutARegistry(t *testing.T) {
-	if sessionStreamObserver(nil) != nil {
+	if sessionStreamObserver(nil, nil) != nil {
 		t.Fatal("a nil registry must not produce an observer")
 	}
 }
@@ -97,30 +97,30 @@ func TestBindObservationsToleratesAbsentComponents(t *testing.T) {
 	metrics := observability.NewMetrics("test")
 	// Every binder must be safe on a deployment that configures none of these
 	// components, which is the default.
-	bindMLLPObservation(nil, metrics)
-	bindDeliveryObservation(nil, metrics)
-	bindBatchObservation(nil, metrics)
-	bindMLLPObservation(nil, nil)
+	bindMLLPObservation(nil, metrics, nil)
+	bindDeliveryObservation(nil, metrics, nil)
+	bindBatchObservation(nil, metrics, nil)
+	bindMLLPObservation(nil, nil, nil)
 
 	var (
 		dispatcher *integrationdelivery.Dispatcher
 		runner     *integrationbatch.Runner
 	)
-	bindDeliveryObservation(dispatcher, metrics)
-	bindBatchObservation(runner, metrics)
+	bindDeliveryObservation(dispatcher, metrics, nil)
+	bindBatchObservation(runner, metrics, nil)
 }
 
 func TestAutorouteObserversRecordBoundedOutcomes(t *testing.T) {
 	metrics := observability.NewMetrics("test")
 
-	autorouteSweepObserver(metrics)(autoroute.SweepResult{Expired: 4, Duration: time.Millisecond}, nil)
-	autorouteSweepObserver(metrics)(autoroute.SweepResult{}, context.Canceled)
-	autorouteNotifyObserver(metrics)(autoroute.NotifyResult{Queued: 1, Eligible: 2, New: 2}, nil)
-	autorouteNotifyObserver(metrics)(autoroute.NotifyResult{Dropped: 1}, nil)
-	autorouteNotifyObserver(metrics)(autoroute.NotifyResult{}, nil)
-	autorouteNotifyObserver(metrics)(autoroute.NotifyResult{}, context.Canceled)
-	autorouteDeliveryObserver(metrics)(autoroute.DeliveryResult{Items: 3}, nil)
-	autorouteDeliveryObserver(metrics)(autoroute.DeliveryResult{}, context.Canceled)
+	autorouteSweepObserver(metrics, nil)(autoroute.SweepResult{Expired: 4, Duration: time.Millisecond}, nil)
+	autorouteSweepObserver(metrics, nil)(autoroute.SweepResult{}, context.Canceled)
+	autorouteNotifyObserver(metrics, nil)(autoroute.NotifyResult{Queued: 1, Eligible: 2, New: 2}, nil)
+	autorouteNotifyObserver(metrics, nil)(autoroute.NotifyResult{Dropped: 1}, nil)
+	autorouteNotifyObserver(metrics, nil)(autoroute.NotifyResult{}, nil)
+	autorouteNotifyObserver(metrics, nil)(autoroute.NotifyResult{}, context.Canceled)
+	autorouteDeliveryObserver(metrics, nil)(autoroute.DeliveryResult{Items: 3}, nil)
+	autorouteDeliveryObserver(metrics, nil)(autoroute.DeliveryResult{}, context.Canceled)
 
 	values, err := observability.GatheredLabelValues(metrics.Registry())
 	if err != nil {
@@ -141,7 +141,7 @@ func TestNewSessionStreamRelayIsAbsentWithoutADurableLog(t *testing.T) {
 
 	// In-memory workspace: correct in one process, so no relay is built.
 	memory := integrationsession.NewMemoryStore()
-	relay, err := newSessionStreamRelay(memory, integrationsession.NewHub(), metrics, observability.ModeCurrent)
+	relay, err := newSessionStreamRelay(memory, integrationsession.NewHub(), metrics, observability.ModeCurrent, nil)
 	if err != nil {
 		t.Fatalf("build relay: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestNewSessionStreamRelayIsAbsentWithoutADurableLog(t *testing.T) {
 
 	// Legacy mode restores process-local fanout even when a log exists.
 	hub := integrationsession.NewDurableHub(stubStreamLog{}, nil)
-	relay, err = newSessionStreamRelay(memory, hub, metrics, observability.ModeLegacy)
+	relay, err = newSessionStreamRelay(memory, hub, metrics, observability.ModeLegacy, nil)
 	if err != nil {
 		t.Fatalf("build relay in legacy mode: %v", err)
 	}
@@ -174,13 +174,13 @@ func TestServeDurableDefinitionIDsReportsOnlyServedIngress(t *testing.T) {
 func TestNewLifecycleHealthReporterRefusesIncompleteWiring(t *testing.T) {
 	health := observability.NewHealth("test", time.Second)
 
-	if reporter := newLifecycleHealthReporter(nil, "tenant-a", []string{"def"}, "p", health, time.Minute); reporter != nil {
+	if reporter := newLifecycleHealthReporter(nil, "tenant-a", []string{"def"}, "p", health, time.Minute, nil); reporter != nil {
 		t.Fatal("a nil catalog must not produce a reporter")
 	}
-	if reporter := newLifecycleHealthReporter(nil, "tenant-a", nil, "p", health, time.Minute); reporter != nil {
+	if reporter := newLifecycleHealthReporter(nil, "tenant-a", nil, "p", health, time.Minute, nil); reporter != nil {
 		t.Fatal("no definitions must not produce a reporter")
 	}
-	if reporter := newLifecycleHealthReporter(nil, "tenant-a", []string{"def"}, "p", nil, time.Minute); reporter != nil {
+	if reporter := newLifecycleHealthReporter(nil, "tenant-a", []string{"def"}, "p", nil, time.Minute, nil); reporter != nil {
 		t.Fatal("a nil readiness source must not produce a reporter")
 	}
 }

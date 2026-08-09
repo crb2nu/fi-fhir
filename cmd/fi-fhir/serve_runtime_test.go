@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"net"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -85,7 +87,33 @@ func TestServe_PortInUse_WithOptionalIntegrationWarnings(t *testing.T) {
 	)
 	assertError(t, err)
 
+	// Slice 4.4d: these are structured lines now, so the assertion checks the
+	// shape as well as the message. Every line runServe writes must be a JSON
+	// object carrying the deployment tenant; a message assertion that passes
+	// against an unstructured line would let the conversion silently regress.
 	assertContains(t, stderr, "profile store disabled")
 	assertContains(t, stderr, "mapping store disabled")
-	assertContains(t, stderr, "Temporal client disabled")
+	assertContains(t, stderr, "temporal client disabled")
+
+	lines := 0
+	for _, line := range strings.Split(stderr, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		var entry map[string]any
+		if err := json.Unmarshal([]byte(trimmed), &entry); err != nil {
+			t.Fatalf("runServe wrote a line that is not JSON: %q", trimmed)
+		}
+		if entry["tenant_id"] != "tenant-a" {
+			t.Errorf("line carries no deployment tenant: %q", trimmed)
+		}
+		if entry["level"] == nil || entry["msg"] == nil {
+			t.Errorf("line is missing level or msg: %q", trimmed)
+		}
+		lines++
+	}
+	if lines == 0 {
+		t.Fatal("anti-vacuity: runServe wrote nothing, so 'all of it is JSON' proves nothing")
+	}
 }

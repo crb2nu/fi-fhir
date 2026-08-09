@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"log/slog"
 	"os"
 	"time"
 
@@ -16,19 +16,63 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
 
+// Slice 4.4d: the observation adapters are where the process logger reaches the
+// durable components.
+//
+// The rule this file exists to keep is recorded at the bottom of
+// `internal/observability/metrics.go`: `internal/integration/*` holds no
+// observability dependency, so the middleware and the observers are wrapped
+// here, in `cmd/`. A logger is the same kind of dependency as a metrics
+// registry, so it obeys the same rule — the adapters close over `logger`, and
+// no `internal/integration` package imports one.
+//
+// # What these lines can and cannot correlate
+//
+// Every line carries `tenant_id`, because the logger binds it. None of them
+// carries `correlation_id` or `trace_id`, and that is a property of the seam
+// rather than an oversight: the four observation callbacks receive
+// `(Result, error)` and no context, and none of the four Result types carries a
+// lineage identifier — `mllp.SubmitResult` is `{Accepted, Duration}`,
+// `delivery.DispatchResult` is `{Outcome, Duration}`, `batch.PollResult` is
+// `{Objects, Duration}`, and `session.StreamOutcome` is a bare enum. Emitting a
+// correlation identifier from here means widening those structs, which is an
+// `internal/integration/**` edit this slice deliberately does not make.
+//
+// That is consistent with the position `README.md` already takes: correlation
+// comes from the durable identifiers, and a stage line joins to a submission
+// through the ledger rows, not through a value the counter callback happened to
+// carry. See the Slice 4.4d entry in `.loom/40-decisions.md`.
+
 // bindMLLPObservation reports every admitted or rejected frame.
-func bindMLLPObservation(service *mllp.Service, metrics *observability.Metrics) {
+func bindMLLPObservation(service *mllp.Service, metrics *observability.Metrics, logger *slog.Logger) {
 	if service == nil || metrics == nil {
 		return
+	}
+	if logger == nil {
+		logger = observability.NewDiscardLogger()
 	}
 	service.SetObserver(func(result mllp.SubmitResult, err error) {
 		switch {
 		case err != nil:
 			metrics.RecordMLLPMessage(observability.OutcomeRejected)
+			logger.Warn("MLLP frame rejected",
+				observability.F(observability.FieldComponent, "mllp"),
+				observability.F(observability.FieldOutcome, string(observability.OutcomeRejected)),
+				observability.F(observability.FieldDurationMs, result.Duration.Milliseconds()),
+				observability.F(observability.FieldError, observability.Errf(err)))
 		case result.Accepted:
 			metrics.RecordMLLPMessage(observability.OutcomeAccepted)
+			// One line per admitted frame is the ingress rate, so it is debug.
+			logger.Debug("MLLP frame accepted",
+				observability.F(observability.FieldComponent, "mllp"),
+				observability.F(observability.FieldOutcome, string(observability.OutcomeAccepted)),
+				observability.F(observability.FieldDurationMs, result.Duration.Milliseconds()))
 		default:
 			metrics.RecordMLLPMessage(observability.OutcomeError)
+			logger.Error("MLLP frame neither accepted nor rejected",
+				observability.F(observability.FieldComponent, "mllp"),
+				observability.F(observability.FieldOutcome, string(observability.OutcomeError)),
+				observability.F(observability.FieldDurationMs, result.Duration.Milliseconds()))
 		}
 	})
 }
@@ -62,22 +106,42 @@ func bindMLLPRateQuotaObservation(coordinator *mllp.QuotaCoordinator, metrics *o
 
 // bindDeliveryObservation reports the typed Outcome the dispatcher already
 // computes and Run previously discarded.
-func bindDeliveryObservation(dispatcher *integrationdelivery.Dispatcher, metrics *observability.Metrics) {
+func bindDeliveryObservation(dispatcher *integrationdelivery.Dispatcher, metrics *observability.Metrics, logger *slog.Logger) {
 	if dispatcher == nil || metrics == nil {
 		return
+	}
+	if logger == nil {
+		logger = observability.NewDiscardLogger()
 	}
 	dispatcher.SetObserver(func(result integrationdelivery.DispatchResult, err error) {
 		if err != nil {
 			metrics.RecordDeliveryAttempt(observability.OutcomeError)
+			logger.Error("delivery dispatch failed",
+				observability.F(observability.FieldComponent, "delivery-worker"),
+				observability.F(observability.FieldOutcome, string(observability.OutcomeError)),
+				observability.F(observability.FieldDurationMs, result.Duration.Milliseconds()),
+				observability.F(observability.FieldError, observability.Errf(err)))
 			return
 		}
 		switch result.Outcome {
 		case integrationdelivery.OutcomePublished:
 			metrics.RecordDeliveryAttempt(observability.OutcomeDelivered)
+			logger.Debug("delivery published",
+				observability.F(observability.FieldComponent, "delivery-worker"),
+				observability.F(observability.FieldOutcome, string(observability.OutcomeDelivered)),
+				observability.F(observability.FieldDurationMs, result.Duration.Milliseconds()))
 		case integrationdelivery.OutcomeRetry:
 			metrics.RecordDeliveryAttempt(observability.OutcomeRetried)
+			logger.Warn("delivery scheduled for retry",
+				observability.F(observability.FieldComponent, "delivery-worker"),
+				observability.F(observability.FieldOutcome, string(observability.OutcomeRetried)),
+				observability.F(observability.FieldDurationMs, result.Duration.Milliseconds()))
 		case integrationdelivery.OutcomeDLQ:
 			metrics.RecordDeliveryAttempt(observability.OutcomeFailed)
+			logger.Error("delivery exhausted its retries and moved to the dead-letter path",
+				observability.F(observability.FieldComponent, "delivery-worker"),
+				observability.F(observability.FieldOutcome, string(observability.OutcomeFailed)),
+				observability.F(observability.FieldDurationMs, result.Duration.Milliseconds()))
 		default:
 			metrics.RecordDeliveryAttempt(observability.OutcomeIdle)
 		}
@@ -85,18 +149,33 @@ func bindDeliveryObservation(dispatcher *integrationdelivery.Dispatcher, metrics
 }
 
 // bindBatchObservation reports each batch poll cycle.
-func bindBatchObservation(runner *integrationbatch.Runner, metrics *observability.Metrics) {
+func bindBatchObservation(runner *integrationbatch.Runner, metrics *observability.Metrics, logger *slog.Logger) {
 	if runner == nil || metrics == nil {
 		return
+	}
+	if logger == nil {
+		logger = observability.NewDiscardLogger()
 	}
 	runner.SetObserver(func(result integrationbatch.PollResult, err error) {
 		switch {
 		case err != nil:
 			metrics.RecordBatchObject(observability.OutcomeFailed)
+			logger.Error("batch poll failed",
+				observability.F(observability.FieldComponent, "batch-runner"),
+				observability.F(observability.FieldOutcome, string(observability.OutcomeFailed)),
+				observability.F(observability.FieldDurationMs, result.Duration.Milliseconds()),
+				observability.F(observability.FieldError, observability.Errf(err)))
 		case result.Objects > 0:
 			for i := 0; i < result.Objects; i++ {
 				metrics.RecordBatchObject(observability.OutcomeProcessed)
 			}
+			// One line per poll cycle, not per object: the object count is a
+			// field, so a busy poll does not become N lines.
+			logger.Info("batch poll processed objects",
+				observability.F(observability.FieldComponent, "batch-runner"),
+				observability.F(observability.FieldOutcome, string(observability.OutcomeProcessed)),
+				observability.F(observability.FieldCount, result.Objects),
+				observability.F(observability.FieldDurationMs, result.Duration.Milliseconds()))
 		default:
 			metrics.RecordBatchObject(observability.OutcomeIdle)
 		}
@@ -104,13 +183,20 @@ func bindBatchObservation(runner *integrationbatch.Runner, metrics *observabilit
 }
 
 // sessionStreamObserver reports durable session fanout transitions.
-func sessionStreamObserver(metrics *observability.Metrics) func(integrationsession.StreamOutcome, error) {
+func sessionStreamObserver(metrics *observability.Metrics, logger *slog.Logger) func(integrationsession.StreamOutcome, error) {
 	if metrics == nil {
 		return nil
+	}
+	if logger == nil {
+		logger = observability.NewDiscardLogger()
 	}
 	return func(outcome integrationsession.StreamOutcome, err error) {
 		if err != nil {
 			metrics.RecordSessionStreamEvent(observability.OutcomeError)
+			logger.Error("session stream fanout failed",
+				observability.F(observability.FieldComponent, "session-stream-relay"),
+				observability.F(observability.FieldOutcome, string(observability.OutcomeError)),
+				observability.F(observability.FieldError, observability.Errf(err)))
 			return
 		}
 		switch outcome {
@@ -120,6 +206,9 @@ func sessionStreamObserver(metrics *observability.Metrics) func(integrationsessi
 			metrics.RecordSessionStreamEvent(observability.OutcomeReplayed)
 		case integrationsession.StreamOutcomeDropped:
 			metrics.RecordSessionStreamEvent(observability.OutcomeDropped)
+			logger.Warn("session stream event dropped",
+				observability.F(observability.FieldComponent, "session-stream-relay"),
+				observability.F(observability.FieldOutcome, string(observability.OutcomeDropped)))
 		default:
 			metrics.RecordSessionStreamEvent(observability.OutcomeError)
 		}
@@ -136,6 +225,7 @@ func newSessionStreamRelay(
 	hub *integrationsession.Hub,
 	metrics *observability.Metrics,
 	mode observability.Mode,
+	logger *slog.Logger,
 ) (*integrationsession.StreamRelay, error) {
 	if store == nil || hub == nil || mode.Legacy() || !hub.Durable() {
 		return nil, nil
@@ -147,45 +237,69 @@ func newSessionStreamRelay(
 	return integrationsession.NewStreamRelay(integrationsession.RelayConfig{
 		Log:     log,
 		Hub:     hub,
-		Observe: sessionStreamObserver(metrics),
+		Observe: sessionStreamObserver(metrics, logger),
 	})
 }
 
-// autorouteSweepObserver keeps the existing stderr/stdout reporting and adds
-// metrics, rather than replacing operator-visible output with a counter.
-func autorouteSweepObserver(metrics *observability.Metrics) func(autoroute.SweepResult, error) {
+// autorouteSweepObserver keeps the operator-visible reporting the Slice 4.3
+// adapters introduced and adds metrics, rather than replacing operator-visible
+// output with a counter. Slice 4.4d converts that output from ad-hoc
+// stderr/stdout writes to the process logger; the three adapters below were the
+// only observers that already printed, which makes them the model for the rest.
+func autorouteSweepObserver(metrics *observability.Metrics, logger *slog.Logger) func(autoroute.SweepResult, error) {
+	if logger == nil {
+		logger = observability.NewDiscardLogger()
+	}
 	return func(result autoroute.SweepResult, err error) {
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: pending autoroute sweep failed: %v\n", err)
 			metrics.RecordAutorouteSweep(observability.OutcomeError, 0)
+			logger.Warn("pending autoroute sweep failed",
+				observability.F(observability.FieldComponent, "autoroute-sweep"),
+				observability.F(observability.FieldOutcome, string(observability.OutcomeError)),
+				observability.F(observability.FieldError, observability.Errf(err)))
 			return
 		}
 		metrics.RecordAutorouteSweep(observability.OutcomeProcessed, int(result.Expired))
 		if result.Expired > 0 {
-			fmt.Printf("Pending autoroute sweep: expired=%d duration=%s\n",
-				result.Expired, result.Duration.Round(time.Millisecond))
+			logger.Info("pending autoroute sweep expired candidates",
+				observability.F(observability.FieldComponent, "autoroute-sweep"),
+				observability.F(observability.FieldOutcome, string(observability.OutcomeProcessed)),
+				observability.F(observability.FieldCount, result.Expired),
+				observability.F(observability.FieldDurationMs, result.Duration.Milliseconds()))
 		}
 	}
 }
 
-func autorouteNotifyObserver(metrics *observability.Metrics) func(autoroute.NotifyResult, error) {
+func autorouteNotifyObserver(metrics *observability.Metrics, logger *slog.Logger) func(autoroute.NotifyResult, error) {
+	if logger == nil {
+		logger = observability.NewDiscardLogger()
+	}
 	return func(result autoroute.NotifyResult, err error) {
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: pending autoroute review scan failed: %v\n", err)
 			metrics.RecordAutorouteNotification(observability.OutcomeError)
+			logger.Warn("pending autoroute review scan failed",
+				observability.F(observability.FieldComponent, "autoroute-notify"),
+				observability.F(observability.FieldOutcome, string(observability.OutcomeError)),
+				observability.F(observability.FieldError, observability.Errf(err)))
 			return
 		}
 		if result.Dropped > 0 {
 			metrics.RecordAutorouteNotification(observability.OutcomeDropped)
-			fmt.Fprintf(os.Stderr,
-				"Warning: pending autoroute review notification dropped (dispatch queue full): eligible=%d new=%d\n",
-				result.Eligible, result.New)
+			logger.Warn("pending autoroute review notification dropped: dispatch queue full",
+				observability.F(observability.FieldComponent, "autoroute-notify"),
+				observability.F(observability.FieldOutcome, string(observability.OutcomeDropped)),
+				observability.F(observability.FieldCount, result.Eligible),
+				observability.F(observability.FieldAttempt, result.New))
 			return
 		}
 		if result.Queued > 0 {
 			metrics.RecordAutorouteNotification(observability.OutcomeQueued)
-			fmt.Printf("Pending autoroute review: eligible=%d new=%d queued duration=%s\n",
-				result.Eligible, result.New, result.Duration.Round(time.Millisecond))
+			logger.Info("pending autoroute review notification queued",
+				observability.F(observability.FieldComponent, "autoroute-notify"),
+				observability.F(observability.FieldOutcome, string(observability.OutcomeQueued)),
+				observability.F(observability.FieldCount, result.Eligible),
+				observability.F(observability.FieldAttempt, result.New),
+				observability.F(observability.FieldDurationMs, result.Duration.Milliseconds()))
 			return
 		}
 		// Nothing new above the threshold: another replica already claimed the
@@ -194,16 +308,25 @@ func autorouteNotifyObserver(metrics *observability.Metrics) func(autoroute.Noti
 	}
 }
 
-func autorouteDeliveryObserver(metrics *observability.Metrics) func(autoroute.DeliveryResult, error) {
+func autorouteDeliveryObserver(metrics *observability.Metrics, logger *slog.Logger) func(autoroute.DeliveryResult, error) {
+	if logger == nil {
+		logger = observability.NewDiscardLogger()
+	}
 	return func(result autoroute.DeliveryResult, err error) {
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: pending autoroute review notification delivery failed: %v\n", err)
 			metrics.RecordAutorouteNotification(observability.OutcomeFailed)
+			logger.Warn("pending autoroute review notification delivery failed",
+				observability.F(observability.FieldComponent, "autoroute-notify"),
+				observability.F(observability.FieldOutcome, string(observability.OutcomeFailed)),
+				observability.F(observability.FieldError, observability.Errf(err)))
 			return
 		}
 		metrics.RecordAutorouteNotification(observability.OutcomeDelivered)
-		fmt.Printf("Pending autoroute review notification delivered: items=%d duration=%s\n",
-			result.Items, result.Duration.Round(time.Millisecond))
+		logger.Info("pending autoroute review notification delivered",
+			observability.F(observability.FieldComponent, "autoroute-notify"),
+			observability.F(observability.FieldOutcome, string(observability.OutcomeDelivered)),
+			observability.F(observability.FieldCount, result.Items),
+			observability.F(observability.FieldDurationMs, result.Duration.Milliseconds()))
 	}
 }
 
@@ -225,6 +348,7 @@ type lifecycleHealthReporter struct {
 	principal     integration.Principal
 	interval      time.Duration
 	readiness     observability.Reporter
+	logger        *slog.Logger
 }
 
 func newLifecycleHealthReporter(
@@ -234,6 +358,7 @@ func newLifecycleHealthReporter(
 	principalID string,
 	readiness observability.Reporter,
 	interval time.Duration,
+	logger *slog.Logger,
 ) *lifecycleHealthReporter {
 	if catalog == nil || tenantID == "" || len(definitionIDs) == 0 || readiness == nil {
 		return nil
@@ -267,6 +392,7 @@ func newLifecycleHealthReporter(
 		},
 		interval:  interval,
 		readiness: readiness,
+		logger:    logger,
 	}
 }
 
@@ -316,7 +442,15 @@ func (r *lifecycleHealthReporter) reportOnce(ctx context.Context) {
 			Principal:       r.principal,
 			Reason:          "runtime readiness report",
 		}, health); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: lifecycle health report failed for %s: %v\n", definitionID, err)
+			logger := r.logger
+			if logger == nil {
+				logger = observability.NewDiscardLogger()
+			}
+			logger.WarnContext(ctx, "lifecycle health report failed",
+				observability.F(observability.FieldComponent, "lifecycle-health"),
+				observability.F(observability.FieldDefinitionID, definitionID),
+				observability.F(observability.FieldStatus, string(health)),
+				observability.F(observability.FieldError, observability.Errf(err)))
 		}
 	}
 }
