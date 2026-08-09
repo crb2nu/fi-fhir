@@ -41,6 +41,12 @@ type durableSubmissionFixture struct {
 // newDurableSubmissionFixture composes the durable processor for one workflow
 // and its exact destination set. destinationIDs must match every `destination:`
 // named by workflowYAML, otherwise planning fails closed (correction 16).
+//
+// Each destination gets a synthetic digest, which is all the Slice 4.1c-a proofs
+// need. A proof that must resolve the attempt against a real deployed
+// destination revision uses newDurableSubmissionFixtureWithDestinations instead,
+// because a revision's digest is computed from its own content and cannot be
+// chosen.
 func newDurableSubmissionFixture(
 	t *testing.T,
 	db *sql.DB,
@@ -49,15 +55,6 @@ func newDurableSubmissionFixture(
 	destinationIDs []string,
 ) durableSubmissionFixture {
 	t.Helper()
-	profileJSON := destinationFixtureProfileJSON()
-	profileRef, err := processor.NewProfileRevisionReference("profile-adt", 7, []byte(profileJSON))
-	if err != nil {
-		t.Fatalf("NewProfileRevisionReference: %v", err)
-	}
-	workflowRef, err := processor.NewWorkflowRevisionReference("workflow-adt", "workflow-1", []byte(workflowYAML))
-	if err != nil {
-		t.Fatalf("NewWorkflowRevisionReference: %v", err)
-	}
 	destinations := make([]integration.DestinationRevisionRef, 0, len(destinationIDs))
 	for index, artifactID := range destinationIDs {
 		destinations = append(destinations, integration.DestinationRevisionRef{
@@ -68,6 +65,34 @@ func newDurableSubmissionFixture(
 			},
 			Class: integration.DestinationClassProduction,
 		})
+	}
+	return newDurableSubmissionFixtureWithDestinations(t, db, clock, workflowYAML, destinations)
+}
+
+// newDurableSubmissionFixtureWithDestinations composes the durable processor for
+// one workflow over exact destination references.
+//
+// Slice 4.1c-b needs this shape: the deployed destination registry holds content
+// addressed revisions whose digests are derived from their own bytes, and the
+// registry refuses any attempt whose reference does not match one byte for byte
+// (internal/integration/destination/registry.go Resolve). A durable attempt must
+// therefore carry the real revision's reference, not a fabricated digest.
+func newDurableSubmissionFixtureWithDestinations(
+	t *testing.T,
+	db *sql.DB,
+	clock func() time.Time,
+	workflowYAML string,
+	destinations []integration.DestinationRevisionRef,
+) durableSubmissionFixture {
+	t.Helper()
+	profileJSON := destinationFixtureProfileJSON()
+	profileRef, err := processor.NewProfileRevisionReference("profile-adt", 7, []byte(profileJSON))
+	if err != nil {
+		t.Fatalf("NewProfileRevisionReference: %v", err)
+	}
+	workflowRef, err := processor.NewWorkflowRevisionReference("workflow-adt", "workflow-1", []byte(workflowYAML))
+	if err != nil {
+		t.Fatalf("NewWorkflowRevisionReference: %v", err)
 	}
 	revision, err := integration.NewIntegrationDefinitionRevision(integration.IntegrationDefinitionRevisionInput{
 		DefinitionID: "integration-adt",
@@ -381,4 +406,25 @@ routes:
         type: %s
         destination: %s
 `, actionType, actionType, destinationID)
+}
+
+// destinationWorkflowYAMLFor plans one delivery action per destination on a
+// single matched route, so one production submission seeds one durable attempt
+// per destination in the deployed set.
+func destinationWorkflowYAMLFor(actionType string, destinationIDs ...string) string {
+	var actions strings.Builder
+	for index, destinationID := range destinationIDs {
+		fmt.Fprintf(&actions, "      - id: send-%s-%d\n        type: %s\n        destination: %s\n",
+			actionType, index, actionType, destinationID)
+	}
+	return `dsl_version: "1"
+name: adt-durable
+version: "1"
+routes:
+  - name: matched
+    filter:
+      event_type: patient_admit
+      source: adt-east
+    actions:
+` + actions.String()
 }
