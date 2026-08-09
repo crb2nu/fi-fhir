@@ -141,7 +141,7 @@ workflow:
       actions:
         - type: log
           level: info
-          message: "Patient admitted: {{.Patient.Name.Family}}, {{.Patient.Name.Given}}"
+          message: "Patient admitted: {{.patient.family_name}}, {{.patient.given_name}}"
 ```
 
 ### 2. Run the Workflow

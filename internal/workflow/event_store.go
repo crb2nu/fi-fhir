@@ -117,7 +117,7 @@ var globalEventStoreManager = NewEventStoreManager()
 type EventStoreConfig struct {
 	Connection     string            // Database DSN (required)
 	Table          string            // Events table name (default: "events")
-	StreamTemplate string            // Template for stream ID (required, e.g., "patient:{{.Patient.MRN}}")
+	StreamTemplate string            // Template for stream ID (required, e.g., "patient-{{.patient.mrn}}")
 	EventType      string            // Event type override (default: uses event's Type field)
 	Metadata       map[string]string // Additional metadata to include
 }

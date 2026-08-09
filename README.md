@@ -242,39 +242,34 @@ transform:
 
 ```yaml
 actions:
-  # FHIR server
+  # FHIR server (OAuth2 client credentials)
   - type: fhir
     endpoint: https://fhir.example.com/r4
     resource: Patient
-    auth:
-      type: oauth2
-      tokenUrl: https://auth.example.com/token
-      clientId: ${CLIENT_ID}
-      clientSecret: ${CLIENT_SECRET}
+    token_url: https://auth.example.com/oauth2/token
+    client_id: my-client-id
+    client_secret: my-client-secret
 
-  # Webhook
+  # Webhook (event is POSTed as JSON)
   - type: webhook
     url: https://api.example.com/events
     method: POST
-    headers:
-      Authorization: Bearer ${API_KEY}
+    token: my-api-token
 
-  # Database
+  # Database (column values are event field paths)
   - type: database
-    driver: postgres
-    dsn: ${DATABASE_URL}
+    connection: postgres://user:pass@db.example.com:5432/events
     operation: upsert
     table: events
-    fields:
-      patient_mrn: "{{.patient.mrn}}"
-      event_type: "{{.type}}"
+    conflict_on: patient_mrn
+    mapping_patient_mrn: patient.mrn
+    mapping_event_type: type
 
-  # Message queue
+  # Message queue (built-in driver is "log"; key is an event field path)
   - type: queue
-    driver: kafka
-    brokers: ${KAFKA_BROKERS}
+    driver: log
     topic: healthcare-events
-    key: "{{.patient.mrn}}"
+    key: patient.mrn
 
   # Logging
   - type: log

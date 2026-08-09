@@ -221,14 +221,14 @@ workflow:
     - name: critical_admits
       filter:
         event_type: patient_admit
-        condition: event.encounter.class == "inpatient"
+        condition: event.encounter.class == "I"
       transform:
-        - set_field: processed_at = now()
+        - set_field: priority = "high"
       actions:
         - type: fhir
           endpoint: https://fhir.hospital.com/r4
         - type: log
-          message: "Inpatient admit: {{.Patient.MRN}}"
+          message: "Inpatient admit: {{.patient.mrn}}"
 ```
 
 ## Warnings Over Errors
