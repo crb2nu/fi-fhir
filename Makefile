@@ -315,6 +315,18 @@ structured-logging-negative-control:
 # OIDC tokens, one case per role combination, plus exhaustiveness of the
 # per-root-field role map against the schema the server executes. No database:
 # the gate refuses or admits before any resolver touches storage.
+# Slice 4.4c budget 4: destination recovery under an injected fault. An in-test
+# TCP proxy severs the connection to a live TLS destination, the per-destination
+# circuit opens, and every queued attempt then resumes exactly once on repair
+# with no operator intervention. No broker: every destination is https-class, so
+# the dispatcher never reaches the publisher.
+#
+# Requires POSTGRES_TEST_URL and fails rather than skipping in CI.
+chaos-recovery:
+	go test -tags=integration -race -count=1 -timeout=300s \
+		-run '^TestChaosRecovery_DestinationOutageOpensTheCircuitAndResumesOnRepair$$' \
+		./internal/integration/delivery
+
 # Slice 4.4c deployment-artifact gate: render the Helm chart (default values and
 # the reference profile), the Kustomize base, and the production overlay, then
 # validate every rendered resource against the pinned Kubernetes minor

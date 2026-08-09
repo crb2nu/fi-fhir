@@ -22,6 +22,7 @@ include:
   - local: ci/lint-edi.yml
   - local: ci/test-mllp-rate-quota.yml
   - local: ci/test-structured-logging.yml
+  - local: ci/s5b-chaos-dr.yml
 stages:
   - lint
   - test

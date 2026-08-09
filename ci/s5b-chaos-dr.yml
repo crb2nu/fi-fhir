@@ -1,0 +1,88 @@
+# Slice 4.4c Lane S5-B: chaos and disaster-recovery proofs.
+#
+# One job, one PostgreSQL service container, no broker and no Docker socket.
+#
+# The fault is injected by an in-test TCP proxy in front of the destination's
+# TLS endpoint rather than by stopping a container, because a GitLab job
+# receives its dependencies as service containers and has no Docker socket. That
+# constraint is recorded in-source at
+# internal/observability/replicas_integration_test.go:875-881, and severing the
+# socket is the stronger fault anyway: it exercises the dispatcher's own
+# classification and circuit rather than a container's restart timing.
+#
+# Kafka is deliberately absent. Every destination in this proof is https-class,
+# so the broker publisher is never reached and a stub Publisher satisfies the
+# dispatcher's requirement. Adding a broker container would slow the job to
+# prove nothing about it.
+#
+# This file carries its own image, cache, and rules rather than YAML anchors:
+# aliases are file-scoped in GitLab CI and do not cross an `include` boundary.
+# When Lane S5-0's ci/_shared.yml lands, the three blocks below collapse into
+# `extends:`.
+test:chaos-recovery:
+  stage: test
+  image: ${DOCKERHUB_CACHE_PREFIX}/library/golang:${GO_VERSION}
+  before_script:
+    - export GOPATH="${CI_PROJECT_DIR}/.go"
+    - export GOCACHE="${CI_PROJECT_DIR}/.cache/go-build"
+    - export PATH="${GOPATH}/bin:${PATH}"
+    - mkdir -p "${GOPATH}/bin"
+    - mkdir -p "${GOCACHE}"
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}-go-mod-${GO_VERSION}
+    paths:
+      - .go/pkg/mod/
+      - .go/bin/
+    policy: pull
+  services:
+    - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
+      alias: postgres
+  variables:
+    CGO_ENABLED: "1"
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
+    POSTGRES_DB: fi_fhir_chaos_recovery_test
+    POSTGRES_USER: testuser
+    POSTGRES_PASSWORD: testpass
+    POSTGRES_HOST_AUTH_METHOD: trust
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_chaos_recovery_test?sslmode=disable"
+  script:
+    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates ripgrep build-essential && rm -rf /var/lib/apt/lists/*
+    # Existence guard. Integration helpers t.Skipf rather than t.Fatalf when a
+    # service is unreachable, so a renamed or deleted proof would make this job
+    # greener rather than redder without this step (AGENTS.md).
+    - >-
+      go test -tags=integration
+      -list '^TestChaosRecovery_DestinationOutageOpensTheCircuitAndResumesOnRepair$'
+      ./internal/integration/delivery
+      | rg -x 'TestChaosRecovery_DestinationOutageOpensTheCircuitAndResumesOnRepair'
+      | awk 'END { if (NR != 1) exit 1 }'
+    - make chaos-recovery
+  after_script:
+    - |
+      if [ "$CI_JOB_STATUS" = "failed" ]; then
+        echo ""
+        echo "test:chaos-recovery FAILED — destination recovery under an injected fault regressed."
+        echo "Budget 4: queued attempts must survive a severed destination and resume with no"
+        echo "manual repair, exactly once each, with the per-destination circuit bounding the"
+        echo "contacts wasted on the outage."
+        echo "Local: POSTGRES_TEST_URL=... make chaos-recovery"
+        echo "Docs: docs/operations/PRODUCTION-HARDENING.md 'Recovery objectives, honestly'"
+        echo "Owner: Platform/Integration — escalate in #ci-support"
+      fi
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: &s5b-chaos-changes
+        - go.mod
+        - go.sum
+        - cmd/**/*
+        - internal/**/*
+        - pkg/**/*
+        - Makefile
+        - ci/s5b-chaos-dr.yml
+        - .gitlab-ci.yml
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *s5b-chaos-changes
+    - when: never
+  allow_failure: false
