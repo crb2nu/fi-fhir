@@ -1,0 +1,26 @@
+# Slice 4.1d C1: PHI audit immutability and export attribution.
+# Isolated proof job per AGENTS.md — integration helpers t.Skipf when a
+# service is unreachable, so the -list existence step must run before the proof.
+test:phi-audit:
+  extends: .integration-proof
+  variables:
+    POSTGRES_DB: fi_fhir_phi_test
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_phi_test?sslmode=disable"
+    PROOF_FAILURE_SUMMARY: "audit immutability or export attribution regressed."
+    PROOF_LOCAL: "POSTGRES_TEST_URL=... make phi-audit"
+    PROOF_DOCS: "docs/operations/PHI-RETENTION.md"
+  script:
+    - !reference [.integration-proof-toolchain, script]
+    - >-
+      go test -tags=integration
+      -list '^TestPhiAudit_PostgresImmutableRecordsAndAttributedExport$'
+      ./internal/integration/session
+      | rg -x 'TestPhiAudit_PostgresImmutableRecordsAndAttributedExport'
+      | awk 'END { if (NR != 1) exit 1 }'
+    - >-
+      go test -tags=integration
+      -list '^TestPhiRetentionPosture_ProductionRejectsRetainedRawAndCanonicalEventsCarryNoPolicy$'
+      ./internal/integration/processor
+      | rg -x 'TestPhiRetentionPosture_ProductionRejectsRetainedRawAndCanonicalEventsCarryNoPolicy'
+      | awk 'END { if (NR != 1) exit 1 }'
+    - make phi-audit

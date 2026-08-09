@@ -6,6 +6,18 @@ include:
 
   - project: 'services/tech-radar'
     file: '/ci/radar.yml'
+
+  # One file per required proof. A new proof adds a file under ci/ and exactly
+  # one line here — never an append to this file. See AGENTS.md "CI job layout".
+  # scripts/ci-job-inventory.sh --check (blocking, in lint:docs) is what keeps a
+  # job from disappearing in the move.
+  - local: ci/_shared.yml
+  - local: ci/test-phi-audit.yml
+  - local: ci/test-observability-replicas.yml
+  - local: ci/test-migration-compatibility.yml
+  - local: ci/test-phi-retention-purge.yml
+  - local: ci/test-transport-gate.yml
+  - local: ci/test-destination-transport.yml
 stages:
   - lint
   - test
@@ -75,6 +87,26 @@ variables:
   # GraphQL schema changes require backend rebuild for resolver codegen
   - internal/api/graphql/schema.graphql
   - internal/api/graphql/gqlgen.yml
+
+# The extends-reachable form of the rules 20 Go jobs in this file express with
+# `changes: *go-changes`.
+#
+# It exists because YAML anchors are file-scoped in GitLab CI: a job in
+# `ci/test-<name>.yml` cannot alias `*go-changes`, and `.go-changes` is a bare
+# sequence that neither `extends:` nor `!reference` can reach. `extends:` is
+# resolved after every include is merged, so a hidden job carrying the whole
+# `rules:` block does cross the boundary.
+#
+# It stays in this file, beside the change set it aliases, so there is exactly
+# one copy of that list. A second copy in ci/_shared.yml would drift.
+.go-mr-rules:
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *go-changes
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *go-changes
+    - when: never
 
 .ui-changes: &ui-changes
   - ui/**/*
@@ -369,6 +401,11 @@ lint:docs:
     # breaks date ordering, and a second entry appended into an existing file —
     # the habit that would put the conflict back.
     - bash scripts/worklog.sh check
+    # CI jobs are one file per proof under ci/ for the same reason worklog
+    # entries are one file per entry. This rejects a job that vanished, changed
+    # stage, or stopped blocking without ci/job-inventory.txt saying so — none
+    # of which a green pipeline would show.
+    - bash scripts/ci-job-inventory.sh --check
   rules:
     - if: $CI_COMMIT_TAG
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -382,8 +419,11 @@ lint:docs:
         - scripts/validate-docs.sh
         - scripts/docs-status.sh
         - scripts/worklog.sh
+        - scripts/ci-job-inventory.sh
         - .loom/worklog/**/*
         - .loom/50-worklog.md
+        - .gitlab-ci.yml
+        - ci/**/*
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes:
         - docs/**/*
@@ -395,8 +435,11 @@ lint:docs:
         - scripts/validate-docs.sh
         - scripts/docs-status.sh
         - scripts/worklog.sh
+        - scripts/ci-job-inventory.sh
         - .loom/worklog/**/*
         - .loom/50-worklog.md
+        - .gitlab-ci.yml
+        - ci/**/*
     - when: never
 
 lint:contracts:
@@ -1413,277 +1456,6 @@ test:smoke:
       changes: *runtime-verification-changes
     - when: never
 
-# Slice 4.1d C1: PHI audit immutability and export attribution.
-# Isolated proof job per AGENTS.md:264-268 — integration helpers t.Skipf when a
-# service is unreachable, so the -list existence step must run before the proof.
-test:phi-audit:
-  stage: test
-  <<: *go-image-debian
-  <<: *go-cache
-  services:
-    - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
-      alias: postgres
-  variables:
-    CGO_ENABLED: "1"
-    KUBERNETES_CPU_LIMIT: "2"
-    KUBERNETES_MEMORY_LIMIT: "4Gi"
-    POSTGRES_DB: fi_fhir_phi_test
-    POSTGRES_USER: testuser
-    POSTGRES_PASSWORD: testpass
-    POSTGRES_HOST_AUTH_METHOD: trust
-    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_phi_test?sslmode=disable"
-  script:
-    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates ripgrep build-essential && rm -rf /var/lib/apt/lists/*
-    - >-
-      go test -tags=integration
-      -list '^TestPhiAudit_PostgresImmutableRecordsAndAttributedExport$'
-      ./internal/integration/session
-      | rg -x 'TestPhiAudit_PostgresImmutableRecordsAndAttributedExport'
-      | awk 'END { if (NR != 1) exit 1 }'
-    - >-
-      go test -tags=integration
-      -list '^TestPhiRetentionPosture_ProductionRejectsRetainedRawAndCanonicalEventsCarryNoPolicy$'
-      ./internal/integration/processor
-      | rg -x 'TestPhiRetentionPosture_ProductionRejectsRetainedRawAndCanonicalEventsCarryNoPolicy'
-      | awk 'END { if (NR != 1) exit 1 }'
-    - make phi-audit
-  after_script:
-    - |
-      if [ "$CI_JOB_STATUS" = "failed" ]; then
-        echo ""
-        echo "test:phi-audit FAILED — audit immutability or export attribution regressed."
-        echo "Local: POSTGRES_TEST_URL=... make phi-audit"
-        echo "Docs: docs/operations/PHI-RETENTION.md"
-        echo "Owner: Platform/Integration — escalate in #ci-support"
-      fi
-  rules:
-    - if: $CI_COMMIT_TAG
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes: *go-changes
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      changes: *go-changes
-    - when: never
-  allow_failure: false
-
-# Slice 4.3 Lane S3-A: two `fi-fhir serve` replicas against one PostgreSQL,
-# started from the environment block `.env.example` and docs/operations/*
-# actually prescribe — not a test-crafted favorable configuration.
-#
-# The job runs the proof AND its negative control in one invocation. The control
-# restores the pre-slice behaviour through FI_FHIR_OBSERVABILITY_MODE=legacy and
-# asserts that readiness, cross-replica SSE fanout, batch worker identity, and
-# notification de-duplication all FAIL there. A pipeline where the control passes
-# is a broken test, not a green lane.
-test:observability-replicas:
-  stage: test
-  <<: *go-image-debian
-  <<: *go-cache
-  services:
-    - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
-      alias: postgres
-  variables:
-    CGO_ENABLED: "1"
-    KUBERNETES_CPU_LIMIT: "2"
-    KUBERNETES_MEMORY_LIMIT: "4Gi"
-    POSTGRES_DB: fi_fhir_observability_test
-    POSTGRES_USER: testuser
-    POSTGRES_PASSWORD: testpass
-    POSTGRES_HOST_AUTH_METHOD: trust
-    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_observability_test?sslmode=disable"
-  script:
-    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates ripgrep build-essential && rm -rf /var/lib/apt/lists/*
-    # Existence guard. Integration helpers t.Skipf rather than t.Fatalf when a
-    # service is unreachable, so a renamed or deleted test would make this job
-    # greener rather than redder without this step (AGENTS.md).
-    - >-
-      go test -tags=integration
-      -list '^TestServeObservability_TwoReplicasUnderDocumentedConfiguration$'
-      ./internal/observability
-      | rg -x 'TestServeObservability_TwoReplicasUnderDocumentedConfiguration'
-      | awk 'END { if (NR != 1) exit 1 }'
-    - make observability-replicas
-  rules:
-    - if: $CI_COMMIT_TAG
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes: *go-changes
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      changes: *go-changes
-    - when: never
-  allow_failure: false
-
-# Slice 4.4a Lane S4-C: migration compatibility, rollback safety, restore
-# round-trip. Isolated proof job per AGENTS.md — integration helpers t.Skipf
-# when a service is unreachable, so the -list existence step must run first.
-#
-# This job started life red. It landed in MR !151 with allow_failure: true and
-# one test, reproducing the defect .loom/32 correction 23 predicted: Slice 4.1d
-# C1's 0004_export_attribution.sql made three columns NOT NULL with no DEFAULT,
-# so a binary one version behind failed every session export with SQLSTATE
-# 23502. Product spec budget 6 was false in already-merged code. This MR lands
-# the fix and flips the job to blocking in the same commit.
-#
-# The job runs the proof AND its negative controls in one invocation, following
-# test:observability-replicas. Each control removes one of the slice's fixes and
-# asserts the matching assertion goes red. A control that PASSES fails the job:
-# it means the proof is not exercising the mechanism.
-#
-# postgresql-client-16 comes from PGDG rather than from Debian, and that is
-# load-bearing. The golang:1.26.5 image is Debian trixie, whose only
-# postgresql-client is 17, and pg_dump 17 writes `SET transaction_timeout = 0`
-# into the archive — a setting PostgreSQL 16 does not have and rejects. A
-# mismatched client produces a dump that exits 0 and cannot be restored. The
-# script refuses on the mismatch rather than proving nothing quietly.
-test:migration-compatibility:
-  stage: test
-  <<: *go-image-debian
-  <<: *go-cache
-  services:
-    - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
-      alias: postgres
-  variables:
-    CGO_ENABLED: "1"
-    KUBERNETES_CPU_LIMIT: "2"
-    KUBERNETES_MEMORY_LIMIT: "4Gi"
-    POSTGRES_DB: fi_fhir_migration_compat_test
-    POSTGRES_USER: testuser
-    POSTGRES_PASSWORD: testpass
-    POSTGRES_HOST_AUTH_METHOD: trust
-    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_migration_compat_test?sslmode=disable"
-    # Client major must equal server major; see the comment above.
-    FI_FHIR_PG_BIN_DIR: /usr/lib/postgresql/16/bin
-  script:
-    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates ripgrep build-essential curl gnupg && rm -rf /var/lib/apt/lists/*
-    # The PGDG suite is pinned to the base image's codename rather than derived,
-    # so a base-image bump fails loudly here instead of silently adding an apt
-    # source for the wrong Debian release.
-    - . /etc/os-release && [ "$VERSION_CODENAME" = trixie ] || { echo "base image is no longer Debian trixie; update the PGDG suite below"; exit 1; }
-    - install -d /usr/share/postgresql-common/pgdg
-    - curl -fsS -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
-    - echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt trixie-pgdg main" > /etc/apt/sources.list.d/pgdg.list
-    - apt-get update && apt-get install -y --no-install-recommends postgresql-client-16 && rm -rf /var/lib/apt/lists/*
-    - "${FI_FHIR_PG_BIN_DIR}/pg_dump --version"
-    # Existence guard. A renamed or deleted proof would make this job greener
-    # rather than redder without it.
-    - >-
-      go test -tags=integration
-      -list '^TestMigrationCompatibility_(ConcurrentReplicaMigrationRollbackAndRestore|ExportInsertShapeSurvivesOneVersionRollback|NegativeControls)$'
-      ./internal/integration/migrationcompat
-      | rg -x 'TestMigrationCompatibility_(ConcurrentReplicaMigrationRollbackAndRestore|ExportInsertShapeSurvivesOneVersionRollback|NegativeControls)'
-      | awk 'END { if (NR != 3) exit 1 }'
-    - make migration-compatibility
-  after_script:
-    - |
-      if [ "$CI_JOB_STATUS" = "failed" ]; then
-        echo ""
-        echo "test:migration-compatibility FAILED — migration compatibility or rollback safety regressed."
-        echo "A failing NEGATIVE CONTROL means the opposite: the proof stopped exercising its mechanism."
-        echo "Local: POSTGRES_TEST_URL=... FI_FHIR_PG_BIN_DIR=<pg16 bin> make migration-compatibility"
-        echo "Docs: AGENTS.md 'Migration authoring'; docs/developer-guide/testing.md"
-        echo "Owner: Platform/Integration — escalate in #ci-support"
-      fi
-  rules:
-    - if: $CI_COMMIT_TAG
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes: *go-changes
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      changes: *go-changes
-    - when: never
-  allow_failure: false
-
-# Slice 4.1e Lane S4-B: PHI retention policy and purge runtime.
-#
-# Two proofs, each negative-controlled, plus Slice 4.1d C1's own kill-test in the
-# SAME job — because this lane narrows C1's blanket guard on two tables, and a
-# green purge next to a red C1 would mean the exemption ate the guarantee.
-#
-# The structural gate asserts that a purge can be neither a DELETE of a canonical
-# event nor a free redaction UPDATE of its payload; the purge proof runs two
-# purge components concurrently and asserts exactly one tombstone and exactly one
-# audit row per record, that an event with an unresolved delivery attempt is never
-# purged, and that every other mutation still raises.
-test:phi-retention-purge:
-  stage: test
-  <<: *go-image-debian
-  <<: *go-cache
-  services:
-    - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
-      alias: postgres
-  variables:
-    CGO_ENABLED: "1"
-    KUBERNETES_CPU_LIMIT: "2"
-    KUBERNETES_MEMORY_LIMIT: "4Gi"
-    POSTGRES_DB: fi_fhir_phi_retention_test
-    POSTGRES_USER: testuser
-    POSTGRES_PASSWORD: testpass
-    POSTGRES_HOST_AUTH_METHOD: trust
-    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_phi_retention_test?sslmode=disable"
-  script:
-    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates ripgrep build-essential && rm -rf /var/lib/apt/lists/*
-    # Existence guard. Integration helpers t.Skipf rather than t.Fatalf when a
-    # service is unreachable, so a renamed or deleted test would make this job
-    # greener rather than redder without this step (AGENTS.md).
-    - >-
-      go test -tags=integration
-      -list '^(TestPhiRetention_PostgresExpiryPurgeAndAuditedTombstone|TestPhiRetention_PurgeIsStructurallyBlockedToday)$'
-      ./internal/integration/retention
-      | rg -x '(TestPhiRetention_PostgresExpiryPurgeAndAuditedTombstone|TestPhiRetention_PurgeIsStructurallyBlockedToday)'
-      | awk 'END { if (NR != 2) exit 1 }'
-    - make phi-retention-purge
-    # C1's own kill-test and the rewritten posture gate, in this job, because this
-    # lane amends C1's triggers on two tables.
-    - make phi-audit
-  after_script:
-    - |
-      if [ "$CI_JOB_STATUS" = "failed" ]; then
-        echo ""
-        echo "test:phi-retention-purge FAILED — the retention purge proofs regressed."
-        echo "Local: POSTGRES_TEST_URL=... make phi-retention-purge"
-        echo "Docs: docs/operations/PHI-RETENTION.md, .loom/40-decisions.md"
-        echo "Owner: Platform/Integration — escalate in #ci-support"
-      fi
-  rules:
-    - if: $CI_COMMIT_TAG
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes: *go-changes
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      changes: *go-changes
-    - when: never
-  allow_failure: false
-
-# Lane S4-E transport-gate kill-test. No PostgreSQL service: the GraphQL
-# transport gate decides before any resolver reaches storage, so this proof runs
-# on the real handler with real OIDC tokens and nothing else.
-test:transport-gate:
-  stage: test
-  <<: *go-image-debian
-  <<: *go-cache
-  variables:
-    CGO_ENABLED: "1"
-    KUBERNETES_CPU_LIMIT: "2"
-    KUBERNETES_MEMORY_LIMIT: "4Gi"
-  script:
-    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates ripgrep build-essential && rm -rf /var/lib/apt/lists/*
-    # Existence guard. A renamed or deleted kill-test would make `-run` match
-    # nothing and this job greener rather than redder without this step
-    # (AGENTS.md). Seven names, so the arity is 7.
-    - >-
-      go test
-      -list '^TestTransportGate'
-      ./internal/api/graphql
-      | rg -x 'TestTransportGate_FineGrainedRolesReplaceBlanketOperator|TestTransportGate_CompatibilityGrantBehavesExactlyAsBefore|TestTransportGate_PreviewRoleIsUnchanged|TestTransportGateRoleMapIsExhaustive|TestTransportGateRoleMapShape|TestTransportGateNeverRequiresPHIExportRole|TestTransportGateRequirementsMatchTheServiceLayer'
-      | awk 'END { if (NR != 7) exit 1 }'
-    - make transport-gate
-    # The narrowing is only proven if restoring the blanket allow breaks it.
-    - make transport-gate-negative-control
-  rules:
-    - if: $CI_COMMIT_TAG
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes: *go-changes
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      changes: *go-changes
-    - when: never
-  allow_failure: false
-
 # =============================================================================
 # Security Stage
 # =============================================================================
@@ -2650,89 +2422,3 @@ mirror:github:
 radar-scan:
   extends: .radar-scan
 
-# Slice 4.1c-b Lane S4-A: the destination transport proofs.
-#
-# The kill-test contacts two identity-bound `https` destinations exactly once
-# each under their own credentials, retries a 503 through the existing
-# per-destination circuit, dead-letters a 403 and a 302 without dialing the
-# redirect target, and publishes a `kafka`-class destination in the same run.
-# It then runs its own negative control against a router that owns nothing and
-# requires assertions 1-4 to FAIL there while the kafka-class assertion still
-# passes — a control that passes turns this job red, because it would mean the
-# router is not on the dispatch path.
-#
-# The day-1 gate is the recorded pre-slice behaviour: an `https`-transport
-# destination with a live TLS endpoint got zero accepted connections while Kafka
-# got exactly one command and the identity decision carried the URL only in
-# destination_endpoint_advisory.
-#
-# This job is separate from test:delivery-identity on purpose. That job's
-# existence guard stays at arity 2 and its two proofs stay unchanged: a
-# `kafka`-class destination still contacts nothing.
-test:destination-transport:
-  stage: test
-  <<: *go-image-debian
-  <<: *go-cache
-  services:
-    - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
-      alias: postgres
-    - name: ${DOCKERHUB_CACHE_PREFIX}/apache/kafka:3.9.2
-      alias: kafka
-  variables:
-    CGO_ENABLED: "1"
-    KUBERNETES_CPU_LIMIT: "2"
-    KUBERNETES_MEMORY_LIMIT: "4Gi"
-    POSTGRES_DB: fi_fhir_destination_transport_test
-    POSTGRES_USER: testuser
-    POSTGRES_PASSWORD: testpass
-    POSTGRES_HOST_AUTH_METHOD: trust
-    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_destination_transport_test?sslmode=disable"
-    # Kubernetes-executor services share the job pod network namespace. Match the
-    # Apache single-node KRaft example, exactly as test:delivery-identity does.
-    KAFKA_TEST_BROKERS: "localhost:9092"
-    KAFKA_NODE_ID: "1"
-    KAFKA_PROCESS_ROLES: "controller,broker"
-    KAFKA_CONTROLLER_QUORUM_VOTERS: "1@localhost:9093"
-    KAFKA_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
-    KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092"
-    KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
-    KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
-    KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
-    KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
-    KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
-    KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
-    KAFKA_NUM_PARTITIONS: "1"
-    KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-  script:
-    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates ripgrep build-essential && rm -rf /var/lib/apt/lists/*
-    # Existence guard. Integration helpers t.Skipf rather than t.Fatalf when a
-    # service is unreachable, so a renamed or deleted proof would make this job
-    # greener rather than redder without this step (AGENTS.md).
-    - >-
-      go test -tags=integration
-      -list '^(TestDeliveryTransport_HTTPSClassContactedExactlyOnceUnderScopedIdentity|TestDeliveryTransport_HTTPSDestinationPublishesToBrokerToday)$'
-      ./internal/integration/delivery
-      | rg -x '(TestDeliveryTransport_HTTPSClassContactedExactlyOnceUnderScopedIdentity|TestDeliveryTransport_HTTPSDestinationPublishesToBrokerToday)'
-      | awk 'END { if (NR != 2) exit 1 }'
-    - make destination-transport
-  after_script:
-    - |
-      if [ "$CI_JOB_STATUS" = "failed" ]; then
-        echo ""
-        echo "test:destination-transport FAILED — the destination transport contract regressed."
-        echo "Local: POSTGRES_TEST_URL=... KAFKA_TEST_BROKERS=... make destination-transport"
-        echo "Docs: docs/operations/DESTINATION-IDENTITY.md"
-        echo "Owner: Platform/Integration — escalate in #ci-support"
-      fi
-  rules:
-    - if: $CI_COMMIT_TAG
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes: *go-changes
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      changes: *go-changes
-    - when: never
-  allow_failure: false
-
-# =============================================================================
-# Security Stage
-# =============================================================================

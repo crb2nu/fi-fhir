@@ -1,0 +1,29 @@
+# Slice 4.3 Lane S3-A: two `fi-fhir serve` replicas against one PostgreSQL,
+# started from the environment block `.env.example` and docs/operations/*
+# actually prescribe — not a test-crafted favorable configuration.
+#
+# The job runs the proof AND its negative control in one invocation. The control
+# restores the pre-slice behaviour through FI_FHIR_OBSERVABILITY_MODE=legacy and
+# asserts that readiness, cross-replica SSE fanout, batch worker identity, and
+# notification de-duplication all FAIL there. A pipeline where the control passes
+# is a broken test, not a green lane.
+test:observability-replicas:
+  extends: .integration-proof
+  variables:
+    POSTGRES_DB: fi_fhir_observability_test
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_observability_test?sslmode=disable"
+    PROOF_FAILURE_SUMMARY: "two-replica readiness, SSE fanout, or notification de-duplication regressed."
+    PROOF_LOCAL: "POSTGRES_TEST_URL=... make observability-replicas"
+    PROOF_DOCS: "docs/operations/PRODUCTION-HARDENING.md"
+  script:
+    - !reference [.integration-proof-toolchain, script]
+    # Existence guard. Integration helpers t.Skipf rather than t.Fatalf when a
+    # service is unreachable, so a renamed or deleted test would make this job
+    # greener rather than redder without this step (AGENTS.md).
+    - >-
+      go test -tags=integration
+      -list '^TestServeObservability_TwoReplicasUnderDocumentedConfiguration$'
+      ./internal/observability
+      | rg -x 'TestServeObservability_TwoReplicasUnderDocumentedConfiguration'
+      | awk 'END { if (NR != 1) exit 1 }'
+    - make observability-replicas
