@@ -2,21 +2,37 @@
 
 This document details US Core, Da Vinci, and other FHIR profile requirements for fi-fhir output generation.
 
-> **Version and accuracy notice (2026-08-08).** This document is written against
-> **US Core 6.1.0** (`:80`, `:445`, `:542`), which is what `pkg/fhir/types.go:2`
-> was authored against. The **1.0 target is US Core 9.0.0**
+> **Version and accuracy notice (updated 2026-08-09, Slice 5.1a).** This document
+> is design background written against **US Core 6.1.0**. The **1.0 release
+> target is US Core 9.0.0**
 > (`.loom/20-product-spec-integration-engine-ide-completion.md:262`,
-> `docs/operations/SUPPORTED-1.0.md:26`). One claim below is also false against
-> current code: "Profile metadata injection (Meta.Profile set on all resources)"
-> (`:485`) — `MapCoverageEligibilityResponse` never sets `Meta`
-> (`pkg/fhir/mapper.go:1930-1935`) and `MapClaim` sets it only for
-> pre-authorization (`:1298-1313`).
+> `docs/operations/SUPPORTED-1.0.md`). The 6.1.0 references in the body are
+> annotated in place rather than rewritten, because re-versioning a design
+> document without re-verifying its must-support tables against the 9.0.0
+> package would replace a visible staleness with an invisible one. That
+> re-verification belongs to Slice 5.1b, which pins the IG.
+>
+> Two claims corrected by Slice 5.1a:
+>
+> - The **DiagnosticReport** row in the Quick Reference read
+>   `us-core-diagnosticreport-note` against `MapLabResult()`. `MapLabResult`
+>   stamps `us-core-diagnosticreport-**lab**`; `-note` is what
+>   `MapDiagnosticReportNote()` produces. Both rows are now listed, and the
+>   checker accepts both (`pkg/fhir/profiles_diagnosticreport.go`).
+> - "Profile metadata injection (Meta.Profile set on all resources)" was false:
+>   `MapCoverageEligibilityResponse` never sets `Meta` and `MapClaim` sets it
+>   only for pre-authorization. The checklist item is corrected below.
+>
+> **Profile-version assertion policy (Slice 5.1a):** the mapper asserts **bare
+> canonicals**; the checker accepts a bare canonical or any `|version`-pinned
+> form of it (`pkg/fhir/validate.go` `ProfileCanonical`). None of the 32 profile
+> constants is version-pinned, and that is deliberate — see
+> `.loom/40-decisions.md` (2026-08-09) and `docs/operations/SUPPORTED-1.0.md`.
 >
 > For what the shipped mapper and validator actually cover, read
 > **[FHIR-CONFORMANCE-MATRIX.md](FHIR-CONFORMANCE-MATRIX.md)**, which is written
-> against code with `file:line` citations. This document is retained as design
-> background and is corrected by the slice that next touches it (Phase 5.1; see
-> `.loom/28-spec-fhir-ig-bulk-smart.md`).
+> against code with `file:line` citations and whose numbers are asserted by
+> `TestFHIRConformance_CheckerCoverageIsDerivableFromCode`.
 
 ## Quick Reference
 
@@ -25,7 +41,8 @@ This document details US Core, Da Vinci, and other FHIR profile requirements for
 | **Patient** | us-core-patient | ✅ | `pkg/fhir/mapper.go:MapPatient()` |
 | **Encounter** | us-core-encounter | ✅ | `pkg/fhir/mapper.go:MapEncounter()` |
 | **Observation** | us-core-observation-lab | ✅ | `pkg/fhir/mapper.go:MapLabObservation()` |
-| **DiagnosticReport** | us-core-diagnosticreport-note | ✅ | `pkg/fhir/mapper.go:MapLabResult()` |
+| **DiagnosticReport** (lab) | us-core-diagnosticreport-lab | ✅ | `pkg/fhir/mapper.go:MapLabResult()` |
+| **DiagnosticReport** (note) | us-core-diagnosticreport-note | ✅ | `pkg/fhir/mapper.go:MapDiagnosticReportNote()` |
 | **Condition** | us-core-condition | ✅ | `pkg/fhir/mapper.go:MapCondition()` |
 | **Coverage** | us-core-coverage | ✅ | `pkg/fhir/mapper.go:MapCoverage()` |
 | **Claim** | (Da Vinci PAS) | ✅ | `pkg/fhir/mapper.go:MapClaim()` |
@@ -77,7 +94,9 @@ This document details US Core, Da Vinci, and other FHIR profile requirements for
 
 US Core is the **minimum required FHIR profile for US healthcare** interoperability. Mandated by ONC for certified EHRs.
 
-Current version: **US Core 6.1.0** (based on FHIR R4)
+Current version this section was written against: **US Core 6.1.0** (based on
+FHIR R4 4.0.1). The 1.0 release target is **US Core 9.0.0**; the must-support
+tables below have not been re-verified against it. See the notice at the top.
 
 ### US Core Resource Requirements
 
@@ -442,7 +461,7 @@ func CreateSearchBundle(resources []interface{}, total int) *fhir.Bundle {
 # fi-fhir profile support configuration
 profiles:
   us_core:
-    version: "6.1.0"
+    version: "6.1.0" # design sketch; the 1.0 target is 9.0.0 (see the notice at the top)
     base_url: "http://hl7.org/fhir/us/core/StructureDefinition"
     resources:
       - Patient: us-core-patient
@@ -482,7 +501,13 @@ profiles:
 - [x] Coverage (from 271 eligibility responses) - see `pkg/fhir/mapper.go:MapCoverage()`
 
 ### Phase 3: Validation ⚠️
-- [x] Profile metadata injection (Meta.Profile set on all resources)
+- [x] Profile metadata injection — `Meta.Profile` on every resource whose type
+      the checker has a profile-presence check for (21 of the 24 produced types).
+      **Not** on all resources: `MapCoverageEligibilityResponse` never sets
+      `Meta`, and `MapClaim` sets it only for pre-authorization. Those two, plus
+      `MapExplanationOfBenefit`, are the three produced types with neither a
+      profile-presence nor a required-element check, which is asserted by
+      `TestFHIRConformance_CheckerCoverageIsDerivableFromCode`.
 - [x] Basic terminology system mapping (identifier type codes to URIs)
 - [x] Built-in validator (OperationOutcome) + CLI/workflow integration (`pkg/fhir/validate.go`, `fi-fhir fhir validate`, workflow `fhir` action `validate_fhir`)
 - [ ] Full must-support element validation (beyond current “US Core-ish” checks) — #3
@@ -538,8 +563,13 @@ actions:
 
 For deep IG conformance (terminology bindings, slicing, invariants), use the HL7 FHIR Validator CLI in CI or locally:
 ```bash
+# Slice 5.1b, not shipped. The IG must be a pinned, digest-recorded, offline
+# .tgz — a conformance gate that silently re-resolves its own IG is not a gate —
+# and validator_cli.jar stays CI-only: the shipped image is distroless static
+# with no JRE. Both are ratified in .loom/40-decisions.md (2026-08-09).
+# Pin the 1.0 target version, not the 6.1.0 this document was drafted against.
 java -jar validator_cli.jar patient.json \
-  -ig hl7.fhir.us.core#6.1.0 \
+  -ig hl7.fhir.us.core#9.0.0 \
   -profile http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient
 ```
 

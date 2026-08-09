@@ -298,6 +298,18 @@ func runFHIRValidate(args []string) error {
 		}
 	}
 
+	// Reject an unknown --mode before reading a byte of input.
+	//
+	// Until Slice 5.1a this flag was passed through unvalidated and the checker
+	// compared it byte-exactly against "us-core", so `--mode US-Core` printed
+	// "FHIR validation passed" and exited 0 on a resource that `--mode us-core`
+	// rejects. A typo in a deployment's flag turned conformance checking off.
+	parsedMode, err := fhirpkg.ParseValidationMode(mode)
+	if err != nil {
+		return err
+	}
+	mode = string(parsedMode)
+
 	if input == "" {
 		return fmt.Errorf("no input specified (pass a JSON file path or '-' for stdin)")
 	}
@@ -382,7 +394,9 @@ Usage:
   fi-fhir fhir validate [options] <file|'-'>
 
 Options:
-      --mode <mode>   Validation mode: us-core (default) or none
+      --mode <mode>   Validation mode: us-core (default) or none.
+                      Case-insensitive; any other value is rejected rather
+                      than silently disabling conformance checks.
       --json          Print OperationOutcome JSON to stdout
       --strict        Treat warnings as errors (default)
       --allow-warnings

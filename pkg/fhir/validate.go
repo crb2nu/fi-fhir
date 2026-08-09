@@ -2,14 +2,74 @@ package fhir
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"sort"
+	"strings"
 )
 
+// ValidationMode is the closed set of conformance modes ValidateJSON accepts.
+//
+// It is closed on purpose. Before Slice 5.1a the mode was an open string
+// compared byte-exactly against "us-core", so every other value — including
+// "US-Core", "uscore", and "" — silently disabled both the required-element and
+// the profile-presence checks and reported a non-conformant resource as clean.
+// A typo in a deployment's flag turned conformance checking off. Unrecognised
+// modes are now an error, so the failure mode is loud instead of green.
+type ValidationMode string
+
+const (
+	// ModeStructural validates JSON structure only: a payload must parse and
+	// every resource must carry a resourceType. No US Core expectation applies.
+	ModeStructural ValidationMode = "none"
+	// ModeUSCore additionally applies this package's US Core required-element
+	// and profile-presence checks.
+	ModeUSCore ValidationMode = "us-core"
+)
+
+// ErrUnknownValidationMode is returned by ParseValidationMode and ValidateJSON
+// for any mode outside the closed set. It never means "validate less".
+var ErrUnknownValidationMode = errors.New("unknown FHIR validation mode")
+
+// ValidationModes returns the accepted mode strings in a stable order, so a CLI
+// or an API can render the set rather than hard-coding a copy of it.
+func ValidationModes() []string {
+	modes := make([]string, 0, len(validationModes))
+	for mode := range validationModes {
+		modes = append(modes, string(mode))
+	}
+	sort.Strings(modes)
+	return modes
+}
+
+var validationModes = map[ValidationMode]bool{
+	ModeStructural: true,
+	ModeUSCore:     true,
+}
+
+// ParseValidationMode normalises one mode string, case-insensitively and
+// ignoring surrounding whitespace, or reports ErrUnknownValidationMode.
+//
+// The empty string is an error rather than a synonym for "none": a zero-value
+// ValidationOptions must not be the configuration that silently checks nothing.
+func ParseValidationMode(mode string) (ValidationMode, error) {
+	normalized := ValidationMode(strings.ToLower(strings.TrimSpace(mode)))
+	if !validationModes[normalized] {
+		return "", fmt.Errorf("%w: %q (expected one of %s)",
+			ErrUnknownValidationMode, mode, strings.Join(ValidationModes(), ", "))
+	}
+	return normalized, nil
+}
+
 type ValidationOptions struct {
-	// Mode controls which conformance checks to apply.
+	// Mode controls which conformance checks to apply. It is parsed by
+	// ParseValidationMode: case-insensitive, whitespace-trimmed, and closed.
 	// Supported values:
 	//   - "none": structural validation only
 	//   - "us-core": enforce US Core-ish expectations (profile presence is a warning)
+	//
+	// Any other value, including the empty string, is rejected with
+	// ErrUnknownValidationMode. See ValidationMode.
 	Mode string
 }
 
@@ -20,7 +80,14 @@ type ValidationOptions struct {
 //
 // It returns an OperationOutcome containing errors/warnings. The caller decides
 // whether warnings should fail the operation.
+// The mode is parsed before anything else, and an unrecognised mode is an error
+// rather than a quieter validation.
 func ValidateJSON(data []byte, opts ValidationOptions) (*OperationOutcome, error) {
+	mode, err := ParseValidationMode(opts.Mode)
+	if err != nil {
+		return nil, err
+	}
+
 	var raw any
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("invalid JSON: %w", err)
@@ -30,7 +97,7 @@ func ValidateJSON(data []byte, opts ValidationOptions) (*OperationOutcome, error
 
 	switch v := raw.(type) {
 	case map[string]any:
-		issues = append(issues, validateResourceOrBundle(v, opts, "")...)
+		issues = append(issues, validateResourceOrBundle(v, mode, "")...)
 	case []any:
 		for i, item := range v {
 			obj, ok := item.(map[string]any)
@@ -38,7 +105,7 @@ func ValidateJSON(data []byte, opts ValidationOptions) (*OperationOutcome, error
 				issues = append(issues, issueError("structure", "array element is not an object", []string{fmt.Sprintf("[%d]", i)}))
 				continue
 			}
-			issues = append(issues, validateResourceOrBundle(obj, opts, fmt.Sprintf("[%d]", i))...)
+			issues = append(issues, validateResourceOrBundle(obj, mode, fmt.Sprintf("[%d]", i))...)
 		}
 	default:
 		issues = append(issues, issueError("structure", "expected JSON object or array", nil))
@@ -50,19 +117,19 @@ func ValidateJSON(data []byte, opts ValidationOptions) (*OperationOutcome, error
 	}, nil
 }
 
-func validateResourceOrBundle(obj map[string]any, opts ValidationOptions, basePath string) []OperationOutcomeIssue {
+func validateResourceOrBundle(obj map[string]any, mode ValidationMode, basePath string) []OperationOutcomeIssue {
 	resourceType, ok := obj["resourceType"].(string)
 	if !ok || resourceType == "" {
 		return []OperationOutcomeIssue{issueError("required", "missing resourceType", at(basePath, "resourceType"))}
 	}
 
 	if resourceType == "Bundle" {
-		return validateBundle(obj, opts, basePath)
+		return validateBundle(obj, mode, basePath)
 	}
-	return validateResource(obj, resourceType, opts, basePath)
+	return validateResource(obj, resourceType, mode, basePath)
 }
 
-func validateBundle(obj map[string]any, opts ValidationOptions, basePath string) []OperationOutcomeIssue {
+func validateBundle(obj map[string]any, mode ValidationMode, basePath string) []OperationOutcomeIssue {
 	var issues []OperationOutcomeIssue
 
 	entryAny, has := obj["entry"]
@@ -95,18 +162,20 @@ func validateBundle(obj map[string]any, opts ValidationOptions, basePath string)
 			issues = append(issues, issueError("structure", "Bundle.entry.resource must be an object", at(basePath, fmt.Sprintf("entry[%d].resource", i))))
 			continue
 		}
-		issues = append(issues, validateResourceOrBundle(resObj, opts, atStr(basePath, fmt.Sprintf("entry[%d].resource", i)))...)
+		issues = append(issues, validateResourceOrBundle(resObj, mode, atStr(basePath, fmt.Sprintf("entry[%d].resource", i)))...)
 	}
 
 	return issues
 }
 
-func validateResource(obj map[string]any, resourceType string, opts ValidationOptions, basePath string) []OperationOutcomeIssue {
+func validateResource(obj map[string]any, resourceType string, mode ValidationMode, basePath string) []OperationOutcomeIssue {
 	var issues []OperationOutcomeIssue
 
-	// "none" is intentionally minimal/structural-only: for non-Bundle resources, we
-	// accept unknown shapes as long as the payload is valid JSON and has resourceType.
-	if opts.Mode != "us-core" {
+	// ModeStructural is intentionally minimal/structural-only: for non-Bundle
+	// resources, we accept unknown shapes as long as the payload is valid JSON
+	// and has resourceType. Reaching here with any other value is impossible —
+	// ValidateJSON rejects an unrecognised mode before parsing the payload.
+	if mode != ModeUSCore {
 		return nil
 	}
 
@@ -168,12 +237,42 @@ func validateUSCoreProfilePresence(obj map[string]any, resourceType, basePath st
 
 	for _, p := range profiles {
 		s, _ := p.(string)
-		if expectedSet[s] {
+		if expectedSet[ProfileCanonical(s)] {
 			return nil
 		}
 	}
 
 	return []OperationOutcomeIssue{issueWarning("value", fmt.Sprintf("meta.profile does not include an expected profile for %s", resourceType), at(basePath, "meta.profile"))}
+}
+
+// ProfileCanonical reduces a FHIR canonical reference to its bare canonical URL
+// by dropping any `|version` suffix and surrounding whitespace.
+//
+// This is the profile-version assertion policy, chosen in Slice 5.1a and
+// recorded in `.loom/40-decisions.md` (2026-08-09) and
+// `docs/operations/SUPPORTED-1.0.md`:
+//
+//	The mapper asserts BARE CANONICALS. The checker accepts a bare canonical or
+//	any version-pinned form of it.
+//
+// FHIR R4 canonical references are `url[|version]` (FHIR R4 §2.24.1.3), so
+// `…/us-core-patient` and `…/us-core-patient|9.0.0` denote the same profile with
+// different version-resolution requirements. Before Slice 5.1a the comparison
+// was a byte-exact map lookup against 31 unversioned constants, so *every*
+// version-pinned resource — the form a conformant publisher is most likely to
+// emit — failed the presence check.
+//
+// The alternative policy (pin all 31 constants to `|9.0.0` and require an exact
+// match) was rejected: this package's checker has no package-resolution step, so
+// a pinned constant would assert a version it cannot verify, and it would
+// reject a correct bare canonical. Version *resolution* belongs to the real
+// validator in Slice 5.1b, over the pinned offline `.tgz` IG packages.
+func ProfileCanonical(profile string) string {
+	trimmed := strings.TrimSpace(profile)
+	if index := strings.Index(trimmed, "|"); index >= 0 {
+		return strings.TrimSpace(trimmed[:index])
+	}
+	return trimmed
 }
 
 func expectedProfilesForResourceType(resourceType string) map[string]bool {
@@ -216,7 +315,7 @@ func expectedProfilesForResourceType(resourceType string) map[string]bool {
 	case "ServiceRequest":
 		return map[string]bool{USCoreServiceRequestProfile: true}
 	case "DiagnosticReport":
-		return map[string]bool{USCoreDiagnosticReportNoteProfile: true}
+		return diagnosticReportProfiles()
 	case "DocumentReference":
 		return map[string]bool{USCoreDocumentReferenceProfile: true}
 	case "Provenance":

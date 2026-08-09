@@ -129,8 +129,14 @@ func (m *USCoreMapper) MapPatient(p *events.Patient) *Patient {
 		},
 	}
 
-	// Map identifiers
+	// Map identifiers. The IdentifierSet is authoritative, but Patient.MRN is a
+	// documented convenience field (pkg/events/events.go Patient.MRN) and every
+	// shipped parser is not the only possible producer. Before Slice 5.1a an
+	// MRN-only Patient mapped to zero identifiers and the checker then raised a
+	// hard `[error] Patient.identifier is required (US Core)` — the mapper
+	// produced a resource its own validator rejects. Backfill instead.
 	patient.Identifier = m.mapIdentifiers(&p.Identifiers)
+	patient.Identifier = m.appendMRNIdentifier(patient.Identifier, p.MRN)
 
 	// Map name
 	name := HumanName{
@@ -432,7 +438,7 @@ func (m *USCoreMapper) MapLabResult(event *events.LabResultEvent) (*DiagnosticRe
 	report := &DiagnosticReport{
 		ResourceType: "DiagnosticReport",
 		Meta: &Meta{
-			Profile: []string{USCoreBaseURL + "us-core-diagnosticreport-lab"},
+			Profile: []string{USCoreDiagnosticReportLabProfile},
 		},
 		Status: m.mapDiagnosticReportStatus(event.Result.Status),
 		Category: []CodeableConcept{
@@ -467,6 +473,33 @@ func (m *USCoreMapper) MapLabResult(event *events.LabResultEvent) (*DiagnosticRe
 }
 
 // Helper methods
+
+// appendMRNIdentifier backfills the canonical Patient.MRN convenience field as
+// an `MR`-typed identifier when the IdentifierSet did not already carry it.
+//
+// It is deliberately value-based rather than type-based: a producer that
+// populated Identifiers with the same MRN under any type has already expressed
+// it, and a second copy would be a duplicate rather than a correction.
+func (m *USCoreMapper) appendMRNIdentifier(existing []Identifier, mrn string) []Identifier {
+	mrn = strings.TrimSpace(mrn)
+	if mrn == "" {
+		return existing
+	}
+	for _, identifier := range existing {
+		if identifier.Value == mrn {
+			return existing
+		}
+	}
+	backfilled := Identifier{
+		Use:    "usual",
+		Value:  mrn,
+		System: m.IdentifierSystemMap["MR"],
+		Type: &CodeableConcept{
+			Coding: []Coding{{System: SystemIdentifierType, Code: "MR"}},
+		},
+	}
+	return append(existing, backfilled)
+}
 
 func (m *USCoreMapper) mapIdentifiers(ids *events.IdentifierSet) []Identifier {
 	if ids == nil || len(ids.Identifiers) == 0 {
@@ -732,9 +765,23 @@ func (m *USCoreMapper) mapLabCode(test *events.LabTest) CodeableConcept {
 		Text: test.Description,
 	}
 
+	// A (system, code) pair may arrive both as the convenience LOINCCode field
+	// and inside Code.Coding, which is the normal shape when a parser fills both.
+	// Emitting it twice is a duplicate coding: cosmetic against this checker,
+	// a real finding under any structural validator, and never correct.
+	seen := make(map[string]bool, len(test.Code.Coding)+1)
+	appendCoding := func(coding Coding) {
+		key := coding.System + "|" + coding.Code
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		result.Coding = append(result.Coding, coding)
+	}
+
 	// Add LOINC coding if available
 	if test.LOINCCode != "" {
-		result.Coding = append(result.Coding, Coding{
+		appendCoding(Coding{
 			System:  SystemLOINC,
 			Code:    test.LOINCCode,
 			Display: test.Description,
@@ -743,7 +790,7 @@ func (m *USCoreMapper) mapLabCode(test *events.LabTest) CodeableConcept {
 
 	// Add codings from CodeableConcept
 	for _, coding := range test.Code.Coding {
-		result.Coding = append(result.Coding, Coding{
+		appendCoding(Coding{
 			System:  coding.System,
 			Code:    coding.Code,
 			Display: coding.Display,

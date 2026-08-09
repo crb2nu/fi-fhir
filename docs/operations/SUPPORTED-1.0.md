@@ -23,12 +23,45 @@ every release, conformance, performance, recovery, or compatibility gate.
 | Local deployment | Docker Compose with PostgreSQL 16 | Development reference; not a production topology |
 | Kubernetes deployment | Kubernetes 1.36.x through Helm and Kustomize | Pinned reference target; render, install, upgrade, rollback, and live golden-journey evidence remain release gates |
 | Authoring UI | Current SvelteKit build served as static assets | Build/test locked; latest-two Chrome, Edge, and Firefox plus current Safari compatibility remains a release gate |
-| Healthcare standards | FHIR R4 4.0.1, US Core 9.0.0, SMART App Launch 2.2.0, Bulk Data 3.0.0 | Release targets; official validator or conformance-suite evidence is not yet complete |
+| Healthcare standards | FHIR R4 4.0.1, US Core 9.0.0, SMART App Launch 2.2.0, Bulk Data 3.0.0 | Release targets; official validator or conformance-suite evidence is not yet complete. Nothing in the repository is pinned to a US Core package — see "FHIR profile-version assertion policy" below |
 
 Kubernetes 1.36 is the pinned minor because it is an actively supported upstream
 release during the Engine Alpha program. Patch releases may advance within 1.36
 for security and defect fixes; changing the minor requires a dated decision and
 a full deployment proof rerun.
+
+## FHIR profile-version assertion policy
+
+*Decided 2026-08-09, Slice 5.1a. Recorded in `.loom/40-decisions.md` and
+`docs/planning/FHIR-CONFORMANCE-MATRIX.md`; asserted by
+`TestFHIRConformance_ProfileVersionPolicy`.*
+
+**The mapper asserts bare canonicals. The checker accepts a bare canonical or any
+`|version`-pinned form of it.**
+
+Concretely, a resource this product emits declares
+`http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient`, never
+`…/us-core-patient|9.0.0`. A resource this product *validates* may declare either.
+
+Two consequences worth stating plainly, because the row above lists US Core 9.0.0
+and a reader could reasonably infer more than is true:
+
+- **The product is not pinned to US Core 9.0.0.** None of the 32 US Core profile
+  constants carries a version suffix, no IG package is vendored, and nothing
+  resolves a profile against a package. 9.0.0 is a release *target*. Do not
+  describe the repository as "US Core 9.0.0-pinned".
+- **The shipped checker is a required-element and profile-URL presence check, not
+  a profile validator.** It has no terminology bindings, no primitive-type
+  checks, no slicing, and no invariants. Version *tolerance* is not version
+  *resolution*: stripping a `|version` suffix lets a correctly pinned resource
+  pass the presence check; it does not verify that the resource conforms to that
+  version of that profile.
+
+The alternative — pinning all constants to `|9.0.0` and requiring an exact match —
+was rejected. Without a package-resolution step a pinned constant asserts a
+version it cannot verify, and it would reject a correct bare canonical. Version
+resolution arrives with the pinned offline `.tgz` packages in Slice 5.1b, and
+item 7 of the evidence list below stays blocking until then.
 
 ## Reference application profile
 
