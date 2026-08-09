@@ -39,6 +39,37 @@ Plaintext mode is intended only for an independently protected loopback or
 sidecar trust boundary. Do not expose plaintext MLLP through a node port,
 ingress, load balancer, or untrusted network.
 
+## Capacity is enforced per replica, not per deployment
+
+`CapacityPolicy` (`MaxInFlight`, `MaxQueued`, `MaxMessagesPerSecond`) is
+declared once on the integration revision, but the listener enforces it with
+one in-process gate per `Service`
+(`internal/integration/mllp/service.go:46-55`,
+`pkg/integration/deployment.go:61-73`). That gate has no cross-process state:
+it bounds only the connections and messages this one replica handles.
+
+Running `N` replicas of the same deployment admits up to `N × MaxInFlight`
+concurrently and up to `N × MaxMessagesPerSecond` in aggregate. The revision
+itself still declares only a single policy value. A revision with
+`max_messages_per_second: 100` and 4 replicas can accept 400
+messages/second in total.
+
+This is documented behavior, not a pending bug fix. A durable,
+per-deployment token bucket that enforces the policy across replicas is
+future work (Slice 4.4+), not shipped today. Until it lands, an operator has
+two choices:
+
+- **Divide the declared policy by the replica count** — set
+  `max_messages_per_second`, `max_in_flight`, and `max_queued` on the
+  revision to the deployment-wide target divided by the replica count, so
+  the aggregate across replicas matches the intended ceiling.
+- **Accept the multiple deliberately** — size the declared policy assuming
+  it will be multiplied by the replica count, and document that assumption
+  in the deployment's own change record.
+
+Either way, changing the replica count without revisiting the capacity
+policy silently changes the deployment's effective ceiling.
+
 ## Client certificate service identity
 
 Slice 4.1b2 adds an optional `clients.identities` allowlist that maps one

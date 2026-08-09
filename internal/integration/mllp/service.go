@@ -3,6 +3,7 @@ package mllp
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -54,6 +55,45 @@ type Service struct {
 	capacity       *capacityGate
 	now            func() time.Time
 	newID          func() string
+
+	observeMu sync.RWMutex
+	observe   func(SubmitResult, error)
+}
+
+// SubmitResult reports one MLLP frame's admission outcome.
+//
+// Same shape as autoroute.SweeperConfig.Observe: a typed result, an optional
+// non-blocking hook, no metrics dependency inside this package. Nothing
+// message-derived is carried: an observer that wanted a message control ID
+// would be building an unbounded metric label.
+type SubmitResult struct {
+	// Accepted is true when the frame reached durable admission.
+	Accepted bool
+	// Duration is how long the submission took.
+	Duration time.Duration
+}
+
+// SetObserver binds an observation hook. It must not block.
+func (s *Service) SetObserver(observe func(SubmitResult, error)) {
+	if s == nil {
+		return
+	}
+	s.observeMu.Lock()
+	defer s.observeMu.Unlock()
+	s.observe = observe
+}
+
+func (s *Service) report(result SubmitResult, err error) {
+	if s == nil {
+		return
+	}
+	s.observeMu.RLock()
+	observe := s.observe
+	s.observeMu.RUnlock()
+	if observe == nil {
+		return
+	}
+	observe(result, err)
 }
 
 func NewService(config ServiceConfig) (*Service, error) {
@@ -108,7 +148,22 @@ func (s *Service) resolvePrincipal(identity ConnectionIdentity) (integration.Pri
 // Submit admits one framed HL7v2 payload under the verified connection
 // identity. In compatibility mode the identity is the zero value and the
 // deployment-fixed principal applies.
+// Submit admits one MLLP frame and observes the outcome.
+//
+// Observation wraps the whole admission path, including the fail-closed
+// rejections above the durable write, so a listener that is rejecting every
+// frame is visible rather than merely quiet.
 func (s *Service) Submit(ctx context.Context, identity ConnectionIdentity, payload []byte) (integration.ProcessResult, error) {
+	if s == nil {
+		return integration.ProcessResult{}, ErrUnavailable
+	}
+	started := time.Now()
+	result, err := s.submit(ctx, identity, payload)
+	s.report(SubmitResult{Accepted: err == nil, Duration: time.Since(started)}, err)
+	return result, err
+}
+
+func (s *Service) submit(ctx context.Context, identity ConnectionIdentity, payload []byte) (integration.ProcessResult, error) {
 	if s == nil || s.resolver == nil || s.processor == nil || s.capacity == nil ||
 		s.now == nil || s.newID == nil || ctx == nil {
 		return integration.ProcessResult{}, ErrUnavailable

@@ -87,11 +87,36 @@ FI_FHIR_BATCH_SOURCE_CONFIG_PATH=/etc/fi-fhir/batch-source.json
 FI_FHIR_BATCH_DEFINITION_ID=integration-batch
 FI_FHIR_BATCH_PRINCIPAL_ID=batch-ingest
 FI_FHIR_BATCH_REQUIRE_WORKLOAD_IDENTITY=true
-FI_FHIR_BATCH_WORKER_ID=fi-fhir-batch-1
 ```
 
 `FI_FHIR_BATCH_PRINCIPAL_ID` applies only in compatibility mode. A source that
 declares a `workload` block submits under its declared subject instead.
+
+### Worker identity
+
+Leave `FI_FHIR_BATCH_WORKER_ID` **unset**. When unset, the process derives
+`<hostname>-<pid>` at startup (`cmd/fi-fhir/batch_runtime.go:195-210`), the
+same scheme the durable Kafka delivery worker has always used
+(`cmd/fi-fhir/delivery_runtime.go:42-46`). Set the variable explicitly only
+if your deployment mints its own stable, unique identities per replica.
+
+Every replica must have a distinct worker ID. The checkpoint store's lease
+claim treats a request from the *same* worker ID as a lease renewal. That is
+correct for a restarted worker reclaiming its own lease
+(`internal/integration/batch/store.go:237-238`).
+
+Two replicas sharing one worker ID defeat this: each replica's claim looks
+like a renewal of the other's live lease. The replicas take turns stealing
+the lease from each other and both process the same object concurrently.
+This duplicate-ingestion defect is silent — no error is logged, because
+every claim looks like a legitimate renewal from the store's point of view.
+
+Earlier revisions of this document, and of `.env.example`, both prescribed
+one hardcoded value for `FI_FHIR_BATCH_WORKER_ID` and told every deployment
+to use it. That value was safe only for a single replica; copying it onto a
+second replica reproduces the failure mode above. Do not set the same
+literal value across replicas — leaving the variable unset is the
+recommended way to guarantee uniqueness.
 
 The definition must be deployed and its exact source ID, revision ID, digest,
 provider, and secret bindings must match the source document. Startup or polling

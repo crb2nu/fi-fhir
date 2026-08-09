@@ -59,6 +59,18 @@ type HealthPolicy struct {
 }
 
 // CapacityPolicy bounds concurrency, queued work, and accepted message rate.
+//
+// The policy is enforced PER REPLICA, not per deployment. The MLLP listener
+// holds one in-process capacity gate per Service
+// (internal/integration/mllp/service.go), so a deployment running N replicas
+// admits up to N × MaxInFlight concurrently and N × MaxMessagesPerSecond in
+// aggregate, even though the revision declares one policy.
+//
+// An operator therefore divides the declared policy by the replica count, or
+// accepts the multiple deliberately. Slice 4.3 documents this rather than
+// silently multiplying it; a durable per-deployment token bucket is future
+// work. See docs/operations/PRODUCTION-MLLP.md and `.loom/40-decisions.md`
+// (2026-08-08).
 type CapacityPolicy struct {
 	MaxInFlight          int `json:"max_in_flight"`
 	MaxQueued            int `json:"max_queued"`

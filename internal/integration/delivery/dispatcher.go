@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
@@ -34,6 +35,19 @@ const (
 	OutcomeForbidden Outcome = "identity_forbidden"
 )
 
+// DispatchResult reports one bounded dispatcher step.
+//
+// It exists because RunOnce already computes a typed Outcome that Run then
+// discards, so the durable delivery worker was invisible to the process it runs
+// in. The shape mirrors autoroute.SweeperConfig.Observe exactly: a typed result,
+// an optional non-blocking hook, and no metrics dependency inside this package.
+type DispatchResult struct {
+	// Outcome is the step's terminal classification.
+	Outcome Outcome
+	// Duration is how long the step took, including the database round trips.
+	Duration time.Duration
+}
+
 // Dispatcher publishes durable work and records its terminal database outcome.
 type Dispatcher struct {
 	store     Store
@@ -41,6 +55,35 @@ type Dispatcher struct {
 	workerID  string
 	config    Config
 	decider   DestinationDecider
+
+	mu      sync.RWMutex
+	observe func(DispatchResult, error)
+}
+
+// SetObserver binds an observation hook. It must not block.
+//
+// Binding is a setter rather than a constructor field so the four existing
+// NewDispatcher call sites — production and tests — keep their signatures.
+func (d *Dispatcher) SetObserver(observe func(DispatchResult, error)) {
+	if d == nil {
+		return
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.observe = observe
+}
+
+func (d *Dispatcher) report(result DispatchResult, err error) {
+	if d == nil {
+		return
+	}
+	d.mu.RLock()
+	observe := d.observe
+	d.mu.RUnlock()
+	if observe == nil {
+		return
+	}
+	observe(result, err)
 }
 
 // NewDispatcher validates and constructs one worker without a destination
@@ -144,7 +187,9 @@ func (d *Dispatcher) Run(ctx context.Context) error {
 		return errors.New("delivery dispatcher is unavailable")
 	}
 	for {
+		started := time.Now()
 		outcome, err := d.RunOnce(ctx)
+		d.report(DispatchResult{Outcome: outcome, Duration: time.Since(started)}, err)
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil //nolint:nilerr // Context cancellation is graceful worker shutdown.

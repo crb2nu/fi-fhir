@@ -19,19 +19,30 @@ write_fake_curl() {
   printf '%s\n' \
     '#!/usr/bin/env bash' \
     'set -euo pipefail' \
-    'printf "%s\n" "$*" >> "$FAKE_CURL_LOG"' \
+    'printf "%s\\n" "$*" >> "$FAKE_CURL_LOG"'\
+    'case "$*" in *"-o /dev/null"*) FAKE_CURL_STATUS_ONLY=1 ;; esac' \
     'case "$*" in' \
     '  *"/health"*)' \
     '    if [ "${FAKE_CURL_MODE:-success}" = "retry-health" ]; then' \
     '      count=$(grep -c "/health" "$FAKE_CURL_LOG" || true)' \
     '      [ "$count" -gt 1 ] || exit 22' \
     '    fi' \
-    '    printf "%s" "{\"status\":\"healthy\"}"' \
+    '    printf "%s" "{\"status\":\"healthy\",\"components\":[{\"name\":\"process\",\"status\":\"healthy\"}]}"' \
     '    ;;' \
+    '  *"/ready"*)' \
+    '    if [ "${FAKE_CURL_MODE:-success}" = "ready-lies" ]; then' \
+    '      if [ -n "${FAKE_CURL_STATUS_ONLY:-}" ]; then printf "%s" "200"; exit 0; fi' \
+    '      printf "%s" "{\"status\":\"unhealthy\",\"components\":[{\"name\":\"submission_db\",\"status\":\"unhealthy\"}]}"' \
+    '      exit 0' \
+    '    fi' \
+    '    if [ -n "${FAKE_CURL_STATUS_ONLY:-}" ]; then printf "%s" "200"; exit 0; fi' \
+    '    printf "%s" "{\"status\":\"healthy\",\"components\":[{\"name\":\"submission_db\",\"status\":\"not_configured\"}]}"' \
+    '    ;;' \
+    '  *"/metrics"*) printf "%s" "fi_fhir_build_info{version=\"test\"} 1" ;;' \
     '  *"/graphql/ws"*) printf "%s" "404" ;;' \
     '  *"/graphql"*)' \
     '    [ "${FAKE_CURL_MODE:-success}" != "graphql-failure" ] || exit 22' \
-    '    printf "%s" "{\"data\":{\"health\":{\"status\":\"ok\"}}}"' \
+    '    printf "%s" "{\"data\":{\"health\":{\"status\":\"healthy\",\"components\":[]}}}"' \
     '    ;;' \
     '  *) exit 22 ;;' \
     'esac' > "$path"
@@ -45,8 +56,8 @@ success_log="$TMP_DIR/success.log"
 success_output=$(FAKE_CURL_LOG="$success_log" CURL_BIN="$FAKE_CURL" \
   GRAPHQL_BEARER_TOKEN="smoke-test-bearer-token-value" \
   RETRIES=1 RETRY_DELAY=0 bash "$SMOKE_SCRIPT")
-grep -q 'Results: 3 passed, 0 failed' <<<"$success_output" ||
-  fail "positive path did not report all three checks"
+grep -q 'Results: 5 passed, 0 failed' <<<"$success_output" ||
+  fail "positive path did not report all five checks"
 grep -q 'Authorization: Bearer smoke-test-bearer-token-value' "$success_log" ||
   fail "GraphQL check omitted bearer authorization"
 grep -q 'Origin: http://localhost:5173' "$success_log" ||
@@ -60,7 +71,7 @@ failure_output=$(FAKE_CURL_LOG="$failure_log" FAKE_CURL_MODE=graphql-failure \
 failure_status=$?
 set -e
 [ "$failure_status" -eq 1 ] || fail "negative path exited $failure_status, want 1"
-grep -q 'Results: 2 passed, 1 failed' <<<"$failure_output" ||
+grep -q 'Results: 4 passed, 1 failed' <<<"$failure_output" ||
   fail "negative path did not aggregate the failed check"
 grep -q '/graphql/ws' "$failure_log" ||
   fail "WebSocket check did not run after the GraphQL failure"
@@ -69,10 +80,24 @@ retry_log="$TMP_DIR/retry.log"
 retry_output=$(FAKE_CURL_LOG="$retry_log" FAKE_CURL_MODE=retry-health \
   CURL_BIN="$FAKE_CURL" GRAPHQL_BEARER_TOKEN="smoke-test-bearer-token-value" \
   RETRIES=2 RETRY_DELAY=0 bash "$SMOKE_SCRIPT")
-grep -q 'Results: 3 passed, 0 failed' <<<"$retry_output" ||
+grep -q 'Results: 5 passed, 0 failed' <<<"$retry_output" ||
   fail "retry path did not recover"
 [ "$(grep -c '/health' "$retry_log")" -eq 2 ] ||
   fail "health check did not retry exactly once"
+
+# The readiness check must refuse a 200 that carries an unhealthy component:
+# a status code that disagrees with its own body is the aggregation lie this
+# slice exists to remove.
+lying_log="$TMP_DIR/ready-lies.log"
+set +e
+lying_output=$(FAKE_CURL_LOG="$lying_log" FAKE_CURL_MODE=ready-lies \
+  CURL_BIN="$FAKE_CURL" GRAPHQL_BEARER_TOKEN="smoke-test-bearer-token-value" \
+  RETRIES=1 RETRY_DELAY=0 bash "$SMOKE_SCRIPT" 2>&1)
+lying_status=$?
+set -e
+[ "$lying_status" -eq 1 ] || fail "readiness disagreement exited $lying_status, want 1"
+grep -q '/ready returned 200 with an unhealthy component' <<<"$lying_output" ||
+  fail "readiness check accepted a 200 that named an unhealthy component"
 
 set +e
 missing_token_output=$(FAKE_CURL_LOG="$TMP_DIR/missing-token.log" CURL_BIN="$FAKE_CURL" \

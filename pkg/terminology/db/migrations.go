@@ -85,6 +85,9 @@ func (m *Migrator) Initialize(ctx context.Context) (bool, error) {
 		if err != nil {
 			return false, fmt.Errorf("applying v2 migration: %w", err)
 		}
+		if _, err = m.db.ExecContext(ctx, SchemaV3Migration); err != nil {
+			return false, fmt.Errorf("applying v3 migration: %w", err)
+		}
 		return true, nil
 	}
 
@@ -93,6 +96,11 @@ func (m *Migrator) Initialize(ctx context.Context) (bool, error) {
 		_, err = m.db.ExecContext(ctx, SchemaV2Migration)
 		if err != nil {
 			return false, fmt.Errorf("applying v2 migration: %w", err)
+		}
+	}
+	if currentVersion < 3 {
+		if _, err = m.db.ExecContext(ctx, SchemaV3Migration); err != nil {
+			return false, fmt.Errorf("applying v3 migration: %w", err)
 		}
 	}
 

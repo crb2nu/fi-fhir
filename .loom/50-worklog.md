@@ -920,3 +920,118 @@ Chronological notes while executing the plan (useful for handoffs and debugging)
   - [S3] `internal/workflow/benchmark_util_test.go`
     `TestGate_RegressionForPipeline22521`
   - [S4] Command: `go run ./cmd/bench-check -suggest <78 artifacts>`
+### 2026-08-08 - Phase 4 Slice 4.3 observability (Lane S3-A) file and migration claim
+
+- What changed:
+  - Opened `feat/phase4-slice-4-3-observability` from `main` @ `7111cca1` and
+    claimed this lane's files per `.loom/31-sprint3-execution-specs.md`
+    "Exact shared-file risks", before the first implementation commit.
+- Owned files (Lane S3-A):
+  - New package `internal/observability/**`.
+  - `cmd/fi-fhir/main.go`: the `runServe` observability block, and the `errCh` /
+    `waitForBackgroundStops` component table. S3-B appends its
+    destination-identity loader after the delivery block; S3-C appends its
+    retention sweeper after the autoroute block. Neither edits the component
+    table itself — rebase onto this lane instead.
+  - `cmd/fi-fhir/batch_runtime.go` (worker-identity derivation only).
+  - `internal/api/graphql/server.go` (health/readiness mount + reserved paths).
+  - `internal/api/graphql/resolvers/schema.resolvers.go` — `Health` resolver
+    **body only**; no schema change, `generated.go` byte-identical.
+  - `internal/api/graphql/resolvers/resolver.go` (health reporter option).
+  - `internal/integration/session/{hub.go,runner.go,postgres.go,stream.go}` and
+    a session migration (claimed as `0004`; landed as `0005` — see below).
+  - `internal/integration/mllp/service.go`, `internal/integration/delivery/dispatcher.go`,
+    `internal/integration/batch/runner.go` — `Observe` seams only.
+  - `internal/terminology/autoroute/notify.go`, `pkg/terminology/db/mappings.go`
+    (durable notification claim) and terminology migration `notified_at`.
+  - `deploy/kubernetes/base/*`, `deploy/helm/fi-fhir/*`, `deploy/docker/prometheus.yml`,
+    `docker-compose.yaml`, `dashboards/**`.
+  - `scripts/smoke-test.sh`, `scripts/check-runtime-config.sh`, `test/e2e/integration_test.go`.
+  - `.env.example` observability + batch worker sections; `docs/operations/README.md`,
+    `docs/operations/BATCH-INGESTION.md`, `docs/operations/PRODUCTION-MLLP.md`.
+  - `.gitlab-ci.yml`: appended `test:observability-replicas` at the end of the
+    `test` stage. No existing job modified.
+  - `Makefile`: new `observability-replicas` target only.
+- Migration numbers claimed:
+  - `internal/integration/session/migrations/` — S3-A needs one for the durable
+    fanout log. `.loom/31`'s file-ownership table assigned session `0004_*` to
+    S3-C without noticing that S3-A task 6 also needs a session migration.
+    **Outcome: S3-C merged first and took `0004_export_attribution.sql`, so this
+    lane renumbered to `0005_session_stream_events.sql` on rebase.** A worklog
+    claim does not reserve a number against a lane that merges ahead of you.
+  - `internal/integration/processor/migrations/` — untouched by this lane;
+    `0004_*` remains S3-C's.
+- Why:
+  - Coordination rule in `.loom/31-sprint3-execution-specs.md`: each lane records
+    its owned files and claimed migration number before the first commit.
+- What's next:
+  - Implement in the spec's order: real `/health` + `/ready` + probes → observe
+    seams → durable fanout → worker identity, notifier lease, MLLP capacity →
+    façade cleanup, then the negative-controlled kill-test.
+- Sources:
+  - [S1] `.loom/31-sprint3-execution-specs.md` "Exact shared-file risks", "Coordination rules"
+  - [S2] `.loom/iteration-plan-phase-4-slice-4-3-observability.md`
+
+### 2026-08-08 - Phase 4 Slice 4.3 truthful observability (Lane S3-A)
+
+- What changed:
+  - Added `internal/observability`: one `prometheus.Registry` on a second
+    listener at `FI_FHIR_METRICS_PORT`, plus a health surface that wires the
+    already-shipped `workflow.HealthService` for the first time. `/health` is
+    process-only liveness; `/ready` is dependency-touching and returns 503.
+  - Fixed the GraphQL `health` resolver body to project the same component set.
+    No schema change; `generated.go` byte-identical.
+  - Added `Observe` seams to the MLLP service, delivery `Dispatcher`, batch
+    `Runner`, and session `Hub`, and bound them to the registry in `runServe`.
+  - Replaced the process-local session SSE fanout with an envelope-only durable
+    log (session migration `0005`) plus a per-replica relay.
+  - Derived the batch worker ID from hostname+pid, moved autoroute notification
+    de-duplication into a durable `notified_at` claim (terminology schema v3),
+    and documented MLLP `CapacityPolicy` as per-replica.
+  - Called `PostgresCatalog.ReportHealth` from a runtime health reporter.
+  - Replaced `exec ["/fi-fhir","version"]` probes with `httpGet /health` and
+    `/ready`; aligned the Helm chart so both deployment paths agree.
+  - Rewrote 32 alert rules into 10 actionable ones and the Grafana dashboard
+    against emitted metrics; corrected `.env.example` and `docs/operations/*`.
+  - Extended `scripts/smoke-test.sh` (and its self-test) to assert the component
+    projection, readiness/status agreement, and the exposition; added five
+    blocking observability-truth checks to `scripts/check-runtime-config.sh`.
+  - Added required CI job `test:observability-replicas` and
+    `make observability-replicas`.
+- Why:
+  - Slice 4.3 required `/health`, `/ready`, and `/metrics` to report real
+    component state and every background component to be correct under the
+    `replicas: 2` the checked-in manifests already declared.
+- Evidence:
+  - Kill-test `TestServeObservability_TwoReplicasUnderDocumentedConfiguration`
+    passes on PostgreSQL 16 with `-race`: two real `fi-fhir serve` processes,
+    started from the documented environment block.
+  - Negative control: `FI_FHIR_OBSERVABILITY_MODE=legacy` fails all four required
+    assertions — `/ready` = 404, replica A receives zero events for a run on B,
+    both batch runners claim `fi-fhir-batch-1`, and two notifiers page 6 times
+    for 3 pending rows. Assertion 5 also fails there (no metrics listener).
+  - Assertion 5 counts a real durable submission: HTTP 202 with a receipt, and no
+    PHI sentinel (MRN, patient name, family name) reaches any metric label.
+  - `gofmt` clean, `golangci-lint run` 0 issues, `go vet ./...` clean,
+    `go test -race ./...` green (63 packages), `make lint-gqlgen` reports codegen
+    up to date, `make check-runtime-config` 19 passed / 0 failures,
+    `helm lint deploy/helm/fi-fhir` 0 failures,
+    `scripts/validate-kustomize-preview.sh` passed,
+    `bash scripts/smoke-test_test.sh` all assertions passed.
+- Corrections made to `.loom/31-sprint3-execution-specs.md` before coding:
+  - The session-migration row assigned `0004_*` to S3-C without noticing that
+    S3-A task 6 also needs one. Settled by merge order rather than by claim:
+    S3-C took `0004_export_attribution.sql`, so S3-A landed
+    `0005_session_stream_events.sql`.
+  - The kill-test's "stop PostgreSQL via the remote Docker context" is not
+    runnable in a GitLab job whose PostgreSQL is a service container. Replaced
+    with an in-test TCP proxy, which is portable and exercises pool reconnect.
+- What's next:
+  - S3-B and S3-C rebase onto this merge before judging their MR diffs; the
+    `runServe` component table changed shape.
+  - 4.4 owns the tracing exporter, structured logging, cardinality budgets under
+    load, and a durable per-deployment MLLP token bucket.
+- Sources:
+  - [S1] `.loom/slice-handoff-phase-4-slice-4-3-observability.md`
+  - [S2] `internal/observability/replicas_integration_test.go`
+  - [S3] Command: `make observability-replicas` with `POSTGRES_TEST_URL` set

@@ -5,10 +5,12 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strings"
 
 	integrationbatch "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/batch"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/observability"
 )
 
 func loadBatchRuntimeFromEnv(
@@ -44,7 +46,7 @@ func loadBatchRuntimeFromEnv(
 	if err != nil {
 		return nil, nil, err
 	}
-	workerID, err := requiredEnv("FI_FHIR_BATCH_WORKER_ID")
+	workerID, err := resolveBatchWorkerID(observability.ModeFromEnv())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -172,4 +174,37 @@ func loadBatchProviderFromEnv(source integrationbatch.SourceRevision) (integrati
 	default:
 		return nil, fmt.Errorf("configure batch provider: unsupported provider")
 	}
+}
+
+// resolveBatchWorkerID derives a per-process batch worker identity.
+//
+// FI_FHIR_BATCH_WORKER_ID used to be a required environment variable, and both
+// `.env.example` and `docs/operations/BATCH-INGESTION.md` handed out the same
+// literal value, `fi-fhir-batch-1`. The batch store treats a *matching* owner as
+// a re-lease (internal/integration/batch/store.go), which is correct for a
+// restarted worker reclaiming its own lease and catastrophic for two replicas
+// sharing an identity: they steal each other's live leases and process the same
+// object concurrently. The existing CI replica-exclusion proof cannot see it,
+// because that proof uses distinct IDs worker-a/worker-b/worker-c.
+//
+// The derivation mirrors the delivery worker, which has always done this
+// (cmd/fi-fhir/delivery_runtime.go). The environment variable remains an
+// override for deployments that mint their own identities, and the
+// documentation now states the uniqueness requirement instead of publishing a
+// value to copy.
+func resolveBatchWorkerID(mode observability.Mode) (string, error) {
+	configured := strings.TrimSpace(os.Getenv("FI_FHIR_BATCH_WORKER_ID"))
+	if configured != "" {
+		return configured, nil
+	}
+	if mode.Legacy() {
+		// The negative control keeps the pre-Slice-4.3 contract: no derivation,
+		// so the documented shared literal is the only way to start.
+		return "", fmt.Errorf("FI_FHIR_BATCH_WORKER_ID is required")
+	}
+	hostname, err := os.Hostname()
+	if err != nil || strings.TrimSpace(hostname) == "" {
+		return "", fmt.Errorf("FI_FHIR_BATCH_WORKER_ID is required when hostname is unavailable")
+	}
+	return fmt.Sprintf("%s-%d", strings.TrimSpace(hostname), os.Getpid()), nil
 }

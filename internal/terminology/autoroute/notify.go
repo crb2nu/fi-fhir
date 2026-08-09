@@ -119,6 +119,20 @@ type PendingAutorouteLister interface {
 	ListPendingAutoroutes(ctx context.Context, filter db.ListPendingAutoroutesFilter) ([]*db.PendingAutoroute, int, error)
 }
 
+// PendingAutorouteNotificationClaimer claims review notifications durably.
+//
+// De-duplication has to be a database decision, not a process decision. A
+// per-process map makes N replicas page reviewers N times for the same row and
+// makes every restart re-page the whole backlog; the claim below is atomic, so
+// exactly one replica wins each row exactly once, forever.
+//
+// A store that does not implement this keeps the in-process fallback, which is
+// still correct for a single process and is what the in-memory test doubles
+// use.
+type PendingAutorouteNotificationClaimer interface {
+	ClaimPendingAutorouteNotifications(ctx context.Context, ids []int64) ([]int64, error)
+}
+
 // NotifyResult reports one scan of the review queue.
 type NotifyResult struct {
 	// Eligible is how many scanned rows met the confidence threshold.
@@ -262,6 +276,14 @@ type ReviewNotifierConfig struct {
 	// ObserveDelivery, when set, is called once per dispatched notification with
 	// the delivery outcome. It must not block.
 	ObserveDelivery func(DeliveryResult, error)
+
+	// DisableDurableClaims forces the pre-Slice-4.3 per-process de-duplication
+	// even when the store can claim durably.
+	//
+	// It exists for the kill-test's negative control
+	// (FI_FHIR_OBSERVABILITY_MODE=legacy), which has to demonstrate the
+	// double-page this notifier now prevents. Production never sets it.
+	DisableDurableClaims bool
 }
 
 // ReviewNotifier notifies an external webhook that high-confidence pending
@@ -279,6 +301,7 @@ type ReviewNotifierConfig struct {
 // exported so a per-event hook can be added later without redesigning dispatch.
 type ReviewNotifier struct {
 	store         PendingAutorouteLister
+	claimer       PendingAutorouteNotificationClaimer
 	sink          NotificationSink
 	interval      time.Duration
 	minConfidence float64
@@ -316,8 +339,13 @@ func NewReviewNotifier(cfg ReviewNotifierConfig) (*ReviewNotifier, error) {
 	if queueSize <= 0 {
 		queueSize = defaultNotifyQueueSize
 	}
+	claimer, _ := cfg.Store.(PendingAutorouteNotificationClaimer)
+	if cfg.DisableDurableClaims {
+		claimer = nil
+	}
 	return &ReviewNotifier{
 		store:           cfg.Store,
+		claimer:         claimer,
 		sink:            cfg.Sink,
 		interval:        cfg.Interval,
 		minConfidence:   cfg.MinConfidence,
@@ -400,7 +428,11 @@ func (n *ReviewNotifier) ScanOnce(ctx context.Context) (NotifyResult, error) {
 		return result, nil
 	}
 
-	fresh := n.markUnseen(eligible)
+	fresh, err := n.claimUnnotified(ctx, eligible)
+	if err != nil {
+		result.Duration = time.Since(started)
+		return result, err
+	}
 	result.New = len(fresh)
 	if len(fresh) == 0 {
 		// Nothing new since the last notification: stay silent rather than
@@ -491,6 +523,41 @@ func (n *ReviewNotifier) dispatch(ctx context.Context) {
 // De-duplication is by pending autoroute ID. A re-suggested mapping keeps its
 // row (CreatePendingAutoroute upserts on the natural key), so it is notified
 // once rather than on every re-resolution.
+//
+// When the store can claim durably the decision is made in the database, so two
+// replicas scanning the same backlog page a reviewer once between them. The
+// in-process set below is the fallback for stores that cannot, and it is a
+// per-process approximation: it double-pages across replicas and re-pages after
+// a restart. That is exactly the defect Slice 4.3 removed, and it is preserved
+// only so the negative control can demonstrate it.
+func (n *ReviewNotifier) claimUnnotified(ctx context.Context, rows []*db.PendingAutoroute) ([]*db.PendingAutoroute, error) {
+	if n.claimer == nil {
+		return n.markUnseen(rows), nil
+	}
+	ids := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+	}
+	claimed, err := n.claimer.ClaimPendingAutorouteNotifications(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("claiming pending autoroute review notifications: %w", err)
+	}
+	won := make(map[int64]struct{}, len(claimed))
+	for _, id := range claimed {
+		won[id] = struct{}{}
+	}
+	fresh := make([]*db.PendingAutoroute, 0, len(claimed))
+	for _, row := range rows {
+		if _, ok := won[row.ID]; ok {
+			fresh = append(fresh, row)
+		}
+	}
+	sort.SliceStable(fresh, func(i, j int) bool {
+		return fresh[i].Confidence > fresh[j].Confidence
+	})
+	return fresh, nil
+}
+
 func (n *ReviewNotifier) markUnseen(rows []*db.PendingAutoroute) []*db.PendingAutoroute {
 	n.mu.Lock()
 	defer n.mu.Unlock()

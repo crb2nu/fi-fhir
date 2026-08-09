@@ -33,7 +33,14 @@ func newIntegrationSessionServiceWithStore(store enginesession.Store) *integrati
 	if store == nil {
 		store = enginesession.NewMemoryStore()
 	}
+	// A store that can carry the durable fanout log gets a durable hub, so a
+	// subscription pinned to one replica sees a run executed on another. The
+	// in-memory store has no log and keeps in-process fanout, which is correct
+	// for a single-process composition.
 	hub := enginesession.NewHub()
+	if log, ok := store.(enginesession.StreamLog); ok {
+		hub = enginesession.NewDurableHub(log, nil)
+	}
 	return &integrationSessionService{
 		store: store, runner: enginesession.NewRunner(store, hub),
 		simulator: enginesession.NewWorkflowSimulator(store), hub: hub,

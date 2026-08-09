@@ -256,3 +256,13 @@ func buildTLSConfig(policy TLSPolicy, material TLSMaterial) (*tls.Config, error)
 		ClientCAs:    clientCAs,
 	}, nil
 }
+
+// Service exposes the admission service so the serve process can attach an
+// observation hook. The listener owns the service's lifecycle; the process owns
+// its observation.
+func (s *Server) Service() *Service {
+	if s == nil {
+		return nil
+	}
+	return s.service
+}

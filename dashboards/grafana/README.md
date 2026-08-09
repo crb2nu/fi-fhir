@@ -1,6 +1,7 @@
 # fi-fhir Grafana Dashboards
 
-Pre-built Grafana dashboards for monitoring the fi-fhir workflow engine.
+Pre-built Grafana dashboards for monitoring the fi-fhir integration engine
+runtime.
 
 ## Prerequisites
 
@@ -11,7 +12,7 @@ Pre-built Grafana dashboards for monitoring the fi-fhir workflow engine.
 
 | Dashboard | File | Description |
 |-----------|------|-------------|
-| Workflow Overview | `workflow-overview.json` | Comprehensive view of event processing, actions, HTTP requests, resilience patterns, and DLQ |
+| Integration Engine Runtime | `workflow-overview.json` | Process/readiness state, HTTP+MLLP ingress, outbound delivery, batch ingestion, Integration Session stream, pending-autoroute sweep/notify, and Go runtime health |
 
 ## Import Instructions
 
@@ -54,65 +55,58 @@ data:
 
 ## Dashboard Panels
 
-### Workflow Overview Dashboard
+### Integration Engine Runtime Dashboard
 
 **Overview Row**
-- Events Processed (total count)
-- Error Rate (percentage)
-- Processing Latency (p99)
-- DLQ Depth (current)
+- Running Version(s) — `fi_fhir_build_info`
+- Components Up — `fi_fhir_component_up` (graphql, mllp, delivery, batch, autoroute_sweep, autoroute_notify, session_stream)
+- Readiness Dependencies — `fi_fhir_readiness_up` (submission_db, terminology_db, session_store, profile_store, workflow_lifecycle_store, event_store, mapping_store, plus background components)
 
-**Event Processing Row**
-- Event Processing Rate by Type
-- Event Processing Latency (p50/p95/p99)
-- Event Success/Failure Rate
-- Events Routed by Route
+**Ingress Row**
+- HTTP Ingress Submissions by Outcome
+- MLLP Messages by Outcome
 
-**Actions Row**
-- Action Execution Rate by Type
-- Action Latency by Type (p95/p99)
-- Action Retries
-- Action Error Rate by Type
+**Delivery & Batch Row**
+- Delivery Attempts by Outcome
+- Batch Objects by Outcome
 
-**HTTP Requests Row**
-- HTTP Request Rate by Method
-- HTTP Request Latency (p50/p95/p99)
-- HTTP Response Status Codes
+**Session Stream & Autoroute Row**
+- Session Stream Events by Outcome
+- Autoroute Sweep Rate & Expired Rows
+- Autoroute Notifications by Outcome
 
-**Resilience Row**
-- Circuit Breaker State Changes
-- Circuit Breaker Rejections
-- Rate Limiting Activity
-- Rate Limit Wait Duration
-
-**Dead Letter Queue Row**
-- DLQ Depth Over Time
-- DLQ Push Rate by Error Type
-- DLQ Reprocessing Rate
+**Process Runtime Row**
+- Goroutines (`go_goroutines`)
+- Process RSS (`process_resident_memory_bytes`)
 
 ## Metric Naming
 
-Dashboards expect metrics with the default Prometheus configuration:
-- Namespace: `fi_fhir`
-- Subsystem: `workflow`
+Every panel queries a `fi_fhir_*` metric that
+[`internal/observability/metrics.go`](../../internal/observability/metrics.go)
+actually registers, served on `FI_FHIR_METRICS_PORT` (default `9090`) at
+`FI_FHIR_METRICS_ENDPOINT` (default `/metrics`). See that file for the exact
+metric names, types, and label allowlists — this dashboard does not invent
+any query that isn't backed by a real collector.
 
-If you customized the metric names, update the queries in the dashboard JSON.
+If you rename a metric in `metrics.go`, update the matching query here in the
+same change; a dashboard panel with no matching series renders an empty graph
+with no error, so drift is silent until someone notices the panel is always
+blank.
 
 ## Alerting
 
-Pre-built Prometheus alerting rules are available in [`../alerting/`](../alerting/):
+Prometheus alerting rules are available in [`../alerting/`](../alerting/):
 
 | File | Description |
 |------|-------------|
 | `workflow-alerts.yaml` | Standalone Prometheus rules |
 | `workflow-alerts-k8s.yaml` | PrometheusRule CRD for Kubernetes |
 
-**18 alerts across 5 categories:**
-- **Availability**: Error rate, action failures, no-event detection
-- **Latency**: p99 for events, actions, HTTP requests
-- **Resilience**: Circuit breaker, retry rate, rate limiting
-- **DLQ**: Queue depth, push rate, reprocessing failures
-- **HTTP**: 5xx/4xx error rates, authentication failures
+**10 alerts across 4 categories:**
+- **Availability**: scrape target down, component down, readiness dependency unhealthy
+- **Ingress**: HTTP ingress error rate, MLLP rejection rate
+- **Delivery**: delivery failure rate, batch failure rate, session stream error rate
+- **Autoroute**: expiry sweep failures, review notification failures
 
 See [Alerting README](../alerting/README.md) for installation and customization.
 
@@ -130,17 +124,11 @@ Edit the `time` field in the JSON:
 Add to the `templating.list` array:
 ```json
 {
-  "name": "event_type",
+  "name": "component",
   "type": "query",
-  "query": "label_values(fi_fhir_workflow_events_processed_total, event_type)",
+  "query": "label_values(fi_fhir_component_up, component)",
   "refresh": 1
 }
 ```
 
-Then use `${event_type}` in queries.
-
-### Custom Metric Prefix
-
-If you changed the namespace/subsystem, update queries:
-- Find: `fi_fhir_workflow_`
-- Replace: `your_namespace_your_subsystem_`
+Then use `${component}` in queries.

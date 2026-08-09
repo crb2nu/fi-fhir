@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 // MappingOrigin indicates where a custom mapping came from.
@@ -1036,6 +1037,49 @@ func (s *MappingStore) ExpirePendingAutoroutes(ctx context.Context) (int64, erro
 		return 0, fmt.Errorf("expiring pending autoroutes: %w", err)
 	}
 	return result.RowsAffected()
+}
+
+// ClaimPendingAutorouteNotifications atomically claims the review notification
+// for each supplied pending autoroute and returns the IDs this caller won.
+//
+// Before Slice 4.3 the review notifier de-duplicated in a per-process map, so
+// N replicas paged reviewers N times for every row and each restart re-paged
+// the entire backlog. The conditional UPDATE ... RETURNING makes the claim the
+// database's decision: two replicas racing the same row produce exactly one
+// winner, and a restart wins nothing it already claimed.
+//
+// Rows that are no longer pending are not claimable, so a row approved between
+// the scan and the claim never pages anyone.
+func (s *MappingStore) ClaimPendingAutorouteNotifications(ctx context.Context, ids []int64) ([]int64, error) {
+	if s == nil || s.db == nil || ctx == nil {
+		return nil, fmt.Errorf("claiming pending autoroute notifications: store unavailable")
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		UPDATE terminology.pending_autoroutes
+		SET notified_at = NOW()
+		WHERE id = ANY($1) AND status = 'pending' AND notified_at IS NULL
+		RETURNING id
+	`, pq.Array(ids))
+	if err != nil {
+		return nil, fmt.Errorf("claiming pending autoroute notifications: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	claimed := make([]int64, 0, len(ids))
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scanning claimed pending autoroute notification: %w", err)
+		}
+		claimed = append(claimed, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating claimed pending autoroute notifications: %w", err)
+	}
+	return claimed, nil
 }
 
 // CountPendingAutoroutes returns counts of pending autoroutes by status.

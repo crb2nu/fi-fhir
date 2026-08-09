@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 	"time"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/authorization"
@@ -58,6 +59,43 @@ type Runner struct {
 	provider     Provider
 	now          func() time.Time
 	faultHook    func(string) error
+
+	observeMu sync.RWMutex
+	observe   func(PollResult, error)
+}
+
+// PollResult reports one batch poll cycle.
+//
+// Same shape as autoroute.SweeperConfig.Observe: a typed result, an optional
+// non-blocking hook, no metrics dependency inside this package.
+type PollResult struct {
+	// Objects is how many source objects the poll processed.
+	Objects int
+	// Duration is how long the poll took.
+	Duration time.Duration
+}
+
+// SetObserver binds an observation hook. It must not block.
+func (r *Runner) SetObserver(observe func(PollResult, error)) {
+	if r == nil {
+		return
+	}
+	r.observeMu.Lock()
+	defer r.observeMu.Unlock()
+	r.observe = observe
+}
+
+func (r *Runner) report(result PollResult, err error) {
+	if r == nil {
+		return
+	}
+	r.observeMu.RLock()
+	observe := r.observe
+	r.observeMu.RUnlock()
+	if observe == nil {
+		return
+	}
+	observe(result, err)
 }
 
 func NewRunner(config RunnerConfig) (*Runner, error) {
@@ -87,7 +125,10 @@ func (r *Runner) Run(ctx context.Context) error {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
-		if _, err := r.PollOnce(ctx); err != nil && !recoverablePollError(err) {
+		started := time.Now()
+		objects, err := r.PollOnce(ctx)
+		r.report(PollResult{Objects: objects, Duration: time.Since(started)}, err)
+		if err != nil && !recoverablePollError(err) {
 			if errors.Is(err, context.Canceled) && ctx.Err() != nil {
 				return nil
 			}

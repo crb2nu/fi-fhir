@@ -24,6 +24,7 @@ import (
 	"github.com/vektah/gqlparser/v2/parser"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/observability"
 )
 
 // AuthStatusPath is the unauthenticated browser probe for optional trusted-
@@ -69,7 +70,20 @@ type ServerConfig struct {
 	HL7IngressPath string
 	// HL7IngressHandler owns production authentication and durable submission.
 	HL7IngressHandler http.Handler
+	// Health reports real liveness and readiness. When nil the server keeps the
+	// pre-Slice-4.3 literal `/health` and mounts no `/ready`, which is what
+	// FI_FHIR_OBSERVABILITY_MODE=legacy and the in-package transport tests use.
+	Health observability.Reporter
 }
+
+// ReadinessPath is the dependency-touching probe. It is unauthenticated for the
+// same reason `/health` is: a kubelet has no bearer token, and the response
+// carries component names and states only — never a dependency address, a
+// credential, a tenant identifier, or any message-derived value.
+const ReadinessPath = "/ready"
+
+// LivenessPath is the process-only probe.
+const LivenessPath = "/health"
 
 // DefaultServerConfig returns a sensible default configuration.
 func DefaultServerConfig() *ServerConfig {
@@ -176,12 +190,19 @@ func (s *Server) Handler() http.Handler {
 		mux.Handle(s.config.PlaygroundPath, playground.Handler("fi-fhir GraphQL", s.config.Path))
 	}
 
-	// Health endpoint
-	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = fmt.Fprintf(w, `{"status":"healthy","service":"graphql"}`)
-	})
+	// Liveness and readiness.
+	//
+	// Before Slice 4.3 `/health` was one handler that unconditionally wrote
+	// `{"status":"healthy","service":"graphql"}` and `/ready` did not exist, so a
+	// replica with a dead connection pool kept passing every probe and kept
+	// receiving Service traffic. Both probes now project the same component set
+	// the GraphQL `health` query returns.
+	if s.config.Health != nil {
+		mux.Handle(LivenessPath, observability.LivenessHandler(s.config.Health))
+		mux.Handle(ReadinessPath, observability.ReadinessHandler(s.config.Health))
+	} else {
+		mux.Handle(LivenessPath, observability.LegacyHealthHandler())
+	}
 
 	mux.HandleFunc(AuthStatusPath, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -305,7 +326,8 @@ func validateServerConfig(config *ServerConfig) error {
 		paths["GraphQL Playground"] = config.PlaygroundPath
 	}
 	seenPaths := map[string]string{
-		"/health":      "health",
+		LivenessPath:   "liveness probe",
+		ReadinessPath:  "readiness probe",
 		AuthStatusPath: "auth status",
 	}
 	for name, configuredPath := range paths {
