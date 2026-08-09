@@ -1511,6 +1511,73 @@ test:observability-replicas:
     - when: never
   allow_failure: false
 
+# Slice 4.4a Lane S4-C — DAY-1 GATE, EXPECTED TO FAIL.
+#
+# This job reproduces a found defect before its fix, which is the only thing
+# that distinguishes a real regression guard from a test written after the code.
+# .loom/32-sprint4-execution-specs.md correction 23: Slice 4.1d C1's own
+# migration (internal/integration/session/migrations/0004_export_attribution.sql:31-34)
+# makes principal_json, reason, and include_raw_payload NOT NULL with no
+# DEFAULT. A binary one version behind — as in every rolling upgrade and every
+# rollback — issues the pre-4.1d five-column export insert and dies on a
+# not-null violation. The product spec's budget 6 ("one-version rolling upgrade
+# and rollback preserve receipts, revisions, and resumable work without schema
+# downgrade corruption") is therefore currently false.
+#
+# allow_failure: true is deliberate and TEMPORARY. Slice 4.4a's implementation
+# MR adds the server-side DEFAULTs, adds the concurrent-replica/restore proof,
+# and flips this job to allow_failure: false in the same commit. See
+# .loom/worklog/2026-08-08-slice-4-4a-day-1-gate-rollback.md for the recorded
+# failure.
+test:migration-compatibility:
+  stage: test
+  <<: *go-image-debian
+  <<: *go-cache
+  services:
+    - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
+      alias: postgres
+  variables:
+    CGO_ENABLED: "1"
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
+    POSTGRES_DB: fi_fhir_migration_compat_test
+    POSTGRES_USER: testuser
+    POSTGRES_PASSWORD: testpass
+    POSTGRES_HOST_AUTH_METHOD: trust
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_migration_compat_test?sslmode=disable"
+  script:
+    # postgresql-client supplies pg_dump/pg_restore for the round-trip proof
+    # that lands with Slice 4.4a's implementation MR.
+    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates ripgrep build-essential postgresql-client && rm -rf /var/lib/apt/lists/*
+    # Existence guard. Integration helpers t.Skipf when a service is
+    # unreachable, so a renamed or deleted proof would make this job greener
+    # rather than redder without this step (AGENTS.md).
+    - >-
+      go test -tags=integration
+      -list '^TestMigrationCompatibility_ExportInsertShapeSurvivesOneVersionRollback$'
+      ./internal/integration/migrationcompat
+      | rg -x 'TestMigrationCompatibility_ExportInsertShapeSurvivesOneVersionRollback'
+      | awk 'END { if (NR != 1) exit 1 }'
+    - make migration-compatibility
+  after_script:
+    - |
+      if [ "$CI_JOB_STATUS" = "failed" ]; then
+        echo ""
+        echo "test:migration-compatibility FAILED — this is the EXPECTED day-1 result."
+        echo "Expected: SQLSTATE 23502 not_null_violation on integration_session_exports.principal_json"
+        echo "Any other failure means .loom/32 correction 23 is wrong; re-scope Lane S4-C."
+        echo "Local: POSTGRES_TEST_URL=... make migration-compatibility"
+        echo "Owner: Platform/Integration — escalate in #ci-support"
+      fi
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *go-changes
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *go-changes
+    - when: never
+  allow_failure: true
+
 # =============================================================================
 # Security Stage
 # =============================================================================
