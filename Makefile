@@ -28,6 +28,7 @@
 .PHONY: fhir-conformance fhir-conformance-negative-control             # 5.1a   — S5-E
 .PHONY: lint-edi                                                       # edilint dogfood
 .PHONY: mllp-rate-quota                                                # 4.4e   — S5-D
+.PHONY: phi-retention-throughput phi-retention-throughput-negative-control # D1 — S5-F
 
 # Tool versions (update these when upgrading)
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -180,6 +181,45 @@ phi-retention-purge:
 	go test -tags=integration -race -count=1 -timeout=600s \
 		-run '^(TestPhiRetention_PurgeIsStructurallyBlockedToday|TestPhiRetention_PostgresExpiryPurgeAndAuditedTombstone)$$' \
 		./internal/integration/retention
+
+# Lane S5-F retention throughput and role-posture proofs (PostgreSQL 16 required).
+#
+# Found defect D1: before Sprint 5 the purge removed one batch per class per
+# tick — 200 records/class/hour at the shipped defaults — with no catch-up and
+# no gauge, on the table internal/integration/retention/store.go:31-33 calls
+# "the busiest table in the system". These are the proofs of the repair:
+#
+#   * TenThousandRecordBacklogDrainsWithinTheDocumentedTickBound — the
+#     acceptance criterion, asserted rather than reasoned about, including that
+#     the backlog gauge tracks the drain to zero and that the 4.1e exemption is
+#     still exactly as narrow afterwards.
+#   * OnePoisonedClassDoesNotStopTheOthers — the S3 repair. One class failing no
+#     longer skips every remaining class for the pass.
+#   * BacklogExceedsOneBatchPerTick — the day-1 gate, landed red and promoted.
+#   * ApplicationRoleCanDropItsOwnGuardToday — the characterization test for the
+#     deferred role-separation slice. It documents what an ordinary application
+#     role can do to its own immutability guards TODAY, and every assertion in
+#     it inverts when that slice lands.
+#
+# See docs/operations/PHI-RETENTION.md and .loom/40-decisions.md.
+phi-retention-throughput:
+	go test -tags=integration -race -count=1 -timeout=900s \
+		-run '^(TestPurgeThroughput_TenThousandRecordBacklogDrainsWithinTheDocumentedTickBound|TestPurgeThroughput_OnePoisonedClassDoesNotStopTheOthers|TestPurgeThroughput_BacklogExceedsOneBatchPerTick|TestPurgeRoleSeparation_ApplicationRoleCanDropItsOwnGuardToday)$$' \
+		./internal/integration/retention
+
+# Negative control for the above. The retentionnodrain tag restores the
+# pre-Sprint-5 single-pass-per-tick loop, so every drain assertion must FAIL at
+# the batch boundary. This target therefore inverts: a zero exit status means
+# the kill-test is not measuring the drain and D1 has no proof behind it.
+phi-retention-throughput-negative-control:
+	@if go test -tags 'integration retentionnodrain' -count=1 -timeout=900s \
+		-run '^TestPurgeThroughput_(TenThousandRecordBacklogDrainsWithinTheDocumentedTickBound|BacklogExceedsOneBatchPerTick)$$' \
+		./internal/integration/retention >/dev/null 2>&1; then \
+		echo "negative control FAILED: the drain kill-test still passes with the single-pass loop restored"; \
+		exit 1; \
+	else \
+		echo "negative control OK: the drain kill-test fails at one batch per tick with the single-pass loop restored"; \
+	fi
 
 # Slice 4.3 observability kill-test: two `fi-fhir serve` replicas against one
 # PostgreSQL, started from the documented environment block, plus the legacy

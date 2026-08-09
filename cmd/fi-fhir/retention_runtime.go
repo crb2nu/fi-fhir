@@ -132,7 +132,7 @@ func retentionIntEnv(name string, fallback int) (int, error) {
 	return parsed, nil
 }
 
-// retentionPurgeObserver reports one purge pass to the metrics registry and to
+// retentionPurgeObserver reports one purge tick to the metrics registry and to
 // the operator log.
 //
 // It deliberately publishes counts only. Record identifiers live in the durable
@@ -147,14 +147,42 @@ func retentionPurgeObserver(metrics *observability.Metrics) func(integrationrete
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: retention purge failed: %v\n", err)
 			metrics.RecordRetentionPurge(observability.OutcomeError, 0)
+			// The counts and the backlog reading are still published on the
+			// error path. PurgeExpired attempts every class and joins the
+			// failures, so a failing class no longer means nothing happened —
+			// and the backlog is exactly what an operator needs to see when the
+			// purge is erroring.
+			publishRetentionBacklog(metrics, result.Backlog)
 			return
 		}
 		metrics.RecordRetentionPurge(observability.OutcomeProcessed, result.Total())
-		if result.Total() > 0 {
+		publishRetentionBacklog(metrics, result.Backlog)
+		if result.Total() > 0 || result.BudgetExhausted {
 			fmt.Printf("Retention purge: canonical_events=%d session_samples=%d "+
-				"session_exports=%d stream_events=%d duration=%s\n",
+				"session_exports=%d stream_events=%d passes=%d backlog=%d duration=%s\n",
 				result.CanonicalEvents, result.SessionSamples, result.SessionExports,
-				result.StreamEvents, result.Duration.Round(time.Millisecond))
+				result.StreamEvents, result.Passes, result.Backlog.Total(),
+				result.Duration.Round(time.Millisecond))
+		}
+		if result.BudgetExhausted {
+			// Falling behind is an operating condition, not a failure, so it is
+			// a warning with the backlog attached rather than a component error.
+			fmt.Fprintf(os.Stderr,
+				"Warning: retention purge spent its whole per-tick drain budget with %d records "+
+					"still eligible; the purge is not keeping up with ingest\n",
+				result.Backlog.Total())
 		}
 	}
+}
+
+// publishRetentionBacklog sets the per-class backlog gauge.
+//
+// Every class is published on every tick, including the zeroes: a gauge that
+// stops being reported goes stale rather than going to zero, and "the backlog
+// cleared" must be distinguishable from "the purge stopped running".
+func publishRetentionBacklog(metrics *observability.Metrics, backlog integrationretention.BacklogCounts) {
+	metrics.SetRetentionBacklog(observability.RetentionClassCanonicalEvent, backlog.CanonicalEvents)
+	metrics.SetRetentionBacklog(observability.RetentionClassSessionSample, backlog.SessionSamples)
+	metrics.SetRetentionBacklog(observability.RetentionClassSessionExport, backlog.SessionExports)
+	metrics.SetRetentionBacklog(observability.RetentionClassStreamEvent, backlog.StreamEvents)
 }

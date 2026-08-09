@@ -111,8 +111,8 @@ The deployment supplies the document, loaded the way the destination registry is
 | Variable | Meaning |
 |---|---|
 | `FI_FHIR_RETENTION_POLICY_PATH` | Path to the retention policy document. **Unset means no purge component, no policy record, and nothing purged.** |
-| `FI_FHIR_RETENTION_PURGE_INTERVAL` | Purge cadence, Go duration. Default `1h`. |
-| `FI_FHIR_RETENTION_PURGE_BATCH_SIZE` | Records per class per pass. Default `200`. |
+| `FI_FHIR_RETENTION_PURGE_INTERVAL` | Purge cadence, Go duration. Default `1h`. How often a purge tick starts — **not** a bound on throughput; see "Throughput" below. |
+| `FI_FHIR_RETENTION_PURGE_BATCH_SIZE` | Records per class per **store pass**. Default `200`. One tick makes as many passes as the backlog needs, within its drain budget. |
 
 An omitted window means **retain indefinitely** for that class. An absent policy
 record means the same for every class. Fail-closed is the only safe default for
@@ -125,6 +125,70 @@ decision nobody made, the same reason 4.1b3 and C1 refused to backfill
 provenance. Such a row becomes purgeable only once an operator records an
 attributed policy, at which point the purge component stamps it under that
 operator's authority.
+
+### Throughput: one tick drains the backlog, bounded by a wall-clock budget
+
+Cadence and batch size are **not** independent knobs, and treating them as such
+is how this shipped with a hard ceiling.
+
+Until Sprint 5 the purge component called the store exactly once per tick and
+then blocked on the ticker. Every purge and stamp statement carries a `LIMIT`
+bound to the batch size, so the sustained rate was **batch size × 1 per
+interval** — at the shipped defaults, **200 records per class per hour, or
+0.056/sec**, on the busiest table in the system. A tenant producing records
+faster than that fell permanently behind its own retention policy, and nothing
+in the exposition said so. That was found defect D1 in
+`.loom/33-sprint5-execution-specs.md`.
+
+One purge tick now **drains**: while a bounded statement comes back full there
+is more backlog, so the tick keeps going rather than waiting a whole interval
+per batch. This is the shape `internal/integration/session`'s stream relay
+already used.
+
+The drain is bounded by a **wall-clock budget per tick**, `5m` by default and
+clamped to half the interval, because the purge holds row locks and writes an
+audit row per record: a tenant ingesting faster than the purge drains must not
+be able to hold a connection for the whole interval. The budget is checked
+*between* passes, so a tick always makes at least one, and exhausting it is not
+an error — it is reported on the result, logged as a warning naming the
+remaining backlog, and visible on the gauge below.
+
+**The documented bound is one tick.** A backlog of 10,000 expired canonical
+events clears in a single tick — 51 store passes at the shipped batch size of
+200 — and that is asserted at that scale rather than reasoned about
+(`make phi-retention-throughput`). A backlog large enough to exhaust the budget
+resumes on the next tick; the number of ticks is then the total work divided by
+the budget, and the gauge shows the remainder throughout.
+
+Stamping counts toward the drain as well as purging. A canonical event is
+unpurgeable until `purge_after` is stamped, and the stamp carries the same
+`LIMIT`, so a stamp-bound backlog was exactly as invisible as a purge-bound one.
+
+**One failing class no longer stops the others.** The pass attempts every class
+and joins the failures, so a revoked grant or a lock timeout on one class costs
+that class one interval rather than costing every class one interval.
+
+### The backlog gauge
+
+`fi_fhir_retention_backlog_records{record_class}` — a **gauge**, one series per
+record class, published on every tick including the zeroes.
+
+It counts the records the purge is eligible to act on right now: the same
+eligibility each purge statement uses, delivery interlock included, so a gauge
+of zero and a purge that acts on nothing are the same statement. It recomputes
+each deadline from the record's own timestamp and the policy window in force
+rather than reading `purge_after`, so a row that has never been stamped still
+counts.
+
+Retention had counters only before Sprint 5 — passes and records purged — and
+both climb whether the purge is keeping up or falling a thousand records an hour
+behind. A backlog that only ever grows is the difference, and only a gauge can
+show it. Alert on it being non-zero and rising across ticks, not on any single
+sample: a busy deployment is briefly non-zero between ticks by design.
+
+The zeroes matter. A gauge written only when non-zero goes stale rather than
+going to zero, which makes "the backlog cleared" indistinguishable from "the
+purge component died".
 
 ### What the purge will never touch
 
@@ -290,7 +354,9 @@ integration suites is unaffected.
 | Durable purge component | **Implemented** — `internal/integration/retention`, multi-replica safe with no lease |
 | Per-tenant, audited, mutable retention policy | **Implemented** — `integration_retention_policies` + `integration_retention_policy_audit` |
 | **Purge of backup copies** | **Not implemented and out of scope.** A tombstone is not a backup-inclusive deletion. Backups taken before a purge still hold the payload; expiring them is a storage-layer control. Tracked as a Slice 4.4c interaction |
-| **Role separation for the purge** | **Not implemented — named follow-up slice.** Every migration runs on the same connection the runtime uses, so the application role owns the tables it guards and can drop any trigger. The schema-enforced exemption is a guard against programmatic error, not against a hostile database role. Real separation needs a de-privileged application role, a separate migration runner, and a purge role |
+| **Role separation for the purge** | **Not implemented — topology ratified, deployment work deferred to its own slice.** Every migration runs on the same connection the runtime uses, so the application role owns the tables it guards. This is now **demonstrated, not asserted**: `TestPurgeRoleSeparation_ApplicationRoleCanDropItsOwnGuardToday` connects as an ordinary `NOSUPERUSER` role, runs the shipped migrators through it exactly as `serve` does, and then drops an immutability trigger, performs the mutation that trigger forbade, disables a second trigger, replaces a shared guard **function** — disarming all four triggers that share it in one statement — and takes ownership of the table. All five succeed. The schema-enforced exemption is a guard against programmatic error, not against a hostile or compromised database role. The ratified answer is three roles (`fi_fhir_migrator` / `fi_fhir_app` / `fi_fhir_purge`) with migrations moved out of `serve` into an explicit `fi-fhir migrate` command; see `.loom/40-decisions.md` (2026-08-09) for the costed scope and why it is a deployment slice rather than a set of GRANTs |
+| **Purge throughput** | **Repaired** (Lane S5-F). One tick drains the backlog within a per-tick wall-clock budget instead of removing one batch and waiting an interval. Proved at 10,000 records with a build-tagged negative control that restores the single-pass loop |
+| **Backlog observability** | **Implemented** (Lane S5-F) — `fi_fhir_retention_backlog_records{record_class}`, a gauge. Before it, retention published counters only, and a purge falling behind was indistinguishable from one keeping up |
 | Operator-facing purge status API | Not in this slice. The GraphQL schema was frozen for Sprint 4; the policy is server-owned configuration and the audit is queryable in the database |
 | Encrypted production raw retention | **Deliberately unimplemented and fail-closed** (section 1). Do not enable it by lifting `ErrUnsupportedRawRetention` without the storage revision, key resolver, and access-audit path the contract requires |
 | Narrowed transport-gate roles | **Partially implemented** — Lane S4-E. The transport gate enumerates all 131 root fields and refuses any it has no role for, with fine-grained roles on the sixteen operator control-plane fields (`internal/api/graphql/operation_authorization_roles.go`). `graphql:operator` is retained as a named compatibility grant covering the remaining 115, including the session workspace and `exportIntegrationBundle`. `integration.phi.export` is deliberately *not* a transport-gate role: it gates that mutation's `includeRawPayload` argument and still sits one layer deeper |
@@ -320,6 +386,16 @@ integration suites is unaffected.
    sample payloads in an export.
 7. Review `integration_retention_purge_audit` during access reviews. It is the
    record of what the platform destroyed, when, and under which policy version.
+8. **Alert on the backlog gauge, not on the purge counters.**
+   `fi_fhir_retention_backlog_records` rising across consecutive ticks means the
+   purge is not keeping up with ingest and the tenant's declared retention window
+   is not the effective one. The counters climb either way. A single non-zero
+   sample is normal between ticks.
+9. **Raising `FI_FHIR_RETENTION_PURGE_BATCH_SIZE` is a transaction-size decision,
+   not a throughput decision.** Throughput is the drain loop's job. A larger batch
+   holds more row locks per statement against the busiest table in the system;
+   raise it only if the per-pass overhead is measurably dominating, and watch the
+   gauge rather than the batch size to decide whether the purge is keeping up.
 
 ## Related
 
@@ -328,6 +404,11 @@ integration suites is unaffected.
   and the policy-placement decision
 - `.loom/iteration-plan-phase-4-slice-4-1e-retention-purge.md` — Slice 4.1e's
   plan and day-1 gate results
+- `.loom/33-sprint5-execution-specs.md` — Lane S5-F, found defect D1 and
+  corrections 53-55
+- `.loom/40-decisions.md` — 2026-08-09, "Purge role topology": the ratified
+  three-role target, why the deployment work is its own slice, and the four
+  disarm shapes an ordinary application role has today
 - `.loom/31-sprint3-execution-specs.md` — Lane S3-C, corrections 21-25, and the
   C1/C2 split
 - `.loom/iteration-plan-phase-4-slice-4-1d-c1-phi-audit.md` — Slice 4.1d C1's plan

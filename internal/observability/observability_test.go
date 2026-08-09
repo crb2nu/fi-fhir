@@ -131,6 +131,7 @@ func TestEveryLabelValueIsDrawnFromABoundedSet(t *testing.T) {
 	metrics.ObserveReadiness(Report{Components: []Component{{Name: ComponentSubmissionDB, Status: StatusHealthy}}})
 	metrics.SetSchemaLedgerVersion(SchemaLedgerSession, 6)
 	metrics.SetSchemaLedgerVersion(SchemaLedgerTerminology, 3)
+	metrics.SetRetentionBacklog(RetentionClassCanonicalEvent, 41)
 
 	allowed := map[string]struct{}{"1.2.3": {}}
 	for outcome := range allOutcomes {
@@ -138,6 +139,9 @@ func TestEveryLabelValueIsDrawnFromABoundedSet(t *testing.T) {
 	}
 	for ledger := range allSchemaLedgers {
 		allowed[ledger] = struct{}{}
+	}
+	for class := range allRetentionClasses {
+		allowed[class] = struct{}{}
 	}
 	for _, component := range []string{
 		ComponentGraphQL, ComponentMetrics, ComponentMLLP, ComponentDelivery, ComponentBatch,
