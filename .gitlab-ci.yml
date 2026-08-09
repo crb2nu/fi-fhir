@@ -372,6 +372,7 @@ lint:docs:
         - scripts/docs-status.sh
         - scripts/worklog.sh
         - .loom/worklog/**/*
+        - .loom/50-worklog.md
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes:
         - docs/**/*
@@ -384,6 +385,7 @@ lint:docs:
         - scripts/docs-status.sh
         - scripts/worklog.sh
         - .loom/worklog/**/*
+        - .loom/50-worklog.md
     - when: never
 
 lint:contracts:

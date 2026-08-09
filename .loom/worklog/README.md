@@ -39,8 +39,10 @@ make worklog-recent       # newest first
   it from the title and caps it at seven words.
 - Two entries on one day are fine; give them different slugs.
 
-`scripts/worklog.sh check` enforces all of this, and runs in CI as part of
-`test:docs-status`.
+`scripts/worklog.sh check` enforces all of this, and runs in CI as part of the
+blocking `lint:docs` job. It also rejects a dated entry heading appearing in
+`.loom/50-worklog.md`, because appending there is the old habit and brings the
+end-of-file conflict straight back.
 
 ## The worklog is not a lock
 

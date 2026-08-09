@@ -6,6 +6,9 @@ This file is a stable landing page for the many documents that link to
 `.loom/50-worklog.md`. Do not add entries here — see
 [`.loom/worklog/README.md`](worklog/README.md) for why.
 
+That is enforced, not just asked: `scripts/worklog.sh check` fails on a dated
+entry heading in this file, and runs in the blocking `lint:docs` CI job.
+
 ## Add an entry
 
 ```bash
