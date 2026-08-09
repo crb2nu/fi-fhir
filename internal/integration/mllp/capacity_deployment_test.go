@@ -38,9 +38,14 @@ const declaredRate = 100
 // would have measured on the two-replica reference profile had it been measured
 // before the deployment-wide bucket exists: a number certifying nothing.
 //
-// When slice 4.4e lands, this test becomes the lane's negative control: the
-// pre-slice behaviour is reinstated behind a build tag and this assertion must
-// fail with ~200 admissions if the deployment-wide claim is reverted.
+// It is also the lane's negative control, and it needs no build tag to be one.
+// The replicas here are built with no RateQuota bound, which is exactly the
+// "deployment-wide claim reverted" configuration: the same admission path, the
+// same gate, the quota removed. So the control runs in every invocation
+// alongside TestQuotaBoundsTheDeploymentRateAcrossTwoReplicas, which drives the
+// identical shape with the coordinator bound and asserts <=100. A regression
+// that quietly stopped consulting the quota would turn the second test red
+// while this one stayed green, which is what a control is for.
 func TestMLLPCapacity_TwoReplicasAdmitTwiceTheDeclaredRateToday(t *testing.T) {
 	source := testSource(t)
 	binding := testBinding(source)
