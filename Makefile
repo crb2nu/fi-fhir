@@ -13,7 +13,7 @@
 	migration-compatibility \
 	phi-retention-purge \
 	transport-gate transport-gate-negative-control \
-	fhir-conformance-day1-gate \
+	fhir-conformance fhir-conformance-negative-control \
 	smoke-test smoke-test-local check-runtime-config \
 	dev dev-down dev-ui dev-ui-down destination-transport
 
@@ -219,42 +219,62 @@ transport-gate-negative-control:
 		echo "negative control OK: kill-test fails open with the blanket allow restored"; \
 	fi
 
-# Lane S5-E Slice 5.1a day-1 gates. Two assertions with opposite expected
-# results, both about whether Slice 5.1 is what the sprint scope says it is.
+# Lane S5-E Slice 5.1a: the FHIR conformance proof.
 #
-#  1. TestFHIRConformance_DurableEngineProducesNoFHIRResource must PASS. It runs
-#     the real dispatcher against a live TLS `https` destination and proves the
-#     body is the Kafka delivery-command envelope at application/json, that the
-#     transport vocabulary is {kafka, https} with no FHIR class, and that nothing
-#     under internal/integration imports pkg/fhir. That is the `.loom/28:206-212`
-#     kill-test executed: no FHIR resource exists on any path the engine runs, so
-#     5.1's real prerequisite is an unwritten slice (4.1c-c), not a validator.
-#     It is an ordinary test and also runs in `go test ./...`.
+# Two assertions, both of which must now PASS. The first was a day-1 gate that
+# FAILED on unmodified `main` behind the `fhirday1gate` tag (MR !168); the
+# reconciliation in this slice flips it, the tag is gone, and it is an ordinary
+# test again under its original name.
 #
-#  2. TestFHIRConformance_ValidatorRejectsMapperOutputToday must FAIL, for one
-#     named reason: the shipped validator rejects the shipped mapper's own
-#     DiagnosticReport. This target therefore inverts, and additionally requires
-#     the failure to carry that reason, so a compile error cannot satisfy it.
-#     Slice 5.1a's reconciliation flips this; when it does, this target stops
-#     inverting and the assertion joins the untagged conformance table.
-fhir-conformance-day1-gate:
-	go test -count=1 -timeout=120s \
+#  1. TestFHIRConformance_DurableEngineProducesNoFHIRResource — the durable
+#     engine delivers a Kafka delivery-command envelope at application/json, the
+#     transport vocabulary is {kafka, https} with no FHIR class, and nothing
+#     under internal/integration imports pkg/fhir. That is `.loom/28:206-212`
+#     executed: 5.1's real prerequisite is an unwritten slice (4.1c-c), not a
+#     validator. It stays true after 5.1a; when 4.1c-c lands it is the assertion
+#     that must be deliberately inverted rather than deleted.
+#
+#  2. TestFHIRConformance_* in pkg/fhir — every one of the 26 Map* entry points
+#     is driven with a representative event and every resource it produces is
+#     marshalled and fed back through ValidateJSON at --mode us-core --strict
+#     with zero issues. The mapper's own output validates under the mapper's own
+#     checker. Plus the closed mode set, the profile-version policy, the Patient
+#     MRN backfill, and the lab-code dedupe.
+#
+# Both are ordinary tests and also run in `go test ./...`; this target exists so
+# the proof is addressable by name and pairs with its negative control.
+fhir-conformance:
+	go test -race -count=1 -timeout=120s \
 		-run '^TestFHIRConformance_DurableEngineProducesNoFHIRResource$$' \
 		./internal/integration/delivery
-	@output=$$(go test -tags fhirday1gate -count=1 -timeout=120s \
-		-run '^TestFHIRConformance_ValidatorRejectsMapperOutputToday$$' ./pkg/fhir 2>&1); \
-	status=$$?; \
-	if [ $$status -eq 0 ]; then \
-		echo "day-1 gate FAILED to reproduce: the mapper's DiagnosticReport already validates"; \
+	go test -race -count=1 -timeout=120s \
+		-run '^TestFHIRConformance' ./pkg/fhir
+
+# Negative control for the above. The fhirdrnoteonly tag restores the pre-5.1a
+# DiagnosticReport accepted set (`-note` only) and changes nothing else, so the
+# conformance table must fail on EXACTLY the MapLabResult row. This target
+# therefore inverts, and additionally requires that the set of failing rows is
+# exactly {MapLabResult}: a control that passes, or that fails everywhere, means
+# the table is not round-tripping the mapper's own bytes and the proof above it
+# is vacuous.
+fhir-conformance-negative-control:
+	@output=$$(go test -tags fhirdrnoteonly -count=1 -timeout=120s \
+		-run '^TestFHIRConformance_MapperOutputValidatesUnderItsOwnChecker$$' \
+		-v ./pkg/fhir 2>&1); \
+	if [ $$? -eq 0 ]; then \
+		echo "negative control FAILED: the conformance table still passes with the"; \
+		echo "pre-5.1a DiagnosticReport accepted set restored"; \
 		exit 1; \
 	fi; \
-	if ! printf '%s' "$$output" | grep -q \
-		'meta.profile does not include an expected profile for DiagnosticReport'; then \
-		echo "day-1 gate failed for the WRONG reason:"; \
-		printf '%s\n' "$$output"; \
+	rows=$$(printf '%s\n' "$$output" \
+		| sed -n 's|^ *--- FAIL: TestFHIRConformance_MapperOutputValidatesUnderItsOwnChecker/\([A-Za-z]*\).*|\1|p' \
+		| sort -u | tr '\n' ' ' | sed 's/ $$//'); \
+	if [ "$$rows" != "MapLabResult" ]; then \
+		echo "negative control failed on the WRONG rows: [$$rows], want [MapLabResult]"; \
+		printf '%s\n' "$$output" | grep -- '--- FAIL' || true; \
 		exit 1; \
 	fi; \
-	echo "day-1 gate reproduced: meta.profile does not include an expected profile for DiagnosticReport"
+	echo "negative control OK: restoring the -note-only set fails exactly the MapLabResult row"
 
 # Clean build artifacts
 clean:

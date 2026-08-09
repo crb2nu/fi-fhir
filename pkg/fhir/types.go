@@ -32,7 +32,13 @@ const (
 	USCoreBMIProfile             = USCoreBaseURL + "us-core-bmi"
 
 	// Medication and allergy profiles
-	USCoreMedicationRequestProfile  = USCoreBaseURL + "us-core-medicationrequest"
+	USCoreMedicationRequestProfile = USCoreBaseURL + "us-core-medicationrequest"
+	// USCoreMedicationProfile is declared but unused: no Map* entry point
+	// produces a standalone Medication resource, and there is no
+	// required-element or profile-presence check for one. MapMedicationRequest
+	// carries the medication inline as medicationCodeableConcept. Keep it — it is
+	// the correct canonical for the day a Medication mapper exists — but do not
+	// count it as coverage. See docs/planning/FHIR-CONFORMANCE-MATRIX.md.
 	USCoreMedicationProfile         = USCoreBaseURL + "us-core-medication"
 	USCoreAllergyIntoleranceProfile = USCoreBaseURL + "us-core-allergyintolerance"
 
@@ -42,8 +48,16 @@ const (
 	USCoreCareTeamProfile       = USCoreBaseURL + "us-core-careteam"
 	USCoreServiceRequestProfile = USCoreBaseURL + "us-core-servicerequest"
 
-	// Document profiles
+	// Document and diagnostic-report profiles.
+	//
+	// US Core defines two DiagnosticReport profiles and this package produces
+	// both: MapLabResult emits `-lab` (Laboratory Results Reporting; category
+	// LAB, LOINC-coded, referencing lab Observations) and MapDiagnosticReportNote
+	// emits `-note` (Report and Note exchange). Until Slice 5.1a the `-lab`
+	// canonical was a bare literal inside MapLabResult rather than a constant
+	// here, which is how it fell out of the checker's accepted set.
 	USCoreDocumentReferenceProfile    = USCoreBaseURL + "us-core-documentreference"
+	USCoreDiagnosticReportLabProfile  = USCoreBaseURL + "us-core-diagnosticreport-lab"
 	USCoreDiagnosticReportNoteProfile = USCoreBaseURL + "us-core-diagnosticreport-note"
 
 	// Administrative/Infrastructure profiles
