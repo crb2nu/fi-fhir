@@ -69,6 +69,16 @@ Secondary: the baseline exemption at `migration_rule_test.go:37-43` reads *"The 
 
 **Owner**: Lane S5-0 (MR 0c). This must merge before S5-D and S5-F author migrations, for exactly the reason 4.4a's task 4 existed.
 
+### D5 — LOW, but live — `make dev-ui-down` has been broken since Sprint 4 by a stray `.PHONY` fragment inside a recipe
+
+`Makefile:725` is a lone `\tdestination-transport \` line sitting between `dev-ui-down`'s recipe and the `destination-transport` target's comment block. GNU make treats a tab-indented line after a blank line as a continuation of the open recipe, and the trailing backslash joins the following comment, so `make dev-ui-down` runs `docker-compose down` and then tries to execute `destination-transport # Slice 4.1c-b: ...` as a shell command.
+
+**Proved by execution**: `make -n dev-ui-down` prints three lines — `docker-compose down`, `destination-transport \`, and the comment.
+
+It is a `.PHONY` continuation that a Sprint 4 rebase dropped 700 lines away from the `.PHONY` block. No CI job invokes `dev-ui-down`, which is why nothing caught it. It is listed here because it is the same failure mode as `test:destination-transport` at `:2672` — a rebase placing a line where nobody reads it — in the second of the two files this lane's structural fix covers, and because it is the concrete answer to "is the append point really a problem".
+
+**Owner**: Lane S5-0 (MR 0a, alongside the `.PHONY` split). Found and fixed 2026-08-09.
+
 ### Suspected, not proved
 
 - **S1 — MEDIUM-LOW.** `dispatcher.go:225-230` claims `PublishTimeout < LeaseDuration` means a slow destination cannot outlive its lease. `types.go:107-115` enforces only that inequality, while real elapsed time is `Claim → decideIdentity (DB round trip) + PublishTimeout + MarkPublished round trip`. `PublishTimeout = LeaseDuration - 1ms` is accepted by `validate()` and breaks the invariant. Defaults (10s/30s) have slack.
@@ -214,7 +224,7 @@ Adversarial toward the sprint scope description, toward `.loom/30`, toward `.loo
 
 ### CI, Makefile, process
 
-**56. `.gitlab-ci.yml` is 2738 lines carrying 59 job definitions in one file, and Sprint 4's lanes produced non-append churn.** `e5f8e2082` changed CI/Makefile by +56/−40; `e77c6218b` by +31/−14; only `895b97412` was pure append (+57/−0). And `test:destination-transport` landed at **`:2672`** — after `radar-scan` and after the mirror stage, outside the test-stage block where all 20 other `test:` jobs live (`:441…:1656`). That is a rebase artifact, and it is the visible symptom the ownership-map rule "append at the end of the test stage with distinct names" was meant to prevent.
+**56. `.gitlab-ci.yml` is 2738 lines carrying 55 job definitions in one file, and Sprint 4's lanes produced non-append churn.** `e5f8e2082` changed CI/Makefile by +56/−40; `e77c6218b` by +31/−14; only `895b97412` was pure append (+57/−0). And `test:destination-transport` landed at **`:2672`** — after `radar-scan` and after the mirror stage, outside the test-stage block where all 20 other `test:` jobs live (`:441…:1656`). That is a rebase artifact, and it is the visible symptom the ownership-map rule "append at the end of the test stage with distinct names" was meant to prevent. **Corrected 2026-08-09 by Lane S5-0's day-1 gate:** **55**, not 59. The file has 59 top-level keys; four of them — `include`, `stages`, `variables`, `default` — are not jobs. `scripts/ci-job-inventory.sh` on `852d7f3ee` emits 55 lines, and every `.loom/33` reference to "59 jobs" has been corrected to match. The misplacement claim survives unchanged: the other 24 `test:` jobs are declared between `:441` and `:1656`; `test:destination-transport` is at `:2672`.
 
 **57. YAML anchors are file-scoped in GitLab CI, so a naive `include: local:` split breaks every job it moves.** The file has **72** `<<: *anchor` merges and **59** uses of `*go-changes`, and **zero** `!reference` tags with exactly **one** `extends:` (`:2651`, `extends: .radar-scan`, itself from a remote include). `extends:` and `!reference` do cross include boundaries; YAML aliases do not. `.go-cache` (`:120-127`) and `.go-image-debian` (`:148-156`) are hidden jobs carrying job-level keywords, so they convert to `extends:` cleanly. **`.go-changes` (`:56-78`) is a bare top-level sequence, not a job map, and is reachable by neither `extends:` nor a two-element `!reference`** — it must be reshaped into a hidden job carrying a full `rules:` block (e.g. `.go-mr-rules`) before any job that uses it can move to an included file. That reshape is the load-bearing part of the structural fix, and it is a mechanical, testable change.
 
@@ -378,7 +388,9 @@ It also carries the two repairs nobody else owns: D2 is in `internal/integration
 **The structural constraint, verified**: YAML anchors are file-scoped in GitLab CI. The root file has 72 `<<: *anchor` merges and 59 `*go-changes` uses, zero `!reference` tags, and one `extends:` (correction 57). `extends:` and `!reference` cross include boundaries; aliases do not.
 
 Tasks:
-1. Add `ci/_shared.yml` with hidden jobs reachable across includes: `.go-image-debian`, `.go-cache`, and a new `.go-mr-rules` carrying the **full `rules:` block** (tag / MR-with-go-changes / default-branch-with-go-changes / `when: never`). `.go-changes` (`:56-78`) is a bare top-level sequence and is reachable by neither `extends:` nor a two-element `!reference` — reshaping it into `.go-mr-rules` is the load-bearing part.
+1. Add `ci/_shared.yml` with hidden jobs reachable across includes, and add `.go-mr-rules` carrying the **full `rules:` block** (tag / MR-with-go-changes / default-branch-with-go-changes / `when: never`). `.go-changes` (`:56-78`) is a bare top-level sequence and is reachable by neither `extends:` nor a two-element `!reference` — reshaping it into `.go-mr-rules` is the load-bearing part.
+
+   **Corrected 2026-08-09 while implementing 0a, twice.** (a) `.go-image-debian` (`:148-156`) and `.go-cache` (`:120-127`) do **not** need moving or duplicating: they are already `.`-prefixed hidden jobs, and `extends:` is resolved after every include is merged into one document, so a job in `ci/*.yml` reaches them where they sit. Copying them into `ci/_shared.yml` would create a second definition of a shape 49 root jobs alias, which is drift waiting to happen. (b) `.go-mr-rules` belongs in `.gitlab-ci.yml` **beside `.go-changes`**, not in `ci/_shared.yml`: put it in the included file and its `changes:` list must be a second literal copy of `.go-changes`, because the alias cannot cross the boundary either. Beside the anchor there is exactly one copy. `ci/_shared.yml` therefore holds only what did not exist: `.integration-proof` and `.integration-proof-toolchain`.
 2. Add `.integration-proof` to `ci/_shared.yml`: the PostgreSQL-16 service, the `apt-get` step, the `after_script` failure banner shape, and `allow_failure: false`. Every integration proof job repeats these today.
 3. Move the six integration-proof jobs into `ci/` one file per proof (`ci/test-phi-audit.yml`, `ci/test-observability-replicas.yml`, `ci/test-migration-compatibility.yml`, `ci/test-phi-retention-purge.yml`, `ci/test-transport-gate.yml`, `ci/test-destination-transport.yml`), converting `<<: *anchor` → `extends:` and `rules: …` → `extends: .go-mr-rules`. **Move only these six.** Do not touch `test:unit`, `test:integration`, the lint stage, or anything in `security`/`build`/`deploy`/`release` — a bigger diff is a bigger chance of a silently dropped rule.
 4. Extend the root `include:` (`:1-8`) with `- local: ci/_shared.yml` and the six files.
@@ -387,7 +399,7 @@ Tasks:
 
 **Acceptance**: `helm`-style rendering is not available for CI, so the proof is behavioural — the MR pipeline must show the same six jobs, with the same names, the same `allow_failure: false`, the same `services:`, and the same rules evaluation (present on an MR touching Go, absent on a docs-only MR). Diff the job list against the pre-MR pipeline and attach it to the MR.
 
-**Day-1 gate — must PASS on unmodified `main`: `scripts/ci-job-inventory.sh`.** A ~20-line script that parses `.gitlab-ci.yml` (plus includes, once they exist) and prints a sorted `name<TAB>stage<TAB>allow_failure` inventory. On `main` it must emit 59 jobs with `test:destination-transport` at `stage: test` and `allow_failure: false`. It proves the inventory is machine-readable *before* the split, so the split's own acceptance is a diff of two inventories rather than a reviewer's eye. Afterwards it becomes the negative control: a job silently dropped by the move turns the diff red. Wire it into `lint:docs` alongside `worklog.sh check`.
+**Day-1 gate — must PASS on unmodified `main`: `scripts/ci-job-inventory.sh`.** A ~20-line script that parses `.gitlab-ci.yml` (plus includes, once they exist) and prints a sorted `name<TAB>stage<TAB>allow_failure` inventory. On `main` it must emit 55 jobs with `test:destination-transport` at `stage: test` and `allow_failure: false`. It proves the inventory is machine-readable *before* the split, so the split's own acceptance is a diff of two inventories rather than a reviewer's eye. Afterwards it becomes the negative control: a job silently dropped by the move turns the diff red. Wire it into `lint:docs` alongside `worklog.sh check`.
 
 ### MR 0b — D2: the provenance write gets its own budget
 
@@ -425,7 +437,7 @@ make check-runtime-config
 
 Sprint 4 already paid for it in a way that is invisible in a green pipeline: `test:destination-transport` sits after the mirror stage, in a file section nobody reviewing "the test stage" will read, because a rebase put it there. Six lanes is more append pressure than five, and the failure mode is not a merge conflict — it is a job that lands in the wrong place, inherits the wrong rules by proximity, and is never noticed because it is green.
 
-`scripts/ci-job-inventory.sh` kills the assumption cheaply: run it on `main` today and the misplacement is a line in a text file rather than an argument. If the inventory shows all 59 jobs already in coherent stages with coherent rules, the split is genuinely optional and this MR shrinks to the `.PHONY` fix.
+`scripts/ci-job-inventory.sh` kills the assumption cheaply: run it on `main` today and the misplacement is a line in a text file rather than an argument. If the inventory shows all 55 jobs already in coherent stages with coherent rules, the split is genuinely optional and this MR shrinks to the `.PHONY` fix.
 
 ---
 
@@ -889,7 +901,7 @@ Each must produce its stated result **for its stated reason** before its lane wr
 
 | Gate | Lane | Expected on `main` | Kills |
 |---|---|---|---|
-| `scripts/ci-job-inventory.sh` | S5-0a | **Pass**, emitting 59 jobs — with `test:destination-transport` visibly outside the test-stage block | "the CI append point is hygiene that can wait" |
+| `scripts/ci-job-inventory.sh` | S5-0a | **Pass**, emitting 55 jobs — with `test:destination-transport` visibly outside the test-stage block | "the CI append point is hygiene that can wait" |
 | `TestTransportRecordsProvenanceWhenTheDestinationIsSlow` | S5-0b | **Fail**: zero provenance rows, `context.DeadlineExceeded`. *Reproduced.* | "4.1c-b's provenance ledger records every contact" |
 | `TestMigrationRule_AddColumnNotNullWithoutDefaultIsFlagged` | S5-0c | **Fail**: silently skipped, `tightened == 0`. *Reproduced.* | "the migration rule is mechanically enforced" |
 | `TestPerformanceHarness_NothingMeasuresAnyProductBudgetToday` | S5-A | **Pass**: zero benchmarks under `internal/integration` | "the green benchmark gate is partial credit toward 4.4" |
