@@ -8,14 +8,24 @@
 	docs-status docs-status-quick docs-validate docs-all \
 	worklog worklog-new worklog-recent \
 	contract-check contract-check-strict contract-matrix \
-	golden-path-001 mllp-runtime delivery-reliability batch-ingestion integration-session \
-	operator-control-plane delivery-identity phi-audit observability-replicas \
-	migration-compatibility \
-	phi-retention-purge \
-	transport-gate transport-gate-negative-control \
-	fhir-conformance fhir-conformance-negative-control \
 	smoke-test smoke-test-local check-runtime-config \
-	dev dev-down dev-ui dev-ui-down destination-transport
+	dev dev-down dev-ui dev-ui-down
+
+# Proof targets: ONE LINE PER LANE, appended at the end, never extending
+# another lane's line. Four of Sprint 4's five lanes appended to a shared line
+# and every one of them conflicted with a sibling. Same fix as .loom/worklog/
+# and as ci/: give each author their own line to touch.
+#
+# Format: `.PHONY: <targets>   # <slice> — <lane>`
+.PHONY: golden-path-001 mllp-runtime delivery-reliability batch-ingestion integration-session
+.PHONY: operator-control-plane delivery-identity                       # 4.1a/4.1c-a
+.PHONY: phi-audit                                                      # 4.1d C1 — S4-D
+.PHONY: observability-replicas                                         # 4.3    — S3-A
+.PHONY: migration-compatibility                                        # 4.4a   — S4-C
+.PHONY: phi-retention-purge                                            # 4.1e   — S4-B
+.PHONY: transport-gate transport-gate-negative-control                 # 4.2    — S4-E
+.PHONY: destination-transport                                          # 4.1c-b — S4-A
+.PHONY: fhir-conformance fhir-conformance-negative-control             # 5.1a   — S5-E
 
 # Tool versions (update these when upgrading)
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -770,7 +780,6 @@ dev-ui: build
 dev-ui-down:
 	docker-compose down
 
-	destination-transport \
 # Slice 4.1c-b: the first durable HTTPS destination consumer.
 #
 # The kill-test contacts two identity-bound https destinations exactly once each

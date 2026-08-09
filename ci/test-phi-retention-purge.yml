@@ -1,0 +1,34 @@
+# Slice 4.1e Lane S4-B: PHI retention policy and purge runtime.
+#
+# Two proofs, each negative-controlled, plus Slice 4.1d C1's own kill-test in the
+# SAME job — because this lane narrows C1's blanket guard on two tables, and a
+# green purge next to a red C1 would mean the exemption ate the guarantee.
+#
+# The structural gate asserts that a purge can be neither a DELETE of a canonical
+# event nor a free redaction UPDATE of its payload; the purge proof runs two
+# purge components concurrently and asserts exactly one tombstone and exactly one
+# audit row per record, that an event with an unresolved delivery attempt is never
+# purged, and that every other mutation still raises.
+test:phi-retention-purge:
+  extends: .integration-proof
+  variables:
+    POSTGRES_DB: fi_fhir_phi_retention_test
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_phi_retention_test?sslmode=disable"
+    PROOF_FAILURE_SUMMARY: "the retention purge proofs regressed."
+    PROOF_LOCAL: "POSTGRES_TEST_URL=... make phi-retention-purge"
+    PROOF_DOCS: "docs/operations/PHI-RETENTION.md, .loom/40-decisions.md"
+  script:
+    - !reference [.integration-proof-toolchain, script]
+    # Existence guard. Integration helpers t.Skipf rather than t.Fatalf when a
+    # service is unreachable, so a renamed or deleted test would make this job
+    # greener rather than redder without this step (AGENTS.md).
+    - >-
+      go test -tags=integration
+      -list '^(TestPhiRetention_PostgresExpiryPurgeAndAuditedTombstone|TestPhiRetention_PurgeIsStructurallyBlockedToday)$'
+      ./internal/integration/retention
+      | rg -x '(TestPhiRetention_PostgresExpiryPurgeAndAuditedTombstone|TestPhiRetention_PurgeIsStructurallyBlockedToday)'
+      | awk 'END { if (NR != 2) exit 1 }'
+    - make phi-retention-purge
+    # C1's own kill-test and the rewritten posture gate, in this job, because this
+    # lane amends C1's triggers on two tables.
+    - make phi-audit

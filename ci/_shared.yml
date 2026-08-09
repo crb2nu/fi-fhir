@@ -1,0 +1,75 @@
+# Shared CI shapes, reachable from every `ci/*.yml` include.
+#
+# Why hidden jobs and not YAML anchors: anchors are file-scoped in GitLab CI. A
+# job moved into `ci/test-<name>.yml` cannot see `&go-cache` defined in
+# `.gitlab-ci.yml`, and the failure is silent — the merge key simply contributes
+# nothing. `extends:` and `!reference` are resolved after every include is
+# merged into one document, so they cross file boundaries in both directions.
+# That is the whole structural reason this file exists.
+#
+# Two shapes the split needed and did not have:
+#   .integration-proof            — the PostgreSQL-16 proof-job skeleton
+#   .integration-proof-toolchain  — the apt-get line five proof jobs repeat
+#
+# Two shapes it needed and already had, as hidden jobs in `.gitlab-ci.yml`:
+#   .go-image-debian, .go-cache   — extends-reachable there already; moving them
+#                                   would have duplicated 49 root-job anchors for
+#                                   no gain. `.loom/33` MR 0a task 1 assumed a
+#                                   move was required; it is not.
+#
+# `.go-mr-rules` lives in `.gitlab-ci.yml` next to `.go-changes` on purpose: it
+# is the extends-reachable form of the same rules, and keeping it beside the
+# change-set it aliases means there is exactly one copy of that list.
+#
+# Ownership: Lane S5-0. A lane that needs a new shared shape asks rather than
+# editing this file, so a shape six jobs depend on has one author.
+
+# The toolchain every Debian-image proof job installs before running Go tests.
+# Referenced rather than extended: `extends:` replaces a job's `script` array
+# wholesale, and every proof needs this line *plus* its own steps.
+#
+# `test:migration-compatibility` deliberately does not use this: it needs curl
+# and gnupg for the PGDG repository, and a superset here would install them for
+# five jobs that do not.
+.integration-proof-toolchain:
+  script:
+    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates ripgrep build-essential && rm -rf /var/lib/apt/lists/*
+
+# One isolated integration proof against PostgreSQL 16.
+#
+# A job extending this still declares its own POSTGRES_DB, POSTGRES_TEST_URL,
+# script, and — where the proof needs more than PostgreSQL — its own `services:`
+# array, because `extends:` merges maps but replaces arrays.
+#
+# allow_failure: false is here rather than per job so that promoting a proof to
+# non-blocking is a visible edit in the job's own file, never an omission.
+.integration-proof:
+  stage: test
+  extends:
+    - .go-image-debian
+    - .go-cache
+    - .go-mr-rules
+  services:
+    - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
+      alias: postgres
+  variables:
+    CGO_ENABLED: "1"
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
+    POSTGRES_USER: testuser
+    POSTGRES_PASSWORD: testpass
+    POSTGRES_HOST_AUTH_METHOD: trust
+  allow_failure: false
+  # The failure banner. A proof job sets PROOF_FAILURE_SUMMARY, PROOF_LOCAL and
+  # PROOF_DOCS; the owner line is the same for every one of them today. A job
+  # that needs a different shape declares its own after_script, which replaces
+  # this one.
+  after_script:
+    - |
+      if [ "$CI_JOB_STATUS" = "failed" ]; then
+        echo ""
+        echo "${CI_JOB_NAME} FAILED — ${PROOF_FAILURE_SUMMARY}"
+        echo "Local: ${PROOF_LOCAL}"
+        echo "Docs: ${PROOF_DOCS}"
+        echo "Owner: ${PROOF_OWNER:-Platform/Integration — escalate in #ci-support}"
+      fi

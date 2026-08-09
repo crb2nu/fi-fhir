@@ -280,6 +280,55 @@ it is the boundary an operator uses to decide whether a rollback is safe. A
 migrationcompat proof asserts each declared version equals the version actually
 applied, so the two cannot drift.
 
+## CI job layout
+
+**A new required proof adds `ci/test-<name>.yml` plus one `- local:` line in
+`.gitlab-ci.yml`. Never append a job to the root file.**
+
+`.gitlab-ci.yml` reached 2738 lines and 55 jobs by being the append point for
+every lane at once. The cost is not merge conflicts, which are visible and
+cheap. It is placement: `test:destination-transport` spent Sprint 4 at
+`:2672` — after the mirror stage, a thousand lines past the other twenty-four
+`test:` jobs — because a rebase put it there and a green pipeline hid it. In the
+same file a `.PHONY` continuation fragment landed inside the `dev-ui-down`
+recipe, so `make dev-ui-down` ran `destination-transport \` as a shell command
+until Sprint 5 removed it. Both were found by reading, not by CI.
+
+The layout:
+
+| Path | Holds |
+|---|---|
+| `.gitlab-ci.yml` | stages, variables, change sets, `.go-mr-rules`, and the jobs no lane owns |
+| `ci/_shared.yml` | `.integration-proof`, `.integration-proof-toolchain` — Lane S5-0's file; ask before editing |
+| `ci/test-<name>.yml` | exactly one required proof job, with its comment block |
+| `ci/job-inventory.txt` | the generated job list, checked in |
+
+Two mechanics are worth knowing before you move a job:
+
+- **YAML anchors are file-scoped.** `<<: *go-cache` in `ci/test-foo.yml` silently
+  contributes nothing. `extends:` and `!reference` are resolved after every
+  include is merged, so they work in both directions. Use them.
+- **`extends:` merges maps and replaces arrays.** A job extending
+  `.integration-proof` inherits its `variables:` and adds to them, but a job that
+  needs a second service must restate `services:` in full.
+
+`scripts/ci-job-inventory.sh --check` runs in the blocking `lint:docs` job and
+compares the live job list against `ci/job-inventory.txt`. Adding, removing, or
+restaging a job means regenerating it:
+
+```bash
+scripts/ci-job-inventory.sh              # print name<TAB>stage<TAB>allow_failure
+scripts/ci-job-inventory.sh --with-source # add file:line, to see placement
+scripts/ci-job-inventory.sh --write      # regenerate ci/job-inventory.txt
+```
+
+Commit the regenerated file with the change that caused it. A required proof
+that disappears in a refactor makes the pipeline *greener*, which is why this is
+a diff a reviewer reads rather than a signal CI could have given.
+
+`Makefile` proof targets follow the same rule: **one `.PHONY` line per lane**,
+appended at the end of the block, never extending another lane's line.
+
 ## Testing Strategy
 
 - Unit tests for each parser function

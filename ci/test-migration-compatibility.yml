@@ -1,0 +1,64 @@
+# Slice 4.4a Lane S4-C: migration compatibility, rollback safety, restore
+# round-trip. Isolated proof job per AGENTS.md — integration helpers t.Skipf
+# when a service is unreachable, so the -list existence step must run first.
+#
+# This job started life red. It landed in MR !151 with allow_failure: true and
+# one test, reproducing the defect .loom/32 correction 23 predicted: Slice 4.1d
+# C1's 0004_export_attribution.sql made three columns NOT NULL with no DEFAULT,
+# so a binary one version behind failed every session export with SQLSTATE
+# 23502. Product spec budget 6 was false in already-merged code. That MR landed
+# the fix and flipped the job to blocking in the same commit.
+#
+# The job runs the proof AND its negative controls in one invocation, following
+# test:observability-replicas. Each control removes one of the slice's fixes and
+# asserts the matching assertion goes red. A control that PASSES fails the job:
+# it means the proof is not exercising the mechanism.
+#
+# postgresql-client-16 comes from PGDG rather than from Debian, and that is
+# load-bearing. The golang:1.26.5 image is Debian trixie, whose only
+# postgresql-client is 17, and pg_dump 17 writes `SET transaction_timeout = 0`
+# into the archive — a setting PostgreSQL 16 does not have and rejects. A
+# mismatched client produces a dump that exits 0 and cannot be restored. The
+# script refuses on the mismatch rather than proving nothing quietly.
+test:migration-compatibility:
+  extends: .integration-proof
+  variables:
+    POSTGRES_DB: fi_fhir_migration_compat_test
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_migration_compat_test?sslmode=disable"
+    # Client major must equal server major; see the comment above.
+    FI_FHIR_PG_BIN_DIR: /usr/lib/postgresql/16/bin
+  script:
+    # Not .integration-proof-toolchain: this job additionally needs curl and
+    # gnupg for the PGDG repository, and five other jobs should not install them.
+    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates ripgrep build-essential curl gnupg && rm -rf /var/lib/apt/lists/*
+    # The PGDG suite is pinned to the base image's codename rather than derived,
+    # so a base-image bump fails loudly here instead of silently adding an apt
+    # source for the wrong Debian release.
+    - . /etc/os-release && [ "$VERSION_CODENAME" = trixie ] || { echo "base image is no longer Debian trixie; update the PGDG suite below"; exit 1; }
+    - install -d /usr/share/postgresql-common/pgdg
+    - curl -fsS -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    - echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt trixie-pgdg main" > /etc/apt/sources.list.d/pgdg.list
+    - apt-get update && apt-get install -y --no-install-recommends postgresql-client-16 && rm -rf /var/lib/apt/lists/*
+    - "${FI_FHIR_PG_BIN_DIR}/pg_dump --version"
+    # Existence guard. A renamed or deleted proof would make this job greener
+    # rather than redder without it.
+    - >-
+      go test -tags=integration
+      -list '^TestMigrationCompatibility_(ConcurrentReplicaMigrationRollbackAndRestore|ExportInsertShapeSurvivesOneVersionRollback|NegativeControls)$'
+      ./internal/integration/migrationcompat
+      | rg -x 'TestMigrationCompatibility_(ConcurrentReplicaMigrationRollbackAndRestore|ExportInsertShapeSurvivesOneVersionRollback|NegativeControls)'
+      | awk 'END { if (NR != 3) exit 1 }'
+    - make migration-compatibility
+  # Its own banner rather than .integration-proof's: a failing negative control
+  # means the opposite of a failing proof, and that sentence has to be in front
+  # of whoever is reading the log.
+  after_script:
+    - |
+      if [ "$CI_JOB_STATUS" = "failed" ]; then
+        echo ""
+        echo "test:migration-compatibility FAILED — migration compatibility or rollback safety regressed."
+        echo "A failing NEGATIVE CONTROL means the opposite: the proof stopped exercising its mechanism."
+        echo "Local: POSTGRES_TEST_URL=... FI_FHIR_PG_BIN_DIR=<pg16 bin> make migration-compatibility"
+        echo "Docs: AGENTS.md 'Migration authoring'; docs/developer-guide/testing.md"
+        echo "Owner: Platform/Integration — escalate in #ci-support"
+      fi

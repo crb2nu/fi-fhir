@@ -1,0 +1,66 @@
+# Slice 4.1c-b Lane S4-A: the destination transport proofs.
+#
+# The kill-test contacts two identity-bound `https` destinations exactly once
+# each under their own credentials, retries a 503 through the existing
+# per-destination circuit, dead-letters a 403 and a 302 without dialing the
+# redirect target, and publishes a `kafka`-class destination in the same run.
+# It then runs its own negative control against a router that owns nothing and
+# requires assertions 1-4 to FAIL there while the kafka-class assertion still
+# passes — a control that passes turns this job red, because it would mean the
+# router is not on the dispatch path.
+#
+# The day-1 gate is the recorded pre-slice behaviour: an `https`-transport
+# destination with a live TLS endpoint got zero accepted connections while Kafka
+# got exactly one command and the identity decision carried the URL only in
+# destination_endpoint_advisory.
+#
+# This job is separate from test:delivery-identity on purpose. That job's
+# existence guard stays at arity 2 and its two proofs stay unchanged: a
+# `kafka`-class destination still contacts nothing.
+#
+# Until Sprint 5 this job lived at `.gitlab-ci.yml:2672` — after the mirror
+# stage, 1000 lines past every other `test:` job — because a rebase put it
+# there and a green pipeline hid it. That misplacement is why `ci/` exists.
+test:destination-transport:
+  extends: .integration-proof
+  # Replaces .integration-proof's single PostgreSQL service: `extends:` merges
+  # maps but replaces arrays, so both entries have to be named here.
+  services:
+    - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
+      alias: postgres
+    - name: ${DOCKERHUB_CACHE_PREFIX}/apache/kafka:3.9.2
+      alias: kafka
+  variables:
+    POSTGRES_DB: fi_fhir_destination_transport_test
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_destination_transport_test?sslmode=disable"
+    PROOF_FAILURE_SUMMARY: "the destination transport contract regressed."
+    PROOF_LOCAL: "POSTGRES_TEST_URL=... KAFKA_TEST_BROKERS=... make destination-transport"
+    PROOF_DOCS: "docs/operations/DESTINATION-IDENTITY.md"
+    # Kubernetes-executor services share the job pod network namespace. Match the
+    # Apache single-node KRaft example, exactly as test:delivery-identity does.
+    KAFKA_TEST_BROKERS: "localhost:9092"
+    KAFKA_NODE_ID: "1"
+    KAFKA_PROCESS_ROLES: "controller,broker"
+    KAFKA_CONTROLLER_QUORUM_VOTERS: "1@localhost:9093"
+    KAFKA_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+    KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092"
+    KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+    KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+    KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+    KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+    KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+    KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+    KAFKA_NUM_PARTITIONS: "1"
+    KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+  script:
+    - !reference [.integration-proof-toolchain, script]
+    # Existence guard. Integration helpers t.Skipf rather than t.Fatalf when a
+    # service is unreachable, so a renamed or deleted proof would make this job
+    # greener rather than redder without this step (AGENTS.md).
+    - >-
+      go test -tags=integration
+      -list '^(TestDeliveryTransport_HTTPSClassContactedExactlyOnceUnderScopedIdentity|TestDeliveryTransport_HTTPSDestinationPublishesToBrokerToday)$'
+      ./internal/integration/delivery
+      | rg -x '(TestDeliveryTransport_HTTPSClassContactedExactlyOnceUnderScopedIdentity|TestDeliveryTransport_HTTPSDestinationPublishesToBrokerToday)'
+      | awk 'END { if (NR != 2) exit 1 }'
+    - make destination-transport

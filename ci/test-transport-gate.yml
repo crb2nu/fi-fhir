@@ -1,0 +1,32 @@
+# Lane S4-E transport-gate kill-test. No PostgreSQL service: the GraphQL
+# transport gate decides before any resolver reaches storage, so this proof runs
+# on the real handler with real OIDC tokens and nothing else.
+#
+# It therefore extends the three primitives directly rather than
+# .integration-proof, whose whole point is the PostgreSQL service this job must
+# not have.
+test:transport-gate:
+  stage: test
+  extends:
+    - .go-image-debian
+    - .go-cache
+    - .go-mr-rules
+  variables:
+    CGO_ENABLED: "1"
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
+  script:
+    - !reference [.integration-proof-toolchain, script]
+    # Existence guard. A renamed or deleted kill-test would make `-run` match
+    # nothing and this job greener rather than redder without this step
+    # (AGENTS.md). Seven names, so the arity is 7.
+    - >-
+      go test
+      -list '^TestTransportGate'
+      ./internal/api/graphql
+      | rg -x 'TestTransportGate_FineGrainedRolesReplaceBlanketOperator|TestTransportGate_CompatibilityGrantBehavesExactlyAsBefore|TestTransportGate_PreviewRoleIsUnchanged|TestTransportGateRoleMapIsExhaustive|TestTransportGateRoleMapShape|TestTransportGateNeverRequiresPHIExportRole|TestTransportGateRequirementsMatchTheServiceLayer'
+      | awk 'END { if (NR != 7) exit 1 }'
+    - make transport-gate
+    # The narrowing is only proven if restoring the blanket allow breaks it.
+    - make transport-gate-negative-control
+  allow_failure: false
