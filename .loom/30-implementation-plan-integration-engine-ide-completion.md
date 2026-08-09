@@ -806,6 +806,35 @@ per-deployment durable MLLP token bucket.
   publish the USCDI/profile coverage matrix, and surface conformance policy in
   artifacts and diagnostics.
 
+**Sequencing dependency (recorded 2026-08-08, Sprint 4 Lane S4-D): 5.1 is blocked
+on Slice 4.1c-b.** The durable integration engine produces no FHIR resource
+today. `pkg/fhir` has exactly two non-test importers — `internal/workflow/actions.go:23`
+(the legacy engine; mapper constructed at `:680`, action registered only at
+`internal/workflow/engine.go:127`) and `cmd/fi-fhir/main.go:49` (the `fhir validate`
+CLI, `:309`). The durable processor's only use of `internal/workflow` is a planner
+that "never invokes transforms or actions" (`internal/workflow/plan.go:144`), and
+the dispatcher's command carries the canonical event, not a resource
+(`internal/integration/delivery/dispatcher.go:246-259`;
+`internal/integration/delivery/store.go:107,128`). Consequently:
+
+- **"Surface conformance policy in artifacts and diagnostics" cannot be specified
+  until 4.1c-b defines what a FHIR destination is.** Conformance policy attaches
+  to a destination revision, and the destination revision has no FHIR class:
+  `TransportKind` is `kafka|https` only
+  (`internal/integration/destination/revision.go:54-62`).
+- Package pinning and validator integration are unblocked in principle but would
+  certify a path no golden journey executes. Golden journey 1 ends "inspect trace
+  and FHIR delivery" and journey 6 validates a US Core 9.0.0 R4 payload
+  (`.loom/20-product-spec-integration-engine-ide-completion.md:293,302-304`);
+  both wait on 4.1c-b.
+- Preparation completed in Sprint 4 with no code:
+  `docs/planning/FHIR-CONFORMANCE-MATRIX.md` (coverage matrix against
+  `pkg/fhir/mapper.go` and `pkg/fhir/validate.go`), the rewritten
+  `.loom/28-spec-fhir-ig-bulk-smart.md`, and the proposed validator decision in
+  `.loom/40-decisions.md` ("2026-08-08: FHIR conformance validation strategy").
+  The decision is **proposed, not ratified**; ratify it before any CI-image
+  change.
+
 ### Slice 5.2: SMART and Bulk Data conformance journey
 
 - Implement/test SMART App Launch 2.2.0 backend services and Bulk Data 3.0.0

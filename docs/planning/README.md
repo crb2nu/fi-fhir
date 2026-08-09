@@ -8,7 +8,8 @@ This directory contains detailed planning and specification documents for the fi
 | ------------------------------------------------ | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | [SOURCE-PROFILES.md](SOURCE-PROFILES.md)         | Source Profile configuration system - the unit of scalability        | ✅ Core + inference/lint shipped                                                                               |
 | [WORKFLOW-DSL.md](WORKFLOW-DSL.md)               | Workflow routing, transforms, and actions                            | ✅ Core + action pack shipped                                                                                  |
-| [FHIR-PROFILES.md](FHIR-PROFILES.md)             | FHIR R4 output with US Core mapping                                  | ✅ 17+ resources + validation shipped                                                                          |
+| [FHIR-PROFILES.md](FHIR-PROFILES.md)             | FHIR R4 output with US Core mapping                                  | 🟡 24 resource types mapped; written against US Core 6.1.0 — see the conformance matrix                        |
+| [FHIR-CONFORMANCE-MATRIX.md](FHIR-CONFORMANCE-MATRIX.md) | What the shipped FHIR mapper and checker actually cover, per resource type | 🟡 Planning input for Phase 5.1; presence check only, no pinned IG package                             |
 | [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md)               | HL7 v2.x version differences and parsing edge cases                  | ✅ Core + vendor templates shipped                                                                             |
 | [EDI-COMPLEXITIES.md](EDI-COMPLEXITIES.md)       | X12 EDI parsing (837P, 835, 270/271, 276/277)                        | ✅ Parsing + companion guide framework shipped                                                                 |
 | [IDENTIFIERS.md](IDENTIFIERS.md)                 | Patient/provider identifier systems and validation                   | ✅ Complete (validators + matching engine)                                                                     |
@@ -83,7 +84,7 @@ These are the remaining “big rocks” referenced by the Document Overview stat
 | ------ | ---------------------------------------- | ---------- | ---------------------------------------- |
 | FB-001 | Source Profile inference + linting       | ✅ Shipped | [SOURCE-PROFILES.md](SOURCE-PROFILES.md) |
 | FB-002 | Workflow action pack (email/file/custom) | ✅ Shipped | [WORKFLOW-DSL.md](WORKFLOW-DSL.md)       |
-| FB-003 | FHIR validation + conformance checks     | ✅ Shipped | [FHIR-PROFILES.md](FHIR-PROFILES.md)     |
+| FB-003 | FHIR validation + conformance checks      | 🟡 Validation shipped; **conformance checks are not** — the shipped checker is a required-field and profile-URL presence check with no pinned IG package (`pkg/fhir/validate.go:104-151,153-177`). Phase 5.1. | [FHIR-CONFORMANCE-MATRIX.md](FHIR-CONFORMANCE-MATRIX.md) |
 | FB-004 | Terminology version tracking             | ✅ Shipped | [TERMINOLOGY.md](TERMINOLOGY.md)         |
 | FB-005 | TypeScript SDK distribution              | ✅ Shipped | [TYPESCRIPT-SDK.md](TYPESCRIPT-SDK.md)   |
 | FB-006 | HL7 vendor templates + fixtures          | ✅ Shipped | [HL7V2-QUIRKS.md](HL7V2-QUIRKS.md)       |
@@ -291,7 +292,7 @@ Tracking issue: [libs/fi-fhir#8](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issu
 - ✅ ETL expansion: additional source/sink providers, scheduling, incremental sync — Implemented 2026-03-07
 - ✅ LLM feature expansion: multi-model routing, prompt versioning, evaluation framework
 - Terminology approval workflow (human-in-the-loop review for autoroute suggestions) — tracked in [libs/fi-fhir#17](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/17)
-- Additional FHIR Implementation Guides (USCDI v3, Bulk Data, SMART App Launch) — tracked in [libs/fi-fhir#12](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/12)
+- Additional FHIR Implementation Guides (US Core 9.0.0, Bulk Data 3.0.0, SMART App Launch 2.2.0) — promoted out of P3 into Phase 5 Slices 5.1/5.2 and 1.0-blocking (`.loom/30-implementation-plan-integration-engine-ide-completion.md:803-815,856`); scope in [`.loom/28-spec-fhir-ig-bulk-smart.md`](../../.loom/28-spec-fhir-ig-bulk-smart.md), coverage in [FHIR-CONFORMANCE-MATRIX.md](FHIR-CONFORMANCE-MATRIX.md). Blocked on Slice 4.1c-b. The legacy P3 entry [libs/fi-fhir#12](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/12) still says "USCDI v3" and is superseded.
 - ✅ Terminology index test coverage (91.3%) — 2026-03-05
 - ✅ Terminology semantic search test coverage (90.9%) — 2026-03-05
 - ✅ LLM extract test coverage (94.2%, up from 76.6%) — 2026-03-05
