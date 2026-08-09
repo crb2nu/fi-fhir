@@ -574,29 +574,73 @@ ALTER TABLE workflow_events
 # In values.yaml
 config:
   observability:
-    logLevel: info
-    logFormat: json  # Structured JSON for log aggregation
-    tracingEnabled: true
+    logLevel: info   # debug | info | warn | error
+    logFormat: json  # json (default) or text; json is the only aggregator-parsable form
 ```
+
+`tracingEnabled` is deliberately absent. The chart carried it until slice 4.4a
+removed the key and 4.4d removed the last snippet that still showed it: it set
+`FI_FHIR_TRACING_ENABLED`, which `pkg/config` parses and validates and which no
+OpenTelemetry exporter consumes. See "Tracing" below.
+
+`logLevel` and `logFormat` became load-bearing in slice 4.4d. Before that they
+were parsed, validated, and read by nothing, and `serve` wrote unstructured
+single-line text regardless of what they said.
 
 ### Log Fields for Compliance
 
-fi-fhir logs include:
+Every line `fi-fhir serve` writes is a JSON object on stderr. The field keys are
+a **closed set** — `internal/observability/logging.go` defines `LogField`, and
+the handler drops any attribute whose key is not in it rather than writing it,
+reporting the refusal as `dropped_fields`. This is the same posture the metric
+labels take (`internal/observability/metrics.go` coerces an unrecognised outcome
+to `error` rather than emitting it), and for the same reason: an unbounded key
+space is how PHI reaches a log aggregator.
+
+A representative line:
 
 ```json
 {
-  "timestamp": "2024-01-15T10:30:00.123Z",
-  "level": "info",
-  "message": "Event processed",
-  "trace_id": "abc123",
-  "span_id": "def456",
-  "event_type": "patient_admit",
-  "source": "epic_adt",
-  "action": "fhir",
-  "duration_ms": 45,
-  "status": "success"
+  "time": "2026-08-09T10:30:00.123456-04:00",
+  "level": "WARN",
+  "msg": "delivery scheduled for retry",
+  "tenant_id": "tenant-a",
+  "component": "delivery-worker",
+  "outcome": "retried",
+  "duration_ms": 45
 }
 ```
+
+`time`, `level`, and `msg` come from `log/slog`. `tenant_id` is bound to the
+logger at startup and is therefore on every line. Everything else is drawn from
+the allowlist; `observability.PermittedLogFields()` enumerates it, and
+`TestEveryPermittedLogFieldIsBounded` fails if the set stops being enumerable.
+
+**Correlation, honestly.** There is no single correlation identifier to filter
+on, by design: `pkg/integration/contracts.go` declares an eight-field lineage
+bundle, and the durable schema follows it —
+`integration_receipts`, `integration_canonical_events`, and
+`integration_message_lineage` carry `correlation_id NOT NULL`, while
+`integration_delivery_attempts` carries `trace_id NOT NULL` and joins back by
+foreign key. So a log line and a submission are joined **through the durable
+records**, not through a field the log line carries.
+
+Two consequences an operator should know before writing a query:
+
+- Lines emitted from the component-observation seam
+  (`cmd/fi-fhir/serve_observability.go`) carry `tenant_id`, `component`,
+  `outcome`, and `duration_ms` and **no** lineage identifier. The four
+  observation callbacks receive `(Result, error)` and no context, and none of
+  the `Result` types carries one. Emitting `correlation_id` from a component
+  line requires widening those types, which is filed rather than done.
+- `trace_id` and `span_id` appear only when a valid OpenTelemetry span context
+  is on the request context. With tracing not exported, that is the GraphQL
+  request path only. A zeroed trace ID is never emitted: a line that looks
+  correlated and is not is worse than a line that admits it is not.
+
+To join a component line to a message, filter by `tenant_id` and `component`,
+take the window from `time`, and resolve the message through
+`operatorMessageTrace` or the ledger tables directly.
 
 ### Kubernetes Audit Policy
 

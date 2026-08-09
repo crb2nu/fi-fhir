@@ -42,8 +42,14 @@ data:
       metrics_enabled: true
       metrics_endpoint: /metrics
       metrics_port: 9090
-      tracing_enabled: true
-      tracing_sampler: 0.1
+      # tracing_enabled and tracing_sampler were removed in slice 4.4d. They are
+      # the exact snake_case keys pkg/config binds, mounted at /app/config, so
+      # they configured the parsed-and-ignored tracing settings to `true` while
+      # no OpenTelemetry exporter existed in the serve path — this file claimed
+      # the deployment exported traces. Slice 4.4a stripped every FI_FHIR_TRACING_*
+      # env form and added a gate for it, but the gate greps for that literal and
+      # this YAML form escaped it entirely. NOT IMPLEMENTED: the exporter is the
+      # tracing half of 4.4d, and the keys come back with it.
       log_level: info
       log_format: json
 

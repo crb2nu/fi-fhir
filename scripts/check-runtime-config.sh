@@ -271,6 +271,45 @@ EOF
   fi
 '
 
+check_required "no deployment artifact advertises unimplemented tracing in YAML form" bash -c '
+  root="'"$ROOT"'"
+  # The env-variable assertion above greps for the literal FI_FHIR_TRACING_ and
+  # is structurally blind to the form that actually shipped:
+  # deploy/kubernetes/base/configmap.yaml set `tracing_enabled: true` and
+  # `tracing_sampler: 0.1` inside a config.yaml block mounted at /app/config —
+  # the exact snake_case keys pkg/config binds (pkg/config/config.go, the
+  # Observability struct). Same false claim, different syntax, invisible to the
+  # gate that existed to catch it. Slice 4.4d closes the hole in both directions.
+  #
+  # Comment lines are fine: the point is the setting, not the string. A key set
+  # to an explicit false is also fine — turning a thing off is not advertising it.
+  offenders=""
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    text="${line#*:}"   # strip path
+    text="${text#*:}"   # strip line number
+    text="${text#"${text%%[![:space:]]*}"}"
+    case "$text" in
+      "#"* | "--"* | "//"*) continue ;;
+    esac
+    case "$text" in
+      *"tracing_enabled"*"false"* | *"tracingEnabled"*"false"*) continue ;;
+    esac
+    offenders="${offenders}${line}
+"
+  done <<EOF
+$(grep -rnE "(tracing_enabled|tracing_sampler|tracing_endpoint|tracingEnabled|tracingSampler|tracingEndpoint)[[:space:]]*:" "$root/deploy" "$root/configs" "$root/docker-compose.yaml" 2>/dev/null || true)
+EOF
+  if [ -n "$offenders" ]; then
+    echo "a deployment artifact configures tracing in YAML, which no exporter consumes:"
+    echo "$offenders"
+    echo "pkg/config binds these snake_case keys, so setting them is the same claim"
+    echo "FI_FHIR_TRACING_* makes. Remove them, or land the exporter (slice 4.4d)"
+    echo "in the same change."
+    exit 1
+  fi
+'
+
 check_required "batch worker identity is not a shared literal" bash -c '
   file="'"$ENV_EXAMPLE"'"
   value=$(grep -E "^[[:space:]]*FI_FHIR_BATCH_WORKER_ID=" "$file" | head -1 | cut -d= -f2- | tr -d "\"'"'"' ")
