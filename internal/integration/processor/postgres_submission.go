@@ -53,6 +53,9 @@ var operatorControlPlaneMigration string
 //go:embed migrations/0004_audit_immutability.sql
 var auditImmutabilityMigration string
 
+//go:embed migrations/0005_retention_expiry.sql
+var retentionExpiryMigration string
+
 var submissionMigrations = []struct {
 	version int64
 	name    string
@@ -62,6 +65,7 @@ var submissionMigrations = []struct {
 	{version: 2, name: "0002_delivery_reliability", sql: deliveryReliabilityMigration},
 	{version: 3, name: "0003_operator_control_plane", sql: operatorControlPlaneMigration},
 	{version: 4, name: "0004_audit_immutability", sql: auditImmutabilityMigration},
+	{version: 5, name: "0005_retention_expiry", sql: retentionExpiryMigration},
 }
 
 // AdmissionAuthorizer runs inside the durable submission transaction before

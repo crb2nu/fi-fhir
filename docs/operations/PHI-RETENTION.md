@@ -1,6 +1,6 @@
 # PHI Retention Posture
 
-**Status**: current as of Slice 4.1d C1 (2026-08-08)
+**Status**: current as of Slice 4.1e (2026-08-08)
 **Audience**: platform operators, privacy officers, security reviewers
 **Scope**: what protected health information the integration engine persists, for
 how long, under what protection, and what is *not* implemented.
@@ -15,6 +15,13 @@ Two automated gates keep it honest, both required in CI as `test:phi-audit`:
 |---|---|
 | `TestPhiRetentionPosture_ProductionRejectsRetainedRawAndCanonicalEventsCarryNoPolicy` (`internal/integration/processor/phi_retention_posture_integration_test.go`) | Sections 1 and 2 below |
 | `TestPhiAudit_PostgresImmutableRecordsAndAttributedExport` (`internal/integration/session/phi_audit_integration_test.go`) | Sections 4 and 5 below |
+
+One more is required as `test:phi-retention-purge`:
+
+| Gate | Proves |
+|---|---|
+| `TestPhiRetention_PurgeIsStructurallyBlockedToday` (`internal/integration/retention/purge_gate_integration_test.go`) | That a purge is neither a `DELETE` nor a free redaction — section 2 |
+| `TestPhiRetention_PostgresExpiryPurgeAndAuditedTombstone` (`internal/integration/retention/purge_integration_test.go`) | Sections 2, 3, and 6 below |
 
 ---
 
@@ -47,7 +54,7 @@ degrading to plaintext storage.
 
 ---
 
-## 2. Canonical event payloads are PHI, retained indefinitely, with no policy field
+## 2. Canonical event payloads are PHI, retained under a per-tenant policy, purged by tombstone
 
 What production *does* persist is the canonical clinical event:
 
@@ -57,41 +64,128 @@ What production *does* persist is the canonical clinical event:
   (`internal/integration/processor/migrations/0001_atomic_submission.sql:26`).
 - The ADT A01 projector sets that classification
   (`internal/integration/processor/adt_a01.go:209`).
-- The table has **no** TTL, expiry, retention, or purge column. The only
-  time-bounded columns anywhere in the durable migration set are *lease* columns.
 
-**This is the gap.** The PHI the platform retains forever is the PHI that carries
-no retention policy at all. Designing that policy, adding the expiry columns, and
-building a durable purge component is **Slice S3-C2**, tracked in
-`.loom/31-sprint3-execution-specs.md` ("Lane S3-C", correction 23). Until it
-ships, canonical event payload retention is governed by database backup and
-deletion policy operated outside this codebase, not by the application.
+### Why a purge here is a tombstone and not a deletion
 
-Assertion (b) of the retention-posture gate queries `information_schema.columns`
-for `%ttl%`, `%expire%`, `%retention%`, and `%purge%` on that table and fails if
-any appears — so if S3-C2 lands, this section must be rewritten before CI passes.
+Slice 4.1d C1 put a blanket `BEFORE UPDATE OR DELETE` guard on this table
+(`internal/integration/processor/migrations/0004_audit_immutability.sql:29-32`).
+A purge is either a `DELETE` of the row or an `UPDATE` replacing the payload.
+**C1 blocked both**, and nothing said so until Slice 4.1e's day-1 gate asserted
+it. Even with the trigger lifted the row would still be undeletable:
+`integration_message_lineage` and `integration_delivery_attempts` reference it
+`ON DELETE RESTRICT` (`0001_atomic_submission.sql:52-54,73-75`) and both are
+themselves undeletable.
 
----
+So the purge replaces the payload with a **canonical tombstone** and stamps
+`purged_at`. The exemption that permits it is column-scoped and enforced by the
+schema, not by a role or a convention
+(`internal/integration/processor/migrations/0005_retention_expiry.sql`):
 
-## 3. Session workspace samples: redacted by default, encrypted when retained, never expired
+| Operation on `integration_canonical_events` | Result |
+|---|---|
+| `DELETE` | raises, always |
+| `UPDATE` of `tenant_id`, `event_id`, `receipt_id`, `event_type`, `source_message_id`, `correlation_id`, `classification`, `recorded_at` | raises, always |
+| `UPDATE` of `purge_after` alone, on an unpurged row | permitted — this is the policy stamp, and it touches no payload |
+| `UPDATE` setting `payload_json` to the canonical tombstone **and** `purged_at`, once, on an unpurged row | permitted — this is the purge |
+| any other `UPDATE` of `payload_json`, or a second tombstone | raises |
+
+**A tombstone is not a backup-inclusive deletion.** The row, its identity, its
+classification, and its `recorded_at` survive on purpose, so an audit can still
+show what existed. **A database backup taken before the purge still contains the
+payload.** Purge bounds retention in the live database only; expiring backup
+copies remains a storage-layer control operated outside this codebase.
+
+### The policy that decides when
+
+Retention lives in `integration_retention_policies`: a mutable, attributed,
+versioned, per-tenant record (`0005_retention_expiry.sql`). It is deliberately
+**not** part of the integration revision — a revision is immutable and
+content-addressed, the retained data outlives it, and a retention change must not
+require minting a revision and redeploying — and **not** deployment configuration
+alone, which has no audit trail and no per-tenant scope. Every change writes an
+append-only row to `integration_retention_policy_audit`. See
+`.loom/40-decisions.md` (2026-08-08, "Slice 4.1e").
+
+The deployment supplies the document, loaded the way the destination registry is:
+
+| Variable | Meaning |
+|---|---|
+| `FI_FHIR_RETENTION_POLICY_PATH` | Path to the retention policy document. **Unset means no purge component, no policy record, and nothing purged.** |
+| `FI_FHIR_RETENTION_PURGE_INTERVAL` | Purge cadence, Go duration. Default `1h`. |
+| `FI_FHIR_RETENTION_PURGE_BATCH_SIZE` | Records per class per pass. Default `200`. |
+
+An omitted window means **retain indefinitely** for that class. An absent policy
+record means the same for every class. Fail-closed is the only safe default for
+a control whose failure mode is destroying clinical data.
+
+`purge_after` and `purged_at` are `NULL`-able and the migration **backfills
+nothing**. A row admitted before any policy existed has no policy; inventing a
+deadline for it in a migration would be retroactively vouching for a retention
+decision nobody made, the same reason 4.1b3 and C1 refused to backfill
+provenance. Such a row becomes purgeable only once an operator records an
+attributed policy, at which point the purge component stamps it under that
+operator's authority.
+
+### What the purge will never touch
+
+An event whose delivery attempt is still `queued`, or still active in the
+dead-letter queue, is **never** purged
+(`internal/integration/retention/store.go`, `purgeCanonicalEvents`). The delivery
+`Claim` join reads `integration_canonical_events.payload_json`
+(`internal/integration/delivery/store.go:107-113`); if a tombstone could reach
+it, the worker would publish a tombstone to a destination. The interlock is
+asserted directly by the kill-test.
+
+### Audit
+
+Every purged record writes one row to `integration_retention_purge_audit` — the
+tenant, the class, the record identifier, the policy version that authorized it,
+the effective `purge_after`, and a server-owned `purged_at` — **in the same
+statement as the tombstone**, so a purge without an audit row cannot be
+expressed. A `UNIQUE (tenant_id, record_class, record_id)` constraint makes
+"exactly one audit row per record" a schema guarantee rather than a property of
+the sweeper, which is what lets two replicas run the purge concurrently with no
+lease and no leader election.
+
+## 3. Session workspace samples and exports: redacted or encrypted, and now expirable
 
 The Integration Session workspace is the design-time surface, and it holds sample
 messages supplied by integration engineers.
 
 | Policy | Storage | Citation |
 |---|---|---|
-| `redact` (default) | The raw is redacted in place before storage; only the redacted form is persisted in `record_json` | `internal/integration/session/postgres.go:303-305` |
-| `retain` (explicit) | The raw is encrypted with AES-256-GCM and stored in `integration_session_samples.raw_cipher`; the plaintext is not stored | `internal/integration/session/postgres.go:306-317`, `internal/integration/session/protector.go:35-51` |
+| `redact` (default) | The raw is redacted in place before storage; only the redacted form is persisted in `record_json` | `internal/integration/session/postgres.go:321-323` |
+| `retain` (explicit) | The raw is encrypted with AES-256-GCM and stored in `integration_session_samples.raw_cipher`; the plaintext is not stored | `internal/integration/session/postgres.go:324-333`, `internal/integration/session/protector.go:35-51` |
 
 The encryption is real: a random 96-bit nonce per record, a version byte, and
 session/sample-scoped additional authenticated data
 (`internal/integration/session/protector.go:43-50`).
 
-**There is no TTL and no purge job for either form.** A retained sample's
-ciphertext persists until the row is deleted by an operator. This is the second
-half of the S3-C2 gap.
+Slice 4.1e adds expiry to both PHI-bearing classes here, and they get **different
+purge shapes because they are different kinds of record**
+(`internal/integration/session/migrations/0006_retention_expiry.sql`):
 
----
+| Table | Column added | Purge shape | Why |
+|---|---|---|---|
+| `integration_session_samples` | `purge_after` | **row deleted outright**, `raw_cipher` included | The table carries no immutability trigger and never did. Giving it a tombstone would invent a guarantee it never had. |
+| `integration_session_exports` | `purge_after`, `purged_at` | **`record_json` tombstoned**; the row stays | The row is evidence of a disclosure. C1 made it append-only, and its foreign key makes the exported session undeletable too (see section 4). |
+| `integration_session_stream_events` | — | **pruned** past a schema floor | Envelope log, no PHI. This is a growth control, not a privacy control. |
+
+An export purge destroys the **snapshot**, never the disclosure record:
+`principal_json`, `reason`, `include_raw_payload`, and `exported_at` stay frozen
+by the same column-scoped guard that permits the tombstone.
+
+### The fanout log is pruned, and the schema sets the floor
+
+`integration_session_stream_events` grew forever and nothing pruned it. It is now
+prunable on the policy's `stream_event_retain` window, and the schema refuses to
+delete any envelope younger than **24 hours** regardless of what a deployment
+configures. The log is a resume cursor: a subscriber away longer than the window
+sees a gap — already the documented replica-flip behaviour — but a one-minute
+window would turn every reconnect into one. `UPDATE` remains blanket-blocked.
+
+Pruned envelopes write no purge-audit row. They carry no clinical content, and
+one audit row per envelope would replace one unbounded table with another.
 
 ## 4. Session exports are attributed disclosures
 
@@ -141,7 +235,7 @@ required decision, never whether the session or its raw payloads exist.
 
 The default remains strip. Note that even with the grant, samples stored under
 the `retain` policy have their raw stripped from the bundle unconditionally by
-the store (`internal/integration/session/postgres.go:889-893`); the grant governs
+the store (`internal/integration/session/postgres.go:907-911`); the grant governs
 the *redacted* raw the GraphQL layer returns.
 
 ---
@@ -159,7 +253,7 @@ runtime legitimately mutates some of these tables:
 
 | Table | Guard | Rationale |
 |---|---|---|
-| `integration_canonical_events` | blanket `BEFORE UPDATE OR DELETE` | insert-only ledger holding the retained PHI |
+| `integration_canonical_events` | blanket `BEFORE DELETE` + column-scoped `BEFORE UPDATE` | insert-only ledger holding the retained PHI. Slice 4.1e narrowed C1's blanket guard to permit exactly the retention-policy stamp and the one-time tombstone — see section 2 |
 | `integration_message_lineage` | blanket | insert-only provenance |
 | `integration_delivery_audit` | blanket | insert-only delivery ledger |
 | `integration_delivery_operations` | blanket | insert-only replay/resubmit/discard ledger |
@@ -167,8 +261,11 @@ runtime legitimately mutates some of these tables:
 | `integration_receipts` | column-scoped `BEFORE UPDATE` + blanket `BEFORE DELETE` | admission identity, provenance, and attribution frozen; the table is a state table by design |
 | `integration_delivery_attempts` | column-scoped `BEFORE UPDATE` + blanket `BEFORE DELETE` | lineage and destination binding frozen, while `status` / `attempt_count` / `scheduled_at` / `completed_at` / error columns stay writable for the delivery state machine |
 
-Both column-scoped guards are in
-`internal/integration/processor/migrations/0004_audit_immutability.sql`.
+The receipt and attempt column-scoped guards are in
+`internal/integration/processor/migrations/0004_audit_immutability.sql`; the
+canonical event's and the session export's are in
+`internal/integration/processor/migrations/0005_retention_expiry.sql` and
+`internal/integration/session/migrations/0006_retention_expiry.sql`.
 
 **Referential integrity is not immutability.** The `ON DELETE RESTRICT` foreign
 keys on these tables protect only rows that still have dependents; the last row
@@ -182,35 +279,57 @@ integration suites is unaffected.
 
 ---
 
-## 6. What is explicitly NOT implemented
+## 6. What is implemented, and what is still not
 
 | Control | Status |
 |---|---|
-| TTL or expiry on canonical event payloads | **Not implemented** — S3-C2 |
-| TTL or expiry on session sample ciphertext or redacted records | **Not implemented** — S3-C2 |
-| TTL or expiry on session export snapshots | **Not implemented** — S3-C2 |
-| Durable purge component | **Not implemented** — S3-C2 |
+| TTL or expiry on canonical event payloads | **Implemented** (Slice 4.1e) — `purge_after` / `purged_at`, purged by tombstone, audited |
+| TTL or expiry on session sample ciphertext and redacted records | **Implemented** — `purge_after`, row deleted outright |
+| TTL or expiry on session export snapshots | **Implemented** — `purge_after` / `purged_at`, snapshot tombstoned, attribution preserved |
+| Pruning of the session stream fanout log | **Implemented** — policy window with a 24 hour schema floor |
+| Durable purge component | **Implemented** — `internal/integration/retention`, multi-replica safe with no lease |
+| Per-tenant, audited, mutable retention policy | **Implemented** — `integration_retention_policies` + `integration_retention_policy_audit` |
+| **Purge of backup copies** | **Not implemented and out of scope.** A tombstone is not a backup-inclusive deletion. Backups taken before a purge still hold the payload; expiring them is a storage-layer control. Tracked as a Slice 4.4c interaction |
+| **Role separation for the purge** | **Not implemented — named follow-up slice.** Every migration runs on the same connection the runtime uses, so the application role owns the tables it guards and can drop any trigger. The schema-enforced exemption is a guard against programmatic error, not against a hostile database role. Real separation needs a de-privileged application role, a separate migration runner, and a purge role |
+| Operator-facing purge status API | Not in this slice. The GraphQL schema was frozen for Sprint 4; the policy is server-owned configuration and the audit is queryable in the database |
 | Encrypted production raw retention | **Deliberately unimplemented and fail-closed** (section 1). Do not enable it by lifting `ErrUnsupportedRawRetention` without the storage revision, key resolver, and access-audit path the contract requires |
-| Narrowed transport-gate roles | Not in this slice. `graphql:operator` remains a blanket allow at the GraphQL transport gate (`internal/api/graphql/operation_authorization.go:50-52`); fine-grained decisions like `integration.phi.export` sit one layer deeper |
+| Narrowed transport-gate roles | Not in this slice. `graphql:operator` remains a blanket allow at the GraphQL transport gate (`internal/api/graphql/operation_authorization.go:50-52`); fine-grained decisions like `integration.phi.export` sit one layer deeper. Lane S4-E |
 
-## Operational guidance until S3-C2
+## Operational guidance
 
-1. Treat the submission database as a PHI system of record with indefinite
-   retention. Backup encryption, access control, and deletion schedules are
-   operated at the database and storage layer.
-2. Treat session workspaces as PHI-bearing. Retained samples are encrypted at
+1. **An unconfigured deployment purges nothing.** Until
+   `FI_FHIR_RETENTION_POLICY_PATH` is set, the submission database is a PHI
+   system of record with indefinite retention, and backup encryption, access
+   control, and deletion schedules are operated at the database and storage
+   layer.
+2. **Write the policy document as a privacy decision, not as configuration.** It
+   carries `authorized_by` and `reason`, both required, both recorded in
+   `integration_retention_policy_audit` on every change. Restarting with an
+   unchanged document mints no version and forges no audit entry.
+3. **A purge is irreversible in the live database and reversible from a backup.**
+   Plan backup expiry alongside the retention window, or the effective retention
+   is the backup retention.
+4. Treat session workspaces as PHI-bearing. Retained samples are encrypted at
    rest by the application; redacted samples are not raw but are not guaranteed
    PHI-free for every format.
-3. Every `exportIntegrationBundle` call is a logged disclosure. Review
+5. Every `exportIntegrationBundle` call is a logged disclosure. Review
    `integration_session_exports` — `principal_json`, `reason`,
-   `include_raw_payload`, `exported_at` — during access reviews.
-4. Grant `integration.phi.export` narrowly. It is the only role that unlocks raw
+   `include_raw_payload`, `exported_at` — during access reviews. Purging the
+   snapshot does not remove the disclosure record.
+6. Grant `integration.phi.export` narrowly. It is the only role that unlocks raw
    sample payloads in an export.
+7. Review `integration_retention_purge_audit` during access reviews. It is the
+   record of what the platform destroyed, when, and under which policy version.
 
 ## Related
 
+- `.loom/32-sprint4-execution-specs.md` — Lane S4-B, corrections 11-20
+- `.loom/40-decisions.md` — 2026-08-08, "Slice 4.1e": the immutability exemption
+  and the policy-placement decision
+- `.loom/iteration-plan-phase-4-slice-4-1e-retention-purge.md` — Slice 4.1e's
+  plan and day-1 gate results
 - `.loom/31-sprint3-execution-specs.md` — Lane S3-C, corrections 21-25, and the
   C1/C2 split
-- `.loom/iteration-plan-phase-4-slice-4-1d-c1-phi-audit.md` — this slice's plan
+- `.loom/iteration-plan-phase-4-slice-4-1d-c1-phi-audit.md` — Slice 4.1d C1's plan
   and day-1 gate results
 - `docs/operations/README.md` — general operations entry point

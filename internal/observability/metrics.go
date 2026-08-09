@@ -48,6 +48,8 @@ const (
 	OutcomeQueued Outcome = "queued"
 	// OutcomeSkipped is work another replica had already claimed.
 	OutcomeSkipped Outcome = "skipped"
+	// OutcomePurged is a retained record removed or tombstoned by retention policy.
+	OutcomePurged Outcome = "purged"
 )
 
 // allOutcomes is the complete label allowlist. The PHI-label test asserts that
@@ -58,7 +60,7 @@ var allOutcomes = map[string]struct{}{
 	string(OutcomeDelivered): {}, string(OutcomeRetried): {}, string(OutcomeFailed): {},
 	string(OutcomeIdle): {}, string(OutcomeProcessed): {}, string(OutcomePublished): {},
 	string(OutcomeDropped): {}, string(OutcomeReplayed): {}, string(OutcomeQueued): {},
-	string(OutcomeSkipped): {},
+	string(OutcomeSkipped): {}, string(OutcomePurged): {},
 }
 
 // KnownOutcome reports whether a label value is in the allowlist.
@@ -87,6 +89,7 @@ const (
 	ComponentMappingStore     = "mapping_store"
 	ComponentProcessLiveness  = "process"
 	ComponentLifecycleCatalog = "lifecycle_catalog"
+	ComponentRetentionPurge   = "retention_purge"
 )
 
 // Metrics owns the one Prometheus registry the serve process exposes.
@@ -112,6 +115,8 @@ type Metrics struct {
 	autorouteSweeps        *prometheus.CounterVec
 	autorouteExpired       prometheus.Counter
 	autorouteNotifications *prometheus.CounterVec
+	retentionPurges        *prometheus.CounterVec
+	retentionRecordsPurged *prometheus.CounterVec
 
 	mu sync.Mutex
 }
@@ -173,12 +178,21 @@ func NewMetrics(version string) *Metrics {
 			Name: "fi_fhir_autoroute_notifications_total",
 			Help: "Pending autoroute review notifications by outcome.",
 		}, []string{"outcome"}),
+		retentionPurges: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "fi_fhir_retention_purges_total",
+			Help: "Retention purge passes by outcome.",
+		}, []string{"outcome"}),
+		retentionRecordsPurged: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "fi_fhir_retention_records_purged_total",
+			Help: "Records tombstoned, deleted, or pruned by the retention purge, by outcome.",
+		}, []string{"outcome"}),
 	}
 
 	registry.MustRegister(
 		m.buildInfo, m.componentUp, m.readinessUp,
 		m.ingressSubmissions, m.mllpMessages, m.deliveryAttempts, m.batchObjects,
 		m.sessionStreamEvents, m.autorouteSweeps, m.autorouteExpired, m.autorouteNotifications,
+		m.retentionPurges, m.retentionRecordsPurged,
 	)
 	m.buildInfo.WithLabelValues(version).Set(1)
 	return m
@@ -263,6 +277,24 @@ func (m *Metrics) RecordAutorouteSweep(outcome Outcome, expired int) {
 // RecordAutorouteNotification counts one review notification transition.
 func (m *Metrics) RecordAutorouteNotification(outcome Outcome) {
 	inc(m, m.autorouteNotifications, outcome)
+}
+
+// RecordRetentionPurge counts one retention purge pass and the records it
+// removed.
+//
+// Only the pass outcome and the record total are published. The record
+// identifiers the purge acts on are durable identifiers, not clinical content,
+// but they are unbounded, so they stay in the durable audit row and out of every
+// metric label.
+func (m *Metrics) RecordRetentionPurge(outcome Outcome, purged int64) {
+	inc(m, m.retentionPurges, outcome)
+	if m == nil || purged <= 0 {
+		return
+	}
+	if !KnownOutcome(string(OutcomePurged)) {
+		return
+	}
+	m.retentionRecordsPurged.WithLabelValues(string(OutcomePurged)).Add(float64(purged))
 }
 
 func inc(m *Metrics, vec *prometheus.CounterVec, outcome Outcome) {

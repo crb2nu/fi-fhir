@@ -61,6 +61,7 @@
 | Delivery Reliability  | `internal/integration/delivery/`  | Alpha      | —        | PostgreSQL leases/retry/circuit/DLQ/recovery plus real Kafka publisher | 2026-07-15 |
 | Batch Ingestion       | `internal/integration/batch/`     | Alpha      | —        | S3/SFTP streaming, PostgreSQL checkpoint/resume, verified archive | 2026-07-16 |
 | Integration Sessions  | `internal/integration/session/`   | Alpha      | —        | Restart-safe workspace, simulation, signed tested-revision publication, exact lifecycle promotion | 2026-07-18 |
+| Retention Purge       | `internal/integration/retention/` | Alpha      | —        | Per-tenant audited retention policy plus multi-replica purge by tombstone; PostgreSQL-proved | 2026-08-09 |
 | GraphQL API           | `internal/api/graphql/`           | Beta       | 9.5%\*   | Bounded POST plus session-only SSE; WebSocket disabled | 2026-07-16 |
 | FHIR Subscriptions    | `internal/fhir/subscription/`     | Production | 83.7%    | Bidirectional; client + webhook receiver         | 2026-02-27   |
 | Terminology Autoroute | `internal/terminology/autoroute/` | Beta       | 92.1%    | Routing engine + serve-time pending-expiry sweep + review webhook notifier | 2026-08-08   |

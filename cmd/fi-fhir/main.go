@@ -30,6 +30,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
 	operatorplane "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/operator"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
+	integrationretention "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/retention"
 	integrationsession "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/session"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/explain"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/llm/extract"
@@ -4851,6 +4852,7 @@ func runServe(args []string) error {
 	var mappingStore *termdb.MappingStore
 	var autorouteSweeper *autoroute.Sweeper
 	var autorouteNotifier *autoroute.ReviewNotifier
+	var retentionPurger *integrationretention.Purger
 
 	var terminologyDB *sql.DB
 	if dbURL != "" {
@@ -4941,6 +4943,26 @@ func runServe(args []string) error {
 		} else {
 			autorouteNotifier = notifier
 		}
+	}
+
+	// Slice 4.1e retention purge. Disabled unless the deployment supplies an
+	// attributed retention policy document, so an unconfigured deployment purges
+	// nothing. A malformed document fails startup rather than starting a
+	// retention control that quietly never acts.
+	if purger, policy, retentionErr := loadRetentionPurgerFromEnv(
+		serveCtx, securePreviewRuntime.submissionDB, securePreviewRuntime.tenantID,
+		retentionPurgeObserver(serveMetrics),
+	); retentionErr != nil {
+		return fmt.Errorf("configure retention purge: %w", retentionErr)
+	} else if purger != nil {
+		retentionPurger = purger
+		fmt.Printf("Retention purge enabled (every %s, policy version %d, batch %d)\n",
+			purger.Interval(), policy.Version, purger.BatchSize())
+		if policy.PurgesNothing() {
+			fmt.Println("Retention purge: policy retains every class indefinitely; nothing will be purged")
+		}
+	} else {
+		fmt.Println("Retention purge: disabled (no retention policy configured)")
 	}
 
 	// Initialize LLM-powered features (optional - gracefully disabled if unavailable)
@@ -5189,7 +5211,7 @@ func runServe(args []string) error {
 	// this table's shape. Sibling lanes append their own component *after* their
 	// own subsystem's block and add a matching entry to markComponent and
 	// waitForBackgroundStops rather than restructuring the table.
-	errCh := make(chan componentError, 9)
+	errCh := make(chan componentError, 10)
 
 	// markComponent keeps readiness, metrics, and the shutdown table reading from
 	// one source of truth, so `/ready` cannot claim a listener the process never
@@ -5203,6 +5225,7 @@ func runServe(args []string) error {
 		observability.ComponentMetrics, observability.ComponentMLLP, observability.ComponentDelivery,
 		observability.ComponentBatch, observability.ComponentAutorouteSweep,
 		observability.ComponentAutorouteNotify, observability.ComponentSessionStream,
+		observability.ComponentRetentionPurge,
 	} {
 		markComponent(name, observability.ComponentNotConfigured)
 	}
@@ -5270,6 +5293,12 @@ func runServe(args []string) error {
 		fmt.Printf("Pending autoroute review notifications enabled (every %s, confidence >= %.2f)\n",
 			autorouteNotifier.Interval(), autorouteNotifier.MinConfidence())
 	}
+	if retentionPurger != nil {
+		markComponent(observability.ComponentRetentionPurge, observability.ComponentRunning)
+		go func() {
+			errCh <- componentError{name: "retention-purge", err: retentionPurger.Run(serveCtx)}
+		}()
+	}
 	cleanupExternalRuntimes := func() {
 		if temporalWorker != nil {
 			temporalWorker.Stop()
@@ -5287,6 +5316,7 @@ func runServe(args []string) error {
 			"session-stream":   sessionRelay != nil && alreadyStopped != "session-stream",
 			"autoroute-sweep":  autorouteSweeper != nil && alreadyStopped != "autoroute-sweep",
 			"autoroute-notify": autorouteNotifier != nil && alreadyStopped != "autoroute-notify",
+			"retention-purge":  retentionPurger != nil && alreadyStopped != "retention-purge",
 		}
 		// A component that stopped is no longer ready, whatever else happens
 		// during shutdown.
@@ -5298,6 +5328,7 @@ func runServe(args []string) error {
 			"session-stream":   observability.ComponentSessionStream,
 			"autoroute-sweep":  observability.ComponentAutorouteSweep,
 			"autoroute-notify": observability.ComponentAutorouteNotify,
+			"retention-purge":  observability.ComponentRetentionPurge,
 		}
 		if name, ok := componentMetricNames[alreadyStopped]; ok {
 			markComponent(name, observability.ComponentStopped)

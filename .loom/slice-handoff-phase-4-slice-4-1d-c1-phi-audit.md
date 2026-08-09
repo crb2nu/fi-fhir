@@ -193,6 +193,36 @@ implementation slice.
    tombstone instead of deleting. **Do not weaken the trigger without recording
    the decision** — the whole point of C1 is that the schema, not convention,
    is the guarantee.
+
+   > **Corrected by Slice 4.1e (2026-08-08).** Item 3 as written above is wrong
+   > on two points, and `TestPhiRetention_PurgeIsStructurallyBlockedToday` proved
+   > both against unmodified `main` before any code was written.
+   >
+   > *A purge is not only a `DELETE`.* C1's guard here is blanket
+   > `BEFORE UPDATE OR DELETE` (`0004_audit_immutability.sql:29-32`), so it
+   > blocked the redaction `UPDATE` too. C1 removed **both** purge mechanisms,
+   > and this handoff named only one. The same applies to
+   > `integration_session_exports`, whose blanket guard plus the session foreign
+   > key made every exported session permanently undeletable while
+   > `PHI-RETENTION.md` promised export TTL in the next slice.
+   >
+   > *Row deletion is structurally impossible regardless of the trigger.*
+   > `integration_message_lineage` and `integration_delivery_attempts` reference
+   > the canonical event `ON DELETE RESTRICT` and are themselves undeletable, and
+   > `integration_delivery_outbox` chains off the attempts
+   > (`0001_atomic_submission.sql:52-54,73-75,90-92`). Lifting the trigger buys
+   > nothing.
+   >
+   > *And the privileged-role option was empty as stated.* Every migration runs
+   > on the same connection the runtime uses, so the application role already
+   > owns these tables and can drop any trigger; a role that "bypasses the guard"
+   > adds nothing while the ordinary role outranks it. Real role separation is
+   > filed as its own follow-up slice.
+   >
+   > The decision recorded in `.loom/40-decisions.md` (2026-08-08, "Slice 4.1e")
+   > is the third option: a **column-scoped `BEFORE UPDATE` exemption with
+   > canonical tombstone semantics**, `DELETE` still blanket-blocked, and the
+   > written consequence that a tombstone is not a backup-inclusive deletion.
 4. **Decide whether to lift `ErrUnsupportedRawRetention`.** If encrypted
    production raw retention is ever implemented it needs the storage revision
    resolver, the `SecretReference` key resolver (which S3-B's 4.1c-a builds),

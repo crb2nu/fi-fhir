@@ -18,17 +18,27 @@ import (
 )
 
 // TestPhiRetentionPosture_ProductionRejectsRetainedRawAndCanonicalEventsCarryNoPolicy
-// is Slice 4.1d's riskiest-assumption gate (see .loom/31-sprint3-execution-specs.md,
-// "Lane S3-C — Riskiest Assumption"). It is a permanent regression guard for the two
+// is the retention-posture gate. It is a permanent regression guard for the two
 // claims that docs/operations/PHI-RETENTION.md makes:
 //
 //	(a) production refuses every non-ephemeral raw retention mode, so there is no
 //	    retained production raw PHI whose TTL could be enforced; and
-//	(b) the PHI that *is* retained forever — the canonical event payload — carries a
-//	    PHI classification and no retention/TTL/expiry policy column whatsoever.
+//	(b) the PHI that *is* retained — the canonical event payload — carries a PHI
+//	    classification AND the Slice 4.1e expiry state that governs how long it is
+//	    kept.
 //
-// If either assertion ever flips, the retention posture document is stale and
-// S3-C2's design premise has changed.
+// Assertion (b) is inverted from the form Slice 4.1d C1 shipped. C1 asserted that
+// integration_canonical_events carried NO retention/TTL/expiry/purge column, and
+// wrote into docs/operations/PHI-RETENTION.md that "if S3-C2 lands, this section
+// must be rewritten before CI passes". Slice 4.1e is that slice; the assertion and
+// the document were rewritten in the same commit that added the columns, which is
+// exactly the behaviour C1 designed this gate to force.
+//
+// The gate did not become weaker by inverting. It now fails if the expiry columns
+// are dropped, if a purged row loses its PHI classification, or if a class of
+// retained PHI gains an expiry column without the document naming it — and the
+// name of every column it will accept is enumerated below, so a stray
+// "%retention%" column somewhere else still fails.
 func TestPhiRetentionPosture_ProductionRejectsRetainedRawAndCanonicalEventsCarryNoPolicy(t *testing.T) {
 	ctx := t.Context()
 	dsn := os.Getenv("POSTGRES_TEST_URL")
@@ -85,7 +95,7 @@ func TestPhiRetentionPosture_ProductionRejectsRetainedRawAndCanonicalEventsCarry
 	t.Logf("assertion (a) PASSED: encrypted raw retention rejected with %v", ErrUnsupportedRawRetention)
 
 	// Assertion (b): an ephemeral submission persists a PHI-classified canonical event,
-	// and the table carries no retention/TTL/expiry column.
+	// and the table carries exactly the Slice 4.1e expiry state and nothing else.
 	ephemeral := newRetentionFixture(t, integration.RawRetentionPolicy{Mode: integration.RawRetentionModeEphemeral})
 	ephemeralProcessor := newDurableFixtureProcessor(t, ephemeral, store)
 	if _, err := ephemeralProcessor.Process(ctx, ephemeral.request); err != nil {
@@ -112,12 +122,44 @@ func TestPhiRetentionPosture_ProductionRejectsRetainedRawAndCanonicalEventsCarry
 	}
 
 	policyColumns := retentionPolicyColumns(ctx, t, db, schema, "integration_canonical_events")
-	if len(policyColumns) != 0 {
-		t.Fatalf("assertion (b) FAILED: integration_canonical_events carries retention policy columns %v; "+
-			"docs/operations/PHI-RETENTION.md and S3-C2's premise are stale", policyColumns)
+	expected := []string{"purge_after", "purged_at"}
+	if !sameColumns(policyColumns, expected) {
+		t.Fatalf("assertion (b) FAILED: integration_canonical_events carries retention columns %v, want exactly %v; "+
+			"docs/operations/PHI-RETENTION.md section 2 is stale", policyColumns, expected)
+	}
+
+	// A freshly admitted event is not expired and not purged. If a submission ever
+	// arrived pre-purged, or pre-stamped by something other than the retention
+	// policy, the purge component is no longer the only thing that decides.
+	var stamped, purged int
+	if err := db.QueryRowContext(ctx, `
+		SELECT count(*) FILTER (WHERE purge_after IS NOT NULL),
+		       count(*) FILTER (WHERE purged_at IS NOT NULL)
+		FROM integration_canonical_events
+	`).Scan(&stamped, &purged); err != nil {
+		t.Fatalf("read canonical event expiry state: %v", err)
+	}
+	if stamped != 0 || purged != 0 {
+		t.Fatalf("assertion (b) FAILED: a freshly admitted event arrived with expiry state "+
+			"(purge_after on %d rows, purged_at on %d); only an operator's retention policy may stamp one",
+			stamped, purged)
 	}
 	t.Logf("assertion (b) PASSED: %d PHI-classified canonical event row(s), %d payload bytes, "+
-		"zero ttl/expires/retention/purge columns", eventCount, payloadBytes)
+		"expiry columns %v present and unstamped until a retention policy applies",
+		eventCount, payloadBytes, policyColumns)
+}
+
+// sameColumns compares two already-sorted-by-query column lists.
+func sameColumns(got, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for index := range got {
+		if got[index] != want[index] {
+			return false
+		}
+	}
+	return true
 }
 
 // retentionPolicyColumns reports any column on the table whose name suggests a
