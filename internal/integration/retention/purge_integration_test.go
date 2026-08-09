@@ -144,6 +144,43 @@ func TestPhiRetention_PostgresExpiryPurgeAndAuditedTombstone(t *testing.T) {
 		t.Fatalf("unchanged policy document minted a version: %+v, %v", again, err)
 	}
 
+	t.Run("simultaneous_replica_boot_records_one_policy_version", func(t *testing.T) {
+		// Two replicas starting at the same moment against the same document must
+		// not race the policy audit's UNIQUE (tenant_id, policy_version). Without
+		// the advisory lock in PutPolicy both compute the same next version and one
+		// replica dies at startup over a policy neither was changing.
+		fresh := newRetentionGateSchema(t, ctx, base, "phi_retention_policy_race")
+		migrateDurableSchema(t, ctx, fresh)
+		start := make(chan struct{})
+		errs := make([]error, 2)
+		versions := make([]int64, 2)
+		var wait sync.WaitGroup
+		for index := range 2 {
+			replica := newRetentionStore(t, fresh)
+			wait.Add(1)
+			go func() {
+				defer wait.Done()
+				<-start
+				recorded, err := replica.PutPolicy(ctx, policy)
+				versions[index], errs[index] = recorded.Version, err
+			}()
+		}
+		close(start)
+		wait.Wait()
+		for index, err := range errs {
+			if err != nil {
+				t.Fatalf("replica %d failed to record the policy: %v", index, err)
+			}
+			if versions[index] != 1 {
+				t.Fatalf("replica %d recorded policy version %d, want 1", index, versions[index])
+			}
+		}
+		if audited := countRows(t, ctx, fresh,
+			`SELECT count(*) FROM integration_retention_policy_audit`); audited != 1 {
+			t.Fatalf("policy audit rows = %d, want exactly 1", audited)
+		}
+	})
+
 	before := countRetentionRows(t, ctx, db)
 
 	t.Run("two_replicas_purge_each_record_exactly_once", func(t *testing.T) {

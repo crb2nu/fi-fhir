@@ -14,6 +14,19 @@ import (
 // collaborators it needs.
 var ErrStoreUnavailable = errors.New("retention store unavailable")
 
+// policyWriteLockKey serialises retention policy writes across replicas.
+//
+// Without it, two replicas booting simultaneously against a fresh policy table
+// both see no row, both compute version 1, and both insert into
+// integration_retention_policy_audit — where UNIQUE (tenant_id, policy_version)
+// fails one of them and takes a replica down at startup over a policy neither
+// of them was changing. The migrators take an advisory lock at startup for the
+// same reason (`postgres_submission.go:130`, `session/postgres.go:72`).
+//
+// This is the one place in the package that needs a lock. The purge itself does
+// not: its claim is the guarded statement (see PurgeExpired).
+const policyWriteLockKey = int64(6193446288274593311)
+
 // defaultBatchSize bounds one purge pass. A purge holds row locks and writes an
 // audit row per record, so an unbounded pass would be one long transaction
 // against the busiest table in the system.
@@ -139,6 +152,9 @@ func (s *PostgresStore) PutPolicy(ctx context.Context, policy Policy) (Policy, e
 		return Policy{}, fmt.Errorf("begin retention policy write: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, policyWriteLockKey); err != nil {
+		return Policy{}, fmt.Errorf("lock retention policy write: %w", err)
+	}
 
 	var currentVersion int64
 	var currentDigest string
