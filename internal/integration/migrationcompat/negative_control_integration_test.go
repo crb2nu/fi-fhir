@@ -61,7 +61,7 @@ func controlRollbackDefaults(ctx context.Context, t *testing.T, dsn string) {
 		t.Fatalf("migrate session ledger: %v", err)
 	}
 
-	// Revert exactly the three DEFAULTs 0006 adds. Nothing else changes: the
+	// Revert exactly the three DEFAULTs 0007 adds. Nothing else changes: the
 	// columns keep their NOT NULL, their CHECKs, and their trigger.
 	if _, err := db.ExecContext(ctx, `
 		ALTER TABLE integration_session_exports
@@ -69,7 +69,7 @@ func controlRollbackDefaults(ctx context.Context, t *testing.T, dsn string) {
 			ALTER COLUMN reason DROP DEFAULT,
 			ALTER COLUMN include_raw_payload DROP DEFAULT
 	`); err != nil {
-		t.Fatalf("revert the 0006 defaults: %v", err)
+		t.Fatalf("revert the 0007 defaults: %v", err)
 	}
 
 	seedSession(t, db, "sess-control-defaults")
@@ -82,7 +82,7 @@ func controlRollbackDefaults(ctx context.Context, t *testing.T, dsn string) {
 
 	if insertErr == nil {
 		t.Fatal("CONTROL PASSED, WHICH MEANS THE PROOF IS BROKEN: the rollback-era insert " +
-			"succeeded with the DEFAULTs removed. Something other than 0006's DEFAULTs is " +
+			"succeeded with the DEFAULTs removed. Something other than 0007's DEFAULTs is " +
 			"making TestMigrationCompatibility_ExportInsertShapeSurvivesOneVersionRollback " +
 			"green, so that test is not watching the mechanism it claims to watch.")
 	}
@@ -90,7 +90,7 @@ func controlRollbackDefaults(ctx context.Context, t *testing.T, dsn string) {
 	if !errors.As(insertErr, &pqErr) || pqErr.Code != notNullViolation {
 		t.Fatalf("control failed for the wrong reason: %v (want SQLSTATE 23502)", insertErr)
 	}
-	t.Logf("control CONFIRMED: with 0006's DEFAULTs removed the rollback insert fails again "+
+	t.Logf("control CONFIRMED: with 0007's DEFAULTs removed the rollback insert fails again "+
 		"with %s on %q", pqErr.Code, pqErr.Column)
 }
 

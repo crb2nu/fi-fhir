@@ -215,7 +215,14 @@ batch, destination (`internal/integration/*/migrations/`), and terminology
 (`pkg/terminology/db/schema.go`). None has a down path. Three rules, all of
 which cost something real when broken.
 
-### 1. A new `NOT NULL` column on an existing table carries a `DEFAULT`
+### 1. A `NOT NULL` column on an existing table carries a `DEFAULT` — both forms
+
+**Both of these need a `DEFAULT`, and they fail identically without one:**
+
+```sql
+ALTER TABLE t ALTER COLUMN c SET NOT NULL;          -- tightening an existing column
+ALTER TABLE t ADD COLUMN c TEXT NOT NULL;           -- adding a new one
+```
 
 Otherwise the migration breaks one-version rollback.
 
@@ -225,11 +232,11 @@ That binary's `INSERT` does not name the new column, so without a server-side
 `DEFAULT` it dies on `SQLSTATE 23502`. This is not hypothetical: slice 4.1d C1's
 `0004_export_attribution.sql` made three columns `NOT NULL` with no `DEFAULT`,
 and every export from an N-1 replica failed until slice 4.4a's
-`0006_export_attribution_defaults.sql` repaired it.
+`0007_export_attribution_defaults.sql` repaired it.
 
 Choose a default that makes the older binary's row **visibly incomplete rather
 than impossible**. Do not invent a plausible value — that is retroactive
-vouching. `0006` reuses the same `unattributed_legacy_export` sentinel `0004`
+vouching. `0007` reuses the same `unattributed_legacy_export` sentinel `0004`
 already backfills historical rows with, so one predicate finds both classes.
 
 `TestMigrationRule_NotNullOnExistingColumnCarriesADefault`
@@ -237,6 +244,16 @@ already backfills historical rows with, so one predicate finds both classes.
 `test:unit`) enforces this mechanically. A column that genuinely cannot carry a
 default goes in that test's `knownRollbackUnsafeColumns` with a dated reason and
 a decision in `.loom/40-decisions.md`. Do not delete the test.
+
+The `ADD COLUMN` half of the rule was **not** enforced from slice 4.4a until
+Sprint 5: the checker matched only the `ALTER COLUMN` form, so
+`ADD COLUMN c TEXT NOT NULL` produced no tightened columns and the file was
+never inspected — the rule's own title named the form it did not check
+(`.loom/33` found defect D4). `TestMigrationRule_AddColumnNotNullWithoutDefaultIsFlagged`
+now pins both forms, along with the ways a naive pattern gets it wrong in the
+other direction: `DEFAULT` written before `NOT NULL`, a comma inside a type such
+as `NUMERIC(10,2)`, and the keywords appearing in a `--` comment. A rule that
+rejects correct migrations is a rule the next lane deletes.
 
 ### 2. Take the advisory transaction lock, and re-read the version inside it
 
