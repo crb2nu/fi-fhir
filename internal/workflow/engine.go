@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm"
 )
@@ -485,8 +486,11 @@ func (e *Engine) sendToDLQ(event interface{}, routeName, actionType string, err 
 	}
 
 	if pushErr := e.dlq.Push(failedEvent); pushErr != nil {
-		// Log error but don't fail the processing
-		fmt.Printf("Warning: failed to push event to DLQ: %v\n", pushErr)
+		// Log error but don't fail the processing. The error is bounded on the
+		// way out: a DLQ implementation is free to quote the record it could
+		// not store, so an unbounded %v here is an unbounded payload.
+		// See `.loom/40-decisions.md` 2026-08-09.
+		fmt.Printf("Warning: failed to push event to DLQ: %s\n", boundedErrorText(pushErr))
 	} else {
 		// Record DLQ push metric
 		e.metrics.DLQPushed(routeName, actionType, errorType)
@@ -667,4 +671,27 @@ func (e *Engine) ReprocessDLQEvent(id string) (*Result, error) {
 	// Record successful DLQ pop metric
 	e.metrics.DLQPopped(failedEvent.RouteName, true)
 	return processResult, nil
+}
+
+// maxLoggedErrorBytes bounds an error string on its way to stdout.
+const maxLoggedErrorBytes = 256
+
+// boundedErrorText renders an error for a log line with an explicit ceiling.
+// Storage and DLQ errors are free to quote the record they could not write, so
+// an unbounded `%v` in a print statement is an unbounded payload. Truncation
+// stops on a rune boundary so the result stays valid UTF-8, and the number of
+// dropped bytes is reported so a reader can tell truncation from brevity.
+func boundedErrorText(err error) string {
+	if err == nil {
+		return "<nil>"
+	}
+	msg := err.Error()
+	if len(msg) <= maxLoggedErrorBytes {
+		return msg
+	}
+	cut := maxLoggedErrorBytes
+	for cut > 0 && !utf8.RuneStart(msg[cut]) {
+		cut--
+	}
+	return fmt.Sprintf("%s… (%d bytes truncated)", msg[:cut], len(msg)-cut)
 }

@@ -42,10 +42,19 @@ func logAction(event interface{}, config map[string]string) error {
 	timestamp := time.Now().Format(time.RFC3339)
 	output := fmt.Sprintf("[%s] %s: %s", timestamp, strings.ToUpper(level), message)
 
-	// Add event data if debug level
+	// Add event shape if debug level.
+	//
+	// The event is message content: by 4.2a's standard it may carry PHI, and
+	// this action writes to stdout, which a log aggregator indexes and retains.
+	// Marshalling the whole event here made `level: "debug"` a one-word switch
+	// that turns every matched route into a payload dump. Record the shape, not
+	// the values. See `.loom/40-decisions.md` 2026-08-09.
+	//
+	// The rendered `message` above is deliberately left alone: emitting an
+	// author-written, event-templated string is this action's entire purpose,
+	// and what a workflow author interpolates into it is their choice to make.
 	if level == "debug" {
-		eventJSON, _ := json.Marshal(event)
-		output = fmt.Sprintf("%s\n  Event: %s", output, string(eventJSON))
+		output = fmt.Sprintf("%s\n  Event: %s", output, describeEventShape(event))
 	}
 
 	// Write to appropriate output
@@ -57,6 +66,24 @@ func logAction(event interface{}, config map[string]string) error {
 	}
 
 	return nil
+}
+
+// describeEventShape summarises an event for a debug line without reproducing
+// any of its values. It reports the serialized size and the top-level field
+// count, both of which answer "did the event I expected arrive" — the question
+// debug logging is for — while carrying nothing a compliance reviewer has to
+// read.
+func describeEventShape(event interface{}) string {
+	data, err := json.Marshal(event)
+	if err != nil {
+		return "<redacted: event is not serializable>"
+	}
+	fields := 0
+	var probe map[string]json.RawMessage
+	if json.Unmarshal(data, &probe) == nil {
+		fields = len(probe)
+	}
+	return fmt.Sprintf("<redacted: %d bytes, %d top-level fields>", len(data), fields)
 }
 
 // fileAction writes an event to a local file (useful for debugging, archives, and simple ETL).
