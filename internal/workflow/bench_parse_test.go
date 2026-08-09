@@ -80,6 +80,79 @@ not a benchmark line
 	}
 }
 
+func TestParseBenchmarkOutput_CapturesCPUAndPackage(t *testing.T) {
+	// Two packages, one machine: the shape of a real test:benchmark artifact.
+	input := `goos: linux
+goarch: amd64
+pkg: gitlab.flexinfer.ai/libs/fi-fhir/internal/workflow
+cpu: Intel Core Processor (Broadwell, IBRS)
+BenchmarkEngineProcess-2    101588    12194 ns/op    888 B/op    24 allocs/op
+PASS
+ok  	gitlab.flexinfer.ai/libs/fi-fhir/internal/workflow	83.6s
+goos: linux
+goarch: amd64
+pkg: gitlab.flexinfer.ai/libs/fi-fhir/pkg/validate
+cpu: Intel Core Processor (Broadwell, IBRS)
+BenchmarkNPIValidation-2    8475496    138.3 ns/op    0 B/op    0 allocs/op
+`
+	suite, err := ParseBenchmarkOutput(strings.NewReader(input), "test")
+	if err != nil {
+		t.Fatalf("ParseBenchmarkOutput failed: %v", err)
+	}
+
+	if suite.CPU != "Intel Core Processor (Broadwell, IBRS)" {
+		t.Errorf("CPU = %q, want the Broadwell model", suite.CPU)
+	}
+	if got := suite.GetResult("BenchmarkEngineProcess"); got == nil {
+		t.Fatal("BenchmarkEngineProcess not found")
+	} else if got.Package != "gitlab.flexinfer.ai/libs/fi-fhir/internal/workflow" {
+		t.Errorf("Package = %q, want the workflow package", got.Package)
+	}
+	if got := suite.GetResult("BenchmarkNPIValidation"); got == nil {
+		t.Fatal("BenchmarkNPIValidation not found")
+	} else if got.Package != "gitlab.flexinfer.ai/libs/fi-fhir/pkg/validate" {
+		t.Errorf("Package = %q, want the validate package", got.Package)
+	}
+}
+
+func TestParseBenchmarkOutput_CPUAbsentOrAmbiguous(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name:  "no cpu header",
+			input: "BenchmarkA-8    1000    100 ns/op\n",
+		},
+		{
+			// A run spanning two machines cannot be judged against either
+			// profile, so the CPU is reported as unknown and the caller
+			// falls back to the most permissive bounds.
+			name: "two distinct cpu headers",
+			input: `cpu: AMD Ryzen 9 7900X3D 12-Core Processor
+BenchmarkA-8    1000    100 ns/op
+cpu: Intel Core Processor (Broadwell, IBRS)
+BenchmarkB-8    1000    100 ns/op
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			suite, err := ParseBenchmarkOutput(strings.NewReader(tt.input), "test")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if suite.CPU != "" {
+				t.Errorf("CPU = %q, want empty", suite.CPU)
+			}
+			if _, _, matched := ResolveWorkflowThresholds(suite.CPU); matched {
+				t.Error("an unknown CPU must not report a profile match")
+			}
+		})
+	}
+}
+
 func TestParseBenchmarkOutput_Empty(t *testing.T) {
 	suite, err := ParseBenchmarkOutput(strings.NewReader(""), "empty")
 	if err != nil {

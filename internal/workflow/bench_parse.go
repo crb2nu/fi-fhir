@@ -12,13 +12,37 @@ import (
 // into a BenchmarkSuite. It expects lines in the format:
 //
 //	BenchmarkName-8    1000000    1234 ns/op    256 B/op    5 allocs/op
+//
+// The "cpu:" and "pkg:" headers that precede each package's results are
+// retained: CI schedules this job across heterogeneous hardware, and the CPU
+// model selects which latency profile the thresholds are evaluated against.
+// If a run reports more than one distinct CPU model the suite CPU is left
+// empty, which callers treat as unrecognized hardware.
 func ParseBenchmarkOutput(r io.Reader, suiteName string) (*BenchmarkSuite, error) {
 	suite := NewBenchmarkSuite(suiteName)
 	scanner := bufio.NewScanner(r)
 
+	var currentPkg string
+	cpus := make(map[string]struct{})
+
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		if line == "" || !strings.HasPrefix(line, "Benchmark") {
+		if line == "" {
+			continue
+		}
+
+		if rest, ok := strings.CutPrefix(line, "pkg:"); ok {
+			currentPkg = strings.TrimSpace(rest)
+			continue
+		}
+		if rest, ok := strings.CutPrefix(line, "cpu:"); ok {
+			if cpu := strings.TrimSpace(rest); cpu != "" {
+				cpus[cpu] = struct{}{}
+			}
+			continue
+		}
+
+		if !strings.HasPrefix(line, "Benchmark") {
 			continue
 		}
 
@@ -26,12 +50,19 @@ func ParseBenchmarkOutput(r io.Reader, suiteName string) (*BenchmarkSuite, error
 		if err != nil {
 			continue // Skip unparseable lines (headers, sub-test labels, etc.)
 		}
+		result.Package = currentPkg
 
 		suite.AddResult(result)
 	}
 
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("reading benchmark output: %w", err)
+	}
+
+	if len(cpus) == 1 {
+		for cpu := range cpus {
+			suite.CPU = cpu
+		}
 	}
 
 	return suite, nil
