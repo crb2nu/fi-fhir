@@ -1,0 +1,23 @@
+### 2026-06-19
+
+- What changed:
+  - Lane F split the product expansion backlog into five independent speclets:
+    - `.loom/25-spec-cda-section-expansion.md`
+    - `.loom/26-spec-storage-provider-tests.md`
+    - `.loom/27-spec-terminology-governance.md`
+    - `.loom/28-spec-fhir-ig-bulk-smart.md`
+    - `.loom/29-spec-profile-management-observability.md`
+  - Added `.loom/00-index.md` links for the new speclets.
+- Why:
+  - The product spec and P3 backlog were too broad for one implementation lane. Each child spec now has explicit goals, non-goals, acceptance criteria, kill-test, dependencies, sources, and an independent assignment note.
+- What's next:
+  - Downstream agents can pick up a single speclet and start with its kill-test before implementation.
+  - Terminology governance should wait for Lane D's terminology DB integration-test baseline and avoid duplicating Lane C's expiry/notification automation.
+- Sources:
+  - [S1] `.loom/24-parallel-execution-specs.md` Lane F
+  - [S2] `.loom/20-product-spec.md`
+  - [S3] `docs/planning/README.md` P2/P3 backlog
+  - [S4] `docs/planning/CDA-CCDA.md`
+  - [S5] `docs/planning/TERMINOLOGY-MAPPING.md`
+  - [S6] `docs/planning/FHIR-PROFILES.md`
+  - [S7] `docs/planning/SOURCE-PROFILES.md`

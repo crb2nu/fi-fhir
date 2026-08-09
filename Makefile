@@ -6,6 +6,7 @@
 	docker-push docker-push-ui docker-push-all \
 	deploy deploy-ui deploy-all deploy-status deploy-logs deploy-delete deploy-forward \
 	docs-status docs-status-quick docs-validate docs-all \
+	worklog worklog-new worklog-recent \
 	contract-check contract-check-strict contract-matrix \
 	golden-path-001 mllp-runtime delivery-reliability batch-ingestion integration-session \
 	operator-control-plane delivery-identity phi-audit observability-replicas \
@@ -587,6 +588,21 @@ docs-status-check:
 docs-validate:
 	@echo "Validating documentation..."
 	bash scripts/validate-docs.sh
+	bash scripts/worklog.sh check
+
+# Start a worklog entry. Entries are one file per entry under .loom/worklog/ so
+# that parallel branches never conflict on a shared append-only file.
+# Usage: make worklog-new TITLE="Short title of what you did"
+worklog-new:
+	@test -n "$(TITLE)" || { echo 'Usage: make worklog-new TITLE="Short title"'; exit 1; }
+	@bash scripts/worklog.sh new "$(TITLE)"
+
+# Read the whole worklog (concatenated on the fly; nothing is committed)
+worklog:
+	@bash scripts/worklog.sh render
+
+worklog-recent:
+	@bash scripts/worklog.sh render --newest
 
 # Full documentation maintenance (mermaid diagrams + status + validation)
 docs-all: docs-mermaid docs-status docs-validate

@@ -353,6 +353,11 @@ lint:docs:
   script:
     - apk add --no-cache git bash
     - bash scripts/validate-docs.sh
+    # Worklog entries are one file per entry so parallel branches stop
+    # conflicting on a shared append-only file. This rejects a filename that
+    # breaks date ordering, and a second entry appended into an existing file —
+    # the habit that would put the conflict back.
+    - bash scripts/worklog.sh check
   rules:
     - if: $CI_COMMIT_TAG
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -365,6 +370,8 @@ lint:docs:
         - CHANGELOG.md
         - scripts/validate-docs.sh
         - scripts/docs-status.sh
+        - scripts/worklog.sh
+        - .loom/worklog/**/*
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes:
         - docs/**/*
@@ -375,6 +382,8 @@ lint:docs:
         - CHANGELOG.md
         - scripts/validate-docs.sh
         - scripts/docs-status.sh
+        - scripts/worklog.sh
+        - .loom/worklog/**/*
     - when: never
 
 lint:contracts:
