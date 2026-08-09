@@ -334,6 +334,102 @@ var workflowAllocCeilings = map[string]int64{
 	"BenchmarkThroughput_Complex":    58, // observed 50
 }
 
+// durableAllocCeilings bounds allocations per op on the durable integration
+// accept path (internal/integration/perf). It is deliberately a sibling of
+// workflowAllocCeilings rather than an extension of it.
+//
+// The two sets cannot share a map. Check treats every name in any threshold map
+// as a required result (see Check's `required` set), and ResolveWorkflowThresholds
+// copies workflowAllocCeilings into every profile unconditionally. A durable
+// name in the shared map would therefore fail the existing test:benchmark job,
+// whose package list does not include internal/integration. Keeping them apart
+// also keeps the legacy and durable sets legible: they are measured by different
+// jobs, against different subjects, with different noise floors.
+//
+// # These ceilings are looser than the legacy ones, and that is not laziness
+//
+// workflowAllocCeilings sits just above its observed counts because those
+// benchmarks reported a bit-identical allocation count across 78-87 CI
+// artifacts. That property does not survive contact with a database. Measured
+// locally over three runs at -benchtime=300x against PostgreSQL 16:
+//
+//	BenchmarkDurableAccept_IngressSubmit   4641, 4642, 4643   (spread 2,  0.04%)
+//	BenchmarkDurableAccept_MLLPSubmit      4692, 4693, 4694   (spread 2,  0.04%)
+//
+// Stable — but only at a pinned, sufficient iteration count. The same
+// benchmarks at -benchtime=50x spread four times as wide, because connection
+// pool growth and driver setup are amortized over fewer operations. That is why
+// the durable job pins -benchtime and does not use the default time-based mode:
+// with a time budget, a fast runner completes more iterations than a slow one,
+// amortizes setup differently, and reports a different allocs/op for identical
+// code — silently reintroducing the hardware dependence this signal exists to
+// avoid.
+//
+// # Why the parallel benchmarks are not gated
+//
+// The RunParallel variants of the same two paths are materially noisier at the
+// same iteration count:
+//
+//	BenchmarkDurableAccept_IngressSubmitParallel   4702, 4703, 4715   (spread 13)
+//	BenchmarkDurableAccept_MLLPSubmitParallel      4746, 4755, 4787   (spread 41)
+//
+// Goroutine scheduling decides how many pooled connections open and how work
+// interleaves, so their per-op figure is partly a property of the scheduler
+// rather than of the accept path. They are measured and reported — they are
+// where throughput comes from on the pinned runner — and deliberately left out
+// of this map. A regression in the accept path shows up in the serial pair just
+// as well, with a tenth of the noise.
+//
+// # Detection floor, stated plainly
+//
+// With a ~4650 baseline and a ±2 spread, a ceiling ~1% above the observed count
+// detects a regression of roughly 40 allocations per message or more. It does
+// not detect one extra allocation per message; nothing gating a database-backed
+// path at this baseline could. Regressions of the kind that matter here — a
+// struct per segment, a slice per field, a forgotten buffer reuse — are tens to
+// hundreds of allocations per message and are caught comfortably.
+//
+// Recalibrate from CI artifacts with:
+//
+//	go run ./cmd/bench-check -set=durable -suggest artifacts/*.txt
+var durableAllocCeilings = map[string]int64{
+	"BenchmarkDurableAccept_IngressSubmit": 4700, // observed 4641-4643
+	"BenchmarkDurableAccept_MLLPSubmit":    4750, // observed 4692-4694
+}
+
+// DurableBenchtime is the iteration count the durable benchmarks must run with.
+//
+// It is pinned rather than time-based so the reported allocs/op is a property
+// of the code and not of how fast the runner happened to be. See
+// durableAllocCeilings for the measurement behind the number.
+const DurableBenchtime = "300x"
+
+// ResolveDurableThresholds returns the durable accept path's thresholds.
+//
+// Only MaxAllocsPerOp is populated. MaxNsPerOp and MinThroughput are left nil
+// on purpose: wall-clock and throughput are measured and archived by the
+// pinned-runner job and are never asserted on in the shared CI pool, because a
+// database-backed accept path in a 1-CPU pod on a pool spanning 5.3x cannot
+// carry a truthful latency ceiling. Check already skips any metric whose map
+// has no entry for a benchmark, so an empty map means "not gated" rather than
+// "must be zero".
+func ResolveDurableThresholds() *PerformanceThresholds {
+	maxAllocs := make(map[string]int64, len(durableAllocCeilings))
+	for name, v := range durableAllocCeilings {
+		maxAllocs[name] = v
+	}
+	return &PerformanceThresholds{MaxAllocsPerOp: maxAllocs}
+}
+
+// DurableAllocCeilings returns the durable accept path's allocation ceilings.
+func DurableAllocCeilings() map[string]int64 {
+	out := make(map[string]int64, len(durableAllocCeilings))
+	for name, v := range durableAllocCeilings {
+		out[name] = v
+	}
+	return out
+}
+
 // workflowCPUProfiles lists the calibrated CI hardware classes.
 //
 // Ceilings are LatencyMarginFactor x the median observed for that class, and
