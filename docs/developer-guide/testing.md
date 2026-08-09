@@ -271,6 +271,50 @@ go test -tags=integration ./test/e2e/...
 make test-integration
 ```
 
+### Migration compatibility
+
+`make migration-compatibility` (CI job `test:migration-compatibility`, blocking)
+proves the properties the six forward-only migration ledgers have to hold
+*together*: two replicas migrating one database concurrently converge, a binary
+one version behind still writes, and a `pg_dump`/restore round-trip brings back
+every row, every immutability trigger, and the `NOT VALID` provenance CHECK.
+
+```bash
+docker --context 7900xtx run --rm -d --name s4c-pg \
+  -e POSTGRES_USER=testuser -e POSTGRES_PASSWORD=testpass \
+  -e POSTGRES_DB=fi_fhir_migration_compat_test -p 15523:5432 postgres:16
+export POSTGRES_TEST_URL="postgres://testuser:testpass@<docker-host>:15523/fi_fhir_migration_compat_test?sslmode=disable"
+
+# The round-trip subtest shells out to scripts/pgdump-roundtrip.sh, which needs
+# client tools whose MAJOR version matches the server. pg_dump 17+ writes
+# `SET transaction_timeout = 0` into the archive and PostgreSQL 16 rejects it,
+# so a newer client silently produces an unrestorable dump. On macOS:
+#   brew install postgresql@16
+export FI_FHIR_PG_BIN_DIR=/opt/homebrew/opt/postgresql@16/bin
+
+make migration-compatibility
+```
+
+Each proof provisions its **own database**, not a `search_path` schema.
+`pkg/terminology/db` creates a PostgreSQL schema literally named `terminology`,
+which is database-wide; sharing a database silently leaves later proofs running
+against a ledger an earlier one already migrated, and "two replicas against a
+fresh database" stops testing the fresh-install path.
+
+The job also runs `TestMigrationCompatibility_NegativeControls`, which removes
+each fix in turn and asserts the corresponding assertion goes red. A control
+that *passes* fails the job: it means the proof is not exercising the mechanism.
+
+### Writing a migration
+
+See [AGENTS.md](../../AGENTS.md) "Migration authoring". The short version: a new
+`NOT NULL` column on an existing table carries a `DEFAULT` or it breaks
+one-version rollback, every migrator takes its advisory lock and re-reads its
+version inside it, and the migration number comes from the ledger at rebase
+rather than from a planning document.
+`TestMigrationRule_NotNullOnExistingColumnCarriesADefault` enforces the first
+rule in `test:unit` and needs no database.
+
 ## E2E Tests
 
 End-to-end tests verify the full CLI workflow:

@@ -22,6 +22,11 @@ const (
 	lifecycleMigrationLockKey = int64(5064657639792058891)
 )
 
+// SchemaVersion is the lifecycle ledger version this binary expects. Slice 4.4a
+// defines N-1 as the per-package ledger version; see `.loom/40-decisions.md`
+// (2026-08-09, "What one version means").
+const SchemaVersion = lifecycleMigrationVersion
+
 //go:embed migrations/0001_deployment_lifecycle.sql
 var deploymentLifecycleMigration string
 

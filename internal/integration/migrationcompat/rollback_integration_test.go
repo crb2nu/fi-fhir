@@ -52,8 +52,8 @@ const unattributedLegacySentinel = "unattributed_legacy_export"
 func TestMigrationCompatibility_ExportInsertShapeSurvivesOneVersionRollback(t *testing.T) {
 	ctx := t.Context()
 	dsn := requireCompatDSN(t)
-	schema := newCompatSchema(t, dsn, "migration_compat_rollback")
-	db := openCompatDB(t, compatSchemaDSN(t, dsn, schema))
+	rollbackDSN, _ := newCompatDatabase(t, dsn, "migcompat_rollback")
+	db := openCompatDB(t, rollbackDSN)
 
 	// Migrate to the CURRENT session ledger head. This is the "upgraded schema"
 	// half of a one-version rollback: the schema moved forward, the binary did

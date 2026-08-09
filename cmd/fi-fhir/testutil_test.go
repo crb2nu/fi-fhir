@@ -101,7 +101,7 @@ func runCLI(t *testing.T, args ...string) (stdout, stderr string, err error) {
 		case "llm":
 			capturedErr = runLLM(args[1:])
 		case "version", "--version", "-v":
-			printVersion()
+			printVersion(os.Stdout, version)
 		case "help", "--help", "-h":
 			printUsage()
 		default:
@@ -112,10 +112,11 @@ func runCLI(t *testing.T, args ...string) (stdout, stderr string, err error) {
 	return stdout, stderr, capturedErr
 }
 
-// printVersion prints the version (extracted for testing).
-func printVersion() {
-	os.Stdout.WriteString("fi-fhir version " + version + "\n")
-}
+// The test harness now calls the production printVersion (schema_versions.go)
+// rather than a copy of it. The copy that used to live here reimplemented the
+// output format, so a change to what `fi-fhir version` prints — such as slice
+// 4.4a adding the six migration ledger versions — would not have been covered
+// by any test that used this dispatcher.
 
 // unknownCommandError represents an unknown command error.
 type unknownCommandError struct {

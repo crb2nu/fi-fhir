@@ -11,6 +11,12 @@ import (
 
 const batchMigrationLockKey = int64(5064657639792058884)
 
+// SchemaVersion is the batch ledger version this binary expects. Slice 4.4a
+// defines N-1 as the per-package ledger version; see `.loom/40-decisions.md`
+// (2026-08-09, "What one version means"). A migrationcompat proof asserts it
+// equals the highest version in batchMigrations so the two cannot drift.
+const SchemaVersion = 3
+
 var (
 	ErrStoreUnavailable = errors.New("batch checkpoint store unavailable")
 	ErrLeaseLost        = errors.New("batch object lease lost")

@@ -85,8 +85,11 @@ config:
     metricsEndpoint: "/metrics"
     logLevel: "info"
     logFormat: "json"
-    tracingEnabled: false
-    tracingSampler: 0.1
+    # tracingEnabled and tracingSampler were removed in slice 4.4a. They set
+    # FI_FHIR_TRACING_*, which pkg/config parses and validates but which no
+    # OpenTelemetry exporter consumes in the serve path — so the keys configured
+    # nothing while implying the chart shipped distributed tracing. The exporter
+    # is slice 4.4d; the keys come back with it.
 
   # Database connection (if using database action)
   database:
@@ -174,6 +177,14 @@ ingress:
       hosts:
         - fi-fhir.example.com
 
+# SCHEDULING DEFAULTS, NOT A CAPACITY RECOMMENDATION.
+#
+# These are sized for a small or evaluation deployment. They are deliberately
+# NOT the reference application profile in docs/operations/SUPPORTED-1.0.md —
+# that profile is 4 vCPU / 8 GiB, which cannot fit inside a 500m CPU limit.
+# Performance and recovery evidence must be produced with
+# `-f deploy/helm/fi-fhir/values-reference-profile.yaml`; measuring against
+# these numbers and reporting it as the profile would be a fabricated result.
 resources:
   limits:
     cpu: 500m

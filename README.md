@@ -399,14 +399,19 @@ fi_fhir_workflow_circuit_breaker_state_changes_total
 fi_fhir_workflow_dlq_depth
 ```
 
-### Tracing (OpenTelemetry)
+### Tracing (OpenTelemetry) — NOT IMPLEMENTED
 
-Configure via environment:
+`FI_FHIR_TRACING_ENABLED`, `FI_FHIR_TRACING_ENDPOINT`, and
+`FI_FHIR_TRACING_SAMPLER` are parsed and validated by `pkg/config`, but nothing
+consumes them: there is no OpenTelemetry exporter in the `serve` path, and
+setting them changes no runtime behaviour. The exporter is slice 4.4d, which
+depends on structured logging landing first.
 
-```bash
-export FI_FHIR_TRACING_ENABLED=true
-export OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
-```
+Until then, correlation across a message's lifecycle comes from the correlation
+and trace identifiers already carried on every durable record — receipts,
+canonical events, lineage rows, and delivery attempts — not from spans. See
+[docs/operations/README.md](docs/operations/README.md) "Tracing — not
+implemented".
 
 ### Health Checks
 

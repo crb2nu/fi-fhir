@@ -118,8 +118,11 @@ spec:
               value: "info"
             - name: FI_FHIR_LOG_FORMAT
               value: "json"
-            - name: FI_FHIR_TRACING_ENABLED
-              value: "true"
+            # FI_FHIR_TRACING_* is NOT IMPLEMENTED: parsed and validated by
+            # pkg/config, but no OpenTelemetry exporter consumes it in the serve
+            # path. Setting it here told operators the deployment exported
+            # traces, which it never did. Removed by slice 4.4a; the exporter is
+            # 4.4d. scripts/check-runtime-config.sh enforces this.
 
           volumeMounts:
             - name: config

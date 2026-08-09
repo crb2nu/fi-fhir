@@ -1,0 +1,37 @@
+# Reference application profile for fi-fhir performance and recovery evidence.
+#
+# docs/operations/SUPPORTED-1.0.md, "Reference application profile", fixes the
+# environment every 1.0 performance and recovery gate must run in. The chart's
+# own defaults (values.yaml: 100m/128Mi requests, 500m/512Mi limits) are
+# scheduling defaults for a small or evaluation deployment — a 4 vCPU / 8 GiB
+# budget cannot be met inside a 500m CPU limit, so measuring against chart
+# defaults and reporting it as the profile would be a fabricated result.
+#
+# This file exists so the two documents stop contradicting each other and so a
+# future measurement has one unambiguous input:
+#
+#   helm install fi-fhir deploy/helm/fi-fhir \
+#     -f deploy/helm/fi-fhir/values-reference-profile.yaml
+#
+# IT IS NOT A CAPACITY CLAIM. Nothing in this repository has measured fi-fhir at
+# this size; slice 4.4b owns that, and is blocked on a pinned-runner decision
+# because CI's pool spans hardware differing by more than 5×. Until 4.4b
+# archives a report, treat this as the environment a measurement must use, not
+# as evidence of what the software achieves in it.
+
+# Two replicas, per the profile's Kubernetes scenarios.
+replicaCount: 2
+
+resources:
+  requests:
+    cpu: "4"
+    memory: 8Gi
+  limits:
+    cpu: "4"
+    memory: 8Gi
+
+# The profile pins capacity, so autoscaling must be off: a horizontal autoscaler
+# would change the number of replicas mid-measurement and make the result
+# unattributable to any particular envelope.
+autoscaling:
+  enabled: false

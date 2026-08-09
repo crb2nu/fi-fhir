@@ -1511,24 +1511,28 @@ test:observability-replicas:
     - when: never
   allow_failure: false
 
-# Slice 4.4a Lane S4-C — DAY-1 GATE, EXPECTED TO FAIL.
+# Slice 4.4a Lane S4-C: migration compatibility, rollback safety, restore
+# round-trip. Isolated proof job per AGENTS.md — integration helpers t.Skipf
+# when a service is unreachable, so the -list existence step must run first.
 #
-# This job reproduces a found defect before its fix, which is the only thing
-# that distinguishes a real regression guard from a test written after the code.
-# .loom/32-sprint4-execution-specs.md correction 23: Slice 4.1d C1's own
-# migration (internal/integration/session/migrations/0004_export_attribution.sql:31-34)
-# makes principal_json, reason, and include_raw_payload NOT NULL with no
-# DEFAULT. A binary one version behind — as in every rolling upgrade and every
-# rollback — issues the pre-4.1d five-column export insert and dies on a
-# not-null violation. The product spec's budget 6 ("one-version rolling upgrade
-# and rollback preserve receipts, revisions, and resumable work without schema
-# downgrade corruption") is therefore currently false.
+# This job started life red. It landed in MR !151 with allow_failure: true and
+# one test, reproducing the defect .loom/32 correction 23 predicted: Slice 4.1d
+# C1's 0004_export_attribution.sql made three columns NOT NULL with no DEFAULT,
+# so a binary one version behind failed every session export with SQLSTATE
+# 23502. Product spec budget 6 was false in already-merged code. This MR lands
+# the fix and flips the job to blocking in the same commit.
 #
-# allow_failure: true is deliberate and TEMPORARY. Slice 4.4a's implementation
-# MR adds the server-side DEFAULTs, adds the concurrent-replica/restore proof,
-# and flips this job to allow_failure: false in the same commit. See
-# .loom/worklog/2026-08-08-slice-4-4a-day-1-gate-rollback.md for the recorded
-# failure.
+# The job runs the proof AND its negative controls in one invocation, following
+# test:observability-replicas. Each control removes one of the slice's fixes and
+# asserts the matching assertion goes red. A control that PASSES fails the job:
+# it means the proof is not exercising the mechanism.
+#
+# postgresql-client-16 comes from PGDG rather than from Debian, and that is
+# load-bearing. The golang:1.26.5 image is Debian trixie, whose only
+# postgresql-client is 17, and pg_dump 17 writes `SET transaction_timeout = 0`
+# into the archive — a setting PostgreSQL 16 does not have and rejects. A
+# mismatched client produces a dump that exits 0 and cannot be restored. The
+# script refuses on the mismatch rather than proving nothing quietly.
 test:migration-compatibility:
   stage: test
   <<: *go-image-debian
@@ -1545,28 +1549,36 @@ test:migration-compatibility:
     POSTGRES_PASSWORD: testpass
     POSTGRES_HOST_AUTH_METHOD: trust
     POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_migration_compat_test?sslmode=disable"
+    # Client major must equal server major; see the comment above.
+    FI_FHIR_PG_BIN_DIR: /usr/lib/postgresql/16/bin
   script:
-    # postgresql-client supplies pg_dump/pg_restore for the round-trip proof
-    # that lands with Slice 4.4a's implementation MR.
-    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates ripgrep build-essential postgresql-client && rm -rf /var/lib/apt/lists/*
-    # Existence guard. Integration helpers t.Skipf when a service is
-    # unreachable, so a renamed or deleted proof would make this job greener
-    # rather than redder without this step (AGENTS.md).
+    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates ripgrep build-essential curl gnupg && rm -rf /var/lib/apt/lists/*
+    # The PGDG suite is pinned to the base image's codename rather than derived,
+    # so a base-image bump fails loudly here instead of silently adding an apt
+    # source for the wrong Debian release.
+    - . /etc/os-release && [ "$VERSION_CODENAME" = trixie ] || { echo "base image is no longer Debian trixie; update the PGDG suite below"; exit 1; }
+    - install -d /usr/share/postgresql-common/pgdg
+    - curl -fsS -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    - echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt trixie-pgdg main" > /etc/apt/sources.list.d/pgdg.list
+    - apt-get update && apt-get install -y --no-install-recommends postgresql-client-16 && rm -rf /var/lib/apt/lists/*
+    - "${FI_FHIR_PG_BIN_DIR}/pg_dump --version"
+    # Existence guard. A renamed or deleted proof would make this job greener
+    # rather than redder without it.
     - >-
       go test -tags=integration
-      -list '^TestMigrationCompatibility_ExportInsertShapeSurvivesOneVersionRollback$'
+      -list '^TestMigrationCompatibility_(ConcurrentReplicaMigrationRollbackAndRestore|ExportInsertShapeSurvivesOneVersionRollback|NegativeControls)$'
       ./internal/integration/migrationcompat
-      | rg -x 'TestMigrationCompatibility_ExportInsertShapeSurvivesOneVersionRollback'
-      | awk 'END { if (NR != 1) exit 1 }'
+      | rg -x 'TestMigrationCompatibility_(ConcurrentReplicaMigrationRollbackAndRestore|ExportInsertShapeSurvivesOneVersionRollback|NegativeControls)'
+      | awk 'END { if (NR != 3) exit 1 }'
     - make migration-compatibility
   after_script:
     - |
       if [ "$CI_JOB_STATUS" = "failed" ]; then
         echo ""
-        echo "test:migration-compatibility FAILED — this is the EXPECTED day-1 result."
-        echo "Expected: SQLSTATE 23502 not_null_violation on integration_session_exports.principal_json"
-        echo "Any other failure means .loom/32 correction 23 is wrong; re-scope Lane S4-C."
-        echo "Local: POSTGRES_TEST_URL=... make migration-compatibility"
+        echo "test:migration-compatibility FAILED — migration compatibility or rollback safety regressed."
+        echo "A failing NEGATIVE CONTROL means the opposite: the proof stopped exercising its mechanism."
+        echo "Local: POSTGRES_TEST_URL=... FI_FHIR_PG_BIN_DIR=<pg16 bin> make migration-compatibility"
+        echo "Docs: AGENTS.md 'Migration authoring'; docs/developer-guide/testing.md"
         echo "Owner: Platform/Integration — escalate in #ci-support"
       fi
   rules:
@@ -1576,7 +1588,7 @@ test:migration-compatibility:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes: *go-changes
     - when: never
-  allow_failure: true
+  allow_failure: false
 
 # Slice 4.1e Lane S4-B: PHI retention policy and purge runtime.
 #

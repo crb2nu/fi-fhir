@@ -32,6 +32,22 @@ var sessionStreamEventsMigration string
 //go:embed migrations/0006_retention_expiry.sql
 var sessionRetentionExpiryMigration string
 
+//go:embed migrations/0007_export_attribution_defaults.sql
+var exportAttributionDefaultsMigration string
+
+// SchemaVersion is the session ledger version this binary expects.
+//
+// Slice 4.4a's compatibility boundary is the per-package ledger version, not a
+// git tag: there are none, and the binary version string says nothing about
+// which schema a process can run against. Two replicas whose ledger versions
+// differ by one are an N-1 pair; that is what a rolling upgrade and a rollback
+// both are. See `.loom/40-decisions.md` (2026-08-09, "What one version means").
+//
+// Slice 4.1e merged first and took session version 6 (0006_retention_expiry),
+// so 4.4a's export-attribution defaults renumbered to 7 — the ledger, not the
+// worklog claim, is the authority (.loom/32 correction 40).
+const SchemaVersion = 7
+
 // PayloadProtector encrypts explicitly retained raw sample bytes outside SQL.
 type PayloadProtector interface {
 	Protect(context.Context, []byte, []byte) ([]byte, error)
@@ -173,6 +189,21 @@ func (s *PostgresStore) Migrate(ctx context.Context) error {
 			`INSERT INTO integration_session_schema_migrations (version, name) VALUES (6, '0006_retention_expiry')`,
 		); err != nil {
 			return fmt.Errorf("record session retention migration: %w", err)
+		}
+	}
+	if err := tx.QueryRowContext(ctx,
+		`SELECT EXISTS (SELECT 1 FROM integration_session_schema_migrations WHERE version = 7)`,
+	).Scan(&applied); err != nil {
+		return fmt.Errorf("read export attribution defaults migration ledger: %w", err)
+	}
+	if !applied {
+		if _, err := tx.ExecContext(ctx, exportAttributionDefaultsMigration); err != nil {
+			return fmt.Errorf("apply export attribution defaults migration: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO integration_session_schema_migrations (version, name) VALUES (7, '0007_export_attribution_defaults')`,
+		); err != nil {
+			return fmt.Errorf("record export attribution defaults migration: %w", err)
 		}
 	}
 	if err := tx.Commit(); err != nil {

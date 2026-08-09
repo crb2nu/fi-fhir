@@ -177,19 +177,23 @@ observability-replicas:
 		-run '^TestServeObservability_TwoReplicasUnderDocumentedConfiguration$$' \
 		./internal/observability
 
-# Slice 4.4a migration compatibility: one-version rollback safety across the six
-# forward-only migration ledgers.
+# Slice 4.4a migration compatibility kill-test: concurrent replica startup
+# across all six forward-only ledgers, one-version rollback safety, and a
+# pg_dump/restore round-trip that must preserve every durable row, every audit
+# immutability trigger, the NOT VALID provenance CHECK, and resumable delivery
+# work. Runs the two proofs AND their negative controls in one invocation: a
+# control that passes means the proof stopped exercising its mechanism.
 #
-# DAY-1 GATE STATE: this target currently FAILS on purpose. It reproduces the
-# defect .loom/32-sprint4-execution-specs.md correction 23 predicts — the
-# pre-4.1d five-column integration_session_exports insert dies on a not-null
-# violation against the migrated schema — before the fix is written. The CI job
-# test:migration-compatibility is allow_failure: true until Slice 4.4a lands the
-# server-side DEFAULTs, at which point both flip to blocking together.
+# The round-trip shells out to scripts/pgdump-roundtrip.sh, which needs client
+# tools whose MAJOR version matches the server. pg_dump 17+ writes
+# `SET transaction_timeout = 0` and PostgreSQL 16 rejects it, so a newer client
+# silently produces an unrestorable dump. Set FI_FHIR_PG_BIN_DIR when the
+# default PATH has the wrong major (macOS: brew install postgresql@16).
+#
 # Requires POSTGRES_TEST_URL and fails rather than skipping in CI.
 migration-compatibility:
-	go test -tags=integration -race -count=1 -timeout=300s \
-		-run '^TestMigrationCompatibility_ExportInsertShapeSurvivesOneVersionRollback$$' \
+	go test -tags=integration -race -count=1 -timeout=600s \
+		-run '^TestMigrationCompatibility_(ConcurrentReplicaMigrationRollbackAndRestore|ExportInsertShapeSurvivesOneVersionRollback|NegativeControls)$$' \
 		./internal/integration/migrationcompat
 
 # Lane S4-E transport-gate kill-test: the real GraphQL handler with real 4.1a

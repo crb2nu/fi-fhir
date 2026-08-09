@@ -913,10 +913,20 @@ groups:
 ### Backup Strategy
 
 ```bash
-# Database backup (PostgreSQL)
-pg_dump -h $DB_HOST -U $DB_USER -d fi_fhir | \
+# Database backup (PostgreSQL).
+#
+# --no-owner --no-privileges so the archive restores into an instance with a
+# different role name, which is the normal recovery case.
+#
+# Use client tools whose MAJOR version matches the server (PostgreSQL 16, per
+# docs/operations/SUPPORTED-1.0.md). This is load-bearing, not hygiene:
+# pg_dump 17 and later write `SET transaction_timeout = 0` into the archive
+# preamble, PostgreSQL 16 has no such setting and rejects it, and the failure
+# appears only at restore time. A dump taken with newer client tools exits 0
+# and is unrestorable into the very server it came from.
+pg_dump --no-owner --no-privileges -h $DB_HOST -U $DB_USER -d fi_fhir | \
   gzip | \
-  aws s3 cp - s3://backups/fi-fhir/$(date +%Y%m%d).sql.gz
+  aws s3 cp - s3://backups/fi-fhir/$(date +%Y%m%dT%H%M%S).sql.gz
 
 # Workflow configuration backup
 kubectl get configmap fi-fhir -n fi-fhir -o yaml > workflow-config-backup.yaml
@@ -926,13 +936,41 @@ kubectl get secret fi-fhir -n fi-fhir -o yaml | \
   kubeseal --format yaml > sealed-secret-backup.yaml
 ```
 
+`scripts/pgdump-roundtrip.sh` performs the dump and a restore into a scratch
+database with exactly these options, and refuses on a client/server major
+mismatch. `make migration-compatibility` runs it against a populated database
+in CI and asserts the restored copy is complete — see "What the restore proof
+covers" below.
+
 ### Recovery Procedures
 
 1. **Database Recovery**:
    ```bash
+   # -v ON_ERROR_STOP=1 is required. Without it psql prints errors, continues,
+   # and exits 0 — so a restore that failed to recreate the audit-immutability
+   # triggers looks like a success, and the recovered deployment silently has
+   # weaker PHI governance than the one it replaced.
    aws s3 cp s3://backups/fi-fhir/latest.sql.gz - | \
      gunzip | \
-     psql -h $DB_HOST -U $DB_USER -d fi_fhir
+     psql -v ON_ERROR_STOP=1 -h $DB_HOST -U $DB_USER -d fi_fhir
+   ```
+
+   After any restore, confirm the guarantees came back with the rows:
+
+   ```bash
+   # Every append-only ledger must still refuse mutation.
+   psql -h $DB_HOST -U $DB_USER -d fi_fhir \
+     -c "SELECT tgname FROM pg_trigger WHERE NOT tgisinternal ORDER BY tgname"
+
+   # The 4.1c-a delivery-identity provenance CHECK must be present and NOT VALID.
+   psql -h $DB_HOST -U $DB_USER -d fi_fhir \
+     -c "SELECT conname, convalidated FROM pg_constraint
+         WHERE conname = 'integration_delivery_identity_decisions_provenance_chk'"
+
+   # Every migration ledger must be at the version the binary expects
+   # (compare against `fi-fhir version`).
+   psql -h $DB_HOST -U $DB_USER -d fi_fhir \
+     -c "SELECT max(version) FROM integration_submission_schema_migrations"
    ```
 
 2. **Application Recovery**:
@@ -949,14 +987,59 @@ kubectl get secret fi-fhir -n fi-fhir -o yaml | \
    ./fi-fhir workflow replay --dlq --since 24h
    ```
 
-### RTO/RPO Targets
+### Recovery objectives, honestly
 
-| Scenario | RTO | RPO |
-|----------|-----|-----|
-| Pod failure | 30s | 0 |
-| Node failure | 5m | 0 |
-| Database failure | 15m | 5m |
-| Full cluster failure | 1h | 15m |
+The product spec fixes **RPO ≤ 5 minutes and RTO ≤ 30 minutes**
+(`.loom/20-product-spec-integration-engine-ide-completion.md:277-278`).
+
+**The backup method documented above cannot meet that RPO, and no amount of
+scheduling will make it.** A periodic `pg_dump` is a point-in-time logical
+snapshot: everything written between the last successful dump and the failure
+is gone. Running it every five minutes does not bound loss to five minutes — it
+bounds loss to the interval *plus* the dump duration, on a database whose dump
+time grows with the data, while holding a long transaction that keeps
+`autovacuum` from cleaning up. Bounding data loss to minutes requires
+continuous WAL archiving and point-in-time recovery, which **no chart,
+manifest, or document in this repository configures today**.
+
+What the aspirational table below actually describes, and what is proven:
+
+| Scenario | RTO target | RPO target | Status |
+|----------|-----------|-----------|--------|
+| Pod failure | 30s | 0 | Kubernetes restart; not measured on the reference profile |
+| Node failure | 5m | 0 | Depends on cluster capacity; not measured |
+| Database failure | 15m | 5m | **RPO unachievable with logical dumps.** Needs WAL archiving / PITR (slice 4.4c) |
+| Full cluster failure | 1h | 15m | **RPO unachievable with logical dumps.** Needs WAL archiving / PITR (slice 4.4c) |
+
+Treat every row as a target, not a capability. `docs/operations/SUPPORTED-1.0.md`
+lists the backup/restore and RPO/RTO proof as blocking for a 1.0 support claim,
+and it remains blocking.
+
+### What the restore proof covers
+
+`TestMigrationCompatibility_ConcurrentReplicaMigrationRollbackAndRestore`
+(`internal/integration/migrationcompat`, CI job `test:migration-compatibility`)
+runs the documented dump and restore against a populated PostgreSQL 16 database
+on every merge request and asserts:
+
+- every row in the durable classes survives — receipts, canonical events,
+  lineage, delivery attempts, the outbox, sessions, exports, and delivery
+  identity decisions;
+- the canonical event payload survives intact, so the comparison is about
+  content and not row counts;
+- every Slice 4.1d C1 immutability guard still raises on the restored copy —
+  a dump that silently drops a trigger is a PHI-governance regression, not a
+  backup;
+- the 4.1c-a provenance CHECK is present and still `NOT VALID`, so a restore
+  cannot quietly convert a forward-only guarantee into a retroactive claim;
+- a queued delivery attempt is claimed and published from the restored state
+  with no manual repair, and is not claimed twice.
+
+**What it does not cover**, and what 4.4c must add: any recovery-time or
+data-loss measurement, WAL archiving, point-in-time recovery, failover, or a
+restore onto a different host. The proof establishes that a logical backup is
+*complete and faithful*. It says nothing about how long recovery takes or how
+much data a real failure would lose.
 
 ---
 
