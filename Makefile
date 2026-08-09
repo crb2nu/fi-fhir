@@ -13,6 +13,7 @@
 	migration-compatibility \
 	phi-retention-purge \
 	transport-gate transport-gate-negative-control \
+	fhir-conformance-day1-gate \
 	smoke-test smoke-test-local check-runtime-config \
 	dev dev-down dev-ui dev-ui-down destination-transport
 
@@ -217,6 +218,43 @@ transport-gate-negative-control:
 	else \
 		echo "negative control OK: kill-test fails open with the blanket allow restored"; \
 	fi
+
+# Lane S5-E Slice 5.1a day-1 gates. Two assertions with opposite expected
+# results, both about whether Slice 5.1 is what the sprint scope says it is.
+#
+#  1. TestFHIRConformance_DurableEngineProducesNoFHIRResource must PASS. It runs
+#     the real dispatcher against a live TLS `https` destination and proves the
+#     body is the Kafka delivery-command envelope at application/json, that the
+#     transport vocabulary is {kafka, https} with no FHIR class, and that nothing
+#     under internal/integration imports pkg/fhir. That is the `.loom/28:206-212`
+#     kill-test executed: no FHIR resource exists on any path the engine runs, so
+#     5.1's real prerequisite is an unwritten slice (4.1c-c), not a validator.
+#     It is an ordinary test and also runs in `go test ./...`.
+#
+#  2. TestFHIRConformance_ValidatorRejectsMapperOutputToday must FAIL, for one
+#     named reason: the shipped validator rejects the shipped mapper's own
+#     DiagnosticReport. This target therefore inverts, and additionally requires
+#     the failure to carry that reason, so a compile error cannot satisfy it.
+#     Slice 5.1a's reconciliation flips this; when it does, this target stops
+#     inverting and the assertion joins the untagged conformance table.
+fhir-conformance-day1-gate:
+	go test -count=1 -timeout=120s \
+		-run '^TestFHIRConformance_DurableEngineProducesNoFHIRResource$$' \
+		./internal/integration/delivery
+	@output=$$(go test -tags fhirday1gate -count=1 -timeout=120s \
+		-run '^TestFHIRConformance_ValidatorRejectsMapperOutputToday$$' ./pkg/fhir 2>&1); \
+	status=$$?; \
+	if [ $$status -eq 0 ]; then \
+		echo "day-1 gate FAILED to reproduce: the mapper's DiagnosticReport already validates"; \
+		exit 1; \
+	fi; \
+	if ! printf '%s' "$$output" | grep -q \
+		'meta.profile does not include an expected profile for DiagnosticReport'; then \
+		echo "day-1 gate failed for the WRONG reason:"; \
+		printf '%s\n' "$$output"; \
+		exit 1; \
+	fi; \
+	echo "day-1 gate reproduced: meta.profile does not include an expected profile for DiagnosticReport"
 
 # Clean build artifacts
 clean:

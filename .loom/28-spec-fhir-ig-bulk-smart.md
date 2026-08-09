@@ -162,6 +162,54 @@ at all. **Replacement kill-test for 5.1, to run before any conformance code:**
 A negative control is required: the same run against a deliberately
 non-conformant resource must fail, or the gate is proving nothing.
 
+### The replacement kill-test has been RUN. Its answer is "still blocked."
+
+**Run 2026-08-09, Sprint 5 Lane S5-E, against `main` @ `2f8b3f609` — after Slice
+4.1c-b merged at `e77c6218b`.** Do not re-derive this; it is executed, not
+argued, and it is landed as a test so it stays executed:
+`TestFHIRConformance_DurableEngineProducesNoFHIRResource` in
+`internal/integration/delivery/fhir_conformance_gate_test.go`, which **passes on
+unmodified `main`** and runs in the ordinary `go test ./...`.
+
+The test stands a live TLS endpoint, deploys an `https`-transport destination
+pointing at it, and runs the real dispatcher — real `messageForWorkItem`, real
+`destination.Transport`, real `net/http` — for one claimed durable work item.
+What the destination receives:
+
+1. **No resource is captured.** The body is the Kafka delivery-command envelope
+   (`schema: integration.delivery.v1`) whose `event` member is the canonical
+   event verbatim, sourced from `integration_canonical_events.payload_json`
+   (`delivery/store.go:107,128`; `delivery/dispatcher.go:162,166,348`). Neither
+   the envelope nor the event carries `resourceType`.
+2. **The content type is `application/json`**, not `application/fhir+json`
+   (`destination/transport.go:325`).
+3. **The transport vocabulary is exactly `{kafka, https}`** — asserted against
+   the revision validator that admits it, not against a copy of the constant
+   block — and `DestinationClass` is `production|sandbox`, an *environment*
+   class (`pkg/integration/contracts.go:602`). A destination cannot declare that
+   it wants FHIR resources.
+4. **Zero files under `internal/integration/**` import `pkg/fhir`** (AST walk, in
+   the test). The mapper is not on the engine's path at all.
+
+**Therefore, per this speclet's own instruction: 5.1 is still blocked, and the
+blocker is 4.1c-b's scope, not the validator.** The real prerequisite is a slice
+nobody had written — **4.1c-c, a FHIR destination class**: a destination-class or
+`TransportKind` value meaning "this destination receives FHIR R4 resources", a
+canonical-event→resource mapping step on the delivery path,
+`application/fhir+json`, and a decision on whether the producing mapper is
+`pkg/fhir` or something new. That is a Phase 4 delivery slice. It is recorded in
+`.loom/40-decisions.md` (2026-08-09 amendment) and is out of Sprint 5's scope.
+
+What *is* unblocked, and is being shipped as **Slice 5.1a**, is conformance
+reconciliation inside `pkg/fhir`: the shipped validator rejects the shipped
+mapper's own output, the validator fails open on any mode string that is not
+exactly `us-core`, the profile-version policy is unchosen, and CI has no fixture
+for the one input the mapper actually produces. See
+`.loom/33-sprint5-execution-specs.md`, Lane S5-E.
+
+**The "Assignment Note" at the end of this file is superseded by the above**: a
+third option existed and is now taken.
+
 ## Dependencies
 
 - **Slice 4.1c-b (Lane S4-A of `.loom/32-sprint4-execution-specs.md`)** — hard
@@ -206,7 +254,16 @@ non-conformant resource must fail, or the gate is proving nothing.
 
 ## Assignment Note
 
-This speclet is **not** independently pickable today. An agent that wants to move
-it forward has exactly two options: work Slice 4.1c-b (Lane S4-A), or ratify the
-validator decision in `.loom/40-decisions.md` and turn it into a CI-image slice.
-Anything else builds conformance machinery for a path that produces nothing.
+**Superseded 2026-08-09** — see "The replacement kill-test has been RUN" above.
+The kill-test's answer stands: 4.1c-b did not unblock this speclet, and the real
+prerequisite is 4.1c-c, a FHIR destination class that nobody has specced. But a
+third option existed and has been taken: **Slice 5.1a, conformance
+reconciliation** inside `pkg/fhir`, which needs no live path, no Java, no IG
+package, and no image change, and which is a prerequisite for any future
+certification regardless of which engine wins.
+
+*Original note, kept for the record:* This speclet is **not** independently
+pickable today. An agent that wants to move it forward has exactly two options:
+work Slice 4.1c-b (Lane S4-A), or ratify the validator decision in
+`.loom/40-decisions.md` and turn it into a CI-image slice. Anything else builds
+conformance machinery for a path that produces nothing.
