@@ -10,6 +10,7 @@
 	contract-check contract-check-strict contract-matrix \
 	golden-path-001 mllp-runtime delivery-reliability batch-ingestion integration-session \
 	operator-control-plane delivery-identity phi-audit observability-replicas \
+	migration-compatibility \
 	smoke-test smoke-test-local check-runtime-config \
 	dev dev-down dev-ui dev-ui-down
 
@@ -161,6 +162,21 @@ observability-replicas:
 	go test -tags=integration -race -count=1 -timeout=600s \
 		-run '^TestServeObservability_TwoReplicasUnderDocumentedConfiguration$$' \
 		./internal/observability
+
+# Slice 4.4a migration compatibility: one-version rollback safety across the six
+# forward-only migration ledgers.
+#
+# DAY-1 GATE STATE: this target currently FAILS on purpose. It reproduces the
+# defect .loom/32-sprint4-execution-specs.md correction 23 predicts — the
+# pre-4.1d five-column integration_session_exports insert dies on a not-null
+# violation against the migrated schema — before the fix is written. The CI job
+# test:migration-compatibility is allow_failure: true until Slice 4.4a lands the
+# server-side DEFAULTs, at which point both flip to blocking together.
+# Requires POSTGRES_TEST_URL and fails rather than skipping in CI.
+migration-compatibility:
+	go test -tags=integration -race -count=1 -timeout=300s \
+		-run '^TestMigrationCompatibility_ExportInsertShapeSurvivesOneVersionRollback$$' \
+		./internal/integration/migrationcompat
 
 # Clean build artifacts
 clean:
