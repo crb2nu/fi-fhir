@@ -43,6 +43,15 @@ import (
 // .loom/31-sprint3-execution-specs.md, converts 4.1c from "scope the existing
 // credential" into "build the missing contract", and marks the boundary that
 // 4.1c-b's HTTPS consumer will cross.
+//
+// Since Slice 4.1c-b it proves this of a **`kafka`-class** destination: the
+// dispatch path has no destination transport on it, which is the shape every
+// `kafka`-transport destination runs under and the shape every destination ran
+// under before 4.1c-b. It is narrowed, not inverted — an `https`-class
+// destination is now contacted, and
+// TestDeliveryTransport_HTTPSClassContactedExactlyOnceUnderScopedIdentity
+// asserts that it is, exactly once, alongside a `kafka`-class destination in
+// the same registry and the same run that still contacts nothing.
 func TestDeliveryDispatch_ContactsNoDestination(t *testing.T) {
 	ctx := t.Context()
 	endpoint := newDestinationListener(t)

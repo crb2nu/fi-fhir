@@ -22,7 +22,12 @@ type Store interface {
 type Outcome string
 
 const (
-	OutcomeIdle      Outcome = "idle"
+	OutcomeIdle Outcome = "idle"
+	// OutcomePublished is one claimed item handed off successfully. Since Slice
+	// 4.1c-b that means either a command acknowledged by the broker or a
+	// destination this process contacted itself over TLS; both complete through
+	// the same MarkPublished and close the same per-destination circuit, so they
+	// are deliberately one outcome rather than two.
 	OutcomePublished Outcome = "published"
 	OutcomeRetry     Outcome = "retry_scheduled"
 	OutcomeDLQ       Outcome = "dead_lettered"
@@ -55,6 +60,7 @@ type Dispatcher struct {
 	workerID  string
 	config    Config
 	decider   DestinationDecider
+	transport DestinationTransport
 
 	mu      sync.RWMutex
 	observe func(DispatchResult, error)
@@ -102,6 +108,28 @@ func NewDispatcherWithIdentity(
 	config Config,
 	decider DestinationDecider,
 ) (*Dispatcher, error) {
+	return NewDispatcherWithDestination(store, publisher, workerID, config, decider, nil)
+}
+
+// NewDispatcherWithDestination constructs one worker that evaluates the
+// integration.deliver decision and then routes each authorized item between a
+// destination transport this process executes itself and the broker.
+//
+// A nil transport means no destination transport is configured for this
+// deployment and every authorized item publishes to the broker, exactly as it
+// did before Slice 4.1c-b. The publisher stays required either way: a registry
+// whose destinations are all `https` today can gain a `kafka`-class destination
+// on the next restart, and a deployment that discovered that at dispatch time
+// instead of at startup would trade a configuration error for a dead letter.
+// See `.loom/40-decisions.md` (2026-08-09).
+func NewDispatcherWithDestination(
+	store Store,
+	publisher Publisher,
+	workerID string,
+	config Config,
+	decider DestinationDecider,
+	transport DestinationTransport,
+) (*Dispatcher, error) {
 	if store == nil || publisher == nil || !validToken(workerID, 128) {
 		return nil, errors.New("delivery dispatcher dependencies are required")
 	}
@@ -110,7 +138,7 @@ func NewDispatcherWithIdentity(
 	}
 	return &Dispatcher{
 		store: store, publisher: publisher, workerID: workerID,
-		config: config, decider: decider,
+		config: config, decider: decider, transport: transport,
 	}, nil
 }
 
@@ -132,6 +160,9 @@ func (d *Dispatcher) RunOnce(ctx context.Context) (Outcome, error) {
 	message, err := messageForWorkItem(*item)
 	if err != nil {
 		return "", err
+	}
+	if outcome, handled, err := d.deliverToDestination(ctx, *item, message.Value); handled || err != nil {
+		return outcome, err
 	}
 	publishCtx, cancel := context.WithTimeout(ctx, d.config.PublishTimeout)
 	err = d.publisher.Publish(publishCtx, message)
@@ -179,6 +210,65 @@ func (d *Dispatcher) decideIdentity(ctx context.Context, item WorkItem) (Outcome
 		return "", true, storeErr
 	}
 	return OutcomeForbidden, true, nil
+}
+
+// deliverToDestination routes one authorized item between a destination
+// transport this process executes itself and the broker.
+//
+// It reports (outcome, handled, error). handled is false only when no transport
+// is configured or the transport reports the destination is not one it owns; in
+// both cases the caller publishes the delivery command to the constant Kafka
+// topic exactly as it always has.
+//
+// Three properties make this safe to bolt onto the existing state machine:
+//
+//   - The call is bounded by the same PublishTimeout the broker publish uses,
+//     and Config.validate already requires PublishTimeout < LeaseDuration. A
+//     slow destination therefore cannot outlive its lease and be delivered a
+//     second time by the worker that reclaims it. There is deliberately no
+//     second timeout knob, because a second knob is a second way to break that
+//     invariant.
+//   - Success completes through the existing MarkPublished, so the
+//     per-destination-artifact circuit closes exactly as it does for a broker
+//     publish. MarkPublished means "handed off successfully"; after this slice
+//     that is true of two transports, which is why it is documented rather than
+//     renamed.
+//   - Failure records through the existing MarkFailed, so retry, backoff, the
+//     circuit, MaxAttempts, and the DLQ are inherited rather than reimplemented.
+func (d *Dispatcher) deliverToDestination(
+	ctx context.Context,
+	item WorkItem,
+	payload []byte,
+) (Outcome, bool, error) {
+	if d.transport == nil {
+		return "", false, nil
+	}
+	deliverCtx, cancel := context.WithTimeout(ctx, d.config.PublishTimeout)
+	handled, err := d.transport.DeliverDestination(
+		deliverCtx, item.TenantID, item.AttemptID, item.Destination, payload,
+	)
+	cancel()
+	if !handled && err == nil {
+		return "", false, nil
+	}
+	if err == nil {
+		if storeErr := d.store.MarkPublished(ctx, item); storeErr != nil {
+			return "", true, storeErr
+		}
+		return OutcomePublished, true, nil
+	}
+	failure, classified := transportFailure(err)
+	if !classified {
+		return "", true, err
+	}
+	retry, storeErr := d.store.MarkFailed(ctx, item, failure, d.config)
+	if storeErr != nil {
+		return "", true, storeErr
+	}
+	if retry {
+		return OutcomeRetry, true, nil
+	}
+	return OutcomeDLQ, true, nil
 }
 
 // Run polls until cancellation. Processed work drains without an idle delay.

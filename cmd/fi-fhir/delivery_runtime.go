@@ -57,6 +57,13 @@ func buildDeliveryDispatcher(
 	if db == nil {
 		return nil, fmt.Errorf("delivery worker requires the PostgreSQL submission database")
 	}
+	// The broker stays required even when every destination in the loaded
+	// registry declares transport: https. The registry is one server-owned file
+	// read at boot, so "all destinations are https" is a property of one startup
+	// rather than of the deployment; relaxing this would turn adding one
+	// kafka-class destination from a startup configuration error into a runtime
+	// dead letter. Recorded in `.loom/40-decisions.md` (2026-08-09) with a named
+	// follow-up, and documented in .env.example and DESTINATION-IDENTITY.md.
 	if os.Getenv("FI_FHIR_QUEUE_DRIVER") != "kafka" {
 		return nil, fmt.Errorf("delivery worker requires FI_FHIR_QUEUE_DRIVER=kafka")
 	}
@@ -141,17 +148,50 @@ func buildDeliveryDispatcher(
 		return nil, err
 	}
 	var decider integrationdelivery.DestinationDecider
+	var transport integrationdelivery.DestinationTransport
 	if identity != nil {
 		decider = identity.authorizer
+		transport, err = buildDestinationTransport(identity)
+		if err != nil {
+			_ = publisher.Close()
+			return nil, err
+		}
 	}
-	dispatcher, err := integrationdelivery.NewDispatcherWithIdentity(
-		store, publisher, workerID, workerConfig, decider,
+	dispatcher, err := integrationdelivery.NewDispatcherWithDestination(
+		store, publisher, workerID, workerConfig, decider, transport,
 	)
 	if err != nil {
 		_ = publisher.Close()
 		return nil, err
 	}
 	return dispatcher, nil
+}
+
+// buildDestinationTransport wires the Slice 4.1c-b HTTPS transport when the
+// deployed destination set actually contains an https destination.
+//
+// The transport is not wired otherwise, so a deployment whose destinations are
+// all kafka-class keeps a dispatch path with no destination transport on it at
+// all — the same shape TestDeliveryDispatch_ContactsNoDestination asserts.
+//
+// It returns a typed nil-free interface: a Go interface holding a typed nil
+// would make the dispatcher's `transport == nil` check false and route every
+// item into a transport that cannot run.
+func buildDestinationTransport(
+	identity *destinationIdentityRuntime,
+) (integrationdelivery.DestinationTransport, error) {
+	if !identity.registry.HasTransport(integrationdestination.TransportHTTPS) {
+		return nil, nil
+	}
+	transport, err := integrationdestination.NewTransport(integrationdestination.TransportConfig{
+		Registry: identity.registry,
+		Resolver: identity.resolver,
+		Recorder: identity.provenance,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("configure destination transport: %w", err)
+	}
+	return transport, nil
 }
 
 func applyDeliveryDurationEnv(name string, target *time.Duration) error {

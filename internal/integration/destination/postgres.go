@@ -8,14 +8,30 @@ import (
 	"fmt"
 )
 
-const (
-	destinationMigrationLockKey = int64(5064657639792058897)
-	destinationMigrationVersion = int64(1)
-	destinationMigrationName    = "0001_delivery_identity"
-)
+const destinationMigrationLockKey = int64(5064657639792058897)
 
 //go:embed migrations/0001_delivery_identity.sql
 var deliveryIdentityMigration string
+
+//go:embed migrations/0002_https_delivery_provenance.sql
+var httpsDeliveryProvenanceMigration string
+
+// destinationMigration is one numbered step in this package's own forward-only
+// ledger, integration_destination_schema_migrations.
+type destinationMigration struct {
+	version    int64
+	name       string
+	statements string
+}
+
+// destinationMigrations is the fixed, ordered migration set. The ledger is the
+// authority on the next free number at every rebase, not a planning document.
+func destinationMigrations() []destinationMigration {
+	return []destinationMigration{
+		{version: 1, name: "0001_delivery_identity", statements: deliveryIdentityMigration},
+		{version: 2, name: "0002_https_delivery_provenance", statements: httpsDeliveryProvenanceMigration},
+	}
+}
 
 // ErrProvenanceUnavailable means the decision recorder is not configured.
 var ErrProvenanceUnavailable = errors.New("destination identity provenance store unavailable")
@@ -62,22 +78,25 @@ func (p *PostgresProvenance) Migrate(ctx context.Context) error {
 	`); err != nil {
 		return fmt.Errorf("create destination migration ledger: %w", err)
 	}
-	var applied bool
-	if err := tx.QueryRowContext(ctx,
-		`SELECT EXISTS (SELECT 1 FROM integration_destination_schema_migrations WHERE version = $1)`,
-		destinationMigrationVersion,
-	).Scan(&applied); err != nil {
-		return fmt.Errorf("read destination migration ledger: %w", err)
-	}
-	if !applied {
-		if _, err := tx.ExecContext(ctx, deliveryIdentityMigration); err != nil {
-			return fmt.Errorf("apply delivery identity migration: %w", err)
+	for _, migration := range destinationMigrations() {
+		var applied bool
+		if err := tx.QueryRowContext(ctx,
+			`SELECT EXISTS (SELECT 1 FROM integration_destination_schema_migrations WHERE version = $1)`,
+			migration.version,
+		).Scan(&applied); err != nil {
+			return fmt.Errorf("read destination migration ledger: %w", err)
+		}
+		if applied {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, migration.statements); err != nil {
+			return fmt.Errorf("apply destination migration %s: %w", migration.name, err)
 		}
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO integration_destination_schema_migrations (version, name) VALUES ($1, $2)`,
-			destinationMigrationVersion, destinationMigrationName,
+			migration.version, migration.name,
 		); err != nil {
-			return fmt.Errorf("record delivery identity migration: %w", err)
+			return fmt.Errorf("record destination migration %s: %w", migration.name, err)
 		}
 	}
 	if err := tx.Commit(); err != nil {
@@ -127,6 +146,53 @@ func (p *PostgresProvenance) RecordDecision(ctx context.Context, decision Decisi
 		decision.DecidedAt.UTC(),
 	); err != nil {
 		return fmt.Errorf("record delivery identity decision: %w", err)
+	}
+	return nil
+}
+
+// RecordDelivery durably appends one executed destination delivery.
+//
+// It writes destination provenance and one closed-vocabulary status class only.
+// It never receives secret material, raw bytes, canonical event content, a
+// response body, or a response header.
+func (p *PostgresProvenance) RecordDelivery(ctx context.Context, record DeliveryRecord) error {
+	if p == nil || p.db == nil || ctx == nil {
+		return ErrProvenanceUnavailable
+	}
+	if !validIdentity(record.TenantID) || !validIdentity(record.AttemptID) ||
+		record.Transport != TransportHTTPS || record.CompletedAt.IsZero() ||
+		!validIdentity(record.DestinationDigestVerified) {
+		return ErrProvenanceUnavailable
+	}
+	switch record.Outcome {
+	case outcomeDelivered, outcomeRetryable, outcomeRefused:
+	default:
+		return ErrProvenanceUnavailable
+	}
+	if _, err := p.db.ExecContext(ctx, `
+		INSERT INTO integration_destination_deliveries (
+			tenant_id, attempt_id, transport,
+			destination_artifact_id, destination_revision_id, destination_class,
+			destination_digest_verified, outcome, failure_code, http_status_class,
+			destination_endpoint_advisory, served_certificate_subject_advisory,
+			completed_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+	`,
+		record.TenantID,
+		record.AttemptID,
+		string(record.Transport),
+		record.DestinationArtifactID,
+		record.DestinationRevisionID,
+		record.DestinationClass,
+		record.DestinationDigestVerified,
+		record.Outcome,
+		record.FailureCode,
+		record.HTTPStatusClass,
+		record.EndpointAdvisory,
+		record.ServedCertificateSubjectAdvisory,
+		record.CompletedAt.UTC(),
+	); err != nil {
+		return fmt.Errorf("record destination delivery: %w", err)
 	}
 	return nil
 }

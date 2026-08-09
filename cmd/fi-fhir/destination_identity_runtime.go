@@ -17,10 +17,21 @@ const maxDestinationRegistryBytes = 1 << 22
 
 // destinationIdentityRuntime carries the wired decision and the mode to report
 // at startup.
+//
+// Slice 4.1c-b adds the resolver and the provenance store. Before it, the
+// resolver existed only inside verifyDestinationSecrets and was discarded once
+// startup had proved every binding resolvable; the runtime held no credential
+// path at all. A durable HTTPS delivery has to resolve its credential on every
+// dispatch, so the resolver now outlives startup — but it still lives here in
+// cmd/, which is the one package deliberately chosen so no
+// internal/integration/* type can hold resolved material in a struct that is
+// later marshaled into a durable record.
 type destinationIdentityRuntime struct {
 	authorizer *integrationdestination.Authorizer
 	mode       integrationdestination.Mode
 	registry   *integrationdestination.Registry
+	resolver   integration.SecretResolver
+	provenance *integrationdestination.PostgresProvenance
 }
 
 // loadDestinationIdentityFromEnv wires the Slice 4.1c-a delivery identity
@@ -92,6 +103,8 @@ func loadDestinationIdentityFromEnv(
 		authorizer: authorizer,
 		mode:       identityMode,
 		registry:   registry,
+		resolver:   resolver,
+		provenance: provenance,
 	}, nil
 }
 
