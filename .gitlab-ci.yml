@@ -21,6 +21,7 @@ include:
   - local: ci/test-destination-transport.yml
   - local: ci/lint-edi.yml
   - local: ci/test-mllp-rate-quota.yml
+  - local: ci/test-structured-logging.yml
 stages:
   - lint
   - test

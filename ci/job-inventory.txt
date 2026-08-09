@@ -53,6 +53,7 @@ test:phi-retention-purge	test	false
 test:phi-retention-throughput	test	false
 test:sdk-typescript	test	false
 test:smoke	test	false
+test:structured-logging	test	false
 test:transport-gate	test	false
 test:ui	test	false
 test:unit	test	false

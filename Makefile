@@ -29,7 +29,6 @@
 .PHONY: lint-edi                                                       # edilint dogfood
 .PHONY: mllp-rate-quota                                                # 4.4e   — S5-D
 .PHONY: phi-retention-throughput phi-retention-throughput-negative-control # D1 — S5-F
-.PHONY: structured-logging                                             # 4.4d   — S5-C
 .PHONY: structured-logging structured-logging-negative-control          # 4.4d   — S5-C
 
 # Tool versions (update these when upgrading)

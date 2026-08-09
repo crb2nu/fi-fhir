@@ -80,9 +80,11 @@
     (Audit Logging sections only — coordinate with S5-B, which owns PITR/recovery)
   - `deploy/kubernetes/base/configmap.yaml`,
     `deploy/helm/fi-fhir/templates/NOTES.txt`, `README.md`
-  - `Makefile` (two targets, one `.PHONY` line)
-  - Not touched: `.gitlab-ci.yml` (S5-0a owns the append point; S5-B wires
-    `check-runtime-config` per correction 23).
+  - `Makefile` (two targets, one `.PHONY` lane line — `# 4.4d — S5-C`, per
+    S5-0's one-line-per-lane restructure)
+  - `ci/test-structured-logging.yml` (new) plus exactly one `- local:` line in
+    `.gitlab-ci.yml` and the regenerated `ci/job-inventory.txt`, added after
+    S5-0a merged. `check-runtime-config` stays S5-B's to wire (correction 23).
 
 - What's next:
   - **The tracing half of 4.4d is a follow-on slice**, which is the spec's own
