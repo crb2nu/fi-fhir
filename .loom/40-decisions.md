@@ -2186,13 +2186,33 @@ structurally impossible today.
     them loses PostgreSQL simultaneously, the aggregate can exceed the declared
     rate — bounded, documented, and strictly better than today's unbounded
     `N ×`.
-  - **Redeploy (`capacity.go:109-113`, correction 36): claim before admitting,
-    and start the new digest's bucket empty.** The full-bucket reset on every
-    revision-digest change is removed. A new digest re-keys the bucket to zero
-    tokens and admits only once a claim for that digest exists; tokens then
-    refill continuously at the claimed share. Carrying tokens across a digest
-    change was rejected too — the new revision may declare a different rate, so
-    carried tokens are denominated in the wrong currency.
+  - **The quota pool is keyed on the deployment — `(tenant_id, definition_id)`
+    — and not on the revision digest.** `.loom/33`'s task 3 said
+    "per-deployment, per-revision-digest quota state", which is the obvious
+    reading given that capacity is declared on the deployed revision. It is
+    wrong, and it defeats one of the lane's own acceptance criteria: a rolling
+    redeploy runs two digests at once, two digest-keyed pools each admit the
+    full declared rate, and the deployment bursts to twice it for the length of
+    every rollout. The digest is recorded **on the claim row** instead, as
+    attribution, so an operator can still see which revision each holder is
+    serving. `.loom/33` task 3 is corrected in the same commit as this entry.
+  - **Redeploy (`capacity.go:109-113`, correction 36): stop resetting the
+    bucket at all.** The bucket is seeded full exactly once, on the process's
+    first frame, and the balance then carries across every revision change,
+    clamped to the current share. Two alternatives were considered and both are
+    worse. *Resetting to full per digest* is the defect itself: it hands each
+    rolling redeploy a fresh burst on top of what was just admitted. *Starting
+    empty per digest* fixes that but transiently NAKs the first frame after
+    every redeploy — and, because a fresh process is also a fresh key, the
+    first frame a new replica ever serves, which is a gratuitous regression for
+    the single-replica case. Seeding once is bounded in a way that per-digest
+    refilling is not: what it seeds is this replica's *share*, and the live
+    shares sum to the declared rate, so the aggregate instantaneous burst across
+    a rollout stays under it however many replicas start at once.
+  - **Claim before admitting.** A replica with no claim yet refuses rather than
+    admitting, so a scale-up cannot admit at the full declared rate while it
+    waits for its share. This is enforced by the quota coordinator, not by the
+    bucket: the bucket has no way to know whether a share is authoritative.
   - **No GraphQL surface.** The schema stays frozen for Sprint 5; capacity is
     server-owned deployment config and needs no root field.
 - Rationale:
@@ -2231,6 +2251,9 @@ structurally impossible today.
     event with no signal. It also composes badly with the existing full-bucket
     reset on digest change (`capacity.go:109-113`), which hands each new replica
     of a rolling redeploy a fresh full share of an already-divided rate.
+  - **Keying the quota pool on the revision digest as well as the deployment**
+    (rejected: see the keying bullet above — it re-creates the redeploy burst
+    the lane exists to close, in the mechanism meant to close it.)
   - **A conservative share of `rate / last known N` instead of `rate / 10`** —
     rejected as fallback: the last known `N` is exactly the number a partitioned
     replica has no way to refresh, and a deployment that scaled up during the
