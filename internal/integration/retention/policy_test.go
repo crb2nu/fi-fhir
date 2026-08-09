@@ -88,6 +88,7 @@ func TestDecodePolicyDocumentRefusals(t *testing.T) {
 		"unknown principal kind": strings.Replace(validPolicyDocument, `"kind": "human"`, `"kind": "robot"`, 1),
 		"negative window":        strings.Replace(validPolicyDocument, `"8760h"`, `"-1h"`, 1),
 		"unparseable window":     strings.Replace(validPolicyDocument, `"8760h"`, `"one year"`, 1),
+		"sub-second window":      strings.Replace(validPolicyDocument, `"8760h"`, `"500ms"`, 1),
 		"stream window below the schema floor": strings.Replace(validPolicyDocument,
 			`"stream_event_retain": "168h"`, `"stream_event_retain": "1m"`, 1),
 		"unknown field": strings.Replace(validPolicyDocument,

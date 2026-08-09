@@ -158,6 +158,13 @@ func parseRetentionWindow(name, value string) (time.Duration, error) {
 	if window <= 0 {
 		return 0, fmt.Errorf("%w: %s must be positive; omit it to retain indefinitely", ErrInvalidPolicy, name)
 	}
+	// The durable record stores whole seconds, so a sub-second window would round
+	// to zero and be refused by the column's CHECK at startup with a message about
+	// a constraint rather than about the document. Refuse it here, where the
+	// operator can see which field is wrong.
+	if window < time.Second {
+		return 0, fmt.Errorf("%w: %s must be at least 1s", ErrInvalidPolicy, name)
+	}
 	return window, nil
 }
 
