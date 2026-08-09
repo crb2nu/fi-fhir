@@ -392,17 +392,6 @@ func (e *Engine) ProcessWithContext(ctx context.Context, event interface{}) *Res
 	return result
 }
 
-// countMatchedRoutes counts how many routes matched in the result.
-func countMatchedRoutes(result *Result) int {
-	count := 0
-	for _, rr := range result.RouteResults {
-		if rr.Matched {
-			count++
-		}
-	}
-	return count
-}
-
 // getTransformType returns a string identifier for the transform type.
 func getTransformType(t Transform) string {
 	if t.SetField != "" {
