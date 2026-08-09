@@ -298,18 +298,16 @@ workflow:
       filter:
         event_type: patient_admit
         condition: |
-          event.patient.age >= 65 &&
+          timestamp(event.patient.date_of_birth) <=
+            timestamp(event.timestamp) - duration("569400h") &&
           event.encounter.location.unit == "ICU"
       actions:
+        # The full event is POSTed as JSON
         - type: webhook
-          url: ${CARE_COORDINATOR_WEBHOOK}
-          headers:
-            Content-Type: application/json
-          body:
-            alert_type: "ELDERLY_ICU_ADMISSION"
-            patient_mrn: "{{.Patient.MRN}}"
-            patient_name: "{{.Patient.Name.Family}}, {{.Patient.Name.Given}}"
-            location: "{{.Encounter.Location.Unit}}"
+          url: https://care-coordination.example.com/hooks/icu-admits
+        - type: log
+          level: warn
+          message: "Elderly ICU admission: {{.patient.family_name}}, {{.patient.given_name}} (MRN: {{.patient.mrn}})"
 ```
 
 ---

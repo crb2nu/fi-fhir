@@ -3,8 +3,13 @@
 # This workflow routes ADT (Admit/Discharge/Transfer) events from HL7v2
 # to a FHIR server, creating/updating Patient and Encounter resources.
 #
+# Templates use Go text/template syntax against the event's JSON form,
+# so field paths use the lowercase snake_case JSON key names
+# (e.g. {{.patient.mrn}}, {{.encounter.location.unit}}).
+#
 # Usage:
-#   fi-fhir workflow run --config examples/workflows/adt-to-fhir.yaml event.json
+#   fi-fhir parse --format hl7v2 adt_a01.hl7 | \
+#     fi-fhir workflow run --config examples/workflows/adt-to-fhir.yaml -
 
 workflow:
   name: adt_to_fhir
@@ -19,31 +24,30 @@ workflow:
       transform:
         # Ensure patient status is set
         - set_field: patient.active = true
-        # Map local race codes to OMB categories
-        - map_terminology: patient.race
+        # To map local codes to standard terminology, configure a mapping and use:
+        # - map_terminology:
+        #     field: patient.race
+        #     from: LOCAL
+        #     to: OMB
       actions:
-        # Create/update Patient resource
+        # Create/update Patient resource (OAuth2 client credentials)
         - type: fhir
-          endpoint: ${FHIR_SERVER_URL}
+          endpoint: https://fhir.example.com/r4
           resource: Patient
-          auth:
-            type: oauth2
-            tokenUrl: ${FHIR_TOKEN_URL}
-            clientId: ${FHIR_CLIENT_ID}
-            clientSecret: ${FHIR_CLIENT_SECRET}
+          token_url: https://auth.example.com/oauth2/token
+          client_id: my-client-id
+          client_secret: my-client-secret
         # Create Encounter resource
         - type: fhir
-          endpoint: ${FHIR_SERVER_URL}
+          endpoint: https://fhir.example.com/r4
           resource: Encounter
-          auth:
-            type: oauth2
-            tokenUrl: ${FHIR_TOKEN_URL}
-            clientId: ${FHIR_CLIENT_ID}
-            clientSecret: ${FHIR_CLIENT_SECRET}
+          token_url: https://auth.example.com/oauth2/token
+          client_id: my-client-id
+          client_secret: my-client-secret
         # Log admission
         - type: log
           level: info
-          message: "Patient admitted: {{.Patient.Name.Family}}, {{.Patient.Name.Given}} (MRN: {{.Patient.MRN}})"
+          message: "Patient admitted: {{.patient.family_name}}, {{.patient.given_name}} (MRN: {{.patient.mrn}})"
 
     # Route 2: Patient discharges
     - name: patient_discharges
@@ -54,17 +58,15 @@ workflow:
       actions:
         # Update Encounter to finished
         - type: fhir
-          endpoint: ${FHIR_SERVER_URL}
+          endpoint: https://fhir.example.com/r4
           resource: Encounter
           operation: update
-          auth:
-            type: oauth2
-            tokenUrl: ${FHIR_TOKEN_URL}
-            clientId: ${FHIR_CLIENT_ID}
-            clientSecret: ${FHIR_CLIENT_SECRET}
+          token_url: https://auth.example.com/oauth2/token
+          client_id: my-client-id
+          client_secret: my-client-secret
         - type: log
           level: info
-          message: "Patient discharged: {{.Patient.MRN}}"
+          message: "Patient discharged: {{.patient.mrn}}"
 
     # Route 3: Patient transfers
     - name: patient_transfers
@@ -73,17 +75,15 @@ workflow:
       actions:
         # Update Encounter location
         - type: fhir
-          endpoint: ${FHIR_SERVER_URL}
+          endpoint: https://fhir.example.com/r4
           resource: Encounter
           operation: update
-          auth:
-            type: oauth2
-            tokenUrl: ${FHIR_TOKEN_URL}
-            clientId: ${FHIR_CLIENT_ID}
-            clientSecret: ${FHIR_CLIENT_SECRET}
+          token_url: https://auth.example.com/oauth2/token
+          client_id: my-client-id
+          client_secret: my-client-secret
         - type: log
           level: info
-          message: "Patient transferred: {{.Patient.MRN}} to {{.Encounter.Location}}"
+          message: "Patient transferred: {{.patient.mrn}} to {{.encounter.location.unit}} room {{.encounter.location.room}}"
 
     # Route 4: Patient updates (demographics)
     - name: patient_updates
@@ -91,11 +91,9 @@ workflow:
         event_type: patient_update
       actions:
         - type: fhir
-          endpoint: ${FHIR_SERVER_URL}
+          endpoint: https://fhir.example.com/r4
           resource: Patient
           operation: update
-          auth:
-            type: oauth2
-            tokenUrl: ${FHIR_TOKEN_URL}
-            clientId: ${FHIR_CLIENT_ID}
-            clientSecret: ${FHIR_CLIENT_SECRET}
+          token_url: https://auth.example.com/oauth2/token
+          client_id: my-client-id
+          client_secret: my-client-secret

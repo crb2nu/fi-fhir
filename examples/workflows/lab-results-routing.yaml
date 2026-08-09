@@ -5,8 +5,16 @@
 # - Critical results to alerting webhook
 # - Results to data warehouse via database
 #
+# Templates use Go text/template syntax against the event's JSON form.
+# Lab result events expose:
+#   patient        - patient demographics (patient.mrn, patient.family_name, ...)
+#   test / result  - the primary (first) observation
+#   results        - all observations as a list of {test, result} pairs
+#   is_critical    - true when any interpretation contains CRITICAL/PANIC
+#
 # Usage:
-#   fi-fhir workflow run --config examples/workflows/lab-results-routing.yaml event.json
+#   fi-fhir parse --format hl7v2 oru_r01.hl7 | \
+#     fi-fhir workflow run --config examples/workflows/lab-results-routing.yaml -
 
 workflow:
   name: lab_results_routing
@@ -18,89 +26,78 @@ workflow:
     - name: all_results_to_fhir
       filter:
         event_type: lab_result
-      transform:
-        # Map local LOINC codes if needed
-        - map_terminology: observations.*.code
       actions:
         # Create DiagnosticReport with Observations
         - type: fhir
-          endpoint: ${FHIR_SERVER_URL}
+          endpoint: https://fhir.example.com/r4
           resource: DiagnosticReport
-          auth:
-            type: bearer
-            token: ${FHIR_BEARER_TOKEN}
+          token: replace-with-bearer-token
         - type: log
           level: info
-          message: "Lab result posted to FHIR: {{.Observations | len}} observations"
+          message: "Lab result posted to FHIR: {{len .results}} observation(s) for MRN {{.patient.mrn}}"
 
     # Route 2: Critical results to alerting system
     - name: critical_alerts
       filter:
         event_type: lab_result
         condition: >
-          event.observations.exists(o,
-            o.interpretation in ["critical", "HH", "LL", "AA"]
+          event.is_critical ||
+          event.results.exists(o,
+            o.result.interpretation in ["HH", "LL", "AA"]
           )
       actions:
-        # Send to alerting webhook
+        # Send to alerting webhook (event is POSTed as JSON)
         - type: webhook
-          url: ${ALERT_WEBHOOK_URL}
-          method: POST
-          headers:
-            Content-Type: application/json
-            X-Alert-Priority: critical
-          retry:
-            maxAttempts: 3
-            initialDelay: 1s
+          url: https://alerts.example.com/hooks/critical
+          retry_max: 3
+          retry_delay: 1s
         # Also send to pager system
         - type: webhook
-          url: ${PAGER_WEBHOOK_URL}
-          method: POST
-          headers:
-            Content-Type: application/json
+          url: https://pager.example.com/api/v1/page
         - type: log
           level: warn
-          message: "CRITICAL LAB: {{.Patient.MRN}} - {{.Observations[0].Display}}: {{.Observations[0].Value}}"
+          message: "CRITICAL LAB: {{.patient.mrn}} - {{.test.description}}: {{.result.value}} {{.result.unit}} ({{.result.interpretation}})"
 
     # Route 3: Store in data warehouse
     - name: results_to_warehouse
       filter:
         event_type: lab_result
       transform:
-        # Redact SSN before storing
-        - redact: patient.ssn
+        # Strip direct identifiers before storing
+        - redact:
+            fields: [patient.phone, patient.address]
       actions:
+        # Column values are event field paths (mapping_<column>: <path>)
         - type: database
-          driver: postgres
-          dsn: ${WAREHOUSE_DSN}
+          connection: postgres://etl:password@warehouse.example.com:5432/analytics
           operation: insert
           table: lab_results
-          fields:
-            patient_mrn: "{{.Patient.MRN}}"
-            order_id: "{{.OrderID}}"
-            test_code: "{{.Observations[0].Code}}"
-            test_name: "{{.Observations[0].Display}}"
-            result_value: "{{.Observations[0].Value}}"
-            result_unit: "{{.Observations[0].Unit}}"
-            interpretation: "{{.Observations[0].Interpretation}}"
-            result_time: "{{.Timestamp}}"
-            source_system: "{{.Source}}"
+          mapping_patient_mrn: patient.mrn
+          mapping_order_id: test.order_id
+          mapping_test_code: test.loinc_code
+          mapping_test_name: test.description
+          mapping_result_value: result.value
+          mapping_result_unit: result.unit
+          mapping_interpretation: result.interpretation
+          mapping_result_time: timestamp
+          mapping_source_system: source
 
     # Route 4: Abnormal results notification
     - name: abnormal_notifications
       filter:
         event_type: lab_result
         condition: >
-          event.observations.exists(o,
-            o.interpretation in ["H", "L", "A"]
+          event.results.exists(o,
+            o.result.interpretation in ["H", "L", "A"]
           )
       actions:
-        # Queue for patient portal notification
+        # Queue for patient portal notification (key is an event field path).
+        # The built-in driver is "log"; external brokers (Kafka, RabbitMQ, ...)
+        # require registering a driver via workflow.RegisterQueueDriver.
         - type: queue
-          driver: kafka
-          brokers: ${KAFKA_BROKERS}
+          driver: log
           topic: patient-notifications
-          key: "{{.Patient.MRN}}"
+          key: patient.mrn
         - type: log
           level: info
-          message: "Abnormal result queued for notification: {{.Patient.MRN}}"
+          message: "Abnormal result queued for notification: {{.patient.mrn}}"
