@@ -1578,6 +1578,59 @@ test:migration-compatibility:
     - when: never
   allow_failure: true
 
+# Slice 4.1e Lane S4-B: PHI retention policy and purge runtime.
+#
+# Day 1 this job carries the structural gate alone. It asserts against the
+# UNMODIFIED durable schema that a purge can be neither a DELETE of a canonical
+# event nor a redaction UPDATE of its payload — Slice 4.1d C1's blanket guard
+# blocks both — and that an exported session and its export row are permanently
+# undeletable. A green run here is a statement about main, not about the lane.
+test:phi-retention-purge:
+  stage: test
+  <<: *go-image-debian
+  <<: *go-cache
+  services:
+    - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
+      alias: postgres
+  variables:
+    CGO_ENABLED: "1"
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
+    POSTGRES_DB: fi_fhir_phi_retention_test
+    POSTGRES_USER: testuser
+    POSTGRES_PASSWORD: testpass
+    POSTGRES_HOST_AUTH_METHOD: trust
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_phi_retention_test?sslmode=disable"
+  script:
+    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates ripgrep build-essential && rm -rf /var/lib/apt/lists/*
+    # Existence guard. Integration helpers t.Skipf rather than t.Fatalf when a
+    # service is unreachable, so a renamed or deleted test would make this job
+    # greener rather than redder without this step (AGENTS.md).
+    - >-
+      go test -tags=integration
+      -list '^TestPhiRetention_PurgeIsStructurallyBlockedToday$'
+      ./internal/integration/retention
+      | rg -x 'TestPhiRetention_PurgeIsStructurallyBlockedToday'
+      | awk 'END { if (NR != 1) exit 1 }'
+    - make phi-retention-purge
+  after_script:
+    - |
+      if [ "$CI_JOB_STATUS" = "failed" ]; then
+        echo ""
+        echo "test:phi-retention-purge FAILED — the retention purge proofs regressed."
+        echo "Local: POSTGRES_TEST_URL=... make phi-retention-purge"
+        echo "Docs: docs/operations/PHI-RETENTION.md, .loom/40-decisions.md"
+        echo "Owner: Platform/Integration — escalate in #ci-support"
+      fi
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *go-changes
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *go-changes
+    - when: never
+  allow_failure: false
+
 # =============================================================================
 # Security Stage
 # =============================================================================

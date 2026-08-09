@@ -11,6 +11,7 @@
 	golden-path-001 mllp-runtime delivery-reliability batch-ingestion integration-session \
 	operator-control-plane delivery-identity phi-audit observability-replicas \
 	migration-compatibility \
+	phi-retention-purge \
 	smoke-test smoke-test-local check-runtime-config \
 	dev dev-down dev-ui dev-ui-down
 
@@ -153,6 +154,15 @@ phi-audit:
 	go test -tags=integration -race -count=1 -timeout=300s \
 		-run '^TestPhiRetentionPosture_ProductionRejectsRetainedRawAndCanonicalEventsCarryNoPolicy$$' \
 		./internal/integration/processor
+
+# Slice 4.1e retention purge kill-test (PostgreSQL 16 required). Day 1 this is
+# the structural gate alone: it proves against the UNMODIFIED schema that a purge
+# can be neither a DELETE nor a redaction UPDATE, because Slice 4.1d C1 guards
+# both. See docs/operations/PHI-RETENTION.md and .loom/40-decisions.md.
+phi-retention-purge:
+	go test -tags=integration -race -count=1 -timeout=300s \
+		-run '^TestPhiRetention_PurgeIsStructurallyBlockedToday$$' \
+		./internal/integration/retention
 
 # Slice 4.3 observability kill-test: two `fi-fhir serve` replicas against one
 # PostgreSQL, started from the documented environment block, plus the legacy
