@@ -99,6 +99,15 @@ replica's `UPDATE` matches nothing. `UNIQUE (tenant_id, record_class, record_id)
 on the audit is the schema-level backstop. This follows S3-A's rejection of
 `pg_advisory_lock` for the autoroute notifier (`.loom/40-decisions.md`).
 
+**One place does need a lock, and writing the test found it.** `PutPolicy` takes
+`pg_advisory_xact_lock`, the pattern all five durable migrators already use.
+Without it, two replicas booting simultaneously against a fresh policy table both
+compute version 1 and both insert into `integration_retention_policy_audit`,
+where `UNIQUE (tenant_id, policy_version)` kills one of them at startup over a
+policy neither was changing. Negative-controlled: remove the lock and
+`simultaneous_replica_boot_records_one_policy_version` fails on the unique
+violation.
+
 ## 5. Kill-test and negative controls
 
 `TestPhiRetention_PostgresExpiryPurgeAndAuditedTombstone`, PostgreSQL 16,

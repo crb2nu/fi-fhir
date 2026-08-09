@@ -103,6 +103,11 @@ document rather than filing the discrepancy:
   C1's kill-test matches on that substring. If a future slice rewords those
   `RAISE EXCEPTION` strings, `make phi-audit` goes red for a reason that looks
   unrelated.
+- **The purge needs no lock; the policy write does.** `PutPolicy` takes
+  `pg_advisory_xact_lock` because two replicas booting at once would otherwise
+  race the policy audit's `UNIQUE (tenant_id, policy_version)` and take one
+  replica down at startup. The purge statements deliberately take none — if a
+  future change adds a lock there, read `.loom/40-decisions.md` first.
 - **`delivery-reliability` cannot run locally.** It needs Kafka through
   testcontainers and there is no local Docker Desktop (`AGENTS.md`). CI is the
   proof. Nothing in this slice touches `internal/integration/delivery`; the
