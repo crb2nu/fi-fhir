@@ -666,7 +666,35 @@ preview compatibility. Harden that boundary as follows:
 
 The `integration:preview` role permits only GraphQL `health` and
 `previewIntegrationMessage`. Do not grant `graphql:operator` to an IDE token;
-that role is a temporary authenticated escape hatch for legacy operations.
+that role is the deprecated compatibility grant and it expands to all 131
+GraphQL root fields.
+
+Since Sprint 4 the transport gate enumerates every root field and refuses any it
+does not have a role for, instead of allowing everything to a `graphql:operator`
+holder. Sixteen operator control-plane fields now have fine-grained
+requirements, so a recovery or deployment operator can be issued a token that
+reaches the control plane and nothing else:
+
+| Token roles | Reaches |
+|---|---|
+| `integration.operator` | the nine `operator*` control-plane reads |
+| `integration.operator` + `integration.delivery.operator` | the reads, plus `replayDelivery` / `resubmitMessage` / `discardDeadLetter` |
+| `integration.operator` + `integration.deployment.operator` | the reads, plus pause / resume / retire / deploy |
+| `graphql:operator` | everything, as before |
+
+Each pair is an AND: the transport gate requires exactly the roles the service
+behind it requires, so it can never be more permissive than
+`operator.Service.authorize`. `integration.phi.export` is deliberately not a
+transport-gate role — it gates the `includeRawPayload` argument of
+`exportIntegrationBundle`, and a token holding only that grant reaches nothing.
+
+The remaining 115 root fields — the event/patient browser, the legacy workflow
+catalog, FHIR subscriptions, the session workspace, profiles, LLM, terminology,
+and every subscription — are still reachable only through `graphql:operator`.
+Do not replace an existing operator token's `graphql:operator` with the
+fine-grained roles: it would keep the control plane and lose the entire IDE.
+`serve` prints the mapping's shape at startup so a deployment relying on the
+compatibility grant is visible in its own log.
 
 GraphQL HTTP accepts only bounded JSON POST requests and browser requests
 require an exact allowed origin. GraphQL WebSocket transport is unmounted; the

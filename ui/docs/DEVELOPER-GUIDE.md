@@ -48,7 +48,10 @@ samples stay only in tab memory and are cleared on reload.
 
 To exercise durable session streaming, first enable the PostgreSQL workspace as
 described in `docs/operations/INTEGRATION-SESSIONS.md`. Include
-`graphql:operator` in the API role list, then start the UI with:
+`graphql:operator` in the API role list — it is the compatibility grant, and the
+whole IDE surface including the session workspace still sits behind it, so the
+narrowed operator control-plane roles are not a substitute here — then start the
+UI with:
 
 ```bash
 VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED=true \
