@@ -2,6 +2,22 @@
 
 This document details US Core, Da Vinci, and other FHIR profile requirements for fi-fhir output generation.
 
+> **Version and accuracy notice (2026-08-08).** This document is written against
+> **US Core 6.1.0** (`:80`, `:445`, `:542`), which is what `pkg/fhir/types.go:2`
+> was authored against. The **1.0 target is US Core 9.0.0**
+> (`.loom/20-product-spec-integration-engine-ide-completion.md:262`,
+> `docs/operations/SUPPORTED-1.0.md:26`). One claim below is also false against
+> current code: "Profile metadata injection (Meta.Profile set on all resources)"
+> (`:485`) — `MapCoverageEligibilityResponse` never sets `Meta`
+> (`pkg/fhir/mapper.go:1930-1935`) and `MapClaim` sets it only for
+> pre-authorization (`:1298-1313`).
+>
+> For what the shipped mapper and validator actually cover, read
+> **[FHIR-CONFORMANCE-MATRIX.md](FHIR-CONFORMANCE-MATRIX.md)**, which is written
+> against code with `file:line` citations. This document is retained as design
+> background and is corrected by the slice that next touches it (Phase 5.1; see
+> `.loom/28-spec-fhir-ig-bulk-smart.md`).
+
 ## Quick Reference
 
 | Resource | US Core Profile | Status | Implementation |
