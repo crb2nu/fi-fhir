@@ -17,7 +17,7 @@
 - Product speclet - Dynamic Source Profile management: `29-spec-profile-management-observability.md`
 - Implementation plan: `30-implementation-plan.md`
 - Decisions: `40-decisions.md`
-- Worklog: `50-worklog.md`
+- Worklog: `worklog/` (one file per entry; `make worklog` renders it, `make worklog-new TITLE="..."` starts one). `50-worklog.md` is a pointer kept for existing links.
 
 ## Current Goal — IDE + Backend functionality gap-fill (see `23-functionality-gaps-plan.md`)
 

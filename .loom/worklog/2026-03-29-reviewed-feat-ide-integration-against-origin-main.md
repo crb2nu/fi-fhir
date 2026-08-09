@@ -1,0 +1,24 @@
+### 2026-03-29
+
+- What changed:
+  - Reviewed `feat/ide-integration` against `origin/main` and narrowed the unfinished branch work to the workflow debug surface rather than the IDE chrome itself.
+  - Wired the debug panel to the real GraphQL debug mutations instead of always loading mocks.
+  - Updated backend debug sessions to pause on the first executable span by default and to preserve a stable `createdAt` timestamp.
+  - Added frontend-derived trace/lineage synchronization from real debug steps so the bottom-panel debug/trace views stay useful even while server trace queries remain stubbed.
+  - Validated the backend debug surface with focused Go tests and the frontend debug/editor surface with focused Vitest plus UI typecheck.
+- Why:
+  - The branch looked feature-complete visually, but the actual debug session flow was not integrated end to end: the UI started sessions with empty workflow YAML, relied on mock state, and could not truthfully drive the backend debugger.
+- What’s next:
+  - Implement real server-backed `workflowRunTrace` query results instead of frontend-derived placeholders.
+  - Implement a real `debugStepEvent` subscription or another broadcast mechanism if live push updates are still desired.
+  - Triage the unrelated `ui/src/lib/ui/ide/ideStore.test.ts` runner-local `localStorage.clear` failure separately from this branch work.
+- Sources:
+  - [S1] Command: `git diff --stat 9cf0bf4006218b143c4184559d955c6f0428ddcf..HEAD`
+  - [S2] `ui/src/lib/features/debug/debugApi.ts`
+  - [S3] `ui/src/lib/features/debug/DebugPanel.svelte`
+  - [S4] `ui/src/lib/features/debug/debugStore.ts`
+  - [S5] `internal/workflow/debug.go`
+  - [S6] `internal/api/graphql/resolvers/debug.resolvers.go`
+  - [S7] Command: `GOCACHE=$PWD/.tmp/go-build-cache GOMODCACHE=$PWD/.tmp/go-mod-cache go test ./internal/workflow ./internal/parser/hl7v2 ./internal/api/graphql/...`
+  - [S8] Command: `npm run typecheck`
+  - [S9] Command: `npm test -- --run src/lib/features/debug/DebugPanel.test.ts src/lib/features/debug/debugStore.test.ts src/lib/features/debug/TraceTimeline.test.ts src/lib/features/debug/VariableInspector.test.ts src/lib/features/debug/StepControls.test.ts src/lib/ui/editor/CodeEditor.test.ts`

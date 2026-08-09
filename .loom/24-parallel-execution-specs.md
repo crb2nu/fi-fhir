@@ -427,7 +427,7 @@ Break `.loom/20-product-spec.md` and the P3 backlog into independent child specs
 
 - Use separate branches/worktrees per lane.
 - Lane agents must update only their lane section and the relevant implementation/worklog entries.
-- If two lanes need the same file, the earlier lane records the ownership note in `.loom/50-worklog.md`.
+- If two lanes need the same file, the earlier lane records the ownership note in its own `.loom/worklog/` entry (`make worklog-new TITLE="..."`).
 - Any agent finding a false premise must correct the source planning doc before coding. The Workflow AI wiring correction above is the model: verify code first, then re-scope.
 - Before MR/commit, each lane runs targeted tests and records exact commands in the relevant spec/worklog.
 
