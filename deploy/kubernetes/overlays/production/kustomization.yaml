@@ -55,8 +55,11 @@ patches:
                     value: "https://fi-fhir.prod.example.com"
                   - name: FI_FHIR_LOG_LEVEL
                     value: "info"
-                  - name: FI_FHIR_TRACING_SAMPLER
-                    value: "0.01"
+                  # FI_FHIR_TRACING_SAMPLER removed by slice 4.4a: it is
+                  # NOT IMPLEMENTED — parsed and validated, consumed by nothing.
+                  # A production overlay tuning a sampling rate for a tracer
+                  # that does not exist is the most misleading form of the
+                  # façade. The exporter is 4.4d.
     target:
       kind: Deployment
       name: fi-fhir

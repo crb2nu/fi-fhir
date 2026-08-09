@@ -215,6 +215,37 @@ check_required "no deployment artifact selects the legacy observability mode" ba
   fi
 '
 
+check_required "no deployment artifact advertises unimplemented tracing" bash -c '
+  root="'"$ROOT"'"
+  # FI_FHIR_TRACING_* is parsed and validated by pkg/config and consumed by
+  # nothing: there is no OpenTelemetry exporter in the serve path. A deployment
+  # artifact that sets it tells an operator the deployment exports traces, and
+  # the operator finds out otherwise during an incident. Slice 4.4a stripped
+  # every such setting; this keeps them from coming back before the exporter
+  # does (4.4d). Comment lines are fine — the point is the label, not the string.
+  offenders=""
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    text="${line#*:}"   # strip path
+    text="${text#*:}"   # strip line number
+    text="${text#"${text%%[![:space:]]*}"}"
+    case "$text" in
+      "#"* | "--"* | "//"*) continue ;;
+    esac
+    offenders="${offenders}${line}
+"
+  done <<EOF
+$(grep -rn "FI_FHIR_TRACING_" "$root/deploy" "$root/configs" "$root/docker-compose.yaml" 2>/dev/null || true)
+EOF
+  if [ -n "$offenders" ]; then
+    echo "a deployment artifact sets an unimplemented tracing variable:"
+    echo "$offenders"
+    echo "FI_FHIR_TRACING_* is consumed by nothing (see docs/operations/README.md)."
+    echo "Remove it, or land the exporter (slice 4.4d) in the same change."
+    exit 1
+  fi
+'
+
 check_required "batch worker identity is not a shared literal" bash -c '
   file="'"$ENV_EXAMPLE"'"
   value=$(grep -E "^[[:space:]]*FI_FHIR_BATCH_WORKER_ID=" "$file" | head -1 | cut -d= -f2- | tr -d "\"'"'"' ")

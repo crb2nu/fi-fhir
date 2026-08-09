@@ -92,6 +92,32 @@ const (
 	ComponentRetentionPurge   = "retention_purge"
 )
 
+// Schema ledger names. These are the only values that appear in a `ledger`
+// label, and they are the six forward-only migration ledgers that together
+// define this repository's compatibility boundary (slice 4.4a, task 1).
+const (
+	SchemaLedgerSubmission  = "submission"
+	SchemaLedgerSession     = "session"
+	SchemaLedgerLifecycle   = "lifecycle"
+	SchemaLedgerBatch       = "batch"
+	SchemaLedgerDestination = "destination"
+	SchemaLedgerTerminology = "terminology"
+)
+
+// allSchemaLedgers bounds the `ledger` label the same way allOutcomes bounds
+// `outcome`: a name outside this set is a programming error, not a runtime
+// surprise, and must never reach an exposition.
+var allSchemaLedgers = map[string]struct{}{
+	SchemaLedgerSubmission: {}, SchemaLedgerSession: {}, SchemaLedgerLifecycle: {},
+	SchemaLedgerBatch: {}, SchemaLedgerDestination: {}, SchemaLedgerTerminology: {},
+}
+
+// KnownSchemaLedger reports whether a ledger label value is in the allowlist.
+func KnownSchemaLedger(value string) bool {
+	_, ok := allSchemaLedgers[value]
+	return ok
+}
+
 // Metrics owns the one Prometheus registry the serve process exposes.
 //
 // It deliberately does not reuse internal/workflow's Prometheus adapter: that
@@ -103,9 +129,10 @@ const (
 type Metrics struct {
 	registry *prometheus.Registry
 
-	buildInfo   *prometheus.GaugeVec
-	componentUp *prometheus.GaugeVec
-	readinessUp *prometheus.GaugeVec
+	buildInfo     *prometheus.GaugeVec
+	schemaLedgers *prometheus.GaugeVec
+	componentUp   *prometheus.GaugeVec
+	readinessUp   *prometheus.GaugeVec
 
 	ingressSubmissions     *prometheus.CounterVec
 	mllpMessages           *prometheus.CounterVec
@@ -138,6 +165,10 @@ func NewMetrics(version string) *Metrics {
 			Name: "fi_fhir_build_info",
 			Help: "Build information for the running fi-fhir process; always 1.",
 		}, []string{"version"}),
+		schemaLedgers: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "fi_fhir_schema_ledger_version",
+			Help: "Migration ledger version this process expects, per forward-only ledger. Two replicas mid-rolling-upgrade differ here.",
+		}, []string{"ledger"}),
 		componentUp: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "fi_fhir_component_up",
 			Help: "1 when a background component is running, 0 when configured but stopped. Absent when not configured.",
@@ -189,7 +220,7 @@ func NewMetrics(version string) *Metrics {
 	}
 
 	registry.MustRegister(
-		m.buildInfo, m.componentUp, m.readinessUp,
+		m.buildInfo, m.schemaLedgers, m.componentUp, m.readinessUp,
 		m.ingressSubmissions, m.mllpMessages, m.deliveryAttempts, m.batchObjects,
 		m.sessionStreamEvents, m.autorouteSweeps, m.autorouteExpired, m.autorouteNotifications,
 		m.retentionPurges, m.retentionRecordsPurged,
@@ -233,6 +264,24 @@ func (m *Metrics) SetComponentState(component string, state ComponentState) {
 	default:
 		m.componentUp.DeleteLabelValues(component)
 	}
+}
+
+// SetSchemaLedgerVersion publishes the migration ledger version this binary
+// expects for one ledger.
+//
+// The build stamp on fi_fhir_build_info cannot answer "can these two replicas
+// share a database" — there are no git tags and the stamp is a commit SHA. The
+// ledger versions can, and they move independently, which is why this is its
+// own gauge rather than six more labels on an info metric.
+//
+// An unknown ledger name is dropped rather than emitted: the `ledger` label is
+// bounded by allSchemaLedgers for the same reason `outcome` is bounded by
+// allOutcomes.
+func (m *Metrics) SetSchemaLedgerVersion(ledger string, version int) {
+	if m == nil || !KnownSchemaLedger(ledger) {
+		return
+	}
+	m.schemaLedgers.WithLabelValues(ledger).Set(float64(version))
 }
 
 // ObserveReadiness publishes the latest readiness report.

@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// terminologyMigrationLockKey serializes terminology schema migration across
+// replicas, matching the five integration migrators
+// (internal/integration/processor/postgres_submission.go:24 and siblings).
+// The value is distinct from all of theirs: advisory locks share one global
+// namespace, so a collision would make two unrelated migrators serialize
+// against each other.
+const terminologyMigrationLockKey = int64(5064657639792058903)
+
 // Migrator handles terminology schema migrations.
 type Migrator struct {
 	db *sql.DB
@@ -19,53 +27,47 @@ func NewMigrator(db *sql.DB) *Migrator {
 
 // CurrentVersion returns the current schema version, or 0 if not initialized.
 func (m *Migrator) CurrentVersion(ctx context.Context) (int, error) {
-	// Check if schema exists
-	var schemaExists bool
-	err := m.db.QueryRowContext(ctx, `
-		SELECT EXISTS (
-			SELECT 1 FROM information_schema.schemata WHERE schema_name = 'terminology'
-		)
-	`).Scan(&schemaExists)
-	if err != nil {
-		return 0, fmt.Errorf("checking schema existence: %w", err)
-	}
-
-	if !schemaExists {
-		return 0, nil
-	}
-
-	// Check if version table exists
-	var tableExists bool
-	err = m.db.QueryRowContext(ctx, `
-		SELECT EXISTS (
-			SELECT 1 FROM information_schema.tables
-			WHERE table_schema = 'terminology' AND table_name = 'schema_version'
-		)
-	`).Scan(&tableExists)
-	if err != nil {
-		return 0, fmt.Errorf("checking version table: %w", err)
-	}
-
-	if !tableExists {
-		return 0, nil
-	}
-
-	// Get current version
-	var version int
-	err = m.db.QueryRowContext(ctx, `
-		SELECT COALESCE(MAX(version), 0) FROM terminology.schema_version
-	`).Scan(&version)
-	if err != nil {
-		return 0, fmt.Errorf("getting current version: %w", err)
-	}
-
-	return version, nil
+	return currentVersionTx(ctx, m.db)
 }
 
 // Initialize creates the terminology schema if it doesn't exist.
 // Returns true if the schema was created, false if it already existed.
+//
+// An advisory transaction lock serializes startup across replicas, matching the
+// five integration migrators (internal/integration/processor/postgres_submission.go:125-130
+// and siblings). Until slice 4.4a this migrator was the only one of six that
+// took no lock, so two replicas starting simultaneously against a fresh or v1
+// database both executed Schema / SchemaV2Migration / SchemaV3Migration
+// concurrently. `IF NOT EXISTS` makes most of that survivable but not all of
+// it: two concurrent `CREATE TABLE IF NOT EXISTS` on the same name race between
+// the existence check and the create and one of them raises
+// `duplicate key value violates unique constraint "pg_type_typname_nsp_index"`.
+// That is a rolling-upgrade defect, and it lived in the one migrator slice 4.4a
+// exists to prove (.loom/32-sprint4-execution-specs.md correction 25).
+//
+// The version is re-read *inside* the lock. Reading it outside would leave the
+// race intact: both replicas would observe version 0 before either acquired the
+// lock, and the second would still try to create everything.
+//
+// Every statement here is ordinary transactional DDL — no CREATE INDEX
+// CONCURRENTLY, no VACUUM — so wrapping the apply in one transaction also makes
+// a partial upgrade impossible.
 func (m *Migrator) Initialize(ctx context.Context) (bool, error) {
-	currentVersion, err := m.CurrentVersion(ctx)
+	if m == nil || m.db == nil || ctx == nil {
+		return false, fmt.Errorf("terminology migrator is unavailable")
+	}
+
+	tx, err := m.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, fmt.Errorf("begin terminology migration: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, terminologyMigrationLockKey); err != nil {
+		return false, fmt.Errorf("lock terminology migration: %w", err)
+	}
+
+	currentVersion, err := currentVersionTx(ctx, tx)
 	if err != nil {
 		return false, fmt.Errorf("checking current version: %w", err)
 	}
@@ -74,37 +76,71 @@ func (m *Migrator) Initialize(ctx context.Context) (bool, error) {
 		return false, nil // Already up to date
 	}
 
-	// Fresh install: execute full schema
-	if currentVersion == 0 {
-		_, err = m.db.ExecContext(ctx, Schema)
-		if err != nil {
+	created := currentVersion == 0
+	if created {
+		// Fresh install: execute full schema, then every migration on top.
+		if _, err := tx.ExecContext(ctx, Schema); err != nil {
 			return false, fmt.Errorf("creating schema: %w", err)
 		}
-		// Apply v2 tables for fresh installs
-		_, err = m.db.ExecContext(ctx, SchemaV2Migration)
-		if err != nil {
-			return false, fmt.Errorf("applying v2 migration: %w", err)
-		}
-		if _, err = m.db.ExecContext(ctx, SchemaV3Migration); err != nil {
-			return false, fmt.Errorf("applying v3 migration: %w", err)
-		}
-		return true, nil
 	}
-
-	// Upgrade path: apply migrations incrementally
 	if currentVersion < 2 {
-		_, err = m.db.ExecContext(ctx, SchemaV2Migration)
-		if err != nil {
+		if _, err := tx.ExecContext(ctx, SchemaV2Migration); err != nil {
 			return false, fmt.Errorf("applying v2 migration: %w", err)
 		}
 	}
 	if currentVersion < 3 {
-		if _, err = m.db.ExecContext(ctx, SchemaV3Migration); err != nil {
+		if _, err := tx.ExecContext(ctx, SchemaV3Migration); err != nil {
 			return false, fmt.Errorf("applying v3 migration: %w", err)
 		}
 	}
 
-	return false, nil
+	if err := tx.Commit(); err != nil {
+		return false, fmt.Errorf("commit terminology migration: %w", err)
+	}
+	return created, nil
+}
+
+// rowQuerier is the read surface currentVersionTx needs, satisfied by both
+// *sql.DB and *sql.Tx.
+type rowQuerier interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+// currentVersionTx reads the applied schema version through an arbitrary
+// querier so Initialize can read it inside its own transaction and lock.
+func currentVersionTx(ctx context.Context, q rowQuerier) (int, error) {
+	var schemaExists bool
+	if err := q.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM information_schema.schemata WHERE schema_name = 'terminology'
+		)
+	`).Scan(&schemaExists); err != nil {
+		return 0, fmt.Errorf("checking schema existence: %w", err)
+	}
+	if !schemaExists {
+		return 0, nil
+	}
+
+	var tableExists bool
+	if err := q.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM information_schema.tables
+			WHERE table_schema = 'terminology' AND table_name = 'schema_version'
+		)
+	`).Scan(&tableExists); err != nil {
+		return 0, fmt.Errorf("checking version table: %w", err)
+	}
+	if !tableExists {
+		return 0, nil
+	}
+
+	var version int
+	if err := q.QueryRowContext(ctx, `
+		SELECT COALESCE(MAX(version), 0) FROM terminology.schema_version
+	`).Scan(&version); err != nil {
+		return 0, fmt.Errorf("getting current version: %w", err)
+	}
+	return version, nil
 }
 
 // MustInitialize creates the schema and panics on error.

@@ -129,10 +129,15 @@ func TestEveryLabelValueIsDrawnFromABoundedSet(t *testing.T) {
 	metrics.RecordRetentionPurge(OutcomeProcessed, 7)
 	metrics.SetComponentState(ComponentDelivery, ComponentRunning)
 	metrics.ObserveReadiness(Report{Components: []Component{{Name: ComponentSubmissionDB, Status: StatusHealthy}}})
+	metrics.SetSchemaLedgerVersion(SchemaLedgerSession, 6)
+	metrics.SetSchemaLedgerVersion(SchemaLedgerTerminology, 3)
 
 	allowed := map[string]struct{}{"1.2.3": {}}
 	for outcome := range allOutcomes {
 		allowed[outcome] = struct{}{}
+	}
+	for ledger := range allSchemaLedgers {
+		allowed[ledger] = struct{}{}
 	}
 	for _, component := range []string{
 		ComponentGraphQL, ComponentMetrics, ComponentMLLP, ComponentDelivery, ComponentBatch,
@@ -263,4 +268,22 @@ func freePort(t *testing.T) int {
 	port := listener.Addr().(*net.TCPAddr).Port
 	_ = listener.Close()
 	return port
+}
+
+// TestUnknownSchemaLedgerIsRefusedRatherThanEmitted mirrors the outcome-label
+// proof for the `ledger` label slice 4.4a added. The cardinality contract is
+// the same: a label value outside the declared set is a programming error, and
+// the registry must drop it rather than publish it.
+func TestUnknownSchemaLedgerIsRefusedRatherThanEmitted(t *testing.T) {
+	metrics := NewMetrics("test")
+	metrics.SetSchemaLedgerVersion("tenant-acme-shard-7", 42)
+	metrics.SetSchemaLedgerVersion(SchemaLedgerBatch, 3)
+
+	exposition := gather(t, metrics)
+	if strings.Contains(exposition, "tenant-acme-shard-7") {
+		t.Fatalf("an unbounded ledger label reached the exposition:\n%s", exposition)
+	}
+	if !strings.Contains(exposition, `fi_fhir_schema_ledger_version{ledger="batch"} 3`) {
+		t.Fatalf("the declared ledger version is missing from the exposition:\n%s", exposition)
+	}
 }

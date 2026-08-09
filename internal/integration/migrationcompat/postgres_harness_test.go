@@ -10,8 +10,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/lib/pq"
 )
 
 // compatTenantID is the single logical security domain every proof in this
@@ -35,50 +33,53 @@ func requireCompatDSN(t *testing.T) string {
 	return dsn
 }
 
-// newCompatSchema creates an isolated PostgreSQL schema and returns a DSN whose
-// search_path points at it, so each proof migrates a genuinely fresh ledger set
-// without a dedicated database per test.
-func newCompatSchema(t *testing.T, dsn, prefix string) string {
+// newCompatDatabase provisions an empty database and returns its DSN and name.
+//
+// Every proof here gets a whole database rather than a `search_path` schema,
+// and that is not fastidiousness. Five ledgers create unqualified tables, which
+// a search_path does isolate — but `pkg/terminology/db` creates a PostgreSQL
+// schema literally named `terminology`, which is database-wide and which
+// search_path cannot isolate. Sharing a database across proofs therefore leaves
+// the second one running against a terminology ledger the first already
+// migrated, so "two replicas against a fresh database" quietly stops testing
+// the fresh-install path for the one migrator this slice exists to fix. The
+// negative control caught exactly that.
+//
+// The database is dropped on cleanup even when the test fails, so a red
+// pipeline does not leave databases behind for the next run to collide with.
+func newCompatDatabase(t *testing.T, dsn, prefix string) (string, string) {
 	t.Helper()
-	schema := fmt.Sprintf("%s_%d", prefix, time.Now().UnixNano())
+	name := fmt.Sprintf("%s_%d", prefix, time.Now().UnixNano())
 
-	db, err := sql.Open("postgres", dsn)
+	admin, err := sql.Open("postgres", splitDSN(dsn, "postgres"))
 	if err != nil {
-		t.Fatalf("open postgres to create compat schema: %v", err)
+		t.Fatalf("open maintenance database: %v", err)
 	}
-	if _, err := db.ExecContext(context.Background(), `CREATE SCHEMA `+pq.QuoteIdentifier(schema)); err != nil {
-		_ = db.Close()
-		t.Fatalf("create compat schema %s: %v", schema, err)
-	}
-	if err := db.Close(); err != nil {
-		t.Fatalf("close compat schema bootstrap connection: %v", err)
-	}
+	defer func() { _ = admin.Close() }()
 
+	if _, err := admin.ExecContext(context.Background(), `CREATE DATABASE `+name); err != nil {
+		t.Fatalf("create database %s: %v", name, err)
+	}
 	t.Cleanup(func() {
-		cleanup, err := sql.Open("postgres", dsn)
+		cleanup, err := sql.Open("postgres", splitDSN(dsn, "postgres"))
 		if err != nil {
 			return
 		}
 		defer func() { _ = cleanup.Close() }()
-		_, _ = cleanup.ExecContext(context.Background(), `DROP SCHEMA `+pq.QuoteIdentifier(schema)+` CASCADE`)
+		_, _ = cleanup.ExecContext(context.Background(), `DROP DATABASE IF EXISTS `+name+` WITH (FORCE)`)
 	})
 
-	return schema
+	return splitDSN(dsn, name), name
 }
 
-// compatSchemaDSN rewrites a URL-form DSN into keyword form so a search_path
-// can be appended, matching internal/integration/processor's helper.
-func compatSchemaDSN(t *testing.T, dsn, schema string) string {
-	t.Helper()
-	connectionString := dsn
-	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
-		parsed, err := pq.ParseURL(dsn)
-		if err != nil {
-			t.Fatalf("parse PostgreSQL test URL: %v", err)
-		}
-		connectionString = parsed
+// splitDSN returns the DSN with its database path replaced by name.
+func splitDSN(dsn, name string) string {
+	base, query := dsn, ""
+	if idx := strings.Index(dsn, "?"); idx >= 0 {
+		base, query = dsn[:idx], dsn[idx:]
 	}
-	return connectionString + " search_path=" + schema
+	prefix := base[:strings.LastIndex(base, "/")]
+	return prefix + "/" + name + query
 }
 
 func openCompatDB(t *testing.T, dsn string) *sql.DB {

@@ -881,10 +881,96 @@ per-deployment durable MLLP token bucket.
 
 ### Slice 4.4: recovery, upgrade, and performance
 
-- Backup/restore, migration compatibility, rolling upgrade/rollback, chaos and DR,
-  ACK latency, throughput, queue recovery, and batch-memory gates.
-- Proof: every numeric budget in the product spec passes on the pinned reference
-  profile with archived reports.
+Originally one bullet promising "every numeric budget in the product spec passes
+on the pinned reference profile with archived reports". That was at least five
+slices, and one of them cannot be done in CI at all. `.loom/32` correction 21
+established that **nothing in this repository measures any of the seven
+budgets** — `test:benchmark` runs `./internal/workflow/...`, the legacy engine
+the durable path never executes. The honest split, with the reason each part is
+where it is:
+
+#### 4.4a — migration compatibility, rollback safety, restore round-trip — **SHIPPED (Sprint 4, Lane S4-C)**
+
+Budget 6 plus the CI-runnable half of budget 5. Everything provable with one
+PostgreSQL 16 service container.
+
+- Defined N-1: the per-package migration ledger version, not a git tag (there
+  are none) and not the binary version string. Six ledgers, each exporting
+  `SchemaVersion`, reported by `fi-fhir version` and by a new
+  `fi_fhir_schema_ledger_version{ledger}` gauge.
+- Fixed a found defect: Slice 4.1d C1's `0004_export_attribution.sql` made three
+  columns `NOT NULL` with no `DEFAULT`, so a one-version binary rollback failed
+  every session export with a not-null violation. Budget 6 was **false in code
+  that had already merged**. Reproduced by a day-1 gate landed red before the
+  fix, then repaired by `0006_export_attribution_defaults.sql`.
+- Locked the terminology migrator, the one of six that took no advisory lock;
+  two replicas starting together against a fresh database raced to a
+  `pg_namespace_nspname_index` duplicate-key error, reproduced as a negative
+  control.
+- Wrote down the migration-authoring rule (a new `NOT NULL` column on an
+  existing table carries a `DEFAULT`) in `AGENTS.md` and
+  `docs/developer-guide/testing.md`, and enforced it mechanically in `test:unit`.
+- Proved the documented `pg_dump`/restore round-trip preserves every durable
+  row, every C1 immutability trigger, the 4.1c-a `NOT VALID` provenance CHECK,
+  and resumable delivery work.
+- Corrected the two documents that disagreed about the reference profile, and
+  stripped the tracing façade from the five deployment artifacts that still
+  advertised it.
+
+#### 4.4b — performance budget harness (Sprint 5)
+
+Budgets 1-3: ACK latency, one-hour steady-state throughput, and 1-GiB batch peak
+RSS. **Blocked on an infrastructure decision, not on code.** CI's k3s pool spans
+hardware differing by more than 5× (`.gitlab-ci.yml`, `test:benchmark`), so a
+p95 ≤ 250 ms gate there is either permanently red or calibrated into
+meaninglessness. Needs: a pinned runner or dedicated host; the reference-profile
+values file 4.4a added (`deploy/helm/fi-fhir/values-reference-profile.yaml`);
+and the MLLP per-deployment capacity decision (4.4e), because a throughput run
+on two replicas against a revision declaring 250 msg/s will admit up to 500 and
+will not be measuring the declared policy.
+
+#### 4.4c — chaos, DR, and Kubernetes upgrade/rollback (Sprint 5)
+
+Budgets 4 and 7. Needs a cluster, and needs 4.4a's N-1 definition, which now
+exists. Contents:
+
+- WAL archiving / point-in-time recovery. 4.4a established that the documented
+  logical `pg_dump` **cannot** meet the 5-minute RPO no matter how often it
+  runs; only continuous WAL shipping can. This is budget 5's remaining half.
+- Destination recovery under fault injection: queued attempts resume without
+  manual repair and without unbounded retry growth.
+- Kubernetes 1.36 install, upgrade, rollback, and uninstall through Helm and
+  Kustomize, with live golden-journey evidence.
+- The first real CI job for `./test/e2e/...`, which runs in no job today
+  (`.loom/32` correction 26).
+- Repair the two rollback-unsafe columns 4.4a recorded as a dated baseline:
+  `integration_delivery_attempts.scheduled_at` and
+  `integration_delivery_outbox.updated_at`. Both are outside the one-version
+  window, and fixing them needs a processor migration whose number belonged to
+  Lane S4-B in Sprint 4.
+
+#### 4.4d — structured logging, then the tracing exporter (Sprint 5)
+
+**In that order.** `log/slog` appears nowhere in `internal/`, `pkg/`, or `cmd/`,
+so "correlation-safe logs" is a build item and a prerequisite for tracing rather
+than a companion to it. Correlation identifiers are already carried on every
+durable record; the missing half is emission. 4.4a resolved only the *artifact*
+half: `FI_FHIR_TRACING_*` no longer appears in `docker-compose.yaml`,
+`configs/full-stack.env`, the Helm chart, the Kustomize base and production
+overlay, or `README.md`, and `make check-runtime-config` now fails if it
+reappears without the "NOT IMPLEMENTED" label.
+
+#### 4.4e — durable per-deployment MLLP token bucket (Sprint 5+)
+
+`docs/operations/PRODUCTION-MLLP.md:42-71` already states that `CapacityPolicy`
+is per-replica, that N replicas admit N × the declared rate, and that a durable
+token bucket is future work. Until it exists, no throughput number can be
+attributed to a declared policy.
+
+**Release-gate consequence:** the "Release Candidate: 4.1-4.4" row below is met
+by 4.1-4.3 plus **4.4a**. Budgets 1-4, 5's RPO half, and 7 move to 1.0 alongside
+Phase 5, because certifying them requires a pinned host and a cluster that no
+CI job can honestly provide.
 
 ## Phase 5 — Standards and ecosystem
 
@@ -969,8 +1055,15 @@ the dispatcher's command carries the canonical event, not a resource
 | Engine Alpha | 1.0-1.3 and Golden Path 001 |
 | Engine Beta | 2.1-2.4 plus engine-only MLLP and failure/replay proofs |
 | IDE Beta | 3.1-3.4 and journeys 1 and 3 |
-| Release Candidate | 4.1-4.4, journeys 1-5, and numeric/accessibility gates |
-| 1.0 | 5.1-5.3, Phase 6 release evidence, and all six journeys |
+| Release Candidate | 4.1-4.3 and **4.4a**, journeys 1-5, and the accessibility gates |
+| 1.0 | 5.1-5.3, **4.4b-4.4e**, Phase 6 release evidence, and all six journeys |
+
+The Release Candidate row was "4.1-4.4, journeys 1-5, and numeric/accessibility
+gates". Slice 4.4a corrected it: the numeric budgets need a pinned reference
+host and a Kubernetes cluster, neither of which CI can honestly provide, so
+requiring them at RC made the gate unreachable rather than strict. Budget 6 and
+the CI-runnable half of budget 5 are met by 4.4a; the rest moves to 1.0. See
+"Slice 4.4" above for the split and the blocker behind each part.
 
 ## Immediate backlog
 

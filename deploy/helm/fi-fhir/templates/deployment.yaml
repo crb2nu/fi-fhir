@@ -100,10 +100,13 @@ spec:
               value: {{ .Values.config.observability.logLevel | quote }}
             - name: FI_FHIR_LOG_FORMAT
               value: {{ .Values.config.observability.logFormat | quote }}
-            - name: FI_FHIR_TRACING_ENABLED
-              value: {{ .Values.config.observability.tracingEnabled | quote }}
-            - name: FI_FHIR_TRACING_SAMPLER
-              value: {{ .Values.config.observability.tracingSampler | quote }}
+            {{- /*
+              # FI_FHIR_TRACING_* is NOT IMPLEMENTED: parsed and validated by
+              # pkg/config, but no OpenTelemetry exporter consumes it in the
+              # serve path. Injecting it here made every rendered manifest claim
+              # the deployment exported traces. Removed by slice 4.4a; the
+              # exporter is 4.4d. scripts/check-runtime-config.sh enforces this.
+            */}}
 
             {{- if .Values.config.database.enabled }}
             # Database configuration

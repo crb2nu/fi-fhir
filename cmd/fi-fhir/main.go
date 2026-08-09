@@ -55,7 +55,17 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/semantic"
 )
 
-const version = "0.1.0"
+// version is the build stamp, overridden at link time
+// (`-ldflags "-X main.version=..."`, see Makefile:400 and .gitlab-ci.yml:498).
+// The default is deliberately not a release-looking number: an unstamped build
+// is a development build and should say so.
+//
+// It is NOT the compatibility boundary. There are no git tags in this
+// repository, and a commit SHA says nothing about which database schema a
+// process can run against. `fi-fhir version` therefore also prints the six
+// migration ledger versions, which do — see schema_versions.go and
+// `.loom/40-decisions.md` (2026-08-09, "What one version means").
+var version = "0.0.0-dev"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -145,7 +155,7 @@ func main() {
 			os.Exit(1)
 		}
 	case "version", "--version", "-v":
-		fmt.Printf("fi-fhir version %s\n", version)
+		printVersion(os.Stdout, version)
 	case "help", "--help", "-h":
 		printUsage()
 	default:
@@ -3201,9 +3211,12 @@ func runConfigEnv(args []string) error {
 		{"observability", "FI_FHIR_METRICS_ENABLED", "Enable Prometheus metrics endpoint", "true"},
 		{"observability", "FI_FHIR_METRICS_ENDPOINT", "Metrics endpoint path", "/metrics"},
 		{"observability", "FI_FHIR_METRICS_PORT", "Metrics server port", "9090"},
-		{"observability", "FI_FHIR_TRACING_ENABLED", "Enable OpenTelemetry tracing", "false"},
-		{"observability", "FI_FHIR_TRACING_ENDPOINT", "Tracing collector endpoint", ""},
-		{"observability", "FI_FHIR_TRACING_SAMPLER", "Trace sampling rate (0.0-1.0)", "0.1"},
+		// Parsed and validated, consumed by nothing: there is no OpenTelemetry
+		// exporter in the serve path (slice 4.4d). Listing them without saying so
+		// told operators the process exports traces.
+		{"observability", "FI_FHIR_TRACING_ENABLED", "NOT IMPLEMENTED - no exporter consumes this", "false"},
+		{"observability", "FI_FHIR_TRACING_ENDPOINT", "NOT IMPLEMENTED - no exporter consumes this", ""},
+		{"observability", "FI_FHIR_TRACING_SAMPLER", "NOT IMPLEMENTED - no exporter consumes this", "0.1"},
 		{"observability", "FI_FHIR_LOG_LEVEL", "Log level (debug, info, warn, error)", "info"},
 		{"observability", "FI_FHIR_LOG_FORMAT", "Log format (json, text)", "json"},
 
@@ -4886,6 +4899,11 @@ func runServe(args []string) error {
 	observabilityConfig := runtimeConfig.Observability
 	serveHealth := observability.NewHealth(version, 3*time.Second)
 	serveMetrics := observability.NewMetrics(version)
+	// Slice 4.4a: publish the six migration ledger versions this binary
+	// expects, so two replicas mid-rolling-upgrade are distinguishable in
+	// Prometheus. The build stamp cannot do that (there are no git tags, and a
+	// SHA says nothing about schema compatibility).
+	recordSchemaLedgerVersions(serveMetrics)
 
 	// Readiness touches dependencies. An absent dependency reports "not
 	// configured", never "healthy": a truthful absence is the point.

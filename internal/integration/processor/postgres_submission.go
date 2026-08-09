@@ -68,6 +68,17 @@ var submissionMigrations = []struct {
 	{version: 5, name: "0005_retention_expiry", sql: retentionExpiryMigration},
 }
 
+// SchemaVersion is the submission ledger version this binary expects.
+//
+// Slice 4.4a's compatibility boundary is the per-package ledger version, not a
+// git tag or the binary version string: there are no tags, and `main.version`
+// is a build stamp that says nothing about which schema a process can run
+// against. See `.loom/40-decisions.md` (2026-08-09, "What one version means").
+// TestMigrationCompatibility_ConcurrentReplicaMigrationRollbackAndRestore
+// asserts this equals the highest version in submissionMigrations, so the two
+// cannot drift.
+const SchemaVersion = 5
+
 // AdmissionAuthorizer runs inside the durable submission transaction before
 // any receipt rows are written. Implementations may take database locks that
 // must remain held through commit.

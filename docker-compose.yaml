@@ -101,8 +101,11 @@ services:
       FI_FHIR_METRICS_PORT: "9090"
       FI_FHIR_LOG_LEVEL: "debug"
       FI_FHIR_LOG_FORMAT: "json"
-      FI_FHIR_TRACING_ENABLED: "true"
-      FI_FHIR_TRACING_ENDPOINT: "http://jaeger:4317"
+      # FI_FHIR_TRACING_* is NOT IMPLEMENTED: pkg/config parses and validates it,
+      # but no OpenTelemetry exporter consumes it in the serve path. Setting it
+      # here advertised a capability the process does not have. Removed by slice
+      # 4.4a; the exporter itself is 4.4d. scripts/check-runtime-config.sh fails
+      # if any deployment artifact sets it again without that label.
       # Qdrant
       QDRANT_URL: "http://qdrant:6333"
       # Temporal
@@ -220,7 +223,11 @@ services:
       - fi-fhir-net
     restart: unless-stopped
 
-  # Jaeger for distributed tracing
+  # Jaeger for distributed tracing.
+  #
+  # NOTE: fi-fhir emits no spans today — there is no OpenTelemetry exporter in
+  # the serve path (slice 4.4d). This collector runs so the local stack and the
+  # Grafana datasource provisioning stay complete, but its UI will be empty.
   jaeger:
     image: jaegertracing/all-in-one:1.52
     container_name: fi-fhir-jaeger

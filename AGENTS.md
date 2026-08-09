@@ -208,6 +208,61 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 
 **Component Details** — See `docs/STATUS.md` for per-component maturity, test coverage, and freshness.
 
+## Migration authoring
+
+Six forward-only migration ledgers exist — submission, session, lifecycle,
+batch, destination (`internal/integration/*/migrations/`), and terminology
+(`pkg/terminology/db/schema.go`). None has a down path. Three rules, all of
+which cost something real when broken.
+
+### 1. A new `NOT NULL` column on an existing table carries a `DEFAULT`
+
+Otherwise the migration breaks one-version rollback.
+
+During a rolling upgrade both binaries run against the migrated schema at the
+same time, and after a rollback the older binary runs against it indefinitely.
+That binary's `INSERT` does not name the new column, so without a server-side
+`DEFAULT` it dies on `SQLSTATE 23502`. This is not hypothetical: slice 4.1d C1's
+`0004_export_attribution.sql` made three columns `NOT NULL` with no `DEFAULT`,
+and every export from an N-1 replica failed until slice 4.4a's
+`0006_export_attribution_defaults.sql` repaired it.
+
+Choose a default that makes the older binary's row **visibly incomplete rather
+than impossible**. Do not invent a plausible value — that is retroactive
+vouching. `0006` reuses the same `unattributed_legacy_export` sentinel `0004`
+already backfills historical rows with, so one predicate finds both classes.
+
+`TestMigrationRule_NotNullOnExistingColumnCarriesADefault`
+(`internal/integration/migrationcompat`, no database required, runs in
+`test:unit`) enforces this mechanically. A column that genuinely cannot carry a
+default goes in that test's `knownRollbackUnsafeColumns` with a dated reason and
+a decision in `.loom/40-decisions.md`. Do not delete the test.
+
+### 2. Take the advisory transaction lock, and re-read the version inside it
+
+Every migrator begins a transaction, takes `pg_advisory_xact_lock` on its own
+key, and only then reads its ledger version. Reading the version outside the
+lock leaves the race intact — two replicas both observe "not applied" before
+either acquires the lock. `pkg/terminology/db` did exactly that until slice
+4.4a, and two replicas starting together against a fresh database raced to
+`duplicate key value violates unique constraint "pg_namespace_nspname_index"`.
+`IF NOT EXISTS` is not atomic and does not substitute for the lock.
+
+Lock keys share one global namespace, so a new ledger picks a value distinct
+from every existing `*MigrationLockKey`.
+
+### 3. The migration number is settled by the ledger at rebase, not by a claim
+
+Re-verify against `origin/main`'s `migrations/` directories on **every** rebase.
+Two lanes claiming the same number in a planning document is normal; two lanes
+merging it is a corruption.
+
+When you add a migration, bump the owning package's exported `SchemaVersion`.
+`fi-fhir version` and the `fi_fhir_schema_ledger_version` metric report it, and
+it is the boundary an operator uses to decide whether a rollback is safe. A
+migrationcompat proof asserts each declared version equals the version actually
+applied, so the two cannot drift.
+
 ## Testing Strategy
 
 - Unit tests for each parser function

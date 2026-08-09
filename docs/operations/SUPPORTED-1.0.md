@@ -41,11 +41,38 @@ The performance and recovery gates use this application-side reference profile:
 - destinations decoupled from durable acceptance for latency measurements;
 - 2-KiB HL7v2 messages for the baseline throughput journey.
 
-The Helm chart currently requests `100m` CPU and `128Mi` memory and limits each
-pod to `500m` CPU and `512Mi` memory. Those are scheduling defaults, not proven
-capacity recommendations. Phase 4.4 must tune and archive the exact values used
-for performance evidence instead of silently treating chart defaults as a
-certified profile.
+### The chart defaults are not the reference profile
+
+`deploy/helm/fi-fhir/values.yaml` requests `100m` CPU and `128Mi` memory and
+limits each pod to `500m` CPU and `512Mi` memory. **A 4 vCPU / 8 GiB budget
+cannot be met inside a `500m` limit**, so the chart defaults and the profile
+above are not two views of one thing — they are a scheduling default and a
+measurement target that happen to live in the same repository.
+
+Slice 4.4a resolves the contradiction by naming it rather than by moving a
+number. Raising the chart defaults to the profile would change what every
+existing deployment schedules, on the strength of a profile nothing has yet
+measured against — a capacity claim dressed as a chart edit.
+
+The resolution:
+
+- **The chart defaults stay.** They are what a small or evaluation deployment
+  should schedule, and they are labelled as scheduling defaults in
+  `values.yaml` itself.
+- **`deploy/helm/fi-fhir/values-reference-profile.yaml` carries the profile.**
+  It sets requests and limits to the 4 vCPU / 8 GiB envelope and two replicas,
+  and is the file any performance run must use:
+  `helm install ... -f deploy/helm/fi-fhir/values-reference-profile.yaml`.
+- **Slice 4.4b owns the measurement**, and is blocked on a pinned-runner
+  decision: CI's k3s pool spans hardware differing by more than 5×
+  (`.gitlab-ci.yml`, `test:benchmark`), so a latency budget measured there is
+  either permanently red or calibrated into meaninglessness. Numeric budgets 1,
+  2, and 3 cannot be certified until that decision is made.
+
+Until 4.4b archives a report, **no document may describe the chart defaults, or
+the reference profile, as proven capacity.** The profile is the environment a
+future measurement must use; it is not a claim that the software performs at
+that scale.
 
 ## Required evidence before a 1.0 support claim
 

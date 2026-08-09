@@ -10,6 +10,11 @@ import (
 
 const destinationMigrationLockKey = int64(5064657639792058897)
 
+// SchemaVersion is the destination ledger version this binary expects. Slice
+// 4.4a defines N-1 as the per-package ledger version; see
+// `.loom/40-decisions.md` (2026-08-09, "What one version means").
+const SchemaVersion = 2
+
 //go:embed migrations/0001_delivery_identity.sql
 var deliveryIdentityMigration string
 
