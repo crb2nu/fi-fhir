@@ -20,6 +20,24 @@ patches:
       name: fi-fhir
 
   # Increase resource limits for production
+  #
+  # These numbers do NOT implement the reference application profile. That
+  # profile (docs/operations/SUPPORTED-1.0.md, "Reference application profile",
+  # and deploy/helm/fi-fhir/values-reference-profile.yaml) is two replicas at
+  # 4 vCPU / 8 GiB; this overlay is three replicas at 1 CPU / 1Gi. Both the
+  # replica count and the envelope disagree, so any measurement taken against
+  # this overlay certifies nothing about the profile.
+  #
+  # Slice 4.4c names the contradiction and does not resolve it. The profile
+  # itself is ambiguous between per-pod and total
+  # (values-reference-profile.yaml applies 4/8Gi per container across two
+  # replicas, which is 8 vCPU / 16 GiB in aggregate), and slice 4.4b owns
+  # deciding which reading is meant, because it is the slice that has to
+  # measure inside it. Reconciling these numbers before that decision would be
+  # guessing at the answer and then encoding the guess in a production
+  # manifest. Slice 4.4c does enforce that the profile file renders and
+  # schema-validates, so it can no longer rot while the question is open
+  # (scripts/validate-k8s-schema.sh).
   - patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/resources/requests/cpu

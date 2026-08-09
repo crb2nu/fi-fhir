@@ -26,6 +26,25 @@ metadata:
     app.kubernetes.io/part-of: fi-fhir
 spec:
   replicas: 1
+  # A single replica bound to a ReadWriteOnce PVC cannot survive the default
+  # RollingUpdate strategy. Kubernetes would schedule a surge pod, that pod
+  # would fail to mount a volume the outgoing pod still holds, and the rollout
+  # would wedge with the old pod running and the new one Pending — on an image
+  # bump, a resource change, or any other template edit. Recreate terminates
+  # the old pod first and accepts a short outage instead, which is the honest
+  # trade for a single-writer database on a single-attach volume.
+  #
+  # Why not a StatefulSet: it is the right shape for a database, and it is not
+  # a drop-in change here. A StatefulSet owns its volumes through a
+  # volumeClaimTemplate, so it would create `postgres-data-postgres-0` and
+  # leave the existing `fi-fhir-postgres-data` PVC — with its data — orphaned.
+  # That is a data-migration procedure, not a manifest edit, and this manifest
+  # is a development convenience: the WAL/PITR posture decision
+  # (.loom/40-decisions.md, 2026-08-09) records that a production deployment
+  # uses a managed service or an operator, both of which own their own topology.
+  # Slice 4.4c fixes the wedge and declines to invent the migration.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: postgres
@@ -36,6 +55,15 @@ spec:
         app.kubernetes.io/name: postgres
         app.kubernetes.io/part-of: fi-fhir
     spec:
+      # PostgreSQL treats SIGTERM as a SMART shutdown: it waits for every client
+      # to disconnect and does not stop while a connection is open. Kubernetes
+      # sends SIGTERM to PID 1, waits out the grace period, then SIGKILLs — so
+      # without the preStop below, an upgrade with a live pool ends in an
+      # unclean stop and crash recovery on the next start. `pg_ctl -m fast`
+      # disconnects clients, rolls back their transactions, and checkpoints.
+      # The grace period is longer than the preStop's own wait so the kill
+      # cannot land mid-checkpoint.
+      terminationGracePeriodSeconds: 90
       nodeSelector:
         node.flexstack.io/class: services
       securityContext:
@@ -76,6 +104,19 @@ spec:
           volumeMounts:
             - name: postgres-data
               mountPath: /var/lib/postgresql/data
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - pg_ctl
+                  - -D
+                  - /var/lib/postgresql/data/pgdata
+                  - -m
+                  - fast
+                  - -w
+                  - -t
+                  - "60"
+                  - stop
           livenessProbe:
             exec:
               command:

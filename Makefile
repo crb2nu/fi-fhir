@@ -30,6 +30,7 @@
 .PHONY: mllp-rate-quota                                                # 4.4e   — S5-D
 .PHONY: phi-retention-throughput phi-retention-throughput-negative-control # D1 — S5-F
 .PHONY: structured-logging structured-logging-negative-control          # 4.4d   — S5-C
+.PHONY: validate-k8s-schema chaos-recovery e2e-live                   # 4.4c   — S5-B
 
 # Tool versions (update these when upgrading)
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -314,6 +315,14 @@ structured-logging-negative-control:
 # OIDC tokens, one case per role combination, plus exhaustiveness of the
 # per-root-field role map against the schema the server executes. No database:
 # the gate refuses or admits before any resolver touches storage.
+# Slice 4.4c deployment-artifact gate: render the Helm chart (default values and
+# the reference profile), the Kustomize base, and the production overlay, then
+# validate every rendered resource against the pinned Kubernetes minor
+# (docs/operations/SUPPORTED-1.0.md:24). Carries its own negative control.
+# Skips locally without kubeconform; fails in CI. Runs in lint:helm.
+validate-k8s-schema:
+	bash scripts/validate-k8s-schema.sh
+
 transport-gate:
 	go test -race -count=1 -timeout=120s \
 		-run '^TestTransportGate' \
