@@ -116,6 +116,31 @@
   // Ignore specific packages if needed
   "ignoreDeps": [],
 
+  // Paths Renovate must not treat as our dependencies.
+  //
+  // `.tmp/go-mod-cache/` is a committed Go module cache (10,712 of the repo's
+  // 12,085 tracked files). Renovate was extracting the vendored package.json,
+  // WORKSPACE, MODULE.bazel, go.mod, Dockerfile and requirements.txt files of
+  // third-party modules and opening MRs against them (bazel, protobuf, babel,
+  // jekyll, codespell...). Those updates are unactionable -- the files are
+  // rewritten by `go mod download` -- and they consumed the prConcurrentLimit
+  // that the real ui/ and sdk/ npm groups needed.
+  //
+  // NOTE: setting `ignorePaths` replaces the list inherited from
+  // `config:recommended` (:ignoreModulesAndTests), so the standard entries are
+  // repeated here rather than only adding `.tmp/**`.
+  "ignorePaths": [
+    ".tmp/**",
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/examples/**",
+    "**/__tests__/**",
+    "**/test/**",
+    "**/tests/**",
+    "**/__fixtures__/**",
+  ],
+
   // Go-specific settings
   "gomod": {
     "postUpdateOptions": ["gomodTidy", "gomodUpdateImportPaths"]
