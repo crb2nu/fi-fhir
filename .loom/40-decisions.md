@@ -1425,14 +1425,80 @@ Record decisions as they are made, with date, rationale, and sources.
   - [S6] `cmd/fi-fhir/delivery_runtime.go:40-47`
   - [S7] `internal/terminology/autoroute/notify.go:292-293,494-519`
 
-### 2026-08-08: FHIR conformance validation strategy for Slice 5.1 (PROPOSED — not ratified)
+### 2026-08-08: FHIR conformance validation strategy for Slice 5.1 (AMENDED AND RATIFIED IN PART — 2026-08-09, Sprint 5 Lane S5-E)
 
-**Status: proposed.** This entry records a recommendation produced by Sprint 4
-Lane S4-D (docs-only). It is **not** in force. It changes the CI image set and
-possibly the shipped image, so it requires human or next-sprint ratification
-before any lane acts on it. Nothing in Sprint 4 depends on the outcome.
+**Status: split ruling, in force as amended.** This entry was recorded by Sprint
+4 Lane S4-D as a recommendation and carried "not ratified; requires human or
+next-sprint ratification before any lane acts on it". Sprint 5's coordinator
+ruled on it on 2026-08-09 (`.loom/33-sprint5-execution-specs.md`, Decisions
+Required, ruling 3). The ruling is recorded in the **2026-08-09 amendment**
+immediately below, which is part of this entry and takes precedence over the
+proposed text where the two differ. The proposed text is kept verbatim because
+its evidence is still the evidence.
 
-- Decision (proposed):
+#### 2026-08-09 amendment (Sprint 5, Lane S5-E, Slice 5.1a)
+
+**1. The confinement half is RATIFIED, unconditionally.** `validator_cli.jar` is
+CI-only and never enters the shipped image; the shipped image stays
+`gcr.io/distroless/static-debian12:nonroot` (`Dockerfile:27,58` — no shell, no
+package manager, no JRE); IG packages are vendored as pinned, digest-recorded,
+offline `.tgz` artifacts and are placed deliberately with respect to the
+`security:trivy` skip list. The premise holds on inspection: `security:trivy-image`
+blocks on CRITICAL and HIGH-fixed with no `allow_failure` on MR, default branch,
+and tags, and this repo's trivy database moves daily, so a green `main` does not
+imply a green MR. A JRE in the shipped image would put a continuously moving CVE
+surface behind a blocking gate.
+
+**2. The ordering half is AMENDED.** The proposed order was "Option C now, Option
+A later". The corrected order is **reconcile first (5.1a), then Option C, then
+Option A.** The repository's actual defects are not that the checker is
+structurally shallow. They are that the checker and the mapper *disagree*, that
+the checker *fails open* on any mode string that is not exactly `us-core`, and
+that CI has *no fixture* for the one input the mapper actually produces. A larger
+validator built over a mapper it disagrees with certifies the disagreement at
+higher resolution. This amendment resolves the open item further down this entry
+— "A profile-version assertion policy must be chosen … and the mapper and checker
+must agree. Today they cannot" — by making that reconciliation the next slice
+rather than a precondition nobody owns.
+
+**3. Slice 5.1's real prerequisite is a slice that does not exist: 4.1c-c, a
+FHIR destination class.** This entry's own closing line reads "Slice 5.1 remains
+blocked on Slice 4.1c-b regardless of which engine wins." 4.1c-b merged at
+`e77c6218b`, which satisfied that condition formally and not substantively. The
+`.loom/28-spec-fhir-ig-bulk-smart.md:206-212` kill-test was written for exactly
+this moment and has now been **run**, not argued —
+`TestFHIRConformance_DurableEngineProducesNoFHIRResource`
+(`internal/integration/delivery/fhir_conformance_gate_test.go`) **passes on
+unmodified `main`**: the delivered body is the Kafka delivery-command envelope
+(`integration.delivery.v1`) carrying `integration_canonical_events.payload_json`
+(`delivery/dispatcher.go:162,166,348`; `delivery/store.go:107,128`), the content
+type is `application/json` and not `application/fhir+json`
+(`destination/transport.go:325`), the transport vocabulary is exactly
+`{kafka, https}` with no FHIR class (`destination/revision.go:57,61`),
+`DestinationClass` is `production|sandbox` — an environment class
+(`pkg/integration/contracts.go:602`) — and **zero** files under
+`internal/integration/**` import `pkg/fhir`. Per `.loom/28`'s own instruction:
+5.1 is still blocked, and the blocker is 4.1c-b's scope, not the validator.
+
+4.1c-c is therefore named here as the real prerequisite: a destination class or
+`TransportKind` meaning "this destination receives FHIR R4 resources", a
+canonical-event→resource mapping step on the delivery path,
+`application/fhir+json`, and a decision on whether the producing mapper is
+`pkg/fhir` (reachable today from exactly two non-test files — `cmd/fi-fhir/main.go`
+and `internal/workflow/actions.go` — neither of them the durable engine) or
+something new. It is a Phase 4 delivery slice, not a Phase 5 standards slice, and
+it is not in Sprint 5's scope.
+
+**4. Slice 5.1a is what the FHIR lane ships instead**, and it needs no Java, no
+IG package, no new `go.mod` dependency, and no image change. Its day-1 gate
+`TestFHIRConformance_ValidatorRejectsMapperOutputToday`
+(`pkg/fhir/conformance_day1_gate_test.go`, behind the `fhirday1gate` tag,
+reproduced by `make fhir-conformance-day1-gate`) **fails on unmodified `main`**
+with `warning value: meta.profile does not include an expected profile for
+DiagnosticReport`, while the repository's own `-note` fixture validates clean in
+the same run. The shipped validator rejects the shipped mapper's own output.
+
+- Decision (proposed 2026-08-08; superseded on ordering by the amendment above):
   - **Adopt Option C now and Option A later, in that order, and never Option A
     inside the shipped image.**
   - **Now (Sprint 4, zero code):** keep the existing presence check as the only
@@ -1564,13 +1630,18 @@ before any lane acts on it. Nothing in Sprint 4 depends on the outcome.
     matches an unversioned constant (`:171`, `pkg/fhir/types.go:13`).
   - A profile-version assertion policy must be chosen — bare canonical or
     `|9.0.0` — and the mapper and checker must agree. Today they cannot, because
-    the checker has no version concept.
+    the checker has no version concept. *(Owned by Slice 5.1a per the 2026-08-09
+    amendment above.)*
   - `docs/planning/FHIR-PROFILES.md` remains stale until the ratifying slice
     updates it: `:80`, `:445`, and `:542` name US Core 6.1.0, and `:485` claims
     "Meta.Profile set on all resources", which
     `pkg/fhir/mapper.go:1298-1313,1930-1935` disproves.
   - Ratification unblocks nothing in Sprint 4. Slice 5.1 remains blocked on
-    Slice 4.1c-b regardless of which engine wins.
+    Slice 4.1c-b regardless of which engine wins. *(Corrected by the 2026-08-09
+    amendment: 4.1c-b has merged and 5.1 is still blocked. The blocker is a slice
+    that does not exist — 4.1c-c, a FHIR destination class — because 4.1c-b
+    delivers a canonical-event command envelope, not a FHIR resource. Proven by
+    `TestFHIRConformance_DurableEngineProducesNoFHIRResource`.)*
 
 - Sources:
   - [S1] `.loom/32-sprint4-execution-specs.md` corrections 35-38 and Lane S4-D
