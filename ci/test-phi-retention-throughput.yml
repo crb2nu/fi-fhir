@@ -1,0 +1,63 @@
+# Lane S5-F: the D1 repair — purge throughput and the backlog gauge.
+#
+# Found defect D1 (release blocker, `.loom/33-sprint5-execution-specs.md`): the
+# purge removed one batch per class per tick — 200 records/class/hour at the
+# shipped defaults, 0.056/sec — with no catch-up and no gauge, on the table
+# `internal/integration/retention/store.go:31-33` calls "the busiest table in
+# the system". A tenant producing faster than that fell permanently behind its
+# own retention policy and nothing in the exposition said so.
+#
+# This job is separate from `test:phi-retention-purge` rather than folded into
+# it for two reasons. It carries a build-tagged negative control that must FAIL,
+# which is a different invocation shape from that job's two straight proofs; and
+# folding would change that job's `-list` arity, which the coordination rules
+# forbid — a lane must not edit another lane's existence guard.
+#
+# Four proofs, one negative control, in one invocation:
+#
+#   * TenThousandRecordBacklogDrainsWithinTheDocumentedTickBound — the
+#     acceptance criterion at its stated scale, including that the gauge tracks
+#     the drain to zero and that Slice 4.1e's exemption is still exactly as
+#     narrow afterwards. A drain that cleared 10,000 records by widening the
+#     guard would be a regression, not a repair.
+#   * OnePoisonedClassDoesNotStopTheOthers — the S3 repair. PurgeExpired used to
+#     return on the first class's error, so one broken class skipped every
+#     remaining class for the pass, which on an hourly cadence is an hour of
+#     retention not enforced for classes that were healthy.
+#   * BacklogExceedsOneBatchPerTick — the day-1 gate, landed red in !166 and
+#     promoted here without an assertion changing.
+#   * ApplicationRoleCanDropItsOwnGuardToday — the characterization test for the
+#     DEFERRED role-separation slice. It asserts what an ordinary application
+#     role can do to its own immutability guards today, which is the argument
+#     for that slice; every assertion in it inverts when the slice lands. It
+#     needs CREATE ROLE, which the service container's POSTGRES_USER has.
+#
+# The negative control restores the pre-Sprint-5 single-pass loop behind the
+# `retentionnodrain` build tag and requires the drain assertions to fail AT THE
+# BATCH BOUNDARY. That last part is what makes the control attributable to the
+# drain rather than to any breakage, and it runs in this same job so a green
+# pipeline cannot mean "the proof passed and nobody checked the control".
+test:phi-retention-throughput:
+  extends: .integration-proof
+  variables:
+    POSTGRES_DB: fi_fhir_phi_retention_throughput_test
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_phi_retention_throughput_test?sslmode=disable"
+    PROOF_FAILURE_SUMMARY: "the retention purge drains its backlog no longer, or the backlog gauge stopped tracking it."
+    PROOF_LOCAL: "POSTGRES_TEST_URL=... make phi-retention-throughput"
+    PROOF_DOCS: "docs/operations/PHI-RETENTION.md (Throughput, The backlog gauge), .loom/40-decisions.md"
+  script:
+    - !reference [.integration-proof-toolchain, script]
+    # Existence guard. Integration helpers t.Skipf rather than t.Fatalf when a
+    # service is unreachable, so a renamed or deleted proof would make this job
+    # greener rather than redder without this step (AGENTS.md).
+    - >-
+      go test -tags=integration
+      -list '^(TestPurgeThroughput_TenThousandRecordBacklogDrainsWithinTheDocumentedTickBound|TestPurgeThroughput_OnePoisonedClassDoesNotStopTheOthers|TestPurgeThroughput_BacklogExceedsOneBatchPerTick|TestPurgeRoleSeparation_ApplicationRoleCanDropItsOwnGuardToday)$'
+      ./internal/integration/retention
+      | rg -x '(TestPurgeThroughput_TenThousandRecordBacklogDrainsWithinTheDocumentedTickBound|TestPurgeThroughput_OnePoisonedClassDoesNotStopTheOthers|TestPurgeThroughput_BacklogExceedsOneBatchPerTick|TestPurgeRoleSeparation_ApplicationRoleCanDropItsOwnGuardToday)'
+      | awk 'END { if (NR != 4) exit 1 }'
+    - make phi-retention-throughput
+    # The negative control, in the same invocation. It inverts its exit status:
+    # a zero exit from the tagged run means the kill-test is not measuring the
+    # drain and D1 has no proof behind it.
+    - make phi-retention-throughput-negative-control

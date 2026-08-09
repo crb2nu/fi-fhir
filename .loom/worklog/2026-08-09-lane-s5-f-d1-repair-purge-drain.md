@@ -144,13 +144,30 @@ topology is ratified and deferred; see the day-1 gate entry
   loop's job, and the operational guidance says to watch the gauge rather than
   the batch size to decide whether the purge is keeping up.
 
+- CI, added after Lane S5-0 MR 0a merged (`9bfbd7ee0`):
+  - `ci/test-phi-retention-throughput.yml` plus **exactly one** `- local:` line
+    in `.gitlab-ci.yml`, per the convention 0a established. It `extends:
+    .integration-proof` and `!reference`s `.integration-proof-toolchain`, both
+    from `ci/_shared.yml` — YAML anchors are file-scoped in GitLab CI and would
+    have contributed nothing silently.
+  - Its own PostgreSQL database (`fi_fhir_phi_retention_throughput_test`) so it
+    cannot share state with `test:phi-retention-purge`.
+  - The `-list | rg -x | awk 'END { if (NR != 4) exit 1 }'` existence guard, and
+    `make phi-retention-throughput-negative-control` in the **same invocation**,
+    so a green pipeline cannot mean "the proof passed and nobody ran the
+    control".
+  - `ci/job-inventory.txt` regenerated in the same commit: exactly one line
+    added, `test:phi-retention-throughput  test  false`. `lint:docs` blocks on
+    that diff being intentional.
+  - **Separate job rather than folded into `test:phi-retention-purge`.** It
+    carries a build-tagged control that must fail, which is a different
+    invocation shape; and folding would change that job's `-list` arity, which
+    the coordination rules forbid — a lane must not edit another lane's
+    existence guard.
+  - `Makefile`: main's `.PHONY` block is now one line per lane (0a's
+    restructure). This lane's two targets are on **their own new line**; no
+    other lane's line was extended.
+
 - Not in this MR, deliberately:
-  - **No `.gitlab-ci.yml` change.** Lane S5-0 MR 0a has not merged
-    (`origin/main` has no `ci/` directory as of `31d61fe94`), and the sprint's
-    one hard sequencing rule is that no lane appends before it does. The job for
-    `phi-retention-throughput` — one file under `ci/`, one `include:` line, with
-    the `-list | rg -x | awk` existence guard and the negative control in the
-    same invocation — lands as a follow-up commit on this branch once 0a merges,
-    which it must before this lane merges fourth.
   - **No migration.** Lane S5-F released its processor `0006` claim; the gauge is
     a query over the existing partial indexes. See the day-1 gate worklog entry.
