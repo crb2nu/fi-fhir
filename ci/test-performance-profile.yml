@@ -1,0 +1,172 @@
+# Lane S5-A — slice 4.4b performance harness jobs.
+#
+# NOT YET INCLUDED. `.gitlab-ci.yml` gains exactly one `include: local:` line
+# for this file after S5-0's MR 0a lands the include split; appending before
+# then is the sprint's one hard sequencing rule. The jobs below are therefore
+# inert until that line exists, and this branch adds it on its final rebase.
+#
+# On `extends:` rather than `<<: *anchor` — YAML anchors do not cross an
+# `include:` boundary, so the `*go-image-debian` / `*go-cache` / `*go-changes`
+# anchors that every job in the root file uses are simply unavailable here. That
+# is what S5-0's `ci/_shared.yml` exists to solve: the same shapes, republished
+# as hidden jobs reachable by `extends:`. The `changes:` list below is spelled
+# out for the same reason; it mirrors the root file's `.go-changes` and should
+# collapse to a reference once `.go-mr-rules` is available.
+#
+# Two jobs, deliberately different in kind:
+#
+#   test:benchmark-durable    blocking, ordinary shared pool, allocs/op only
+#   test:performance-profile  non-blocking, pinned runner, wall-clock, archives
+#
+# The split is the whole point of the lane's decision (.loom/40-decisions.md,
+# 2026-08-09). Allocation counts do not depend on the machine, so they can be
+# gated anywhere. Wall-clock on a pool spanning 5.3x, in a 1-CPU pod sharing
+# space with a database container, is not evidence for a millisecond budget and
+# must never be asserted on here.
+
+# Blocking allocation gate for the durable accept path.
+#
+# This is the first CI job in the repository's history that measures
+# internal/integration. It gates allocs/op only: a regression in the thing that
+# causes latency, detected on a signal that is a property of the code.
+#
+# -benchtime is pinned rather than time-based, and that is load-bearing. With a
+# time budget, a fast runner completes more iterations than a slow one and
+# amortizes connection-pool growth differently, so identical code reports a
+# different allocs/op per machine — reintroducing exactly the hardware
+# dependence this signal exists to avoid.
+test:benchmark-durable:
+  stage: test
+  extends:
+    - .go-image-debian
+    - .go-cache
+  services:
+    - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
+      alias: postgres
+  variables:
+    CGO_ENABLED: "1"
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
+    POSTGRES_DB: fi_fhir_perf_test
+    POSTGRES_USER: testuser
+    POSTGRES_PASSWORD: testpass
+    POSTGRES_HOST_AUTH_METHOD: trust
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_perf_test?sslmode=disable"
+  # Gate owner: Workflow/Platform — escalate via MR comment or #ci-support.
+  # Rollback: set allow_failure: true with an issue recording the proposed
+  # ceilings; do NOT widen a ceiling to make a red job green without first
+  # checking whether the allocation increase is real.
+  script:
+    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates ripgrep build-essential && rm -rf /var/lib/apt/lists/*
+    # Existence guard: a renamed or deleted benchmark must make this job fail,
+    # not quietly pass with nothing to measure.
+    - >-
+      go test -tags=integration -list '^BenchmarkDurableAccept_'
+      ./internal/integration/perf
+      | rg -x 'BenchmarkDurableAccept_(IngressSubmit|IngressSubmitParallel|MLLPSubmit|MLLPSubmitParallel)'
+      | awk 'END { if (NR != 4) exit 1 }'
+    - make bench-durable
+  after_script:
+    - |
+      if [ "$CI_JOB_STATUS" = "failed" ]; then
+        echo ""
+        echo "╔═══════════════════════════════════════════════════════════════╗"
+        echo "║  test:benchmark-durable FAILED                                ║"
+        echo "║                                                               ║"
+        echo "║  The durable accept path allocates more per message than its  ║"
+        echo "║  ceiling. Allocation counts do not depend on the runner, so   ║"
+        echo "║  this is a code change, not a slow node.                      ║"
+        echo "║                                                               ║"
+        echo "║  Artifact:    benchmark-durable.txt                           ║"
+        echo "║  Local:       POSTGRES_TEST_URL=... make bench-durable        ║"
+        echo "║  Ceilings:    internal/workflow/benchmark_util.go             ║"
+        echo "║  Recalibrate: make bench-durable-calibrate ARTIFACTS=...      ║"
+        echo "║  Owner: Workflow/Platform — escalate in #ci-support           ║"
+        echo "╚═══════════════════════════════════════════════════════════════╝"
+      fi
+  artifacts:
+    paths:
+      - benchmark-durable.txt
+    expire_in: 3 months
+    when: always
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: &perf-go-changes
+        - go.mod
+        - go.sum
+        - cmd/**/*
+        - internal/**/*
+        - pkg/**/*
+        - sdk/**/*
+        - scripts/**/*
+        - Makefile
+        - Dockerfile
+        - docker-compose.yaml
+        - deploy/**/*
+        - configs/**/*
+        - ci/test-performance-profile.yml
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *perf-go-changes
+      when: manual
+    - when: never
+  allow_failure: false
+
+# Wall-clock and throughput on the reference profile.
+#
+# INERT BY DESIGN. This job does not appear in a pipeline until both are true:
+#   1. a GitLab runner tagged `fi-fhir-perf` is registered in platform/gitops
+#      with at least 4 CPU and 8 GiB available to a job; and
+#   2. the project variable FI_FHIR_PERF_RUNNER is set to "1".
+#
+# Without (1) the job would sit pending forever; without (2) it would clutter
+# every pipeline with a manual job nobody can run. The second condition is what
+# makes shipping it early harmless.
+#
+# It is allow_failure: true and always will be. A wall-clock number is archived
+# evidence, not a gate: turning it into a threshold is how a harness starts
+# certifying the runner it happened to land on.
+test:performance-profile:
+  stage: test
+  extends:
+    - .go-image-debian
+    - .go-cache
+  tags:
+    - fi-fhir-perf
+  services:
+    - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
+      alias: postgres
+  variables:
+    CGO_ENABLED: "1"
+    KUBERNETES_CPU_LIMIT: "4"
+    KUBERNETES_MEMORY_LIMIT: "8Gi"
+    POSTGRES_DB: fi_fhir_perf_profile
+    POSTGRES_USER: testuser
+    POSTGRES_PASSWORD: testpass
+    POSTGRES_HOST_AUTH_METHOD: trust
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_perf_profile?sslmode=disable"
+  script:
+    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates jq build-essential && rm -rf /var/lib/apt/lists/*
+    - go test -tags=integration -bench=. -benchmem -run='^$' -count=1 -benchtime=300x ./internal/integration/perf/... | tee benchmark-profile.txt
+    # The allocation gate still applies here; a pinned runner is not a reason to
+    # stop checking the one signal that was already trustworthy.
+    - go run ./cmd/bench-check -set=durable benchmark-profile.txt
+    - bash scripts/performance-report.sh benchmark-profile.txt performance-report.json
+    - jq . performance-report.json
+  artifacts:
+    paths:
+      - benchmark-profile.txt
+      - performance-report.json
+    expire_in: 12 months
+    when: always
+  rules:
+    - if: $FI_FHIR_PERF_RUNNER != "1"
+      when: never
+    - if: $CI_COMMIT_TAG
+      when: manual
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+    - when: never
+  allow_failure: true

@@ -13,15 +13,25 @@
 #   helm install fi-fhir deploy/helm/fi-fhir \
 #     -f deploy/helm/fi-fhir/values-reference-profile.yaml
 #
-# IT IS NOT A CAPACITY CLAIM. Nothing in this repository has measured fi-fhir at
-# this size; slice 4.4b owns that, and is blocked on a pinned-runner decision
-# because CI's pool spans hardware differing by more than 5×. Until 4.4b
-# archives a report, treat this as the environment a measurement must use, not
-# as evidence of what the software achieves in it.
+# IT IS NOT A CAPACITY CLAIM. Nothing has measured fi-fhir at this size. Slice
+# 4.4b built the harness and gates the durable accept path's allocation counts
+# in ordinary CI, but wall-clock and throughput on the reference profile need a
+# pinned runner that does not exist yet — see the budget table in
+# docs/operations/SUPPORTED-1.0.md. Treat this as the environment a measurement
+# must use, not as evidence of what the software achieves in it.
 
 # Two replicas, per the profile's Kubernetes scenarios.
 replicaCount: 2
 
+# 4 vCPU / 8 GiB PER REPLICA, which totals 8 vCPU / 16 GiB across the two.
+#
+# Slice 4.4b resolved an ambiguity here: SUPPORTED-1.0.md used to say 4 vCPU and
+# 8 GiB were "available to the fi-fhir workload", which reads as a deployment
+# total, while this file has always applied that envelope per container. Per
+# replica is now the stated reading, in both places. Kubernetes `resources` are
+# per container, so a deployment total cannot be written here at all, and
+# halving the envelope to make the prose match would have been a capacity change
+# made on no measurement — the thing slice 4.4a explicitly declined to do.
 resources:
   requests:
     cpu: "4"

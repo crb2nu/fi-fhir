@@ -68,7 +68,11 @@ item 7 of the evidence list below stays blocking until then.
 The performance and recovery gates use this application-side reference profile:
 
 - Linux amd64;
-- 4 vCPU and 8 GiB RAM available to the fi-fhir workload;
+- 4 vCPU and 8 GiB RAM **per application replica** — not across the
+  deployment. Kubernetes `resources` are per container, so a total figure
+  cannot be expressed in the values file that carries the profile, and
+  halving the envelope to make the prose match would be a capacity change
+  made on no measurement. Two replicas therefore total 8 vCPU / 16 GiB;
 - two application replicas for Kubernetes scenarios;
 - PostgreSQL 16 on SSD-backed persistent storage;
 - destinations decoupled from durable acceptance for latency measurements;
@@ -96,16 +100,18 @@ The resolution:
   It sets requests and limits to the 4 vCPU / 8 GiB envelope and two replicas,
   and is the file any performance run must use:
   `helm install ... -f deploy/helm/fi-fhir/values-reference-profile.yaml`.
-- **Slice 4.4b owns the measurement**, and is blocked on a pinned-runner
-  decision: CI's k3s pool spans hardware differing by more than 5×
-  (`.gitlab-ci.yml`, `test:benchmark`), so a latency budget measured there is
-  either permanently red or calibrated into meaninglessness. Numeric budgets 1,
-  2, and 3 cannot be certified until that decision is made.
+- **Slice 4.4b built the harness and made the runner decision** (see the
+  budget table below). The decision was not "wait": CI's k3s pool spans hardware
+  differing by more than 5×, so a latency budget measured there is either
+  permanently red or calibrated into meaninglessness — but allocation counts do
+  not depend on the machine, so the durable accept path is now gated on those,
+  blocking, in the ordinary pool. Wall-clock and throughput are measured by a
+  job that only runs on a pinned runner, which does not exist yet.
 
-Until 4.4b archives a report, **no document may describe the chart defaults, or
-the reference profile, as proven capacity.** The profile is the environment a
-future measurement must use; it is not a claim that the software performs at
-that scale.
+Until that runner exists and archives a report, **no document may describe the
+chart defaults, or the reference profile, as proven capacity.** The profile is
+the environment a future measurement must use; it is not a claim that the
+software performs at that scale.
 
 ## Required evidence before a 1.0 support claim
 
@@ -136,10 +142,45 @@ The following remain blocking:
    whoever runs the database. See `docs/operations/PRODUCTION-HARDENING.md`,
    "What this repository claims, and what it hands to the operator", and
    `.loom/40-decisions.md` (2026-08-09, "WAL/PITR posture");
-5. reference-profile latency, throughput, soak, and recovery reports;
+5. reference-profile latency, throughput, soak, and recovery reports
+   (**budget by budget, below**);
 6. browser/accessibility matrix evidence;
 7. official healthcare standards conformance evidence where applicable;
 8. security, PHI, secret, tenant-isolation, and audit kill-tests.
+
+### Performance and recovery budgets, one by one
+
+The word "harnessed" below is doing real work. It means the path is measured and
+a regression in it fails a blocking CI job — and it does **not** mean the
+numeric budget has been demonstrated. Those are different claims and this table
+keeps them apart on purpose.
+
+| # | Budget | Status | What exists, and what is missing |
+|---|---|---|---|
+| 1 | Authenticated MLLP and HTTP durable-accept latency (p95 ≤ 250 ms, p99 ≤ 500 ms) | **Harnessed, uncertified** | `internal/integration/perf` benchmarks both paths against a real PostgreSQL, and `bench-check -set=durable` gates their `allocs/op` with `allow_failure: false`. Wall-clock is measured but **not** asserted anywhere: a millisecond ceiling calibrated for a pool spanning 5.3×, in a 1-CPU pod sharing space with a database container, is not evidence. Certification needs a pinned runner. |
+| 2 | One-hour steady-state throughput on the reference profile | **Harnessed, uncertified, and additionally blocked** | Same harness, same gate. Blocked twice over: on the pinned runner, and on slice 4.4e. Until the MLLP token bucket is per deployment rather than per replica, a 250 msg/s run on two replicas against a revision declaring 250 msg/s admits up to 500 and measures the deployment topology instead of the declared policy. |
+| 3 | 1-GiB batch import peak memory above idle | **Harnessed, uncertified** | `perf.HeapSampler` measures peak heap above an idle baseline; `runtime.ReadMemStats` appeared nowhere in first-party code before it. It reports `HeapAlloc`, not RSS: a Go process's RSS includes heap the collector has freed and not returned to the OS, so RSS is a property of GC timing as much as of the workload. A true RSS figure has to come from the pinned-runner job reading the cgroup. |
+| 4 | Recovery time objective | **Not started — slice 4.4c** | 4.4a proved a `pg_dump`/restore round-trip preserves every durable row and trigger. It measured no recovery *time*. |
+| 5 | Recovery point objective | **Known unachievable as configured — slice 4.4c** | `PRODUCTION-HARDENING.md` states it directly: logical dumps cannot meet a minutes-scale RPO, and nothing in this repository configures WAL archiving or PITR. |
+| 6 | One-version rollback safety | **Certified — slice 4.4a** | N-1 defined per migration ledger, a real defect found and fixed (`0004_export_attribution.sql` made three columns `NOT NULL` with no `DEFAULT`, so rollback failed every session export), and a restore round-trip proof in CI. |
+| 7 | Golden-journey evidence on Kubernetes 1.36 | **Not started — slice 4.4c** | Needs a cluster. |
+
+**Budgets 1, 2 and 3 are gated on allocations only, and that gate is narrower
+than it sounds.** Measured over three runs, the durable accept path's allocation
+count varies by about 2 in 4650 — stable, but not the bit-identical figure the
+legacy micro-benchmarks report. A ceiling roughly 1% above the observed count
+detects a regression of some 40 allocations per message. It will not notice one.
+It is a regression detector for the thing that *causes* latency, not a
+measurement of latency.
+
+**What unblocks certification.** A GitLab runner registered in
+`platform/gitops` carrying the tag `fi-fhir-perf`, with at least 4 CPU and 8 GiB
+available to the job. The repository side is already written and inert: the job
+exists, carries the tag, is `when: manual` and `allow_failure: true`, and stays
+invisible in a normal pipeline until the runner is there. It archives
+`performance-report.json`, whose `certified` field may only be set true by a run
+that happened on that tag. Nothing else in this repository is waiting on
+anything.
 
 Until those gates pass, documentation must describe individual capabilities and
 their evidence rather than label the whole product “1.0 certified,” “HIPAA
