@@ -352,6 +352,36 @@ func TestPhiRetention_PostgresExpiryPurgeAndAuditedTombstone(t *testing.T) {
 		}
 	})
 
+	t.Run("the_retention_audit_ledgers_are_append_only", func(t *testing.T) {
+		// The purge audit is the only durable record of what the platform
+		// destroyed, and the policy audit the only record of who authorized it.
+		// Both are claimed append-only by 0005_retention_expiry.sql; a claim this
+		// slice makes and does not prove is exactly the kind of gap the lane was
+		// written to remove.
+		before := countRows(t, ctx, db, `SELECT count(*) FROM integration_retention_purge_audit`) +
+			countRows(t, ctx, db, `SELECT count(*) FROM integration_retention_policy_audit`)
+		if before == 0 {
+			t.Fatal("both retention audit ledgers are empty, so these assertions would pass vacuously")
+		}
+		for _, mutation := range []struct{ name, statement string }{
+			{"UPDATE purge audit", `UPDATE integration_retention_purge_audit SET purge_mode = 'deleted'`},
+			{"DELETE purge audit", `DELETE FROM integration_retention_purge_audit`},
+			{"UPDATE policy audit", `UPDATE integration_retention_policy_audit SET reason = 'rewritten'`},
+			{"DELETE policy audit", `DELETE FROM integration_retention_policy_audit`},
+		} {
+			if _, err := db.ExecContext(ctx, mutation.statement); err == nil {
+				t.Fatalf("%s succeeded; the retention audit is not append-only", mutation.name)
+			} else if !strings.Contains(err.Error(), "append-only") {
+				t.Fatalf("%s raised %q, want an append-only guard message", mutation.name, err)
+			}
+		}
+		after := countRows(t, ctx, db, `SELECT count(*) FROM integration_retention_purge_audit`) +
+			countRows(t, ctx, db, `SELECT count(*) FROM integration_retention_policy_audit`)
+		if after != before {
+			t.Fatalf("retention audit rows changed: before=%d after=%d", before, after)
+		}
+	})
+
 	t.Run("the_posture_gate_is_inverted_and_the_document_was_rewritten", func(t *testing.T) {
 		for _, column := range []string{"purge_after", "purged_at"} {
 			if !columnExists(t, ctx, db, "integration_canonical_events", column) {
