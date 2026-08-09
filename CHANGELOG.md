@@ -153,6 +153,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   blanket allow as the kill-test's negative control
 - `test:transport-gate` CI job and `make transport-gate` /
   `make transport-gate-negative-control`
+- FHIR conformance proof (Slice 5.1a): every one of the mapper's 26 `Map*` entry
+  points is driven with a representative event and every resource it produces is
+  fed back through `ValidateJSON` at `--mode us-core --strict` with zero issues,
+  bound to the type by reflection so a new entry point without a row turns it
+  red. Generated golden fixtures under `testdata/fhir/mapper/` hold the mapper's
+  exact bytes for all 21 checked resource types, plus
+  `testdata/fhir/diagnosticreport_uscore_lab.json` in the curated set.
+  `make fhir-conformance` and `make fhir-conformance-negative-control`, the
+  latter restoring the pre-slice DiagnosticReport accepted set and requiring
+  exactly the `MapLabResult` row to fail
+- `TestFHIRConformance_DurableEngineProducesNoFHIRResource`: the durable engine
+  delivers a Kafka delivery-command envelope at `application/json`, the
+  destination transport vocabulary is `{kafka, https}` with no FHIR class, and no
+  package under `internal/integration` imports `pkg/fhir`. Executes the kill-test
+  `.loom/28-spec-fhir-ig-bulk-smart.md` defined for the moment Slice 4.1c-b
+  merged; its answer is that Slice 5.1 remains blocked on a FHIR destination
+  class (4.1c-c) that does not yet exist
+- `fhir.ParseValidationMode`, `fhir.ValidationModes`, `fhir.ProfileCanonical`,
+  and `fhir.USCoreDiagnosticReportLabProfile`
 
 ### Changed
 
@@ -392,6 +411,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- FHIR validation no longer fails open on the mode string. `ValidationOptions.Mode`
+  was compared byte-exactly against `us-core`, so any other value — including
+  `US-Core`, `uscore`, and `""` — silently disabled both the required-element and
+  the profile-presence checks and reported a non-conformant resource as clean;
+  `fi-fhir fhir validate --mode US-Core` printed "FHIR validation passed" and
+  exited 0 on bytes that `--mode us-core` rejects. The mode is now a closed,
+  case-insensitive, whitespace-trimmed set (`none`, `us-core`) and anything
+  outside it is `ErrUnknownValidationMode`. **Breaking for callers that relied on
+  an unrecognised or empty mode meaning "validate structurally"** — pass `none`
+  explicitly. The CLI rejects the flag before reading input
+- The shipped FHIR validator no longer rejects the shipped FHIR mapper's own
+  output. `MapLabResult` stamps `us-core-diagnosticreport-lab` (correct: US Core
+  defines separate `-lab` and `-note` DiagnosticReport profiles and this package
+  produces both), but `-lab` was a bare literal that was never declared as a
+  constant and the checker accepted only `-note`
+- A version-pinned profile canonical (`…/us-core-patient|9.0.0`) no longer fails
+  the profile-presence check. Policy: the mapper asserts bare canonicals, the
+  checker accepts either form
+- `Patient.MRN` is no longer dropped. The mapper read identifiers only from
+  `Patient.Identifiers`, so an MRN-only patient produced zero identifiers and a
+  hard `Patient.identifier is required (US Core)` error. It is backfilled as an
+  `MR`-typed identifier, value-deduplicated against identifiers already present
+- `DiagnosticReport.code.coding` no longer repeats a `(system, code)` pair when a
+  parser populates both `LabTest.LOINCCode` and `LabTest.Code.Coding`
 - CI `test:integration` MinIO service container never started: `minio/minio`
   ships `CMD ["minio"]`, which prints usage and exits, so the service never
   listened on `minio:9000`. `setupTestInfra()` responded with `t.Skipf`, silently
