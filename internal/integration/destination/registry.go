@@ -202,6 +202,23 @@ func (r *Registry) Resolve(
 	return revision, nil
 }
 
+// HasTransport reports whether the deployed destination set contains at least
+// one destination declaring the given transport.
+//
+// It exists so startup can decide whether this deployment needs a destination
+// transport at all, without cmd/ having to iterate revisions to find out.
+func (r *Registry) HasTransport(kind TransportKind) bool {
+	if r == nil {
+		return false
+	}
+	for _, revision := range r.byArtifactID {
+		if revision.Transport == kind {
+			return true
+		}
+	}
+	return false
+}
+
 // SecretBindings returns the deployment's binding set: names paired with
 // references. It carries no material, so it is safe to hold and to log the names
 // of. Startup resolves each reference once to prove the credential exists.

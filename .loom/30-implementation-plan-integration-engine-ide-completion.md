@@ -654,6 +654,72 @@ negative controls each fail it: stubbing the decision to return nil publishes al
 four attempts and records no provenance, and removing the registry's digest
 equality check publishes the crossed-digest attempt.
 
+#### Slice 4.1c-b: first durable HTTPS destination consumer
+
+The day-1 gate `TestDeliveryTransport_HTTPSDestinationPublishesToBrokerToday`
+**passed against unmodified main**, which is what fixed this slice's shape. A
+destination declaring `transport: https` with a live TLS endpoint at its URL was
+fully resolved, digest-verified, authorized, and provenance-recorded with its
+address — and then published to Kafka anyway, with the endpoint recording zero
+accepted connections. 4.1c-a resolves the destination revision on the dispatch
+path and discards it, and holds no secret resolver at all after startup. So the
+slice is not "wire a transport onto an existing resolution"; it is **build the
+routing seam, the dispatch-time credential lifetime, and the trust-closed
+client**.
+
+4.1c-b delivers:
+
+- `DestinationTransport` in `internal/integration/delivery`: a second
+  primitives-only seam **parallel to** `DestinationDecider`, not a widening of
+  it. The `destination` package satisfies it structurally; neither package
+  imports the other, which is what avoids the import cycle the S3-B handoff
+  records solving. A `TransportFailure` interface mirrors `Refusal` and adds the
+  retryable bit.
+- Transport substitution at the `Publisher` seam in `Dispatcher.RunOnce`, chosen
+  over an in-process consumer of `integration.delivery.v1` and recorded in
+  `.loom/40-decisions.md` (2026-08-09). It inherits the lease, retry, backoff,
+  DLQ, replay, resubmit, discard, and the per-destination-artifact circuit for
+  free, and leaves `internal/integration/delivery/store.go` — 4.2a's file —
+  untouched. `MarkPublished` now means "handed off successfully" for two
+  transports; it is documented, not renamed.
+- A trust-closed HTTPS client: a redirect is refused and never followed, TLS is
+  pinned to ≥ 1.2 with `CABundleBinding` roots or the system pool,
+  `InsecureSkipVerify` appears nowhere, no proxy is honored, response headers are
+  read for nothing, and the body is drained to a bound and discarded unparsed.
+  The only property of the response that leaves the client is its status class.
+- Dispatch-time credential lifetime: the token binding is resolved per dispatch
+  through `integration.SecretResolver`, used once, and zeroed. There is no cache,
+  because file and env references cannot be version-pinned and a cache would
+  silently pin a rotated-out credential. The material never reaches a `Decision`,
+  a `DeliveryRecord`, a log line, a metric label, or a `Failure.Detail`.
+- The call is bounded by the existing `PublishTimeout`, which `Config.validate`
+  already requires to be shorter than the lease, so a slow destination cannot
+  outlive its lease and be delivered twice after reclaim. No second timeout knob.
+- Delivery provenance in the destination package's own ledger
+  (`migrations/0002_https_delivery_provenance.sql`). Server-owned columns plus
+  `http_status_class`, which is this process's own closed-vocabulary reduction of
+  the response rather than the destination's status line. Destination-derived
+  facts carry `_advisory` and a `COMMENT ON COLUMN`; the outcome CHECK lands
+  `NOT VALID`.
+- `TestDeliveryDispatch_ContactsNoDestination` is **narrowed, not inverted**: same
+  name, same place in `make delivery-identity`, same arity-2 guard, and a doc
+  comment saying it now proves this of a `kafka`-class destination.
+- The Kafka dependency for HTTPS-only deployments is **decided**: kept and
+  documented, with a named follow-up, because the registry is one file read at
+  boot and relaxing it would trade a startup configuration error for a runtime
+  dead letter.
+
+The kill-test
+`TestDeliveryTransport_HTTPSClassContactedExactlyOnceUnderScopedIdentity` drives
+PostgreSQL 16, Kafka, five TLS servers, and one redirect-target listener over six
+destinations in one registry and one production submission. Its negative control
+— a router that unconditionally reports "not mine" — runs in the same invocation
+and must fail four named assertions while the kafka-class assertion still passes.
+
+Deferred: mTLS to destinations and per-destination client certificates, a
+FHIR-class destination (5.1's prerequisite), multi-tenant destination registries,
+and GraphQL destination authoring.
+
 #### Slice 4.1d C1: audit immutability and export attribution
 
 - Extend schema-level immutability from the six already-guarded catalog and

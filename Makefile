@@ -686,11 +686,18 @@ dev-ui-down:
 	docker-compose down
 
 	destination-transport \
-# Slice 4.1c-b day-1 gate: an `https`-transport destination with a live TLS
-# endpoint gets zero connections while Kafka gets exactly one command, and the
-# identity decision records the URL only in destination_endpoint_advisory.
+# Slice 4.1c-b: the first durable HTTPS destination consumer.
+#
+# The kill-test contacts two identity-bound https destinations exactly once each
+# under their own credentials, retries a 503 through the existing circuit,
+# dead-letters a 403 and a 302 without following the redirect, and publishes a
+# kafka-class destination in the same run — then runs its own negative control
+# against a router that owns nothing.
+#
+# The day-1 gate is the recorded pre-slice behaviour: an https destination with a
+# live TLS endpoint got zero connections while Kafka got exactly one command.
 # Requires POSTGRES_TEST_URL and KAFKA_TEST_BROKERS in CI; uses containers locally.
 destination-transport:
-	go test -tags=integration -race -count=1 -timeout=300s \
-		-run '^TestDeliveryTransport_HTTPSDestinationPublishesToBrokerToday$$' \
+	go test -tags=integration -race -count=1 -timeout=600s \
+		-run '^(TestDeliveryTransport_HTTPSClassContactedExactlyOnceUnderScopedIdentity|TestDeliveryTransport_HTTPSDestinationPublishesToBrokerToday)$$' \
 		./internal/integration/delivery

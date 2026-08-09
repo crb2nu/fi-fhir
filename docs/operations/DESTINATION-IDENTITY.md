@@ -2,32 +2,53 @@
 
 Slice 4.1c-a gives a delivery destination an immutable, content-addressed
 revision and adds one fail-closed `integration.deliver` authorization decision to
-the durable dispatch path.
+the durable dispatch path. Slice 4.1c-b makes the `https` transport on that
+revision execute.
 
 ## What the engine does and does not do
 
-**The engine does not contact destinations.** `Dispatcher.RunOnce` claims one
-outbox row and publishes one command to the single constant Kafka topic
-`integration.delivery.v1`. An external consumer of that topic performs the actual
-destination call. `webhook`, `fhir`, `database`, and `file` are plan-level action
-*classes* validated in `internal/integration/processor/workflow_plan.go`; none is
-an executed transport on the durable path.
+**The engine contacts `https`-transport destinations, and only those.** The
+destination revision's `transport` field is the switch:
 
-This is asserted, not assumed. `TestDeliveryDispatch_ContactsNoDestination`
-(`internal/integration/delivery/destination_contact_integration_test.go`) stands
-a live TLS endpoint at the address a webhook destination would be reached on,
-runs a full production submission through durable admission, and asserts zero
-accepted connections and zero served requests against exactly one Kafka record.
-It dials the endpoint itself at the end, so a zero cannot come from a broken
-listener.
+| `transport` | What `Dispatcher.RunOnce` does |
+|---|---|
+| `kafka` | Publishes one command to the single constant Kafka topic `integration.delivery.v1`. An external consumer of that topic performs the destination call. The engine contacts nothing. |
+| `https` | Contacts the destination itself over TLS, once per claimed attempt, under the identity the destination revision declares, and completes the lease through the same `MarkPublished`/`MarkFailed` the broker path uses. |
 
-Before this slice a destination was only
+`webhook`, `fhir`, `database`, and `file` remain plan-level action *classes*
+validated in `internal/integration/processor/workflow_plan.go`. None of them is
+a transport, and a workflow cannot name a URL: the published DSL restricts
+destination names to `^[a-z][a-z0-9_.-]*$`. **The transport is a property of the
+server-owned destination revision, never of the workflow.**
+
+Both halves are asserted, not assumed.
+
+- `TestDeliveryDispatch_ContactsNoDestination`
+  (`internal/integration/delivery/destination_contact_integration_test.go`)
+  stands a live TLS endpoint at the address a webhook destination would be
+  reached on, runs a full production submission through durable admission, and
+  asserts zero accepted connections and zero served requests against exactly one
+  Kafka record. Since 4.1c-b it proves this of a **`kafka`-class** destination.
+- `TestDeliveryTransport_HTTPSClassContactedExactlyOnceUnderScopedIdentity`
+  (`internal/integration/delivery/destination_transport_scenario_test.go`)
+  proves the other half over six destinations at once, and runs its own negative
+  control against a router that owns nothing.
+
+Both dial their endpoints from the test itself, so a zero cannot come from a
+broken listener.
+
+Before 4.1c-a a destination was only
 `integration.DestinationRevisionRef{artifact_id, revision_id, digest, class}`
 (`pkg/integration/revision.go`), with no resolvable bytes behind the digest, no
 transport, and no credential binding. The digest named an artifact that did not
-exist. This slice supplies that artifact and the decision that verifies it.
+exist. 4.1c-a supplied that artifact and the decision that verifies it; 4.1c-b
+supplies the consumer.
 
-The first durable HTTPS destination consumer is **4.1c-b**, a separate slice.
+> **Upgrade note.** A deployment that already declares `transport: https` on a
+> destination in its registry **starts contacting that destination** on upgrade
+> to 4.1c-b. Before it, the field was inert. The registry is server-owned, so
+> declaring `https` is an explicit operator act — but check the registry before
+> upgrading.
 
 ## Contract
 
@@ -129,6 +150,35 @@ resolved material in a struct that is later marshaled into a record.
 deployment whose destination names a credential that does not resolve refuses to
 start, instead of discovering the gap on the first dispatch.
 
+### The rotation contract
+
+Since 4.1c-b the resolver also runs on the dispatch path, for `https`
+destinations only:
+
+- The token binding is resolved **once per dispatch**, used to build exactly one
+  request, and the buffer is zeroed before the call returns.
+- There is **no cache**. File and environment references cannot be
+  version-pinned (a pinned `version` fails closed), so a rotation is a write in
+  place with nothing to invalidate. A cache would silently pin a rotated-out
+  credential. The cost is one read per delivery; the benefit is that rotation
+  takes effect on the next dispatch with no restart and no signal.
+- The same applies to `ca_bundle_binding`. The TLS client is rebuilt per dispatch
+  for the same reason, so a rotated trust root takes effect immediately.
+- Resolved material never enters a `Decision`, a `DeliveryRecord`, a log line, a
+  metric label, a `Failure.Detail`, or any struct that is JSON-marshaled. The
+  kill-test plants a sentinel in one destination's credential and proves it
+  appears in none of nine durable record classes, no broker field, and no
+  captured process output.
+- A credential that does not resolve at dispatch time produces a **retryable**
+  `DELIVERY_DESTINATION_CREDENTIAL_UNRESOLVED` failure and **no request**. The
+  engine never contacts a destination without the credential it declared.
+
+The credential is sent as `Authorization: Bearer <material>`, with surrounding
+whitespace trimmed (file-backed credentials routinely end with a newline). The
+material must be printable ASCII with no interior whitespace, so it cannot
+smuggle a second header or a header terminator into the request; anything else
+fails closed as a terminal `DELIVERY_DESTINATION_UNCONFIGURED`.
+
 ## The decision
 
 `authorization.AuthorizeDelivery` (`internal/integration/authorization/policy.go`)
@@ -165,6 +215,70 @@ An **infrastructure** failure in the decision path (for example a provenance
 write failure) is surfaced as an ordinary error and retried. It never becomes a
 dead letter.
 
+## The HTTPS transport (4.1c-b)
+
+The transport is substituted at the `Publisher` seam inside `Dispatcher.RunOnce`,
+so it inherits the whole durable state machine rather than duplicating it: the
+lease, the bounded retry and backoff, `MaxAttempts`, the DLQ, replay, resubmit,
+discard, and the **per-destination-artifact circuit breaker**. `MarkPublished`
+now means "handed off successfully" for two transports. See `.loom/40-decisions.md`
+(2026-08-09) for the rejected alternatives, chiefly an in-process consumer of
+`integration.delivery.v1`.
+
+**What is sent.** The bytes are the same `integration.delivery.v1` command the
+broker would have carried — raw-free and address-free by the same construction —
+with `Content-Type: application/json`, the `Authorization` header above, and a
+server-owned `Idempotency-Key` set to the durable attempt ID. The outbox is
+at-least-once by design, so the idempotency key is what lets a destination absorb
+a redelivery.
+
+**What is closed.**
+
+- `CheckRedirect` returns an error. **A redirect is a refusal, never a follow** —
+  the target is chosen by the destination and is therefore not a trust input.
+- `MinVersion: tls.VersionTLS12`. Trust roots come from `ca_bundle_binding` when
+  declared and the system pool otherwise. **`InsecureSkipVerify` appears nowhere.**
+- No proxy. A proxy read from the process environment would be a trust input the
+  destination revision never declared.
+- Response **headers are read for nothing**. The body is drained up to 64 KiB and
+  discarded unparsed. The only property of the response that leaves the client is
+  its status class.
+- The call is bounded by the existing `FI_FHIR_DELIVERY_PUBLISH_TIMEOUT`, which
+  `Config.validate` already requires to be shorter than the lease. A slow
+  destination therefore cannot outlive its lease and be delivered a second time
+  by the worker that reclaims it. **There is deliberately no second timeout knob.**
+
+**Outcome mapping.**
+
+| Response | Failure code | Retryable | Durable effect |
+|---|---|---|---|
+| `2xx` | — | — | `MarkPublished`; the destination circuit closes |
+| `408`, `429`, any `5xx` | `DELIVERY_DESTINATION_UNAVAILABLE` | yes | Bounded retry; circuit failure counted |
+| Any other `4xx`, or a `3xx` with no `Location` | `DELIVERY_DESTINATION_REJECTED` | no | Dead letter, `attempt_count` unchanged |
+| A redirect | `DELIVERY_DESTINATION_REDIRECT_REFUSED` | no | Dead letter; the target is never dialed |
+| Dial, TLS handshake, or timeout failure | `DELIVERY_DESTINATION_UNREACHABLE` | yes | Bounded retry; circuit failure counted |
+| Credential or trust bundle unresolvable | `DELIVERY_DESTINATION_CREDENTIAL_UNRESOLVED` | yes | Bounded retry; **no request is made** |
+| Destination unresolvable or unusable as declared | `DELIVERY_DESTINATION_UNCONFIGURED` | no | Dead letter; never falls through to the broker |
+
+Every code and detail obeys the same bounds a refusal does — a catalog-safe code
+of at most 128 bytes and a detail of at most 512 — and none contains
+destination-supplied content. That bound is the reason a destination cannot write
+its response body into a durable record by way of a failure detail.
+
+### Kafka is still required
+
+The delivery worker requires `FI_FHIR_QUEUE_DRIVER=kafka` and
+`FI_FHIR_QUEUE_BROKERS` **even when every destination in the loaded registry
+declares `transport: https`**. An HTTPS-only deployment stands up a broker it
+never produces to.
+
+This is deliberate. The registry is one server-owned file read at boot, so "all
+destinations are https" is a property of one startup rather than of the
+deployment; relaxing the requirement would turn adding one `kafka`-class
+destination from a startup configuration error into a runtime dead letter.
+Recorded in `.loom/40-decisions.md` (2026-08-09) with a named follow-up
+("broker-free delivery worker").
+
 ## Grant naming
 
 `integration.deliver` is the action; `integration.destination.client` is the
@@ -198,17 +312,64 @@ The package owns its own numbered migration set and its own version ledger
 (`integration_destination_schema_migrations`), following the per-package
 `go:embed` idiom used by `processor`, `lifecycle`, `batch`, and `session`.
 
+### Delivery provenance (4.1c-b)
+
+Every delivery this process performs itself is appended to
+`integration_destination_deliveries`
+(`internal/integration/destination/migrations/0002_https_delivery_provenance.sql`).
+
+The two ledgers answer different questions. `0001` records the **decision** —
+whether a dispatch was authorized to reach a destination. `0002` records the
+**act** — that the process actually contacted one, under which verified
+revision, and how the exchange ended. An authorized decision with no delivery row
+means the attempt was authorized and then published to the broker, which is
+exactly what every `kafka`-class destination does.
+
+Trusted, server-owned columns: `transport`, `destination_artifact_id`,
+`destination_revision_id`, `destination_class`, `destination_digest_verified`,
+`outcome`, `failure_code`, `completed_at`, and `http_status_class`.
+
+`http_status_class` is deliberately **not** advisory: it is not the destination's
+status line, it is this process's own reduction of the response to the closed
+vocabulary `1xx|2xx|3xx|4xx|5xx`, and it is the only property of the response
+that is read at all.
+
+Advisory, never a trust input, each with a `COMMENT ON COLUMN` saying so:
+
+- `destination_endpoint_advisory` — the remote address the revision declares.
+- `served_certificate_subject_advisory` — the subject of the certificate the
+  destination served, bounded to 256 bytes and stripped to printable ASCII.
+  Trust came from verifying that certificate against roots the deployment
+  declared, which had already happened before this value existed.
+
+The advisory columns of these two ledgers are the **only** place a destination
+address lives. `integration_receipts`, `integration_canonical_events`,
+`integration_message_lineage`, `integration_delivery_attempts`, and
+`integration_delivery_outbox` carry no address of any kind, and the kill-test
+scans all five for a scheme, a `host:port`, and a loopback literal.
+
+The outcome CHECK is added `NOT VALID`, so a later backfill cannot silently claim
+the constraint governed rows it never saw.
+
 ## Verification
 
 ```bash
 export POSTGRES_TEST_URL=... KAFKA_TEST_BROKERS=...
 make delivery-identity        # both 4.1c-a proofs
+make destination-transport    # both 4.1c-b proofs, plus the negative control
 make delivery-reliability     # Slice 2.3's proof must still pass
 ```
 
-CI runs both as the blocking job `test:delivery-identity`, whose first step
-asserts **both** test names exist so a renamed or deleted proof turns the job red
-rather than green.
+CI runs them as the blocking jobs `test:delivery-identity` and
+`test:destination-transport`. Each one's first step asserts that **both** of its
+test names exist, so a renamed or deleted proof turns the job red rather than
+green.
+
+`test:destination-transport` also runs the kill-test's negative control in the
+same invocation: the whole scenario repeats against a router that reports it owns
+no destination, and four named assertions must **fail** there while the
+kafka-class assertion still passes. A control that passes turns the job red,
+because it would mean the router is not on the dispatch path.
 
 ## Operator checklist
 
@@ -222,5 +383,21 @@ rather than green.
 - A `DELIVERY_FORBIDDEN` or `DELIVERY_DESTINATION_UNVERIFIED` dead letter means
   the deployed revision and the planned attempt disagree. Fix the deployed
   revision and replay; never repair the attempt row with ad hoc SQL.
-- The engine still contacts no destination. Until 4.1c-b ships, the identity
-  authorizes the Kafka command that an external consumer acts on.
+- **Before upgrading to 4.1c-b, read your registry.** Any destination already
+  declaring `transport: https` starts receiving real traffic; the field was inert
+  before.
+- Rotating a destination credential or trust bundle is a write in place. It takes
+  effect on the next dispatch — no restart, no signal, no cache to clear. Write
+  atomically (write-then-rename) so a dispatch cannot read a half-written file;
+  a torn read fails closed as a retryable
+  `DELIVERY_DESTINATION_CREDENTIAL_UNRESOLVED` rather than as an unauthenticated
+  request, but it still costs an attempt.
+- A `DELIVERY_DESTINATION_REDIRECT_REFUSED` dead letter means the destination
+  moved. Publish a new destination revision with the new URL; the engine will
+  never follow a destination-chosen address.
+- A `DELIVERY_DESTINATION_UNAVAILABLE` storm opens the per-destination circuit
+  after `FI_FHIR_DELIVERY_CIRCUIT_FAILURE_THRESHOLD` consecutive failures, which
+  stops the worker spinning against one sick destination while others keep
+  flowing. The circuit is keyed on the destination artifact, not on the broker.
+- The delivery worker still requires a Kafka broker even in an HTTPS-only
+  deployment. See "Kafka is still required" above.

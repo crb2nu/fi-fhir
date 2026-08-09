@@ -2606,12 +2606,19 @@ radar-scan:
 
 # Slice 4.1c-b Lane S4-A: the destination transport proofs.
 #
-# The day-1 gate stands a live TLS endpoint at the exact address an
-# `https`-transport destination declares and asserts the endpoint records zero
-# accepted connections while Kafka records exactly one command and the identity
-# decision carries the URL only in destination_endpoint_advisory. It passes on
-# `main` before the slice, which is what proved the `Transport` field routes
-# nothing today, and it stays as the recorded pre-slice behaviour afterwards.
+# The kill-test contacts two identity-bound `https` destinations exactly once
+# each under their own credentials, retries a 503 through the existing
+# per-destination circuit, dead-letters a 403 and a 302 without dialing the
+# redirect target, and publishes a `kafka`-class destination in the same run.
+# It then runs its own negative control against a router that owns nothing and
+# requires assertions 1-4 to FAIL there while the kafka-class assertion still
+# passes — a control that passes turns this job red, because it would mean the
+# router is not on the dispatch path.
+#
+# The day-1 gate is the recorded pre-slice behaviour: an `https`-transport
+# destination with a live TLS endpoint got zero accepted connections while Kafka
+# got exactly one command and the identity decision carried the URL only in
+# destination_endpoint_advisory.
 #
 # This job is separate from test:delivery-identity on purpose. That job's
 # existence guard stays at arity 2 and its two proofs stay unchanged: a
@@ -2657,10 +2664,10 @@ test:destination-transport:
     # greener rather than redder without this step (AGENTS.md).
     - >-
       go test -tags=integration
-      -list '^TestDeliveryTransport_HTTPSDestinationPublishesToBrokerToday$'
+      -list '^(TestDeliveryTransport_HTTPSClassContactedExactlyOnceUnderScopedIdentity|TestDeliveryTransport_HTTPSDestinationPublishesToBrokerToday)$'
       ./internal/integration/delivery
-      | rg -x 'TestDeliveryTransport_HTTPSDestinationPublishesToBrokerToday'
-      | awk 'END { if (NR != 1) exit 1 }'
+      | rg -x '(TestDeliveryTransport_HTTPSClassContactedExactlyOnceUnderScopedIdentity|TestDeliveryTransport_HTTPSDestinationPublishesToBrokerToday)'
+      | awk 'END { if (NR != 2) exit 1 }'
     - make destination-transport
   after_script:
     - |
@@ -2680,3 +2687,6 @@ test:destination-transport:
     - when: never
   allow_failure: false
 
+# =============================================================================
+# Security Stage
+# =============================================================================
