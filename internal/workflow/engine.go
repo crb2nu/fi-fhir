@@ -27,7 +27,6 @@ type Engine struct {
 	dlqConfig    DLQConfig
 	metrics      Metrics
 	tracer       Tracer
-	logger       Logger
 	llmClient    llm.Client
 
 	totalEventsProcessed int64
@@ -119,7 +118,6 @@ func NewEngine(workflow *Workflow) (*Engine, error) {
 		transformer:  NewTransformer(nil), // Default transformer without terminology
 		metrics:      &NoOpMetrics{},      // Default to no-op metrics
 		tracer:       &NoOpTracer{},       // Default to no-op tracer
-		logger:       &NoOpLogger{},       // Default to no-op logger
 	}
 
 	// Register built-in action handlers
@@ -166,22 +164,6 @@ func (e *Engine) SetTracer(t Tracer) {
 // GetTracer returns the configured tracer.
 func (e *Engine) GetTracer() Tracer {
 	return e.tracer
-}
-
-// SetLogger configures a logger for trace-correlated logging.
-// If not set, logging is discarded (no-op). Use NewStructuredLogger for
-// production with trace ID correlation.
-func (e *Engine) SetLogger(l Logger) {
-	if l == nil {
-		e.logger = &NoOpLogger{}
-	} else {
-		e.logger = l
-	}
-}
-
-// GetLogger returns the configured logger.
-func (e *Engine) GetLogger() Logger {
-	return e.logger
 }
 
 // SetTerminologyMapper configures a terminology mapper for transforms.
@@ -272,13 +254,6 @@ func (e *Engine) ProcessWithContext(ctx context.Context, event interface{}) *Res
 		),
 	)
 	defer rootSpan.End()
-
-	// Log event processing start with trace correlation
-	e.logger.Debug(ctx, "processing event",
-		F("event_type", eventType),
-		F("source", source),
-		F("workflow", e.workflow.Name),
-	)
 
 	result := &Result{
 		RouteResults: make([]RouteResult, 0, len(e.workflow.Routes)),
@@ -371,14 +346,6 @@ func (e *Engine) ProcessWithContext(ctx context.Context, event interface{}) *Res
 				actionSpan.SetAttribute(AttrActionSuccess, false)
 				rr.ActionErrors = append(rr.ActionErrors, actionErr)
 
-				// Log action failure with trace correlation
-				e.logger.Error(actionCtx, "action failed",
-					F("action_type", action.Type),
-					F("route", route.Name),
-					F("error", err.Error()),
-					F("duration_ms", actionDuration.Milliseconds()),
-				)
-
 				// Record failed action metric
 				e.metrics.ActionExecuted(action.Type, route.Name, false, actionDuration)
 
@@ -417,23 +384,9 @@ func (e *Engine) ProcessWithContext(ctx context.Context, event interface{}) *Res
 	// Set root span status
 	if success {
 		rootSpan.SetStatus(SpanStatusOK, "")
-		e.logger.Info(ctx, "event processed",
-			F("event_type", eventType),
-			F("source", source),
-			F("success", true),
-			F("duration_ms", duration.Milliseconds()),
-			F("routes_matched", countMatchedRoutes(result)),
-		)
 	} else {
 		rootSpan.SetStatus(SpanStatusError, "event processing had errors")
 		rootSpan.SetAttribute("error.count", len(result.AllErrors()))
-		e.logger.Warn(ctx, "event processed with errors",
-			F("event_type", eventType),
-			F("source", source),
-			F("success", false),
-			F("duration_ms", duration.Milliseconds()),
-			F("error_count", len(result.AllErrors())),
-		)
 	}
 
 	return result
