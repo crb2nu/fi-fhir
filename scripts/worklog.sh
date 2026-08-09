@@ -21,6 +21,9 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORKLOG_DIR="${PROJECT_ROOT}/.loom/worklog"
+# Kept as a landing page for the many documents that link to it. It must never
+# hold entries again — see cmd_check.
+POINTER_PAGE="${PROJECT_ROOT}/.loom/50-worklog.md"
 
 die() {
 	echo "worklog: $*" >&2
@@ -136,6 +139,16 @@ cmd_check() {
 			rc=1
 		fi
 	done < <(find "$WORKLOG_DIR" -maxdepth 1 -name '*.md' -type f | sort)
+
+	# The pointer page must stay a pointer. Appending an entry there is the old
+	# habit, and it brings the end-of-file merge conflict straight back.
+	if [ -f "$POINTER_PAGE" ] && grep -q '^#\{2,3\} [0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}' "$POINTER_PAGE"; then
+		echo "FAIL ${POINTER_PAGE#"${PROJECT_ROOT}"/}: contains a dated entry heading." >&2
+		echo "     That file is a pointer page, not the worklog. Every branch appends to" >&2
+		echo "     its end, which is exactly the conflict .loom/worklog/ exists to remove." >&2
+		echo "     Move the entry out with: bash scripts/worklog.sh new \"<title>\"" >&2
+		rc=1
+	fi
 
 	if [ "$rc" -eq 0 ]; then
 		echo "worklog: OK ($(find "$WORKLOG_DIR" -maxdepth 1 -name '*.md' ! -name 'README.md' -type f | wc -l | tr -d ' ') entries)"
