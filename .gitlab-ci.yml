@@ -2603,3 +2603,80 @@ mirror:github:
 
 radar-scan:
   extends: .radar-scan
+
+# Slice 4.1c-b Lane S4-A: the destination transport proofs.
+#
+# The day-1 gate stands a live TLS endpoint at the exact address an
+# `https`-transport destination declares and asserts the endpoint records zero
+# accepted connections while Kafka records exactly one command and the identity
+# decision carries the URL only in destination_endpoint_advisory. It passes on
+# `main` before the slice, which is what proved the `Transport` field routes
+# nothing today, and it stays as the recorded pre-slice behaviour afterwards.
+#
+# This job is separate from test:delivery-identity on purpose. That job's
+# existence guard stays at arity 2 and its two proofs stay unchanged: a
+# `kafka`-class destination still contacts nothing.
+test:destination-transport:
+  stage: test
+  <<: *go-image-debian
+  <<: *go-cache
+  services:
+    - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
+      alias: postgres
+    - name: ${DOCKERHUB_CACHE_PREFIX}/apache/kafka:3.9.2
+      alias: kafka
+  variables:
+    CGO_ENABLED: "1"
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
+    POSTGRES_DB: fi_fhir_destination_transport_test
+    POSTGRES_USER: testuser
+    POSTGRES_PASSWORD: testpass
+    POSTGRES_HOST_AUTH_METHOD: trust
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_destination_transport_test?sslmode=disable"
+    # Kubernetes-executor services share the job pod network namespace. Match the
+    # Apache single-node KRaft example, exactly as test:delivery-identity does.
+    KAFKA_TEST_BROKERS: "localhost:9092"
+    KAFKA_NODE_ID: "1"
+    KAFKA_PROCESS_ROLES: "controller,broker"
+    KAFKA_CONTROLLER_QUORUM_VOTERS: "1@localhost:9093"
+    KAFKA_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+    KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092"
+    KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+    KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+    KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+    KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+    KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+    KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+    KAFKA_NUM_PARTITIONS: "1"
+    KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+  script:
+    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates ripgrep build-essential && rm -rf /var/lib/apt/lists/*
+    # Existence guard. Integration helpers t.Skipf rather than t.Fatalf when a
+    # service is unreachable, so a renamed or deleted proof would make this job
+    # greener rather than redder without this step (AGENTS.md).
+    - >-
+      go test -tags=integration
+      -list '^TestDeliveryTransport_HTTPSDestinationPublishesToBrokerToday$'
+      ./internal/integration/delivery
+      | rg -x 'TestDeliveryTransport_HTTPSDestinationPublishesToBrokerToday'
+      | awk 'END { if (NR != 1) exit 1 }'
+    - make destination-transport
+  after_script:
+    - |
+      if [ "$CI_JOB_STATUS" = "failed" ]; then
+        echo ""
+        echo "test:destination-transport FAILED — the destination transport contract regressed."
+        echo "Local: POSTGRES_TEST_URL=... KAFKA_TEST_BROKERS=... make destination-transport"
+        echo "Docs: docs/operations/DESTINATION-IDENTITY.md"
+        echo "Owner: Platform/Integration — escalate in #ci-support"
+      fi
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *go-changes
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *go-changes
+    - when: never
+  allow_failure: false
+

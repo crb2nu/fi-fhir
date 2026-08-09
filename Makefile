@@ -13,7 +13,7 @@
 	migration-compatibility \
 	phi-retention-purge \
 	smoke-test smoke-test-local check-runtime-config \
-	dev dev-down dev-ui dev-ui-down
+	dev dev-down dev-ui dev-ui-down destination-transport
 
 # Tool versions (update these when upgrading)
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -684,3 +684,13 @@ dev-ui: build
 # Stop full-stack services.
 dev-ui-down:
 	docker-compose down
+
+	destination-transport \
+# Slice 4.1c-b day-1 gate: an `https`-transport destination with a live TLS
+# endpoint gets zero connections while Kafka gets exactly one command, and the
+# identity decision records the URL only in destination_endpoint_advisory.
+# Requires POSTGRES_TEST_URL and KAFKA_TEST_BROKERS in CI; uses containers locally.
+destination-transport:
+	go test -tags=integration -race -count=1 -timeout=300s \
+		-run '^TestDeliveryTransport_HTTPSDestinationPublishesToBrokerToday$$' \
+		./internal/integration/delivery
