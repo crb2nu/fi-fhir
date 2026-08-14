@@ -24,6 +24,41 @@ outbox with retry and circuit breaking.
 
 ![CLI Dataflow](docs/mermaid/cli-flow.svg)
 
+## 60-second demo
+
+Parse a sample ADT admit that ships in this repo into a semantic event:
+
+```bash
+git clone https://github.com/crb2nu/fi-fhir.git && cd fi-fhir
+make build
+./bin/fi-fhir parse --format hl7v2 --pretty testdata/adt_a01_sample.hl7
+```
+
+```json
+{
+  "type": "patient_admit",
+  "source_format": "hl7v2",
+  "source_message_id": "MSG00001",
+  "patient": {
+    "mrn": "123456789",
+    "family_name": "DOE",
+    "given_name": "JOHN",
+    "date_of_birth": "1980-03-15T00:00:00Z",
+    "address": { "line1": "123 MAIN ST", "city": "ANYTOWN", "state": "VA" }
+  },
+  "encounter": {
+    "class": "I",
+    "classified_event_type": "inpatient_admit",
+    "location": { "facility": "HOSPITAL", "unit": "ICU", "room": "101", "bed": "A" },
+    "attending_provider": { "family_name": "SMITH", "given_name": "JANE" }
+  }
+}
+```
+
+Output trimmed; the full event also carries typed identifiers with assigners,
+demographics, and provenance fields. No `PID.3.1` in sight. Pipe the same
+output into `fi-fhir workflow run` to route it (see Quick Start below).
+
 ## Mapping Studio (UI)
 
 The `ui/` app is a SvelteKit 5 "Mapping Studio": a VS Code-style shell with an
