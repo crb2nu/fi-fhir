@@ -4,8 +4,7 @@
 
 A format-agnostic healthcare integration platform that transforms legacy formats (HL7v2, CSV, EDI X12, CDA) into semantic events and routes them through configurable workflows.
 
-[![pipeline status](https://gitlab.flexinfer.ai/libs/fi-fhir/badges/main/pipeline.svg)](https://gitlab.flexinfer.ai/libs/fi-fhir/-/commits/main)
-[![coverage report](https://gitlab.flexinfer.ai/libs/fi-fhir/badges/main/coverage.svg)](https://gitlab.flexinfer.ai/libs/fi-fhir/-/commits/main)
+CI (build, tests, coverage gates) runs on self-hosted GitLab; github.com/crb2nu/fi-fhir mirrors `main`.
 
 ## Overview
 
@@ -113,16 +112,19 @@ files before they are transmitted.
 ### CLI
 
 ```bash
-# From source
-go install gitlab.flexinfer.ai/libs/fi-fhir/cmd/fi-fhir@latest
-
-# Or build locally
-git clone https://gitlab.flexinfer.ai/libs/fi-fhir.git
+# Build from the GitHub mirror
+git clone https://github.com/crb2nu/fi-fhir.git
 cd fi-fhir
 make build
+
+# Or, with access to the canonical GitLab host:
+go install gitlab.flexinfer.ai/libs/fi-fhir/cmd/fi-fhir@latest
 ```
 
 ### Docker
+
+Images are published to the canonical GitLab registry (requires access to
+that host); public users should build from source above.
 
 ```bash
 docker pull registry.gitlab.flexinfer.ai/libs/fi-fhir:latest
