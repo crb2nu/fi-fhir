@@ -1,13 +1,13 @@
 # fi-fhir Roadmap
 
-> Last updated: 2026-08-07
-> Tier: 2 (see workspace AGENTS.md "Portfolio Tiers")
+> Last Updated: 2026-08-07
+> Tier: 1 (see workspace AGENTS.md "Portfolio Tiers")
 > Tracking issue: https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/19
 > Completion spec: `.loom/20-product-spec-integration-engine-ide-completion.md`
 > Execution plan: `.loom/30-implementation-plan-integration-engine-ide-completion.md`
 > Plan store: `plan-complete-fi-fhir-as-a-production-integration-engine-and-ide-341d98`
 
-## Current status
+## Current Status
 
 fi-fhir is a substantial healthcare integration **capability kernel**, not yet a
 completed integration engine product. The Go backend contains profile-driven
