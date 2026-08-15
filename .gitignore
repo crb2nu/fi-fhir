@@ -50,5 +50,7 @@ claude_desktop_config/
 /bin/
 /fi-fhir
 
-# Golden-path evidence is generated locally and uploaded by CI, never committed.
-/.tmp/golden-path-001/
+# Scratch directory: local Go module/build caches (GOMODCACHE=$PWD/.tmp/go-mod-cache)
+# and golden-path evidence. All of it is regenerable and uploaded by CI as artifacts
+# when needed, so nothing under /.tmp/ is ever committed.
+/.tmp/

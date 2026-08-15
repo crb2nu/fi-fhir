@@ -1,6 +1,0 @@
-schema:
-  - "testdata/interface_embedding/schema_directive_partial.graphql"
-
-model:
-  filename: out_directive_partial/generated_directive_partial.go
-
