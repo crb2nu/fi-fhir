@@ -68,6 +68,54 @@ func TestDispatcherBoundsPublishFailureWithoutPersistingError(t *testing.T) {
 	}
 }
 
+// TestDispatcherExitsWhenTheTransportReturnsAnUnclassifiedError is the second
+// half of found defect D2, and the written-down answer to MR 0b's task 3.
+//
+// The destination package's TestTransportRecordsProvenanceWhenTheDestinationIsSlow
+// proves the transport used to return a raw context.DeadlineExceeded when a slow
+// destination starved the provenance write. This proves what that costs here:
+// transportFailure() cannot classify an error that is neither a TransportFailure
+// nor a Refusal, so RunOnce returns it with the attempt neither published nor
+// failed, Run propagates it, and the delivery worker component stops. The
+// attempt stays leased until the lease expires and is then redelivered to a
+// destination that already accepted it.
+//
+// This behaviour is deliberate and is kept: a governance ledger that cannot be
+// written to should stop the worker rather than let deliveries proceed
+// unrecorded. It was simply never written down, and it was being triggered by a
+// self-inflicted timeout rather than by a genuine provenance outage. MR 0b
+// removes the self-inflicted trigger and leaves the escalation intact, so this
+// test is green before and after — a characterization, not a regression gate.
+func TestDispatcherExitsWhenTheTransportReturnsAnUnclassifiedError(t *testing.T) {
+	item := testWorkItem()
+	store := &fakeStore{item: &item}
+	provenanceOutage := errors.New("record destination delivery: ledger unavailable")
+	dispatcher, err := NewDispatcherWithDestination(
+		store, &fakePublisher{}, "worker-a", testConfig(), nil,
+		&stubDestinationTransport{owned: true, err: provenanceOutage},
+	)
+	if err != nil {
+		t.Fatalf("NewDispatcherWithDestination: %v", err)
+	}
+
+	outcome, runErr := dispatcher.RunOnce(context.Background())
+
+	if !errors.Is(runErr, provenanceOutage) {
+		t.Fatalf("RunOnce error = %v, want the unclassified transport error surfaced raw", runErr)
+	}
+	if outcome != "" {
+		t.Fatalf("outcome = %q, want empty: nothing was decided about this attempt", outcome)
+	}
+	if store.published != 0 || store.failed != 0 {
+		t.Fatalf("published = %d, failed = %d, want 0 and 0: the attempt stays leased, "+
+			"which is what makes the lease expiry a redelivery", store.published, store.failed)
+	}
+	if _, classified := transportFailure(provenanceOutage); classified {
+		t.Fatal("a provenance outage was classified as a delivery failure and would dead-letter " +
+			"an attempt whose outcome was never written down")
+	}
+}
+
 func TestKafkaConfigRequiresTLSForCredentials(t *testing.T) {
 	_, err := NewKafkaPublisher(KafkaConfig{
 		Brokers:  []string{"localhost:9092"},
@@ -147,6 +195,19 @@ func (p *fakePublisher) Publish(_ context.Context, message Message) error {
 }
 
 func (p *fakePublisher) Close() error { return nil }
+
+// stubDestinationTransport reports a fixed (owned, error) pair, so a test can
+// hand the dispatcher an error shape without standing up a TLS destination.
+type stubDestinationTransport struct {
+	owned bool
+	err   error
+}
+
+func (s *stubDestinationTransport) DeliverDestination(
+	context.Context, string, string, integration.DestinationRevisionRef, []byte,
+) (bool, error) {
+	return s.owned, s.err
+}
 
 func testWorkItem() WorkItem {
 	return WorkItem{

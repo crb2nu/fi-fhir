@@ -58,6 +58,19 @@ const (
 	// maxAuthorizationBytes bounds the credential a destination binding may
 	// resolve to, so a misconfigured binding cannot produce an unbounded header.
 	maxAuthorizationBytes = 4096
+	// provenanceWriteBudget bounds the durable ledger write, independently of
+	// the destination-facing deadline it must be able to outlive.
+	//
+	// It is a constant and not a knob on purpose, for the same reason
+	// delivery.Config has no second timeout: a second knob is a second way to
+	// break the invariant that a dispatch cannot outlive its lease. The write is
+	// a single-row INSERT with no contention, so five seconds is already
+	// pathological; against DefaultConfig (PublishTimeout 10s, LeaseDuration 30s)
+	// the worst case is 15s, half the lease. A deployment that narrows
+	// PublishTimeout to just under LeaseDuration can still exceed it — that is
+	// the pre-existing gap in Config.validate noted as S1 in .loom/33, not
+	// something this budget introduces.
+	provenanceWriteBudget = 5 * time.Second
 )
 
 var (
@@ -235,13 +248,44 @@ func (t *Transport) DeliverDestination(
 		}
 	}
 	result := t.deliverHTTPS(ctx, revision, attemptID, payload)
-	if err := t.record(ctx, tenantID, attemptID, revision, result); err != nil {
+
+	// The provenance write gets its own budget, deliberately not the caller's.
+	//
+	// The caller's context is the dispatcher's PublishTimeout window
+	// (delivery/dispatcher.go, deliverToDestination). Writing the ledger through
+	// it means a destination that answers slowly — or does not answer at all
+	// within the window — leaves nothing for the durable record of having been
+	// contacted. context.WithoutCancel keeps the caller's values and drops its
+	// deadline and cancellation, so the write begins after the destination-facing
+	// deadline has already expired and still completes.
+	//
+	// It also outlives worker shutdown, by the same mechanism. That is the
+	// intended trade: at most provenanceWriteBudget of extra shutdown latency per
+	// in-flight delivery, in exchange for never dropping a row that says a
+	// destination was contacted.
+	recordCtx, cancelRecord := context.WithTimeout(
+		context.WithoutCancel(ctx), provenanceWriteBudget,
+	)
+	defer cancelRecord()
+
+	if err := t.record(recordCtx, tenantID, attemptID, revision, result); err != nil {
+		// Reaching here now means a genuine provenance outage — the ledger did not
+		// accept a single-row insert in five seconds — which is what
+		// migrations/0002_https_delivery_provenance.sql:23-26 already claims an
+		// absent row means. Before Sprint 5 this branch was also reachable by a
+		// destination merely being slow, which made the ledger's own contract
+		// false (found defect D2).
+		//
 		// A provenance outage supersedes the delivery outcome, exactly as it does
 		// for a refusal in Authorizer.refuse: the dispatcher surfaces an
 		// infrastructure error rather than completing or dead-lettering an
-		// attempt whose outcome was never written down. The outbox is
-		// at-least-once by construction, and the Idempotency-Key header carried
-		// on every request is what lets a destination absorb the redelivery.
+		// attempt whose outcome was never written down. That error is
+		// unclassifiable by delivery/transport.go transportFailure(), so it stops
+		// the delivery worker rather than being retried — deliberate, and proved
+		// by TestDispatcherExitsWhenTheTransportReturnsAnUnclassifiedError. The
+		// outbox is at-least-once by construction, and the Idempotency-Key header
+		// carried on every request is what lets a destination absorb the
+		// redelivery that follows.
 		return true, err
 	}
 	if result.failure == nil {
