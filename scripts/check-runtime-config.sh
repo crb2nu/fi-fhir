@@ -135,10 +135,35 @@ if [ -f "$COMPOSE_FILE" ]; then
       exit 1
     fi
   "
+  check_required "Compose local IDE has preview and compatibility roles" bash -c '
+    file="'"$COMPOSE_FILE"'"
+    roles=$(grep -E "^[[:space:]]*FI_FHIR_GRAPHQL_ROLES:" "$file" | head -1 | cut -d: -f2- | tr -d "\\\"[:space:]" )
+    case ",$roles," in
+      *,integration:preview,*) ;;
+      *) echo "local IDE is missing integration:preview"; exit 1 ;;
+    esac
+    case ",$roles," in
+      *,graphql:operator,*) ;;
+      *) echo "local IDE is missing graphql:operator"; exit 1 ;;
+    esac
+  '
 else
   echo "  [docker-compose.yaml] ... ⚠ file not found"
   ((warned++))
 fi
+
+check_required ".env.example local IDE has preview and compatibility roles" bash -c '
+  file="'"$ENV_EXAMPLE"'"
+  roles=$(grep -E "^[[:space:]]*FI_FHIR_GRAPHQL_ROLES=" "$file" | head -1 | cut -d= -f2- | tr -d "\\\"[:space:]" )
+  case ",$roles," in
+    *,integration:preview,*) ;;
+    *) echo ".env.example is missing integration:preview"; exit 1 ;;
+  esac
+  case ",$roles," in
+    *,graphql:operator,*) ;;
+    *) echo ".env.example is missing graphql:operator"; exit 1 ;;
+  esac
+'
 
 # --------------------------------------------------------------------------
 # 3. Proxy config: nginx template references

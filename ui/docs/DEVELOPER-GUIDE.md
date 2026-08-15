@@ -18,7 +18,7 @@ From the repo root:
 export FI_FHIR_DEPLOYMENT_TENANT_ID=tenant-a
 export FI_FHIR_GRAPHQL_BEARER_TOKEN="$(openssl rand -hex 32)"
 export FI_FHIR_GRAPHQL_PRINCIPAL_ID=local-operator
-export FI_FHIR_GRAPHQL_ROLES=integration:preview
+export FI_FHIR_GRAPHQL_ROLES=integration:preview,graphql:operator
 export FI_FHIR_GRAPHQL_ALLOWED_ORIGINS=http://localhost:5173
 export FI_FHIR_INTEGRATION_REGISTRY_PATH="$PWD/testdata/golden/integration/adt-http/preview-registry.json"
 go run ./cmd/fi-fhir serve --port 8081 --no-playground --no-introspection
@@ -47,8 +47,8 @@ Paste the same bearer into the credential gate. The token and imported raw
 samples stay only in tab memory and are cleared on reload.
 
 To exercise durable session streaming, first enable the PostgreSQL workspace as
-described in `docs/operations/INTEGRATION-SESSIONS.md`. Include
-`graphql:operator` in the API role list — it is the compatibility grant, and the
+described in `docs/operations/INTEGRATION-SESSIONS.md`. The local role list above
+already includes `graphql:operator` — it is the compatibility grant, and the
 whole IDE surface including the session workspace still sits behind it, so the
 narrowed operator control-plane roles are not a substitute here — then start the
 UI with:

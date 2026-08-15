@@ -260,7 +260,7 @@ The UI is available at http://localhost:5173
 export FI_FHIR_DEPLOYMENT_TENANT_ID=tenant-a
 export FI_FHIR_GRAPHQL_BEARER_TOKEN="$(openssl rand -hex 32)"
 export FI_FHIR_GRAPHQL_PRINCIPAL_ID=local-operator
-export FI_FHIR_GRAPHQL_ROLES=integration:preview
+export FI_FHIR_GRAPHQL_ROLES=integration:preview,graphql:operator
 export FI_FHIR_GRAPHQL_ALLOWED_ORIGINS=http://localhost:5173
 export FI_FHIR_INTEGRATION_REGISTRY_PATH="$(git rev-parse --show-toplevel)/testdata/golden/integration/adt-http/preview-registry.json"
 ./bin/fi-fhir serve --port 8081 --no-playground --no-introspection
@@ -271,9 +271,9 @@ VITE_FI_FHIR_PREVIEW_INTEGRATION_ID=adt-east \
 npm run dev
 ```
 
-The default path is the stateless authenticated preview. To enable durable
-Integration Session streaming, follow `docs/operations/INTEGRATION-SESSIONS.md`,
-add `graphql:operator` to the API roles, and add this public UI build flag:
+The local development role set opens the full IDE. To enable durable Integration
+Session streaming, follow `docs/operations/INTEGRATION-SESSIONS.md` and add this
+public UI build flag:
 
 ```bash
 VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED=true npm run dev
