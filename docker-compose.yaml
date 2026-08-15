@@ -26,11 +26,13 @@ services:
       # Server
       FI_FHIR_SERVER_HOST: "0.0.0.0"
       FI_FHIR_SERVER_PORT: "8080"
-      # Authenticated stateless integration preview (local development only).
+      # Local full-IDE operator. integration:preview opens the stateless preview;
+      # graphql:operator is the temporary compatibility grant for the remaining
+      # IDE roots. Production preview manifests deliberately stay narrower.
       FI_FHIR_DEPLOYMENT_TENANT_ID: "tenant-a"
       FI_FHIR_GRAPHQL_BEARER_TOKEN: "${FI_FHIR_GRAPHQL_BEARER_TOKEN:?Set a random local preview bearer token}"
       FI_FHIR_GRAPHQL_PRINCIPAL_ID: "local-operator"
-      FI_FHIR_GRAPHQL_ROLES: "integration:preview"
+      FI_FHIR_GRAPHQL_ROLES: "integration:preview,graphql:operator"
       FI_FHIR_GRAPHQL_ALLOWED_ORIGINS: "http://localhost:3001,http://localhost:5173"
       FI_FHIR_INTEGRATION_REGISTRY_PATH: "/app/testdata/golden/integration/adt-http/preview-registry.json"
       # Optional durable HL7v2 ingress. Empty AUTH_MODE keeps it unmounted.
