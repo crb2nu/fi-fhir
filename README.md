@@ -93,7 +93,7 @@ See `ui/README.md` for the current UI roadmap and dev commands.
 
 - **Multi-format parsing**: HL7v2, CSV/flatfiles, EDI X12, CDA/CCDA
 - **Workflow DSL**: YAML-based routing with CEL expression filters
-- **FHIR R4 output**: US Core R4 mapper producing 26 resource types, including Patient, Encounter, Observation, Condition, Coverage, Claim, ExplanationOfBenefit, MedicationRequest, AllergyIntolerance, Procedure, Immunization, DocumentReference, Provenance, Practitioner, and Organization; see [`pkg/fhir/mapper.go`](pkg/fhir/mapper.go) and [`docs/STATUS.md`](docs/STATUS.md) for the full list
+- **FHIR R4 output**: US Core R4 mapper with 26 exported `Map*` methods, including Patient, Encounter, Observation, Condition, Coverage, Claim, ExplanationOfBenefit, MedicationRequest, AllergyIntolerance, Procedure, Immunization, DocumentReference, Provenance, Practitioner, and Organization; see [`pkg/fhir/mapper.go`](pkg/fhir/mapper.go) and [`docs/STATUS.md`](docs/STATUS.md) for the full list
 - **Multiple actions**: log, webhook, FHIR, email, exec, file, database (PostgreSQL/MySQL/SQLite), message queue (Kafka), event store
 - **Production ingestion**: MLLP listener with mTLS and ACK semantics, authenticated HTTP endpoint, S3/SFTP batch worker
 - **Deployment lifecycle**: immutable content-addressed revisions, draft → validated → approved → published → deployed

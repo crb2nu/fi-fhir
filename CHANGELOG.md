@@ -456,10 +456,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README project structure, format tables, semantic event names, and Helm
   install flag corrected against the current code.
 - README FHIR output bullet corrected from a four-resource description
-  (Patient, Encounter, Observation, DiagnosticReport) to the actual 26-method
-  US Core R4 mapper surface in `pkg/fhir/mapper.go`. README Observability
-  bullet no longer claims OpenTelemetry tracing is shipped; it is scaffolded
-  at the workflow layer but not wired into `serve` (see the Tracing section).
+  (Patient, Encounter, Observation, DiagnosticReport) to the 26 exported
+  `Map*` methods on the US Core R4 mapper in `pkg/fhir/mapper.go`. README
+  Observability bullet no longer claims OpenTelemetry tracing is shipped; it
+  is scaffolded at the workflow layer but not wired into `serve` (see the
+  Tracing section).
 - Mermaid diagram sources regenerated to reflect the integration engine,
   deployment lifecycle, and IDE journey added in phases 1 through 3.
 
