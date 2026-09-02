@@ -1329,11 +1329,19 @@ test:benchmark:
     - if: $CI_COMMIT_TAG
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes: *go-changes
+    # On merge requests the benchmark is opt-in AND non-blocking: a manual job
+    # with allow_failure: false leaves the pipeline at status "manual" until
+    # someone plays it, so merge-when-pipeline-succeeds never fired and every
+    # Go-touching MR sat unmergeable (the Sprint 5 MRs from August, and every
+    # Mills item). Play it when a change is performance-sensitive; the
+    # default-branch run below stays blocking, so a regression still fails
+    # main within one merge.
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *go-changes
       when: manual
+      allow_failure: true
     - when: never
-  allow_failure: false # Blocking after truthful shared-runner threshold calibration
+  allow_failure: false # Blocking on tags and the default branch after truthful shared-runner threshold calibration
 
 test:docs-status:
   stage: test
@@ -1761,6 +1769,7 @@ build:docker:
     - |
       docker build \
         --pull \
+        --network=host \
         --build-arg GO_IMAGE="${DOCKERHUB_CACHE_PREFIX}/library/golang:${GO_VERSION}-alpine" \
         --build-arg VERSION="${CI_COMMIT_TAG:-${CI_COMMIT_SHORT_SHA}}" \
         -t "${IMAGE_TAG}" \
@@ -1815,6 +1824,7 @@ build:docker-ui:
       BUILD_TAG="v0.1.${CI_PIPELINE_IID}"
       docker build \
         --pull \
+        --network=host \
         --build-arg NODE_IMAGE="${DOCKERHUB_CACHE_PREFIX}/library/node:${NODE_VERSION}-alpine" \
         --build-arg NGINX_IMAGE="${DOCKERHUB_CACHE_PREFIX}/library/nginx:${NGINX_IMAGE_REF}" \
         --build-arg VITE_BUILD_SHA="${CI_COMMIT_SHORT_SHA}" \

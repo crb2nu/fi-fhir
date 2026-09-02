@@ -35,6 +35,10 @@ RUN npm run build
 
 # Production stage - lightweight nginx to serve static files
 FROM ${NGINX_IMAGE}
+# Pull the base image's Alpine packages forward so a fixed libssl/libcrypto is
+# in the image even when the nginx tag lags the advisory (CVE-2026-14456 was
+# flagged by security:trivy-ui-image on an otherwise clean pipeline).
+RUN apk upgrade --no-cache
 
 # Default backend origin for reverse-proxying API routes from the UI container.
 # Override at runtime to match your deployment.

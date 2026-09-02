@@ -174,6 +174,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `fhir.USCoreDiagnosticReportLabProfile`
 
 ### Changed
+- `build:docker` and `build:docker-ui` pass `--network=host` to `docker build`. Inside the Docker-in-Docker service the default per-build bridge network intermittently blackholed Alpine package fetches (`RUN apk ...` hung until the one-hour job timeout four times on 2026-09-02, while image pulls through the daemon and the same build on another runner slot succeeded); host networking routes RUN steps through the daemon's own egress.
+- `test:benchmark` is non-blocking on merge-request pipelines (`allow_failure: true` on the manual rule). It stays manual so it can be played for performance-sensitive changes, and stays blocking on tags and the default branch. Previously the unplayed manual job held every Go-touching MR pipeline at status `manual`, so merge-when-pipeline-succeeds never fired and MRs could not merge without a human playing the job.
 
 - Batch receipt provenance no longer trusts remote object modification time. The
   authoritative `received_at` is now the server-owned custody timestamp recorded
@@ -476,6 +478,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   silently skipped records. The calibrated benchmark job is now blocking.
 
 ### Security
+- UI image runs `apk upgrade` in the nginx stage so libssl3/libcrypto3 carry the fix for CVE-2026-14456 (HIGH, `security:trivy-ui-image`). `npm audit fix` in `ui/` moved browserslist past GHSA-c83g-rgw3-j3cx / GHSA-73wf-gq98-2v4g and postcss-selector-parser past GHSA-w9m9-85wc-3x92 (`security:npm-audit-ui` high gate); three low-severity `cookie` advisories remain behind the SvelteKit major and are below the gate.
+- golang.org/x/crypto bumped v0.53.0 → v0.55.0 for CVE-2026-56854 (x/crypto/ssh authentication bypass via unenforced source-address restrictions; used by the SFTP batch provider). Pulled x/mod, x/net, x/sync, x/sys, x/text and x/tools forward one minor each via `go mod tidy`. Surfaced by `security:trivy` on the first MR pipeline after the advisory published.
+- golang.org/x/crypto bumped v0.53.0 → v0.55.0 for CVE-2026-56854 (x/crypto/ssh authentication bypass via unenforced source-address restrictions; used by the SFTP batch provider). Pulled x/mod, x/net, x/sync, x/sys, x/text and x/tools forward one minor each via `go mod tidy`. Surfaced by `security:trivy` on the first MR pipeline after the advisory published. Same MR: google.golang.org/grpc v1.82.1 → v1.83.1 for CVE-2026-84304 (HIGH), surfaced by `security:trivy-image` on the built binary.
 - GraphQL now fails startup closed without a deployment tenant, principal,
   preview role, exact HTTP origins, one canonical [REDACTED], and a matching
   immutable integration registry. HTTP accepts only bounded JSON POST requests;
