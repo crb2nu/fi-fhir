@@ -12,8 +12,10 @@ import (
 )
 
 func TestCapabilityStatementEndpoint(t *testing.T) {
-	config := graphqlapi.DefaultServerConfig()
-	config.PlaygroundEnabled = false
+	// The server fails closed without an authenticator and explicit origins;
+	// reuse the package's secure test config. /metadata itself stays
+	// unauthenticated — the request below carries no bearer token.
+	config := secureServerConfig(testAuthenticator(t))
 	config.SoftwareVersion = "test-version"
 	server, err := graphqlapi.NewServer(resolvers.NewResolver(), config)
 	if err != nil {
@@ -41,8 +43,7 @@ func TestCapabilityStatementEndpoint(t *testing.T) {
 }
 
 func TestCapabilityStatementEndpointRejectsPost(t *testing.T) {
-	config := graphqlapi.DefaultServerConfig()
-	config.PlaygroundEnabled = false
+	config := secureServerConfig(testAuthenticator(t))
 	server, err := graphqlapi.NewServer(resolvers.NewResolver(), config)
 	if err != nil {
 		t.Fatal(err)
