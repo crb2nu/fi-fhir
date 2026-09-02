@@ -60,7 +60,18 @@ func TestNewCapabilityStatement(t *testing.T) {
 	}
 	wantProfiles := map[string][]string{
 		"DiagnosticReport": {USCoreDiagnosticReportLabProfile, USCoreDiagnosticReportNoteProfile},
-		"Observation":      {USCoreObservationLabProfile, USCoreVitalSignsProfile},
+		"Observation": {
+			USCoreBMIProfile,
+			USCoreBloodPressureProfile,
+			USCoreBodyHeightProfile,
+			USCoreBodyTemperatureProfile,
+			USCoreBodyWeightProfile,
+			USCoreHeartRateProfile,
+			USCoreObservationLabProfile,
+			USCorePulseOximetryProfile,
+			USCoreRespiratoryRateProfile,
+			USCoreVitalSignsProfile,
+		},
 	}
 	for i, resource := range statement.Rest[0].Resource {
 		if resource.Type != SupportedResourceTypes()[i] {
