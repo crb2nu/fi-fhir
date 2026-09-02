@@ -1,0 +1,1 @@
+- Add truthful, unauthenticated FHIR R4 `GET /metadata` capability discovery derived from the US Core mapper surface in `pkg/fhir` and `internal/api/graphql`.
