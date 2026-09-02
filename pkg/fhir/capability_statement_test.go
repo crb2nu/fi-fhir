@@ -77,6 +77,9 @@ func TestNewCapabilityStatement(t *testing.T) {
 		if resource.Type != SupportedResourceTypes()[i] {
 			t.Fatalf("resource[%d].type = %q, want %q", i, resource.Type, SupportedResourceTypes()[i])
 		}
+		if !sort.StringsAreSorted(resource.SupportedProfile) {
+			t.Fatalf("resource[%d] supportedProfile is not sorted: %v", i, resource.SupportedProfile)
+		}
 		if resource.Documentation != capabilityResourceDocumentation {
 			t.Fatalf("resource[%d] documentation = %q", i, resource.Documentation)
 		}
