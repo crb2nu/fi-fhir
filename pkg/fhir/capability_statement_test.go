@@ -48,8 +48,19 @@ func TestNewCapabilityStatement(t *testing.T) {
 	if statement.Software.Name != "fi-fhir" || statement.Software.Version != "1.2.3" {
 		t.Fatalf("unexpected software: %#v", statement.Software)
 	}
+	if !reflect.DeepEqual(statement.Format, []string{"application/fhir+json"}) {
+		t.Fatalf("format = %v", statement.Format)
+	}
+	wantDescription := "Format-agnostic healthcare integration engine; resources are produced by the US Core mapper and delivered to configured destinations."
+	if statement.Implementation.Description != wantDescription {
+		t.Fatalf("implementation description = %q", statement.Implementation.Description)
+	}
 	if len(statement.Rest) != 1 || statement.Rest[0].Mode != "server" || len(statement.Rest[0].Resource) != len(SupportedResourceTypes()) {
 		t.Fatalf("unexpected REST surface: %#v", statement.Rest)
+	}
+	wantProfiles := map[string][]string{
+		"DiagnosticReport": {USCoreDiagnosticReportLabProfile, USCoreDiagnosticReportNoteProfile},
+		"Observation":      {USCoreObservationLabProfile, USCoreVitalSignsProfile},
 	}
 	for i, resource := range statement.Rest[0].Resource {
 		if resource.Type != SupportedResourceTypes()[i] {
@@ -57,6 +68,12 @@ func TestNewCapabilityStatement(t *testing.T) {
 		}
 		if resource.Documentation != capabilityResourceDocumentation {
 			t.Fatalf("resource[%d] documentation = %q", i, resource.Documentation)
+		}
+		if profiles, ok := wantProfiles[resource.Type]; ok && !reflect.DeepEqual(resource.SupportedProfile, profiles) {
+			t.Fatalf("resource[%d] supportedProfile = %v, want %v", i, resource.SupportedProfile, profiles)
+		}
+		if (resource.Type == "Claim" || resource.Type == "ExplanationOfBenefit" || resource.Type == "CoverageEligibilityResponse") && len(resource.SupportedProfile) != 0 {
+			t.Fatalf("resource[%d] overclaims supported profiles: %v", i, resource.SupportedProfile)
 		}
 	}
 
