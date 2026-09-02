@@ -80,8 +80,15 @@ func TestNewCapabilityStatement(t *testing.T) {
 		if resource.Documentation != capabilityResourceDocumentation {
 			t.Fatalf("resource[%d] documentation = %q", i, resource.Documentation)
 		}
-		if profiles, ok := wantProfiles[resource.Type]; ok && !reflect.DeepEqual(resource.SupportedProfile, profiles) {
-			t.Fatalf("resource[%d] supportedProfile = %v, want %v", i, resource.SupportedProfile, profiles)
+		if profiles, ok := wantProfiles[resource.Type]; ok {
+			// The statement sorts profile URLs; compare as a set with the same
+			// ordering rule so the expectation does not depend on how the
+			// constants happen to be listed here.
+			want := append([]string(nil), profiles...)
+			sort.Strings(want)
+			if !reflect.DeepEqual(resource.SupportedProfile, want) {
+				t.Fatalf("resource[%d] supportedProfile = %v, want %v", i, resource.SupportedProfile, want)
+			}
 		}
 		if (resource.Type == "Claim" || resource.Type == "ExplanationOfBenefit" || resource.Type == "CoverageEligibilityResponse") && len(resource.SupportedProfile) != 0 {
 			t.Fatalf("resource[%d] overclaims supported profiles: %v", i, resource.SupportedProfile)
