@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Add the `clinical:read` GraphQL transport role for the ten PHI-reading event, patient, and projection queries while preserving the `graphql:operator` compatibility grant.
+
 ### Added
 
 #### Integration Runtime Foundation
