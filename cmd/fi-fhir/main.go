@@ -5216,6 +5216,7 @@ func runServe(args []string) error {
 		TrustedNetworkAuthenticator: securePreviewRuntime.trustedNetwork,
 		HL7IngressPath:              securePreviewRuntime.ingressPath,
 		HL7IngressHandler:           serveMetrics.IngressMiddleware(securePreviewRuntime.ingressHandler),
+		SoftwareVersion:             version,
 	}
 	if !observabilityMode.Legacy() {
 		serverConfig.Health = serveHealth
