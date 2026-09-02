@@ -60,12 +60,11 @@ func operatorDeploymentOperations() []controlPlaneOperation {
 	}
 }
 
-// compatibilityBucketOperations samples the 115 root fields that no shipped
+// compatibilityBucketOperations samples the 105 root fields that no shipped
 // fine-grained role describes. They must stay reachable under the compatibility
 // grant and unreachable without it.
 func compatibilityBucketOperations() []controlPlaneOperation {
 	return []controlPlaneOperation{
-		{field: "events", document: `query Op { events(first: 1) { totalCount } }`},
 		{field: "health", document: `query Op { health { status } }`},
 		{field: "workflowDefinitions", document: `query Op { workflowDefinitions { id } }`},
 		{field: "integrationSessions", document: `query Op { integrationSessions { id } }`},
@@ -74,10 +73,48 @@ func compatibilityBucketOperations() []controlPlaneOperation {
 	}
 }
 
+func clinicalReadOperations() []controlPlaneOperation {
+	return []controlPlaneOperation{
+		{field: "event", document: `query Op { event(id: "e-1") { id } }`},
+		{field: "events", document: `query Op { events(first: 1) { totalCount } }`},
+		{field: "patient", document: `query Op { patient(mrn: "p-1") { mrn } }`},
+		{field: "patients", document: `query Op { patients(first: 1) { totalCount } }`},
+		{field: "patientTimeline", document: `query Op { patientTimeline(mrn: "p-1") { mrn } }`},
+		{field: "eventStatistics", document: `query Op { eventStatistics { totalEvents } }`},
+		{field: "activeEncounters", document: `query Op { activeEncounters { id } }`},
+		{field: "activeEncounter", document: `query Op { activeEncounter(id: "v-1") { id } }`},
+		{field: "activeEncounterByPatient", document: `query Op { activeEncounterByPatient(mrn: "p-1") { id } }`},
+		{field: "projectionStatus", document: `query Op { projectionStatus { name } }`},
+	}
+}
+
 func allControlPlaneOperations() []controlPlaneOperation {
 	operations := operatorReadOperations()
 	operations = append(operations, operatorRecoveryOperations()...)
 	return append(operations, operatorDeploymentOperations()...)
+}
+
+func TestTransportGate_ClinicalReadRoleIsLimitedToPHIQueries(t *testing.T) {
+	handler, path, issuer := newTransportGateHandler(t)
+	token := transportGateToken(t, issuer, "clinical-reader", "clinical:read")
+
+	for _, operation := range []controlPlaneOperation{
+		{field: "patient", document: `query Op { patient(mrn: "p-1") { mrn } }`},
+		{field: "events", document: `query Op { events(first: 1) { totalCount } }`},
+	} {
+		t.Run("allowed/"+operation.field, func(t *testing.T) {
+			assertGatePassed(t, postTransportGate(t, handler, path, token, operation.document), operation.field)
+		})
+	}
+
+	for _, operation := range []controlPlaneOperation{
+		{field: "createIntegrationSession", document: `mutation Op { createIntegrationSession(input: {name: "gate"}) { id } }`},
+		{field: "integrationSessions", document: `query Op { integrationSessions { id } }`},
+	} {
+		t.Run("refused/"+operation.field, func(t *testing.T) {
+			assertGateRefused(t, postTransportGate(t, handler, path, token, operation.document), operation.field)
+		})
+	}
 }
 
 // TestTransportGate_FineGrainedRolesReplaceBlanketOperator is Lane S4-E's
@@ -222,6 +259,7 @@ func TestTransportGate_CompatibilityGrantBehavesExactlyAsBefore(t *testing.T) {
 	token := transportGateToken(t, issuer, "legacy-operator", graphqlapi.GraphQLOperatorRole)
 
 	operations := append(allControlPlaneOperations(), compatibilityBucketOperations()...)
+	operations = append(operations, clinicalReadOperations()...)
 	for _, operation := range operations {
 		t.Run(operation.field, func(t *testing.T) {
 			assertGatePassed(t, postTransportGate(t, handler, path, token, operation.document), operation.field)

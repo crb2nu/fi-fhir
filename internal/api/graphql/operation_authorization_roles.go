@@ -39,13 +39,13 @@ import (
 // (.loom/32-sprint4-execution-specs.md:100), so removing it would take the
 // control plane away from every existing install.
 //
-// # Why 115 fields are still in the compatibility bucket
+// # Why 105 fields are still in the compatibility bucket
 //
 // .loom/32-sprint4-execution-specs.md:469 named the lane's riskiest assumption
 // — that the shipped fine-grained roles could already express every operation —
 // and set the re-scope trigger. Enumeration disconfirmed it: only the sixteen
-// Slice 4.2a control-plane fields have a shipped role, so the lane re-scoped to
-// the integration control plane. The legacy catalog keeps an explicit
+// Slice 4.2a control-plane fields and ten clinical-read fields have a shipped
+// role. The legacy catalog keeps an explicit
 // graphql:operator entry and a TODO naming its follow-up slice. The entries are
 // explicit rather than implicit precisely so the remaining surface is
 // enumerable and the follow-ups are greppable.
@@ -67,6 +67,10 @@ import (
 // through the graphql:operator grant, and named per field so the narrowing
 // follow-ups can be enumerated rather than guessed.
 var legacyCompatibility = []string{GraphQLOperatorRole}
+
+// clinicalRead is the least-privilege role for the legacy event, patient, and
+// projection read surface.
+var clinicalRead = []string{clinicalReadRole}
 
 // operatorRead is the Slice 4.2a bounded, PHI-minimal control-plane read
 // surface (internal/integration/operator/service.go:108-188).
@@ -108,19 +112,17 @@ var rootFieldRoles = map[ast.Operation]map[string][]string{
 		"parsePreview":            legacyCompatibility,
 		"parsePreviewWithProfile": legacyCompatibility,
 
-		// TODO(S5-legacy-catalog-roles): legacy event/patient browser. Needs a
-		// clinical-read role before it can leave the compatibility bucket; no
-		// slice has assigned one.
-		"event":                    legacyCompatibility,
-		"events":                   legacyCompatibility,
-		"patient":                  legacyCompatibility,
-		"patients":                 legacyCompatibility,
-		"patientTimeline":          legacyCompatibility,
-		"eventStatistics":          legacyCompatibility,
-		"activeEncounters":         legacyCompatibility,
-		"activeEncounter":          legacyCompatibility,
-		"activeEncounterByPatient": legacyCompatibility,
-		"projectionStatus":         legacyCompatibility,
+		// Clinical event, patient, and projection read surface.
+		"event":                    clinicalRead,
+		"events":                   clinicalRead,
+		"patient":                  clinicalRead,
+		"patients":                 clinicalRead,
+		"patientTimeline":          clinicalRead,
+		"eventStatistics":          clinicalRead,
+		"activeEncounters":         clinicalRead,
+		"activeEncounter":          clinicalRead,
+		"activeEncounterByPatient": clinicalRead,
+		"projectionStatus":         clinicalRead,
 
 		// TODO(S5-legacy-catalog-roles): legacy workflow definition/version
 		// catalog. The published production DSL does not run through it

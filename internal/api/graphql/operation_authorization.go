@@ -17,6 +17,7 @@ const (
 	// Lane S4-E narrowed the gate. Per-root-field roles live in
 	// operation_authorization_roles.go; prefer those for new tokens.
 	GraphQLOperatorRole = "graphql:operator"
+	clinicalReadRole    = "clinical:read"
 	previewRole         = "integration:preview"
 )
 
