@@ -147,6 +147,12 @@ service that answers it.
 
 ### HTTP
 
+`GET /metadata` is an unauthenticated, PHI-free FHIR R4 metadata route. It
+returns `application/fhir+json` with the resources emitted by the US Core
+mapper. The CapabilityStatement deliberately declares no read or search
+interactions because fi-fhir delivers mapped resources to configured
+destinations rather than serving them through a FHIR REST repository.
+
 - Path: `/graphql`
 - Method: `POST` only; `OPTIONS` is accepted only for CORS preflight
 - Content type: `application/json`

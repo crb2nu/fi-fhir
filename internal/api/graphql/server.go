@@ -34,6 +34,8 @@ const AuthStatusPath = "/api/auth/status"
 
 // ServerConfig configures the GraphQL server.
 type ServerConfig struct {
+	// SoftwareVersion is the build version advertised by operational metadata.
+	SoftwareVersion string
 	// Host to bind to
 	Host string
 	// Port to listen on
@@ -108,10 +110,11 @@ func DefaultServerConfig() *ServerConfig {
 
 // Server is the GraphQL HTTP server.
 type Server struct {
-	config   *ServerConfig
-	resolver ResolverRoot
-	handler  *handler.Server
-	server   *http.Server
+	config    *ServerConfig
+	resolver  ResolverRoot
+	handler   *handler.Server
+	server    *http.Server
+	startedAt time.Time
 }
 
 // NewServer creates a new GraphQL server.
@@ -157,9 +160,10 @@ func NewServer(resolver ResolverRoot, config *ServerConfig) (*Server, error) {
 	srv.Use(extension.FixedComplexityLimit(config.MaxComplexity))
 
 	return &Server{
-		config:   config,
-		resolver: resolver,
-		handler:  srv,
+		config:    config,
+		resolver:  resolver,
+		handler:   srv,
+		startedAt: time.Now(),
 	}, nil
 }
 
@@ -219,6 +223,7 @@ func (s *Server) Handler() http.Handler {
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"authenticated": false})
 	})
+	mux.Handle(CapabilityStatementPath, capabilityStatementHandler(s.startedAt, s.config.SoftwareVersion))
 
 	return mux
 }

@@ -5222,6 +5222,7 @@ func runServe(args []string) error {
 	}
 
 	// Create and start server
+	serverConfig.SoftwareVersion = version
 	server, err := graphql.NewServer(resolver, serverConfig)
 	if err != nil {
 		return fmt.Errorf("configure GraphQL server: %w", err)
