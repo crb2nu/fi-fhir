@@ -1,0 +1,22 @@
+{
+  "$schema": "../banner-kit/brand.schema.json",
+  "schema": "flexinfer.brand-manifest",
+  "version": "1.0.0",
+  "repo": {
+    "name": "fi-fhir",
+    "kind": "library",
+    "namespace": "libs",
+    "path": "libs/fi-fhir",
+    "remote": "https://gitlab.flexinfer.ai/libs/fi-fhir",
+    "language": "Go"
+  },
+  "title": "fi-fhir",
+  "subtitle": "Healthcare integration engine: HL7v2, X12 and CDA in, FHIR R4 events and workflows out",
+  "iconText": "FHIR",
+  "accentHex": "#0EA5E9",
+  "motif": "network",
+  "badgeText": "FLEXINFER LIBRARY",
+  "visibility": "public",
+  "audience": ["healthcare integration engineers", "FHIR platform teams"],
+  "readme": { "ensureBannerReference": true, "bannerPath": "assets/banner.png", "placement": "first-line", "altText": "Banner" }
+}
