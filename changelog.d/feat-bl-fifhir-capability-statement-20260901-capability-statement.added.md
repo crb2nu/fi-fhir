@@ -1,1 +1,0 @@
-- Add truthful, unauthenticated FHIR R4 `GET /metadata` capability discovery derived from the US Core mapper surface (`pkg/fhir/capability_statement.go`, `internal/api/graphql/capability_statement.go`, `internal/api/graphql/server.go`).
