@@ -44,7 +44,7 @@ Static mode additionally requires:
 | Variable | Requirement |
 | --- | --- |
 | `FI_FHIR_GRAPHQL_PRINCIPAL_ID` | Server-owned compatibility principal ID |
-| `FI_FHIR_GRAPHQL_ROLES` | Comma-separated roles containing `integration:preview` |
+| `FI_FHIR_GRAPHQL_ROLES` | Comma-separated roles, including `integration:preview` or `clinical:read` where appropriate |
 | `FI_FHIR_GRAPHQL_BEARER_TOKEN` | Direct secret of at least 24 canonical bytes |
 | `FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE` | Preferred production secret-file path |
 
@@ -105,13 +105,14 @@ decision.
 
 A field's requirement is an AND-set, matching what the service behind it demands
 (`internal/integration/operator/service.go`), so the gate can never be more
-permissive than the service. Sixteen fields have fine-grained requirements:
+permissive than the service. Twenty-six fields have fine-grained requirements:
 
 | Requirement | Root fields |
 |---|---|
 | `integration.operator` | `operatorReceipts`, `operatorMessageTrace`, `operatorDeliveryAttempts`, `operatorDeliveryAttempt`, `operatorDeadLetters`, `operatorCircuits`, `operatorAttemptAudit`, `operatorDeployments`, `operatorDeploymentEvents` |
 | `integration.operator` + `integration.delivery.operator` | `replayDelivery`, `resubmitMessage`, `discardDeadLetter` |
 | `integration.operator` + `integration.deployment.operator` | `pauseIntegrationDeployment`, `resumeIntegrationDeployment`, `retireIntegrationDeployment`, `deployIntegrationRelease` |
+| `clinical:read` | `event`, `events`, `patient`, `patients`, `patientTimeline`, `eventStatistics`, `activeEncounters`, `activeEncounter`, `activeEncounterByPatient`, `projectionStatus` |
 
 `integration.phi.export` is not in the table on purpose. It gates the
 `includeRawPayload` argument of `exportIntegrationBundle`, not any field, so a
@@ -125,10 +126,10 @@ not mapped to them either.
 
 `graphql:operator` is a **named compatibility grant** that expands to all 131
 root fields. A token holding it behaves exactly as it did before the narrowing.
-It is deprecated, not removed: the remaining 115 root fields — the event and
-patient browser, the legacy workflow catalog, FHIR subscriptions, the
-integration session workspace, profiles, LLM, terminology and autoroute review,
-Temporal, the debugger, and all seven subscriptions — have no shipped
+It is deprecated, not removed: the remaining 105 root fields — the legacy
+workflow catalog, FHIR subscriptions, the integration session workspace,
+profiles, LLM, terminology and autoroute review, Temporal, the debugger, and
+all seven subscriptions — have no shipped
 fine-grained role and are reachable only through it. Each one carries an
 explicit entry and a `TODO` naming its follow-up slice, so the ungoverned
 surface is enumerable rather than implicit.

@@ -67,11 +67,11 @@ func TestTransportGateRoleMapShape(t *testing.T) {
 	if total != 131 {
 		t.Errorf("mapped root fields = %d, want 131", total)
 	}
-	if fineGrained != 16 {
-		t.Errorf("fine-grained root fields = %d, want 16", fineGrained)
+	if fineGrained != 26 {
+		t.Errorf("fine-grained root fields = %d, want 26", fineGrained)
 	}
-	if compatibility != 115 {
-		t.Errorf("compatibility-bucket root fields = %d, want 115", compatibility)
+	if compatibility != 105 {
+		t.Errorf("compatibility-bucket root fields = %d, want 105", compatibility)
 	}
 	if total != fineGrained+compatibility {
 		t.Fatalf("buckets do not partition the surface: %d + %d != %d", fineGrained, compatibility, total)
