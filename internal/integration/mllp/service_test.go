@@ -3,6 +3,7 @@ package mllp
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -123,5 +124,69 @@ func TestServiceProcessTimeoutIsRetryable(t *testing.T) {
 	defer cancel()
 	if _, err := service.Submit(ctx, ConnectionIdentity{}, testHL7("CTRL1")); !errors.Is(err, ErrRetryable) {
 		t.Fatalf("got %v", err)
+	}
+}
+
+func TestServiceQueuedWaitDoesNotConsumeProcessTimeout(t *testing.T) {
+	source := testSource(t)
+	source.Timeouts.ProcessSeconds = 1
+	digest, _ := source.semanticDigest()
+	source.Digest = digest
+	binding := testBinding(source)
+	binding.Deployment.Capacity = integration.CapacityPolicy{
+		MaxInFlight: 1, MaxQueued: 2, MaxMessagesPerSecond: 20,
+	}
+	firstStarted := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	var calls int
+	var callsMu sync.Mutex
+	service, err := NewService(testServiceConfig(source,
+		resolverFunc(func(context.Context, string, string) (lifecycle.RunnableBinding, error) { return binding, nil }),
+		processorFunc(func(_ context.Context, request integration.ProcessRequest) (integration.ProcessResult, error) {
+			callsMu.Lock()
+			calls++
+			call := calls
+			callsMu.Unlock()
+			if call == 1 {
+				close(firstStarted)
+				<-releaseFirst
+			}
+			return acceptedResult(request), nil
+		}),
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstDone := make(chan error, 1)
+	go func() {
+		_, submitErr := service.Submit(context.Background(), ConnectionIdentity{}, testHL7("CTRL1"))
+		firstDone <- submitErr
+	}()
+	<-firstStarted
+	secondDone := make(chan error, 1)
+	go func() {
+		_, submitErr := service.Submit(context.Background(), ConnectionIdentity{}, testHL7("CTRL2"))
+		secondDone <- submitErr
+	}()
+	deadline := time.Now().Add(time.Second)
+	for {
+		service.capacity.mu.Lock()
+		pending := service.capacity.pending
+		service.capacity.mu.Unlock()
+		if pending == 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("second submission did not enter the capacity queue")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	time.Sleep(1100 * time.Millisecond)
+	close(releaseFirst)
+	if err := <-firstDone; err != nil {
+		t.Fatalf("first submission: %v", err)
+	}
+	if err := <-secondDone; err != nil {
+		t.Fatalf("queued submission: %v", err)
 	}
 }

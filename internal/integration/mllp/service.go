@@ -201,9 +201,9 @@ func (s *Service) submit(ctx context.Context, identity ConnectionIdentity, paylo
 		return integration.ProcessResult{}, ErrUnavailable
 	}
 
-	processCtx, cancel := context.WithTimeout(ctx, time.Duration(s.source.Timeouts.ProcessSeconds)*time.Second)
-	defer cancel()
-	release, err := s.capacity.acquire(processCtx, binding.Deployment.Capacity, binding.IntegrationRevision.Digest)
+	// Queued messages have already been admitted by MaxQueued. Do not spend
+	// their processing budget while they wait for an in-flight slot.
+	release, err := s.capacity.acquire(ctx, binding.Deployment.Capacity, binding.IntegrationRevision.Digest)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return integration.ProcessResult{}, ErrRetryable
@@ -211,6 +211,8 @@ func (s *Service) submit(ctx context.Context, identity ConnectionIdentity, paylo
 		return integration.ProcessResult{}, err
 	}
 	defer release()
+	processCtx, cancel := context.WithTimeout(ctx, time.Duration(s.source.Timeouts.ProcessSeconds)*time.Second)
+	defer cancel()
 
 	receivedAt := s.now().UTC()
 	correlationID := s.newID()

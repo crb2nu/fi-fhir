@@ -1,0 +1,1 @@
+- Prevent admitted MLLP messages from exhausting their processing timeout while queued, and report the ERR-3 diagnostic in concurrent duplicate ACK failures (`internal/integration/mllp/service.go`, `internal/integration/mllp/service_test.go`, `internal/integration/mllp/server_integration_test.go`).
