@@ -165,12 +165,12 @@ func TestPostgresMLLPRuntime_DurableACKPauseRestart(t *testing.T) {
 	if err := lockTx.Commit(); err != nil {
 		t.Fatal(err)
 	}
-	if code := readMLLPAcknowledgement(t, connection, source); code != "AA" {
+	if acknowledgement := readMLLPAcknowledgement(t, connection, source); acknowledgement.code != "AA" {
 		select {
 		case processErr := <-processorErrors:
-			t.Fatalf("first ACK = %s; processor error: %s", code, formatErrorChain(processErr))
+			t.Fatalf("first ACK = %s (ERR-3 = %s); processor error: %s", acknowledgement.code, acknowledgement.errorCode, formatErrorChain(processErr))
 		default:
-			t.Fatalf("first ACK = %s; processor returned no captured error", code)
+			t.Fatalf("first ACK = %s (ERR-3 = %s); processor returned no captured error", acknowledgement.code, acknowledgement.errorCode)
 		}
 	}
 	_ = connection.Close()
@@ -192,8 +192,8 @@ func TestPostgresMLLPRuntime_DurableACKPauseRestart(t *testing.T) {
 		t.Fatalf("resumed duplicate ACK = %s", code)
 	}
 	type duplicateResult struct {
-		code string
-		err  error
+		ack acknowledgementResult
+		err error
 	}
 	duplicateCodes := make(chan duplicateResult, duplicateClients)
 	var duplicateWait sync.WaitGroup
@@ -201,15 +201,15 @@ func TestPostgresMLLPRuntime_DurableACKPauseRestart(t *testing.T) {
 		duplicateWait.Add(1)
 		go func() {
 			defer duplicateWait.Done()
-			code, roundTripErr := mllpRoundTripResult(address, source, firstMessage)
-			duplicateCodes <- duplicateResult{code: code, err: roundTripErr}
+			ack, roundTripErr := mllpRoundTripResult(address, source, firstMessage)
+			duplicateCodes <- duplicateResult{ack: ack, err: roundTripErr}
 		}()
 	}
 	duplicateWait.Wait()
 	close(duplicateCodes)
 	for result := range duplicateCodes {
-		if result.err != nil || result.code != "AA" {
-			t.Fatalf("concurrent duplicate ACK = %s, %v", result.code, result.err)
+		if result.err != nil || result.ack.code != "AA" {
+			t.Fatalf("concurrent duplicate ACK = %s (ERR-3 = %s), %v", result.ack.code, result.ack.errorCode, result.err)
 		}
 	}
 	assertMLLPCounts(t, db, 1)
@@ -388,7 +388,12 @@ func writeMLLPMessage(t *testing.T, connection net.Conn, source SourceRevision, 
 	}
 }
 
-func readMLLPAcknowledgement(t *testing.T, connection net.Conn, source SourceRevision) string {
+type acknowledgementResult struct {
+	code      string
+	errorCode string
+}
+
+func readMLLPAcknowledgement(t *testing.T, connection net.Conn, source SourceRevision) acknowledgementResult {
 	t.Helper()
 	_ = connection.SetReadDeadline(time.Now().Add(3 * time.Second))
 	payload, err := readFrame(bufio.NewReader(connection), source.Framing, source.MaxMessageBytes)
@@ -398,7 +403,10 @@ func readMLLPAcknowledgement(t *testing.T, connection net.Conn, source SourceRev
 	if bytes.Contains(payload, []byte("RAW-MLLP-SENTINEL")) {
 		t.Fatalf("acknowledgement reflected raw sentinel: %q", payload)
 	}
-	return acknowledgementCodeFromPayload(t, payload)
+	return acknowledgementResult{
+		code:      acknowledgementCodeFromPayload(t, payload),
+		errorCode: errorCodeFromPayload(payload),
+	}
 }
 
 func assertNoMLLPAcknowledgement(t *testing.T, connection net.Conn) {
@@ -416,40 +424,67 @@ func assertNoMLLPAcknowledgement(t *testing.T, connection net.Conn) {
 
 func roundTripMLLP(t *testing.T, address string, source SourceRevision, payload []byte) string {
 	t.Helper()
-	code, err := mllpRoundTripResult(address, source, payload)
+	acknowledgement, err := mllpRoundTripResult(address, source, payload)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return code
+	return acknowledgement.code
 }
 
-func mllpRoundTripResult(address string, source SourceRevision, payload []byte) (string, error) {
+func mllpRoundTripResult(address string, source SourceRevision, payload []byte) (acknowledgementResult, error) {
 	connection, err := net.DialTimeout("tcp", address, 2*time.Second)
 	if err != nil {
-		return "", err
+		return acknowledgementResult{}, err
 	}
 	defer connection.Close()
 	framed, err := framePayload(payload, source.Framing)
 	if err != nil {
-		return "", err
+		return acknowledgementResult{}, err
 	}
 	if _, err := connection.Write(framed); err != nil {
-		return "", err
+		return acknowledgementResult{}, err
 	}
 	_ = connection.SetReadDeadline(time.Now().Add(3 * time.Second))
 	acknowledgement, err := readFrame(bufio.NewReader(connection), source.Framing, source.MaxMessageBytes)
 	if err != nil {
-		return "", err
+		return acknowledgementResult{}, err
 	}
+	return parseAcknowledgementResult(acknowledgement)
+}
+
+func parseAcknowledgementResult(acknowledgement []byte) (acknowledgementResult, error) {
 	segments := strings.Split(string(acknowledgement), "\r")
 	if len(segments) < 2 {
-		return "", ErrResponseEncoding
+		return acknowledgementResult{}, ErrResponseEncoding
 	}
 	fields := strings.Split(segments[1], "|")
 	if len(fields) < 2 || fields[0] != "MSA" {
-		return "", ErrResponseEncoding
+		return acknowledgementResult{}, ErrResponseEncoding
 	}
-	return fields[1], nil
+	return acknowledgementResult{code: fields[1], errorCode: errorCodeFromPayload(acknowledgement)}, nil
+}
+
+func TestParseAcknowledgementResultIncludesOptionalERR3(t *testing.T) {
+	tests := []struct {
+		name      string
+		payload   string
+		wantCode  string
+		wantError string
+	}{
+		{name: "accepted without ERR", payload: "MSH|^~\\&|FI-FHIR|FI-FHIR|SENDER|FACILITY|20260903120000||ACK^A01|ack-1|P|2.5\rMSA|AA|control-1\r", wantCode: "AA"},
+		{name: "application error with ERR-3", payload: "MSH|^~\\&|FI-FHIR|FI-FHIR|SENDER|FACILITY|20260903120000||ACK^A01|ack-2|P|2.5\rMSA|AE|control-1\rERR|||SUBMISSION_UNAVAILABLE^SUBMISSION_UNAVAILABLE^FI-FHIR\r", wantCode: "AE", wantError: "SUBMISSION_UNAVAILABLE"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := parseAcknowledgementResult([]byte(test.payload))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.code != test.wantCode || got.errorCode != test.wantError {
+				t.Fatalf("ACK = %#v, want code %q and ERR-3 %q", got, test.wantCode, test.wantError)
+			}
+		})
+	}
 }
 
 func assertMLLPCounts(t *testing.T, db *sql.DB, want int) {
