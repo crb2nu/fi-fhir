@@ -26,6 +26,7 @@
 .PHONY: transport-gate transport-gate-negative-control                 # 4.2    — S4-E
 .PHONY: destination-transport                                          # 4.1c-b — S4-A
 .PHONY: fhir-conformance fhir-conformance-negative-control             # 5.1a   — S5-E
+.PHONY: lint-edi                                                       # edilint dogfood
 
 # Tool versions (update these when upgrading)
 GOLANGCI_LINT_VERSION := v2.12.2
