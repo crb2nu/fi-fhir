@@ -292,6 +292,27 @@ lint:vet:
       changes: *go-changes
     - when: never
 
+# Dogfood for the X12 fixtures: edilint (libs/edilint) checks their envelopes
+# before anything parses them. The parser tolerates a wrong SE01 count and a
+# control number shared between fixtures, both of which a trading partner
+# rejects, so without this gate they crept in and stayed for months.
+lint:edi:
+  stage: lint
+  <<: *go-image
+  <<: *go-cache
+  variables:
+    EDILINT_VERSION: v0.3.0
+  script:
+    - go install github.com/crb2nu/edilint/cmd/edilint@${EDILINT_VERSION}
+    - $GOPATH/bin/edilint -v testdata/edi/*.edi
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *go-changes
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *go-changes
+    - when: never
+
 lint:gqlgen:
   stage: lint
   <<: *go-image
