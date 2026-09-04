@@ -393,6 +393,132 @@ func TestTransportSurfacesAProvenanceOutage(t *testing.T) {
 	}
 }
 
+// TestTransportRecordsProvenanceWhenTheDestinationIsSlow is Sprint 5 lane
+// S5-0's day-1 gate for found defect D2, a release blocker.
+//
+// The provenance ledger's own migration states the contract:
+// "absence of a row means this process contacted no destination for that
+// attempt, never that it did so and the record was lost"
+// (migrations/0002_https_delivery_provenance.sql:23-26).
+//
+// DeliverDestination received one context — `context.WithTimeout(ctx,
+// PublishTimeout)` from delivery/dispatcher.go — and passed the same one to
+// both the destination request and the durable write. A destination that
+// consumed the budget therefore left none for the ledger, and produced exactly
+// the state the migration says cannot happen: the destination was contacted,
+// and there is no row.
+//
+// The consequence is not a lost log line. The raw context error is not a
+// TransportFailure, so delivery/transport.go's transportFailure() reports false,
+// dispatcher.go surfaces it raw, RunOnce returns it with MarkPublished=0 and
+// MarkFailed=0, Run returns, and the delivery worker component exits. The
+// attempt stays leased, the lease expires, and the payload is redelivered to a
+// destination that already accepted it — duplicate delivery for one idempotency
+// key, inside the product spec's P0 definition.
+//
+// The recorder here fails a delivery whose context is already done, because
+// that is what the real one does: PostgresProvenance.RecordDelivery calls
+// db.ExecContext (postgres.go:194), and database/sql refuses an expired context
+// before it reaches the driver.
+func TestTransportRecordsProvenanceWhenTheDestinationIsSlow(t *testing.T) {
+	// Stands in for delivery.Config.PublishTimeout. Short so the test is fast;
+	// the ratio is what matters, not the magnitude.
+	const publishTimeout = 250 * time.Millisecond
+
+	var mu sync.Mutex
+	hits := 0
+	served := 0
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		mu.Lock()
+		hits++
+		mu.Unlock()
+		// The destination accepts the delivery and answers 2xx — slowly. This is
+		// a healthy-but-loaded endpoint, not an outage.
+		time.Sleep(publishTimeout + 250*time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+		mu.Lock()
+		served++
+		mu.Unlock()
+	}))
+	server.StartTLS()
+	t.Cleanup(server.Close)
+
+	revision := transportTestHTTPSRevision(t, "dest-slow", server.URL, "token", "ca")
+	registry := newTransportTestRegistry(t, map[string]string{"token": "token", "ca": "ca"}, revision)
+	resolver := &mapSecretResolver{values: map[string]string{
+		"token": transportTestSecret,
+		"ca": string(pem.EncodeToMemory(&pem.Block{
+			Type: "CERTIFICATE", Bytes: server.Certificate().Raw,
+		})),
+	}}
+	recorder := &contextBoundDeliveryRecorder{}
+	transport := newTransportForTest(t, registry, resolver, recorder)
+
+	// Exactly what delivery/dispatcher.go's deliverToDestination does.
+	deliverCtx, cancel := context.WithTimeout(context.Background(), publishTimeout)
+	defer cancel()
+
+	owned, err := transport.DeliverDestination(
+		deliverCtx, "tenant-a", "attempt-slow", revision.Reference(),
+		[]byte(`{"schema":"integration.delivery.v1"}`),
+	)
+
+	if !owned {
+		t.Fatal("an https destination was routed to the broker")
+	}
+	mu.Lock()
+	contacted := hits
+	mu.Unlock()
+	if contacted != 1 {
+		t.Fatalf("the destination was contacted %d times, want exactly 1 — "+
+			"the premise of this test is that the delivery reached it", contacted)
+	}
+
+	if len(recorder.records) != 1 {
+		t.Fatalf("the destination was contacted once and %d provenance rows were written, want 1.\n"+
+			"  DeliverDestination returned: %v\n"+
+			"  recorder saw context error:   %v\n\n"+
+			"  This is found defect D2, a release blocker. The provenance write shares\n"+
+			"  the destination's PublishTimeout budget, so a destination that answers\n"+
+			"  slowly leaves none for the durable ledger. The result is the exact state\n"+
+			"  migrations/0002_https_delivery_provenance.sql:23-26 says cannot occur:\n"+
+			"  the destination was contacted and no row records it.\n\n"+
+			"  It does not stop there. context.DeadlineExceeded is not a TransportFailure,\n"+
+			"  so delivery/transport.go transportFailure() reports false, dispatcher.go\n"+
+			"  returns it raw, and the delivery worker component EXITS. The attempt stays\n"+
+			"  leased until the lease expires and is then redelivered to a destination\n"+
+			"  that already accepted it.\n\n"+
+			"  Fix: derive the recorder's context from the caller's values rather than\n"+
+			"  its deadline, so the ledger write can complete after the destination-facing\n"+
+			"  deadline has passed. Origin: .loom/33 Found Defects D2.",
+			len(recorder.records), err, recorder.lastContextErr)
+	}
+
+	record := recorder.records[0]
+	if record.AttemptID != "attempt-slow" || record.Transport != TransportHTTPS {
+		t.Fatalf("provenance row = %+v, want the slow attempt over https", record)
+	}
+	// The destination timed out on the client side, so this is a retryable
+	// failure — recorded, not lost.
+	if record.Outcome != outcomeRetryable {
+		t.Fatalf("provenance outcome = %q, want %q: a client-side timeout against a "+
+			"reachable destination is retryable", record.Outcome, outcomeRetryable)
+	}
+
+	// The second half of D2: the error the dispatcher sees must be classifiable,
+	// or the worker exits instead of retrying.
+	if errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("DeliverDestination returned a raw context error (%v). "+
+			"transportFailure() cannot classify it, so dispatcher.go surfaces it raw, "+
+			"Run returns, and the delivery worker exits on a slow destination.", err)
+	}
+	var failure *TransportError
+	if !errors.As(err, &failure) || !failure.Retryable {
+		t.Fatalf("DeliverDestination returned %#v, want a retryable *TransportError so "+
+			"the dispatcher marks the attempt failed and retries it", err)
+	}
+}
+
 func TestNewTransportRequiresEveryDependency(t *testing.T) {
 	registry := newTransportTestRegistry(t, nil, transportTestKafkaRevision(t, "dest-kafka"))
 	for name, config := range map[string]TransportConfig{
@@ -576,4 +702,31 @@ type recordingDeliveryRecorder struct {
 func (r *recordingDeliveryRecorder) RecordDelivery(_ context.Context, record DeliveryRecord) error {
 	r.records = append(r.records, record)
 	return r.err
+}
+
+// contextBoundDeliveryRecorder refuses to write when its context is already
+// done, which is what the real recorder does and what recordingDeliveryRecorder
+// deliberately does not model.
+//
+// PostgresProvenance.RecordDelivery ends in db.ExecContext (postgres.go:194).
+// database/sql checks the context before acquiring a connection and returns
+// ctx.Err() without reaching the driver, so an expired context produces zero
+// rows and context.DeadlineExceeded — exactly this. The wrap string is the one
+// postgres.go uses, so an assertion on the message stays honest.
+type contextBoundDeliveryRecorder struct {
+	records []DeliveryRecord
+	// lastContextErr is the context state the recorder was handed, kept so a
+	// failing assertion can say whether the write was starved or merely absent.
+	lastContextErr error
+}
+
+func (r *contextBoundDeliveryRecorder) RecordDelivery(
+	ctx context.Context, record DeliveryRecord,
+) error {
+	r.lastContextErr = ctx.Err()
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("record destination delivery: %w", err)
+	}
+	r.records = append(r.records, record)
+	return nil
 }
