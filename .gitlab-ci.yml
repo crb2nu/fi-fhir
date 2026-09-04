@@ -142,6 +142,10 @@ variables:
   - .golangci.toml
 
 default:
+  # Newer pushes cancel superseded pipelines (auto-cancel redundant pipelines is
+  # enabled on the project but only acts on interruptible jobs). Deploy, release
+  # and mirror jobs opt out below: never interrupt a publish.
+  interruptible: true
   retry:
     max: 2
     when:
@@ -1852,6 +1856,7 @@ build:docker-ui:
 
 deploy:docker:
   stage: deploy
+  interruptible: false
   image:
     name: gcr.io/go-containerregistry/crane:debug
     entrypoint: [""]
@@ -1991,6 +1996,7 @@ deploy:docker:
 
 deploy:docker-ui:
   stage: deploy
+  interruptible: false
   image:
     name: gcr.io/go-containerregistry/crane:debug
     entrypoint: [""]
@@ -2134,6 +2140,7 @@ deploy:docker-ui:
 
 release:binaries:
   stage: release
+  interruptible: false
   <<: *go-image
   <<: *go-cache
   script:
@@ -2176,6 +2183,7 @@ release:binaries:
 
 release:docker:
   stage: release
+  interruptible: false
   image: ${DOCKERHUB_CACHE_PREFIX}/library/docker:24
   services:
     - ${DOCKERHUB_CACHE_PREFIX}/library/docker:24-dind
@@ -2215,6 +2223,7 @@ release:docker:
 
 release:docker-ui:
   stage: release
+  interruptible: false
   image: ${DOCKERHUB_CACHE_PREFIX}/library/docker:24
   services:
     - ${DOCKERHUB_CACHE_PREFIX}/library/docker:24-dind
@@ -2253,6 +2262,7 @@ release:docker-ui:
 
 release:helm:
   stage: release
+  interruptible: false
   image: ${DOCKERHUB_CACHE_PREFIX}/alpine/helm:latest
   script:
     - |
@@ -2272,6 +2282,7 @@ release:helm:
 
 release:npm:
   stage: release
+  interruptible: false
   <<: *node-image
   needs:
     - job: release:binaries
@@ -2324,6 +2335,7 @@ release:npm:
 
 release:gitlab:
   stage: release
+  interruptible: false
   image: registry.gitlab.com/gitlab-org/release-cli:latest
   needs:
     - job: release:binaries
@@ -2407,6 +2419,7 @@ release:gitlab:
 # Only main and tags are mirrored. Work-in-progress branches stay on GitLab.
 mirror:github:
   stage: mirror
+  interruptible: false
   image: ${DOCKERHUB_CACHE_PREFIX}/alpine/git:latest
   variables:
     GIT_STRATEGY: clone
