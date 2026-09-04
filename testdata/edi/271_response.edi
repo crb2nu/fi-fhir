@@ -21,6 +21,6 @@ EB*A*IND*30**PPO GOLD PLAN***20*****Y~
 MSG*20% coinsurance after deductible~
 EB*B*IND*98**PPO GOLD PLAN**25*****Y~
 MSG*Copay for office visits~
-SE*23*0002~
+SE*22*0002~
 GE*1*2~
 IEA*1*000000002~

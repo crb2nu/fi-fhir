@@ -5,6 +5,7 @@ deploy:docker	deploy	false
 deploy:docker-ui	deploy	false
 lint:contracts	lint	false
 lint:docs	lint	false
+lint:edi	lint	false
 lint:fmt	lint	false
 lint:go	lint	false
 lint:gqlgen	lint	false

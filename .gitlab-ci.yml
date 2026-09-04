@@ -18,6 +18,7 @@ include:
   - local: ci/test-phi-retention-purge.yml
   - local: ci/test-transport-gate.yml
   - local: ci/test-destination-transport.yml
+  - local: ci/lint-edi.yml
 stages:
   - lint
   - test
