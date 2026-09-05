@@ -1,0 +1,36 @@
+# Slice 4.4e Lane S5-D: the deployment-wide MLLP rate quota.
+#
+# Two replicas of one deployment declaring max_messages_per_second: 100 must
+# admit at most 100 in aggregate over a measured second. Before this slice they
+# admitted 200 — documented behaviour, and the reason slice 4.4b could not
+# certify the product's steady-state throughput budget on the two-replica
+# reference profile.
+#
+# The job runs the proof AND its negative control in one invocation. The control
+# is a configuration rather than a build tag:
+# TestMLLPCapacity_TwoReplicasAdmitTwiceTheDeclaredRateToday drives the identical
+# shape with no quota bound and asserts ~200 admissions. A change that quietly
+# stopped consulting the quota turns the proof red and leaves the control green,
+# which is what a control is for. A pipeline where the control fails means the
+# test stopped exercising its mechanism, not that the product improved.
+test:mllp-rate-quota:
+  extends: .integration-proof
+  variables:
+    POSTGRES_DB: fi_fhir_mllp_quota_test
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_mllp_quota_test?sslmode=disable"
+    PROOF_FAILURE_SUMMARY: "the deployment-wide MLLP rate bound, its degraded fallback, or the in-memory admission guarantee regressed."
+    PROOF_LOCAL: "POSTGRES_TEST_URL=... make mllp-rate-quota"
+    PROOF_DOCS: "docs/operations/PRODUCTION-MLLP.md"
+  script:
+    - !reference [.integration-proof-toolchain, script]
+    # Existence guard. Integration helpers t.Skipf rather than t.Fatalf when a
+    # service is unreachable, so a renamed or deleted proof would make this job
+    # greener rather than redder without this step (AGENTS.md). Six names, and
+    # the count is asserted so a rename cannot silently shrink the set.
+    - >-
+      go test -tags=integration
+      -list '^(TestMLLPCapacity_(DeploymentWideRateIsBoundedAcrossReplicas|TwoReplicasAdmitTwiceTheDeclaredRateToday|DurableRateStateLivesInExactlyOneLedger)|TestMLLPQuotaStore_(ConcurrentClaimsCannotOverGrant|RejectsAnOverGrant)|TestQuotaBoundsTheDeploymentRateAcrossTwoReplicas)$'
+      ./internal/integration/mllp
+      | rg -x '(TestMLLPCapacity_(DeploymentWideRateIsBoundedAcrossReplicas|TwoReplicasAdmitTwiceTheDeclaredRateToday|DurableRateStateLivesInExactlyOneLedger)|TestMLLPQuotaStore_(ConcurrentClaimsCannotOverGrant|RejectsAnOverGrant)|TestQuotaBoundsTheDeploymentRateAcrossTwoReplicas)'
+      | awk 'END { if (NR != 6) exit 1 }'
+    - make mllp-rate-quota

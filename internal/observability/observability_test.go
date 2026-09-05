@@ -144,7 +144,7 @@ func TestEveryLabelValueIsDrawnFromABoundedSet(t *testing.T) {
 		ComponentAutorouteSweep, ComponentAutorouteNotify, ComponentSessionStream,
 		ComponentSubmissionDB, ComponentTerminologyDB, ComponentSessionStore, ComponentProfileStore,
 		ComponentWorkflowStore, ComponentEventStore, ComponentMappingStore, ComponentProcessLiveness,
-		ComponentLifecycleCatalog, ComponentRetentionPurge,
+		ComponentLifecycleCatalog, ComponentRetentionPurge, ComponentMLLPRateQuota,
 	} {
 		allowed[component] = struct{}{}
 	}

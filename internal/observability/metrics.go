@@ -50,6 +50,14 @@ const (
 	OutcomeSkipped Outcome = "skipped"
 	// OutcomePurged is a retained record removed or tombstoned by retention policy.
 	OutcomePurged Outcome = "purged"
+	// OutcomeDegraded is a component still serving, but on a documented
+	// fallback rather than its authoritative state. Slice 4.4e's MLLP rate
+	// quota is the first: a replica that cannot renew its share admits at a
+	// conservative fraction of the declared rate rather than stopping or
+	// admitting at the full rate. None of the other outcomes names that — the
+	// work neither failed nor completed normally, and an operator needs to
+	// alert on it.
+	OutcomeDegraded Outcome = "degraded"
 )
 
 // allOutcomes is the complete label allowlist. The PHI-label test asserts that
@@ -60,7 +68,7 @@ var allOutcomes = map[string]struct{}{
 	string(OutcomeDelivered): {}, string(OutcomeRetried): {}, string(OutcomeFailed): {},
 	string(OutcomeIdle): {}, string(OutcomeProcessed): {}, string(OutcomePublished): {},
 	string(OutcomeDropped): {}, string(OutcomeReplayed): {}, string(OutcomeQueued): {},
-	string(OutcomeSkipped): {}, string(OutcomePurged): {},
+	string(OutcomeSkipped): {}, string(OutcomePurged): {}, string(OutcomeDegraded): {},
 }
 
 // KnownOutcome reports whether a label value is in the allowlist.
@@ -90,6 +98,7 @@ const (
 	ComponentProcessLiveness  = "process"
 	ComponentLifecycleCatalog = "lifecycle_catalog"
 	ComponentRetentionPurge   = "retention_purge"
+	ComponentMLLPRateQuota    = "mllp_rate_quota"
 )
 
 // Schema ledger names. These are the only values that appear in a `ledger`
@@ -136,6 +145,7 @@ type Metrics struct {
 
 	ingressSubmissions     *prometheus.CounterVec
 	mllpMessages           *prometheus.CounterVec
+	mllpRateClaims         *prometheus.CounterVec
 	deliveryAttempts       *prometheus.CounterVec
 	batchObjects           *prometheus.CounterVec
 	sessionStreamEvents    *prometheus.CounterVec
@@ -185,6 +195,11 @@ func NewMetrics(version string) *Metrics {
 			Name: "fi_fhir_mllp_messages_total",
 			Help: "MLLP frames handled by the listener, by outcome.",
 		}, []string{"outcome"}),
+		mllpRateClaims: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "fi_fhir_mllp_rate_claims_total",
+			Help: "Deployment-wide MLLP rate-share claim attempts by outcome. " +
+				"Never incremented on the admission path: one per claim interval per replica.",
+		}, []string{"outcome"}),
 		deliveryAttempts: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "fi_fhir_delivery_attempts_total",
 			Help: "Durable delivery dispatch cycles by outcome.",
@@ -222,6 +237,7 @@ func NewMetrics(version string) *Metrics {
 	registry.MustRegister(
 		m.buildInfo, m.schemaLedgers, m.componentUp, m.readinessUp,
 		m.ingressSubmissions, m.mllpMessages, m.deliveryAttempts, m.batchObjects,
+		m.mllpRateClaims,
 		m.sessionStreamEvents, m.autorouteSweeps, m.autorouteExpired, m.autorouteNotifications,
 		m.retentionPurges, m.retentionRecordsPurged,
 	)
@@ -305,6 +321,13 @@ func (m *Metrics) RecordIngressSubmission(outcome Outcome) { inc(m, m.ingressSub
 
 // RecordMLLPMessage counts one MLLP frame.
 func (m *Metrics) RecordMLLPMessage(outcome Outcome) { inc(m, m.mllpMessages, outcome) }
+
+// RecordMLLPRateClaim reports one deployment-wide rate-share claim attempt.
+//
+// Claim-interval cardinality, not frame cardinality: this counter rising in
+// step with fi_fhir_mllp_messages_total would mean admission had started taking
+// a database round trip, which is the design slice 4.4e rejected.
+func (m *Metrics) RecordMLLPRateClaim(outcome Outcome) { inc(m, m.mllpRateClaims, outcome) }
 
 // RecordDeliveryAttempt counts one delivery dispatch cycle.
 func (m *Metrics) RecordDeliveryAttempt(outcome Outcome) { inc(m, m.deliveryAttempts, outcome) }

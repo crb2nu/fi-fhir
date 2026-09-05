@@ -54,12 +54,29 @@ type previewRuntime struct {
 	ingressPath      string
 	ingressHandler   http.Handler
 	mllpServer       *mllp.Server
+	mllpRateQuota    *mllp.QuotaCoordinator
 	batchRunner      *integrationbatch.Runner
 	batchProvider    integrationbatch.Provider
 	deliveryWorker   *integrationdelivery.Dispatcher
 	deliveryIdentity integrationdestination.Mode
 	submissionDB     *sql.DB
 	sessionStore     integrationsession.Store
+}
+
+// replicaHolderID identifies this replica in the durable MLLP rate quota.
+//
+// Same derivation as the delivery worker's identity (delivery_runtime.go):
+// hostname-pid, so a Kubernetes pod's stable name gives a stable holder and a
+// restart under the same name renews rather than doubling the holder count. It
+// is deliberately not configurable — two replicas sharing a holder id would
+// share one share and silently halve the deployment's throughput, and there is
+// no reason an operator would want that.
+func replicaHolderID() (string, error) {
+	hostname, err := os.Hostname()
+	if err != nil || strings.TrimSpace(hostname) == "" {
+		return "", fmt.Errorf("hostname is unavailable, so this replica cannot claim a rate share")
+	}
+	return fmt.Sprintf("%s-%d", hostname, os.Getpid()), nil
 }
 
 func loadPreviewRuntimeFromEnv() (*previewRuntime, error) {
@@ -123,6 +140,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 		messageProcessor *processor.MessageProcessor
 		ingressHandler   http.Handler
 		mllpServer       *mllp.Server
+		mllpRateQuota    *mllp.QuotaCoordinator
 		submissionDB     *sql.DB
 	)
 	ingressMode := os.Getenv("FI_FHIR_HTTP_INGRESS_AUTH_MODE")
@@ -235,10 +253,31 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 			if err != nil {
 				return nil, fmt.Errorf("configure durable MLLP message processor: %w", err)
 			}
+			// Slice 4.4e: the deployed revision's max_messages_per_second is a
+			// deployment-wide budget, not a per-replica one. Each replica leases
+			// a share of it; admission stays in memory and takes no round trip.
+			// Without this the listener enforces the declared rate on its own,
+			// which is what N replicas admitting N x the rate looked like.
+			mllpQuotaStore, err := mllp.NewPostgresQuotaStore(submissionDB)
+			if err != nil {
+				return nil, fmt.Errorf("configure MLLP rate quota store: %w", err)
+			}
+			holderID, err := replicaHolderID()
+			if err != nil {
+				return nil, fmt.Errorf("configure MLLP rate quota holder: %w", err)
+			}
+			mllpRateQuota, err = mllp.NewQuotaCoordinator(mllp.QuotaConfig{
+				Store: mllpQuotaStore, TenantID: tenantID,
+				DefinitionID: mllpDefinitionID, HolderID: holderID,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("configure MLLP rate quota: %w", err)
+			}
 			mllpServer, err = mllp.NewServer(mllp.ServerConfig{
 				Service: mllp.ServiceConfig{
 					TenantID: tenantID, DefinitionID: mllpDefinitionID, PrincipalID: mllpPrincipalID,
 					Source: mllpSource, Resolver: catalog, Processor: mllpProcessor,
+					RateQuota: mllpRateQuota,
 				},
 				TLSMaterial: mllpTLSMaterial,
 			})
@@ -305,6 +344,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 		ingressPath:      ingressPath,
 		ingressHandler:   ingressHandler,
 		mllpServer:       mllpServer,
+		mllpRateQuota:    mllpRateQuota,
 		batchRunner:      batchRunner,
 		batchProvider:    batchProvider,
 		deliveryWorker:   deliveryWorker,

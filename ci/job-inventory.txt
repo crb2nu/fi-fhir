@@ -44,6 +44,7 @@ test:golden-path-001	test	false
 test:integration	test	false
 test:integration-session	test	false
 test:migration-compatibility	test	false
+test:mllp-rate-quota	test	false
 test:mllp-runtime	test	false
 test:observability-replicas	test	false
 test:operator-control-plane	test	false

@@ -33,6 +33,33 @@ func bindMLLPObservation(service *mllp.Service, metrics *observability.Metrics) 
 	})
 }
 
+// bindMLLPRateQuotaObservation reports each claim attempt, and distinguishes a
+// replica running on its authoritative share from one running on the
+// conservative fallback.
+//
+// Claim-interval cardinality, not frame cardinality. If this counter ever rises
+// in step with fi_fhir_mllp_messages_total, admission has started taking a
+// database round trip — the design slice 4.4e rejected — and that is visible
+// from the two series alone.
+func bindMLLPRateQuotaObservation(coordinator *mllp.QuotaCoordinator, metrics *observability.Metrics) {
+	if coordinator == nil || metrics == nil {
+		return
+	}
+	coordinator.SetObserver(func(outcome mllp.QuotaOutcome) {
+		switch {
+		case outcome.Released:
+			// A released share is a clean handback, not a claim.
+			return
+		case outcome.Degraded:
+			metrics.RecordMLLPRateClaim(observability.OutcomeDegraded)
+		case outcome.Err != nil:
+			metrics.RecordMLLPRateClaim(observability.OutcomeError)
+		default:
+			metrics.RecordMLLPRateClaim(observability.OutcomeProcessed)
+		}
+	})
+}
+
 // bindDeliveryObservation reports the typed Outcome the dispatcher already
 // computes and Run previously discarded.
 func bindDeliveryObservation(dispatcher *integrationdelivery.Dispatcher, metrics *observability.Metrics) {

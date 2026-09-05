@@ -27,6 +27,7 @@
 .PHONY: destination-transport                                          # 4.1c-b — S4-A
 .PHONY: fhir-conformance fhir-conformance-negative-control             # 5.1a   — S5-E
 .PHONY: lint-edi                                                       # edilint dogfood
+.PHONY: mllp-rate-quota                                                # 4.4e   — S5-D
 
 # Tool versions (update these when upgrading)
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -188,6 +189,24 @@ observability-replicas:
 	go test -tags=integration -race -count=1 -timeout=600s \
 		-run '^TestServeObservability_TwoReplicasUnderDocumentedConfiguration$$' \
 		./internal/observability
+
+# Slice 4.4e kill-test: the deployment-wide MLLP rate quota. Two replicas of one
+# deployment declaring 100 msg/s must admit at most 100 in aggregate, where
+# before this slice they admitted 200.
+#
+# Proof and negative control run in one invocation, and the control is a
+# configuration rather than a build tag: TwoReplicasAdmitTwiceTheDeclaredRateToday
+# drives the identical shape with no quota bound and asserts ~200. A change that
+# quietly stopped consulting the quota turns the proof red and leaves the control
+# green. DurableRateStateLivesInExactlyOneLedger is the tripwire against a second
+# rate table or a per-frame counter appearing beside the lease.
+#
+# Requires POSTGRES_TEST_URL. The store proofs are the parts that need it; the
+# two in-memory tests run either way.
+mllp-rate-quota:
+	go test -tags=integration -race -count=1 -timeout=300s \
+		-run '^(TestMLLPCapacity_(DeploymentWideRateIsBoundedAcrossReplicas|TwoReplicasAdmitTwiceTheDeclaredRateToday|DurableRateStateLivesInExactlyOneLedger)|TestMLLPQuotaStore_(ConcurrentClaimsCannotOverGrant|RejectsAnOverGrant)|TestQuotaBoundsTheDeploymentRateAcrossTwoReplicas)$$' \
+		./internal/integration/mllp
 
 # Slice 4.4a migration compatibility kill-test: concurrent replica startup
 # across all six forward-only ledgers, one-version rollback safety, and a
