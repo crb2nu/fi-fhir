@@ -29,6 +29,7 @@
 .PHONY: lint-edi                                                       # edilint dogfood
 .PHONY: mllp-rate-quota                                                # 4.4e   — S5-D
 .PHONY: phi-retention-throughput phi-retention-throughput-negative-control # D1 — S5-F
+.PHONY: structured-logging                                             # 4.4d   — S5-C
 
 # Tool versions (update these when upgrading)
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -266,6 +267,20 @@ migration-compatibility:
 	go test -tags=integration -race -count=1 -timeout=600s \
 		-run '^TestMigrationCompatibility_(ConcurrentReplicaMigrationRollbackAndRestore|ExportInsertShapeSurvivesOneVersionRollback|NegativeControls)$$' \
 		./internal/integration/migrationcompat
+
+# Slice 4.4d structured-logging gate (Lane S5-C). Two halves in one invocation:
+# a real `fi-fhir serve` against PostgreSQL emits no JSON line and no correlated
+# line, and the shipped `fi-fhir workflow run` surface with the `log` queue
+# driver prints a planted PHI sentinel verbatim on stdout.
+#
+# It PASSES on pre-slice `main` on purpose: that is what proves both halves of
+# the lane's premise. After the slice lands it inverts and becomes the lane's
+# negative control. Requires POSTGRES_TEST_URL for the serve half; the queue
+# half needs no database.
+structured-logging:
+	go test -tags=integration -race -count=1 -timeout=600s \
+		-run '^TestStructuredLogging_ServeEmitsNoStructuredLogAndTheQueueDriverPrintsPayloads$$' \
+		./internal/observability
 
 # Lane S4-E transport-gate kill-test: the real GraphQL handler with real 4.1a
 # OIDC tokens, one case per role combination, plus exhaustiveness of the
