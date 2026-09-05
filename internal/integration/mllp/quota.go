@@ -69,11 +69,12 @@ type QuotaClaim struct {
 
 // QuotaStore is the durable side of the lease-partitioned quota.
 //
-// One Claim call reaps expired claims, records the caller's, counts the live
-// holders, and returns this holder's share — all in one transaction, because a
-// share computed against a holder count that changes before it is written is
-// not a bound. Implementations are called from the claim loop, never from the
-// admission path.
+// One Claim call reaps expired claims, records the caller's, rebalances every
+// live holder's share, and returns this holder's — all in one transaction that
+// is serialised per deployment, because a share computed against a holder count
+// that changes before it is written is not a bound, and every replica writes
+// its own row so nothing serialises them by accident. Implementations are
+// called from the claim loop, never from the admission path.
 type QuotaStore interface {
 	Claim(
 		ctx context.Context,

@@ -78,3 +78,20 @@
   - [S2] `.loom/40-decisions.md` (2026-08-09) — the distribution decision and its keying correction
   - [S3] `internal/integration/lifecycle/migrations/0002_mllp_rate_claims.sql`
   - [S4] `docs/operations/PRODUCTION-MLLP.md` — the rewritten capacity contract
+- Correction (2026-09-05, found by CI): the "ten replicas hold exactly 100"
+  evidence above was a local interleaving, not a property. `test:mllp-rate-quota`
+  failed on every CI run of this branch from its first (pipeline 22968, 2026-08-09)
+  on `TestMLLPQuotaStore_ConcurrentClaimsCannotOverGrant` — ten concurrent
+  replicas granted 190 of a declared 100. Nothing in `Claim` serialised
+  concurrent claimants: each replica writes its own row, so no row lock is
+  shared, and under READ COMMITTED each transaction's `count(*)` sees only
+  committed rows plus its own. Two changes in `quota_postgres.go`: (1) a
+  transaction-scoped `pg_advisory_xact_lock` keyed on the deployment, so claims
+  for one pool serialise and the count is exact; (2) the claim rebalances every
+  live holder's share, not only the caller's, so the persisted shares sum to the
+  declared rate after every commit rather than only once every holder has
+  renewed since the last arrival. The pool rate is the smallest declaration
+  among live holders, because rows carry their own `declared_rate` and the CHECK
+  bounds each by its own — a rolling redeploy that changes the rate runs at the
+  lower one until the older revision drains. Neither change touches the
+  admission path; `partitionShare` stays the single formula.

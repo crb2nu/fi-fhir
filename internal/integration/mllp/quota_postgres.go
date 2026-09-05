@@ -32,14 +32,26 @@ func NewPostgresQuotaStore(db *sql.DB) (*PostgresQuotaStore, error) {
 	return &PostgresQuotaStore{db: db}, nil
 }
 
-// Claim reaps this deployment's expired claims, records the caller's, counts
-// the live holders, and returns the caller's share — all inside one
-// transaction.
+// Claim reaps this deployment's expired claims, records the caller's, and
+// rebalances every live holder's share — all inside one transaction that is
+// serialised per deployment.
 //
-// The single transaction is the bound. A share computed against a holder count
-// that changes before it is written is not a bound at all, which is the whole
-// difference between this and a best-effort count. Two replicas claiming
-// concurrently serialise on the same rows and each sees the other.
+// The serialisation is the bound. Every replica writes its own row, so nothing
+// in the statements themselves blocks a concurrent claimant, and under READ
+// COMMITTED each transaction's count sees only committed rows plus its own.
+// Ten replicas starting together therefore each computed a share against a
+// count of one or two: CI recorded 190 granted against a declared 100
+// (test:mllp-rate-quota, every run from pipeline 22968 on) where a fast local
+// run had happened to interleave cleanly. A transaction-scoped advisory lock on
+// the deployment key makes the count exact.
+//
+// Rewriting every holder's share, not only the caller's, is the second half. A
+// holder whose last renewal predates a later arrival would otherwise keep its
+// larger share until its next interval, and the table would sum to more than
+// the declared rate in the meantime. With the rebalance the persisted shares
+// sum to the declared rate after every commit; a holder whose share shrank
+// learns it on its next claim, within one interval. Neither the lock nor the
+// rebalance runs on the admission path.
 //
 // Timestamps are server-owned: the caller supplies the lease length, never the
 // instant. A replica with a skewed clock cannot extend its own lease.
@@ -63,6 +75,15 @@ func (s *PostgresQuotaStore) Claim(
 		return QuotaClaim{}, fmt.Errorf("begin rate claim: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+
+	// Serialise claims for this deployment. Released at commit or rollback, and
+	// keyed on the deployment rather than the digest for the same reason the
+	// table is: a rolling redeploy is one pool, not two.
+	if _, err := tx.ExecContext(ctx, `
+		SELECT pg_advisory_xact_lock(hashtextextended($1 || '/' || $2, 0))
+	`, key.TenantID, key.DefinitionID); err != nil {
+		return QuotaClaim{}, fmt.Errorf("serialise rate claims: %w", err)
+	}
 
 	// Reap first. An expired holder is gone — a replica that died, or one whose
 	// renewals have been failing for longer than the lease — and counting it
@@ -91,28 +112,54 @@ func (s *PostgresQuotaStore) Claim(
 		return QuotaClaim{}, fmt.Errorf("record rate claim: %w", err)
 	}
 
-	// Count the live holders and this holder's rank among them. Ordering by
+	// Every live holder, in the order the split is defined over. Ordering by
 	// holder id is what makes the remainder assignment stable: every replica
-	// computing the split independently reaches the same answer, so the shares
-	// sum to the declared rate rather than merely approximating it.
-	var holders, index int
-	if err := tx.QueryRowContext(ctx, `
-		SELECT count(*), count(*) FILTER (WHERE holder_id < $3)
-		FROM integration_mllp_rate_claims
-		WHERE tenant_id = $1 AND definition_id = $2
-	`, key.TenantID, key.DefinitionID, holderID).Scan(&holders, &index); err != nil {
-		return QuotaClaim{}, fmt.Errorf("count rate claim holders: %w", err)
+	// computing the split reaches the same answer, so the shares sum to the
+	// declared rate rather than merely approximating it.
+	//
+	// The pool rate is the smallest declaration among the live holders. During a
+	// rolling redeploy that changes max_messages_per_second the old and new
+	// revisions are live at once; a share computed from the larger declaration
+	// would breach the CHECK on the rows carrying the smaller one, and the bound
+	// the older revision's operator still believes in. The deployment runs at the
+	// lower rate until the older revision drains.
+	live, err := listClaimHolders(ctx, tx, key)
+	if err != nil {
+		return QuotaClaim{}, err
+	}
+	var (
+		holderIDs []string
+		poolRate  = declaredRate
+		expiresAt time.Time
+		found     bool
+	)
+	for _, holder := range live {
+		if holder.declaredRate < poolRate {
+			poolRate = holder.declaredRate
+		}
+		if holder.holderID == holderID {
+			expiresAt, found = holder.expiresAt, true
+		}
+		holderIDs = append(holderIDs, holder.holderID)
+	}
+	if !found {
+		return QuotaClaim{}, fmt.Errorf("%w: claim for %q vanished inside its own transaction", ErrQuotaUnavailable, holderID)
 	}
 
-	share := partitionShare(declaredRate, holders, index)
-	var expiresAt time.Time
-	if err := tx.QueryRowContext(ctx, `
-		UPDATE integration_mllp_rate_claims
-		SET granted_share = $4, holders = $5
-		WHERE tenant_id = $1 AND definition_id = $2 AND holder_id = $3
-		RETURNING expires_at
-	`, key.TenantID, key.DefinitionID, holderID, share, holders).Scan(&expiresAt); err != nil {
-		return QuotaClaim{}, fmt.Errorf("grant rate claim share: %w", err)
+	holders := len(holderIDs)
+	var share int
+	for index, id := range holderIDs {
+		granted := partitionShare(poolRate, holders, index)
+		if id == holderID {
+			share = granted
+		}
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE integration_mllp_rate_claims
+			SET granted_share = $4, holders = $5
+			WHERE tenant_id = $1 AND definition_id = $2 AND holder_id = $3
+		`, key.TenantID, key.DefinitionID, id, granted, holders); err != nil {
+			return QuotaClaim{}, fmt.Errorf("grant rate claim share: %w", err)
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -139,6 +186,44 @@ func (s *PostgresQuotaStore) Release(ctx context.Context, key QuotaKey, holderID
 		return fmt.Errorf("release rate claim: %w", err)
 	}
 	return nil
+}
+
+// claimHolder is one live row of integration_mllp_rate_claims as the rebalance
+// sees it: identity, the rate that row's revision declared, and its lease end.
+type claimHolder struct {
+	holderID     string
+	declaredRate int
+	expiresAt    time.Time
+}
+
+// listClaimHolders reads every live holder of a deployment in holder-id order,
+// the order partitionShare's remainder assignment is defined over. It drains and
+// closes the cursor before returning: lib/pq allows one active statement per
+// connection, and the caller issues more on the same transaction.
+func listClaimHolders(ctx context.Context, tx *sql.Tx, key QuotaKey) ([]claimHolder, error) {
+	rows, err := tx.QueryContext(ctx, `
+		SELECT holder_id, declared_rate, expires_at
+		FROM integration_mllp_rate_claims
+		WHERE tenant_id = $1 AND definition_id = $2
+		ORDER BY holder_id
+	`, key.TenantID, key.DefinitionID)
+	if err != nil {
+		return nil, fmt.Errorf("list rate claim holders: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var live []claimHolder
+	for rows.Next() {
+		var holder claimHolder
+		if err := rows.Scan(&holder.holderID, &holder.declaredRate, &holder.expiresAt); err != nil {
+			return nil, fmt.Errorf("scan rate claim holder: %w", err)
+		}
+		live = append(live, holder)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list rate claim holders: %w", err)
+	}
+	return live, nil
 }
 
 // intervalArg renders a lease as a PostgreSQL interval literal. Sent as a
