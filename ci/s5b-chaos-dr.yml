@@ -1,0 +1,264 @@
+# Slice 4.4c Lane S5-B: chaos and disaster-recovery proofs.
+#
+# One job, one PostgreSQL service container, no broker and no Docker socket.
+#
+# The fault is injected by an in-test TCP proxy in front of the destination's
+# TLS endpoint rather than by stopping a container, because a GitLab job
+# receives its dependencies as service containers and has no Docker socket. That
+# constraint is recorded in-source at
+# internal/observability/replicas_integration_test.go:875-881, and severing the
+# socket is the stronger fault anyway: it exercises the dispatcher's own
+# classification and circuit rather than a container's restart timing.
+#
+# Kafka is deliberately absent. Every destination in this proof is https-class,
+# so the broker publisher is never reached and a stub Publisher satisfies the
+# dispatcher's requirement. Adding a broker container would slow the job to
+# prove nothing about it.
+#
+# This file carries its own image, cache, and rules rather than YAML anchors:
+# aliases are file-scoped in GitLab CI and do not cross an `include` boundary.
+# When Lane S5-0's ci/_shared.yml lands, the three blocks below collapse into
+# `extends:`.
+test:chaos-recovery:
+  stage: test
+  image: ${DOCKERHUB_CACHE_PREFIX}/library/golang:${GO_VERSION}
+  before_script:
+    - export GOPATH="${CI_PROJECT_DIR}/.go"
+    - export GOCACHE="${CI_PROJECT_DIR}/.cache/go-build"
+    - export PATH="${GOPATH}/bin:${PATH}"
+    - mkdir -p "${GOPATH}/bin"
+    - mkdir -p "${GOCACHE}"
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}-go-mod-${GO_VERSION}
+    paths:
+      - .go/pkg/mod/
+      - .go/bin/
+    policy: pull
+  services:
+    - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
+      alias: postgres
+  variables:
+    CGO_ENABLED: "1"
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
+    POSTGRES_DB: fi_fhir_chaos_recovery_test
+    POSTGRES_USER: testuser
+    POSTGRES_PASSWORD: testpass
+    POSTGRES_HOST_AUTH_METHOD: trust
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_chaos_recovery_test?sslmode=disable"
+  script:
+    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates ripgrep build-essential && rm -rf /var/lib/apt/lists/*
+    # Existence guard. Integration helpers t.Skipf rather than t.Fatalf when a
+    # service is unreachable, so a renamed or deleted proof would make this job
+    # greener rather than redder without this step (AGENTS.md).
+    - >-
+      go test -tags=integration
+      -list '^TestChaosRecovery_DestinationOutageOpensTheCircuitAndResumesOnRepair$'
+      ./internal/integration/delivery
+      | rg -x 'TestChaosRecovery_DestinationOutageOpensTheCircuitAndResumesOnRepair'
+      | awk 'END { if (NR != 1) exit 1 }'
+    - make chaos-recovery
+  after_script:
+    - |
+      if [ "$CI_JOB_STATUS" = "failed" ]; then
+        echo ""
+        echo "test:chaos-recovery FAILED — destination recovery under an injected fault regressed."
+        echo "Budget 4: queued attempts must survive a severed destination and resume with no"
+        echo "manual repair, exactly once each, with the per-destination circuit bounding the"
+        echo "contacts wasted on the outage."
+        echo "Local: POSTGRES_TEST_URL=... make chaos-recovery"
+        echo "Docs: docs/operations/PRODUCTION-HARDENING.md 'Recovery objectives, honestly'"
+        echo "Owner: Platform/Integration — escalate in #ci-support"
+      fi
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: &s5b-chaos-changes
+        - go.mod
+        - go.sum
+        - cmd/**/*
+        - internal/**/*
+        - pkg/**/*
+        - Makefile
+        - ci/s5b-chaos-dr.yml
+        - .gitlab-ci.yml
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *s5b-chaos-changes
+    - when: never
+  allow_failure: false
+
+# Slice 4.4c Lane S5-B: the first CI job in this repository's history that
+# executes ./test/e2e/... against a running fi-fhir.
+#
+# `grep -n e2e .gitlab-ci.yml` returned nothing before this. Not "no job passes
+# -tags=e2e" — the string did not appear in the file.
+#
+# WHAT RUNNING IT REVEALED, which is not what .loom/33 correction 19 predicts.
+# Correction 19 reads as though the tests are correct and merely unrun, so
+# task 5 would be "remove or repair the skips". Executed against real services
+# at main 2f8b3f609, the tree is RED:
+#
+#   * test/e2e/e2e_test.go (tag `e2e` alone, nine tests, no external
+#     infrastructure — the file `make test-e2e` runs): TestWorkflowCELFilter
+#     (3 subtests), TestWorkflowTransform, TestConfigValidation/invalid_cel and
+#     TestEndToEndPipeline all fail, the last with a nil-interface panic at
+#     e2e_test.go:493.
+#   * test/e2e/integration_test.go: TestDatabaseAction and TestWebhookAction
+#     fail with `workflow run failed: exit status 1` even with PostgreSQL and
+#     the echo destination reachable, and TestWorkflowWithRetry — which needs no
+#     infrastructure at all — fails its own timing assertion.
+#
+# One cause covers most of it: workflow-schema drift. These tests write
+# templates in Go dot-path form ("Status: {{.Patient.Status}}",
+# e2e_test.go:366) while the engine binds JSON snake_case keys. That is the
+# drift commit 5d07101c4 rewrote every document to correct, three commits
+# before this slice — and it left the tests behind, invisibly, because
+# `make test-e2e` is a target nobody runs and no job existed.
+#
+# So the skips were not hiding absence. They were hiding failures. Repairing
+# nine legacy-engine tests against a schema that moved is a real slice and it is
+# filed rather than smuggled into a chaos lane; this job takes the one assertion
+# that is about slice 4.4c's subject — a live server's health, readiness, and
+# metrics surfaces — and makes it blocking. Everything else in the tree stays
+# unrun and is now named, with evidence, instead of assumed fine.
+#
+# fi-fhir is built and exec'd against the service container rather than started
+# from a Compose file, following internal/observability's startReplica
+# (replicas_integration_test.go:793-857). The runner has no Docker socket, so
+# Compose is not available to a job — and test/e2e/docker-compose.yaml would not
+# have helped anyway: it runs no application container at all, which is exactly
+# why TestObservabilityEndpoints skipped even with that whole stack up.
+#
+# The job declares its services in FI_FHIR_E2E_REQUIRED_SERVICES, and
+# requireService (test/e2e/integration_test.go) turns a declared-but-unreachable
+# dependency into a failure. Before this slice every dependency check was a
+# t.Skipf, so a service container that failed to start would have reported
+# green.
+test:e2e:
+  stage: test
+  image: ${DOCKERHUB_CACHE_PREFIX}/library/golang:${GO_VERSION}
+  before_script:
+    - export GOPATH="${CI_PROJECT_DIR}/.go"
+    - export GOCACHE="${CI_PROJECT_DIR}/.cache/go-build"
+    - export PATH="${GOPATH}/bin:${PATH}"
+    - mkdir -p "${GOPATH}/bin"
+    - mkdir -p "${GOCACHE}"
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}-go-mod-${GO_VERSION}
+    paths:
+      - .go/pkg/mod/
+      - .go/bin/
+    policy: pull
+  services:
+    - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
+      alias: postgres
+  variables:
+    CGO_ENABLED: "1"
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
+    POSTGRES_DB: fi_fhir_e2e_test
+    POSTGRES_USER: testuser
+    POSTGRES_PASSWORD: testpass
+    POSTGRES_HOST_AUTH_METHOD: trust
+    # Kubernetes-executor services share the job pod network namespace, so a
+    # service is reached on localhost at its own container port.
+    TEST_FIFHIR_URL: "http://localhost:18080"
+    TEST_FIFHIR_METRICS_URL: "http://localhost:19090"
+    # Exactly the dependencies this job provides. Anything named here that is
+    # unreachable fails the suite instead of skipping it.
+    FI_FHIR_E2E_REQUIRED_SERVICES: "fi-fhir,fi-fhir-metrics"
+    # The documented serve environment, matching internal/observability's
+    # startReplica block. serve refuses to start without a canonical registry.
+    FI_FHIR_DEPLOYMENT_TENANT_ID: "tenant-a"
+    FI_FHIR_GRAPHQL_PRINCIPAL_ID: "e2e-operator"
+    FI_FHIR_GRAPHQL_ROLES: "integration:preview,graphql:operator"
+    FI_FHIR_GRAPHQL_ALLOWED_ORIGINS: "http://localhost:18080"
+    FI_FHIR_GRAPHQL_BEARER_TOKEN: "e2e-bearer-token-not-a-secret"
+    FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE: ""
+    FI_FHIR_INTEGRATION_REGISTRY_PATH: "${CI_PROJECT_DIR}/testdata/golden/integration/adt-http/preview-registry.json"
+    FI_FHIR_DATABASE_DRIVER: "postgres"
+    FI_FHIR_DATABASE_HOST: "localhost"
+    FI_FHIR_DATABASE_PORT: "5432"
+    FI_FHIR_DATABASE_NAME: "fi_fhir_e2e_test"
+    FI_FHIR_DATABASE_USERNAME: "testuser"
+    FI_FHIR_DATABASE_PASSWORD: "testpass"
+    FI_FHIR_DATABASE_SSL_MODE: "disable"
+    FI_FHIR_METRICS_ENABLED: "true"
+    FI_FHIR_METRICS_PORT: "19090"
+    FI_FHIR_METRICS_ENDPOINT: "/metrics"
+  script:
+    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates ripgrep build-essential curl && rm -rf /var/lib/apt/lists/*
+    - go build -o bin/fi-fhir ./cmd/fi-fhir
+    # The long-running server under test. No Compose file in this repository
+    # ever provided one to the e2e suite.
+    - ./bin/fi-fhir serve --port 18080 --no-playground --no-introspection > serve.log 2>&1 &
+    - |
+      for attempt in $(seq 1 60); do
+        if curl -sf "${TEST_FIFHIR_URL}/health" >/dev/null 2>&1; then
+          echo "fi-fhir is answering after ${attempt}s"
+          break
+        fi
+        if [ "$attempt" = "60" ]; then
+          echo "fi-fhir never became reachable; serve log:"; cat serve.log; exit 1
+        fi
+        sleep 1
+      done
+    # Existence guard. Without it a renamed or deleted test makes this job
+    # greener rather than redder (AGENTS.md).
+    - >-
+      go test -tags=e2e,integration -list '^TestObservabilityEndpoints$'
+      ./test/e2e/...
+      | rg -x 'TestObservabilityEndpoints'
+      | awk 'END { if (NR != 1) exit 1 }'
+    - >-
+      go test -tags=e2e,integration -count=1 -timeout=300s -v
+      -run '^TestObservabilityEndpoints$'
+      ./test/e2e/... 2>&1 | tee e2e.log
+    # Anti-vacuity. requireService only fails for a DECLARED dependency, so a
+    # skip here would mean the declaration list and the services drifted apart —
+    # and a green run that skipped its only test is the failure mode this job
+    # exists to remove.
+    - |
+      if rg -q '^\s*--- SKIP' e2e.log; then
+        echo "the e2e suite skipped a test whose services this job declares"
+        rg '^\s*--- SKIP' e2e.log
+        exit 1
+      fi
+      rg -q '^\s*--- PASS: TestObservabilityEndpoints' e2e.log || {
+        echo "TestObservabilityEndpoints did not pass; the running fi-fhir was not exercised"
+        exit 1
+      }
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - e2e.log
+      - serve.log
+  after_script:
+    - |
+      if [ "$CI_JOB_STATUS" = "failed" ]; then
+        echo ""
+        echo "test:e2e FAILED — the live-server end-to-end assertion regressed."
+        echo "This job builds fi-fhir, runs it against PostgreSQL 16, and asserts its health,"
+        echo "readiness, and metrics surfaces. A SKIP is also a failure here: the job declares"
+        echo "its dependencies in FI_FHIR_E2E_REQUIRED_SERVICES and test/e2e/integration_test.go"
+        echo "requireService turns a declared-but-unreachable dependency into a hard failure."
+        echo "Owner: Platform/Integration — escalate in #ci-support"
+      fi
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: &s5b-e2e-changes
+        - go.mod
+        - go.sum
+        - cmd/**/*
+        - internal/**/*
+        - pkg/**/*
+        - test/e2e/**/*
+        - Makefile
+        - ci/s5b-chaos-dr.yml
+        - .gitlab-ci.yml
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *s5b-e2e-changes
+    - when: never
+  allow_failure: false

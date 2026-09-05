@@ -4691,6 +4691,10 @@ func runServe(args []string) error {
 			return fmt.Errorf("failed to load workflow: %w", err)
 		}
 		if errors := w.Validate(); len(errors) > 0 {
+			// This runs before the structured logger exists (the deployment
+			// tenant is not resolved yet) and before the server is a server, so
+			// it stays a plain stderr write: it is a startup diagnostic for a
+			// file the operator just passed on the command line.
 			fmt.Fprintf(os.Stderr, "Workflow validation warnings:\n")
 			for _, e := range errors {
 				fmt.Fprintf(os.Stderr, "  - %v\n", e)
@@ -4767,14 +4771,39 @@ func runServe(args []string) error {
 	}
 	defer func() { _ = securePreviewRuntime.Close() }()
 
+	// ---- Structured logging (Slice 4.4d, Lane S5-C) ----
+	//
+	// Every line below this point is JSON on stderr, stamped with the deployment
+	// tenant, at the level `observability.log_level` asks for. Those settings
+	// have been parsed and validated by pkg/config since before Slice 4.1 and
+	// read by nothing; this is the reader.
+	//
+	// The logger is built here rather than at the top of runServe because
+	// `securePreviewRuntime` is where the canonical deployment tenant is
+	// resolved, and a log stream whose lines are not attributable to a tenant is
+	// not worth the conversion. Everything that runs before this point either
+	// returns an error or prints a flag-parsing message, neither of which a log
+	// aggregator sees.
+	serveLog := observability.NewLogger(observability.LogConfig{
+		Level:    runtimeConfig.Observability.LogLevel,
+		Format:   runtimeConfig.Observability.LogFormat,
+		TenantID: securePreviewRuntime.tenantID,
+	})
+
 	// Enforce terminology version pins (if configured)
 	dbURL, pins, policy := loadTerminologyPinConfigFromEnv()
 	if pinWarnings, err := checkTerminologyPins(context.Background(), dbURL, pins, policy); err != nil {
 		return err
 	} else if len(pinWarnings) > 0 {
-		fmt.Fprintf(os.Stderr, "Terminology pin warnings (%d):\n", len(pinWarnings))
+		serveLog.Warn("terminology version pins reported warnings",
+			observability.F(observability.FieldComponent, "terminology-pins"),
+			observability.F(observability.FieldCount, len(pinWarnings)))
 		for _, w := range pinWarnings {
-			fmt.Fprintf(os.Stderr, "  [%s] %s: %s\n", w.Phase, w.Code, w.Message)
+			serveLog.Warn("terminology pin warning",
+				observability.F(observability.FieldComponent, "terminology-pins"),
+				observability.F(observability.FieldOperation, w.Phase),
+				observability.F(observability.FieldStatus, w.Code),
+				observability.F(observability.FieldReason, w.Message))
 		}
 	}
 
@@ -4785,19 +4814,25 @@ func runServe(args []string) error {
 	}
 	if securePreviewRuntime.sessionStore != nil {
 		resolverOpts = append(resolverOpts, resolvers.WithIntegrationSessionStore(securePreviewRuntime.sessionStore))
-		fmt.Println("Integration Session workspace: PostgreSQL")
+		serveLog.Info("integration session workspace configured",
+			observability.F(observability.FieldComponent, "session-workspace"),
+			observability.F(observability.FieldDriver, "postgres"))
 	}
 
 	var profileStore graphqlstore.ProfileStore
 	if configuredProfileStore, err := initProfileStoreFromEnv(context.Background()); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: profile store disabled: %v\n", err)
+		serveLog.Warn("profile store disabled",
+			observability.F(observability.FieldComponent, "profile-store"),
+			observability.F(observability.FieldError, observability.Errf(err)))
 	} else if configuredProfileStore != nil {
 		profileStore = configuredProfileStore
 		resolverOpts = append(resolverOpts, resolvers.WithProfileStore(profileStore))
 	}
 	var workflowLifecycleStore graphqlstore.WorkflowLifecycleStore
 	if configuredWorkflowStore, err := initWorkflowLifecycleStoreFromEnv(context.Background()); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: workflow lifecycle store disabled: %v\n", err)
+		serveLog.Warn("workflow lifecycle store disabled",
+			observability.F(observability.FieldComponent, "workflow-lifecycle-store"),
+			observability.F(observability.FieldError, observability.Errf(err)))
 	} else if configuredWorkflowStore != nil {
 		workflowLifecycleStore = configuredWorkflowStore
 		resolverOpts = append(resolverOpts, resolvers.WithWorkflowLifecycleStore(workflowLifecycleStore))
@@ -4829,7 +4864,9 @@ func runServe(args []string) error {
 			return fmt.Errorf("configure operator control plane: %w", err)
 		}
 		resolverOpts = append(resolverOpts, resolvers.WithOperatorControlPlane(operatorService))
-		fmt.Println("Operator control plane: PostgreSQL delivery and lifecycle records")
+		serveLog.Info("operator control plane configured",
+			observability.F(observability.FieldComponent, "operator-control-plane"),
+			observability.F(observability.FieldDriver, "postgres"))
 	}
 	publicationCrypto, publicationConfigured, err := loadSessionPublicationCrypto()
 	if err != nil {
@@ -4854,23 +4891,36 @@ func runServe(args []string) error {
 			return fmt.Errorf("configure Integration Session publication service: %w", err)
 		}
 		resolverOpts = append(resolverOpts, resolvers.WithIntegrationSessionPublication(publicationService))
-		fmt.Println("Integration Session publication: signed lifecycle promotion enabled")
+		serveLog.Info("integration session publication enabled",
+			observability.F(observability.FieldComponent, "session-publication"),
+			observability.F(observability.FieldMode, "signed-lifecycle-promotion"))
 	}
 	var durableEventStore graphqlstore.EventStore
 	if eventStore, err := initEventStoreFromEnv(context.Background()); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: event store disabled (using in-memory): %v\n", err)
+		serveLog.Warn("event store fell back to in-memory",
+			observability.F(observability.FieldComponent, "event-store"),
+			observability.F(observability.FieldDriver, "memory"),
+			observability.F(observability.FieldError, observability.Errf(err)))
 	} else if eventStore != nil {
 		durableEventStore = eventStore
 		resolverOpts = append(resolverOpts, resolvers.WithStore(eventStore))
-		fmt.Println("Event store: PostgreSQL")
+		serveLog.Info("event store configured",
+			observability.F(observability.FieldComponent, "event-store"),
+			observability.F(observability.FieldDriver, "postgres"))
 	} else {
-		fmt.Println("Event store: in-memory (no database configured)")
+		serveLog.Info("event store configured",
+			observability.F(observability.FieldComponent, "event-store"),
+			observability.F(observability.FieldDriver, "memory"),
+			observability.F(observability.FieldReason, "no database configured"))
 	}
 
 	// Load workflow engine if specified
 	if workflowEngine != nil && loadedWorkflow != nil {
 		resolverOpts = append(resolverOpts, resolvers.WithWorkflowEngine(workflowEngine))
-		fmt.Printf("Loaded workflow: %s (%d routes)\n", loadedWorkflow.Name, len(loadedWorkflow.Routes))
+		serveLog.Info("legacy workflow loaded",
+			observability.F(observability.FieldComponent, "workflow-engine"),
+			observability.F(observability.FieldOperation, loadedWorkflow.Name),
+			observability.F(observability.FieldCount, len(loadedWorkflow.Routes)))
 	}
 
 	// Temporal client and worker (declared here, initialized below)
@@ -4886,9 +4936,15 @@ func runServe(args []string) error {
 	if dbURL != "" {
 		// Initialize mapping store from terminology database.
 		if mappingDB, err := sql.Open("postgres", dbURL); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: mapping store disabled (db connection failed): %v\n", err)
+			serveLog.Warn("mapping store disabled",
+				observability.F(observability.FieldComponent, "mapping-store"),
+				observability.F(observability.FieldReason, "database connection failed"),
+				observability.F(observability.FieldError, observability.Errf(err)))
 		} else if err := mappingDB.Ping(); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: mapping store disabled (db ping failed): %v\n", err)
+			serveLog.Warn("mapping store disabled",
+				observability.F(observability.FieldComponent, "mapping-store"),
+				observability.F(observability.FieldReason, "database ping failed"),
+				observability.F(observability.FieldError, observability.Errf(err)))
 			_ = mappingDB.Close()
 		} else {
 			terminologyDB = mappingDB
@@ -4905,11 +4961,13 @@ func runServe(args []string) error {
 	// (2026-08-08) for the registry decision.
 	observabilityMode := observability.ModeFromEnv()
 	if observabilityMode.Legacy() {
-		fmt.Fprintf(os.Stderr,
-			"Warning: %s=legacy restores pre-Slice-4.3 observability behaviour "+
-				"(literal /health, no /ready, no metrics, process-local session fanout and "+
-				"notification de-duplication). It exists for the kill-test's negative control "+
-				"and is not a supported production configuration.\n", observability.ModeEnvVar)
+		serveLog.Warn("observability mode restores pre-Slice-4.3 behaviour: literal /health, "+
+			"no /ready, no metrics, process-local session fanout and notification "+
+			"de-duplication; it exists for the kill-test's negative control and is not a "+
+			"supported production configuration",
+			observability.F(observability.FieldComponent, "observability"),
+			observability.F(observability.FieldMode, "legacy"),
+			observability.F(observability.FieldReason, observability.ModeEnvVar))
 	}
 	observabilityConfig := runtimeConfig.Observability
 	serveHealth := observability.NewHealth(version, 3*time.Second)
@@ -4943,13 +5001,17 @@ func runServe(args []string) error {
 	if mappingStore != nil {
 		sweepInterval := runtimeConfig.Terminology.AutorouteSweepInterval
 		if sweepInterval <= 0 {
-			fmt.Println("Pending autoroute expiry sweep: disabled")
+			serveLog.Info("pending autoroute expiry sweep disabled",
+				observability.F(observability.FieldComponent, "autoroute-sweep"),
+				observability.F(observability.FieldEnabled, false))
 		} else if sweeper, sweepErr := autoroute.NewSweeper(autoroute.SweeperConfig{
 			Store:    mappingStore,
 			Interval: sweepInterval,
-			Observe:  autorouteSweepObserver(serveMetrics),
+			Observe:  autorouteSweepObserver(serveMetrics, serveLog),
 		}); sweepErr != nil {
-			fmt.Fprintf(os.Stderr, "Warning: pending autoroute sweep disabled: %v\n", sweepErr)
+			serveLog.Warn("pending autoroute sweep disabled",
+				observability.F(observability.FieldComponent, "autoroute-sweep"),
+				observability.F(observability.FieldError, observability.Errf(sweepErr)))
 		} else {
 			autorouteSweeper = sweeper
 		}
@@ -4962,17 +5024,21 @@ func runServe(args []string) error {
 	if mappingStore != nil && runtimeConfig.Terminology.AutorouteNotify.Webhook != "" {
 		notifyCfg := runtimeConfig.Terminology.AutorouteNotify
 		if sink, sinkErr := autoroute.NewWebhookSink(notifyCfg.Webhook, notifyCfg.Timeout); sinkErr != nil {
-			fmt.Fprintf(os.Stderr, "Warning: pending autoroute review notifications disabled: %v\n", sinkErr)
+			serveLog.Warn("pending autoroute review notifications disabled",
+				observability.F(observability.FieldComponent, "autoroute-notify"),
+				observability.F(observability.FieldError, observability.Errf(sinkErr)))
 		} else if notifier, notifyErr := autoroute.NewReviewNotifier(autoroute.ReviewNotifierConfig{
 			Store:                mappingStore,
 			Sink:                 sink,
 			Interval:             notifyCfg.Interval,
 			MinConfidence:        notifyCfg.MinConfidence,
-			Observe:              autorouteNotifyObserver(serveMetrics),
-			ObserveDelivery:      autorouteDeliveryObserver(serveMetrics),
+			Observe:              autorouteNotifyObserver(serveMetrics, serveLog),
+			ObserveDelivery:      autorouteDeliveryObserver(serveMetrics, serveLog),
 			DisableDurableClaims: observabilityMode.Legacy(),
 		}); notifyErr != nil {
-			fmt.Fprintf(os.Stderr, "Warning: pending autoroute review notifications disabled: %v\n", notifyErr)
+			serveLog.Warn("pending autoroute review notifications disabled",
+				observability.F(observability.FieldComponent, "autoroute-notify"),
+				observability.F(observability.FieldError, observability.Errf(notifyErr)))
 		} else {
 			autorouteNotifier = notifier
 		}
@@ -4989,13 +5055,21 @@ func runServe(args []string) error {
 		return fmt.Errorf("configure retention purge: %w", retentionErr)
 	} else if purger != nil {
 		retentionPurger = purger
-		fmt.Printf("Retention purge enabled (every %s, policy version %d, batch %d)\n",
-			purger.Interval(), policy.Version, purger.BatchSize())
+		serveLog.Info("retention purge enabled",
+			observability.F(observability.FieldComponent, "retention-purge"),
+			observability.F(observability.FieldDurationMs, purger.Interval().Milliseconds()),
+			observability.F(observability.FieldVersion, policy.Version),
+			observability.F(observability.FieldCount, purger.BatchSize()))
 		if policy.PurgesNothing() {
-			fmt.Println("Retention purge: policy retains every class indefinitely; nothing will be purged")
+			serveLog.Warn("retention policy retains every class indefinitely; nothing will be purged",
+				observability.F(observability.FieldComponent, "retention-purge"),
+				observability.F(observability.FieldOutcome, "no-op"))
 		}
 	} else {
-		fmt.Println("Retention purge: disabled (no retention policy configured)")
+		serveLog.Info("retention purge disabled",
+			observability.F(observability.FieldComponent, "retention-purge"),
+			observability.F(observability.FieldEnabled, false),
+			observability.F(observability.FieldReason, "no retention policy configured"))
 	}
 
 	// Initialize LLM-powered features (optional - gracefully disabled if unavailable)
@@ -5006,15 +5080,23 @@ func runServe(args []string) error {
 		llmWarnings = []string{}
 	}
 	if !runtimeConfig.LLM.Enabled {
-		fmt.Println("LLM features: disabled")
+		serveLog.Info("LLM features disabled",
+			observability.F(observability.FieldComponent, "llm"),
+			observability.F(observability.FieldEnabled, false))
 	} else if err := llmCfg.Validate(); err != nil {
 		llmStatus = "unavailable"
 		llmWarnings = append(llmWarnings, fmt.Sprintf("LLM configuration invalid: %v", err))
-		fmt.Fprintf(os.Stderr, "Warning: LLM features disabled: %v\n", err)
+		serveLog.Warn("LLM features disabled",
+			observability.F(observability.FieldComponent, "llm"),
+			observability.F(observability.FieldReason, "configuration invalid"),
+			observability.F(observability.FieldError, observability.Errf(err)))
 	} else if llmClient, err := llm.New(llmCfg); err != nil {
 		llmStatus = "unavailable"
 		llmWarnings = append(llmWarnings, fmt.Sprintf("LLM client unavailable: %v", err))
-		fmt.Fprintf(os.Stderr, "Warning: LLM features disabled: %v\n", err)
+		serveLog.Warn("LLM features disabled",
+			observability.F(observability.FieldComponent, "llm"),
+			observability.F(observability.FieldReason, "client unavailable"),
+			observability.F(observability.FieldError, observability.Errf(err)))
 	} else {
 		llmStatus = "available"
 		// Clinical entity extraction
@@ -5025,7 +5107,9 @@ func runServe(args []string) error {
 		}); err != nil {
 			llmStatus = "degraded"
 			llmWarnings = append(llmWarnings, fmt.Sprintf("clinical extraction unavailable: %v", err))
-			fmt.Fprintf(os.Stderr, "Warning: clinical extraction disabled: %v\n", err)
+			serveLog.Warn("clinical extraction disabled",
+				observability.F(observability.FieldComponent, "llm-extraction"),
+				observability.F(observability.FieldError, observability.Errf(err)))
 		} else {
 			resolverOpts = append(resolverOpts, resolvers.WithClinicalExtractor(extractor))
 		}
@@ -5037,7 +5121,9 @@ func runServe(args []string) error {
 		}); err != nil {
 			llmStatus = "degraded"
 			llmWarnings = append(llmWarnings, fmt.Sprintf("quality analysis unavailable: %v", err))
-			fmt.Fprintf(os.Stderr, "Warning: quality analysis disabled: %v\n", err)
+			serveLog.Warn("quality analysis disabled",
+				observability.F(observability.FieldComponent, "llm-quality"),
+				observability.F(observability.FieldError, observability.Errf(err)))
 		} else {
 			resolverOpts = append(resolverOpts, resolvers.WithQualityAnalyzer(analyzer))
 		}
@@ -5049,7 +5135,9 @@ func runServe(args []string) error {
 		}); err != nil {
 			llmStatus = "degraded"
 			llmWarnings = append(llmWarnings, fmt.Sprintf("workflow copilot unavailable: %v", err))
-			fmt.Fprintf(os.Stderr, "Warning: workflow copilot disabled: %v\n", err)
+			serveLog.Warn("workflow copilot disabled",
+				observability.F(observability.FieldComponent, "llm-copilot"),
+				observability.F(observability.FieldError, observability.Errf(err)))
 		} else {
 			resolverOpts = append(resolverOpts, resolvers.WithWorkflowCopilot(workflowCopilot))
 		}
@@ -5066,12 +5154,16 @@ func runServe(args []string) error {
 		}); err != nil {
 			llmStatus = "degraded"
 			llmWarnings = append(llmWarnings, fmt.Sprintf("warning explainer unavailable: %v", err))
-			fmt.Fprintf(os.Stderr, "Warning: warning explainer disabled: %v\n", err)
+			serveLog.Warn("warning explainer disabled",
+				observability.F(observability.FieldComponent, "llm-explainer"),
+				observability.F(observability.FieldError, observability.Errf(err)))
 		} else {
 			resolverOpts = append(resolverOpts, resolvers.WithWarningExplainer(warningExplainer))
 		}
 
-		fmt.Println("LLM features enabled: extraction, quality, copilot, explainers")
+		serveLog.Info("LLM features enabled: extraction, quality, copilot, explainers",
+			observability.F(observability.FieldComponent, "llm"),
+			observability.F(observability.FieldEnabled, true))
 
 		// Terminology autoroute engine (requires LLM + semantic search)
 		if mappingStore != nil {
@@ -5079,12 +5171,17 @@ func runServe(args []string) error {
 			if searcher, err := semantic.NewSearcher(semanticCfg); err != nil {
 				llmStatus = "degraded"
 				llmWarnings = append(llmWarnings, fmt.Sprintf("autoroute unavailable: semantic search init failed: %v", err))
-				fmt.Fprintf(os.Stderr, "Warning: autoroute disabled (semantic search init failed): %v\n", err)
+				serveLog.Warn("terminology autoroute disabled",
+					observability.F(observability.FieldComponent, "autoroute-engine"),
+					observability.F(observability.FieldReason, "semantic search initialisation failed"),
+					observability.F(observability.FieldError, observability.Errf(err)))
 			} else {
 				// Create autoroute engine with semantic search + LLM ranking
 				autorouteEngine = autoroute.NewEngine(searcher, llmClient, autoroute.DefaultConfig())
 				resolverOpts = append(resolverOpts, resolvers.WithAutorouteEngine(autorouteEngine))
-				fmt.Println("Terminology autoroute engine enabled")
+				serveLog.Info("terminology autoroute engine enabled",
+					observability.F(observability.FieldComponent, "autoroute-engine"),
+					observability.F(observability.FieldEnabled, true))
 			}
 		}
 	}
@@ -5103,17 +5200,23 @@ func runServe(args []string) error {
 		}
 		worker, workerErr := termworkflow.NewWorker(context.Background(), workerCfg, autorouteEngine, mappingStore)
 		if workerErr != nil {
-			fmt.Fprintf(os.Stderr, "Warning: Temporal worker disabled: %v\n", workerErr)
+			serveLog.Warn("temporal worker disabled",
+				observability.F(observability.FieldComponent, "temporal-worker"),
+				observability.F(observability.FieldError, observability.Errf(workerErr)))
 		} else {
 			errCh := worker.StartAsync()
 			go func() {
 				if err := <-errCh; err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: Temporal worker stopped: %v\n", err)
+					serveLog.Error("temporal worker stopped",
+						observability.F(observability.FieldComponent, "temporal-worker"),
+						observability.F(observability.FieldError, observability.Errf(err)))
 				}
 			}()
 			temporalWorker = worker
 			resolverOpts = append(resolverOpts, resolvers.WithTemporalWorker(worker))
-			fmt.Println("Temporal terminology review worker started")
+			serveLog.Info("temporal terminology review worker started",
+				observability.F(observability.FieldComponent, "temporal-worker"),
+				observability.F(observability.FieldEnabled, true))
 		}
 	}
 
@@ -5125,10 +5228,14 @@ func runServe(args []string) error {
 			Namespace: temporalNamespace,
 		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: Temporal client disabled: %v\n", err)
+			serveLog.Warn("temporal client disabled",
+				observability.F(observability.FieldComponent, "temporal-client"),
+				observability.F(observability.FieldError, observability.Errf(err)))
 		} else {
 			resolverOpts = append(resolverOpts, resolvers.WithTemporalClient(temporalClient))
-			fmt.Printf("Temporal client connected to %s\n", temporalAddr)
+			serveLog.Info("temporal client connected",
+				observability.F(observability.FieldComponent, "temporal-client"),
+				observability.F(observability.FieldAddress, temporalAddr))
 		}
 	}
 
@@ -5146,22 +5253,24 @@ func runServe(args []string) error {
 	// Durable Integration Session fanout. Without it a subscription pinned to
 	// replica A never sees a run executed on replica B.
 	sessionHub := resolver.IntegrationSessionHub()
-	sessionHub.SetObserver(sessionStreamObserver(serveMetrics))
+	sessionHub.SetObserver(sessionStreamObserver(serveMetrics, serveLog))
 	sessionRelay, err := newSessionStreamRelay(
-		securePreviewRuntime.sessionStore, sessionHub, serveMetrics, observabilityMode,
+		securePreviewRuntime.sessionStore, sessionHub, serveMetrics, observabilityMode, serveLog,
 	)
 	if err != nil {
 		return fmt.Errorf("configure Integration Session stream relay: %w", err)
 	}
 	if sessionRelay != nil {
-		fmt.Printf("Integration Session durable stream fanout enabled (every %s)\n", sessionRelay.Interval())
+		serveLog.Info("integration session durable stream fanout enabled",
+			observability.F(observability.FieldComponent, "session-stream-relay"),
+			observability.F(observability.FieldDurationMs, sessionRelay.Interval().Milliseconds()))
 	}
 
 	// Bind the observation seams the four previously blind components now have.
-	bindMLLPObservation(securePreviewRuntime.mllpServer.Service(), serveMetrics)
+	bindMLLPObservation(securePreviewRuntime.mllpServer.Service(), serveMetrics, serveLog)
 	bindMLLPRateQuotaObservation(securePreviewRuntime.mllpRateQuota, serveMetrics)
-	bindDeliveryObservation(securePreviewRuntime.deliveryWorker, serveMetrics)
-	bindBatchObservation(securePreviewRuntime.batchRunner, serveMetrics)
+	bindDeliveryObservation(securePreviewRuntime.deliveryWorker, serveMetrics, serveLog)
+	bindBatchObservation(securePreviewRuntime.batchRunner, serveMetrics, serveLog)
 
 	// The metrics listener is the second port every checked-in deployment
 	// artifact already advertises. Binding happens here so a port conflict is a
@@ -5179,9 +5288,14 @@ func runServe(args []string) error {
 			return fmt.Errorf("configure metrics listener: %w", err)
 		}
 		defer func() { _ = metricsServer.Close() }()
-		fmt.Printf("Prometheus metrics listening on http://%s%s\n", metricsServer.Addr(), metricsServer.Path())
+		serveLog.Info("prometheus metrics listener bound",
+			observability.F(observability.FieldComponent, "metrics"),
+			observability.F(observability.FieldAddress, metricsServer.Addr()),
+			observability.F(observability.FieldPath, metricsServer.Path()))
 	} else {
-		fmt.Println("Prometheus metrics: disabled")
+		serveLog.Info("prometheus metrics disabled",
+			observability.F(observability.FieldComponent, "metrics"),
+			observability.F(observability.FieldEnabled, false))
 	}
 
 	// Runtime health onto the deployed lifecycle snapshot. Before this slice
@@ -5196,6 +5310,7 @@ func runServe(args []string) error {
 			"fi-fhir-runtime",
 			serveHealth,
 			time.Minute,
+			serveLog,
 		)
 	}
 
@@ -5219,6 +5334,7 @@ func runServe(args []string) error {
 		HL7IngressPath:              securePreviewRuntime.ingressPath,
 		HL7IngressHandler:           serveMetrics.IngressMiddleware(securePreviewRuntime.ingressHandler),
 		SoftwareVersion:             version,
+		Logger:                      serveLog,
 	}
 	if !observabilityMode.Legacy() {
 		serverConfig.Health = serveHealth
@@ -5234,7 +5350,8 @@ func runServe(args []string) error {
 	// surface, so print it the way the delivery worker prints its identity mode
 	// — an operator should be able to see from the startup log that the
 	// deployment is relying on a deprecated blanket role.
-	fmt.Println(graphql.TransportGatePolicyLine())
+	serveLog.Info(graphql.TransportGatePolicyLine(),
+		observability.F(observability.FieldComponent, "transport-gate"))
 
 	// Set up signal handling for graceful shutdown
 	sigCh := make(chan os.Signal, 1)
@@ -5296,7 +5413,9 @@ func runServe(args []string) error {
 		// Deliberately not in the component table: a health *report* failing must
 		// never stop the process, and Run only returns on cancellation.
 		go func() { _ = runtimeHealthReporter.Run(serveCtx) }()
-		fmt.Println("Lifecycle runtime health reporting enabled")
+		serveLog.Info("lifecycle runtime health reporting enabled",
+			observability.F(observability.FieldComponent, "lifecycle-health"),
+			observability.F(observability.FieldEnabled, true))
 	}
 	observability.StartReadinessRefresh(serveCtx, serveHealth, serveMetrics, 15*time.Second)
 	if securePreviewRuntime.mllpServer != nil {
@@ -5304,7 +5423,9 @@ func runServe(args []string) error {
 		go func() {
 			errCh <- componentError{name: "MLLP", err: securePreviewRuntime.mllpServer.ListenAndServe(serveCtx)}
 		}()
-		fmt.Println("MLLP listener enabled from immutable source revision")
+		serveLog.Info("MLLP listener enabled from immutable source revision",
+			observability.F(observability.FieldComponent, "mllp"),
+			observability.F(observability.FieldEnabled, true))
 	}
 	if securePreviewRuntime.mllpRateQuota != nil {
 		markComponent(observability.ComponentMLLPRateQuota, observability.ComponentRunning)
@@ -5324,11 +5445,17 @@ func runServe(args []string) error {
 		go func() {
 			errCh <- componentError{name: "delivery", err: securePreviewRuntime.deliveryWorker.Run(serveCtx)}
 		}()
-		fmt.Println("Durable Kafka delivery worker enabled")
+		serveLog.Info("durable delivery worker enabled",
+			observability.F(observability.FieldComponent, "delivery-worker"),
+			observability.F(observability.FieldEnabled, true))
 		if securePreviewRuntime.deliveryIdentity == "" {
-			fmt.Println("Destination identity: not configured (no integration.deliver decision on the dispatch path)")
+			serveLog.Warn("destination identity not configured; no integration.deliver decision on the dispatch path",
+				observability.F(observability.FieldComponent, "destination-identity"),
+				observability.F(observability.FieldEnabled, false))
 		} else {
-			fmt.Printf("Destination identity: %s mode\n", securePreviewRuntime.deliveryIdentity)
+			serveLog.Info("destination identity configured",
+				observability.F(observability.FieldComponent, "destination-identity"),
+				observability.F(observability.FieldMode, securePreviewRuntime.deliveryIdentity))
 		}
 	}
 	if securePreviewRuntime.batchRunner != nil {
@@ -5336,22 +5463,28 @@ func runServe(args []string) error {
 		go func() {
 			errCh <- componentError{name: "batch", err: securePreviewRuntime.batchRunner.Run(serveCtx)}
 		}()
-		fmt.Println("Lifecycle-gated S3/SFTP batch ingestion enabled")
+		serveLog.Info("lifecycle-gated batch ingestion enabled",
+			observability.F(observability.FieldComponent, "batch-runner"),
+			observability.F(observability.FieldEnabled, true))
 	}
 	if autorouteSweeper != nil {
 		markComponent(observability.ComponentAutorouteSweep, observability.ComponentRunning)
 		go func() {
 			errCh <- componentError{name: "autoroute-sweep", err: autorouteSweeper.Run(serveCtx)}
 		}()
-		fmt.Printf("Pending autoroute expiry sweep enabled (every %s)\n", autorouteSweeper.Interval())
+		serveLog.Info("pending autoroute expiry sweep enabled",
+			observability.F(observability.FieldComponent, "autoroute-sweep"),
+			observability.F(observability.FieldDurationMs, autorouteSweeper.Interval().Milliseconds()))
 	}
 	if autorouteNotifier != nil {
 		markComponent(observability.ComponentAutorouteNotify, observability.ComponentRunning)
 		go func() {
 			errCh <- componentError{name: "autoroute-notify", err: autorouteNotifier.Run(serveCtx)}
 		}()
-		fmt.Printf("Pending autoroute review notifications enabled (every %s, confidence >= %.2f)\n",
-			autorouteNotifier.Interval(), autorouteNotifier.MinConfidence())
+		serveLog.Info("pending autoroute review notifications enabled",
+			observability.F(observability.FieldComponent, "autoroute-notify"),
+			observability.F(observability.FieldDurationMs, autorouteNotifier.Interval().Milliseconds()),
+			observability.F(observability.FieldStatus, fmt.Sprintf("min_confidence=%.2f", autorouteNotifier.MinConfidence())))
 	}
 	if retentionPurger != nil {
 		markComponent(observability.ComponentRetentionPurge, observability.ComponentRunning)
@@ -5431,12 +5564,15 @@ func runServe(args []string) error {
 	// Wait for signal or error
 	select {
 	case sig := <-sigCh:
-		fmt.Printf("\nReceived %v, shutting down...\n", sig)
+		serveLog.Info("shutdown signal received",
+			observability.F(observability.FieldComponent, "serve"),
+			observability.F(observability.FieldSignal, sig.String()))
 		cancelServe()
 
 		// Stop Temporal worker first (allows in-flight workflows to complete)
 		if temporalWorker != nil {
-			fmt.Println("Stopping Temporal worker...")
+			serveLog.Info("stopping temporal worker",
+				observability.F(observability.FieldComponent, "temporal-worker"))
 		}
 		cleanupExternalRuntimes()
 

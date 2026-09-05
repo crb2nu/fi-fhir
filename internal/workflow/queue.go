@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"text/template"
@@ -316,11 +317,18 @@ func NewLogQueuePublisher(config map[string]string) (QueuePublisher, error) {
 	return &LogQueuePublisher{name: name}, nil
 }
 
-// Publish logs the message.
-func (p *LogQueuePublisher) Publish(topic string, key []byte, value []byte, headers map[string]string) error {
-	fmt.Printf("[Queue:%s] Topic: %s, Key: %s, Headers: %v, Value: %s\n",
-		p.name, topic, string(key), headers, string(value))
-	return nil
+// redactedHeaderNames renders the header name set, sorted so the line is stable
+// across runs. It never renders a header value.
+func redactedHeaderNames(headers map[string]string) string {
+	if len(headers) == 0 {
+		return "[]"
+	}
+	names := make([]string, 0, len(headers))
+	for name := range headers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return "[" + strings.Join(names, ",") + "]"
 }
 
 // Close is a no-op for the log publisher.

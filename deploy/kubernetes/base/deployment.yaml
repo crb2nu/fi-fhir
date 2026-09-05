@@ -8,6 +8,29 @@ metadata:
     app.kubernetes.io/component: server
 spec:
   replicas: 2
+  # Declared rather than inherited. Without this block Kubernetes applies its
+  # default 25%/25%, which on two replicas rounds to maxUnavailable: 1 — so a
+  # one-version rolling upgrade runs on a single replica for its whole
+  # duration, and the PodDisruptionBudget's minAvailable: 1 does not prevent it
+  # (a PDB governs voluntary evictions, not a Deployment's own rollout). Budget
+  # 6 asks for a rolling upgrade that preserves resumable work; measuring the
+  # defaults would be measuring Kubernetes, not this product.
+  #
+  # maxUnavailable: 0 keeps both replicas serving throughout; maxSurge: 1 pays
+  # for that with one extra pod. The app holds no ReadWriteOnce volume, so a
+  # surge pod always schedules — the constraint that forces Recreate on
+  # postgres.yaml does not apply here.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  # A pod counts as available only after it has been Ready for 15 seconds. The
+  # readiness probe checks dependencies (/ready is 503 while the submission or
+  # terminology database is unreachable), so a pod that flaps Ready-then-503
+  # would otherwise let the rollout advance and take the healthy replica with
+  # it. Fifteen seconds is longer than one readiness period (10s).
+  minReadySeconds: 15
   selector:
     matchLabels:
       app.kubernetes.io/name: fi-fhir
@@ -22,6 +45,19 @@ spec:
         prometheus.io/path: "/metrics"
     spec:
       serviceAccountName: fi-fhir
+      # Endpoint removal and SIGTERM race: kube-proxy and any ingress rewrite
+      # their rules asynchronously after the pod leaves the Service, so a pod
+      # that stops accepting the moment it is told to terminate refuses
+      # requests that were already routed to it. The preStop below holds the
+      # pod open while that propagates.
+      #
+      # The grace period must exceed preStop + the server's own shutdown
+      # budget. FI_FHIR_SERVER_SHUTDOWN_TIMEOUT defaults to 10s, and the
+      # background components (delivery, batch, MLLP, retention) drain after
+      # the HTTP server; 60s leaves room for a delivery attempt in flight
+      # rather than SIGKILLing one mid-publish, which would leave a leased
+      # attempt to expire and redeliver.
+      terminationGracePeriodSeconds: 60
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
@@ -167,6 +203,19 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 3
+
+          # The sleep handler, not exec. Dockerfile:27 builds this image FROM
+          # gcr.io/distroless/static-debian12:nonroot — there is no shell and no
+          # /bin/sleep, so an exec preStop has nothing to run. `sleep` is a
+          # first-class lifecycle action (PodLifecycleSleepAction, GA well
+          # before the 1.36 target) and is the only handler this image can use
+          # without adding a binary to a distroless static image, which the
+          # 5.1 confinement ruling forbids for a different reason but with the
+          # same logic.
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 10
 
           securityContext:
             allowPrivilegeEscalation: false

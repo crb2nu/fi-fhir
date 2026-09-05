@@ -8,6 +8,13 @@ spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
   {{- end }}
+  # Declared rather than inherited — see values.yaml `updateStrategy` for why
+  # the Kubernetes default is the wrong answer at two replicas.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      {{- toYaml .Values.updateStrategy.rollingUpdate | nindent 6 }}
+  minReadySeconds: {{ .Values.updateStrategy.minReadySeconds }}
   selector:
     matchLabels:
       {{- include "fi-fhir.selectorLabels" . | nindent 6 }}
@@ -27,6 +34,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "fi-fhir.serviceAccountName" . }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
@@ -191,6 +199,14 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 3
+
+          # The sleep handler, not exec: Dockerfile:27 is
+          # gcr.io/distroless/static-debian12:nonroot, which has no shell and
+          # no /bin/sleep for an exec handler to run.
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: {{ .Values.preStopSleepSeconds }}
 
           resources:
             {{- toYaml .Values.resources | nindent 12 }}

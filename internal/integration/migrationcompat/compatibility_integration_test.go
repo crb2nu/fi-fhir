@@ -98,15 +98,27 @@ func TestMigrationCompatibility_ConcurrentReplicaMigrationRollbackAndRestore(t *
 		if err := source.Close(); err != nil {
 			t.Fatalf("close source pool before dump: %v", err)
 		}
+
+		// Slice 4.4c task 7: the recovery clock starts at the dump and stops at
+		// the first successful Claim, because "recovered" means the delivery
+		// worker is doing work again, not that psql exited 0.
+		recoveryStart := time.Now()
 		runRoundTripScript(t, sourceDSN, targetName)
+		restoreElapsed := time.Since(recoveryStart)
 
 		restored := openCompatDB(t, targetDSN)
 		after := durableRowCounts(ctx, t, restored)
 		assertRowCountsEqual(t, before, after)
 		assertPHISurvived(ctx, t, restored, fixture)
+		// The restored database's ledgers were never checked before slice 4.4c
+		// (.loom/33 defect D3): a restore that lost the six *_schema_migrations
+		// tables passed every other assertion here.
+		assertEveryLedgerAtDeclaredVersion(ctx, t, restored)
 		assertImmutabilityGuardsSurvived(ctx, t, restored, fixture)
 		assertProvenanceCheckSurvivedAndIsStillNotValid(ctx, t, restored)
 		assertQueuedAttemptResumes(ctx, t, restored, fixture)
+
+		reportRecoveryTime(t, recoveryStart, restoreElapsed, before)
 	})
 }
 
@@ -211,8 +223,30 @@ func assertLivePathStillAttributesExports(ctx context.Context, t *testing.T, db 
 
 // durableClasses are the tables a restore has to bring back intact. The first
 // five are the durable classes the PHI/egress contract enumerates
-// (.loom/32 correction 9); the rest are the session workspace and the identity
-// provenance ledger.
+// (.loom/32 correction 9); then the session workspace and the identity
+// provenance ledger; then the whole 4.1e surface.
+//
+// The 4.1e tables were missing until slice 4.4c, and their absence was not a
+// row-count gap. A table with no rows in the dump has no rows to mutate on the
+// restored copy, so five of the newest immutability triggers —
+// integration_session_exports_undeletable,
+// integration_session_stream_events_append_only,
+// integration_session_stream_events_prunable,
+// integration_retention_purge_audit_immutable, and
+// integration_retention_policy_audit_immutable — were never exercised after a
+// restore at all (.loom/33 defect D3).
+//
+// A table added here must also be seeded by seedDurableFixture:
+// assertRowCountsEqual refuses a class whose "before" count is zero rather than
+// comparing 0 to 0 and calling it preserved.
+//
+// STANDING OBLIGATION, and the whole point of D3: a lane that adds durable
+// state adds it here, in the same sprint. For Sprint 5 that is exactly one
+// table — Lane S5-D's per-deployment token-bucket ledger, lifecycle migration
+// 0002. Lane S5-F released its processor 0006 claim and ships no schema change
+// at all (its backlog gauge is a query over existing indexes), so nothing else
+// is pending. This list going stale is not a gap in coverage that shows up as a
+// failure; it shows up as a green proof that stopped watching.
 var durableClasses = []string{
 	"integration_receipts",
 	"integration_canonical_events",
@@ -222,6 +256,11 @@ var durableClasses = []string{
 	"integration_sessions",
 	"integration_session_exports",
 	"integration_delivery_identity_decisions",
+	"integration_session_samples",
+	"integration_session_stream_events",
+	"integration_retention_policies",
+	"integration_retention_policy_audit",
+	"integration_retention_purge_audit",
 }
 
 func durableRowCounts(ctx context.Context, t *testing.T, db *sql.DB) map[string]int {
@@ -272,39 +311,31 @@ func assertPHISurvived(ctx context.Context, t *testing.T, db *sql.DB, fixture du
 // schema, not convention, refuses mutation. A dump/restore that recreated the
 // tables without their triggers would leave a database that looks complete and
 // silently permits every mutation C1 forbids.
+//
+// It asserts the SQLSTATE, not merely that an error came back, and that is the
+// whole of slice 4.4c's repair here. Until 4.4c this function checked
+// `err != nil`, which cannot tell a guard refusal from a foreign-key refusal —
+// and three of its six mutations were refused by a foreign key, so they stayed
+// green with their triggers dropped (.loom/33 defect D3). A trigger refusal is
+// SQLSTATE P0001; anything else means the assertion is not watching the
+// mechanism it names. TestChaosRecovery_RestoreProofAssertionsAreTriggerAttributed
+// is the negative control that keeps that true.
 func assertImmutabilityGuardsSurvived(ctx context.Context, t *testing.T, db *sql.DB, fixture durableFixture) {
 	t.Helper()
 
-	mutations := []struct {
-		name  string
-		query string
-		args  []any
-	}{
-		{"delete a canonical event",
-			`DELETE FROM integration_canonical_events WHERE tenant_id = $1 AND event_id = $2`,
-			[]any{compatTenantID, fixture.EventID}},
-		{"redact a canonical event payload",
-			`UPDATE integration_canonical_events SET payload_json = '{}'::jsonb WHERE tenant_id = $1 AND event_id = $2`,
-			[]any{compatTenantID, fixture.EventID}},
-		{"delete a lineage row",
-			`DELETE FROM integration_message_lineage WHERE tenant_id = $1 AND lineage_id = $2`,
-			[]any{compatTenantID, fixture.LineageID}},
-		{"delete a receipt",
-			`DELETE FROM integration_receipts WHERE tenant_id = $1 AND receipt_id = $2`,
-			[]any{compatTenantID, fixture.ReceiptID}},
-		{"delete a delivery attempt",
-			`DELETE FROM integration_delivery_attempts WHERE tenant_id = $1 AND attempt_id = $2`,
-			[]any{compatTenantID, fixture.AttemptID}},
-		{"mutate a session export",
-			`UPDATE integration_session_exports SET reason = 'rewritten' WHERE tenant_id = $1 AND export_id = $2`,
-			[]any{compatTenantID, fixture.ExportID}},
-	}
-
+	mutations := guardedMutations(fixture)
 	for _, mutation := range mutations {
-		if _, err := db.ExecContext(ctx, mutation.query, mutation.args...); err == nil {
-			t.Fatalf("restored database ALLOWED %q. The C1 immutability guard did not survive "+
+		_, err := db.ExecContext(ctx, mutation.query, mutation.args...)
+		if err == nil {
+			t.Fatalf("restored database ALLOWED %q. The immutability guard did not survive "+
 				"pg_dump/restore, so the restored deployment has weaker PHI governance than the "+
 				"one it replaced.", mutation.name)
+		}
+		if code := sqlStateOf(err); code != raiseException {
+			t.Fatalf("restored database refused %q with SQLSTATE %s, want %s.\n"+
+				"  A refusal that is not the trigger speaking is not evidence the trigger "+
+				"survived: %v",
+				mutation.name, describeSQLState(code), describeSQLState(raiseException), err)
 		}
 	}
 
@@ -314,7 +345,8 @@ func assertImmutabilityGuardsSurvived(ctx context.Context, t *testing.T, db *sql
 			t.Fatalf("%s is empty after the refused mutations; one of them partially applied", table)
 		}
 	}
-	t.Logf("assertion PASSED: all %d guarded mutations still raise on the restored database", len(mutations))
+	t.Logf("assertion PASSED: all %d guarded mutations still raise P0001 on the restored database",
+		len(mutations))
 }
 
 // assertProvenanceCheckSurvivedAndIsStillNotValid guards the other half of the

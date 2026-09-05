@@ -21,6 +21,8 @@ include:
   - local: ci/test-destination-transport.yml
   - local: ci/lint-edi.yml
   - local: ci/test-mllp-rate-quota.yml
+  - local: ci/test-structured-logging.yml
+  - local: ci/s5b-chaos-dr.yml
 stages:
   - lint
   - test
@@ -380,10 +382,25 @@ lint:sdk-typescript:
 lint:helm:
   stage: lint
   image: ${DOCKERHUB_CACHE_PREFIX}/dtzar/helm-kubectl:4.1.1
+  variables:
+    # Pinned. kubeconform resolves the Kubernetes JSON schemas at run time, so
+    # an unpinned tool would silently change what "valid" means between runs.
+    KUBECONFORM_VERSION: "0.7.0"
   script:
     - helm lint deploy/helm/fi-fhir/
     - helm template fi-fhir deploy/helm/fi-fhir/ > /dev/null
     - sh scripts/validate-kustomize-preview.sh
+    # Slice 4.4c: schema validation against the pinned Kubernetes minor, plus
+    # the first render of values-reference-profile.yaml anywhere in CI. helm
+    # lint and `helm template > /dev/null` prove the templates parse; they do
+    # not know what a Deployment is.
+    - apk add --no-cache bash curl
+    - >-
+      curl -fsSL
+      "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz"
+      | tar -xz -C /usr/local/bin kubeconform
+    - kubeconform -v
+    - bash scripts/validate-k8s-schema.sh
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

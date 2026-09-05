@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/llm"
 )
@@ -26,7 +27,6 @@ type Engine struct {
 	dlqConfig    DLQConfig
 	metrics      Metrics
 	tracer       Tracer
-	logger       Logger
 	llmClient    llm.Client
 
 	totalEventsProcessed int64
@@ -118,7 +118,6 @@ func NewEngine(workflow *Workflow) (*Engine, error) {
 		transformer:  NewTransformer(nil), // Default transformer without terminology
 		metrics:      &NoOpMetrics{},      // Default to no-op metrics
 		tracer:       &NoOpTracer{},       // Default to no-op tracer
-		logger:       &NoOpLogger{},       // Default to no-op logger
 	}
 
 	// Register built-in action handlers
@@ -165,22 +164,6 @@ func (e *Engine) SetTracer(t Tracer) {
 // GetTracer returns the configured tracer.
 func (e *Engine) GetTracer() Tracer {
 	return e.tracer
-}
-
-// SetLogger configures a logger for trace-correlated logging.
-// If not set, logging is discarded (no-op). Use NewStructuredLogger for
-// production with trace ID correlation.
-func (e *Engine) SetLogger(l Logger) {
-	if l == nil {
-		e.logger = &NoOpLogger{}
-	} else {
-		e.logger = l
-	}
-}
-
-// GetLogger returns the configured logger.
-func (e *Engine) GetLogger() Logger {
-	return e.logger
 }
 
 // SetTerminologyMapper configures a terminology mapper for transforms.
@@ -271,13 +254,6 @@ func (e *Engine) ProcessWithContext(ctx context.Context, event interface{}) *Res
 		),
 	)
 	defer rootSpan.End()
-
-	// Log event processing start with trace correlation
-	e.logger.Debug(ctx, "processing event",
-		F("event_type", eventType),
-		F("source", source),
-		F("workflow", e.workflow.Name),
-	)
 
 	result := &Result{
 		RouteResults: make([]RouteResult, 0, len(e.workflow.Routes)),
@@ -370,14 +346,6 @@ func (e *Engine) ProcessWithContext(ctx context.Context, event interface{}) *Res
 				actionSpan.SetAttribute(AttrActionSuccess, false)
 				rr.ActionErrors = append(rr.ActionErrors, actionErr)
 
-				// Log action failure with trace correlation
-				e.logger.Error(actionCtx, "action failed",
-					F("action_type", action.Type),
-					F("route", route.Name),
-					F("error", err.Error()),
-					F("duration_ms", actionDuration.Milliseconds()),
-				)
-
 				// Record failed action metric
 				e.metrics.ActionExecuted(action.Type, route.Name, false, actionDuration)
 
@@ -416,37 +384,12 @@ func (e *Engine) ProcessWithContext(ctx context.Context, event interface{}) *Res
 	// Set root span status
 	if success {
 		rootSpan.SetStatus(SpanStatusOK, "")
-		e.logger.Info(ctx, "event processed",
-			F("event_type", eventType),
-			F("source", source),
-			F("success", true),
-			F("duration_ms", duration.Milliseconds()),
-			F("routes_matched", countMatchedRoutes(result)),
-		)
 	} else {
 		rootSpan.SetStatus(SpanStatusError, "event processing had errors")
 		rootSpan.SetAttribute("error.count", len(result.AllErrors()))
-		e.logger.Warn(ctx, "event processed with errors",
-			F("event_type", eventType),
-			F("source", source),
-			F("success", false),
-			F("duration_ms", duration.Milliseconds()),
-			F("error_count", len(result.AllErrors())),
-		)
 	}
 
 	return result
-}
-
-// countMatchedRoutes counts how many routes matched in the result.
-func countMatchedRoutes(result *Result) int {
-	count := 0
-	for _, rr := range result.RouteResults {
-		if rr.Matched {
-			count++
-		}
-	}
-	return count
 }
 
 // getTransformType returns a string identifier for the transform type.
@@ -485,8 +428,11 @@ func (e *Engine) sendToDLQ(event interface{}, routeName, actionType string, err 
 	}
 
 	if pushErr := e.dlq.Push(failedEvent); pushErr != nil {
-		// Log error but don't fail the processing
-		fmt.Printf("Warning: failed to push event to DLQ: %v\n", pushErr)
+		// Log error but don't fail the processing. The error is bounded on the
+		// way out: a DLQ implementation is free to quote the record it could
+		// not store, so an unbounded %v here is an unbounded payload.
+		// See `.loom/40-decisions.md` 2026-08-09.
+		fmt.Printf("Warning: failed to push event to DLQ: %s\n", boundedErrorText(pushErr))
 	} else {
 		// Record DLQ push metric
 		e.metrics.DLQPushed(routeName, actionType, errorType)
@@ -667,4 +613,27 @@ func (e *Engine) ReprocessDLQEvent(id string) (*Result, error) {
 	// Record successful DLQ pop metric
 	e.metrics.DLQPopped(failedEvent.RouteName, true)
 	return processResult, nil
+}
+
+// maxLoggedErrorBytes bounds an error string on its way to stdout.
+const maxLoggedErrorBytes = 256
+
+// boundedErrorText renders an error for a log line with an explicit ceiling.
+// Storage and DLQ errors are free to quote the record they could not write, so
+// an unbounded `%v` in a print statement is an unbounded payload. Truncation
+// stops on a rune boundary so the result stays valid UTF-8, and the number of
+// dropped bytes is reported so a reader can tell truncation from brevity.
+func boundedErrorText(err error) string {
+	if err == nil {
+		return "<nil>"
+	}
+	msg := err.Error()
+	if len(msg) <= maxLoggedErrorBytes {
+		return msg
+	}
+	cut := maxLoggedErrorBytes
+	for cut > 0 && !utf8.RuneStart(msg[cut]) {
+		cut--
+	}
+	return fmt.Sprintf("%s… (%d bytes truncated)", msg[:cut], len(msg)-cut)
 }

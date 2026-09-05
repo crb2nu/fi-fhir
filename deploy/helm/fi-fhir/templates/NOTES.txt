@@ -54,9 +54,14 @@ Configuration:
   - Preview registry is mounted at {{ .Values.config.preview.registryPath }}
   - Preview bearer is mounted at {{ .Values.config.preview.bearerTokenPath }}
   - Logs are in {{ .Values.config.observability.logFormat }} format at {{ .Values.config.observability.logLevel }} level
-{{- if .Values.config.observability.tracingEnabled }}
-  - Tracing is enabled with {{ .Values.config.observability.tracingSampler }} sample rate
-{{- end }}
+{{- /*
+  The tracing line was removed in slice 4.4d. It was a nil-false conditional:
+  values.yaml has carried no tracingEnabled key since 4.4a, so it rendered
+  nothing — and would have resurrected the false claim the moment the keys came
+  back, without anyone re-reading this file. NOT IMPLEMENTED: there is no
+  OpenTelemetry exporter in the serve path. The line comes back with the
+  exporter, not with the values keys.
+*/}}
 
 {{- if .Values.config.database.enabled }}
 

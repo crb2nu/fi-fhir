@@ -115,8 +115,27 @@ The following remain blocking:
    restart, and profile-revision tests;
 2. authenticated HTTP and MLLP protocol journeys;
 3. Helm and Kustomize render plus Kubernetes 1.36 install, upgrade, rollback,
-   and uninstall proof;
-4. PostgreSQL backup/restore and the documented RPO/RTO proof;
+   and uninstall proof — **render and schema validation closed by slice 4.4c**
+   (`scripts/validate-k8s-schema.sh`, blocking in `lint:helm`): the chart at
+   default values, the chart at the reference profile, the Kustomize base, and
+   the production overlay all validate `-strict` against the pinned 1.36 API
+   schemas, with a negative control that must be rejected. Both application
+   Deployments now declare a rolling-update budget, a grace period, and a
+   `preStop`, and the PostgreSQL Deployment uses `Recreate` so it cannot wedge
+   on its ReadWriteOnce volume. **Live install, upgrade, rollback, and uninstall
+   evidence on a 1.36 cluster remains blocking** and is the last RC item;
+4. PostgreSQL backup/restore and the documented RTO proof — **closed by slice
+   4.4c**: `test:migration-compatibility` proves the restore is faithful (rows,
+   PHI payloads, immutability guards attributable to those guards by SQLSTATE,
+   the `NOT VALID` provenance CHECK, and all six schema ledgers at their
+   declared versions), proves the delivery worker resumes from the restored
+   state, and archives a measured recovery time as `recovery-rto.json`. The
+   **RPO half stays open and is an operator responsibility with a stated
+   method**, not a product claim: bounding data loss to minutes requires
+   continuous WAL archiving and point-in-time recovery, which belongs to
+   whoever runs the database. See `docs/operations/PRODUCTION-HARDENING.md`,
+   "What this repository claims, and what it hands to the operator", and
+   `.loom/40-decisions.md` (2026-08-09, "WAL/PITR posture");
 5. reference-profile latency, throughput, soak, and recovery reports;
 6. browser/accessibility matrix evidence;
 7. official healthcare standards conformance evidence where applicable;

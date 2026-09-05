@@ -98,7 +98,7 @@ See `ui/README.md` for the current UI roadmap and dev commands.
 - **Production ingestion**: MLLP listener with mTLS and ACK semantics, authenticated HTTP endpoint, S3/SFTP batch worker
 - **Deployment lifecycle**: immutable content-addressed revisions, draft → validated → approved → published → deployed
 - **Reliability**: Retry with backoff, circuit breaker, dead letter queue, rate limiting
-- **Observability**: Prometheus metrics and structured logging; OpenTelemetry tracing is scaffolded at the workflow layer but not wired into `serve` (see "Tracing (OpenTelemetry) — NOT IMPLEMENTED" below)
+- **Observability**: Prometheus metrics and structured JSON logging; OpenTelemetry tracing is scaffolded at the workflow layer but not wired into `serve` (see "Tracing (OpenTelemetry) — NOT IMPLEMENTED" below)
 - **Production-ready**: Helm chart, CI/CD pipelines, security hardening guide
 
 ### Companion tool

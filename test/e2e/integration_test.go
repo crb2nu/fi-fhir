@@ -18,6 +18,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -43,6 +44,39 @@ func getIntegrationConfig() *IntegrationConfig {
 	}
 }
 
+// requireService decides what an unreachable dependency means.
+//
+// Slice 4.4c. Every dependency check in this file used to t.Skipf, and no CI
+// job ever passed -tags=e2e, so the whole file was unreachable in two
+// independent ways at once: the job did not exist, and if it had, a service
+// container that failed to start would have turned the suite green rather than
+// red. That is the same failure shape as an integration proof that skips when
+// its database is missing, and this repository already has an answer for it —
+// requireCompatDSN in internal/integration/migrationcompat.
+//
+// FI_FHIR_E2E_REQUIRED_SERVICES names the dependencies the caller has actually
+// provided, comma-separated. A dependency in that list is fatal when it is
+// unreachable; anything else still skips, so a workstation with no Compose
+// stack keeps working exactly as before. The CI job sets the list to precisely
+// the services it stands up, which makes "zero skips attributable to missing
+// infrastructure" a property of the job rather than a hope.
+func requireService(t *testing.T, service string, err error) {
+	t.Helper()
+	if err == nil {
+		return
+	}
+	for _, required := range strings.Split(os.Getenv("FI_FHIR_E2E_REQUIRED_SERVICES"), ",") {
+		if strings.TrimSpace(required) != service {
+			continue
+		}
+		t.Fatalf("%s is declared required by FI_FHIR_E2E_REQUIRED_SERVICES but is "+
+			"unreachable: %v\n"+
+			"  A declared dependency that is missing must fail this suite. Skipping here "+
+			"would report a green e2e run for a test that never executed.", service, err)
+	}
+	t.Skipf("%s not available: %v", service, err)
+}
+
 func getEnv(key, defaultVal string) string {
 	if val := os.Getenv(key); val != "" {
 		return val
@@ -58,17 +92,13 @@ func TestDatabaseAction(t *testing.T) {
 
 	// Connect to database
 	db, err := sql.Open("postgres", intCfg.PostgresURL)
-	if err != nil {
-		t.Skipf("Could not connect to PostgreSQL: %v", err)
-	}
+	requireService(t, "postgres", err)
 	defer db.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := db.PingContext(ctx); err != nil {
-		t.Skipf("PostgreSQL not available: %v", err)
-	}
+	requireService(t, "postgres", db.PingContext(ctx))
 
 	// Create test table
 	_, err = db.Exec(`
@@ -142,13 +172,12 @@ func TestFHIRAction(t *testing.T) {
 
 	// Check FHIR server availability
 	resp, err := http.Get(intCfg.FHIRBaseURL + "/metadata")
-	if err != nil {
-		t.Skipf("FHIR server not available: %v", err)
-	}
+	requireService(t, "hapi-fhir", err)
 	resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		t.Skipf("FHIR server returned status %d", resp.StatusCode)
+		requireService(t, "hapi-fhir",
+			fmt.Errorf("/metadata returned status %d", resp.StatusCode))
 	}
 
 	// Create workflow with FHIR action
@@ -223,9 +252,7 @@ func TestWebhookAction(t *testing.T) {
 
 	// Check webhook server availability
 	resp, err := http.Get(intCfg.WebhookURL)
-	if err != nil {
-		t.Skipf("Webhook server not available: %v", err)
-	}
+	requireService(t, "webhook-echo", err)
 	resp.Body.Close()
 
 	// Create workflow with webhook action
@@ -341,9 +368,7 @@ func TestObservabilityEndpoints(t *testing.T) {
 	metricsURL := getEnv("TEST_FIFHIR_METRICS_URL", "http://localhost:9090")
 
 	resp, err := http.Get(baseURL + "/health")
-	if err != nil {
-		t.Skipf("fi-fhir server not available: %v", err)
-	}
+	requireService(t, "fi-fhir", err)
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
@@ -402,9 +427,7 @@ func TestObservabilityEndpoints(t *testing.T) {
 	}
 
 	metricsResp, err := http.Get(metricsURL + "/metrics")
-	if err != nil {
-		t.Skipf("metrics listener not available at %s: %v", metricsURL, err)
-	}
+	requireService(t, "fi-fhir-metrics", err)
 	defer func() { _ = metricsResp.Body.Close() }()
 	if metricsResp.StatusCode != http.StatusOK {
 		t.Errorf("/metrics returned status %d, want 200", metricsResp.StatusCode)

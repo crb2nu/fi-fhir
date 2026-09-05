@@ -29,7 +29,8 @@
 .PHONY: lint-edi                                                       # edilint dogfood
 .PHONY: mllp-rate-quota                                                # 4.4e   — S5-D
 .PHONY: phi-retention-throughput phi-retention-throughput-negative-control # D1 — S5-F
-.PHONY: structured-logging                                             # 4.4d   — S5-C
+.PHONY: structured-logging structured-logging-negative-control          # 4.4d   — S5-C
+.PHONY: validate-k8s-schema chaos-recovery e2e-live                   # 4.4c   — S5-B
 
 # Tool versions (update these when upgrading)
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -256,6 +257,13 @@ mllp-rate-quota:
 # work. Runs the two proofs AND their negative controls in one invocation: a
 # control that passes means the proof stopped exercising its mechanism.
 #
+# Slice 4.4c adds TestChaosRecovery_RestoreProofAssertionsAreTriggerAttributed,
+# the round-trip's fourth member and its attribution control. It drops every
+# non-internal trigger on the restored copy and requires every guarded mutation
+# to then succeed. Three of them did not, which is why it exists: a mutation a
+# foreign key refuses anyway keeps its assertion green with the guard gone.
+# Set FI_FHIR_RECOVERY_REPORT to a path to archive the measured RTO as JSON.
+#
 # The round-trip shells out to scripts/pgdump-roundtrip.sh, which needs client
 # tools whose MAJOR version matches the server. pg_dump 17+ writes
 # `SET transaction_timeout = 0` and PostgreSQL 16 rejects it, so a newer client
@@ -265,27 +273,83 @@ mllp-rate-quota:
 # Requires POSTGRES_TEST_URL and fails rather than skipping in CI.
 migration-compatibility:
 	go test -tags=integration -race -count=1 -timeout=600s \
-		-run '^TestMigrationCompatibility_(ConcurrentReplicaMigrationRollbackAndRestore|ExportInsertShapeSurvivesOneVersionRollback|NegativeControls)$$' \
+		-run '^(TestMigrationCompatibility_(ConcurrentReplicaMigrationRollbackAndRestore|ExportInsertShapeSurvivesOneVersionRollback|NegativeControls)|TestChaosRecovery_RestoreProofAssertionsAreTriggerAttributed)$$' \
 		./internal/integration/migrationcompat
 
-# Slice 4.4d structured-logging gate (Lane S5-C). Two halves in one invocation:
-# a real `fi-fhir serve` against PostgreSQL emits no JSON line and no correlated
-# line, and the shipped `fi-fhir workflow run` surface with the `log` queue
-# driver prints a planted PHI sentinel verbatim on stdout.
+# Slice 4.4d structured-logging kill-test (Lane S5-C). Two halves in one
+# invocation: a real `fi-fhir serve` against PostgreSQL emits only JSON lines,
+# every one tenant-stamped, PHI-sentinel-free, and drawn from the bounded field
+# allowlist; and the shipped `fi-fhir workflow run` surface with the `log` queue
+# driver records sizes rather than the payload.
 #
-# It PASSES on pre-slice `main` on purpose: that is what proves both halves of
-# the lane's premise. After the slice lands it inverts and becomes the lane's
-# negative control. Requires POSTGRES_TEST_URL for the serve half; the queue
-# half needs no database.
+# This is the day-1 gate inverted. The gate
+# (TestStructuredLogging_ServeEmitsNoStructuredLogAndTheQueueDriverPrintsPayloads)
+# PASSED on pre-slice main asserting the opposite of both halves; the two cannot
+# both pass. Requires POSTGRES_TEST_URL for the serve half; the queue half needs
+# no database.
 structured-logging:
 	go test -tags=integration -race -count=1 -timeout=600s \
-		-run '^TestStructuredLogging_ServeEmitsNoStructuredLogAndTheQueueDriverPrintsPayloads$$' \
+		-run '^TestStructuredLogging_CorrelatedAndPHIFree$$' \
 		./internal/observability
+
+# Negative control for the above. The structuredloggingleak tag restores the
+# pre-slice payload print in the `log` queue driver (queue_publish_leak.go), so
+# the PHI assertion must FAIL. This target therefore inverts: a zero exit status
+# means the sentinel scan has stopped measuring anything, which is exactly the
+# failure 4.2a's negative control caught.
+#
+# The other control runs inside the proof itself
+# (negative_control_allowlist_scanner_detects_an_unlisted_key), because a field
+# the handler drops never reaches the stream and so cannot be planted from
+# outside.
+structured-logging-negative-control:
+	@if go test -tags "integration structuredloggingleak" -count=1 -timeout=600s \
+		-run '^TestStructuredLogging_CorrelatedAndPHIFree$$' ./internal/observability >/dev/null 2>&1; then \
+		echo "negative control FAILED: kill-test still passes with the payload print restored"; \
+		exit 1; \
+	else \
+		echo "negative control OK: kill-test fails with the payload print restored"; \
+	fi
 
 # Lane S4-E transport-gate kill-test: the real GraphQL handler with real 4.1a
 # OIDC tokens, one case per role combination, plus exhaustiveness of the
 # per-root-field role map against the schema the server executes. No database:
 # the gate refuses or admits before any resolver touches storage.
+# Slice 4.4c: the live-server end-to-end assertion. Builds nothing itself —
+# point TEST_FIFHIR_URL and TEST_FIFHIR_METRICS_URL at a running fi-fhir and it
+# asserts /health, /ready component aggregation, and the metrics exposition.
+# FI_FHIR_E2E_REQUIRED_SERVICES turns a declared-but-unreachable dependency into
+# a failure instead of a skip; CI job test:e2e sets it.
+#
+# The rest of ./test/e2e/... is NOT run here and is red on main — see
+# ci/s5b-chaos-dr.yml for the executed evidence and the workflow-schema drift
+# that causes it.
+e2e-live:
+	FI_FHIR_E2E_REQUIRED_SERVICES=fi-fhir,fi-fhir-metrics \
+	go test -tags=e2e,integration -count=1 -timeout=300s -v \
+		-run '^TestObservabilityEndpoints$$' \
+		./test/e2e/...
+
+# Slice 4.4c budget 4: destination recovery under an injected fault. An in-test
+# TCP proxy severs the connection to a live TLS destination, the per-destination
+# circuit opens, and every queued attempt then resumes exactly once on repair
+# with no operator intervention. No broker: every destination is https-class, so
+# the dispatcher never reaches the publisher.
+#
+# Requires POSTGRES_TEST_URL and fails rather than skipping in CI.
+chaos-recovery:
+	go test -tags=integration -race -count=1 -timeout=300s \
+		-run '^TestChaosRecovery_DestinationOutageOpensTheCircuitAndResumesOnRepair$$' \
+		./internal/integration/delivery
+
+# Slice 4.4c deployment-artifact gate: render the Helm chart (default values and
+# the reference profile), the Kustomize base, and the production overlay, then
+# validate every rendered resource against the pinned Kubernetes minor
+# (docs/operations/SUPPORTED-1.0.md:24). Carries its own negative control.
+# Skips locally without kubeconform; fails in CI. Runs in lint:helm.
+validate-k8s-schema:
+	bash scripts/validate-k8s-schema.sh
+
 transport-gate:
 	go test -race -count=1 -timeout=120s \
 		-run '^TestTransportGate' \

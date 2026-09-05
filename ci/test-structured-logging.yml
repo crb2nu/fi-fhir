@@ -1,0 +1,60 @@
+# Slice 4.4d Lane S5-C: the structured-logging kill-test.
+#
+# It boots a real `fi-fhir serve` against PostgreSQL 16, submits an
+# authenticated HL7v2 message carrying PHI sentinels through the durable
+# ingress, and asserts of every line the process wrote: it parses as JSON, it
+# carries the deployment tenant, it contains no sentinel in any key or value, no
+# field key falls outside `observability.PermittedLogFields()`, and no line
+# reports `dropped_fields` — a non-zero count means a caller tried to write
+# outside the allowlist and the handler caught it, which is correct behaviour
+# and a defect to fix. It also asserts serve emits no `[Queue:` line, which
+# re-proves on every run the reachability correction the day-1 gate found:
+# the legacy queue driver is not on the serve path.
+#
+# The second half drives the shipped `fi-fhir workflow run` surface with the
+# `log` queue driver and asserts it records sizes rather than the message key
+# and payload.
+#
+# This job runs the proof AND both of its negative controls. The day-1 gate
+# (TestStructuredLogging_ServeEmitsNoStructuredLogAndTheQueueDriverPrintsPayloads)
+# PASSED on pre-slice `main` asserting the opposite of both halves; the two
+# cannot both pass, which is what makes this proof falsifiable.
+test:structured-logging:
+  extends: .integration-proof
+  variables:
+    POSTGRES_DB: fi_fhir_structured_logging_test
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_structured_logging_test?sslmode=disable"
+    PROOF_FAILURE_SUMMARY: "serve emitted an unstructured, untenanted, PHI-bearing, or unlisted-key log line, or the log queue driver went back to printing payloads."
+    PROOF_LOCAL: "POSTGRES_TEST_URL=... make structured-logging && POSTGRES_TEST_URL=... make structured-logging-negative-control"
+    PROOF_DOCS: "docs/operations/PRODUCTION-HARDENING.md (Audit Logging), .loom/40-decisions.md 2026-08-09"
+  script:
+    - !reference [.integration-proof-toolchain, script]
+    # Existence guard. Integration helpers t.Skipf rather than t.Fatalf when a
+    # service is unreachable, so a renamed or deleted kill-test would make this
+    # job greener rather than redder without this step (AGENTS.md). One name, so
+    # the arity is 1.
+    - >-
+      go test -tags=integration
+      -list '^TestStructuredLogging_CorrelatedAndPHIFree$'
+      ./internal/observability
+      | rg -x 'TestStructuredLogging_CorrelatedAndPHIFree'
+      | awk 'END { if (NR != 1) exit 1 }'
+    # Second existence guard, for the negative control's build tag. A tag that
+    # stops compiling — queue_publish_leak.go deleted, renamed, or excluded —
+    # would make `make structured-logging-negative-control` "fail", which that
+    # target reads as success, because it inverts. Proving the tagged package
+    # still builds and still contains the test is what keeps the control from
+    # passing for the wrong reason.
+    - >-
+      go test -tags="integration structuredloggingleak"
+      -list '^TestStructuredLogging_CorrelatedAndPHIFree$'
+      ./internal/observability
+      | rg -x 'TestStructuredLogging_CorrelatedAndPHIFree'
+      | awk 'END { if (NR != 1) exit 1 }'
+    - make structured-logging
+    # The PHI assertion is only proven if restoring the payload print breaks it.
+    # The `structuredloggingleak` tag restores it (internal/workflow/
+    # queue_publish_leak.go) and the target inverts the exit status: a zero exit
+    # from the tagged run means the sentinel scan has stopped measuring
+    # anything, which is exactly the failure 4.2a's negative control caught.
+    - make structured-logging-negative-control

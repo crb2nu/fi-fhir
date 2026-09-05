@@ -574,29 +574,73 @@ ALTER TABLE workflow_events
 # In values.yaml
 config:
   observability:
-    logLevel: info
-    logFormat: json  # Structured JSON for log aggregation
-    tracingEnabled: true
+    logLevel: info   # debug | info | warn | error
+    logFormat: json  # json (default) or text; json is the only aggregator-parsable form
 ```
+
+`tracingEnabled` is deliberately absent. The chart carried it until slice 4.4a
+removed the key and 4.4d removed the last snippet that still showed it: it set
+`FI_FHIR_TRACING_ENABLED`, which `pkg/config` parses and validates and which no
+OpenTelemetry exporter consumes. See "Tracing" below.
+
+`logLevel` and `logFormat` became load-bearing in slice 4.4d. Before that they
+were parsed, validated, and read by nothing, and `serve` wrote unstructured
+single-line text regardless of what they said.
 
 ### Log Fields for Compliance
 
-fi-fhir logs include:
+Every line `fi-fhir serve` writes is a JSON object on stderr. The field keys are
+a **closed set** — `internal/observability/logging.go` defines `LogField`, and
+the handler drops any attribute whose key is not in it rather than writing it,
+reporting the refusal as `dropped_fields`. This is the same posture the metric
+labels take (`internal/observability/metrics.go` coerces an unrecognised outcome
+to `error` rather than emitting it), and for the same reason: an unbounded key
+space is how PHI reaches a log aggregator.
+
+A representative line:
 
 ```json
 {
-  "timestamp": "2024-01-15T10:30:00.123Z",
-  "level": "info",
-  "message": "Event processed",
-  "trace_id": "abc123",
-  "span_id": "def456",
-  "event_type": "patient_admit",
-  "source": "epic_adt",
-  "action": "fhir",
-  "duration_ms": 45,
-  "status": "success"
+  "time": "2026-08-09T10:30:00.123456-04:00",
+  "level": "WARN",
+  "msg": "delivery scheduled for retry",
+  "tenant_id": "tenant-a",
+  "component": "delivery-worker",
+  "outcome": "retried",
+  "duration_ms": 45
 }
 ```
+
+`time`, `level`, and `msg` come from `log/slog`. `tenant_id` is bound to the
+logger at startup and is therefore on every line. Everything else is drawn from
+the allowlist; `observability.PermittedLogFields()` enumerates it, and
+`TestEveryPermittedLogFieldIsBounded` fails if the set stops being enumerable.
+
+**Correlation, honestly.** There is no single correlation identifier to filter
+on, by design: `pkg/integration/contracts.go` declares an eight-field lineage
+bundle, and the durable schema follows it —
+`integration_receipts`, `integration_canonical_events`, and
+`integration_message_lineage` carry `correlation_id NOT NULL`, while
+`integration_delivery_attempts` carries `trace_id NOT NULL` and joins back by
+foreign key. So a log line and a submission are joined **through the durable
+records**, not through a field the log line carries.
+
+Two consequences an operator should know before writing a query:
+
+- Lines emitted from the component-observation seam
+  (`cmd/fi-fhir/serve_observability.go`) carry `tenant_id`, `component`,
+  `outcome`, and `duration_ms` and **no** lineage identifier. The four
+  observation callbacks receive `(Result, error)` and no context, and none of
+  the `Result` types carries one. Emitting `correlation_id` from a component
+  line requires widening those types, which is filed rather than done.
+- `trace_id` and `span_id` appear only when a valid OpenTelemetry span context
+  is on the request context. With tracing not exported, that is the GraphQL
+  request path only. A zeroed trace ID is never emitted: a line that looks
+  correlated and is not is worse than a line that admits it is not.
+
+To join a component line to a message, filter by `tenant_id` and `component`,
+take the window from `time`, and resolve the message through
+`operatorMessageTrace` or the ledger tables directly.
 
 ### Kubernetes Audit Policy
 
@@ -1002,18 +1046,51 @@ time grows with the data, while holding a long transaction that keeps
 continuous WAL archiving and point-in-time recovery, which **no chart,
 manifest, or document in this repository configures today**.
 
-What the aspirational table below actually describes, and what is proven:
+### What this repository claims, and what it hands to the operator
 
-| Scenario | RTO target | RPO target | Status |
-|----------|-----------|-----------|--------|
-| Pod failure | 30s | 0 | Kubernetes restart; not measured on the reference profile |
-| Node failure | 5m | 0 | Depends on cluster capacity; not measured |
-| Database failure | 15m | 5m | **RPO unachievable with logical dumps.** Needs WAL archiving / PITR (slice 4.4c) |
-| Full cluster failure | 1h | 15m | **RPO unachievable with logical dumps.** Needs WAL archiving / PITR (slice 4.4c) |
+Slice 4.4c decided the posture rather than restating the gap
+(`.loom/40-decisions.md`, 2026-08-09, "WAL/PITR posture"). It splits budget 5
+along the line where the evidence actually falls.
 
-Treat every row as a target, not a capability. `docs/operations/SUPPORTED-1.0.md`
-lists the backup/restore and RPO/RTO proof as blocking for a 1.0 support claim,
-and it remains blocking.
+**RTO is measured and certified here.** `test:migration-compatibility` times the
+documented procedure end to end on every merge request — `pg_dump`, restore, and
+the first successful delivery `Claim` from the restored database — and archives
+the number as the `recovery-rto.json` job artifact. The report carries the row
+counts it was measured against, because a recovery time measured on a CI fixture
+is evidence about the *procedure* and not about a production data volume.
+
+**RPO is an operator responsibility, with a stated method.** This product does
+not claim a 5-minute RPO. Bounding data loss to minutes requires continuous WAL
+archiving and point-in-time recovery, and that belongs to whoever runs the
+database: the only PostgreSQL in `deploy/` is a single-replica `Deployment` on a
+ReadWriteOnce PVC, which is a development convenience, and a production
+deployment uses a managed service or a PostgreSQL operator that owns archiving
+through its own interface. Shipping a reference `archive_command` written
+against the dev manifest would be a configuration almost nobody runs, carrying
+the authority of a product guarantee. A reference archiving configuration proved
+end to end in CI is filed as a follow-up, with its cost written down, in the
+decision above.
+
+**The RPO an operator achieves is a function of the method they choose:**
+
+| Method | Achievable RPO | Who configures it |
+|--------|---------------|-------------------|
+| Periodic `pg_dump` (documented above) | The dump interval plus the dump duration. Minutes is not reachable. | This repository documents it; the operator schedules it |
+| Continuous WAL archiving + PITR | Seconds to low minutes | The operator, through their managed service or PostgreSQL operator |
+| Synchronous replication to a standby | Near zero for a single-site failure | The operator |
+
+| Scenario | RTO | RPO | Status |
+|----------|-----|-----|--------|
+| Pod failure | 30s target | 0 | Kubernetes restart; not measured on the reference profile |
+| Node failure | 5m target | 0 | Depends on cluster capacity; not measured |
+| Database failure | **Measured** against the documented restore; see the archived `recovery-rto.json` | Operator-owned; see the method table above | Restore faithfulness and resumption proven on every merge request |
+| Full cluster failure | 1h target | Operator-owned | Not measured; needs a cluster |
+
+Treat the rows marked *target* as targets, not capabilities.
+`docs/operations/SUPPORTED-1.0.md` item 4 is split accordingly: the
+backup/restore proof and the RTO measurement close, and the RPO number stays
+open as an operator responsibility rather than as an empty checkbox with no
+stated reason.
 
 ### What the restore proof covers
 
@@ -1035,11 +1112,29 @@ on every merge request and asserts:
 - a queued delivery attempt is claimed and published from the restored state
   with no manual repair, and is not claimed twice.
 
-**What it does not cover**, and what 4.4c must add: any recovery-time or
-data-loss measurement, WAL archiving, point-in-time recovery, failover, or a
-restore onto a different host. The proof establishes that a logical backup is
-*complete and faithful*. It says nothing about how long recovery takes or how
-much data a real failure would lose.
+Slice 4.4c strengthened three of those and added two:
+
+- every immutability refusal is now asserted **by SQLSTATE**. A trigger refusal
+  is `P0001`; before 4.4c the proof asserted only that *an* error came back, and
+  three of its six mutations were in fact refused by a foreign key — so those
+  three would have stayed green with their guards dropped. They now target rows
+  with no dependents, and
+  `TestChaosRecovery_RestoreProofAssertionsAreTriggerAttributed` drops every
+  non-internal trigger on the restored copy and requires every guarded mutation
+  to then succeed, which is the control that keeps the attribution honest;
+- the durable set now includes the whole Slice 4.1e surface — session samples,
+  the session fanout log, and all three retention tables. Their absence was not
+  a row-count gap: an empty table has no rows to mutate, so five of the newest
+  immutability triggers were never exercised after a restore at all;
+- the **restored** database's six schema ledgers are asserted at their declared
+  versions. A restore that lost them used to pass every other assertion;
+- the recovery time is measured and archived (above).
+
+**What it still does not cover**: WAL archiving, point-in-time recovery,
+failover, or a restore onto a different host. The proof establishes that a
+logical backup is *complete and faithful*, that the application resumes from it,
+and how long the documented procedure takes. It says nothing about how much data
+a real failure would lose — that is the operator-owned RPO above.
 
 ---
 

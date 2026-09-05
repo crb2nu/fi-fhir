@@ -27,6 +27,13 @@ test:migration-compatibility:
     POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_migration_compat_test?sslmode=disable"
     # Client major must equal server major; see the comment above.
     FI_FHIR_PG_BIN_DIR: /usr/lib/postgresql/16/bin
+    # Slice 4.4c task 7: the round-trip writes its measured recovery time here
+    # and the job archives it. This is the RTO half of budget 5, certified
+    # against the documented method; the RPO half is an operator responsibility
+    # (.loom/40-decisions.md, 2026-08-09 WAL/PITR posture). The report carries
+    # the row counts it was measured against, because a fixture-scale number is
+    # evidence about the procedure and not a capacity claim.
+    FI_FHIR_RECOVERY_REPORT: recovery-rto.json
   script:
     # Not .integration-proof-toolchain: this job additionally needs curl and
     # gnupg for the PGDG repository, and five other jobs should not install them.
@@ -44,11 +51,16 @@ test:migration-compatibility:
     # rather than redder without it.
     - >-
       go test -tags=integration
-      -list '^TestMigrationCompatibility_(ConcurrentReplicaMigrationRollbackAndRestore|ExportInsertShapeSurvivesOneVersionRollback|NegativeControls)$'
+      -list '^(TestMigrationCompatibility_(ConcurrentReplicaMigrationRollbackAndRestore|ExportInsertShapeSurvivesOneVersionRollback|NegativeControls)|TestChaosRecovery_RestoreProofAssertionsAreTriggerAttributed)$'
       ./internal/integration/migrationcompat
-      | rg -x 'TestMigrationCompatibility_(ConcurrentReplicaMigrationRollbackAndRestore|ExportInsertShapeSurvivesOneVersionRollback|NegativeControls)'
-      | awk 'END { if (NR != 3) exit 1 }'
+      | rg -x '(TestMigrationCompatibility_(ConcurrentReplicaMigrationRollbackAndRestore|ExportInsertShapeSurvivesOneVersionRollback|NegativeControls)|TestChaosRecovery_RestoreProofAssertionsAreTriggerAttributed)'
+      | awk 'END { if (NR != 4) exit 1 }'
     - make migration-compatibility
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - recovery-rto.json
   # Its own banner rather than .integration-proof's: a failing negative control
   # means the opposite of a failing proof, and that sentence has to be in front
   # of whoever is reading the log.

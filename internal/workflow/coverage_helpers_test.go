@@ -722,32 +722,6 @@ func TestEngineSetGetTracer(t *testing.T) {
 	}
 }
 
-func TestEngineSetGetLogger(t *testing.T) {
-	wf := &Workflow{Name: "test", Routes: []Route{}}
-	engine, err := NewEngine(wf)
-	if err != nil {
-		t.Fatalf("NewEngine failed: %v", err)
-	}
-
-	// Default is NoOpLogger
-	if _, ok := engine.GetLogger().(*NoOpLogger); !ok {
-		t.Error("expected default logger to be *NoOpLogger")
-	}
-
-	// Set nil → falls back to NoOpLogger
-	engine.SetLogger(nil)
-	if _, ok := engine.GetLogger().(*NoOpLogger); !ok {
-		t.Error("SetLogger(nil) should fall back to *NoOpLogger")
-	}
-
-	// Set custom logger
-	custom := &NoOpLogger{}
-	engine.SetLogger(custom)
-	if engine.GetLogger() != custom {
-		t.Error("SetLogger did not persist custom logger")
-	}
-}
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

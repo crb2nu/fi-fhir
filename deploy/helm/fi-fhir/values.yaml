@@ -30,6 +30,39 @@ podAnnotations:
   prometheus.io/port: "9090"
   prometheus.io/path: "/metrics"
 
+# Rolling-upgrade budget. Declared here because the Kubernetes default —
+# 25% surge / 25% unavailable — rounds to maxUnavailable: 1 at the default two
+# replicas, so an upgrade would run on a single replica for its whole duration.
+# The PodDisruptionBudget does not prevent that: a PDB governs voluntary
+# evictions, not a Deployment's own rollout.
+#
+# maxUnavailable: 0 keeps every replica serving through the upgrade and pays
+# for it with one surge pod. The app mounts no ReadWriteOnce volume, so a surge
+# pod always has somewhere to schedule.
+#
+# minReadySeconds must exceed one readiness period (10s). /ready checks real
+# dependencies and returns 503 when one is unreachable, so without a settling
+# window a pod that flaps Ready-then-503 would let the rollout advance and take
+# the last healthy replica with it.
+updateStrategy:
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+  minReadySeconds: 15
+
+# Endpoint removal is asynchronous: kube-proxy and any ingress rewrite their
+# rules after the pod leaves the Service, so a pod that stops accepting the
+# instant it is signalled refuses requests already routed to it. The preStop
+# sleep holds it open while that propagates.
+preStopSleepSeconds: 10
+
+# Must exceed preStopSleepSeconds plus the server's own shutdown budget
+# (config.server.shutdownTimeout, 10s) plus the background components' drain.
+# Sixty seconds leaves room for a delivery attempt in flight rather than
+# SIGKILLing one mid-publish, which would leave a leased attempt to expire and
+# redeliver.
+terminationGracePeriodSeconds: 60
+
 podSecurityContext:
   runAsNonRoot: true
   runAsUser: 65532
