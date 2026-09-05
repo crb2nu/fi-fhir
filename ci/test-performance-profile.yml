@@ -106,11 +106,20 @@ test:benchmark-durable:
         - deploy/**/*
         - configs/**/*
         - ci/test-performance-profile.yml
+    # On merge requests the gate is opt-in AND non-blocking, the same shape
+    # test:benchmark took on 2026-09-02 (d90506d8b): a manual job with
+    # allow_failure: false parks the pipeline at "manual" until someone plays
+    # it, so merge-when-pipeline-succeeds never fires — and perf-go-changes is
+    # as wide as go-changes, so that would have been every Go-touching MR. Play
+    # it when a change touches the durable accept path; the default-branch run
+    # above stays blocking, so an allocation regression still fails main within
+    # one merge.
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *perf-go-changes
       when: manual
+      allow_failure: true
     - when: never
-  allow_failure: false
+  allow_failure: false # Blocking on tags and the default branch.
 
 # Wall-clock and throughput on the reference profile.
 #
