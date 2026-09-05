@@ -127,6 +127,32 @@ func KnownSchemaLedger(value string) bool {
 	return ok
 }
 
+// Retention record classes. These are the only values that appear in a
+// `record_class` label, and they are the same four names the durable purge
+// audit writes into integration_retention_purge_audit.record_class
+// (internal/integration/processor/migrations/0005_retention_expiry.sql).
+const (
+	RetentionClassCanonicalEvent = "canonical_event"
+	RetentionClassSessionSample  = "session_sample"
+	RetentionClassSessionExport  = "session_export"
+	RetentionClassStreamEvent    = "stream_event"
+)
+
+// allRetentionClasses bounds the `record_class` label the same way allOutcomes
+// bounds `outcome`. The set is closed by construction: a fifth retained class
+// is a migration and a review, never a runtime string.
+var allRetentionClasses = map[string]struct{}{
+	RetentionClassCanonicalEvent: {}, RetentionClassSessionSample: {},
+	RetentionClassSessionExport: {}, RetentionClassStreamEvent: {},
+}
+
+// KnownRetentionClass reports whether a record-class label value is in the
+// allowlist.
+func KnownRetentionClass(value string) bool {
+	_, ok := allRetentionClasses[value]
+	return ok
+}
+
 // Metrics owns the one Prometheus registry the serve process exposes.
 //
 // It deliberately does not reuse internal/workflow's Prometheus adapter: that
@@ -154,6 +180,7 @@ type Metrics struct {
 	autorouteNotifications *prometheus.CounterVec
 	retentionPurges        *prometheus.CounterVec
 	retentionRecordsPurged *prometheus.CounterVec
+	retentionBacklog       *prometheus.GaugeVec
 
 	mu sync.Mutex
 }
@@ -232,6 +259,10 @@ func NewMetrics(version string) *Metrics {
 			Name: "fi_fhir_retention_records_purged_total",
 			Help: "Records tombstoned, deleted, or pruned by the retention purge, by outcome.",
 		}, []string{"outcome"}),
+		retentionBacklog: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "fi_fhir_retention_backlog_records",
+			Help: "Records past their retention deadline and not yet purged, by record class.",
+		}, []string{"record_class"}),
 	}
 
 	registry.MustRegister(
@@ -239,7 +270,7 @@ func NewMetrics(version string) *Metrics {
 		m.ingressSubmissions, m.mllpMessages, m.deliveryAttempts, m.batchObjects,
 		m.mllpRateClaims,
 		m.sessionStreamEvents, m.autorouteSweeps, m.autorouteExpired, m.autorouteNotifications,
-		m.retentionPurges, m.retentionRecordsPurged,
+		m.retentionPurges, m.retentionRecordsPurged, m.retentionBacklog,
 	)
 	m.buildInfo.WithLabelValues(version).Set(1)
 	return m
@@ -367,6 +398,24 @@ func (m *Metrics) RecordRetentionPurge(outcome Outcome, purged int64) {
 		return
 	}
 	m.retentionRecordsPurged.WithLabelValues(string(OutcomePurged)).Add(float64(purged))
+}
+
+// SetRetentionBacklog publishes how many records of one class are past their
+// retention deadline and not yet purged.
+//
+// This is a GAUGE and it is the metric that would have made D1 visible. Until
+// Sprint 5 retention published counters only — passes and records purged — so a
+// purge removing 200 records an hour against a tenant producing 2,000 looked
+// identical to one that was keeping up: both counters climb. A backlog that
+// only ever grows is the difference, and only a gauge can show it.
+//
+// An unknown class is dropped rather than emitted, for the same reason an
+// unknown `outcome` is: the label set is closed by construction.
+func (m *Metrics) SetRetentionBacklog(recordClass string, records int64) {
+	if m == nil || m.retentionBacklog == nil || !KnownRetentionClass(recordClass) {
+		return
+	}
+	m.retentionBacklog.WithLabelValues(recordClass).Set(float64(records))
 }
 
 func inc(m *Metrics, vec *prometheus.CounterVec, outcome Outcome) {

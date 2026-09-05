@@ -99,6 +99,71 @@ func TestRetentionPurgeObserverSeparatesFailureFromAnEmptyPass(t *testing.T) {
 	}
 }
 
+// The Sprint 5 backlog gauge, at the wiring level: every class is published on
+// every tick including the zeroes, and the gauge goes DOWN as well as up.
+//
+// A gauge that is only written when non-zero goes stale rather than going to
+// zero, which makes "the backlog cleared" indistinguishable from "the purge
+// component died" — the exact ambiguity D1 hid inside.
+func TestRetentionPurgeObserverPublishesTheBacklogGaugeEveryTick(t *testing.T) {
+	metrics := observability.NewMetrics("test")
+	observe := retentionPurgeObserver(metrics)
+
+	observe(integrationretention.PurgeResult{
+		PurgeCounts: integrationretention.PurgeCounts{CanonicalEvents: 200},
+		Passes:      1,
+		Backlog: integrationretention.BacklogCounts{
+			CanonicalEvents: 800, SessionSamples: 5,
+		},
+		BacklogKnown:    true,
+		BudgetExhausted: true,
+	}, nil)
+
+	exposition := gatherRetentionMetrics(t, metrics)
+	for _, want := range []string{
+		`fi_fhir_retention_backlog_records{record_class="canonical_event"} 800`,
+		`fi_fhir_retention_backlog_records{record_class="session_sample"} 5`,
+		`fi_fhir_retention_backlog_records{record_class="session_export"} 0`,
+		`fi_fhir_retention_backlog_records{record_class="stream_event"} 0`,
+	} {
+		if !strings.Contains(exposition, want) {
+			t.Fatalf("exposition missing %q:\n%s", want, exposition)
+		}
+	}
+
+	// Drained. The gauge must return to zero rather than hold its last value.
+	observe(integrationretention.PurgeResult{
+		PurgeCounts:  integrationretention.PurgeCounts{CanonicalEvents: 800},
+		Passes:       5,
+		BacklogKnown: true,
+	}, nil)
+	drained := gatherRetentionMetrics(t, metrics)
+	if !strings.Contains(drained, `fi_fhir_retention_backlog_records{record_class="canonical_event"} 0`) {
+		t.Fatalf("the gauge did not return to zero after the backlog drained:\n%s", drained)
+	}
+
+	// And a failing tick still reports the backlog: that is precisely when an
+	// operator needs to know how far behind the purge is.
+	observe(integrationretention.PurgeResult{
+		Backlog:      integrationretention.BacklogCounts{CanonicalEvents: 42},
+		BacklogKnown: true,
+	}, errors.New("connection reset"))
+	failed := gatherRetentionMetrics(t, metrics)
+	if !strings.Contains(failed, `fi_fhir_retention_backlog_records{record_class="canonical_event"} 42`) {
+		t.Fatalf("a failing tick published no backlog:\n%s", failed)
+	}
+
+	// And a tick that could not READ the backlog must leave the last known
+	// value alone rather than publishing an unmeasured zero. "Not measured" and
+	// "nothing is owed" are different claims, and a gauge can only carry one.
+	observe(integrationretention.PurgeResult{}, errors.New("connection reset"))
+	unmeasured := gatherRetentionMetrics(t, metrics)
+	if !strings.Contains(unmeasured, `fi_fhir_retention_backlog_records{record_class="canonical_event"} 42`) {
+		t.Fatalf("a tick with no backlog reading overwrote the gauge with an unmeasured zero:\n%s",
+			unmeasured)
+	}
+}
+
 func gatherRetentionMetrics(t *testing.T, metrics *observability.Metrics) string {
 	t.Helper()
 	values, err := observability.GatheredLabelValues(metrics.Registry())
@@ -106,9 +171,16 @@ func gatherRetentionMetrics(t *testing.T, metrics *observability.Metrics) string
 		t.Fatalf("gather label values: %v", err)
 	}
 	for _, value := range values {
-		if !observability.KnownOutcome(value) && value != "test" {
-			t.Fatalf("retention metrics published the unbounded label %q", value)
+		// Two bounded sets reach retention exposition: `outcome` on the
+		// counters and `record_class` on the Sprint 5 backlog gauge. Anything
+		// else is an unbounded label and a PHI risk.
+		if observability.KnownOutcome(value) || observability.KnownRetentionClass(value) {
+			continue
 		}
+		if value == "test" {
+			continue
+		}
+		t.Fatalf("retention metrics published the unbounded label %q", value)
 	}
 	return renderMetrics(t, metrics)
 }
@@ -122,8 +194,16 @@ func renderMetrics(t *testing.T, metrics *observability.Metrics) string {
 	var builder strings.Builder
 	for _, family := range families {
 		for _, metric := range family.GetMetric() {
-			counter := metric.GetCounter()
-			if counter == nil {
+			// Counters and gauges both: Sprint 5's retention backlog is a gauge,
+			// and a renderer that silently skipped it would let an assertion on
+			// the gauge pass by never seeing it.
+			var value float64
+			switch {
+			case metric.GetCounter() != nil:
+				value = metric.GetCounter().GetValue()
+			case metric.GetGauge() != nil:
+				value = metric.GetGauge().GetValue()
+			default:
 				continue
 			}
 			builder.WriteString(family.GetName())
@@ -137,7 +217,7 @@ func renderMetrics(t *testing.T, metrics *observability.Metrics) string {
 				}
 				builder.WriteString("}")
 			}
-			builder.WriteString(" " + strconv.FormatFloat(counter.GetValue(), 'f', -1, 64) + "\n")
+			builder.WriteString(" " + strconv.FormatFloat(value, 'f', -1, 64) + "\n")
 		}
 	}
 	return builder.String()

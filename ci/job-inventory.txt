@@ -50,6 +50,7 @@ test:observability-replicas	test	false
 test:operator-control-plane	test	false
 test:phi-audit	test	false
 test:phi-retention-purge	test	false
+test:phi-retention-throughput	test	false
 test:sdk-typescript	test	false
 test:smoke	test	false
 test:transport-gate	test	false

@@ -16,6 +16,7 @@ include:
   - local: ci/test-observability-replicas.yml
   - local: ci/test-migration-compatibility.yml
   - local: ci/test-phi-retention-purge.yml
+  - local: ci/test-phi-retention-throughput.yml
   - local: ci/test-transport-gate.yml
   - local: ci/test-destination-transport.yml
   - local: ci/lint-edi.yml
