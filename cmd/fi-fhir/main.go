@@ -1967,8 +1967,6 @@ func runWorkflow(args []string) error {
 		return runWorkflowReplay(args[1:])
 	case "simulate":
 		return runWorkflowSimulate(args[1:])
-	case "loadtest":
-		return runWorkflowLoadtest(args[1:])
 	case "generate":
 		return runWorkflowGenerate(args[1:])
 	case "explain":
@@ -2726,7 +2724,6 @@ Subcommands:
   record    Process events and record for replay
   replay    Replay recorded events and compare results
   simulate  Process events with mock actions (no side effects)
-  loadtest  Run load tests against workflow configuration
   generate  Generate workflow YAML from natural language description (LLM)
   explain   Explain workflow configuration in plain English (LLM)
   cel       Generate CEL expressions from natural language (LLM)
@@ -2757,9 +2754,6 @@ Examples:
   # Simulate without side effects
   fi-fhir workflow simulate -c workflow.yaml -v events.json
 
-  # Run load test with standard scenario
-  fi-fhir workflow loadtest -c workflow.yaml --scenario smoke
-
   # Generate workflow from natural language (requires LLM)
   fi-fhir workflow generate "Route critical labs to pager system"
 
@@ -2768,225 +2762,6 @@ Examples:
 
   # Generate CEL expression from natural language (requires LLM)
   fi-fhir workflow cel "patient is over 65 and has a critical lab result"`)
-}
-
-func runWorkflowLoadtest(args []string) error {
-	var (
-		configPath   = ""
-		scenarioName = ""
-		duration     = 30 * time.Second
-		rps          = 1000
-		workers      = 4
-		warmup       = 5 * time.Second
-		verbose      = false
-		jsonOutput   = false
-	)
-
-	for i := 0; i < len(args); {
-		switch args[i] {
-		case "-c", "--config":
-			if i+1 >= len(args) {
-				return fmt.Errorf("--config requires a file path")
-			}
-			configPath = args[i+1]
-			i += 2
-			continue
-		case "-s", "--scenario":
-			if i+1 >= len(args) {
-				return fmt.Errorf("--scenario requires a name")
-			}
-			scenarioName = args[i+1]
-			i += 2
-			continue
-		case "-d", "--duration":
-			if i+1 >= len(args) {
-				return fmt.Errorf("--duration requires a value")
-			}
-			d, err := time.ParseDuration(args[i+1])
-			if err != nil {
-				return fmt.Errorf("invalid duration: %w", err)
-			}
-			duration = d
-			i += 2
-			continue
-		case "-r", "--rps":
-			if i+1 >= len(args) {
-				return fmt.Errorf("--rps requires a value")
-			}
-			r, err := strconv.Atoi(args[i+1])
-			if err != nil {
-				return fmt.Errorf("invalid rps: %w", err)
-			}
-			rps = r
-			i += 2
-			continue
-		case "-w", "--workers":
-			if i+1 >= len(args) {
-				return fmt.Errorf("--workers requires a value")
-			}
-			w, err := strconv.Atoi(args[i+1])
-			if err != nil {
-				return fmt.Errorf("invalid workers: %w", err)
-			}
-			workers = w
-			i += 2
-			continue
-		case "--warmup":
-			if i+1 >= len(args) {
-				return fmt.Errorf("--warmup requires a value")
-			}
-			w, err := time.ParseDuration(args[i+1])
-			if err != nil {
-				return fmt.Errorf("invalid warmup: %w", err)
-			}
-			warmup = w
-			i += 2
-			continue
-		case "-v", "--verbose":
-			verbose = true
-		case "--json":
-			jsonOutput = true
-		case "-h", "--help":
-			printWorkflowLoadtestUsage()
-			return nil
-		case "--list-scenarios":
-			fmt.Println("Available load test scenarios:")
-			for _, s := range workflow.StandardScenarios() {
-				fmt.Printf("  %-12s %s\n", s.Name, s.Description)
-			}
-			return nil
-		default:
-			if strings.HasPrefix(args[i], "-") {
-				return fmt.Errorf("unknown flag: %s", args[i])
-			}
-		}
-		i++
-	}
-
-	if configPath == "" {
-		return fmt.Errorf("--config is required")
-	}
-
-	// Load workflow
-	workflowData, err := os.ReadFile(configPath)
-	if err != nil {
-		return fmt.Errorf("failed to read workflow: %w", err)
-	}
-
-	wf, err := workflow.ParseWorkflow(workflowData)
-	if err != nil {
-		return fmt.Errorf("failed to parse workflow: %w", err)
-	}
-
-	engine, err := workflow.NewEngine(wf)
-	if err != nil {
-		return fmt.Errorf("failed to create engine: %w", err)
-	}
-
-	// Build config
-	var config *workflow.LoadTestConfig
-	if scenarioName != "" {
-		scenario := workflow.GetScenario(scenarioName)
-		if scenario == nil {
-			return fmt.Errorf("unknown scenario: %s (use --list-scenarios to see available)", scenarioName)
-		}
-		config = scenario.Config
-		if verbose {
-			fmt.Printf("Using scenario: %s - %s\n", scenario.Name, scenario.Description)
-		}
-	} else {
-		config = &workflow.LoadTestConfig{
-			Duration:         duration,
-			TargetRPS:        rps,
-			Workers:          workers,
-			WarmupDuration:   warmup,
-			EventGenerator:   workflow.NewHealthcareEventGenerator(),
-			ProgressInterval: 5 * time.Second,
-		}
-	}
-
-	// Progress callback
-	if verbose && !jsonOutput {
-		config.OnProgress = func(stats workflow.LoadTestProgress) {
-			fmt.Printf("[%v] Events: %d, Rate: %.0f/s, P50: %v, P99: %v, Errors: %d\n",
-				stats.Elapsed.Round(time.Second),
-				stats.EventsTotal,
-				stats.EventsPerSec,
-				stats.P50Latency.Round(time.Microsecond),
-				stats.P99Latency.Round(time.Microsecond),
-				stats.ErrorCount)
-		}
-	}
-
-	if verbose && !jsonOutput {
-		fmt.Printf("Starting load test:\n")
-		fmt.Printf("  Duration:   %v\n", config.Duration)
-		fmt.Printf("  Target RPS: %d\n", config.TargetRPS)
-		fmt.Printf("  Workers:    %d\n", config.Workers)
-		fmt.Printf("  Warmup:     %v\n", config.WarmupDuration)
-		fmt.Println()
-	}
-
-	// Run load test
-	tester := workflow.NewLoadTester(engine)
-	result, err := tester.Run(context.Background(), config)
-	if err != nil {
-		return fmt.Errorf("load test failed: %w", err)
-	}
-
-	// Output results
-	if jsonOutput {
-		output, _ := json.MarshalIndent(result, "", "  ")
-		fmt.Println(string(output))
-	} else {
-		fmt.Println(result.Summary())
-	}
-
-	// Return error if load test failed thresholds
-	if !result.Passed(0.90, 0.01, 10*time.Millisecond) {
-		return fmt.Errorf("load test did not meet performance targets")
-	}
-
-	return nil
-}
-
-func printWorkflowLoadtestUsage() {
-	fmt.Println(`fi-fhir workflow loadtest - Run load tests against workflow
-
-Usage:
-  fi-fhir workflow loadtest [options]
-
-Options:
-  -c, --config <file>      Workflow YAML configuration file (required)
-  -s, --scenario <name>    Use a predefined scenario (smoke, standard, stress, burst, soak)
-  -d, --duration <dur>     Test duration (default: 30s)
-  -r, --rps <num>          Target requests per second (default: 1000, 0 for unlimited)
-  -w, --workers <num>      Number of concurrent workers (default: 4)
-  --warmup <dur>           Warmup duration (default: 5s)
-  -v, --verbose            Show progress during test
-  --json                   Output results as JSON
-  --list-scenarios         List available predefined scenarios
-  -h, --help               Show this help message
-
-Predefined Scenarios:
-  smoke     Quick smoke test (10s, 100 RPS)
-  standard  Standard load test (60s, 1000 RPS)
-  stress    Stress test (120s, 5000 RPS)
-  burst     Burst test (30s, max throughput)
-  soak      Soak test (5min, 500 RPS)
-
-Examples:
-  # Run a quick smoke test
-  fi-fhir workflow loadtest -c workflow.yaml -s smoke -v
-
-  # Custom load test
-  fi-fhir workflow loadtest -c workflow.yaml -d 60s -r 2000 -w 8 -v
-
-  # Stress test with JSON output
-  fi-fhir workflow loadtest -c workflow.yaml -s stress --json > results.json
-
-  # Burst test (maximum throughput)
-  fi-fhir workflow loadtest -c workflow.yaml -r 0 -d 10s -v`)
 }
 
 // runConfig handles the config command and its subcommands.

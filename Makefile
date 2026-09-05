@@ -31,6 +31,7 @@
 .PHONY: phi-retention-throughput phi-retention-throughput-negative-control # D1 — S5-F
 .PHONY: structured-logging structured-logging-negative-control          # 4.4d   — S5-C
 .PHONY: validate-k8s-schema chaos-recovery e2e-live                   # 4.4c   — S5-B
+.PHONY: bench-durable bench-durable-calibrate                          # 4.4b   — S5-A
 
 # Tool versions (update these when upgrading)
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -476,6 +477,29 @@ bench-check:
 # Usage: make bench-calibrate ARTIFACTS="path/to/*.txt"
 bench-calibrate:
 	go run ./cmd/bench-check -suggest $(ARTIFACTS)
+
+# Benchmark the durable integration accept path and gate its allocations.
+#
+# Separate from `bench` on purpose. These need a real PostgreSQL and carry
+# //go:build integration, and only allocs/op is gated: wall-clock and throughput
+# on a shared runner are not evidence for any budget (see .loom/40-decisions.md,
+# 2026-08-09, and docs/operations/SUPPORTED-1.0.md).
+#
+# -benchtime is pinned rather than time-based. With a time budget a fast runner
+# completes more iterations than a slow one and amortizes connection setup
+# differently, so identical code reports a different allocs/op per machine —
+# which would reintroduce exactly the hardware dependence this signal avoids.
+#
+# Usage: POSTGRES_TEST_URL=postgres://... make bench-durable
+bench-durable:
+	@test -n "$$POSTGRES_TEST_URL" || { echo 'POSTGRES_TEST_URL is required (a PostgreSQL 16 DSN)'; exit 1; }
+	@go test -tags=integration -bench=. -benchmem -run=^$$ -count=1 -benchtime=300x ./internal/integration/perf/... > benchmark-durable.txt 2>&1; status=$$?; cat benchmark-durable.txt; exit $$status
+	go run ./cmd/bench-check -set=durable benchmark-durable.txt
+
+# Print calibrated durable allocation ceilings from downloaded artifacts.
+# Usage: make bench-durable-calibrate ARTIFACTS="path/to/*.txt"
+bench-durable-calibrate:
+	go run ./cmd/bench-check -set=durable -suggest $(ARTIFACTS)
 
 # Format Go code
 fmt:

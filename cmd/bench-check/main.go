@@ -56,13 +56,30 @@ func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, os.Stdin))
 }
 
+const (
+	// thresholdSetWorkflow gates the legacy engine's micro-benchmarks.
+	thresholdSetWorkflow = "workflow"
+	// thresholdSetDurable gates the durable integration accept path.
+	//
+	// It is a separate set because the two are measured by different jobs over
+	// different packages. Merging them would make each job fail on the other's
+	// benchmarks being absent: Check treats every name in a threshold map as a
+	// required result.
+	thresholdSetDurable = "durable"
+)
+
 func run(args []string, stdout, stderr io.Writer, stdin io.Reader) int {
 	fs := flag.NewFlagSet("bench-check", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	baselinePath := fs.String("baseline", "", "compare against a baseline benchmark file")
 	confirm := fs.Int("confirm", 0, "on violation, re-run only the offending benchmarks this many times and fail only if the violation reproduces")
 	suggest := fs.Bool("suggest", false, "print calibrated CPUProfile entries derived from the input files instead of validating")
+	set := fs.String("set", "workflow", "threshold set to apply: \"workflow\" (legacy engine micro-benchmarks, gates ns/op, allocs/op and events/sec per CPU profile) or \"durable\" (internal/integration accept path, gates allocs/op only)")
 	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+	if *set != thresholdSetWorkflow && *set != thresholdSetDurable {
+		report(stderr).printf("error: unknown -set %q (want %q or %q)\n", *set, thresholdSetWorkflow, thresholdSetDurable)
 		return 1
 	}
 	inputs := fs.Args()
@@ -90,8 +107,18 @@ func run(args []string, stdout, stderr io.Writer, stdin io.Reader) int {
 
 	report(stdout).printf("Parsed %d benchmark results\n", len(suite.Results))
 
-	thresholds, profile, matched := workflow.ResolveWorkflowThresholds(suite.CPU)
-	reportProfile(stdout, suite.CPU, profile, matched)
+	var thresholds *workflow.PerformanceThresholds
+	if *set == thresholdSetDurable {
+		// The durable set gates allocations only, and allocation counts do not
+		// depend on the machine, so there is no profile to select or report.
+		thresholds = workflow.ResolveDurableThresholds()
+		reportDurableSet(stdout, suite.CPU)
+	} else {
+		var profile workflow.CPUProfile
+		var matched bool
+		thresholds, profile, matched = workflow.ResolveWorkflowThresholds(suite.CPU)
+		reportProfile(stdout, suite.CPU, profile, matched)
+	}
 
 	exitCode := 0
 
@@ -151,6 +178,22 @@ func parseInput(path string, stdin io.Reader) (*workflow.BenchmarkSuite, error) 
 		return nil, fmt.Errorf("parsing benchmark output: %w", err)
 	}
 	return suite, nil
+}
+
+// reportDurableSet explains, in the job log, why no CPU profile was selected.
+// The CPU model is still printed: it is part of the archived report, and a
+// reader comparing two runs needs to know the hardware even when the gate does
+// not depend on it.
+func reportDurableSet(stdout io.Writer, cpu string) {
+	if strings.TrimSpace(cpu) == "" {
+		cpu = "unknown"
+	}
+	report(stdout).printf("Threshold set: durable (allocs/op only)\n")
+	report(stdout).printf("  CPU: %s\n", cpu)
+	report(stdout).println("  No CPU profile is selected: allocation counts are a property of the")
+	report(stdout).println("  code, not the machine. Wall-clock and throughput are reported by the")
+	report(stdout).println("  pinned-runner job and are never gated in the shared pool.")
+	report(stdout).println("")
 }
 
 func reportProfile(w io.Writer, cpu string, profile workflow.CPUProfile, matched bool) {

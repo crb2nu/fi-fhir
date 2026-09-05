@@ -2180,17 +2180,6 @@ routes:
 }
 
 // ===========================================================================
-// Workflow Loadtest Tests
-// ===========================================================================
-
-func TestWorkflow_Loadtest_MissingArgs(t *testing.T) {
-	_, _, err := runCLI(t, "workflow", "loadtest")
-	assertError(t, err)
-}
-
-// TestWorkflow_Loadtest_Help already exists in main_test.go
-
-// ===========================================================================
 // Storage Test Command Tests
 // ===========================================================================
 

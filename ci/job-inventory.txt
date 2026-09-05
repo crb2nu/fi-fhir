@@ -32,6 +32,7 @@ security:trivy-ui-image	scan	false
 test:artifact-revisions	test	false
 test:batch-ingestion	test	false
 test:benchmark	test	false
+test:benchmark-durable	test	false
 test:binary	test	false
 test:chaos-recovery	test	false
 test:coverage-merge	test	false
@@ -50,6 +51,7 @@ test:mllp-rate-quota	test	false
 test:mllp-runtime	test	false
 test:observability-replicas	test	false
 test:operator-control-plane	test	false
+test:performance-profile	test	true
 test:phi-audit	test	false
 test:phi-retention-purge	test	false
 test:phi-retention-throughput	test	false

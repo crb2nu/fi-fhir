@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/config"
@@ -232,133 +231,6 @@ func TestRunWorkflowReplay_InvalidRecordingsFile(t *testing.T) {
 }
 
 // =============================================================================
-// runWorkflowLoadtest — full execution tests (64.4% → higher)
-// =============================================================================
-
-func TestRunWorkflowLoadtest_ListScenarios(t *testing.T) {
-	stdout, _ := captureOutput(t, func() {
-		err := runWorkflowLoadtest([]string{"--list-scenarios"})
-		assertNoError(t, err)
-	})
-	assertContains(t, stdout, "Available load test scenarios")
-	assertContains(t, stdout, "smoke")
-	assertContains(t, stdout, "standard")
-	assertContains(t, stdout, "stress")
-}
-
-func TestRunWorkflowLoadtest_CustomShortDuration(t *testing.T) {
-	dir := t.TempDir()
-	wfPath := writeWorkflowFile(t, dir, minimalWorkflowYAML)
-
-	stdout, _ := captureOutput(t, func() {
-		err := runWorkflowLoadtest([]string{
-			"--config", wfPath,
-			"--duration", "100ms",
-			"--rps", "10",
-			"--workers", "1",
-			"--warmup", "0s",
-		})
-		// May or may not pass performance thresholds
-		_ = err
-	})
-	// Should have run and produced some output — verify it didn't panic silently
-	if stdout == "" {
-		t.Error("expected some output from loadtest, got empty string")
-	}
-}
-
-func TestRunWorkflowLoadtest_SmokeScenario(t *testing.T) {
-	dir := t.TempDir()
-	wfPath := writeWorkflowFile(t, dir, minimalWorkflowYAML)
-
-	// Override the smoke scenario's duration is 10s which is too long for unit tests
-	// Use --duration to override
-	stdout, _ := captureOutput(t, func() {
-		err := runWorkflowLoadtest([]string{
-			"--config", wfPath,
-			"--duration", "100ms",
-			"--warmup", "0s",
-			"--rps", "10",
-			"--workers", "1",
-			"--verbose",
-		})
-		_ = err
-	})
-	_ = stdout
-}
-
-func TestRunWorkflowLoadtest_VerboseAndJSON(t *testing.T) {
-	dir := t.TempDir()
-	wfPath := writeWorkflowFile(t, dir, minimalWorkflowYAML)
-
-	stdout, _ := captureOutput(t, func() {
-		err := runWorkflowLoadtest([]string{
-			"--config", wfPath,
-			"--duration", "100ms",
-			"--rps", "5",
-			"--workers", "1",
-			"--warmup", "0s",
-			"--json",
-		})
-		_ = err
-	})
-	// JSON output should be parseable
-	// Strip any non-JSON prefix lines
-	lines := strings.Split(stdout, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "{") {
-			var result map[string]interface{}
-			if err := json.Unmarshal([]byte(line), &result); err == nil {
-				return // found valid JSON — test passes
-			}
-		}
-	}
-}
-
-func TestRunWorkflowLoadtest_InvalidDuration(t *testing.T) {
-	err := runWorkflowLoadtest([]string{
-		"--config", "/tmp/does-not-exist.yaml",
-		"--duration", "not-a-duration",
-	})
-	assertError(t, err)
-	assertErrorContains(t, err, "invalid duration")
-}
-
-func TestRunWorkflowLoadtest_InvalidRPS(t *testing.T) {
-	err := runWorkflowLoadtest([]string{
-		"--config", "/tmp/does-not-exist.yaml",
-		"--rps", "not-a-number",
-	})
-	assertError(t, err)
-	assertErrorContains(t, err, "invalid rps")
-}
-
-func TestRunWorkflowLoadtest_InvalidWorkers(t *testing.T) {
-	err := runWorkflowLoadtest([]string{
-		"--config", "/tmp/does-not-exist.yaml",
-		"--workers", "abc",
-	})
-	assertError(t, err)
-	assertErrorContains(t, err, "invalid workers")
-}
-
-func TestRunWorkflowLoadtest_InvalidWarmup(t *testing.T) {
-	err := runWorkflowLoadtest([]string{
-		"--config", "/tmp/does-not-exist.yaml",
-		"--warmup", "abc",
-	})
-	assertError(t, err)
-	assertErrorContains(t, err, "invalid warmup")
-}
-
-func TestRunWorkflowLoadtest_MissingConfig(t *testing.T) {
-	err := runWorkflowLoadtest([]string{})
-	assertError(t, err)
-	assertErrorContains(t, err, "--config is required")
-}
-
-// =============================================================================
 // marshalYAML — pure function tests (71.4% → higher)
 // =============================================================================
 
@@ -504,12 +376,6 @@ func TestRunWorkflow_SimulateDispatch(t *testing.T) {
 
 func TestRunWorkflow_ReplayDispatch(t *testing.T) {
 	err := runWorkflow([]string{"replay"})
-	assertError(t, err)
-	assertErrorContains(t, err, "--config is required")
-}
-
-func TestRunWorkflow_LoadtestDispatch(t *testing.T) {
-	err := runWorkflow([]string{"loadtest"})
 	assertError(t, err)
 	assertErrorContains(t, err, "--config is required")
 }

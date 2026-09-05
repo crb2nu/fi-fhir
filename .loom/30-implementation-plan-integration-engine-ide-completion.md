@@ -917,17 +917,32 @@ PostgreSQL 16 service container.
   stripped the tracing façade from the five deployment artifacts that still
   advertised it.
 
-#### 4.4b — performance budget harness (Sprint 5)
+#### 4.4b — performance budget harness (Sprint 5) — DELIVERED, budgets uncertified
 
 Budgets 1-3: ACK latency, one-hour steady-state throughput, and 1-GiB batch peak
-RSS. **Blocked on an infrastructure decision, not on code.** CI's k3s pool spans
-hardware differing by more than 5× (`.gitlab-ci.yml`, `test:benchmark`), so a
-p95 ≤ 250 ms gate there is either permanently red or calibrated into
-meaninglessness. Needs: a pinned runner or dedicated host; the reference-profile
-values file 4.4a added (`deploy/helm/fi-fhir/values-reference-profile.yaml`);
-and the MLLP per-deployment capacity decision (4.4e), because a throughput run
-on two replicas against a revision declaring 250 msg/s will admit up to 500 and
-will not be measuring the declared policy.
+RSS. The earlier framing here — "blocked on an infrastructure decision, not on
+code" — was half right, and acting on the other half is what the slice did.
+
+Delivered: `internal/integration/perf`, the first benchmarks under
+`internal/integration` in the repository's history, driving the durable accept
+path (`ingress.Service.Submit`, `mllp.Service.Submit`) against a real
+PostgreSQL with destinations decoupled; a **blocking** `allocs/op` gate over
+them in the ordinary shared pool via `bench-check -set=durable`; a heap sampler
+for budget 3; an inert, tagged (`fi-fhir-perf`), manual wall-clock job with a
+documented archived-report schema; and the deletion of `fi-fhir workflow
+loadtest`, which reported "100% of target" while erroring on 100% of events.
+
+Still blocked, and stated as such in `docs/operations/SUPPORTED-1.0.md`'s
+budget table: **certification** of budgets 1-3, which needs a pinned runner
+registered in `platform/gitops`. Budget 2 is additionally blocked on 4.4e —
+a throughput run on two replicas against a revision declaring 250 msg/s admits
+up to 500 and measures the topology rather than the declared policy.
+
+Correction to the premise: the alloc signal is CPU-independent but **not**
+bit-identical on a database-backed path the way it is on the legacy
+micro-benchmarks (~2 in 4650 across runs), and it is only stable at a pinned
+iteration count. A time-based `-benchtime` makes a fast runner report a
+different `allocs/op` than a slow one for identical code.
 
 #### 4.4c — chaos, DR, and Kubernetes upgrade/rollback (Sprint 5)
 

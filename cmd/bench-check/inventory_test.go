@@ -14,12 +14,10 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/workflow"
 )
 
-// legacyGatedBenchmarks is the set of benchmarks the performance gate asserts
-// on today. Every one lives in internal/workflow and exercises the legacy
-// workflow engine, which no durable path calls at runtime: the durable accept
-// path reaches internal/workflow only for parse and plan
-// (internal/integration/processor/workflow_plan.go, session/workflow_simulation.go),
-// and neither entry point is benchmarked.
+// legacyGatedBenchmarks is the set of legacy workflow-engine benchmarks the
+// per-CPU threshold set asserts on. Every one lives in internal/workflow and
+// measures a code path no durable request executes at runtime: the durable path
+// reaches internal/workflow only for parse and plan.
 var legacyGatedBenchmarks = []string{
 	"BenchmarkCELEvaluate_Simple",
 	"BenchmarkEngineProcess",
@@ -29,75 +27,72 @@ var legacyGatedBenchmarks = []string{
 	"BenchmarkTransform_SetField",
 }
 
-// TestPerformanceHarness_NothingMeasuresAnyProductBudgetToday is slice 4.4b's
-// day-1 gate. It is an inventory assertion, not a benchmark, and it is expected
-// to PASS on unmodified main.
+// durableBenchmarks is every benchmark in internal/integration/perf. Only the
+// serial pair is gated; see durableAllocCeilings for the measured scheduler
+// noise that keeps the parallel pair out of the threshold map.
+var durableBenchmarks = []string{
+	"BenchmarkDurableAccept_IngressSubmit",
+	"BenchmarkDurableAccept_IngressSubmitParallel",
+	"BenchmarkDurableAccept_MLLPSubmit",
+	"BenchmarkDurableAccept_MLLPSubmitParallel",
+}
+
+// TestPerformanceHarness_TheDurablePathIsMeasuredAndGated is the day-1 gate,
+// inverted.
 //
-// It exists to convert a claim into a measurement. `test:benchmark` is green,
-// blocking, and benches 32 functions — which reads as partial credit toward the
-// slice 4.4 performance budgets. It is not: every gated benchmark is a legacy
-// workflow-engine micro-benchmark, and the durable ingress/MLLP/batch accept
-// path that the product budgets are written about has never been measured at
-// all. Passing here states that zero as a fact rather than as an impression.
+// It began life as TestPerformanceHarness_NothingMeasuresAnyProductBudgetToday,
+// which passed on main by asserting a zero: no benchmark anywhere under
+// internal/integration, no durable package in test:benchmark's list, and a
+// threshold map naming only legacy micro-benchmarks. That zero was the point.
+// `test:benchmark` was green, blocking, and benched 32 functions, which read as
+// partial credit toward the slice 4.4 performance budgets — while the durable
+// accept path those budgets describe had never been measured at all.
 //
-// The gate inverts the moment the first durable benchmark lands. When
-// internal/integration/perf exists, assertion 1 fails and this test must be
-// rewritten to assert the new floor — that is the intended lifecycle, and the
-// rewrite is the proof that the floor moved.
-//
-// On the scan mechanism: the spec sketched parsing `go test -list 'Benchmark.*'
-// ./...`. This walks the source with go/ast instead, because internal/integration's
-// tests are overwhelmingly behind `//go:build integration` and a plain
-// `go test -list` cannot see a build-tagged benchmark. An AST walk ignores build
-// tags, so it is the stricter check for "nothing exists" — and it does not
-// compile the tree, so it runs in milliseconds inside an ordinary unit-test job.
-func TestPerformanceHarness_NothingMeasuresAnyProductBudgetToday(t *testing.T) {
+// Slice 4.4b's task 3 moved the floor, so the gate is rewritten rather than
+// deleted: the rewrite is the proof that the floor moved. What it now asserts is
+// the shape of the new arrangement, and in particular the two things easiest to
+// get wrong later — that the legacy and durable sets stay disjoint, and that a
+// durable name never leaks into the shared map that the legacy job resolves.
+func TestPerformanceHarness_TheDurablePathIsMeasuredAndGated(t *testing.T) {
 	root := repoRoot(t)
 
-	t.Run("zero benchmarks exist under internal/integration", func(t *testing.T) {
+	t.Run("the durable accept path has benchmarks", func(t *testing.T) {
 		found := benchmarksUnder(t, filepath.Join(root, "internal", "integration"))
-		if len(found) != 0 {
-			t.Fatalf("expected zero benchmarks under internal/integration, found %d: %v\n"+
-				"If slice 4.4b's task 3 has landed, this gate has served its purpose and must be\n"+
-				"rewritten to assert the new floor rather than deleted.", len(found), found)
+		if diff := diffStrings(durableBenchmarks, found); diff != "" {
+			t.Fatalf("benchmarks under internal/integration are not the expected set:\n%s", diff)
 		}
 	})
 
-	t.Run("the test:benchmark package list contains no internal/integration package", func(t *testing.T) {
-		for _, src := range []struct {
-			file string
-			path string
-		}{
-			{"gitlab-ci", filepath.Join(root, ".gitlab-ci.yml")},
-			{"makefile", filepath.Join(root, "Makefile")},
-		} {
-			pkgs := benchPackageLists(t, src.path)
-			if len(pkgs) == 0 {
-				t.Fatalf("%s: found no `go test -bench` package list; the gate can no longer "+
-					"see what test:benchmark measures", src.file)
-			}
-			for _, list := range pkgs {
-				for _, pkg := range list {
-					if strings.Contains(pkg, "internal/integration") {
-						t.Errorf("%s: benchmark package list already includes %q; the durable "+
-							"path is measured and this gate is stale", src.file, pkg)
-					}
-				}
-			}
+	t.Run("the durable set gates the serial pair and nothing else", func(t *testing.T) {
+		gated := sortedCeilingNames(workflow.DurableAllocCeilings())
+		want := []string{
+			"BenchmarkDurableAccept_IngressSubmit",
+			"BenchmarkDurableAccept_MLLPSubmit",
+		}
+		if diff := diffStrings(want, gated); diff != "" {
+			t.Fatalf("durable allocation ceilings are not the expected set:\n%s\n"+
+				"The parallel variants are measured but not gated: their allocation count "+
+				"depends on goroutine scheduling, not only on the accept path.", diff)
+		}
+
+		// A durable set that gates ns/op or events/sec would be a calibrated
+		// wall-clock gate in the shared pool, which the lane's decision
+		// prohibits outright.
+		durable := workflow.ResolveDurableThresholds()
+		if len(durable.MaxNsPerOp) != 0 {
+			t.Errorf("durable set gates ns/op (%v); wall-clock belongs to the pinned-runner job", durable.MaxNsPerOp)
+		}
+		if len(durable.MinThroughput) != 0 {
+			t.Errorf("durable set gates events/sec (%v); throughput belongs to the pinned-runner job", durable.MinThroughput)
 		}
 	})
 
-	t.Run("bench-check gates exactly the six legacy benchmarks and no durable one", func(t *testing.T) {
-		gated := gatedBenchmarkNames()
-
+	t.Run("the legacy set still gates exactly the six legacy benchmarks", func(t *testing.T) {
+		gated := legacyGatedBenchmarkNames()
 		if diff := diffStrings(legacyGatedBenchmarks, gated); diff != "" {
-			t.Fatalf("bench-check's threshold maps no longer name exactly the six legacy "+
-				"benchmarks:\n%s", diff)
+			t.Fatalf("the legacy threshold set changed:\n%s", diff)
 		}
 
-		// Naming the six is not enough — prove they are legacy by locating each
-		// one's declaration. A durable benchmark added under one of these names
-		// would satisfy the set comparison above and defeat the gate.
 		legacy := benchmarksUnder(t, filepath.Join(root, "internal", "workflow"))
 		have := make(map[string]struct{}, len(legacy))
 		for _, name := range legacy {
@@ -105,17 +100,58 @@ func TestPerformanceHarness_NothingMeasuresAnyProductBudgetToday(t *testing.T) {
 		}
 		for _, name := range gated {
 			if _, ok := have[name]; !ok {
-				t.Errorf("gated benchmark %q is not declared in internal/workflow; the gate "+
-					"may now cover a non-legacy path", name)
+				t.Errorf("gated benchmark %q is not declared in internal/workflow", name)
+			}
+		}
+	})
+
+	t.Run("no durable benchmark leaks into the legacy set", func(t *testing.T) {
+		// This is the failure the sibling map exists to prevent, and it is
+		// silent in the worst way: ResolveWorkflowThresholds copies the legacy
+		// allocation ceilings into every CPU profile, and Check treats every
+		// name in any map as a required result. A durable name in that map
+		// makes test:benchmark fail with "required benchmark result missing",
+		// which reads like a broken runner rather than a mistake in a map.
+		legacy := legacyGatedBenchmarkNames()
+		durable := make(map[string]struct{}, len(durableBenchmarks))
+		for _, name := range durableBenchmarks {
+			durable[name] = struct{}{}
+		}
+		for _, name := range legacy {
+			if _, ok := durable[name]; ok {
+				t.Errorf("%q is gated by the legacy set, but test:benchmark does not run "+
+					"internal/integration; it would fail as a missing result", name)
+			}
+		}
+	})
+
+	t.Run("test:benchmark still runs only the legacy packages", func(t *testing.T) {
+		// The durable benchmarks are behind //go:build integration and need a
+		// PostgreSQL, so they run in their own job. If they ever appear in this
+		// list, test:benchmark will fail on a database it does not have.
+		for _, src := range []struct {
+			file string
+			path string
+		}{
+			{"gitlab-ci", filepath.Join(root, ".gitlab-ci.yml")},
+			{"makefile", filepath.Join(root, "Makefile")},
+		} {
+			for _, list := range benchPackageLists(t, src.path, "bench-durable") {
+				for _, pkg := range list {
+					if strings.Contains(pkg, "internal/integration") {
+						t.Errorf("%s: the legacy benchmark package list includes %q; "+
+							"the durable benchmarks belong to their own job", src.file, pkg)
+					}
+				}
 			}
 		}
 	})
 }
 
-// gatedBenchmarkNames returns every benchmark named by any threshold map in any
-// calibrated CPU profile, plus the CPU-independent allocation ceilings. It
-// unions across all profiles so a name present in only one class is still seen.
-func gatedBenchmarkNames() []string {
+// legacyGatedBenchmarkNames returns every benchmark named by any threshold map
+// in any calibrated CPU profile, unioned with the CPU-independent allocation
+// ceilings and the unrecognized-hardware fallback.
+func legacyGatedBenchmarkNames() []string {
 	set := make(map[string]struct{})
 	collect := func(th *workflow.PerformanceThresholds) {
 		for name := range th.MaxNsPerOp {
@@ -134,20 +170,19 @@ func gatedBenchmarkNames() []string {
 			collect(th)
 		}
 	}
-	// The unrecognized-hardware path, which falls back to the slowest profile.
 	th, _, _ := workflow.ResolveWorkflowThresholds("no such cpu")
 	collect(th)
 
-	out := make([]string, 0, len(set))
-	for name := range set {
-		out = append(out, name)
-	}
-	sort.Strings(out)
-	return out
+	return sortedKeysOf(set)
 }
 
 // benchmarksUnder returns every `func BenchmarkXxx(*testing.B)` declared in a
 // _test.go file under dir, regardless of build tag.
+//
+// It walks the source rather than parsing `go test -list` output because
+// internal/integration's tests are overwhelmingly behind `//go:build
+// integration`, and a plain `go test -list` cannot see a build-tagged
+// benchmark. The AST walk ignores build tags and compiles nothing.
 func benchmarksUnder(t *testing.T, dir string) []string {
 	t.Helper()
 
@@ -189,7 +224,7 @@ func benchmarksUnder(t *testing.T, dir string) []string {
 }
 
 // isBenchmarkSignature reports whether fn takes exactly one *testing.B, which
-// is what `go test` requires before it will treat the name as a benchmark.
+// is what `go test` requires before it treats the name as a benchmark.
 func isBenchmarkSignature(fn *ast.FuncDecl) bool {
 	if fn.Type.Params == nil || len(fn.Type.Params.List) != 1 {
 		return false
@@ -206,11 +241,12 @@ func isBenchmarkSignature(fn *ast.FuncDecl) bool {
 	return ok && pkg.Name == "testing" && sel.Sel.Name == "B"
 }
 
-var benchInvocation = regexp.MustCompile(`go test\s+-bench=\.[^\n]*`)
+var benchInvocation = regexp.MustCompile(`go test[^\n]*-bench=\.[^\n]*`)
 
 // benchPackageLists extracts the `./...` package patterns from every
-// `go test -bench=.` invocation in path.
-func benchPackageLists(t *testing.T, path string) [][]string {
+// `go test -bench=.` invocation in path, skipping lines that belong to a target
+// named by skipMarkers (the durable job legitimately names internal/integration).
+func benchPackageLists(t *testing.T, path string, skipMarkers ...string) [][]string {
 	t.Helper()
 
 	data, err := os.ReadFile(path)
@@ -220,6 +256,9 @@ func benchPackageLists(t *testing.T, path string) [][]string {
 
 	var lists [][]string
 	for _, line := range benchInvocation.FindAllString(string(data), -1) {
+		if matchesAnyMarker(line, skipMarkers) {
+			continue
+		}
 		var pkgs []string
 		for _, field := range strings.Fields(line) {
 			if strings.HasPrefix(field, "./") {
@@ -230,7 +269,22 @@ func benchPackageLists(t *testing.T, path string) [][]string {
 			lists = append(lists, pkgs)
 		}
 	}
+	if len(lists) == 0 {
+		t.Fatalf("%s: found no legacy `go test -bench` package list; the gate can no longer "+
+			"see what test:benchmark measures", path)
+	}
 	return lists
+}
+
+func matchesAnyMarker(line string, markers []string) bool {
+	for _, marker := range markers {
+		if strings.Contains(line, marker) {
+			return true
+		}
+	}
+	// The durable invocation is identifiable by its build tag even when the
+	// surrounding target name is not on the same line.
+	return strings.Contains(line, "-tags=integration")
 }
 
 // repoRoot walks up from the test's working directory to the module root.
@@ -253,8 +307,26 @@ func repoRoot(t *testing.T) string {
 	}
 }
 
-// diffStrings renders the symmetric difference of two sorted string slices, or
-// "" when they are equal.
+func sortedCeilingNames(m map[string]int64) []string {
+	out := make([]string, 0, len(m))
+	for name := range m {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func sortedKeysOf(m map[string]struct{}) []string {
+	out := make([]string, 0, len(m))
+	for name := range m {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// diffStrings renders the symmetric difference of two string slices, or "" when
+// they hold the same elements.
 func diffStrings(want, got []string) string {
 	wantSet := make(map[string]struct{}, len(want))
 	for _, s := range want {
