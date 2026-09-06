@@ -230,11 +230,43 @@ func newOIDCAccessTokenVerifier(ctx context.Context, config oidcAccessTokenConfi
 		return nil, fmt.Errorf("OIDC tenant and roles claims must be distinct")
 	}
 
-	signingAlgorithms, err := validateOIDCSigningAlgorithms(config.supportedSigningAlgs)
+	verifier, err := discoverOIDCVerifier(ctx, issuerURL, config.audience, oidcDiscoveryOptions{
+		supportedSigningAlgs:   config.supportedSigningAlgs,
+		httpClient:             config.httpClient,
+		jwksRefreshMinInterval: config.jwksRefreshMinInterval,
+	})
 	if err != nil {
 		return nil, err
 	}
-	refreshMinInterval := config.jwksRefreshMinInterval
+
+	return &oidcAccessTokenVerifier{
+		verifier:    verifier,
+		audience:    config.audience,
+		tenantID:    config.tenantID,
+		tenantClaim: tenantClaim,
+		rolesClaim:  rolesClaim,
+	}, nil
+}
+
+// oidcDiscoveryOptions are the transport and key-handling settings shared by
+// every verifier built from issuer discovery.
+type oidcDiscoveryOptions struct {
+	supportedSigningAlgs   []string
+	httpClient             *http.Client
+	jwksRefreshMinInterval time.Duration
+}
+
+// discoverOIDCVerifier performs issuer discovery over a hardened HTTPS client
+// and returns a long-lived verifier whose remote key set refreshes at a bounded
+// rate. The bearer-token verifiers and the Cloudflare Access assertion
+// verifier share it, so the transport hardening is decided once. issuerURL
+// must already be validated.
+func discoverOIDCVerifier(ctx context.Context, issuerURL, audience string, options oidcDiscoveryOptions) (*oidc.IDTokenVerifier, error) {
+	signingAlgorithms, err := validateOIDCSigningAlgorithms(options.supportedSigningAlgs)
+	if err != nil {
+		return nil, err
+	}
+	refreshMinInterval := options.jwksRefreshMinInterval
 	if refreshMinInterval < 0 {
 		return nil, fmt.Errorf("OIDC JWKS refresh minimum interval must not be negative")
 	}
@@ -242,7 +274,7 @@ func newOIDCAccessTokenVerifier(ctx context.Context, config oidcAccessTokenConfi
 		refreshMinInterval = defaultJWKSRefreshMinInterval
 	}
 
-	httpClient := config.httpClient
+	httpClient := options.httpClient
 	if httpClient == nil {
 		// Preserve the go-oidc context convention for existing callers while the
 		// explicit config field remains the preferred transport boundary.
@@ -270,16 +302,10 @@ func newOIDCAccessTokenVerifier(ctx context.Context, config oidcAccessTokenConfi
 	jwksContext := oidc.ClientContext(context.Background(), &jwksClient)
 	keySet := oidc.NewRemoteKeySet(jwksContext, jwksURL)
 
-	return &oidcAccessTokenVerifier{
-		verifier: oidc.NewVerifier(issuerURL, keySet, &oidc.Config{
-			ClientID:             config.audience,
-			SupportedSigningAlgs: signingAlgorithms,
-		}),
-		audience:    config.audience,
-		tenantID:    config.tenantID,
-		tenantClaim: tenantClaim,
-		rolesClaim:  rolesClaim,
-	}, nil
+	return oidc.NewVerifier(issuerURL, keySet, &oidc.Config{
+		ClientID:             audience,
+		SupportedSigningAlgs: signingAlgorithms,
+	}), nil
 }
 
 // Authenticate verifies one bearer JWT and builds server-owned identity data.

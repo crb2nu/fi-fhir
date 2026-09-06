@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- GraphQL callers can be authenticated by the identity Cloudflare Access verified at the edge: with `FI_FHIR_GRAPHQL_ACCESS_TEAM_DOMAIN`, `_AUDIENCE`, and `_PRINCIPALS` set, the runtime verifies the `Cf-Access-Jwt-Assertion` token (or the `CF_Authorization` cookie) against the team domain's keys and exact application audience, and grants each listed email exactly the roles the deployment maps to it. Works beside either bearer mode; an `Authorization` header keeps precedence. `/api/auth/status` reports `authVia: "cloudflare-access"` with the principal, and the IDE's credential gate steps aside for it, so a Google sign-in through Access carries straight into the IDE without a pasted token.
+
 #### Integration Runtime Foundation
 - Public `pkg/integration` contracts for content-addressed integration revisions, tenant/actor identity, typed secret references, PHI/raw-retention policy, production/preview requests, and stable processing results
 - Golden Path 001 revision fixture with strict decoding, deterministic semantic digest validation, non-serializable raw payload bytes, and preview side-effect invariants

@@ -83,6 +83,35 @@ Implementation: `cmd/fi-fhir/preview_runtime.go`,
 `internal/api/requestsecurity/auth.go`, and
 `internal/integration/registry/static.go`.
 
+### Cloudflare Access identity (either mode)
+
+When Cloudflare Access fronts the deployment, the edge attaches the signed
+application token to every request as `Cf-Access-Jwt-Assertion` (the browser
+holds the same token as the `CF_Authorization` cookie). Either mode accepts that
+identity when all three of these are set; setting one or two fails startup:
+
+| Variable | Requirement |
+| --- | --- |
+| `FI_FHIR_GRAPHQL_ACCESS_TEAM_DOMAIN` | `https://<team>.cloudflareaccess.com`; the issuer and discovery root |
+| `FI_FHIR_GRAPHQL_ACCESS_AUDIENCE` | The Access application's AUD tag, one exact value |
+| `FI_FHIR_GRAPHQL_ACCESS_PRINCIPALS` | `email=role,role;email=role`; every entry includes `integration:preview` |
+
+The verifier discovers the team domain like an OIDC issuer (same HTTPS-only,
+size, timeout, and refresh bounds), accepts RS256 with `typ=JWT` or no `typ` —
+the bearer verifiers' `at+jwt` class is rejected here and vice versa — and
+requires one exact audience, `type=app`, and an `email`. It grants only the
+roles the map names for that address, compared case-insensitively; an identity
+Access admits but the map does not name is rejected, as are service tokens. The
+token carries no role or tenant claim, which is why authorization is deployment
+configuration and why this is a layer beside the bearer modes rather than a
+third `FI_FHIR_GRAPHQL_AUTH_MODE`.
+
+Precedence: trusted network, then an `Authorization` header when the request
+carries one (judged alone), then the Access assertion. `/api/auth/status`
+reports `{"authenticated":true,"authVia":"cloudflare-access","principal":"<email>"}`
+for a verified session. Implementation:
+`internal/api/requestsecurity/cloudflare_access.go`.
+
 ## Authorization
 
 The transitional `integration:preview` role permits only:

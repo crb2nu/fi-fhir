@@ -14,6 +14,7 @@ import (
 	graphqlapi "gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/resolvers"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity/oidctest"
 )
 
 const testBearerToken = "correct-horse-battery-staple"
@@ -283,6 +284,134 @@ func TestTrustedNetworkGraphQLAccess(t *testing.T) {
 		req.Header.Set("X-Real-IP", "203.0.113.9")
 		recorder := httptest.NewRecorder()
 		handler.ServeHTTP(recorder, req)
+		if recorder.Code != http.StatusUnauthorized {
+			t.Fatalf("status = %d, want 401, body=%s", recorder.Code, recorder.Body.String())
+		}
+	})
+}
+
+func TestCloudflareAccessGraphQLAccess(t *testing.T) {
+	issuer, err := oidctest.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer issuer.Close()
+	const audience = "6834f3234782f45980c750ae8711c0a95f9b834c2ccbc909ac47252c060c8e53"
+	access, err := requestsecurity.NewCloudflareAccessAuthenticator(issuer.Context(), requestsecurity.CloudflareAccessConfig{
+		TeamDomainURL: issuer.IssuerURL(),
+		Audience:      audience,
+		TenantID:      "tenant-a",
+		Principals:    map[string][]string{"cody@flexinfer.ai": {"integration:preview"}},
+		HTTPClient:    issuer.HTTPClient(),
+	})
+	if err != nil {
+		t.Fatalf("NewCloudflareAccessAuthenticator: %v", err)
+	}
+	config := secureServerConfig(testAuthenticator(t))
+	config.CloudflareAccessAuthenticator = access
+	server, err := graphqlapi.NewServer(resolvers.NewResolver(), config)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	handler := server.Handler()
+	query := []byte(`{"query":"query { health { status } }"}`)
+
+	assertionFor := func(email string) string {
+		claims := issuer.Claims()
+		delete(claims, "roles")
+		delete(claims, "tenant_id")
+		claims["aud"] = []string{audience}
+		claims["email"] = email
+		claims["type"] = "app"
+		token, err := issuer.SignWithType(claims, "RS256", "JWT")
+		if err != nil {
+			t.Fatalf("sign assertion: %v", err)
+		}
+		return token
+	}
+	signedIn := assertionFor("Cody@Flexinfer.ai")
+
+	t.Run("status reports the verified Access identity so the gate can step aside", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, graphqlapi.AuthStatusPath, nil)
+		req.Header.Set(requestsecurity.CloudflareAccessAssertionHeader, signedIn)
+		req.Header.Set("X-Real-IP", "203.0.113.9")
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, req)
+		body := recorder.Body.String()
+		if recorder.Code != http.StatusOK || !strings.Contains(body, `"authVia":"cloudflare-access"`) || !strings.Contains(body, `"principal":"cody@flexinfer.ai"`) {
+			t.Fatalf("status = %d body=%s", recorder.Code, body)
+		}
+	})
+
+	t.Run("GraphQL accepts the edge assertion without a bearer", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, config.Path, bytes.NewReader(query))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set(requestsecurity.CloudflareAccessAssertionHeader, signedIn)
+		req.Header.Set("X-Real-IP", "203.0.113.9")
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, req)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+		}
+	})
+
+	t.Run("the browser cookie alone is enough on a direct request", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, config.Path, bytes.NewReader(query))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(&http.Cookie{Name: requestsecurity.CloudflareAccessCookie, Value: signedIn})
+		req.Header.Set("X-Real-IP", "203.0.113.9")
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, req)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+		}
+	})
+
+	t.Run("a bearer header is judged on its own even beside a valid assertion", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, config.Path, bytes.NewReader(query))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer stale-browser-token")
+		req.Header.Set(requestsecurity.CloudflareAccessAssertionHeader, signedIn)
+		req.Header.Set("X-Real-IP", "203.0.113.9")
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, req)
+		if recorder.Code != http.StatusUnauthorized {
+			t.Fatalf("status = %d, want 401: the stale bearer must not be rescued by the cookie beside it; body=%s", recorder.Code, recorder.Body.String())
+		}
+	})
+
+	t.Run("an identity Access admits but the deployment did not name stays out", func(t *testing.T) {
+		stranger := assertionFor("someone-else@flexinfer.ai")
+		req := httptest.NewRequest(http.MethodPost, config.Path, bytes.NewReader(query))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set(requestsecurity.CloudflareAccessAssertionHeader, stranger)
+		req.Header.Set("X-Real-IP", "203.0.113.9")
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, req)
+		if recorder.Code != http.StatusUnauthorized {
+			t.Fatalf("status = %d, want 401, body=%s", recorder.Code, recorder.Body.String())
+		}
+		status := httptest.NewRequest(http.MethodGet, graphqlapi.AuthStatusPath, nil)
+		status.Header.Set(requestsecurity.CloudflareAccessAssertionHeader, stranger)
+		status.Header.Set("X-Real-IP", "203.0.113.9")
+		recorder = httptest.NewRecorder()
+		handler.ServeHTTP(recorder, status)
+		if !strings.Contains(recorder.Body.String(), `"authenticated":false`) {
+			t.Fatalf("status body=%s, want the gate to stay closed", recorder.Body.String())
+		}
+	})
+
+	t.Run("without any Access configuration the header is ignored", func(t *testing.T) {
+		plain := secureServerConfig(testAuthenticator(t))
+		plainServer, err := graphqlapi.NewServer(resolvers.NewResolver(), plain)
+		if err != nil {
+			t.Fatalf("NewServer: %v", err)
+		}
+		req := httptest.NewRequest(http.MethodPost, plain.Path, bytes.NewReader(query))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set(requestsecurity.CloudflareAccessAssertionHeader, signedIn)
+		recorder := httptest.NewRecorder()
+		plainServer.Handler().ServeHTTP(recorder, req)
 		if recorder.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401, body=%s", recorder.Code, recorder.Body.String())
 		}

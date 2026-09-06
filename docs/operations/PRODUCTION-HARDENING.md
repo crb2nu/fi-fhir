@@ -689,6 +689,43 @@ OIDC mode rejects static bearer, principal, roles, and trusted-CIDR settings.
 The checked-in Helm/Kustomize deployment remains on the static compatibility
 path until a separate production GitOps activation review.
 
+#### Cloudflare Access in front of the deployment
+
+When Cloudflare Access fronts the origin, every request that reached it already
+passed the Access policy and its identity provider, and the edge attaches the
+signed application token as `Cf-Access-Jwt-Assertion` (the browser holds the
+same token as the `CF_Authorization` cookie). Either mode can accept that
+identity by setting all three of:
+
+| Variable | Requirement |
+| --- | --- |
+| `FI_FHIR_GRAPHQL_ACCESS_TEAM_DOMAIN` | `https://<team>.cloudflareaccess.com` — the issuer and discovery root |
+| `FI_FHIR_GRAPHQL_ACCESS_AUDIENCE` | The Access application's AUD tag, matched exactly |
+| `FI_FHIR_GRAPHQL_ACCESS_PRINCIPALS` | `email=role,role;email=role` — each must include `integration:preview` |
+
+The runtime verifies the token against the team domain's published keys
+(RS256, discovered over HTTPS with the same bounds as OIDC mode), requires
+`typ=JWT` or no `typ`, one exact audience, `type=app`, and an `email` claim, and
+then grants **only the roles this map names** for that address. Access decides
+who may reach the origin; this map decides what they may do. An identity Access
+admits but the map does not name is rejected, and service tokens (no email) are
+never accepted here — they keep using the bearer credential. Cloudflare's
+application token carries no role or tenant claim, which is why the mapping is
+deployment configuration rather than a claim, and why this is a layer beside the
+bearer authenticator rather than a third `FI_FHIR_GRAPHQL_AUTH_MODE`.
+
+Precedence is fixed: LAN trust first, then an `Authorization` header if the
+request carries one (judged on its own, never rescued by the cookie beside it),
+then the Access assertion. `/api/auth/status` reports
+`{"authenticated":true,"authVia":"cloudflare-access","principal":"<email>"}`
+for a verified Access session, and the IDE's credential gate steps aside on it
+the way it does for LAN trust.
+
+Do not expose the origin in a way that bypasses Cloudflare while relying on this
+layer for *reachability*: it authenticates the token, which only Cloudflare can
+mint, but the token is per browser session, so anything that forwards the header
+or cookie from another client is forwarding a credential.
+
 Static mode preserves the Slice 1.1c single-deployment bearer for local and
 preview compatibility. Harden that boundary as follows:
 

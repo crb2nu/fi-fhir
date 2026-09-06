@@ -48,6 +48,7 @@ type previewRuntime struct {
 	tenantID         string
 	authenticator    requestsecurity.Authenticator
 	trustedNetwork   *requestsecurity.TrustedNetworkAuthenticator
+	accessIdentity   *requestsecurity.CloudflareAccessAuthenticator
 	allowedOrigins   []string
 	previewService   *integrationpreview.Service
 	messageProcessor *processor.MessageProcessor
@@ -103,7 +104,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 	if err != nil {
 		return nil, err
 	}
-	authenticator, trustedNetwork, err := loadGraphQLAuthenticationFromEnv(ctx, tenantID)
+	authenticator, trustedNetwork, accessIdentity, err := loadGraphQLAuthenticationFromEnv(ctx, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -338,6 +339,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 		tenantID:         tenantID,
 		authenticator:    authenticator,
 		trustedNetwork:   trustedNetwork,
+		accessIdentity:   accessIdentity,
 		allowedOrigins:   allowedOrigins,
 		previewService:   previewService,
 		messageProcessor: messageProcessor,
@@ -718,20 +720,33 @@ func openSubmissionDatabaseFromEnv(ctx context.Context) (*sql.DB, error) {
 	return db, nil
 }
 
-func loadGraphQLAuthenticationFromEnv(ctx context.Context, tenantID string) (requestsecurity.Authenticator, *requestsecurity.TrustedNetworkAuthenticator, error) {
+// loadGraphQLAuthenticationFromEnv builds the bearer authenticator the mode
+// selects, the optional LAN trust that static mode allows, and the optional
+// Cloudflare Access identity that either mode may layer on top. The Access
+// layer is deliberately independent of the mode: it authenticates a browser
+// session the edge already verified, and says nothing about how machine
+// callers present a token.
+func loadGraphQLAuthenticationFromEnv(ctx context.Context, tenantID string) (requestsecurity.Authenticator, *requestsecurity.TrustedNetworkAuthenticator, *requestsecurity.CloudflareAccessAuthenticator, error) {
 	mode, err := canonicalEnvOrDefault("FI_FHIR_GRAPHQL_AUTH_MODE", graphqlAuthModeStatic)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
+	var (
+		authenticator  requestsecurity.Authenticator
+		trustedNetwork *requestsecurity.TrustedNetworkAuthenticator
+	)
 	switch mode {
 	case graphqlAuthModeStatic:
-		return loadStaticGraphQLAuthenticationFromEnv(tenantID)
+		authenticator, trustedNetwork, err = loadStaticGraphQLAuthenticationFromEnv(tenantID)
+		if err != nil {
+			return nil, nil, nil, err
+		}
 	case graphqlAuthModeOIDC:
 		settings, err := loadGraphQLOIDCSettingsFromEnv()
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
-		authenticator, err := requestsecurity.NewOIDCAuthenticator(ctx, requestsecurity.OIDCConfig{
+		authenticator, err = requestsecurity.NewOIDCAuthenticator(ctx, requestsecurity.OIDCConfig{
 			IssuerURL:            settings.issuerURL,
 			Audience:             settings.audience,
 			TenantID:             tenantID,
@@ -740,12 +755,85 @@ func loadGraphQLAuthenticationFromEnv(ctx context.Context, tenantID string) (req
 			SupportedSigningAlgs: settings.signingAlgorithms,
 		})
 		if err != nil {
-			return nil, nil, fmt.Errorf("configure GraphQL OIDC authenticator: %w", err)
+			return nil, nil, nil, fmt.Errorf("configure GraphQL OIDC authenticator: %w", err)
 		}
-		return authenticator, nil, nil
 	default:
-		return nil, nil, fmt.Errorf("FI_FHIR_GRAPHQL_AUTH_MODE must be %q or %q", graphqlAuthModeStatic, graphqlAuthModeOIDC)
+		return nil, nil, nil, fmt.Errorf("FI_FHIR_GRAPHQL_AUTH_MODE must be %q or %q", graphqlAuthModeStatic, graphqlAuthModeOIDC)
 	}
+	accessIdentity, err := loadCloudflareAccessFromEnv(ctx, tenantID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return authenticator, trustedNetwork, accessIdentity, nil
+}
+
+const (
+	envGraphQLAccessTeamDomain = "FI_FHIR_GRAPHQL_ACCESS_TEAM_DOMAIN"
+	envGraphQLAccessAudience   = "FI_FHIR_GRAPHQL_ACCESS_AUDIENCE"
+	envGraphQLAccessPrincipals = "FI_FHIR_GRAPHQL_ACCESS_PRINCIPALS"
+)
+
+// loadCloudflareAccessFromEnv is a no-op when none of the three Access
+// settings are present, and refuses a partial configuration: an Access layer
+// with a team domain but no principals would verify identities and then admit
+// none of them, which looks like an outage rather than a misconfiguration.
+func loadCloudflareAccessFromEnv(ctx context.Context, tenantID string) (*requestsecurity.CloudflareAccessAuthenticator, error) {
+	teamDomain := os.Getenv(envGraphQLAccessTeamDomain)
+	audience := os.Getenv(envGraphQLAccessAudience)
+	principalsValue := os.Getenv(envGraphQLAccessPrincipals)
+	if teamDomain == "" && audience == "" && principalsValue == "" {
+		return nil, nil
+	}
+	if teamDomain == "" || audience == "" || principalsValue == "" {
+		return nil, fmt.Errorf("%s, %s and %s must be set together", envGraphQLAccessTeamDomain, envGraphQLAccessAudience, envGraphQLAccessPrincipals)
+	}
+	for name, value := range map[string]string{envGraphQLAccessTeamDomain: teamDomain, envGraphQLAccessAudience: audience, envGraphQLAccessPrincipals: principalsValue} {
+		if strings.TrimSpace(value) != value {
+			return nil, fmt.Errorf("%s must be canonical", name)
+		}
+	}
+	principals, err := parseAccessPrincipals(principalsValue)
+	if err != nil {
+		return nil, err
+	}
+	authenticator, err := requestsecurity.NewCloudflareAccessAuthenticator(ctx, requestsecurity.CloudflareAccessConfig{
+		TeamDomainURL: teamDomain,
+		Audience:      audience,
+		TenantID:      tenantID,
+		Principals:    principals,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("configure GraphQL Cloudflare Access identity: %w", err)
+	}
+	return authenticator, nil
+}
+
+// parseAccessPrincipals reads "email=role,role;email=role". Every principal
+// must hold integration:preview for the same reason the static roles must:
+// the GraphQL runtime's preview surface is the floor every human caller needs.
+func parseAccessPrincipals(value string) (map[string][]string, error) {
+	principals := make(map[string][]string)
+	for _, entry := range strings.Split(value, ";") {
+		if entry == "" || strings.TrimSpace(entry) != entry {
+			return nil, fmt.Errorf("%s contains an empty or non-canonical entry", envGraphQLAccessPrincipals)
+		}
+		email, rolesValue, found := strings.Cut(entry, "=")
+		if !found || email == "" || rolesValue == "" {
+			return nil, fmt.Errorf("%s entry %q must be <email>=<role>,<role>", envGraphQLAccessPrincipals, entry)
+		}
+		roles, err := parseCSVConfig(envGraphQLAccessPrincipals, rolesValue)
+		if err != nil {
+			return nil, err
+		}
+		if !containsExact(roles, integrationpreview.PreviewRole) {
+			return nil, fmt.Errorf("%s entry for %q must include %q", envGraphQLAccessPrincipals, email, integrationpreview.PreviewRole)
+		}
+		if _, duplicate := principals[email]; duplicate {
+			return nil, fmt.Errorf("%s names %q twice", envGraphQLAccessPrincipals, email)
+		}
+		principals[email] = roles
+	}
+	return principals, nil
 }
 
 func loadStaticGraphQLAuthenticationFromEnv(tenantID string) (requestsecurity.Authenticator, *requestsecurity.TrustedNetworkAuthenticator, error) {
