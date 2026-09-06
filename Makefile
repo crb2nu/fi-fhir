@@ -881,6 +881,7 @@ docs-validate:
 	@echo "Validating documentation..."
 	bash scripts/validate-docs.sh
 	bash scripts/worklog.sh check
+	bash scripts/decisions.sh check
 
 # Start a worklog entry. Entries are one file per entry under .loom/worklog/ so
 # that parallel branches never conflict on a shared append-only file.
@@ -895,6 +896,21 @@ worklog:
 
 worklog-recent:
 	@bash scripts/worklog.sh render --newest
+
+# Record a decision. Entries are one file per decision under .loom/decisions/
+# for the same reason worklog entries are: the single append-only journal
+# re-conflicted every open merge request each time a sibling merged.
+# Usage: make decisions-new TITLE="Short title of the decision"
+decisions-new:
+	@test -n "$(TITLE)" || { echo 'Usage: make decisions-new TITLE="Short title"'; exit 1; }
+	@bash scripts/decisions.sh new "$(TITLE)"
+
+# Read the whole decision journal (concatenated on the fly; nothing is committed)
+decisions:
+	@bash scripts/decisions.sh render
+
+decisions-recent:
+	@bash scripts/decisions.sh render --newest
 
 # Full documentation maintenance (mermaid diagrams + status + validation)
 docs-all: docs-mermaid docs-status docs-validate

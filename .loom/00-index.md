@@ -16,7 +16,7 @@
 - Product speclet - FHIR IG/Bulk/SMART scoping: `28-spec-fhir-ig-bulk-smart.md`
 - Product speclet - Dynamic Source Profile management: `29-spec-profile-management-observability.md`
 - Implementation plan: `30-implementation-plan.md`
-- Decisions: `40-decisions.md`
+- Decisions: `decisions/` (one file per entry; `make decisions` renders it, `make decisions-new TITLE="..."` starts one). `40-decisions.md` is a pointer kept for existing links.
 - Worklog: `worklog/` (one file per entry; `make worklog` renders it, `make worklog-new TITLE="..."` starts one). `50-worklog.md` is a pointer kept for existing links.
 
 ## Current Goal — IDE + Backend functionality gap-fill (see `23-functionality-gaps-plan.md`)

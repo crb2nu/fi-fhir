@@ -426,6 +426,11 @@ lint:docs:
     # breaks date ordering, and a second entry appended into an existing file —
     # the habit that would put the conflict back.
     - bash scripts/worklog.sh check
+    # Decisions are one file per entry too, since 2026-09-05: the single
+    # append-only journal re-conflicted every open merge request each time a
+    # sibling merged (eight MRs, twice in one afternoon). Same checks as the
+    # worklog, plus a guard that .loom/40-decisions.md stays a pointer page.
+    - bash scripts/decisions.sh check
     # CI jobs are one file per proof under ci/ for the same reason worklog
     # entries are one file per entry. This rejects a job that vanished, changed
     # stage, or stopped blocking without ci/job-inventory.txt saying so — none
@@ -444,9 +449,12 @@ lint:docs:
         - scripts/validate-docs.sh
         - scripts/docs-status.sh
         - scripts/worklog.sh
+        - scripts/decisions.sh
         - scripts/ci-job-inventory.sh
         - .loom/worklog/**/*
         - .loom/50-worklog.md
+        - .loom/decisions/**/*
+        - .loom/40-decisions.md
         - .gitlab-ci.yml
         - ci/**/*
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -460,9 +468,12 @@ lint:docs:
         - scripts/validate-docs.sh
         - scripts/docs-status.sh
         - scripts/worklog.sh
+        - scripts/decisions.sh
         - scripts/ci-job-inventory.sh
         - .loom/worklog/**/*
         - .loom/50-worklog.md
+        - .loom/decisions/**/*
+        - .loom/40-decisions.md
         - .gitlab-ci.yml
         - ci/**/*
     - when: never
