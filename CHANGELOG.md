@@ -178,6 +178,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `fhir.USCoreDiagnosticReportLabProfile`
 
 ### Changed
+- The decision journal is one file per entry under `.loom/decisions/` (`make decisions-new TITLE=...`, `make decisions`), and `.loom/40-decisions.md` is a pointer page, mirroring the August worklog split. `scripts/decisions.sh check` runs in `lint:docs` and rejects a dated entry appended to the pointer page or a second heading in an entry file. The single append-only journal had re-conflicted every open Sprint 5 merge request on each sibling merge.
 - `build:docker` and `build:docker-ui` pass `--network=host` to `docker build`. Inside the Docker-in-Docker service the default per-build bridge network intermittently blackholed Alpine package fetches (`RUN apk ...` hung until the one-hour job timeout four times on 2026-09-02, while image pulls through the daemon and the same build on another runner slot succeeded); host networking routes RUN steps through the daemon's own egress.
 - `test:benchmark` is non-blocking on merge-request pipelines (`allow_failure: true` on the manual rule). It stays manual so it can be played for performance-sensitive changes, and stays blocking on tags and the default branch. Previously the unplayed manual job held every Go-touching MR pipeline at status `manual`, so merge-when-pipeline-succeeds never fired and MRs could not merge without a human playing the job.
 

@@ -163,7 +163,8 @@ func TestPurgeThroughput_BacklogExceedsOneBatchPerTick(t *testing.T) {
 // runs on the same connection the runtime uses, so the application role owns the
 // tables it guards and can drop any trigger. The schema-enforced exemption is a
 // guard against programmatic error, not against a hostile database role" — and
-// nothing in the tree demonstrates it. .loom/40-decisions.md:1631-1632,1659,1667
+// nothing in the tree demonstrates it. The Slice 4.1e decision
+// (.loom/decisions/2026-08-08-slice-4-1e-the-immutability-exemption-for.md)
 // repeats it. This test demonstrates it in three statements, and it is the whole
 // argument for the slice: if the application role could NOT disarm its own
 // guard, the filed follow-up would already be satisfied.
