@@ -51,6 +51,38 @@ describe('GraphQLCredentialGate', () => {
     expect(mocks.graphqlFetch).toHaveBeenCalledTimes(1);
   });
 
+  it('steps aside for a Cloudflare Access sign-in and names the principal', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        authenticated: true,
+        authVia: 'cloudflare-access',
+        principal: 'cody@flexinfer.ai'
+      })
+    } as Response);
+
+    render(GraphQLCredentialGate);
+
+    await screen.findByText('Signed in through Cloudflare Access');
+    expect(screen.getByText(/Signed in as cody@flexinfer\.ai/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Deployment bearer credential')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear access' })).not.toBeInTheDocument();
+    expect(mocks.setTrustedNetworkAccess).toHaveBeenCalledWith(true);
+    expect(mocks.graphqlFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the gate closed for an unknown headerless mode', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ authenticated: true, authVia: 'something-new' })
+    } as Response);
+
+    render(GraphQLCredentialGate);
+
+    expect(await screen.findByLabelText('Deployment bearer credential')).toBeInTheDocument();
+    expect(mocks.setTrustedNetworkAccess).not.toHaveBeenCalledWith(true);
+  });
+
   it('installs a memory-only provider and clears the password input', async () => {
     render(GraphQLCredentialGate);
     const input = screen.getByLabelText('Deployment bearer credential');

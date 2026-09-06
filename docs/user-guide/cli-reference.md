@@ -519,6 +519,16 @@ static bearer, principal, role, and trusted-CIDR setting. Bearers must be signed
 JWT access tokens with the protected header `typ=at+jwt`; generic `typ=JWT` and
 typeless tokens are rejected.
 
+Either mode can additionally accept the identity Cloudflare Access verified at
+the edge, so a browser signed in through Access needs no bearer token. Set all
+three of `FI_FHIR_GRAPHQL_ACCESS_TEAM_DOMAIN` (`https://<team>.cloudflareaccess.com`),
+`FI_FHIR_GRAPHQL_ACCESS_AUDIENCE` (the application's AUD tag), and
+`FI_FHIR_GRAPHQL_ACCESS_PRINCIPALS` (`email=role,role;email=role`, each with
+`integration:preview`). Only the roles that map names are granted; an identity
+Access admits but the map does not name is rejected. See
+`docs/operations/PRODUCTION-HARDENING.md`, "Cloudflare Access in front of the
+deployment".
+
 Optional production HL7v2 HTTP ingress is mounted at `/v1/hl7v2` when
 `FI_FHIR_HTTP_INGRESS_AUTH_MODE` is set. Every mode also requires
 `FI_FHIR_HTTP_INGRESS_INTEGRATION_ID`; leaving the mode unset keeps the endpoint

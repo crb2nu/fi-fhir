@@ -26,7 +26,11 @@ export function setGraphQLCredentialProvider(provider: GraphQLCredentialProvider
   credentialProvider = provider;
 }
 
-/** Enables headerless GraphQL requests after the server confirms LAN trust. */
+/**
+ * Enables headerless GraphQL requests after the server confirms the browser is
+ * already authenticated without a token: from the deployment's trusted network,
+ * or through the Cloudflare Access session the edge verified.
+ */
 export function setGraphQLTrustedNetworkAccess(enabled: boolean): void {
   trustedNetworkAccess = enabled;
 }

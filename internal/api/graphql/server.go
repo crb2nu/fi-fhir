@@ -25,6 +25,7 @@ import (
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/observability"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
 
 // AuthStatusPath is the unauthenticated browser probe for optional trusted-
@@ -68,6 +69,12 @@ type ServerConfig struct {
 	// TrustedNetworkAuthenticator optionally establishes the same deployment-
 	// owned identity for explicitly allowlisted LAN clients.
 	TrustedNetworkAuthenticator *requestsecurity.TrustedNetworkAuthenticator
+	// CloudflareAccessAuthenticator optionally accepts the signed assertion
+	// Cloudflare's edge attaches to a request that passed an Access policy, so
+	// a browser that signed in through Access needs no bearer token. An
+	// Authorization header keeps precedence: a caller that presents one is
+	// judged on it alone.
+	CloudflareAccessAuthenticator *requestsecurity.CloudflareAccessAuthenticator
 	// HL7IngressPath is the exact authenticated raw-HL7v2 endpoint when enabled.
 	HL7IngressPath string
 	// HL7IngressHandler owns production authentication and durable submission.
@@ -226,6 +233,20 @@ func (s *Server) Handler() http.Handler {
 		if trusted {
 			_ = json.NewEncoder(w).Encode(map[string]any{"authenticated": true, "authVia": "network"})
 			return
+		}
+		// The browser holds an Access session, not a token, so it cannot tell
+		// on its own whether it is signed in as far as this origin is concerned.
+		// Report the verified identity so the credential gate can step aside
+		// and say who is signed in.
+		if assertion, ok := s.config.CloudflareAccessAuthenticator.Assertion(r); ok {
+			if security, err := s.config.CloudflareAccessAuthenticator.Authenticate(r.Context(), assertion); err == nil {
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"authenticated": true,
+					"authVia":       "cloudflare-access",
+					"principal":     security.Principal.ID,
+				})
+				return
+			}
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"authenticated": false})
 	})
@@ -436,7 +457,7 @@ func graphqlHTTPMiddleware(next http.Handler, config *ServerConfig) http.Handler
 			r = r.WithContext(withIntegrationSessionStream(r.Context()))
 		}
 		next.ServeHTTP(w, r)
-	}), config.Authenticator, config.TrustedNetworkAuthenticator)
+	}), config.Authenticator, config.TrustedNetworkAuthenticator, config.CloudflareAccessAuthenticator)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -675,13 +696,26 @@ func isJSONObject(raw json.RawMessage, nullable bool) bool {
 	return json.Unmarshal(trimmed, &value) == nil
 }
 
-func authenticatedMiddleware(next http.Handler, authenticator requestsecurity.Authenticator, trusted *requestsecurity.TrustedNetworkAuthenticator) http.Handler {
+func authenticatedMiddleware(next http.Handler, authenticator requestsecurity.Authenticator, trusted *requestsecurity.TrustedNetworkAuthenticator, access *requestsecurity.CloudflareAccessAuthenticator) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if security, ok := trusted.AuthenticateRequest(r); ok {
 			next.ServeHTTP(w, r.WithContext(requestsecurity.WithSecurityContext(r.Context(), security)))
 			return
 		}
-		security, err := authenticator.Authenticate(r.Context(), r.Header.Get("Authorization"))
+		// Precedence: an explicit Authorization header is always judged on its
+		// own merits, even when an Access assertion is also present — a stale
+		// or wrong bearer token must not be rescued by the cookie beside it. The
+		// assertion only stands in when no bearer credential was offered.
+		var (
+			security integration.SecurityContext
+			err      error
+		)
+		authorization := r.Header.Get("Authorization")
+		if assertion, ok := access.Assertion(r); ok && authorization == "" {
+			security, err = access.Authenticate(r.Context(), assertion)
+		} else {
+			security, err = authenticator.Authenticate(r.Context(), authorization)
+		}
 		if err != nil {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="fi-fhir"`)
 			http.Error(w, "authentication required", http.StatusUnauthorized)

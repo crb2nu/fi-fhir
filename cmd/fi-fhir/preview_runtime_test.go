@@ -154,7 +154,7 @@ func TestLoadGraphQLAuthenticationStaticModeCompatibility(t *testing.T) {
 			t.Setenv("FI_FHIR_GRAPHQL_ROLES", "integration:preview,author")
 			t.Setenv("FI_FHIR_GRAPHQL_TRUSTED_CIDRS", "192.168.50.0/24")
 
-			authenticator, trustedNetwork, err := loadGraphQLAuthenticationFromEnv(context.Background(), "tenant-a")
+			authenticator, trustedNetwork, _, err := loadGraphQLAuthenticationFromEnv(context.Background(), "tenant-a")
 			if err != nil {
 				t.Fatalf("load GraphQL authentication: %v", err)
 			}
@@ -227,7 +227,7 @@ func TestLoadGraphQLAuthenticationOIDCMode(t *testing.T) {
 	t.Setenv("FI_FHIR_GRAPHQL_OIDC_ISSUER_URL", issuer.IssuerURL())
 	t.Setenv("FI_FHIR_GRAPHQL_OIDC_AUDIENCE", "fi-fhir-graphql")
 
-	authenticator, trustedNetwork, err := loadGraphQLAuthenticationFromEnv(issuer.Context(), "tenant-a")
+	authenticator, trustedNetwork, _, err := loadGraphQLAuthenticationFromEnv(issuer.Context(), "tenant-a")
 	if err != nil {
 		t.Fatalf("load OIDC authentication: %v", err)
 	}
@@ -251,7 +251,7 @@ func TestLoadGraphQLAuthenticationModesFailClosed(t *testing.T) {
 	t.Run("unknown mode", func(t *testing.T) {
 		clearGraphQLAuthenticationEnv(t)
 		t.Setenv("FI_FHIR_GRAPHQL_AUTH_MODE", "legacy")
-		_, _, err := loadGraphQLAuthenticationFromEnv(context.Background(), "tenant-a")
+		_, _, _, err := loadGraphQLAuthenticationFromEnv(context.Background(), "tenant-a")
 		if err == nil || !strings.Contains(err.Error(), "must be") {
 			t.Fatalf("unknown mode error = %v", err)
 		}
@@ -260,7 +260,7 @@ func TestLoadGraphQLAuthenticationModesFailClosed(t *testing.T) {
 	t.Run("noncanonical mode", func(t *testing.T) {
 		clearGraphQLAuthenticationEnv(t)
 		t.Setenv("FI_FHIR_GRAPHQL_AUTH_MODE", " oidc")
-		_, _, err := loadGraphQLAuthenticationFromEnv(context.Background(), "tenant-a")
+		_, _, _, err := loadGraphQLAuthenticationFromEnv(context.Background(), "tenant-a")
 		if err == nil || !strings.Contains(err.Error(), "canonical") {
 			t.Fatalf("noncanonical mode error = %v", err)
 		}
@@ -272,6 +272,9 @@ func TestLoadGraphQLAuthenticationModesFailClosed(t *testing.T) {
 		"FI_FHIR_GRAPHQL_OIDC_TENANT_CLAIM",
 		"FI_FHIR_GRAPHQL_OIDC_ROLES_CLAIM",
 		"FI_FHIR_GRAPHQL_OIDC_SIGNING_ALGS",
+		"FI_FHIR_GRAPHQL_ACCESS_TEAM_DOMAIN",
+		"FI_FHIR_GRAPHQL_ACCESS_AUDIENCE",
+		"FI_FHIR_GRAPHQL_ACCESS_PRINCIPALS",
 	} {
 		t.Run("static rejects "+name, func(t *testing.T) {
 			clearGraphQLAuthenticationEnv(t)
@@ -280,7 +283,7 @@ func TestLoadGraphQLAuthenticationModesFailClosed(t *testing.T) {
 			t.Setenv("FI_FHIR_GRAPHQL_PRINCIPAL_ID", "engineer-1")
 			t.Setenv("FI_FHIR_GRAPHQL_ROLES", "integration:preview")
 			t.Setenv(name, "configured")
-			_, _, err := loadGraphQLAuthenticationFromEnv(context.Background(), "tenant-a")
+			_, _, _, err := loadGraphQLAuthenticationFromEnv(context.Background(), "tenant-a")
 			if err == nil || !strings.Contains(err.Error(), name) {
 				t.Fatalf("static conflict error = %v", err)
 			}
@@ -300,7 +303,7 @@ func TestLoadGraphQLAuthenticationModesFailClosed(t *testing.T) {
 			t.Setenv("FI_FHIR_GRAPHQL_OIDC_ISSUER_URL", "https://identity.example.test")
 			t.Setenv("FI_FHIR_GRAPHQL_OIDC_AUDIENCE", "fi-fhir")
 			t.Setenv(name, "configured")
-			_, _, err := loadGraphQLAuthenticationFromEnv(context.Background(), "tenant-a")
+			_, _, _, err := loadGraphQLAuthenticationFromEnv(context.Background(), "tenant-a")
 			if err == nil || !strings.Contains(err.Error(), name) {
 				t.Fatalf("OIDC conflict error = %v", err)
 			}
@@ -317,7 +320,7 @@ func TestLoadGraphQLAuthenticationModesFailClosed(t *testing.T) {
 			t.Setenv("FI_FHIR_GRAPHQL_OIDC_ISSUER_URL", "https://identity.example.test")
 			t.Setenv("FI_FHIR_GRAPHQL_OIDC_AUDIENCE", "fi-fhir")
 			t.Setenv(missing, "")
-			_, _, err := loadGraphQLAuthenticationFromEnv(context.Background(), "tenant-a")
+			_, _, _, err := loadGraphQLAuthenticationFromEnv(context.Background(), "tenant-a")
 			if err == nil || !strings.Contains(err.Error(), missing) {
 				t.Fatalf("missing OIDC setting error = %v", err)
 			}

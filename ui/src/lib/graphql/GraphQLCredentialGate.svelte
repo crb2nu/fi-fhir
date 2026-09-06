@@ -16,23 +16,38 @@
   let memoryToken = '';
   let error: string | null = null;
   let busy = false;
-  let networkAccess = false;
+  type HeaderlessVia = 'network' | 'cloudflare-access';
+  let headerlessVia: HeaderlessVia | null = null;
+  let principal = '';
 
-  async function activateTrustedNetworkAccess(): Promise<void> {
+  function isHeaderlessVia(value: unknown): value is HeaderlessVia {
+    return value === 'network' || value === 'cloudflare-access';
+  }
+
+  // The server decides whether this browser is already authenticated without a
+  // token: from the deployment's trusted network, or through the Cloudflare
+  // Access session the edge verified. Either way the requests go out without an
+  // Authorization header and the gate steps aside.
+  async function activateHeaderlessAccess(): Promise<void> {
     try {
       const response = await fetch('/api/auth/status', {
         headers: { Accept: 'application/json' },
         cache: 'no-store'
       });
       if (!response.ok) return;
-      const status = (await response.json()) as { authenticated?: boolean; authVia?: string };
-      if (!status.authenticated || status.authVia !== 'network') return;
+      const status = (await response.json()) as {
+        authenticated?: boolean;
+        authVia?: string;
+        principal?: string;
+      };
+      if (!status.authenticated || !isHeaderlessVia(status.authVia)) return;
 
       await disposeClient();
       setGraphQLCredentialProvider(null);
       setGraphQLTrustedNetworkAccess(true);
       await graphqlFetch(HealthDocument, {}, { showErrorToast: false });
-      networkAccess = true;
+      headerlessVia = status.authVia;
+      principal = status.principal ?? '';
       authenticated = true;
     } catch {
       setGraphQLTrustedNetworkAccess(false);
@@ -70,7 +85,8 @@
     authenticated = false;
     accessToken = '';
     memoryToken = '';
-    networkAccess = false;
+    headerlessVia = null;
+    principal = '';
     error = null;
     setGraphQLCredentialProvider(null);
     setGraphQLTrustedNetworkAccess(false);
@@ -82,7 +98,7 @@
   }
 
   onMount(() => {
-    void activateTrustedNetworkAccess();
+    void activateHeaderlessAccess();
   });
 
   onDestroy(() => {
@@ -97,14 +113,22 @@
   <div class="access-strip" role="status" aria-live="polite">
     <span class="status-dot" aria-hidden="true"></span>
     <div class="access-copy">
-      <strong>{networkAccess ? 'Trusted network access active' : 'Preview access active'}</strong>
+      <strong>
+        {headerlessVia === 'network'
+          ? 'Trusted network access active'
+          : headerlessVia === 'cloudflare-access'
+            ? 'Signed in through Cloudflare Access'
+            : 'Preview access active'}
+      </strong>
       <span>
-        {networkAccess
+        {headerlessVia === 'network'
           ? 'Connected from the deployment trusted network.'
-          : 'Held in memory only — cleared on reload.'}
+          : headerlessVia === 'cloudflare-access'
+            ? `Signed in as ${principal}. Cloudflare Access supplies the credential; sign out there to end it.`
+            : 'Held in memory only — cleared on reload.'}
       </span>
     </div>
-    {#if !networkAccess}
+    {#if !headerlessVia}
       <button class="clear-button" type="button" on:click={clearCredential}>Clear access</button>
     {/if}
   </div>
