@@ -245,7 +245,7 @@ func (d *Dispatcher) deliverToDestination(
 	}
 	deliverCtx, cancel := context.WithTimeout(ctx, d.config.PublishTimeout)
 	handled, err := d.transport.DeliverDestination(
-		deliverCtx, item.TenantID, item.AttemptID, item.Destination, payload,
+		deliverCtx, item.TenantID, item.AttemptID, item.Destination, payload, item.EventPayload,
 	)
 	cancel()
 	if !handled && err == nil {

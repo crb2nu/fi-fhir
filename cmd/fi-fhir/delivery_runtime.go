@@ -167,12 +167,15 @@ func buildDeliveryDispatcher(
 	return dispatcher, nil
 }
 
-// buildDestinationTransport wires the Slice 4.1c-b HTTPS transport when the
-// deployed destination set actually contains an https destination.
+// buildDestinationTransport wires the destination transport when the deployed
+// destination set actually contains a destination this process delivers to
+// itself: an `https` (Slice 4.1c-b) or a `fhir` (Slice 4.1c-c) destination.
 //
 // The transport is not wired otherwise, so a deployment whose destinations are
 // all kafka-class keeps a dispatch path with no destination transport on it at
-// all — the same shape TestDeliveryDispatch_ContactsNoDestination asserts.
+// all — the same shape TestDeliveryDispatch_ContactsNoDestination asserts. The
+// fhir transport adds no runServe component: it runs inside the dispatcher's
+// existing lease and PublishTimeout, exactly as https does.
 //
 // It returns a typed nil-free interface: a Go interface holding a typed nil
 // would make the dispatcher's `transport == nil` check false and route every
@@ -180,7 +183,8 @@ func buildDeliveryDispatcher(
 func buildDestinationTransport(
 	identity *destinationIdentityRuntime,
 ) (integrationdelivery.DestinationTransport, error) {
-	if !identity.registry.HasTransport(integrationdestination.TransportHTTPS) {
+	if !identity.registry.HasTransport(integrationdestination.TransportHTTPS) &&
+		!identity.registry.HasTransport(integrationdestination.TransportFHIR) {
 		return nil, nil
 	}
 	transport, err := integrationdestination.NewTransport(integrationdestination.TransportConfig{

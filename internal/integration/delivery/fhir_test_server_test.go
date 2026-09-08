@@ -48,6 +48,28 @@ type fhirTestServer struct {
 	resources map[string][]fhirStoredResource
 	requests  []fhirServedRequest
 	nextID    int
+
+	// strictReferences makes the server behave like one with referential
+	// integrity checking on, which is how HAPI ships: every `reference` inside a
+	// transaction must be an entry fullUrl (`urn:uuid:…`, rewritten to the
+	// created resource's `Type/id` on commit), a conditional reference
+	// (`Type?identifier=system|value`, resolved against the store), or a literal
+	// `Type/id` the store holds. A literal reference to an id the server never
+	// issued — `Patient/MRN-000123`, which the mapper emits — is refused with 400.
+	//
+	// The check is scoped to the resource types this test suite writes (Patient,
+	// Encounter, DiagnosticReport, Observation). A literal reference to any other
+	// type (`Practitioner/<id>`) is accepted as-is, which is the documented v1
+	// limitation: provider references are delivered literally.
+	//
+	// Off by default so the day-1 kill-test keeps measuring what it measured on
+	// main; on for the inverted gate.
+	strictReferences bool
+}
+
+// fhirBundleScopeTypes are the resource types strictReferences resolves.
+var fhirBundleScopeTypes = map[string]bool{
+	"Patient": true, "Encounter": true, "DiagnosticReport": true, "Observation": true,
 }
 
 // fhirStoredResource is one resource in the store.
@@ -75,6 +97,7 @@ type fhirServedRequest struct {
 
 // fhirTransactionEntry is the subset of a Bundle entry the server reads.
 type fhirTransactionEntry struct {
+	FullURL  string          `json:"fullUrl"`
 	Resource json.RawMessage `json:"resource"`
 	Request  *struct {
 		Method string `json:"method"`
@@ -211,12 +234,19 @@ func (s *fhirTestServer) transactionLocked(body []byte, prefer string, served *f
 
 	// Phase 1: validate every entry; nothing is written until all pass.
 	type plannedWrite struct {
+		fullURL      string
 		resourceType string
 		resource     map[string]any
 		replaceIndex int // -1 means insert
 		status       string
 	}
 	planned := make([]plannedWrite, 0, len(bundle.Entry))
+	fullURLs := make(map[string]struct{}, len(bundle.Entry))
+	for _, entry := range bundle.Entry {
+		if entry.FullURL != "" {
+			fullURLs[entry.FullURL] = struct{}{}
+		}
+	}
 	for index, entry := range bundle.Entry {
 		if entry.Request == nil {
 			return http.StatusBadRequest, fhirOperationOutcome("required",
@@ -241,13 +271,19 @@ func (s *fhirTestServer) transactionLocked(body []byte, prefer string, served *f
 				fmt.Sprintf("entry[%d] request.url is not a URL", index))
 		}
 		targetPath := strings.Trim(target.Path, "/")
+		if s.strictReferences {
+			if problem := s.unresolvableReferenceLocked(resource, fullURLs); problem != "" {
+				return http.StatusBadRequest, fhirOperationOutcome("invalid",
+					fmt.Sprintf("entry[%d] %s", index, problem))
+			}
+		}
 		switch entry.Request.Method {
 		case http.MethodPost:
 			if targetPath != resourceType || target.RawQuery != "" {
 				return http.StatusBadRequest, fhirOperationOutcome("invalid",
 					fmt.Sprintf("entry[%d] POST url must be exactly the resource type", index))
 			}
-			planned = append(planned, plannedWrite{resourceType: resourceType, resource: resource, replaceIndex: -1, status: "201 Created"})
+			planned = append(planned, plannedWrite{fullURL: entry.FullURL, resourceType: resourceType, resource: resource, replaceIndex: -1, status: "201 Created"})
 		case http.MethodPut:
 			if targetPath != resourceType {
 				return http.StatusBadRequest, fhirOperationOutcome("invalid",
@@ -274,7 +310,7 @@ func (s *fhirTestServer) transactionLocked(body []byte, prefer string, served *f
 			if replaceIndex >= 0 {
 				status = "200 OK"
 			}
-			planned = append(planned, plannedWrite{resourceType: resourceType, resource: resource, replaceIndex: replaceIndex, status: status})
+			planned = append(planned, plannedWrite{fullURL: entry.FullURL, resourceType: resourceType, resource: resource, replaceIndex: replaceIndex, status: status})
 		default:
 			return http.StatusBadRequest, fhirOperationOutcome("not-supported",
 				fmt.Sprintf("entry[%d] request.method %q is not supported", index, entry.Request.Method))
@@ -283,6 +319,7 @@ func (s *fhirTestServer) transactionLocked(body []byte, prefer string, served *f
 
 	// Phase 2: apply.
 	responseEntries := make([]map[string]any, 0, len(planned))
+	assigned := make(map[string]string, len(planned)) // fullUrl → Type/id
 	for _, write := range planned {
 		var id string
 		if write.replaceIndex >= 0 {
@@ -294,6 +331,9 @@ func (s *fhirTestServer) transactionLocked(body []byte, prefer string, served *f
 			id = strconv.Itoa(s.nextID)
 			write.resource["id"] = id
 			s.resources[write.resourceType] = append(s.resources[write.resourceType], fhirStoredResource{ID: id, Resource: write.resource})
+		}
+		if write.fullURL != "" {
+			assigned[write.fullURL] = write.resourceType + "/" + id
 		}
 		served.EntryStatuses = append(served.EntryStatuses, write.status)
 		entry := map[string]any{
@@ -307,12 +347,120 @@ func (s *fhirTestServer) transactionLocked(body []byte, prefer string, served *f
 		}
 		responseEntries = append(responseEntries, entry)
 	}
+	// Phase 3: a real server rewrites intra-transaction and conditional
+	// references to the ids it issued, so a stored Encounter points at the
+	// stored Patient by `Patient/<id>`.
+	if s.strictReferences {
+		for _, write := range planned {
+			s.resolveReferencesLocked(write.resource, assigned)
+		}
+	}
 	response, _ := json.Marshal(map[string]any{
 		"resourceType": "Bundle",
 		"type":         "transaction-response",
 		"entry":        responseEntries,
 	})
 	return http.StatusOK, response
+}
+
+// unresolvableReferenceLocked reports the first reference in the resource the
+// server could not resolve under strictReferences, or "".
+func (s *fhirTestServer) unresolvableReferenceLocked(resource map[string]any, fullURLs map[string]struct{}) string {
+	var problem string
+	walkFHIRReferences(resource, func(reference string) {
+		if problem != "" {
+			return
+		}
+		if _, inBundle := fullURLs[reference]; inBundle {
+			return
+		}
+		if resourceType, query, conditional := strings.Cut(reference, "?"); conditional {
+			values, err := url.ParseQuery(query)
+			if err != nil {
+				problem = fmt.Sprintf("conditional reference %q is not parseable", reference)
+				return
+			}
+			system, value, ok := fhirSplitIdentifierToken(values.Get("identifier"))
+			if !ok {
+				problem = fmt.Sprintf("conditional reference %q has no system|value identifier", reference)
+				return
+			}
+			if s.findByIdentifierLocked(resourceType, system, value) < 0 {
+				problem = fmt.Sprintf("conditional reference %q matches no stored resource", reference)
+			}
+			return
+		}
+		resourceType, id, literal := strings.Cut(reference, "/")
+		if !literal || !fhirBundleScopeTypes[resourceType] {
+			return
+		}
+		for _, stored := range s.resources[resourceType] {
+			if stored.ID == id {
+				return
+			}
+		}
+		problem = fmt.Sprintf("literal reference %q names an id this server never issued", reference)
+	})
+	return problem
+}
+
+// resolveReferencesLocked rewrites entry fullUrls and conditional references
+// in a stored resource to the `Type/id` the server holds them under.
+func (s *fhirTestServer) resolveReferencesLocked(resource map[string]any, assigned map[string]string) {
+	rewriteFHIRReferences(resource, func(reference string) string {
+		if target, inBundle := assigned[reference]; inBundle {
+			return target
+		}
+		if resourceType, query, conditional := strings.Cut(reference, "?"); conditional {
+			values, err := url.ParseQuery(query)
+			if err != nil {
+				return reference
+			}
+			system, value, ok := fhirSplitIdentifierToken(values.Get("identifier"))
+			if !ok {
+				return reference
+			}
+			if index := s.findByIdentifierLocked(resourceType, system, value); index >= 0 {
+				return resourceType + "/" + s.resources[resourceType][index].ID
+			}
+		}
+		return reference
+	})
+}
+
+func (s *fhirTestServer) findByIdentifierLocked(resourceType, system, value string) int {
+	for index, stored := range s.resources[resourceType] {
+		if fhirResourceHasIdentifier(stored.Resource, system, value) {
+			return index
+		}
+	}
+	return -1
+}
+
+func walkFHIRReferences(value any, visit func(reference string)) {
+	rewriteFHIRReferences(value, func(reference string) string {
+		visit(reference)
+		return reference
+	})
+}
+
+func rewriteFHIRReferences(value any, rewrite func(reference string) string) {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, child := range typed {
+			if key == "reference" {
+				if reference, ok := child.(string); ok {
+					typed[key] = rewrite(reference)
+				}
+				continue
+			}
+			rewriteFHIRReferences(child, rewrite)
+		}
+	case []any:
+		for _, child := range typed {
+			rewriteFHIRReferences(child, rewrite)
+		}
+	}
 }
 
 // fhirSplitIdentifierToken parses a FHIR token search value. It reports false

@@ -108,7 +108,7 @@ func assertDurablePayloadRoundTrips(t *testing.T, fixture roundTripFixture) {
 			"hand-written literal, not the engine's wire shape\npayload: %s", payload)
 	}
 
-	decoded, err := integration.DecodeCanonicalEventPayloadForTest(fixture.eventType, payload)
+	decoded, err := integration.DecodeCanonicalEventPayload(fixture.eventType, payload)
 	if err != nil {
 		t.Fatalf("decodeCanonicalEventPayload(%s) failed — the durable payload does not "+
 			"round-trip into the mapper's input, so the blocker is the decoder or the "+

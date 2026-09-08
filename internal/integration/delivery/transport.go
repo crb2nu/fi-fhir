@@ -47,6 +47,11 @@ const (
 // is deliberate: the HTTPS transport substitutes for the broker rather than
 // inventing a second wire contract, and the command is raw-free and
 // address-free by the same construction messageForWorkItem already enforces.
+//
+// eventPayload is the claimed item's stored canonical event, handed alongside
+// the command since Slice 4.1c-c so a `fhir`-transport destination can project
+// it into resources. `kafka` and `https` ignore it; the command still carries
+// the same bytes as its `event` member, so nothing new crosses the seam.
 type DestinationTransport interface {
 	DeliverDestination(
 		ctx context.Context,
@@ -54,6 +59,7 @@ type DestinationTransport interface {
 		attemptID string,
 		destination integration.DestinationRevisionRef,
 		payload []byte,
+		eventPayload []byte,
 	) (bool, error)
 }
 
