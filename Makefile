@@ -1047,16 +1047,6 @@ destination-transport:
 # A placeholder that is run by mistake exits 1 and says which lane owns it.
 # ---------------------------------------------------------------------------
 
-# 4.1c-c — Lane S6-A fills this: the inverted 5.1a gate, both kill-tests
-# (payload round-trip; redelivery idempotency), and the digest-stability gate.
-fhir-destination:
-	@echo "fhir-destination: placeholder — Lane S6-A (Slice 4.1c-c) has not filled this target yet"; exit 1
-
-# 4.1c-c — Lane S6-A fills this: the POST-only bundle builder restored behind a
-# build tag must make the redelivery count return to 2.
-fhir-destination-negative-control:
-	@echo "fhir-destination-negative-control: placeholder — Lane S6-A (Slice 4.1c-c) has not filled this target yet"; exit 1
-
 # Lane S6-D Slice 5.1b: the structural conformance proof over the pinned
 # offline IG packages, hl7.fhir.r4.core#4.0.1 and hl7.fhir.us.core#9.0.0.
 #
