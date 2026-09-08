@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -22,9 +23,23 @@ func mapperFixtureDir() string {
 	return filepath.Join("..", "..", "testdata", "fhir", "mapper")
 }
 
+// loadPinnedPackagesOnce parses the archives once per test binary.
+//
+// Loading them is not cheap — 12.8 MB of gzip and 658 StructureDefinitions for
+// R4 core alone — and under `-race`, which is how `make fhir-structural` runs
+// them, it costs 3.6 s. Ten tests each doing their own load turned a 4-second
+// suite into a 34-second one, and `go test ./...` paid the same bill.
+//
+// A PackageSet is read-only after LoadPinnedPackages returns, so sharing one
+// across tests is safe; `-race` on the shared value is itself the assertion
+// that it stays that way.
+var loadPinnedPackagesOnce = sync.OnceValues(func() (*PackageSet, error) {
+	return LoadPinnedPackages(packagesDir())
+})
+
 func loadPinnedForTest(t *testing.T) *PackageSet {
 	t.Helper()
-	set, err := LoadPinnedPackages(packagesDir())
+	set, err := loadPinnedPackagesOnce()
 	if err != nil {
 		t.Fatalf("LoadPinnedPackages: %v", err)
 	}
