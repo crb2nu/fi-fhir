@@ -378,13 +378,15 @@ transport-gate-negative-control:
 # reconciliation in this slice flips it, the tag is gone, and it is an ordinary
 # test again under its original name.
 #
-#  1. TestFHIRConformance_DurableEngineProducesNoFHIRResource — the durable
-#     engine delivers a Kafka delivery-command envelope at application/json, the
-#     transport vocabulary is {kafka, https} with no FHIR class, and nothing
-#     under internal/integration imports pkg/fhir. That is `.loom/28:206-212`
-#     executed: 5.1's real prerequisite is an unwritten slice (4.1c-c), not a
-#     validator. It stays true after 5.1a; when 4.1c-c lands it is the assertion
-#     that must be deliberately inverted rather than deleted.
+#  1. TestFHIRDestination_DurableEngineDeliversFHIRResource — Slice 4.1c-c's
+#     deliberate inversion of the 5.1a gate
+#     (TestFHIRConformance_DurableEngineProducesNoFHIRResource, which PASSED on
+#     main from 2026-08-09 to 2026-09-08 asserting the opposite): the durable
+#     engine delivers a conditional transaction Bundle of a US Core Patient and
+#     Encounter at application/fhir+json, the transport vocabulary is
+#     {fhir, https, kafka}, and internal/integration/fhirout is the only
+#     non-test importer of pkg/fhir under internal/integration. Every resource
+#     in the delivered bundle validates at us-core --strict with zero issues.
 #
 #  2. TestFHIRConformance_* in pkg/fhir — every one of the 26 Map* entry points
 #     is driven with a representative event and every resource it produces is
@@ -397,7 +399,7 @@ transport-gate-negative-control:
 # the proof is addressable by name and pairs with its negative control.
 fhir-conformance:
 	go test -race -count=1 -timeout=120s \
-		-run '^TestFHIRConformance_DurableEngineProducesNoFHIRResource$$' \
+		-run '^TestFHIRDestination_DurableEngineDeliversFHIRResource$$' \
 		./internal/integration/delivery
 	go test -race -count=1 -timeout=120s \
 		-run '^TestFHIRConformance' ./pkg/fhir
@@ -427,6 +429,61 @@ fhir-conformance-negative-control:
 		exit 1; \
 	fi; \
 	echo "negative control OK: restoring the -note-only set fails exactly the MapLabResult row"
+
+# Lane S6-A Slice 4.1c-c: the FHIR destination class proofs.
+#
+#  1. TestFHIRDestination_DurableEngineDeliversFHIRResource — the inverted 5.1a
+#     gate (see fhir-conformance above).
+#  2. TestFHIRDestination_RedeliveryIsIdempotent — the sprint's riskiest
+#     assumption, second half: the stored payload delivered twice under one
+#     attempt id through the real fhir transport leaves ONE Patient and ONE
+#     Encounter in an identifier-keyed FHIR server. The day-1 form of this
+#     test recorded 2 and 2 on main.
+#  3. TestFHIRDestination_DurablePayloadRoundTripsToMapperInput — the first
+#     half: the outbox payload decodes into the exact mapper input.
+#  4. TestRevisionDigest_DeployedTransportsArePinned — the fhir policy moved no
+#     deployed kafka or https digest.
+#  5. internal/integration/fhirout's own proofs, and the PostgreSQL 16 ledger
+#     proof for destination migration 0003 (requires POSTGRES_TEST_URL; the
+#     ledger proof skips without it and CI's existence guard is what keeps that
+#     honest).
+fhir-destination:
+	go test -race -count=1 -timeout=300s \
+		-run '^(TestFHIRDestination_DurableEngineDeliversFHIRResource|TestFHIRDestination_RedeliveryIsIdempotent)$$' \
+		./internal/integration/delivery
+	go test -race -count=1 -timeout=300s \
+		-run '^TestFHIRDestination_DurablePayloadRoundTripsToMapperInput$$' \
+		./pkg/integration
+	go test -race -count=1 -timeout=120s \
+		-run '^TestRevisionDigest_DeployedTransportsArePinned$$' \
+		./internal/integration/destination
+	go test -race -count=1 -timeout=120s ./internal/integration/fhirout
+	go test -tags=integration -race -count=1 -timeout=300s \
+		-run '^TestFHIRDestination_ProvenanceLedgerRecordsFHIRDeliveries$$' \
+		./internal/integration/destination
+
+# Negative control for the above. The fhirpostbundle tag restores the
+# pre-4.1c-c `POST <Type>` entry builder in internal/integration/fhirout and
+# changes nothing else, so the idempotency proof must FAIL on exactly
+# `want 1 Patient, got 2`. This target therefore inverts, and additionally
+# requires that sentence: a control that passes means the in-test server is not
+# keyed on identifier and the count proves nothing; a control that fails for
+# another reason means the proof stopped measuring the request method.
+fhir-destination-negative-control:
+	@output=$$(go test -tags fhirpostbundle -count=1 -timeout=120s \
+		-run '^TestFHIRDestination_RedeliveryIsIdempotent$$' \
+		./internal/integration/delivery 2>&1); \
+	if [ $$? -eq 0 ]; then \
+		echo "negative control FAILED: the idempotency proof still passes with the"; \
+		echo "pre-4.1c-c POST entry builder restored"; \
+		exit 1; \
+	fi; \
+	if ! printf '%s\n' "$$output" | grep -q 'want 1 Patient, got 2'; then \
+		echo "negative control failed for the WRONG reason (want 'want 1 Patient, got 2'):"; \
+		printf '%s\n' "$$output" | tail -20; \
+		exit 1; \
+	fi; \
+	echo "negative control OK: the POST builder duplicates the Patient on redelivery (want 1, got 2)"
 
 # Clean build artifacts
 clean:

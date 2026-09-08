@@ -1,16 +1,56 @@
-# Lane S6-A — Slice 4.1c-c, the FHIR destination class (.loom/34, Lane S6-A).
+# Slice 4.1c-c Lane S6-A: the FHIR destination class proofs.
 #
-# Pre-registered by the Sprint 6 merge-surface MR so the include line in
-# .gitlab-ci.yml, the .PHONY line, and this file all exist before the lane's
-# implementation MR opens. Lane S6-A replaces the hidden placeholder below with
-# the blocking `test:fhir-destination` job (PostgreSQL 16 service, -race; the
-# inverted 5.1a gate, both kill-tests, and the negative control in one job).
+# One job, blocking, over PostgreSQL 16, running with -race:
 #
-# The placeholder is a hidden job (dot-prefixed): GitLab ignores it when
-# building the pipeline, so it adds no job — which is what
-# scripts/ci-job-inventory.sh --check verifies until the lane fills it — while
-# keeping the included file a non-empty YAML mapping. A comment-only include
-# parses to null and fails the pipeline at config time with zero jobs.
-.s6a-fhir-destination-placeholder:
+#   * the inverted 5.1a gate — TestFHIRDestination_DurableEngineDeliversFHIRResource:
+#     the real dispatcher over a `fhir`-transport destination delivers a
+#     conditional transaction Bundle of a US Core Patient and Encounter at
+#     application/fhir+json, the transport vocabulary is {fhir, https, kafka},
+#     and internal/integration/fhirout is the only importer of pkg/fhir under
+#     internal/integration. The gate it inverts
+#     (TestFHIRConformance_DurableEngineProducesNoFHIRResource) passed on main
+#     from 2026-08-09 to 2026-09-08 asserting the opposite;
+#   * both kill-tests of the sprint's riskiest assumption — the outbox payload
+#     round-trips into the exact mapper input, and the same attempt delivered
+#     twice leaves ONE Patient and ONE Encounter (the day-1 form recorded 2);
+#   * the digest-stability pins for the deployed kafka and https revisions;
+#   * fhirout's own proofs and the ledger proof for destination migration 0003
+#     (N-1 https insert still lands; the widened CHECK stays closed);
+#   * the negative control: with the pre-4.1c-c POST entry builder restored
+#     behind the fhirpostbundle tag, the idempotency proof MUST fail on exactly
+#     `want 1 Patient, got 2`. A control that passes turns this job red.
+#
+# The ledger proof t.Skips without POSTGRES_TEST_URL, so the -list existence
+# guard runs first (AGENTS.md): a renamed or deleted proof turns the job red,
+# never green.
+test:fhir-destination:
+  extends: .integration-proof
+  variables:
+    POSTGRES_DB: fi_fhir_fhir_destination_test
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_fhir_destination_test?sslmode=disable"
+    PROOF_FAILURE_SUMMARY: "the FHIR destination class regressed, or its negative control stopped measuring the request method."
+    PROOF_LOCAL: "POSTGRES_TEST_URL=... make fhir-destination fhir-destination-negative-control"
+    PROOF_DOCS: "docs/operations/DESTINATION-IDENTITY.md (The FHIR transport)"
   script:
-    - echo "Lane S6-A (Slice 4.1c-c) has not filled ci/test-fhir-destination.yml yet"
+    - !reference [.integration-proof-toolchain, script]
+    # Existence guards, one per package the proof spans.
+    - >-
+      go test
+      -list '^(TestFHIRDestination_DurableEngineDeliversFHIRResource|TestFHIRDestination_RedeliveryIsIdempotent)$'
+      ./internal/integration/delivery
+      | rg -x '(TestFHIRDestination_DurableEngineDeliversFHIRResource|TestFHIRDestination_RedeliveryIsIdempotent)'
+      | awk 'END { if (NR != 2) exit 1 }'
+    - >-
+      go test
+      -list '^TestFHIRDestination_DurablePayloadRoundTripsToMapperInput$'
+      ./pkg/integration
+      | rg -x 'TestFHIRDestination_DurablePayloadRoundTripsToMapperInput'
+      | awk 'END { if (NR != 1) exit 1 }'
+    - >-
+      go test -tags=integration
+      -list '^TestFHIRDestination_ProvenanceLedgerRecordsFHIRDeliveries$'
+      ./internal/integration/destination
+      | rg -x 'TestFHIRDestination_ProvenanceLedgerRecordsFHIRDeliveries'
+      | awk 'END { if (NR != 1) exit 1 }'
+    - make fhir-destination
+    - make fhir-destination-negative-control
