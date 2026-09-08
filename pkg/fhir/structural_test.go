@@ -446,6 +446,103 @@ func TestFHIRStructural_NegativeControl_RemovingARequiredElementFails(t *testing
 	}
 }
 
+// TestFHIRStructural_BundleEntriesAreValidatedAndLocated covers the Bundle
+// path, which the fixture set does not reach — every file in
+// `testdata/fhir/mapper/` is a bare resource.
+//
+// It also pins the issue location format inside a Bundle. An earlier revision
+// rendered a Bundle entry's top-level finding as `entry[1].resource..type`,
+// with a doubled separator, because the helper that joins the two path halves
+// handled only an empty prefix and not an empty suffix. A location a reader
+// cannot paste into a search is a defect in a validator whose whole output is
+// locations.
+func TestFHIRStructural_BundleEntriesAreValidatedAndLocated(t *testing.T) {
+	set := loadPinnedForTest(t)
+
+	read := func(name string) map[string]any {
+		t.Helper()
+		data, err := os.ReadFile(filepath.Join(mapperFixtureDir(), name)) // #nosec G304 -- fixed fixture name.
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		var resource map[string]any
+		if err := json.Unmarshal(data, &resource); err != nil {
+			t.Fatalf("unmarshal %s: %v", name, err)
+		}
+		return resource
+	}
+
+	patient := read("patient.json")
+	observation := read("labobservation.json")
+
+	bundle := func(entries ...map[string]any) []byte {
+		t.Helper()
+		wrapped := make([]any, 0, len(entries))
+		for _, entry := range entries {
+			wrapped = append(wrapped, map[string]any{"resource": entry})
+		}
+		data, err := json.Marshal(map[string]any{
+			"resourceType": "Bundle",
+			"type":         "transaction",
+			"entry":        wrapped,
+		})
+		if err != nil {
+			t.Fatalf("marshal bundle: %v", err)
+		}
+		return data
+	}
+
+	t.Run("a bundle of clean resources is clean", func(t *testing.T) {
+		outcome, err := ValidateStructuralJSON(bundle(patient, observation), set, StructuralOptions{})
+		if err != nil {
+			t.Fatalf("ValidateStructuralJSON: %v", err)
+		}
+		if errs := renderIssues(StructuralErrors(outcome)); len(errs) != 0 {
+			t.Fatalf("expected no errors, got:\n%s", indentAll(errs))
+		}
+	})
+
+	t.Run("an entry violation is located by entry index", func(t *testing.T) {
+		broken := read("labobservation.json")
+		delete(broken, "status")
+
+		outcome, err := ValidateStructuralJSON(bundle(patient, broken), set, StructuralOptions{})
+		if err != nil {
+			t.Fatalf("ValidateStructuralJSON: %v", err)
+		}
+
+		errs := renderIssues(StructuralErrors(outcome))
+		if !containsSubstring(errs, "entry[1].resource.status :: Observation.status is required") {
+			t.Fatalf("expected a finding located at entry[1].resource.status, got:\n%s", indentAll(errs))
+		}
+		for _, issue := range errs {
+			if strings.Contains(issue, "..") {
+				t.Errorf("issue location has a doubled separator: %s", issue)
+			}
+		}
+	})
+
+	t.Run("a bundle missing its own required element fails", func(t *testing.T) {
+		var envelope map[string]any
+		if err := json.Unmarshal(bundle(patient), &envelope); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		delete(envelope, "type") // Bundle.type is 1..1 in R4.
+
+		data, err := json.Marshal(envelope)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		outcome, err := ValidateStructuralJSON(data, set, StructuralOptions{})
+		if err != nil {
+			t.Fatalf("ValidateStructuralJSON: %v", err)
+		}
+		if errs := renderIssues(StructuralErrors(outcome)); !containsSubstring(errs, "Bundle.type is required") {
+			t.Fatalf("expected Bundle.type to be required, got:\n%s", indentAll(errs))
+		}
+	})
+}
+
 // TestFHIRStructural_RequiredElementChecksAgreeWithPinnedProfiles compares
 // `validate.go`'s hand-written required-element list against the pinned
 // StructureDefinitions it has always claimed to follow.

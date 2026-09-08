@@ -588,7 +588,7 @@ func checkSnapshot(resource map[string]any, sd *StructureDefinition, opts Struct
 		fieldPath := sd.Type + "." + relative
 
 		for _, parent := range parents {
-			issues = append(issues, checkElement(parent.value, field, element, fieldPath, sd, opts, atStr(basePath, parent.path))...)
+			issues = append(issues, checkElement(parent.value, field, element, fieldPath, sd, opts, joinIssuePath(basePath, parent.path))...)
 		}
 	}
 
@@ -638,6 +638,25 @@ func joinJSONPath(base, key string) string {
 		return key
 	}
 	return base + "." + key
+}
+
+// joinIssuePath joins the prefix that located a resource (empty at the top
+// level, `entry[1].resource` inside a Bundle) with the path walked inside that
+// resource (empty for a top-level element).
+//
+// Either half can be empty, and `atStr` from validate.go handles only the first
+// case, so using it here rendered a Bundle's top-level findings as
+// `entry[1].resource..type`. validate.go is left alone: it only ever calls
+// atStr with a non-empty field.
+func joinIssuePath(basePath, inner string) string {
+	switch {
+	case basePath == "":
+		return inner
+	case inner == "":
+		return basePath
+	default:
+		return basePath + "." + inner
+	}
 }
 
 // matchingKeys returns the JSON keys a snapshot path segment names.
