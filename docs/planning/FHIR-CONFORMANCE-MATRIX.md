@@ -34,6 +34,11 @@ This is a **planning matrix, not a conformance claim**. Per
 > exist. See `.loom/28-spec-fhir-ig-bulk-smart.md` and `.loom/40-decisions.md`
 > (2026-08-09).
 >
+> **2026-09-08: 4.1c-c exists, and that gate is inverted.** `§0` below is now
+> history: `internal/integration/fhirout` is the durable engine's one door to
+> `pkg/fhir`, and `TestFHIRDestination_DurableEngineDeliversFHIRResource`
+> asserts the opposite of each of the four points above. See §5 row 1.
+>
 > **§1.1 cases 1 and 2 are fixed.** The mapper/checker DiagnosticReport
 > disagreement and the version-suffix mismatch are closed; see the annotations on
 > those rows. Case 3 (no bindings, no primitive-type checks) and case 4 stand —
@@ -304,7 +309,7 @@ disagreement at higher resolution, so reconciliation went first. See
 
 | # | Item | Status |
 |---|---|---|
-| 1 | **Wait for 4.1c-b** — a conformance gate has nothing to gate until a resource exists on the durable path | **Still open, and reframed.** 4.1c-b merged and did not satisfy this. The durable engine delivers a canonical-event command envelope, proven by `TestFHIRConformance_DurableEngineProducesNoFHIRResource`. The real prerequisite is **4.1c-c, a FHIR destination class**, which nobody has specced. |
+| 1 | **Wait for 4.1c-b** — a conformance gate has nothing to gate until a resource exists on the durable path | **Satisfied by Slice 4.1c-c (2026-09-08), proven by `TestFHIRDestination_DurableEngineDeliversFHIRResource`** (`internal/integration/delivery/fhir_conformance_gate_test.go`), the deliberate inversion of `TestFHIRConformance_DurableEngineProducesNoFHIRResource`, which had proven that 4.1c-b did not satisfy this. The real dispatcher over a `fhir`-transport destination delivers a conditional transaction Bundle of a US Core Patient and Encounter — projected by `internal/integration/fhirout` from the exact payload the outbox stores — at `application/fhir+json`; every resource in it validates at `us-core --strict` with zero issues; the transport vocabulary is `{fhir, https, kafka}`; and `fhirout` is the only importer of `pkg/fhir` under `internal/integration/**`. Journey 6's validation input now exists on a path journey 1 executes. Coverage is the legacy switch's three event families; see `docs/operations/DESTINATION-IDENTITY.md` "The FHIR transport". |
 | 2 | **Choose the validation engine** | **Half-ratified.** The confinement half is in force: `validator_cli.jar` is CI-only, the shipped image stays distroless static, IG packages are pinned offline `.tgz`. The ordering half was amended — see the heading above. |
 | 3 | **Pin the packages** | **Done (Slice 5.1b).** `hl7.fhir.r4.core#4.0.1` (12,815,597 bytes) and `hl7.fhir.us.core#9.0.0` (2,749,959 bytes) are checked in as offline `.tgz` under `testdata/fhir/packages/` with sha256 sums in `SHA256SUMS`, verified on every run by `TestFHIRStructural_PinnedPackagesMatchTheirRecordedDigests`. Both reproduce the registry-published `dist.shasum`. §4's external denominator is now citable and was re-verified against the archive. Whole archives, not an extracted subset: no size or scan gate rejected them — see §5.1 below. |
 | 4 | **Fix the two self-inconsistencies** | **Done (Slice 5.1a).** §1.1 cases 1 and 2. A third, not in the original list — the checker failing open on any mode string that was not byte-exactly `us-core` — is also fixed. A fourth, `Patient.MRN` being dropped and producing a hard `Patient.identifier is required`, is fixed too. |
