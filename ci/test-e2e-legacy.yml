@@ -1,18 +1,207 @@
-# Lane S6-C — legacy e2e tree repair (.loom/34, Lane S6-C).
+# Sprint 6 Lane S6-C: the legacy end-to-end tree, run.
 #
-# Pre-registered by the Sprint 6 merge-surface MR so the include line in
-# .gitlab-ci.yml and this file exist before the lane's MR opens. Lane S6-C
-# replaces the hidden placeholder below with the blocking `test:e2e-legacy`
-# job: the binary built and exec'd against declared service containers,
-# exactly as ci/s5b-chaos-dr.yml does, running ./test/e2e/... with
-# FI_FHIR_E2E_REQUIRED_SERVICES declared so an unreachable dependency fails
-# instead of skipping.
+# `test/e2e/` has existed since the repository's early days and until slice
+# 4.4c no CI job passed `-tags=e2e` at all — `grep -n e2e .gitlab-ci.yml`
+# returned nothing. 4.4c added `test:e2e`, which runs exactly one assertion
+# (`TestObservabilityEndpoints`) and deliberately left the other thirteen tests
+# unrun and named as red. This job runs all of them, blocking.
 #
-# The placeholder is a hidden job (dot-prefixed): GitLab ignores it when
-# building the pipeline, so it adds no job — which is what
-# scripts/ci-job-inventory.sh --check verifies until the lane fills it — while
-# keeping the included file a non-empty YAML mapping. A comment-only include
-# parses to null and fails the pipeline at config time with zero jobs.
-.s6c-e2e-legacy-placeholder:
+# WHAT RUNNING THE TREE ACTUALLY SHOWED, which is not what
+# ci/s5b-chaos-dr.yml:90-135 predicted.
+#
+# That comment attributes the failures to workflow-schema drift: templates
+# written as Go dot-paths (`{{.Patient.Status}}`) against an engine that binds
+# snake_case JSON keys, the drift commit 5d07101c4 corrected in every document
+# and not in the tests. S6-C repaired every one of those six template sites
+# first, changed nothing else, and re-ran. The failing set was identical, test
+# for test. The template drift was real and it was masked: four other contracts
+# were wrong upstream of it, and no test ever reached a rendered template.
+#
+#   * `parse` emits the event, not a `{"events": [...]}` envelope. Three tests
+#     read a key that has never existed; TestEndToEndPipeline asserted it with
+#     an unchecked type assertion and panicked the whole test binary, taking
+#     the rest of the run with it. That is the "nil-interface panic at
+#     e2e_test.go:493" — a test defect, not an engine one.
+#   * `workflow run` has no `--dry-run` flag. Dry run is the `workflow dry-run`
+#     subcommand.
+#   * event input is a JSON array or NDJSON. Every test embedded a
+#     pretty-printed multi-line object, so no action ever ran.
+#   * action config is flat scalars only (internal/workflow/types.go
+#     Action.UnmarshalYAML), so the `headers:`, `retry:`, `auth:` and `fields:`
+#     blocks the tests declared were dropped before any action saw them.
+#
+# Two failures survived the repair and are filed rather than hidden:
+# TestFHIRAction on issue #20 (the fhir action's patient_admit transaction
+# bundle references `Patient/<MRN>` with no matching fullUrl, so a conformant
+# server rejects it) and TestConfigValidation/invalid_cel on issue #21
+# (`workflow validate` never compiles the CEL condition). Both skip with the
+# issue id in the message, and the skip audit below is what keeps that honest.
+#
+# TestWorkflowWithRetry's assertion was on elapsed wall clock. The k3s-ci runner
+# pool spans three CPU classes with a 5.3x spread, so a duration threshold
+# reports node assignment rather than behaviour; it counts attempts at the
+# destination now, which is bit-identical everywhere. Same treatment as
+# TestQuickBenchmark.
+#
+# fi-fhir is built and exec'd against the service containers rather than started
+# from a Compose file, following internal/observability's startReplica and the
+# 4.4c `test:e2e` job. test/e2e/docker-compose.yaml is retired: it stood up five
+# dependencies and no application container, which is why the one test that
+# needed a running fi-fhir skipped with that whole stack up, and the runner has
+# no Docker socket, so no job could have used it anyway.
+test:e2e-legacy:
+  extends: .integration-proof
+  # `extends:` merges maps and replaces arrays, so the whole service list is
+  # declared here rather than inheriting .integration-proof's PostgreSQL alone.
+  services:
+    - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
+      alias: postgres
+    - name: ${DOCKERHUB_CACHE_PREFIX}/mendhak/http-https-echo:31
+      alias: webhook-echo
+  variables:
+    POSTGRES_DB: fi_fhir_e2e_legacy_test
+    # Service containers are addressed by their declared alias, as every other
+    # proof job in ci/ does. fi-fhir itself is not a service — this job starts
+    # it in its own container — so its two URLs are localhost.
+    TEST_POSTGRES_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_e2e_legacy_test?sslmode=disable"
+    TEST_WEBHOOK_URL: "http://webhook-echo:8080"
+    TEST_FIFHIR_URL: "http://localhost:18080"
+    TEST_FIFHIR_METRICS_URL: "http://localhost:19090"
+    # Exactly the dependencies this job provides. requireService turns anything
+    # named here that is unreachable into a suite failure instead of a skip, so
+    # a service container that fails to start cannot report green.
+    FI_FHIR_E2E_REQUIRED_SERVICES: "postgres,webhook-echo,fi-fhir,fi-fhir-metrics"
+    # These tests exec bin/fi-fhir, which `go test` does not track as an input,
+    # so a cached PASS could outlive the binary that earned it.
+    GOFLAGS: "-count=1"
+    # The documented serve environment, matching the 4.4c test:e2e job.
+    # serve refuses to start without a canonical registry.
+    FI_FHIR_DEPLOYMENT_TENANT_ID: "tenant-a"
+    FI_FHIR_GRAPHQL_PRINCIPAL_ID: "e2e-operator"
+    FI_FHIR_GRAPHQL_ROLES: "integration:preview,graphql:operator"
+    FI_FHIR_GRAPHQL_ALLOWED_ORIGINS: "http://localhost:18080"
+    FI_FHIR_GRAPHQL_BEARER_TOKEN: "e2e-bearer-token-not-a-secret"
+    FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE: ""
+    FI_FHIR_INTEGRATION_REGISTRY_PATH: "${CI_PROJECT_DIR}/testdata/golden/integration/adt-http/preview-registry.json"
+    FI_FHIR_DATABASE_DRIVER: "postgres"
+    FI_FHIR_DATABASE_HOST: "postgres"
+    FI_FHIR_DATABASE_PORT: "5432"
+    FI_FHIR_DATABASE_NAME: "fi_fhir_e2e_legacy_test"
+    FI_FHIR_DATABASE_USERNAME: "testuser"
+    FI_FHIR_DATABASE_PASSWORD: "testpass"
+    FI_FHIR_DATABASE_SSL_MODE: "disable"
+    FI_FHIR_METRICS_ENABLED: "true"
+    FI_FHIR_METRICS_PORT: "19090"
+    FI_FHIR_METRICS_ENDPOINT: "/metrics"
+    PROOF_FAILURE_SUMMARY: "the legacy end-to-end tree regressed. Both files drive the built CLI as a subprocess, so a failure is either a real behaviour change in parse/workflow or a drift between the tests and the CLI's contract."
+    PROOF_LOCAL: "see test/e2e/README.md for the three docker run lines, then make test-e2e && make test-integration"
+    PROOF_DOCS: "test/e2e/README.md"
   script:
-    - echo "Lane S6-C has not filled ci/test-e2e-legacy.yml yet"
+    - !reference [.integration-proof-toolchain, script]
+    - curl --version >/dev/null 2>&1 || (apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*)
+    - go build -o bin/fi-fhir ./cmd/fi-fhir
+    # Existence guard. Without it a renamed or deleted test makes this job
+    # greener rather than redder (AGENTS.md). Fourteen top-level tests: nine
+    # under `e2e` alone and five more under `e2e,integration`.
+    - |
+      listed=$(go test -tags=e2e,integration -list '.*' ./test/e2e/... | rg -c '^Test' || true)
+      if [ "$listed" != "14" ]; then
+        echo "expected 14 top-level tests in ./test/e2e/..., found ${listed}"
+        go test -tags=e2e,integration -list '.*' ./test/e2e/...
+        exit 1
+      fi
+    # The `-tags=e2e` half first, through the target a developer runs, and
+    # before serve starts: `make test-e2e` depends on `build`, and nothing in
+    # this half needs a running server.
+    #
+    # `set -o pipefail` is load-bearing: without it the exit status of
+    # `make ... | tee` is tee's, so a failing suite would report a green job.
+    - |
+      set -o pipefail
+      make test-e2e 2>&1 | tee e2e-tagged.log
+    # The long-running server under test. No Compose file in this repository
+    # ever provided one to the e2e suite.
+    - ./bin/fi-fhir serve --port 18080 --no-playground --no-introspection > serve.log 2>&1 &
+    - |
+      for attempt in $(seq 1 60); do
+        if curl -sf "${TEST_FIFHIR_URL}/health" >/dev/null 2>&1; then
+          echo "fi-fhir is answering after ${attempt}s"
+          break
+        fi
+        if [ "$attempt" = "60" ]; then
+          echo "fi-fhir never became reachable; serve log:"; cat serve.log; exit 1
+        fi
+        sleep 1
+      done
+    # The full tree, including everything that needs a service container.
+    - |
+      set -o pipefail
+      make test-integration 2>&1 | tee e2e-integration.log
+    # Anti-vacuity, part 1: the only tests permitted to skip are the two parked
+    # on filed issues. Any other skip means either a declared dependency is
+    # missing (which requireService should already have made fatal) or someone
+    # added a skip without filing what it is waiting on.
+    - |
+      rg '^\s*--- SKIP: ' e2e-integration.log \
+        | sed 's/.*--- SKIP: //; s/ .*//' | sort -u > skipped.txt
+      printf '%s\n' 'TestConfigValidation/invalid_cel' 'TestFHIRAction' | sort -u > skipped.expected
+      if ! diff -u skipped.expected skipped.txt; then
+        echo ""
+        echo "the set of skipped e2e tests changed."
+        echo "A new skip must name a filed issue and be added to skipped.expected here;"
+        echo "a disappeared skip means its issue is fixed — delete the t.Skipf and this line."
+        exit 1
+      fi
+    # Anti-vacuity, part 2: each of those two skips must still carry its issue
+    # id in the message a reader sees in the job log.
+    - |
+      for issue in 20 21; do
+        rg -q "blocked on fi-fhir issue #${issue}" e2e-integration.log || {
+          echo "the skip parked on issue #${issue} no longer names it"
+          exit 1
+        }
+      done
+    # Anti-vacuity, part 3: a suite that ran nothing must not pass. Thirteen of
+    # the fourteen top-level tests pass; TestFHIRAction is the whole-test skip.
+    # TestConfigValidation passes with one subtest skipped, so it counts here.
+    - |
+      passed=$(rg -c '^--- PASS: ' e2e-integration.log || true)
+      if [ "$passed" != "13" ]; then
+        echo "expected 13 passing top-level tests, got ${passed}"
+        rg '^--- (PASS|FAIL|SKIP): ' e2e-integration.log
+        exit 1
+      fi
+      tagged=$(rg -c '^--- PASS: ' e2e-tagged.log || true)
+      if [ "$tagged" != "9" ]; then
+        echo "expected 9 passing tests under -tags=e2e alone, got ${tagged}"
+        rg '^--- (PASS|FAIL|SKIP): ' e2e-tagged.log
+        exit 1
+      fi
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      # .go-changes, which .integration-proof inherits through .go-mr-rules,
+      # does not cover test/**. A change confined to the e2e tree has to run
+      # the job that owns it, so this lane declares its own set.
+      changes: &s6c-e2e-legacy-changes
+        - go.mod
+        - go.sum
+        - cmd/**/*
+        - internal/**/*
+        - pkg/**/*
+        - testdata/**/*
+        - test/e2e/**/*
+        - Makefile
+        - ci/test-e2e-legacy.yml
+        - ci/_shared.yml
+        - .gitlab-ci.yml
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *s6c-e2e-legacy-changes
+    - when: never
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - e2e-tagged.log
+      - e2e-integration.log
+      - serve.log
