@@ -682,7 +682,11 @@ test:integration:
       done
       psql "postgres://testuser:testpass@postgres:5432/fi_fhir_test?sslmode=disable" \
         -v ON_ERROR_STOP=1 -c "CREATE DATABASE ${TERMINOLOGY_TEST_DB} OWNER testuser"
-    - go test -tags=integration -cover -covermode=atomic -timeout=300s ./cmd/fi-fhir/...
+    # -timeout: 46.6s on a quiet run (job 263124, 2026-09-08) and a full 300s
+    # timeout the same afternoon (job 263220) with runner 1 executing twelve jobs
+    # for five pipelines. Same reasoning as the terminology step below: budget
+    # the observed quiet-run figure at ~10x, not ~6x.
+    - go test -tags=integration -cover -covermode=atomic -timeout=600s ./cmd/fi-fhir/...
       -args -test.gocoverdir=$PWD/coverage/integration
     # Terminology DB integration tests run second, in their OWN database
     # (POSTGRES_TEST_URL -> $TERMINOLOGY_TEST_DB), avoiding Docker-in-Docker.
@@ -695,7 +699,18 @@ test:integration:
     # the contamination; the larger budget removes the shared-runner cliff that
     # left only 32% headroom. This is a slow-suite allowance, not a correctness
     # gate — a genuine hang still fails the job, just later.
-    - go test -tags=integration -p 1 -cover -covermode=atomic -timeout=900s ./pkg/terminology/db/
+    #
+    # 2026-09-08 recalibration (Sprint 6, .loom/34 correction 19 follow-up): the
+    # package now needs 383s on a quiet run (job 263124), so 900s was a 2.3x
+    # margin, and with services/loom-core Mills pipelines keeping runner 1 at
+    # ~12 concurrent jobs (k3s-w-12 at 99% CPU) it timed out four times in one
+    # afternoon on a test-only MR with no database change (jobs 263076, 263271,
+    # 263272 here; 263220 on the cmd step). At each timeout the running test was
+    # seconds old and every goroutine was an idle pool opener — a budget, not a
+    # hang. 1800s is ~4.7x the quiet figure and keeps the job inside the
+    # project's 3600s ceiling (apt + cmd step + this step + covdata ≈ 45 min
+    # worst case). A genuine hang still fails, at 30 min instead of 15.
+    - go test -tags=integration -p 1 -cover -covermode=atomic -timeout=1800s ./pkg/terminology/db/
       -args -test.gocoverdir=$PWD/coverage/integration
     - go tool covdata percent -i=coverage/integration
   artifacts:
