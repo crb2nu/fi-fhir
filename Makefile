@@ -32,6 +32,8 @@
 .PHONY: structured-logging structured-logging-negative-control          # 4.4d   — S5-C
 .PHONY: validate-k8s-schema chaos-recovery e2e-live                   # 4.4c   — S5-B
 .PHONY: bench-durable bench-durable-calibrate                          # 4.4b   — S5-A
+.PHONY: fhir-destination fhir-destination-negative-control             # 4.1c-c — S6-A
+.PHONY: fhir-structural fhir-structural-negative-control               # 5.1b   — S6-D
 
 # Tool versions (update these when upgrading)
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -979,3 +981,32 @@ destination-transport:
 	go test -tags=integration -race -count=1 -timeout=600s \
 		-run '^(TestDeliveryTransport_HTTPSClassContactedExactlyOnceUnderScopedIdentity|TestDeliveryTransport_HTTPSDestinationPublishesToBrokerToday)$$' \
 		./internal/integration/delivery
+
+# ---------------------------------------------------------------------------
+# Sprint 6 lane targets. Each block below is a fail-loud placeholder that the
+# named lane REPLACES IN PLACE (.loom/34-sprint6-execution-specs.md, "Lane S6-0").
+# Pre-registering the blocks means no two lanes append at the same end-of-file
+# position, which is what re-conflicted every Sprint 5 implementation MR.
+# A placeholder that is run by mistake exits 1 and says which lane owns it.
+# ---------------------------------------------------------------------------
+
+# 4.1c-c — Lane S6-A fills this: the inverted 5.1a gate, both kill-tests
+# (payload round-trip; redelivery idempotency), and the digest-stability gate.
+fhir-destination:
+	@echo "fhir-destination: placeholder — Lane S6-A (Slice 4.1c-c) has not filled this target yet"; exit 1
+
+# 4.1c-c — Lane S6-A fills this: the POST-only bundle builder restored behind a
+# build tag must make the redelivery count return to 2.
+fhir-destination-negative-control:
+	@echo "fhir-destination-negative-control: placeholder — Lane S6-A (Slice 4.1c-c) has not filled this target yet"; exit 1
+
+# 5.1b — Lane S6-D fills this: the structural validator over the pinned
+# hl7.fhir.r4.core#4.0.1 and hl7.fhir.us.core#9.0.0 packages, across every
+# generated mapper fixture.
+fhir-structural:
+	@echo "fhir-structural: placeholder — Lane S6-D (Slice 5.1b) has not filled this target yet"; exit 1
+
+# 5.1b — Lane S6-D fills this: a fixture with a required element removed must
+# fail the structural validator.
+fhir-structural-negative-control:
+	@echo "fhir-structural-negative-control: placeholder — Lane S6-D (Slice 5.1b) has not filled this target yet"; exit 1

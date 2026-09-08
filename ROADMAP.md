@@ -1,6 +1,6 @@
 # fi-fhir Roadmap
 
-> Last Updated: 2026-08-07
+> Last Updated: 2026-09-08
 > Tier: 1 (see workspace AGENTS.md "Portfolio Tiers")
 > Tracking issue: https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/19
 > Completion spec: `.loom/20-product-spec-integration-engine-ide-completion.md`
@@ -42,7 +42,26 @@ The July 12 completion review supersedes the earlier sibling-integration-first
 sequence. flexinfer, mentatlab, and Loom integrations remain ecosystem work and
 must not enter the clinical data plane before the engine spine is proven.
 
-## Now
+## Now — Sprint 6 (planned 2026-09-07, `.loom/34-sprint6-execution-specs.md`)
+
+Sprint 5 closed 2026-09-05 with the Release Candidate lanes merged
+(`.loom/33-sprint5-execution-specs.md`; per-slice entries in `.loom/worklog/`).
+Sprint 6 opens the 1.0 critical path.
+
+- [ ] **S6-0 merge surface** — stub CI includes, `.PHONY` lines, placeholder
+  targets, and this roadmap repair, so lanes never share an append point.
+- [ ] **S6-A Slice 4.1c-c FHIR destination class** — a `fhir` transport kind with
+  conditional-write transaction Bundles. 5.1 certification and golden journeys
+  1 and 6 wait on it. Ruling: `.loom/decisions/2026-09-08-fund-slice-4-1c-c-as-a-fhir-transport-kind.md`.
+- [ ] **S6-B budgets 1–3 certification** on runner `fi-fhir-perf` (id 8, online
+  since 2026-08-09) — held until the project variable `FI_FHIR_PERF_RUNNER` is
+  set; `test:performance-profile` is `when: never` without it.
+- [ ] **S6-C legacy e2e tree repair** — nine red tests named in
+  `ci/s5b-chaos-dr.yml`, run by no job.
+- [ ] **S6-D Slice 5.1b** — pin `hl7.fhir.r4.core#4.0.1` and
+  `hl7.fhir.us.core#9.0.0`; Go structural validator (Option C).
+
+## Delivered — Phases 0–2
 
 - [x] **Gate 0A — secure baseline** — MR !89 pipeline 18379 green on
   2026-07-12; lint, govulncheck, and gosec each passed individually.
@@ -57,7 +76,7 @@ must not enter the clinical data plane before the engine spine is proven.
     when applicable and cannot pass by skipping their subject.
   - npm is the canonical UI package-manager path; frozen installs are reproducible.
   - deployment/status documentation matches executable behavior.
-- [ ] **Golden Path 001 foundation**
+- [x] **Golden Path 001 foundation**
   - [x] Slice 1.0 locked the 1.0 support matrix, tenancy/identity/PHI/secret
     contracts, minimal immutable integration revision, and result invariants.
   - [x] Slice 1.1a made exact profile/workflow revision resolution immutable and
@@ -80,7 +99,7 @@ must not enter the clinical data plane before the engine spine is proven.
     restart, profile-delta, PostgreSQL cardinality, IDE parity, and leakage gates.
     MR `!99` pipeline `18898` passed 32/32; main pipeline `18951` repeated the
     Golden Path proof and passed 35/35 on merge commit `48d156d2`.
-- [ ] **Phase 2 production channel runtime**
+- [x] **Phase 2 production channel runtime**
   - [x] Slice 2.1 adds digest-bound connection-validation freshness, schedules,
     health thresholds, and capacity to immutable integration revisions. Its
     PostgreSQL catalog enforces draft/validate/approve/publish/deploy/pause/
@@ -118,7 +137,7 @@ must not enter the clinical data plane before the engine spine is proven.
     Evidence MR `!109` reconciles the canonical completion records. Production
     GitOps activation remains intentionally pending.
 
-## Next
+## Delivered — Phase 3 (3.1, 3.2)
 
 - [x] Phase 3 Slice 3.1 restart-safe Integration Session Workspace — MR `!111`
   pipeline `19409` passed 37/37, including required PostgreSQL restart/raw-PHI
@@ -131,13 +150,32 @@ must not enter the clinical data plane before the engine spine is proven.
   as `36f2bb8c`. Main pipeline `19482` passed 37/37 and repeated the session
   proof in job `188135`. Production GitOps activation remains pending.
 
-## Then
+## Delivered — Phase 3 (3.3, 3.4) and Phase 4 (Sprints 3–5, 2026-08-08 → 2026-09-05)
 
-- [ ] Workflow simulation against durable session data.
-- [ ] Reviewable bundle publication and promotion of the exact tested revisions.
-- [ ] Real operator message/trace browser, deployment controls, and DLQ tooling.
-- [ ] Fine-grained RBAC, PHI retention controls, audit, readiness, metrics,
-  multi-replica behavior, backup/restore, upgrade, DR, and performance.
+- [x] Workflow simulation against durable session data (3.3) and reviewable
+  bundle publication with exact-revision promotion (3.4).
+- [x] Operator control plane: GraphQL API (4.2a) and UI (4.2b) — trace browser,
+  deployment controls, DLQ tooling.
+- [x] Identity, authorization, and PHI policy (4.1a–4.1e, including the
+  destination identity contract 4.1c-a and the HTTPS destination consumer
+  4.1c-b), truthful observability and multi-replica behaviour (4.3), and the
+  recovery/upgrade/performance family (4.4a migration compatibility, 4.4b
+  performance harness, 4.4c chaos/DR, 4.4d structured logging, 4.4e
+  per-deployment MLLP rate quota); purge role separation; 5.1a mapper/checker
+  reconciliation. Execution specs `.loom/31`–`.loom/33`; evidence per slice in
+  `.loom/worklog/`.
+
+## Then — the 1.0 remainder
+
+- [ ] 4.2c: the operator trace shows the FHIR delivery (projection of the
+  destination provenance ledger into `OperatorDeliveryAttempt`).
+- [ ] 5.1c: official validator (`validator_cli.jar`, CI-only) over the bundle
+  4.1c-c delivers; then the "official validator evidence" clause in
+  `docs/operations/SUPPORTED-1.0.md` can change.
+- [ ] 5.2 SMART Backend Services and Bulk Data 3.0.0; 5.3 extension and
+  compatibility contract.
+- [ ] Phase 6 release evidence: budget 7 on Kubernetes 1.36, all six golden
+  journeys on the supported deployment profile, no open P0/P1.
 
 ## 1.0 standards and release scope
 

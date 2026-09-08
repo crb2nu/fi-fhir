@@ -720,6 +720,22 @@ Deferred: mTLS to destinations and per-destination client certificates, a
 FHIR-class destination (5.1's prerequisite), multi-tenant destination registries,
 and GraphQL destination authoring.
 
+#### Slice 4.1c-c: FHIR destination class — funded 2026-09-07, Sprint 6 Lane S6-A
+
+Slice 5.1's real prerequisite. 4.1c-b merged and the durable engine still
+delivers the delivery-command envelope, not a resource
+(`TestFHIRConformance_DurableEngineProducesNoFHIRResource`). 4.1c-c adds a
+`fhir` `TransportKind` with its own policy, a projection from the stored
+canonical payload through `pkg/fhir.USCoreMapper` (the payload is a redacted
+`pkg/events` struct that `pkg/integration`'s canonical event registry already
+decodes), conditional-write transaction Bundles so redelivery is idempotent,
+destination-ledger migration `0003`, a plan-time diagnostic for event types the
+projection does not cover, and the deliberate inversion of the 5.1a gate.
+Specification, day-1 kill-tests, and file ownership:
+`.loom/34-sprint6-execution-specs.md` Lane S6-A; ruling:
+`.loom/decisions/2026-09-08-fund-slice-4-1c-c-as-a-fhir-transport-kind.md`.
+Showing the delivery in the operator trace is Slice 4.2c (Wave 3 there).
+
 #### Slice 4.1d C1: audit immutability and export attribution
 
 - Extend schema-level immutability from the six already-guarded catalog and
@@ -1035,8 +1051,17 @@ CI job can honestly provide.
   publish the USCDI/profile coverage matrix, and surface conformance policy in
   artifacts and diagnostics.
 
-**Sequencing dependency (recorded 2026-08-08, Sprint 4 Lane S4-D): 5.1 is blocked
-on Slice 4.1c-b.** The durable integration engine produces no FHIR resource
+**Sequencing dependency (recorded 2026-08-08, Sprint 4 Lane S4-D; corrected
+2026-08-09 by Sprint 5 Lane S5-E and funded 2026-09-07 by Sprint 6): 5.1 is
+blocked on Slice 4.1c-c, the FHIR destination class — not on 4.1c-b.** 4.1c-b
+merged on 2026-08-09 and did not clear the blocker: the durable engine delivers
+the Kafka delivery-command envelope over HTTPS at `application/json`, proven by
+`TestFHIRConformance_DurableEngineProducesNoFHIRResource`
+(`internal/integration/delivery/fhir_conformance_gate_test.go`). Slice 4.1c-c is
+specified in `.loom/34-sprint6-execution-specs.md` (Lane S6-A) as a new `fhir`
+`TransportKind` with its own policy and conditional-write transaction Bundles.
+The paragraph below is the 2026-08-08 analysis, kept as the record of why the
+gap was found. The durable integration engine produces no FHIR resource
 today. `pkg/fhir` has exactly two non-test importers — `internal/workflow/actions.go:23`
 (the legacy engine; mapper constructed at `:680`, action registered only at
 `internal/workflow/engine.go:127`) and `cmd/fi-fhir/main.go:49` (the `fhir validate`
@@ -1047,7 +1072,7 @@ the dispatcher's command carries the canonical event, not a resource
 `internal/integration/delivery/store.go:107,128`). Consequently:
 
 - **"Surface conformance policy in artifacts and diagnostics" cannot be specified
-  until 4.1c-b defines what a FHIR destination is.** Conformance policy attaches
+  until 4.1c-c defines what a FHIR destination is.** Conformance policy attaches
   to a destination revision, and the destination revision has no FHIR class:
   `TransportKind` is `kafka|https` only
   (`internal/integration/destination/revision.go:54-62`).
@@ -1055,7 +1080,7 @@ the dispatcher's command carries the canonical event, not a resource
   certify a path no golden journey executes. Golden journey 1 ends "inspect trace
   and FHIR delivery" and journey 6 validates a US Core 9.0.0 R4 payload
   (`.loom/20-product-spec-integration-engine-ide-completion.md:293,302-304`);
-  both wait on 4.1c-b.
+  both wait on 4.1c-c.
 - Preparation completed in Sprint 4 with no code:
   `docs/planning/FHIR-CONFORMANCE-MATRIX.md` (coverage matrix against
   `pkg/fhir/mapper.go` and `pkg/fhir/validate.go`), the rewritten

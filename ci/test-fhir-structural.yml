@@ -1,0 +1,12 @@
+# Lane S6-D — Slice 5.1b, FHIR package pinning and the Go structural validator
+# (.loom/34, Lane S6-D).
+#
+# Pre-registered by the Sprint 6 merge-surface MR so the include line in
+# .gitlab-ci.yml, the .PHONY line, and this file all exist before the lane's
+# MR opens. Lane S6-D replaces this comment with the blocking
+# `test:fhir-structural` job: the structural validator over the pinned
+# hl7.fhir.r4.core#4.0.1 and hl7.fhir.us.core#9.0.0 packages, run across every
+# generated mapper fixture, plus its negative control.
+#
+# A comment-only include is valid GitLab CI and adds no job, which is what
+# scripts/ci-job-inventory.sh --check verifies until the lane fills it.
