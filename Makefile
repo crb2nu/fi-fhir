@@ -1000,13 +1000,84 @@ fhir-destination:
 fhir-destination-negative-control:
 	@echo "fhir-destination-negative-control: placeholder — Lane S6-A (Slice 4.1c-c) has not filled this target yet"; exit 1
 
-# 5.1b — Lane S6-D fills this: the structural validator over the pinned
-# hl7.fhir.r4.core#4.0.1 and hl7.fhir.us.core#9.0.0 packages, across every
-# generated mapper fixture.
+# Lane S6-D Slice 5.1b: the structural conformance proof over the pinned
+# offline IG packages, hl7.fhir.r4.core#4.0.1 and hl7.fhir.us.core#9.0.0.
+#
+# Ten assertions in pkg/fhir, all of which must PASS:
+#
+#  1. The two archives under testdata/fhir/packages/ have the sha256 sums
+#     recorded in SHA256SUMS *and* in the PinnedPackage constants — three
+#     records that must agree, so neither can rot behind the other.
+#  2. They load, declare their own name and version, and still hold the
+#     StructureDefinition counts the README documents. A loader filter that
+#     stopped matching would otherwise make every resolution below vacuous.
+#  3. Slice 5.1a's profile-version policy executed against real packages: a bare
+#     canonical resolves, `|9.0.0` resolves, `|8.0.0` is REJECTED. Under 5.1a's
+#     suffix-stripping tolerance the last one passed.
+#  4. All 32 US Core profile constants resolve to a real 9.0.0 profile.
+#  5. Every US Core resource profile's baseDefinition chain terminates at its R4
+#     base — which is what the 12.8 MB R4 archive is for, since
+#     us-core-observation-lab and us-core-heart-rate reach R4 only through
+#     another US Core profile.
+#  6. Every mapper fixture's structural errors EXACTLY equal the recorded
+#     ledger in recordedCardinalityGaps(): 19 clean, six carrying nine genuine
+#     cardinality violations. Exact equality, so a fixed gap fails as loudly as
+#     a new one and the ledger can only shrink deliberately.
+#  7. Removing a required element from a clean fixture fails, once per
+#     required-element type Slice 5.1a counted.
+#  8. Bundle entries are validated and located by entry index — the fixture set
+#     is all bare resources, so nothing else covers that path.
+#  9. validate.go's 17 hand-written required-element checks agree with the
+#     pinned profiles — 15 exactly, two deliberately stricter (Patient.gender,
+#     Patient.birthDate).
+# 10. Must-support reporting only ever adds information-severity issues.
+#
+# All ten are ordinary tests and also run in `go test ./...`; this target
+# exists so the proof is addressable by name and pairs with its negative
+# control. The arity guard is here rather than only in CI because a renamed or
+# deleted assertion would make `-run` match nothing and this target greener
+# rather than redder.
 fhir-structural:
-	@echo "fhir-structural: placeholder — Lane S6-D (Slice 5.1b) has not filled this target yet"; exit 1
+	@count=$$(go test -list '^TestFHIRStructural' ./pkg/fhir | grep -c '^TestFHIRStructural'); \
+	if [ "$$count" != "10" ]; then \
+		echo "expected 10 TestFHIRStructural assertions, found $$count"; \
+		go test -list '^TestFHIRStructural' ./pkg/fhir; \
+		exit 1; \
+	fi
+	go test -race -count=1 -timeout=180s -run '^TestFHIRStructural' ./pkg/fhir
 
-# 5.1b — Lane S6-D fills this: a fixture with a required element removed must
-# fail the structural validator.
+# Negative control for the above. The fhirstructuralnegative tag removes
+# Patient.name — 1..* in us-core-patient — from patient.json before the gate
+# sees it, and changes nothing else. patient.json is one of the nineteen
+# fixtures recorded clean, so the ledger assertion must fail on EXACTLY that
+# fixture, naming that element.
+#
+# Three requirements, not one. A control that passes means the gate is not
+# reading the fixtures at all. A control that fails everywhere means the ledger
+# is not per-fixture. A control that fails for an unrelated reason — a missing
+# archive, a loader error — is not evidence that a cardinality rule is enforced,
+# so the failure text must name Patient.name.
 fhir-structural-negative-control:
-	@echo "fhir-structural-negative-control: placeholder — Lane S6-D (Slice 5.1b) has not filled this target yet"; exit 1
+	@output=$$(go test -tags fhirstructuralnegative -count=1 -timeout=180s \
+		-run '^TestFHIRStructural_MapperFixturesMatchTheirRecordedCardinalityGaps$$' \
+		-v ./pkg/fhir 2>&1); \
+	if [ $$? -eq 0 ]; then \
+		echo "negative control FAILED: the structural gate still passes with"; \
+		echo "Patient.name removed from patient.json"; \
+		exit 1; \
+	fi; \
+	rows=$$(printf '%s\n' "$$output" \
+		| sed -n 's|^ *--- FAIL: TestFHIRStructural_MapperFixturesMatchTheirRecordedCardinalityGaps/\([^ ]*\).*|\1|p' \
+		| sort -u | tr '\n' ' ' | sed 's/ $$//'); \
+	if [ "$$rows" != "patient.json" ]; then \
+		echo "negative control failed on the WRONG fixtures: [$$rows], want [patient.json]"; \
+		printf '%s\n' "$$output" | grep -- '--- FAIL' || true; \
+		exit 1; \
+	fi; \
+	if ! printf '%s\n' "$$output" | grep -q 'Patient.name is required'; then \
+		echo "negative control failed without naming Patient.name, so it is not"; \
+		echo "evidence that cardinality is enforced"; \
+		printf '%s\n' "$$output" | tail -20; \
+		exit 1; \
+	fi; \
+	echo "negative control OK: the structural gate fails on exactly patient.json"
