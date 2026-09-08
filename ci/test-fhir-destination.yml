@@ -1,0 +1,16 @@
+# Lane S6-A — Slice 4.1c-c, the FHIR destination class (.loom/34, Lane S6-A).
+#
+# Pre-registered by the Sprint 6 merge-surface MR so the include line in
+# .gitlab-ci.yml, the .PHONY line, and this file all exist before the lane's
+# implementation MR opens. Lane S6-A replaces the hidden placeholder below with
+# the blocking `test:fhir-destination` job (PostgreSQL 16 service, -race; the
+# inverted 5.1a gate, both kill-tests, and the negative control in one job).
+#
+# The placeholder is a hidden job (dot-prefixed): GitLab ignores it when
+# building the pipeline, so it adds no job — which is what
+# scripts/ci-job-inventory.sh --check verifies until the lane fills it — while
+# keeping the included file a non-empty YAML mapping. A comment-only include
+# parses to null and fails the pipeline at config time with zero jobs.
+.s6a-fhir-destination-placeholder:
+  script:
+    - echo "Lane S6-A (Slice 4.1c-c) has not filled ci/test-fhir-destination.yml yet"
