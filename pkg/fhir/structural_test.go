@@ -567,6 +567,15 @@ func TestFHIRStructural_RequiredElementChecksAgreeWithPinnedProfiles(t *testing.
 	type check struct {
 		profile string
 		path    string
+		// fixture is the generated resource that must actually populate this
+		// element. Agreeing with the IG about what is required proves nothing
+		// on its own if the mapper emits none of it, so must-support presence
+		// is asserted against real output rather than inferred.
+		fixture string
+		// mustSupport is the flag the pinned profile carries. It is spelled out
+		// per row rather than assumed true, because one of the seventeen is
+		// false and that is the finding.
+		mustSupport bool
 		// localOnly marks a check `validate.go` enforces that US Core 9.0.0
 		// does not require. The test then asserts the IG min really is 0, so
 		// the divergence cannot silently disappear in either direction.
@@ -574,28 +583,30 @@ func TestFHIRStructural_RequiredElementChecksAgreeWithPinnedProfiles(t *testing.
 	}
 
 	checks := []check{
-		{profile: USCorePatientProfile, path: "Patient.identifier"},
-		{profile: USCorePatientProfile, path: "Patient.name"},
-		{profile: USCorePatientProfile, path: "Patient.gender", localOnly: true},
-		{profile: USCorePatientProfile, path: "Patient.birthDate", localOnly: true},
+		{profile: USCorePatientProfile, path: "Patient.identifier", fixture: "patient.json", mustSupport: true},
+		{profile: USCorePatientProfile, path: "Patient.name", fixture: "patient.json", mustSupport: true},
+		// The only row in the table with no mustSupport flag at all: US Core
+		// 9.0.0 dropped Patient.gender from must-support entirely.
+		{profile: USCorePatientProfile, path: "Patient.gender", fixture: "patient.json", mustSupport: false, localOnly: true},
+		{profile: USCorePatientProfile, path: "Patient.birthDate", fixture: "patient.json", mustSupport: true, localOnly: true},
 
-		{profile: USCoreEncounterProfile, path: "Encounter.status"},
-		{profile: USCoreEncounterProfile, path: "Encounter.class"},
-		{profile: USCoreEncounterProfile, path: "Encounter.subject"},
+		{profile: USCoreEncounterProfile, path: "Encounter.status", fixture: "encounter.json", mustSupport: true},
+		{profile: USCoreEncounterProfile, path: "Encounter.class", fixture: "encounter.json", mustSupport: true},
+		{profile: USCoreEncounterProfile, path: "Encounter.subject", fixture: "encounter.json", mustSupport: true},
 
-		{profile: USCoreObservationLabProfile, path: "Observation.status"},
-		{profile: USCoreObservationLabProfile, path: "Observation.code"},
-		{profile: USCoreObservationLabProfile, path: "Observation.subject"},
+		{profile: USCoreObservationLabProfile, path: "Observation.status", fixture: "labobservation.json", mustSupport: true},
+		{profile: USCoreObservationLabProfile, path: "Observation.code", fixture: "labobservation.json", mustSupport: true},
+		{profile: USCoreObservationLabProfile, path: "Observation.subject", fixture: "labobservation.json", mustSupport: true},
 
-		{profile: USCoreDiagnosticReportLabProfile, path: "DiagnosticReport.status"},
-		{profile: USCoreDiagnosticReportLabProfile, path: "DiagnosticReport.code"},
-		{profile: USCoreDiagnosticReportLabProfile, path: "DiagnosticReport.subject"},
+		{profile: USCoreDiagnosticReportLabProfile, path: "DiagnosticReport.status", fixture: "labresult_1.json", mustSupport: true},
+		{profile: USCoreDiagnosticReportLabProfile, path: "DiagnosticReport.code", fixture: "labresult_1.json", mustSupport: true},
+		{profile: USCoreDiagnosticReportLabProfile, path: "DiagnosticReport.subject", fixture: "labresult_1.json", mustSupport: true},
 
-		{profile: USCoreConditionProfile, path: "Condition.subject"},
+		{profile: USCoreConditionProfile, path: "Condition.subject", fixture: "condition.json", mustSupport: true},
 
-		{profile: USCoreCoverageProfile, path: "Coverage.status"},
-		{profile: USCoreCoverageProfile, path: "Coverage.beneficiary"},
-		{profile: USCoreCoverageProfile, path: "Coverage.payor"},
+		{profile: USCoreCoverageProfile, path: "Coverage.status", fixture: "coverage.json", mustSupport: true},
+		{profile: USCoreCoverageProfile, path: "Coverage.beneficiary", fixture: "coverage.json", mustSupport: true},
+		{profile: USCoreCoverageProfile, path: "Coverage.payor", fixture: "coverage.json", mustSupport: true},
 	}
 
 	if len(checks) != 17 {
@@ -623,6 +634,18 @@ func TestFHIRStructural_RequiredElementChecksAgreeWithPinnedProfiles(t *testing.
 				t.Errorf("validate.go requires %s but %s makes it min %d",
 					tc.path, PinnedUSCore, element.MinOrZero())
 			}
+
+			if element.MustSupport != tc.mustSupport {
+				t.Errorf("%s has mustSupport=%t in %s, this table says %t",
+					tc.path, element.MustSupport, PinnedUSCore, tc.mustSupport)
+			}
+
+			// Must-support presence, asserted against generated output.
+			field := strings.TrimPrefix(tc.path, sd.Type+".")
+			if !fixturePopulates(t, tc.fixture, field) {
+				t.Errorf("%s does not populate %s, which %s marks mustSupport=%t and min %d",
+					tc.fixture, field, PinnedUSCore, element.MustSupport, element.MinOrZero())
+			}
 		})
 		if tc.localOnly {
 			localOnly++
@@ -632,6 +655,28 @@ func TestFHIRStructural_RequiredElementChecksAgreeWithPinnedProfiles(t *testing.
 	if localOnly != 2 {
 		t.Errorf("%d local-only checks, want 2 (Patient.gender, Patient.birthDate)", localOnly)
 	}
+}
+
+// fixturePopulates reports whether a generated fixture carries a non-empty
+// value at one top-level field.
+func fixturePopulates(t *testing.T, fixture, field string) bool {
+	t.Helper()
+
+	data, err := os.ReadFile(filepath.Join(mapperFixtureDir(), fixture)) // #nosec G304 -- table of fixed fixture names.
+	if err != nil {
+		t.Fatalf("read %s: %v", fixture, err)
+	}
+	var resource map[string]any
+	if err := json.Unmarshal(data, &resource); err != nil {
+		t.Fatalf("unmarshal %s: %v", fixture, err)
+	}
+
+	value, present := resource[field]
+	if !present {
+		return false
+	}
+	empty, _ := isEmptyValue(value)
+	return !empty
 }
 
 // TestFHIRStructural_MustSupportReportingNeverChangesTheVerdict pins the
