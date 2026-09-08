@@ -23,7 +23,7 @@ every release, conformance, performance, recovery, or compatibility gate.
 | Local deployment | Docker Compose with PostgreSQL 16 | Development reference; not a production topology |
 | Kubernetes deployment | Kubernetes 1.36.x through Helm and Kustomize | Pinned reference target; render, install, upgrade, rollback, and live golden-journey evidence remain release gates |
 | Authoring UI | Current SvelteKit build served as static assets | Build/test locked; latest-two Chrome, Edge, and Firefox plus current Safari compatibility remains a release gate |
-| Healthcare standards | FHIR R4 4.0.1, US Core 9.0.0, SMART App Launch 2.2.0, Bulk Data 3.0.0 | Release targets; official validator or conformance-suite evidence is not yet complete. Nothing in the repository is pinned to a US Core package — see "FHIR profile-version assertion policy" below |
+| Healthcare standards | FHIR R4 4.0.1, US Core 9.0.0, SMART App Launch 2.2.0, Bulk Data 3.0.0 | Release targets; official validator or conformance-suite evidence is not yet complete. Since Slice 5.1b the repository pins `hl7.fhir.r4.core#4.0.1` and `hl7.fhir.us.core#9.0.0` as offline `.tgz` under `testdata/fhir/packages/` and resolves against them — see "FHIR profile-version assertion policy" below for exactly what that does and does not establish |
 
 Kubernetes 1.36 is the pinned minor because it is an actively supported upstream
 release during the Engine Alpha program. Patch releases may advance within 1.36
@@ -46,22 +46,48 @@ Concretely, a resource this product emits declares
 Two consequences worth stating plainly, because the row above lists US Core 9.0.0
 and a reader could reasonably infer more than is true:
 
-- **The product is not pinned to US Core 9.0.0.** None of the 32 US Core profile
-  constants carries a version suffix, no IG package is vendored, and nothing
-  resolves a profile against a package. 9.0.0 is a release *target*. Do not
-  describe the repository as "US Core 9.0.0-pinned".
-- **The shipped checker is a required-element and profile-URL presence check, not
-  a profile validator.** It has no terminology bindings, no primitive-type
-  checks, no slicing, and no invariants. Version *tolerance* is not version
-  *resolution*: stripping a `|version` suffix lets a correctly pinned resource
-  pass the presence check; it does not verify that the resource conforms to that
-  version of that profile.
+- **The mapper's own output is not version-pinned, and the *packages* now are.**
+  None of the 32 US Core profile constants carries a version suffix, and that
+  stays deliberate. What changed in Slice 5.1b is that
+  `hl7.fhir.r4.core#4.0.1` and `hl7.fhir.us.core#9.0.0` are checked in as
+  offline `.tgz` under `testdata/fhir/packages/` with sha256 sums verified on
+  every test run, and a resolver reads them. Both archives reproduce the
+  registry-published `dist.shasum`. All 32 constants resolve to a real US Core
+  9.0.0 profile. 9.0.0 is still a release *target* for the product's behaviour;
+  it is now a *fact* about what the repository validates against.
+- **The shipped checker is still a required-element and profile-URL presence
+  check, not a profile validator.** `pkg/fhir/validate.go` is unchanged by
+  5.1b. It has no terminology bindings, no primitive-type checks, no slicing,
+  and no invariants.
+- **The new structural validator resolves, and still is not the official
+  validator.** `pkg/fhir/structural.go` (Slice 5.1b, Option C) checks, against
+  the pinned archives: resource type existence in R4 4.0.1; profile resolution,
+  resource-type agreement and `baseDefinition` chain termination; and
+  cardinality — `min`, `max`, prohibition — from the R4 base snapshot and every
+  resolved profile snapshot, at every element depth. It reports unpopulated
+  must-support elements without failing on them, because US Core `mustSupport`
+  binds the system rather than the instance. It does **not** evaluate
+  terminology bindings, FHIRPath invariants, slicing, primitive-type formats,
+  reference targets, or extensions, and it issues no conformance certificate.
+  `validator_cli.jar` as a CI-only job (Option A) is Sprint 7, and item 7 of the
+  evidence list below stays blocking until it lands.
 
 The alternative — pinning all constants to `|9.0.0` and requiring an exact match —
-was rejected. Without a package-resolution step a pinned constant asserts a
-version it cannot verify, and it would reject a correct bare canonical. Version
-resolution arrives with the pinned offline `.tgz` packages in Slice 5.1b, and
-item 7 of the evidence list below stays blocking until then.
+was rejected in 5.1a. Without a package-resolution step a pinned constant asserts
+a version it cannot verify, and it would reject a correct bare canonical. **The
+package-resolution step now exists**, so the tolerance has teeth it did not have:
+`…/us-core-patient|9.0.0` resolves against the pinned package and
+`…/us-core-patient|8.0.0` is rejected, where 5.1a's suffix-stripping accepted
+both. Re-pinning the constants is still not planned — a bare canonical is what a
+US Core publisher is expected to emit — but the reason has narrowed from "we
+cannot verify a version" to "we choose not to assert one".
+
+Running the structural validator over the mapper's own generated fixtures found
+nine cardinality violations across six of the twenty-five files, two of which
+break base R4 rather than a US Core tightening. They are enumerated in
+`docs/planning/FHIR-CONFORMANCE-MATRIX.md` §5.1, held to exact equality by
+`make fhir-structural`, and are the subject of the next mapper slice. A reader
+sizing up this row should read that table before quoting the standards row.
 
 ## Reference application profile
 

@@ -268,15 +268,29 @@ but unused. 24 non-Bundle resource types produced; 21 profile-presence-checked;
 types have no fixture in `testdata/fhir/mapper/`: a fixture that validates
 because nothing is checked would be evidence of nothing.
 
-**Headline (external, unverified): 55 US Core 9.0.0 profiles; 23 with neither a
-constant nor a mapper.** Re-verify against the pinned `.tgz` in 5.1b before
-citing.
+**Headline (external, verified against the pinned package on 2026-09-08): 55 US
+Core 9.0.0 profiles; 23 with neither a constant nor a mapper.** The 2026-08-08
+reading, taken from the published IG rather than a package, was correct in both
+numbers. `hl7.fhir.us.core-9.0.0.tgz` holds 70 `StructureDefinition` resources:
+55 are `kind: resource`, `derivation: constraint` — the profile inventory — and
+the other 15 are complex-type constraints. All 32 profile constants resolve to
+one of the 55, asserted by
+`TestFHIRStructural_EveryProfileConstantResolvesInThePinnedPackage`, so the
+"declared but unused" `USCoreMedicationProfile` is unused rather than wrong.
+The 23 uncovered profiles are the pediatric vital-signs family, the social-
+determinants and screening `Observation` profiles (`us-core-smokingstatus`,
+`us-core-observation-occupation`, `us-core-observation-pregnancystatus`,
+`us-core-simple-observation` and siblings), `us-core-device`,
+`us-core-specimen`, `us-core-medicationdispense`, `us-core-familymemberhistory`,
+`us-core-questionnaireresponse`, the advance-directive documents, and
+`us-core-condition-encounter-diagnosis`.
 
 External IG facts in this section (profile inventory, version/USCDI alignment,
 package identifier) were read from the published US Core 9.0.0 IG and the package
-registry on 2026-08-08 and **must be re-verified against the pinned `.tgz` at
-implementation start** — the IG is on an annual release cadence and
-`.loom/28-spec-fhir-ig-bulk-smart.md` already carries that instruction.
+registry on 2026-08-08 and re-verified against the pinned
+`testdata/fhir/packages/hl7.fhir.us.core-9.0.0.tgz` on 2026-09-08 (Slice 5.1b).
+The IG is on an annual release cadence, so a re-pin is the next occasion to
+re-verify; `.loom/28-spec-fhir-ig-bulk-smart.md` carries that instruction.
 
 ---
 
@@ -292,13 +306,93 @@ disagreement at higher resolution, so reconciliation went first. See
 |---|---|---|
 | 1 | **Wait for 4.1c-b** — a conformance gate has nothing to gate until a resource exists on the durable path | **Still open, and reframed.** 4.1c-b merged and did not satisfy this. The durable engine delivers a canonical-event command envelope, proven by `TestFHIRConformance_DurableEngineProducesNoFHIRResource`. The real prerequisite is **4.1c-c, a FHIR destination class**, which nobody has specced. |
 | 2 | **Choose the validation engine** | **Half-ratified.** The confinement half is in force: `validator_cli.jar` is CI-only, the shipped image stays distroless static, IG packages are pinned offline `.tgz`. The ordering half was amended — see the heading above. |
-| 3 | **Pin the packages** | **Open (Slice 5.1b).** Nothing is pinned. This is why §4's external denominator is not citable. |
+| 3 | **Pin the packages** | **Done (Slice 5.1b).** `hl7.fhir.r4.core#4.0.1` (12,815,597 bytes) and `hl7.fhir.us.core#9.0.0` (2,749,959 bytes) are checked in as offline `.tgz` under `testdata/fhir/packages/` with sha256 sums in `SHA256SUMS`, verified on every run by `TestFHIRStructural_PinnedPackagesMatchTheirRecordedDigests`. Both reproduce the registry-published `dist.shasum`. §4's external denominator is now citable and was re-verified against the archive. Whole archives, not an extracted subset: no size or scan gate rejected them — see §5.1 below. |
 | 4 | **Fix the two self-inconsistencies** | **Done (Slice 5.1a).** §1.1 cases 1 and 2. A third, not in the original list — the checker failing open on any mode string that was not byte-exactly `us-core` — is also fixed. A fourth, `Patient.MRN` being dropped and producing a hard `Patient.identifier is required`, is fixed too. |
 | 5 | **Decide the profile-version assertion policy** | **Done (Slice 5.1a).** Bare canonicals asserted; bare or pinned accepted. Recorded here, in `.loom/40-decisions.md`, and in `docs/operations/SUPPORTED-1.0.md`. |
 
-Remaining for **Slice 5.1b**, in order: pin the packages, then a Go structural
-validator over them (Option C), then the official validator as a CI-only job
-(Option A). Nothing in 5.1b certifies a live path until 4.1c-c exists.
+Remaining after **Slice 5.1b**: the official validator as a CI-only job
+(Option A, Sprint 7). Nothing in 5.1b certifies a live path until 4.1c-c exists.
+
+### 5.1 The Go structural validator (Option C) — Slice 5.1b, 2026-09-08
+
+`pkg/fhir/structural.go` resolves resources against the pinned archives. Gate:
+`make fhir-structural`, CI job `test:fhir-structural` (blocking); negative
+control `make fhir-structural-negative-control`.
+
+**What it checks.** For every resource: that `resourceType` names a
+`StructureDefinition` in pinned R4 4.0.1; that every `meta.profile` canonical
+resolves in the pinned packages, constrains that resource type, and has a
+`baseDefinition` chain terminating at the R4 base; and cardinality — `min`,
+`max`, and prohibition — from both the R4 base snapshot and every resolved
+profile's snapshot, applied at **every depth** by walking snapshot paths against
+the JSON, so `Encounter.identifier.system` is graded as well as
+`Encounter.type`. Choice elements (`value[x]`) are resolved to their typed JSON
+property. Must-support elements a resource leaves unpopulated are reported at
+information severity and never fail: US Core `mustSupport` binds the system, not
+the instance.
+
+**Version resolution, finally.** Item 5's policy is unchanged — the mapper
+asserts bare canonicals, the checker accepts bare or pinned — but the checker
+can now tell a *correct* pin from a wrong one. `…/us-core-patient|9.0.0`
+resolves; `…/us-core-patient|8.0.0` is rejected. Under 5.1a's tolerance alone
+both passed. This is the sentence `docs/operations/SUPPORTED-1.0.md` was waiting
+on: version tolerance has become version resolution.
+
+**What it does NOT check, and this list is the point of the section.** No
+terminology: a `ValueSet` binding of any strength is not evaluated, so a code
+outside a required binding passes. No invariants: FHIRPath `constraint`
+expressions are not evaluated. No slicing: elements whose snapshot `id` carries
+a `:` discriminator are skipped, because assigning a JSON element to a slice
+needs the terminology this validator does not have — the *unsliced* element's
+cardinality is still checked. No primitive-type or regex validation, no
+reference-target checking, no extension validation, no `contentReference`
+expansion. **This is not official conformance and produces no certificate.**
+`validator_cli.jar` (Option A) remains Sprint 7.
+
+**Result over the 21-resource-type fixture set** (25 files in
+`testdata/fhir/mapper/`; `labresult_1/2/3`, `labobservation` and `vitalsign` are
+all `Observation` or `DiagnosticReport`): **19 files clean, 6 carrying 9
+cardinality violations.** Every one was confirmed against the fixture by hand;
+one earlier report — `Coverage.payor` serialised as a JSON array — was a
+validator defect and was fixed rather than recorded, because a profile narrowing
+`max` from `*` to `1` constrains the count, not the JSON wire shape.
+
+| Fixture | Violation | Required by |
+|---|---|---|
+| `careteam.json` | `CareTeam.participant` absent | `us-core-careteam` 1..* |
+| `coverage.json` | `Coverage.relationship` absent | `us-core-coverage` 1..1 |
+| `documentreference.json` | `DocumentReference.content` is JSON `null` | R4 **and** `us-core-documentreference` 1..* |
+| `encounter.json` | `Encounter.identifier.system` absent | `us-core-encounter` 1..1 |
+| `encounter.json` | `Encounter.type` absent | `us-core-encounter` 1..* |
+| `medicationrequest.json` | `substitution` is `{}`, so `substitution.allowed[x]` is absent | R4 **and** `us-core-medicationrequest` 1..1 |
+| `vitalsign.json` | `Observation.effective[x]` absent | `us-core-heart-rate` 1..1 |
+
+Two of these violate base R4, not a US Core tightening: the explicit `null` and
+the empty `substitution` object. Slice 5.1b did **not** fix any of them. Its
+deliverable is the measurement, and changing the mapper in the change that first
+makes it measurable would take the measurement against unreviewed output; what a
+`DocumentReference` with no attachment should emit is a product decision, not a
+defect fix. The gaps are recorded in `recordedCardinalityGaps()` and asserted by
+**exact equality**, so a new violation and a fixed one both fail the build and
+the ledger can only shrink deliberately. **Closing them is the next mapper
+slice.**
+
+**Two places the shipped checker is stricter than the IG.** `validate.go` makes
+an absent `Patient.gender` and an absent `Patient.birthDate` hard errors; in US
+Core 9.0.0 `Patient.gender` is `0..1` with no `mustSupport` flag at all and
+`Patient.birthDate` is `0..1` mustSupport. Neither can produce a non-conformant
+`Patient`, so nothing was changed;
+`TestFHIRStructural_RequiredElementChecksAgreeWithPinnedProfiles` records them
+as deliberate local policy and fails if the IG ever makes them required. The
+other 15 of the 17 hand-written required-element checks agree with the pinned
+profiles exactly.
+
+**One base chain leaves the pinned set.** `us-core-questionnaireresponse` bases
+on `sdc-questionnaireresponse` in `hl7.fhir.uv.sdc`, one of the seven
+dependencies US Core 9.0.0 declares. The transitive closure was not pinned —
+`hl7.terminology.r4` and `us.cdc.phinvads` are terminology this validator does
+not evaluate, and no mapper emits a `QuestionnaireResponse`. The exception is
+asserted by name, so a second one fails the build.
 
 ---
 
