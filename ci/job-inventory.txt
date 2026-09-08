@@ -43,6 +43,7 @@ test:destination-transport	test	false
 test:docs-status	test	true
 test:durable-submission	test	false
 test:e2e	test	false
+test:e2e-legacy	test	false
 test:golden-path-001	test	false
 test:integration	test	false
 test:integration-session	test	false
