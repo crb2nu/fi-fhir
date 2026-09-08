@@ -225,9 +225,14 @@ Numbered so lanes can cite them. Each was read at `13bf9f4e9`.
     (`.loom/40-decisions.md` — now fixed by one-file-per-entry — the Makefile
     `.PHONY` lane block at `Makefile:18-36`, and the `.gitlab-ci.yml` include
     list at `:14-26`). `include: local` of a missing file fails the pipeline,
-    but a comment-only `ci/*.yml` is valid. S6-0 lands every lane's stub
-    include file, include line, `.PHONY` line, and the regenerated
-    `ci/job-inventory.txt` on day 1; lanes then edit only files they own.
+    and so does a comment-only `ci/*.yml` — it parses to `null`, GitLab
+    reports "does not have valid YAML syntax", and the pipeline fails at
+    config time with zero jobs (S6-0's first pipeline, 25968, did exactly
+    that). A stub must be a non-empty mapping: a hidden, dot-prefixed job is
+    valid, adds no job, and passes `ci-job-inventory.sh --check`. S6-0 lands
+    every lane's stub include file, include line, `.PHONY` line, and the
+    regenerated `ci/job-inventory.txt` on day 1; lanes then edit only files
+    they own.
 
 20. **Any `.gitlab-ci.yml` edit runs `security:npm-audit-ui`** (the file is in
     `*ui-changes`). S6-0 runs `cd ui && npm audit --audit-level=high` first and
@@ -346,7 +351,8 @@ with `--onto` so only the lane's own commits replay (see Sprint 5's recipe).
 
 1. Stub `ci/test-fhir-destination.yml`, `ci/test-e2e-legacy.yml`,
    `ci/test-fhir-structural.yml` — each a comment block naming its lane and
-   the job it will hold. Add the three `include: local:` lines
+   the job it will hold, plus one hidden (dot-prefixed) placeholder job so the
+   file is a non-empty mapping (correction 19). Add the three `include: local:` lines
    (`.gitlab-ci.yml:14-26`, no leading slash). Add three `.PHONY` lines in the
    lane block (`Makefile:18-36`, one line per lane with the `# <slice> — <lane>`
    comment). Regenerate `ci/job-inventory.txt` (unchanged output proves the

@@ -2,9 +2,10 @@
 
 - What changed (Lane S6-0, `.loom/34-sprint6-execution-specs.md`):
   - Pre-registered every shared append point the lanes would otherwise
-    collide on: comment-only stubs `ci/test-fhir-destination.yml`,
-    `ci/test-e2e-legacy.yml`, `ci/test-fhir-structural.yml` plus their three
-    `include: local:` lines; two `.PHONY` lane lines (S6-A, S6-D); four
+    collide on: stubs `ci/test-fhir-destination.yml`, `ci/test-e2e-legacy.yml`,
+    `ci/test-fhir-structural.yml` (each a comment block plus one hidden,
+    dot-prefixed placeholder job) plus their three `include: local:` lines;
+    two `.PHONY` lane lines (S6-A, S6-D); four
     fail-loud placeholder Makefile targets (`fhir-destination`,
     `fhir-destination-negative-control`, `fhir-structural`,
     `fhir-structural-negative-control`) that the lanes replace in place. S6-C
@@ -28,8 +29,14 @@
 - Why:
   - Sprint 5 re-stacked eight MRs twice in one afternoon because every
     implementation MR appended to the same Makefile block and include list.
-    A comment-only CI include is valid and a placeholder target is a valid
+    A hidden-job CI include is valid and a placeholder target is a valid
     recipe, so the shared lines can exist before the lanes do.
+  - Found on the first pipeline (25968, failed with zero jobs): a
+    **comment-only include is not valid** — it parses to `null` and GitLab
+    reports "does not have valid YAML syntax". `.loom/34` correction 19 said
+    otherwise and is corrected in this MR. `POST /ci/lint` with
+    `dry_run: true, ref: <branch>` reproduces the error against a branch;
+    without `ref` the lint resolves includes against `main`.
 - Evidence:
   - `cd ui && npm audit --audit-level=high` → 3 low, 0 high (no lockfile
     ride-along needed for a `.gitlab-ci.yml` edit; see !197).

@@ -2,11 +2,17 @@
 #
 # Pre-registered by the Sprint 6 merge-surface MR so the include line in
 # .gitlab-ci.yml and this file exist before the lane's MR opens. Lane S6-C
-# replaces this comment with the blocking `test:e2e-legacy` job: the binary
-# built and exec'd against declared service containers, exactly as
-# ci/s5b-chaos-dr.yml does, running ./test/e2e/... with
+# replaces the hidden placeholder below with the blocking `test:e2e-legacy`
+# job: the binary built and exec'd against declared service containers,
+# exactly as ci/s5b-chaos-dr.yml does, running ./test/e2e/... with
 # FI_FHIR_E2E_REQUIRED_SERVICES declared so an unreachable dependency fails
 # instead of skipping.
 #
-# A comment-only include is valid GitLab CI and adds no job, which is what
-# scripts/ci-job-inventory.sh --check verifies until the lane fills it.
+# The placeholder is a hidden job (dot-prefixed): GitLab ignores it when
+# building the pipeline, so it adds no job — which is what
+# scripts/ci-job-inventory.sh --check verifies until the lane fills it — while
+# keeping the included file a non-empty YAML mapping. A comment-only include
+# parses to null and fails the pipeline at config time with zero jobs.
+.s6c-e2e-legacy-placeholder:
+  script:
+    - echo "Lane S6-C has not filled ci/test-e2e-legacy.yml yet"
