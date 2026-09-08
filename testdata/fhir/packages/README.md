@@ -39,13 +39,16 @@ gate was checked and none rejects them, so the whole archives are pinned:
   no file-size lint in `scripts/` or `.gitlab-ci.yml`. 15.5 MB across two blobs
   that never change again is a one-time cost paid on clone.
 - **`security:trivy` (filesystem scan) is inert on them.** Trivy 0.63.0 — the
-  pinned `TRIVY_VERSION` — does not decompress `.tgz`. Probed with the exact CI
-  commands against a directory holding only these two files:
+  pinned `TRIVY_VERSION` — does not decompress `.tgz`. Probed twice. Against a
+  directory holding only these two files,
   `trivy fs --scanners vuln --exit-code 1 --severity CRITICAL .` reported
   `Number of language-specific files num=0` and exited 0, and
   `trivy fs --scanners secret --exit-code 1 --severity HIGH,CRITICAL .` reported
-  no issues and exited 0. No `.trivyignore` entry and no `--skip-dirs` addition
-  is needed; adding one would have suppressed findings nobody had shown existed.
+  no issues and exited 0. Then against the whole branch tree with both archives
+  in place, using the job's full command line including its `--skip-dirs` flags:
+  both gates exited 0 again, and the archives contributed no scan target. No
+  `.trivyignore` entry and no `--skip-dirs` addition is needed; adding one would
+  have suppressed findings nobody had shown existed.
 - **`security:trivy-image` never sees them.** `.dockerignore:20` is `testdata/`,
   so the builder stage's `COPY . .` excludes this directory, and the runtime
   stage is `gcr.io/distroless/static-debian12:nonroot` carrying only the

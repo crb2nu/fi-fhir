@@ -23,9 +23,12 @@
     commands against a directory holding only the two archives: `--scanners
     vuln` reported `Number of language-specific files num=0` and exited 0,
     `--scanners secret` reported no issues and exited 0. Trivy does not
-    decompress `.tgz`. No `.trivyignore` entry and no `--skip-dirs` was added;
-    adding one would have suppressed findings nobody had shown existed. There is
-    no `.gitattributes`, no LFS, and no file-size lint. `.dockerignore:20` is
+    decompress `.tgz`. Then the same two commands, with the job's full
+    `--skip-dirs` flags, were run against the whole branch tree with both
+    archives in place: both exited 0 and the archives contributed no scan
+    target. No `.trivyignore` entry and no `--skip-dirs` was added; adding one
+    would have suppressed findings nobody had shown existed. There is no
+    `.gitattributes`, no LFS, and no file-size lint. `.dockerignore:20` is
     `testdata/`, so the confinement half of the 2026-08-08 decision holds
     unchanged: nothing from an IG package reaches the image.
   - Both archives reproduce the registry-published `dist.shasum` (SHA-1) byte
