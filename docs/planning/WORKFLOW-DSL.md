@@ -1340,7 +1340,7 @@ fi-fhir workflow run --config workflow.yaml events.json
 fi-fhir workflow validate workflow.yaml
 
 # Dry-run to see what would happen
-fi-fhir workflow dry-run --config workflow.yaml message.hl7
+fi-fhir workflow dry-run --config workflow.yaml events.json
 
 # Combined parse + workflow
 fi-fhir parse -f hl7v2 message.hl7 | fi-fhir workflow run --config workflow.yaml -
@@ -1878,12 +1878,22 @@ type ValidationError struct {
 fi-fhir workflow validate workflow.yaml
 
 # Output:
-# ERROR [MISSING_FHIR_ENDPOINT]: routes[0].actions[0].endpoint - FHIR action requires endpoint
-# WARN [NO_FHIR_AUTH]: routes[0].actions[0] - No authentication configured for FHIR action
-# Workflow configuration invalid: 1 error(s), 1 warning(s)
+# Validation diagnostics:
+#   error [MISSING_FHIR_ENDPOINT] routes[0].actions[0].endpoint: FHIR action requires endpoint
+#   warning [NO_FHIR_AUTH] routes[0].actions[0]: No authentication configured for FHIR action
+# Error: workflow validation failed
 ```
 
-**Implementation:** `internal/workflow/validate.go`, `internal/workflow/validate_test.go`
+The CLI calls this validator after the structural checks in `Workflow.Validate()`.
+The CLI therefore rejects missing routes or actions even though the reusable
+validator reports those as warnings. `workflow run` and `workflow dry-run` use
+the same checks before reading JSON events. Diagnostics go to stderr; warnings
+and information do not change the exit status. CEL compilation does not evaluate
+dynamic event fields, and validation does not contact destinations. Published
+integration workflows have a separate, stricter compiler.
+
+**Implementation:** `internal/workflow/validate.go`, `cmd/fi-fhir/workflow_validation.go`,
+`cmd/fi-fhir/workflow_validation_test.go`
 
 ### Event Replay / Simulation
 

@@ -2015,13 +2015,8 @@ func runWorkflowRun(args []string) error {
 		return fmt.Errorf("failed to load workflow: %w", err)
 	}
 
-	// Validate workflow
-	if errors := w.Validate(); len(errors) > 0 {
-		fmt.Fprintf(os.Stderr, "Workflow validation errors:\n")
-		for _, e := range errors {
-			fmt.Fprintf(os.Stderr, "  - %v\n", e)
-		}
-		return fmt.Errorf("invalid workflow configuration")
+	if err := validateWorkflowConfiguration(w); err != nil {
+		return err
 	}
 
 	// Read input events (JSON array or newline-delimited JSON)
@@ -2093,13 +2088,8 @@ func runWorkflowValidate(args []string) error {
 		return fmt.Errorf("failed to load workflow: %w", err)
 	}
 
-	errors := w.Validate()
-	if len(errors) > 0 {
-		fmt.Fprintf(os.Stderr, "Validation errors:\n")
-		for _, e := range errors {
-			fmt.Fprintf(os.Stderr, "  - %v\n", e)
-		}
-		return fmt.Errorf("workflow validation failed")
+	if err := validateWorkflowConfiguration(w); err != nil {
+		return err
 	}
 
 	fmt.Printf("Workflow '%s' is valid.\n", w.Name)
@@ -2147,6 +2137,10 @@ func runWorkflowDryRun(args []string) error {
 	w, err := workflow.LoadWorkflow(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load workflow: %w", err)
+	}
+
+	if err := validateWorkflowConfiguration(w); err != nil {
+		return err
 	}
 
 	var data []byte

@@ -1,0 +1,11 @@
+workflow:
+  name: invalid_action_transform
+  version: "1.0"
+  routes:
+    - name: test
+      filter:
+        event_type: patient_admit
+      transform:
+        - set_field: priority
+      actions:
+        - type: webhook

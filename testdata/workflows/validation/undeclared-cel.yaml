@@ -1,0 +1,10 @@
+workflow:
+  name: undeclared_cel
+  version: "1.0"
+  routes:
+    - name: test
+      filter:
+        condition: patient.active == true
+      actions:
+        - type: log
+          level: info

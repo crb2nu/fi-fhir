@@ -470,6 +470,33 @@ envsubst < workflow.yaml.tmpl > workflow.yaml
 fi-fhir workflow validate workflow.yaml
 ```
 
+## Validate Before Running
+
+`fi-fhir workflow validate workflow.yaml` checks configuration structure, compiles
+each CEL condition, and checks transforms and built-in action settings. Errors
+return a non-zero exit status. After the structural checks pass, detailed
+diagnostics on stderr identify the severity, code, and YAML path; an invalid
+condition reports `INVALID_CEL` at
+`routes[0].filter.condition` for the first route. Warnings such as a missing
+version or a route with no filter remain non-blocking.
+
+The same checks run before `workflow run` and `workflow dry-run` read event input.
+Both require at least one route and at least one action per route. A valid result
+does not prove that dynamic event fields exist or that a destination is reachable.
+Use representative events to check route matching:
+
+```bash
+fi-fhir workflow validate workflow.yaml
+fi-fhir workflow dry-run --config workflow.yaml events.json
+```
+
+Event input must be a JSON array or newline-delimited JSON objects. Parse HL7v2
+messages before passing them to the workflow commands:
+
+```bash
+fi-fhir parse -f hl7v2 message.hl7 | fi-fhir workflow dry-run -c workflow.yaml -
+```
+
 ## Complete Example
 
 ```yaml
