@@ -29,6 +29,12 @@
 - What's next: run the branch through required CI and merge under the
   workspace auto-ship policy. Narrative fallback and partial-data warnings
   remain a separate CDA follow-up.
+- CI prerequisite: existing image-scan job 283441 on MR !208 rejects gRPC
+  1.83.1 for CVE-2026-84445. Updated to 1.83.2 and its required `x/net` 0.58.0;
+  `go mod tidy` changes only these two module versions/checksums. Upstream:
+  https://github.com/grpc/grpc-go/releases/tag/v1.83.2. The full local
+  `go test -race ./...` suite passes (59 tested packages), and `govulncheck
+  ./...` reports no reachable vulnerabilities.
 - Sources: `.loom/25-spec-cda-section-expansion.md`,
   `docs/planning/CDA-CCDA.md`, `pkg/profile/cda.go`,
   `internal/parser/cda/mapper.go`, `cmd/fi-fhir/parse_cda_profile_test.go`.
