@@ -2,16 +2,21 @@ package cda
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 	"time"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/profile"
 )
 
 // Mapper converts CDA documents to canonical events.
 type Mapper struct {
-	source         string
-	sectionMappers map[string]SectionMapper
+	source             string
+	sectionMappers     map[string]SectionMapper
+	emitDocumentEvents bool
+	emitSectionEvents  bool
+	sectionEvents      map[string]bool
 }
 
 // SectionMapper converts a CDA section to canonical events.
@@ -30,6 +35,10 @@ type MapperConfig struct {
 
 	// EmitSectionEvents emits per-entry events (lab_result, vital_sign, etc.)
 	EmitSectionEvents bool
+
+	// SectionEvents, when nonempty, is an allowlist keyed by section template OID.
+	// Only true entries emit events. The parsed document remains unchanged.
+	SectionEvents map[string]bool
 }
 
 // NewMapper creates a new CDA to canonical mapper.
@@ -42,14 +51,40 @@ func NewMapper(config *MapperConfig) *Mapper {
 	}
 
 	m := &Mapper{
-		source:         config.Source,
-		sectionMappers: make(map[string]SectionMapper),
+		source:             config.Source,
+		sectionMappers:     make(map[string]SectionMapper),
+		emitDocumentEvents: config.EmitDocumentEvents,
+		emitSectionEvents:  config.EmitSectionEvents,
+		sectionEvents:      maps.Clone(config.SectionEvents),
 	}
 
 	// Register default section mappers
 	m.registerDefaultMappers()
 
 	return m
+}
+
+// NewMapperWithProfile applies a feed's CDA event selection with legacy defaults
+// when no CDA settings are supplied. Load profiles through profile.Registry to
+// validate section selections before constructing the mapper.
+func NewMapperWithProfile(source string, sourceProfile *profile.SourceProfile) *Mapper {
+	config := &MapperConfig{Source: source, EmitDocumentEvents: true, EmitSectionEvents: true}
+	if sourceProfile != nil && sourceProfile.CDA != nil {
+		cda := sourceProfile.CDA
+		if cda.EmitDocumentEvents != nil {
+			config.EmitDocumentEvents = *cda.EmitDocumentEvents
+		}
+		if cda.EmitSectionEvents != nil {
+			config.EmitSectionEvents = *cda.EmitSectionEvents
+		}
+		if len(cda.Sections) > 0 {
+			config.SectionEvents = make(map[string]bool, len(cda.Sections))
+			for _, section := range cda.Sections {
+				config.SectionEvents[section.TemplateID] = section.EmitEvents
+			}
+		}
+	}
+	return NewMapper(config)
 }
 
 // RegisterSectionMapper adds a custom section mapper.
@@ -88,13 +123,20 @@ func (m *Mapper) Map(doc *CDADocument) (*MapResult, error) {
 	result.Patient = patient
 
 	// Map document-level event
-	docEvent := m.mapDocumentEvent(doc, patient)
-	if docEvent != nil {
-		result.Events = append(result.Events, docEvent)
+	if m.emitDocumentEvents {
+		if docEvent := m.mapDocumentEvent(doc, patient); docEvent != nil {
+			result.Events = append(result.Events, docEvent)
+		}
 	}
 
 	// Map section-level events
+	if !m.emitSectionEvents {
+		return result, nil
+	}
 	for _, section := range doc.Sections {
+		if len(m.sectionEvents) > 0 && !m.sectionEvents[section.TemplateID] {
+			continue
+		}
 		if mapper, ok := m.sectionMappers[section.TemplateID]; ok {
 			sectionEvents, err := mapper.MapSection(&section, patient, doc.EffectiveTime)
 			if err != nil {

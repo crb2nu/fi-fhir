@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ClinicalDocument xmlns="urn:hl7-org:v3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <templateId root="2.16.840.1.113883.10.20.22.1.2"/>
+  <id root="1.2.3.4" extension="synthetic-selection"/>
+  <title>Synthetic section selection example</title>
+  <effectiveTime value="20260919120000+0000"/>
+  <recordTarget><patientRole>
+    <id root="1.2.3.4" extension="SYNTHETIC-001"/>
+    <patient><name><given>Test</given><family>Patient</family></name></patient>
+  </patientRole></recordTarget>
+  <component><structuredBody>
+    <component><section>
+      <templateId root="2.16.840.1.113883.10.20.22.2.1.1"/>
+      <title>Medications</title>
+      <entry><substanceAdministration classCode="SBADM" moodCode="RQO">
+        <id root="1.2.3.4" extension="medication-1"/>
+        <statusCode code="active"/>
+        <doseQuantity value="500" unit="mg"/>
+        <consumable><manufacturedProduct><manufacturedMaterial>
+          <code code="860975" codeSystem="2.16.840.1.113883.6.88" displayName="Metformin 500 MG Oral Tablet"/>
+        </manufacturedMaterial></manufacturedProduct></consumable>
+      </substanceAdministration></entry>
+    </section></component>
+    <component><section>
+      <templateId root="2.16.840.1.113883.10.20.22.2.6.1"/>
+      <title>Allergies</title>
+      <entry><act classCode="ACT" moodCode="EVN">
+        <statusCode code="active"/>
+        <entryRelationship typeCode="SUBJ"><observation classCode="OBS" moodCode="EVN">
+          <id root="1.2.3.4" extension="allergy-1"/>
+          <participant typeCode="CSM"><participantRole classCode="MANU"><playingEntity classCode="MMAT">
+            <code code="7980" codeSystem="2.16.840.1.113883.6.88" displayName="Penicillin"/>
+          </playingEntity></participantRole></participant>
+        </observation></entryRelationship>
+      </act></entry>
+    </section></component>
+    <component><section>
+      <templateId root="2.16.840.1.113883.10.20.22.2.17"/>
+      <title>Social History</title>
+      <entry><observation classCode="OBS" moodCode="EVN">
+        <id root="1.2.3.4" extension="social-history-1"/>
+        <code code="72166-2" codeSystem="2.16.840.1.113883.6.1" displayName="Tobacco smoking status"/>
+        <statusCode code="completed"/>
+        <value xsi:type="CD" code="266919005" codeSystem="2.16.840.1.113883.6.96" displayName="Never smoker"/>
+      </observation></entry>
+    </section></component>
+  </structuredBody></component>
+</ClinicalDocument>

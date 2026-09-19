@@ -1271,11 +1271,7 @@ func runParse(args []string) error {
 		}
 
 		// Map to canonical events
-		mapper := cda.NewMapper(&cda.MapperConfig{
-			Source:             source,
-			EmitDocumentEvents: true,
-			EmitSectionEvents:  true,
-		})
+		mapper := cda.NewMapperWithProfile(source, sourceProfile)
 		mapResult, err := mapper.Map(result.Document)
 		if err != nil {
 			return fmt.Errorf("mapping error: %w", err)

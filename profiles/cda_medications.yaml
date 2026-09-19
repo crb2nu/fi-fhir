@@ -1,0 +1,9 @@
+source_profile:
+  id: cda_medications
+  name: CDA Medication Events
+  version: "1.0.0"
+  cda:
+    emit_document_events: false
+    sections:
+      - template_id: "2.16.840.1.113883.10.20.22.2.1.1"
+        emit_events: true

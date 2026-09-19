@@ -60,6 +60,9 @@ func marshalSourceProfileNode(p *SourceProfile) *yaml.Node {
 	if p.EDI != nil {
 		addNode(n, "edi", marshalEDINode(p.EDI))
 	}
+	if p.CDA != nil {
+		addNode(n, "cda", marshalCDANode(p.CDA))
+	}
 	if p.ZSegments != nil {
 		addNode(n, "z_segments", marshalZSegmentsNode(p.ZSegments))
 	}
@@ -73,6 +76,27 @@ func marshalSourceProfileNode(p *SourceProfile) *yaml.Node {
 		addNode(n, "quality", marshalQualityNode(p.Quality))
 	}
 
+	return n
+}
+
+func marshalCDANode(c *CDAConfig) *yaml.Node {
+	n := &yaml.Node{Kind: yaml.MappingNode}
+	if c.EmitDocumentEvents != nil {
+		addBool(n, "emit_document_events", *c.EmitDocumentEvents)
+	}
+	if c.EmitSectionEvents != nil {
+		addBool(n, "emit_section_events", *c.EmitSectionEvents)
+	}
+	if len(c.Sections) > 0 {
+		sections := &yaml.Node{Kind: yaml.SequenceNode}
+		for _, section := range c.Sections {
+			item := &yaml.Node{Kind: yaml.MappingNode}
+			addScalar(item, "template_id", section.TemplateID)
+			addBool(item, "emit_events", section.EmitEvents)
+			sections.Content = append(sections.Content, item)
+		}
+		addNode(n, "sections", sections)
+	}
 	return n
 }
 

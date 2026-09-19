@@ -333,36 +333,53 @@ fi-fhir validate --format cda --strict document.xml
 
 ### Source Profile Integration
 
+`fi-fhir parse --format cda --profile <file>` (also `--format ccda`) uses
+`source_profile.cda` to select canonical events. For example:
+
 ```yaml
 source_profile:
   id: "hospital_ccda"
   name: "Hospital CCDA Interface"
-  format: cda
-
+  version: "1.0.0"
   cda:
-    # Expected document types
-    document_types:
-      - "2.16.840.1.113883.10.20.22.1.2"  # CCD
-      - "2.16.840.1.113883.10.20.22.1.8"  # Discharge Summary
-
-    # Sections to extract
+    emit_document_events: false
+    emit_section_events: true
+    # A nonempty list emits only sections explicitly enabled here.
     sections:
-      - template_id: "2.16.840.1.113883.10.20.22.2.5.1"
+      - template_id: "2.16.840.1.113883.10.20.22.2.1.1" # Medications
         emit_events: true
-      - template_id: "2.16.840.1.113883.10.20.22.2.3.1"
-        emit_events: true
-
-    # Code system mappings
-    code_systems:
-      "2.16.840.1.113883.6.96": "http://snomed.info/sct"
-      "2.16.840.1.113883.6.1": "http://loinc.org"
-      "2.16.840.1.113883.6.88": "http://www.nlm.nih.gov/research/umls/rxnorm"
-
-    # Identifier type mappings
-    identifier_systems:
-      "2.16.840.1.113883.4.1": "SSN"
-      "2.16.840.1.113883.4.6": "NPI"
+      - template_id: "2.16.840.1.113883.10.20.22.2.6.1" # Allergies
+        emit_events: false
 ```
+
+Omitted emission flags default to `true`. An omitted or empty `sections` list
+enables all registered section mappers. In a nonempty list, `emit_events` must
+be `true` to enable that template; false or omitted disables it, and unlisted
+templates do not emit events. `emit_section_events: false` overrides the list.
+Setting both emission flags to false returns `events: []`.
+
+Selection affects only canonical events. The CLI still returns the parsed
+`document` (including raw XML and all sections) and `patient`; this is not a
+redaction control. Template IDs match the parser's selected section template
+exactly. Custom templates require a registered parser/mapper to produce events.
+Blank, whitespace-padded, or duplicate template IDs fail profile loading and
+linting. `profile lint` also warns about unknown CDA configuration keys.
+
+Try the checked-in example with synthetic data:
+
+```bash
+fi-fhir profile lint profiles/cda_medications.yaml
+fi-fhir parse --format cda --profile profiles/cda_medications.yaml testdata/cda/section_selection.xml
+```
+
+For Go callers, `cda.NewMapperWithProfile(source, profile)` applies these
+defaults. `cda.NewMapper(nil)` emits all events; a non-nil `MapperConfig` now
+honors its explicit boolean values, including the zero value (no events).
+`MapperConfig.SectionEvents` supports the same selection for custom mappers.
+
+CDA `document_types`, `code_systems`, and `identifier_systems` profile options
+remain unimplemented; the earlier example was a design sketch. Section
+selection is proved by `TestParseCDAProfileSelection` and `TestMapperEventSelection`.
 
 ## Implementation Plan
 
@@ -374,8 +391,9 @@ source_profile:
 
 ### Phase 2: Section Parsers ✅
 - [x] Problems section - see `mapper.go:ProblemsSectionMapper`
-- [x] Medications section (future - extensible via RegisterSectionMapper)
-- [x] Allergies section (future - extensible via RegisterSectionMapper)
+- [x] Medications section - `section_medications.go`, `MedicationsSectionMapper`
+- [x] Allergies section - `section_allergies.go`, `AllergiesSectionMapper`
+- [x] Social History section - `section_social_history.go`, `SocialHistorySectionMapper`
 - [x] Results section - see `mapper.go:ResultsSectionMapper`
 - [x] Vital Signs section - see `mapper.go:VitalSignsSectionMapper`
 - [x] Procedures section - see `mapper.go:ProceduresSectionMapper`
@@ -388,7 +406,8 @@ source_profile:
 
 ### Phase 4: CLI & Integration ✅
 - [x] CLI `--format cda` support
-- [x] Source Profile integration
+- [x] Source Profile event selection (document/section flags and section template allowlist)
+- [ ] Profile document-type restrictions and code/identifier system overrides
 - [x] Validation tooling
 
 ## Test Data

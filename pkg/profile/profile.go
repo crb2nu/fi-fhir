@@ -19,6 +19,7 @@ type SourceProfile struct {
 
 	HL7v2       *HL7v2Config       `yaml:"hl7v2,omitempty" json:"hl7v2,omitempty"`
 	EDI         *EDIConfig         `yaml:"edi,omitempty" json:"edi,omitempty"`
+	CDA         *CDAConfig         `yaml:"cda,omitempty" json:"cda,omitempty"`
 	ZSegments   *ZSegmentConfig    `yaml:"z_segments,omitempty" json:"z_segments,omitempty"`
 	Identifiers *IdentifierConfig  `yaml:"identifiers,omitempty" json:"identifiers,omitempty"`
 	Terminology *TerminologyConfig `yaml:"terminology,omitempty" json:"terminology,omitempty"`
@@ -233,6 +234,9 @@ func (r *Registry) validate(p *SourceProfile) error {
 	}
 	if p.Name == "" {
 		return fmt.Errorf("profile name is required")
+	}
+	if err := p.CDA.Validate(); err != nil {
+		return err
 	}
 	return nil
 }

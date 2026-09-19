@@ -258,7 +258,8 @@ func TestMapper_DocumentEvent(t *testing.T) {
 	}
 
 	mapper := NewMapper(&MapperConfig{
-		Source: "test_hospital",
+		Source:             "test_hospital",
+		EmitDocumentEvents: true,
 	})
 	result, err := mapper.Map(doc)
 	if err != nil {
