@@ -1313,6 +1313,20 @@ type MedSubstitution struct {
 	Reason                 *CodeableConcept `json:"reason,omitempty"`
 }
 
+// MarshalJSON preserves a false boolean while emitting only one allowed[x]
+// choice. The public bool field remains source-compatible for callers.
+func (m MedSubstitution) MarshalJSON() ([]byte, error) {
+	type Alias MedSubstitution
+	var allowed *bool
+	if m.AllowedCodeableConcept == nil {
+		allowed = &m.AllowedBoolean
+	}
+	return json.Marshal(struct {
+		AllowedBoolean *bool `json:"allowedBoolean,omitempty"`
+		Alias
+	}{allowed, Alias(m)})
+}
+
 // Ratio represents a ratio of two quantities.
 type Ratio struct {
 	Numerator   *Quantity `json:"numerator,omitempty"`

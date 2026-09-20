@@ -6,8 +6,8 @@ package fhir
 // # WHY THIS FILE EXISTS RATHER THAN A GREEN TEST
 //
 // `.loom/34-sprint6-execution-specs.md` Lane S6-D expected every mapper fixture
-// to pass the structural validator. Nineteen of twenty-five do. The remaining
-// six carry nine violations, and every one of them is real — each was checked
+// to pass the structural validator. Twenty of twenty-five now do. The remaining
+// five carry seven violations, and every one of them is real — each was checked
 // against the fixture by hand after the validator reported it, and one earlier
 // report (`Coverage.payor` as a JSON array) was a validator bug that was fixed
 // rather than recorded.
@@ -27,7 +27,7 @@ package fhir
 // EXACT equality. A new violation fails the build; so does a fixed one. The
 // ledger can only ever be edited deliberately, and it can only shrink to zero.
 //
-// THE NINE
+// THE REMAINING SEVEN
 //
 //  1. careteam.json — `CareTeam.participant` is 1..* in `us-core-careteam`.
 //     MapCareTeam emits a CareTeam with a subject and no participants, which is
@@ -53,13 +53,10 @@ package fhir
 //
 //  6. encounter.json — `Encounter.type` is 1..* in `us-core-encounter`.
 //
-//     7-8. medicationrequest.json — `MedicationRequest.substitution.allowed[x]` is
-//     1..1 in R4 and US Core, and the mapper emits `"substitution": {}`. An
-//     empty object where the whole element is optional (0..1): omitting
-//     `substitution` entirely would be conformant. Reported twice for the same
-//     reason as 3-4.
+// The two original MedicationRequest.substitution.allowed[x] violations were
+// fixed by preserving allowedBoolean:false in JSON (2026-09-20).
 //
-//  9. vitalsign.json — `Observation.effective[x]` is 1..1 in
+//  7. vitalsign.json — `Observation.effective[x]` is 1..1 in
 //     `us-core-heart-rate` (a vital sign without a time is not interpretable).
 //     Note that `labobservation.json` and the three `labresult` fixtures are
 //     clean: this is specific to the vital-signs profile chain, which is
@@ -87,10 +84,6 @@ func recordedCardinalityGaps() map[string][]string {
 		"encounter.json": {
 			"identifier[0].system :: Encounter.identifier.system is required by " + core + "us-core-encounter (min 1)",
 			"type :: Encounter.type is required by " + core + "us-core-encounter (min 1)",
-		},
-		"medicationrequest.json": {
-			"substitution.allowed :: MedicationRequest.substitution.allowed[x] is required by " + r4 + "MedicationRequest (min 1)",
-			"substitution.allowed :: MedicationRequest.substitution.allowed[x] is required by " + core + "us-core-medicationrequest (min 1)",
 		},
 		"vitalsign.json": {
 			"effective :: Observation.effective[x] is required by " + core + "us-core-heart-rate (min 1)",

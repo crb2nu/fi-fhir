@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/fhirout"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 )
 
@@ -858,8 +860,8 @@ func TestFHIRActionUnsupportedEvent(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error for unsupported event type")
 	}
-	if !strings.Contains(err.Error(), "unsupported") {
-		t.Errorf("Expected 'unsupported' in error, got: %v", err)
+	if !errors.Is(err, fhirout.ErrUnsupportedEventType) {
+		t.Errorf("Expected unsupported projection error, got: %v", err)
 	}
 }
 

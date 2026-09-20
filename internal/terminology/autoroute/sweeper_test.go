@@ -230,13 +230,24 @@ func TestSweeper_Run_ObservesResults(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go func() { _ = sweeper.Run(ctx) }()
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- sweeper.Run(ctx) }()
 	select {
 	case <-notify:
 	case <-time.After(2 * time.Second):
 		t.Fatal("first sweep did not run")
 	}
 	cancel()
+	// The store notifies before returning; Run must finish its observer first.
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("Run = %v, want nil", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run did not return after cancellation")
+	}
 
 	mu.Lock()
 	defer mu.Unlock()

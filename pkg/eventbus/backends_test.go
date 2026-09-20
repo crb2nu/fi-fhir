@@ -23,14 +23,14 @@ func TestBackendAcknowledgmentContract(t *testing.T) {
 	for _, driver := range []string{"kafka", "redis", "pubsub"} {
 		t.Run(driver, func(t *testing.T) {
 			backend, topic, subscription := testBackend(t, driver)
-			assertBackendAcknowledgment(t, backend, topic, subscription)
+			assertBackendAcknowledgment(t, backend, topic, subscription, 30*time.Second)
 		})
 	}
 }
 
-func assertBackendAcknowledgment(t *testing.T, backend Backend, topic, subscription string) {
+func assertBackendAcknowledgment(t *testing.T, backend Backend, topic, subscription string, phaseTimeout time.Duration) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), phaseTimeout)
 	defer cancel()
 	data, err := os.ReadFile("../../testdata/eventbus/patient_admit.json")
 	require.NoError(t, err)
@@ -38,15 +38,18 @@ func assertBackendAcknowledgment(t *testing.T, backend Backend, topic, subscript
 		require.NoError(t, backend.Publish(ctx, Message{Topic: topic, Key: []byte("same-partition"), Value: []byte(strings.Replace(string(data), "event-1", fmt.Sprintf("event-%d", i), 1)), Headers: map[string]string{"kind": "synthetic"}}))
 	}
 	failure := errors.New("processing failed")
-	for _, phase := range []struct {
+	for i, phase := range []struct {
 		stop string
 		want []string
 	}{
 		{"event-2", []string{"event-1", "event-2"}},
 		{"event-3", []string{"event-2", "event-3"}},
 	} {
+		// Publishing and previous group assignments must not consume this
+		// consumer restart's budget.
+		phaseCtx, stop := context.WithTimeout(context.Background(), phaseTimeout)
 		var got []string
-		err := backend.Consume(ctx, subscription, HandlerFunc(func(ctx context.Context, m Message) error {
+		err := backend.Consume(phaseCtx, subscription, HandlerFunc(func(ctx context.Context, m Message) error {
 			assert.Equal(t, []byte("same-partition"), m.Key)
 			assert.Equal(t, "synthetic", m.Headers["kind"])
 			assert.NotEmpty(t, m.ID)
@@ -59,17 +62,20 @@ func assertBackendAcknowledgment(t *testing.T, backend Backend, topic, subscript
 				return nil
 			}).Handle(ctx, m)
 		}))
-		require.ErrorIs(t, err, failure)
-		require.Equal(t, phase.want, got)
+		stop()
+		require.ErrorIs(t, err, failure, "phase %d received %v", i+1, got)
+		require.Equal(t, phase.want, got, "phase %d", i+1)
 	}
-	lastCtx, stop := context.WithTimeout(ctx, 2*time.Second)
+	// Observe replay before canceling so startup cannot race a short idle window.
+	lastCtx, stop := context.WithTimeout(context.Background(), phaseTimeout)
 	defer stop()
 	var got []string
 	err = backend.Consume(lastCtx, subscription, JSONHandler(func(_ context.Context, event map[string]any) error {
 		got = append(got, event["id"].(string))
+		stop()
 		return nil
 	}))
-	require.Error(t, err)
+	require.ErrorIs(t, err, context.Canceled, "final phase received %v", got)
 	require.Equal(t, []string{"event-3"}, got)
 }
 

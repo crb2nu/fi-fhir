@@ -54,5 +54,7 @@
       "code": "d"
     }
   },
-  "substitution": {}
+  "substitution": {
+    "allowedBoolean": false
+  }
 }

@@ -10,13 +10,12 @@
 // This is the only non-test package under internal/integration that imports
 // pkg/fhir, and both engines map through it: the durable destination transport
 // calls Project over the outbox row's payload_json, and the legacy engine's
-// fhir action calls ProjectEvent over its typed event. The event→resource switch
+// fhir action calls ProjectWorkflow over its typed or JSON event. The event→resource switch
 // therefore has exactly one home and cannot drift between the two engines the
 // way the mapper and the checker drifted before 5.1a.
 //
-// Coverage is deliberately the legacy switch's: admit/transfer/update and
-// discharge (Patient + Encounter) and lab result (DiagnosticReport +
-// Observations). Every other registered event type is refused with
+// Coverage includes admission/discharge, lab results, and six clinical event
+// families. Every other registered event type is refused with
 // ErrUnsupportedEventType, and the workflow planner turns that refusal into a
 // plan-time diagnostic so it is visible at dry-run rather than at dispatch.
 package fhirout
@@ -52,15 +51,21 @@ var (
 const fullURLDigestDomain = "fi-fhir/fhirout/full-url/v1\x00"
 
 // supportedEventTypes is the closed set Project accepts. Each maps, in
-// pkg/integration's canonical registry, to one of the three concrete structs
+// pkg/integration's canonical registry, to one of the concrete structs
 // ProjectEvent switches on; TestProjectSupportsExactlyTheRegisteredTypes pins
 // that agreement so a registry change cannot silently widen or narrow it.
-var supportedEventTypes = map[events.EventType]struct{}{
-	events.EventPatientAdmit:     {},
-	events.EventPatientTransfer:  {},
-	events.EventPatientUpdate:    {},
-	events.EventPatientDischarge: {},
-	events.EventLabResult:        {},
+var supportedEventTypes = map[events.EventType]func() any{
+	events.EventPatientAdmit:       func() any { return &events.PatientAdmitEvent{} },
+	events.EventPatientTransfer:    func() any { return &events.PatientAdmitEvent{} },
+	events.EventPatientUpdate:      func() any { return &events.PatientAdmitEvent{} },
+	events.EventPatientDischarge:   func() any { return &events.PatientDischargeEvent{} },
+	events.EventLabResult:          func() any { return &events.LabResultEvent{} },
+	events.EventCondition:          func() any { return &events.ConditionEvent{} },
+	events.EventProcedure:          func() any { return &events.ProcedureEvent{} },
+	events.EventImmunization:       func() any { return &events.ImmunizationEvent{} },
+	events.EventVitalSign:          func() any { return &events.VitalSignEvent{} },
+	events.EventMedicationRequest:  func() any { return &events.MedicationRequestEvent{} },
+	events.EventAllergyIntolerance: func() any { return &events.AllergyIntoleranceEvent{} },
 }
 
 // Supports reports whether the event type has a projection.
@@ -193,6 +198,24 @@ func MapEvent(event any) ([]fhir.Resource, error) {
 // accepted, as the legacy switch accepted them. withKeys selects whether the
 // conditional-write keys and fullUrls are derived.
 func mapEvent(event any, withKeys bool) (Projection, error) {
+	// Workflow JSON can include the original raw payload; durable Project uses
+	// the stricter canonical registry decoder before reaching this switch.
+	if object, ok := event.(map[string]any); ok {
+		eventType, _ := object["type"].(string)
+		factory, supported := supportedEventTypes[events.EventType(eventType)]
+		if !supported {
+			return Projection{}, fmt.Errorf("%w: %s", ErrUnsupportedEventType, eventType)
+		}
+		payload, err := json.Marshal(object)
+		if err != nil {
+			return Projection{}, fmt.Errorf("%w: %w", ErrInvalidPayload, err)
+		}
+		event = factory()
+		if err := json.Unmarshal(payload, event); err != nil {
+			return Projection{}, fmt.Errorf("%w: %w", ErrInvalidPayload, err)
+		}
+	}
+
 	mapper := fhir.NewUSCoreMapper()
 	switch typed := event.(type) {
 	case *events.PatientAdmitEvent:
@@ -216,6 +239,60 @@ func mapEvent(event any, withKeys bool) (Projection, error) {
 		return projectLabResult(mapper, typed, withKeys)
 	case events.LabResultEvent:
 		return projectLabResult(mapper, &typed, withKeys)
+	case *events.ConditionEvent:
+		if typed == nil {
+			return Projection{}, fmt.Errorf("%w: nil event", ErrInvalidPayload)
+		}
+		return projectClinical(typed.EventMeta, typed.Patient, typed.Encounter,
+			mapper.MapCondition(typed, clinicalPatientReference(typed.Patient)), withKeys)
+	case events.ConditionEvent:
+		return mapEvent(&typed, withKeys)
+
+	case *events.ProcedureEvent:
+		if typed == nil {
+			return Projection{}, fmt.Errorf("%w: nil event", ErrInvalidPayload)
+		}
+		return projectClinical(typed.EventMeta, typed.Patient, typed.Encounter,
+			mapper.MapProcedure(typed, clinicalPatientReference(typed.Patient)), withKeys)
+	case events.ProcedureEvent:
+		return mapEvent(&typed, withKeys)
+
+	case *events.ImmunizationEvent:
+		if typed == nil {
+			return Projection{}, fmt.Errorf("%w: nil event", ErrInvalidPayload)
+		}
+		return projectClinical(typed.EventMeta, typed.Patient, typed.Encounter,
+			mapper.MapImmunization(typed, clinicalPatientReference(typed.Patient)), withKeys)
+	case events.ImmunizationEvent:
+		return mapEvent(&typed, withKeys)
+
+	case *events.VitalSignEvent:
+		if typed == nil {
+			return Projection{}, fmt.Errorf("%w: nil event", ErrInvalidPayload)
+		}
+		return projectClinical(typed.EventMeta, typed.Patient, typed.Encounter,
+			mapper.MapVitalSign(typed, clinicalPatientReference(typed.Patient)), withKeys)
+	case events.VitalSignEvent:
+		return mapEvent(&typed, withKeys)
+
+	case *events.MedicationRequestEvent:
+		if typed == nil {
+			return Projection{}, fmt.Errorf("%w: nil event", ErrInvalidPayload)
+		}
+		return projectClinical(typed.EventMeta, typed.Patient, typed.Encounter,
+			mapper.MapMedicationRequest(typed, clinicalPatientReference(typed.Patient)), withKeys)
+	case events.MedicationRequestEvent:
+		return mapEvent(&typed, withKeys)
+
+	case *events.AllergyIntoleranceEvent:
+		if typed == nil {
+			return Projection{}, fmt.Errorf("%w: nil event", ErrInvalidPayload)
+		}
+		return projectClinical(typed.EventMeta, typed.Patient, typed.Encounter,
+			mapper.MapAllergyIntolerance(typed, clinicalPatientReference(typed.Patient)), withKeys)
+	case events.AllergyIntoleranceEvent:
+		return mapEvent(&typed, withKeys)
+
 	default:
 		return Projection{}, fmt.Errorf("%w: %T", ErrUnsupportedEventType, event)
 	}

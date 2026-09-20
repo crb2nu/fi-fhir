@@ -237,7 +237,9 @@ func checkCrossReplicaFanout(t *testing.T, a, b *replica) string {
 		return fmt.Sprintf("add sample on replica a: %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), fanoutBudget+8*time.Second)
+	// Keep the stream open throughout preview execution, which has its own
+	// request timeout. The delivery budget begins after that request completes.
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	events, subErr := a.subscribeSessionEvents(ctx, sessionID)
@@ -713,7 +715,11 @@ func (r *replica) subscribeSessionEvents(ctx context.Context, sessionID string) 
 	req.Header.Set("Accept", "text/event-stream")
 	req.Header.Set("Authorization", "Bearer "+graphqlBearer)
 
-	resp, err := (&http.Client{}).Do(req)
+	// Bound connection setup without expiring the streaming response body.
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.ResponseHeaderTimeout = 30 * time.Second
+	transport.DisableKeepAlives = true
+	resp, err := (&http.Client{Transport: transport}).Do(req) //nolint:bodyclose // Closed below on error, or by the streaming reader goroutine.
 	if err != nil {
 		return nil, err
 	}
@@ -1084,7 +1090,7 @@ func parseDSN(t *testing.T, dsn string) (user, password, database string) {
 // what makes assertion 3 a guard against the documentation regressing.
 func documentedEnvValue(t *testing.T, path, key string) (string, bool) {
 	t.Helper()
-	content, err := os.ReadFile(path) //nolint:gosec // Test reads a repository fixture by construction.
+	content, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read %s: %v", path, err)
 	}

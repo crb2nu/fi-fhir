@@ -1,0 +1,42 @@
+[
+  {
+    "id": "condition-1", "type": "condition", "source": "clinical-east",
+    "timestamp": "2026-09-20T12:00:00Z", "received_at": "2026-09-20T12:00:01Z", "source_message_id": "document-1", "correlation_id": "synthetic-correlation", "source_format": "cda",
+    "patient": {"mrn": "SYNTHETIC-001"}, "encounter": {"id": "VISIT-001"},
+    "condition": {"name": "Hypertension", "code": "I10", "code_system": "http://hl7.org/fhir/sid/icd-10-cm", "category": "problem-list-item"},
+    "clinical_status": "active", "onset_date": "2024-01-01"
+  },
+  {
+    "id": "procedure-1", "type": "procedure", "source": "clinical-east",
+    "timestamp": "2026-09-20T12:00:00Z", "received_at": "2026-09-20T12:00:01Z", "source_message_id": "document-1", "correlation_id": "synthetic-correlation", "source_format": "cda",
+    "patient": {"mrn": "SYNTHETIC-001"}, "encounter": {"id": "VISIT-001"},
+    "procedure": {"name": "Chest radiography", "code": "71046", "code_system": "http://www.ama-assn.org/go/cpt", "status": "completed"},
+    "performed_date": "2026-09-20"
+  },
+  {
+    "id": "immunization-1", "type": "immunization", "source": "clinical-east",
+    "timestamp": "2026-09-20T12:00:00Z", "received_at": "2026-09-20T12:00:01Z", "source_message_id": "document-1", "correlation_id": "synthetic-correlation", "source_format": "cda",
+    "patient": {"mrn": "SYNTHETIC-001"}, "encounter": {"id": "VISIT-001"},
+    "immunization": {"vaccine_code": "140", "vaccine_name": "Influenza vaccine", "status": "completed"},
+    "administered_date": "2026-09-20"
+  },
+  {
+    "id": "vital-1", "type": "vital_sign", "source": "clinical-east",
+    "timestamp": "2026-09-20T12:00:00Z", "received_at": "2026-09-20T12:00:01Z", "source_message_id": "document-1", "correlation_id": "synthetic-correlation", "source_format": "cda",
+    "patient": {"mrn": "SYNTHETIC-001"}, "encounter": {"id": "VISIT-001"},
+    "vital_sign": {"name": "Heart rate", "loinc_code": "8867-4", "value": "72", "unit": "/min"}
+  },
+  {
+    "id": "medication-1", "type": "medication_request", "source": "clinical-east",
+    "timestamp": "2026-09-20T12:00:00Z", "received_at": "2026-09-20T12:00:01Z", "source_message_id": "document-1", "correlation_id": "synthetic-correlation", "source_format": "cda",
+    "patient": {"mrn": "SYNTHETIC-001"}, "encounter": {"id": "VISIT-001"},
+    "medication_request": {"medication": {"name": "Lisinopril 10 MG", "code": "314076", "code_system": "http://www.nlm.nih.gov/research/umls/rxnorm"}, "status": "active", "intent": "order", "authored_on": "2026-09-20"},
+    "prescriber": {"given_name": "Synthetic", "family_name": "Prescriber"}
+  },
+  {
+    "id": "allergy-1", "type": "allergy_intolerance", "source": "clinical-east",
+    "timestamp": "2026-09-20T12:00:00Z", "received_at": "2026-09-20T12:00:01Z", "source_message_id": "document-1", "correlation_id": "synthetic-correlation", "source_format": "cda",
+    "patient": {"mrn": "SYNTHETIC-001"}, "encounter": {"id": "VISIT-001"},
+    "allergy_intolerance": {"name": "Penicillin", "code": "7980", "code_system": "http://www.nlm.nih.gov/research/umls/rxnorm", "clinical_status": "active", "verification_status": "confirmed", "category": "medication", "type": "allergy"}
+  }
+]

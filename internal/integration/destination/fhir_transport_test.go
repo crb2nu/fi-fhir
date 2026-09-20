@@ -278,10 +278,10 @@ func TestFHIRTransportRefusesAProjectionItCannotKeyWithoutARequest(t *testing.T)
 		"unsupported event type": func() []byte {
 			processed, err := integration.NewProcessedEvent(integration.ProcessedEventMetadata{
 				TenantID: "tenant-a", Classification: integration.DataClassificationPHI,
-			}, &events.VitalSignEvent{
+			}, &events.DocumentReferenceEvent{
 				EventMeta: events.EventMeta{
-					ID: "event-vital", Type: events.EventVitalSign, Timestamp: time.Now(), ReceivedAt: time.Now(),
-					Source: "adt-east", SourceFormat: events.FormatHL7v2, SourceMessageID: "control-vital", CorrelationID: "c",
+					ID: "event-document", Type: events.EventType("document_reference"), Timestamp: time.Now(), ReceivedAt: time.Now(),
+					Source: "adt-east", SourceFormat: events.FormatHL7v2, SourceMessageID: "control-document", CorrelationID: "c",
 				},
 				Patient: &events.Patient{MRN: "MRN-000123"},
 			})

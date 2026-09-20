@@ -1,0 +1,56 @@
+### 2026-09-20 - Clinical event delivery and workflow FHIR reference resolution
+
+- What changed: connected six existing clinical mapper families to the shared
+  projector and both delivery paths. Added workflow resource selection and
+  transaction reference rewriting, resolving issue #20. Unsupported JSON events
+  now fail explicitly. Medication substitution preserves `allowedBoolean:false`
+  in JSON, reducing the structural fixture ledger from nine violations to seven.
+- Why: the existing mapper coverage exceeded what the delivery engines could
+  send, and admission transactions used a business MRN as a server resource ID.
+- Evidence: repository Go race tests; golangci-lint; six canonical synthetic
+  clinical fixtures with structural, identity, immutability, and planner tests;
+  live HAPI FHIR v8.2.0-2 CLI read-back for Patient selection, admission and all
+  six clinical families, plus a missing-reference negative control. The existing
+  `test:e2e-legacy` CI job now supplies digest-pinned HAPI and requires fourteen
+  passing top-level tests with no skips. Full CI remains the merge gate.
+- Review scope: this exceeds 500 changed lines because the shared projector,
+  legacy HTTP action, fixtures, regression tests, live E2E dependency, and
+  operational documentation form one delivery contract. No schema migration,
+  dependency upgrade, or UI change is included.
+- CI recovery: pipeline 27847 passed the live HAPI gate without skips and all
+  693 UI tests. Its remaining scanner failed under the 4 GiB container limit;
+  Kubernetes confirmed `OOMKilled` on job 289497 after one bounded retry.
+  The exact scanner, govulncheck v1.6.0, completed the full Linux/amd64 scan
+  locally with `GOMEMLIMIT=5GiB`, reporting zero reachable vulnerabilities and
+  4,544,724,992 bytes peak RSS. The scanner job now has a 6 GiB container limit
+  and that 5 GiB Go soft limit. Scan scope, blocking behavior, and retry policy
+  remain unchanged. Job inventory and whitespace checks pass.
+- Broker proof recovery: replacement pipeline 27869 exposed the live Kafka
+  acknowledgment test exhausting a shared 30-second deadline (job 289550).
+  Publishing and each consumer restart now receive separate bounded budgets;
+  live phases allow two minutes within the unchanged 180-second suite limit.
+  The final replay cancels on delivery and asserts `context.Canceled`, replacing
+  a two-second startup/polling window. Exact replay sequences remain required.
+  The race suite and package lint pass, and the exact `make event-backends`
+  target passed against fresh Kafka 3.9.2 and Redis 7.4 containers in 5.781s.
+  Temporary Go overlays disabling commits or committing before the handler both
+  fail on the intended phase-two sequence assertion. No broker runtime changed.
+- Test synchronization recovery: pipeline 27872 passed the live HAPI, broker,
+  and storage proofs but exposed two scheduling gaps. The sweeper result test
+  now joins `Run` before inspecting its observer. The SSE proof keeps its stream
+  alive through the separately bounded preview request, bounds response-header
+  setup, and preserves the two-second delivery budget and legacy negative
+  control. Temporary overlays delaying the store return reproduce the old
+  sweeper failure; the corrected test passes 1,000 race-enabled iterations.
+  A temporary HTTP harness with an eleven-second preview reproduces the old
+  subscription expiry and passes with the corrected lifetime. The full Go race
+  suite and integration-tagged lint for both packages pass. An isolated remote
+  PostgreSQL fixture did not finish creation, so the live replica proof remains
+  a required CI check, not a claimed local pass.
+- Limitations: official FHIR conformance remains unclaimed. Clinical correction
+  identity and literal provider/location references are documented separately
+  from retry identity; workflow POST creates remain non-idempotent.
+- Sources: `internal/integration/fhirout/`, `internal/workflow/actions.go`,
+  `pkg/fhir/types.go`, `test/e2e/integration_test.go`, `ci/test-e2e-legacy.yml`,
+  [FHIR R4 transactions](https://hl7.org/fhir/R4/http.html#transaction),
+  [HAPI server configuration](https://github.com/hapifhir/hapi-fhir-jpaserver-starter).

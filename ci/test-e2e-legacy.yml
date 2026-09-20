@@ -30,11 +30,9 @@
 #     Action.UnmarshalYAML), so the `headers:`, `retry:`, `auth:` and `fields:`
 #     blocks the tests declared were dropped before any action saw them.
 #
-# One failure remains parked on a filed issue:
-# TestFHIRAction on issue #20 (the fhir action's patient_admit transaction
-# bundle references `Patient/<MRN>` with no matching fullUrl, so a conformant
-# server rejects it). Its skip names the issue and is audited below.
-# The invalid CEL regression now runs: CLI validation compiles conditions.
+# Issue #20 is covered by a live HAPI FHIR service: resource selection,
+# admission transaction references, and six clinical event families are read
+# back after delivery. Referential integrity is enabled; no skips are allowed.
 #
 # TestWorkflowWithRetry's assertion was on elapsed wall clock. The k3s-ci runner
 # pool spans three CPU classes with a 5.3x spread, so a duration threshold
@@ -57,19 +55,29 @@ test:e2e-legacy:
       alias: postgres
     - name: ${DOCKERHUB_CACHE_PREFIX}/mendhak/http-https-echo:31
       alias: webhook-echo
+    - name: ${DOCKERHUB_CACHE_PREFIX}/hapiproject/hapi@sha256:df3ec210294f711ac0f89780c449ca843a450b5b5ca6c9a09f5f80509d9d07af
+      alias: hapi-fhir
+      variables:
+        # v8.2.0-2, digest pinned. Kubernetes services share the job network;
+        # port 8080 already belongs to webhook-echo.
+        SERVER_PORT: "18081"
+        JAVA_TOOL_OPTIONS: "-Xms256m -Xmx1024m -XX:ActiveProcessorCount=2"
+        HAPI_FHIR_ENFORCE_REFERENTIAL_INTEGRITY_ON_WRITE: "true"
   variables:
     POSTGRES_DB: fi_fhir_e2e_legacy_test
     # Service containers are addressed by their declared alias, as every other
     # proof job in ci/ does. fi-fhir itself is not a service — this job starts
     # it in its own container — so its two URLs are localhost.
     TEST_POSTGRES_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_e2e_legacy_test?sslmode=disable"
+    TEST_FHIR_URL: "http://hapi-fhir:18081/fhir"
+    KUBERNETES_SERVICE_MEMORY_LIMIT: "2Gi"
     TEST_WEBHOOK_URL: "http://webhook-echo:8080"
     TEST_FIFHIR_URL: "http://localhost:18080"
     TEST_FIFHIR_METRICS_URL: "http://localhost:19090"
     # Exactly the dependencies this job provides. requireService turns anything
     # named here that is unreachable into a suite failure instead of a skip, so
     # a service container that fails to start cannot report green.
-    FI_FHIR_E2E_REQUIRED_SERVICES: "postgres,webhook-echo,fi-fhir,fi-fhir-metrics"
+    FI_FHIR_E2E_REQUIRED_SERVICES: "postgres,webhook-echo,hapi-fhir,fi-fhir,fi-fhir-metrics"
     # These tests exec bin/fi-fhir, which `go test` does not track as an input,
     # so a cached PASS could outlive the binary that earned it.
     GOFLAGS: "-count=1"
@@ -93,7 +101,7 @@ test:e2e-legacy:
     FI_FHIR_METRICS_PORT: "19090"
     FI_FHIR_METRICS_ENDPOINT: "/metrics"
     PROOF_FAILURE_SUMMARY: "the legacy end-to-end tree regressed. Both files drive the built CLI as a subprocess, so a failure is either a real behaviour change in parse/workflow or a drift between the tests and the CLI's contract."
-    PROOF_LOCAL: "see test/e2e/README.md for the three docker run lines, then make test-e2e && make test-integration"
+    PROOF_LOCAL: "see test/e2e/README.md for the service setup, then make test-e2e && make test-integration"
     PROOF_DOCS: "test/e2e/README.md"
   script:
     - !reference [.integration-proof-toolchain, script]
@@ -132,40 +140,31 @@ test:e2e-legacy:
         fi
         sleep 1
       done
+    # HAPI initializes its embedded test database before serving metadata.
+    - |
+      for attempt in $(seq 1 180); do
+        if curl --max-time 5 -sf "${TEST_FHIR_URL}/metadata" >/dev/null 2>&1; then
+          break
+        fi
+        if [ "$attempt" = "180" ]; then
+          echo "HAPI FHIR never became reachable"; exit 1
+        fi
+        sleep 1
+      done
     # The full tree, including everything that needs a service container.
     - |
       set -o pipefail
       make test-integration 2>&1 | tee e2e-integration.log
-    # Anti-vacuity, part 1: the only test permitted to skip is parked
-    # on issue #20. Any other skip means either a declared dependency is
-    # missing (which requireService should already have made fatal) or someone
-    # added a skip without filing what it is waiting on.
+    # No whole-test or subtest skips are permitted now that all dependencies
+    # are supplied. A disappearing test is also caught by the pass count.
     - |
-      rg '^\s*--- SKIP: ' e2e-integration.log \
-        | sed 's/.*--- SKIP: //; s/ .*//' | sort -u > skipped.txt
-      printf '%s\n' 'TestFHIRAction' | sort -u > skipped.expected
-      if ! diff -u skipped.expected skipped.txt; then
-        echo ""
-        echo "the set of skipped e2e tests changed."
-        echo "A new skip must name a filed issue and be added to skipped.expected here;"
-        echo "a disappeared skip means its issue is fixed — delete the t.Skipf and this line."
-        exit 1
+      if rg '^\s*--- SKIP: ' e2e-integration.log; then
+        echo "unexpected e2e skip"; exit 1
       fi
-    # Anti-vacuity, part 2: the remaining skip must still carry its issue
-    # id in the message a reader sees in the job log.
-    - |
-      for issue in 20; do
-        rg -q "blocked on fi-fhir issue #${issue}" e2e-integration.log || {
-          echo "the skip parked on issue #${issue} no longer names it"
-          exit 1
-        }
-      done
-    # Anti-vacuity, part 3: a suite that ran nothing must not pass. Thirteen of
-    # the fourteen top-level tests pass; TestFHIRAction is the whole-test skip.
     - |
       passed=$(rg -c '^--- PASS: ' e2e-integration.log || true)
-      if [ "$passed" != "13" ]; then
-        echo "expected 13 passing top-level tests, got ${passed}"
+      if [ "$passed" != "14" ]; then
+        echo "expected 14 passing top-level tests, got ${passed}"
         rg '^--- (PASS|FAIL|SKIP): ' e2e-integration.log
         exit 1
       fi

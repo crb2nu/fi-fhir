@@ -1534,7 +1534,9 @@ security:govulncheck:
   <<: *go-image
   <<: *go-cache-pull
   variables:
-    KUBERNETES_MEMORY_LIMIT: "4Gi"
+    # Whole-repository analysis exceeded 4Gi; leave headroom above Go's soft limit.
+    KUBERNETES_MEMORY_LIMIT: "6Gi"
+    GOMEMLIMIT: "5GiB"
   script:
     - apk add --no-cache git
     - go install golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}
