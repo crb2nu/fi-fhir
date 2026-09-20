@@ -5,11 +5,11 @@ Two files, both driving the built `bin/fi-fhir` binary as a subprocess.
 | File | Build tags | Needs |
 |---|---|---|
 | `e2e_test.go` | `e2e` | the binary and `testdata/`; nothing else |
-| `integration_test.go` | `e2e,integration` | PostgreSQL, an HTTP echo destination, a running `fi-fhir serve` |
+| `integration_test.go` | `e2e,integration` | PostgreSQL, an HTTP echo destination, HAPI FHIR, a running `fi-fhir serve` |
 
 CI job: **`test:e2e-legacy`** (`ci/test-e2e-legacy.yml`), blocking. It builds the
 binary, starts the services, runs `make test-e2e` and then the tagged
-integration run, and fails on any skip that does not name a filed issue.
+integration run, and fails on any skipped test or subtest.
 
 ## Running them
 
@@ -22,9 +22,14 @@ docker run -d --name fi-fhir-e2e-pg -p 5433:5432 \
   -e POSTGRES_DB=fi_fhir_test -e POSTGRES_USER=test -e POSTGRES_PASSWORD=test \
   postgres:16-alpine
 docker run -d --name fi-fhir-e2e-echo -p 8888:8080 mendhak/http-https-echo:31
+docker run -d --name fi-fhir-e2e-hapi -p 8090:18081 \
+  -e SERVER_PORT=18081 \
+  -e JAVA_TOOL_OPTIONS="-Xms256m -Xmx1024m -XX:ActiveProcessorCount=2" \
+  -e HAPI_FHIR_ENFORCE_REFERENTIAL_INTEGRITY_ON_WRITE=true \
+  hapiproject/hapi@sha256:df3ec210294f711ac0f89780c449ca843a450b5b5ca6c9a09f5f80509d9d07af
 ./bin/fi-fhir serve --port 8080 --no-playground --no-introspection &
 
-FI_FHIR_E2E_REQUIRED_SERVICES=postgres,webhook-echo,fi-fhir,fi-fhir-metrics \
+FI_FHIR_E2E_REQUIRED_SERVICES=postgres,webhook-echo,hapi-fhir,fi-fhir,fi-fhir-metrics \
   go test -tags=e2e,integration -count=1 -v ./test/e2e/...
 ```
 
@@ -46,18 +51,22 @@ canonical integration registry and a GraphQL principal — or it refuses to star
 | `FI_FHIR_E2E_REQUIRED_SERVICES` | *(empty)* | Comma-separated dependencies that must be reachable; anything else skips |
 | `TEST_POSTGRES_URL` | `postgres://test:test@localhost:5433/fi_fhir_test?sslmode=disable` | PostgreSQL connection string |
 | `TEST_WEBHOOK_URL` | `http://localhost:8888` | HTTP echo destination |
-| `TEST_FHIR_URL` | `http://localhost:8090/fhir` | FHIR server base URL (only read by the test parked on issue #20) |
+| `TEST_FHIR_URL` | `http://localhost:8090/fhir` | FHIR R4 server base URL; referential integrity must be enabled |
 | `TEST_FIFHIR_URL` | `http://localhost:8080` | Running `fi-fhir serve` |
 | `TEST_FIFHIR_METRICS_URL` | `http://localhost:9090` | Its metrics listener |
 
-## Known-red tests
+## FHIR delivery proof
 
-The remaining skip names its issue and keeps its repaired test body.
-Invalid CEL configuration is now rejected by the CLI, so that regression runs.
+`TestFHIRAction` covers issue #20 with a real HAPI FHIR v8.2.0-2 server,
+pinned by digest. It checks Patient-only selection, rejects a deliberately
+broken reference, reads back an admission transaction, then delivers and reads
+back all six clinical event families. Patient references must resolve to the
+server-assigned Patient ID. This proves storage and reference resolution, not
+full US Core conformance. All fourteen top-level tests must pass in CI.
 
-| Test | Issue |
-|---|---|
-| `TestFHIRAction` | [#20](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/20) — the `fhir` action's `patient_admit` transaction bundle references `Patient/<MRN>` with no matching `fullUrl`, so a conformant server rejects the whole transaction |
+Wait for `/fhir/metadata` before starting the integration suite. On this
+workspace use `docker --context 7900xtx` and set the test URLs to the remote
+host's published ports; there is no local Docker Desktop.
 
 ## What slice S6-C changed, and why
 

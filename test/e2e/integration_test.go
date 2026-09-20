@@ -27,7 +27,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -183,97 +185,135 @@ workflow:
 	}
 }
 
-// TestFHIRAction tests the FHIR action against a FHIR server.
-//
-// SKIPPED on fi-fhir issue #20: the fhir action cannot write a patient_admit
-// event to a conformant FHIR server.
-//
-// The config below is the repaired one — `auth: {type: none}` was a nested
-// block Action.UnmarshalYAML drops, and `resource: Patient` is ignored by the
-// action, which emits both a Patient and an Encounter for every admit
-// (eventToFHIRResources) and therefore always takes the len(resources) > 1
-// transaction-bundle path. That bundle gives its Patient entry no fullUrl and
-// points the Encounter's subject at `Patient/<MRN>`, a literal server id that
-// does not exist, so a stock HAPI FHIR server rejects the whole transaction
-// with 400 HAPI-1094 and writes nothing. Reproduced against
-// hapiproject/hapi; the full request body and response are on the issue.
-//
-// Everything in this test except the skip is ready: delete the t.Skipf when
-// #20 lands and it exercises the repaired path unchanged.
+// TestFHIRAction writes through the CLI to a real FHIR server with referential
+// integrity enabled. Read-back proves both resource selection and resolution
+// of the transaction's internal and conditional external references (#20).
 func TestFHIRAction(t *testing.T) {
-	t.Skipf("blocked on fi-fhir issue #20: the fhir action's patient_admit " +
-		"transaction bundle references Patient/<MRN> with no matching fullUrl, " +
-		"which any conformant FHIR server rejects")
-
 	cfg := DefaultConfig()
 	intCfg := getIntegrationConfig()
 	ensureBinaryBuilt(t, cfg)
-
-	resp, err := http.Get(intCfg.FHIRBaseURL + "/metadata")
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Get(intCfg.FHIRBaseURL + "/metadata")
 	requireService(t, "hapi-fhir", err)
 	defer func() { _ = resp.Body.Close() }()
-
 	if resp.StatusCode != http.StatusOK {
-		requireService(t, "hapi-fhir",
-			fmt.Errorf("/metadata returned status %d", resp.StatusCode))
+		requireService(t, "hapi-fhir", fmt.Errorf("/metadata returned %d", resp.StatusCode))
 	}
 
-	workflowYAML := fmt.Sprintf(`
-workflow:
+	run := func(t *testing.T, event map[string]any, selection string) {
+		t.Helper()
+		workflow := fmt.Sprintf(`workflow:
   name: fhir_test
   version: "1.0"
   routes:
-    - name: create_patient
-      filter:
-        event_type: patient_admit
+    - name: deliver
       actions:
         - type: fhir
           endpoint: "%s"
-          resource: Patient
-`, intCfg.FHIRBaseURL)
-
-	workflowFile := createTempFile(t, workflowYAML, ".yaml")
-	defer os.Remove(workflowFile)
-
-	eventFile := createEventFile(t, map[string]interface{}{
-		"type":      "patient_admit",
-		"source":    "test",
-		"timestamp": "2024-01-15T10:00:00Z",
-		"patient": map[string]interface{}{
-			"mrn":         "FHIR-TEST-001",
-			"given_name":  "Test",
-			"family_name": "Patient",
-			"birth_date":  "1990-01-01",
-			"gender":      "male",
-		},
+          resource: "%s"
+`, intCfg.FHIRBaseURL, selection)
+		workflowFile := createTempFile(t, workflow, ".yaml")
+		defer os.Remove(workflowFile)
+		eventFile := createEventFile(t, event)
+		defer os.Remove(eventFile)
+		output, err := runCLI(cfg, "workflow", "run", "--config", workflowFile, eventFile)
+		if err != nil {
+			t.Fatalf("workflow run: %v\n%s", err, output)
+		}
+	}
+	search := func(t *testing.T, resourceType, identifier string) map[string]any {
+		t.Helper()
+		response, err := client.Get(intCfg.FHIRBaseURL + "/" + resourceType + "?identifier=" + url.QueryEscape(identifier))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = response.Body.Close() }()
+		if response.StatusCode != http.StatusOK {
+			t.Fatalf("%s search: %d", resourceType, response.StatusCode)
+		}
+		var result struct {
+			Entry []struct {
+				Resource map[string]any `json:"resource"`
+			} `json:"entry"`
+		}
+		if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+			t.Fatal(err)
+		}
+		if len(result.Entry) != 1 {
+			t.Fatalf("%s search returned %d entries, want 1", resourceType, len(result.Entry))
+		}
+		return result.Entry[0].Resource
+	}
+	unique := fmt.Sprintf("%d", time.Now().UnixNano())
+	mrn := "SYNTHETIC-" + unique
+	visit := "VISIT-" + unique
+	admit := map[string]any{
+		"id": "admit-" + unique, "type": "patient_admit", "source": "e2e",
+		"timestamp": "2026-09-20T12:00:00Z",
+		"patient":   map[string]any{"mrn": mrn, "given_name": "Synthetic", "family_name": "Patient", "gender": "female"},
+		"encounter": map[string]any{"id": visit, "class": "I", "status": "in-progress"},
+	}
+	t.Run("patient_selection", func(t *testing.T) {
+		patientOnly := map[string]any{"type": "patient_admit", "source": "e2e", "patient": map[string]any{"mrn": "ONLY-" + unique}}
+		run(t, patientOnly, "Patient")
+		search(t, "Patient", "urn:fi-fhir:source:e2e|ONLY-"+unique)
 	})
-	defer os.Remove(eventFile)
+	t.Run("reject_dangling_reference", func(t *testing.T) {
+		broken := fmt.Sprintf(`{"resourceType":"Bundle","type":"transaction","entry":[{"resource":{"resourceType":"Encounter","status":"in-progress","class":{"code":"IMP"},"subject":{"reference":"Patient/missing-%s"}},"request":{"method":"POST","url":"Encounter"}}]}`, unique)
+		response, err := client.Post(intCfg.FHIRBaseURL, "application/fhir+json", bytes.NewBufferString(broken))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = response.Body.Close() }()
+		body, err := io.ReadAll(response.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if response.StatusCode != http.StatusBadRequest || !strings.Contains(string(body), "missing-"+unique) {
+			t.Fatalf("server did not reject the missing reference: %d %s", response.StatusCode, body)
+		}
+	})
+	var patientID string
+	t.Run("admission_transaction", func(t *testing.T) {
+		run(t, admit, "")
+		patient := search(t, "Patient", "urn:fi-fhir:source:e2e|"+mrn)
+		patientID, _ = patient["id"].(string)
+		encounter := search(t, "Encounter", "urn:fi-fhir:source:e2e|"+visit)
+		subject, _ := encounter["subject"].(map[string]any)
+		if subject["reference"] != "Patient/"+patientID {
+			t.Fatalf("Encounter subject = %v", subject)
+		}
+	})
+	if patientID == "" {
+		t.Fatal("admission did not create a Patient")
+	}
 
-	output, err := runCLI(cfg, "workflow", "run", "--config", workflowFile, eventFile)
+	raw, err := os.ReadFile(filepath.Join(cfg.TestDataDir, "fhir", "clinical-events.json"))
 	if err != nil {
-		t.Fatalf("workflow run failed: %v\nOutput: %s", err, output)
+		t.Fatal(err)
 	}
-
-	searchURL := fmt.Sprintf("%s/Patient?identifier=FHIR-TEST-001", intCfg.FHIRBaseURL)
-	searchResp, err := http.Get(searchURL)
-	if err != nil {
-		t.Fatalf("Failed to search FHIR server: %v", err)
+	var clinical []map[string]any
+	if err := json.Unmarshal(raw, &clinical); err != nil {
+		t.Fatal(err)
 	}
-	defer func() { _ = searchResp.Body.Close() }()
-
-	if searchResp.StatusCode != http.StatusOK {
-		t.Errorf("FHIR search returned status %d", searchResp.StatusCode)
-	}
-
-	body, _ := io.ReadAll(searchResp.Body)
-	var bundle map[string]interface{}
-	if err := json.Unmarshal(body, &bundle); err != nil {
-		t.Fatalf("Invalid FHIR response: %v", err)
-	}
-
-	total, _ := bundle["total"].(float64)
-	if total < 1 {
-		t.Error("Patient was not created in FHIR server")
+	resourceTypes := map[string]string{"condition": "Condition", "procedure": "Procedure", "immunization": "Immunization", "vital_sign": "Observation", "medication_request": "MedicationRequest", "allergy_intolerance": "AllergyIntolerance"}
+	for _, event := range clinical {
+		eventType := event["type"].(string)
+		t.Run(eventType, func(t *testing.T) {
+			event["id"] = eventType + "-" + unique
+			event["source"] = "e2e"
+			event["patient"] = map[string]any{"mrn": mrn}
+			event["encounter"] = map[string]any{"id": visit}
+			run(t, event, "")
+			resource := search(t, resourceTypes[eventType], "urn:fi-fhir:event:e2e:"+eventType+"|"+event["id"].(string))
+			subject, _ := resource["subject"].(map[string]any)
+			if subject == nil {
+				subject, _ = resource["patient"].(map[string]any)
+			}
+			if subject["reference"] != "Patient/"+patientID {
+				t.Fatalf("unresolved patient reference: %v", subject)
+			}
+		})
 	}
 }
 

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### FHIR delivery
+
+- Deliver condition, procedure, immunization, vital sign, medication request, and allergy intolerance events through the shared workflow and durable FHIR projector.
+- Honor workflow resource selection and resolve transaction references; unsupported JSON events now fail instead of silently producing only a Patient (issue #20).
+- Preserve medication substitution `allowedBoolean: false` in JSON and require live HAPI FHIR read-back in the legacy E2E CI gate.
+
 ### Security
 
 - Add the `clinical:read` GraphQL transport role for the ten PHI-reading event, patient, and projection queries while preserving the `graphql:operator` compatibility grant.

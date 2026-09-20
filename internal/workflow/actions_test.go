@@ -3,8 +3,8 @@ package workflow
 import (
 	"testing"
 
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/fhirout"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
-	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/fhir"
 )
 
 func TestRenderTemplate(t *testing.T) {
@@ -63,9 +63,6 @@ func TestRenderTemplate(t *testing.T) {
 }
 
 func TestEventToFHIRResources(t *testing.T) {
-	mapper := fhir.NewUSCoreMapper()
-	config := map[string]string{}
-
 	t.Run("PatientAdmitEvent pointer", func(t *testing.T) {
 		event := &events.PatientAdmitEvent{
 			EventMeta: events.EventMeta{Type: events.EventPatientAdmit},
@@ -82,7 +79,7 @@ func TestEventToFHIRResources(t *testing.T) {
 			},
 		}
 
-		resources, err := eventToFHIRResources(event, mapper, config)
+		resources, err := fhirout.MapEvent(event)
 		if err != nil {
 			t.Fatalf("eventToFHIRResources error: %v", err)
 		}
@@ -123,7 +120,7 @@ func TestEventToFHIRResources(t *testing.T) {
 			},
 		}
 
-		resources, err := eventToFHIRResources(event, mapper, config)
+		resources, err := fhirout.MapEvent(event)
 		if err != nil {
 			t.Fatalf("eventToFHIRResources error: %v", err)
 		}
@@ -145,7 +142,7 @@ func TestEventToFHIRResources(t *testing.T) {
 			},
 		}
 
-		resources, err := eventToFHIRResources(event, mapper, config)
+		resources, err := fhirout.MapEvent(event)
 		if err != nil {
 			t.Fatalf("eventToFHIRResources error: %v", err)
 		}
@@ -167,7 +164,7 @@ func TestEventToFHIRResources(t *testing.T) {
 			},
 		}
 
-		resources, err := eventToFHIRResources(event, mapper, config)
+		resources, err := fhirout.MapEvent(event)
 		if err != nil {
 			t.Fatalf("eventToFHIRResources error: %v", err)
 		}
@@ -198,7 +195,7 @@ func TestEventToFHIRResources(t *testing.T) {
 			},
 		}
 
-		resources, err := eventToFHIRResources(event, mapper, config)
+		resources, err := fhirout.MapEvent(event)
 		if err != nil {
 			t.Fatalf("eventToFHIRResources error: %v", err)
 		}
@@ -230,7 +227,7 @@ func TestEventToFHIRResources(t *testing.T) {
 			},
 		}
 
-		resources, err := eventToFHIRResources(event, mapper, config)
+		resources, err := fhirout.MapEvent(event)
 		if err != nil {
 			t.Fatalf("eventToFHIRResources error: %v", err)
 		}
@@ -243,7 +240,7 @@ func TestEventToFHIRResources(t *testing.T) {
 	t.Run("unsupported event type", func(t *testing.T) {
 		event := struct{ Name string }{"test"}
 
-		_, err := eventToFHIRResources(event, mapper, config)
+		_, err := fhirout.MapEvent(event)
 		if err == nil {
 			t.Error("expected error for unsupported event type")
 		}
@@ -251,9 +248,6 @@ func TestEventToFHIRResources(t *testing.T) {
 }
 
 func TestMapEventToFHIR(t *testing.T) {
-	mapper := fhir.NewUSCoreMapper()
-	config := map[string]string{}
-
 	t.Run("patient_admit map event", func(t *testing.T) {
 		event := map[string]interface{}{
 			"type": "patient_admit",
@@ -270,7 +264,7 @@ func TestMapEventToFHIR(t *testing.T) {
 			},
 		}
 
-		resources, err := mapEventToFHIR(event, mapper, config)
+		resources, err := fhirout.MapEvent(event)
 		if err != nil {
 			t.Fatalf("mapEventToFHIR error: %v", err)
 		}
@@ -292,7 +286,7 @@ func TestMapEventToFHIR(t *testing.T) {
 			},
 		}
 
-		resources, err := mapEventToFHIR(event, mapper, config)
+		resources, err := fhirout.MapEvent(event)
 		if err != nil {
 			t.Fatalf("mapEventToFHIR error: %v", err)
 		}
@@ -327,7 +321,7 @@ func TestMapEventToFHIR(t *testing.T) {
 			},
 		}
 
-		resources, err := mapEventToFHIR(event, mapper, config)
+		resources, err := fhirout.MapEvent(event)
 		if err != nil {
 			t.Fatalf("mapEventToFHIR error: %v", err)
 		}
@@ -347,17 +341,8 @@ func TestMapEventToFHIR(t *testing.T) {
 			},
 		}
 
-		resources, err := mapEventToFHIR(event, mapper, config)
-		if err != nil {
-			t.Fatalf("mapEventToFHIR error: %v", err)
-		}
-
-		// Should extract patient from generic event
-		if len(resources) != 1 {
-			t.Errorf("resources length = %d, want 1", len(resources))
-		}
-		if resources[0].GetResourceType() != "Patient" {
-			t.Errorf("resource type = %s, want Patient", resources[0].GetResourceType())
+		if _, err := fhirout.MapEvent(event); err == nil {
+			t.Fatal("unsupported events must not silently become Patient-only output")
 		}
 	})
 
@@ -367,7 +352,7 @@ func TestMapEventToFHIR(t *testing.T) {
 			"data": "some data",
 		}
 
-		_, err := mapEventToFHIR(event, mapper, config)
+		_, err := fhirout.MapEvent(event)
 		if err == nil {
 			t.Error("expected error for unsupported event without patient")
 		}
@@ -385,7 +370,7 @@ func TestMapEventToFHIR(t *testing.T) {
 			},
 		}
 
-		resources, err := eventToFHIRResources(event, mapper, config)
+		resources, err := fhirout.MapEvent(event)
 		if err != nil {
 			t.Fatalf("eventToFHIRResources error: %v", err)
 		}

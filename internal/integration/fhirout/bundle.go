@@ -87,7 +87,9 @@ func encodeForBundle(resource Resource, references map[string]string) (json.RawM
 	}
 	delete(body, "id")
 	delete(body, "resourceType")
-	body["identifier"] = ensureIdentifier(body["identifier"], resource.Key)
+	if resource.Key.System != "" && resource.Key.Value != "" {
+		body["identifier"] = ensureIdentifier(body["identifier"], resource.Key)
+	}
 	rewriteReferences(body, references)
 
 	rest, err := json.Marshal(body)

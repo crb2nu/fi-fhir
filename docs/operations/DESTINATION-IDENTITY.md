@@ -328,10 +328,11 @@ struct the mapper consumes, proven byte-for-byte by
 |---|---|
 | `patient_admit`, `patient_transfer`, `patient_update`, `patient_discharge` | US Core Patient, US Core Encounter |
 | `lab_result` | US Core DiagnosticReport (lab) + one US Core Observation (lab) per result; the Patient is referenced conditionally, not written |
+| `condition`, `procedure`, `immunization`, `vital_sign`, `medication_request`, `allergy_intolerance` | Condition, Procedure, Immunization, Observation, MedicationRequest, or AllergyIntolerance respectively; existing Patient and optional Encounter referenced conditionally |
 | any other registered type | no projection — `FHIR_PROJECTION_UNSUPPORTED` at plan time, `DELIVERY_FHIR_PROJECTION_FAILED` if one reaches dispatch |
 
-This is the legacy engine's own event→resource switch, moved: `internal/workflow`'s
-`fhir` action calls `fhirout.MapEvent` and the durable transport calls
+Both delivery paths share the event→resource switch: `internal/workflow`'s
+`fhir` action calls `fhirout.ProjectWorkflow` and the durable transport calls
 `fhirout.Project`, so the two engines cannot drift on which resources an event
 becomes.
 
@@ -350,6 +351,14 @@ value at all is a **projection error**, terminal, with no request made.
 References between projected resources point at entry fullUrls; the lab
 projection's Patient is a conditional reference. Provider references are
 delivered literally (`Practitioner/<id>`) — a v1 limitation.
+
+Clinical record keys use `urn:fi-fhir:event:<source>:<event_type>` and the
+persisted canonical event ID. They are distinct from the admission and lab
+business-identifier namespaces. Retrying the same stored event updates its
+resource; two records from the same source message remain distinct. Corrections
+with new event IDs create new resources. Missing source, event ID, or Patient
+identifier is a terminal projection error. Clinical events do not emit a
+Patient or Encounter update from their partial demographic context.
 
 Headers: `Content-Type: application/fhir+json; charset=utf-8`,
 `Accept: application/fhir+json`, `Prefer: return=minimal`, the `Authorization`

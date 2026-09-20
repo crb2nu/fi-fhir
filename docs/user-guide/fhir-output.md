@@ -1,35 +1,72 @@
 # FHIR Output
 
-fi-fhir generates FHIR R4 resources that conform to US Core profiles. This guide covers the mapping from canonical events to FHIR resources.
+fi-fhir maps canonical events to FHIR R4 resources with US Core profile
+annotations. Validation is optional on workflow actions; the pinned structural
+checks do not establish full FHIR conformance. See the
+[conformance matrix](../planning/FHIR-CONFORMANCE-MATRIX.md) for measured coverage.
 
-## Overview
+## Events delivered by FHIR actions
 
-When events flow through a workflow with a FHIR action, fi-fhir:
-1. Maps canonical event fields to FHIR resource properties
-2. Applies US Core profile requirements
-3. Validates the generated resources
-4. Sends to the configured FHIR server
+Both the legacy workflow action and the durable FHIR destination use the shared
+[projector](../../internal/integration/fhirout/project.go):
 
-## Supported Resources
+| Event type | Resources delivered |
+|---|---|
+| `patient_admit`, `patient_transfer`, `patient_update`, `patient_discharge` | Patient and Encounter |
+| `lab_result` | DiagnosticReport and Observations |
+| `vital_sign` | Observation |
+| `condition` | Condition |
+| `procedure` | Procedure |
+| `immunization` | Immunization |
+| `medication_request` | MedicationRequest |
+| `allergy_intolerance` | AllergyIntolerance |
 
-fi-fhir maps to 24+ FHIR R4 resources:
+Other `pkg/fhir` mapper methods remain available to library callers, but their
+event types are not yet connected to these delivery paths. Unsupported events
+return an error; JSON events no longer silently become Patient-only output.
 
-| Event Type | FHIR Resources | Profile |
-|------------|----------------|---------|
-| `patient_admit` | Patient, Encounter | US Core |
-| `patient_discharge` | Encounter | US Core |
-| `patient_update` | Patient | US Core |
-| `lab_result` | Observation, DiagnosticReport | US Core Laboratory |
-| `vital_sign` | Observation | US Core Vital Signs |
-| `condition` | Condition | US Core |
-| `procedure` | Procedure | US Core |
-| `immunization` | Immunization | US Core |
-| `medication_request` | MedicationRequest | US Core |
-| `allergy` | AllergyIntolerance | US Core |
-| `claim_submitted` | Claim | Da Vinci PAS |
-| `claim_adjudicated` | ExplanationOfBenefit | PDex |
-| `eligibility_response` | CoverageEligibilityResponse | - |
-| `document` | DocumentReference | US Core |
+The six clinical event types and lab results reference an existing Patient.
+They do not overwrite demographics from a partial clinical document. Patient
+and Encounter references use qualified identifiers; create those resources
+first, with the same source or assigning-authority system. Other references
+(such as Practitioner and Location) retain the mapper's literal IDs and require
+matching resources on the destination.
+
+## Selecting workflow resources
+
+Set `resource: Patient` to create only a Patient from an admission, or omit
+`resource` to deliver every projected resource. A selection that does not match
+any output fails before sending. A DiagnosticReport-only selection also fails
+if it would omit its referenced Observations.
+
+```yaml
+workflow:
+  name: patient-demographics
+  version: "1.0"
+  routes:
+    - name: patient
+      filter:
+        event_type: patient_admit
+      actions:
+        - type: fhir
+          endpoint: https://fhir.example.org/r4
+          resource: Patient
+          validate_fhir: true
+```
+
+A selected Patient uses a direct POST unless `bundle: true` is set. Other
+outputs use a transaction so the server can resolve references. Bundle entries
+have `fullUrl` values, internal references point to those values, and external
+Patient/Encounter references use conditional identifier searches. These workflow
+creates use POST and can duplicate resources on retry. For persisted,
+retry-safe delivery, use the [durable FHIR destination](../operations/DESTINATION-IDENTITY.md#the-fhir-transport-41c-c).
+
+Durable clinical writes use the canonical event ID under
+`urn:fi-fhir:event:<source>:<event_type>`. Re-delivering a stored event updates
+the same resource; a new event ID creates a separate record, including a
+correction submitted as a new event. Source message IDs are not used as clinical
+record keys because one document can contain many records. Missing source,
+event ID, or patient identifier prevents durable delivery.
 
 ## Patient Resource
 

@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -21,7 +20,6 @@ import (
 	"time"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/fhirout"
-	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/fhir"
 )
 
@@ -705,17 +703,9 @@ func fhirAction(ctx context.Context, event interface{}, config map[string]string
 	// Ensure endpoint doesn't have trailing slash
 	endpoint = strings.TrimSuffix(endpoint, "/")
 
-	// Create mapper (us-core is default)
-	mapper := fhir.NewUSCoreMapper()
-
-	// Convert event to FHIR resources
-	resources, err := eventToFHIRResources(event, mapper, config)
+	projection, err := fhirout.ProjectWorkflow(event, config["resource"])
 	if err != nil {
 		return fmt.Errorf("failed to convert event to FHIR: %w", err)
-	}
-
-	if len(resources) == 0 {
-		return fmt.Errorf("no FHIR resources generated from event")
 	}
 
 	// Parse timeout
@@ -728,94 +718,20 @@ func fhirAction(ctx context.Context, event interface{}, config map[string]string
 
 	client := &http.Client{Timeout: timeout}
 
-	// Determine if we should send as bundle
-	useBundle := strings.ToLower(config["bundle"]) == "true" || len(resources) > 1
-
-	if useBundle {
-		return sendFHIRBundle(ctx, client, endpoint, resources, config)
-	}
-
-	// Send individual resources
-	for _, resource := range resources {
-		if err := sendFHIRResource(ctx, client, endpoint, resource, config); err != nil {
+	// A transaction resolves conditional references to existing resources.
+	// A selected Patient can be created directly without those dependencies.
+	if strings.EqualFold(config["bundle"], "true") || len(projection.Resources) > 1 || projection.Resources[0].Type != "Patient" {
+		bundle, err := fhirout.CreateWorkflowTransactionBundle(projection)
+		if err != nil {
 			return err
 		}
+		return sendFHIRBundle(ctx, client, endpoint, bundle, config)
 	}
-
-	return nil
-}
-
-// eventToFHIRResources converts a canonical event to FHIR resources.
-//
-// Since Slice 4.1c-c the typed switch lives in internal/integration/fhirout
-// (MapEvent for this engine, ProjectEvent for the durable `fhir` transport) so
-// the two engines cannot drift on which resources an event becomes. The
-// resources this engine sends are the mapper's exact output — the projection's
-// conditional-write keys and reference rewrites apply only to the durable
-// transport's bundle.
-func eventToFHIRResources(event interface{}, mapper *fhir.USCoreMapper, config map[string]string) ([]fhir.Resource, error) {
-	// Handle map types (from JSON parsing in workflow engine)
-	if m, ok := event.(map[string]interface{}); ok {
-		return mapEventToFHIR(m, mapper, config)
-	}
-
-	resources, err := fhirout.MapEvent(event)
+	patient, err := fhirout.WorkflowPatient(projection)
 	if err != nil {
-		if errors.Is(err, fhirout.ErrUnsupportedEventType) {
-			return nil, fmt.Errorf("unsupported event type: %T", event)
-		}
-		return nil, err
+		return err
 	}
-	return resources, nil
-}
-
-// mapEventToFHIR converts a map-based event (from JSON) to FHIR resources.
-func mapEventToFHIR(m map[string]interface{}, mapper *fhir.USCoreMapper, config map[string]string) ([]fhir.Resource, error) {
-	// Re-serialize to JSON and parse into typed event
-	data, err := json.Marshal(m)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal event map: %w", err)
-	}
-
-	// Determine event type
-	eventType, _ := m["type"].(string)
-
-	switch eventType {
-	case string(events.EventPatientAdmit):
-		var e events.PatientAdmitEvent
-		if err := json.Unmarshal(data, &e); err != nil {
-			return nil, fmt.Errorf("failed to parse patient_admit event: %w", err)
-		}
-		return eventToFHIRResources(&e, mapper, config)
-
-	case string(events.EventPatientDischarge):
-		var e events.PatientDischargeEvent
-		if err := json.Unmarshal(data, &e); err != nil {
-			return nil, fmt.Errorf("failed to parse patient_discharge event: %w", err)
-		}
-		return eventToFHIRResources(&e, mapper, config)
-
-	case string(events.EventLabResult):
-		var e events.LabResultEvent
-		if err := json.Unmarshal(data, &e); err != nil {
-			return nil, fmt.Errorf("failed to parse lab_result event: %w", err)
-		}
-		return eventToFHIRResources(&e, mapper, config)
-
-	default:
-		// Try to extract patient from generic event structure
-		if patientData, ok := m["patient"].(map[string]interface{}); ok {
-			patientJSON, _ := json.Marshal(patientData)
-			var patient events.Patient
-			if err := json.Unmarshal(patientJSON, &patient); err == nil {
-				fhirPatient := mapper.MapPatient(&patient)
-				if fhirPatient != nil {
-					return []fhir.Resource{fhirPatient}, nil
-				}
-			}
-		}
-		return nil, fmt.Errorf("unsupported event type: %s", eventType)
-	}
+	return sendFHIRResource(ctx, client, endpoint, patient, config)
 }
 
 func shouldValidateFHIR(config map[string]string) bool {
@@ -1010,9 +926,7 @@ func sendFHIRResource(ctx context.Context, client *http.Client, endpoint string,
 
 // sendFHIRBundle sends multiple resources as a transaction bundle with rate limiting, retry, and circuit breaker support.
 // Handles OAuth 401 by invalidating token cache and retrying with fresh token.
-func sendFHIRBundle(ctx context.Context, client *http.Client, endpoint string, resources []fhir.Resource, config map[string]string) error {
-	bundle := fhir.CreateTransactionBundle(resources)
-
+func sendFHIRBundle(ctx context.Context, client *http.Client, endpoint string, bundle *fhir.Bundle, config map[string]string) error {
 	// Marshal bundle to JSON
 	body, err := json.Marshal(bundle)
 	if err != nil {
@@ -1057,7 +971,7 @@ func sendFHIRBundle(ctx context.Context, client *http.Client, endpoint string, r
 		WithAttributes(
 			Attr(AttrHTTPMethod, "POST"),
 			Attr(AttrHTTPURL, endpoint),
-			Attr("fhir.bundle_size", len(resources)),
+			Attr("fhir.bundle_size", len(bundle.Entry)),
 		),
 	)
 	defer httpSpan.End()

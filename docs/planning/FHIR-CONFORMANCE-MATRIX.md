@@ -356,8 +356,8 @@ expansion. **This is not official conformance and produces no certificate.**
 
 **Result over the 21-resource-type fixture set** (25 files in
 `testdata/fhir/mapper/`; `labresult_1/2/3`, `labobservation` and `vitalsign` are
-all `Observation` or `DiagnosticReport`): **19 files clean, 6 carrying 9
-cardinality violations.** Every one was confirmed against the fixture by hand;
+all `Observation` or `DiagnosticReport`): **20 files clean, 5 carrying 7
+cardinality violations** after the 2026-09-20 medication serialization fix. Every one was confirmed against the fixture by hand;
 one earlier report — `Coverage.payor` serialised as a JSON array — was a
 validator defect and was fixed rather than recorded, because a profile narrowing
 `max` from `*` to `1` constrains the count, not the JSON wire shape.
@@ -369,11 +369,11 @@ validator defect and was fixed rather than recorded, because a profile narrowing
 | `documentreference.json` | `DocumentReference.content` is JSON `null` | R4 **and** `us-core-documentreference` 1..* |
 | `encounter.json` | `Encounter.identifier.system` absent | `us-core-encounter` 1..1 |
 | `encounter.json` | `Encounter.type` absent | `us-core-encounter` 1..* |
-| `medicationrequest.json` | `substitution` is `{}`, so `substitution.allowed[x]` is absent | R4 **and** `us-core-medicationrequest` 1..1 |
 | `vitalsign.json` | `Observation.effective[x]` absent | `us-core-heart-rate` 1..1 |
 
-Two of these violate base R4, not a US Core tightening: the explicit `null` and
-the empty `substitution` object. Slice 5.1b did **not** fix any of them. Its
+The explicit `null` violates base R4, not just a US Core tightening. The
+MedicationRequest mapper now preserves `allowedBoolean: false`, closing its two
+recorded violations. Slice 5.1b itself did **not** fix any of them. Its
 deliverable is the measurement, and changing the mapper in the change that first
 makes it measurable would take the measurement against unreviewed output; what a
 `DocumentReference` with no attachment should emit is a product decision, not a

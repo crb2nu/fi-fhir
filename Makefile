@@ -87,9 +87,8 @@ test-cover-html: test-cover-all
 test-e2e: build
 	go test -tags=e2e -v ./test/e2e/...
 
-# Run integration tests. Needs PostgreSQL, an HTTP echo destination and a
-# running `fi-fhir serve`; see test/e2e/README.md for the three docker run
-# lines, and set FI_FHIR_E2E_REQUIRED_SERVICES so a missing one fails rather
+# Run integration tests. Needs PostgreSQL, an HTTP echo destination, HAPI FHIR
+# and a running `fi-fhir serve`; see test/e2e/README.md for setup, and set FI_FHIR_E2E_REQUIRED_SERVICES so a missing one fails rather
 # than skips.
 test-integration: build
 	go test -tags=e2e,integration -v ./test/e2e/...
@@ -1090,7 +1089,7 @@ fhir-structural:
 
 # Negative control for the above. The fhirstructuralnegative tag removes
 # Patient.name — 1..* in us-core-patient — from patient.json before the gate
-# sees it, and changes nothing else. patient.json is one of the nineteen
+# sees it, and changes nothing else. patient.json is one of the twenty
 # fixtures recorded clean, so the ledger assertion must fail on EXACTLY that
 # fixture, naming that element.
 #

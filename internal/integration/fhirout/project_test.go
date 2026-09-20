@@ -24,8 +24,9 @@ func TestProjectSupportsExactlyTheRegisteredTypes(t *testing.T) {
 	t.Parallel()
 
 	if want := []events.EventType{
-		events.EventLabResult, events.EventPatientAdmit, events.EventPatientDischarge,
-		events.EventPatientTransfer, events.EventPatientUpdate,
+		events.EventAllergyIntolerance, events.EventCondition, events.EventImmunization,
+		events.EventLabResult, events.EventMedicationRequest, events.EventPatientAdmit, events.EventPatientDischarge,
+		events.EventPatientTransfer, events.EventPatientUpdate, events.EventProcedure, events.EventVitalSign,
 	}; strings.Join(eventTypeStrings(SupportedEventTypes()), ",") != strings.Join(eventTypeStrings(want), ",") {
 		t.Fatalf("SupportedEventTypes = %v, want %v", SupportedEventTypes(), want)
 	}
@@ -33,7 +34,7 @@ func TestProjectSupportsExactlyTheRegisteredTypes(t *testing.T) {
 		if !integration.CanonicalEventRegistered(eventType) {
 			t.Fatalf("%s is projectable but has no canonical schema", eventType)
 		}
-		payload := projectTestPayload(t, projectTestEventFor(eventType))
+		payload := projectTestPayload(t, projectTestEventFor(t, eventType))
 		projection, err := Project(eventType, payload)
 		if err != nil {
 			t.Fatalf("Project(%s): %v", eventType, err)
@@ -43,15 +44,15 @@ func TestProjectSupportsExactlyTheRegisteredTypes(t *testing.T) {
 		}
 	}
 
-	vital := projectTestPayload(t, &events.VitalSignEvent{
-		EventMeta: projectTestMeta(events.EventVitalSign),
+	document := projectTestPayload(t, &events.DocumentReferenceEvent{
+		EventMeta: projectTestMeta(events.EventType("document_reference")),
 		Patient:   &events.Patient{MRN: "MRN-000123"},
 	})
-	if _, err := Project(events.EventVitalSign, vital); !errors.Is(err, ErrUnsupportedEventType) {
-		t.Fatalf("Project(vital_sign) = %v, want ErrUnsupportedEventType", err)
+	if _, err := Project(events.EventType("document_reference"), document); !errors.Is(err, ErrUnsupportedEventType) {
+		t.Fatalf("Project(document_sign) = %v, want ErrUnsupportedEventType", err)
 	}
-	if Supports(events.EventVitalSign) {
-		t.Fatal("Supports(vital_sign) = true")
+	if Supports(events.EventType("document_reference")) {
+		t.Fatal("Supports(document_sign) = true")
 	}
 }
 
@@ -345,7 +346,18 @@ func projectTestAdmit() *events.PatientAdmitEvent {
 	}
 }
 
-func projectTestEventFor(eventType events.EventType) any {
+func projectTestEventFor(t *testing.T, eventType events.EventType) any {
+	for _, event := range clinicalTestEvents(t) {
+		if event["type"] == string(eventType) {
+			factory := supportedEventTypes[eventType]
+			value := factory()
+			raw, _ := json.Marshal(event)
+			if err := json.Unmarshal(raw, value); err != nil {
+				t.Fatal(err)
+			}
+			return value
+		}
+	}
 	switch eventType {
 	case events.EventPatientDischarge:
 		admit := projectTestAdmit()
