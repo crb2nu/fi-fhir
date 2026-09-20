@@ -1069,43 +1069,22 @@ CI job can honestly provide.
   publish the USCDI/profile coverage matrix, and surface conformance policy in
   artifacts and diagnostics.
 
-**Sequencing dependency (recorded 2026-08-08, Sprint 4 Lane S4-D; corrected
-2026-08-09 by Sprint 5 Lane S5-E and funded 2026-09-07 by Sprint 6): 5.1 is
-blocked on Slice 4.1c-c, the FHIR destination class — not on 4.1c-b.** 4.1c-b
-merged on 2026-08-09 and did not clear the blocker: the durable engine delivers
-the Kafka delivery-command envelope over HTTPS at `application/json`, proven by
-`TestFHIRConformance_DurableEngineProducesNoFHIRResource`
-(`internal/integration/delivery/fhir_conformance_gate_test.go`). Slice 4.1c-c is
-specified in `.loom/34-sprint6-execution-specs.md` (Lane S6-A) as a new `fhir`
-`TransportKind` with its own policy and conditional-write transaction Bundles.
-The paragraph below is the 2026-08-08 analysis, kept as the record of why the
-gap was found. The durable integration engine produces no FHIR resource
-today. `pkg/fhir` has exactly two non-test importers — `internal/workflow/actions.go:23`
-(the legacy engine; mapper constructed at `:680`, action registered only at
-`internal/workflow/engine.go:127`) and `cmd/fi-fhir/main.go:49` (the `fhir validate`
-CLI, `:309`). The durable processor's only use of `internal/workflow` is a planner
-that "never invokes transforms or actions" (`internal/workflow/plan.go:144`), and
-the dispatcher's command carries the canonical event, not a resource
-(`internal/integration/delivery/dispatcher.go:246-259`;
-`internal/integration/delivery/store.go:107,128`). Consequently:
+**Sequencing update — 2026-09-20.** The FHIR destination prerequisite
+(Slice 4.1c-c, MR !206) and pinned-package structural validator (Slice 5.1b,
+MR !205) are merged. The earlier blocker was that durable HTTPS delivered a
+canonical command envelope rather than FHIR resources. `TransportFHIR` now
+projects the canonical event into conditional-write transaction Bundles, with
+required delivery tests. MR !211 expands that shared projection to six clinical
+event families and makes live HAPI read-back a blocking acceptance check.
 
-- **"Surface conformance policy in artifacts and diagnostics" cannot be specified
-  until 4.1c-c defines what a FHIR destination is.** Conformance policy attaches
-  to a destination revision, and the destination revision has no FHIR class:
-  `TransportKind` is `kafka|https` only
-  (`internal/integration/destination/revision.go:54-62`).
-- Package pinning and validator integration are unblocked in principle but would
-  certify a path no golden journey executes. Golden journey 1 ends "inspect trace
-  and FHIR delivery" and journey 6 validates a US Core 9.0.0 R4 payload
-  (`.loom/20-product-spec-integration-engine-ide-completion.md:293,302-304`);
-  both wait on 4.1c-c.
-- Preparation completed in Sprint 4 with no code:
-  `docs/planning/FHIR-CONFORMANCE-MATRIX.md` (coverage matrix against
-  `pkg/fhir/mapper.go` and `pkg/fhir/validate.go`), the rewritten
-  `.loom/28-spec-fhir-ig-bulk-smart.md`, and the proposed validator decision in
-  `.loom/40-decisions.md` ("2026-08-08: FHIR conformance validation strategy").
-  The decision is **proposed, not ratified**; ratify it before any CI-image
-  change.
+Remaining work is Slice 5.1c: CI-only official validation of the delivered path,
+conformance policy and diagnostics, and closure of known fixture gaps. The Go
+structural validator checks pinned packages and cardinality; it does not prove
+FHIRPath invariants, slicing, terminology bindings, or full US Core conformance.
+See `docs/planning/FHIR-CONFORMANCE-MATRIX.md` for the current seven-violation
+ledger and `docs/operations/SUPPORTED-1.0.md` for the release evidence contract.
+Golden journeys 1 and 6 still require their end-to-end release evidence; the
+merged transport alone does not complete them.
 
 ### Slice 5.2: SMART and Bulk Data conformance journey
 

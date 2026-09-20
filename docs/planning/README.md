@@ -2,6 +2,20 @@
 
 This directory contains detailed planning and specification documents for the fi-fhir healthcare integration library.
 
+## Delivery update — 2026-09-20
+
+Sprint 6's FHIR destination, pinned structural validator, and legacy E2E lanes
+have merged. Kafka, Redis Streams, and Google Cloud Pub/Sub backends now share
+handlers and workflow consumers. Six additional clinical event families reach
+workflow and durable FHIR delivery; the Patient/Encounter reference defect in
+issue #20 is closed.
+
+Read the [roadmap](../../ROADMAP.md), [event backend guide](../operations/EVENT-BACKENDS.md),
+and [FHIR output guide](../user-guide/fhir-output.md) for shipped behavior.
+Performance certification, the FHIR operator trace, official validator evidence,
+SMART/Bulk Data, and full release journeys remain open. Structural validation
+and live HAPI acceptance are not official US Core conformance certification.
+
 ## Document Overview
 
 | Document                                         | Purpose                                                              | Status                                                                                                         |
@@ -147,7 +161,7 @@ These are the remaining “big rocks” referenced by the Document Overview stat
 - TypeScript SDK
 - OAuth2 client credentials for FHIR action
 - Database action (PostgreSQL, MySQL, SQLite)
-- Queue action (Kafka, RabbitMQ, NATS, SQS)
+- Queue action (Kafka, Redis Streams, Google Cloud Pub/Sub; extensible driver registry)
 - EDI 270/271 eligibility transactions
 - EDI 276/277 claim status transactions
 - Retry/error handling with exponential backoff
@@ -265,14 +279,15 @@ Tracking issue: [libs/fi-fhir#7](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issu
 `test:integration` PostgreSQL service:
 
 ```bash
-POSTGRES_TEST_URL=postgres://testuser:testpass@postgres:5432/fi_fhir_test?sslmode=disable \
+POSTGRES_TEST_URL=postgres://testuser:testpass@postgres:5432/fi_fhir_terms_test?sslmode=disable \
   go test -tags=integration -p 1 ./pkg/terminology/db/
 ```
 
 Keep this package serialized with other integration packages that reset the
 `terminology` schema. The CI job runs the CLI integration tests first and then
-the terminology DB package against the same service database, avoiding
-testcontainers/Docker-in-Docker and avoiding unsafe concurrent schema drops.
+the terminology DB package. They use separate databases (`fi_fhir_test` and
+`fi_fhir_terms_test`) in the same PostgreSQL service. Both suites reset the terminology schema; serial execution
+alone does not isolate rows left by the CLI suite.
 
 #### P2 Next Steps (CLI Coverage)
 
@@ -292,7 +307,7 @@ Tracking issue: [libs/fi-fhir#8](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issu
 - ✅ ETL expansion: additional source/sink providers, scheduling, incremental sync — Implemented 2026-03-07
 - ✅ LLM feature expansion: multi-model routing, prompt versioning, evaluation framework
 - Terminology approval workflow (human-in-the-loop review for autoroute suggestions) — tracked in [libs/fi-fhir#17](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/17)
-- Additional FHIR Implementation Guides (US Core 9.0.0, Bulk Data 3.0.0, SMART App Launch 2.2.0) — promoted out of P3 into Phase 5 Slices 5.1/5.2 and 1.0-blocking (`.loom/30-implementation-plan-integration-engine-ide-completion.md:803-815,856`); scope in [`.loom/28-spec-fhir-ig-bulk-smart.md`](../../.loom/28-spec-fhir-ig-bulk-smart.md), coverage in [FHIR-CONFORMANCE-MATRIX.md](FHIR-CONFORMANCE-MATRIX.md). Blocked on Slice 4.1c-b. The legacy P3 entry [libs/fi-fhir#12](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/12) still says "USCDI v3" and is superseded.
+- Additional FHIR Implementation Guides (US Core 9.0.0, Bulk Data 3.0.0, SMART App Launch 2.2.0) — promoted out of P3 into Phase 5 Slices 5.1/5.2 and 1.0-blocking (`.loom/30-implementation-plan-integration-engine-ide-completion.md:803-815,856`); scope in [`.loom/28-spec-fhir-ig-bulk-smart.md`](../../.loom/28-spec-fhir-ig-bulk-smart.md), coverage in [FHIR-CONFORMANCE-MATRIX.md](FHIR-CONFORMANCE-MATRIX.md). The FHIR destination prerequisite (Slice 4.1c-c) merged in MR !206; official validation remains open. The legacy P3 entry [libs/fi-fhir#12](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/12) still says "USCDI v3" and is superseded.
 - ✅ Terminology index test coverage (91.3%) — 2026-03-05
 - ✅ Terminology semantic search test coverage (90.9%) — 2026-03-05
 - ✅ LLM extract test coverage (94.2%, up from 76.6%) — 2026-03-05

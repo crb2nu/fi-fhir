@@ -1,6 +1,6 @@
 # fi-fhir Roadmap
 
-> Last Updated: 2026-09-08
+> Last Updated: 2026-09-20
 > Tier: 1 (see workspace AGENTS.md "Portfolio Tiers")
 > Tracking issue: https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/19
 > Completion spec: `.loom/20-product-spec-integration-engine-ide-completion.md`
@@ -9,57 +9,63 @@
 
 ## Current Status
 
-fi-fhir is a substantial healthcare integration **capability kernel**, not yet a
-completed integration engine product. The Go backend contains profile-driven
-parsers, canonical events, FHIR mapping, workflow actions, event-sourcing
-primitives, terminology, GraphQL, and LLM features. The SvelteKit/npm Mapping
-Studio contains real authoring, inspection, workflow, terminology, event, and
-debug surfaces.
+fi-fhir implements profile-driven parsing, canonical events, durable ingestion
+and delivery, and a Mapping Studio for authoring and operating integrations.
+It remains pre-1.0: implemented capabilities and repository tests do not certify
+all supported deployment profiles or every vendor feed.
 
-The remaining work is product assembly and operational truth:
+The merged runtime includes authenticated HTTP and MLLP ingestion, S3/SFTP batch
+processing, PostgreSQL acceptance and replay, durable Integration Sessions,
+workflow simulation, reviewable publication, deployment controls, and identity
+and PHI policy. Kafka, Redis Streams, and Google Cloud Pub/Sub share event
+handlers and acknowledgment-aware consumers. FHIR transactions use a shared
+projector across workflow actions and durable destinations.
 
-- authenticated HL7v2 HTTP ingress is implemented but not yet activated in the
-  production GitOps deployment; when enabled, one shared processor composes
-  exact revision resolution, parsing, durable acceptance/idempotency, route
-  planning, lineage, and transactional outbox admission behind PostgreSQL;
-- the restart-safe PostgreSQL Integration Session workspace now persists
-  redacted samples, immutable profile revisions/runs, decisions, and exports;
-  live streaming, workflow simulation, and publish/deploy remain Phase 3 work;
-- a PostgreSQL-backed versioned deployment lifecycle now authorizes the optional
-  production MLLP listener; profile/workflow bytes remain in the immutable
-  startup registry and S3/SFTP discovery is not runtime-wired;
-- exact-origin policy, memory-only browser handling, and per-request OIDC human
-  identity are implemented for GraphQL; the production HTTP path now supports
-  allowlisted OAuth service identity and one exact submit decision, while broad
-  object/action policy, audited token administration, and durable PHI policy
-  remain incomplete;
-- the current Flux deployment proves the authenticated ADT A01 preview and
-  legacy-containment boundary, not the remaining completion journeys or the
-  production-readiness contract.
+This update records repository state through merge `7e146de64` on 2026-09-20.
+[Pipeline 27875](https://gitlab.flexinfer.ai/libs/fi-fhir/-/pipelines/27875)
+passed 53 automatic jobs, including live HAPI FHIR read-back, Kafka/Redis,
+PostgreSQL/MinIO, and two-replica tests. These are internal GitLab records.
+Production activation and release certification remain separate decisions;
+this documentation update does not assert a new clinical-runtime deployment.
 
-The June 28 Integration Session Engine merge is preserved as useful foundation.
-The July 12 completion review supersedes the earlier sibling-integration-first
-sequence. flexinfer, mentatlab, and Loom integrations remain ecosystem work and
-must not enter the clinical data plane before the engine spine is proven.
+## Delivered — Sprint 6 and clinical delivery (2026-09-20)
 
-## Now — Sprint 6 (planned 2026-09-07, `.loom/34-sprint6-execution-specs.md`)
+- [x] **S6-0 merge surface** — CI includes, proof targets, and lane boundaries
+  merged in [MR !202](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/202).
+- [x] **S6-A Slice 4.1c-c FHIR destination class** — conditional-write
+  transaction Bundles and durable delivery provenance, merged in
+  [MR !206](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/206).
+- [x] **S6-C legacy E2E repair** — a blocking service-backed test job, merged in
+  [MR !204](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/204).
+  MR !211 adds live HAPI acceptance with fourteen top-level tests and no skips.
+- [x] **S6-D Slice 5.1b** — pinned R4 4.0.1 and US Core 9.0.0 archives plus
+  structural validation, merged in
+  [MR !205](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/205).
+  Official validator evidence is still required for conformance.
+- [x] **Broker processors and common handlers** — Kafka, Redis Streams,
+  Pub/Sub, workflow queue drivers, `workflow consume`, and the outbox adapter,
+  merged in [MR !210](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/210).
+  See [event backends](docs/operations/EVENT-BACKENDS.md).
+- [x] **CDA profile event selection** — profile-configured emitted event types,
+  merged in [MR !209](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/209).
+- [x] **Clinical FHIR delivery** — condition, procedure, immunization, vital
+  sign, medication request, and allergy intolerance events reach both delivery
+  paths. Workflow selection and Patient/Encounter references are resolved;
+  issue #20 is closed. Merged in
+  [MR !211](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/211).
+  See [FHIR output](docs/user-guide/fhir-output.md).
 
-Sprint 5 closed 2026-09-05 with the Release Candidate lanes merged
-(`.loom/33-sprint5-execution-specs.md`; per-slice entries in `.loom/worklog/`).
-Sprint 6 opens the 1.0 critical path.
+## Now
 
-- [ ] **S6-0 merge surface** — stub CI includes, `.PHONY` lines, placeholder
-  targets, and this roadmap repair, so lanes never share an append point.
-- [ ] **S6-A Slice 4.1c-c FHIR destination class** — a `fhir` transport kind with
-  conditional-write transaction Bundles. 5.1 certification and golden journeys
-  1 and 6 wait on it. Ruling: `.loom/decisions/2026-09-08-fund-slice-4-1c-c-as-a-fhir-transport-kind.md`.
-- [ ] **S6-B budgets 1–3 certification** on runner `fi-fhir-perf` (id 8, online
-  since 2026-08-09) — held until the project variable `FI_FHIR_PERF_RUNNER` is
-  set; `test:performance-profile` is `when: never` without it.
-- [ ] **S6-C legacy e2e tree repair** — nine red tests named in
-  `ci/s5b-chaos-dr.yml`, run by no job.
-- [ ] **S6-D Slice 5.1b** — pin `hl7.fhir.r4.core#4.0.1` and
-  `hl7.fhir.us.core#9.0.0`; Go structural validator (Option C).
+- [ ] **S6-B budgets 1–3 certification** — the performance harness is present,
+  but measured certification on the pinned `fi-fhir-perf` runner remains open.
+  An ordinary green MR pipeline does not certify these budgets.
+- [ ] **Slice 4.2c FHIR operator trace** — expose destination provenance in the
+  operator delivery attempt view.
+- [ ] **Slice 5.1c official validation** — run the CI-only official validator
+  over delivered Bundles and close the remaining structural fixture gaps.
+  The FHIR destination prerequisite has merged; this work is no longer blocked
+  on Slice 4.1c-c. See the [conformance matrix](docs/planning/FHIR-CONFORMANCE-MATRIX.md).
 
 ## Delivered — Phases 0–2
 
@@ -166,12 +172,6 @@ Sprint 6 opens the 1.0 critical path.
   `.loom/worklog/`.
 
 ## Then — the 1.0 remainder
-
-- [ ] 4.2c: the operator trace shows the FHIR delivery (projection of the
-  destination provenance ledger into `OperatorDeliveryAttempt`).
-- [ ] 5.1c: official validator (`validator_cli.jar`, CI-only) over the bundle
-  4.1c-c delivers; then the "official validator evidence" clause in
-  `docs/operations/SUPPORTED-1.0.md` can change.
 - [ ] 5.2 SMART Backend Services and Bulk Data 3.0.0; 5.3 extension and
   compatibility contract.
 - [ ] Phase 6 release evidence: budget 7 on Kubernetes 1.36, all six golden
