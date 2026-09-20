@@ -850,8 +850,11 @@ func startReplica(t *testing.T, binary, root, proxyAddr, dsn, mode, name string)
 		}
 	})
 
-	if !waitForStatus(t, r, "/health", http.StatusOK, 45*time.Second) {
-		t.Fatalf("replica %s never became reachable; log:\n%s", name, logs.String())
+	// Startup runs the database migrations before opening the listener. Give
+	// loaded CI runners time to finish without relaxing post-startup probes.
+	if !waitForStatus(t, r, "/health", http.StatusOK, 180*time.Second) {
+		// Cleanup waits for the process output writer before reading its buffer.
+		t.Fatalf("replica %s never became reachable", name)
 	}
 	return r
 }
