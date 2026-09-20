@@ -633,7 +633,8 @@ test:integration:
     # (t.Skipf on "minio not ready"). The explicit `server` command is required.
     # Proof: with MinIO unreachable ./cmd/fi-fhir/... reports 73.2% coverage, the
     # exact figure job 218601 logged; with MinIO live it reports 75.9%.
-    - name: ${DOCKERHUB_CACHE_PREFIX}/minio/minio:latest
+    # Docker Hub no longer serves these images; use the official Quay digest.
+    - name: quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
       alias: minio
       command: ["server", "/data", "--console-address", ":9001"]
   variables:
@@ -1000,7 +1001,8 @@ test:batch-ingestion:
   services:
     - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
       alias: postgres
-    - name: ${DOCKERHUB_CACHE_PREFIX}/minio/minio:RELEASE.2024-01-16T16-07-38Z
+    # Preserve RELEASE.2024-01-16T16-07-38Z from the official Quay registry.
+    - name: quay.io/minio/minio@sha256:4c4a4876193f030c81f57aabb22bcb9a73462010eb61fcab66908e03e5484af8
       alias: minio
       command: ["server", "/data"]
   variables:
@@ -2479,4 +2481,3 @@ mirror:github:
 
 radar-scan:
   extends: .radar-scan
-
