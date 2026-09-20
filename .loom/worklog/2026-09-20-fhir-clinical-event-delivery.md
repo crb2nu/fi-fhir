@@ -35,6 +35,18 @@
   target passed against fresh Kafka 3.9.2 and Redis 7.4 containers in 5.781s.
   Temporary Go overlays disabling commits or committing before the handler both
   fail on the intended phase-two sequence assertion. No broker runtime changed.
+- Test synchronization recovery: pipeline 27872 passed the live HAPI, broker,
+  and storage proofs but exposed two scheduling gaps. The sweeper result test
+  now joins `Run` before inspecting its observer. The SSE proof keeps its stream
+  alive through the separately bounded preview request, bounds response-header
+  setup, and preserves the two-second delivery budget and legacy negative
+  control. Temporary overlays delaying the store return reproduce the old
+  sweeper failure; the corrected test passes 1,000 race-enabled iterations.
+  A temporary HTTP harness with an eleven-second preview reproduces the old
+  subscription expiry and passes with the corrected lifetime. The full Go race
+  suite and integration-tagged lint for both packages pass. An isolated remote
+  PostgreSQL fixture did not finish creation, so the live replica proof remains
+  a required CI check, not a claimed local pass.
 - Limitations: official FHIR conformance remains unclaimed. Clinical correction
   identity and literal provider/location references are documented separately
   from retry identity; workflow POST creates remain non-idempotent.
