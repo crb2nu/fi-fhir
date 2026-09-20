@@ -179,6 +179,29 @@ Send to FHIR server:
 | `scopes` | No | OAuth2 scopes (space or comma separated) |
 | `authorization` | No | Custom Authorization header (highest priority) |
 
+**Durable engine (published workflows, Slice 4.1c-c).** Under the durable
+integration engine the `fhir` action carries **no transport configuration**. The
+wire — base URL, credential binding, trust bundle, and whether the destination
+receives FHIR resources at all — is a property of the server-owned destination
+revision (`transport: fhir`, `docs/operations/DESTINATION-IDENTITY.md`), and a
+workflow cannot name a URL. The durable engine therefore **ignores** every key
+in the table above except `destination`: `endpoint`, `operation`, `bundle`,
+`timeout`, `token`, `token_url`, `client_id`, `client_secret`, `scopes`,
+`authorization`, `validate`, `validate_mode`, `allow_warnings`, and `profile`
+take no effect on a published workflow, and the IDE should not offer them there.
+What the durable engine does with a `fhir` action:
+
+- on a route whose event type has a FHIR projection (`patient_admit`,
+  `patient_transfer`, `patient_update`, `patient_discharge`, `lab_result`), it
+  queues one delivery to the named destination; if that destination's revision
+  declares `transport: fhir`, the delivery is a conditional transaction Bundle
+  of US Core resources; if it declares `https` or `kafka`, the delivery is the
+  canonical-event command envelope exactly as for any other action;
+- on any other route, it reports `FHIR_PROJECTION_UNSUPPORTED` on the route at
+  dry-run and at publish and queues nothing for that action.
+
+The legacy engine (`fi-fhir workflow run`) still honours the full table.
+
 **OAuth2 Token Refresh:**
 - Tokens are cached and reused until 60 seconds before expiry
 - If a 401 Unauthorized is received, the cached token is invalidated and a fresh token is fetched

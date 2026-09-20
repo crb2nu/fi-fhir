@@ -127,7 +127,7 @@ func TestTransportRoutesKafkaClassToTheBroker(t *testing.T) {
 	transport := newTransportForTest(t, registry, resolver, recorder)
 
 	owned, err := transport.DeliverDestination(
-		context.Background(), "tenant-a", "attempt-kafka", revision.Reference(), []byte(`{}`),
+		context.Background(), "tenant-a", "attempt-kafka", revision.Reference(), []byte(`{}`), nil,
 	)
 	if owned || err != nil {
 		t.Fatalf("DeliverDestination(kafka) = %v, %v; want not-mine with no error", owned, err)
@@ -150,7 +150,7 @@ func TestTransportFailsClosedOnAnUnresolvableDestination(t *testing.T) {
 	orphan := deployed.Reference()
 	orphan.ArtifactID = "dest-orphan"
 	owned, err := transport.DeliverDestination(
-		context.Background(), "tenant-a", "attempt-orphan", orphan, []byte(`{}`),
+		context.Background(), "tenant-a", "attempt-orphan", orphan, []byte(`{}`), nil,
 	)
 	if !owned {
 		t.Fatal("an unresolvable destination was routed to the broker")
@@ -203,7 +203,7 @@ func TestTransportDeliversUnderTheDeclaredIdentity(t *testing.T) {
 	for index := range statuses {
 		owned, err := transport.DeliverDestination(
 			context.Background(), "tenant-a", fmt.Sprintf("attempt-%d", index),
-			revision.Reference(), []byte(`{"schema":"integration.delivery.v1"}`),
+			revision.Reference(), []byte(`{"schema":"integration.delivery.v1"}`), nil,
 		)
 		if !owned {
 			t.Fatalf("step %d: an https destination was routed to the broker", index)
@@ -281,7 +281,7 @@ func TestTransportRefusesARedirectAndNeverDialsTheTarget(t *testing.T) {
 	}}, recorder)
 
 	owned, err := transport.DeliverDestination(
-		context.Background(), "tenant-a", "attempt-moved", revision.Reference(), []byte(`{}`),
+		context.Background(), "tenant-a", "attempt-moved", revision.Reference(), []byte(`{}`), nil,
 	)
 	var failure *TransportError
 	if !owned || !errors.As(err, &failure) ||
@@ -317,7 +317,7 @@ func TestTransportRefusesAnUntrustedServerCertificate(t *testing.T) {
 	}}, recorder)
 
 	owned, err := transport.DeliverDestination(
-		context.Background(), "tenant-a", "attempt-untrusted", revision.Reference(), []byte(`{}`),
+		context.Background(), "tenant-a", "attempt-untrusted", revision.Reference(), []byte(`{}`), nil,
 	)
 	var failure *TransportError
 	if !owned || !errors.As(err, &failure) ||
@@ -349,7 +349,7 @@ func TestTransportFailsClosedWhenTheCredentialDoesNotResolve(t *testing.T) {
 	transport := newTransportForTest(t, registry, &mapSecretResolver{}, recorder)
 
 	owned, err := transport.DeliverDestination(
-		context.Background(), "tenant-a", "attempt-rotating", revision.Reference(), []byte(`{}`),
+		context.Background(), "tenant-a", "attempt-rotating", revision.Reference(), []byte(`{}`), nil,
 	)
 	var failure *TransportError
 	if !owned || !errors.As(err, &failure) ||
@@ -382,7 +382,7 @@ func TestTransportSurfacesAProvenanceOutage(t *testing.T) {
 	}}, &recordingDeliveryRecorder{err: outage})
 
 	owned, err := transport.DeliverDestination(
-		context.Background(), "tenant-a", "attempt-outage", revision.Reference(), []byte(`{}`),
+		context.Background(), "tenant-a", "attempt-outage", revision.Reference(), []byte(`{}`), nil,
 	)
 	if !owned || !errors.Is(err, outage) {
 		t.Fatalf("provenance outage result owned=%v err=%v, want the outage surfaced", owned, err)
@@ -460,7 +460,7 @@ func TestTransportRecordsProvenanceWhenTheDestinationIsSlow(t *testing.T) {
 
 	owned, err := transport.DeliverDestination(
 		deliverCtx, "tenant-a", "attempt-slow", revision.Reference(),
-		[]byte(`{"schema":"integration.delivery.v1"}`),
+		[]byte(`{"schema":"integration.delivery.v1"}`), nil,
 	)
 
 	if !owned {
@@ -532,7 +532,7 @@ func TestNewTransportRequiresEveryDependency(t *testing.T) {
 	}
 	var nilTransport *Transport
 	if owned, err := nilTransport.DeliverDestination(
-		context.Background(), "tenant-a", "attempt", integration.DestinationRevisionRef{}, nil,
+		context.Background(), "tenant-a", "attempt", integration.DestinationRevisionRef{}, nil, nil,
 	); owned || !errors.Is(err, ErrTransportUnavailable) {
 		t.Fatalf("nil transport = %v, %v", owned, err)
 	}

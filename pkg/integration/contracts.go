@@ -1002,6 +1002,28 @@ var canonicalEventRegistry = map[events.EventType]reflect.Type{
 	events.EventType("related_person"):         reflect.TypeOf(events.RelatedPersonEvent{}),
 }
 
+// DecodeCanonicalEventPayload reverses NewProcessedEvent's projection: it turns
+// the sanitized canonical payload the durable engine stores (PayloadJSON) back
+// into the exact concrete pkg/events value the registry declares for the event
+// type — a pointer to that struct — rejecting unknown fields, duplicate keys,
+// trailing content, and any forbidden raw-source key.
+//
+// It is the one exported door into the decoder, added by Slice 4.1c-c so the
+// FHIR destination projection (internal/integration/fhirout) can map the
+// stored payload without a second decoder. Construction stays sealed:
+// ProcessedEvent values still come only from NewProcessedEvent and
+// UnmarshalJSON.
+func DecodeCanonicalEventPayload(eventType events.EventType, payload json.RawMessage) (any, error) {
+	return decodeCanonicalEventPayload(eventType, payload)
+}
+
+// CanonicalEventRegistered reports whether the event type has a registered
+// canonical schema, which is the precondition for DecodeCanonicalEventPayload.
+func CanonicalEventRegistered(eventType events.EventType) bool {
+	_, registered := canonicalEventRegistry[eventType]
+	return registered
+}
+
 func decodeCanonicalEventPayload(eventType events.EventType, payload json.RawMessage) (any, error) {
 	concreteType, registered := canonicalEventRegistry[eventType]
 	if !registered {

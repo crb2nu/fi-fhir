@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -19,6 +20,7 @@ import (
 	"text/template"
 	"time"
 
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/fhirout"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/fhir"
 )
@@ -744,79 +746,26 @@ func fhirAction(ctx context.Context, event interface{}, config map[string]string
 }
 
 // eventToFHIRResources converts a canonical event to FHIR resources.
+//
+// Since Slice 4.1c-c the typed switch lives in internal/integration/fhirout
+// (MapEvent for this engine, ProjectEvent for the durable `fhir` transport) so
+// the two engines cannot drift on which resources an event becomes. The
+// resources this engine sends are the mapper's exact output — the projection's
+// conditional-write keys and reference rewrites apply only to the durable
+// transport's bundle.
 func eventToFHIRResources(event interface{}, mapper *fhir.USCoreMapper, config map[string]string) ([]fhir.Resource, error) {
-	var resources []fhir.Resource
-
 	// Handle map types (from JSON parsing in workflow engine)
 	if m, ok := event.(map[string]interface{}); ok {
 		return mapEventToFHIR(m, mapper, config)
 	}
 
-	// Handle typed events
-	switch e := event.(type) {
-	case *events.PatientAdmitEvent:
-		patient := mapper.MapPatient(&e.Patient)
-		if patient != nil {
-			resources = append(resources, patient)
+	resources, err := fhirout.MapEvent(event)
+	if err != nil {
+		if errors.Is(err, fhirout.ErrUnsupportedEventType) {
+			return nil, fmt.Errorf("unsupported event type: %T", event)
 		}
-		encounter := mapper.MapEncounter(&e.Encounter, fmt.Sprintf("Patient/%s", e.Patient.MRN))
-		if encounter != nil {
-			resources = append(resources, encounter)
-		}
-
-	case events.PatientAdmitEvent:
-		patient := mapper.MapPatient(&e.Patient)
-		if patient != nil {
-			resources = append(resources, patient)
-		}
-		encounter := mapper.MapEncounter(&e.Encounter, fmt.Sprintf("Patient/%s", e.Patient.MRN))
-		if encounter != nil {
-			resources = append(resources, encounter)
-		}
-
-	case *events.PatientDischargeEvent:
-		patient := mapper.MapPatient(&e.Patient)
-		if patient != nil {
-			resources = append(resources, patient)
-		}
-		encounter := mapper.MapEncounter(&e.Encounter, fmt.Sprintf("Patient/%s", e.Patient.MRN))
-		if encounter != nil {
-			resources = append(resources, encounter)
-		}
-
-	case events.PatientDischargeEvent:
-		patient := mapper.MapPatient(&e.Patient)
-		if patient != nil {
-			resources = append(resources, patient)
-		}
-		encounter := mapper.MapEncounter(&e.Encounter, fmt.Sprintf("Patient/%s", e.Patient.MRN))
-		if encounter != nil {
-			resources = append(resources, encounter)
-		}
-
-	case *events.LabResultEvent:
-		report, observations := mapper.MapLabResult(e)
-		if report != nil {
-			resources = append(resources, report)
-		}
-		for _, obs := range observations {
-			resources = append(resources, obs)
-		}
-
-	case events.LabResultEvent:
-		report, observations := mapper.MapLabResult(&e)
-		if report != nil {
-			resources = append(resources, report)
-		}
-		for _, obs := range observations {
-			resources = append(resources, obs)
-		}
-
-	default:
-		// Try to extract patient data from generic event
-		return nil, fmt.Errorf("unsupported event type: %T", event)
+		return nil, err
 	}
-
 	return resources, nil
 }
 

@@ -204,7 +204,7 @@ type stubDestinationTransport struct {
 }
 
 func (s *stubDestinationTransport) DeliverDestination(
-	context.Context, string, string, integration.DestinationRevisionRef, []byte,
+	context.Context, string, string, integration.DestinationRevisionRef, []byte, []byte,
 ) (bool, error) {
 	return s.owned, s.err
 }

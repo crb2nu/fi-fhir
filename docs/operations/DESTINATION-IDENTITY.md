@@ -3,23 +3,30 @@
 Slice 4.1c-a gives a delivery destination an immutable, content-addressed
 revision and adds one fail-closed `integration.deliver` authorization decision to
 the durable dispatch path. Slice 4.1c-b makes the `https` transport on that
-revision execute.
+revision execute. Slice 4.1c-c adds the `fhir` transport: the engine projects
+the stored canonical event into US Core FHIR R4 resources and delivers them as
+one conditional transaction Bundle.
 
 ## What the engine does and does not do
 
-**The engine contacts `https`-transport destinations, and only those.** The
-destination revision's `transport` field is the switch:
+**The engine contacts `https`- and `fhir`-transport destinations, and only
+those.** The destination revision's `transport` field is the switch:
 
 | `transport` | What `Dispatcher.RunOnce` does |
 |---|---|
 | `kafka` | Publishes one command to the single constant Kafka topic `integration.delivery.v1`. An external consumer of that topic performs the destination call. The engine contacts nothing. |
-| `https` | Contacts the destination itself over TLS, once per claimed attempt, under the identity the destination revision declares, and completes the lease through the same `MarkPublished`/`MarkFailed` the broker path uses. |
+| `https` | Contacts the destination itself over TLS, once per claimed attempt, under the identity the destination revision declares, and completes the lease through the same `MarkPublished`/`MarkFailed` the broker path uses. The body is the `integration.delivery.v1` command envelope. |
+| `fhir` | Projects the stored canonical event into US Core resources — Patient + Encounter for admit/transfer/update/discharge, DiagnosticReport + Observations for a lab result — and POSTs one transaction Bundle of **conditional updates** to the declared base URL at `application/fhir+json`, over the same TLS, identity, lease, and provenance discipline as `https`. See "The FHIR transport (4.1c-c)". |
 
-`webhook`, `fhir`, `database`, and `file` remain plan-level action *classes*
-validated in `internal/integration/processor/workflow_plan.go`. None of them is
-a transport, and a workflow cannot name a URL: the published DSL restricts
-destination names to `^[a-z][a-z0-9_.-]*$`. **The transport is a property of the
-server-owned destination revision, never of the workflow.**
+`webhook`, `database`, and `file` remain plan-level action *classes* validated
+in `internal/integration/processor/workflow_plan.go`. So does `fhir`: the action
+type selects nothing about the wire — the destination revision's `transport`
+does — and since 4.1c-c it carries exactly one plan-time check,
+`FHIR_PROJECTION_UNSUPPORTED`, reported at dry-run and publish when its route's
+event type has no FHIR projection (nothing is queued for that action). None of
+them is a transport, and a workflow cannot name a URL: the published DSL
+restricts destination names to `^[a-z][a-z0-9_.-]*$`. **The transport is a
+property of the server-owned destination revision, never of the workflow.**
 
 Both halves are asserted, not assumed.
 
@@ -48,7 +55,8 @@ supplies the consumer.
 > destination in its registry **starts contacting that destination** on upgrade
 > to 4.1c-b. Before it, the field was inert. The registry is server-owned, so
 > declaring `https` is an explicit operator act — but check the registry before
-> upgrading.
+> upgrading. `transport: fhir` was **refused at load** before 4.1c-c, so no
+> pre-existing registry can carry it; declaring it is a new, deliberate act.
 
 ## Contract
 
@@ -60,8 +68,8 @@ A destination revision (`internal/integration/destination/revision.go`) carries:
 | `artifact_id`, `revision_id` | Artifact identity; the attempt reference must match exactly |
 | `destination_id` | Runtime destination identity, the analogue of `source_id` |
 | `class` | `production` or `sandbox` |
-| `transport` | `kafka` or `https` |
-| `kafka` / `https` | Non-secret transport policy. HTTPS carries a URL, method, and **binding names** |
+| `transport` | `kafka`, `https`, or `fhir` |
+| `kafka` / `https` / `fhir` | Exactly one non-secret transport policy, the one the transport names. HTTPS carries a URL, method, and **binding names**; FHIR carries a `base_url` (https, no query, no fragment), `interaction` (the closed set `transaction`), and the same **binding names** |
 | `identity` | Optional client subject and its grants |
 | `digest` | SHA-256 over every semantic field above, domain-separated |
 
@@ -107,13 +115,34 @@ authored over GraphQL, never sender-supplied.
         "grants": ["integration.destination.client"]
       },
       "digest": "sha256:…"
+    },
+    {
+      "schema_version": "1",
+      "artifact_id": "dest-fhir-primary",
+      "revision_id": "destination-1",
+      "destination_id": "fhir-primary",
+      "class": "production",
+      "transport": "fhir",
+      "fhir": {
+        "base_url": "https://fhir.example.org/r4",
+        "token_binding": "alpha-token",
+        "interaction": "transaction"
+      },
+      "identity": {
+        "subject": "fhir-client",
+        "grants": ["integration.destination.client"]
+      },
+      "digest": "sha256:…"
     }
   ]
 }
 ```
 
 Every binding a destination names must be present in `secret_bindings`, and the
-document is rejected at load otherwise.
+document is rejected at load otherwise. Adding the `fhir` policy moved no
+existing digest: every policy is an `omitempty` member of the digested bytes,
+and `TestRevisionDigest_DeployedTransportsArePinned` pins one deployed `kafka`
+and one `https` digest as constants.
 
 ## Modes
 
@@ -279,6 +308,81 @@ destination from a startup configuration error into a runtime dead letter.
 Recorded in `.loom/40-decisions.md` (2026-08-09) with a named follow-up
 ("broker-free delivery worker").
 
+## The FHIR transport (4.1c-c)
+
+The `fhir` transport is a second transport kind on the revision, not a flag on
+the `https` policy (`.loom/34`, Option A; decision 2026-09-08). It shares the
+https transport's client — `newDestinationClient` in
+`internal/integration/destination/transport.go` builds one object for both, so
+the TLS floor, declared roots, no proxy, redirect refusal, per-dispatch
+credential resolution, lease bound, and provenance write are the same code, not
+a copy — and differs in exactly the body it sends and the response it reads.
+
+**What is sent.** `internal/integration/fhirout` decodes the outbox row's
+`payload_json` through `pkg/integration.DecodeCanonicalEventPayload` — the exact
+struct the mapper consumes, proven byte-for-byte by
+`TestFHIRDestination_DurablePayloadRoundTripsToMapperInput` — maps it with
+`pkg/fhir.USCoreMapper`, and builds one transaction Bundle:
+
+| Event type | Resources |
+|---|---|
+| `patient_admit`, `patient_transfer`, `patient_update`, `patient_discharge` | US Core Patient, US Core Encounter |
+| `lab_result` | US Core DiagnosticReport (lab) + one US Core Observation (lab) per result; the Patient is referenced conditionally, not written |
+| any other registered type | no projection — `FHIR_PROJECTION_UNSUPPORTED` at plan time, `DELIVERY_FHIR_PROJECTION_FAILED` if one reaches dispatch |
+
+This is the legacy engine's own event→resource switch, moved: `internal/workflow`'s
+`fhir` action calls `fhirout.MapEvent` and the durable transport calls
+`fhirout.Project`, so the two engines cannot drift on which resources an event
+becomes.
+
+Every entry is a **conditional update** — `PUT <Type>?identifier=<system>|<value>`
+with a deterministic `urn:uuid:` fullUrl — never a `POST`. The outbox is
+at-least-once and no FHIR server honours `Idempotency-Key`, so a `POST` would
+create a second Patient on the first lease reclaim;
+`TestFHIRDestination_RedeliveryIsIdempotent` delivers the same attempt twice
+and requires one of each, and its negative control (`fhirpostbundle` tag)
+requires the duplicate back. The key is never systemless (`?identifier=|MRN-1`
+matches any system): it is the canonical identifier's own system when the
+source profile mapped an assigning authority, and otherwise the deployment-owned
+`urn:fi-fhir:source:<source_id>` — HL7's "assigned by the sending facility",
+named rather than guessed (decision 2026-09-08). A resource with no identifier
+value at all is a **projection error**, terminal, with no request made.
+References between projected resources point at entry fullUrls; the lab
+projection's Patient is a conditional reference. Provider references are
+delivered literally (`Practitioner/<id>`) — a v1 limitation.
+
+Headers: `Content-Type: application/fhir+json; charset=utf-8`,
+`Accept: application/fhir+json`, `Prefer: return=minimal`, the `Authorization`
+bearer from `token_binding`, and the same `Idempotency-Key` as https.
+
+**Outcome mapping.** As https, plus what a transaction response adds:
+
+| Response | Failure code | Retryable | Durable effect |
+|---|---|---|---|
+| `2xx` with every entry `2xx` | — | — | `MarkPublished` |
+| `2xx` with any entry not `2xx` | `DELIVERY_DESTINATION_REJECTED` | no | Dead letter; `fhir_outcome_codes_advisory = entry-4xx` etc. |
+| `408`, `429`, any `5xx` | `DELIVERY_DESTINATION_UNAVAILABLE` | yes | Bounded retry |
+| Any other `4xx` | `DELIVERY_DESTINATION_REJECTED` | no | Dead letter; OperationOutcome **issue codes** recorded |
+| Event cannot be projected or keyed | `DELIVERY_FHIR_PROJECTION_FAILED` | no | Dead letter; **no request is made**, no credential resolved |
+| redirect, dial/TLS/timeout, credential, unresolvable destination | as https | as https | as https |
+
+**PHI posture of the response.** Unlike https, the fhir transport parses the
+body — for exactly two things: per-entry `response.status` and OperationOutcome
+`issue[].code`. `diagnostics`, `details`, `expression`, and `location` are never
+read: a FHIR server's diagnostics echo the request, and the ledger holds no
+clinical content. Codes are sanitised to `[a-z-]`, bounded, sorted, and
+deduplicated before they reach `fhir_outcome_codes_advisory`;
+`TestFHIRTransportRecordsIssueCodesAndNeverDiagnostics` feeds a diagnostics
+string full of identifiers and requires none of it in the record.
+
+**Provenance (destination migration `0003`).** A fhir delivery is a row in
+`integration_destination_deliveries` with `transport = 'fhir'` and three extra
+server-owned facts: `fhir_resource_types` (comma-joined, bundle order),
+`fhir_entry_count`, and the advisory issue codes above. The migration is
+additive with a `DEFAULT` on every `NOT NULL`, and re-declares the transport
+CHECK as `IN ('https','fhir')`, so a binary one version behind still writes its
+own `https` rows (`TestFHIRDestination_ProvenanceLedgerRecordsFHIRDeliveries`).
+
 ## Grant naming
 
 `integration.deliver` is the action; `integration.destination.client` is the
@@ -358,12 +462,14 @@ export POSTGRES_TEST_URL=... KAFKA_TEST_BROKERS=...
 make delivery-identity        # both 4.1c-a proofs
 make destination-transport    # both 4.1c-b proofs, plus the negative control
 make delivery-reliability     # Slice 2.3's proof must still pass
+make fhir-destination         # the 4.1c-c gate, both kill-tests, the digest pins, the ledger proof
+make fhir-destination-negative-control   # the POST builder must duplicate the Patient
 ```
 
-CI runs them as the blocking jobs `test:delivery-identity` and
-`test:destination-transport`. Each one's first step asserts that **both** of its
-test names exist, so a renamed or deleted proof turns the job red rather than
-green.
+CI runs them as the blocking jobs `test:delivery-identity`,
+`test:destination-transport`, and `test:fhir-destination`. Each one's first
+step asserts that its test names exist, so a renamed or deleted proof turns the
+job red rather than green.
 
 `test:destination-transport` also runs the kill-test's negative control in the
 same invocation: the whole scenario repeats against a router that reports it owns
@@ -386,6 +492,13 @@ because it would mean the router is not on the dispatch path.
 - **Before upgrading to 4.1c-b, read your registry.** Any destination already
   declaring `transport: https` starts receiving real traffic; the field was inert
   before.
+- A `DELIVERY_FHIR_PROJECTION_FAILED` dead letter means the stored event has no
+  FHIR projection or a projected resource has nothing to key a conditional
+  write on — most often an admit whose PV1 carried no visit number. The payload
+  will not change on retry; fix the source feed or the source profile, then
+  replay. Under a `fhir` destination, feed several sources into one FHIR server
+  only with distinct `source_id`s: bare identifiers are keyed under
+  `urn:fi-fhir:source:<source_id>`.
 - Rotating a destination credential or trust bundle is a write in place. It takes
   effect on the next dispatch — no restart, no signal, no cache to clear. Write
   atomically (write-then-rename) so a dispatch cannot read a half-written file;

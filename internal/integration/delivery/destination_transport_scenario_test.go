@@ -603,7 +603,7 @@ func assertDeliveryProvenance(db *sql.DB, attemptID string, want []string) error
 type ownsNothingTransport struct{}
 
 func (ownsNothingTransport) DeliverDestination(
-	context.Context, string, string, integration.DestinationRevisionRef, []byte,
+	context.Context, string, string, integration.DestinationRevisionRef, []byte, []byte,
 ) (bool, error) {
 	return false, nil
 }

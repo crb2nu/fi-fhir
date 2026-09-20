@@ -44,6 +44,8 @@ test:docs-status	test	true
 test:durable-submission	test	false
 test:e2e	test	false
 test:event-backends	test	false
+test:fhir-destination	test	false
+test:fhir-structural	test	false
 test:golden-path-001	test	false
 test:integration	test	false
 test:integration-session	test	false
