@@ -45,3 +45,10 @@
   aggregate ten-minute timeout while running its dump/restore subprocess. The
   migration target now allows twenty minutes and emits per-test progress;
   assertions, negative controls, and measured recovery objectives are unchanged.
+- The later UI/SDK jobs in pipeline 27746 exposed a partial-cache failure:
+  metadata probes succeeded but `npm i -g` stalled for more than twelve minutes.
+  Node CI now uses public npm for both metadata and tarballs; probing only the
+  metadata endpoint did not establish download availability. Versions,
+  integrity-checked lockfiles, and required tests remain unchanged. All backend,
+  FHIR, E2E, migration, observability, and MinIO-backed integration proofs passed
+  on the preceding application-identical candidate.

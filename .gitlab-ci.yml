@@ -206,14 +206,10 @@ default:
   before_script:
     - node --version
     - npm --version
-    # A stalled cache must not block all Node jobs. Probe the exact metadata
-    # needed for the pinned npm install before falling back to the upstream.
-    - |
-      if ! npm view "npm@${NPM_VERSION}" version --fetch-timeout=10000 --fetch-retries=0 >/dev/null 2>&1; then
-        echo "npm cache unavailable; using the public registry"
-        export npm_config_registry=https://registry.npmjs.org
-        export NPM_CONFIG_REGISTRY=https://registry.npmjs.org
-      fi
+    # Verdaccio can serve metadata while its tarball downloads hang. Use the
+    # upstream for both operations; lockfiles still verify package integrity.
+    - export npm_config_registry=https://registry.npmjs.org
+    - export NPM_CONFIG_REGISTRY=https://registry.npmjs.org
     # Work around occasional npm v10.9.4 failures in k8s CI ("Exit handler never called!").
     - npm i -g npm@${NPM_VERSION}
     - npm --version
