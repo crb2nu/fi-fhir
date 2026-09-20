@@ -17,6 +17,14 @@
   legacy HTTP action, fixtures, regression tests, live E2E dependency, and
   operational documentation form one delivery contract. No schema migration,
   dependency upgrade, or UI change is included.
+- CI recovery: pipeline 27847 passed the live HAPI gate without skips and all
+  693 UI tests. Its remaining scanner failed under the 4 GiB container limit;
+  Kubernetes confirmed `OOMKilled` on job 289497 after one bounded retry.
+  The exact scanner, govulncheck v1.6.0, completed the full Linux/amd64 scan
+  locally with `GOMEMLIMIT=5GiB`, reporting zero reachable vulnerabilities and
+  4,544,724,992 bytes peak RSS. The scanner job now has a 6 GiB container limit
+  and that 5 GiB Go soft limit. Scan scope, blocking behavior, and retry policy
+  remain unchanged. Job inventory and whitespace checks pass.
 - Limitations: official FHIR conformance remains unclaimed. Clinical correction
   identity and literal provider/location references are documented separately
   from retry identity; workflow POST creates remain non-idempotent.
