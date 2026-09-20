@@ -83,8 +83,9 @@ US Core publisher is expected to emit — but the reason has narrowed from "we
 cannot verify a version" to "we choose not to assert one".
 
 Running the structural validator over the mapper's own generated fixtures found
-nine cardinality violations across six of the twenty-five files, two of which
-break base R4 rather than a US Core tightening. They are enumerated in
+seven cardinality violations across five of the twenty-five files after MR !211
+fixed medication substitution serialization. The DocumentReference content gap
+still violates base R4 as well as US Core. They are enumerated in
 `docs/planning/FHIR-CONFORMANCE-MATRIX.md` §5.1, held to exact equality by
 `make fhir-structural`, and are the subject of the next mapper slice. A reader
 sizing up this row should read that table before quoting the standards row.
@@ -132,9 +133,10 @@ The resolution:
   permanently red or calibrated into meaninglessness — but allocation counts do
   not depend on the machine, so the durable accept path is now gated on those,
   blocking, in the ordinary pool. Wall-clock and throughput are measured by a
-  job that only runs on a pinned runner, which does not exist yet.
+  job restricted to the pinned `fi-fhir-perf` runner identified in Sprint 6
+  planning. Its presence is not certification evidence.
 
-Until that runner exists and archives a report, **no document may describe the
+Until an accepted run archives the required measurements, **no document may describe the
 chart defaults, or the reference profile, as proven capacity.** The profile is
 the environment a future measurement must use; it is not a claim that the
 software performs at that scale.
@@ -184,7 +186,7 @@ keeps them apart on purpose.
 | # | Budget | Status | What exists, and what is missing |
 |---|---|---|---|
 | 1 | Authenticated MLLP and HTTP durable-accept latency (p95 ≤ 250 ms, p99 ≤ 500 ms) | **Harnessed, uncertified** | `internal/integration/perf` benchmarks both paths against a real PostgreSQL, and `bench-check -set=durable` gates their `allocs/op` with `allow_failure: false`. Wall-clock is measured but **not** asserted anywhere: a millisecond ceiling calibrated for a pool spanning 5.3×, in a 1-CPU pod sharing space with a database container, is not evidence. Certification needs a pinned runner. |
-| 2 | One-hour steady-state throughput on the reference profile | **Harnessed, uncertified, and additionally blocked** | Same harness, same gate. Blocked twice over: on the pinned runner, and on slice 4.4e. Until the MLLP token bucket is per deployment rather than per replica, a 250 msg/s run on two replicas against a revision declaring 250 msg/s admits up to 500 and measures the deployment topology instead of the declared policy. |
+| 2 | One-hour steady-state throughput on the reference profile | **Harnessed, uncertified** | Slice 4.4e's per-deployment MLLP rate quota has merged. The remaining proof is a one-hour run on the pinned reference profile; ordinary CI and allocation ceilings do not certify steady-state throughput. |
 | 3 | 1-GiB batch import peak memory above idle | **Harnessed, uncertified** | `perf.HeapSampler` measures peak heap above an idle baseline; `runtime.ReadMemStats` appeared nowhere in first-party code before it. It reports `HeapAlloc`, not RSS: a Go process's RSS includes heap the collector has freed and not returned to the OS, so RSS is a property of GC timing as much as of the workload. A true RSS figure has to come from the pinned-runner job reading the cgroup. |
 | 4 | Recovery time objective | **Not started — slice 4.4c** | 4.4a proved a `pg_dump`/restore round-trip preserves every durable row and trigger. It measured no recovery *time*. |
 | 5 | Recovery point objective | **Known unachievable as configured — slice 4.4c** | `PRODUCTION-HARDENING.md` states it directly: logical dumps cannot meet a minutes-scale RPO, and nothing in this repository configures WAL archiving or PITR. |
@@ -199,14 +201,12 @@ detects a regression of some 40 allocations per message. It will not notice one.
 It is a regression detector for the thing that *causes* latency, not a
 measurement of latency.
 
-**What unblocks certification.** A GitLab runner registered in
-`platform/gitops` carrying the tag `fi-fhir-perf`, with at least 4 CPU and 8 GiB
-available to the job. The repository side is already written and inert: the job
-exists, carries the tag, is `when: manual` and `allow_failure: true`, and stays
-invisible in a normal pipeline until the runner is there. It archives
-`performance-report.json`, whose `certified` field may only be set true by a run
-that happened on that tag. Nothing else in this repository is waiting on
-anything.
+**What unblocks certification.** Run the existing manual
+`test:performance-profile` job on the `fi-fhir-perf` runner with the documented
+4 CPU / 8 GiB reference profile and retain its `performance-report.json`.
+`FI_FHIR_PERF_RUNNER=1` makes the job available; runner registration and a green
+ordinary MR pipeline do not supply the required measurements. The Sprint 6
+planning record identifies runner id 8; S6-B certification remains open.
 
 Until those gates pass, documentation must describe individual capabilities and
 their evidence rather than label the whole product “1.0 certified,” “HIPAA

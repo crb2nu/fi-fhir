@@ -3,13 +3,26 @@
 > **Single source of truth** for component maturity, test coverage, and freshness.
 > Refresh with `make docs-status` after significant merges.
 
+## Delivery update — 2026-09-20
+
+The event backends and FHIR delivery changes are merged in MRs !210 and !211.
+The final feature pipeline passed 53 automatic jobs, including live HAPI
+acceptance (fourteen top-level tests, nine FHIR subtests, no skips), broker
+acknowledgment/replay, PostgreSQL/MinIO, and current/legacy two-replica proofs.
+[Internal CI evidence](https://gitlab.flexinfer.ai/libs/fi-fhir/-/pipelines/27875).
+
+The component table retains its dated coverage measurements; this documentation
+refresh did not remeasure every package. FHIR structural validation still leaves
+seven pinned fixture violations, and official conformance remains unclaimed.
+See the [roadmap](../ROADMAP.md) and [FHIR output guide](user-guide/fhir-output.md).
+
 ## Summary
 
 | Maturity       | Count | Description                                                                                                                                                         |
 | -------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Production** | 22    | Stable, tested, deployed                                                                                                                                            |
-| **Beta**       | 10    | Feature-complete, needs coverage or hardening                                                                                                                       |
-| **Alpha**      | 5     | Functional but limited testing or scope                                                                                                                             |
+| **Production** | 33    | Stable, tested, deployed                                                                                                                                            |
+| **Beta**       | 11    | Feature-complete, needs coverage or hardening                                                                                                                       |
+| **Alpha**      | 9     | Functional but limited testing or scope                                                                                                                             |
 | **Planned**    | 2     | Designed but not yet implemented (tracked via [#7](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/7), [#8](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/8)) |
 
 ---
@@ -31,7 +44,7 @@
 | ------------------------ | -------------------------------- | ---------- | -------- | ------------------------------------------------ | ------------ |
 | Events (canonical model) | `pkg/events/`                    | Production | 80.5%    | Immutable semantic event types                   | 2026-03-09   |
 | Event Sourcing           | `pkg/eventsourcing/`             | Production | 72.7%    | Store, projections, snapshots, sagas, outbox     | 2026-02-27   |
-| Event Backends | `pkg/eventbus/` | Beta | — | Kafka, Redis Streams, Pub/Sub, shared handlers and workflow consumers | 2026-09-19 |
+| Event Backends | `pkg/eventbus/` | Beta | — | Kafka, Redis Streams, Pub/Sub; shared handlers, workflow consumers, outbox adapter | 2026-09-20 |
 | ES Projections           | `pkg/eventsourcing/projections/` | Production | 88.9%    | Patient timeline, stats, active encounters       | 2026-01-14   |
 | Config                   | `pkg/config/`                    | Production | 89.3%    | Layered loading (defaults → file → env), secrets | 2026-02-27   |
 | Integration Contracts    | `pkg/integration/`               | Alpha      | 89.8%    | Exact provenance plus deployment policy and strict runtime invariants | 2026-07-14 |
@@ -55,6 +68,7 @@
 | Component             | Path                              | Maturity   | Coverage | Notes                                            | Last Updated |
 | --------------------- | --------------------------------- | ---------- | -------- | ------------------------------------------------ | ------------ |
 | Workflow Engine       | `internal/workflow/`              | Production | 78.6%    | Actions plus strict DSL v1 and pure planner      | 2026-07-13   |
+| FHIR Delivery | `internal/integration/fhirout/` | Beta | — | Eleven event types; conditional durable writes, workflow selection and transaction references | 2026-09-20 |
 | Integration Processor | `internal/integration/processor/` | Alpha      | 84.5%    | Shared A01 preview/production kernel plus PostgreSQL atomic admission | 2026-07-14 |
 | Integration Lifecycle | `internal/integration/lifecycle/` | Alpha      | —        | PostgreSQL versioned state, immutable releases, deployed-only MLLP admission | 2026-07-15 |
 | HL7v2 MLLP Ingress    | `internal/integration/mllp/`      | Alpha      | —        | Lifecycle-gated durable ACK, TLS/client/capacity bounds; GitOps pending | 2026-07-15 |
