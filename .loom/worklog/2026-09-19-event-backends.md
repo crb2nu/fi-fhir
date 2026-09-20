@@ -40,3 +40,8 @@
   121 ms. Node setup now probes the pinned npm metadata with a ten-second bound
   and no retries, falling back to the public registry on failure. npm version,
   lockfiles, and required checks stay pinned and enforced.
+- Sprint 6's previous migration failure (job 263481, pipeline 25993) reached
+  the fourth restore-attribution proof after about eight minutes, then hit the
+  aggregate ten-minute timeout while running its dump/restore subprocess. The
+  migration target now allows twenty minutes and emits per-test progress;
+  assertions, negative controls, and measured recovery objectives are unchanged.

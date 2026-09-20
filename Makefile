@@ -265,8 +265,11 @@ mllp-rate-quota:
 # default PATH has the wrong major (macOS: brew install postgresql@16).
 #
 # Requires POSTGRES_TEST_URL and fails rather than skipping in CI.
+# Four proofs include multiple full dump/restore passes. CI job 263481 reached
+# the final attribution control after eight minutes and hit the aggregate ten-
+# minute cap; allow the suite to finish without changing its recovery measures.
 migration-compatibility:
-	go test -tags=integration -race -count=1 -timeout=600s \
+	go test -tags=integration -race -count=1 -timeout=1200s -v \
 		-run '^(TestMigrationCompatibility_(ConcurrentReplicaMigrationRollbackAndRestore|ExportInsertShapeSurvivesOneVersionRollback|NegativeControls)|TestChaosRecovery_RestoreProofAssertionsAreTriggerAttributed)$$' \
 		./internal/integration/migrationcompat
 
