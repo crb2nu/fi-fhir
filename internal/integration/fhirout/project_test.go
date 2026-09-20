@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -114,7 +115,7 @@ func TestProjectAdmissionKeysAndConditionalBundle(t *testing.T) {
 			t.Fatalf("entry %d fullUrl = %q, want %q", index, entry.FullURL, resource.FullURL)
 		}
 		if entry.Request == nil || entry.Request.Method != http.MethodPut ||
-			entry.Request.URL != resource.Type+"?identifier="+resource.Key.System+"|"+resource.Key.Value {
+			entry.Request.URL != resource.Type+"?identifier="+url.QueryEscape(resource.Key.System+"|"+resource.Key.Value) {
 			t.Fatalf("entry %d request = %+v", index, entry.Request)
 		}
 		if !bytes.HasPrefix(entry.Resource, []byte(`{"resourceType":"`+resource.Type+`"`)) {
@@ -192,7 +193,7 @@ func TestProjectLabResultReferences(t *testing.T) {
 	var reportBody map[string]any
 	_ = json.Unmarshal(bundle.Entry[0].Resource, &reportBody)
 	subject, _ := reportBody["subject"].(map[string]any)
-	if reference, _ := subject["reference"].(string); reference != "Patient?identifier=urn:fi-fhir:source:lab-east|MRN-000123" {
+	if reference, _ := subject["reference"].(string); reference != "Patient?identifier="+url.QueryEscape("urn:fi-fhir:source:lab-east|MRN-000123") {
 		t.Fatalf("report subject = %q, want a conditional Patient reference", reference)
 	}
 	results, _ := reportBody["result"].([]any)

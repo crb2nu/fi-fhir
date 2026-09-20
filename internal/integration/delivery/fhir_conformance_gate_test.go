@@ -7,6 +7,7 @@ import (
 	"go/token"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -231,12 +232,15 @@ func TestFHIRDestination_DurableEngineDeliversFHIRResource(t *testing.T) {
 
 // fhirGateConditionalKey parses `<Type>?identifier=<system>|<value>`.
 func fhirGateConditionalKey(requestURL, resourceType string) (system, value string, ok bool) {
-	prefix := resourceType + "?identifier="
-	if !strings.HasPrefix(requestURL, prefix) {
+	parsed, err := url.Parse(requestURL)
+	if err != nil || parsed.Path != resourceType || parsed.Fragment != "" {
 		return "", "", false
 	}
-	token := strings.TrimPrefix(requestURL, prefix)
-	return fhirSplitIdentifierToken(token)
+	query, err := url.ParseQuery(parsed.RawQuery)
+	if err != nil || len(query) != 1 || len(query["identifier"]) != 1 {
+		return "", "", false
+	}
+	return fhirSplitIdentifierToken(query.Get("identifier"))
 }
 
 func fhirGateResourceHasIdentifier(resource map[string]any, system, value string) bool {

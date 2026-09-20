@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"strings"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/fhir"
 )
@@ -13,7 +15,11 @@ import (
 // resolves against its own store. It is used both as an entry's request URL
 // and as a reference to a resource that is not in the bundle.
 func ConditionalReference(resourceType string, key fhir.Identifier) string {
-	return resourceType + "?identifier=" + key.System + "|" + key.Value
+	// FHIR token escaping precedes URL encoding; generated observation keys
+	// contain #, which otherwise becomes a URL fragment.
+	escape := strings.NewReplacer(`\`, `\\`, `,`, `\,`, `$`, `\$`, `|`, `\|`)
+	token := escape.Replace(key.System) + "|" + escape.Replace(key.Value)
+	return resourceType + "?identifier=" + url.QueryEscape(token)
 }
 
 // CreateConditionalTransactionBundle builds the transaction Bundle a
