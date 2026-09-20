@@ -6,6 +6,7 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -15,6 +16,9 @@ import (
 func TestLiveEventBackends(t *testing.T) {
 	for _, driver := range []string{"kafka", "redis"} {
 		t.Run(driver, func(t *testing.T) {
+			const phaseTimeout = 2 * time.Minute
+			ctx, cancel := context.WithTimeout(context.Background(), phaseTimeout)
+			defer cancel()
 			opts := map[string]string{"group": "eventbus-" + uuid.NewString()}
 			if driver == "kafka" {
 				opts["brokers"] = os.Getenv("EVENTBUS_KAFKA_BROKERS")
@@ -27,16 +31,16 @@ func TestLiveEventBackends(t *testing.T) {
 					t.Skip("EVENTBUS_REDIS_URL is not set")
 				}
 			}
-			backend, err := Open(context.Background(), driver, opts)
+			backend, err := Open(ctx, driver, opts)
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, backend.Close()) })
 			topic := "fi-fhir-eventbus-" + uuid.NewString()
 			if driver == "kafka" {
 				admin := kadm.NewClient(backend.(*kafkaBackend).client)
-				_, err = admin.CreateTopic(context.Background(), 1, 1, nil, topic)
+				_, err = admin.CreateTopic(ctx, 1, 1, nil, topic)
 				require.NoError(t, err)
 			}
-			assertBackendAcknowledgment(t, backend, topic, topic)
+			assertBackendAcknowledgment(t, backend, topic, topic, phaseTimeout)
 		})
 	}
 }

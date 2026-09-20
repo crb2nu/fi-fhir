@@ -25,6 +25,16 @@
   4,544,724,992 bytes peak RSS. The scanner job now has a 6 GiB container limit
   and that 5 GiB Go soft limit. Scan scope, blocking behavior, and retry policy
   remain unchanged. Job inventory and whitespace checks pass.
+- Broker proof recovery: replacement pipeline 27869 exposed the live Kafka
+  acknowledgment test exhausting a shared 30-second deadline (job 289550).
+  Publishing and each consumer restart now receive separate bounded budgets;
+  live phases allow two minutes within the unchanged 180-second suite limit.
+  The final replay cancels on delivery and asserts `context.Canceled`, replacing
+  a two-second startup/polling window. Exact replay sequences remain required.
+  The race suite and package lint pass, and the exact `make event-backends`
+  target passed against fresh Kafka 3.9.2 and Redis 7.4 containers in 5.781s.
+  Temporary Go overlays disabling commits or committing before the handler both
+  fail on the intended phase-two sequence assertion. No broker runtime changed.
 - Limitations: official FHIR conformance remains unclaimed. Clinical correction
   identity and literal provider/location references are documented separately
   from retry identity; workflow POST creates remain non-idempotent.
