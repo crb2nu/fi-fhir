@@ -179,6 +179,29 @@ Send to FHIR server:
 | `scopes` | No | OAuth2 scopes (space or comma separated) |
 | `authorization` | No | Custom Authorization header (highest priority) |
 
+**Durable engine (published workflows, Slice 4.1c-c).** Under the durable
+integration engine the `fhir` action carries **no transport configuration**. The
+wire — base URL, credential binding, trust bundle, and whether the destination
+receives FHIR resources at all — is a property of the server-owned destination
+revision (`transport: fhir`, `docs/operations/DESTINATION-IDENTITY.md`), and a
+workflow cannot name a URL. The durable engine therefore **ignores** every key
+in the table above except `destination`: `endpoint`, `operation`, `bundle`,
+`timeout`, `token`, `token_url`, `client_id`, `client_secret`, `scopes`,
+`authorization`, `validate`, `validate_mode`, `allow_warnings`, and `profile`
+take no effect on a published workflow, and the IDE should not offer them there.
+What the durable engine does with a `fhir` action:
+
+- on a route whose event type has a FHIR projection (`patient_admit`,
+  `patient_transfer`, `patient_update`, `patient_discharge`, `lab_result`), it
+  queues one delivery to the named destination; if that destination's revision
+  declares `transport: fhir`, the delivery is a conditional transaction Bundle
+  of US Core resources; if it declares `https` or `kafka`, the delivery is the
+  canonical-event command envelope exactly as for any other action;
+- on any other route, it reports `FHIR_PROJECTION_UNSUPPORTED` on the route at
+  dry-run and at publish and queues nothing for that action.
+
+The legacy engine (`fi-fhir workflow run`) still honours the full table.
+
 **OAuth2 Token Refresh:**
 - Tokens are cached and reused until 60 seconds before expiry
 - If a 401 Unauthorized is received, the cached token is invalidated and a fresh token is fetched
@@ -1340,7 +1363,7 @@ fi-fhir workflow run --config workflow.yaml events.json
 fi-fhir workflow validate workflow.yaml
 
 # Dry-run to see what would happen
-fi-fhir workflow dry-run --config workflow.yaml message.hl7
+fi-fhir workflow dry-run --config workflow.yaml events.json
 
 # Combined parse + workflow
 fi-fhir parse -f hl7v2 message.hl7 | fi-fhir workflow run --config workflow.yaml -
@@ -1878,12 +1901,22 @@ type ValidationError struct {
 fi-fhir workflow validate workflow.yaml
 
 # Output:
-# ERROR [MISSING_FHIR_ENDPOINT]: routes[0].actions[0].endpoint - FHIR action requires endpoint
-# WARN [NO_FHIR_AUTH]: routes[0].actions[0] - No authentication configured for FHIR action
-# Workflow configuration invalid: 1 error(s), 1 warning(s)
+# Validation diagnostics:
+#   error [MISSING_FHIR_ENDPOINT] routes[0].actions[0].endpoint: FHIR action requires endpoint
+#   warning [NO_FHIR_AUTH] routes[0].actions[0]: No authentication configured for FHIR action
+# Error: workflow validation failed
 ```
 
-**Implementation:** `internal/workflow/validate.go`, `internal/workflow/validate_test.go`
+The CLI calls this validator after the structural checks in `Workflow.Validate()`.
+The CLI therefore rejects missing routes or actions even though the reusable
+validator reports those as warnings. `workflow run` and `workflow dry-run` use
+the same checks before reading JSON events. Diagnostics go to stderr; warnings
+and information do not change the exit status. CEL compilation does not evaluate
+dynamic event fields, and validation does not contact destinations. Published
+integration workflows have a separate, stricter compiler.
+
+**Implementation:** `internal/workflow/validate.go`, `cmd/fi-fhir/workflow_validation.go`,
+`cmd/fi-fhir/workflow_validation_test.go`
 
 ### Event Replay / Simulation
 

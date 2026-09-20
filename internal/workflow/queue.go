@@ -2,6 +2,8 @@ package workflow
 
 import (
 	"bytes"
+	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -11,7 +13,8 @@ import (
 )
 
 // QueuePublisher defines the interface for message queue implementations.
-// Users implement this interface with their preferred queue client (Kafka, RabbitMQ, NATS, SQS).
+// Built-in drivers include Kafka, Redis Streams, Pub/Sub, and log. Applications
+// may register additional drivers through RegisterQueueDriver.
 type QueuePublisher interface {
 	// Publish sends a message to the specified topic/queue.
 	// Returns error if publishing fails.
@@ -23,7 +26,7 @@ type QueuePublisher interface {
 
 // QueueConfig holds configuration for queue publishing.
 type QueueConfig struct {
-	Driver  string            // Queue driver name (kafka, rabbitmq, nats, sqs)
+	Driver  string            // Queue driver name (kafka, redis, pubsub, log, or a custom driver)
 	Topic   string            // Topic/queue name (supports templates)
 	Key     string            // Message key path (for partitioning)
 	Headers map[string]string // Static headers to add to messages
@@ -58,20 +61,18 @@ func (r *QueueRegistry) RegisterDriver(name string, factory QueueDriverFactory) 
 // GetPublisher returns a publisher for the given driver and config.
 // Publishers are cached by driver name + config hash.
 func (r *QueueRegistry) GetPublisher(driver string, config map[string]string) (QueuePublisher, error) {
-	r.mu.RLock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	factory, exists := r.drivers[driver]
-	r.mu.RUnlock()
 
 	if !exists {
-		return nil, fmt.Errorf("queue driver '%s' not registered; available drivers: %v", driver, r.listDrivers())
+		return nil, fmt.Errorf("queue driver '%s' not registered", driver)
 	}
 
 	// Generate cache key from driver + config
 	cacheKey := r.cacheKey(driver, config)
 
-	r.mu.RLock()
 	publisher, cached := r.instances[cacheKey]
-	r.mu.RUnlock()
 
 	if cached {
 		return publisher, nil
@@ -84,33 +85,20 @@ func (r *QueueRegistry) GetPublisher(driver string, config map[string]string) (Q
 	}
 
 	// Cache the publisher
-	r.mu.Lock()
 	r.instances[cacheKey] = publisher
-	r.mu.Unlock()
 
 	return publisher, nil
 }
 
 // cacheKey generates a cache key from driver and config.
 func (r *QueueRegistry) cacheKey(driver string, config map[string]string) string {
-	// Simple key generation - could be improved with hash
-	parts := []string{driver}
-	for k, v := range config {
-		parts = append(parts, k+"="+v)
-	}
-	return strings.Join(parts, ":")
-}
-
-// listDrivers returns registered driver names.
-func (r *QueueRegistry) listDrivers() []string {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	names := make([]string, 0, len(r.drivers))
-	for name := range r.drivers {
-		names = append(names, name)
-	}
-	return names
+	// JSON sorts map keys and encodes separators unambiguously. Hashing also
+	// keeps credentials out of cache keys that may appear in close errors.
+	encoded, _ := json.Marshal(struct {
+		Driver string
+		Config map[string]string
+	}{driver, config})
+	return fmt.Sprintf("%x", sha256.Sum256(encoded))
 }
 
 // Close closes all cached publishers.
@@ -147,12 +135,19 @@ func GetQueueRegistry() *QueueRegistry {
 
 // queueAction publishes events to a message queue.
 // Config options:
-//   - driver: Queue driver name (kafka, rabbitmq, nats, sqs) - required
+//   - driver: Queue driver name (kafka, redis, pubsub, log) - required
 //   - topic: Topic/queue name, supports Go templates (required)
 //   - key: Event field path for message key (optional, for partitioning)
 //   - header_<name>: Static header values (optional)
 //   - Additional driver-specific options passed to factory
 func queueAction(event interface{}, config map[string]string) error {
+	return queueActionWithContext(context.Background(), event, config)
+}
+
+func queueActionWithContext(ctx context.Context, event interface{}, config map[string]string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	queueConfig, err := parseQueueConfig(config)
 	if err != nil {
 		return err
@@ -192,8 +187,14 @@ func queueAction(event interface{}, config map[string]string) error {
 	}
 
 	// Publish message
-	if err := publisher.Publish(topic, key, value, queueConfig.Headers); err != nil {
-		return fmt.Errorf("publish failed: %w", err)
+	var publishErr error
+	if contextual, ok := publisher.(ContextQueuePublisher); ok {
+		publishErr = contextual.PublishWithContext(ctx, topic, key, value, queueConfig.Headers)
+	} else {
+		publishErr = publisher.Publish(topic, key, value, queueConfig.Headers)
+	}
+	if publishErr != nil {
+		return fmt.Errorf("publish failed: %w", publishErr)
 	}
 
 	return nil
@@ -203,7 +204,7 @@ func queueAction(event interface{}, config map[string]string) error {
 func parseQueueConfig(config map[string]string) (*QueueConfig, error) {
 	driver := config["driver"]
 	if driver == "" {
-		return nil, fmt.Errorf("queue action requires 'driver' config (kafka, rabbitmq, nats, sqs)")
+		return nil, fmt.Errorf("queue action requires 'driver' config (kafka, redis, pubsub, log)")
 	}
 
 	topic := config["topic"]

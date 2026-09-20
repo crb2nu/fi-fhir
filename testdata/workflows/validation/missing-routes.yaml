@@ -1,0 +1,4 @@
+workflow:
+  name: missing_routes
+  version: "1.0"
+  routes: []

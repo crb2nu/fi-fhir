@@ -1,0 +1,9 @@
+{
+  "id": "event-1",
+  "type": "patient_admit",
+  "timestamp": "2026-09-19T12:00:00Z",
+  "received_at": "2026-09-19T12:00:01Z",
+  "source": "synthetic-broker-test",
+  "source_format": "hl7v2",
+  "patient": { "id": "synthetic-patient" }
+}

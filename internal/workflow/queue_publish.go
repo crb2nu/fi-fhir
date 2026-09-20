@@ -7,9 +7,7 @@ import "fmt"
 // Publish records that a message was published. It deliberately records no
 // message content.
 //
-// `log` is the only queue driver this binary registers (queue.go's init), so
-// whatever this method prints is what every queue action in every workflow
-// prints. The message key is extracted from an event field path — `key:
+// The message key is extracted from an event field path — `key:
 // data.mrn` is a realistic configuration (queueAction) — and the value is the
 // whole serialized event. Both are message content, so neither is written; the
 // line carries their sizes instead. Header values are author-configured

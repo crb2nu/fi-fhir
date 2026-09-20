@@ -139,7 +139,10 @@ fi-fhir workflow run --route critical_alerts --config workflow.yaml events.json
 
 #### workflow validate
 
-Validate workflow configuration.
+Validate a legacy workflow YAML file without processing events or contacting
+destinations. Checks include required workflow/route/action fields, duplicate
+route names, CEL compilation, transform configuration, and built-in action
+settings.
 
 ```bash
 fi-fhir workflow validate FILE
@@ -148,6 +151,20 @@ fi-fhir workflow validate FILE
 ```bash
 fi-fhir workflow validate workflow.yaml
 ```
+
+Errors exit non-zero; warnings and informational diagnostics do not. After the
+structural checks pass, detailed diagnostics go to stderr with a severity, code,
+and configuration path, for example
+`error [INVALID_CEL] routes[0].filter.condition: Invalid CEL expression: ...`.
+The success summary goes to stdout.
+
+`workflow run` and `workflow dry-run` apply the same checks before reading event
+input. An empty workflow or a route without actions is rejected. Validation does
+not evaluate conditions against sample events or verify destination connectivity;
+use a dry-run with representative JSON events to inspect route matching.
+
+This command validates the legacy workflow DSL used by these CLI commands.
+Published integration workflows use a separate, stricter compilation contract.
 
 #### workflow simulate
 

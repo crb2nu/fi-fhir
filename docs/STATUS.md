@@ -8,7 +8,7 @@
 | Maturity       | Count | Description                                                                                                                                                         |
 | -------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Production** | 22    | Stable, tested, deployed                                                                                                                                            |
-| **Beta**       | 9     | Feature-complete, needs coverage or hardening                                                                                                                       |
+| **Beta**       | 10    | Feature-complete, needs coverage or hardening                                                                                                                       |
 | **Alpha**      | 5     | Functional but limited testing or scope                                                                                                                             |
 | **Planned**    | 2     | Designed but not yet implemented (tracked via [#7](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/7), [#8](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/8)) |
 
@@ -31,6 +31,7 @@
 | ------------------------ | -------------------------------- | ---------- | -------- | ------------------------------------------------ | ------------ |
 | Events (canonical model) | `pkg/events/`                    | Production | 80.5%    | Immutable semantic event types                   | 2026-03-09   |
 | Event Sourcing           | `pkg/eventsourcing/`             | Production | 72.7%    | Store, projections, snapshots, sagas, outbox     | 2026-02-27   |
+| Event Backends | `pkg/eventbus/` | Beta | — | Kafka, Redis Streams, Pub/Sub, shared handlers and workflow consumers | 2026-09-19 |
 | ES Projections           | `pkg/eventsourcing/projections/` | Production | 88.9%    | Patient timeline, stats, active encounters       | 2026-01-14   |
 | Config                   | `pkg/config/`                    | Production | 89.3%    | Layered loading (defaults → file → env), secrets | 2026-02-27   |
 | Integration Contracts    | `pkg/integration/`               | Alpha      | 89.8%    | Exact provenance plus deployment policy and strict runtime invariants | 2026-07-14 |

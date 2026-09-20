@@ -59,7 +59,19 @@ const (
 	// TransportHTTPS declares a direct HTTPS destination. Slice 4.1c-a resolves,
 	// verifies, and authorizes it but executes nothing; 4.1c-b adds the consumer.
 	TransportHTTPS TransportKind = "https"
+	// TransportFHIR declares a FHIR R4 destination: the engine projects the
+	// canonical event into US Core resources and delivers them as one
+	// conditional transaction Bundle at `application/fhir+json`, over the same
+	// TLS, identity, and provenance discipline as https. Slice 4.1c-c, Option A
+	// of `.loom/34`: a transport kind with its own policy and its own response
+	// semantics, not an encoding flag on the HTTPS class.
+	TransportFHIR TransportKind = "fhir"
 )
+
+// FHIRInteractionTransaction is the only FHIR interaction v1 performs: one
+// `POST <base>` carrying a transaction Bundle. Per-resource PUT,
+// `$process-message`, and Subscriptions are deliberately outside the set.
+const FHIRInteractionTransaction = "transaction"
 
 // Errors are deliberately coarse so a caller cannot probe the destination
 // inventory by distinguishing failures.
@@ -86,6 +98,17 @@ type HTTPSPolicy struct {
 	CABundleBinding string `json:"ca_bundle_binding,omitempty"`
 }
 
+// FHIRPolicy is the non-secret FHIR delivery configuration of a destination.
+// Like HTTPSPolicy it names binding names only; no credential value is ever
+// carried here. BaseURL is the FHIR server base (the transaction endpoint);
+// it carries no query and no fragment.
+type FHIRPolicy struct {
+	BaseURL         string `json:"base_url"`
+	TokenBinding    string `json:"token_binding"`
+	CABundleBinding string `json:"ca_bundle_binding,omitempty"`
+	Interaction     string `json:"interaction"`
+}
+
 // ClientIdentity binds one destination to one canonical service subject.
 //
 // The subject and its grants are deployment configuration carried inside the
@@ -106,11 +129,17 @@ type RevisionInput struct {
 	Transport     TransportKind
 	Kafka         *KafkaPolicy
 	HTTPS         *HTTPSPolicy
+	FHIR          *FHIRPolicy
 	Identity      *ClientIdentity
 }
 
 // Revision is the immutable runtime contract for one delivery destination.
 // Secret values remain out of band; only lifecycle binding names are stored.
+//
+// Every policy is an `omitempty` pointer on purpose: the digest is computed
+// over this struct's JSON, so an absent policy must be absent from the bytes.
+// That is what keeps every deployed kafka and https digest byte-stable across
+// the addition of the fhir policy (TestRevisionDigest_DeployedTransportsArePinned).
 type Revision struct {
 	SchemaVersion string                       `json:"schema_version"`
 	ArtifactID    string                       `json:"artifact_id"`
@@ -120,6 +149,7 @@ type Revision struct {
 	Transport     TransportKind                `json:"transport"`
 	Kafka         *KafkaPolicy                 `json:"kafka,omitempty"`
 	HTTPS         *HTTPSPolicy                 `json:"https,omitempty"`
+	FHIR          *FHIRPolicy                  `json:"fhir,omitempty"`
 	Identity      *ClientIdentity              `json:"identity,omitempty"`
 	Digest        string                       `json:"digest"`
 }
@@ -135,6 +165,7 @@ func NewRevision(input RevisionInput) (Revision, error) {
 		Transport:     input.Transport,
 		Kafka:         cloneKafka(input.Kafka),
 		HTTPS:         cloneHTTPS(input.HTTPS),
+		FHIR:          cloneFHIR(input.FHIR),
 		Identity:      cloneIdentity(input.Identity),
 	}
 	if err := revision.validateSemanticFields(); err != nil {
@@ -212,12 +243,18 @@ func (r Revision) IdentityBound() bool { return r.Identity != nil }
 // SecretBindingNames lists every lifecycle binding name this destination
 // requires. Names only — never a provider value and never material.
 func (r Revision) SecretBindingNames() []string {
-	if r.HTTPS == nil {
+	var token, caBundle string
+	switch {
+	case r.HTTPS != nil:
+		token, caBundle = r.HTTPS.TokenBinding, r.HTTPS.CABundleBinding
+	case r.FHIR != nil:
+		token, caBundle = r.FHIR.TokenBinding, r.FHIR.CABundleBinding
+	default:
 		return nil
 	}
-	names := []string{r.HTTPS.TokenBinding}
-	if r.HTTPS.CABundleBinding != "" {
-		names = append(names, r.HTTPS.CABundleBinding)
+	names := []string{token}
+	if caBundle != "" {
+		names = append(names, caBundle)
 	}
 	return names
 }
@@ -228,6 +265,9 @@ func (r Revision) SecretBindingNames() []string {
 func (r Revision) EndpointAdvisory() string {
 	if r.HTTPS != nil {
 		return r.HTTPS.URL
+	}
+	if r.FHIR != nil {
+		return r.FHIR.BaseURL
 	}
 	if r.Kafka != nil {
 		return r.Kafka.Topic
@@ -259,19 +299,48 @@ func (r Revision) validateSemanticFields() error {
 			r.Class != integration.DestinationClassSandbox) {
 		return ErrInvalidRevision
 	}
+	// Exactly one policy, and it is the one the transport names.
 	switch r.Transport {
 	case TransportKafka:
-		if r.Kafka == nil || r.HTTPS != nil || validateKafka(*r.Kafka) != nil {
+		if r.Kafka == nil || r.HTTPS != nil || r.FHIR != nil || validateKafka(*r.Kafka) != nil {
 			return ErrInvalidRevision
 		}
 	case TransportHTTPS:
-		if r.HTTPS == nil || r.Kafka != nil || validateHTTPS(*r.HTTPS) != nil {
+		if r.HTTPS == nil || r.Kafka != nil || r.FHIR != nil || validateHTTPS(*r.HTTPS) != nil {
+			return ErrInvalidRevision
+		}
+	case TransportFHIR:
+		if r.FHIR == nil || r.Kafka != nil || r.HTTPS != nil || validateFHIR(*r.FHIR) != nil {
 			return ErrInvalidRevision
 		}
 	default:
 		return ErrInvalidRevision
 	}
 	return validateIdentity(r.Identity)
+}
+
+// validateFHIR mirrors validateHTTPS: an https base URL with a host, no
+// userinfo, no fragment, no query, at most 2048 bytes; bindings by name; and
+// the closed interaction set.
+func validateFHIR(policy FHIRPolicy) error {
+	parsed, err := url.Parse(policy.BaseURL)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" ||
+		parsed.User != nil || parsed.Fragment != "" || parsed.RawQuery != "" ||
+		len(policy.BaseURL) > 2048 {
+		return ErrInvalidRevision
+	}
+	if policy.Interaction != FHIRInteractionTransaction {
+		return ErrInvalidRevision
+	}
+	if !validIdentity(policy.TokenBinding) {
+		return ErrInvalidRevision
+	}
+	if policy.CABundleBinding != "" {
+		if !validIdentity(policy.CABundleBinding) || policy.CABundleBinding == policy.TokenBinding {
+			return ErrInvalidRevision
+		}
+	}
+	return nil
 }
 
 func validateKafka(policy KafkaPolicy) error {
@@ -347,6 +416,14 @@ func cloneKafka(policy *KafkaPolicy) *KafkaPolicy {
 }
 
 func cloneHTTPS(policy *HTTPSPolicy) *HTTPSPolicy {
+	if policy == nil {
+		return nil
+	}
+	clone := *policy
+	return &clone
+}
+
+func cloneFHIR(policy *FHIRPolicy) *FHIRPolicy {
 	if policy == nil {
 		return nil
 	}

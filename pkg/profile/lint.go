@@ -91,6 +91,9 @@ func LintProfileFile(profilePath string, opts LintOptions) (*LintReport, error) 
 	if p.HL7v2 != nil {
 		lintHL7v2Config(p.HL7v2, addError, addWarning)
 	}
+	if err := p.CDA.Validate(); err != nil {
+		addError("%s", err)
+	}
 	if p.ZSegments != nil {
 		lintZSegments(p.ZSegments, addError, addWarning)
 	}
@@ -153,10 +156,23 @@ func lintUnknownKeys(doc *yaml.Node, addWarning func(string, ...any)) {
 
 	allowedSourceProfile := map[string]bool{
 		"id": true, "name": true, "version": true,
-		"hl7v2": true, "edi": true, "z_segments": true,
+		"hl7v2": true, "edi": true, "cda": true, "z_segments": true,
 		"identifiers": true, "terminology": true, "quality": true,
 	}
 	warnUnknownKeysInMapping(sourceProfileNode, "source_profile", allowedSourceProfile, addWarning)
+
+	if n := mappingValue(sourceProfileNode, "cda"); n != nil && n.Kind == yaml.MappingNode {
+		warnUnknownKeysInMapping(n, "source_profile.cda", map[string]bool{
+			"emit_document_events": true, "emit_section_events": true, "sections": true,
+		}, addWarning)
+		if sections := mappingValue(n, "sections"); sections != nil && sections.Kind == yaml.SequenceNode {
+			for i, section := range sections.Content {
+				warnUnknownKeysInMapping(section, fmt.Sprintf("source_profile.cda.sections[%d]", i), map[string]bool{
+					"template_id": true, "emit_events": true,
+				}, addWarning)
+			}
+		}
+	}
 
 	if n := mappingValue(sourceProfileNode, "hl7v2"); n != nil && n.Kind == yaml.MappingNode {
 		allowed := map[string]bool{

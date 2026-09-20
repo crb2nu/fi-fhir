@@ -1,0 +1,7 @@
+workflow:
+  name: warnings
+  routes:
+    - name: test
+      actions:
+        - type: log
+          level: info

@@ -1,0 +1,10 @@
+workflow:
+  name: valid
+  version: "1.0"
+  routes:
+    - name: test
+      filter:
+        condition: event.type == "patient_admit"
+      actions:
+        - type: log
+          level: info

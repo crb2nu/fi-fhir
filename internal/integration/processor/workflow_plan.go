@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/fhirout"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/workflow"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
@@ -15,6 +17,15 @@ var (
 	ErrInvalidPublishedWorkflow = errors.New("invalid published workflow")
 	// ErrInvalidWorkflowPlan means a pure plan cannot bind safely to the integration revision.
 	ErrInvalidWorkflowPlan = errors.New("invalid workflow plan")
+)
+
+const (
+	// fhirActionType is the DSL v1 action type that asks for FHIR resources.
+	fhirActionType = "fhir"
+	// fhirProjectionUnsupportedCode is the plan-time diagnostic for a `fhir`
+	// action on a route whose event type internal/integration/fhirout cannot
+	// project. The action is planned but no delivery is queued for it.
+	fhirProjectionUnsupportedCode = "FHIR_PROJECTION_UNSUPPORTED"
 )
 
 func planWorkflow(
@@ -83,7 +94,7 @@ func planWorkflow(
 
 	routes := make([]integration.RouteResult, 0, len(plan.Routes))
 	deliveries := make([]integration.DeliveryResult, 0)
-	for _, plannedRoute := range plan.Routes {
+	for routeIndex, plannedRoute := range plan.Routes {
 		route := integration.RouteResult{
 			TenantID:        revision.TenantID,
 			EventID:         event.ID,
@@ -94,7 +105,7 @@ func planWorkflow(
 			TransformCount:  plannedRoute.TransformCount,
 			DiagnosticCodes: append([]string(nil), plannedRoute.DiagnosticCodes...),
 		}
-		for _, action := range plannedRoute.Actions {
+		for actionIndex, action := range plannedRoute.Actions {
 			route.PlannedActions = append(route.PlannedActions, action.ID)
 			if action.Type == "log" {
 				if action.DestinationArtifactID != "" {
@@ -108,6 +119,30 @@ func planWorkflow(
 			destination, found := destinations[action.DestinationArtifactID]
 			if !found {
 				return nil, nil, nil, ErrInvalidWorkflowPlan
+			}
+			if action.Type == fhirActionType && !fhirout.Supports(event.Type) {
+				// Slice 4.1c-c: a `fhir` action on a route whose event type has no
+				// FHIR projection is reported here, at plan time, so dry-run and
+				// publish both show it and nothing is queued for the action. It is a
+				// property of the event type, not of the destination's transport —
+				// the planner cannot see the transport (DESTINATION-IDENTITY.md), and
+				// an event that cannot become resources is not deliverable as FHIR
+				// under any of them.
+				diagnostic, err := integration.NewDiagnostic(integration.DiagnosticInput{
+					TenantID:       revision.TenantID,
+					Severity:       integration.DiagnosticSeverityWarning,
+					Stage:          "workflow",
+					Code:           fhirProjectionUnsupportedCode,
+					Path:           fmt.Sprintf("routes[%d].actions[%d]", routeIndex, actionIndex),
+					Source:         "planner",
+					Classification: revision.Policy.Classification,
+				})
+				if err != nil {
+					return nil, nil, nil, ErrInvalidWorkflowPlan
+				}
+				diagnostics = append(diagnostics, diagnostic)
+				route.DiagnosticCodes = append(route.DiagnosticCodes, fhirProjectionUnsupportedCode)
+				continue
 			}
 			deliveries = append(deliveries, integration.DeliveryResult{
 				TenantID:    revision.TenantID,

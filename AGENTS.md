@@ -544,8 +544,8 @@ classifiedType := p.profile.GetEventClassification(msgType, patientClass)
 | `docs/operations/RUNBOOK.md` | Operations runbook (troubleshooting, incident response) |
 | `api/openapi.yaml` | OpenAPI 3.1 specification for REST API |
 | `test/e2e/e2e_test.go` | E2E tests for parsing and workflow (no external deps) |
-| `test/e2e/integration_test.go` | Integration tests with database, FHIR, Kafka |
-| `test/e2e/docker-compose.yaml` | Docker services for integration testing |
+| `test/e2e/integration_test.go` | Integration tests with PostgreSQL, an HTTP echo destination and a running `fi-fhir serve` |
+| `test/e2e/README.md` | How to stand those services up; both files' CI job is `test:e2e-legacy` |
 | `examples/workflows/adt-to-fhir.yaml` | Example: ADT events to FHIR server |
 | `examples/workflows/lab-results-routing.yaml` | Example: Multi-destination lab routing with alerts |
 | `examples/workflows/claims-processing.yaml` | Example: EDI 837/835 claims pipeline |

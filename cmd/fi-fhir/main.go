@@ -1271,11 +1271,7 @@ func runParse(args []string) error {
 		}
 
 		// Map to canonical events
-		mapper := cda.NewMapper(&cda.MapperConfig{
-			Source:             source,
-			EmitDocumentEvents: true,
-			EmitSectionEvents:  true,
-		})
+		mapper := cda.NewMapperWithProfile(source, sourceProfile)
 		mapResult, err := mapper.Map(result.Document)
 		if err != nil {
 			return fmt.Errorf("mapping error: %w", err)
@@ -1957,6 +1953,8 @@ func runWorkflow(args []string) error {
 	switch args[0] {
 	case "run":
 		return runWorkflowRun(args[1:])
+	case "consume":
+		return runWorkflowConsume(args[1:])
 	case "validate":
 		return runWorkflowValidate(args[1:])
 	case "dry-run":
@@ -2019,13 +2017,8 @@ func runWorkflowRun(args []string) error {
 		return fmt.Errorf("failed to load workflow: %w", err)
 	}
 
-	// Validate workflow
-	if errors := w.Validate(); len(errors) > 0 {
-		fmt.Fprintf(os.Stderr, "Workflow validation errors:\n")
-		for _, e := range errors {
-			fmt.Fprintf(os.Stderr, "  - %v\n", e)
-		}
-		return fmt.Errorf("invalid workflow configuration")
+	if err := validateWorkflowConfiguration(w); err != nil {
+		return err
 	}
 
 	// Read input events (JSON array or newline-delimited JSON)
@@ -2097,13 +2090,8 @@ func runWorkflowValidate(args []string) error {
 		return fmt.Errorf("failed to load workflow: %w", err)
 	}
 
-	errors := w.Validate()
-	if len(errors) > 0 {
-		fmt.Fprintf(os.Stderr, "Validation errors:\n")
-		for _, e := range errors {
-			fmt.Fprintf(os.Stderr, "  - %v\n", e)
-		}
-		return fmt.Errorf("workflow validation failed")
+	if err := validateWorkflowConfiguration(w); err != nil {
+		return err
 	}
 
 	fmt.Printf("Workflow '%s' is valid.\n", w.Name)
@@ -2151,6 +2139,10 @@ func runWorkflowDryRun(args []string) error {
 	w, err := workflow.LoadWorkflow(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load workflow: %w", err)
+	}
+
+	if err := validateWorkflowConfiguration(w); err != nil {
+		return err
 	}
 
 	var data []byte
@@ -2719,6 +2711,7 @@ Usage:
 
 Subcommands:
   run       Process events through workflow routes
+  consume   Consume Kafka, Redis Streams, or Pub/Sub events through a workflow
   validate  Validate workflow configuration
   dry-run   Simulate workflow without executing actions
   record    Process events and record for replay

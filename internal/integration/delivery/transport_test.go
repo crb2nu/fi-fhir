@@ -108,7 +108,7 @@ type routerTransport struct {
 
 func (r *routerTransport) DeliverDestination(
 	_ context.Context, _ string, attemptID string,
-	_ integration.DestinationRevisionRef, payload []byte,
+	_ integration.DestinationRevisionRef, payload []byte, _ []byte,
 ) (bool, error) {
 	r.calls++
 	r.attemptID = attemptID

@@ -12,14 +12,18 @@ const destinationMigrationLockKey = int64(5064657639792058897)
 
 // SchemaVersion is the destination ledger version this binary expects. Slice
 // 4.4a defines N-1 as the per-package ledger version; see
-// `.loom/40-decisions.md` (2026-08-09, "What one version means").
-const SchemaVersion = 2
+// `.loom/40-decisions.md` (2026-08-09, "What one version means"). Slice 4.1c-c
+// claimed 0003 (the `fhir` transport's provenance columns).
+const SchemaVersion = 3
 
 //go:embed migrations/0001_delivery_identity.sql
 var deliveryIdentityMigration string
 
 //go:embed migrations/0002_https_delivery_provenance.sql
 var httpsDeliveryProvenanceMigration string
+
+//go:embed migrations/0003_fhir_delivery_provenance.sql
+var fhirDeliveryProvenanceMigration string
 
 // destinationMigration is one numbered step in this package's own forward-only
 // ledger, integration_destination_schema_migrations.
@@ -35,6 +39,7 @@ func destinationMigrations() []destinationMigration {
 	return []destinationMigration{
 		{version: 1, name: "0001_delivery_identity", statements: deliveryIdentityMigration},
 		{version: 2, name: "0002_https_delivery_provenance", statements: httpsDeliveryProvenanceMigration},
+		{version: 3, name: "0003_fhir_delivery_provenance", statements: fhirDeliveryProvenanceMigration},
 	}
 }
 
@@ -159,13 +164,16 @@ func (p *PostgresProvenance) RecordDecision(ctx context.Context, decision Decisi
 //
 // It writes destination provenance and one closed-vocabulary status class only.
 // It never receives secret material, raw bytes, canonical event content, a
-// response body, or a response header.
+// response body, or a response header. For a `fhir` delivery it additionally
+// writes the projected resource types, the bundle entry count, and the
+// sanitised OperationOutcome issue codes — never diagnostics text.
 func (p *PostgresProvenance) RecordDelivery(ctx context.Context, record DeliveryRecord) error {
 	if p == nil || p.db == nil || ctx == nil {
 		return ErrProvenanceUnavailable
 	}
 	if !validIdentity(record.TenantID) || !validIdentity(record.AttemptID) ||
-		record.Transport != TransportHTTPS || record.CompletedAt.IsZero() ||
+		(record.Transport != TransportHTTPS && record.Transport != TransportFHIR) ||
+		record.CompletedAt.IsZero() ||
 		!validIdentity(record.DestinationDigestVerified) {
 		return ErrProvenanceUnavailable
 	}
@@ -174,14 +182,20 @@ func (p *PostgresProvenance) RecordDelivery(ctx context.Context, record Delivery
 	default:
 		return ErrProvenanceUnavailable
 	}
+	if len(record.FHIRResourceTypes) > maxFHIRLedgerBytes ||
+		len(record.FHIROutcomeCodesAdvisory) > maxFHIRLedgerBytes ||
+		record.FHIREntryCount < 0 {
+		return ErrProvenanceUnavailable
+	}
 	if _, err := p.db.ExecContext(ctx, `
 		INSERT INTO integration_destination_deliveries (
 			tenant_id, attempt_id, transport,
 			destination_artifact_id, destination_revision_id, destination_class,
 			destination_digest_verified, outcome, failure_code, http_status_class,
 			destination_endpoint_advisory, served_certificate_subject_advisory,
-			completed_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			completed_at,
+			fhir_resource_types, fhir_entry_count, fhir_outcome_codes_advisory
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 	`,
 		record.TenantID,
 		record.AttemptID,
@@ -196,6 +210,9 @@ func (p *PostgresProvenance) RecordDelivery(ctx context.Context, record Delivery
 		record.EndpointAdvisory,
 		record.ServedCertificateSubjectAdvisory,
 		record.CompletedAt.UTC(),
+		record.FHIRResourceTypes,
+		record.FHIREntryCount,
+		record.FHIROutcomeCodesAdvisory,
 	); err != nil {
 		return fmt.Errorf("record destination delivery: %w", err)
 	}

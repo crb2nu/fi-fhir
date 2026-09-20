@@ -210,6 +210,25 @@ for the one input the mapper actually produces. See
 **The "Assignment Note" at the end of this file is superseded by the above**: a
 third option existed and is now taken.
 
+### 4.1c-c has landed (2026-09-08, Sprint 6 Lane S6-A). The answer is now "unblocked".
+
+`TestFHIRConformance_DurableEngineProducesNoFHIRResource` was deliberately
+inverted into `TestFHIRDestination_DurableEngineDeliversFHIRResource` in the
+same file. The durable dispatcher, over a destination revision declaring
+`transport: fhir`, delivers a conditional transaction Bundle of a US Core
+Patient and Encounter at `application/fhir+json`, projected by
+`internal/integration/fhirout` from the exact `payload_json` the outbox stores;
+the transport vocabulary is `{fhir, https, kafka}`; `fhirout` is the only
+importer of `pkg/fhir` under `internal/integration/**`. Every resource in the
+delivered bundle validates at `us-core --strict`. The negative control this
+speclet asked for exists in two forms: the pre-4.1c-c `POST` builder behind the
+`fhirpostbundle` tag makes the idempotency proof fail on `want 1 Patient, got
+2`, and the delivery ledger records every fhir delivery under migration
+`0003`. What remains for 5.1 is the validator over that captured bundle (5.1b's
+structural validator; 5.1c's `validator_cli.jar`, CI-only). See
+`.loom/34-sprint6-execution-specs.md` and `docs/operations/DESTINATION-IDENTITY.md`
+"The FHIR transport (4.1c-c)".
+
 ## Dependencies
 
 - **Slice 4.1c-b (Lane S4-A of `.loom/32-sprint4-execution-specs.md`)** — hard

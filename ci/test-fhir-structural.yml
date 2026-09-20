@@ -1,18 +1,63 @@
-# Lane S6-D — Slice 5.1b, FHIR package pinning and the Go structural validator
-# (.loom/34, Lane S6-D).
+# Lane S6-D Slice 5.1b: the structural conformance proof over the pinned
+# offline IG packages.
 #
-# Pre-registered by the Sprint 6 merge-surface MR so the include line in
-# .gitlab-ci.yml, the .PHONY line, and this file all exist before the lane's
-# MR opens. Lane S6-D replaces the hidden placeholder below with the blocking
-# `test:fhir-structural` job: the structural validator over the pinned
-# hl7.fhir.r4.core#4.0.1 and hl7.fhir.us.core#9.0.0 packages, run across every
-# generated mapper fixture, plus its negative control.
+# No PostgreSQL and no network. `hl7.fhir.r4.core#4.0.1` and
+# `hl7.fhir.us.core#9.0.0` are byte-pinned in the repository under
+# testdata/fhir/packages/, so this job resolves every rule it enforces out of
+# the checkout — which is the whole point of pinning rather than fetching. It
+# therefore extends the three primitives directly rather than
+# .integration-proof, whose PostgreSQL service this proof must not have, and
+# takes the Debian image because `make fhir-structural` runs `-race` and the
+# alpine Go image ships no C toolchain.
 #
-# The placeholder is a hidden job (dot-prefixed): GitLab ignores it when
-# building the pipeline, so it adds no job — which is what
-# scripts/ci-job-inventory.sh --check verifies until the lane fills it — while
-# keeping the included file a non-empty YAML mapping. A comment-only include
-# parses to null and fails the pipeline at config time with zero jobs.
-.s6d-fhir-structural-placeholder:
+# What it proves, in one line each: the archives have the digests three separate
+# records claim; all 32 US Core profile constants resolve to a real 9.0.0
+# profile; every US Core resource profile's baseDefinition chain terminates at
+# its R4 base; `|8.0.0` on a 9.0.0 profile is rejected where Slice 5.1a's
+# suffix-stripping tolerance accepted it; validate.go's 17 hand-written
+# required-element checks still agree with the IG; and every mapper fixture's
+# structural errors exactly equal the recorded ledger — 19 clean, six carrying
+# nine genuine cardinality violations that Slice 5.1b measured and deliberately
+# did not fix (docs/planning/FHIR-CONFORMANCE-MATRIX.md section 5.1).
+#
+# It is NOT official conformance. No terminology, no invariants, no slicing, no
+# primitive types, and no certificate. `validator_cli.jar` as a CI-only job
+# (Option A) is Sprint 7 and gets its own file.
+test:fhir-structural:
+  stage: test
+  extends:
+    - .go-image-debian
+    - .go-cache
+    - .go-mr-rules
+  variables:
+    CGO_ENABLED: "1"
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
   script:
-    - echo "Lane S6-D (Slice 5.1b) has not filled ci/test-fhir-structural.yml yet"
+    - !reference [.integration-proof-toolchain, script]
+    # Existence guard. A renamed or deleted assertion would make `-run` match
+    # nothing and this job greener rather than redder without this step
+    # (AGENTS.md). Ten names, so the arity is 10. `make fhir-structural` runs
+    # the same guard, so a local run cannot pass a check CI would fail.
+    - >-
+      go test -list '^TestFHIRStructural' ./pkg/fhir
+      | rg -c '^TestFHIRStructural'
+      | rg -x '10'
+    - make fhir-structural
+    # The gate is only proven if removing one required element from one clean
+    # fixture turns it red — on exactly that fixture, naming that element.
+    - make fhir-structural-negative-control
+  allow_failure: false
+  after_script:
+    - |
+      if [ "$CI_JOB_STATUS" = "failed" ]; then
+        echo ""
+        echo "${CI_JOB_NAME} FAILED — a resource no longer matches the pinned"
+        echo "hl7.fhir.r4.core#4.0.1 / hl7.fhir.us.core#9.0.0 packages, or the"
+        echo "recorded cardinality ledger no longer matches the mapper."
+        echo "A FIXED gap fails this job on purpose: shrink"
+        echo "recordedCardinalityGaps() in the same commit that fixes it."
+        echo "Local: make fhir-structural && make fhir-structural-negative-control"
+        echo "Docs: docs/planning/FHIR-CONFORMANCE-MATRIX.md section 5.1"
+        echo "Owner: Platform/Integration — escalate in #ci-support"
+      fi

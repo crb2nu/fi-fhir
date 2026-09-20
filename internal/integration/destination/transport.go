@@ -38,6 +38,12 @@ const (
 	// FailureUnconfigured marks a destination whose deployed revision cannot be
 	// executed as declared. Terminal: it cannot change without a new deployment.
 	FailureUnconfigured = "DELIVERY_DESTINATION_UNCONFIGURED"
+	// FailureProjection marks a `fhir` delivery whose canonical event could not
+	// be projected into FHIR resources with a usable conditional-write key.
+	// Terminal: the stored payload does not change between attempts, and the
+	// projection is deliberately never downgraded to a duplicate-creating POST.
+	// No request is made.
+	FailureProjection = "DELIVERY_FHIR_PROJECTION_FAILED"
 )
 
 // Outcome labels recorded in the delivery provenance ledger.
@@ -58,6 +64,10 @@ const (
 	// maxAuthorizationBytes bounds the credential a destination binding may
 	// resolve to, so a misconfigured binding cannot produce an unbounded header.
 	maxAuthorizationBytes = 4096
+	// maxFHIRLedgerBytes bounds the two FHIR text columns of the delivery ledger
+	// (migrations/0003_fhir_delivery_provenance.sql). Both are server-derived
+	// summaries — resource types and sanitised issue codes — never response text.
+	maxFHIRLedgerBytes = 512
 	// provenanceWriteBudget bounds the durable ledger write, independently of
 	// the destination-facing deadline it must be able to outlive.
 	//
@@ -134,11 +144,14 @@ func (e *TransportError) DeliveryFailureRetryable() bool {
 // DeliveryRecord is the server-owned provenance of one executed destination
 // delivery.
 //
-// Every field except the two carrying an Advisory suffix is produced by this
+// Every field except the three carrying an Advisory suffix is produced by this
 // process from the deployed destination revision and the verified reference.
 // HTTPStatusClass is this process's own classification of the response into a
-// closed five-value vocabulary; it is the only property of the response that is
-// recorded, and no other property is even read.
+// closed five-value vocabulary. For an https delivery it is the only property
+// of the response that is recorded, and no other property is even read. For a
+// fhir delivery the response body is additionally read for exactly two things
+// — per-entry transaction statuses and OperationOutcome issue codes — and
+// FHIROutcomeCodesAdvisory is the sanitised, bounded record of the latter.
 type DeliveryRecord struct {
 	TenantID                         string
 	AttemptID                        string
@@ -153,6 +166,19 @@ type DeliveryRecord struct {
 	EndpointAdvisory                 string
 	ServedCertificateSubjectAdvisory string
 	CompletedAt                      time.Time
+
+	// FHIRResourceTypes is the comma-joined list of resource types this process
+	// projected into the delivered Bundle, in bundle order without repeats.
+	// Empty for an https delivery.
+	FHIRResourceTypes string
+	// FHIREntryCount is the number of entries in the delivered Bundle. Zero for
+	// an https delivery.
+	FHIREntryCount int
+	// FHIROutcomeCodesAdvisory is the sanitised, sorted, comma-joined set of
+	// OperationOutcome issue codes the destination answered with — the closed
+	// FHIR issue-type vocabulary — and never its diagnostics text. Empty when
+	// the destination answered without an OperationOutcome.
+	FHIROutcomeCodesAdvisory string
 }
 
 // DeliveryRecorder durably records one executed destination delivery.
@@ -215,12 +241,18 @@ func NewTransport(config TransportConfig) (*Transport, error) {
 // It returns false with a nil error for any destination it does not own — every
 // `kafka`-transport destination — so the dispatch worker publishes the command
 // to the constant delivery topic exactly as it always has.
+//
+// payload is the encoded delivery command, which the `https` transport sends
+// verbatim. eventPayload is the stored canonical event
+// (`integration_canonical_events.payload_json`), which the `fhir` transport
+// projects into resources. Each transport reads only its own argument.
 func (t *Transport) DeliverDestination(
 	ctx context.Context,
 	tenantID string,
 	attemptID string,
 	reference integration.DestinationRevisionRef,
 	payload []byte,
+	eventPayload []byte,
 ) (bool, error) {
 	if t == nil || t.registry == nil || t.resolver == nil || t.recorder == nil || ctx == nil {
 		return false, ErrTransportUnavailable
@@ -237,17 +269,29 @@ func (t *Transport) DeliverDestination(
 			Retryable: false,
 		}
 	}
-	if revision.Transport != TransportHTTPS {
+	var result deliveryResult
+	switch revision.Transport {
+	case TransportHTTPS:
+		if len(payload) == 0 {
+			return true, &TransportError{
+				Code:      FailureUnconfigured,
+				Detail:    "destination delivery payload is empty",
+				Retryable: false,
+			}
+		}
+		result = t.deliverHTTPS(ctx, revision, attemptID, payload)
+	case TransportFHIR:
+		if len(eventPayload) == 0 {
+			return true, &TransportError{
+				Code:      FailureUnconfigured,
+				Detail:    "destination delivery event payload is empty",
+				Retryable: false,
+			}
+		}
+		result = t.deliverFHIR(ctx, revision, attemptID, eventPayload)
+	default:
 		return false, nil
 	}
-	if len(payload) == 0 {
-		return true, &TransportError{
-			Code:      FailureUnconfigured,
-			Detail:    "destination delivery payload is empty",
-			Retryable: false,
-		}
-	}
-	result := t.deliverHTTPS(ctx, revision, attemptID, payload)
 
 	// The provenance write gets its own budget, deliberately not the caller's.
 	//
@@ -300,39 +344,60 @@ type deliveryResult struct {
 	statusClass       string
 	servedCertificate string
 	completedAt       time.Time
+
+	// The fhir transport's three ledger facts; zero for https.
+	fhirResourceTypes string
+	fhirEntryCount    int
+	fhirOutcomeCodes  string
 }
 
-// deliverHTTPS performs exactly one request against the destination's declared
-// endpoint under its declared identity.
-func (t *Transport) deliverHTTPS(
-	ctx context.Context,
-	revision Revision,
-	attemptID string,
-	payload []byte,
-) deliveryResult {
-	policy := *revision.HTTPS
+// destinationClient is one dispatch's HTTP client under the destination's
+// declared identity and trust roots. It is built per dispatch and closed after
+// it; nothing about it — least of all the credential — outlives the delivery.
+type destinationClient struct {
+	client        *http.Client
+	transport     *http.Transport
+	authorization string
+}
 
+func (c *destinationClient) close() {
+	if c != nil && c.transport != nil {
+		c.transport.CloseIdleConnections()
+	}
+}
+
+// newDestinationClient resolves the declared credential and trust bundle and
+// builds the client both transports share. It is the one place the trust
+// posture lives — TLS 1.2 minimum, declared roots or the system pool, no proxy,
+// no redirect — so the fhir transport cannot drift from the https transport.
+func (t *Transport) newDestinationClient(
+	ctx context.Context,
+	tokenBinding string,
+	caBundleBinding string,
+) (*destinationClient, *deliveryResult) {
 	// The credential is resolved per dispatch and zeroed before returning. It is
 	// never held across dispatches and never enters a struct that is marshaled,
 	// logged, or labelled. File and environment references cannot be
 	// version-pinned, so a rotation is a write in place with no cache to
 	// invalidate — which is exactly why there is no cache.
-	material, err := t.resolver.Resolve(ctx, t.bindingReference(policy.TokenBinding))
+	material, err := t.resolver.Resolve(ctx, t.bindingReference(tokenBinding))
 	if err != nil || len(material) == 0 {
 		zeroMaterial(material)
-		return t.failed(FailureCredential,
+		failure := t.failed(FailureCredential,
 			"destination credential did not resolve at dispatch time", true, "")
+		return nil, &failure
 	}
 	authorization, headerErr := authorizationHeader(material)
 	zeroMaterial(material)
 	if headerErr != nil {
-		return t.failed(FailureUnconfigured,
+		failure := t.failed(FailureUnconfigured,
 			"destination credential is not usable as a bearer credential", false, "")
+		return nil, &failure
 	}
 
-	roots, rootsErr := t.trustRoots(ctx, policy)
+	roots, rootsErr := t.trustRoots(ctx, caBundleBinding)
 	if rootsErr != nil {
-		return *rootsErr
+		return nil, rootsErr
 	}
 
 	httpTransport := &http.Transport{
@@ -350,13 +415,44 @@ func (t *Transport) deliverHTTPS(
 		MaxIdleConnsPerHost: 1,
 		IdleConnTimeout:     time.Second,
 	}
-	defer httpTransport.CloseIdleConnections()
-	client := &http.Client{
-		Transport: httpTransport,
-		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
-			return errRedirectRefused
+	return &destinationClient{
+		client: &http.Client{
+			Transport: httpTransport,
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+				return errRedirectRefused
+			},
 		},
+		transport:     httpTransport,
+		authorization: authorization,
+	}, nil
+}
+
+// requestFailure classifies a client.Do error. The error string carries the
+// URL, so it is never recorded, logged, or wrapped into a failure detail.
+func (t *Transport) requestFailure(err error) deliveryResult {
+	if errors.Is(err, errRedirectRefused) {
+		return t.failed(FailureRedirect,
+			"destination attempted a redirect, which is never followed", false, "3xx")
 	}
+	return t.failed(FailureUnreachable,
+		"destination could not be reached over TLS", true, "")
+}
+
+// deliverHTTPS performs exactly one request against the destination's declared
+// endpoint under its declared identity.
+func (t *Transport) deliverHTTPS(
+	ctx context.Context,
+	revision Revision,
+	attemptID string,
+	payload []byte,
+) deliveryResult {
+	policy := *revision.HTTPS
+
+	client, failure := t.newDestinationClient(ctx, policy.TokenBinding, policy.CABundleBinding)
+	if failure != nil {
+		return *failure
+	}
+	defer client.close()
 
 	request, err := http.NewRequestWithContext(
 		ctx, policy.Method, policy.URL, bytes.NewReader(payload),
@@ -367,22 +463,15 @@ func (t *Transport) deliverHTTPS(
 	}
 	request.ContentLength = int64(len(payload))
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Authorization", authorization)
+	request.Header.Set("Authorization", client.authorization)
 	// Server-owned, bounded, and derived from the durable attempt rather than
 	// from anything the message asserts. It is what lets a destination absorb the
 	// redelivery the outbox's at-least-once contract permits.
 	request.Header.Set("Idempotency-Key", attemptID)
 
-	response, err := client.Do(request)
+	response, err := client.client.Do(request)
 	if err != nil {
-		if errors.Is(err, errRedirectRefused) {
-			return t.failed(FailureRedirect,
-				"destination attempted a redirect, which is never followed", false, "3xx")
-		}
-		// The error string carries the URL, so it is never recorded, logged, or
-		// wrapped into a failure detail.
-		return t.failed(FailureUnreachable,
-			"destination could not be reached over TLS", true, "")
+		return t.requestFailure(err)
 	}
 	defer func() {
 		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, maxResponseDrainBytes))
@@ -411,11 +500,11 @@ func (t *Transport) deliverHTTPS(
 
 // trustRoots resolves the declared CA bundle, or reports that the deployment's
 // trust configuration cannot be used. A nil pool means the system pool.
-func (t *Transport) trustRoots(ctx context.Context, policy HTTPSPolicy) (*x509.CertPool, *deliveryResult) {
-	if policy.CABundleBinding == "" {
+func (t *Transport) trustRoots(ctx context.Context, caBundleBinding string) (*x509.CertPool, *deliveryResult) {
+	if caBundleBinding == "" {
 		return nil, nil
 	}
-	bundle, err := t.resolver.Resolve(ctx, t.bindingReference(policy.CABundleBinding))
+	bundle, err := t.resolver.Resolve(ctx, t.bindingReference(caBundleBinding))
 	if err != nil || len(bundle) == 0 {
 		zeroMaterial(bundle)
 		result := t.failed(FailureCredential,
@@ -475,6 +564,9 @@ func (t *Transport) record(
 		EndpointAdvisory:                 revision.EndpointAdvisory(),
 		ServedCertificateSubjectAdvisory: result.servedCertificate,
 		CompletedAt:                      result.completedAt,
+		FHIRResourceTypes:                result.fhirResourceTypes,
+		FHIREntryCount:                   result.fhirEntryCount,
+		FHIROutcomeCodesAdvisory:         result.fhirOutcomeCodes,
 	}
 	if record.CompletedAt.IsZero() {
 		record.CompletedAt = t.clock().UTC()

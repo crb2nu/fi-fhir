@@ -302,7 +302,7 @@ actions:
     mapping_patient_mrn: patient.mrn
     mapping_event_type: type
 
-  # Message queue (built-in driver is "log"; key is an event field path)
+  # Message queue (kafka, redis, pubsub, or log; key is an event field path)
   - type: queue
     driver: log
     topic: healthcare-events
@@ -313,6 +313,9 @@ actions:
     level: info
     message: "Processed: {{.type}} for {{.patient.mrn}}"
 ```
+
+See [event backends and consumers](docs/operations/EVENT-BACKENDS.md) for broker
+configuration, `workflow consume`, acknowledgment behavior, and outbox adapters.
 
 ## TypeScript SDK
 

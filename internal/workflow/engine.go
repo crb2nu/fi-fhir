@@ -128,7 +128,7 @@ func NewEngine(workflow *Workflow) (*Engine, error) {
 	e.RegisterAction("exec", ContextActionHandlerFunc(execAction))
 	e.RegisterAction("file", ActionHandlerFunc(fileAction))
 	e.RegisterAction("database", ActionHandlerFunc(databaseAction))
-	e.RegisterAction("queue", ActionHandlerFunc(queueAction))
+	e.RegisterAction("queue", ContextActionHandlerFunc(queueActionWithContext))
 	e.RegisterAction("event_store", ContextActionHandlerFunc(eventStoreAction))
 	e.RegisterAction("athena", ContextActionHandlerFunc(athenaAction))
 

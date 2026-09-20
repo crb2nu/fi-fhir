@@ -736,6 +736,24 @@ Specification, day-1 kill-tests, and file ownership:
 `.loom/decisions/2026-09-08-fund-slice-4-1c-c-as-a-fhir-transport-kind.md`.
 Showing the delivery in the operator trace is Slice 4.2c (Wave 3 there).
 
+**Shipped 2026-09-08 (Sprint 6 Lane S6-A).** `TransportFHIR` + `FHIRPolicy`
+on the destination revision; `internal/integration/fhirout` projects the
+stored payload through `pkg/integration.DecodeCanonicalEventPayload` and
+`pkg/fhir.USCoreMapper` into a transaction Bundle of conditional updates
+(`PUT <Type>?identifier=<system>|<value>`, deterministic `urn:uuid:` fullUrls);
+`deliverFHIR` shares the https client; destination ledger `0003`
+(`SchemaVersion` 3); plan-time `FHIR_PROJECTION_UNSUPPORTED`; the 5.1a gate
+inverted as `TestFHIRDestination_DurableEngineDeliversFHIRResource` and the
+redelivery kill-test inverted as `TestFHIRDestination_RedeliveryIsIdempotent`
+(1 Patient, 1 Encounter after two deliveries; negative control behind the
+`fhirpostbundle` tag). Blocking job `test:fhir-destination`. Two premises
+were corrected from code on the way: strict validation caps `PV1.19` at one
+component, so a durable visit number never carries an assigning authority,
+and source-assigned identifiers are keyed under the deployment-owned
+`urn:fi-fhir:source:<source_id>` (decision 2026-09-08). Details:
+`docs/operations/DESTINATION-IDENTITY.md` "The FHIR transport (4.1c-c)";
+`.loom/worklog/2026-09-08-slice-4-1c-c-the-fhir-destination.md`.
+
 #### Slice 4.1d C1: audit immutability and export attribution
 
 - Extend schema-level immutability from the six already-guarded catalog and

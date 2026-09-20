@@ -1,4 +1,4 @@
-.PHONY: build test clean run lint lint-fix test-e2e test-integration e2e-up e2e-down fmt setup-hooks dev-setup check-deps docs-mermaid \
+.PHONY: build test clean run lint lint-fix test-e2e test-integration fmt setup-hooks dev-setup check-deps docs-mermaid \
 	vet lint-gqlgen lint-ui test-ui test-race \
 	security-vulncheck security-gosec security-npm-audit \
 	build-release docker-build-ui \
@@ -34,6 +34,7 @@
 .PHONY: bench-durable bench-durable-calibrate                          # 4.4b   — S5-A
 .PHONY: fhir-destination fhir-destination-negative-control             # 4.1c-c — S6-A
 .PHONY: fhir-structural fhir-structural-negative-control               # 5.1b   — S6-D
+.PHONY: event-backends
 
 # Tool versions (update these when upgrading)
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -82,35 +83,25 @@ test-cover-html: test-cover-all
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "HTML report: coverage.html"
 
-# Run E2E tests (no external deps required)
+# Run E2E tests (no external deps required). CI job test:e2e-legacy runs this.
 test-e2e: build
 	go test -tags=e2e -v ./test/e2e/...
 
-# Run integration tests (requires Docker services)
+# Run integration tests. Needs PostgreSQL, an HTTP echo destination and a
+# running `fi-fhir serve`; see test/e2e/README.md for the three docker run
+# lines, and set FI_FHIR_E2E_REQUIRED_SERVICES so a missing one fails rather
+# than skips.
 test-integration: build
 	go test -tags=e2e,integration -v ./test/e2e/...
 
-# Start E2E test dependencies
-e2e-up:
-	docker-compose -f test/e2e/docker-compose.yaml up -d
-	@echo "Waiting for services to be healthy..."
-	@sleep 10
-	docker-compose -f test/e2e/docker-compose.yaml ps
-
-# Stop E2E test dependencies
-e2e-down:
-	docker-compose -f test/e2e/docker-compose.yaml down -v
-
-# Run full E2E test suite with Docker dependencies
-test-e2e-full: build e2e-up
-	@echo "Waiting for FHIR server to start (may take 60-90s)..."
-	@sleep 60
-	go test -tags=e2e,integration -v ./test/e2e/...
-	$(MAKE) e2e-down
-
-# Update golden files
-test-golden: build
-	UPDATE_GOLDEN=1 go test -tags=e2e -v ./test/e2e/...
+# e2e-up / e2e-down / test-e2e-full and test/e2e/docker-compose.yaml were
+# retired by slice S6-C. The Compose file stood up PostgreSQL, HAPI FHIR,
+# Kafka, Redis and an echo server and NO fi-fhir, which is why
+# TestObservabilityEndpoints skipped even with the whole stack running
+# (ci/s5b-chaos-dr.yml:128-130); the CI runner has no Docker socket, so no job
+# could have used it either. test-golden went with the golden-file machinery:
+# test/e2e/golden/ never existed and `parse` stamps a fresh UUID and timestamps
+# into every event, so the comparison could not have passed if it had.
 
 # Golden Path 001: authenticated HL7v2 -> durable PostgreSQL admission -> IDE parity.
 # Uses self-owned Compose locally and POSTGRES_TEST_URL in CI.
@@ -274,8 +265,11 @@ mllp-rate-quota:
 # default PATH has the wrong major (macOS: brew install postgresql@16).
 #
 # Requires POSTGRES_TEST_URL and fails rather than skipping in CI.
+# Four proofs include multiple full dump/restore passes. CI job 263481 reached
+# the final attribution control after eight minutes and hit the aggregate ten-
+# minute cap; allow the suite to finish without changing its recovery measures.
 migration-compatibility:
-	go test -tags=integration -race -count=1 -timeout=600s \
+	go test -tags=integration -race -count=1 -timeout=1200s -v \
 		-run '^(TestMigrationCompatibility_(ConcurrentReplicaMigrationRollbackAndRestore|ExportInsertShapeSurvivesOneVersionRollback|NegativeControls)|TestChaosRecovery_RestoreProofAssertionsAreTriggerAttributed)$$' \
 		./internal/integration/migrationcompat
 
@@ -324,9 +318,10 @@ structured-logging-negative-control:
 # FI_FHIR_E2E_REQUIRED_SERVICES turns a declared-but-unreachable dependency into
 # a failure instead of a skip; CI job test:e2e sets it.
 #
-# The rest of ./test/e2e/... is NOT run here and is red on main — see
-# ci/s5b-chaos-dr.yml for the executed evidence and the workflow-schema drift
-# that causes it.
+# The rest of ./test/e2e/... is run by test:e2e-legacy (ci/test-e2e-legacy.yml),
+# blocking, since slice S6-C repaired it. `make test-e2e` and `make
+# test-integration` are the whole tree; this target stays the narrow
+# live-server assertion slice 4.4c made blocking.
 e2e-live:
 	FI_FHIR_E2E_REQUIRED_SERVICES=fi-fhir,fi-fhir-metrics \
 	go test -tags=e2e,integration -count=1 -timeout=300s -v \
@@ -378,13 +373,15 @@ transport-gate-negative-control:
 # reconciliation in this slice flips it, the tag is gone, and it is an ordinary
 # test again under its original name.
 #
-#  1. TestFHIRConformance_DurableEngineProducesNoFHIRResource — the durable
-#     engine delivers a Kafka delivery-command envelope at application/json, the
-#     transport vocabulary is {kafka, https} with no FHIR class, and nothing
-#     under internal/integration imports pkg/fhir. That is `.loom/28:206-212`
-#     executed: 5.1's real prerequisite is an unwritten slice (4.1c-c), not a
-#     validator. It stays true after 5.1a; when 4.1c-c lands it is the assertion
-#     that must be deliberately inverted rather than deleted.
+#  1. TestFHIRDestination_DurableEngineDeliversFHIRResource — Slice 4.1c-c's
+#     deliberate inversion of the 5.1a gate
+#     (TestFHIRConformance_DurableEngineProducesNoFHIRResource, which PASSED on
+#     main from 2026-08-09 to 2026-09-08 asserting the opposite): the durable
+#     engine delivers a conditional transaction Bundle of a US Core Patient and
+#     Encounter at application/fhir+json, the transport vocabulary is
+#     {fhir, https, kafka}, and internal/integration/fhirout is the only
+#     non-test importer of pkg/fhir under internal/integration. Every resource
+#     in the delivered bundle validates at us-core --strict with zero issues.
 #
 #  2. TestFHIRConformance_* in pkg/fhir — every one of the 26 Map* entry points
 #     is driven with a representative event and every resource it produces is
@@ -397,7 +394,7 @@ transport-gate-negative-control:
 # the proof is addressable by name and pairs with its negative control.
 fhir-conformance:
 	go test -race -count=1 -timeout=120s \
-		-run '^TestFHIRConformance_DurableEngineProducesNoFHIRResource$$' \
+		-run '^TestFHIRDestination_DurableEngineDeliversFHIRResource$$' \
 		./internal/integration/delivery
 	go test -race -count=1 -timeout=120s \
 		-run '^TestFHIRConformance' ./pkg/fhir
@@ -427,6 +424,61 @@ fhir-conformance-negative-control:
 		exit 1; \
 	fi; \
 	echo "negative control OK: restoring the -note-only set fails exactly the MapLabResult row"
+
+# Lane S6-A Slice 4.1c-c: the FHIR destination class proofs.
+#
+#  1. TestFHIRDestination_DurableEngineDeliversFHIRResource — the inverted 5.1a
+#     gate (see fhir-conformance above).
+#  2. TestFHIRDestination_RedeliveryIsIdempotent — the sprint's riskiest
+#     assumption, second half: the stored payload delivered twice under one
+#     attempt id through the real fhir transport leaves ONE Patient and ONE
+#     Encounter in an identifier-keyed FHIR server. The day-1 form of this
+#     test recorded 2 and 2 on main.
+#  3. TestFHIRDestination_DurablePayloadRoundTripsToMapperInput — the first
+#     half: the outbox payload decodes into the exact mapper input.
+#  4. TestRevisionDigest_DeployedTransportsArePinned — the fhir policy moved no
+#     deployed kafka or https digest.
+#  5. internal/integration/fhirout's own proofs, and the PostgreSQL 16 ledger
+#     proof for destination migration 0003 (requires POSTGRES_TEST_URL; the
+#     ledger proof skips without it and CI's existence guard is what keeps that
+#     honest).
+fhir-destination:
+	go test -race -count=1 -timeout=300s \
+		-run '^(TestFHIRDestination_DurableEngineDeliversFHIRResource|TestFHIRDestination_RedeliveryIsIdempotent)$$' \
+		./internal/integration/delivery
+	go test -race -count=1 -timeout=300s \
+		-run '^TestFHIRDestination_DurablePayloadRoundTripsToMapperInput$$' \
+		./pkg/integration
+	go test -race -count=1 -timeout=120s \
+		-run '^TestRevisionDigest_DeployedTransportsArePinned$$' \
+		./internal/integration/destination
+	go test -race -count=1 -timeout=120s ./internal/integration/fhirout
+	go test -tags=integration -race -count=1 -timeout=300s \
+		-run '^TestFHIRDestination_ProvenanceLedgerRecordsFHIRDeliveries$$' \
+		./internal/integration/destination
+
+# Negative control for the above. The fhirpostbundle tag restores the
+# pre-4.1c-c `POST <Type>` entry builder in internal/integration/fhirout and
+# changes nothing else, so the idempotency proof must FAIL on exactly
+# `want 1 Patient, got 2`. This target therefore inverts, and additionally
+# requires that sentence: a control that passes means the in-test server is not
+# keyed on identifier and the count proves nothing; a control that fails for
+# another reason means the proof stopped measuring the request method.
+fhir-destination-negative-control:
+	@output=$$(go test -tags fhirpostbundle -count=1 -timeout=120s \
+		-run '^TestFHIRDestination_RedeliveryIsIdempotent$$' \
+		./internal/integration/delivery 2>&1); \
+	if [ $$? -eq 0 ]; then \
+		echo "negative control FAILED: the idempotency proof still passes with the"; \
+		echo "pre-4.1c-c POST entry builder restored"; \
+		exit 1; \
+	fi; \
+	if ! printf '%s\n' "$$output" | grep -q 'want 1 Patient, got 2'; then \
+		echo "negative control failed for the WRONG reason (want 'want 1 Patient, got 2'):"; \
+		printf '%s\n' "$$output" | tail -20; \
+		exit 1; \
+	fi; \
+	echo "negative control OK: the POST builder duplicates the Patient on redelivery (want 1, got 2)"
 
 # Clean build artifacts
 clean:
@@ -990,23 +1042,89 @@ destination-transport:
 # A placeholder that is run by mistake exits 1 and says which lane owns it.
 # ---------------------------------------------------------------------------
 
-# 4.1c-c — Lane S6-A fills this: the inverted 5.1a gate, both kill-tests
-# (payload round-trip; redelivery idempotency), and the digest-stability gate.
-fhir-destination:
-	@echo "fhir-destination: placeholder — Lane S6-A (Slice 4.1c-c) has not filled this target yet"; exit 1
-
-# 4.1c-c — Lane S6-A fills this: the POST-only bundle builder restored behind a
-# build tag must make the redelivery count return to 2.
-fhir-destination-negative-control:
-	@echo "fhir-destination-negative-control: placeholder — Lane S6-A (Slice 4.1c-c) has not filled this target yet"; exit 1
-
-# 5.1b — Lane S6-D fills this: the structural validator over the pinned
-# hl7.fhir.r4.core#4.0.1 and hl7.fhir.us.core#9.0.0 packages, across every
-# generated mapper fixture.
+# Lane S6-D Slice 5.1b: the structural conformance proof over the pinned
+# offline IG packages, hl7.fhir.r4.core#4.0.1 and hl7.fhir.us.core#9.0.0.
+#
+# Ten assertions in pkg/fhir, all of which must PASS:
+#
+#  1. The two archives under testdata/fhir/packages/ have the sha256 sums
+#     recorded in SHA256SUMS *and* in the PinnedPackage constants — three
+#     records that must agree, so neither can rot behind the other.
+#  2. They load, declare their own name and version, and still hold the
+#     StructureDefinition counts the README documents. A loader filter that
+#     stopped matching would otherwise make every resolution below vacuous.
+#  3. Slice 5.1a's profile-version policy executed against real packages: a bare
+#     canonical resolves, `|9.0.0` resolves, `|8.0.0` is REJECTED. Under 5.1a's
+#     suffix-stripping tolerance the last one passed.
+#  4. All 32 US Core profile constants resolve to a real 9.0.0 profile.
+#  5. Every US Core resource profile's baseDefinition chain terminates at its R4
+#     base — which is what the 12.8 MB R4 archive is for, since
+#     us-core-observation-lab and us-core-heart-rate reach R4 only through
+#     another US Core profile.
+#  6. Every mapper fixture's structural errors EXACTLY equal the recorded
+#     ledger in recordedCardinalityGaps(): 19 clean, six carrying nine genuine
+#     cardinality violations. Exact equality, so a fixed gap fails as loudly as
+#     a new one and the ledger can only shrink deliberately.
+#  7. Removing a required element from a clean fixture fails, once per
+#     required-element type Slice 5.1a counted.
+#  8. Bundle entries are validated and located by entry index — the fixture set
+#     is all bare resources, so nothing else covers that path.
+#  9. validate.go's 17 hand-written required-element checks agree with the
+#     pinned profiles — 15 exactly, two deliberately stricter (Patient.gender,
+#     Patient.birthDate).
+# 10. Must-support reporting only ever adds information-severity issues.
+#
+# All ten are ordinary tests and also run in `go test ./...`; this target
+# exists so the proof is addressable by name and pairs with its negative
+# control. The arity guard is here rather than only in CI because a renamed or
+# deleted assertion would make `-run` match nothing and this target greener
+# rather than redder.
 fhir-structural:
-	@echo "fhir-structural: placeholder — Lane S6-D (Slice 5.1b) has not filled this target yet"; exit 1
+	@count=$$(go test -list '^TestFHIRStructural' ./pkg/fhir | grep -c '^TestFHIRStructural'); \
+	if [ "$$count" != "10" ]; then \
+		echo "expected 10 TestFHIRStructural assertions, found $$count"; \
+		go test -list '^TestFHIRStructural' ./pkg/fhir; \
+		exit 1; \
+	fi
+	go test -race -count=1 -timeout=180s -run '^TestFHIRStructural' ./pkg/fhir
 
-# 5.1b — Lane S6-D fills this: a fixture with a required element removed must
-# fail the structural validator.
+# Negative control for the above. The fhirstructuralnegative tag removes
+# Patient.name — 1..* in us-core-patient — from patient.json before the gate
+# sees it, and changes nothing else. patient.json is one of the nineteen
+# fixtures recorded clean, so the ledger assertion must fail on EXACTLY that
+# fixture, naming that element.
+#
+# Three requirements, not one. A control that passes means the gate is not
+# reading the fixtures at all. A control that fails everywhere means the ledger
+# is not per-fixture. A control that fails for an unrelated reason — a missing
+# archive, a loader error — is not evidence that a cardinality rule is enforced,
+# so the failure text must name Patient.name.
 fhir-structural-negative-control:
-	@echo "fhir-structural-negative-control: placeholder — Lane S6-D (Slice 5.1b) has not filled this target yet"; exit 1
+	@output=$$(go test -tags fhirstructuralnegative -count=1 -timeout=180s \
+		-run '^TestFHIRStructural_MapperFixturesMatchTheirRecordedCardinalityGaps$$' \
+		-v ./pkg/fhir 2>&1); \
+	if [ $$? -eq 0 ]; then \
+		echo "negative control FAILED: the structural gate still passes with"; \
+		echo "Patient.name removed from patient.json"; \
+		exit 1; \
+	fi; \
+	rows=$$(printf '%s\n' "$$output" \
+		| sed -n 's|^ *--- FAIL: TestFHIRStructural_MapperFixturesMatchTheirRecordedCardinalityGaps/\([^ ]*\).*|\1|p' \
+		| sort -u | tr '\n' ' ' | sed 's/ $$//'); \
+	if [ "$$rows" != "patient.json" ]; then \
+		echo "negative control failed on the WRONG fixtures: [$$rows], want [patient.json]"; \
+		printf '%s\n' "$$output" | grep -- '--- FAIL' || true; \
+		exit 1; \
+	fi; \
+	if ! printf '%s\n' "$$output" | grep -q 'Patient.name is required'; then \
+		echo "negative control failed without naming Patient.name, so it is not"; \
+		echo "evidence that cardinality is enforced"; \
+		printf '%s\n' "$$output" | tail -20; \
+		exit 1; \
+	fi; \
+	echo "negative control OK: the structural gate fails on exactly patient.json"
+
+# Kafka and Redis live-service proof plus all three protocol contract tests.
+event-backends:
+	@test -n "$(EVENTBUS_KAFKA_BROKERS)" -a -n "$(EVENTBUS_REDIS_URL)"
+	go test -tags=integration -race -count=1 -timeout=180s ./pkg/eventbus

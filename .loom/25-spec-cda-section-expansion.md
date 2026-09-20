@@ -1,10 +1,27 @@
 # 25 - Spec: CDA/CCDA Section Expansion
 
-**Status**: Ready for independent pickup
+**Status**: Section extraction shipped; profile event selection implemented 2026-09-19. Narrative fallback and partial-data warning coverage remain to audit.
 **Lane**: F - Product expansion speclets
 **Tracking**: libs/fi-fhir#13
 
 ## Goal
+
+### 2026-09-19 audit and bounded follow-up
+
+- Medications, Allergies, and Social History parsers/mappers already exist in
+  `internal/parser/cda/section_*.go` and `mapper.go`; issue #13 closed for that
+  extraction on 2026-03-09. Their unit tests cover coded structured entries.
+- Profile selection was absent: `SourceProfile` had no CDA field, `runParse`
+  hardcoded both emission flags, and `Mapper.Map` ignored those flags.
+  The synthetic three-section fixture in `testdata/cda/section_selection.xml`
+  proved all four events were emitted even when only medication was enabled.
+- The follow-up adds CDA profile event selection, validation, linting, YAML
+  rendering, and CLI wiring. `TestParseCDAProfileSelection` covers both format
+  aliases, default compatibility, explicit exclusions, and global flags;
+  `TestMapperSelectionSnapshotsConfigAndSkipsDisabledMappers` covers custom
+  mappers and config/document immutability.
+- This closes only the profile-selection gap. It makes no new claim about
+  narrative fallback, code-system preservation, or malformed-entry warnings.
 
 Define a narrow implementation slice that proves and, where needed, deepens CDA/CCDA extraction for Medications, Allergies, and Social History without reopening the entire CDA parser.
 

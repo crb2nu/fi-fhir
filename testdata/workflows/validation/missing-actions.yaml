@@ -1,0 +1,8 @@
+workflow:
+  name: missing_actions
+  version: "1.0"
+  routes:
+    - name: test
+      filter:
+        event_type: patient_admit
+      actions: []
