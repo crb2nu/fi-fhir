@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -17,7 +18,7 @@ func TestWorkflowCommandsRejectInvalidConfigurationBeforeInput(t *testing.T) {
 		{"missing-routes", []string{"workflow must have at least one route"}},
 		{"missing-actions", []string{"must have at least one action"}},
 	}
-	for _, command := range []string{"validate", "run", "dry-run"} {
+	for _, command := range []string{"validate", "run", "dry-run", "consume"} {
 		for _, tt := range tests {
 			t.Run(command+"/"+tt.fixture, func(t *testing.T) {
 				config := filepath.Join("..", "..", "testdata", "workflows", "validation", tt.fixture+".yaml")
@@ -26,6 +27,15 @@ func TestWorkflowCommandsRejectInvalidConfigurationBeforeInput(t *testing.T) {
 					// An unreadable input must not mask the configuration error.
 					args = []string{"workflow", command, "--config", config, filepath.Join(t.TempDir(), "missing.json")}
 				}
+				if command == "consume" {
+					backend := filepath.Join(t.TempDir(), "backend.yaml")
+					// Opening this backend fails; workflow diagnostics must come first.
+					if err := os.WriteFile(backend, []byte("driver: unsupported\nsubscription: events\n"), 0600); err != nil {
+						t.Fatal(err)
+					}
+					args = []string{"workflow", command, "--config", config, "--backend", backend}
+				}
+
 				stdout, stderr, err := runCLI(t, args...)
 				if err == nil || !strings.Contains(err.Error(), "workflow validation failed") {
 					t.Fatalf("expected validation failure before input read, got %v", err)

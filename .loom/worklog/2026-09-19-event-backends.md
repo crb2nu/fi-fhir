@@ -21,3 +21,16 @@
 - Sources: `pkg/eventbus/`, `internal/workflow/queue_backends.go`,
   `pkg/eventsourcing/eventbus.go`, `cmd/fi-fhir/workflow_consume.go`, and
   `docs/operations/EVENT-BACKENDS.md`.
+- Sprint 6 integration: this merge candidate preserves the exact reviewed heads
+  of !204–!209. It includes FHIR destination URL/token escaping for observation
+  IDs containing `#`, restores the invalid-CEL E2E regression, and uses the same
+  CLI validation diagnostics for `workflow consume`. The observability harness
+  allows 180 seconds for migration startup while keeping readiness/fanout
+  budgets unchanged; failure logs are read only after the child output writer
+  has stopped, removing the race exposed in pipeline 27728.
+- Combined local verification: `go test -race ./...`, focused CLI consumer and
+  validation regressions, `golangci-lint run` (zero issues), docs/worklog/decision
+  checks, and CI inventory (67 jobs) passed. `make fhir-structural
+  fhir-structural-negative-control fhir-destination-negative-control test-e2e`
+  passed, including both deliberately failing FHIR controls. Live Redis passed;
+  live Kafka and the PostgreSQL-backed proofs remain required in CI.

@@ -86,15 +86,8 @@ func runWorkflowConsume(args []string) (retErr error) {
 	if err != nil {
 		return err
 	}
-	if issues := w.Validate(); len(issues) > 0 {
-		return fmt.Errorf("invalid workflow: %w", errors.Join(issues...))
-	}
-	validation, err := workflow.ValidateWorkflow(w)
-	if err != nil {
+	if err := validateWorkflowConfiguration(w); err != nil {
 		return err
-	}
-	if !validation.Valid {
-		return errors.New("invalid workflow; run fi-fhir workflow validate for diagnostics")
 	}
 	engine, err := workflow.NewEngine(w)
 	if err != nil {
