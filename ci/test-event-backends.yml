@@ -1,0 +1,34 @@
+# Real Kafka and Redis acknowledgment/redelivery proof, plus Pub/Sub's official
+# gRPC test server. Required environment guards prevent absent services from
+# turning integration skips into a green gate.
+test:event-backends:
+  extends: .integration-proof
+  services:
+    - name: ${DOCKERHUB_CACHE_PREFIX}/apache/kafka:3.9.2
+      alias: kafka
+    - name: ${DOCKERHUB_CACHE_PREFIX}/library/redis:7.4
+      alias: redis
+  variables:
+    EVENTBUS_KAFKA_BROKERS: "localhost:9092"
+    EVENTBUS_REDIS_URL: "redis://localhost:6379"
+    KAFKA_NODE_ID: "1"
+    KAFKA_PROCESS_ROLES: "controller,broker"
+    KAFKA_CONTROLLER_QUORUM_VOTERS: "1@localhost:9093"
+    KAFKA_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+    KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092"
+    KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT"
+    KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+    KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+    KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+    KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+    KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+    KAFKA_NUM_PARTITIONS: "1"
+    KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    PROOF_FAILURE_SUMMARY: "event backend acknowledgment or redelivery regressed."
+    PROOF_LOCAL: "EVENTBUS_KAFKA_BROKERS=... EVENTBUS_REDIS_URL=... make event-backends"
+    PROOF_DOCS: "docs/operations/EVENT-BACKENDS.md"
+  script:
+    - !reference [.integration-proof-toolchain, script]
+    - ': "${EVENTBUS_KAFKA_BROKERS:?}" "${EVENTBUS_REDIS_URL:?}"'
+    - go test -tags=integration -list '^TestLiveEventBackends$' ./pkg/eventbus | rg -x TestLiveEventBackends
+    - make event-backends

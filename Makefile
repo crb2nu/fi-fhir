@@ -34,6 +34,7 @@
 .PHONY: bench-durable bench-durable-calibrate                          # 4.4b   — S5-A
 .PHONY: fhir-destination fhir-destination-negative-control             # 4.1c-c — S6-A
 .PHONY: fhir-structural fhir-structural-negative-control               # 5.1b   — S6-D
+.PHONY: event-backends
 
 # Tool versions (update these when upgrading)
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -1010,3 +1011,8 @@ fhir-structural:
 # fail the structural validator.
 fhir-structural-negative-control:
 	@echo "fhir-structural-negative-control: placeholder — Lane S6-D (Slice 5.1b) has not filled this target yet"; exit 1
+
+# Kafka and Redis live-service proof plus all three protocol contract tests.
+event-backends:
+	@test -n "$(EVENTBUS_KAFKA_BROKERS)" -a -n "$(EVENTBUS_REDIS_URL)"
+	go test -tags=integration -race -count=1 -timeout=180s ./pkg/eventbus

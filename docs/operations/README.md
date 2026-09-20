@@ -6,6 +6,7 @@ Documentation for deploying and operating fi-fhir in production environments.
 
 - [Production Hardening](PRODUCTION-HARDENING.md) - Security best practices
 - [Operations Runbook](RUNBOOK.md) - Troubleshooting and procedures
+- [Event Backends](EVENT-BACKENDS.md) - Kafka, Redis Streams, Pub/Sub, and workflow consumers
 - [Supported 1.0 Baseline](SUPPORTED-1.0.md) - Pinned release target and evidence gaps
 - [Integration Deployment Lifecycle](INTEGRATION-DEPLOYMENT-LIFECYCLE.md) - Versioned catalog and state contract
 - [Restart-Safe Integration Sessions](INTEGRATION-SESSIONS.md) - Durable author/test workspace and PHI policy

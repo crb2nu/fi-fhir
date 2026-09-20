@@ -1953,6 +1953,8 @@ func runWorkflow(args []string) error {
 	switch args[0] {
 	case "run":
 		return runWorkflowRun(args[1:])
+	case "consume":
+		return runWorkflowConsume(args[1:])
 	case "validate":
 		return runWorkflowValidate(args[1:])
 	case "dry-run":
@@ -2715,6 +2717,7 @@ Usage:
 
 Subcommands:
   run       Process events through workflow routes
+  consume   Consume Kafka, Redis Streams, or Pub/Sub events through a workflow
   validate  Validate workflow configuration
   dry-run   Simulate workflow without executing actions
   record    Process events and record for replay
