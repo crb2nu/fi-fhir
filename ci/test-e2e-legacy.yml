@@ -30,12 +30,11 @@
 #     Action.UnmarshalYAML), so the `headers:`, `retry:`, `auth:` and `fields:`
 #     blocks the tests declared were dropped before any action saw them.
 #
-# Two failures survived the repair and are filed rather than hidden:
+# One failure remains parked on a filed issue:
 # TestFHIRAction on issue #20 (the fhir action's patient_admit transaction
 # bundle references `Patient/<MRN>` with no matching fullUrl, so a conformant
-# server rejects it) and TestConfigValidation/invalid_cel on issue #21
-# (`workflow validate` never compiles the CEL condition). Both skip with the
-# issue id in the message, and the skip audit below is what keeps that honest.
+# server rejects it). Its skip names the issue and is audited below.
+# The invalid CEL regression now runs: CLI validation compiles conditions.
 #
 # TestWorkflowWithRetry's assertion was on elapsed wall clock. The k3s-ci runner
 # pool spans three CPU classes with a 5.3x spread, so a duration threshold
@@ -137,14 +136,14 @@ test:e2e-legacy:
     - |
       set -o pipefail
       make test-integration 2>&1 | tee e2e-integration.log
-    # Anti-vacuity, part 1: the only tests permitted to skip are the two parked
-    # on filed issues. Any other skip means either a declared dependency is
+    # Anti-vacuity, part 1: the only test permitted to skip is parked
+    # on issue #20. Any other skip means either a declared dependency is
     # missing (which requireService should already have made fatal) or someone
     # added a skip without filing what it is waiting on.
     - |
       rg '^\s*--- SKIP: ' e2e-integration.log \
         | sed 's/.*--- SKIP: //; s/ .*//' | sort -u > skipped.txt
-      printf '%s\n' 'TestConfigValidation/invalid_cel' 'TestFHIRAction' | sort -u > skipped.expected
+      printf '%s\n' 'TestFHIRAction' | sort -u > skipped.expected
       if ! diff -u skipped.expected skipped.txt; then
         echo ""
         echo "the set of skipped e2e tests changed."
@@ -152,10 +151,10 @@ test:e2e-legacy:
         echo "a disappeared skip means its issue is fixed — delete the t.Skipf and this line."
         exit 1
       fi
-    # Anti-vacuity, part 2: each of those two skips must still carry its issue
+    # Anti-vacuity, part 2: the remaining skip must still carry its issue
     # id in the message a reader sees in the job log.
     - |
-      for issue in 20 21; do
+      for issue in 20; do
         rg -q "blocked on fi-fhir issue #${issue}" e2e-integration.log || {
           echo "the skip parked on issue #${issue} no longer names it"
           exit 1
@@ -163,7 +162,6 @@ test:e2e-legacy:
       done
     # Anti-vacuity, part 3: a suite that ran nothing must not pass. Thirteen of
     # the fourteen top-level tests pass; TestFHIRAction is the whole-test skip.
-    # TestConfigValidation passes with one subtest skipped, so it counts here.
     - |
       passed=$(rg -c '^--- PASS: ' e2e-integration.log || true)
       if [ "$passed" != "13" ]; then

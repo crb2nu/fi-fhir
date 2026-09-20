@@ -462,7 +462,6 @@ func TestConfigValidation(t *testing.T) {
 		name      string
 		config    string
 		wantValid bool
-		skipIssue string
 	}{
 		{
 			name: "valid_config",
@@ -494,15 +493,6 @@ workflow:
           level: info
 `,
 			wantValid: false,
-			// Engine defect, filed with a reproduction as fi-fhir issue #21.
-			// `workflow validate` calls Workflow.Validate (types.go), which
-			// checks names and action types and nothing else. The validator that
-			// compiles the CEL condition — workflow.Validator, which emits
-			// INVALID_CEL — has no CLI caller, so `workflow validate` accepts an
-			// expression the engine cannot compile and the route then silently
-			// never matches at run time. Not this lane's file to fix; unskip
-			// when #21 wires runWorkflowValidate to workflow.NewValidator.
-			skipIssue: "#21",
 		},
 		{
 			name: "missing_action_type",
@@ -522,9 +512,6 @@ workflow:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.skipIssue != "" {
-				t.Skipf("blocked on fi-fhir issue %s: `workflow validate` does not compile CEL conditions", tt.skipIssue)
-			}
 
 			configFile := createTempFile(t, tt.config, ".yaml")
 			defer os.Remove(configFile)

@@ -52,13 +52,12 @@ canonical integration registry and a GraphQL principal — or it refuses to star
 
 ## Known-red tests
 
-Both are skipped, both name the issue they are parked on, and both keep their
-repaired bodies so that deleting the `t.Skipf` is the whole of the verification.
+The remaining skip names its issue and keeps its repaired test body.
+Invalid CEL configuration is now rejected by the CLI, so that regression runs.
 
 | Test | Issue |
 |---|---|
 | `TestFHIRAction` | [#20](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/20) — the `fhir` action's `patient_admit` transaction bundle references `Patient/<MRN>` with no matching `fullUrl`, so a conformant server rejects the whole transaction |
-| `TestConfigValidation/invalid_cel` | [#21](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/21) — `workflow validate` never compiles the CEL condition, so it accepts an expression the engine cannot run |
 
 ## What slice S6-C changed, and why
 
