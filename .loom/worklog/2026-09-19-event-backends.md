@@ -34,3 +34,9 @@
   fhir-structural-negative-control fhir-destination-negative-control test-e2e`
   passed, including both deliberately failing FHIR controls. Live Redis passed;
   live Kafka and the PostgreSQL-backed proofs remain required in CI.
+- CI dependency repair: pipeline 27743's Node jobs stalled installing pinned
+  npm through Verdaccio. From the affected pod, the internal `/npm` metadata
+  request timed out after five seconds while public npm returned HTTP 200 in
+  121 ms. Node setup now probes the pinned npm metadata with a ten-second bound
+  and no retries, falling back to the public registry on failure. npm version,
+  lockfiles, and required checks stay pinned and enforced.
