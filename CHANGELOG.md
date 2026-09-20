@@ -422,6 +422,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `workflow validate`, `workflow run`, and `workflow dry-run` reject invalid CEL,
+  transform, and built-in action configuration before reading events. Validation
+  diagnostics include severity, code, and path; warnings remain non-blocking (#21).
+
 - FHIR validation no longer fails open on the mode string. `ValidationOptions.Mode`
   was compared byte-exactly against `us-core`, so any other value — including
   `US-Core`, `uscore`, and `""` — silently disabled both the required-element and

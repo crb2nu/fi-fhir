@@ -1,4 +1,4 @@
-.PHONY: build test clean run lint lint-fix test-e2e test-integration e2e-up e2e-down fmt setup-hooks dev-setup check-deps docs-mermaid \
+.PHONY: build test clean run lint lint-fix test-e2e test-integration fmt setup-hooks dev-setup check-deps docs-mermaid \
 	vet lint-gqlgen lint-ui test-ui test-race \
 	security-vulncheck security-gosec security-npm-audit \
 	build-release docker-build-ui \
@@ -83,35 +83,25 @@ test-cover-html: test-cover-all
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "HTML report: coverage.html"
 
-# Run E2E tests (no external deps required)
+# Run E2E tests (no external deps required). CI job test:e2e-legacy runs this.
 test-e2e: build
 	go test -tags=e2e -v ./test/e2e/...
 
-# Run integration tests (requires Docker services)
+# Run integration tests. Needs PostgreSQL, an HTTP echo destination and a
+# running `fi-fhir serve`; see test/e2e/README.md for the three docker run
+# lines, and set FI_FHIR_E2E_REQUIRED_SERVICES so a missing one fails rather
+# than skips.
 test-integration: build
 	go test -tags=e2e,integration -v ./test/e2e/...
 
-# Start E2E test dependencies
-e2e-up:
-	docker-compose -f test/e2e/docker-compose.yaml up -d
-	@echo "Waiting for services to be healthy..."
-	@sleep 10
-	docker-compose -f test/e2e/docker-compose.yaml ps
-
-# Stop E2E test dependencies
-e2e-down:
-	docker-compose -f test/e2e/docker-compose.yaml down -v
-
-# Run full E2E test suite with Docker dependencies
-test-e2e-full: build e2e-up
-	@echo "Waiting for FHIR server to start (may take 60-90s)..."
-	@sleep 60
-	go test -tags=e2e,integration -v ./test/e2e/...
-	$(MAKE) e2e-down
-
-# Update golden files
-test-golden: build
-	UPDATE_GOLDEN=1 go test -tags=e2e -v ./test/e2e/...
+# e2e-up / e2e-down / test-e2e-full and test/e2e/docker-compose.yaml were
+# retired by slice S6-C. The Compose file stood up PostgreSQL, HAPI FHIR,
+# Kafka, Redis and an echo server and NO fi-fhir, which is why
+# TestObservabilityEndpoints skipped even with the whole stack running
+# (ci/s5b-chaos-dr.yml:128-130); the CI runner has no Docker socket, so no job
+# could have used it either. test-golden went with the golden-file machinery:
+# test/e2e/golden/ never existed and `parse` stamps a fresh UUID and timestamps
+# into every event, so the comparison could not have passed if it had.
 
 # Golden Path 001: authenticated HL7v2 -> durable PostgreSQL admission -> IDE parity.
 # Uses self-owned Compose locally and POSTGRES_TEST_URL in CI.
@@ -325,9 +315,10 @@ structured-logging-negative-control:
 # FI_FHIR_E2E_REQUIRED_SERVICES turns a declared-but-unreachable dependency into
 # a failure instead of a skip; CI job test:e2e sets it.
 #
-# The rest of ./test/e2e/... is NOT run here and is red on main — see
-# ci/s5b-chaos-dr.yml for the executed evidence and the workflow-schema drift
-# that causes it.
+# The rest of ./test/e2e/... is run by test:e2e-legacy (ci/test-e2e-legacy.yml),
+# blocking, since slice S6-C repaired it. `make test-e2e` and `make
+# test-integration` are the whole tree; this target stays the narrow
+# live-server assertion slice 4.4c made blocking.
 e2e-live:
 	FI_FHIR_E2E_REQUIRED_SERVICES=fi-fhir,fi-fhir-metrics \
 	go test -tags=e2e,integration -count=1 -timeout=300s -v \

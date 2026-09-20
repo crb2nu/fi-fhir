@@ -1,0 +1,10 @@
+workflow:
+  name: invalid_cel
+  version: "1.0"
+  routes:
+    - name: test
+      filter:
+        condition: this.is.invalid.cel[[[
+      actions:
+        - type: log
+          level: info

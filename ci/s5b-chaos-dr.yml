@@ -122,6 +122,22 @@ test:chaos-recovery:
 # metrics surfaces — and makes it blocking. Everything else in the tree stays
 # unrun and is now named, with evidence, instead of assumed fine.
 #
+# SUPERSEDED IN PART by Sprint 6 Lane S6-C (ci/test-e2e-legacy.yml). The whole
+# tree is now run, blocking, and is green. Two corrections to the account
+# above, both from executing it:
+#   * fourteen tests and subtests were red, not nine. `runParse` and
+#     `runWorkflowRun` are byte-identical between 2f8b3f609 and Sprint 6, so
+#     the five this comment does not name were red here too.
+#   * the schema drift is NOT what made them fail. Repairing every template
+#     dot-path and changing nothing else left the failing set identical, test
+#     for test. Four other contracts were wrong upstream of it — the `events`
+#     envelope, the `--dry-run` flag, NDJSON event input, and nested action
+#     config — and no test ever reached a rendered template. The nil-interface
+#     panic was a test defect (an unchecked assertion on that envelope), not an
+#     engine one. See test/e2e/README.md.
+# This job stays as it is: it is slice 4.4c's live-server assertion, and it
+# keeps its own narrow scope.
+#
 # fi-fhir is built and exec'd against the service container rather than started
 # from a Compose file, following internal/observability's startReplica
 # (replicas_integration_test.go:793-857). The runner has no Docker socket, so
