@@ -430,6 +430,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The X12 fixtures declare the segment count they actually contain.
+  `271_rejected.edi` said 13 where it had 12, `271_response.edi` said 23 where it
+  had 22, and `277_denied.edi` said 18 where it had 19 — trailers a receiving
+  trading partner rejects, repaired in the corpus by `df45f683` and never
+  recorded here. The parser recomputes `SegmentCount` from the segments it
+  reads and never compares it with the declared SE01, so nothing caught the
+  drift; `TestFixtureTrailerCountsMatchTheirTransactionSets` and the
+  `lint:edi-fixtures` CI job now both do.
+
 - `workflow validate`, `workflow run`, and `workflow dry-run` reject invalid CEL,
   transform, and built-in action configuration before reading events. Validation
   diagnostics include severity, code, and path; warnings remain non-blocking (#21).

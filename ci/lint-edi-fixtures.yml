@@ -13,9 +13,12 @@
 # number): the fixtures are independent interchanges, and control-number
 # uniqueness across the corpus is not an invariant the test suite maintains.
 # The waiver is inert today — df45f683 renumbered ISA13 so all seven are
-# distinct and EL3009 does not fire with or without it — but it is what keeps a
-# future fixture that reuses a control number from turning this gate red for a
-# reason the suite does not care about.
+# distinct and EL3009 does not fire with or without it. Note what it does and
+# does not buy while lint:edi runs beside this job: a future fixture that reuses
+# a control number stays green *here*, but lint:edi checks the same corpus on
+# stock rules and would turn red on it anyway. Waiving the rule for the whole
+# corpus, as the item intends, means folding lint:edi into this job; that is a
+# deliberate follow-up, not an oversight.
 #
 # Pinned, never @latest: a linter that changes its rule set under us turns an
 # unrelated merge request red. v0.1.0 is the version the item names; verified
