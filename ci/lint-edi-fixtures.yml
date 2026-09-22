@@ -1,0 +1,52 @@
+# Lane: edilint dogfood, config-aware. Runs beside lint:edi (ci/lint-edi.yml),
+# which stays exactly as it is: that job runs edilint on its built-in defaults
+# with no config file. This one runs the same linter against the committed
+# testdata/edi/.edilint.yml, so the rule set CI enforces is the one the repo
+# declares, and publishes the result as a JUnit report.
+#
+# What the two prove is not the same thing. lint:edi proves the fixtures are
+# clean under edilint's stock rules. lint:edi-fixtures proves they are clean
+# under the waiver the repo commits to, and is the job that goes red if someone
+# edits .edilint.yml into something the corpus no longer satisfies.
+#
+# testdata/edi/.edilint.yml disables EL3009 (duplicate interchange control
+# number): the fixtures are independent interchanges, and control-number
+# uniqueness across the corpus is not an invariant the test suite maintains.
+# The waiver is inert today — df45f683 renumbered ISA13 so all seven are
+# distinct and EL3009 does not fire with or without it — but it is what keeps a
+# future fixture that reuses a control number from turning this gate red for a
+# reason the suite does not care about.
+#
+# Pinned, never @latest: a linter that changes its rule set under us turns an
+# unrelated merge request red. v0.1.0 is the version the item names; verified
+# green on this corpus with this config.
+#
+# There is no make target mirroring this run. `make lint-edi` mirrors lint:edi
+# (v0.3.0, no --config), and edilint discovers a config only in the working
+# directory, so a run from the repo root never picks up
+# testdata/edi/.edilint.yml. The Makefile is outside this change's declared
+# scope; a local config-aware target is follow-up work.
+lint:edi-fixtures:
+  stage: lint
+  extends:
+    - .go-image
+    - .go-cache
+    - .go-mr-rules
+  variables:
+    EDILINT_VERSION: v0.1.0
+  script:
+    - go install github.com/crb2nu/edilint/cmd/edilint@${EDILINT_VERSION}
+    # Two invocations on purpose. The first one's stdout *is* the report, so its
+    # findings are invisible in the job log; `|| status=$?` keeps its exit code
+    # rather than discarding it. The second re-runs the same check unredirected,
+    # printing any findings and failing the job on exit 1 (findings) or 2
+    # (usage/read error).
+    - status=0
+    - $GOPATH/bin/edilint --config testdata/edi/.edilint.yml --output junit testdata/edi/*.edi > edilint-report.xml || status=$?
+    - echo "edilint --output junit exited ${status}"
+    - $GOPATH/bin/edilint --config testdata/edi/.edilint.yml testdata/edi/*.edi
+  artifacts:
+    when: always
+    reports:
+      junit: edilint-report.xml
+  allow_failure: false
