@@ -26,7 +26,7 @@
 .PHONY: transport-gate transport-gate-negative-control                 # 4.2    — S4-E
 .PHONY: destination-transport                                          # 4.1c-b — S4-A
 .PHONY: fhir-conformance fhir-conformance-negative-control             # 5.1a   — S5-E
-.PHONY: lint-edi                                                       # edilint dogfood
+.PHONY: lint-edi lint-edi-fixtures                                     # edilint dogfood
 .PHONY: mllp-rate-quota                                                # 4.4e   — S5-D
 .PHONY: phi-retention-throughput phi-retention-throughput-negative-control # D1 — S5-F
 .PHONY: structured-logging structured-logging-negative-control          # 4.4d   — S5-C
@@ -503,6 +503,16 @@ lint-fix:
 EDILINT_VERSION ?= v0.3.0
 lint-edi:
 	go run github.com/crb2nu/edilint/cmd/edilint@$(EDILINT_VERSION) -v testdata/edi/*.edi
+
+# Lint the X12 fixtures against the committed config, as CI does
+# (lint:edi-fixtures). Separate from lint-edi on purpose: that target runs
+# edilint's stock rules, this one runs the rule set the repo declares in
+# testdata/edi/.edilint.yml. --config is passed explicitly because edilint
+# discovers a config only in the working directory, so a run from the repo
+# root would otherwise never find it.
+EDILINT_FIXTURES_VERSION ?= v0.1.0
+lint-edi-fixtures:
+	go run github.com/crb2nu/edilint/cmd/edilint@$(EDILINT_FIXTURES_VERSION) -v --config testdata/edi/.edilint.yml testdata/edi/*.edi
 
 # Install linter to $GOPATH/bin (for IDE integration)
 install-lint:

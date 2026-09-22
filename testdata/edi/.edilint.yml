@@ -1,0 +1,10 @@
+version: 1
+
+# EL3009 (envelope.duplicate-control-number) is cross-file: it flags an ISA13
+# reused by another file in the same run. These fixtures are independent
+# interchanges that exercise the parser one message at a time, so
+# control-number uniqueness across the corpus is not an invariant the test
+# suite maintains — renumbering ISA13 to satisfy the rule would edit values
+# tests assert on for no gain.
+disable:
+  - EL3009

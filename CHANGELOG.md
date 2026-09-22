@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- CI job `lint:edi-fixtures` (`ci/lint-edi-fixtures.yml`) runs edilint, pinned to `v0.1.0`, over `testdata/edi/*.edi` against the committed `testdata/edi/.edilint.yml` on every merge request, and publishes `edilint-report.xml` as a JUnit report so envelope defects show up in the MR test panel. It runs beside the existing `lint:edi`, which is unchanged and still checks the same corpus on edilint's stock rules with no config file. `testdata/edi/.edilint.yml` waives EL3009 (duplicate interchange control number): the fixtures are independent interchanges and control-number uniqueness across the corpus is not an invariant the suite maintains. `TestFixtureTrailerCountsMatchTheirTransactionSets` pins every fixture's SE01 against the segments it actually contains in `go test ./internal/parser/edi/...`, without needing the network — the three miscounts edilint originally found were already repaired on `main` in `df45f683`, and nothing until now kept them repaired. `make lint-edi-fixtures` mirrors the job locally at the same pin and config, beside `make lint-edi`, which still mirrors `lint:edi`.
+
 - Kafka, Redis Streams, and Google Cloud Pub/Sub event backends with acknowledgment-aware consumers, workflow queue drivers, `workflow consume`, shared handlers, and an event-sourcing outbox adapter.
 
 - GraphQL callers can be authenticated by the identity Cloudflare Access verified at the edge: with `FI_FHIR_GRAPHQL_ACCESS_TEAM_DOMAIN`, `_AUDIENCE`, and `_PRINCIPALS` set, the runtime verifies the `Cf-Access-Jwt-Assertion` token (or the `CF_Authorization` cookie) against the team domain's keys and exact application audience, and grants each listed email exactly the roles the deployment maps to it. Works beside either bearer mode; an `Authorization` header keeps precedence. `/api/auth/status` reports `authVia: "cloudflare-access"` with the principal, and the IDE's credential gate steps aside for it, so a Google sign-in through Access carries straight into the IDE without a pasted token.
@@ -427,6 +429,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   documented inline in `.gitlab-ci.yml` and in `.loom/40-decisions.md`.
 
 ### Fixed
+
+- The X12 fixtures declare the segment count they actually contain.
+  `271_rejected.edi` said 13 where it had 12, `271_response.edi` said 23 where it
+  had 22, and `277_denied.edi` said 18 where it had 19 — trailers a receiving
+  trading partner rejects, repaired in the corpus by `df45f683` and never
+  recorded here. The parser recomputes `SegmentCount` from the segments it
+  reads and never compares it with the declared SE01, so nothing caught the
+  drift; `TestFixtureTrailerCountsMatchTheirTransactionSets` and the
+  `lint:edi-fixtures` CI job now both do.
 
 - `workflow validate`, `workflow run`, and `workflow dry-run` reject invalid CEL,
   transform, and built-in action configuration before reading events. Validation

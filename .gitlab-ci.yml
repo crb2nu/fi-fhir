@@ -20,6 +20,7 @@ include:
   - local: ci/test-transport-gate.yml
   - local: ci/test-destination-transport.yml
   - local: ci/lint-edi.yml
+  - local: ci/lint-edi-fixtures.yml
   - local: ci/test-mllp-rate-quota.yml
   - local: ci/test-structured-logging.yml
   - local: ci/s5b-chaos-dr.yml
