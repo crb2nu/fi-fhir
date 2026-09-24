@@ -24,6 +24,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity/oidctest"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/delivery"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/destination"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/operator"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
@@ -71,11 +72,18 @@ func TestOperatorControlPlane_FailureReplayAndAuditGoldenJourneys(t *testing.T) 
 	if err != nil {
 		t.Fatalf("NewPostgresReadStore: %v", err)
 	}
+	deliveryLedger, err := destination.NewPostgresProvenance(db)
+	if err != nil {
+		t.Fatalf("NewPostgresProvenance: %v", err)
+	}
+	if err := deliveryLedger.Migrate(ctx); err != nil {
+		t.Fatalf("migrate destination ledger: %v", err)
+	}
 	recovery, err := delivery.NewPostgresStore(db, clock.Now)
 	if err != nil {
 		t.Fatalf("delivery.NewPostgresStore: %v", err)
 	}
-	controlPlane, err := operator.NewService(reads, recovery, catalog, operatorTenant)
+	controlPlane, err := operator.NewService(reads, deliveryLedger, recovery, catalog, operatorTenant)
 	if err != nil {
 		t.Fatalf("operator.NewService: %v", err)
 	}

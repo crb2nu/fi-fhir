@@ -169,7 +169,7 @@ func newFHIRTraceClient(t *testing.T, ctx context.Context, db *sql.DB, seededAt 
 	if err != nil {
 		t.Fatalf("delivery.NewPostgresStore: %v", err)
 	}
-	controlPlane, err := operator.NewService(reads, recovery, catalog, operatorTenant)
+	controlPlane, err := operator.NewService(reads, provenance, recovery, catalog, operatorTenant)
 	if err != nil {
 		t.Fatalf("operator.NewService: %v", err)
 	}

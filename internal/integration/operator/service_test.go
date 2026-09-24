@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/delivery"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/destination"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
@@ -68,7 +70,40 @@ func (c *countingCatalog) ListEvents(context.Context, string, string, string) ([
 	return nil, c.err
 }
 
+// recordingLedger stands in for the destination provenance ledger. It records
+// every read so a test can prove which tenant, attempt, and bound reached it.
+type recordingLedger struct {
+	reads   []ledgerRead
+	records map[string][]destination.DeliverySummary
+	err     error
+}
+
+type ledgerRead struct {
+	tenantID  string
+	attemptID string
+	limit     int
+}
+
+func (l *recordingLedger) ListDeliveriesForAttempt(
+	_ context.Context,
+	tenantID, attemptID string,
+	limit int,
+) ([]destination.DeliverySummary, error) {
+	l.reads = append(l.reads, ledgerRead{tenantID: tenantID, attemptID: attemptID, limit: limit})
+	if l.err != nil {
+		return nil, l.err
+	}
+	return l.records[attemptID], nil
+}
+
 func newTestService(t *testing.T) (*Service, *countingRecovery, *countingCatalog) {
+	t.Helper()
+	service, recovery, catalog, _ := newTestServiceWithLedger(t)
+	return service, recovery, catalog
+}
+
+func newTestServiceWithLedger(t *testing.T) (*Service, *countingRecovery, *countingCatalog, *recordingLedger) {
+	t.Helper()
 	t.Helper()
 	// A lazily-opened handle is enough: every assertion here refuses the
 	// request before any statement is issued.
@@ -94,11 +129,12 @@ func newTestService(t *testing.T) (*Service, *countingRecovery, *countingCatalog
 			OccurredAt: time.Unix(0, 0),
 		},
 	}}
-	service, err := NewService(reads, recovery, catalog, testTenant)
+	ledger := &recordingLedger{}
+	service, err := NewService(reads, ledger, recovery, catalog, testTenant)
 	if err != nil {
 		t.Fatalf("NewService: %v", err)
 	}
-	return service, recovery, catalog
+	return service, recovery, catalog, ledger
 }
 
 func operatorPrincipal(extraRoles ...string) integration.Principal {
@@ -290,6 +326,127 @@ func TestSummarizeSnapshotProjectsActorAndReason(t *testing.T) {
 	}
 	if summary.UpdatedAt.Location() != time.UTC {
 		t.Fatalf("snapshot summary time is not UTC: %v", summary.UpdatedAt)
+	}
+}
+
+func TestNewServiceRequiresTheDeliveryLedger(t *testing.T) {
+	db, err := sql.Open("postgres", "postgres://unused:unused@127.0.0.1:1/unused?sslmode=disable")
+	if err != nil {
+		t.Fatalf("open placeholder database: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	reads, err := NewPostgresReadStore(db)
+	if err != nil {
+		t.Fatalf("NewPostgresReadStore: %v", err)
+	}
+	if _, err := NewService(reads, nil, &countingRecovery{}, &countingCatalog{}, testTenant); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("NewService without a ledger reader error = %v, want %v", err, ErrUnavailable)
+	}
+}
+
+func TestAttemptReadsRequireTheReadRoleBeforeTheLedger(t *testing.T) {
+	service, _, _, ledger := newTestServiceWithLedger(t)
+	ctx := requestsecurity.WithSecurityContext(context.Background(),
+		securityContext(testTenant, delivery.OperatorRole, DeploymentOperatorRole))
+
+	if _, err := service.GetAttempt(ctx, "attempt-a"); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("GetAttempt error = %v, want %v", err, ErrForbidden)
+	}
+	if _, err := service.ListAttempts(ctx, AttemptFilter{}, PageRequest{}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("ListAttempts error = %v, want %v", err, ErrForbidden)
+	}
+	if _, err := service.GetMessageTrace(ctx, "receipt-a"); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("GetMessageTrace error = %v, want %v", err, ErrForbidden)
+	}
+	if len(ledger.reads) != 0 {
+		t.Fatalf("unauthorized read reached the delivery ledger: %+v", ledger.reads)
+	}
+}
+
+func TestAttachDeliveriesProjectsTheLedgerPerAttemptTenantScopedAndBounded(t *testing.T) {
+	service, _, _, ledger := newTestServiceWithLedger(t)
+	completed := time.Date(2026, 9, 24, 9, 3, 0, 0, time.FixedZone("EDT", -4*60*60))
+	ledger.records = map[string][]destination.DeliverySummary{
+		"attempt-a": {
+			{
+				Transport: destination.TransportFHIR, DestinationArtifactID: "destination-fhir",
+				DestinationRevisionID: "destination-1", DestinationClass: "production",
+				DestinationDigestVerified: "sha256:abc", Outcome: "delivered", HTTPStatusClass: "2xx",
+				EndpointAdvisory: "https://fhir.example.test/r4", CompletedAt: completed,
+				FHIRResourceTypes: []string{"Patient", "Encounter"}, FHIREntryCount: 2,
+				FHIROutcomeCodesAdvisory: []string{},
+			},
+			{
+				Transport: destination.TransportHTTPS, DestinationArtifactID: "destination-https",
+				DestinationRevisionID: "destination-1", DestinationClass: "production",
+				DestinationDigestVerified: "sha256:abc", Outcome: "refused",
+				FailureCode: destination.FailureRejected, HTTPStatusClass: "4xx",
+				EndpointAdvisory:                 "https://https.example.test/ingest",
+				ServedCertificateSubjectAdvisory: "CN=https.example.test", CompletedAt: completed,
+				FHIRResourceTypes: []string{}, FHIROutcomeCodesAdvisory: []string{},
+			},
+		},
+	}
+	attempts := []DeliveryAttemptSummary{{AttemptID: "attempt-a"}, {AttemptID: "attempt-b"}}
+
+	if err := service.attachDeliveries(context.Background(), testTenant, attempts, MaxListedAttemptDeliveries); err != nil {
+		t.Fatalf("attachDeliveries: %v", err)
+	}
+	wantReads := []ledgerRead{
+		{tenantID: testTenant, attemptID: "attempt-a", limit: MaxListedAttemptDeliveries},
+		{tenantID: testTenant, attemptID: "attempt-b", limit: MaxListedAttemptDeliveries},
+	}
+	if len(ledger.reads) != len(wantReads) {
+		t.Fatalf("ledger reads = %+v, want %+v", ledger.reads, wantReads)
+	}
+	for index := range wantReads {
+		if ledger.reads[index] != wantReads[index] {
+			t.Fatalf("ledger read %d = %+v, want %+v", index, ledger.reads[index], wantReads[index])
+		}
+	}
+
+	got := attempts[0].Deliveries
+	if len(got) != 2 {
+		t.Fatalf("attempt-a deliveries = %+v, want 2 in ledger order", got)
+	}
+	fhir := got[0]
+	if fhir.Transport != "fhir" || fhir.Outcome != "delivered" || fhir.FHIREntryCount != 2 ||
+		strings.Join(fhir.FHIRResourceTypes, ",") != "Patient,Encounter" ||
+		fhir.FHIROutcomeCodesAdvisory == nil || len(fhir.FHIROutcomeCodesAdvisory) != 0 ||
+		fhir.DigestVerified != "sha256:abc" || fhir.DestinationArtifactID != "destination-fhir" {
+		t.Fatalf("fhir delivery = %+v", fhir)
+	}
+	if fhir.CompletedAt.Location() != time.UTC || !fhir.CompletedAt.Equal(completed) {
+		t.Fatalf("fhir delivery completedAt = %v, want %v in UTC", fhir.CompletedAt, completed)
+	}
+	https := got[1]
+	if https.Transport != "https" || https.HTTPStatusClass != "4xx" ||
+		https.FailureCode != destination.FailureRejected ||
+		https.ServedCertificateSubjectAdvisory != "CN=https.example.test" ||
+		https.FHIRResourceTypes == nil || len(https.FHIRResourceTypes) != 0 || https.FHIREntryCount != 0 {
+		t.Fatalf("https delivery = %+v", https)
+	}
+	if attempts[1].Deliveries == nil || len(attempts[1].Deliveries) != 0 {
+		t.Fatalf("attempt-b deliveries = %#v, want an empty, non-nil list", attempts[1].Deliveries)
+	}
+}
+
+func TestAttachDeliveriesFailsTheReadRatherThanClaimingNoDelivery(t *testing.T) {
+	service, _, _, ledger := newTestServiceWithLedger(t)
+
+	ledger.err = destination.ErrProvenanceUnavailable
+	attempts := []DeliveryAttemptSummary{{AttemptID: "attempt-a"}}
+	if err := service.attachDeliveries(context.Background(), testTenant, attempts, MaxAttemptDeliveries); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("unavailable ledger error = %v, want %v", err, ErrUnavailable)
+	}
+
+	ledger.err = errors.New("connection reset")
+	err := service.attachDeliveries(context.Background(), testTenant, attempts, MaxAttemptDeliveries)
+	if err == nil || errors.Is(err, ErrUnavailable) {
+		t.Fatalf("failed ledger read error = %v, want a wrapped read failure", err)
+	}
+	if attempts[0].Deliveries != nil {
+		t.Fatalf("a failed ledger read still attached %#v", attempts[0].Deliveries)
 	}
 }
 

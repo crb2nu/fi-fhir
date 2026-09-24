@@ -6,6 +6,8 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 )
 
 const destinationMigrationLockKey = int64(5064657639792058897)
@@ -217,4 +219,113 @@ func (p *PostgresProvenance) RecordDelivery(ctx context.Context, record Delivery
 		return fmt.Errorf("record destination delivery: %w", err)
 	}
 	return nil
+}
+
+// MaxDeliveryReadLimit is the hard ceiling on the rows one
+// ListDeliveriesForAttempt call may return.
+const MaxDeliveryReadLimit = 100
+
+// DeliverySummary is one delivery-ledger row as the operator control plane
+// reads it (Slice 4.2c).
+//
+// It is exactly the ledger's columns and nothing more. The ledger is
+// clinical-content-free by construction (migrations 0002 and 0003): every
+// field here is either server-owned provenance or one of the three
+// `_advisory` values — a destination address the revision declares, a bounded
+// printable certificate subject, and closed-vocabulary OperationOutcome issue
+// codes. No response body, header, diagnostics text, or event content was ever
+// written, so none can be read.
+type DeliverySummary struct {
+	Transport                        TransportKind
+	DestinationArtifactID            string
+	DestinationRevisionID            string
+	DestinationClass                 string
+	DestinationDigestVerified        string
+	Outcome                          string
+	FailureCode                      string
+	HTTPStatusClass                  string
+	EndpointAdvisory                 string
+	ServedCertificateSubjectAdvisory string
+	CompletedAt                      time.Time
+	// FHIRResourceTypes is fhir_resource_types split on commas, in bundle
+	// order. Empty — never nil — for an https delivery.
+	FHIRResourceTypes []string
+	FHIREntryCount    int
+	// FHIROutcomeCodesAdvisory is fhir_outcome_codes_advisory split on commas.
+	// Empty — never nil — when the destination answered without an
+	// OperationOutcome.
+	FHIROutcomeCodesAdvisory []string
+}
+
+// ListDeliveriesForAttempt returns at most limit delivery-ledger rows for one
+// attempt of one tenant, newest first.
+//
+// The tenant is a WHERE predicate, not a post-filter, so another tenant's row
+// under the same attempt id is never read. Order is (completed_at, delivery_id)
+// descending — the identity column breaks a completion-time tie in insertion
+// order — which the (tenant_id, attempt_id, completed_at, delivery_id) index
+// serves as a backward scan.
+func (p *PostgresProvenance) ListDeliveriesForAttempt(
+	ctx context.Context,
+	tenantID, attemptID string,
+	limit int,
+) ([]DeliverySummary, error) {
+	if p == nil || p.db == nil || ctx == nil {
+		return nil, ErrProvenanceUnavailable
+	}
+	if !validIdentity(tenantID) || limit < 1 || limit > MaxDeliveryReadLimit {
+		return nil, ErrProvenanceUnavailable
+	}
+	if !validIdentity(attemptID) {
+		// RecordDelivery refuses this attempt id, so no row can carry it.
+		return []DeliverySummary{}, nil
+	}
+	rows, err := p.db.QueryContext(ctx, `
+		SELECT transport, destination_artifact_id, destination_revision_id,
+			destination_class, destination_digest_verified, outcome, failure_code,
+			http_status_class, destination_endpoint_advisory,
+			served_certificate_subject_advisory, completed_at,
+			fhir_resource_types, fhir_entry_count, fhir_outcome_codes_advisory
+		FROM integration_destination_deliveries
+		WHERE tenant_id = $1 AND attempt_id = $2
+		ORDER BY completed_at DESC, delivery_id DESC
+		LIMIT $3
+	`, tenantID, attemptID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list destination deliveries: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	deliveries := make([]DeliverySummary, 0)
+	for rows.Next() {
+		var summary DeliverySummary
+		var transport, resourceTypes, outcomeCodes string
+		if err := rows.Scan(
+			&transport, &summary.DestinationArtifactID, &summary.DestinationRevisionID,
+			&summary.DestinationClass, &summary.DestinationDigestVerified, &summary.Outcome,
+			&summary.FailureCode, &summary.HTTPStatusClass, &summary.EndpointAdvisory,
+			&summary.ServedCertificateSubjectAdvisory, &summary.CompletedAt,
+			&resourceTypes, &summary.FHIREntryCount, &outcomeCodes,
+		); err != nil {
+			return nil, fmt.Errorf("scan destination delivery: %w", err)
+		}
+		summary.Transport = TransportKind(transport)
+		summary.CompletedAt = summary.CompletedAt.UTC()
+		summary.FHIRResourceTypes = splitLedgerList(resourceTypes)
+		summary.FHIROutcomeCodesAdvisory = splitLedgerList(outcomeCodes)
+		deliveries = append(deliveries, summary)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate destination deliveries: %w", err)
+	}
+	return deliveries, nil
+}
+
+// splitLedgerList splits one of the ledger's comma-joined FHIR columns. The
+// writer joins without spaces and never emits an empty element, so an empty
+// column is the only way to get an empty list.
+func splitLedgerList(value string) []string {
+	if value == "" {
+		return []string{}
+	}
+	return strings.Split(value, ",")
 }
