@@ -247,10 +247,40 @@ func projectOperatorAttempt(attempt operator.DeliveryAttemptSummary) model.Opera
 		Topic:           attempt.Topic,
 		LeaseOwner:      attempt.LeaseOwner,
 		LeaseExpiresAt:  attempt.LeaseExpiresAt,
+		Deliveries:      projectOperatorDeliveries(attempt.Deliveries),
 	}
 	if attempt.DeadLetter != nil {
 		deadLetter := projectOperatorDeadLetter(*attempt.DeadLetter)
 		projected.DeadLetter = &deadLetter
+	}
+	return projected
+}
+
+// projectOperatorDeliveries renders the attempt's provenance-ledger rows. It
+// maps the ledger's columns one to one and adds nothing: the ledger holds no
+// clinical content, and neither does this projection.
+func projectOperatorDeliveries(deliveries []operator.DestinationDeliverySummary) []model.OperatorDestinationDelivery {
+	projected := make([]model.OperatorDestinationDelivery, 0, len(deliveries))
+	for _, delivery := range deliveries {
+		projected = append(projected, model.OperatorDestinationDelivery{
+			Transport: delivery.Transport,
+			Destination: &model.IntegrationPreviewDestination{
+				ArtifactID: delivery.DestinationArtifactID,
+				RevisionID: delivery.DestinationRevisionID,
+				Digest:     delivery.DigestVerified,
+				Class:      delivery.DestinationClass,
+			},
+			DigestVerified:                   delivery.DigestVerified,
+			Outcome:                          delivery.Outcome,
+			FailureCode:                      delivery.FailureCode,
+			HTTPStatusClass:                  delivery.HTTPStatusClass,
+			EndpointAdvisory:                 delivery.EndpointAdvisory,
+			ServedCertificateSubjectAdvisory: delivery.ServedCertificateSubjectAdvisory,
+			CompletedAt:                      delivery.CompletedAt,
+			FhirResourceTypes:                nonNilStrings(delivery.FHIRResourceTypes),
+			FhirEntryCount:                   delivery.FHIREntryCount,
+			FhirOutcomeCodesAdvisory:         nonNilStrings(delivery.FHIROutcomeCodesAdvisory),
+		})
 	}
 	return projected
 }

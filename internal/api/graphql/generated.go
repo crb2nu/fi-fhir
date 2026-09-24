@@ -755,6 +755,7 @@ type ComplexityRoot struct {
 		AttemptID       func(childComplexity int) int
 		CompletedAt     func(childComplexity int) int
 		DeadLetter      func(childComplexity int) int
+		Deliveries      func(childComplexity int) int
 		Destination     func(childComplexity int) int
 		EventID         func(childComplexity int) int
 		LastErrorCode   func(childComplexity int) int
@@ -802,6 +803,21 @@ type ComplexityRoot struct {
 		ReleaseID  func(childComplexity int) int
 		ToState    func(childComplexity int) int
 		Version    func(childComplexity int) int
+	}
+
+	OperatorDestinationDelivery struct {
+		CompletedAt                      func(childComplexity int) int
+		Destination                      func(childComplexity int) int
+		DigestVerified                   func(childComplexity int) int
+		EndpointAdvisory                 func(childComplexity int) int
+		FailureCode                      func(childComplexity int) int
+		FhirEntryCount                   func(childComplexity int) int
+		FhirOutcomeCodesAdvisory         func(childComplexity int) int
+		FhirResourceTypes                func(childComplexity int) int
+		HTTPStatusClass                  func(childComplexity int) int
+		Outcome                          func(childComplexity int) int
+		ServedCertificateSubjectAdvisory func(childComplexity int) int
+		Transport                        func(childComplexity int) int
 	}
 
 	OperatorDiagnostic struct {
@@ -5036,6 +5052,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.OperatorDeliveryAttempt.DeadLetter(childComplexity), true
+	case "OperatorDeliveryAttempt.deliveries":
+		if e.complexity.OperatorDeliveryAttempt.Deliveries == nil {
+			break
+		}
+
+		return e.complexity.OperatorDeliveryAttempt.Deliveries(childComplexity), true
 	case "OperatorDeliveryAttempt.destination":
 		if e.complexity.OperatorDeliveryAttempt.Destination == nil {
 			break
@@ -5267,6 +5289,79 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.OperatorDeploymentEvent.Version(childComplexity), true
+
+	case "OperatorDestinationDelivery.completedAt":
+		if e.complexity.OperatorDestinationDelivery.CompletedAt == nil {
+			break
+		}
+
+		return e.complexity.OperatorDestinationDelivery.CompletedAt(childComplexity), true
+	case "OperatorDestinationDelivery.destination":
+		if e.complexity.OperatorDestinationDelivery.Destination == nil {
+			break
+		}
+
+		return e.complexity.OperatorDestinationDelivery.Destination(childComplexity), true
+	case "OperatorDestinationDelivery.digestVerified":
+		if e.complexity.OperatorDestinationDelivery.DigestVerified == nil {
+			break
+		}
+
+		return e.complexity.OperatorDestinationDelivery.DigestVerified(childComplexity), true
+	case "OperatorDestinationDelivery.endpointAdvisory":
+		if e.complexity.OperatorDestinationDelivery.EndpointAdvisory == nil {
+			break
+		}
+
+		return e.complexity.OperatorDestinationDelivery.EndpointAdvisory(childComplexity), true
+	case "OperatorDestinationDelivery.failureCode":
+		if e.complexity.OperatorDestinationDelivery.FailureCode == nil {
+			break
+		}
+
+		return e.complexity.OperatorDestinationDelivery.FailureCode(childComplexity), true
+	case "OperatorDestinationDelivery.fhirEntryCount":
+		if e.complexity.OperatorDestinationDelivery.FhirEntryCount == nil {
+			break
+		}
+
+		return e.complexity.OperatorDestinationDelivery.FhirEntryCount(childComplexity), true
+	case "OperatorDestinationDelivery.fhirOutcomeCodesAdvisory":
+		if e.complexity.OperatorDestinationDelivery.FhirOutcomeCodesAdvisory == nil {
+			break
+		}
+
+		return e.complexity.OperatorDestinationDelivery.FhirOutcomeCodesAdvisory(childComplexity), true
+	case "OperatorDestinationDelivery.fhirResourceTypes":
+		if e.complexity.OperatorDestinationDelivery.FhirResourceTypes == nil {
+			break
+		}
+
+		return e.complexity.OperatorDestinationDelivery.FhirResourceTypes(childComplexity), true
+	case "OperatorDestinationDelivery.httpStatusClass":
+		if e.complexity.OperatorDestinationDelivery.HTTPStatusClass == nil {
+			break
+		}
+
+		return e.complexity.OperatorDestinationDelivery.HTTPStatusClass(childComplexity), true
+	case "OperatorDestinationDelivery.outcome":
+		if e.complexity.OperatorDestinationDelivery.Outcome == nil {
+			break
+		}
+
+		return e.complexity.OperatorDestinationDelivery.Outcome(childComplexity), true
+	case "OperatorDestinationDelivery.servedCertificateSubjectAdvisory":
+		if e.complexity.OperatorDestinationDelivery.ServedCertificateSubjectAdvisory == nil {
+			break
+		}
+
+		return e.complexity.OperatorDestinationDelivery.ServedCertificateSubjectAdvisory(childComplexity), true
+	case "OperatorDestinationDelivery.transport":
+		if e.complexity.OperatorDestinationDelivery.Transport == nil {
+			break
+		}
+
+		return e.complexity.OperatorDestinationDelivery.Transport(childComplexity), true
 
 	case "OperatorDiagnostic.classification":
 		if e.complexity.OperatorDiagnostic.Classification == nil {
@@ -27317,6 +27412,8 @@ func (ec *executionContext) fieldContext_OperatorControlResult_attempt(_ context
 				return ec.fieldContext_OperatorDeliveryAttempt_leaseExpiresAt(ctx, field)
 			case "deadLetter":
 				return ec.fieldContext_OperatorDeliveryAttempt_deadLetter(ctx, field)
+			case "deliveries":
+				return ec.fieldContext_OperatorDeliveryAttempt_deliveries(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type OperatorDeliveryAttempt", field.Name)
 		},
@@ -28405,6 +28502,61 @@ func (ec *executionContext) fieldContext_OperatorDeliveryAttempt_deadLetter(_ co
 	return fc, nil
 }
 
+func (ec *executionContext) _OperatorDeliveryAttempt_deliveries(ctx context.Context, field graphql.CollectedField, obj *model.OperatorDeliveryAttempt) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorDeliveryAttempt_deliveries,
+		func(ctx context.Context) (any, error) {
+			return obj.Deliveries, nil
+		},
+		nil,
+		ec.marshalNOperatorDestinationDelivery2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorDestinationDeliveryᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorDeliveryAttempt_deliveries(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorDeliveryAttempt",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "transport":
+				return ec.fieldContext_OperatorDestinationDelivery_transport(ctx, field)
+			case "destination":
+				return ec.fieldContext_OperatorDestinationDelivery_destination(ctx, field)
+			case "digestVerified":
+				return ec.fieldContext_OperatorDestinationDelivery_digestVerified(ctx, field)
+			case "outcome":
+				return ec.fieldContext_OperatorDestinationDelivery_outcome(ctx, field)
+			case "failureCode":
+				return ec.fieldContext_OperatorDestinationDelivery_failureCode(ctx, field)
+			case "httpStatusClass":
+				return ec.fieldContext_OperatorDestinationDelivery_httpStatusClass(ctx, field)
+			case "endpointAdvisory":
+				return ec.fieldContext_OperatorDestinationDelivery_endpointAdvisory(ctx, field)
+			case "servedCertificateSubjectAdvisory":
+				return ec.fieldContext_OperatorDestinationDelivery_servedCertificateSubjectAdvisory(ctx, field)
+			case "completedAt":
+				return ec.fieldContext_OperatorDestinationDelivery_completedAt(ctx, field)
+			case "fhirResourceTypes":
+				return ec.fieldContext_OperatorDestinationDelivery_fhirResourceTypes(ctx, field)
+			case "fhirEntryCount":
+				return ec.fieldContext_OperatorDestinationDelivery_fhirEntryCount(ctx, field)
+			case "fhirOutcomeCodesAdvisory":
+				return ec.fieldContext_OperatorDestinationDelivery_fhirOutcomeCodesAdvisory(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type OperatorDestinationDelivery", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _OperatorDeliveryAttemptConnection_nodes(ctx context.Context, field graphql.CollectedField, obj *model.OperatorDeliveryAttemptConnection) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -28471,6 +28623,8 @@ func (ec *executionContext) fieldContext_OperatorDeliveryAttemptConnection_nodes
 				return ec.fieldContext_OperatorDeliveryAttempt_leaseExpiresAt(ctx, field)
 			case "deadLetter":
 				return ec.fieldContext_OperatorDeliveryAttempt_deadLetter(ctx, field)
+			case "deliveries":
+				return ec.fieldContext_OperatorDeliveryAttempt_deliveries(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type OperatorDeliveryAttempt", field.Name)
 		},
@@ -29116,6 +29270,364 @@ func (ec *executionContext) fieldContext_OperatorDeploymentEvent_occurredAt(_ co
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorDestinationDelivery_transport(ctx context.Context, field graphql.CollectedField, obj *model.OperatorDestinationDelivery) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorDestinationDelivery_transport,
+		func(ctx context.Context) (any, error) {
+			return obj.Transport, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorDestinationDelivery_transport(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorDestinationDelivery",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorDestinationDelivery_destination(ctx context.Context, field graphql.CollectedField, obj *model.OperatorDestinationDelivery) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorDestinationDelivery_destination,
+		func(ctx context.Context) (any, error) {
+			return obj.Destination, nil
+		},
+		nil,
+		ec.marshalNIntegrationPreviewDestination2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationPreviewDestination,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorDestinationDelivery_destination(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorDestinationDelivery",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "artifactId":
+				return ec.fieldContext_IntegrationPreviewDestination_artifactId(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_IntegrationPreviewDestination_revisionId(ctx, field)
+			case "digest":
+				return ec.fieldContext_IntegrationPreviewDestination_digest(ctx, field)
+			case "class":
+				return ec.fieldContext_IntegrationPreviewDestination_class(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationPreviewDestination", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorDestinationDelivery_digestVerified(ctx context.Context, field graphql.CollectedField, obj *model.OperatorDestinationDelivery) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorDestinationDelivery_digestVerified,
+		func(ctx context.Context) (any, error) {
+			return obj.DigestVerified, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorDestinationDelivery_digestVerified(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorDestinationDelivery",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorDestinationDelivery_outcome(ctx context.Context, field graphql.CollectedField, obj *model.OperatorDestinationDelivery) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorDestinationDelivery_outcome,
+		func(ctx context.Context) (any, error) {
+			return obj.Outcome, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorDestinationDelivery_outcome(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorDestinationDelivery",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorDestinationDelivery_failureCode(ctx context.Context, field graphql.CollectedField, obj *model.OperatorDestinationDelivery) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorDestinationDelivery_failureCode,
+		func(ctx context.Context) (any, error) {
+			return obj.FailureCode, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorDestinationDelivery_failureCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorDestinationDelivery",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorDestinationDelivery_httpStatusClass(ctx context.Context, field graphql.CollectedField, obj *model.OperatorDestinationDelivery) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorDestinationDelivery_httpStatusClass,
+		func(ctx context.Context) (any, error) {
+			return obj.HTTPStatusClass, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorDestinationDelivery_httpStatusClass(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorDestinationDelivery",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorDestinationDelivery_endpointAdvisory(ctx context.Context, field graphql.CollectedField, obj *model.OperatorDestinationDelivery) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorDestinationDelivery_endpointAdvisory,
+		func(ctx context.Context) (any, error) {
+			return obj.EndpointAdvisory, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorDestinationDelivery_endpointAdvisory(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorDestinationDelivery",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorDestinationDelivery_servedCertificateSubjectAdvisory(ctx context.Context, field graphql.CollectedField, obj *model.OperatorDestinationDelivery) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorDestinationDelivery_servedCertificateSubjectAdvisory,
+		func(ctx context.Context) (any, error) {
+			return obj.ServedCertificateSubjectAdvisory, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorDestinationDelivery_servedCertificateSubjectAdvisory(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorDestinationDelivery",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorDestinationDelivery_completedAt(ctx context.Context, field graphql.CollectedField, obj *model.OperatorDestinationDelivery) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorDestinationDelivery_completedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CompletedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorDestinationDelivery_completedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorDestinationDelivery",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorDestinationDelivery_fhirResourceTypes(ctx context.Context, field graphql.CollectedField, obj *model.OperatorDestinationDelivery) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorDestinationDelivery_fhirResourceTypes,
+		func(ctx context.Context) (any, error) {
+			return obj.FhirResourceTypes, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorDestinationDelivery_fhirResourceTypes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorDestinationDelivery",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorDestinationDelivery_fhirEntryCount(ctx context.Context, field graphql.CollectedField, obj *model.OperatorDestinationDelivery) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorDestinationDelivery_fhirEntryCount,
+		func(ctx context.Context) (any, error) {
+			return obj.FhirEntryCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorDestinationDelivery_fhirEntryCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorDestinationDelivery",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorDestinationDelivery_fhirOutcomeCodesAdvisory(ctx context.Context, field graphql.CollectedField, obj *model.OperatorDestinationDelivery) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorDestinationDelivery_fhirOutcomeCodesAdvisory,
+		func(ctx context.Context) (any, error) {
+			return obj.FhirOutcomeCodesAdvisory, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorDestinationDelivery_fhirOutcomeCodesAdvisory(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorDestinationDelivery",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -30084,6 +30596,8 @@ func (ec *executionContext) fieldContext_OperatorMessageTrace_attempts(_ context
 				return ec.fieldContext_OperatorDeliveryAttempt_leaseExpiresAt(ctx, field)
 			case "deadLetter":
 				return ec.fieldContext_OperatorDeliveryAttempt_deadLetter(ctx, field)
+			case "deliveries":
+				return ec.fieldContext_OperatorDeliveryAttempt_deliveries(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type OperatorDeliveryAttempt", field.Name)
 		},
@@ -38296,6 +38810,8 @@ func (ec *executionContext) fieldContext_Query_operatorDeliveryAttempt(ctx conte
 				return ec.fieldContext_OperatorDeliveryAttempt_leaseExpiresAt(ctx, field)
 			case "deadLetter":
 				return ec.fieldContext_OperatorDeliveryAttempt_deadLetter(ctx, field)
+			case "deliveries":
+				return ec.fieldContext_OperatorDeliveryAttempt_deliveries(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type OperatorDeliveryAttempt", field.Name)
 		},
@@ -58043,6 +58559,11 @@ func (ec *executionContext) _OperatorDeliveryAttempt(ctx context.Context, sel as
 			out.Values[i] = ec._OperatorDeliveryAttempt_leaseExpiresAt(ctx, field, obj)
 		case "deadLetter":
 			out.Values[i] = ec._OperatorDeliveryAttempt_deadLetter(ctx, field, obj)
+		case "deliveries":
+			out.Values[i] = ec._OperatorDeliveryAttempt_deliveries(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -58243,6 +58764,100 @@ func (ec *executionContext) _OperatorDeploymentEvent(ctx context.Context, sel as
 			}
 		case "occurredAt":
 			out.Values[i] = ec._OperatorDeploymentEvent_occurredAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var operatorDestinationDeliveryImplementors = []string{"OperatorDestinationDelivery"}
+
+func (ec *executionContext) _OperatorDestinationDelivery(ctx context.Context, sel ast.SelectionSet, obj *model.OperatorDestinationDelivery) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, operatorDestinationDeliveryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OperatorDestinationDelivery")
+		case "transport":
+			out.Values[i] = ec._OperatorDestinationDelivery_transport(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "destination":
+			out.Values[i] = ec._OperatorDestinationDelivery_destination(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "digestVerified":
+			out.Values[i] = ec._OperatorDestinationDelivery_digestVerified(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "outcome":
+			out.Values[i] = ec._OperatorDestinationDelivery_outcome(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "failureCode":
+			out.Values[i] = ec._OperatorDestinationDelivery_failureCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "httpStatusClass":
+			out.Values[i] = ec._OperatorDestinationDelivery_httpStatusClass(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "endpointAdvisory":
+			out.Values[i] = ec._OperatorDestinationDelivery_endpointAdvisory(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "servedCertificateSubjectAdvisory":
+			out.Values[i] = ec._OperatorDestinationDelivery_servedCertificateSubjectAdvisory(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "completedAt":
+			out.Values[i] = ec._OperatorDestinationDelivery_completedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "fhirResourceTypes":
+			out.Values[i] = ec._OperatorDestinationDelivery_fhirResourceTypes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "fhirEntryCount":
+			out.Values[i] = ec._OperatorDestinationDelivery_fhirEntryCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "fhirOutcomeCodesAdvisory":
+			out.Values[i] = ec._OperatorDestinationDelivery_fhirOutcomeCodesAdvisory(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -67100,6 +67715,54 @@ func (ec *executionContext) marshalNOperatorDeploymentEvent2ᚕgitlabᚗflexinfe
 				defer wg.Done()
 			}
 			ret[i] = ec.marshalNOperatorDeploymentEvent2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorDeploymentEvent(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNOperatorDestinationDelivery2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorDestinationDelivery(ctx context.Context, sel ast.SelectionSet, v model.OperatorDestinationDelivery) graphql.Marshaler {
+	return ec._OperatorDestinationDelivery(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNOperatorDestinationDelivery2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorDestinationDeliveryᚄ(ctx context.Context, sel ast.SelectionSet, v []model.OperatorDestinationDelivery) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNOperatorDestinationDelivery2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorDestinationDelivery(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)

@@ -1406,6 +1406,13 @@ export type OperatorDeliveryAttempt = {
   attemptId: Scalars['ID']['output'];
   completedAt: Maybe<Scalars['DateTime']['output']>;
   deadLetter: Maybe<OperatorDeadLetter>;
+  /**
+   * Destination provenance-ledger rows for this attempt, newest first: 25 on a
+   * single attempt read, 5 per attempt in a list or trace. Empty when this
+   * process contacted no destination for the attempt (every kafka-class
+   * delivery, and every delivery before the ledger existed).
+   */
+  deliveries: Array<OperatorDestinationDelivery>;
   destination: IntegrationPreviewDestination;
   eventId: Scalars['ID']['output'];
   lastErrorCode: Scalars['String']['output'];
@@ -1472,6 +1479,37 @@ export type OperatorDeploymentEvent = {
   releaseId: Maybe<Scalars['ID']['output']>;
   toState: Scalars['String']['output'];
   version: Scalars['Int']['output'];
+};
+
+/**
+ * One executed destination delivery from the provenance ledger. The ledger is
+ * clinical-content-free by construction: server-owned provenance plus three
+ * advisory values (endpoint, certificate subject, OperationOutcome issue codes),
+ * never a response body, diagnostics text, or event content.
+ */
+export type OperatorDestinationDelivery = {
+  __typename?: 'OperatorDestinationDelivery';
+  completedAt: Scalars['DateTime']['output'];
+  /** The verified destination revision; digest equals digestVerified. */
+  destination: IntegrationPreviewDestination;
+  digestVerified: Scalars['String']['output'];
+  /** Remote address the destination revision declares. Advisory only. */
+  endpointAdvisory: Scalars['String']['output'];
+  failureCode: Scalars['String']['output'];
+  /** Entries in the delivered Bundle; 0 for https. */
+  fhirEntryCount: Scalars['Int']['output'];
+  /** OperationOutcome issue codes only, never diagnostics. Advisory only. */
+  fhirOutcomeCodesAdvisory: Array<Scalars['String']['output']>;
+  /** FHIR resource types in the delivered Bundle, in bundle order; empty for https. */
+  fhirResourceTypes: Array<Scalars['String']['output']>;
+  /** This process's own reduction of the response status: 1xx..5xx, or empty. */
+  httpStatusClass: Scalars['String']['output'];
+  /** delivered, retryable, or refused. */
+  outcome: Scalars['String']['output'];
+  /** Subject of the certificate the destination served. Advisory only. */
+  servedCertificateSubjectAdvisory: Scalars['String']['output'];
+  /** https or fhir. */
+  transport: Scalars['String']['output'];
 };
 
 export type OperatorDiagnostic = {
