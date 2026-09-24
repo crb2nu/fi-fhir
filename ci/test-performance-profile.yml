@@ -154,9 +154,26 @@ test:performance-profile:
     POSTGRES_PASSWORD: testpass
     POSTGRES_HOST_AUTH_METHOD: trust
     POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_perf_profile?sslmode=disable"
+    # The negative-control switch, and nothing else. Play the job with
+    # FI_FHIR_PERF_BUILD_TAGS=perfregress and every measured accept sleeps
+    # 300 ms (internal/integration/perf/regress_on_test.go); the report must
+    # then come back uncertified with budget 1 failed. Any other value is
+    # refused rather than passed through to `go test`, so this variable cannot
+    # become a way to certify a build that differs from the product.
+    FI_FHIR_PERF_BUILD_TAGS: ""
   script:
     - apt-get update && apt-get install -y --no-install-recommends git ca-certificates jq build-essential && rm -rf /var/lib/apt/lists/*
-    - go test -tags=integration -bench=. -benchmem -run='^$' -count=1 -benchtime=300x ./internal/integration/perf/... | tee benchmark-profile.txt
+    - |
+      case "${FI_FHIR_PERF_BUILD_TAGS}" in
+        ""|perfregress) ;;
+        *) echo "FI_FHIR_PERF_BUILD_TAGS='${FI_FHIR_PERF_BUILD_TAGS}' is not supported: leave it empty, or set perfregress for the negative control" >&2; exit 1 ;;
+      esac
+    # Name the machine in the trace. The report is only as citable as the
+    # runner it can be attributed to.
+    - |
+      echo "runner: id=${CI_RUNNER_ID:-unknown} tags=${CI_RUNNER_TAGS:-unknown} build_tags=${FI_FHIR_PERF_BUILD_TAGS:-none}"
+      nproc
+    - go test -tags="integration${FI_FHIR_PERF_BUILD_TAGS:+,${FI_FHIR_PERF_BUILD_TAGS}}" -bench=. -benchmem -run='^$' -count=1 -benchtime=300x ./internal/integration/perf/... | tee benchmark-profile.txt
     # The allocation gate still applies here; a pinned runner is not a reason to
     # stop checking the one signal that was already trustworthy.
     - go run ./cmd/bench-check -set=durable benchmark-profile.txt

@@ -34,12 +34,14 @@ func BenchmarkDurableAccept_IngressSubmit(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
+		injectRegression()
 		if _, err := f.ingress.Submit(ctx, ingressInput(i+1)); err != nil {
 			b.Fatalf("Submit(%d): %v", i+1, err)
 		}
 	}
 
 	b.StopTimer()
+	markNegativeControl(b)
 	assertDurable(b, f, b.N+1)
 }
 
@@ -64,6 +66,7 @@ func BenchmarkDurableAccept_IngressSubmitParallel(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			n := int(sequence.Add(1))
+			injectRegression()
 			if _, err := f.ingress.Submit(ctx, ingressInput(n)); err != nil {
 				b.Errorf("Submit(%d): %v", n, err)
 				return
@@ -73,6 +76,7 @@ func BenchmarkDurableAccept_IngressSubmitParallel(b *testing.B) {
 
 	b.StopTimer()
 	reportThroughput(b, start)
+	markNegativeControl(b)
 	assertDurable(b, f, b.N+1)
 }
 
@@ -88,12 +92,14 @@ func BenchmarkDurableAccept_MLLPSubmit(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
+		injectRegression()
 		if _, err := f.mllp.Submit(ctx, mllp.ConnectionIdentity{}, hl7Message(i+1)); err != nil {
 			b.Fatalf("Submit(%d): %v", i+1, err)
 		}
 	}
 
 	b.StopTimer()
+	markNegativeControl(b)
 	assertDurable(b, f, b.N+1)
 }
 
@@ -114,6 +120,7 @@ func BenchmarkDurableAccept_MLLPSubmitParallel(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			n := int(sequence.Add(1))
+			injectRegression()
 			if _, err := f.mllp.Submit(ctx, mllp.ConnectionIdentity{}, hl7Message(n)); err != nil {
 				b.Errorf("Submit(%d): %v", n, err)
 				return
@@ -123,6 +130,7 @@ func BenchmarkDurableAccept_MLLPSubmitParallel(b *testing.B) {
 
 	b.StopTimer()
 	reportThroughput(b, start)
+	markNegativeControl(b)
 	assertDurable(b, f, b.N+1)
 }
 
@@ -137,6 +145,28 @@ func reportThroughput(b *testing.B, start time.Time) {
 		return
 	}
 	b.ReportMetric(float64(b.N)/elapsed.Seconds(), "events/sec")
+}
+
+// injectRegression sleeps for the negative-control delay inside a measured
+// iteration. It is a no-op unless the package is built with -tags perfregress
+// (regress_on_test.go), so the compiled benchmark in every ordinary build is
+// byte-for-byte the accept path and nothing else.
+func injectRegression() {
+	if injectedRegression > 0 {
+		time.Sleep(injectedRegression)
+	}
+}
+
+// markNegativeControl names a negative-control build in the benchmark output,
+// so scripts/performance-report.sh can tell from the archived artifact alone —
+// not from a CI variable that may or may not have reached the build — that the
+// numbers describe an injected regression rather than the product.
+func markNegativeControl(b *testing.B) {
+	b.Helper()
+
+	if injectedRegression > 0 {
+		b.Logf("NEGATIVE-CONTROL build: %s injected into every measured accept", injectedRegression)
+	}
 }
 
 // assertDurable proves the benchmark drove the durable path.
