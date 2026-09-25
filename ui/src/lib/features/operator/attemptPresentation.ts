@@ -170,6 +170,93 @@ export function deploymentHealthVariant(health: string): BadgeVariant {
   }
 }
 
+/**
+ * The destination provenance-ledger columns the operator UI renders (Slice
+ * 4.2c). Deliberately narrow: the ledger is clinical-content-free by
+ * construction, and the UI shows exactly these columns and nothing else — no
+ * payload, no response body, no diagnostics text ever reaches this shape.
+ */
+export interface DestinationDeliveryLike {
+  transport: string;
+  outcome: string;
+  endpointAdvisory: string;
+  fhirResourceTypes: readonly string[];
+  fhirEntryCount: number;
+  fhirOutcomeCodesAdvisory: readonly string[];
+}
+
+export interface DestinationDeliveryDisplay {
+  transportLabel: string;
+  outcomeLabel: string;
+  outcomeVariant: BadgeVariant;
+  /** FHIR resource types in bundle order; empty for a non-FHIR delivery. */
+  resourceTypes: string[];
+  /** e.g. "2 bundle entries"; null when the transport sends no Bundle. */
+  entryCountText: string | null;
+  /** OperationOutcome issue codes only — never diagnostics. */
+  outcomeCodes: string[];
+  /** The endpoint the destination revision declares; advisory, never trusted. */
+  endpointText: string;
+}
+
+/** Turns one provenance-ledger row into what the Delivery block displays. */
+export function describeDestinationDelivery(
+  delivery: DestinationDeliveryLike
+): DestinationDeliveryDisplay {
+  const isFHIR = delivery.transport === 'fhir';
+  return {
+    transportLabel: transportLabel(delivery.transport),
+    outcomeLabel: deliveryOutcomeLabel(delivery.outcome),
+    outcomeVariant: deliveryOutcomeVariant(delivery.outcome),
+    resourceTypes: [...delivery.fhirResourceTypes],
+    entryCountText: isFHIR ? entryCountText(delivery.fhirEntryCount) : null,
+    outcomeCodes: [...delivery.fhirOutcomeCodesAdvisory],
+    endpointText: delivery.endpointAdvisory || 'No endpoint declared'
+  };
+}
+
+function transportLabel(transport: string): string {
+  switch (transport) {
+    case 'fhir':
+      return 'FHIR';
+    case 'https':
+      return 'HTTPS';
+    default:
+      return transport.toUpperCase() || 'Unknown transport';
+  }
+}
+
+/** Maps a ledger outcome onto the shared Badge variants. */
+export function deliveryOutcomeVariant(outcome: string): BadgeVariant {
+  switch (outcome) {
+    case 'delivered':
+      return 'success';
+    case 'retryable':
+      return 'warning';
+    case 'refused':
+      return 'danger';
+    default:
+      return 'default';
+  }
+}
+
+function deliveryOutcomeLabel(outcome: string): string {
+  switch (outcome) {
+    case 'delivered':
+      return 'Delivered';
+    case 'retryable':
+      return 'Retryable failure';
+    case 'refused':
+      return 'Refused';
+    default:
+      return outcome || 'Unknown outcome';
+  }
+}
+
+function entryCountText(count: number): string {
+  return `${count} bundle ${count === 1 ? 'entry' : 'entries'}`;
+}
+
 /** Shortens a `sha256:...` digest for dense tables without losing identity. */
 export function shortDigest(digest: string): string {
   const value = digest.startsWith('sha256:') ? digest.slice('sha256:'.length) : digest;

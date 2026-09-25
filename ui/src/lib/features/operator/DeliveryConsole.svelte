@@ -1,7 +1,9 @@
 <script lang="ts">
   /**
    * Delivery reliability console: the dead-letter queue, destination circuit
-   * state, and the recovery actions the control plane exposes.
+   * state, and the recovery actions the control plane exposes. Each dead letter
+   * can open its Delivery block — what the destination provenance ledger
+   * recorded for that attempt (Slice 4.2c) — before the operator decides.
    *
    * Every action opens the reason-required dialog. Actions that the server
    * would refuse are disabled with an explanatory title instead of firing and
@@ -22,11 +24,14 @@
     shortDigest,
     type DeliveryAction
   } from './attemptPresentation';
+  import DestinationDeliveries from './DestinationDeliveries.svelte';
   import {
+    fetchAttempt,
     fetchCircuits,
     fetchDeadLetters,
     type OperatorCircuit,
-    type OperatorDeadLetter
+    type OperatorDeadLetter,
+    type OperatorDestinationDelivery
   } from './operatorApi';
   import { describeOperatorFailure } from './operatorErrors';
 
@@ -45,10 +50,57 @@
 
   const actions: DeliveryAction[] = ['replay', 'resubmit', 'discard'];
 
+  /**
+   * A dead letter does not carry the provenance ledger, so each row's Delivery
+   * block is fetched on demand — one bounded attempt read per row the operator
+   * opens, never one per row rendered.
+   */
+  type DeliveryDetail = {
+    loading: boolean;
+    error: string | null;
+    deliveries: OperatorDestinationDelivery[];
+  };
+  let expanded: Record<string, boolean> = {};
+  let details: Record<string, DeliveryDetail> = {};
+
+  async function toggleDeliveries(attemptId: string) {
+    const open = !expanded[attemptId];
+    expanded = { ...expanded, [attemptId]: open };
+    if (open && !details[attemptId]) {
+      await loadDeliveries(attemptId);
+    }
+  }
+
+  async function loadDeliveries(attemptId: string) {
+    details = { ...details, [attemptId]: { loading: true, error: null, deliveries: [] } };
+    try {
+      const attempt = await fetchAttempt(attemptId);
+      details = {
+        ...details,
+        [attemptId]: attempt
+          ? { loading: false, error: null, deliveries: attempt.deliveries }
+          : {
+              loading: false,
+              error: `Delivery attempt ${attemptId} is not available in your tenant.`,
+              deliveries: []
+            }
+      };
+    } catch (err) {
+      // The global GraphQL net already toasted this; the row is the durable
+      // home for the message (toast-budget B4).
+      details = {
+        ...details,
+        [attemptId]: { loading: false, error: describeOperatorFailure(err).message, deliveries: [] }
+      };
+    }
+  }
+
   export async function reload() {
     loading = true;
     error = null;
     circuitError = null;
+    expanded = {};
+    details = {};
     try {
       const page = await fetchDeadLetters(activeOnly, { first: 50, after: null });
       deadLetters = page.nodes;
@@ -136,7 +188,8 @@
           </tr>
         </thead>
         <tbody>
-          {#each deadLetters as entry (entry.attemptId)}
+          {#each deadLetters as entry, index (entry.attemptId)}
+            {@const detail = details[entry.attemptId]}
             <tr>
               <th scope="row">
                 <button
@@ -146,6 +199,17 @@
                 >
                   {entry.attemptId}
                 </button>
+                <div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-expanded={expanded[entry.attemptId] ? 'true' : 'false'}
+                    aria-controls={`dlq-deliveries-${index}`}
+                    on:click={() => toggleDeliveries(entry.attemptId)}
+                  >
+                    {expanded[entry.attemptId] ? 'Hide delivery' : 'Show delivery'}
+                  </Button>
+                </div>
               </th>
               <td>
                 <Badge variant={entry.active ? 'warning' : 'default'} size="sm">
@@ -176,6 +240,26 @@
                 </div>
               </td>
             </tr>
+            {#if expanded[entry.attemptId]}
+              <tr class="detail-row" id={`dlq-deliveries-${index}`}>
+                <td colspan="6">
+                  <h4 class="block-title">Delivery</h4>
+                  {#if !detail || detail.loading}
+                    <div aria-busy="true" aria-live="polite">
+                      <Skeleton lines={1} />
+                      <span class="sr-only">Loading destination deliveries</span>
+                    </div>
+                  {:else if detail.error}
+                    <p class="error-message" role="alert">{detail.error}</p>
+                  {:else}
+                    <DestinationDeliveries
+                      deliveries={detail.deliveries}
+                      label={`Destination deliveries for ${entry.attemptId}, newest first`}
+                    />
+                  {/if}
+                </td>
+              </tr>
+            {/if}
           {/each}
         </tbody>
       </table>
@@ -263,6 +347,19 @@
 
   .numeric {
     text-align: right;
+  }
+
+  .detail-row td {
+    background: var(--color-bg-surface);
+  }
+
+  .block-title {
+    margin: 0 0 var(--space-2);
+    font-family: var(--font-heading);
+    font-size: var(--text-2xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-tertiary);
   }
 
   .row-actions {
