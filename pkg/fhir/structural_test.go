@@ -394,8 +394,10 @@ func TestFHIRStructural_MapperFixturesMatchTheirRecordedCardinalityGaps(t *testi
 		}
 	}
 
-	if clean != 20 {
-		t.Errorf("%d fixtures are recorded clean, want 20 — update this count with the ledger", clean)
+	// All 25 since Slice 5.1c-α emptied the ledger (20 after 5.1b's nine
+	// became seven).
+	if clean != 25 {
+		t.Errorf("%d fixtures are recorded clean, want 25 — update this count with the ledger", clean)
 	}
 }
 
@@ -405,7 +407,7 @@ func TestFHIRStructural_MapperFixturesMatchTheirRecordedCardinalityGaps(t *testi
 //
 // Its job is to prove the gate is capable of failing at all. A validator that
 // resolved nothing and returned no issues would satisfy the ledger test above
-// on the 20 clean fixtures; it cannot satisfy this one.
+// on the 25 clean fixtures; it cannot satisfy this one.
 func TestFHIRStructural_NegativeControl_RemovingARequiredElementFails(t *testing.T) {
 	set := loadPinnedForTest(t)
 

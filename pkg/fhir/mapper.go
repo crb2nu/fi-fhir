@@ -3,6 +3,7 @@ package fhir
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -62,13 +63,16 @@ type Mapper interface {
 	// MapGoal converts a canonical GoalEvent to a FHIR Goal.
 	MapGoal(event *events.GoalEvent, patientRef string) *Goal
 
-	// MapCareTeam converts a canonical CareTeamEvent to a FHIR CareTeam.
+	// MapCareTeam converts a canonical CareTeamEvent to a FHIR CareTeam. It
+	// returns nil for an event that names no member it can reference.
 	MapCareTeam(event *events.CareTeamEvent, patientRef string) *CareTeam
 
 	// MapServiceRequest converts a canonical ServiceRequestEvent to a FHIR ServiceRequest.
 	MapServiceRequest(event *events.ServiceRequestEvent, patientRef string) *ServiceRequest
 
-	// MapDocumentReference converts a canonical DocumentReferenceEvent to a FHIR DocumentReference.
+	// MapDocumentReference converts a canonical DocumentReferenceEvent to a FHIR
+	// DocumentReference. It returns nil for an event with no attachment that
+	// locates or carries a document.
 	MapDocumentReference(event *events.DocumentReferenceEvent, patientRef string) *DocumentReference
 
 	// MapDiagnosticReportNote converts a canonical DiagnosticReportNoteEvent to a FHIR DiagnosticReport.
@@ -100,6 +104,35 @@ type USCoreMapper struct {
 
 	// IdentifierSystemMap maps local identifier type codes to system URIs
 	IdentifierSystemMap map[string]string
+
+	// Source is the server-stamped EventMeta.Source of the event being mapped.
+	//
+	// When it is set, an identifier the source assigned without naming a system
+	// — no CX.4, no assigning-authority mapping, no IdentifierSystemMap entry —
+	// is qualified under the deployment-owned `urn:fi-fhir:source:<Source>`
+	// namespace (`.loom/decisions/2026-09-08-source-assigned-identifiers-are-keyed-under-a.md`).
+	// It is the same system internal/integration/fhirout keys its conditional
+	// writes on, so the identifier the mapper emits and the key the durable
+	// transport matches on agree.
+	//
+	// When it is empty such an identifier is emitted without a system, exactly
+	// as before Slice 5.1c-α: a system names who assigned the value, and a
+	// mapper that does not know the source has nothing true to put there.
+	Source string
+}
+
+// sourceIdentifierSystemPrefix is the URN namespace a fi-fhir deployment owns
+// for identifiers a source assigned without an assigning authority.
+const sourceIdentifierSystemPrefix = "urn:fi-fhir:source:"
+
+// sourceIdentifierSystem is the system for bare source-assigned identifiers,
+// or "" when the mapper was not told the source.
+func (m *USCoreMapper) sourceIdentifierSystem() string {
+	source := strings.TrimSpace(m.Source)
+	if source == "" {
+		return ""
+	}
+	return sourceIdentifierSystemPrefix + url.PathEscape(source)
 }
 
 // NewUSCoreMapper creates a new US Core compliant mapper.
@@ -235,13 +268,16 @@ func (m *USCoreMapper) MapEncounter(e *events.Encounter, patientRef string) *Enc
 		},
 		Status: m.mapEncounterStatus(e.Status),
 		Class:  m.mapEncounterClass(e.Class),
+		Type:   m.mapEncounterType(e.Class),
 	}
 
-	// Map identifiers
+	// Map identifiers. The visit number (PV1-19) is the usual fallback, and the
+	// executable ADT A01 subset caps it at one component, so it never carries an
+	// assigning authority: its system is the source's (see USCoreMapper.Source).
 	encounter.Identifier = m.mapIdentifiers(&e.Identifiers)
 	if e.ID != "" && len(encounter.Identifier) == 0 {
 		encounter.Identifier = []Identifier{
-			{Value: e.ID},
+			{System: m.sourceIdentifierSystem(), Value: e.ID},
 		}
 	}
 
@@ -512,11 +548,14 @@ func (m *USCoreMapper) mapIdentifiers(ids *events.IdentifierSet) []Identifier {
 			Value: id.Value,
 		}
 
-		// Map system
+		// Map system: the source's own, then the type's configured system, then
+		// the deployment-owned namespace of the source that assigned it.
 		if id.System != "" {
 			fhirID.System = id.System
 		} else if system, ok := m.IdentifierSystemMap[id.Type]; ok {
 			fhirID.System = system
+		} else {
+			fhirID.System = m.sourceIdentifierSystem()
 		}
 
 		// Map type
@@ -718,6 +757,80 @@ func (m *USCoreMapper) mapEncounterClass(class string) Coding {
 	default:
 		return Coding{System: SystemEncounterClass, Code: "AMB", Display: "ambulatory"}
 	}
+}
+
+// mapEncounterType derives Encounter.type (1..* in us-core-encounter) from the
+// patient class, PV1-2 — the only encounter-kind fact the canonical Encounter
+// carries.
+//
+// The binding is extensible, to VSAC 2.16.840.1.113762.1.4.1267.23, whose
+// SNOMED CT half is every descendant of 308335008 |Patient encounter
+// procedure|. Two patient classes have a concept there that says what the
+// class says and nothing more; they get it. The others do not — the
+// outpatient concepts assert new-versus-established and an office setting,
+// which PV1-2 does not carry — so, as an extensible binding permits when the
+// value set has no suitable concept, they carry the source concept in its own
+// code system (HL7 v2 table 0004), which every recognised class also carries
+// alongside its SNOMED CT concept. Choices recorded in
+// `.loom/decisions/2026-09-24-close-the-mapper-s-us-core-cardinality.md`.
+//
+// US Core's Missing Data rule decides the rest: a class the mapper does not
+// recognise is source text with no code, so it is sent as text only; no class
+// at all is `unknown` from DataAbsentReason, because the value set has no
+// unknown concept of its own.
+func (m *USCoreMapper) mapEncounterType(class string) []CodeableConcept {
+	trimmed := strings.TrimSpace(class)
+	if trimmed == "" {
+		return []CodeableConcept{dataAbsentUnknown()}
+	}
+
+	var code, display string
+	switch strings.ToUpper(trimmed) {
+	case "I", "INPATIENT", "IMP":
+		code, display = "I", "Inpatient"
+	case "O", "OUTPATIENT", "AMB":
+		code, display = "O", "Outpatient"
+	case "E", "EMERGENCY", "EMER":
+		code, display = "E", "Emergency"
+	case "P", "PREADMIT":
+		code, display = "P", "Preadmit"
+	case "R", "RECURRING", "RECURRING PATIENT":
+		code, display = "R", "Recurring patient"
+	case "B", "OBSTETRICS":
+		code, display = "B", "Obstetrics"
+	case "C", "COMMERCIAL ACCOUNT":
+		code, display = "C", "Commercial Account"
+	case "N", "NOT APPLICABLE":
+		code, display = "N", "Not Applicable"
+	case "U", "UNKNOWN":
+		code, display = "U", "Unknown"
+	default:
+		return []CodeableConcept{{Text: trimmed}}
+	}
+
+	concept := CodeableConcept{Text: display}
+	switch code {
+	case "I":
+		concept.Coding = append(concept.Coding, Coding{
+			System: SystemSNOMED, Code: "86181006", Display: "Evaluation and management of inpatient",
+		})
+	case "E":
+		concept.Coding = append(concept.Coding, Coding{
+			System: SystemSNOMED, Code: "4525004", Display: "Emergency department patient visit",
+		})
+	}
+	concept.Coding = append(concept.Coding, Coding{System: SystemV2PatientClass, Code: code, Display: display})
+	return []CodeableConcept{concept}
+}
+
+// dataAbsentUnknown is US Core's Missing Data answer for a required coded
+// element the source did not supply, when the bound value set has no unknown
+// concept: `unknown` from the DataAbsentReason code system. It says the value
+// is not known; it does not guess one.
+func dataAbsentUnknown() CodeableConcept {
+	return CodeableConcept{Coding: []Coding{{
+		System: SystemDataAbsentReason, Code: "unknown", Display: "Unknown",
+	}}}
 }
 
 func (m *USCoreMapper) mapObservationStatus(status string) string {
@@ -994,6 +1107,8 @@ func (m *USCoreMapper) MapCoverage(event *events.EligibilityResponseEvent, benef
 		}
 	}
 
+	coverage.Relationship = m.mapCoverageRelationship(event)
+
 	// Map subscriber ID from identifiers
 	if memberId := event.Subscriber.Identifiers.GetByType("MB"); memberId != nil {
 		coverage.SubscriberId = memberId.Value
@@ -1034,6 +1149,33 @@ func (m *USCoreMapper) MapCoverage(event *events.EligibilityResponseEvent, benef
 	coverage.Type = m.extractCoverageType(event.Benefits)
 
 	return coverage
+}
+
+// mapCoverageRelationship is Coverage.relationship, 1..1 in us-core-coverage:
+// the beneficiary's relationship to the subscriber, bound (extensible) to
+// subscriber-relationship.
+//
+// X12 271 identifies the patient in the 2100C subscriber loop when the patient
+// is the subscriber (or holds their own member id), and adds a 2100D dependent
+// loop only otherwise; the EDI mapper sets Dependent exactly when that loop is
+// present. With no Dependent the Coverage's subscriber and beneficiary are the
+// same person, so `self` is read off the event's structure rather than
+// inferred.
+//
+// With a Dependent the true answer is in that loop's INS02, which the 271
+// parser reads but the canonical event does not carry. Guessing `child` or
+// `spouse` — or `other`, which asserts a relationship outside the listed ones —
+// would be invented data, so it is `unknown` from DataAbsentReason, as US
+// Core's Missing Data rule prescribes when the value set has no unknown concept.
+func (m *USCoreMapper) mapCoverageRelationship(event *events.EligibilityResponseEvent) *CodeableConcept {
+	if event.Dependent != nil {
+		unknown := dataAbsentUnknown()
+		return &unknown
+	}
+	return &CodeableConcept{
+		Coding: []Coding{{System: SystemSubscriberRelation, Code: "self", Display: "Self"}},
+		Text:   "Self",
+	}
 }
 
 // Helper methods for Condition mapping
@@ -2879,7 +3021,15 @@ func (m *USCoreMapper) MapVitalSign(event *events.VitalSignEvent, patientRef str
 	// Map the code (LOINC required for vital signs)
 	obs.Code = m.mapVitalSignCode(event.VitalSign)
 
-	// Map effective date time from event timestamp
+	// effective[x] is 1..1 in every vital-signs profile. It is the event's
+	// Timestamp, which is where each producer puts the clinically relevant time
+	// after resolving its own fallback order — CDA: observation effectiveTime,
+	// then organizer effectiveTime, then document effectiveTime; FHIR:
+	// effectiveDateTime. (The HL7 v2 order would be OBX-14, then OBR-7, then
+	// MSH-7, in the producer's extractor as extractADTA01SourceTimes does for
+	// A01; no HL7 v2 producer emits a VitalSignEvent today.) A zero Timestamp is
+	// left absent rather than filled with ReceivedAt: when fi-fhir received a
+	// message is not when the measurement was taken.
 	if !event.Timestamp.IsZero() {
 		obs.EffectiveDateTime = event.Timestamp.Format("2006-01-02T15:04:05Z07:00")
 	}
@@ -4712,12 +4862,27 @@ func (m *USCoreMapper) mapGoalTargetUnit(unit string) (display, code string) {
 // ============================================================================
 
 // MapCareTeam converts a canonical CareTeamEvent to a US Core CareTeam.
+//
+// It returns nil when the event names no member it can reference.
+// CareTeam.participant is 1..* in us-core-careteam, and each participant's
+// member is 1..1: a care team with nobody on it is not a US Core CareTeam, and
+// no fallback value could make one without inventing a person (Slice 5.1c-α).
 func (m *USCoreMapper) MapCareTeam(event *events.CareTeamEvent, patientRef string) *CareTeam {
 	if event == nil {
 		return nil
 	}
 
 	ct := event.CareTeam
+
+	var participants []CareTeamParticipant
+	for _, member := range ct.Members {
+		if participant, ok := m.mapCareTeamParticipant(member); ok {
+			participants = append(participants, participant)
+		}
+	}
+	if len(participants) == 0 {
+		return nil
+	}
 
 	careTeam := &CareTeam{
 		Meta: &Meta{
@@ -4781,12 +4946,7 @@ func (m *USCoreMapper) MapCareTeam(event *events.CareTeamEvent, patientRef strin
 		}
 	}
 
-	// Participants (US Core requires at least one participant with a role)
-	if len(ct.Members) > 0 {
-		for _, member := range ct.Members {
-			careTeam.Participant = append(careTeam.Participant, m.mapCareTeamParticipant(member))
-		}
-	}
+	careTeam.Participant = participants
 
 	// Managing organization
 	if ct.ManagingOrganizationID != "" || ct.ManagingOrganizationName != "" {
@@ -4894,25 +5054,41 @@ func (m *USCoreMapper) mapCareTeamReason(code, codeSystem, text string) Codeable
 }
 
 // mapCareTeamParticipant maps a CareTeamMember to FHIR CareTeamParticipant.
-func (m *USCoreMapper) mapCareTeamParticipant(member events.CareTeamMember) CareTeamParticipant {
+//
+// ok is false when the member names nobody — no practitioner identifier or
+// name, no organization identifier or name — because participant.member is
+// 1..1 in us-core-careteam and there is no one to put there.
+//
+// participant.role is 1..1 as well. A member with no role is still somebody on
+// the team, so the role is `unknown` from DataAbsentReason, which is what US
+// Core's own missing-coded-data CareTeam example sends, rather than a guess.
+func (m *USCoreMapper) mapCareTeamParticipant(member events.CareTeamMember) (CareTeamParticipant, bool) {
 	participant := CareTeamParticipant{}
 
-	// Role is required by US Core
-	if member.Role != "" || member.RoleCode != "" {
-		participant.Role = []CodeableConcept{
-			m.mapParticipantRole(member.Role, member.RoleCode, member.RoleCodeSystem),
-		}
-	}
-
-	// Member reference (Practitioner or Organization)
-	if member.Provider != nil {
+	// Member reference (Practitioner or Organization). A practitioner known only
+	// by name gets a display-only reference rather than a literal reference to
+	// a resource id nobody issued.
+	switch {
+	case member.Provider != nil && (member.Provider.NPI != "" || member.Provider.ID != ""):
 		participant.Member = &Reference{
 			Reference: m.buildProviderReference(member.Provider),
 			Display:   m.buildProviderDisplayName(member.Provider),
 		}
-	} else if member.OrganizationID != "" || member.OrganizationName != "" {
+	case member.Provider != nil && m.buildProviderDisplayName(member.Provider) != "":
+		participant.Member = &Reference{Display: m.buildProviderDisplayName(member.Provider)}
+	case member.OrganizationID != "" || member.OrganizationName != "":
 		ref := m.buildOrganizationReference(member.OrganizationID, member.OrganizationName)
 		participant.Member = &ref
+	default:
+		return CareTeamParticipant{}, false
+	}
+
+	if member.Role != "" || member.RoleCode != "" {
+		participant.Role = []CodeableConcept{
+			m.mapParticipantRole(member.Role, member.RoleCode, member.RoleCodeSystem),
+		}
+	} else {
+		participant.Role = []CodeableConcept{dataAbsentUnknown()}
 	}
 
 	// Period
@@ -4930,7 +5106,7 @@ func (m *USCoreMapper) mapCareTeamParticipant(member events.CareTeamMember) Care
 		}
 	}
 
-	return participant
+	return participant, true
 }
 
 // mapParticipantRole maps role to CodeableConcept.
@@ -5421,12 +5597,37 @@ func (m *USCoreMapper) mapBodySite(site, siteCode string) CodeableConcept {
 // ============================================================================
 
 // MapDocumentReference converts a canonical DocumentReferenceEvent to a US Core DocumentReference.
+//
+// It returns nil when the event carries no document: no content entry whose
+// attachment either locates the document (url) or carries it (data).
+// DocumentReference.content is 1..* in base R4, not only in US Core, and US
+// Core's us-core-6 requires url or data on every attachment. A
+// DocumentReference that references nothing is not a smaller DocumentReference;
+// it is index metadata for a document the receiver can never obtain.
+//
+// The alternative the Slice 5.1c spec offered — attach the source message as
+// `x-application/hl7-v2+er7` — was rejected: the attachment would not be the
+// document `type` describes, it would copy every segment of the source message
+// into a resource that claims to be one clinical note, and only HL7 v2 sources
+// have an er7 message to attach. See
+// `.loom/decisions/2026-09-24-close-the-mapper-s-us-core-cardinality.md`.
 func (m *USCoreMapper) MapDocumentReference(event *events.DocumentReferenceEvent, patientRef string) *DocumentReference {
 	if event == nil {
 		return nil
 	}
 
 	dr := event.DocumentReference
+
+	var content []DocumentReferenceContent
+	for _, item := range dr.Content {
+		if strings.TrimSpace(item.AttachmentURL) == "" && strings.TrimSpace(item.AttachmentData) == "" {
+			continue
+		}
+		content = append(content, m.mapDocumentContent(item))
+	}
+	if len(content) == 0 {
+		return nil
+	}
 
 	docRef := &DocumentReference{
 		Meta: &Meta{
@@ -5499,12 +5700,7 @@ func (m *USCoreMapper) MapDocumentReference(event *events.DocumentReferenceEvent
 		}
 	}
 
-	// Content (required by US Core - at least one attachment)
-	if len(dr.Content) > 0 {
-		for _, content := range dr.Content {
-			docRef.Content = append(docRef.Content, m.mapDocumentContent(content))
-		}
-	}
+	docRef.Content = content
 
 	// Context
 	if dr.Context != nil || (event.Encounter != nil && event.Encounter.ID != "") {

@@ -10,11 +10,11 @@ import "encoding/json"
 //
 // This is the structural gate's negative control, in the same shape as
 // `fhirdrnoteonly` is the 5.1a conformance table's. `patient.json` is one of the
-// nineteen fixtures recorded clean, and `Patient.name` is `1..*` in
-// `us-core-patient`, so with this tag on
+// twenty-five fixtures recorded clean (all of them, since Slice 5.1c-α), and
+// `Patient.name` is `1..*` in `us-core-patient`, so with this tag on
 // `TestFHIRStructural_MapperFixturesMatchTheirRecordedCardinalityGaps` must fail
 // on exactly `patient.json` and nowhere else. A control that passes would mean
-// the gate is not actually reading the fixtures, and the nineteen clean rows
+// the gate is not actually reading the fixtures, and the twenty-five clean rows
 // above it would be evidence of nothing.
 //
 // `make fhir-structural-negative-control` additionally requires the failure

@@ -34,5 +34,14 @@
   },
   "date": "2026-08-01T10:30:00Z",
   "description": "Patient discharge summary",
-  "content": null
+  "content": [
+    {
+      "attachment": {
+        "contentType": "application/pdf",
+        "url": "https://ehr.example.org/documents/doc-001.pdf",
+        "title": "Discharge summary",
+        "creation": "2026-08-01T10:30:00Z"
+      }
+    }
+  ]
 }

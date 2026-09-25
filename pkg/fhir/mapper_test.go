@@ -4896,12 +4896,20 @@ func TestMapGoal_JSONSerialization(t *testing.T) {
 // CareTeam Tests
 // ============================================================================
 
+// careTeamMembers is one referenceable member. Since Slice 5.1c-α MapCareTeam
+// emits nothing for an event that names nobody, so a test about some other
+// field carries one.
+func careTeamMembers() []events.CareTeamMember {
+	return []events.CareTeamMember{{Role: "nurse", Provider: &events.Provider{ID: "prov-001"}}}
+}
+
 func TestMapCareTeam_BasicMapping(t *testing.T) {
 	mapper := NewUSCoreMapper()
 
 	event := &events.CareTeamEvent{
 		EventMeta: events.EventMeta{ID: "ct-001"},
 		CareTeam: events.CareTeam{
+			Members:     careTeamMembers(),
 			Name:        "Diabetes Care Team",
 			Status:      "active",
 			Category:    "longitudinal",
@@ -4974,7 +4982,8 @@ func TestMapCareTeam_StatusMapping(t *testing.T) {
 		t.Run(tc.input, func(t *testing.T) {
 			event := &events.CareTeamEvent{
 				CareTeam: events.CareTeam{
-					Status: tc.input,
+					Status:  tc.input,
+					Members: careTeamMembers(),
 				},
 			}
 			result := mapper.MapCareTeam(event, "Patient/12345")
@@ -5011,6 +5020,7 @@ func TestMapCareTeam_CategoryMapping(t *testing.T) {
 			event := &events.CareTeamEvent{
 				CareTeam: events.CareTeam{
 					Category: tc.input,
+					Members:  careTeamMembers(),
 				},
 			}
 			result := mapper.MapCareTeam(event, "Patient/12345")
@@ -5149,6 +5159,7 @@ func TestMapCareTeam_WithManagingOrganization(t *testing.T) {
 	event := &events.CareTeamEvent{
 		CareTeam: events.CareTeam{
 			Status:                   "active",
+			Members:                  careTeamMembers(),
 			ManagingOrganizationID:   "org-manage-001",
 			ManagingOrganizationName: "Primary Care Associates",
 		},
@@ -5173,6 +5184,7 @@ func TestMapCareTeam_WithReasonAndConditions(t *testing.T) {
 	event := &events.CareTeamEvent{
 		CareTeam: events.CareTeam{
 			Status:           "active",
+			Members:          careTeamMembers(),
 			ReasonCode:       "E11.9",
 			ReasonCodeSystem: "http://hl7.org/fhir/sid/icd-10-cm",
 			ReasonText:       "Type 2 diabetes mellitus",
@@ -5732,6 +5744,16 @@ func TestMapServiceRequest_JSONSerialization(t *testing.T) {
 // DocumentReference Tests
 // ============================================================================
 
+// documentContent is one attachment that locates a document. Since Slice
+// 5.1c-α MapDocumentReference emits nothing for an event with no document, so
+// a test about some other field carries one.
+func documentContent() []events.DocumentReferenceContent {
+	return []events.DocumentReferenceContent{{
+		AttachmentContentType: "application/pdf",
+		AttachmentURL:         "https://example.com/doc.pdf",
+	}}
+}
+
 func TestMapDocumentReference_BasicMapping(t *testing.T) {
 	mapper := NewUSCoreMapper()
 
@@ -5832,7 +5854,8 @@ func TestMapDocumentReference_StatusMapping(t *testing.T) {
 	for _, tt := range tests {
 		event := &events.DocumentReferenceEvent{
 			DocumentReference: events.DocumentReference{
-				Status: tt.input,
+				Status:  tt.input,
+				Content: documentContent(),
 			},
 		}
 		result := mapper.MapDocumentReference(event, "Patient/12345")
@@ -5861,6 +5884,7 @@ func TestMapDocumentReference_DocStatusMapping(t *testing.T) {
 		event := &events.DocumentReferenceEvent{
 			DocumentReference: events.DocumentReference{
 				DocStatus: tt.input,
+				Content:   documentContent(),
 			},
 		}
 		result := mapper.MapDocumentReference(event, "Patient/12345")
@@ -5895,6 +5919,7 @@ func TestMapDocumentReference_TypeMapping(t *testing.T) {
 			DocumentReference: events.DocumentReference{
 				Type:     tt.text,
 				TypeCode: tt.code,
+				Content:  documentContent(),
 			},
 		}
 		result := mapper.MapDocumentReference(event, "Patient/12345")
@@ -5915,6 +5940,7 @@ func TestMapDocumentReference_WithSecurityLabel(t *testing.T) {
 		DocumentReference: events.DocumentReference{
 			Status:        "current",
 			SecurityLabel: "R",
+			Content:       documentContent(),
 		},
 	}
 
@@ -5939,7 +5965,8 @@ func TestMapDocumentReference_WithContext(t *testing.T) {
 
 	event := &events.DocumentReferenceEvent{
 		DocumentReference: events.DocumentReference{
-			Status: "current",
+			Status:  "current",
+			Content: documentContent(),
 			Context: &events.DocumentReferenceContext{
 				PeriodStart:         "2024-01-15",
 				PeriodEnd:           "2024-01-16",
@@ -5978,7 +6005,8 @@ func TestMapDocumentReference_WithRelatesTo(t *testing.T) {
 
 	event := &events.DocumentReferenceEvent{
 		DocumentReference: events.DocumentReference{
-			Status: "current",
+			Status:  "current",
+			Content: documentContent(),
 			RelatesTo: []events.DocumentReferenceRelation{
 				{Code: "replaces", TargetID: "doc-old-001"},
 				{Code: "appends", TargetID: "doc-orig-001"},
@@ -6005,6 +6033,7 @@ func TestMapDocumentReference_WithCustodian(t *testing.T) {
 	event := &events.DocumentReferenceEvent{
 		DocumentReference: events.DocumentReference{
 			Status:        "current",
+			Content:       documentContent(),
 			CustodianID:   "org-001",
 			CustodianName: "General Hospital",
 		},
@@ -6028,7 +6057,8 @@ func TestMapDocumentReference_WithAuthenticator(t *testing.T) {
 
 	event := &events.DocumentReferenceEvent{
 		DocumentReference: events.DocumentReference{
-			Status: "current",
+			Status:  "current",
+			Content: documentContent(),
 		},
 		Authenticator: &events.Provider{
 			NPI:        "9876543210",
