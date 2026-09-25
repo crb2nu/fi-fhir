@@ -217,6 +217,13 @@ func mapEvent(event any, withKeys bool) (Projection, error) {
 	}
 
 	mapper := fhir.NewUSCoreMapper()
+	// Slice 5.1c-α gave the mapper a Source so that a bare source-assigned
+	// identifier (a PV1-19 visit number with no assigning authority) is
+	// qualified under the deployment-owned urn:fi-fhir:source:<source> system
+	// in the raw resource, not only after ensureIdentifier adds the key on the
+	// durable path. Every canonical event embeds EventMeta, so its promoted
+	// Meta method reaches the envelope without enumerating event types here.
+	mapper.Source = eventSource(event)
 	switch typed := event.(type) {
 	case *events.PatientAdmitEvent:
 		if typed == nil {

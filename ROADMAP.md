@@ -1,6 +1,6 @@
 # fi-fhir Roadmap
 
-> Last Updated: 2026-09-20
+> Last Updated: 2026-09-25
 > Tier: 1 (see workspace AGENTS.md "Portfolio Tiers")
 > Tracking issue: https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/19
 > Completion spec: `.loom/20-product-spec-integration-engine-ide-completion.md`
@@ -21,10 +21,15 @@ and PHI policy. Kafka, Redis Streams, and Google Cloud Pub/Sub share event
 handlers and acknowledgment-aware consumers. FHIR transactions use a shared
 projector across workflow actions and durable destinations.
 
-This update records repository state through merge `7e146de64` on 2026-09-20.
-[Pipeline 27875](https://gitlab.flexinfer.ai/libs/fi-fhir/-/pipelines/27875)
-passed 53 automatic jobs, including live HAPI FHIR read-back, Kafka/Redis,
-PostgreSQL/MinIO, and two-replica tests. These are internal GitLab records.
+Delivered FHIR Bundles are validated offline by the HL7 official validator in
+CI against pinned R4 4.0.1 and US Core 9.0.0 packages; the findings ledger is
+checked in and held by exact equality.
+
+This update records repository state through merge `7ae14604c` on 2026-09-25.
+[Pipeline 28874](https://gitlab.flexinfer.ai/libs/fi-fhir/-/pipelines/28874)
+passed 56 automatic jobs, including the offline official validator, live HAPI
+FHIR read-back, Kafka/Redis, PostgreSQL/MinIO, and two-replica tests. These are
+internal GitLab records.
 Production activation and release certification remain separate decisions;
 this documentation update does not assert a new clinical-runtime deployment.
 
@@ -55,17 +60,71 @@ this documentation update does not assert a new clinical-runtime deployment.
   [MR !211](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/211).
   See [FHIR output](docs/user-guide/fhir-output.md).
 
+## Delivered — Sprint 7 (2026-09-24 → 2026-09-25)
+
+Spec: `.loom/35-sprint7-execution-specs.md`
+([MR !214](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/214)).
+
+- [x] **Slice 5.1c-α mapper cardinality gaps** — the seven US Core
+  cardinality violations the structural validator recorded in Slice 5.1b are
+  closed from event data or US Core's `unknown` data-absent reason, never
+  invented; a `DocumentReference` with no attachment is no longer emitted;
+  `Encounter.type` derives from PV1-2 through the pinned US Core binding;
+  `recordedCardinalityGaps()` is empty and all 25 fixtures validate clean.
+  Merged in [MR !216](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/216).
+- [x] **Slice 5.1c-β official validator gate** — HL7 `validator_cli.jar`
+  6.10.4 runs **offline** in the blocking `test:fhir-official` job over all
+  25 mapper fixtures and the 11 transaction Bundles the durable `fhir`
+  transport actually delivers, against R4 4.0.1 and US Core 9.0.0 with the
+  full 23-archive package closure pinned by digest. Findings are held to an
+  exact-equality ledger (`testdata/fhir/official/findings.ledger.txt`) that
+  can only shrink deliberately; a negative control proves the gate is live.
+  Merged in [MR !219](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/219).
+  See [conformance matrix §5.2](docs/planning/FHIR-CONFORMANCE-MATRIX.md).
+- [x] **Slice 4.2c FHIR operator trace** — `OperatorDeliveryAttempt.deliveries`
+  projects the destination provenance ledger (transport, outcome, verified
+  revision, endpoint and certificate advisories, and the FHIR resource types,
+  entry count, and OperationOutcome issue codes) into the operator message
+  trace and delivery console; ledger-only, clinical-content-free by
+  construction. Merged in
+  [MR !217](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/217).
+- [x] **Performance harness fix (S6-B, partial)** — the report script could
+  set `certified: true` on the runner variable alone, comparing no
+  measurement to any budget; it now requires budget 1's p95/p99 to be met on
+  the tagged runner in a non-regression build, records the negative control
+  and runner id, and reports budget 3 as `not_measured`. Merged in
+  [MR !215](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/215).
+  **Nothing is certified**: see Now.
+- [x] **CI: MinIO service images mirrored** — quay.io and Docker Hub withdrew
+  `minio/minio`; both pinned service images now come from the internal
+  registry by digest. Merged in
+  [MR !218](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/218).
+- [x] **Close-out (`docs/sprint7-close-out`)** — this roadmap, the plan's 5.1
+  block, one CHANGELOG block, and Lane S7-A's banked one-liner:
+  `fhirout.mapEvent` now tells the mapper the event source, so the legacy
+  workflow `fhir` action's raw Encounter carries the same
+  `urn:fi-fhir:source:<source>` identifier system the durable transport
+  already added through `ensureIdentifier`; the official-validator ledger is
+  byte-identical.
+
 ## Now
 
-- [ ] **S6-B budgets 1–3 certification** — the performance harness is present,
-  but measured certification on the pinned `fi-fhir-perf` runner remains open.
-  An ordinary green MR pipeline does not certify these budgets.
-- [ ] **Slice 4.2c FHIR operator trace** — expose destination provenance in the
-  operator delivery attempt view.
-- [ ] **Slice 5.1c official validation** — run the CI-only official validator
-  over delivered Bundles and close the remaining structural fixture gaps.
-  The FHIR destination prerequisite has merged; this work is no longer blocked
-  on Slice 4.1c-c. See the [conformance matrix](docs/planning/FHIR-CONFORMANCE-MATRIX.md).
+- [ ] **S6-B budgets 1–3 certification** — still not measured. Runner 8
+  (`fi-fhir-perf`) picked the job up twice on 2026-09-25 but its 11 GiB pod
+  cannot schedule on `cblevins-5930k`, which has about 4 GiB of headroom
+  beside a 27B-parameter inference server; CI pods run at `ci-low` priority
+  and never preempt. Operator decision in `platform/gitops`: free the memory
+  for a run window or move the runner. Branch `docs/perf-budgets-certified`
+  is retained for the resume. Budget 3 also needs a real 1-GiB batch-import
+  workload reading container RSS; today it is `not_measured`.
+- [ ] **Slice 5.1c-γ official-validator findings** — the ledger records 157
+  findings (28 errors) over 36 inputs after Slice 5.1c-α: FHIRPath
+  invariants, identifier and URL datatypes, local code-system membership,
+  in-Bundle reference matching, and two DiagnosticReport slices. Cardinality
+  errors are zero. Closing these is the next mapper slice; VSAC-bound value
+  sets stay "not found" warnings under `-tx n/a` by decision.
+- [ ] **Coverage.relationship for dependents** — stays `unknown` until
+  `EligibilityResponseEvent` carries the X12 INS02 relationship code.
 
 ## Delivered — Phases 0–2
 

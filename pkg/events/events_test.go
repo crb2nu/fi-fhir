@@ -340,3 +340,19 @@ func TestPatientExtensions(t *testing.T) {
 		t.Errorf("external_id = %v, want 'EXT123'", decoded.Extensions["external_id"])
 	}
 }
+
+// TestEventMetaIsPromotedToEveryEvent pins the contract fhirout relies on: an
+// event held as `any` — pointer or value — exposes its envelope through the
+// promoted Meta method, so callers need not enumerate event types.
+func TestEventMetaIsPromotedToEveryEvent(t *testing.T) {
+	admit := PatientAdmitEvent{EventMeta: EventMeta{Type: EventPatientAdmit, Source: "adt-east"}}
+	for name, event := range map[string]any{"pointer": &admit, "value": admit} {
+		envelope, ok := event.(interface{ Meta() EventMeta })
+		if !ok {
+			t.Fatalf("%s form of PatientAdmitEvent does not expose Meta()", name)
+		}
+		if got := envelope.Meta().Source; got != "adt-east" {
+			t.Fatalf("%s form: Meta().Source = %q, want adt-east", name, got)
+		}
+	}
+}

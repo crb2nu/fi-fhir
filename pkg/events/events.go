@@ -132,6 +132,14 @@ type EventMeta struct {
 	QualityScore *DataQualityScore `json:"quality_score,omitempty"`
 }
 
+// Meta returns the envelope itself. Every canonical event embeds EventMeta, so
+// this value-receiver method is promoted to each event type — pointer or value
+// — and a caller holding an `any` can reach the envelope through
+// `interface{ Meta() EventMeta }` without enumerating the event types.
+func (m EventMeta) Meta() EventMeta {
+	return m
+}
+
 // ParseWarning captures non-fatal issues during parsing.
 // These allow "messy but real" data to flow through while maintaining auditability.
 type ParseWarning struct {

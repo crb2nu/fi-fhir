@@ -94,9 +94,11 @@ func TestProjectAdmissionKeysAndConditionalBundle(t *testing.T) {
 		t.Fatal("Patient and Encounter share a fullUrl")
 	}
 
-	// The mapper's output is untouched: the legacy engine gets exactly what it
-	// got before this package existed.
+	// The mapper's output is untouched: told the event's source, as mapEvent
+	// tells it since Sprint 7, the mapper alone produces byte for byte what the
+	// projection carries — the legacy engine gets exactly the mapper's output.
 	mapper := fhir.NewUSCoreMapper()
+	mapper.Source = event.Source
 	wantEncounter, _ := json.Marshal(mapper.MapEncounter(&event.Encounter, "Patient/MRN-000123"))
 	gotEncounter, _ := json.Marshal(encounter.Resource)
 	if !bytes.Equal(wantEncounter, gotEncounter) {
@@ -290,6 +292,40 @@ func TestPayloadEventType(t *testing.T) {
 		if _, err := PayloadEventType(json.RawMessage(payload)); !errors.Is(err, ErrInvalidPayload) {
 			t.Fatalf("PayloadEventType(%q) = %v, want ErrInvalidPayload", payload, err)
 		}
+	}
+}
+
+// TestMapEventQualifiesBareEncounterIdentifierUnderTheSource is Lane S7-A's
+// banked finding (Sprint 7): Slice 5.1c-α gave USCoreMapper a Source, but
+// fhirout never set it, so the legacy workflow `fhir` action's raw Encounter
+// kept a systemless visit number while the durable path only looked right
+// because ensureIdentifier added the key afterwards. The raw resource must
+// carry the deployment-owned system itself, for the pointer and value forms
+// the switch accepts alike.
+func TestMapEventQualifiesBareEncounterIdentifierUnderTheSource(t *testing.T) {
+	want := fhir.Identifier{System: "urn:fi-fhir:source:adt-east", Value: "VISIT-000123"}
+	for name, event := range map[string]any{
+		"pointer": projectTestAdmit(),
+		"value":   *projectTestAdmit(),
+	} {
+		t.Run(name, func(t *testing.T) {
+			resources, err := MapEvent(event)
+			if err != nil {
+				t.Fatalf("MapEvent: %v", err)
+			}
+			var encounter *fhir.Encounter
+			for _, resource := range resources {
+				if typed, ok := resource.(*fhir.Encounter); ok {
+					encounter = typed
+				}
+			}
+			if encounter == nil {
+				t.Fatalf("MapEvent produced no Encounter among %d resources", len(resources))
+			}
+			if len(encounter.Identifier) != 1 || encounter.Identifier[0].System != want.System || encounter.Identifier[0].Value != want.Value {
+				t.Fatalf("raw Encounter.identifier = %+v, want exactly %+v", encounter.Identifier, want)
+			}
+		})
 	}
 }
 
