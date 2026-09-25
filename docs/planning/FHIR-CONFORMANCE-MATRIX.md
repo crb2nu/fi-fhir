@@ -310,7 +310,7 @@ disagreement at higher resolution, so reconciliation went first. See
 | # | Item | Status |
 |---|---|---|
 | 1 | **Wait for 4.1c-b** — a conformance gate has nothing to gate until a resource exists on the durable path | **Satisfied by Slice 4.1c-c (2026-09-08), proven by `TestFHIRDestination_DurableEngineDeliversFHIRResource`** (`internal/integration/delivery/fhir_conformance_gate_test.go`), the deliberate inversion of `TestFHIRConformance_DurableEngineProducesNoFHIRResource`, which had proven that 4.1c-b did not satisfy this. The real dispatcher over a `fhir`-transport destination delivers a conditional transaction Bundle of a US Core Patient and Encounter — projected by `internal/integration/fhirout` from the exact payload the outbox stores — at `application/fhir+json`; every resource in it validates at `us-core --strict` with zero issues; the transport vocabulary is `{fhir, https, kafka}`; and `fhirout` is the only importer of `pkg/fhir` under `internal/integration/**`. Journey 6's validation input now exists on a path journey 1 executes. MR !211 expands the shared projector to eleven event types, including six additional clinical families; see `docs/operations/DESTINATION-IDENTITY.md` "The FHIR transport". |
-| 2 | **Choose the validation engine** | **Half-ratified.** The confinement half is in force: `validator_cli.jar` is CI-only, the shipped image stays distroless static, IG packages are pinned offline `.tgz`. The ordering half was amended — see the heading above. |
+| 2 | **Choose the validation engine** | **Ratified in full (2026-09-24, Slice 5.1c-β).** The confinement half was in force since 2026-08-09: `validator_cli.jar` is CI-only, the shipped image stays distroless static, IG packages are pinned offline `.tgz`. The amended ordering — reconcile (5.1a), then Option C (5.1b), then Option A — is now complete: `validator_cli.jar` 6.10.4 runs offline as the blocking `test:fhir-official` job over the mapper fixtures and the delivered Bundles. See §5.2 and `.loom/decisions/2026-09-24-run-the-hl7-validator-offline-as-a.md`. |
 | 3 | **Pin the packages** | **Done (Slice 5.1b).** `hl7.fhir.r4.core#4.0.1` (12,815,597 bytes) and `hl7.fhir.us.core#9.0.0` (2,749,959 bytes) are checked in as offline `.tgz` under `testdata/fhir/packages/` with sha256 sums in `SHA256SUMS`, verified on every run by `TestFHIRStructural_PinnedPackagesMatchTheirRecordedDigests`. Both reproduce the registry-published `dist.shasum`. §4's external denominator is now citable and was re-verified against the archive. Whole archives, not an extracted subset: no size or scan gate rejected them — see §5.1 below. |
 | 4 | **Fix the two self-inconsistencies** | **Done (Slice 5.1a).** §1.1 cases 1 and 2. A third, not in the original list — the checker failing open on any mode string that was not byte-exactly `us-core` — is also fixed. A fourth, `Patient.MRN` being dropped and producing a hard `Patient.identifier is required`, is fixed too. |
 | 5 | **Decide the profile-version assertion policy** | **Done (Slice 5.1a).** Bare canonicals asserted; bare or pinned accepted. Recorded here, in `.loom/40-decisions.md`, and in `docs/operations/SUPPORTED-1.0.md`. |
@@ -318,6 +318,7 @@ disagreement at higher resolution, so reconciliation went first. See
 Remaining after **Slice 5.1b**: the official validator as a CI-only job
 (Option A, Sprint 7). Slice 4.1c-c has merged, so the delivered path is available for that work.
 Structural checks and live HAPI acceptance do not replace official validation.
+**Delivered by Slice 5.1c-β (2026-09-24) — see §5.2.**
 
 ### 5.1 The Go structural validator (Option C) — Slice 5.1b, 2026-09-08
 
@@ -422,6 +423,92 @@ dependencies US Core 9.0.0 declares. The transitive closure was not pinned —
 `hl7.terminology.r4` and `us.cdc.phinvads` are terminology this validator does
 not evaluate, and no mapper emits a `QuestionnaireResponse`. The exception is
 asserted by name, so a second one fails the build.
+
+### 5.2 The official validator (Option A) — Slice 5.1c-β, 2026-09-24
+
+HL7's reference implementation, **`validator_cli.jar` 6.10.4** (sha256
+`1106b9d58f9e363e47bea7c4fc065841e5fc91fe9d062775c3bfdd212bd653cc`, pinned by
+version and digest in `scripts/fhir-official-validate.sh`), runs offline over
+**36 inputs**: the 25 mapper fixtures in `testdata/fhir/mapper/` and the
+transaction Bundle the durable `fhir` transport delivers for each of the 11
+supported event types — captured by
+`TestDeliveredBundlesForEverySupportedEventType` (`internal/integration/fhirout`),
+byte-identical to the request body. Target: R4 4.0.1 +
+`hl7.fhir.us.core#9.0.0`, `-tx n/a`, `-no-http-access`. The findings must
+**equal** `testdata/fhir/official/findings.ledger.txt` exactly — a new finding
+and a fixed one both fail the build, the same shape as
+`recordedCardinalityGaps()`. Gate: `make fhir-official`, CI
+`test:fhir-official-capture` (Go) → `test:fhir-official` (JRE), both blocking;
+negative control `make fhir-official-negative-control` (Patient.name removed
+from a copy of `patient.json` changes exactly that file's rows, adding
+`Patient.name: minimum required = 1, but only found 0`).
+
+**Hermetic, with 23 archives, not 2.** The day-1 kill-test refuted the sprint's
+riskiest assumption as written: with `--network none` and only
+`hl7.fhir.r4.core#4.0.1` and `hl7.fhir.us.core#9.0.0`, the validator stops at
+`Unable to resolve package id hl7.fhir.r4.core#4.0.1` (the core must sit in its
+package cache) and then demands its own defaults and US Core's full transitive
+closure. Exactly the demanded 21 further archives (99,247,081 bytes, none
+licence-gated, each reproducing the registry `dist.shasum`) are pinned under
+`testdata/fhir/packages/`; the README lists each one and what demands it. (This
+is the transitive closure §5.1 declined to pin; the structural validator still
+loads only the first two.) The script builds a private package cache from
+exactly those 23, fails if the
+validator installs anything, and fails if its own `Package Summary` differs from
+the pinned set in either direction. offline == online: identical 23-package
+summary, identical findings — an online run with an empty cache and network
+access produced the same ledger, row for row, over all 36 inputs.
+
+**What it proves that §5.1 did not.** Everything the reference validator
+evaluates without a terminology server:
+
+- **Invariants** — FHIRPath `constraint`s from R4 and US Core
+  (`us-core-8`/`us-core-9` on the lab `DiagnosticReport`, `us-core-21` on
+  `MedicationRequest`, `us-core-17` NPI Luhn check, `pd-1` on
+  `PractitionerRole`, `dom-6` everywhere).
+- **Slicing** — `DiagnosticReport.category:LaboratorySlice` is required and not
+  matched.
+- **Primitive and datatype rules** — OID syntax, `urn:ietf:rfc:3986`
+  identifier values, example-domain URLs, resolvable canonical URLs.
+- **References inside a Bundle** — the delivered ADT Bundles'
+  `Encounter.subject` cannot match a US Core Patient, because that Patient fails
+  its own profile.
+- **Cardinality, independently** — every §5.1 structural gap reappears here,
+  found by a second engine.
+- **Terminology posture under `-tx n/a`.** Membership *is* checked where the
+  code system's content ships in the pinned THO packages — it caught `LAB`
+  (not a code in `observation-category`), `discharge` (not in US Core
+  `careplan-category`) and `physician` (not in `practitioner-role`). Everything
+  that needs a server is recorded as "could not check", not as a pass: LOINC,
+  SNOMED CT, RxNorm, UCUM and CVX membership, and every VSAC value set
+  (`cts.nlm.nih.gov`, `ValueSet … not found`). `us.nlm.vsac` is not a US Core
+  9.0.0 dependency and was not pinned.
+
+**The ledger at landing** (pre-Slice 5.1c-α; S7-A's fixes shrink it):
+
+| Inputs | Files | Error | Warning | Information | Total |
+|---|---|---|---|---|---|
+| Mapper fixtures | 25 | 25 | 54 | 26 | 105 |
+| Delivered Bundles | 11 | 16 | 26 | 16 | 58 |
+| **All** | **36** | **41** | **80** | **42** | **163** |
+
+The 41 errors by class: cardinality 14 (the §5.1 gaps, counted once per
+profile that states them, plus `Encounter.type` in the four ADT Bundles),
+invariants 8, datatype/identifier rules 9, local code-system membership 4,
+in-Bundle reference profile match 4, slicing 2. 20 of the 36 inputs carry at
+least one error. Some errors belong to the *test input* rather than the mapper
+(`http://hospital.example.org/mrn`, `urn:oid:1.2.3`); they are recorded on the
+same terms, because the gate measures what is emitted, not who is to blame.
+
+**What is still not certified.** This is evidence, not a certificate, and the
+ledger is not a pass: it records 41 errors and holds them still. No terminology
+server — external code-system and value-set membership is unchecked by design.
+Only the outbound surface (§6 stays out of scope), and only the resources the
+mapper fixtures and the 11 projectable event types produce. SMART App Launch
+2.2.0 and Bulk Data 3.0.0 have no conformance evidence of any kind; their
+packages are loaded only because US Core depends on them. `security:trivy`
+still does not decompress `.tgz` (vuln and secret gates exit 0 over all 23
+archives with trivy 0.63.0).
 
 ---
 

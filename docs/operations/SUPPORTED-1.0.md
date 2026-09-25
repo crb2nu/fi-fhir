@@ -23,7 +23,7 @@ every release, conformance, performance, recovery, or compatibility gate.
 | Local deployment | Docker Compose with PostgreSQL 16 | Development reference; not a production topology |
 | Kubernetes deployment | Kubernetes 1.36.x through Helm and Kustomize | Pinned reference target; render, install, upgrade, rollback, and live golden-journey evidence remain release gates |
 | Authoring UI | Current SvelteKit build served as static assets | Build/test locked; latest-two Chrome, Edge, and Firefox plus current Safari compatibility remains a release gate |
-| Healthcare standards | FHIR R4 4.0.1, US Core 9.0.0, SMART App Launch 2.2.0, Bulk Data 3.0.0 | Release targets; official validator or conformance-suite evidence is not yet complete. Since Slice 5.1b the repository pins `hl7.fhir.r4.core#4.0.1` and `hl7.fhir.us.core#9.0.0` as offline `.tgz` under `testdata/fhir/packages/` and resolves against them — see "FHIR profile-version assertion policy" below for exactly what that does and does not establish  Since Slice 4.1c-c the durable engine delivers Patient/Encounter (ADT) and DiagnosticReport/Observation (lab) over the `fhir` transport as conditional transaction Bundles. |
+| Healthcare standards | FHIR R4 4.0.1, US Core 9.0.0, SMART App Launch 2.2.0, Bulk Data 3.0.0 | Release targets. For FHIR R4 / US Core, the HL7 official validator (`validator_cli.jar` 6.10.4) runs offline in CI as a blocking gate (Slice 5.1c-β) over the mapper's fixtures and the Bundles the `fhir` transport delivers, against 23 pinned packages with no terminology server, and its findings — errors included — are held to an exact-equality ledger: official-validator evidence exists, a clean pass and a certificate do not (`docs/planning/FHIR-CONFORMANCE-MATRIX.md` §5.2). SMART App Launch 2.2.0 and Bulk Data 3.0.0 have no validator or conformance-suite evidence yet. Since Slice 5.1b the repository pins `hl7.fhir.r4.core#4.0.1` and `hl7.fhir.us.core#9.0.0` as offline `.tgz` under `testdata/fhir/packages/` and resolves against them — see "FHIR profile-version assertion policy" below for exactly what that does and does not establish. Since Slice 4.1c-c the durable engine delivers Patient/Encounter (ADT) and DiagnosticReport/Observation (lab) over the `fhir` transport as conditional transaction Bundles. |
 
 Kubernetes 1.36 is the pinned minor because it is an actively supported upstream
 release during the Engine Alpha program. Patch releases may advance within 1.36
@@ -69,8 +69,14 @@ and a reader could reasonably infer more than is true:
   binds the system rather than the instance. It does **not** evaluate
   terminology bindings, FHIRPath invariants, slicing, primitive-type formats,
   reference targets, or extensions, and it issues no conformance certificate.
-  `validator_cli.jar` as a CI-only job (Option A) is Sprint 7, and item 7 of the
-  evidence list below stays blocking until it lands.
+- **The official validator now runs too, and is still not a pass.**
+  `validator_cli.jar` 6.10.4 (Option A, Slice 5.1c-β) validates the mapper
+  fixtures and the delivered Bundles offline in CI — invariants, slicing,
+  datatype rules and local code-system membership included, external
+  terminology not — and holds every finding to an exact-equality ledger that
+  still records errors. It does not close item 7 of the evidence list below:
+  the FHIR ledger still records errors, and SMART App Launch and Bulk Data have
+  no evidence at all.
 
 The alternative — pinning all constants to `|9.0.0` and requiring an exact match —
 was rejected in 5.1a. Without a package-resolution step a pinned constant asserts
