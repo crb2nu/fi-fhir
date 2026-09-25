@@ -90,12 +90,15 @@
 - Consequences:
   - Two blocking CI jobs on `.go-mr-rules`; Java exists only in the second.
   - Every mapper change that alters a finding must regenerate the ledger in the
-    same commit. Lane S7-A's cardinality fixes shrink it; whoever merges second
-    rebases and regenerates.
-  - The ledger is not a clean bill of health: at landing it holds 163 findings
-    over 36 inputs, 41 of them errors (cardinality, invariants, slicing, local
-    code-system membership, identifier/URL datatype checks). They are recorded,
-    not accepted — each one is now visible and cannot silently change.
+    same commit. Lane S7-A's cardinality fixes merged first; this slice was
+    rebased over them and regenerated its ledger in the same commit that
+    records the post-5.1c-α state.
+  - The ledger is not a clean bill of health: at landing (over `main` with
+    Slice 5.1c-α merged) it holds 157 findings over 36 inputs, 28 of them
+    errors (invariants, slicing, local code-system membership, identifier/URL
+    datatype checks, in-Bundle reference matching — and no cardinality). Before
+    5.1c-α the same gate recorded 163 and 41. They are recorded, not accepted —
+    each one is now visible and cannot silently change.
   - Moving the validator version, the JRE image or any pinned archive is a
     deliberate edit that regenerates the ledger; the ledger header carries the
     jar version, digest, invocation and package summary so a pin change without

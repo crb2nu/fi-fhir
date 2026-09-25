@@ -88,13 +88,17 @@ both. Re-pinning the constants is still not planned — a bare canonical is what
 US Core publisher is expected to emit — but the reason has narrowed from "we
 cannot verify a version" to "we choose not to assert one".
 
-Running the structural validator over the mapper's own generated fixtures found
-seven cardinality violations across five of the twenty-five files after MR !211
-fixed medication substitution serialization. The DocumentReference content gap
-still violates base R4 as well as US Core. They are enumerated in
-`docs/planning/FHIR-CONFORMANCE-MATRIX.md` §5.1, held to exact equality by
-`make fhir-structural`, and are the subject of the next mapper slice. A reader
-sizing up this row should read that table before quoting the standards row.
+Running the structural validator over the mapper's own generated fixtures now
+finds nothing: all twenty-five files are clean and the structural ledger is
+empty as of Slice 5.1c-α (2026-09-24), which closed the seven cardinality
+violations Slice 5.1b measured — including the DocumentReference content gap
+that violated base R4 as well as US Core. The empty ledger is still held to
+exact equality by `make fhir-structural`, so a violation that reappears fails
+the build, and the official validator independently reports no cardinality
+finding on the same fixtures. That is cardinality only: the official
+validator's ledger still records errors of other kinds
+(`docs/planning/FHIR-CONFORMANCE-MATRIX.md` §5.2). A reader sizing up this row
+should read §5.1 and §5.2 before quoting the standards row.
 
 ## Reference application profile
 

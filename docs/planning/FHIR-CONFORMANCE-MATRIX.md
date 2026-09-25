@@ -473,8 +473,10 @@ evaluates without a terminology server:
 - **References inside a Bundle** — the delivered ADT Bundles'
   `Encounter.subject` cannot match a US Core Patient, because that Patient fails
   its own profile.
-- **Cardinality, independently** — every §5.1 structural gap reappears here,
-  found by a second engine.
+- **Cardinality, independently** — before Slice 5.1c-α every one of §5.1's
+  seven structural gaps appeared here too, found by a second engine; after it,
+  this engine also reports **no** cardinality finding on any of the 36 inputs,
+  agreeing with §5.1's empty ledger.
 - **Terminology posture under `-tx n/a`.** Membership *is* checked where the
   code system's content ships in the pinned THO packages — it caught `LAB`
   (not a code in `observation-category`), `discharge` (not in US Core
@@ -484,24 +486,33 @@ evaluates without a terminology server:
   (`cts.nlm.nih.gov`, `ValueSet … not found`). `us.nlm.vsac` is not a US Core
   9.0.0 dependency and was not pinned.
 
-**The ledger at landing** (pre-Slice 5.1c-α; S7-A's fixes shrink it):
+**The ledger at landing** (over `main` with Slice 5.1c-α merged):
 
 | Inputs | Files | Error | Warning | Information | Total |
 |---|---|---|---|---|---|
-| Mapper fixtures | 25 | 25 | 54 | 26 | 105 |
-| Delivered Bundles | 11 | 16 | 26 | 16 | 58 |
-| **All** | **36** | **41** | **80** | **42** | **163** |
+| Mapper fixtures | 25 | 16 | 56 | 27 | 99 |
+| Delivered Bundles | 11 | 12 | 30 | 16 | 58 |
+| **All** | **36** | **28** | **86** | **43** | **157** |
 
-The 41 errors by class: cardinality 14 (the §5.1 gaps, counted once per
-profile that states them, plus `Encounter.type` in the four ADT Bundles),
-invariants 8, datatype/identifier rules 9, local code-system membership 4,
-in-Bundle reference profile match 4, slicing 2. 20 of the 36 inputs carry at
-least one error. Some errors belong to the *test input* rather than the mapper
+The 28 errors by class: invariants 8, datatype/identifier rules 10 (OID
+syntax, `urn:ietf:rfc:3986` values, example-domain URLs, an unresolvable
+system URL), local code-system membership 4, in-Bundle reference profile match
+4, slicing 2 — and cardinality **0**. 16 of the 36 inputs carry at least one
+error. Some errors belong to the *test input* rather than the mapper
 (`http://hospital.example.org/mrn`, `urn:oid:1.2.3`); they are recorded on the
 same terms, because the gate measures what is emitted, not who is to blame.
 
+The same gate run over `main` *before* 5.1c-α recorded 163 findings, 41 of
+them errors: 5.1c-α removed the 14 cardinality error rows (its seven gaps,
+counted once per profile that states them, plus `Encounter.type` in the four
+ADT Bundles) and, by emitting the codings those elements now carry, added
+VSAC `ValueSet … not found` warnings for `Encounter.type` and
+`CareTeam.participant.role` and one example-URL error on the new
+`DocumentReference` attachment. That is the ledger doing its job: the fix and
+its consequences are both visible rows.
+
 **What is still not certified.** This is evidence, not a certificate, and the
-ledger is not a pass: it records 41 errors and holds them still. No terminology
+ledger is not a pass: it records 28 errors and holds them still. No terminology
 server — external code-system and value-set membership is unchecked by design.
 Only the outbound surface (§6 stays out of scope), and only the resources the
 mapper fixtures and the 11 projectable event types produce. SMART App Launch

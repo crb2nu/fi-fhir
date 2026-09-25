@@ -43,12 +43,19 @@
   - All 21 new archives reproduce the registry `dist.shasum`; none is
     licence-gated; `us.nlm.vsac` is not a dependency. Trivy 0.63.0 over the 23:
     vuln gate `num=0` exit 0, secret gate no issues exit 0.
-  - Ledger at landing: 36 inputs, 163 findings — 41 error, 80 warning, 42
-    information (fixtures 25/54/26, Bundles 16/26/16). The errors add what 5.1b
+  - Ledger at landing, rebased over Slice 5.1c-α (!216): 36 inputs, 157
+    findings — 28 error, 86 warning, 43 information (fixtures 16/56/27,
+    Bundles 12/30/16), and no cardinality finding. The errors are what 5.1b
     could not see: invariants (`us-core-8/9/17/21`, `pd-1`), slicing
     (`LaboratorySlice`), datatype rules (OIDs, `urn:ietf:rfc:3986`, example
     URLs), in-Bundle reference profile matching, and local code-system
     membership (`LAB`, `discharge`, `physician` are not codes in their systems).
+  - Before 5.1c-α the same gate recorded 163 findings, 41 errors; the rebase
+    diff is exactly −14 cardinality error rows, +1 example-URL error on the new
+    DocumentReference attachment, +7 VSAC "not found" warnings for the new
+    Encounter.type and CareTeam role codings, −1/+1 best-practice and
+    no-terminology notes. The gate went red on the rebase until regenerated,
+    as designed.
   - Negative control: exactly one added row, `mapper/patient.json error …
     Patient.name: minimum required = 1, but only found 0`. The gate was also
     shown to fail on an unrecorded finding and on a recorded-but-vanished row.
@@ -59,8 +66,6 @@
     `golangci-lint run`, `shellcheck`, `scripts/ci-job-inventory.sh --check`,
     `scripts/validate-docs.sh`, `worklog.sh check`, `decisions.sh check`.
 - What's next:
-  - Lane S7-A (5.1c-α) closes the structural cardinality gaps; whoever merges
-    second rebases and regenerates the ledger in the same commit.
   - The remaining errors are mapper work, each now visible by row: the lab
     `DiagnosticReport` category code and `effective`/`issued`, NPI check
     digits in fixtures, `MedicationRequest.requester`, identifier value
