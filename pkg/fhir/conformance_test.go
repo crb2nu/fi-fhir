@@ -467,6 +467,11 @@ func assertConformanceTableCoversEveryMapEntryPoint(t *testing.T, cases []confor
 
 const conformancePatientRef = "Patient/MRN-000123"
 
+// conformanceSource is the EventMeta.Source every row's event would carry.
+// Every stored event has a server-stamped source; the table names one so the
+// mapper can qualify a bare visit number the way a real caller's would.
+const conformanceSource = "main-hospital-adt"
+
 func conformanceLabResultEvent() *events.LabResultEvent {
 	return &events.LabResultEvent{
 		Patient: events.Patient{MRN: "MRN-000123"},
@@ -493,6 +498,7 @@ func conformanceLabResultEvent() *events.LabResultEvent {
 // hollowed out until nothing was checkable would be worse than no row.
 func mapperConformanceCases() []conformanceCase {
 	mapper := NewUSCoreMapper()
+	mapper.Source = conformanceSource
 	birth := time.Date(1980, 5, 15, 0, 0, 0, 0, time.UTC)
 	admit := time.Date(2026, 8, 9, 10, 30, 0, 0, time.UTC)
 	observed := time.Date(2026, 8, 9, 14, 30, 0, 0, time.UTC)
@@ -622,8 +628,11 @@ func mapperConformanceCases() []conformanceCase {
 			AdministeredDate: "2026-08-01",
 		}, conformancePatientRef)}},
 
+		// Both shipped VitalSignEvent producers (CDA and FHIR) stamp Timestamp
+		// with the measurement's clinical time; a row without one was not the
+		// shape a parser emits, and it is what left effective[x] absent.
 		{"MapVitalSign", []any{mapper.MapVitalSign(&events.VitalSignEvent{
-			EventMeta: events.EventMeta{ID: "vs-123"},
+			EventMeta: events.EventMeta{ID: "vs-123", Timestamp: observed},
 			VitalSign: events.VitalSign{
 				Name: "Heart Rate", LOINCCode: LOINCHeartRate, Value: "72",
 				Unit: "bpm", Interpretation: "normal",
@@ -679,6 +688,18 @@ func mapperConformanceCases() []conformanceCase {
 			CareTeam: events.CareTeam{
 				Name: "Diabetes Care Team", Status: "active", Category: "longitudinal",
 				PeriodStart: "2026-01-01", PeriodEnd: "2026-12-31",
+				Members: []events.CareTeamMember{
+					{
+						Role: "primary care physician",
+						Provider: &events.Provider{
+							NPI: "1234567890", GivenName: "Jane", FamilyName: "Smith",
+						},
+					},
+					{
+						Role: "case manager", OrganizationID: "org-1",
+						OrganizationName: "General Hospital",
+					},
+				},
 			},
 		}, conformancePatientRef)}},
 
@@ -701,6 +722,12 @@ func mapperConformanceCases() []conformanceCase {
 					TypeCode: "18842-5", TypeCodeSystem: SystemLOINC,
 					Category: "Clinical Note", Date: "2026-08-01T10:30:00Z",
 					Description: "Patient discharge summary",
+					Content: []events.DocumentReferenceContent{{
+						AttachmentContentType: "application/pdf",
+						AttachmentURL:         "https://ehr.example.org/documents/doc-001.pdf",
+						AttachmentTitle:       "Discharge summary",
+						AttachmentCreation:    "2026-08-01T10:30:00Z",
+					}},
 				},
 			}, conformancePatientRef)}},
 

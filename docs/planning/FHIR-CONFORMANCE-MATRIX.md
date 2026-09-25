@@ -357,9 +357,34 @@ expansion. **This is not official conformance and produces no certificate.**
 
 **Result over the 21-resource-type fixture set** (25 files in
 `testdata/fhir/mapper/`; `labresult_1/2/3`, `labobservation` and `vitalsign` are
-all `Observation` or `DiagnosticReport`): **20 files clean, 5 carrying 7
-cardinality violations** after the 2026-09-20 medication serialization fix. Every one was confirmed against the fixture by hand;
-one earlier report — `Coverage.payor` serialised as a JSON array — was a
+all `Observation` or `DiagnosticReport`): **25 files clean, ledger empty as of
+Slice 5.1c-α (2026-09-24).** `recordedCardinalityGaps()` returns an empty map
+and is still asserted by **exact equality**, so a violation that reappears fails
+the build; `TestUSCoreMapper_FixturesCarryNoCardinalityViolations` asserts the
+same zero without reference to the ledger. That test failed on `main` at
+`1465aa516` naming exactly the seven violations in the history table below.
+
+This is cardinality only. Terminology bindings, invariants and slicing are
+unmeasured by this validator (see the list above); the official validator is
+what measures them.
+
+How each gap was closed (choices, code systems and fallbacks in
+`.loom/decisions/2026-09-24-close-the-mapper-s-us-core-cardinality.md`):
+
+| Fixture | Element | Closed by |
+|---|---|---|
+| `careteam.json` | `CareTeam.participant` | The event's members are projected; an event naming nobody produces **no** CareTeam. A member with no role gets DataAbsentReason `unknown`, as US Core's own missing-data example does. |
+| `coverage.json` | `Coverage.relationship` | `self` when the 271 carries no dependent loop; DataAbsentReason `unknown` when it does, because the canonical event does not carry INS02. |
+| `documentreference.json` | `DocumentReference.content` (×2) | `content` is `omitempty`, never `null`; an event with no attachment that locates or carries a document produces **no** DocumentReference. |
+| `encounter.json` | `Encounter.identifier.system` | A bare visit number is qualified under `urn:fi-fhir:source:<source>` when the mapper is told the event's source (`USCoreMapper.Source`). |
+| `encounter.json` | `Encounter.type` | Derived from PV1-2: SNOMED CT `86181006` (I) or `4525004` (E) plus the HL7 v2 table 0004 code; the other classes carry the v2 code only. |
+| `vitalsign.json` | `Observation.effective[x]` | The conformance row now carries the `Timestamp` every shipped producer stamps; a zero `Timestamp` is left absent, never filled with the receipt time. |
+
+#### History — the Slice 5.1b measurement (2026-09-08, as amended 2026-09-20)
+
+**20 files clean, 5 carrying 7 cardinality violations** after the 2026-09-20
+medication serialization fix. Every one was confirmed against the fixture by
+hand; one earlier report — `Coverage.payor` serialised as a JSON array — was a
 validator defect and was fixed rather than recorded, because a profile narrowing
 `max` from `*` to `1` constrains the count, not the JSON wire shape.
 
@@ -372,16 +397,14 @@ validator defect and was fixed rather than recorded, because a profile narrowing
 | `encounter.json` | `Encounter.type` absent | `us-core-encounter` 1..* |
 | `vitalsign.json` | `Observation.effective[x]` absent | `us-core-heart-rate` 1..1 |
 
-The explicit `null` violates base R4, not just a US Core tightening. The
-MedicationRequest mapper now preserves `allowedBoolean: false`, closing its two
-recorded violations. Slice 5.1b itself did **not** fix any of them. Its
-deliverable is the measurement, and changing the mapper in the change that first
-makes it measurable would take the measurement against unreviewed output; what a
-`DocumentReference` with no attachment should emit is a product decision, not a
-defect fix. The gaps are recorded in `recordedCardinalityGaps()` and asserted by
-**exact equality**, so a new violation and a fixed one both fail the build and
-the ledger can only shrink deliberately. **Closing them is the next mapper
-slice.**
+The explicit `null` violated base R4, not just a US Core tightening. The
+MedicationRequest mapper had already been changed to preserve
+`allowedBoolean: false`, closing its two recorded violations. Slice 5.1b itself
+did **not** fix any of them. Its deliverable was the measurement, and changing
+the mapper in the change that first made it measurable would have taken the
+measurement against unreviewed output; what a `DocumentReference` with no
+attachment should emit was a product decision, not a defect fix. Slice 5.1c-α
+made those decisions.
 
 **Two places the shipped checker is stricter than the IG.** `validate.go` makes
 an absent `Patient.gender` and an absent `Patient.birthDate` hard errors; in US

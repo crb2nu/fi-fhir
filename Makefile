@@ -1071,9 +1071,10 @@ destination-transport:
 #     us-core-observation-lab and us-core-heart-rate reach R4 only through
 #     another US Core profile.
 #  6. Every mapper fixture's structural errors EXACTLY equal the recorded
-#     ledger in recordedCardinalityGaps(): 19 clean, six carrying nine genuine
-#     cardinality violations. Exact equality, so a fixed gap fails as loudly as
-#     a new one and the ledger can only shrink deliberately.
+#     ledger in recordedCardinalityGaps(): all 25 clean, the ledger empty since
+#     Slice 5.1c-α closed the last seven cardinality violations 5.1b measured.
+#     Exact equality, so a violation that reappears fails the build and the
+#     ledger can only change deliberately.
 #  7. Removing a required element from a clean fixture fails, once per
 #     required-element type Slice 5.1a counted.
 #  8. Bundle entries are validated and located by entry index — the fixture set
@@ -1099,9 +1100,9 @@ fhir-structural:
 
 # Negative control for the above. The fhirstructuralnegative tag removes
 # Patient.name — 1..* in us-core-patient — from patient.json before the gate
-# sees it, and changes nothing else. patient.json is one of the twenty
-# fixtures recorded clean, so the ledger assertion must fail on EXACTLY that
-# fixture, naming that element.
+# sees it, and changes nothing else. patient.json is one of the 25 fixtures
+# recorded clean, so the ledger assertion must fail on EXACTLY that fixture,
+# naming that element.
 #
 # Three requirements, not one. A control that passes means the gate is not
 # reading the fixtures at all. A control that fails everywhere means the ledger

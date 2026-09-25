@@ -87,6 +87,13 @@ const (
 	SystemInterpretation       = "http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation"
 	SystemEncounterClass       = "http://terminology.hl7.org/CodeSystem/v3-ActCode"
 	SystemIdentifierType       = "http://terminology.hl7.org/CodeSystem/v2-0203"
+	// SystemV2PatientClass is HL7 v2 table 0004 (Patient Class), the source
+	// vocabulary of PV1-2.
+	SystemV2PatientClass = "http://terminology.hl7.org/CodeSystem/v2-0004"
+	// SystemDataAbsentReason is what US Core's Missing Data rule prescribes for
+	// a required coded element the source did not supply and whose value set
+	// has no "unknown" concept of its own.
+	SystemDataAbsentReason = "http://terminology.hl7.org/CodeSystem/data-absent-reason"
 
 	// Race/ethnicity system (CDC Race & Ethnicity)
 	SystemCDCRaceEthnicity = "urn:oid:2.16.840.1.113883.6.238"
@@ -1657,8 +1664,12 @@ type DocumentReference struct {
 	RelatesTo     []DocumentReferenceRelatesTo `json:"relatesTo,omitempty"`     // Relationships to other documents
 	Description   string                       `json:"description,omitempty"`   // Human-readable description
 	SecurityLabel []CodeableConcept            `json:"securityLabel,omitempty"` // Document security-tags
-	Content       []DocumentReferenceContent   `json:"content"`                 // Document content (US Core requires at least one)
-	Context       *DocumentReferenceContext    `json:"context,omitempty"`       // Clinical context
+	// Content is 1..* in base R4. It is omitempty so a DocumentReference built
+	// without it serialises as absent rather than as `"content": null`, which
+	// asserts the element is present and empty. MapDocumentReference never
+	// emits one without it (Slice 5.1c-α).
+	Content []DocumentReferenceContent `json:"content,omitempty"`
+	Context *DocumentReferenceContext  `json:"context,omitempty"` // Clinical context
 }
 
 // DocumentReferenceRelatesTo represents a relationship to another document.

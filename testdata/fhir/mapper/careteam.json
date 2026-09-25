@@ -25,5 +25,43 @@
   "period": {
     "start": "2026-01-01T00:00:00Z",
     "end": "2026-12-31T00:00:00Z"
-  }
+  },
+  "participant": [
+    {
+      "role": [
+        {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "446050000",
+              "display": "Primary care physician"
+            }
+          ],
+          "text": "primary care physician"
+        }
+      ],
+      "member": {
+        "reference": "Practitioner/1234567890",
+        "display": "Smith, Jane"
+      }
+    },
+    {
+      "role": [
+        {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "768820003",
+              "display": "Case manager"
+            }
+          ],
+          "text": "case manager"
+        }
+      ],
+      "member": {
+        "reference": "Organization/org-1",
+        "display": "General Hospital"
+      }
+    }
+  ]
 }

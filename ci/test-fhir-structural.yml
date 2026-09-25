@@ -16,9 +16,10 @@
 # its R4 base; `|8.0.0` on a 9.0.0 profile is rejected where Slice 5.1a's
 # suffix-stripping tolerance accepted it; validate.go's 17 hand-written
 # required-element checks still agree with the IG; and every mapper fixture's
-# structural errors exactly equal the recorded ledger — 19 clean, six carrying
-# nine genuine cardinality violations that Slice 5.1b measured and deliberately
-# did not fix (docs/planning/FHIR-CONFORMANCE-MATRIX.md section 5.1).
+# structural errors exactly equal the recorded ledger — all 25 clean, the ledger
+# empty since Slice 5.1c-α closed the cardinality violations Slice 5.1b measured
+# and deliberately did not fix (docs/planning/FHIR-CONFORMANCE-MATRIX.md
+# section 5.1).
 #
 # It is NOT official conformance. No terminology, no invariants, no slicing, no
 # primitive types, and no certificate. `validator_cli.jar` as a CI-only job
@@ -55,8 +56,9 @@ test:fhir-structural:
         echo "${CI_JOB_NAME} FAILED — a resource no longer matches the pinned"
         echo "hl7.fhir.r4.core#4.0.1 / hl7.fhir.us.core#9.0.0 packages, or the"
         echo "recorded cardinality ledger no longer matches the mapper."
-        echo "A FIXED gap fails this job on purpose: shrink"
-        echo "recordedCardinalityGaps() in the same commit that fixes it."
+        echo "The ledger is empty since Slice 5.1c-a: a new violation is a"
+        echo "mapper regression. Fix the mapper; recording it in"
+        echo "recordedCardinalityGaps() needs a decision entry first."
         echo "Local: make fhir-structural && make fhir-structural-negative-control"
         echo "Docs: docs/planning/FHIR-CONFORMANCE-MATRIX.md section 5.1"
         echo "Owner: Platform/Integration — escalate in #ci-support"
