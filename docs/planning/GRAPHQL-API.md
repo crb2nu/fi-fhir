@@ -44,12 +44,44 @@ Static mode additionally requires:
 | Variable | Requirement |
 | --- | --- |
 | `FI_FHIR_GRAPHQL_PRINCIPAL_ID` | Server-owned compatibility principal ID |
-| `FI_FHIR_GRAPHQL_ROLES` | Comma-separated roles, including `integration:preview` or `clinical:read` where appropriate |
+| `FI_FHIR_GRAPHQL_ROLES` | Comma-separated roles; `integration:preview` is required |
 | `FI_FHIR_GRAPHQL_BEARER_TOKEN` | Direct secret of at least 24 canonical bytes |
 | `FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE` | Preferred production secret-file path |
 
 Set exactly one token source. The registry is bounded, rejects unknown fields,
 and verifies the definition, profile, and workflow digests before startup.
+
+Static mode can also accept **one separate service credential** without changing
+the existing IDE token or its roles. Set both of these values, or neither:
+
+| Variable | Requirement |
+| --- | --- |
+| `FI_FHIR_GRAPHQL_SERVICE_BEARER_TOKEN_FILE` | Mounted single-line secret file; 24 or more canonical token bytes, at most 4096 file bytes |
+| `FI_FHIR_GRAPHQL_SERVICE_PRINCIPAL_ID` | Canonical service ID, distinct from the IDE principal |
+
+The service token must differ from the IDE token. It authenticates as a service
+principal in `FI_FHIR_DEPLOYMENT_TENANT_ID` with exactly `integration.operator`
+and `integration:preview`. There is no service-role or service-tenant override.
+It can read the operator control plane and preview a server-bound integration;
+it cannot read clinical event/patient queries, recover deliveries, change
+deployments, or use the broad `graphql:operator` grant. The caller must use only
+synthetic data when exercising a synthetic preview workflow: the credential
+itself does not classify payload contents. Both identities keep separate roles
+and attribution, and credential files are read at startup. OIDC mode rejects
+these service settings.
+
+For service previews, the adapter supplies the source ID from the selected
+server-owned registry binding. An existing, different principal source binding
+is rejected; the shared processor's source validation remains in force.
+
+Operator reads need durable stores independently of authentication. Set
+`FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED=true` with the existing PostgreSQL
+database configuration to initialize the submission/delivery, lifecycle, and
+destination schemas under `fi-fhir serve`. This defaults to false and is rejected by the
+preview-only command. It does not enable HTTP/MLLP/batch ingestion, delivery
+workers, or Integration Sessions. Startup applies the existing idempotent
+migrations, so the database identity needs migration privileges. Existing
+deployments that already initialize these stores retain their behavior.
 
 OIDC mode instead requires:
 
@@ -106,8 +138,14 @@ token carries no role or tenant claim, which is why authorization is deployment
 configuration and why this is a layer beside the bearer modes rather than a
 third `FI_FHIR_GRAPHQL_AUTH_MODE`.
 
-Precedence: trusted network, then an `Authorization` header when the request
-carries one (judged alone), then the Access assertion. `/api/auth/status`
+Precedence: an explicit `Authorization` header is judged alone, followed by
+trusted-network identity and then the Access assertion only when the header is
+absent. An invalid, empty, or repeated bearer header returns 401 even on a
+trusted network. This intentionally replaces the former stale-token LAN
+fallback, preventing a narrow service credential from inheriting IDE roles.
+Headerless LAN/Access sessions and valid IDE tokens keep their existing access.
+The IDE sends headerless requests after its authenticated status probe.
+`/api/auth/status`
 reports `{"authenticated":true,"authVia":"cloudflare-access","principal":"<email>"}`
 for a verified session. Implementation:
 `internal/api/requestsecurity/cloudflare_access.go`.

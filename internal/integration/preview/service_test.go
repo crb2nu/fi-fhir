@@ -106,6 +106,52 @@ func TestServiceRejectsBeforeRegistryOrProcessor(t *testing.T) {
 	}
 }
 
+func TestServicePreviewBindsOnlyTheRegistrySource(t *testing.T) {
+	revision := previewRevision(t)
+	for _, sourceID := range []string{"", revision.Source.SourceID, "another-source"} {
+		t.Run("source="+sourceID, func(t *testing.T) {
+			registry := &registryStub{binding: Binding{
+				IntegrationRevision: revision.Reference(), SourceID: revision.Source.SourceID,
+				Format: revision.Format, Classification: revision.Policy.Classification,
+			}}
+			processorSpy := &processorStub{}
+			service, err := NewService(registry, processorSpy, time.Now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			security := integration.SecurityContext{
+				TenantID: "tenant-a",
+				Principal: integration.Principal{
+					ID: "mentatlab", Kind: integration.PrincipalKindService, AuthMethod: "service-bearer",
+					Roles: []string{PreviewRole}, SourceID: sourceID,
+				},
+			}
+			_, err = service.Preview(context.Background(), security, Input{
+				IntegrationID: "adt-east", Payload: []byte("synthetic-message"), CorrelationID: "preview-test", Reason: "synthetic verification",
+			})
+			if sourceID == "another-source" {
+				if !errors.Is(err, ErrForbidden) || processorSpy.calls != 0 {
+					t.Fatalf("mismatched service source reached processor: error=%v calls=%d", err, processorSpy.calls)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			request := processorSpy.request
+			if err := request.ValidateAgainst(revision); err != nil {
+				t.Fatalf("preview violates the shared processor contract: %v", err)
+			}
+			if request.Mode != integration.ExecutionModePreview || request.Security.Principal.Kind != integration.PrincipalKindService || request.Security.Principal.SourceID != revision.Source.SourceID {
+				t.Fatal("service preview did not preserve identity and bind the registry source")
+			}
+			if security.Principal.SourceID != sourceID {
+				t.Fatal("preview changed the caller's reusable service identity")
+			}
+		})
+	}
+}
+
 type registryStub struct {
 	binding Binding
 	err     error

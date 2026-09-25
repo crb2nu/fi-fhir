@@ -5450,6 +5450,13 @@ Static authentication environment:
   FI_FHIR_GRAPHQL_BEARER_TOKEN       Bearer secret (24+ canonical bytes), or
   FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE  path to the bearer secret; set exactly one
 
+Optional static-mode service authentication:
+  FI_FHIR_GRAPHQL_SERVICE_BEARER_TOKEN_FILE  Separate service bearer secret file
+  FI_FHIR_GRAPHQL_SERVICE_PRINCIPAL_ID       Distinct service principal; set both
+    Fixed roles: integration.operator and integration:preview. This credential
+    does not inherit the IDE or trusted-network roles. An explicit bearer is
+    checked before trusted-network or Cloudflare Access identity.
+
 OIDC authentication environment:
   FI_FHIR_GRAPHQL_OIDC_ISSUER_URL    HTTPS issuer discovery URL
   FI_FHIR_GRAPHQL_OIDC_AUDIENCE      Required token audience
@@ -5462,6 +5469,12 @@ OIDC authentication environment:
 Optional static-mode trusted-network access:
   FI_FHIR_GRAPHQL_TRUSTED_CIDRS      Comma-separated LAN CIDRs allowed without
                                      a bearer token; never include pod/service CIDRs
+
+Optional operator control-plane environment:
+  FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED  true initializes PostgreSQL-backed
+    operator services independently of ingestion, delivery, or sessions (default: false).
+    Available only with serve; applies submission, lifecycle, and destination migrations.
+    Operator reads still require integration.operator; mutations require additional roles.
 
 Optional durable HL7v2 ingress environment:
   FI_FHIR_HTTP_INGRESS_AUTH_MODE       bearer, hmac-sha256, or oauth2; unset disables

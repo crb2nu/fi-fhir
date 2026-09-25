@@ -67,7 +67,7 @@ type ServerConfig struct {
 	// Authenticator establishes the deployment-owned tenant/principal context.
 	Authenticator requestsecurity.Authenticator
 	// TrustedNetworkAuthenticator optionally establishes the same deployment-
-	// owned identity for explicitly allowlisted LAN clients.
+	// owned identity for explicitly allowlisted LAN clients without a bearer header.
 	TrustedNetworkAuthenticator *requestsecurity.TrustedNetworkAuthenticator
 	// CloudflareAccessAuthenticator optionally accepts the signed assertion
 	// Cloudflare's edge attaches to a request that passed an Access policy, so
@@ -698,23 +698,28 @@ func isJSONObject(raw json.RawMessage, nullable bool) bool {
 
 func authenticatedMiddleware(next http.Handler, authenticator requestsecurity.Authenticator, trusted *requestsecurity.TrustedNetworkAuthenticator, access *requestsecurity.CloudflareAccessAuthenticator) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if security, ok := trusted.AuthenticateRequest(r); ok {
-			next.ServeHTTP(w, r.WithContext(requestsecurity.WithSecurityContext(r.Context(), security)))
-			return
+		authorizations := r.Header.Values("Authorization")
+		if len(authorizations) == 0 {
+			if security, ok := trusted.AuthenticateRequest(r); ok {
+				next.ServeHTTP(w, r.WithContext(requestsecurity.WithSecurityContext(r.Context(), security)))
+				return
+			}
 		}
-		// Precedence: an explicit Authorization header is always judged on its
-		// own merits, even when an Access assertion is also present — a stale
-		// or wrong bearer token must not be rescued by the cookie beside it. The
-		// assertion only stands in when no bearer credential was offered.
+		// An explicit bearer is judged alone, including on trusted networks.
+		// Otherwise a service credential could inherit the broad IDE identity.
+		// Empty or repeated headers also fail instead of falling back to trust.
 		var (
 			security integration.SecurityContext
 			err      error
 		)
-		authorization := r.Header.Get("Authorization")
-		if assertion, ok := access.Assertion(r); ok && authorization == "" {
+		if len(authorizations) > 1 {
+			err = requestsecurity.ErrInvalidCredentials
+		} else if len(authorizations) == 1 {
+			security, err = authenticator.Authenticate(r.Context(), authorizations[0])
+		} else if assertion, ok := access.Assertion(r); ok {
 			security, err = access.Authenticate(r.Context(), assertion)
 		} else {
-			security, err = authenticator.Authenticate(r.Context(), authorization)
+			security, err = authenticator.Authenticate(r.Context(), "")
 		}
 		if err != nil {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="fi-fhir"`)
