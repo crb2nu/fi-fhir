@@ -36,6 +36,8 @@ export type OperatorReceipt = OperatorReceiptsQuery['operatorReceipts']['nodes']
 export type OperatorMessageTrace = NonNullable<OperatorMessageTraceQuery['operatorMessageTrace']>;
 export type OperatorAttempt =
   OperatorDeliveryAttemptsQuery['operatorDeliveryAttempts']['nodes'][number];
+/** One destination provenance-ledger row, as the Delivery block renders it. */
+export type OperatorDestinationDelivery = OperatorAttempt['deliveries'][number];
 export type OperatorDeadLetter = OperatorDeadLettersQuery['operatorDeadLetters']['nodes'][number];
 export type OperatorCircuit = OperatorCircuitsQuery['operatorCircuits'][number];
 export type OperatorAuditRecord = OperatorAttemptAuditQuery['operatorAttemptAudit']['nodes'][number];

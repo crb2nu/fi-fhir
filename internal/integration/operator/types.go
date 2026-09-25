@@ -26,6 +26,16 @@ const (
 	MaxPayloadFields = 200
 	// maxLifecycleSnapshots bounds the deployment inventory read.
 	maxLifecycleSnapshots = 200
+
+	// MaxAttemptDeliveries bounds the provenance-ledger rows projected onto one
+	// attempt read on its own (GetAttempt, and the attempt a control action
+	// returns): five full runs of the default retry budget.
+	MaxAttemptDeliveries = 25
+	// MaxListedAttemptDeliveries bounds the ledger rows projected onto each
+	// attempt of a list (ListAttempts, GetMessageTrace). It equals the default
+	// delivery retry budget, so a never-replayed attempt shows every exchange;
+	// the single-attempt read shows more.
+	MaxListedAttemptDeliveries = 5
 )
 
 var (
@@ -158,6 +168,35 @@ type DeliveryAttemptSummary struct {
 	LeaseOwner      string
 	LeaseExpiresAt  *time.Time
 	DeadLetter      *DeadLetterSummary
+	// Deliveries are the destination provenance-ledger rows recorded for this
+	// attempt, newest first and bounded. Empty when this process contacted no
+	// destination for the attempt — every kafka-class delivery, and every
+	// delivery before Slice 4.1c-b.
+	Deliveries []DestinationDeliverySummary
+}
+
+// DestinationDeliverySummary is one executed destination delivery from the
+// Slice 4.1c-b/c provenance ledger (integration_destination_deliveries).
+//
+// The ledger is clinical-content-free by construction, and this projection
+// adds nothing to it: server-owned provenance, a closed-vocabulary status
+// class, and three advisory values — the declared endpoint, a bounded
+// certificate subject, and OperationOutcome issue codes (never diagnostics).
+type DestinationDeliverySummary struct {
+	Transport                        string
+	DestinationArtifactID            string
+	DestinationRevisionID            string
+	DestinationClass                 string
+	DigestVerified                   string
+	Outcome                          string
+	FailureCode                      string
+	HTTPStatusClass                  string
+	EndpointAdvisory                 string
+	ServedCertificateSubjectAdvisory string
+	CompletedAt                      time.Time
+	FHIRResourceTypes                []string
+	FHIREntryCount                   int
+	FHIROutcomeCodesAdvisory         []string
 }
 
 // DeadLetterSummary is one durable dead-letter record and its resolution.

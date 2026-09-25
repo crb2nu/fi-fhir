@@ -22,6 +22,18 @@ fragment OperatorDeadLetterFields on OperatorDeadLetter {
   resolvedAt
 }
 
+# The operator UI renders exactly these ledger columns and nothing else. The
+# provenance ledger is clinical-content-free by construction; selecting only
+# what is displayed keeps the view that way (Slice 4.2c).
+fragment OperatorDestinationDeliveryFields on OperatorDestinationDelivery {
+  transport
+  outcome
+  endpointAdvisory
+  fhirResourceTypes
+  fhirEntryCount
+  fhirOutcomeCodesAdvisory
+}
+
 fragment OperatorAttemptFields on OperatorDeliveryAttempt {
   tenantId
   attemptId
@@ -50,6 +62,9 @@ fragment OperatorAttemptFields on OperatorDeliveryAttempt {
   leaseExpiresAt
   deadLetter {
     ...OperatorDeadLetterFields
+  }
+  deliveries {
+    ...OperatorDestinationDeliveryFields
   }
 }
 

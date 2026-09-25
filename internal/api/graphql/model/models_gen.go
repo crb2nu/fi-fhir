@@ -437,6 +437,11 @@ type OperatorDeliveryAttempt struct {
 	LeaseOwner      string                         `json:"leaseOwner"`
 	LeaseExpiresAt  *time.Time                     `json:"leaseExpiresAt,omitempty"`
 	DeadLetter      *OperatorDeadLetter            `json:"deadLetter,omitempty"`
+	// Destination provenance-ledger rows for this attempt, newest first: 25 on a
+	// single attempt read, 5 per attempt in a list or trace. Empty when this
+	// process contacted no destination for the attempt (every kafka-class
+	// delivery, and every delivery before the ledger existed).
+	Deliveries []OperatorDestinationDelivery `json:"deliveries"`
 }
 
 type OperatorDeliveryAttemptConnection struct {
@@ -484,6 +489,34 @@ type OperatorDeploymentEvent struct {
 	Actor      *OperatorPrincipal `json:"actor"`
 	Reason     string             `json:"reason"`
 	OccurredAt time.Time          `json:"occurredAt"`
+}
+
+// One executed destination delivery from the provenance ledger. The ledger is
+// clinical-content-free by construction: server-owned provenance plus three
+// advisory values (endpoint, certificate subject, OperationOutcome issue codes),
+// never a response body, diagnostics text, or event content.
+type OperatorDestinationDelivery struct {
+	// https or fhir.
+	Transport string `json:"transport"`
+	// The verified destination revision; digest equals digestVerified.
+	Destination    *IntegrationPreviewDestination `json:"destination"`
+	DigestVerified string                         `json:"digestVerified"`
+	// delivered, retryable, or refused.
+	Outcome     string `json:"outcome"`
+	FailureCode string `json:"failureCode"`
+	// This process's own reduction of the response status: 1xx..5xx, or empty.
+	HTTPStatusClass string `json:"httpStatusClass"`
+	// Remote address the destination revision declares. Advisory only.
+	EndpointAdvisory string `json:"endpointAdvisory"`
+	// Subject of the certificate the destination served. Advisory only.
+	ServedCertificateSubjectAdvisory string    `json:"servedCertificateSubjectAdvisory"`
+	CompletedAt                      time.Time `json:"completedAt"`
+	// FHIR resource types in the delivered Bundle, in bundle order; empty for https.
+	FhirResourceTypes []string `json:"fhirResourceTypes"`
+	// Entries in the delivered Bundle; 0 for https.
+	FhirEntryCount int `json:"fhirEntryCount"`
+	// OperationOutcome issue codes only, never diagnostics. Advisory only.
+	FhirOutcomeCodesAdvisory []string `json:"fhirOutcomeCodesAdvisory"`
 }
 
 type OperatorDiagnostic struct {

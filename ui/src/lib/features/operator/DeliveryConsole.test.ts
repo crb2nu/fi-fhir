@@ -1,16 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import DeliveryConsole from './DeliveryConsole.svelte';
 
-const { fetchDeadLettersMock, fetchCircuitsMock, toastsMock } = vi.hoisted(() => ({
-  fetchDeadLettersMock: vi.fn(),
-  fetchCircuitsMock: vi.fn(),
-  toastsMock: { error: vi.fn(), success: vi.fn(), warning: vi.fn(), info: vi.fn() }
-}));
+const { fetchDeadLettersMock, fetchCircuitsMock, fetchAttemptMock, toastsMock } = vi.hoisted(
+  () => ({
+    fetchDeadLettersMock: vi.fn(),
+    fetchCircuitsMock: vi.fn(),
+    fetchAttemptMock: vi.fn(),
+    toastsMock: { error: vi.fn(), success: vi.fn(), warning: vi.fn(), info: vi.fn() }
+  })
+);
 
 vi.mock('./operatorApi', () => ({
   fetchDeadLetters: (...args: unknown[]) => fetchDeadLettersMock(...args),
-  fetchCircuits: (...args: unknown[]) => fetchCircuitsMock(...args)
+  fetchCircuits: (...args: unknown[]) => fetchCircuitsMock(...args),
+  fetchAttempt: (...args: unknown[]) => fetchAttemptMock(...args)
 }));
 
 vi.mock('$lib/ui/toastStore', async (importOriginal) => {
@@ -88,6 +92,70 @@ describe('DeliveryConsole', () => {
       action: 'discard',
       attemptId: 'attempt-a'
     });
+  });
+
+  it('opens a dead letter’s Delivery block on demand, once per row', async () => {
+    fetchDeadLettersMock.mockResolvedValue(page([deadLetter()]));
+    fetchAttemptMock.mockResolvedValue({
+      attemptId: 'attempt-a',
+      deliveries: [
+        {
+          transport: 'fhir',
+          outcome: 'refused',
+          endpointAdvisory: 'https://fhir.example.test/r4',
+          fhirResourceTypes: ['Patient', 'Encounter'],
+          fhirEntryCount: 2,
+          fhirOutcomeCodesAdvisory: ['invalid', 'not-found']
+        }
+      ]
+    });
+    render(DeliveryConsole);
+
+    const toggle = await screen.findByRole('button', { name: 'Show delivery' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    // Nothing is fetched for a row the operator has not opened.
+    expect(fetchAttemptMock).not.toHaveBeenCalled();
+
+    await fireEvent.click(toggle);
+    const block = await screen.findByRole('list', {
+      name: 'Destination deliveries for attempt-a, newest first'
+    });
+    expect(fetchAttemptMock).toHaveBeenCalledWith('attempt-a');
+    expect(within(block).getByText('FHIR')).toBeInTheDocument();
+    expect(within(block).getByText('Refused')).toBeInTheDocument();
+    expect(within(block).getByText('not-found')).toBeInTheDocument();
+    const hide = screen.getByRole('button', { name: 'Hide delivery' });
+    expect(hide).toHaveAttribute('aria-expanded', 'true');
+    expect(document.getElementById(hide.getAttribute('aria-controls') ?? '')).not.toBeNull();
+
+    await fireEvent.click(hide);
+    expect(screen.queryByRole('list', { name: /Destination deliveries/ })).toBeNull();
+    await fireEvent.click(screen.getByRole('button', { name: 'Show delivery' }));
+    expect(
+      await screen.findByRole('list', { name: 'Destination deliveries for attempt-a, newest first' })
+    ).toBeInTheDocument();
+    expect(fetchAttemptMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders a Delivery block failure inline in its row without a second toast', async () => {
+    fetchDeadLettersMock.mockResolvedValue(page([deadLetter()]));
+    fetchAttemptMock.mockRejectedValue(new Error('operator control plane unavailable'));
+    render(DeliveryConsole);
+
+    await fireEvent.click(await screen.findByRole('button', { name: 'Show delivery' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/not enabled on this deployment/i);
+    expect(toastsMock.error).not.toHaveBeenCalled();
+  });
+
+  it('says so when the attempt behind a dead letter is not in the tenant', async () => {
+    fetchDeadLettersMock.mockResolvedValue(page([deadLetter()]));
+    fetchAttemptMock.mockResolvedValue(null);
+    render(DeliveryConsole);
+
+    await fireEvent.click(await screen.findByRole('button', { name: 'Show delivery' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/not available in your tenant/i);
   });
 
   it('renders a load failure inline without adding a second toast', async () => {

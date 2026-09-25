@@ -18,12 +18,16 @@ export {
   deploymentActionBlockedReason,
   deploymentHealthVariant,
   deploymentStateVariant,
+  deliveryOutcomeVariant,
+  describeDestinationDelivery,
   formatTimestamp,
   outboxStatusVariant,
   shortDigest,
   type BadgeVariant,
   type DeliveryAction,
-  type DeploymentAction
+  type DeploymentAction,
+  type DestinationDeliveryDisplay,
+  type DestinationDeliveryLike
 } from './attemptPresentation';
 
 export { describeOperatorFailure, type OperatorFailure } from './operatorErrors';
@@ -35,12 +39,14 @@ export type {
   OperatorDeadLetter,
   OperatorDeployment,
   OperatorDeploymentEvent,
+  OperatorDestinationDelivery,
   OperatorMessageTrace,
   OperatorReceipt
 } from './operatorApi';
 
 export { default as ControlReasonDialog } from './ControlReasonDialog.svelte';
 export { default as DeliveryConsole } from './DeliveryConsole.svelte';
+export { default as DestinationDeliveries } from './DestinationDeliveries.svelte';
 export { default as DeploymentControls } from './DeploymentControls.svelte';
 export { default as MessageBrowser } from './MessageBrowser.svelte';
 export { default as MessageTrace } from './MessageTrace.svelte';

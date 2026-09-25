@@ -27,6 +27,7 @@ import (
 	graphqlstore "gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/store"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/fhir/subscription"
 	integrationdelivery "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/delivery"
+	integrationdestination "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/destination"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/mllp"
 	operatorplane "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/operator"
@@ -4621,12 +4622,24 @@ func runServe(args []string) error {
 		if err != nil {
 			return fmt.Errorf("configure operator control-plane reads: %w", err)
 		}
+		// Slice 4.2c: the trace reads the destination provenance ledger. The
+		// ledger is migrated here as the lifecycle catalog is above, because a
+		// deployment without FI_FHIR_DELIVERY_IDENTITY_MODE never migrates it
+		// elsewhere. This applies the destination package's existing numbered
+		// set under its own advisory lock; it adds no migration.
+		deliveryLedger, err := integrationdestination.NewPostgresProvenance(securePreviewRuntime.submissionDB)
+		if err != nil {
+			return fmt.Errorf("configure operator destination ledger reads: %w", err)
+		}
+		if err := deliveryLedger.Migrate(context.Background()); err != nil {
+			return fmt.Errorf("migrate destination provenance ledger: %w", err)
+		}
 		deliveryRecovery, err := integrationdelivery.NewPostgresStore(securePreviewRuntime.submissionDB, nil)
 		if err != nil {
 			return fmt.Errorf("configure operator delivery recovery: %w", err)
 		}
 		operatorService, err := operatorplane.NewService(
-			operatorReads, deliveryRecovery, lifecycleCatalog, securePreviewRuntime.tenantID,
+			operatorReads, deliveryLedger, deliveryRecovery, lifecycleCatalog, securePreviewRuntime.tenantID,
 		)
 		if err != nil {
 			return fmt.Errorf("configure operator control plane: %w", err)

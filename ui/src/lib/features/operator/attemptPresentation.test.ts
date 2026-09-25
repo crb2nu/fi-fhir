@@ -7,6 +7,8 @@ import {
   deploymentActionBlockedReason,
   deploymentHealthVariant,
   deploymentStateVariant,
+  deliveryOutcomeVariant,
+  describeDestinationDelivery,
   formatTimestamp,
   outboxStatusVariant,
   shortDigest
@@ -109,5 +111,75 @@ describe('formatting helpers', () => {
     expect(formatTimestamp(null)).toBe('—');
     expect(formatTimestamp(undefined)).toBe('—');
     expect(formatTimestamp('not-a-date')).toBe('not-a-date');
+  });
+});
+
+describe('describeDestinationDelivery', () => {
+  const fhirDelivered = {
+    transport: 'fhir',
+    outcome: 'delivered',
+    endpointAdvisory: 'https://fhir.example.test/r4',
+    fhirResourceTypes: ['Patient', 'Encounter'],
+    fhirEntryCount: 2,
+    fhirOutcomeCodesAdvisory: []
+  };
+
+  it('renders a delivered FHIR transaction with its resource types and entry count', () => {
+    expect(describeDestinationDelivery(fhirDelivered)).toEqual({
+      transportLabel: 'FHIR',
+      outcomeLabel: 'Delivered',
+      outcomeVariant: 'success',
+      resourceTypes: ['Patient', 'Encounter'],
+      entryCountText: '2 bundle entries',
+      outcomeCodes: [],
+      endpointText: 'https://fhir.example.test/r4'
+    });
+  });
+
+  it('carries OperationOutcome issue codes for a refused transaction', () => {
+    const display = describeDestinationDelivery({
+      ...fhirDelivered,
+      outcome: 'refused',
+      fhirEntryCount: 1,
+      fhirOutcomeCodesAdvisory: ['invalid', 'not-found']
+    });
+    expect(display.outcomeVariant).toBe('danger');
+    expect(display.outcomeLabel).toBe('Refused');
+    expect(display.outcomeCodes).toEqual(['invalid', 'not-found']);
+    expect(display.entryCountText).toBe('1 bundle entry');
+  });
+
+  it('shows no Bundle facts for an https delivery', () => {
+    const display = describeDestinationDelivery({
+      transport: 'https',
+      outcome: 'retryable',
+      endpointAdvisory: 'https://destination.example.test/ingest',
+      fhirResourceTypes: [],
+      fhirEntryCount: 0,
+      fhirOutcomeCodesAdvisory: []
+    });
+    expect(display.transportLabel).toBe('HTTPS');
+    expect(display.outcomeVariant).toBe('warning');
+    expect(display.resourceTypes).toEqual([]);
+    expect(display.entryCountText).toBeNull();
+    expect(display.outcomeCodes).toEqual([]);
+  });
+
+  it('never invents an endpoint and never mutates the ledger row', () => {
+    const row = { ...fhirDelivered, endpointAdvisory: '' };
+    const display = describeDestinationDelivery(row);
+    expect(display.endpointText).toBe('No endpoint declared');
+    display.resourceTypes.push('Observation');
+    expect(row.fhirResourceTypes).toEqual(['Patient', 'Encounter']);
+  });
+
+  it('maps every ledger outcome, and tolerates a future one', () => {
+    expect(deliveryOutcomeVariant('delivered')).toBe('success');
+    expect(deliveryOutcomeVariant('retryable')).toBe('warning');
+    expect(deliveryOutcomeVariant('refused')).toBe('danger');
+    expect(deliveryOutcomeVariant('unknown-future-outcome')).toBe('default');
+    expect(describeDestinationDelivery({ ...fhirDelivered, transport: 'mllp' }).transportLabel).toBe(
+      'MLLP'
+    );
   });
 });

@@ -148,10 +148,20 @@ delivery-identity:
 		-run '^(TestDeliveryIdentity_PostgresKafkaScopedDispatch|TestDeliveryDispatch_ContactsNoDestination)$$' \
 		./internal/integration/delivery
 
-# Slice 4.2a operator control-plane kill-test (PostgreSQL 16 required)
+# Slice 4.2a operator control-plane kill-test (PostgreSQL 16 required), and the
+# Slice 4.2c proof that the trace shows the FHIR delivery from the destination
+# provenance ledger. The arity guard is here rather than only in CI because a
+# renamed 4.2c test would make `-run` match only the 4.2a one and this target
+# greener rather than redder.
 operator-control-plane:
+	@count=$$(go test -tags=integration -list '^TestOperatorControlPlane_' ./internal/api/graphql \
+		| grep -cx 'TestOperatorControlPlane_FailureReplayAndAuditGoldenJourneys\|TestOperatorControlPlane_TraceShowsTheFHIRDelivery'); \
+	if [ "$$count" != "2" ]; then \
+		echo "expected 2 TestOperatorControlPlane proofs, found $$count"; \
+		exit 1; \
+	fi
 	go test -tags=integration -race -count=1 -timeout=300s \
-		-run '^TestOperatorControlPlane_FailureReplayAndAuditGoldenJourneys$$' \
+		-run '^TestOperatorControlPlane_(FailureReplayAndAuditGoldenJourneys|TraceShowsTheFHIRDelivery)$$' \
 		./internal/api/graphql
 
 # Slice 4.1d C1 PHI audit immutability and export attribution kill-test

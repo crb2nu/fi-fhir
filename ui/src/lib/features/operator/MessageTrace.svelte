@@ -6,6 +6,8 @@
    * The event payload is rendered semantically: field coordinates and JSON
    * kinds only. The server never returns a stored value, so there is nothing
    * here to redact — this view shows the shape of the message, not its content.
+   * Each attempt's Delivery block renders the destination provenance ledger,
+   * which is clinical-content-free by construction (Slice 4.2c).
    */
 
   import { createEventDispatcher } from 'svelte';
@@ -14,6 +16,7 @@
   import EmptyState from '$lib/ui/EmptyState.svelte';
   import Panel from '$lib/ui/Panel.svelte';
   import Skeleton from '$lib/ui/Skeleton.svelte';
+  import DestinationDeliveries from './DestinationDeliveries.svelte';
   import {
     attemptStatusVariant,
     deadLetterStateLabel,
@@ -213,6 +216,13 @@
                 <span>{attempt.lastErrorDetail}</span>
               </p>
             {/if}
+            <div class="delivery-block">
+              <h4 class="block-title">Delivery</h4>
+              <DestinationDeliveries
+                deliveries={attempt.deliveries}
+                label={`Destination deliveries for ${attempt.attemptId}, newest first`}
+              />
+            </div>
             <div class="attempt-actions">
               {#each actions as action (action)}
                 {@const blocked = deliveryActionBlockedReason(attempt, action)}
@@ -390,6 +400,19 @@
     color: var(--color-danger-text);
     display: flex;
     gap: var(--space-2);
+  }
+
+  .delivery-block {
+    margin: 0 0 var(--space-3);
+  }
+
+  .block-title {
+    margin: 0 0 var(--space-2);
+    font-family: var(--font-heading);
+    font-size: var(--text-2xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-tertiary);
   }
 
   .attempt-actions {

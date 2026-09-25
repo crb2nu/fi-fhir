@@ -3,10 +3,12 @@ package operator
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/delivery"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/destination"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
@@ -41,28 +43,44 @@ type DeploymentCatalog interface {
 	ListEvents(ctx context.Context, tenantID, definitionID, revisionID string) ([]lifecycle.EventRecord, error)
 }
 
+// DestinationDeliveryReader is the read half of the Slice 4.1c-b/c destination
+// provenance ledger. *destination.PostgresProvenance satisfies it. The control
+// plane reads the ledger only through this seam, so the destination package
+// stays the one owner of that table's SQL.
+type DestinationDeliveryReader interface {
+	ListDeliveriesForAttempt(ctx context.Context, tenantID, attemptID string, limit int) ([]destination.DeliverySummary, error)
+}
+
 // Service is the authorization boundary of the operator control plane. Every
 // exported method resolves the verified caller identity from the request
 // context, fails closed on a missing role, and scopes work to the caller's
 // server-owned tenant.
 type Service struct {
-	reads    *PostgresReadStore
-	recovery DeliveryRecoveryStore
-	catalog  DeploymentCatalog
-	tenantID string
+	reads      *PostgresReadStore
+	deliveries DestinationDeliveryReader
+	recovery   DeliveryRecoveryStore
+	catalog    DeploymentCatalog
+	tenantID   string
 }
 
 // NewService binds the control plane to one deployment tenant.
 func NewService(
 	reads *PostgresReadStore,
+	deliveries DestinationDeliveryReader,
 	recovery DeliveryRecoveryStore,
 	catalog DeploymentCatalog,
 	tenantID string,
 ) (*Service, error) {
-	if reads == nil || recovery == nil || catalog == nil || !validToken(tenantID, 256) {
+	if reads == nil || deliveries == nil || recovery == nil || catalog == nil || !validToken(tenantID, 256) {
 		return nil, ErrUnavailable
 	}
-	return &Service{reads: reads, recovery: recovery, catalog: catalog, tenantID: tenantID}, nil
+	return &Service{
+		reads:      reads,
+		deliveries: deliveries,
+		recovery:   recovery,
+		catalog:    catalog,
+		tenantID:   tenantID,
+	}, nil
 }
 
 // authorize resolves verified caller identity and requires every listed role.
@@ -112,31 +130,108 @@ func (s *Service) ListReceipts(ctx context.Context, filter ReceiptFilter, page P
 	return s.reads.ListReceipts(ctx, security.TenantID, filter, page)
 }
 
-// GetMessageTrace returns one receipt-to-delivery lineage for the caller's tenant.
+// GetMessageTrace returns one receipt-to-delivery lineage for the caller's
+// tenant, each attempt carrying its newest MaxListedAttemptDeliveries
+// provenance-ledger rows.
 func (s *Service) GetMessageTrace(ctx context.Context, receiptID string) (MessageTrace, error) {
 	security, err := s.authorize(ctx, ReadRole)
 	if err != nil {
 		return MessageTrace{}, err
 	}
-	return s.reads.GetMessageTrace(ctx, security.TenantID, receiptID)
+	trace, err := s.reads.GetMessageTrace(ctx, security.TenantID, receiptID)
+	if err != nil {
+		return MessageTrace{}, err
+	}
+	if err := s.attachDeliveries(ctx, security.TenantID, trace.Attempts, MaxListedAttemptDeliveries); err != nil {
+		return MessageTrace{}, err
+	}
+	return trace, nil
 }
 
-// ListAttempts browses durable delivery attempts for the caller's tenant.
+// ListAttempts browses durable delivery attempts for the caller's tenant, each
+// carrying its newest MaxListedAttemptDeliveries provenance-ledger rows.
 func (s *Service) ListAttempts(ctx context.Context, filter AttemptFilter, page PageRequest) (Page[DeliveryAttemptSummary], error) {
 	security, err := s.authorize(ctx, ReadRole)
 	if err != nil {
 		return Page[DeliveryAttemptSummary]{}, err
 	}
-	return s.reads.ListAttempts(ctx, security.TenantID, filter, page)
+	result, err := s.reads.ListAttempts(ctx, security.TenantID, filter, page)
+	if err != nil {
+		return Page[DeliveryAttemptSummary]{}, err
+	}
+	if err := s.attachDeliveries(ctx, security.TenantID, result.Items, MaxListedAttemptDeliveries); err != nil {
+		return Page[DeliveryAttemptSummary]{}, err
+	}
+	return result, nil
 }
 
-// GetAttempt returns one delivery attempt for the caller's tenant.
+// GetAttempt returns one delivery attempt for the caller's tenant, carrying its
+// newest MaxAttemptDeliveries provenance-ledger rows.
 func (s *Service) GetAttempt(ctx context.Context, attemptID string) (DeliveryAttemptSummary, error) {
 	security, err := s.authorize(ctx, ReadRole)
 	if err != nil {
 		return DeliveryAttemptSummary{}, err
 	}
-	return s.reads.GetAttempt(ctx, security.TenantID, attemptID)
+	return s.getAttempt(ctx, security.TenantID, attemptID)
+}
+
+func (s *Service) getAttempt(ctx context.Context, tenantID, attemptID string) (DeliveryAttemptSummary, error) {
+	attempt, err := s.reads.GetAttempt(ctx, tenantID, attemptID)
+	if err != nil {
+		return DeliveryAttemptSummary{}, err
+	}
+	attempts := []DeliveryAttemptSummary{attempt}
+	if err := s.attachDeliveries(ctx, tenantID, attempts, MaxAttemptDeliveries); err != nil {
+		return DeliveryAttemptSummary{}, err
+	}
+	return attempts[0], nil
+}
+
+// attachDeliveries projects each attempt's provenance-ledger rows onto it, in
+// place. The read is tenant-scoped by the same server-owned tenant that scoped
+// the attempt read, and it is one bounded, indexed lookup per attempt; the
+// attempt set itself is already bounded by MaxPageSize.
+//
+// A ledger failure fails the whole read rather than returning the attempt
+// with an empty list: an empty list is a statement that this process contacted
+// no destination for the attempt, and it must not be made on a read error.
+func (s *Service) attachDeliveries(
+	ctx context.Context,
+	tenantID string,
+	attempts []DeliveryAttemptSummary,
+	limit int,
+) error {
+	for index := range attempts {
+		records, err := s.deliveries.ListDeliveriesForAttempt(ctx, tenantID, attempts[index].AttemptID, limit)
+		if err != nil {
+			return mapLedgerError(err)
+		}
+		attempts[index].Deliveries = summarizeDeliveries(records)
+	}
+	return nil
+}
+
+func summarizeDeliveries(records []destination.DeliverySummary) []DestinationDeliverySummary {
+	summaries := make([]DestinationDeliverySummary, 0, len(records))
+	for _, record := range records {
+		summaries = append(summaries, DestinationDeliverySummary{
+			Transport:                        string(record.Transport),
+			DestinationArtifactID:            record.DestinationArtifactID,
+			DestinationRevisionID:            record.DestinationRevisionID,
+			DestinationClass:                 record.DestinationClass,
+			DigestVerified:                   record.DestinationDigestVerified,
+			Outcome:                          record.Outcome,
+			FailureCode:                      record.FailureCode,
+			HTTPStatusClass:                  record.HTTPStatusClass,
+			EndpointAdvisory:                 record.EndpointAdvisory,
+			ServedCertificateSubjectAdvisory: record.ServedCertificateSubjectAdvisory,
+			CompletedAt:                      record.CompletedAt.UTC(),
+			FHIRResourceTypes:                append([]string{}, record.FHIRResourceTypes...),
+			FHIREntryCount:                   record.FHIREntryCount,
+			FHIROutcomeCodesAdvisory:         append([]string{}, record.FHIROutcomeCodesAdvisory...),
+		})
+	}
+	return summaries
 }
 
 // ListDeadLetters browses the durable DLQ for the caller's tenant.
@@ -260,7 +355,7 @@ func (s *Service) recover(ctx context.Context, request ControlRequest, kind stri
 	if err != nil {
 		return ControlResult{}, mapDeliveryError(err)
 	}
-	attempt, err := s.reads.GetAttempt(ctx, security.TenantID, resultAttemptID)
+	attempt, err := s.getAttempt(ctx, security.TenantID, resultAttemptID)
 	if err != nil {
 		return ControlResult{}, err
 	}
@@ -360,6 +455,17 @@ func mapDeliveryError(err error) error {
 		return ErrUnavailable
 	default:
 		return err
+	}
+}
+
+func mapLedgerError(err error) error {
+	switch {
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return err
+	case errors.Is(err, destination.ErrProvenanceUnavailable):
+		return ErrUnavailable
+	default:
+		return fmt.Errorf("read destination deliveries: %w", err)
 	}
 }
 

@@ -2625,6 +2625,43 @@ type OperatorDeliveryAttempt {
   leaseOwner: String!
   leaseExpiresAt: DateTime
   deadLetter: OperatorDeadLetter
+  """
+  Destination provenance-ledger rows for this attempt, newest first: 25 on a
+  single attempt read, 5 per attempt in a list or trace. Empty when this
+  process contacted no destination for the attempt (every kafka-class
+  delivery, and every delivery before the ledger existed).
+  """
+  deliveries: [OperatorDestinationDelivery!]!
+}
+
+"""
+One executed destination delivery from the provenance ledger. The ledger is
+clinical-content-free by construction: server-owned provenance plus three
+advisory values (endpoint, certificate subject, OperationOutcome issue codes),
+never a response body, diagnostics text, or event content.
+"""
+type OperatorDestinationDelivery {
+  """https or fhir."""
+  transport: String!
+  """The verified destination revision; digest equals digestVerified."""
+  destination: IntegrationPreviewDestination!
+  digestVerified: String!
+  """delivered, retryable, or refused."""
+  outcome: String!
+  failureCode: String!
+  """This process's own reduction of the response status: 1xx..5xx, or empty."""
+  httpStatusClass: String!
+  """Remote address the destination revision declares. Advisory only."""
+  endpointAdvisory: String!
+  """Subject of the certificate the destination served. Advisory only."""
+  servedCertificateSubjectAdvisory: String!
+  completedAt: DateTime!
+  """FHIR resource types in the delivered Bundle, in bundle order; empty for https."""
+  fhirResourceTypes: [String!]!
+  """Entries in the delivered Bundle; 0 for https."""
+  fhirEntryCount: Int!
+  """OperationOutcome issue codes only, never diagnostics. Advisory only."""
+  fhirOutcomeCodesAdvisory: [String!]!
 }
 
 type OperatorDeliveryAttemptConnection {
