@@ -1,0 +1,109 @@
+# Lane S7-B Slice 5.1c-β: the HL7 FHIR validator (validator_cli.jar, Option A)
+# as a CI-only, blocking, OFFLINE gate.
+#
+# Two jobs so Java never enters a Go image and Go never enters the JRE image:
+#
+#   test:fhir-official-capture  (Go) — TestDeliveredBundlesForEverySupportedEventType
+#       writes the transaction Bundle the durable `fhir` transport delivers for
+#       every supported event type (internal/integration/fhirout, byte-identical
+#       to the request body) into fhir-official-bundles/, published as an
+#       artifact. No PostgreSQL, no network.
+#   test:fhir-official  (JRE, needs the capture) — scripts/fhir-official-validate.sh
+#       validates the 25 mapper fixtures and those bundles against R4 4.0.1 +
+#       hl7.fhir.us.core#9.0.0 with `-tx n/a -no-http-access`, resolving every
+#       package from the 23 archives pinned under testdata/fhir/packages/ (where
+#       security:trivy scans them), and requires the findings to EQUAL
+#       testdata/fhir/official/findings.ledger.txt. Then the negative control:
+#       Patient.name removed from a copy of patient.json must change exactly that
+#       file's rows, with an error naming Patient.name.
+#
+# Confinement (.loom/decisions/2026-08-08-fhir-conformance-validation-strategy-for-slice-5.md,
+# ratified half): the jar is CI-only and never in the shipped image; it is not
+# vendored — the script downloads it by version, verifies the pinned sha256, and
+# keeps it in /tmp outside the checkout; the validator never reaches
+# packages.fhir.org (the script fails if it installs anything or if the loaded
+# package set differs from the pinned one).
+#
+# What it proves and what it does not: docs/planning/FHIR-CONFORMANCE-MATRIX.md
+# section 5.2. It is NOT a clean bill of health — the ledger records every
+# finding, errors included, and the gate holds them still.
+
+variables:
+  # The JRE image for test:fhir-official only. Tag and digest, like
+  # NGINX_IMAGE_REF; keep scripts/fhir-official-validate.sh DEFAULT_JRE_IMAGE
+  # (the local docker recipe) on the same reference.
+  TEMURIN_JRE_IMAGE_REF: "21.0.12_8-jre-resolute@sha256:7dd2336d132aaf34c980e4277a1828a7da68b67684bff3d5ff1877f52c117656"
+
+test:fhir-official-capture:
+  stage: test
+  extends:
+    - .go-image
+    - .go-cache
+    - .go-mr-rules
+  variables:
+    FI_FHIR_FHIR_CAPTURE_DIR: "${CI_PROJECT_DIR}/fhir-official-bundles"
+  script:
+    # Existence guard (AGENTS.md): a renamed capture test would make `-run`
+    # match nothing and leave the validator nothing to validate.
+    - >-
+      go test -list '^TestDeliveredBundlesForEverySupportedEventType$' ./internal/integration/fhirout
+      | grep -x 'TestDeliveredBundlesForEverySupportedEventType'
+      | awk 'END { if (NR != 1) exit 1 }'
+    - go test -count=1 -v -run '^(TestDeliveredBundlesForEverySupportedEventType|TestBundleCaptureWritesValidJSON)$' ./internal/integration/fhirout
+    - ls -l fhir-official-bundles
+  artifacts:
+    paths:
+      - fhir-official-bundles/
+    expire_in: 1 week
+  allow_failure: false
+  after_script:
+    - |
+      if [ "$CI_JOB_STATUS" = "failed" ]; then
+        echo ""
+        echo "${CI_JOB_NAME} FAILED — the delivered FHIR bundles could not be captured"
+        echo "for the official validator, so test:fhir-official has nothing to validate."
+        echo "Local: FI_FHIR_FHIR_CAPTURE_DIR=/tmp/b go test -run TestDeliveredBundlesForEverySupportedEventType ./internal/integration/fhirout"
+        echo "Docs: docs/planning/FHIR-CONFORMANCE-MATRIX.md section 5.2"
+        echo "Owner: Platform/Integration — escalate in #ci-support"
+      fi
+
+test:fhir-official:
+  stage: test
+  image: ${DOCKERHUB_CACHE_PREFIX}/library/eclipse-temurin:${TEMURIN_JRE_IMAGE_REF}
+  extends:
+    - .go-mr-rules
+  needs:
+    - job: test:fhir-official-capture
+      artifacts: true
+  variables:
+    FHIR_OFFICIAL_BUNDLES_DIR: "${CI_PROJECT_DIR}/fhir-official-bundles"
+    FHIR_OFFICIAL_OUT_DIR: "${CI_PROJECT_DIR}/fhir-official-out"
+    FHIR_OFFICIAL_JAVA_OPTS: "-Xmx2g"
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
+  script:
+    - java -version
+    - scripts/fhir-official-validate.sh gate
+    - scripts/fhir-official-validate.sh negative-control
+  artifacts:
+    when: always
+    expire_in: 2 weeks
+    paths:
+      - fhir-official-out/
+  allow_failure: false
+  after_script:
+    - |
+      if [ "$CI_JOB_STATUS" = "failed" ]; then
+        echo ""
+        echo "${CI_JOB_NAME} FAILED — the HL7 validator's findings no longer equal"
+        echo "testdata/fhir/official/findings.ledger.txt, or the negative control"
+        echo "stopped proving the gate is live, or the run was not hermetic (a"
+        echo "package the pins do not hold, a jar digest mismatch)."
+        echo "A FIXED finding fails this job on purpose: shrink the ledger in the"
+        echo "same commit that fixes it (regenerate, review the diff, commit)."
+        echo "Local: FHIR_OFFICIAL_DOCKER_CONTEXT=7900xtx make fhir-official fhir-official-negative-control"
+        echo "Regenerate: FHIR_OFFICIAL_DOCKER_CONTEXT=7900xtx make fhir-official FHIR_OFFICIAL_UPDATE=1"
+        echo "Artifacts: fhir-official-out/<mode>/{findings.ledger.txt,validator.log}"
+        echo "Docs: docs/planning/FHIR-CONFORMANCE-MATRIX.md section 5.2"
+        echo "Owner: Platform/Integration — escalate in #ci-support"
+      fi

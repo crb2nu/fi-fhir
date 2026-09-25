@@ -47,6 +47,8 @@ test:e2e	test	false
 test:e2e-legacy	test	false
 test:event-backends	test	false
 test:fhir-destination	test	false
+test:fhir-official	test	false
+test:fhir-official-capture	test	false
 test:fhir-structural	test	false
 test:golden-path-001	test	false
 test:integration	test	false

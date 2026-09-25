@@ -52,13 +52,40 @@ func loadPinnedForTest(t *testing.T) *PackageSet {
 // SHA256SUMS file a human regenerates, and the PinnedPackage constants the
 // loader enforces. Checking the bytes against only one of the two records would
 // let the other rot unnoticed.
+//
+// SHA256SUMS also records the archives only the official validator loads
+// (Slice 5.1c-β, scripts/fhir-official-validate.sh): the dependency closure
+// that US Core 9.0.0 and validator_cli.jar itself demand. Those have no
+// PinnedPackage constant — this loader never reads them — so they are held
+// here to the file alone: every archive on disk is recorded with its digest,
+// and every recorded archive is on disk.
 func TestFHIRStructural_PinnedPackagesMatchTheirRecordedDigests(t *testing.T) {
 	recorded, err := readSHA256SUMS(filepath.Join(packagesDir(), "SHA256SUMS"))
 	if err != nil {
 		t.Fatalf("read SHA256SUMS: %v", err)
 	}
-	if len(recorded) != len(PinnedPackages()) {
-		t.Fatalf("SHA256SUMS lists %d archives, PinnedPackages() has %d", len(recorded), len(PinnedPackages()))
+	archives, err := filepath.Glob(filepath.Join(packagesDir(), "*.tgz"))
+	if err != nil {
+		t.Fatalf("list archives: %v", err)
+	}
+	if len(archives) != len(recorded) {
+		t.Fatalf("%d archives on disk, SHA256SUMS lists %d", len(archives), len(recorded))
+	}
+	for _, archive := range archives {
+		name := filepath.Base(archive)
+		want, ok := recorded[name]
+		if !ok {
+			t.Errorf("%s is on disk but not recorded in SHA256SUMS", name)
+			continue
+		}
+		raw, err := os.ReadFile(archive) // #nosec G304 -- path comes from a glob over the fixed fixture directory.
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		sum := sha256.Sum256(raw)
+		if got := hex.EncodeToString(sum[:]); got != want {
+			t.Errorf("%s sha256 %s, SHA256SUMS says %s", name, got, want)
+		}
 	}
 
 	for _, pinned := range PinnedPackages() {
