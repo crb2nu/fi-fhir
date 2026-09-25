@@ -195,28 +195,34 @@ keeps them apart on purpose.
 
 | # | Budget | Status | What exists, and what is missing |
 |---|---|---|---|
-| 1 | Authenticated MLLP and HTTP durable-accept latency (p95 ≤ 250 ms, p99 ≤ 500 ms) | **Harnessed, uncertified** | `internal/integration/perf` benchmarks both paths against a real PostgreSQL, and `bench-check -set=durable` gates their `allocs/op` with `allow_failure: false`. Wall-clock is measured but **not** asserted anywhere: a millisecond ceiling calibrated for a pool spanning 5.3×, in a 1-CPU pod sharing space with a database container, is not evidence. Certification needs a pinned runner. |
-| 2 | One-hour steady-state throughput on the reference profile | **Harnessed, uncertified** | Slice 4.4e's per-deployment MLLP rate quota has merged. The remaining proof is a one-hour run on the pinned reference profile; ordinary CI and allocation ceilings do not certify steady-state throughput. |
-| 3 | 1-GiB batch import peak memory above idle | **Harnessed, uncertified** | `perf.HeapSampler` measures peak heap above an idle baseline; `runtime.ReadMemStats` appeared nowhere in first-party code before it. It reports `HeapAlloc`, not RSS: a Go process's RSS includes heap the collector has freed and not returned to the OS, so RSS is a property of GC timing as much as of the workload. A true RSS figure has to come from the pinned-runner job reading the cgroup. |
+| 1 | Authenticated MLLP and HTTP durable-accept latency (p95 ≤ 250 ms, p99 ≤ 500 ms) | **Certified on the serial accept paths — runner 8, 2026-09-25** | Three plays of `test:performance-profile` on identical `main` code (`4d8f31a8c`, [pipeline 28955](https://gitlab.flexinfer.ai/libs/fi-fhir/-/pipelines/28955); jobs [308841](https://gitlab.flexinfer.ai/libs/fi-fhir/-/jobs/308841), [309005](https://gitlab.flexinfer.ai/libs/fi-fhir/-/jobs/309005), [309029](https://gitlab.flexinfer.ai/libs/fi-fhir/-/jobs/309029)) on runner 8 (`fi-fhir-perf`, `Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz`, 4 CPU / 8 GiB, PostgreSQL 16 in the pod, one replica) each archived a `performance-report.json` with `certified: true`: serial `IngressSubmit` p95 9.4–9.9 ms / p99 11.4–13.3 ms, serial `MLLPSubmit` p95 9.4–10.0 ms / p99 10.3–11.4 ms, and the `RunParallel` variants p95 38.9–50.6 ms / p99 53.5–65.2 ms — every figure at least four times inside the target. The harness is proven sensitive: job [308698](https://gitlab.flexinfer.ai/libs/fi-fhir/-/jobs/308698) on the same runner with `-tags perfregress` (a 300 ms sleep per accept) reported `certified: false`, `failed_budget: 1`, p95 ≈ 311 ms. Host stability: the serial paths spread ≤ 1.06× across the three runs and MLLP-parallel 1.11×, inside the ≤ 1.15× rule; **HTTP-parallel spread 1.24×**, so the parallel figures are reported, not certified — `RunParallel` contention on four CPUs beside the database is scheduler-dependent (the Slice 4.4b finding), while the serial paths show the host itself is stable. **Scope**: the in-process durable-accept path — ingress and MLLP `Submit` against PostgreSQL — excluding the HTTP handler, bearer/HMAC validation, TLS, and MLLP framing. Ordinary CI still gates only `allocs/op`. |
+| 2 | One-hour steady-state throughput on the reference profile | **Harnessed, uncertified** | Slice 4.4e's per-deployment MLLP rate quota has merged, and the profile job now reports this budget as `harnessed` with its gap stated in the report: it runs 300 accepts per benchmark in one process, while the budget is the declared 250 two-KiB messages per second sustained for one hour against two replicas of the reference profile. A one-hour variant of the single-process harness was considered and rejected on 2026-09-25 (decision entry): it would certify a different claim. |
+| 3 | 1-GiB batch import peak memory above idle | **Not measured — sampler only** | "Harnessed" overstated this row until 2026-09-25: no workload in `internal/integration/perf` imports a batch, and `perf.HeapSampler` runs only in a 32 MiB unit test and reads `HeapAlloc`, not the cgroup RSS the budget is written in (a Go process's RSS includes heap the collector has freed and not returned to the OS, so RSS is a property of GC timing as much as of the workload). The profile job now reports it as `not_measured`. Certification needs its own slice: a 1-GiB batch-import workload on runner 8 reading peak RSS from the cgroup and proving restart from the last durable checkpoint. |
 | 4 | Recovery time objective | **Not started — slice 4.4c** | 4.4a proved a `pg_dump`/restore round-trip preserves every durable row and trigger. It measured no recovery *time*. |
 | 5 | Recovery point objective | **Known unachievable as configured — slice 4.4c** | `PRODUCTION-HARDENING.md` states it directly: logical dumps cannot meet a minutes-scale RPO, and nothing in this repository configures WAL archiving or PITR. |
 | 6 | One-version rollback safety | **Certified — slice 4.4a** | N-1 defined per migration ledger, a real defect found and fixed (`0004_export_attribution.sql` made three columns `NOT NULL` with no `DEFAULT`, so rollback failed every session export), and a restore round-trip proof in CI. |
 | 7 | Golden-journey evidence on Kubernetes 1.36 | **Not started — slice 4.4c** | Needs a cluster. |
 
-**Budgets 1, 2 and 3 are gated on allocations only, and that gate is narrower
-than it sounds.** Measured over three runs, the durable accept path's allocation
+**In ordinary CI, budgets 1, 2 and 3 are gated on allocations only, and that
+gate is narrower than it sounds** — budget 1's wall-clock is asserted only by
+the pinned-runner profile job cited in row 1. Measured over three runs, the durable accept path's allocation
 count varies by about 2 in 4650 — stable, but not the bit-identical figure the
 legacy micro-benchmarks report. A ceiling roughly 1% above the observed count
 detects a regression of some 40 allocations per message. It will not notice one.
 It is a regression detector for the thing that *causes* latency, not a
 measurement of latency.
 
-**What unblocks certification.** Run the existing manual
-`test:performance-profile` job on the `fi-fhir-perf` runner with the documented
-4 CPU / 8 GiB reference profile and retain its `performance-report.json`.
-`FI_FHIR_PERF_RUNNER=1` makes the job available; runner registration and a green
-ordinary MR pipeline do not supply the required measurements. The Sprint 6
-planning record identifies runner id 8; S6-B certification remains open.
+**How budget 1 was certified, and what remains.** `FI_FHIR_PERF_RUNNER=1` was
+set on 2026-09-24. Runner 8's job pod — fixed at 4 CPU / 8 GiB plus its helper
+and PostgreSQL service, 11 GiB of requests in all — could not schedule beside
+the node's resident inference server until the operator lowered that server
+pod's memory *request* in place for the run window (Kubernetes 1.33 pod
+resize; the model was neither restarted nor scaled). The negative control ran
+first, then three plays on identical code; the four `performance-report.json`
+artifacts are the evidence cited in row 1, and a green ordinary MR pipeline
+still supplies none of it. Budget 2 needs a one-hour two-replica run and
+budget 3 needs a workload that does not exist yet; the profile job supplies
+neither, and both stay open.
 
 Until those gates pass, documentation must describe individual capabilities and
 their evidence rather than label the whole product “1.0 certified,” “HIPAA
