@@ -1077,14 +1077,29 @@ projects the canonical event into conditional-write transaction Bundles, with
 required delivery tests. MR !211 expands that shared projection to six clinical
 event families and makes live HAPI read-back a blocking acceptance check.
 
-Remaining work is Slice 5.1c: CI-only official validation of the delivered path,
-conformance policy and diagnostics, and closure of known fixture gaps. The Go
-structural validator checks pinned packages and cardinality; it does not prove
-FHIRPath invariants, slicing, terminology bindings, or full US Core conformance.
-See `docs/planning/FHIR-CONFORMANCE-MATRIX.md` for the current seven-violation
-ledger and `docs/operations/SUPPORTED-1.0.md` for the release evidence contract.
-Golden journeys 1 and 6 still require their end-to-end release evidence; the
-merged transport alone does not complete them.
+**Sequencing update — 2026-09-25 (Sprint 7).** Slice 5.1c shipped in two
+halves. **5.1c-α** (MR !216) closed the seven recorded cardinality gaps in the
+mapper — from event data or US Core's `unknown` data-absent reason, never
+invented — and emptied `recordedCardinalityGaps()`. **5.1c-β** (MR !219) runs
+HL7 `validator_cli.jar` 6.10.4 **offline** as the blocking `test:fhir-official`
+job over all 25 mapper fixtures and the 11 Bundles `internal/integration/fhirout`
+delivers, against R4 4.0.1 and US Core 9.0.0 with the validator's full
+23-archive package closure pinned by digest under `testdata/fhir/packages/`;
+findings are held to an exact-equality ledger that can only shrink
+deliberately, with a negative control. Official evidence now exists on the
+delivered path; the `SUPPORTED-1.0.md` standards row states exactly what it
+establishes.
+
+Remaining work is **Slice 5.1c-γ**: the ledger records 157 findings (28
+errors) after 5.1c-α — FHIRPath invariants, identifier/URL datatypes, local
+code-system membership, in-Bundle reference matching, and two DiagnosticReport
+slices; cardinality is zero. Terminology under `-tx n/a` reports VSAC-bound
+value sets as "not found" warnings by decision
+(`.loom/decisions/2026-09-24-run-the-hl7-validator-offline-as-a.md`). See
+`docs/planning/FHIR-CONFORMANCE-MATRIX.md` §5.2 and
+`docs/operations/SUPPORTED-1.0.md` for the release evidence contract. Golden
+journeys 1 and 6 still require their end-to-end release evidence; the merged
+transport and gate alone do not complete them.
 
 ### Slice 5.2: SMART and Bulk Data conformance journey
 
