@@ -259,11 +259,22 @@ func TestTrustedNetworkGraphQLAccess(t *testing.T) {
 	t.Run("trusted GraphQL does not require bearer token", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, config.Path, bytes.NewReader(query))
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", "Bearer stale-browser-token")
 		req.Header.Set("X-Real-IP", "192.168.50.24")
 		recorder := httptest.NewRecorder()
 		handler.ServeHTTP(recorder, req)
 		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+		}
+	})
+
+	t.Run("trusted network cannot rescue a stale bearer", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, config.Path, bytes.NewReader(query))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer stale-browser-token")
+		req.Header.Set("X-Real-IP", "192.168.50.24")
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, req)
+		if recorder.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
 		}
 	})

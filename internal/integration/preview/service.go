@@ -111,6 +111,14 @@ func (s *Service) Preview(ctx context.Context, security integration.SecurityCont
 	trustedSecurity := security
 	trustedSecurity.Reason = input.Reason
 	trustedSecurity.Principal.Roles = append([]string(nil), security.Principal.Roles...)
+	if trustedSecurity.Principal.Kind == integration.PrincipalKindService {
+		// A tenant-scoped preview credential gets its source from this trusted
+		// binding. Never replace a source already bound by another transport.
+		if trustedSecurity.Principal.SourceID != "" && trustedSecurity.Principal.SourceID != binding.SourceID {
+			return integration.ProcessResult{}, ErrForbidden
+		}
+		trustedSecurity.Principal.SourceID = binding.SourceID
+	}
 	request := integration.ProcessRequest{
 		Mode:                integration.ExecutionModePreview,
 		IntegrationRevision: binding.IntegrationRevision,

@@ -714,9 +714,12 @@ application token carries no role or tenant claim, which is why the mapping is
 deployment configuration rather than a claim, and why this is a layer beside the
 bearer authenticator rather than a third `FI_FHIR_GRAPHQL_AUTH_MODE`.
 
-Precedence is fixed: LAN trust first, then an `Authorization` header if the
-request carries one (judged on its own, never rescued by the cookie beside it),
-then the Access assertion. `/api/auth/status` reports
+Precedence is fixed: an explicit `Authorization` header is judged alone, then
+LAN trust and the Access assertion are considered only when that header is
+absent. Invalid, empty, or repeated bearer headers return 401 even on the LAN;
+this prevents a narrow service credential from inheriting the broader network
+identity. Headerless LAN/Access sessions and valid IDE credentials are unchanged.
+`/api/auth/status` reports
 `{"authenticated":true,"authVia":"cloudflare-access","principal":"<email>"}`
 for a verified Access session, and the IDE's credential gate steps aside on it
 the way it does for LAN trust.
@@ -744,6 +747,17 @@ preview compatibility. Harden that boundary as follows:
   tenant and its profile/workflow digests must match the definition; and
 - disable Playground and introspection on internet-reachable deployments even
   though operation authorization still applies.
+
+Static mode optionally accepts one additional service token from
+`FI_FHIR_GRAPHQL_SERVICE_BEARER_TOKEN_FILE` with a distinct
+`FI_FHIR_GRAPHQL_SERVICE_PRINCIPAL_ID`. Configure both together. The runtime
+rejects reuse of the IDE credential or principal and fixes the service roles to
+`integration.operator,integration:preview` in the deployment tenant. It grants
+no clinical reads, recovery/deployment writes, or compatibility grant, and it
+does not change the IDE's configured roles. Use the same managed-secret and
+controlled-rollout practices for this file. OIDC mode rejects these settings.
+See [the operator service runbook](RUNBOOK.md#dedicated-operator-and-preview-service-access)
+for independent durable-store initialization.
 
 The `integration:preview` role permits only GraphQL `health` and
 `previewIntegrationMessage`. Do not grant `graphql:operator` to an IDE token;

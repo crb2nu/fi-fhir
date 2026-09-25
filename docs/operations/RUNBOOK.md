@@ -189,6 +189,47 @@ Do not log, echo, or add the bearer or raw clinical message to an incident
 ticket. Validate exact origins, registry tenant/digests, secret mount, and role
 configuration before rotating the credential.
 
+### Dedicated Operator and Preview Service Access
+
+For a backend client such as MentatLab, keep the existing static IDE credential
+and `FI_FHIR_GRAPHQL_ROLES` unchanged. Mount a separate managed secret file and
+add these settings through the deployment's GitOps configuration:
+
+```text
+FI_FHIR_GRAPHQL_AUTH_MODE=static
+FI_FHIR_GRAPHQL_SERVICE_BEARER_TOKEN_FILE=/var/run/secrets/fi-fhir-service/bearer-token
+FI_FHIR_GRAPHQL_SERVICE_PRINCIPAL_ID=mentatlab
+FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED=true
+```
+
+The two service credential settings must appear together. Startup rejects a
+reused IDE token or principal, malformed/oversized secret files, and service
+settings in OIDC mode. The service always uses the deployment tenant and exactly
+`integration.operator,integration:preview`; neither `clinical:read` nor
+`graphql:operator` is granted. Secret rotation requires a controlled restart.
+Keep the credential in the client backend, never browser configuration.
+
+The operator flag requires the existing PostgreSQL connection settings and
+applies the existing submission/delivery, lifecycle, and destination migrations. It makes the
+operator reads available without enabling an ingress, delivery dispatcher, or
+session workspace. Its database identity needs schema migration privileges;
+the HTTP credential still cannot replay, resubmit, discard, or deploy. The
+default remains disabled, while deployments already running durable integration
+features keep their existing operator initialization.
+
+Validate with the client's bounded `operatorDeployments`, `operatorCircuits`,
+`operatorDeliveryAttempts`, and `operatorDeadLetters` queries, then a fixed
+synthetic `previewIntegrationMessage`. Choose the deployed registry's
+`integrations[].integration_id`; it is not necessarily a definition or source
+ID. An empty operator inventory is valid and must not be replaced with fixtures.
+Never use real patient payloads for this connection check.
+
+Explicit bearer headers now take precedence over trusted-network and Access
+identity. A stale, empty, or repeated bearer header returns 401 even on the LAN.
+Remove a stale header to use an existing headerless LAN/Access session; valid
+IDE credentials are unchanged. This prevents service callers from inheriting
+the broader IDE roles through network trust.
+
 ### Durable HL7v2 Ingress
 
 Check whether the endpoint is intentionally enabled:

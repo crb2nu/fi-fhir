@@ -161,6 +161,13 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 	if sessionWorkspaceEnabled && !allowProductionIngress {
 		return nil, fmt.Errorf("FI_FHIR_INTEGRATION_SESSION_ENABLED is available only with serve")
 	}
+	operatorControlPlaneEnabled, err := optionalBoolEnv("FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED")
+	if err != nil {
+		return nil, err
+	}
+	if operatorControlPlaneEnabled && !allowProductionIngress {
+		return nil, fmt.Errorf("FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED is available only with serve")
+	}
 
 	var (
 		ingressAuthenticator integrationingress.RequestAuthenticator
@@ -187,10 +194,10 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 			return nil, err
 		}
 	}
-	if productionHTTPEnabled || productionMLLPEnabled || productionBatchEnabled || productionDeliveryEnabled || sessionWorkspaceEnabled {
+	if productionHTTPEnabled || productionMLLPEnabled || productionBatchEnabled || productionDeliveryEnabled || sessionWorkspaceEnabled || operatorControlPlaneEnabled {
 		submissionDB, err = openSubmissionDatabaseFromEnv(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("configure production ingress database: %w", err)
+			return nil, fmt.Errorf("configure durable integration database: %w", err)
 		}
 		closeOnError := true
 		defer func() {
@@ -201,7 +208,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 				_ = submissionDB.Close()
 			}
 		}()
-		if productionHTTPEnabled || productionMLLPEnabled || productionBatchEnabled || productionDeliveryEnabled {
+		if productionHTTPEnabled || productionMLLPEnabled || productionBatchEnabled || productionDeliveryEnabled || operatorControlPlaneEnabled {
 			migrationStore, err := processor.NewPostgresSubmissionStore(submissionDB, processor.PostgresSubmissionConfig{})
 			if err != nil {
 				return nil, fmt.Errorf("configure submission migrations: %w", err)
@@ -692,7 +699,7 @@ func openSubmissionDatabaseFromEnv(ctx context.Context) (*sql.DB, error) {
 		cfg.Database.Driver = "postgres"
 	}
 	if cfg.Database.Driver != "postgres" {
-		return nil, fmt.Errorf("durable production ingress requires the postgres database driver")
+		return nil, fmt.Errorf("durable integration runtime requires the postgres database driver")
 	}
 	dsn := cfg.DatabaseDSN()
 	if dsn == "" {
@@ -865,7 +872,7 @@ func loadStaticGraphQLAuthenticationFromEnv(tenantID string) (requestsecurity.Au
 	if err != nil {
 		return nil, nil, err
 	}
-	authenticator, err := requestsecurity.NewStaticBearerAuthenticator(requestsecurity.StaticBearerConfig{
+	staticAuthenticator, err := requestsecurity.NewStaticBearerAuthenticator(requestsecurity.StaticBearerConfig{
 		Token:       token,
 		TenantID:    tenantID,
 		PrincipalID: principalID,
@@ -873,6 +880,10 @@ func loadStaticGraphQLAuthenticationFromEnv(tenantID string) (requestsecurity.Au
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("configure GraphQL authenticator: %w", err)
+	}
+	authenticator, err := loadGraphQLServiceAuthenticationFromEnv(tenantID, staticAuthenticator)
+	if err != nil {
+		return nil, nil, err
 	}
 	var trustedNetwork *requestsecurity.TrustedNetworkAuthenticator
 	if trustedCIDRs := strings.TrimSpace(os.Getenv("FI_FHIR_GRAPHQL_TRUSTED_CIDRS")); trustedCIDRs != "" {
@@ -894,6 +905,8 @@ func loadGraphQLOIDCSettingsFromEnv() (graphQLOIDCSettings, error) {
 		"FI_FHIR_GRAPHQL_BEARER_TOKEN",
 		"FI_FHIR_GRAPHQL_BEARER_TOKEN_FILE",
 		"FI_FHIR_GRAPHQL_PRINCIPAL_ID",
+		"FI_FHIR_GRAPHQL_SERVICE_BEARER_TOKEN_FILE",
+		"FI_FHIR_GRAPHQL_SERVICE_PRINCIPAL_ID",
 		"FI_FHIR_GRAPHQL_ROLES",
 		"FI_FHIR_GRAPHQL_TRUSTED_CIDRS",
 	); err != nil {
@@ -972,6 +985,10 @@ func loadSingleLineSecret(directName, fileName, label string) (string, error) {
 	if path == "" {
 		return "", fmt.Errorf("%s or %s is required", directName, fileName)
 	}
+	return loadSingleLineSecretFile(path, label)
+}
+
+func loadSingleLineSecretFile(path, label string) (string, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return "", fmt.Errorf("open %s file: %w", label, err)
