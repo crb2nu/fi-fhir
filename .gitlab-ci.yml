@@ -639,8 +639,16 @@ test:integration:
     # (t.Skipf on "minio not ready"). The explicit `server` command is required.
     # Proof: with MinIO unreachable ./cmd/fi-fhir/... reports 73.2% coverage, the
     # exact figure job 218601 logged; with MinIO live it reports 75.9%.
-    # Docker Hub no longer serves these images; use the official Quay digest.
-    - name: quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    # 2026-09-25: quay.io/minio/minio AND docker.io/minio/minio answer 401 for
+    # every tag (MinIO withdrew its public images), so the Quay digest
+    # 14cea493… pulled only on the two cluster nodes that still cached it and
+    # job 306102 died in prepare_environment everywhere else. This is the same
+    # image — RELEASE.2025-09-07T16-13-09Z, image id 69b2ec208575 — pushed
+    # byte-for-byte from the 7900xtx docker host into the internal registry
+    # (Harbor project `library`, public), so the digest is Harbor's manifest
+    # digest, not Quay's index digest. Pulls use the runner's harbor-creds
+    # secret exactly as ${DOCKERHUB_CACHE_PREFIX}/library/postgres does.
+    - name: registry.harbor.lan/library/minio@sha256:52dfd5c0bbd38d3219f2058c7af216d9f9a27a994b7b5baad09bbd38866015ff
       alias: minio
       command: ["server", "/data", "--console-address", ":9001"]
   variables:
@@ -1022,8 +1030,12 @@ test:batch-ingestion:
   services:
     - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
       alias: postgres
-    # Preserve RELEASE.2024-01-16T16-07-38Z from the official Quay registry.
-    - name: quay.io/minio/minio@sha256:4c4a4876193f030c81f57aabb22bcb9a73462010eb61fcab66908e03e5484af8
+    # RELEASE.2024-01-16T16-07-38Z (image id 16baf1d54ec7), mirrored into the
+    # internal registry on 2026-09-25 when quay.io and docker.io both stopped
+    # serving minio/minio (401 on every tag). No cluster node cached the old
+    # Quay digest 4c4a4876…, so this job could not start anywhere. See the
+    # test:integration comment above for the mirror provenance.
+    - name: registry.harbor.lan/library/minio@sha256:d4697ac468840851c8b79511001d9889f6a9b2cf1ce9f9184ec0620e59041bdb
       alias: minio
       command: ["server", "/data"]
   variables:
