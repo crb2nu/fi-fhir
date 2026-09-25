@@ -134,9 +134,9 @@ Maps from admit/discharge/transfer events.
 
 | Event Field | FHIR Path | Notes |
 |-------------|-----------|-------|
-| `encounter.identifier` | `identifier[0].value` | Visit number |
+| `encounter.identifier` | `identifier[0].value` | Visit number. The durable `fhir` transport qualifies a value sent with no system under `urn:fi-fhir:source:<source>` |
 | `encounter.class` | `class` | inpatient, outpatient, emergency |
-| `encounter.type` | `type` | Encounter type coding |
+| `encounter.class` | `type` | Derived from the patient class (PV1-2); see below |
 | `encounter.status` | `status` | in-progress, finished, etc. |
 | `encounter.period.start` | `period.start` | Admit datetime |
 | `encounter.period.end` | `period.end` | Discharge datetime |
@@ -151,6 +151,19 @@ Maps from admit/discharge/transfer events.
 | `outpatient` | `AMB` |
 | `emergency` | `EMER` |
 | `observation` | `OBSENC` |
+
+### Encounter Type
+
+`Encounter.type` is required by US Core. The only encounter-kind fact the event
+carries is the patient class, so the type is derived from it:
+
+| Patient class (PV1-2) | `type.coding` |
+|---|---|
+| `I` inpatient | SNOMED CT `86181006` Evaluation and management of inpatient, and HL7 v2 table 0004 `I` |
+| `E` emergency | SNOMED CT `4525004` Emergency department patient visit, and HL7 v2 table 0004 `E` |
+| `O`, `P`, `R`, `B`, `C`, `N`, `U` | HL7 v2 table 0004 code only |
+| any other value | none; the value is sent as `type.text` |
+| absent | DataAbsentReason `unknown` |
 
 ## Observation Resource (Laboratory)
 
