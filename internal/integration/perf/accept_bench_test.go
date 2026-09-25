@@ -30,16 +30,25 @@ func BenchmarkDurableAccept_IngressSubmit(b *testing.B) {
 		b.Fatalf("warmup Submit: %v", err)
 	}
 
+	// Allocated before ResetTimer so recording costs the gated allocs/op
+	// nothing; each iteration writes its own slot.
+	samples := make([]time.Duration, b.N)
+
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
+		began := time.Now()
+		injectRegression()
 		if _, err := f.ingress.Submit(ctx, ingressInput(i+1)); err != nil {
 			b.Fatalf("Submit(%d): %v", i+1, err)
 		}
+		samples[i] = time.Since(began)
 	}
 
 	b.StopTimer()
+	reportLatency(b, samples)
+	markNegativeControl(b)
 	assertDurable(b, f, b.N+1)
 }
 
@@ -57,6 +66,10 @@ func BenchmarkDurableAccept_IngressSubmitParallel(b *testing.B) {
 	// assertion below.
 	var sequence atomic.Int64
 
+	// Indexed by sequence number, which runs 1..b.N exactly once across all
+	// goroutines, so every slot has one writer and no lock is needed.
+	samples := make([]time.Duration, b.N)
+
 	start := time.Now()
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -64,15 +77,20 @@ func BenchmarkDurableAccept_IngressSubmitParallel(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			n := int(sequence.Add(1))
+			began := time.Now()
+			injectRegression()
 			if _, err := f.ingress.Submit(ctx, ingressInput(n)); err != nil {
 				b.Errorf("Submit(%d): %v", n, err)
 				return
 			}
+			samples[n-1] = time.Since(began)
 		}
 	})
 
 	b.StopTimer()
 	reportThroughput(b, start)
+	reportLatency(b, samples)
+	markNegativeControl(b)
 	assertDurable(b, f, b.N+1)
 }
 
@@ -84,16 +102,23 @@ func BenchmarkDurableAccept_MLLPSubmit(b *testing.B) {
 		b.Fatalf("warmup Submit: %v", err)
 	}
 
+	samples := make([]time.Duration, b.N)
+
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
+		began := time.Now()
+		injectRegression()
 		if _, err := f.mllp.Submit(ctx, mllp.ConnectionIdentity{}, hl7Message(i+1)); err != nil {
 			b.Fatalf("Submit(%d): %v", i+1, err)
 		}
+		samples[i] = time.Since(began)
 	}
 
 	b.StopTimer()
+	reportLatency(b, samples)
+	markNegativeControl(b)
 	assertDurable(b, f, b.N+1)
 }
 
@@ -107,6 +132,8 @@ func BenchmarkDurableAccept_MLLPSubmitParallel(b *testing.B) {
 
 	var sequence atomic.Int64
 
+	samples := make([]time.Duration, b.N)
+
 	start := time.Now()
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -114,15 +141,20 @@ func BenchmarkDurableAccept_MLLPSubmitParallel(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			n := int(sequence.Add(1))
+			began := time.Now()
+			injectRegression()
 			if _, err := f.mllp.Submit(ctx, mllp.ConnectionIdentity{}, hl7Message(n)); err != nil {
 				b.Errorf("Submit(%d): %v", n, err)
 				return
 			}
+			samples[n-1] = time.Since(began)
 		}
 	})
 
 	b.StopTimer()
 	reportThroughput(b, start)
+	reportLatency(b, samples)
+	markNegativeControl(b)
 	assertDurable(b, f, b.N+1)
 }
 
@@ -137,6 +169,46 @@ func reportThroughput(b *testing.B, start time.Time) {
 		return
 	}
 	b.ReportMetric(float64(b.N)/elapsed.Seconds(), "events/sec")
+}
+
+// reportLatency attaches the per-accept percentiles budget 1 is written in.
+//
+// The units are exactly p50-ms, p95-ms and p99-ms: scripts/performance-report.sh
+// evaluates budget 1 from them by name, and bench-check's parser discards any
+// unit it does not know, so the allocation gate is unaffected. They are
+// reported after StopTimer, so neither the sort nor the metric map is charged
+// to allocs/op.
+func reportLatency(b *testing.B, samples []time.Duration) {
+	b.Helper()
+
+	p50, p95, p99 := latencyPercentiles(samples)
+	b.ReportMetric(milliseconds(p50), "p50-ms")
+	b.ReportMetric(milliseconds(p95), "p95-ms")
+	b.ReportMetric(milliseconds(p99), "p99-ms")
+}
+
+func milliseconds(d time.Duration) float64 { return float64(d) / float64(time.Millisecond) }
+
+// injectRegression sleeps for the negative-control delay inside a measured
+// iteration. It is a no-op unless the package is built with -tags perfregress
+// (regress_on_test.go), so the compiled benchmark in every ordinary build is
+// byte-for-byte the accept path and nothing else.
+func injectRegression() {
+	if injectedRegression > 0 {
+		time.Sleep(injectedRegression)
+	}
+}
+
+// markNegativeControl names a negative-control build in the benchmark output,
+// so scripts/performance-report.sh can tell from the archived artifact alone —
+// not from a CI variable that may or may not have reached the build — that the
+// numbers describe an injected regression rather than the product.
+func markNegativeControl(b *testing.B) {
+	b.Helper()
+
+	if injectedRegression > 0 {
+		b.Logf("NEGATIVE-CONTROL build: %s injected into every measured accept", injectedRegression)
+	}
 }
 
 // assertDurable proves the benchmark drove the durable path.

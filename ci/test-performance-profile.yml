@@ -1,9 +1,6 @@
-# Lane S5-A — slice 4.4b performance harness jobs.
-#
-# NOT YET INCLUDED. `.gitlab-ci.yml` gains exactly one `include: local:` line
-# for this file after S5-0's MR 0a lands the include split; appending before
-# then is the sprint's one hard sequencing rule. The jobs below are therefore
-# inert until that line exists, and this branch adds it on its final rebase.
+# Lane S5-A — slice 4.4b performance harness jobs. Included from
+# `.gitlab-ci.yml`; budget certification on the pinned runner is Lane S6-B's
+# (2026-09-24).
 #
 # On `extends:` rather than `<<: *anchor` — YAML anchors do not cross an
 # `include:` boundary, so the `*go-image-debian` / `*go-cache` / `*go-changes`
@@ -123,18 +120,18 @@ test:benchmark-durable:
 
 # Wall-clock and throughput on the reference profile.
 #
-# INERT BY DESIGN. This job does not appear in a pipeline until both are true:
-#   1. a GitLab runner tagged `fi-fhir-perf` is registered in platform/gitops
-#      with at least 4 CPU and 8 GiB available to a job; and
-#   2. the project variable FI_FHIR_PERF_RUNNER is set to "1".
-#
-# Without (1) the job would sit pending forever; without (2) it would clutter
-# every pipeline with a manual job nobody can run. The second condition is what
-# makes shipping it early harmless.
+# The job appears, manual, only when the project variable FI_FHIR_PERF_RUNNER
+# is "1" — set on 2026-09-24, alongside runner id 8 `fi-fhir-perf`
+# (platform/gitops, node cblevins-5930k). Without the variable it would clutter
+# every pipeline with a manual job nobody can run.
 #
 # It is allow_failure: true and always will be. A wall-clock number is archived
 # evidence, not a gate: turning it into a threshold is how a harness starts
-# certifying the runner it happened to land on.
+# certifying the runner it happened to land on. The report still judges the
+# number (scripts/performance-report.sh, schema 2): `certified` is true only
+# when budget 1's p95/p99 are met, on a runner that reported the fi-fhir-perf
+# tag, in a build that is not the negative control. The variable that makes
+# this job visible certifies nothing by itself.
 test:performance-profile:
   stage: test
   extends:
@@ -154,14 +151,38 @@ test:performance-profile:
     POSTGRES_PASSWORD: testpass
     POSTGRES_HOST_AUTH_METHOD: trust
     POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_perf_profile?sslmode=disable"
+    # The negative-control switch, and nothing else. Play the job with
+    # FI_FHIR_PERF_BUILD_TAGS=perfregress and every measured accept sleeps
+    # 300 ms (internal/integration/perf/regress_on_test.go); the report must
+    # then come back uncertified with budget 1 failed. Any other value is
+    # refused rather than passed through to `go test`, so this variable cannot
+    # become a way to certify a build that differs from the product.
+    FI_FHIR_PERF_BUILD_TAGS: ""
   script:
     - apt-get update && apt-get install -y --no-install-recommends git ca-certificates jq build-essential && rm -rf /var/lib/apt/lists/*
-    - go test -tags=integration -bench=. -benchmem -run='^$' -count=1 -benchtime=300x ./internal/integration/perf/... | tee benchmark-profile.txt
-    # The allocation gate still applies here; a pinned runner is not a reason to
-    # stop checking the one signal that was already trustworthy.
-    - go run ./cmd/bench-check -set=durable benchmark-profile.txt
-    - bash scripts/performance-report.sh benchmark-profile.txt performance-report.json
-    - jq . performance-report.json
+    - |
+      case "${FI_FHIR_PERF_BUILD_TAGS}" in
+        ""|perfregress) ;;
+        *) echo "FI_FHIR_PERF_BUILD_TAGS='${FI_FHIR_PERF_BUILD_TAGS}' is not supported: leave it empty, or set perfregress for the negative control" >&2; exit 1 ;;
+      esac
+    # Name the machine in the trace. The report is only as citable as the
+    # runner it can be attributed to.
+    - |
+      echo "runner: id=${CI_RUNNER_ID:-unknown} tags=${CI_RUNNER_TAGS:-unknown} build_tags=${FI_FHIR_PERF_BUILD_TAGS:-none}"
+      nproc
+    - go test -tags="integration${FI_FHIR_PERF_BUILD_TAGS:+,${FI_FHIR_PERF_BUILD_TAGS}}" -bench=. -benchmem -run='^$' -count=1 -benchtime=300x ./internal/integration/perf/... | tee benchmark-profile.txt
+    # The report is rendered before any gate, so the archived artifact exists
+    # whatever fails next. Its exit 3 means a negative control the harness did
+    # not detect; the job goes red for it, but only after the report is printed
+    # and the allocation gate has had its say.
+    - |
+      report_status=0
+      bash scripts/performance-report.sh benchmark-profile.txt performance-report.json || report_status=$?
+      jq . performance-report.json
+      # The allocation gate still applies here; a pinned runner is not a reason
+      # to stop checking the one signal that was already trustworthy.
+      go run ./cmd/bench-check -set=durable benchmark-profile.txt
+      exit "${report_status}"
   artifacts:
     paths:
       - benchmark-profile.txt
