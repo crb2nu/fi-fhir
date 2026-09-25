@@ -106,17 +106,24 @@ Spec: `.loom/35-sprint7-execution-specs.md`
   `urn:fi-fhir:source:<source>` identifier system the durable transport
   already added through `ensureIdentifier`; the official-validator ledger is
   byte-identical.
+- [x] **S6-B budget 1 certified on runner 8 (2026-09-25)** — the negative
+  control ran first (job 308698, `-tags perfregress`, `certified: false`,
+  `failed_budget: 1`), then three plays on identical `main` code (jobs 308841,
+  309005, 309029, all `certified: true`, runner id 8): serial accept p95 under
+  10 ms and parallel under 51 ms against a 250 ms target. Serial-path spread
+  ≤ 1.06× across runs; HTTP-parallel spread 1.24× is reported, not certified.
+  The run window was opened by lowering the resident model pod's memory
+  request in place, with no model restart. See
+  [SUPPORTED-1.0](docs/operations/SUPPORTED-1.0.md) rows 1–3.
 
 ## Now
 
-- [ ] **S6-B budgets 1–3 certification** — still not measured. Runner 8
-  (`fi-fhir-perf`) picked the job up twice on 2026-09-25 but its 11 GiB pod
-  cannot schedule on `cblevins-5930k`, which has about 4 GiB of headroom
-  beside a 27B-parameter inference server; CI pods run at `ci-low` priority
-  and never preempt. Operator decision in `platform/gitops`: free the memory
-  for a run window or move the runner. Branch `docs/perf-budgets-certified`
-  is retained for the resume. Budget 3 also needs a real 1-GiB batch-import
-  workload reading container RSS; today it is `not_measured`.
+- [ ] **Budgets 2 and 3** — budget 2 needs a one-hour, two-replica run at the
+  declared 250 msg/s (the single-process harness cannot certify it); budget 3
+  needs a 1-GiB batch-import workload reading cgroup RSS on runner 8. The
+  `test:performance-profile` job schedules on runner 8 only when
+  `cblevins-5930k` has 11 GiB of schedulable headroom; the in-place resize
+  recipe that opened the 2026-09-25 window is in that day's decision entry.
 - [ ] **Slice 5.1c-γ official-validator findings** — the ledger records 157
   findings (28 errors) over 36 inputs after Slice 5.1c-α: FHIRPath
   invariants, identifier and URL datatypes, local code-system membership,
