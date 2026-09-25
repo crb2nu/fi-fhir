@@ -35,6 +35,7 @@
 .PHONY: fhir-destination fhir-destination-negative-control             # 4.1c-c — S6-A
 .PHONY: fhir-structural fhir-structural-negative-control               # 5.1b   — S6-D
 .PHONY: event-backends
+.PHONY: fhir-official fhir-official-negative-control              # 5.1c   — S7-B
 
 # Tool versions (update these when upgrading)
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -1133,6 +1134,46 @@ fhir-structural-negative-control:
 		exit 1; \
 	fi; \
 	echo "negative control OK: the structural gate fails on exactly patient.json"
+
+# Slice 5.1c-β: the HL7 FHIR validator (validator_cli.jar 6.10.4, Option A)
+# run OFFLINE over the 25 mapper fixtures and the transaction Bundle the
+# durable `fhir` transport delivers for every supported event type, against R4
+# 4.0.1 + hl7.fhir.us.core#9.0.0 with `-tx n/a`, resolving every package from
+# the 23 archives pinned under testdata/fhir/packages/. The findings must EQUAL
+# testdata/fhir/official/findings.ledger.txt: a new finding and a fixed one
+# both fail. CI splits this in two (ci/test-fhir-official.yml): a Go job
+# captures the bundles, a JRE job validates them.
+#
+# The bundles are captured first by TestDeliveredBundlesForEverySupportedEventType
+# (FI_FHIR_FHIR_CAPTURE_DIR). The validator needs a JRE; with none locally,
+# run the JRE half in a --network none container on a docker context:
+#
+#   FHIR_OFFICIAL_DOCKER_CONTEXT=7900xtx make fhir-official
+#   FHIR_OFFICIAL_DOCKER_CONTEXT=7900xtx make fhir-official-negative-control
+#   FHIR_OFFICIAL_DOCKER_CONTEXT=7900xtx make fhir-official FHIR_OFFICIAL_UPDATE=1   # regenerate the ledger
+#
+# The jar is downloaded by version and verified against the sha256 pinned in
+# scripts/fhir-official-validate.sh; it never enters the checkout.
+FHIR_OFFICIAL_BUNDLES_DIR ?= $(CURDIR)/.cache/fhir-official/bundles
+
+fhir-official:
+	rm -rf "$(FHIR_OFFICIAL_BUNDLES_DIR)" && mkdir -p "$(FHIR_OFFICIAL_BUNDLES_DIR)"
+	FI_FHIR_FHIR_CAPTURE_DIR="$(FHIR_OFFICIAL_BUNDLES_DIR)" go test -count=1 \
+		-run '^TestDeliveredBundlesForEverySupportedEventType$$' ./internal/integration/fhirout
+	FHIR_OFFICIAL_BUNDLES_DIR="$(FHIR_OFFICIAL_BUNDLES_DIR)" \
+		scripts/fhir-official-validate.sh $(if $(FHIR_OFFICIAL_UPDATE),update,gate)
+
+# Negative control for the above: Patient.name — 1..* in us-core-patient — is
+# removed from a COPY of patient.json (the fixture is untouched). The script
+# passes only if the ledger diff is confined to exactly mapper/patient.json and
+# carries an error naming Patient.name; a diff anywhere else means the ledger is
+# not per-file, and no diff means the gate is not reading the fixtures.
+fhir-official-negative-control:
+	rm -rf "$(FHIR_OFFICIAL_BUNDLES_DIR)" && mkdir -p "$(FHIR_OFFICIAL_BUNDLES_DIR)"
+	FI_FHIR_FHIR_CAPTURE_DIR="$(FHIR_OFFICIAL_BUNDLES_DIR)" go test -count=1 \
+		-run '^TestDeliveredBundlesForEverySupportedEventType$$' ./internal/integration/fhirout
+	FHIR_OFFICIAL_BUNDLES_DIR="$(FHIR_OFFICIAL_BUNDLES_DIR)" \
+		scripts/fhir-official-validate.sh negative-control
 
 # Kafka and Redis live-service proof plus all three protocol contract tests.
 event-backends:
