@@ -392,6 +392,28 @@ additive with a `DEFAULT` on every `NOT NULL`, and re-declares the transport
 CHECK as `IN ('https','fhir')`, so a binary one version behind still writes its
 own `https` rows (`TestFHIRDestination_ProvenanceLedgerRecordsFHIRDeliveries`).
 
+**Operator trace (4.2c).** The operator control plane reads this ledger and
+nothing else to answer "what happened at the destination".
+`OperatorDeliveryAttempt.deliveries` carries every row for the attempt, newest
+first and tenant-scoped — 25 on a single attempt read or a control action's
+result, 5 per attempt in `operatorDeliveryAttempts` and `operatorMessageTrace`
+— with `transport`, the verified `destination` and `digestVerified`, `outcome`,
+`failureCode`, `httpStatusClass`, `endpointAdvisory`,
+`servedCertificateSubjectAdvisory`, `completedAt`, `fhirResourceTypes`,
+`fhirEntryCount`, and `fhirOutcomeCodesAdvisory`. The read is
+`PostgresProvenance.ListDeliveriesForAttempt`; `serve` migrates the ledger with
+the operator control plane, so the field exists even where no delivery
+identity mode is configured. The IDE's message trace shows a Delivery block
+under every attempt, and each dead letter in the delivery console can open
+its own: transport, outcome, resource types, bundle entry count, issue codes,
+and the declared endpoint — no other column, and nothing from the payload.
+Because the ledger is clinical-content-free by construction, so is the view.
+An empty list means this process contacted no destination for that attempt —
+every `kafka`-class delivery, and every delivery before 4.1c-b — never that a
+record was lost; a failed ledger read fails the whole attempt read rather than
+returning an empty list. `make operator-control-plane`
+(`TestOperatorControlPlane_TraceShowsTheFHIRDelivery`) proves it end to end.
+
 ## Grant naming
 
 `integration.deliver` is the action; `integration.destination.client` is the
@@ -473,6 +495,7 @@ make destination-transport    # both 4.1c-b proofs, plus the negative control
 make delivery-reliability     # Slice 2.3's proof must still pass
 make fhir-destination         # the 4.1c-c gate, both kill-tests, the digest pins, the ledger proof
 make fhir-destination-negative-control   # the POST builder must duplicate the Patient
+make operator-control-plane   # 4.2a journeys, and the 4.2c trace reading the delivery ledger
 ```
 
 CI runs them as the blocking jobs `test:delivery-identity`,
