@@ -30,6 +30,7 @@ include:
   - local: ci/test-fhir-structural.yml
   - local: ci/test-event-backends.yml
   - local: ci/test-fhir-official.yml
+  - local: ci/test-ui-e2e.yml
 stages:
   - lint
   - test
