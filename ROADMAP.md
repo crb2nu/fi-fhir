@@ -194,6 +194,16 @@ lane was launched; none was in the trusted-network path itself.
   a session mutation is refused with "legacy integration execution is
   unavailable" and after credential entry; until then, reload the tab
   (documented in `INTEGRATION-SESSIONS.md`).
+- [ ] **Copilot: enable the backend LLM in production** — the IDE now says
+  "No LLM is configured for this deployment" because the runtime enables LLM
+  features only with `FI_FHIR_LLM_ENABLED=true`, and the in-cluster LiteLLM
+  refuses keyless calls (401) while `fi-fhir-api` carries no `LLM_API_KEY`.
+  LiteLLM runs without a database, so a scoped virtual key cannot be minted;
+  the cluster's existing pattern (langgraph-agents) copies the gateway key
+  into the consumer's SOPS secret. Decide between that and giving LiteLLM a
+  database for scoped keys, then: SOPS secret `k3s/fi-fhir/secrets/llm-v1.yaml`,
+  `LLM_API_KEY` from it, `FI_FHIR_LLM_ENABLED=true`; verify
+  `capabilities.llm.configured: true` and `copilot-llm-state` = ready.
 - [ ] **Operator-plane availability as a capability** — the IDE cannot yet
   tell "the control plane is not configured"
   (`FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED` unset) from "this identity is
