@@ -1,7 +1,11 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import Badge from '$lib/ui/Badge.svelte';
-  import Tooltip from '$lib/ui/Tooltip.svelte';
+  import ArrowDown from '@lucide/svelte/icons/arrow-down';
+  import ArrowRight from '@lucide/svelte/icons/arrow-right';
+  import ArrowUp from '@lucide/svelte/icons/arrow-up';
+  import ChevronRight from '@lucide/svelte/icons/chevron-right';
+  import X from '@lucide/svelte/icons/x';
+  import { Badge, Field, Icon, IconButton, Input } from '$lib/ui/primitives';
   import FilterEditor from './FilterEditor.svelte';
   import TransformList from './TransformList.svelte';
   import ActionList from './ActionList.svelte';
@@ -35,95 +39,84 @@
   function filterSummary(route: RouteDraft): string {
     if (route.filter.eventTypes.length === 0) return 'All events';
     if (route.filter.eventTypes.length <= 3) {
-      return route.filter.eventTypes.map((t) => t.replace(/_/g, ' ')).join(', ');
+      return route.filter.eventTypes.join(', ');
     }
     return `${route.filter.eventTypes.length} event types`;
   }
 </script>
 
-<div class="route-editor" class:expanded={route.expanded}>
-  <div class="route-header-row">
+<div class="route" class:is-expanded={route.expanded}>
+  <div class="route-head">
     <button
       type="button"
-      class="route-header"
+      class="route-toggle"
       on:click={() => dispatch('toggleExpand')}
       aria-expanded={route.expanded}
       aria-controls={`route-body-${route._key}`}
     >
-      <span class="collapse-icon" class:rotated={route.expanded}>&#9654;</span>
-      <span class="route-name">{route.name || 'Unnamed route'}</span>
+      <Icon icon={ChevronRight} class="route-chevron" />
+      <span class="route-name" class:is-unnamed={!route.name}>{route.name || 'Unnamed route'}</span>
 
       {#if dryRunResult}
-        <div class="dry-run-badge">
-          <Tooltip content={dryRunResult.matched ? 'Successfully matched this route' : (dryRunResult.skipReason || 'Route skipped')}>
-            {#if dryRunResult.matched}
-              <Badge variant="success" size="sm">MATCHED</Badge>
-            {:else}
-              <Badge variant="default" size="sm">SKIPPED</Badge>
-            {/if}
-          </Tooltip>
-        </div>
+        <span
+          class="route-result"
+          title={dryRunResult.matched
+            ? 'Matched in the last dry run'
+            : dryRunResult.skipReason || 'Route skipped'}
+        >
+          <Badge tone={dryRunResult.matched ? 'success' : 'neutral'} dot={dryRunResult.matched}>
+            {dryRunResult.matched ? 'Matched' : 'Skipped'}
+          </Badge>
+        </span>
       {/if}
 
       {#if !route.expanded}
         <span class="summary">
-          <span class="summary-filter">{filterSummary(route)}</span>
+          <span class="summary-part text-mono">{filterSummary(route)}</span>
           {#if route.transforms.length > 0}
-            <span class="summary-sep">&rarr;</span>
-            <span class="summary-transforms">{route.transforms.length} transform{route.transforms.length > 1 ? 's' : ''}</span>
+            <Icon icon={ArrowRight} size={12} />
+            <span class="summary-part"
+              >{route.transforms.length} transform{route.transforms.length > 1 ? 's' : ''}</span
+            >
           {/if}
-          <span class="summary-sep">&rarr;</span>
-          <span class="summary-actions">{actionSummary(route)}</span>
+          <Icon icon={ArrowRight} size={12} />
+          <span class="summary-part text-mono">{actionSummary(route)}</span>
           {#if route.actions.length === 0}
-            <span class="summary-warn">needs actions</span>
+            <Badge tone="warning">Needs actions</Badge>
           {/if}
         </span>
       {/if}
     </button>
     <div class="route-controls">
-      <button
-        type="button"
-        class="icon-btn"
-        on:click={() => dispatch('moveRoute', 'up')}
-        aria-label="Move route up"
-        title="Move route up"
-      >&uarr;</button>
-      <button
-        type="button"
-        class="icon-btn"
-        on:click={() => dispatch('moveRoute', 'down')}
-        aria-label="Move route down"
-        title="Move route down"
-      >&darr;</button>
-      <button
-        type="button"
-        class="icon-btn danger"
-        on:click={() => dispatch('remove')}
-        aria-label="Remove route"
-        title="Remove route"
-      >&times;</button>
+      <IconButton icon={ArrowUp} label="Move route up" onclick={() => dispatch('moveRoute', 'up')} />
+      <IconButton
+        icon={ArrowDown}
+        label="Move route down"
+        onclick={() => dispatch('moveRoute', 'down')}
+      />
+      <IconButton icon={X} label="Remove route" onclick={() => dispatch('remove')} />
     </div>
   </div>
 
   {#if route.expanded}
     <div class="route-body" id={`route-body-${route._key}`}>
-      <label class="field-label">
-        Route Name
-        <input
-          type="text"
-          class="input"
-          value={route.name}
-          placeholder="e.g. patient_admits"
-          on:input={(e) => dispatch('updateName', (e.target as HTMLInputElement).value)}
-        />
-      </label>
-
-      <div class="section">
-        <h4 class="section-title">Filter</h4>
-        <FilterEditor filter={route.filter} on:change={(e) => dispatch('updateFilter', e.detail)} />
+      <div class="name-row">
+        <Field label="Route name">
+          <Input
+            mono
+            value={route.name}
+            placeholder="e.g. patient_admits"
+            oninput={(e) => dispatch('updateName', e.currentTarget.value)}
+          />
+        </Field>
       </div>
 
-      <div class="section">
+      <section class="section">
+        <h4 class="section-title">Filter</h4>
+        <FilterEditor filter={route.filter} on:change={(e) => dispatch('updateFilter', e.detail)} />
+      </section>
+
+      <section class="section">
         <h4 class="section-title">Transforms</h4>
         <TransformList
           transforms={route.transforms}
@@ -132,9 +125,9 @@
           on:change={(e) => dispatch('changeTransform', e.detail)}
           on:move={(e) => dispatch('moveTransform', e.detail)}
         />
-      </div>
+      </section>
 
-      <div class="section">
+      <section class="section">
         <h4 class="section-title">Actions</h4>
         <ActionList
           actions={route.actions}
@@ -143,198 +136,132 @@
           on:change={(e) => dispatch('changeAction', e.detail)}
           on:move={(e) => dispatch('moveAction', e.detail)}
         />
-      </div>
+      </section>
     </div>
   {/if}
 </div>
 
 <style>
-  .route-editor {
-    border: 1px solid var(--color-border-default);
-    border-radius: 10px;
-    background: var(--color-bg-elevated);
-    overflow: hidden;
+  .route {
+    border-bottom: 1px solid var(--color-border-subtle);
   }
 
-  .route-editor.expanded {
-    border-color: var(--color-primary-border);
+  .route:last-child {
+    border-bottom: 0;
   }
 
-  .route-header-row {
+  .route-head {
     display: flex;
     align-items: center;
-    padding: 0 12px 0 0;
-    transition: background 0.15s ease;
+    gap: var(--space-2);
+    height: 36px;
+    padding-right: var(--space-2);
   }
 
-  .route-header-row:hover {
+  .route-head:hover {
     background: var(--color-bg-hover);
   }
 
-  .route-header {
+  .route-toggle {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    cursor: pointer;
-    flex: 1;
+    gap: var(--space-2);
+    flex: 1 1 auto;
     min-width: 0;
+    height: 100%;
+    padding: 0 var(--space-2) 0 var(--space-3);
     background: transparent;
-    border: none;
+    border: 0;
     color: inherit;
     font: inherit;
     text-align: left;
+    cursor: pointer;
   }
 
-  .collapse-icon {
-    color: var(--color-text-muted);
-    font-size: 0.7rem;
-    transition: transform 0.2s ease;
-    flex-shrink: 0;
+  .route-toggle:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: -2px;
   }
 
-  .collapse-icon.rotated {
+  .route-toggle :global(.route-chevron) {
+    color: var(--color-text-tertiary);
+    transition: transform var(--duration-fast) var(--ease-out);
+  }
+
+  .route.is-expanded .route-toggle :global(.route-chevron) {
     transform: rotate(90deg);
   }
 
   .route-name {
-    font-weight: 700;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
+    font-weight: var(--font-semibold);
     color: var(--color-text-primary);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   }
 
-  .dry-run-badge {
-    margin-left: 8px;
-    animation: fadeIn 0.2s ease-out;
+  .route-name.is-unnamed {
+    font-family: var(--font-ui);
+    font-weight: var(--font-normal);
+    color: var(--color-text-tertiary);
   }
 
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-      transform: scale(0.9);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
-    }
+  .route-result {
+    display: inline-flex;
   }
 
   .summary {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--space-2);
+    min-width: 0;
     margin-left: auto;
-    margin-right: 12px;
-    font-size: 0.8rem;
+    overflow: hidden;
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+    white-space: nowrap;
   }
 
-  .summary-filter {
-    color: var(--color-primary);
-  }
-
-  .summary-sep {
-    color: var(--color-text-muted);
-  }
-
-  .summary-transforms {
+  .summary-part {
+    overflow: hidden;
+    text-overflow: ellipsis;
     color: var(--color-text-secondary);
-  }
-
-  .summary-actions {
-    color: var(--color-success);
-  }
-
-  .summary-warn {
-    color: var(--color-warning);
-    font-size: 0.75rem;
-    font-weight: 600;
   }
 
   .route-controls {
     display: flex;
-    gap: 6px;
-    flex-shrink: 0;
-  }
-
-  .icon-btn {
-    width: 28px;
-    height: 28px;
-    min-width: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 4px;
-    border: 1px solid var(--color-border-default);
-    background: transparent;
-    color: var(--color-text-tertiary);
-    cursor: pointer;
-    font-size: 0.85rem;
-    line-height: 1;
-    transition: var(--transition-all);
-  }
-
-  .icon-btn:hover:not(:disabled) {
-    background: var(--color-bg-hover);
-    color: var(--color-text-primary);
-  }
-
-  .icon-btn.danger:hover:not(:disabled) {
-    background: rgba(239, 68, 68, 0.12);
-    border-color: rgba(239, 68, 68, 0.3);
-    color: rgba(254, 202, 202, 0.9);
+    gap: 2px;
+    flex: 0 0 auto;
   }
 
   .route-body {
-    padding: 12px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-3) var(--space-4) var(--space-8);
     border-top: 1px solid var(--color-border-subtle);
-    display: grid;
-    gap: 16px;
   }
 
-  .field-label {
-    display: grid;
-    gap: 4px;
-    color: var(--color-text-tertiary);
-    font-size: 0.85rem;
-    font-weight: 600;
-  }
-
-  .input {
-    padding: 8px 12px;
-    border-radius: 10px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-input);
-    color: var(--color-text-primary);
-    outline: none;
-    width: 100%;
-    box-sizing: border-box;
-    transition: var(--transition-all);
-  }
-
-  .input::placeholder {
-    color: var(--color-text-muted);
-  }
-
-  .input:hover:not(:disabled):not(:focus) {
-    border-color: var(--color-border-strong);
-  }
-
-  .input:focus {
-    border-color: var(--color-border-focus);
-    box-shadow: var(--shadow-focus);
+  .name-row {
+    max-width: 360px;
   }
 
   .section {
-    display: grid;
-    gap: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
   }
 
   .section-title {
-    color: var(--color-text-tertiary);
-    font-size: 0.85rem;
-    font-weight: 700;
     margin: 0;
+    font-size: var(--text-label);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-label);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    color: var(--color-text-tertiary);
   }
 </style>

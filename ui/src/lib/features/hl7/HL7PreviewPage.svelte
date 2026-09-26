@@ -2,12 +2,14 @@
   import { browser } from '$app/environment';
   import { createHL7PreviewStore } from '$lib/features/hl7/hl7PreviewStore';
   import { parseHL7Preview } from '$lib/features/hl7/hl7Preview';
-  import Button from '$lib/ui/Button.svelte';
-  import Panel from '$lib/ui/Panel.svelte';
-  import Tabs from '$lib/ui/Tabs.svelte';
   import CodeEditor from '$lib/ui/editor/CodeEditor.svelte';
+  import SplitPane from '$lib/ui/ide/SplitPane.svelte';
   import WarningList from '$lib/ui/WarningList.svelte';
   import HL7Inspector from '$lib/features/hl7/components/HL7Inspector.svelte';
+  import PipelineChips, {
+    type PipelineStage,
+    type PipelineStep
+  } from '$lib/features/hl7/components/PipelineChips.svelte';
   import { parseHL7Path } from '$lib/domain/hl7Path';
   import type { HL7PathLocation } from '$lib/domain/hl7Path';
   import { getHL7Value, normalizeHL7Newlines } from '$lib/domain/hl7Access';
@@ -26,13 +28,33 @@
   import EventStreamPanel from '$lib/features/events/EventStreamPanel.svelte';
   import ExtractionPanel from '$lib/ui/ExtractionPanel.svelte';
   import QualityBadge from '$lib/ui/QualityBadge.svelte';
-  import Badge from '$lib/ui/Badge.svelte';
-  import StatusPill from '$lib/ui/StatusPill.svelte';
   import CommandPalette, { type PaletteCommand } from '$lib/ui/CommandPalette.svelte';
-  import PageHeader from '$lib/ui/PageHeader.svelte';
-  import AuthoringFlowRail from '$lib/features/shared/AuthoringFlowRail.svelte';
-  import LifecycleTrace from '$lib/features/shared/LifecycleTrace.svelte';
-  import type { FlowStep } from '$lib/features/shared/authoringFlow';
+  import {
+    Badge,
+    Button,
+    EmptyState,
+    Icon,
+    IconButton,
+    Input,
+    KeyValue,
+    Select,
+    Table,
+    Tabs,
+    Td,
+    Th,
+    Toolbar,
+    Tr,
+    type BadgeTone,
+    type SelectOption,
+    type TabItem
+  } from '$lib/ui/primitives';
+  import FolderOpen from '@lucide/svelte/icons/folder-open';
+  import Play from '@lucide/svelte/icons/play';
+  import Send from '@lucide/svelte/icons/send';
+  import WrapText from '@lucide/svelte/icons/wrap-text';
+  import Eraser from '@lucide/svelte/icons/eraser';
+  import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
+  import FileText from '@lucide/svelte/icons/file-text';
   import { graphqlFetch, isErrorToasted } from '$lib/graphql/client';
   import { ExplainWarningsDocument, type ParseWarningInput, type SourceFormat, type EventType } from '$lib/gen/graphql';
   import type { WarningLike } from '$lib/domain/warnings';
@@ -170,7 +192,7 @@
   }
   const { samples, activeId, activeSample } = samplesStore;
 
-  let activeTab:
+  type ResultsTab =
     | 'samples'
     | 'warnings'
     | 'events'
@@ -178,12 +200,12 @@
     | 'inspector'
     | 'profile'
     | 'process'
-    | 'live' = 'warnings';
+    | 'live';
+  let activeTab: ResultsTab = 'warnings';
   let selectedPath: string | null = null;
   let selectedLocation: HL7PathLocation | null = null;
   let warningCount = 0;
   let eventCount = 0;
-  let flowSteps: FlowStep[] = [];
 
   $: activeSampleModified = Boolean($activeSample && $activeSample.raw !== $state.data);
   $: selectedValue = selectedLocation ? getHL7Value($hl7, selectedLocation) : null;
@@ -268,16 +290,12 @@
     activeTab = 'warnings';
   }
 
-  const tabs = [
-    { key: 'samples', label: 'Samples' },
-    { key: 'warnings', label: 'Warnings' },
-    { key: 'events', label: 'Events' },
-    { key: 'extraction', label: 'Extraction' },
-    { key: 'inspector', label: 'Inspector' },
-    { key: 'profile', label: 'Profile draft' },
-    { key: 'process', label: 'Process' },
-    { key: 'live', label: 'Live Events' }
-  ] as const;
+  const redactionOptions: SelectOption[] = [
+    { value: 'none', label: 'No redaction' },
+    { value: 'mask_basic', label: 'Mask basic (PID/NK1/PV1)' },
+    { value: 'segment_sanitize', label: 'Sanitize segments (PID/NK1/IN*)' },
+    { value: 'pattern_replace', label: 'Pattern replacement (SSN/phone/email)' }
+  ];
 
   type ProcessState =
     | { state: 'idle' }
@@ -287,60 +305,6 @@
 
   let processState: ProcessState = { state: 'idle' };
   let lastProcessedSource: string | null = null;
-
-  $: flowSteps = [
-    {
-      eyebrow: 'Raw source',
-      title: 'Load the payload before it gets normalized',
-      description: $state.data.trim()
-        ? `${$state.source || 'ui_preview'} is loaded with ${$hl7.segments.length} segments${msh9 ? ` and ${msh9}` : ''}${msh12 ? ` on HL7 ${msh12}` : ''}.`
-        : 'Paste a sample or load a file so you can inspect the exact source that will be parsed.',
-      metric: $state.data.trim() ? `${$hl7.segments.length} segments` : 'Waiting for source',
-      status: $activeSample ? `sample ${$activeSample.name}` : 'Ready to preview',
-      actions: [
-        { label: 'Preview', variant: 'primary', onClick: run },
-        { label: 'Load file', variant: 'secondary', onClick: loadFileFromPalette }
-      ]
-    },
-    {
-      eyebrow: 'Warnings + extraction',
-      title: 'Triage parsing issues against the extracted events',
-      description: $state.result
-        ? `${warningCount} warnings and ${eventCount} extracted events are ready to inspect. Move between warnings, extraction, and the profile draft without losing source context.`
-        : 'Preview first to surface warnings and extracted semantic events side by side.',
-      metric: $state.result ? `${warningCount} warnings` : 'Preview first',
-      status: profileChanged
-        ? 'profile changed'
-        : $selectedProfile
-          ? `profile ${$selectedProfile.version}`
-          : 'No profile selected',
-      actions: [
-        { label: 'Warnings', variant: 'secondary', onClick: () => { activeTab = 'warnings'; } },
-        { label: 'Extraction', variant: 'secondary', onClick: () => { activeTab = 'extraction'; } },
-        { label: 'Profile draft', variant: 'primary', onClick: () => { activeTab = 'profile'; } }
-      ]
-    },
-    {
-      eyebrow: 'Profile + process',
-      title: 'Apply fixes, then hand the message downstream',
-      description:
-        processState.state === 'done'
-          ? `${processState.result.success ? 'Submission succeeded' : 'Submission returned issues'} for correlation ${processState.correlationId}.`
-          : 'When the profile looks right, move from the draft to process, workflow monitoring, and terminology work.',
-      metric: processState.state === 'done' ? 'submitted' : 'handoff ready',
-      status:
-        processState.state === 'running'
-          ? 'processing'
-          : processState.state === 'error'
-            ? 'submit error'
-            : 'ready',
-      actions: [
-        { label: 'Process message', variant: 'primary', onClick: processMessage },
-        { label: 'Live events', variant: 'secondary', onClick: () => { activeTab = 'live'; } },
-        { label: 'Terminology', variant: 'ghost', href: '/terminology' }
-      ]
-    }
-  ] satisfies FlowStep[];
 
   function makeCorrelationId(): string {
     const fromMsg = (msh10 ?? '').trim();
@@ -383,7 +347,12 @@
   }
 
   async function run() {
-    state.update((s) => ({ ...s, loading: true, error: null, result: null }));
+    // A new run starts from no session state, so a run that fails before its
+    // first session update never leaves the previous run's "Preview complete"
+    // (or its diagnostics) on screen. The server session itself is reused.
+    const previousSessionId = $state.session?.mode === 'session' ? $state.session.id : null;
+    state.update((s) => ({ ...s, loading: true, error: null, result: null, session: null }));
+    setSessionDiagnostics(null);
     selectedPath = null;
     selectedLocation = null;
     const snapshot = getSnapshot();
@@ -400,7 +369,7 @@
         data,
         profileId,
         profile: $selectedProfile,
-        sessionId: $state.session?.mode === 'session' ? $state.session.id : null,
+        sessionId: previousSessionId,
         onSessionUpdate: (session) => {
           state.update((current) => ({ ...current, session }));
           setSessionDiagnostics(session);
@@ -444,13 +413,6 @@
 
   function rememberSource(source: string): void {
     recentSources = rememberRecentSource(recentSources, source, MAX_RECENT_SOURCES);
-  }
-
-  function setSource(source: string): void {
-    const s = source.trim();
-    if (!s) return;
-    state.update((st) => ({ ...st, source: s }));
-    rememberSource(s);
   }
 
   function loadSample(sample: HL7Sample) {
@@ -591,6 +553,123 @@
 
   // Generate fixes based on warnings and current profile
   $: fixes = suggestFixes($state.result?.parsePreview.warnings ?? [], $selectedProfile);
+
+  // ── Pipeline chips: what the last preview/process actually used ──────────
+  // Values come from the stateless preview's artifact revisions and planned
+  // deliveries, or from the process result; nothing is filled in by default.
+  function unique(values: readonly string[]): string[] {
+    return Array.from(new Set(values.filter(Boolean)));
+  }
+
+  $: preview = $state.result?.preview ?? null;
+  $: parseOk = $state.result ? $state.result.parsePreview.success : null;
+  $: matchedRoutes = preview?.routes.filter((route) => route.matched) ?? [];
+  $: plannedDestinations = unique(
+    preview?.deliveries.map((delivery) => delivery.destination.artifactId) ?? []
+  );
+  $: processedWorkflows =
+    processState.state === 'done'
+      ? unique(processState.result.workflowResults.map((workflow) => workflow.workflowName))
+      : [];
+  $: workflowState = ((): PipelineStep['state'] => {
+    if (preview) return matchedRoutes.length > 0 ? 'ok' : 'warning';
+    if (processState.state !== 'done') return 'idle';
+    return processState.result.workflowResults.some((workflow) => workflow.errors.length > 0)
+      ? 'error'
+      : 'ok';
+  })();
+  $: pipelineSteps = [
+    {
+      id: 'source',
+      label: 'Source',
+      value: $state.source || 'ui_preview',
+      state: $state.error ? 'error' : parseOk === null ? 'idle' : parseOk ? 'ok' : 'error',
+      title: 'Source name sent with the message. Opens Samples.'
+    },
+    {
+      id: 'profile',
+      label: 'Profile',
+      value: preview?.artifactRevisions.profile.artifactId ?? $selectedProfile?.id ?? '',
+      state: parseOk === null ? 'idle' : !parseOk ? 'error' : warningCount > 0 ? 'warning' : 'ok',
+      title: preview
+        ? 'Profile revision the preview ran with. Opens the profile draft.'
+        : 'Selected source profile. Opens the profile draft.'
+    },
+    {
+      id: 'workflow',
+      label: 'Workflow',
+      value: preview?.artifactRevisions.workflow.artifactId ?? processedWorkflows.join(', '),
+      state: workflowState,
+      title: preview
+        ? `${matchedRoutes.length} of ${preview.routes.length} routes matched. Opens Events.`
+        : 'Workflow the message was routed through. Opens Events.'
+    },
+    {
+      id: 'destination',
+      label: 'Destination',
+      value: plannedDestinations.join(', '),
+      state: plannedDestinations.length > 0 ? 'ok' : 'idle',
+      title: 'Destinations the preview planned deliveries to. Opens Process.'
+    }
+  ] satisfies PipelineStep[];
+
+  const PIPELINE_TAB: Record<PipelineStage, ResultsTab> = {
+    source: 'samples',
+    profile: 'profile',
+    workflow: 'events',
+    destination: 'process'
+  };
+
+  $: tabItems = [
+    { id: 'samples', label: 'Samples', count: $samples.length || undefined },
+    { id: 'warnings', label: 'Warnings', count: $state.result ? warningCount : undefined },
+    { id: 'events', label: 'Events', count: $state.result ? eventCount : undefined },
+    { id: 'extraction', label: 'Extraction' },
+    { id: 'inspector', label: 'Inspector' },
+    { id: 'profile', label: 'Profile draft' },
+    { id: 'process', label: 'Process' },
+    { id: 'live', label: 'Live events' }
+  ] satisfies TabItem[];
+
+  // The stateless status line (the session engine renders SessionRunProgress).
+  let runTone: BadgeTone = 'neutral';
+  $: runTone = $state.loading
+    ? 'info'
+    : $state.error
+      ? 'danger'
+      : !$state.result
+        ? 'neutral'
+        : $state.result.parsePreview.success
+          ? 'success'
+          : 'danger';
+  $: runLabel = $state.loading
+    ? 'Previewing'
+    : $state.error
+      ? 'Preview failed'
+      : !$state.result
+        ? 'Not previewed'
+        : $state.result.parsePreview.success
+          ? 'Parsed'
+          : 'Parse failed';
+
+  // The context row under the status line; hidden when it would be empty.
+  $: hasContext =
+    processState.state !== 'idle' ||
+    lastProcessRedactionMode !== 'none' ||
+    (Boolean($state.result) &&
+      (Boolean(lastUsedProfileId) ||
+        lastRunRedactionMode !== 'none' ||
+        (sessionEngineEnabled && Boolean($state.session))));
+
+  let processTone: BadgeTone = 'info';
+  $: processTone =
+    processState.state === 'done'
+      ? processState.result.success
+        ? 'success'
+        : 'danger'
+      : processState.state === 'error'
+        ? 'danger'
+        : 'info';
 
   // Apply a suggested fix to the current profile
   function applyFix(fix: ProfileFix) {
@@ -836,7 +915,15 @@
   })();
 
   onMount(() => {
+    // Load a sample into the editor when the active sample *changes*. The
+    // store re-emits on every samples update (a rename, tags, a removal of
+    // another sample), and reloading then would overwrite the editor without
+    // asking. Picking a row still loads it through the inbox's select event.
+    let loadedSampleId: string | null = null;
     const unsub = activeSample.subscribe((s) => {
+      const id = s?.id ?? null;
+      if (id === loadedSampleId) return;
+      loadedSampleId = id;
       if (s) loadSample(s);
     });
     let lastNavigationSequence = 0;
@@ -925,275 +1012,273 @@
   });
 </script>
 
-<PageHeader title="HL7 Preview & Triage" subtitle="Load, parse, triage warnings, then hand off downstream." />
+<CommandPalette bind:open={paletteOpen} title="HL7 commands" commands={paletteCommands} />
 
-<div class="flow-shell">
-  <AuthoringFlowRail
-    compact
-    title="From raw source to semantic handoff"
-    steps={flowSteps}
-  />
-</div>
-
-<div class="trace-shell">
-  <LifecycleTrace
-    source={$state.source || 'ui_preview'}
-    profile={$selectedProfile?.id ?? null}
-    eventCount={eventCount}
-    warningCount={warningCount}
-    success={$state.result?.parsePreview.success ?? false}
-    workflow={processState.state === 'done' ? 'Standard ADT' : null}
-    destinations={processState.state === 'done' && processState.result.success ? ['FHIR'] : []}
-    on:navigate={(e: CustomEvent<{ step: string }>) => { activeTab = e.detail.step as typeof activeTab; }}
-  />
-</div>
-
-<div class="grid">
-  <CommandPalette bind:open={paletteOpen} title="HL7 commands" commands={paletteCommands} />
-
-  <Panel title="Sample HL7v2">
-    <div class="row">
-      <label class="label">
-        Source
-        <input
-          class="input"
-          type="text"
-          bind:value={$state.source}
-          placeholder="epic_adt_hosp_a"
+<div class="intake">
+  <Toolbar title="HL7 intake">
+    {#snippet actions()}
+      <span class="redaction-select">
+        <Select
+          aria-label="Redaction"
+          title="Redaction mode for the editor, preview and process. Best-effort: free-text fields may still contain PHI."
+          value={editorRedactionMode}
+          options={redactionOptions}
           disabled={$state.loading}
+          onchange={(e: Event) => {
+            editorRedactionMode = (e.currentTarget as HTMLSelectElement).value as HL7RedactionMode;
+          }}
         />
-      </label>
-      <div class="actions">
-        <input
-          class="file-input"
-          type="file"
-          multiple
-          accept=".hl7,.txt,.msg,.dat,text/plain"
-          bind:this={fileInputEl}
-          on:change={loadFromFile}
-          disabled={$state.loading}
-        />
-        <Button
-          variant="secondary"
-          on:click={() => fileInputEl?.click()}
-          disabled={$state.loading}
-        >
-          Load file
-        </Button>
-        <Button on:click={run} disabled={$state.loading || !$state.data.trim()}>
-          {#if $state.loading}Running…{:else}Preview{/if}
-        </Button>
-        <Button variant="secondary" on:click={processMessage} disabled={$state.loading || !$state.data.trim()}>
-          {#if processState.state === 'running'}Processing…{:else}Process{/if}
-        </Button>
-      </div>
-    </div>
+      </span>
+      <input
+        class="file-input"
+        type="file"
+        multiple
+        accept=".hl7,.txt,.msg,.dat,text/plain"
+        bind:this={fileInputEl}
+        on:change={loadFromFile}
+        disabled={$state.loading}
+      />
+      <Button
+        variant="ghost"
+        icon={FolderOpen}
+        title="Load an HL7 file into the editor (⌘/Ctrl+O). Several files go to Samples."
+        disabled={$state.loading}
+        onclick={() => fileInputEl?.click()}
+      >
+        Load file
+      </Button>
+      <Button
+        variant="primary"
+        icon={Play}
+        title="Parse the editor contents (⌘/Ctrl+Enter). Esc returns to Warnings; ⌘/Ctrl+K opens HL7 commands."
+        loading={$state.loading}
+        disabled={!$state.data.trim()}
+        onclick={run}
+      >
+        Preview
+      </Button>
+      <Button
+        icon={Send}
+        title="Submit the message to the pipeline"
+        loading={processState.state === 'running'}
+        disabled={$state.loading || !$state.data.trim()}
+        onclick={processMessage}
+      >
+        Process
+      </Button>
+    {/snippet}
+  </Toolbar>
 
-    {#if $activeSample}
-      <div class="active-sample">
-        <span class="muted">active sample</span>
-        <span class="mono">{$activeSample.name}</span>
-        {#if activeSampleModified}
-          <Badge variant="warning">modified</Badge>
-        {/if}
-        <button class="link" type="button" on:click={() => (activeTab = 'samples')} disabled={$state.loading}>
-          open samples
-        </button>
-      </div>
-    {/if}
+  <div class="pipeline-row">
+    <PipelineChips steps={pipelineSteps} onselect={(stage) => (activeTab = PIPELINE_TAB[stage])} />
+  </div>
 
-    {#if recentSources.length}
-      <div class="recent">
-        <div class="recent-label muted">recent sources</div>
-        <div class="chips">
-          {#each recentSources as src (src)}
+  <div class="workspace">
+    <SplitPane
+      orientation="horizontal"
+      initialSize={600}
+      minSize={360}
+      maxSize={1200}
+      storageKey="fi-fhir-hl7-intake-split"
+    >
+      <div
+        class="editor-pane"
+        class:dragging={isDragging}
+        on:dragenter={onDragEnter}
+        on:dragleave={onDragLeave}
+        on:dragover|preventDefault
+        on:drop={onDropFiles}
+        role="region"
+        aria-label="HL7 input. Drag and drop HL7 files to import."
+        aria-describedby="hl7-drop-hint"
+      >
+        <p id="hl7-drop-hint" class="sr-only">
+          Drag and drop HL7 files to import into Samples. Use the Load file button to open the file picker.
+        </p>
+
+        <div class="editor-bar">
+          <label class="inline-field">
+            <span class="inline-label">Source</span>
+            <span class="source-input">
+              <Input
+                mono
+                value={$state.source}
+                placeholder="epic_adt_hosp_a"
+                list="hl7-recent-sources"
+                disabled={$state.loading}
+                oninput={(e: Event) => {
+                  const value = (e.currentTarget as HTMLInputElement).value;
+                  state.update((s) => ({ ...s, source: value }));
+                }}
+              />
+            </span>
+          </label>
+          <datalist id="hl7-recent-sources">
+            {#each recentSources as src (src)}
+              <option value={src}></option>
+            {/each}
+          </datalist>
+
+          {#if $activeSample}
             <button
-              class="chip"
+              class="sample-link"
               type="button"
-              on:click={() => setSource(src)}
+              title="Active sample — open Samples"
               disabled={$state.loading}
-              title="Set source"
+              on:click={() => (activeTab = 'samples')}
             >
-              {src}
+              <Icon icon={FileText} size={14} />
+              <span class="sample-name">{$activeSample.name}</span>
             </button>
-          {/each}
+            {#if activeSampleModified}
+              <Badge tone="warning">Modified</Badge>
+            {/if}
+          {/if}
+
+          <div class="editor-bar-end">
+            <label class="check" title="Apply the redaction mode to the preview payload">
+              <input type="checkbox" bind:checked={useRedactionForPreview} disabled={$state.loading} />
+              Redact preview
+            </label>
+            <label class="check" title="Apply the redaction mode to the process payload">
+              <input type="checkbox" bind:checked={useRedactionForProcess} disabled={$state.loading} />
+              Redact process
+            </label>
+            <IconButton
+              icon={Eraser}
+              label="Apply redaction to editor"
+              disabled={$state.loading || editorRedactionMode === 'none' || !$state.data.trim()}
+              onclick={applyRedactionToEditor}
+            />
+            <IconButton
+              icon={WrapText}
+              label="Normalize newlines"
+              title="Normalize newlines (CR segment terminators)"
+              disabled={$state.loading || !$state.data.trim()}
+              onclick={normalizeEditorNewlines}
+            />
+          </div>
+        </div>
+
+        <div class="editor-body">
+          <CodeEditor
+            language="hl7v2"
+            value={$state.data}
+            on:change={(e) => { $state.data = e.detail; }}
+            readOnly={$state.loading}
+          />
+          {#if isDragging}
+            <div class="drop-hint">Drop files to import into Samples</div>
+          {/if}
+        </div>
+
+        <div class="editor-foot">
+          <span>{$hl7.segments.length} segment{$hl7.segments.length === 1 ? '' : 's'}</span>
+          {#if msh9}<span>MSH-9 <span class="mono">{msh9}</span></span>{/if}
+          {#if msh10}<span>MSH-10 <span class="mono">{msh10}</span></span>{/if}
+          {#if msh12}<span>MSH-12 <span class="mono">{msh12}</span></span>{/if}
         </div>
       </div>
-    {/if}
 
-    <div class="hotkeys muted">
-      ⌘/Ctrl+Enter: preview • ⌘/Ctrl+O: load file • Esc: back to warnings
-    </div>
-
-    <p id="hl7-drop-hint" class="sr-only">
-      Drag and drop HL7 files to import into Samples. Use the Load file button to open the file picker.
-    </p>
-    <div
-      class="drop-target"
-      class:dragging={isDragging}
-      on:dragenter={onDragEnter}
-      on:dragleave={onDragLeave}
-      on:dragover|preventDefault
-      on:drop={onDropFiles}
-      role="region"
-      aria-label="HL7 input. Drag and drop HL7 files to import."
-      aria-describedby="hl7-drop-hint"
-    >
-      <div class="redaction">
-        <label class="label redaction-label">
-          Redaction
-          <select class="input" bind:value={editorRedactionMode} disabled={$state.loading}>
-            <option value="none">None</option>
-            <option value="mask_basic">Mask basic (PID/NK1/PV1)</option>
-            <option value="segment_sanitize">Sanitize segments (PID/NK1/IN*)</option>
-            <option value="pattern_replace">Pattern replacement (SSN/Phone/Email)</option>
-          </select>
-          <span class="hint">Best-effort; free-text fields may still contain PHI.</span>
-        </label>
-
-      <label class="checkbox">
-        <input type="checkbox" bind:checked={useRedactionForPreview} disabled={$state.loading} />
-        Use for preview
-      </label>
-
-      <label class="checkbox">
-        <input type="checkbox" bind:checked={useRedactionForProcess} disabled={$state.loading} />
-        Use for process
-      </label>
-
-      <Button
-        variant="secondary"
-        on:click={normalizeEditorNewlines}
-        disabled={$state.loading || !$state.data.trim()}
-      >
-          Normalize newlines
-        </Button>
-
-        <Button
-          variant="secondary"
-          on:click={applyRedactionToEditor}
-          disabled={$state.loading || editorRedactionMode === 'none' || !$state.data.trim()}
-        >
-          Apply to editor
-        </Button>
-      </div>
-
-      <div class="stats muted">
-        <Badge>segments: {$hl7.segments.length}</Badge>
-        {#if msh9}<Badge mono>MSH-9={msh9}</Badge>{/if}
-        {#if msh10}<Badge mono>MSH-10={msh10}</Badge>{/if}
-        {#if msh12}<Badge mono>MSH-12={msh12}</Badge>{/if}
-      </div>
-      <CodeEditor
-        language="hl7v2"
-        value={$state.data}
-        on:change={(e) => { $state.data = e.detail; }}
-        readOnly={$state.loading}
-        height="300px"
-      />
-      {#if isDragging}
-        <div class="drop-hint">Drop files to import into Samples</div>
-      {/if}
-    </div>
-
-    {#if $state.error}
-      <div class="error">{$state.error}</div>
-    {/if}
-  </Panel>
-
-  <Panel title="Results" tone={$state.error ? 'error' : 'default'}>
-    {#if sessionEngineEnabled && $state.session}
-      <SessionRunProgress session={$state.session} />
-    {:else}
-      <SessionStreamNotice />
-    {/if}
-    {#if !$state.result}
-      {#if !$state.data.trim()}
-        <div class="empty">Paste an HL7v2 message to enable preview.</div>
-      {:else}
-        <div class="empty">Press Preview (⌘/Ctrl+Enter) to see warnings and extracted events.</div>
-      {/if}
-    {:else}
-      <div class="meta">
-        <StatusPill variant={$state.result.parsePreview.success ? 'success' : 'danger'}>
-          {$state.result.parsePreview.success ? 'success' : 'failed'}
-        </StatusPill>
-        <Badge>events: {$events.length}</Badge>
-        <Badge>warnings: {$state.result.parsePreview.warnings.length}</Badge>
-        {#if sessionEngineEnabled && $state.session}
-          {#if $state.session.mode === 'session'}
-            <Badge variant="info" mono>session={$state.session.id}</Badge>
-            {#if $state.session.runId}
-              <Badge variant="info" mono>run={$state.session.runId}</Badge>
-            {/if}
+      <div slot="secondary" class="results-pane" aria-label="Results" role="region">
+        <div class="status-line">
+          {#if sessionEngineEnabled && $state.session}
+            <div class="session-status">
+              <SessionRunProgress session={$state.session} />
+              {#if $state.error}
+                <p class="run-error" role="alert" title={$state.error}>{$state.error}</p>
+              {/if}
+            </div>
           {:else}
-            <Badge variant="warning">session fallback</Badge>
+            <span class="run-state">
+              <Badge tone={runTone} dot>{runLabel}</Badge>
+              <span class="status-text" aria-live="polite">
+                {#if $state.loading}
+                  Parsing the message…
+                {:else if $state.error}
+                  {$state.error}
+                {:else if !$state.result}
+                  {#if !$state.data.trim()}
+                    Paste an HL7v2 message to enable preview.
+                  {:else}
+                    Press Preview (⌘/Ctrl+Enter) to see warnings and extracted events.
+                  {/if}
+                {:else}
+                  {eventCount} event{eventCount === 1 ? '' : 's'} · {warningCount} warning{warningCount === 1 ? '' : 's'}
+                {/if}
+              </span>
+            </span>
           {/if}
-          {#if $sessionDiagnostics.length}
-            <Badge variant="warning">diagnostics: {$sessionDiagnostics.length}</Badge>
+          {#if profileChanged}
+            <Button variant="ghost" icon={RotateCcw} disabled={$state.loading} onclick={run}>
+              Profile changed — re-run
+            </Button>
           {/if}
-        {/if}
-        {#if processState.state !== 'idle'}
-          <StatusPill
-            variant={processState.state === 'done' ? (processState.result.success ? 'success' : 'danger') : processState.state === 'error' ? 'danger' : 'neutral'}
-          >
-            process: {processState.state}
-          </StatusPill>
-        {/if}
-        <button class="pill stale" on:click={() => (activeTab = 'inspector')} disabled={$state.loading}>
-          Inspect message
-        </button>
-        {#if lastUsedProfileId}
-          <Badge variant="info">profile: {lastUsedProfileId}</Badge>
-        {:else}
-          <Badge variant="default">no profile</Badge>
-        {/if}
-        {#if lastRunRedactionMode !== 'none'}
-          <Badge variant="warning">redaction: {lastRunRedactionMode}</Badge>
-        {/if}
-        {#if lastProcessRedactionMode !== 'none'}
-          <Badge variant="warning">process redaction: {lastProcessRedactionMode}</Badge>
-        {/if}
-        {#if profileChanged}
-          <button class="pill stale" on:click={run} disabled={$state.loading}>
-            Profile changed - Re-test
-          </button>
-        {/if}
-      </div>
+        </div>
 
-      <div class="quality-section">
-        <QualityBadge
-          event={$events[0] ?? { raw: $state.data, source: $state.source }}
-          eventType={inferredEventType}
-        />
-      </div>
+        <SessionStreamNotice />
 
-      {#if $state.result.parsePreview.errors.length}
-        <Panel title="Parse errors" tone="error">
-          <ul class="errors">
+        {#if hasContext}
+          <div class="context-row">
+            {#if $state.result}
+              {#if lastUsedProfileId}
+                <span class="ctx" title="Source profile selected when this run started">
+                  <span class="ctx-key">Draft profile</span>
+                  <span class="mono">{lastUsedProfileId}</span>
+                </span>
+              {/if}
+              {#if sessionEngineEnabled && $state.session}
+                {#if $state.session.mode === 'session'}
+                  <span class="ctx">
+                    <span class="ctx-key">Session</span>
+                    <span class="mono ctx-id" title={$state.session.id ?? ''}>{$state.session.id}</span>
+                  </span>
+                  {#if $state.session.runId}
+                    <span class="ctx">
+                      <span class="ctx-key">Run</span>
+                      <span class="mono ctx-id" title={$state.session.runId}>{$state.session.runId}</span>
+                    </span>
+                  {/if}
+                {:else}
+                  <Badge tone="warning">Session fallback</Badge>
+                {/if}
+                {#if $sessionDiagnostics.length}
+                  <Badge tone="warning" mono>{$sessionDiagnostics.length} diagnostics</Badge>
+                {/if}
+              {/if}
+              {#if lastRunRedactionMode !== 'none'}
+                <Badge tone="warning">Preview redacted: {lastRunRedactionMode}</Badge>
+              {/if}
+            {/if}
+            {#if processState.state !== 'idle'}
+              <button class="ctx ctx-link" type="button" on:click={() => (activeTab = 'process')}>
+                <span class="ctx-key">Process</span>
+                <Badge tone={processTone} dot>{processState.state}</Badge>
+              </button>
+            {/if}
+            {#if lastProcessRedactionMode !== 'none'}
+              <Badge tone="warning">Process redacted: {lastProcessRedactionMode}</Badge>
+            {/if}
+          </div>
+        {/if}
+
+        {#if $state.result?.parsePreview.errors.length}
+          <ul class="issue-list" aria-label="Parse errors">
             {#each $state.result.parsePreview.errors as err (err)}
               <li>{err}</li>
             {/each}
           </ul>
-        </Panel>
-      {/if}
+        {/if}
 
-      {#if sessionEngineEnabled && $state.session?.error}
-        <Panel title="Session preview fallback" tone="error">
-          <div class="session-diagnostic">{$state.session.error}</div>
-        </Panel>
-      {/if}
-
-      {#if sessionEngineEnabled && $sessionDiagnostics.length}
-        <Panel title="Session diagnostics">
-          <ul class="session-diagnostics">
+        {#if sessionEngineEnabled && $sessionDiagnostics.length}
+          <div class="diagnostics" aria-label="Session diagnostics" role="group">
             {#each $sessionDiagnostics as diagnostic (diagnostic.id)}
-              <li>
+              <div class="diagnostic">
                 <span class="mono">{diagnostic.code}</span>
-                <span>{diagnostic.message}</span>
+                <span class="diagnostic-message">{diagnostic.message}</span>
                 {#if diagnostic.path}
                   <button
-                    class="link"
+                    class="path-link mono"
                     type="button"
                     on:click={() => inspectPath(diagnostic.path ?? '')}
                     disabled={$state.loading}
@@ -1201,442 +1286,582 @@
                     {diagnostic.path}
                   </button>
                 {/if}
-              </li>
+              </div>
             {/each}
-          </ul>
-        </Panel>
-      {/if}
+          </div>
+        {/if}
 
-      <div class="tabs">
-        <Tabs tabs={tabs} active={activeTab} onChange={(k) => (activeTab = k as typeof activeTab)} />
-      </div>
+        <div class="results-tabs">
+          <Tabs
+            label="Results"
+            items={tabItems}
+            value={activeTab}
+            onchange={(id) => (activeTab = id as ResultsTab)}
+          />
+        </div>
 
-      {#if activeTab === 'samples'}
-        <SampleInbox
-          samples={$samples}
-          activeId={$activeId}
-          disabled={$state.loading}
-          currentRaw={$state.data}
-          on:importFiles={async (e) => importFiles(e.detail.files, 'first', e.detail)}
-          on:saveCurrent={(e) => {
-            const n = e.detail.name;
-            const source = e.detail.source?.trim() || $state.source;
-            const redactionMode = e.detail.redactionMode ?? 'none';
-            const raw = redactionMode !== 'none' ? redactHL7($state.data, redactionMode) : $state.data;
-            const input: NewHL7Sample = {
-              ...(n ? { name: n } : {}),
-              source,
-              ...(e.detail.feed?.trim() ? { feed: e.detail.feed.trim() } : {}),
-              ...(e.detail.tags?.length ? { tags: e.detail.tags } : {}),
-              ...(redactionMode !== 'none' ? { redactionMode } : {}),
-              raw
-            };
-            samplesStore.add(input);
-          }}
-          on:updateMeta={(e) => {
-            const before = $activeSample;
-            const changes = {
-              name: e.detail.name,
-              source: e.detail.source,
-              feed: e.detail.feed,
-              tags: e.detail.tags,
-              ...(e.detail.redactionMode !== undefined ? { redactionMode: e.detail.redactionMode } : {})
-            };
-            samplesStore.updateMeta(e.detail.id, changes);
-            if (before && before.id === e.detail.id && !activeSampleModified) {
-              state.update((s) => ({
-                ...s,
-                source: s.source === before.source ? e.detail.source : s.source
-              }));
-            }
-          }}
-          on:select={(e) => {
-            samplesStore.setActive(e.detail.id);
-            const s = $samples.find((x) => x.id === e.detail.id);
-            if (s) loadSample(s);
-          }}
-          on:remove={(e) => samplesStore.remove(e.detail.id)}
-          on:bulkRemove={(e) => {
-            for (const id of e.detail.ids) samplesStore.remove(id);
-          }}
-          on:bulkUpdateMeta={(e) => {
-            for (const id of e.detail.ids) samplesStore.updateMeta(id, e.detail.changes);
-          }}
-          on:clear={() => samplesStore.clear()}
-          on:loadExamples={() => samplesStore.loadDemoSamples()}
-        />
-      {:else if activeTab === 'warnings'}
-        <WarningList
-          groups={$warningsByPhase}
-          {selectedPath}
-          {explainLoadingCodes}
-          on:select={onSelectWarning}
-          on:inspect={onInspectWarning}
-          on:explain={onExplainWarning}
-          on:explainAll={onExplainAll}
-          on:resolve={(e) => handleResolveWarning(e.detail)}
-        />
-      {:else if activeTab === 'events'}
-        <EventLineagePanel
-          events={$events}
-          message={$hl7}
-          lineage={$state.session?.lineage ?? []}
-          on:inspectPath={(e) => inspectPath(e.detail.path)}
-        />
-      {:else if activeTab === 'extraction'}
-        <ExtractionPanel text={$state.data} />
-      {:else if activeTab === 'inspector'}
-        <HL7Inspector message={$hl7} selected={selectedLocation} />
-      {:else if activeTab === 'profile'}
-        <ProfileDraftPanel
-          fixes={fixes}
-          onApplyFix={applyFix}
-        />
-      {:else if activeTab === 'process'}
-        {#if processState.state === 'idle'}
-          <div class="empty">Press Process to submit this message to the backend pipeline.</div>
-        {:else if processState.state === 'running'}
-          <div class="empty mono">Submitting… correlationId={processState.correlationId}</div>
-        {:else if processState.state === 'error'}
-          <Panel title="Submit error" tone="error">
-            <div class="mono">correlationId={processState.correlationId}</div>
-            <div class="error">{processState.message}</div>
-          </Panel>
-        {:else if processState.state === 'done'}
-          <Panel title="Submit result" tone={processState.result.success ? 'default' : 'error'}>
-            <div class="meta">
-              <StatusPill variant={processState.result.success ? 'success' : 'danger'}>
-                {processState.result.success ? 'success' : 'failed'}
-              </StatusPill>
-              {#if processState.result.eventId}
-                <Badge mono>eventId={processState.result.eventId}</Badge>
-              {/if}
-              <Badge mono>correlationId={processState.correlationId}</Badge>
-              {#if lastProcessedSource}
-                <Badge mono>source={lastProcessedSource}</Badge>
-              {/if}
-              <Badge>workflows: {processState.result.workflowResults.length}</Badge>
-              <Badge>warnings: {processState.result.warnings.length}</Badge>
-              <Badge>errors: {processState.result.errors.length}</Badge>
-              <button class="pill stale" type="button" on:click={() => (activeTab = 'live')} disabled={$state.loading}>
-                view live events
-              </button>
-            </div>
-
-            {#if processState.result.errors.length}
-              <ul class="errors">
-                {#each processState.result.errors as err (err)}
-                  <li>{err}</li>
-                {/each}
-              </ul>
+        <div class="results-body">
+          {#if activeTab === 'samples'}
+            <SampleInbox
+              samples={$samples}
+              activeId={$activeId}
+              disabled={$state.loading}
+              currentRaw={$state.data}
+              on:importFiles={async (e) => importFiles(e.detail.files, 'first', e.detail)}
+              on:saveCurrent={(e) => {
+                const n = e.detail.name;
+                const source = e.detail.source?.trim() || $state.source;
+                const redactionMode = e.detail.redactionMode ?? 'none';
+                const raw = redactionMode !== 'none' ? redactHL7($state.data, redactionMode) : $state.data;
+                const input: NewHL7Sample = {
+                  ...(n ? { name: n } : {}),
+                  source,
+                  ...(e.detail.feed?.trim() ? { feed: e.detail.feed.trim() } : {}),
+                  ...(e.detail.tags?.length ? { tags: e.detail.tags } : {}),
+                  ...(redactionMode !== 'none' ? { redactionMode } : {}),
+                  raw
+                };
+                samplesStore.add(input);
+              }}
+              on:updateMeta={(e) => {
+                const before = $activeSample;
+                const changes = {
+                  name: e.detail.name,
+                  source: e.detail.source,
+                  feed: e.detail.feed,
+                  tags: e.detail.tags,
+                  ...(e.detail.redactionMode !== undefined ? { redactionMode: e.detail.redactionMode } : {})
+                };
+                samplesStore.updateMeta(e.detail.id, changes);
+                if (before && before.id === e.detail.id && !activeSampleModified) {
+                  state.update((s) => ({
+                    ...s,
+                    source: s.source === before.source ? e.detail.source : s.source
+                  }));
+                }
+              }}
+              on:select={(e) => {
+                samplesStore.setActive(e.detail.id);
+                const s = $samples.find((x) => x.id === e.detail.id);
+                if (s) loadSample(s);
+              }}
+              on:remove={(e) => samplesStore.remove(e.detail.id)}
+              on:bulkRemove={(e) => {
+                for (const id of e.detail.ids) samplesStore.remove(id);
+              }}
+              on:bulkUpdateMeta={(e) => {
+                for (const id of e.detail.ids) samplesStore.updateMeta(id, e.detail.changes);
+              }}
+              on:clear={() => samplesStore.clear()}
+              on:loadExamples={() => samplesStore.loadDemoSamples()}
+            />
+          {:else if activeTab === 'warnings'}
+            {#if !$state.result}
+              <EmptyState align="start" message="Preview the message to list parse warnings by phase." />
+            {:else}
+              <WarningList
+                groups={$warningsByPhase}
+                {selectedPath}
+                {explainLoadingCodes}
+                on:select={onSelectWarning}
+                on:inspect={onInspectWarning}
+                on:explain={onExplainWarning}
+                on:explainAll={onExplainAll}
+                on:resolve={(e) => handleResolveWarning(e.detail)}
+              />
             {/if}
-
-            {#if processState.result.workflowResults.length}
-              <div class="wf-table">
-                <div class="wf-head">
-                  <div>Workflow</div>
-                  <div>Routes</div>
-                  <div>Actions</div>
-                  <div>Errors</div>
-                  <div>Ms</div>
-                </div>
-                {#each processState.result.workflowResults as wf, idx (wf.workflowName + ':' + idx)}
-                  <div class="wf-row">
-                    <div class="mono">{wf.workflowName}</div>
-                    <div class="mono">{wf.routesMatched}</div>
-                    <div class="mono">{wf.actionsExecuted}</div>
-                    <div class="mono">{wf.errors.length}</div>
-                    <div class="mono">{wf.duration}</div>
-                  </div>
-                {/each}
+          {:else if activeTab === 'events'}
+            {#if !$state.result}
+              <EmptyState align="start" message="Preview the message to see the extracted semantic events." />
+            {:else}
+              <EventLineagePanel
+                events={$events}
+                message={$hl7}
+                lineage={$state.session?.lineage ?? []}
+                on:inspectPath={(e) => inspectPath(e.detail.path)}
+              />
+              <div class="quality">
+                <QualityBadge
+                  event={$events[0] ?? { raw: $state.data, source: $state.source }}
+                  eventType={inferredEventType}
+                />
               </div>
             {/if}
-          </Panel>
-        {/if}
-      {:else if activeTab === 'live'}
-        <EventStreamPanel
-          initialSource={lastProcessedSource ?? $state.source}
-          initialCorrelationId={
-            processState.state === 'running' || processState.state === 'error' || processState.state === 'done'
-              ? processState.correlationId
-              : ''
-          }
-        />
-      {/if}
-    {/if}
-  </Panel>
+          {:else if activeTab === 'extraction'}
+            <ExtractionPanel text={$state.data} />
+          {:else if activeTab === 'inspector'}
+            <HL7Inspector
+              message={$hl7}
+              selected={selectedLocation}
+              on:selectPath={(e) => inspectPath(e.detail.path)}
+            />
+          {:else if activeTab === 'profile'}
+            <ProfileDraftPanel {fixes} onApplyFix={applyFix} />
+          {:else if activeTab === 'process'}
+            {#if processState.state === 'idle'}
+              <EmptyState align="start" icon={Send} message="Process submits this message to the backend pipeline." />
+            {:else if processState.state === 'running'}
+              <p class="muted-line">
+                Submitting… correlation id <span class="mono">{processState.correlationId}</span>
+              </p>
+            {:else if processState.state === 'error'}
+              <div class="process-error" role="alert">
+                <KeyValue items={[{ key: 'Correlation id', value: processState.correlationId, mono: true }]} />
+                <p>{processState.message}</p>
+              </div>
+            {:else if processState.state === 'done'}
+              <div class="process-result">
+                <div class="process-head">
+                  <Badge tone={processState.result.success ? 'success' : 'danger'} dot>
+                    {processState.result.success ? 'Submitted' : 'Submission failed'}
+                  </Badge>
+                  <Button variant="ghost" disabled={$state.loading} onclick={() => (activeTab = 'live')}>
+                    View live events
+                  </Button>
+                </div>
+                <KeyValue
+                  columns={2}
+                  items={[
+                    { key: 'Event id', value: processState.result.eventId, mono: true, truncate: true },
+                    { key: 'Correlation id', value: processState.correlationId, mono: true, truncate: true },
+                    { key: 'Source', value: lastProcessedSource, mono: true },
+                    { key: 'Workflows', value: processState.result.workflowResults.length, mono: true },
+                    { key: 'Warnings', value: processState.result.warnings.length, mono: true },
+                    { key: 'Errors', value: processState.result.errors.length, mono: true }
+                  ]}
+                />
+
+                {#if processState.result.errors.length}
+                  <ul class="issue-list">
+                    {#each processState.result.errors as err (err)}
+                      <li>{err}</li>
+                    {/each}
+                  </ul>
+                {/if}
+
+                {#if processState.result.workflowResults.length}
+                  <Table label="Workflow results" layout="fixed">
+                    {#snippet head()}
+                      <tr>
+                        <Th>Workflow</Th>
+                        <Th width="80px" numeric>Routes</Th>
+                        <Th width="80px" numeric>Actions</Th>
+                        <Th width="80px" numeric>Errors</Th>
+                        <Th width="80px" numeric>ms</Th>
+                      </tr>
+                    {/snippet}
+                    {#each processState.result.workflowResults as wf, idx (wf.workflowName + ':' + idx)}
+                      <Tr>
+                        <Td mono truncate value={wf.workflowName} />
+                        <Td numeric value={wf.routesMatched} />
+                        <Td numeric value={wf.actionsExecuted} />
+                        <Td numeric value={wf.errors.length} />
+                        <Td numeric value={wf.duration} />
+                      </Tr>
+                    {/each}
+                  </Table>
+                {/if}
+              </div>
+            {/if}
+          {:else if activeTab === 'live'}
+            <EventStreamPanel
+              initialSource={lastProcessedSource ?? $state.source}
+              initialCorrelationId={
+                processState.state === 'running' || processState.state === 'error' || processState.state === 'done'
+                  ? processState.correlationId
+                  : ''
+              }
+            />
+          {/if}
+        </div>
+      </div>
+    </SplitPane>
+  </div>
 </div>
 
 <style>
-  .flow-shell {
-    margin-bottom: 14px;
-  }
-
-  .grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 14px;
-  }
-
-  @media (min-width: 980px) {
-    .grid {
-      grid-template-columns: 1.1fr 0.9fr;
-      align-items: start;
-    }
-  }
-
-  .row {
+  .intake {
     display: flex;
-    gap: 12px;
-    align-items: flex-end;
-    justify-content: space-between;
-    margin-bottom: 10px;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
   }
 
-  .active-sample {
-    display: flex;
-    gap: 10px;
-    align-items: baseline;
-    flex-wrap: wrap;
-    margin-bottom: 10px;
-  }
-
-  .recent {
-    display: grid;
-    gap: 8px;
-    margin-bottom: 10px;
-  }
-
-  .recent-label {
-    font-size: 0.9rem;
-  }
-
-  .chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-	  .chip {
-	    padding: 4px 10px;
-	    border-radius: 999px;
-	    border: 1px solid var(--color-border-strong);
-	    background: var(--color-bg-surface);
-	    color: var(--color-text-secondary);
-	    cursor: pointer;
-	    font-weight: 650;
-	    font-size: 0.85rem;
-	  }
-	
-	  .chip:hover:enabled {
-	    background: var(--color-bg-hover);
-	  }
-
-  .chip:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
-  }
-
-  .hotkeys {
-    font-size: 0.85rem;
-    margin-bottom: 10px;
-  }
-
-	  .mono {
-	    font-family: var(--font-mono);
-	  }
-	
-	  .muted {
-	    color: var(--color-text-tertiary);
-	  }
-
-  .link {
-    border: none;
-    background: transparent;
-    padding: 0;
-    color: rgba(147, 197, 253, 0.95);
-    cursor: pointer;
-    font-weight: 700;
-    text-decoration: underline;
-    text-underline-offset: 3px;
-  }
-
-  .link:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
+  .redaction-select {
+    display: inline-flex;
+    width: 200px;
   }
 
   .file-input {
     display: none;
   }
 
-  .drop-target {
+  .pipeline-row {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    min-width: 0;
+    height: 36px;
+    padding: 0 var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .workspace {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  /* ── Editor pane ───────────────────────────────────────────────────── */
+  .editor-pane {
     position: relative;
-  }
-
-  .redaction {
     display: flex;
-    gap: 10px;
-    align-items: flex-end;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    margin-bottom: 10px;
+    flex-direction: column;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
   }
 
-  .stats {
+  .editor-pane.dragging {
+    outline: 2px dashed var(--color-primary);
+    outline-offset: -2px;
+  }
+
+  .editor-bar {
     display: flex;
-    gap: 8px;
     flex-wrap: wrap;
-    margin: 0 0 10px;
+    align-items: center;
+    gap: var(--space-1) var(--space-3);
+    flex: 0 0 auto;
+    min-height: 36px;
+    padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
   }
 
-  .redaction-label {
-    min-width: 320px;
+  .inline-field {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
   }
 
-	  .hint {
-	    font-size: 0.8rem;
-	    color: var(--color-text-muted);
-	  }
-	
-	  .checkbox {
-	    display: inline-flex;
-	    align-items: center;
-	    gap: 8px;
-	    color: var(--color-text-secondary);
-	    font-weight: 700;
-	    font-size: 0.9rem;
-	    user-select: none;
-	    margin-bottom: 6px;
-	  }
+  .inline-label {
+    font-size: var(--text-label);
+    font-weight: var(--font-medium);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--color-text-tertiary);
+  }
 
-  .drop-target.dragging {
-    outline: 2px dashed rgba(59, 130, 246, 0.7);
-    outline-offset: 8px;
-    border-radius: 12px;
+  .source-input {
+    display: inline-flex;
+    width: 160px;
+  }
+
+  .sample-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    max-width: 180px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--color-text-secondary);
+    font: inherit;
+    font-size: var(--text-xs);
+    cursor: pointer;
+  }
+
+  .sample-link:hover:not(:disabled) {
+    color: var(--color-text-primary);
+  }
+
+  .sample-link:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  .sample-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
+  }
+
+  .editor-bar-end {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-left: auto;
+  }
+
+  .check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--text-xs);
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+    user-select: none;
+  }
+
+  .check input {
+    margin: 0;
+    accent-color: var(--color-primary);
+  }
+
+  .editor-body {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    background: var(--editor-bg, var(--color-bg-base));
+  }
+
+  /* The pane owns the edges; the editor theme's own frame would double them. */
+  .editor-body :global(.cm-editor) {
+    border-width: 0;
+    border-radius: 0;
   }
 
   .drop-hint {
     position: absolute;
-    inset: 10px;
-    border-radius: 12px;
-    background: rgba(15, 23, 42, 0.75);
-    border: 1px solid rgba(59, 130, 246, 0.35);
-    color: rgba(219, 234, 254, 0.95);
+    inset: var(--space-3);
     display: grid;
     place-items: center;
-    font-weight: 800;
+    border: 1px dashed var(--color-primary-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-overlay);
+    color: var(--color-text-primary);
+    font-size: var(--text-ui);
     pointer-events: none;
   }
 
-	  .label {
-	    display: grid;
-	    gap: 6px;
-	    color: var(--color-text-secondary);
-	    font-size: 0.9rem;
-	    min-width: 260px;
-	    flex: 1;
-	  }
-	
-	  .input {
-	    padding: 10px 12px;
-	    border-radius: var(--radius-xl);
-	    border: 1px solid var(--color-border-default);
-	    background: var(--color-bg-input);
-	    color: var(--color-text-primary);
-	    outline: none;
-	  }
-	
-	  .input:focus {
-	    border-color: var(--color-border-focus);
-	    box-shadow: var(--shadow-focus);
-	  }
-
-  .actions {
+  .editor-foot {
     display: flex;
-    justify-content: flex-end;
-    flex: 0;
+    align-items: center;
+    gap: var(--space-4);
+    flex: 0 0 auto;
+    height: 24px;
+    padding: 0 var(--space-3);
+    border-top: 1px solid var(--color-border-subtle);
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+    white-space: nowrap;
+    overflow: hidden;
   }
 
-  .error {
-    margin-top: 10px;
-    padding: 10px 12px;
-    border-radius: 12px;
-    border: 1px solid rgba(239, 68, 68, 0.45);
-    background: rgba(239, 68, 68, 0.08);
-    color: rgba(254, 226, 226, 0.9);
+  /* ── Results pane ──────────────────────────────────────────────────── */
+  .results-pane {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    background: var(--color-bg-elevated);
   }
 
-	  .empty {
-	    color: var(--color-text-tertiary);
-	  }
-
-  .meta {
+  .status-line {
     display: flex;
-    gap: 8px;
+    align-items: center;
+    gap: var(--space-3);
+    flex: 0 0 auto;
+    min-height: 36px;
+    padding: var(--space-1) var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .session-status {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .run-error {
+    margin: 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-xs);
+    color: var(--color-danger-text);
+  }
+
+  .run-state {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .status-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-xs);
+    color: var(--color-text-secondary);
+  }
+
+  .results-pane > :global(.streaming-unavailable) {
+    flex: 0 0 auto;
+    margin: var(--space-2) var(--space-3) 0;
+  }
+
+  .context-row {
+    display: flex;
     flex-wrap: wrap;
-    margin-bottom: 12px;
+    align-items: center;
+    gap: var(--space-1) var(--space-4);
+    flex: 0 0 auto;
+    padding: var(--space-2) var(--space-3) 0;
+    font-size: var(--text-xs);
+    color: var(--color-text-secondary);
   }
 
-	  .pill {
-	    padding: 4px 10px;
-	    border-radius: 999px;
-	    border: 1px solid var(--color-border-strong);
-	    background: var(--color-bg-surface);
-	    color: var(--color-text-secondary);
-	    font-weight: 650;
-	    font-size: 0.85rem;
-	  }
+  .ctx {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
 
-  .pill.stale {
-    border-color: rgba(245, 158, 11, 0.45);
-    background: rgba(245, 158, 11, 0.15);
-    color: rgba(253, 230, 138, 0.95);
+  .ctx-key {
+    color: var(--color-text-tertiary);
+  }
+
+  .ctx-id {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ctx-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
     cursor: pointer;
-    transition: all 0.15s ease;
   }
 
-  .pill.stale:hover:not(:disabled) {
-    background: rgba(245, 158, 11, 0.25);
+  .ctx-link:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
   }
 
-  .pill.stale:disabled {
+  .issue-list {
+    display: grid;
+    gap: 2px;
+    flex: 0 0 auto;
+    margin: var(--space-2) var(--space-3) 0;
+    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-6);
+    border: 1px solid var(--color-danger-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-danger-bg);
+    color: var(--color-danger-text);
+    font-size: var(--text-xs);
+  }
+
+  .diagnostics {
+    display: grid;
+    gap: 2px;
+    flex: 0 0 auto;
+    margin: var(--space-2) var(--space-3) 0;
+    font-size: var(--text-xs);
+    color: var(--color-text-secondary);
+  }
+
+  .diagnostic {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+
+  .diagnostic-message {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .path-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--color-accent-text);
+    cursor: pointer;
+  }
+
+  .path-link:hover:not(:disabled) {
+    text-decoration: underline;
+  }
+
+  .path-link:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
 
-  .tabs {
-    margin: 12px 0;
-  }
-
-  .errors {
-    margin: 0;
-    padding-left: 18px;
-    color: rgba(254, 226, 226, 0.9);
-  }
-
-  .session-diagnostic {
-    color: var(--color-text-secondary);
-    font-family: var(--font-mono);
-    font-size: 0.86rem;
-  }
-
-  .session-diagnostics {
-    display: grid;
-    gap: 8px;
-    margin: 0;
-    padding-left: 18px;
-    color: var(--color-text-secondary);
-  }
-
-  .session-diagnostics li {
+  .results-tabs {
     display: flex;
-    gap: 8px;
-    align-items: baseline;
-    flex-wrap: wrap;
+    flex: 0 0 auto;
+    height: 36px;
+    margin-top: var(--space-2);
+    padding: 0 var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
   }
 
-  .quality-section {
-    margin: 12px 0;
+  .results-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding: var(--space-3);
+  }
+
+  .quality {
+    margin-top: var(--space-3);
+  }
+
+  .muted-line {
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+
+  .process-error {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--color-danger-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-danger-bg);
+  }
+
+  .process-error p {
+    margin: 0;
+    color: var(--color-danger-text);
+    font-size: var(--text-xs);
+  }
+
+  .process-result {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .process-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+
+  .mono {
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
   }
 </style>

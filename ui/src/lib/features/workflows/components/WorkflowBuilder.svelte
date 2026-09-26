@@ -1,10 +1,30 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { get } from 'svelte/store';
-  import { slide } from 'svelte/transition';
-  import Panel from '$lib/ui/Panel.svelte';
-  import Button from '$lib/ui/Button.svelte';
-  import Badge from '$lib/ui/Badge.svelte';
+  import Check from '@lucide/svelte/icons/check';
+  import Circle from '@lucide/svelte/icons/circle';
+  import CircleAlert from '@lucide/svelte/icons/circle-alert';
+  import FileCode from '@lucide/svelte/icons/file-code';
+  import Play from '@lucide/svelte/icons/play';
+  import Plus from '@lucide/svelte/icons/plus';
+  import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
+  import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
+  import WandSparkles from '@lucide/svelte/icons/wand-sparkles';
+  import {
+    Badge,
+    Button,
+    EmptyState,
+    Field,
+    Icon,
+    Input,
+    KeyValue,
+    Panel,
+    Select,
+    Table,
+    Td,
+    Th,
+    Tr
+  } from '$lib/ui/primitives';
   import RouteEditor from './RouteEditor.svelte';
   import WorkflowPreview from './WorkflowPreview.svelte';
   import DryRunPanel from './DryRunPanel.svelte';
@@ -96,6 +116,46 @@
 
   let lastDryRunResult: DryRunResult | null = null;
 
+  const ENVIRONMENT_OPTIONS = [
+    { value: 'staging', label: 'staging' },
+    { value: 'production', label: 'production' }
+  ];
+  const INVALID_DRAFT_REASON = 'Resolve workflow validation errors first';
+
+  $: selectedVersionRecord = versionHistory.find((version) => version.id === selectedVersionId) ?? null;
+
+  // This is a legacy-mode component: a template expression re-runs only when a
+  // variable it names changes, not when state read inside a called function
+  // does. The readiness checks read that state inside functions, so they are
+  // recomputed here whenever one of their inputs changes.
+  $: readinessInputs = [
+    linkedWorkflowId,
+    selectedVersionId,
+    versionHistory,
+    hasUnsavedManagedChanges,
+    publishEnvironment,
+    approvalStateByVersion,
+    $isWorkflowValid
+  ] as const;
+  $: readiness = readinessInputs && {
+    canPublish: canPublishSelectedVersion(),
+    canApprove: canRequestApproval(),
+    publishBlockers: getPublishBlockers(),
+    approvalBlockers: getApprovalBlockers(),
+    items: getReadinessItems($isWorkflowValid),
+    approvalGranted: hasApprovedProductionRequest(),
+    approvalPending: hasPendingProductionRequest()
+  };
+
+  function formatTime(ts: string): string {
+    const date = new Date(ts);
+    if (Number.isNaN(date.getTime())) return ts;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(
+      date.getHours()
+    )}:${pad(date.getMinutes())}`;
+  }
+
   // Explanatory tooltips for disabled managed-version controls (UX policy B2/D2:
   // preconditions are surfaced on the disabled control, not via a post-click toast).
   $: saveDisabledReason = !linkedWorkflowId
@@ -121,12 +181,14 @@
     }
   }
 
+  // Compares the live draft ($workflowDraft, so edits are seen) with the
+  // baseline, which is always draftToYaml output so formatting never counts.
   $: {
     if (!managedBaselineYaml) {
       hasUnsavedManagedChanges = false;
     } else {
       try {
-        const currentYaml = draftToYaml(get(workflowDraft));
+        const currentYaml = draftToYaml($workflowDraft);
         hasUnsavedManagedChanges = currentYaml !== managedBaselineYaml;
       } catch {
         hasUnsavedManagedChanges = false;
@@ -588,7 +650,7 @@
       selectedVersionId = data.workflowVersion.id;
       loadedVersionNumber = data.workflowVersion.versionNumber;
       linkedWorkflowId = data.workflowVersion.workflowId;
-      managedBaselineYaml = data.workflowVersion.yaml;
+      managedBaselineYaml = draftToYaml(parsedDraft);
       await refreshApprovalStateIfNeeded();
       toasts.success(`Loaded v${data.workflowVersion.versionNumber} into builder`);
     } catch (err) {
@@ -777,89 +839,174 @@
 </script>
 
 <div class="builder">
-  <Panel>
-    <div class="builder-header">
-      <div class="name-version">
-        <label class="field-label">
-          Workflow Name
-          <input
-            type="text"
-            class="input"
+  <div class="builder-main">
+    <Panel title="Definition">
+      <div class="form-grid">
+        <Field label="Workflow name">
+          <Input
+            mono
             value={$workflowDraft.name}
             placeholder="e.g. adt-routing"
-            on:input={(e) =>
+            oninput={(e) =>
               workflowDraft.update((d) => ({
                 ...d,
-                name: (e.target as HTMLInputElement).value
+                name: e.currentTarget.value
               }))}
           />
-        </label>
-        <label class="field-label version-field">
-          Version
-          <input
-            type="text"
-            class="input"
+        </Field>
+        <Field label="Version">
+          <Input
+            mono
             value={$workflowDraft.version}
             placeholder="1.0"
-            on:input={(e) =>
+            oninput={(e) =>
               workflowDraft.update((d) => ({
                 ...d,
-                version: (e.target as HTMLInputElement).value
+                version: e.currentTarget.value
               }))}
           />
-        </label>
-      </div>
-
-      <label class="field-label">
-        Description
-        <input
-          type="text"
-          class="input"
-          bind:value={linkedDescription}
-          placeholder="Optional managed workflow description"
-        />
-      </label>
-
-      <div class="template-row">
-        <label class="field-label">
-          Workflow Template
-          <select class="input" bind:value={selectedTemplateId}>
+        </Field>
+        <Field label="Description" class="span-2">
+          <Input bind:value={linkedDescription} placeholder="Optional managed workflow description" />
+        </Field>
+        <Field label="Template">
+          <Select bind:value={selectedTemplateId}>
             {#each WORKFLOW_TEMPLATES as template (template.id)}
-              <option value={template.id}>{template.name} - {template.description}</option>
+              <option value={template.id}>{template.name} · {template.description}</option>
             {/each}
-          </select>
-        </label>
-        <label class="field-label">
-          Template Name Override
-          <input
-            type="text"
-            class="input"
-            bind:value={templateOverrideName}
-            placeholder="Optional name override before loading template"
-          />
-        </label>
-        <div class="template-actions">
-          <Button variant="secondary" size="sm" on:click={applyTemplate}>Create from Template</Button>
-        </div>
+          </Select>
+        </Field>
+        <Field label="Template name override">
+          <div class="inline-control">
+            <Input bind:value={templateOverrideName} placeholder="Optional name for the new draft" />
+            <Button onclick={applyTemplate}>Create from template</Button>
+          </div>
+        </Field>
       </div>
+    </Panel>
 
-      <div class="managed-row">
-        <div class="managed-summary">
-          <div class="managed-label">Managed Definition</div>
-          {#if linkedWorkflowId}
-            <div class="managed-value mono">{linkedWorkflowId}</div>
-            <div class="managed-name muted">{linkedWorkflowName}</div>
-          {:else}
-            <div class="managed-value muted">Not connected</div>
-          {/if}
+    <Panel title="Routes" flush>
+      {#snippet actions()}
+        <Badge mono>{$workflowDraft.routes.length}</Badge>
+        <Button variant="ghost" icon={Plus} onclick={() => workflowDraft.addRoute()}>Add route</Button>
+      {/snippet}
+      {#if $workflowDraft.routes.length === 0}
+        <EmptyState align="start" message="No routes. Add a route to match events and run actions." />
+      {:else}
+        <div class="routes">
+          {#each $workflowDraft.routes as route (route._key)}
+            <RouteEditor
+              {route}
+              dryRunResult={lastDryRunResult?.routeResults.find((r) => r.routeName === route.name) ?? null}
+              on:toggleExpand={() => workflowDraft.toggleRouteExpanded(route._key)}
+              on:remove={() => workflowDraft.removeRoute(route._key)}
+              on:updateName={(e) => workflowDraft.updateRoute(route._key, { name: e.detail })}
+              on:updateFilter={(e) => workflowDraft.updateRoute(route._key, { filter: e.detail })}
+              on:addTransform={() => workflowDraft.addTransform(route._key)}
+              on:removeTransform={(e) =>
+                workflowDraft.removeTransform(route._key, e.detail.transformKey)}
+              on:changeTransform={(e) =>
+                workflowDraft.updateTransform(route._key, e.detail.transformKey, e.detail.transform)}
+              on:moveTransform={(e) =>
+                workflowDraft.moveTransform(route._key, e.detail.transformKey, e.detail.direction)}
+              on:addAction={() => workflowDraft.addAction(route._key)}
+              on:removeAction={(e) => workflowDraft.removeAction(route._key, e.detail.actionKey)}
+              on:changeAction={(e) =>
+                workflowDraft.updateAction(route._key, e.detail.actionKey, e.detail.action)}
+              on:moveAction={(e) =>
+                workflowDraft.moveAction(route._key, e.detail.actionKey, e.detail.direction)}
+              on:moveRoute={(e) => workflowDraft.moveRoute(route._key, e.detail)}
+            />
+          {/each}
         </div>
+      {/if}
+    </Panel>
 
-        <label class="field-label">
-          Load Version
-          <select
-            class="input"
-            bind:value={selectedVersionId}
-            on:change={() => {
+    <div class="draft-actions" role="group" aria-label="Draft actions">
+      <Button
+        icon={FileCode}
+        onclick={() => {
+          showPreview = !showPreview;
+          showDryRun = false;
+          showGenerate = false;
+        }}
+        disabled={!$isWorkflowValid}
+        title={$isWorkflowValid ? undefined : INVALID_DRAFT_REASON}
+      >
+        {showPreview ? 'Hide preview' : 'Preview YAML'}
+      </Button>
+      <Button
+        icon={Play}
+        onclick={() => {
+          showDryRun = !showDryRun;
+          showPreview = false;
+          showGenerate = false;
+        }}
+        disabled={!$isWorkflowValid}
+        title={$isWorkflowValid ? undefined : INVALID_DRAFT_REASON}
+      >
+        {showDryRun ? 'Hide dry run' : 'Dry run'}
+      </Button>
+      <Button
+        icon={WandSparkles}
+        onclick={() => {
+          showGenerate = !showGenerate;
+          showPreview = false;
+          showDryRun = false;
+        }}
+      >
+        {showGenerate ? 'Hide generator' : 'Generate with AI'}
+      </Button>
+      <span class="spacer"></span>
+      <Button variant="ghost" icon={RotateCcw} onclick={resetDraftWithGuard}>Reset</Button>
+    </div>
+
+    {#if showPreview}
+      <WorkflowPreview />
+    {/if}
+
+    {#if showDryRun}
+      <DryRunPanel on:result={(e) => handleDryRunResult(e.detail)} />
+    {/if}
+
+    {#if showGenerate}
+      <GenerateFromDescription />
+    {/if}
+
+    <WorkflowDraftLibrary
+      pushToServerEnabled={!!linkedWorkflowId}
+      promoteImportEnabled={!!linkedWorkflowId}
+      on:pushSnapshot={promoteSnapshotToServer}
+      on:promoteImportYaml={promoteImportedYamlToServer}
+    />
+  </div>
+
+  <aside class="builder-side" aria-label="Managed version">
+    <Panel title="Managed version">
+      <div class="stack">
+        <KeyValue
+          items={[
+            {
+              key: 'Definition',
+              value: linkedWorkflowId || 'Not linked',
+              mono: !!linkedWorkflowId,
+              truncate: true
+            },
+            { key: 'Name', value: linkedWorkflowName, mono: true, truncate: true },
+            {
+              key: 'Loaded',
+              value: loadedVersionNumber !== null ? `v${loadedVersionNumber}` : null,
+              mono: true
+            }
+          ]}
+        />
+
+        <Field label="Load version">
+          <Select
+            mono
+            value={selectedVersionId}
+            onchange={(e) => {
+              selectedVersionId = e.currentTarget.value;
               void refreshApprovalStateIfNeeded();
             }}
             disabled={loadingVersionHistory || versionHistory.length === 0}
@@ -868,831 +1015,516 @@
               <option value="">No versions</option>
             {:else}
               {#each versionHistory as version (version.id)}
-                <option value={version.id}>
-                  v{version.versionNumber} · {new Date(version.createdAt).toLocaleString()}
-                </option>
+                <option value={version.id}>v{version.versionNumber} · {formatTime(version.createdAt)}</option>
               {/each}
             {/if}
-          </select>
-        </label>
+          </Select>
+        </Field>
 
-        <label class="field-label">
-          Publish Env
-          <select
-            class="input"
-            bind:value={publishEnvironment}
-            on:change={() => {
-              void refreshApprovalStateIfNeeded();
-            }}
-          >
-            <option value="staging">staging</option>
-            <option value="production">production</option>
-          </select>
-        </label>
-
-        <label class="field-label">
-          Notes
-          <input
-            type="text"
-            class="input"
-            bind:value={versionNotes}
-            placeholder="Version notes or approval comment"
-          />
-        </label>
-      </div>
-
-      <div class="managed-actions">
-        <Button
-          variant="secondary"
-          size="sm"
-          on:click={createManagedDefinition}
-          loading={creatingDefinition}
-          disabled={!!linkedWorkflowId}
-        >
-          {creatingDefinition ? 'Creating...' : 'Create Definition'}
-        </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          on:click={refreshVersionHistory}
-          loading={loadingVersionHistory}
-          disabled={!linkedWorkflowId}
-        >
-          {loadingVersionHistory ? 'Refreshing...' : 'Refresh Versions'}
-        </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          on:click={() => loadVersionIntoBuilder(selectedVersionId)}
-          loading={loadingVersion}
-          disabled={!selectedVersionId || !linkedWorkflowId}
-        >
-          {loadingVersion ? 'Loading...' : 'Load Version'}
-        </Button>
-        <Button
-          size="sm"
-          on:click={saveManagedVersion}
-          loading={savingVersion}
-          disabled={!linkedWorkflowId || !$isWorkflowValid}
-          title={saveDisabledReason}
-        >
-          {savingVersion ? 'Saving...' : 'Save Version'}
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          on:click={publishManagedVersion}
-          loading={publishingVersion}
-          disabled={!canPublishSelectedVersion()}
-        >
-          {publishingVersion ? 'Publishing...' : 'Publish'}
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          on:click={requestApproval}
-          loading={requestingApproval}
-          disabled={!canRequestApproval()}
-        >
-          {requestingApproval
-            ? 'Requesting...'
-            : publishEnvironment === 'production'
-              ? 'Request Production Approval'
-              : 'Request Approval'}
-        </Button>
-        <Button variant="secondary" size="sm" on:click={unlinkManagedDefinition}>
-          Unlink
-        </Button>
-      </div>
-
-      {#if hasUnsavedManagedChanges}
-        <div class="unsaved-hint warning">
-          Unsaved managed changes detected. Save a new version before loading another version,
-          unlinking, or resetting this draft.
+        <div class="form-grid">
+          <Field label="Publish env">
+            <Select
+              options={ENVIRONMENT_OPTIONS}
+              value={publishEnvironment}
+              onchange={(e) => {
+                publishEnvironment = e.currentTarget.value;
+                void refreshApprovalStateIfNeeded();
+              }}
+            />
+          </Field>
+          <Field label="Notes">
+            <Input bind:value={versionNotes} placeholder="Version or approval note" />
+          </Field>
         </div>
-      {/if}
 
-      <div class="publish-readiness">
-        <div class="managed-label">Publish Readiness</div>
-        {#if canPublishSelectedVersion()}
-          <div class="checklist-note success">
-            Selected version is ready to publish to <span class="mono">{publishEnvironment}</span>.
-          </div>
-        {:else}
-          <div class="publish-blockers" role="alert">
-            {#each getPublishBlockers() as blocker (blocker)}
-              <div class="publish-blocker-item">{blocker}</div>
-            {/each}
-          </div>
+        <div class="button-wrap">
+          <Button
+            variant="primary"
+            onclick={saveManagedVersion}
+            loading={savingVersion}
+            disabled={!linkedWorkflowId || !$isWorkflowValid}
+            title={saveDisabledReason}
+          >
+            {savingVersion ? 'Saving...' : 'Save version'}
+          </Button>
+          <Button
+            onclick={publishManagedVersion}
+            loading={publishingVersion}
+            disabled={!readiness.canPublish}
+          >
+            {publishingVersion ? 'Publishing...' : 'Publish'}
+          </Button>
+          <Button onclick={requestApproval} loading={requestingApproval} disabled={!readiness.canApprove}>
+            {requestingApproval
+              ? 'Requesting...'
+              : publishEnvironment === 'production'
+                ? 'Request production approval'
+                : 'Request approval'}
+          </Button>
+          <Button
+            onclick={() => loadVersionIntoBuilder(selectedVersionId)}
+            loading={loadingVersion}
+            disabled={!selectedVersionId || !linkedWorkflowId}
+          >
+            {loadingVersion ? 'Loading...' : 'Load version'}
+          </Button>
+          <Button
+            onclick={refreshVersionHistory}
+            loading={loadingVersionHistory}
+            disabled={!linkedWorkflowId}
+          >
+            {loadingVersionHistory ? 'Refreshing...' : 'Refresh versions'}
+          </Button>
+          <Button
+            onclick={createManagedDefinition}
+            loading={creatingDefinition}
+            disabled={!!linkedWorkflowId}
+          >
+            {creatingDefinition ? 'Creating...' : 'Create definition'}
+          </Button>
+          <Button variant="ghost" onclick={unlinkManagedDefinition}>Unlink</Button>
+        </div>
+
+        {#if hasUnsavedManagedChanges}
+          <p class="note is-warning">
+            <Icon icon={TriangleAlert} />
+            <span>Unsaved changes. Save a version before loading another, unlinking or resetting.</span>
+          </p>
+        {/if}
+        {#if lifecycleError}
+          <p class="note is-error" role="alert">
+            <Icon icon={CircleAlert} />
+            <span>{lifecycleError}</span>
+          </p>
+        {/if}
+        {#if pushedSnapshotId}
+          <p class="note">Promoting local snapshot to a managed version...</p>
+        {/if}
+        {#if promotingImportYaml}
+          <p class="note">Promoting imported YAML to a managed version...</p>
         {/if}
       </div>
+    </Panel>
 
-      <div class="approval-readiness">
-        <div class="managed-label">Approval Readiness</div>
-        {#if canRequestApproval()}
-          <div class="checklist-note success">
-            Selected version is ready for a production approval request.
-          </div>
-        {:else}
-          <div class="approval-blockers" role="alert">
-            {#each getApprovalBlockers() as blocker (blocker)}
-              <div class="approval-blocker-item">{blocker}</div>
-            {/each}
-          </div>
-        {/if}
-      </div>
-      {#if linkedWorkflowId}
-        <div class="version-history">
-          <div class="version-history-header">
-            <div class="managed-label">Version History</div>
-            <div class="muted">{versionHistory.length} version{versionHistory.length === 1 ? '' : 's'}</div>
-          </div>
-          {#if loadingVersionHistory}
-            <div class="checklist-note muted">Loading version history...</div>
-          {:else if versionHistory.length === 0}
-            <div class="checklist-note muted">No saved versions yet.</div>
+    <Panel title="Readiness">
+      <div class="stack">
+        <div class="check-group">
+          <h3 class="group-title">Publish</h3>
+          {#if readiness.canPublish}
+            <p class="check is-ready">
+              <Icon icon={Check} />
+              <span>Ready to publish to <span class="text-mono">{publishEnvironment}</span></span>
+            </p>
           {:else}
-            <div class="version-history-list">
-              {#each versionHistory as version (version.id)}
-                <div
-                  class="version-card"
-                  class:selected={selectedVersionId === version.id}
-                  class:loaded={loadedVersionNumber === version.versionNumber}
-                >
-                  <div class="version-card-main">
-                    <div class="version-card-title">
-                      <span class="mono">v{version.versionNumber}</span>
-                      {#if selectedVersionId === version.id}
-                        <Badge variant="primary" size="sm" pill>selected</Badge>
-                      {/if}
-                      {#if loadedVersionNumber === version.versionNumber}
-                        <Badge variant="default" size="sm" pill>loaded</Badge>
-                      {/if}
-                      <Badge variant={version.validation.valid ? 'success' : 'danger'} size="sm" pill>
-                        {version.validation.valid ? 'valid' : 'invalid'}
-                      </Badge>
-                    </div>
-                    <div class="version-card-meta muted">
-                      {new Date(version.createdAt).toLocaleString()} · by {version.createdBy || 'unknown'}
-                    </div>
-                    <div class="version-card-meta muted">{summarizeValidation(version)}</div>
-                    {#if version.notes}
-                      <div class="version-card-notes">{version.notes}</div>
-                    {/if}
-                  </div>
-                  <div class="version-card-actions">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      on:click={() => selectVersion(version.id)}
-                    >
-                      Select
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      on:click={() => loadVersionIntoBuilder(version.id)}
-                      loading={loadingVersion && loadingVersionId === version.id}
-                    >
-                      Load
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      on:click={() => setCompareFrom(version.id)}
-                      disabled={compareFromVersionId === version.id}
-                    >
-                      Set Compare From
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      on:click={() => setCompareTo(version.id)}
-                      disabled={compareToVersionId === version.id}
-                    >
-                      Set Compare To
-                    </Button>
-                  </div>
-                </div>
+            <ul class="check-list" role="alert">
+              {#each readiness.publishBlockers as blocker (blocker)}
+                <li class="check"><Icon icon={Circle} /><span>{blocker}</span></li>
               {/each}
-            </div>
+            </ul>
           {/if}
         </div>
-      {/if}
 
-      {#if linkedWorkflowId && versionHistory.length > 1}
-        <div class="version-compare">
-          <div class="managed-label">Version Compare</div>
-          <div class="compare-controls">
-            <label class="field-label">
-              Compare From
-              <select class="input" bind:value={compareFromVersionId}>
-                {#each versionHistory as version (version.id)}
-                  <option value={version.id}>
-                    v{version.versionNumber} · {new Date(version.createdAt).toLocaleString()}
-                  </option>
-                {/each}
-              </select>
-            </label>
-            <label class="field-label">
-              Compare To
-              <select class="input" bind:value={compareToVersionId}>
-                {#each versionHistory as version (version.id)}
-                  <option value={version.id}>
-                    v{version.versionNumber} · {new Date(version.createdAt).toLocaleString()}
-                  </option>
-                {/each}
-              </select>
-            </label>
-            <div class="compare-actions">
-              <Button
-                size="sm"
-                variant="secondary"
-                on:click={compareSelectedVersions}
-                loading={comparingVersions}
-                disabled={!linkedWorkflowId || !compareFromVersionId || !compareToVersionId}
-                title={compareDisabledReason}
+        <div class="check-group">
+          <h3 class="group-title">Approval</h3>
+          {#if readiness.canApprove}
+            <p class="check is-ready">
+              <Icon icon={Check} />
+              <span>Ready for a production approval request</span>
+            </p>
+          {:else}
+            <ul class="check-list" role="alert">
+              {#each readiness.approvalBlockers as blocker (blocker)}
+                <li class="check"><Icon icon={Circle} /><span>{blocker}</span></li>
+              {/each}
+            </ul>
+          {/if}
+          {#if publishEnvironment === 'production'}
+            <p class="note">Production publish is gated: request approval, then publish once it is granted.</p>
+            {#if loadingApprovalState}
+              <p class="note">Checking approval state...</p>
+            {:else if readiness.approvalGranted}
+              <p class="check is-ready">
+                <Icon icon={Check} />
+                <span>Approval granted for the selected version</span>
+              </p>
+            {:else if readiness.approvalPending}
+              <p class="note is-warning">
+                <Icon icon={TriangleAlert} />
+                <span>Approval request pending review for the selected version</span>
+              </p>
+            {:else}
+              <p class="note is-warning">
+                <Icon icon={TriangleAlert} />
+                <span>No production approval request for the selected version</span>
+              </p>
+            {/if}
+          {/if}
+        </div>
+
+        <div class="check-group">
+          <h3 class="group-title">Pre-publish checklist</h3>
+          <ul class="check-list">
+            {#each readiness.items as item (item.key)}
+              <li class="check" class:is-ready={item.ready}>
+                <Icon icon={item.ready ? Check : Circle} />
+                <span>{item.label}</span>
+              </li>
+            {/each}
+          </ul>
+          {#if approvalStateError}
+            <p class="note is-error" role="alert">
+              <Icon icon={CircleAlert} />
+              <span>{approvalStateError}</span>
+            </p>
+          {/if}
+        </div>
+      </div>
+    </Panel>
+
+    {#if linkedWorkflowId}
+      <Panel title="Version history" flush>
+        {#snippet actions()}
+          <Badge mono>{versionHistory.length}</Badge>
+        {/snippet}
+        {#if loadingVersionHistory}
+          <p class="panel-note">Loading version history...</p>
+        {:else if versionHistory.length === 0}
+          <p class="panel-note">No saved versions yet.</p>
+        {:else}
+          <Table label="Version history" class="history-table" layout="fixed">
+            {#snippet head()}
+              <tr>
+                <Th width="88px">Version</Th>
+                <Th width="140px">Created</Th>
+                <Th>By</Th>
+                <Th width="72px">Check</Th>
+              </tr>
+            {/snippet}
+            {#each versionHistory as version (version.id)}
+              <Tr
+                selectable
+                selected={selectedVersionId === version.id}
+                onselect={() => selectVersion(version.id)}
               >
-                {comparingVersions ? 'Comparing...' : 'Compare Versions'}
+                <Td mono>
+                  v{version.versionNumber}
+                  {#if loadedVersionNumber === version.versionNumber}
+                    <Badge>loaded</Badge>
+                  {/if}
+                </Td>
+                <Td mono muted value={formatTime(version.createdAt)} />
+                <Td truncate value={version.createdBy || 'unknown'} />
+                <Td title={summarizeValidation(version)}>
+                  <Badge tone={version.validation.valid ? 'success' : 'danger'}>
+                    {version.validation.valid ? 'valid' : 'invalid'}
+                  </Badge>
+                </Td>
+              </Tr>
+            {/each}
+          </Table>
+          {#if selectedVersionRecord}
+            {@const version = selectedVersionRecord}
+            <div class="version-actions">
+              <span class="text-mono version-label">v{version.versionNumber}</span>
+              <Button
+                onclick={() => loadVersionIntoBuilder(version.id)}
+                loading={loadingVersion && loadingVersionId === version.id}
+              >
+                Load
+              </Button>
+              <Button
+                variant="ghost"
+                onclick={() => setCompareFrom(version.id)}
+                disabled={compareFromVersionId === version.id}
+              >
+                Compare from
+              </Button>
+              <Button
+                variant="ghost"
+                onclick={() => setCompareTo(version.id)}
+                disabled={compareToVersionId === version.id}
+              >
+                Compare to
               </Button>
             </div>
+            {#if version.notes}
+              <p class="version-notes">{version.notes}</p>
+            {/if}
+          {/if}
+        {/if}
+      </Panel>
+    {/if}
+
+    {#if linkedWorkflowId && versionHistory.length > 1}
+      <Panel title="Version compare">
+        <div class="stack">
+          <div class="form-grid">
+            <Field label="From">
+              <Select mono bind:value={compareFromVersionId}>
+                {#each versionHistory as version (version.id)}
+                  <option value={version.id}>v{version.versionNumber} · {formatTime(version.createdAt)}</option>
+                {/each}
+              </Select>
+            </Field>
+            <Field label="To">
+              <Select mono bind:value={compareToVersionId}>
+                {#each versionHistory as version (version.id)}
+                  <option value={version.id}>v{version.versionNumber} · {formatTime(version.createdAt)}</option>
+                {/each}
+              </Select>
+            </Field>
+          </div>
+          <div class="button-wrap">
+            <Button
+              onclick={compareSelectedVersions}
+              loading={comparingVersions}
+              disabled={!linkedWorkflowId || !compareFromVersionId || !compareToVersionId}
+              title={compareDisabledReason}
+            >
+              {comparingVersions ? 'Comparing...' : 'Compare'}
+            </Button>
+            {#if compareLines.length > 0}
+              <span class="diff-summary text-mono">
+                <span class="is-add">+{compareAddedCount}</span>
+                <span class="is-remove">−{compareRemovedCount}</span>
+                changed lines
+              </span>
+            {/if}
           </div>
 
           {#if compareError}
-            <div class="lifecycle-error" role="alert">{compareError}</div>
+            <p class="note is-error" role="alert">
+              <Icon icon={CircleAlert} />
+              <span>{compareError}</span>
+            </p>
           {/if}
           {#if compareLines.length > 0}
-            <div class="compare-summary muted">
-              +{compareAddedCount} / -{compareRemovedCount} changed lines
-            </div>
-            <div class="compare-diff mono">
+            <div class="diff text-mono" role="region" aria-label="Version diff">
               {#each compareLines as line, idx (idx)}
-                <div class="diff-line" class:add={line.kind === 'add'} class:remove={line.kind === 'remove'}>
-                  <span class="diff-prefix">{line.kind === 'add' ? '+' : line.kind === 'remove' ? '-' : ' '}</span>
+                <div class="diff-line" class:is-add={line.kind === 'add'} class:is-remove={line.kind === 'remove'}>
+                  <span class="diff-prefix" aria-hidden="true"
+                    >{line.kind === 'add' ? '+' : line.kind === 'remove' ? '-' : ' '}</span
+                  >
                   <span>{line.text}</span>
                 </div>
               {/each}
             </div>
           {/if}
         </div>
-      {/if}
-
-      {#if publishEnvironment === 'production'}
-        <div class="gate-hint">
-          Production publish is gated. Request approval first, then publish after approval is
-          granted.
-        </div>
-        {#if loadingApprovalState}
-          <div class="checklist-note muted">Checking approval state...</div>
-        {:else if hasApprovedProductionRequest()}
-          <div class="checklist-note success">
-            Approval is granted for the selected version in production.
-          </div>
-        {:else if hasPendingProductionRequest()}
-          <div class="checklist-note warning">
-            Approval request is pending review for the selected version.
-          </div>
-        {:else}
-          <div class="checklist-note warning">
-            No approval request found for the selected version in production.
-          </div>
-        {/if}
-      {/if}
-
-      <div class="readiness">
-        <div class="managed-label">Pre-Publish Readiness Checklist</div>
-        <div class="readiness-list">
-          {#each getReadinessItems($isWorkflowValid) as item (item.key)}
-            <div class="readiness-item" class:ready={item.ready}>
-              <span class="readiness-icon" aria-hidden="true">{item.ready ? '✓' : '○'}</span>
-              <span>{item.label}</span>
-            </div>
-          {/each}
-        </div>
-        {#if approvalStateError}
-          <div class="lifecycle-error" role="alert">{approvalStateError}</div>
-        {/if}
-      </div>
-
-      {#if loadedVersionNumber !== null}
-        <div class="loaded-version muted">Loaded version: v{loadedVersionNumber}</div>
-      {/if}
-      {#if lifecycleError}
-        <div class="lifecycle-error" role="alert">{lifecycleError}</div>
-      {/if}
-      {#if pushedSnapshotId}
-        <div class="checklist-note muted">Promoting local snapshot to managed version...</div>
-      {/if}
-      {#if promotingImportYaml}
-        <div class="checklist-note muted">Promoting imported YAML to managed version...</div>
-      {/if}
-    </div>
-  </Panel>
-
-  <div class="routes">
-    {#each $workflowDraft.routes as route (route._key)}
-      <RouteEditor
-        {route}
-        dryRunResult={lastDryRunResult?.routeResults.find(r => r.routeName === route.name) ?? null}
-        on:toggleExpand={() => workflowDraft.toggleRouteExpanded(route._key)}
-        on:remove={() => workflowDraft.removeRoute(route._key)}
-        on:updateName={(e) => workflowDraft.updateRoute(route._key, { name: e.detail })}
-        on:updateFilter={(e) => workflowDraft.updateRoute(route._key, { filter: e.detail })}
-        on:addTransform={() => workflowDraft.addTransform(route._key)}
-        on:removeTransform={(e) =>
-          workflowDraft.removeTransform(route._key, e.detail.transformKey)}
-        on:changeTransform={(e) =>
-          workflowDraft.updateTransform(route._key, e.detail.transformKey, e.detail.transform)}
-        on:moveTransform={(e) =>
-          workflowDraft.moveTransform(route._key, e.detail.transformKey, e.detail.direction)}
-        on:addAction={() => workflowDraft.addAction(route._key)}
-        on:removeAction={(e) => workflowDraft.removeAction(route._key, e.detail.actionKey)}
-        on:changeAction={(e) =>
-          workflowDraft.updateAction(route._key, e.detail.actionKey, e.detail.action)}
-        on:moveAction={(e) =>
-          workflowDraft.moveAction(route._key, e.detail.actionKey, e.detail.direction)}
-        on:moveRoute={(e) => workflowDraft.moveRoute(route._key, e.detail)}
-      />
-    {/each}
-
-    <Button variant="secondary" on:click={() => workflowDraft.addRoute()}>
-      + Add Route
-    </Button>
-  </div>
-
-  <div class="toolbar">
-    <Button
-      on:click={() => {
-        showPreview = !showPreview;
-        showDryRun = false;
-        showGenerate = false;
-      }}
-      disabled={!$isWorkflowValid}
-    >
-      {showPreview ? 'Hide Preview' : 'Preview YAML'}
-    </Button>
-    <Button
-      variant="secondary"
-      on:click={() => {
-        showDryRun = !showDryRun;
-        showPreview = false;
-        showGenerate = false;
-      }}
-      disabled={!$isWorkflowValid}
-    >
-      {showDryRun ? 'Hide Dry Run' : 'Dry Run'}
-    </Button>
-    <Button
-      variant="secondary"
-      on:click={() => {
-        showGenerate = !showGenerate;
-        showPreview = false;
-        showDryRun = false;
-      }}
-    >
-      {showGenerate ? 'Hide Generator' : 'Generate with AI'}
-    </Button>
-    <div class="spacer"></div>
-    <Button variant="secondary" on:click={resetDraftWithGuard}>
-      Reset
-    </Button>
-  </div>
-
-  <WorkflowDraftLibrary
-    pushToServerEnabled={!!linkedWorkflowId}
-    promoteImportEnabled={!!linkedWorkflowId}
-    on:pushSnapshot={promoteSnapshotToServer}
-    on:promoteImportYaml={promoteImportedYamlToServer}
-  />
-
-  {#if showPreview}
-    <div transition:slide={{ duration: 200 }}>
-      <WorkflowPreview />
-    </div>
-  {/if}
-
-  {#if showDryRun}
-    <div transition:slide={{ duration: 200 }}>
-      <DryRunPanel on:result={(e) => handleDryRunResult(e.detail)} />
-    </div>
-  {/if}
-
-  {#if showGenerate}
-    <div transition:slide={{ duration: 200 }}>
-      <GenerateFromDescription />
-    </div>
-  {/if}
+      </Panel>
+    {/if}
+  </aside>
 </div>
 
 <style>
   .builder {
     display: grid;
-    gap: 14px;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    align-items: start;
+    gap: var(--space-3);
+    min-width: 0;
   }
 
-  .builder-header {
-    display: grid;
-    gap: 12px;
-  }
-
-  .name-version {
-    display: grid;
-    grid-template-columns: 1fr 120px;
-    gap: 12px;
-  }
-
-  .field-label {
-    display: grid;
-    gap: 4px;
-    color: var(--color-text-tertiary);
-    font-size: 0.85rem;
-    font-weight: 600;
-  }
-
-  .input {
-    padding: 8px 12px;
-    border-radius: 10px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-input);
-    color: var(--color-text-primary);
-    outline: none;
-    width: 100%;
-    box-sizing: border-box;
-    transition: var(--transition-all);
-  }
-
-  .input::placeholder {
-    color: var(--color-text-muted);
-  }
-
-  .input:hover:not(:disabled):not(:focus) {
-    border-color: var(--color-border-strong);
-  }
-
-  .input:focus {
-    border-color: var(--color-border-focus);
-    box-shadow: var(--shadow-focus);
-  }
-
-  .managed-row {
-    display: grid;
-    grid-template-columns: 1.2fr 1fr 140px 1fr;
-    gap: 10px;
-    align-items: end;
-  }
-
-  .template-row {
-    display: grid;
-    grid-template-columns: 1.2fr 1fr auto;
-    gap: 10px;
-    align-items: end;
-  }
-
-  .template-actions {
+  .builder-main,
+  .builder-side {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    padding-bottom: 2px;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
   }
 
-  .managed-summary {
-    padding: 8px 10px;
-    border: 1px solid var(--color-border-subtle);
-    border-radius: 10px;
-    background: var(--color-bg-surface);
-    min-height: 70px;
-  }
-
-  .managed-label {
-    color: var(--color-text-tertiary);
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .managed-value {
-    color: var(--color-text-primary);
-    font-size: 0.85rem;
-    margin-top: 4px;
-    line-break: anywhere;
-  }
-
-  .managed-name {
-    margin-top: 4px;
-    font-size: 0.8rem;
-  }
-
-  .managed-actions {
+  .stack {
     display: flex;
-    gap: 8px;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+
+  .form-grid :global(.span-2) {
+    grid-column: 1 / -1;
+  }
+
+  .inline-control {
+    display: flex;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+
+  .routes {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .draft-actions,
+  .button-wrap {
+    display: flex;
     flex-wrap: wrap;
     align-items: center;
+    gap: var(--space-2);
   }
 
-  .unsaved-hint {
-    padding: 8px 10px;
-    border-radius: 8px;
-    border: 1px solid rgba(245, 158, 11, 0.35);
-    background: rgba(245, 158, 11, 0.14);
-    color: rgba(253, 230, 138, 0.95);
-    font-size: 0.82rem;
+  .spacer {
+    flex: 1 1 auto;
   }
 
-  .publish-readiness {
-    display: grid;
-    gap: 6px;
-    padding: 10px;
-    border-radius: 10px;
-    border: 1px solid var(--color-border-subtle);
-    background: var(--color-bg-surface);
+  .note {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    margin: 0;
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+    color: var(--color-text-tertiary);
   }
 
-  .publish-blockers {
-    display: grid;
-    gap: 4px;
-    padding: 8px 10px;
-    border-radius: 8px;
-    border: 1px solid var(--color-danger-border);
-    background: var(--color-danger-bg);
+  .note :global(.ui-icon) {
+    margin-top: 1px;
+  }
+
+  .note.is-warning {
+    color: var(--color-warning-text);
+  }
+
+  .note.is-error {
+    color: var(--color-danger-text);
+    overflow-wrap: anywhere;
+  }
+
+  .check-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .check-group + .check-group {
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border-subtle);
+  }
+
+  .group-title {
+    margin: 0;
+    font-size: var(--text-label);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--color-text-tertiary);
+  }
+
+  .check-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .check {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    margin: 0;
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+    color: var(--color-text-secondary);
+  }
+
+  .check :global(.ui-icon) {
+    color: var(--color-text-tertiary);
+  }
+
+  .check.is-ready :global(.ui-icon) {
+    color: var(--color-success-text);
+  }
+
+  .panel-note {
+    margin: 0;
+    padding: var(--space-3);
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+
+  .builder-side :global(.history-table) {
+    max-height: 240px;
+  }
+
+  .version-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-3);
+    border-top: 1px solid var(--color-border-subtle);
+  }
+
+  .version-label {
+    margin-right: auto;
+    color: var(--color-text-secondary);
+  }
+
+  .version-notes {
+    margin: 0;
+    padding: 0 var(--space-3) var(--space-3);
+    font-size: var(--text-xs);
+    color: var(--color-text-secondary);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .diff-summary {
+    display: inline-flex;
+    gap: var(--space-2);
+    color: var(--color-text-tertiary);
+  }
+
+  .diff-summary .is-add {
+    color: var(--color-success-text);
+  }
+
+  .diff-summary .is-remove {
     color: var(--color-danger-text);
   }
 
-  .publish-blocker-item {
-    font-size: 0.82rem;
-    line-height: 1.35;
-  }
-
-  .approval-readiness {
-    display: grid;
-    gap: 6px;
-    padding: 10px;
-    border-radius: 10px;
-    border: 1px solid var(--color-border-subtle);
-    background: var(--color-bg-surface);
-  }
-
-  .approval-blockers {
-    display: grid;
-    gap: 4px;
-    padding: 8px 10px;
-    border-radius: 8px;
-    border: 1px solid rgba(245, 158, 11, 0.35);
-    background: rgba(245, 158, 11, 0.14);
-    color: rgba(253, 230, 138, 0.95);
-  }
-
-  .approval-blocker-item {
-    font-size: 0.82rem;
-    line-height: 1.35;
-  }
-
-  .loaded-version {
-    font-size: 0.85rem;
-  }
-
-  .version-history {
-    display: grid;
-    gap: 8px;
-    padding: 10px;
-    border-radius: 10px;
-    border: 1px solid var(--color-border-subtle);
-    background: var(--color-bg-surface);
-  }
-
-  .version-history-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .version-history-list {
-    display: grid;
-    gap: 8px;
+  .diff {
     max-height: 280px;
     overflow: auto;
-    padding-right: 2px;
-  }
-
-  .version-card {
-    display: grid;
-    gap: 8px;
+    padding: var(--space-1) 0;
     border: 1px solid var(--color-border-subtle);
-    border-radius: 8px;
-    padding: 8px;
+    border-radius: var(--radius-sm);
     background: var(--color-bg-input);
-  }
-
-  .version-card.selected {
-    border-color: var(--color-primary-border);
-  }
-
-  .version-card.loaded {
-    box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.28);
-  }
-
-  .version-card-main {
-    display: grid;
-    gap: 4px;
-  }
-
-  .version-card-title {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
-    font-size: 0.84rem;
-    color: var(--color-text-primary);
-  }
-
-  .version-card-meta {
-    font-size: 0.8rem;
-  }
-
-  .version-card-notes {
-    border-left: 2px solid var(--color-border-default);
-    padding-left: 8px;
-    color: var(--color-text-secondary);
-    font-size: 0.82rem;
-    line-height: 1.4;
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
-
-  .version-card-actions {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-
-  .version-compare {
-    display: grid;
-    gap: 8px;
-    padding: 10px;
-    border-radius: 10px;
-    border: 1px solid var(--color-border-subtle);
-    background: var(--color-bg-surface);
-  }
-
-  .compare-controls {
-    display: grid;
-    grid-template-columns: 1fr 1fr auto;
-    gap: 10px;
-    align-items: end;
-  }
-
-  .compare-actions {
-    padding-bottom: 2px;
-  }
-
-  .compare-summary {
-    font-size: 0.82rem;
-  }
-
-  .compare-diff {
-    max-height: 220px;
-    overflow: auto;
-    border-radius: 8px;
-    border: 1px solid var(--color-border-subtle);
-    background: var(--color-bg-input);
-    padding: 8px;
-    display: grid;
-    gap: 2px;
-    font-size: 0.78rem;
-    line-height: 1.35;
+    line-height: var(--leading-snug);
   }
 
   .diff-line {
     display: grid;
-    grid-template-columns: 14px 1fr;
-    gap: 6px;
+    grid-template-columns: 16px minmax(0, 1fr);
+    padding: 0 var(--space-2) 0 var(--space-1);
     white-space: pre-wrap;
-    word-break: break-word;
+    overflow-wrap: anywhere;
     color: var(--color-text-secondary);
   }
 
-  .diff-line.add {
-    color: rgba(187, 247, 208, 0.95);
+  .diff-line.is-add {
+    background: var(--color-success-bg);
+    color: var(--color-success-text);
   }
 
-  .diff-line.remove {
-    color: rgba(254, 202, 202, 0.95);
-  }
-
-  .readiness {
-    display: grid;
-    gap: 6px;
-    padding: 10px;
-    border-radius: 10px;
-    border: 1px solid var(--color-border-subtle);
-    background: var(--color-bg-surface);
-  }
-
-  .readiness-list {
-    display: grid;
-    gap: 5px;
-  }
-
-  .readiness-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--color-text-secondary);
-    font-size: 0.84rem;
-  }
-
-  .readiness-item.ready {
-    color: rgba(187, 247, 208, 0.95);
-  }
-
-  .readiness-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 16px;
-    min-width: 16px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  }
-
-  .gate-hint {
-    padding: 8px 10px;
-    border-radius: 8px;
-    border: 1px solid rgba(245, 158, 11, 0.35);
-    background: rgba(245, 158, 11, 0.14);
-    color: rgba(253, 230, 138, 0.95);
-    font-size: 0.82rem;
-  }
-
-  .checklist-note {
-    font-size: 0.82rem;
-    padding: 6px 0;
-  }
-
-  .checklist-note.success {
-    color: rgba(187, 247, 208, 0.95);
-  }
-
-  .checklist-note.warning {
-    color: rgba(253, 230, 138, 0.95);
-  }
-
-  .lifecycle-error {
-    padding: 8px 10px;
-    border-radius: 8px;
-    border: 1px solid var(--color-danger-border);
+  .diff-line.is-remove {
     background: var(--color-danger-bg);
     color: var(--color-danger-text);
-    font-size: 0.85rem;
   }
 
-  .routes {
-    display: grid;
-    gap: 10px;
+  .diff-prefix {
+    color: var(--color-text-tertiary);
   }
 
-  .toolbar {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    align-items: center;
-  }
-
-  .spacer {
-    flex: 1;
-  }
-
-  .mono {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  }
-
-  .muted {
-    color: var(--color-text-muted);
-  }
-
-  @media (max-width: 1080px) {
-    .template-row,
-    .managed-row {
-      grid-template-columns: 1fr;
-    }
-
-    .compare-controls {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  @media (max-width: 640px) {
-    .name-version {
-      grid-template-columns: 1fr;
-    }
-
-    .toolbar {
-      flex-direction: column;
-      align-items: stretch;
-    }
-
-    .spacer {
-      display: none;
+  @media (max-width: 1100px) {
+    .builder {
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 </style>

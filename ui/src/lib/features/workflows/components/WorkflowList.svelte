@@ -1,31 +1,43 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount } from "svelte";
-  import Panel from "$lib/ui/Panel.svelte";
-  import Button from "$lib/ui/Button.svelte";
-  import Badge from "$lib/ui/Badge.svelte";
-  import EmptyState from "$lib/ui/EmptyState.svelte";
-  import Skeleton from "$lib/ui/Skeleton.svelte";
+  import { createEventDispatcher, onMount } from 'svelte';
+  import RefreshCw from '@lucide/svelte/icons/refresh-cw';
+  import CircleAlert from '@lucide/svelte/icons/circle-alert';
+  import Inbox from '@lucide/svelte/icons/inbox';
+  import MousePointerClick from '@lucide/svelte/icons/mouse-pointer-click';
+  import {
+    Badge,
+    Button,
+    EmptyState,
+    Field,
+    Icon,
+    KeyValue,
+    Select,
+    Table,
+    Td,
+    Textarea,
+    Th,
+    Tr
+  } from '$lib/ui/primitives';
+  import type { BadgeTone, KeyValueItem } from '$lib/ui/primitives';
   import {
     fetchWorkflowDefinitions,
     fetchWorkflowVersions,
     publishWorkflowVersion,
     rollbackWorkflowVersion,
-    triggerWorkflow,
-  } from "../workflowApi";
-  import { validateEventPayload } from "../eventPayload";
+    triggerWorkflow
+  } from '../workflowApi';
+  import { validateEventPayload } from '../eventPayload';
   import type {
     GetWorkflowVersionsQuery,
     ListWorkflowDefinitionsQuery,
-    TriggerWorkflowMutation,
-  } from "$lib/gen/graphql";
-  import { toasts } from "$lib/ui/toastStore";
-  import { isErrorToasted } from "$lib/graphql/client";
+    TriggerWorkflowMutation
+  } from '$lib/gen/graphql';
+  import { toasts } from '$lib/ui/toastStore';
+  import { isErrorToasted } from '$lib/graphql/client';
 
-  type WorkflowItem =
-    ListWorkflowDefinitionsQuery["workflowDefinitions"][number];
-  type WorkflowVersionItem =
-    GetWorkflowVersionsQuery["workflowVersions"][number];
-  type TriggerResult = TriggerWorkflowMutation["triggerWorkflow"];
+  type WorkflowItem = ListWorkflowDefinitionsQuery['workflowDefinitions'][number];
+  type WorkflowVersionItem = GetWorkflowVersionsQuery['workflowVersions'][number];
+  type TriggerResult = TriggerWorkflowMutation['triggerWorkflow'];
   type OpenBuilderPayload = {
     workflowId: string;
     name: string;
@@ -39,19 +51,23 @@
     openMonitor: { workflowName: string };
   }>();
 
+  const ENVIRONMENT_OPTIONS = [
+    { value: 'staging', label: 'staging' },
+    { value: 'production', label: 'production' }
+  ];
+
   let workflows: WorkflowItem[] = [];
   let loading = true;
   let error: string | null = null;
 
   let runningWorkflowName: string | null = null;
-  let expandedWorkflowId: string | null = null;
+  let selectedWorkflowId: string | null = null;
 
   let eventJsonByWorkflow: Record<string, string> = {};
   let runResultByWorkflow: Record<string, TriggerResult | undefined> = {};
   let runErrorByWorkflow: Record<string, string | undefined> = {};
 
-  let versionsByWorkflowId: Record<string, WorkflowVersionItem[] | undefined> =
-    {};
+  let versionsByWorkflowId: Record<string, WorkflowVersionItem[] | undefined> = {};
   let loadingVersionsByWorkflowId: Record<string, boolean> = {};
   let versionErrorByWorkflowId: Record<string, string | undefined> = {};
 
@@ -59,6 +75,8 @@
   let selectedEnvByWorkflowId: Record<string, string | undefined> = {};
   let publishingByWorkflowId: Record<string, boolean> = {};
   let rollingBackByWorkflowId: Record<string, boolean> = {};
+
+  $: selected = workflows.find((wf) => wf.id === selectedWorkflowId) ?? null;
 
   onMount(() => {
     void loadWorkflows();
@@ -71,12 +89,18 @@
       const data = await fetchWorkflowDefinitions({
         paging: {
           limit: 100,
-          offset: 0,
-        },
+          offset: 0
+        }
       });
       workflows = data.workflowDefinitions;
+      // Keep the details pane populated: the first record is selected until
+      // the operator picks another one.
+      const first = workflows[0];
+      if (first && !workflows.some((wf) => wf.id === selectedWorkflowId)) {
+        selectWorkflow(first);
+      }
     } catch (err) {
-      error = err instanceof Error ? err.message : "Failed to load workflows";
+      error = err instanceof Error ? err.message : 'Failed to load workflows';
     } finally {
       loading = false;
     }
@@ -88,46 +112,43 @@
 
     loadingVersionsByWorkflowId = {
       ...loadingVersionsByWorkflowId,
-      [workflow.id]: true,
+      [workflow.id]: true
     };
     versionErrorByWorkflowId = {
       ...versionErrorByWorkflowId,
-      [workflow.id]: undefined,
+      [workflow.id]: undefined
     };
 
     try {
       const data = await fetchWorkflowVersions(workflow.id, {
         limit: 100,
-        offset: 0,
+        offset: 0
       });
       versionsByWorkflowId = {
         ...versionsByWorkflowId,
-        [workflow.id]: data.workflowVersions,
+        [workflow.id]: data.workflowVersions
       };
 
-      const publishedProd = getPublishedVersionId(workflow, "production");
+      const publishedProd = getPublishedVersionId(workflow, 'production');
       const preferredVersionId =
-        publishedProd ??
-        workflow.latestVersion?.id ??
-        data.workflowVersions[0]?.id;
+        publishedProd ?? workflow.latestVersion?.id ?? data.workflowVersions[0]?.id;
       selectedVersionByWorkflowId = {
         ...selectedVersionByWorkflowId,
-        [workflow.id]: preferredVersionId,
+        [workflow.id]: preferredVersionId
       };
       selectedEnvByWorkflowId = {
         ...selectedEnvByWorkflowId,
-        [workflow.id]: selectedEnvByWorkflowId[workflow.id] ?? "staging",
+        [workflow.id]: selectedEnvByWorkflowId[workflow.id] ?? 'staging'
       };
     } catch (err) {
       versionErrorByWorkflowId = {
         ...versionErrorByWorkflowId,
-        [workflow.id]:
-          err instanceof Error ? err.message : "Failed to load versions",
+        [workflow.id]: err instanceof Error ? err.message : 'Failed to load versions'
       };
     } finally {
       loadingVersionsByWorkflowId = {
         ...loadingVersionsByWorkflowId,
-        [workflow.id]: false,
+        [workflow.id]: false
       };
     }
   }
@@ -135,54 +156,49 @@
   async function refreshWorkflowVersions(workflow: WorkflowItem) {
     versionsByWorkflowId = {
       ...versionsByWorkflowId,
-      [workflow.id]: undefined,
+      [workflow.id]: undefined
     };
     await ensureWorkflowVersions(workflow);
   }
 
   function getDefaultEventJson(workflowName: string): string {
     const normalized = workflowName.toLowerCase();
-    let type = "PATIENT_ADMIT";
+    let type = 'PATIENT_ADMIT';
 
-    if (normalized.includes("lab") || normalized.includes("oru")) {
-      type = "LAB_RESULT";
-    } else if (normalized.includes("discharge")) {
-      type = "PATIENT_DISCHARGE";
-    } else if (normalized.includes("appoint") || normalized.includes("siu")) {
-      type = "APPOINTMENT_SCHEDULED";
+    if (normalized.includes('lab') || normalized.includes('oru')) {
+      type = 'LAB_RESULT';
+    } else if (normalized.includes('discharge')) {
+      type = 'PATIENT_DISCHARGE';
+    } else if (normalized.includes('appoint') || normalized.includes('siu')) {
+      type = 'APPOINTMENT_SCHEDULED';
     }
 
     return JSON.stringify(
       {
         type,
-        source: "ui-manual",
+        source: 'ui-manual',
         id: `manual-${Date.now()}`,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       },
       null,
-      2,
+      2
     );
   }
 
-  function toggleWorkflowPanel(workflow: WorkflowItem) {
-    if (expandedWorkflowId === workflow.id) {
-      expandedWorkflowId = null;
-      return;
-    }
-
-    expandedWorkflowId = workflow.id;
+  function selectWorkflow(workflow: WorkflowItem) {
+    selectedWorkflowId = workflow.id;
 
     if (!eventJsonByWorkflow[workflow.name]) {
       eventJsonByWorkflow = {
         ...eventJsonByWorkflow,
-        [workflow.name]: getDefaultEventJson(workflow.name),
+        [workflow.name]: getDefaultEventJson(workflow.name)
       };
     }
 
     if (!selectedEnvByWorkflowId[workflow.id]) {
       selectedEnvByWorkflowId = {
         ...selectedEnvByWorkflowId,
-        [workflow.id]: "staging",
+        [workflow.id]: 'staging'
       };
     }
 
@@ -192,73 +208,133 @@
   function setSampleEvent(workflowName: string) {
     eventJsonByWorkflow = {
       ...eventJsonByWorkflow,
-      [workflowName]: getDefaultEventJson(workflowName),
+      [workflowName]: getDefaultEventJson(workflowName)
     };
   }
 
   function parsePublishedVersions(raw: unknown): Record<string, string> {
-    if (!raw || typeof raw !== "object") return {};
+    if (!raw || typeof raw !== 'object') return {};
 
     const asRecord = raw as Record<string, unknown>;
     const out: Record<string, string> = {};
     for (const [environment, value] of Object.entries(asRecord)) {
-      if (typeof value !== "string" || !value.trim()) continue;
+      if (typeof value !== 'string' || !value.trim()) continue;
       out[environment] = value;
     }
     return out;
   }
 
-  function getPublishedVersionId(
-    workflow: WorkflowItem,
-    environment: string,
-  ): string | undefined {
+  function getPublishedVersionId(workflow: WorkflowItem, environment: string): string | undefined {
     const published = parsePublishedVersions(workflow.publishedVersionsByEnv);
     return published[environment];
+  }
+
+  function publishedEnvironments(workflow: WorkflowItem): string[] {
+    return Object.keys(parsePublishedVersions(workflow.publishedVersionsByEnv));
   }
 
   function summarizePublishedVersions(workflow: WorkflowItem): string {
     const published = parsePublishedVersions(workflow.publishedVersionsByEnv);
     const entries = Object.entries(published);
-    if (entries.length === 0) return "No published environments";
-    return entries
-      .map(([env, versionId]) => `${env}: ${versionId.slice(0, 12)}`)
-      .join(" · ");
+    if (entries.length === 0) return 'No published environments';
+    return entries.map(([env, versionId]) => `${env}: ${versionId.slice(0, 12)}`).join(' · ');
+  }
+
+  /** State describes the lifecycle: archived, published somewhere, or a draft. */
+  function workflowState(workflow: WorkflowItem): { label: string; tone: BadgeTone } {
+    if (workflow.status === 'archived') return { label: 'archived', tone: 'danger' };
+    if (publishedEnvironments(workflow).length > 0) return { label: 'published', tone: 'success' };
+    return { label: workflow.status || 'draft', tone: 'neutral' };
   }
 
   function formatTime(ts: string | null): string {
-    if (!ts) return "Never";
-    try {
-      return new Date(ts).toLocaleString();
-    } catch {
-      return ts;
-    }
+    if (!ts) return 'Never';
+    const date = new Date(ts);
+    if (Number.isNaN(date.getTime())) return ts;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(
+      date.getHours()
+    )}:${pad(date.getMinutes())}`;
   }
 
-  function getSelectedEnvironment(workflowId: string): string {
-    return selectedEnvByWorkflowId[workflowId] ?? "staging";
+  function resolveEnvironment(
+    workflowId: string,
+    envs: Record<string, string | undefined>
+  ): string {
+    return envs[workflowId] ?? 'staging';
   }
 
-  function getSelectedVersionId(workflow: WorkflowItem): string | undefined {
+  function resolveVersionId(
+    workflow: WorkflowItem,
+    selectedVersions: Record<string, string | undefined>,
+    versions: Record<string, WorkflowVersionItem[] | undefined>
+  ): string | undefined {
     return (
-      selectedVersionByWorkflowId[workflow.id] ??
-      getPublishedVersionId(workflow, "production") ??
+      selectedVersions[workflow.id] ??
+      getPublishedVersionId(workflow, 'production') ??
       workflow.latestVersion?.id ??
-      versionsByWorkflowId[workflow.id]?.[0]?.id
+      versions[workflow.id]?.[0]?.id
     );
   }
 
+  function getSelectedEnvironment(workflowId: string): string {
+    return resolveEnvironment(workflowId, selectedEnvByWorkflowId);
+  }
+
+  function getSelectedVersionId(workflow: WorkflowItem): string | undefined {
+    return resolveVersionId(workflow, selectedVersionByWorkflowId, versionsByWorkflowId);
+  }
+
+  function detailItems(workflow: WorkflowItem): KeyValueItem[] {
+    const published = parsePublishedVersions(workflow.publishedVersionsByEnv);
+    const publishedItems: KeyValueItem[] = Object.entries(published).map(([env, versionId]) => ({
+      key: `Published · ${env}`,
+      value: versionId,
+      mono: true,
+      truncate: true
+    }));
+    return [
+      { key: 'Id', value: workflow.id, mono: true, truncate: true },
+      { key: 'Description', value: workflow.description },
+      {
+        key: 'Latest version',
+        value: workflow.latestVersion ? `v${workflow.latestVersion.versionNumber}` : 'No versions',
+        mono: Boolean(workflow.latestVersion)
+      },
+      { key: 'Created by', value: workflow.latestVersion?.createdBy },
+      { key: 'Updated', value: formatTime(workflow.updatedAt), mono: true },
+      ...(publishedItems.length > 0
+        ? publishedItems
+        : [{ key: 'Published', value: 'Not published' } satisfies KeyValueItem])
+    ];
+  }
+
+  function resultItems(result: TriggerResult): KeyValueItem[] {
+    const items: KeyValueItem[] = [
+      { key: 'Matched routes', value: result.routesMatched, mono: true },
+      { key: 'Executed actions', value: result.actionsExecuted, mono: true },
+      { key: 'Duration', value: `${result.duration.toFixed(2)} ms`, mono: true }
+    ];
+    if (result.runId) items.push({ key: 'Run id', value: result.runId, mono: true, truncate: true });
+    if (result.environment) items.push({ key: 'Environment', value: result.environment, mono: true });
+    if (result.versionId) {
+      items.push({ key: 'Version', value: result.versionId, mono: true, truncate: true });
+    }
+    return items;
+  }
+
   function emitOpenBuilder(workflow: WorkflowItem) {
-    dispatch("openBuilder", {
+    dispatch('openBuilder', {
       workflowId: workflow.id,
       name: workflow.name,
       description: workflow.description ?? null,
       versionId: getSelectedVersionId(workflow) ?? null,
-      versionNumber: workflow.latestVersion?.versionNumber ?? null,
+      versionNumber: workflow.latestVersion?.versionNumber ?? null
     });
   }
 
   function emitOpenMonitor(workflowName: string) {
-    dispatch("openMonitor", { workflowName });
+    dispatch('openMonitor', { workflowName });
   }
 
   async function runWorkflow(workflowId: string, workflowName: string) {
@@ -267,11 +343,11 @@
     // Persistent payload validation belongs inline at the field, not in a
     // transient toast (.loom/22 B1/B4): show the message in runErrorByWorkflow,
     // which renders as an inline `role="alert"` next to the Event JSON textarea.
-    const payload = validateEventPayload(eventJsonByWorkflow[workflowName] ?? "");
+    const payload = validateEventPayload(eventJsonByWorkflow[workflowName] ?? '');
     if (!payload.ok) {
       runErrorByWorkflow = {
         ...runErrorByWorkflow,
-        [workflowName]: payload.message,
+        [workflowName]: payload.message
       };
       return;
     }
@@ -282,28 +358,27 @@
 
     try {
       const data = await triggerWorkflow(workflowName, parsedEvent, {
-        environment: getSelectedEnvironment(workflowId),
+        environment: getSelectedEnvironment(workflowId)
       });
       runResultByWorkflow = {
         ...runResultByWorkflow,
-        [workflowName]: data.triggerWorkflow,
+        [workflowName]: data.triggerWorkflow
       };
 
       if (data.triggerWorkflow.errors.length > 0) {
         toasts.error(
-          `Workflow ran with ${data.triggerWorkflow.errors.length} error${data.triggerWorkflow.errors.length === 1 ? "" : "s"}`,
+          `Workflow ran with ${data.triggerWorkflow.errors.length} error${data.triggerWorkflow.errors.length === 1 ? '' : 's'}`
         );
       } else {
         toasts.success(
-          `Workflow executed: ${data.triggerWorkflow.actionsExecuted} action${data.triggerWorkflow.actionsExecuted === 1 ? "" : "s"}`,
+          `Workflow executed: ${data.triggerWorkflow.actionsExecuted} action${data.triggerWorkflow.actionsExecuted === 1 ? '' : 's'}`
         );
       }
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Failed to trigger workflow";
+      const msg = err instanceof Error ? err.message : 'Failed to trigger workflow';
       runErrorByWorkflow = {
         ...runErrorByWorkflow,
-        [workflowName]: msg,
+        [workflowName]: msg
       };
       // Inline runErrorByWorkflow carries the field context; only toast if the
       // global graphqlFetch net did not already (B4 dedupe).
@@ -319,7 +394,7 @@
     const workflowId = workflow.id;
     const versionId = getSelectedVersionId(workflow);
     if (!versionId) {
-      toasts.error("Select a version to publish");
+      toasts.error('Select a version to publish');
       return;
     }
     const environment = getSelectedEnvironment(workflowId);
@@ -329,7 +404,7 @@
       await publishWorkflowVersion({
         workflowId,
         versionId,
-        environment,
+        environment
       });
       await loadWorkflows();
       await refreshWorkflowVersions(workflow);
@@ -337,14 +412,12 @@
     } catch (err) {
       // Global graphqlFetch net already toasts graphql failures (B4 dedupe).
       if (!isErrorToasted(err)) {
-        toasts.error(
-          err instanceof Error ? err.message : "Failed to publish workflow",
-        );
+        toasts.error(err instanceof Error ? err.message : 'Failed to publish workflow');
       }
     } finally {
       publishingByWorkflowId = {
         ...publishingByWorkflowId,
-        [workflowId]: false,
+        [workflowId]: false
       };
     }
   }
@@ -353,20 +426,20 @@
     const workflowId = workflow.id;
     const versionId = getSelectedVersionId(workflow);
     if (!versionId) {
-      toasts.error("Select a version to roll back to");
+      toasts.error('Select a version to roll back to');
       return;
     }
     const environment = getSelectedEnvironment(workflowId);
     rollingBackByWorkflowId = {
       ...rollingBackByWorkflowId,
-      [workflowId]: true,
+      [workflowId]: true
     };
 
     try {
       await rollbackWorkflowVersion({
         workflowId,
         targetVersionId: versionId,
-        environment,
+        environment
       });
       await loadWorkflows();
       await refreshWorkflowVersions(workflow);
@@ -374,561 +447,381 @@
     } catch (err) {
       // Global graphqlFetch net already toasts graphql failures (B4 dedupe).
       if (!isErrorToasted(err)) {
-        toasts.error(
-          err instanceof Error ? err.message : "Failed to roll back workflow",
-        );
+        toasts.error(err instanceof Error ? err.message : 'Failed to roll back workflow');
       }
     } finally {
       rollingBackByWorkflowId = {
         ...rollingBackByWorkflowId,
-        [workflowId]: false,
+        [workflowId]: false
       };
     }
   }
 </script>
 
-<Panel>
-  <div class="list-header">
-    <div class="list-title">Managed Workflows</div>
-    <Button
-      variant="secondary"
-      size="sm"
-      on:click={loadWorkflows}
-      disabled={loading}
-    >
-      {loading ? "Refreshing..." : "Refresh"}
+<div class="inventory">
+  <div class="filters">
+    <Button variant="ghost" icon={RefreshCw} onclick={loadWorkflows} disabled={loading}>
+      {loading ? 'Refreshing...' : 'Refresh'}
     </Button>
+    <span class="count text-mono">
+      {workflows.length} workflow{workflows.length === 1 ? '' : 's'}
+    </span>
   </div>
 
-  {#if loading}
-    <div class="skeleton-list">
-      <Skeleton height="48px" />
-      <Skeleton height="48px" />
-      <Skeleton height="48px" />
-    </div>
+  {#if loading && workflows.length === 0}
+    <p class="status-line" role="status">Loading workflows...</p>
   {:else if error}
-    <EmptyState
-      icon="error"
-      title="Failed to load workflows"
-      description={error}
-    />
+    <EmptyState icon={CircleAlert} actionLabel="Retry" onaction={loadWorkflows}>
+      Failed to load workflows: {error}
+    </EmptyState>
   {:else if workflows.length === 0}
-    <EmptyState
-      icon="inbox"
-      title="No managed workflows found"
-      description="Create a managed definition in Builder to version and publish."
-    />
+    <EmptyState icon={Inbox} message="No managed workflows. Create a definition in Design." />
   {:else}
-    <div class="workflow-list cards">
-      {#each workflows as wf, i (wf.id)}
-        {@const isPanelOpen = expandedWorkflowId === wf.id}
-        {@const isRunning = runningWorkflowName === wf.name}
-        {@const runResult = runResultByWorkflow[wf.name]}
-        {@const runError = runErrorByWorkflow[wf.name]}
-        {@const workflowVersions = versionsByWorkflowId[wf.id] ?? []}
-        {@const selectedEnv = getSelectedEnvironment(wf.id)}
-        {@const selectedVersion = getSelectedVersionId(wf)}
-        {@const selectedPublishedVersion = getPublishedVersionId(
-          wf,
-          selectedEnv,
-        )}
+    <div class="split">
+      <Table label="Managed workflows" class="split-table" layout="fixed">
+        {#snippet head()}
+          <tr>
+            <Th>Name</Th>
+            <Th width="88px">Version</Th>
+            <Th width="120px">State</Th>
+            <Th width="200px">Published</Th>
+            <Th width="150px">Updated</Th>
+          </tr>
+        {/snippet}
+        {#each workflows as wf (wf.id)}
+          {@const state = workflowState(wf)}
+          {@const envs = publishedEnvironments(wf)}
+          <Tr
+            selectable
+            selected={wf.id === selectedWorkflowId}
+            onselect={() => selectWorkflow(wf)}
+          >
+            <Td mono truncate value={wf.name} />
+            <Td mono muted={!wf.latestVersion}>
+              {wf.latestVersion ? `v${wf.latestVersion.versionNumber}` : '—'}
+            </Td>
+            <Td>
+              <Badge tone={state.tone} dot={state.tone !== 'neutral'}>{state.label}</Badge>
+            </Td>
+            <Td muted truncate title={summarizePublishedVersions(wf)}>
+              {envs.length > 0 ? envs.join(', ') : '—'}
+            </Td>
+            <Td mono muted value={formatTime(wf.updatedAt)} />
+          </Tr>
+        {/each}
+      </Table>
 
-        <div
-          class="workflow-row card hover-lift"
-          class:expanded={isPanelOpen}
-          style="animation-delay: {Math.min(i, 20) * 0.05}s"
-        >
-          <div class="workflow-name">{wf.name}</div>
-          <div class="workflow-meta">
-            <Badge
-              variant={wf.status === "archived" ? "danger" : "success"}
-              size="sm"
-            >
-              {wf.status}
-            </Badge>
-            {#if wf.latestVersion}
-              <span class="stat">v{wf.latestVersion.versionNumber}</span>
-            {:else}
-              <span class="stat">No versions</span>
-            {/if}
-            <span class="stat">{summarizePublishedVersions(wf)}</span>
+      <aside class="details" aria-label="Selected workflow">
+        {#if selected}
+          {@const wf = selected}
+          {@const state = workflowState(wf)}
+          {@const isRunning = runningWorkflowName === wf.name}
+          {@const runResult = runResultByWorkflow[wf.name]}
+          {@const runError = runErrorByWorkflow[wf.name]}
+          {@const workflowVersions = versionsByWorkflowId[wf.id] ?? []}
+          {@const loadingVersions = !!loadingVersionsByWorkflowId[wf.id]}
+          {@const selectedEnv = resolveEnvironment(wf.id, selectedEnvByWorkflowId)}
+          {@const selectedVersion = resolveVersionId(
+            wf,
+            selectedVersionByWorkflowId,
+            versionsByWorkflowId
+          )}
+          {@const selectedPublishedVersion = getPublishedVersionId(wf, selectedEnv)}
+
+          <div class="details-head">
+            <span class="details-title text-mono" title={wf.name}>{wf.name}</span>
+            <Badge tone={state.tone} dot={state.tone !== 'neutral'}>{state.label}</Badge>
           </div>
-          <div class="workflow-time muted">{formatTime(wf.updatedAt)}</div>
-          <div class="workflow-actions">
-            <Button
-              variant="secondary"
-              size="sm"
-              on:click={() => emitOpenBuilder(wf)}
-            >
-              Open in Builder
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              on:click={() => emitOpenMonitor(wf.name)}
-            >
-              View Runs
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              on:click={() => toggleWorkflowPanel(wf)}
-            >
-              {isPanelOpen ? "Hide" : "Manage"}
-            </Button>
+          <div class="details-actions">
+            <Button onclick={() => emitOpenBuilder(wf)}>Open in Design</Button>
+            <Button variant="ghost" onclick={() => emitOpenMonitor(wf.name)}>View runs</Button>
           </div>
 
-          {#if isPanelOpen}
-            <div class="panel-content">
-              <div class="publish-controls">
-                <label class="field-label">
-                  Environment
-                  <select
-                    class="input"
-                    value={selectedEnv}
-                    on:change={(e) => {
-                      selectedEnvByWorkflowId = {
-                        ...selectedEnvByWorkflowId,
-                        [wf.id]: (e.target as HTMLSelectElement).value,
-                      };
-                    }}
-                  >
-                    <option value="staging">staging</option>
-                    <option value="production">production</option>
-                  </select>
-                </label>
+          <KeyValue items={detailItems(wf)} />
 
-                <label class="field-label">
-                  Version
-                  <select
-                    class="input"
-                    value={selectedVersion ?? ""}
-                    on:change={(e) => {
-                      selectedVersionByWorkflowId = {
-                        ...selectedVersionByWorkflowId,
-                        [wf.id]: (e.target as HTMLSelectElement).value,
-                      };
-                    }}
-                    disabled={loadingVersionsByWorkflowId[wf.id]}
-                  >
-                    {#if workflowVersions.length === 0}
-                      <option value="">No saved versions</option>
-                    {:else}
-                      {#each workflowVersions as version (version.id)}
-                        <option value={version.id}>
-                          v{version.versionNumber} · {new Date(
-                            version.createdAt,
-                          ).toLocaleString()}
-                        </option>
-                      {/each}
-                    {/if}
-                  </select>
-                </label>
-
-                <div class="publish-actions">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    on:click={() => refreshWorkflowVersions(wf)}
-                    disabled={!!loadingVersionsByWorkflowId[wf.id]}
-                  >
-                    {loadingVersionsByWorkflowId[wf.id]
-                      ? "Loading..."
-                      : "Reload Versions"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    loading={!!publishingByWorkflowId[wf.id]}
-                    on:click={() => publishSelectedVersion(wf)}
-                    disabled={!selectedVersion || wf.status === "archived"}
-                  >
-                    {publishingByWorkflowId[wf.id]
-                      ? "Publishing..."
-                      : "Publish"}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    loading={!!rollingBackByWorkflowId[wf.id]}
-                    on:click={() => rollbackToSelectedVersion(wf)}
-                    disabled={!selectedVersion || wf.status === "archived"}
-                  >
-                    {rollingBackByWorkflowId[wf.id]
-                      ? "Rolling Back..."
-                      : "Rollback"}
-                  </Button>
-                </div>
-              </div>
-
-              {#if versionErrorByWorkflowId[wf.id]}
-                <div class="runner-error" role="alert">
-                  {versionErrorByWorkflowId[wf.id]}
-                </div>
-              {/if}
-
-              <div class="published-summary muted">
-                {#if selectedPublishedVersion}
-                  Current {selectedEnv} version:
-                  <span class="mono">{selectedPublishedVersion}</span>
-                {:else}
-                  No version currently published to {selectedEnv}
-                {/if}
-              </div>
-              {#if selectedEnv === "production"}
-                <div class="gate-hint">
-                  Production publish requires an approved request for the
-                  selected version.
-                </div>
-              {/if}
-
-              <div class="runner">
-                <label class="runner-label" for={`event-${wf.name}`}>
-                  Event JSON
-                </label>
-                <textarea
-                  id={`event-${wf.name}`}
-                  class="runner-input mono"
-                  rows="7"
-                  bind:value={eventJsonByWorkflow[wf.name]}
-                  placeholder={'{"type":"PATIENT_ADMIT","source":"ui-manual"}'}
-                  spellcheck="false"
-                ></textarea>
-
-                <div class="runner-actions">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    on:click={() => setSampleEvent(wf.name)}
-                  >
-                    Reset Sample
-                  </Button>
-                  <Button
-                    size="sm"
-                    loading={isRunning}
-                    on:click={() => runWorkflow(wf.id, wf.name)}
-                  >
-                    {isRunning ? "Running..." : "Run Event"}
-                  </Button>
-                </div>
-
-                {#if runError}
-                  <div class="runner-error" role="alert">{runError}</div>
-                {/if}
-
-                {#if runResult}
-                  <div class="runner-result">
-                    <div class="result-row">
-                      <span class="muted">Matched Routes</span>
-                      <span class="mono">{runResult.routesMatched}</span>
-                    </div>
-                    <div class="result-row">
-                      <span class="muted">Executed Actions</span>
-                      <span class="mono">{runResult.actionsExecuted}</span>
-                    </div>
-                    <div class="result-row">
-                      <span class="muted">Duration</span>
-                      <span class="mono"
-                        >{runResult.duration.toFixed(2)} ms</span
-                      >
-                    </div>
-                    {#if runResult.runId}
-                      <div class="result-row">
-                        <span class="muted">Run ID</span>
-                        <span class="mono">{runResult.runId}</span>
-                      </div>
-                    {/if}
-                    {#if runResult.environment}
-                      <div class="result-row">
-                        <span class="muted">Environment</span>
-                        <span class="mono">{runResult.environment}</span>
-                      </div>
-                    {/if}
-                    {#if runResult.versionId}
-                      <div class="result-row">
-                        <span class="muted">Version</span>
-                        <span class="mono">{runResult.versionId}</span>
-                      </div>
-                    {/if}
-                    {#if runResult.errors.length > 0}
-                      <div class="result-errors" role="alert">
-                        {#each runResult.errors as err, idx (idx)}
-                          <div class="result-error-item">{err}</div>
-                        {/each}
-                      </div>
-                    {/if}
-                  </div>
-                {/if}
-              </div>
+          <section class="details-section" aria-labelledby="inventory-publish-title">
+            <h3 id="inventory-publish-title" class="section-title">Publish</h3>
+            <div class="form-grid">
+              <Field label="Environment">
+                <Select
+                  options={ENVIRONMENT_OPTIONS}
+                  value={selectedEnv}
+                  onchange={(e) => {
+                    selectedEnvByWorkflowId = {
+                      ...selectedEnvByWorkflowId,
+                      [wf.id]: e.currentTarget.value
+                    };
+                  }}
+                />
+              </Field>
+              <Field label="Version">
+                <Select
+                  mono
+                  value={selectedVersion ?? ''}
+                  disabled={loadingVersions}
+                  onchange={(e) => {
+                    selectedVersionByWorkflowId = {
+                      ...selectedVersionByWorkflowId,
+                      [wf.id]: e.currentTarget.value
+                    };
+                  }}
+                >
+                  {#if workflowVersions.length === 0}
+                    <option value="">No saved versions</option>
+                  {:else}
+                    {#each workflowVersions as version (version.id)}
+                      <option value={version.id}>
+                        v{version.versionNumber} · {formatTime(version.createdAt)}
+                      </option>
+                    {/each}
+                  {/if}
+                </Select>
+              </Field>
             </div>
-          {/if}
-        </div>
-      {/each}
+
+            <p class="note">
+              {#if selectedPublishedVersion}
+                Current {selectedEnv} version
+                <span class="text-mono" title={selectedPublishedVersion}
+                  >{selectedPublishedVersion.slice(0, 12)}</span
+                >
+              {:else}
+                No version published to {selectedEnv}
+              {/if}
+            </p>
+
+            <div class="button-row">
+              <Button
+                variant="primary"
+                loading={!!publishingByWorkflowId[wf.id]}
+                onclick={() => publishSelectedVersion(wf)}
+                disabled={!selectedVersion || wf.status === 'archived'}
+              >
+                {publishingByWorkflowId[wf.id] ? 'Publishing...' : 'Publish'}
+              </Button>
+              <Button
+                loading={!!rollingBackByWorkflowId[wf.id]}
+                onclick={() => rollbackToSelectedVersion(wf)}
+                disabled={!selectedVersion || wf.status === 'archived'}
+              >
+                {rollingBackByWorkflowId[wf.id] ? 'Rolling back...' : 'Rollback'}
+              </Button>
+              <Button
+                variant="ghost"
+                icon={RefreshCw}
+                onclick={() => refreshWorkflowVersions(wf)}
+                disabled={loadingVersions}
+              >
+                {loadingVersions ? 'Loading...' : 'Reload versions'}
+              </Button>
+            </div>
+
+            {#if selectedEnv === 'production'}
+              <p class="note">Production publish requires an approved request for the selected version.</p>
+            {/if}
+
+            {#if versionErrorByWorkflowId[wf.id]}
+              <p class="inline-error" role="alert">
+                <Icon icon={CircleAlert} />
+                <span>{versionErrorByWorkflowId[wf.id]}</span>
+              </p>
+            {/if}
+          </section>
+
+          <section class="details-section" aria-labelledby="inventory-run-title">
+            <h3 id="inventory-run-title" class="section-title">Run an event</h3>
+            <Field label="Event JSON" id={`event-${wf.name}`}>
+              <Textarea
+                mono
+                rows={7}
+                bind:value={eventJsonByWorkflow[wf.name]}
+                placeholder={'{"type":"PATIENT_ADMIT","source":"ui-manual"}'}
+                spellcheck="false"
+              />
+            </Field>
+
+            <div class="button-row">
+              <Button
+                loading={isRunning}
+                onclick={() => runWorkflow(wf.id, wf.name)}
+                disabled={!!runningWorkflowName && !isRunning}
+              >
+                {isRunning ? 'Running...' : 'Run event'}
+              </Button>
+              <Button variant="ghost" onclick={() => setSampleEvent(wf.name)}>Reset sample</Button>
+            </div>
+
+            {#if runError}
+              <p class="inline-error" role="alert">
+                <Icon icon={CircleAlert} />
+                <span>{runError}</span>
+              </p>
+            {/if}
+
+            {#if runResult}
+              <KeyValue items={resultItems(runResult)} />
+              {#if runResult.errors.length > 0}
+                <ul class="error-list" role="alert">
+                  {#each runResult.errors as err, idx (idx)}
+                    <li>{err}</li>
+                  {/each}
+                </ul>
+              {/if}
+            {/if}
+          </section>
+        {:else}
+          <EmptyState
+            icon={MousePointerClick}
+            align="start"
+            message="Select a workflow to publish a version or run an event."
+          />
+        {/if}
+      </aside>
     </div>
   {/if}
-</Panel>
+</div>
 
 <style>
-  .list-header {
+  .inventory {
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+  }
+
+  .filters {
+    display: flex;
     align-items: center;
-    gap: 10px;
-    margin-bottom: 10px;
+    gap: var(--space-2);
+    flex: 0 0 auto;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
   }
 
-  .list-title {
+  .count {
+    margin-left: auto;
     color: var(--color-text-tertiary);
-    font-size: 0.85rem;
-    font-weight: 700;
+  }
+
+  .status-line {
+    margin: 0;
+    padding: var(--space-3);
+    color: var(--color-text-tertiary);
+    font-size: var(--text-ui);
+  }
+
+  .split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .split :global(.split-table) {
+    height: 100%;
+  }
+
+  .details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-height: 0;
+    overflow: auto;
+    padding: var(--space-3);
+    border-left: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-elevated);
+  }
+
+  .details-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+
+  .details-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-ui);
+    font-weight: var(--font-semibold);
+    color: var(--color-text-primary);
+  }
+
+  .details-actions,
+  .button-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .details-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border-subtle);
+  }
+
+  .section-title {
+    margin: 0;
+    font-size: var(--text-label);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-label);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    color: var(--color-text-tertiary);
   }
 
-  .skeleton-list {
+  .form-grid {
     display: grid;
-    gap: 8px;
-  }
-
-  .workflow-list {
-    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
     gap: var(--space-3);
   }
 
-  .workflow-row {
-    display: grid;
-    grid-template-columns: 1fr auto auto auto;
-    gap: 12px;
-    align-items: center;
-    padding: var(--space-3) var(--space-4);
-    border-radius: var(--radius-lg);
-    background: var(--color-bg-surface);
-    border: 1px solid var(--color-border-subtle);
-    border-top: 1px solid rgba(255, 255, 255, 0.05); /* 3D depth */
-    box-shadow: var(--shadow-sm);
-    transition: var(--transition-all);
-    animation: fade-in-up 0.4s ease-out both;
-  }
-
-  @keyframes fade-in-up {
-    from {
-      opacity: 0;
-      transform: translateY(10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  .workflow-row:hover {
-    background: var(--color-bg-hover);
-    border-color: var(--color-border-strong);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
-  }
-
-  .workflow-row.expanded {
-    border-color: var(--color-primary-border);
-    background: var(--color-bg-elevated);
-    box-shadow: 0 0 0 1px var(--color-primary-border);
-  }
-
-  .workflow-name {
-    font-weight: 700;
-    color: var(--color-text-primary);
-    font-family:
-      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  }
-
-  .workflow-meta {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  .stat {
+  .note {
+    margin: 0;
+    font-size: var(--text-xs);
     color: var(--color-text-tertiary);
-    font-size: 0.85rem;
   }
 
-  .workflow-time {
-    font-size: 0.85rem;
-    white-space: nowrap;
-  }
-
-  .workflow-actions {
+  .inline-error {
     display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--space-2);
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--color-danger-text);
+    overflow-wrap: anywhere;
   }
 
-  .panel-content {
-    grid-column: 1 / -1;
-    display: grid;
-    gap: 8px;
-    padding-top: 10px;
-    border-top: 1px solid var(--color-border-subtle);
+  .inline-error :global(.ui-icon) {
+    margin-top: 1px;
   }
 
-  .publish-controls {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(180px, 220px)) 1fr;
-    gap: 10px;
-    align-items: end;
-  }
-
-  .publish-actions {
+  .error-list {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  .field-label {
-    display: grid;
-    gap: 4px;
-    color: var(--color-text-tertiary);
-    font-size: 0.8rem;
-    font-weight: 700;
-  }
-
-  .input {
-    padding: 8px 10px;
-    border-radius: 8px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-input);
-    color: var(--color-text-primary);
-    outline: none;
-    width: 100%;
-    box-sizing: border-box;
-  }
-
-  .input:hover:not(:disabled):not(:focus) {
-    border-color: var(--color-border-strong);
-  }
-
-  .input:focus {
-    border-color: var(--color-border-focus);
-    box-shadow: var(--shadow-focus);
-  }
-
-  .published-summary {
-    font-size: 0.85rem;
-  }
-
-  .gate-hint {
-    padding: 8px 10px;
-    border-radius: 8px;
-    border: 1px solid rgba(245, 158, 11, 0.35);
-    background: rgba(245, 158, 11, 0.14);
-    color: rgba(253, 230, 138, 0.95);
-    font-size: 0.82rem;
-  }
-
-  .runner {
-    display: grid;
-    gap: 8px;
-    padding-top: 6px;
-    border-top: 1px solid var(--color-border-subtle);
-  }
-
-  .runner-label {
-    color: var(--color-text-tertiary);
-    font-size: 0.8rem;
-    font-weight: 700;
-  }
-
-  .runner-input {
-    padding: 8px 10px;
-    border-radius: 8px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-input);
-    color: var(--color-text-primary);
-    resize: vertical;
-    outline: none;
-    width: 100%;
-    box-sizing: border-box;
-    transition: var(--transition-all);
-  }
-
-  .runner-input:hover:not(:disabled):not(:focus) {
-    border-color: var(--color-border-strong);
-  }
-
-  .runner-input:focus {
-    border-color: var(--color-border-focus);
-    box-shadow: var(--shadow-focus);
-  }
-
-  .runner-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  .runner-result {
-    display: grid;
-    gap: 4px;
-    padding: 8px 10px;
-    border-radius: 8px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-surface);
-  }
-
-  .result-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.85rem;
-  }
-
-  .runner-error,
-  .result-errors {
-    padding: 8px 10px;
-    border-radius: 8px;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 0;
+    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-5);
     border: 1px solid var(--color-danger-border);
+    border-radius: var(--radius-sm);
     background: var(--color-danger-bg);
     color: var(--color-danger-text);
-    font-size: 0.85rem;
-  }
-
-  .result-errors {
-    margin-top: 4px;
-    display: grid;
-    gap: 4px;
-  }
-
-  .muted {
-    color: var(--color-text-muted);
-  }
-
-  .mono {
-    font-family:
-      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: var(--text-xs);
   }
 
   @media (max-width: 960px) {
-    .publish-controls {
+    .split {
       grid-template-columns: 1fr;
     }
-  }
 
-  @media (max-width: 640px) {
-    .workflow-row {
-      grid-template-columns: 1fr;
-      gap: 6px;
-    }
-
-    .workflow-meta {
-      flex-wrap: wrap;
-    }
-
-    .workflow-actions {
-      justify-content: flex-start;
+    .details {
+      border-left: 0;
+      border-top: 1px solid var(--color-border-subtle);
     }
   }
 </style>

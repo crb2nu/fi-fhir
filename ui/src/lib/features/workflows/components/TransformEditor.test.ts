@@ -76,7 +76,7 @@ describe('TransformEditor', () => {
     const { container } = render(TransformEditor, {
       props: { transform }
     });
-    const required = container.querySelectorAll('.required');
+    const required = container.querySelectorAll('.ui-field-required');
     expect(required.length).toBeGreaterThan(0);
   });
 

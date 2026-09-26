@@ -1,7 +1,26 @@
 <script lang="ts">
   import { onMount, createEventDispatcher } from "svelte";
-  import Button from "$lib/ui/Button.svelte";
-  import EmptyState from "$lib/ui/EmptyState.svelte";
+  import ChevronLeft from "@lucide/svelte/icons/chevron-left";
+  import ChevronRight from "@lucide/svelte/icons/chevron-right";
+  import CircleAlert from "@lucide/svelte/icons/circle-alert";
+  import Download from "@lucide/svelte/icons/download";
+  import Inbox from "@lucide/svelte/icons/inbox";
+  import Pencil from "@lucide/svelte/icons/pencil";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
+  import {
+    Badge,
+    Button,
+    EmptyState,
+    Icon,
+    Input,
+    KeyValue,
+    Select,
+    Table,
+    Td,
+    Th,
+    Tr,
+    type SelectOption,
+  } from "$lib/ui/primitives";
   import ConfirmModal from "$lib/ui/ConfirmModal.svelte";
   import { toasts } from "$lib/ui/toastStore";
   import { isErrorToasted } from "$lib/graphql/client";
@@ -11,6 +30,13 @@
     deleteMappingBatch,
     exportMappingsCSV,
   } from "./terminologyApi";
+  import {
+    equivalenceLabel,
+    equivalenceTone,
+    formatPercent,
+    formatTimestamp,
+    originLabel,
+  } from "./terminologyFormat";
   import type {
     MappingEquivalence,
     MappingOrigin,
@@ -32,6 +58,21 @@
     refresh: void;
   }>();
 
+  const originOptions: SelectOption[] = [
+    { value: "", label: "All origins" },
+    { value: "CSV_UPLOAD", label: "CSV upload" },
+    { value: "APPROVED_AUTOROUTE", label: "Approved autoroute" },
+    { value: "MANUAL", label: "Manual" },
+  ];
+
+  const equivalenceOptions: SelectOption[] = [
+    { value: "", label: "All equivalences" },
+    { value: "EQUIVALENT", label: "Equivalent" },
+    { value: "WIDER", label: "Wider" },
+    { value: "NARROWER", label: "Narrower" },
+    { value: "INEXACT", label: "Inexact" },
+  ];
+
   // Data state
   let mappings: MappingNode[] = [];
   let totalCount = 0;
@@ -48,10 +89,51 @@
   let filterCreatedAfter = "";
   let filterCreatedBefore = "";
 
+  // Selection (details pane)
+  let selectedId: string | null = null;
+
   // Delete confirmation
   let showDeleteConfirm = false;
   let deletingId: string | null = null;
   let deletingBatchId: string | null = null;
+
+  $: selected = mappings.find((m) => m.id === selectedId) ?? null;
+  $: hasFilters = Boolean(
+    filterSourceSystem ||
+      filterTargetSystem ||
+      filterOrigin ||
+      filterEquivalence ||
+      filterCreatedAfter ||
+      filterCreatedBefore,
+  );
+  $: selectedItems = selected
+    ? [
+        { key: "Source system", value: selected.sourceSystem, mono: true },
+        { key: "Source code", value: selected.sourceCode, mono: true },
+        { key: "Source display", value: selected.sourceDisplay },
+        { key: "Target system", value: selected.targetSystem, mono: true },
+        { key: "Target code", value: selected.targetCode, mono: true },
+        { key: "Target display", value: selected.targetDisplay },
+        { key: "Equivalence", value: equivalenceLabel(selected.equivalence) },
+        {
+          key: "Confidence",
+          value: formatPercent(selected.confidence),
+          mono: true,
+        },
+        { key: "Origin", value: originLabel(selected.origin) },
+        { key: "Profile", value: selected.profileId, mono: true },
+        {
+          key: "Upload batch",
+          value: selected.uploadBatchId,
+          mono: true,
+          truncate: true,
+        },
+        { key: "Created", value: formatTimestamp(selected.createdAt), mono: true },
+        { key: "Created by", value: selected.createdBy },
+        { key: "Comment", value: selected.comment },
+        { key: "Mapping id", value: selected.id, mono: true, truncate: true },
+      ]
+    : [];
 
   onMount(() => {
     loadMappings();
@@ -80,6 +162,10 @@
       });
       mappings = result.nodes;
       totalCount = result.totalCount;
+      // Keep the details pane on a row that is still listed.
+      if (!mappings.some((m) => m.id === selectedId)) {
+        selectedId = mappings[0]?.id ?? null;
+      }
     } catch (err) {
       error = err instanceof Error ? err.message : "Failed to load mappings";
     } finally {
@@ -101,6 +187,10 @@
     filterCreatedBefore = "";
     offset = 0;
     loadMappings();
+  }
+
+  function applyOnEnter(event: KeyboardEvent) {
+    if (event.key === "Enter") applyFilters();
   }
 
   function editMapping(mapping: MappingNode) {
@@ -164,6 +254,7 @@
   }
 
   function selectMapping(mapping: MappingNode) {
+    selectedId = mapping.id;
     dispatch("select", { mapping });
   }
 
@@ -195,292 +286,206 @@
       deletingBatchId = null;
     }
   }
-
-  function formatEquivalence(eq: MappingEquivalence): string {
-    switch (eq) {
-      case "EQUIVALENT":
-        return "Equivalent";
-      case "WIDER":
-        return "Wider";
-      case "NARROWER":
-        return "Narrower";
-      case "INEXACT":
-        return "Inexact";
-      default:
-        return String(eq);
-    }
-  }
-
-  function formatOrigin(origin: MappingOrigin): string {
-    switch (origin) {
-      case "CSV_UPLOAD":
-        return "CSV Upload";
-      case "APPROVED_AUTOROUTE":
-        return "Approved";
-      case "MANUAL":
-        return "Manual";
-      default:
-        return String(origin);
-    }
-  }
-
-  function formatDate(dateStr: string): string {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  }
-
-  function truncateSystem(system: string): string {
-    if (!system) return "";
-    if (system.startsWith("http://")) {
-      const rest = system.replace("http://", "");
-      return rest.split("/")[0] ?? rest;
-    }
-    if (system.startsWith("https://")) {
-      const rest = system.replace("https://", "");
-      return rest.split("/")[0] ?? rest;
-    }
-    return system.length > 20 ? system.substring(0, 17) + "..." : system;
-  }
 </script>
 
 <div class="browser">
-  <!-- Header with Export -->
-  <div class="browser-header">
-    <div class="header-info">
-      <span class="total-count">{totalCount} mappings</span>
-    </div>
-    <Button
-      variant="secondary"
-      size="sm"
-      on:click={handleExport}
-      disabled={exporting || totalCount === 0}
-    >
-      {exporting ? "Exporting..." : "Export CSV"}
-    </Button>
-  </div>
-
-  <!-- Filters -->
   <div class="filters">
-    <div class="filter-row">
-      <label class="filter-field">
-        <span class="filter-label">Source System</span>
-        <input
-          type="text"
-          class="filter-input"
-          bind:value={filterSourceSystem}
-          placeholder="e.g., epic_labs"
-          on:keydown={(e) => e.key === "Enter" && applyFilters()}
-        />
-      </label>
-      <label class="filter-field">
-        <span class="filter-label">Target System</span>
-        <input
-          type="text"
-          class="filter-input"
-          bind:value={filterTargetSystem}
-          placeholder="e.g., http://loinc.org"
-          on:keydown={(e) => e.key === "Enter" && applyFilters()}
-        />
-      </label>
+    <div class="filter-text">
+      <Input
+        bind:value={filterSourceSystem}
+        placeholder="Source system"
+        aria-label="Source system"
+        onkeydown={applyOnEnter}
+      />
     </div>
-    <div class="filter-row">
-      <label class="filter-field filter-sm">
-        <span class="filter-label">Origin</span>
-        <select class="filter-select" bind:value={filterOrigin}>
-          <option value="">All</option>
-          <option value="CSV_UPLOAD">CSV Upload</option>
-          <option value="APPROVED_AUTOROUTE">Approved</option>
-          <option value="MANUAL">Manual</option>
-        </select>
-      </label>
-      <label class="filter-field filter-sm">
-        <span class="filter-label">Equivalence</span>
-        <select class="filter-select" bind:value={filterEquivalence}>
-          <option value="">All</option>
-          <option value="EQUIVALENT">Equivalent</option>
-          <option value="WIDER">Wider</option>
-          <option value="NARROWER">Narrower</option>
-          <option value="INEXACT">Inexact</option>
-        </select>
-      </label>
-      <label class="filter-field filter-sm">
-        <span class="filter-label">Created After</span>
-        <input
+    <div class="filter-text">
+      <Input
+        bind:value={filterTargetSystem}
+        placeholder="Target system"
+        aria-label="Target system"
+        onkeydown={applyOnEnter}
+      />
+    </div>
+    <div class="filter-select">
+      <Select
+        bind:value={filterOrigin}
+        options={originOptions}
+        aria-label="Origin"
+      />
+    </div>
+    <div class="filter-select">
+      <Select
+        bind:value={filterEquivalence}
+        options={equivalenceOptions}
+        aria-label="Equivalence"
+      />
+    </div>
+    <div class="filter-dates">
+      <span class="text-label" aria-hidden="true">Created</span>
+      <div class="filter-date">
+        <Input
           type="date"
-          class="filter-input"
           bind:value={filterCreatedAfter}
+          aria-label="Created after"
+          title="Created after"
+          mono
         />
-      </label>
-      <label class="filter-field filter-sm">
-        <span class="filter-label">Created Before</span>
-        <input
+      </div>
+      <span class="filter-sep" aria-hidden="true">to</span>
+      <div class="filter-date">
+        <Input
           type="date"
-          class="filter-input"
           bind:value={filterCreatedBefore}
+          aria-label="Created before"
+          title="Created before"
+          mono
         />
-      </label>
-      <div class="filter-actions">
-        <Button variant="secondary" size="sm" on:click={clearFilters}
-          >Clear</Button
-        >
-        <Button variant="primary" size="sm" on:click={applyFilters}
-          >Apply</Button
-        >
       </div>
     </div>
+    <Button variant="ghost" onclick={clearFilters} disabled={!hasFilters}
+      >Clear</Button
+    >
+    <Button variant="primary" onclick={applyFilters}>Apply</Button>
+
+    <div class="filters-end">
+      <span class="filter-count text-mono" aria-live="polite"
+        >{totalCount} mappings</span
+      >
+      <Button
+        variant="ghost"
+        icon={Download}
+        onclick={handleExport}
+        loading={exporting}
+        disabled={totalCount === 0}
+      >
+        Export CSV
+      </Button>
+    </div>
   </div>
 
-  <!-- Table -->
   {#if loading}
-    <div class="loading">Loading mappings...</div>
+    <EmptyState message="Loading mappings…" aria-busy="true" />
   {:else if error}
-    <div class="error-state">
-      <div class="error-message">{error}</div>
-      <Button variant="secondary" size="sm" on:click={loadMappings}
-        >Retry</Button
-      >
-    </div>
+    <EmptyState icon={CircleAlert} message="Mappings could not be loaded: {error}">
+      {#snippet action()}
+        <Button onclick={loadMappings}>Retry</Button>
+      {/snippet}
+    </EmptyState>
   {:else if mappings.length === 0}
     <EmptyState
-      icon="data"
-      title="No mappings found"
-      description={filterSourceSystem || filterTargetSystem
-        ? "Try adjusting your filters"
-        : "Upload a CSV file to add mappings"}
+      icon={Inbox}
+      message={hasFilters
+        ? "No mappings match these filters."
+        : "No mappings yet. Upload a CSV to add some."}
     />
   {:else}
-    <div class="cards">
-      {#each mappings as mapping, i (mapping.id)}
-        <div class="card hover-lift" style="--card-delay: {i * 0.05}s">
-          <button
-            type="button"
-            class="card-main"
-            on:click={() => selectMapping(mapping)}
-            aria-label="Select mapping {truncateSystem(
-              mapping.sourceSystem,
-            )} {mapping.sourceCode} to {truncateSystem(
-              mapping.targetSystem,
-            )} {mapping.targetCode}"
-          >
-            <div class="mapping-route">
-              <div class="mapping-leg">
-                <span class="system-label" title={mapping.sourceSystem}
-                  >{truncateSystem(mapping.sourceSystem)}</span
-                >
-                <span class="code-value">{mapping.sourceCode}</span>
-              </div>
-              <div class="mapping-arrow">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                >
-                  <path
-                    d="M17 8l4 4m0 0l-4 4m4-4H3"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                </svg>
-              </div>
-              <div class="mapping-leg target">
-                <span class="system-label" title={mapping.targetSystem}
-                  >{truncateSystem(mapping.targetSystem)}</span
-                >
-                <span class="code-value">{mapping.targetCode}</span>
-              </div>
-            </div>
-
-            <div class="mapping-meta">
-              <span
-                class="equiv-badge equiv-{mapping.equivalence.toLowerCase()}"
-              >
-                {formatEquivalence(mapping.equivalence)}
-              </span>
-              <span class="origin-badge">{formatOrigin(mapping.origin)}</span>
-              <span class="date-badge">{formatDate(mapping.createdAt)}</span>
-            </div>
-          </button>
-
-          <div class="card-actions">
-            <button
-              type="button"
-              class="icon-btn"
-              aria-label="Edit mapping"
-              title="Edit mapping"
-              on:click={() => editMapping(mapping)}
+    <div class="split">
+      <div class="list">
+        <Table label="Mappings" layout="fixed" class="mapping-table">
+          {#snippet head()}
+            <tr>
+              <Th>Source system</Th>
+              <Th width="120px">Source code</Th>
+              <Th>Target system</Th>
+              <Th width="120px">Target code</Th>
+              <Th width="112px">Equivalence</Th>
+              <Th width="144px">Origin</Th>
+              <Th width="96px" numeric>Confidence</Th>
+              <Th width="104px">Created</Th>
+            </tr>
+          {/snippet}
+          {#each mappings as mapping (mapping.id)}
+            <Tr
+              selectable
+              selected={mapping.id === selectedId}
+              onselect={() => selectMapping(mapping)}
+              aria-label="Mapping {mapping.sourceCode} to {mapping.targetCode}"
             >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path
-                  d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"
-                />
-                <path
-                  d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"
-                />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="icon-btn danger"
-              aria-label="Delete mapping"
-              title="Delete mapping"
-              on:click={() => confirmDelete(mapping.id)}
+              <Td muted truncate value={mapping.sourceSystem} />
+              <Td mono truncate value={mapping.sourceCode} />
+              <Td muted truncate value={mapping.targetSystem} />
+              <Td mono truncate value={mapping.targetCode} />
+              <Td>
+                <Badge tone={equivalenceTone(mapping.equivalence)}
+                  >{equivalenceLabel(mapping.equivalence)}</Badge
+                >
+              </Td>
+              <Td truncate value={originLabel(mapping.origin)} />
+              <Td numeric value={formatPercent(mapping.confidence) || "—"} />
+              <Td
+                mono
+                muted
+                value={formatTimestamp(mapping.createdAt, false)}
+                title={formatTimestamp(mapping.createdAt)}
+              />
+            </Tr>
+          {/each}
+        </Table>
+
+        {#if totalCount > pageSize || offset > 0}
+          <div class="pagination">
+            <span class="pagination-info text-mono">
+              {offset + 1}–{Math.min(offset + mappings.length, totalCount)} of {totalCount}
+            </span>
+            <Button
+              variant="ghost"
+              icon={ChevronLeft}
+              onclick={prevPage}
+              disabled={offset === 0}
             >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path
-                  d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"
-                />
-              </svg>
-            </button>
+              Previous
+            </Button>
+            <Button
+              variant="ghost"
+              onclick={nextPage}
+              disabled={offset + pageSize >= totalCount}
+            >
+              Next
+              <Icon icon={ChevronRight} />
+            </Button>
           </div>
-        </div>
-      {/each}
-    </div>
+        {/if}
+      </div>
 
-    <!-- Pagination -->
-    <div class="pagination">
-      <div class="pagination-info">
-        Showing {offset + 1}–{Math.min(offset + mappings.length, totalCount)} of {totalCount}
-      </div>
-      <div class="pagination-controls">
-        <button
-          type="button"
-          class="page-btn"
-          on:click={prevPage}
-          disabled={offset === 0}
-        >
-          Previous
-        </button>
-        <button
-          type="button"
-          class="page-btn"
-          on:click={nextPage}
-          disabled={offset + pageSize >= totalCount}
-        >
-          Next
-        </button>
-      </div>
+      <aside class="details" aria-label="Selected mapping">
+        {#if selected}
+          <div class="details-head">
+            <span class="details-title text-mono" title="{selected.sourceCode} → {selected.targetCode}"
+              >{selected.sourceCode} → {selected.targetCode}</span
+            >
+            <Badge tone={equivalenceTone(selected.equivalence)}
+              >{equivalenceLabel(selected.equivalence)}</Badge
+            >
+          </div>
+          <div class="details-actions">
+            <Button
+              icon={Pencil}
+              aria-label="Edit mapping"
+              onclick={() => selected && editMapping(selected)}
+            >
+              Edit
+            </Button>
+            <Button
+              variant="danger"
+              icon={Trash2}
+              aria-label="Delete mapping"
+              onclick={() => selected && confirmDelete(selected.id)}
+            >
+              Delete
+            </Button>
+          </div>
+          <KeyValue items={selectedItems} />
+        {:else}
+          <EmptyState message="Select a mapping to see its details." />
+        {/if}
+      </aside>
     </div>
   {/if}
 </div>
 
 <ConfirmModal
   bind:open={showDeleteConfirm}
-  title={deletingBatchId ? "Delete Batch?" : "Delete Mapping?"}
+  title={deletingBatchId ? "Delete batch?" : "Delete mapping?"}
   message={deletingBatchId
     ? "This will delete all mappings from this upload batch. This action cannot be undone."
     : "This will permanently delete the mapping. This action cannot be undone."}
@@ -493,384 +498,120 @@
   .browser {
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
-  /* Header */
-  .browser-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .header-info {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-  }
-
-  .total-count {
-    font-size: var(--text-sm);
-    color: var(--color-text-tertiary);
-  }
-
-  /* Filters */
   .filters {
-    padding: var(--space-3) var(--space-4);
-    border-radius: var(--radius-lg);
-    background: var(--color-bg-elevated);
-    border: 1px solid var(--color-border-subtle);
-  }
-
-  .filter-row {
     display: flex;
-    gap: var(--space-3);
-    align-items: flex-end;
     flex-wrap: wrap;
-  }
-
-  .filter-row + .filter-row {
-    margin-top: var(--space-3);
-  }
-
-  .filter-field {
-    flex: 1;
-    min-width: 140px;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-  }
-
-  .filter-field.filter-sm {
-    flex: 0.7;
-    min-width: 100px;
-  }
-
-  .filter-label {
-    font-size: var(--text-xs);
-    font-weight: var(--font-semibold);
-    color: var(--color-text-tertiary);
-    text-transform: uppercase;
-    letter-spacing: var(--tracking-wide);
-  }
-
-  .filter-input {
+    align-items: center;
+    gap: var(--space-2);
     padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-input);
-    color: var(--color-text-primary);
-    font-size: var(--text-sm);
-    outline: none;
-    transition: var(--transition-all);
+    border-bottom: 1px solid var(--color-border-subtle);
   }
 
-  .filter-input:focus {
-    border-color: var(--color-border-focus);
-    box-shadow: var(--shadow-focus);
+  .filter-text {
+    width: 160px;
   }
 
   .filter-select {
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-input);
-    color: var(--color-text-primary);
-    font-size: var(--text-sm);
-    outline: none;
-    transition: var(--transition-all);
+    width: 144px;
   }
 
-  .filter-select:focus {
-    border-color: var(--color-border-focus);
-    box-shadow: var(--shadow-focus);
-  }
-
-  .filter-actions {
+  .filter-dates {
     display: flex;
+    align-items: center;
     gap: var(--space-2);
   }
 
-  /* Cards Paradigm */
-  .cards {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
+  .filter-date {
+    width: 128px;
   }
 
-  .card {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--space-3) var(--space-4);
-    background: var(--color-bg-surface);
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--color-border-subtle);
-    border-top: 1px solid rgba(255, 255, 255, 0.05); /* 3D depth */
-    box-shadow: var(--shadow-sm);
-    animation: fade-in-up 0.4s ease-out both;
-    animation-delay: var(--card-delay, 0s);
-    gap: var(--space-4);
-  }
-
-  @keyframes fade-in-up {
-    from {
-      opacity: 0;
-      transform: translateY(10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  .card-main {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-4);
-    padding: 0;
-    margin: 0;
-    border: 0;
-    background: transparent;
-    color: inherit;
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-    min-width: 0; /* for flex truncation */
-  }
-
-  .card-main:focus-visible {
-    outline: none;
-    background: var(--color-bg-hover);
-    border-radius: var(--radius-md);
-    box-shadow: 0 0 0 2px var(--color-primary-border);
-  }
-
-  .mapping-route {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    flex: 1;
-    min-width: 0;
-  }
-
-  .mapping-leg {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-    flex: 1;
-  }
-
-  .mapping-leg.target {
-    align-items: flex-end;
-    text-align: right;
-  }
-
-  .mapping-arrow {
-    flex-shrink: 0;
-    color: var(--color-border-strong);
-    width: 20px;
-    height: 20px;
-    opacity: 0.6;
-  }
-
-  .mapping-meta {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    flex-shrink: 0;
-  }
-
-  .system-label {
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .code-value {
-    font-family: var(--font-mono);
-    color: var(--color-text-primary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .equiv-badge {
-    display: inline-block;
-    padding: 2px var(--space-2);
-    border-radius: var(--radius-sm);
-    font-size: var(--text-xs);
-    font-weight: var(--font-medium);
-  }
-
-  .equiv-equivalent {
-    color: var(--color-success-text);
-    background: var(--color-success-bg);
-  }
-
-  .equiv-wider {
-    color: var(--color-info-text);
-    background: var(--color-info-bg);
-  }
-
-  .equiv-narrower {
-    color: var(--color-warning-text);
-    background: var(--color-warning-bg);
-  }
-
-  .equiv-inexact {
-    color: var(--color-text-tertiary);
-    background: var(--color-bg-surface);
-  }
-
-  .origin-badge,
-  .date-badge {
+  .filter-sep {
     font-size: var(--text-xs);
     color: var(--color-text-tertiary);
-    background: var(--color-bg-elevated);
-    border: 1px solid var(--color-border-subtle);
-    padding: 2px var(--space-2);
-    border-radius: var(--radius-sm);
   }
 
-  .card-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-1);
-    flex-shrink: 0;
-  }
-
-  .icon-btn {
-    width: 28px;
-    height: 28px;
+  .filters-end {
     display: flex;
     align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-md);
-    border: none;
-    background: transparent;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    transition: var(--transition-all);
+    gap: var(--space-2);
+    margin-left: auto;
   }
 
-  .icon-btn svg {
-    width: 16px;
-    height: 16px;
+  .filter-count {
+    color: var(--color-text-tertiary);
   }
 
-  .icon-btn:hover {
-    color: var(--color-text-primary);
-    background: var(--color-bg-hover);
+  .split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
-  .icon-btn:focus-visible {
-    outline: none;
-    box-shadow: var(--shadow-focus);
+  .list {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
   }
 
-  .icon-btn.danger:hover {
-    color: var(--color-danger-text);
-    background: var(--color-danger-bg);
+  .list :global(.mapping-table) {
+    flex: 1 1 auto;
   }
 
-  /* Pagination */
+  /* Fixed layout gives the unsized columns only what is left; keep a floor
+     so they never collapse, and let the wrapper scroll sideways instead. */
+  .list :global(.mapping-table > table) {
+    min-width: 880px;
+  }
+
   .pagination {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: var(--space-2) 0;
+    gap: var(--space-1);
+    flex: 0 0 auto;
+    padding: var(--space-1) var(--space-3);
+    border-top: 1px solid var(--color-border-subtle);
   }
 
   .pagination-info {
-    font-size: var(--text-xs);
+    margin-right: auto;
     color: var(--color-text-tertiary);
   }
 
-  .pagination-controls {
-    display: flex;
-    gap: var(--space-2);
-  }
-
-  .page-btn {
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--color-border-default);
-    background: transparent;
-    color: var(--color-text-secondary);
-    font-size: var(--text-xs);
-    cursor: pointer;
-    transition: var(--transition-all);
-  }
-
-  .page-btn:hover:not(:disabled) {
-    background: var(--color-bg-hover);
-  }
-
-  .page-btn:focus-visible {
-    outline: none;
-    box-shadow: var(--shadow-focus);
-  }
-
-  .page-btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-
-  /* States */
-  .loading {
-    padding: var(--space-12);
-    text-align: center;
-    color: var(--color-text-tertiary);
-  }
-
-  .error-state {
+  .details {
     display: flex;
     flex-direction: column;
-    align-items: center;
     gap: var(--space-3);
-    padding: var(--space-12);
+    min-height: 0;
+    overflow: auto;
+    padding: var(--space-3);
+    border-left: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-elevated);
   }
 
-  .error-message {
-    color: var(--color-danger-text);
-    font-size: var(--text-sm);
+  .details-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
   }
 
-  /* Responsive */
-  @media (max-width: 768px) {
-    .card {
-      flex-direction: column;
-      align-items: stretch;
-      gap: var(--space-3);
-    }
-    .card-main {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: var(--space-3);
-    }
-    .mapping-route {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: var(--space-2);
-      width: 100%;
-    }
-    .mapping-leg.target {
-      align-items: flex-start;
-      text-align: left;
-    }
-    .mapping-arrow {
-      transform: rotate(90deg);
-      align-self: flex-start;
-      margin-left: var(--space-2);
-    }
-    .card-actions {
-      align-self: flex-end;
-    }
+  .details-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-ui);
+    font-weight: var(--font-semibold);
+  }
+
+  .details-actions {
+    display: flex;
+    gap: var(--space-2);
   }
 </style>

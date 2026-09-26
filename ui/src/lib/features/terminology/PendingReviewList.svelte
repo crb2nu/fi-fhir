@@ -1,8 +1,30 @@
 <script lang="ts">
   import { onMount, createEventDispatcher } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
-  import Button from "$lib/ui/Button.svelte";
-  import EmptyState from "$lib/ui/EmptyState.svelte";
+  import Check from "@lucide/svelte/icons/check";
+  import ChevronLeft from "@lucide/svelte/icons/chevron-left";
+  import ChevronRight from "@lucide/svelte/icons/chevron-right";
+  import CircleAlert from "@lucide/svelte/icons/circle-alert";
+  import Inbox from "@lucide/svelte/icons/inbox";
+  import ListChecks from "@lucide/svelte/icons/list-checks";
+  import X from "@lucide/svelte/icons/x";
+  import {
+    Badge,
+    Button,
+    EmptyState,
+    Field,
+    Icon,
+    Input,
+    KeyValue,
+    Select,
+    Table,
+    Td,
+    Textarea,
+    Th,
+    Tr,
+    type KeyValueItem,
+    type SelectOption,
+  } from "$lib/ui/primitives";
   import ConfirmModal from "$lib/ui/ConfirmModal.svelte";
   import { toasts } from "$lib/ui/toastStore";
   import { isErrorToasted } from "$lib/graphql/client";
@@ -13,6 +35,14 @@
     rejectPendingAutoroute,
     bulkApprovePendingAutoroutes,
   } from "./terminologyApi";
+  import {
+    confidenceTone,
+    equivalenceLabel,
+    formatPercent,
+    formatTimestamp,
+    pendingStatusLabel,
+    pendingStatusTone,
+  } from "./terminologyFormat";
   import type {
     PendingAutorouteStatus,
     MappingEquivalence,
@@ -32,6 +62,14 @@
     reject: { id: string };
     refresh: void;
   }>();
+
+  const statusOptions: SelectOption[] = [
+    { value: "", label: "All statuses" },
+    { value: "PENDING", label: "Pending" },
+    { value: "APPROVED", label: "Approved" },
+    { value: "REJECTED", label: "Rejected" },
+    { value: "EXPIRED", label: "Expired" },
+  ];
 
   // Data state
   let pending: PendingNode[] = [];
@@ -64,21 +102,23 @@
   let bulkApprovingSelected = false;
   let selectAllPendingEl: HTMLInputElement | null = null;
   let processingIds = new SvelteSet<string>();
-  let selectedIds = new SvelteSet<string>();
+  // Bulk selection: an array reassigned on every change so the `$:`
+  // statements below re-run (legacy `$:` does not see SvelteSet mutations).
+  let selectedIds: string[] = [];
 
   let visiblePendingIds: string[] = [];
   let selectedVisiblePendingIds: string[] = [];
   let allVisiblePendingSelected = false;
   let someVisiblePendingSelected = false;
 
-  // Expanded rows for showing alternates/trace
-  let expandedIds = new SvelteSet<string>();
+  // The row shown in the details pane (independent of the bulk checkboxes)
+  let activeId: string | null = null;
 
   $: visiblePendingIds = pending
     .filter((item) => item.status === "PENDING")
     .map((item) => item.id);
   $: selectedVisiblePendingIds = visiblePendingIds.filter((id) =>
-    selectedIds.has(id),
+    selectedIds.includes(id),
   );
   $: allVisiblePendingSelected =
     visiblePendingIds.length > 0 &&
@@ -88,6 +128,16 @@
   $: if (selectAllPendingEl) {
     selectAllPendingEl.indeterminate = someVisiblePendingSelected;
   }
+  $: hasSelectColumn = visiblePendingIds.length > 0;
+  $: hasFilters = Boolean(
+    filterStatus !== "PENDING" ||
+      filterMinConfidence ||
+      filterSourceSystem ||
+      filterTargetSystem,
+  );
+
+  $: active = pending.find((item) => item.id === activeId) ?? null;
+  $: activeItems = active ? detailItems(active) : [];
 
   onMount(() => {
     loadPending();
@@ -112,6 +162,9 @@
       pending = result.nodes;
       totalCount = result.totalCount;
       syncSelectedWithVisiblePending();
+      if (!pending.some((item) => item.id === activeId)) {
+        activeId = pending[0]?.id ?? null;
+      }
     } catch (err) {
       error =
         err instanceof Error
@@ -144,6 +197,10 @@
     loadPending();
   }
 
+  function applyOnEnter(event: KeyboardEvent) {
+    if (event.key === "Enter") applyFilters();
+  }
+
   function prevPage() {
     if (offset > 0) {
       offset = Math.max(0, offset - pageSize);
@@ -158,48 +215,34 @@
     }
   }
 
-  function toggleExpand(id: string) {
-    if (expandedIds.has(id)) {
-      expandedIds.delete(id);
-    } else {
-      expandedIds.add(id);
-    }
-  }
-
   function toggleSelected(id: string) {
-    if (selectedIds.has(id)) {
-      selectedIds.delete(id);
-    } else {
-      selectedIds.add(id);
-    }
+    selectedIds = selectedIds.includes(id)
+      ? selectedIds.filter((selected) => selected !== id)
+      : [...selectedIds, id];
   }
 
   function toggleSelectAllVisiblePending(event: Event) {
     const checked =
       (event.currentTarget as HTMLInputElement | null)?.checked ?? false;
-    for (const id of visiblePendingIds) {
-      if (checked) selectedIds.add(id);
-      else selectedIds.delete(id);
-    }
+    selectedIds = checked
+      ? [
+          ...selectedIds,
+          ...visiblePendingIds.filter((id) => !selectedIds.includes(id)),
+        ]
+      : selectedIds.filter((id) => !visiblePendingIds.includes(id));
   }
 
   function clearSelected() {
-    for (const id of selectedVisiblePendingIds) {
-      selectedIds.delete(id);
-    }
+    selectedIds = selectedIds.filter(
+      (id) => !selectedVisiblePendingIds.includes(id),
+    );
   }
 
   function syncSelectedWithVisiblePending() {
-    const visiblePendingSet = new Set(
-      pending
-        .filter((item) => item.status === "PENDING")
-        .map((item) => item.id),
-    );
-    for (const id of selectedIds) {
-      if (!visiblePendingSet.has(id)) {
-        selectedIds.delete(id);
-      }
-    }
+    const visiblePending = pending
+      .filter((item) => item.status === "PENDING")
+      .map((item) => item.id);
+    selectedIds = selectedIds.filter((id) => visiblePending.includes(id));
   }
 
   async function handleApprove(
@@ -309,7 +352,7 @@
             comment: null,
           });
           approved += 1;
-          selectedIds.delete(id);
+          selectedIds = selectedIds.filter((selected) => selected !== id);
         } catch {
           failed += 1;
         } finally {
@@ -336,409 +379,339 @@
     }
   }
 
-  function formatConfidence(confidence: number): string {
-    return `${(confidence * 100).toFixed(1)}%`;
-  }
-
-  function getConfidenceClass(confidence: number): string {
-    if (confidence >= 0.9) return "conf-high";
-    if (confidence >= 0.7) return "conf-med";
-    if (confidence >= 0.5) return "conf-low";
-    return "conf-none";
-  }
-
-  function formatStatus(status: PendingAutorouteStatus): string {
-    switch (status) {
-      case "PENDING":
-        return "Pending";
-      case "APPROVED":
-        return "Approved";
-      case "REJECTED":
-        return "Rejected";
-      case "EXPIRED":
-        return "Expired";
-      default:
-        return String(status);
+  function detailItems(item: PendingNode): KeyValueItem[] {
+    // Codes and confidence are in the pane's title row; this is the rest.
+    const items: KeyValueItem[] = [
+      { key: "Source system", value: item.sourceSystem, mono: true },
+      { key: "Source display", value: item.sourceDisplay },
+      { key: "Target system", value: item.targetSystem, mono: true },
+      { key: "Suggested display", value: item.suggestedDisplay },
+      { key: "Equivalence", value: equivalenceLabel(item.equivalence) },
+      { key: "Created", value: formatTimestamp(item.createdAt), mono: true },
+      { key: "Expires", value: formatTimestamp(item.expiresAt), mono: true },
+    ];
+    if (item.status !== "PENDING") {
+      items.push(
+        { key: "Reviewed", value: formatTimestamp(item.reviewedAt), mono: true },
+        { key: "Reviewed by", value: item.reviewedBy },
+      );
     }
-  }
-
-  function formatEquivalence(
-    eq: MappingEquivalence | null | undefined,
-  ): string {
-    if (!eq) return "—";
-    switch (eq) {
-      case "EQUIVALENT":
-        return "Equivalent";
-      case "WIDER":
-        return "Wider";
-      case "NARROWER":
-        return "Narrower";
-      case "INEXACT":
-        return "Inexact";
-      default:
-        return String(eq);
+    if (item.status === "REJECTED") {
+      items.push({ key: "Rejection reason", value: item.rejectionReason });
     }
-  }
-
-  function formatDate(dateStr: string): string {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  }
-
-  function truncateSystem(system: string): string {
-    if (!system) return "";
-    if (system.startsWith("http://")) {
-      const rest = system.replace("http://", "");
-      return rest.split("/")[0] ?? rest;
-    }
-    if (system.startsWith("https://")) {
-      const rest = system.replace("https://", "");
-      return rest.split("/")[0] ?? rest;
-    }
-    return system.length > 20 ? system.substring(0, 17) + "..." : system;
+    items.push({ key: "Suggestion id", value: item.id, mono: true, truncate: true });
+    return items;
   }
 </script>
 
-<div class="review-list">
-  <!-- Stats Banner -->
-  {#if stats}
-    <div class="stats-banner">
-      <div class="stat">
-        <span class="stat-value pending">{stats.pendingCount}</span>
-        <span class="stat-label">Pending</span>
-      </div>
-      <div class="stat">
-        <span class="stat-value approved">{stats.approvedCount}</span>
-        <span class="stat-label">Approved</span>
-      </div>
-      <div class="stat">
-        <span class="stat-value rejected">{stats.rejectedCount}</span>
-        <span class="stat-label">Rejected</span>
-      </div>
-      <div class="stat">
-        <span class="stat-value expired">{stats.expiredCount}</span>
-        <span class="stat-label">Expired</span>
-      </div>
-      {#if stats.avgConfidence}
-        <div class="stat">
-          <span class="stat-value">{formatConfidence(stats.avgConfidence)}</span
-          >
-          <span class="stat-label">Avg Confidence</span>
-        </div>
-      {/if}
-      <div class="stat-action">
-        <Button variant="primary" size="sm" on:click={openBulkApprove}>
-          Bulk Approve
-        </Button>
-      </div>
-    </div>
-  {/if}
-
-  <!-- Filters -->
+<div class="review">
   <div class="filters">
-    <div class="filter-row">
-      <label class="filter-field filter-sm">
-        <span class="filter-label">Status</span>
-        <select class="filter-select" bind:value={filterStatus}>
-          <option value="">All</option>
-          <option value="PENDING">Pending</option>
-          <option value="APPROVED">Approved</option>
-          <option value="REJECTED">Rejected</option>
-          <option value="EXPIRED">Expired</option>
-        </select>
-      </label>
-      <label class="filter-field filter-sm">
-        <span class="filter-label">Min Confidence</span>
-        <input
-          type="number"
-          class="filter-input"
-          bind:value={filterMinConfidence}
-          placeholder="e.g., 0.7"
-          min="0"
-          max="1"
-          step="0.05"
-        />
-      </label>
-      <label class="filter-field">
-        <span class="filter-label">Source System</span>
-        <input
-          type="text"
-          class="filter-input"
-          bind:value={filterSourceSystem}
-          placeholder="e.g., epic_labs"
-          on:keydown={(e) => e.key === "Enter" && applyFilters()}
-        />
-      </label>
-      <label class="filter-field">
-        <span class="filter-label">Target System</span>
-        <input
-          type="text"
-          class="filter-input"
-          bind:value={filterTargetSystem}
-          placeholder="e.g., http://loinc.org"
-          on:keydown={(e) => e.key === "Enter" && applyFilters()}
-        />
-      </label>
-      <div class="filter-actions">
-        <Button variant="secondary" size="sm" on:click={clearFilters}
-          >Clear</Button
-        >
-        <Button variant="primary" size="sm" on:click={applyFilters}
-          >Apply</Button
-        >
-      </div>
+    <div class="filter-status">
+      <Select
+        bind:value={filterStatus}
+        options={statusOptions}
+        aria-label="Status"
+      />
+    </div>
+    <div class="filter-confidence">
+      <Input
+        type="number"
+        bind:value={filterMinConfidence}
+        placeholder="Min confidence"
+        aria-label="Minimum confidence"
+        min="0"
+        max="1"
+        step="0.05"
+        onkeydown={applyOnEnter}
+      />
+    </div>
+    <div class="filter-text">
+      <Input
+        bind:value={filterSourceSystem}
+        placeholder="Source system"
+        aria-label="Source system"
+        onkeydown={applyOnEnter}
+      />
+    </div>
+    <div class="filter-text">
+      <Input
+        bind:value={filterTargetSystem}
+        placeholder="Target system"
+        aria-label="Target system"
+        onkeydown={applyOnEnter}
+      />
+    </div>
+    <Button variant="ghost" onclick={clearFilters} disabled={!hasFilters}
+      >Clear</Button
+    >
+    <Button onclick={applyFilters}>Apply</Button>
+
+    <div class="filters-end">
+      {#if stats}
+        <dl class="stats" aria-label="Review totals">
+          <div class="stat">
+            <dt>Pending</dt>
+            <dd class="text-mono">{stats.pendingCount}</dd>
+          </div>
+          <div class="stat">
+            <dt>Approved</dt>
+            <dd class="text-mono">{stats.approvedCount}</dd>
+          </div>
+          <div class="stat">
+            <dt>Rejected</dt>
+            <dd class="text-mono">{stats.rejectedCount}</dd>
+          </div>
+          <div class="stat">
+            <dt>Expired</dt>
+            <dd class="text-mono">{stats.expiredCount}</dd>
+          </div>
+          {#if stats.avgConfidence}
+            <div class="stat">
+              <dt>Avg confidence</dt>
+              <dd class="text-mono">{formatPercent(stats.avgConfidence, 1)}</dd>
+            </div>
+          {/if}
+        </dl>
+        <Button icon={ListChecks} onclick={openBulkApprove}>Bulk approve</Button>
+      {/if}
     </div>
   </div>
 
-  <!-- Content -->
   {#if loading}
-    <div class="loading">Loading pending suggestions...</div>
+    <EmptyState message="Loading suggestions…" aria-busy="true" />
   {:else if error}
-    <div class="error-state">
-      <div class="error-message">{error}</div>
-      <Button variant="secondary" size="sm" on:click={loadPending}>Retry</Button
-      >
-    </div>
+    <EmptyState
+      icon={CircleAlert}
+      message="Suggestions could not be loaded: {error}"
+    >
+      {#snippet action()}
+        <Button onclick={loadPending}>Retry</Button>
+      {/snippet}
+    </EmptyState>
   {:else if pending.length === 0}
     <EmptyState
-      icon="inbox"
-      title="No pending suggestions"
-      description={filterStatus !== "PENDING"
-        ? 'Try filtering by "Pending" status'
-        : "All suggestions have been reviewed"}
+      icon={Inbox}
+      message={filterStatus === "PENDING" && !hasFilters
+        ? "No suggestions are waiting for review."
+        : "No suggestions match these filters."}
     />
   {:else}
     {#if visiblePendingIds.length > 0}
-      <div class="bulk-toolbar" role="toolbar" aria-label="Bulk review actions">
-        <div class="bulk-toolbar-left">
-          <label class="bulk-select">
-            <input
-              bind:this={selectAllPendingEl}
-              type="checkbox"
-              checked={allVisiblePendingSelected}
-              on:change={toggleSelectAllVisiblePending}
-              disabled={bulkApprovingSelected}
-            />
-            <span>Select page</span>
-          </label>
-          <span class="bulk-count">
-            {selectedVisiblePendingIds.length} selected
-          </span>
-        </div>
-        <div class="bulk-toolbar-actions">
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={selectedVisiblePendingIds.length === 0 ||
-              bulkApprovingSelected}
-            on:click={clearSelected}
-          >
-            Clear Selected
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={selectedVisiblePendingIds.length === 0 ||
-              bulkApprovingSelected}
-            on:click={handleApproveSelected}
-          >
-            {bulkApprovingSelected ? "Approving..." : "Approve Selected"}
-          </Button>
-        </div>
+      <div class="bulk-bar" role="toolbar" aria-label="Bulk review actions">
+        <span class="bulk-count text-mono">
+          {selectedVisiblePendingIds.length} selected
+        </span>
+        <Button
+          variant="ghost"
+          disabled={selectedVisiblePendingIds.length === 0 ||
+            bulkApprovingSelected}
+          onclick={clearSelected}
+        >
+          Clear selected
+        </Button>
+        <Button
+          icon={Check}
+          loading={bulkApprovingSelected}
+          disabled={selectedVisiblePendingIds.length === 0}
+          onclick={handleApproveSelected}
+        >
+          Approve selected
+        </Button>
       </div>
     {/if}
 
-    <div class="cards">
-      {#each pending as item, i (item.id)}
-        {@const isExpanded = expandedIds.has(item.id)}
-        {@const isProcessing = processingIds.has(item.id)}
-        <div
-          class="card hover-lift"
-          class:expanded={isExpanded}
-          style="animation-delay: {Math.min(i, 20) * 0.05}s"
-        >
-          <div class="card-header">
-            {#if item.status === "PENDING"}
-              <label class="card-select">
-                <input
-                  type="checkbox"
-                  checked={selectedIds.has(item.id)}
-                  on:change={() => toggleSelected(item.id)}
-                  disabled={isProcessing || bulkApprovingSelected}
-                />
-                <span class="sr-only"
-                  >Select suggestion {item.sourceCode} to {item.suggestedCode}</span
+    <div class="split">
+      <div class="list">
+        <Table label="Suggestions" layout="fixed" class="review-table">
+          {#snippet head()}
+            <tr>
+              {#if hasSelectColumn}
+                <Th width="36px">
+                  <input
+                    bind:this={selectAllPendingEl}
+                    class="row-check"
+                    type="checkbox"
+                    aria-label="Select page"
+                    checked={allVisiblePendingSelected}
+                    on:change={toggleSelectAllVisiblePending}
+                    disabled={bulkApprovingSelected}
+                  />
+                </Th>
+              {/if}
+              <Th>Source system</Th>
+              <Th width="112px">Source code</Th>
+              <Th width="120px">Suggested code</Th>
+              <Th>Target system</Th>
+              <Th width="96px" numeric>Confidence</Th>
+              <Th width="104px">Equivalence</Th>
+              <Th width="104px">Status</Th>
+              <Th width="136px">Created</Th>
+            </tr>
+          {/snippet}
+          {#each pending as item (item.id)}
+            {@const isProcessing = processingIds.has(item.id)}
+            <Tr
+              selectable
+              selected={item.id === activeId}
+              onselect={() => (activeId = item.id)}
+              aria-label="Suggestion {item.sourceCode} to {item.suggestedCode}"
+            >
+              {#if hasSelectColumn}
+                <Td>
+                  {#if item.status === "PENDING"}
+                    <input
+                      class="row-check"
+                      type="checkbox"
+                      aria-label="Select suggestion {item.sourceCode} to {item.suggestedCode}"
+                      checked={selectedIds.includes(item.id)}
+                      on:click={(event) => event.stopPropagation()}
+                      on:change={() => toggleSelected(item.id)}
+                      disabled={isProcessing || bulkApprovingSelected}
+                    />
+                  {/if}
+                </Td>
+              {/if}
+              <Td muted truncate value={item.sourceSystem} />
+              <Td mono truncate value={item.sourceCode} />
+              <Td mono truncate value={item.suggestedCode} />
+              <Td muted truncate value={item.targetSystem} />
+              <Td numeric value={formatPercent(item.confidence, 1)} />
+              <Td truncate value={equivalenceLabel(item.equivalence) || "—"} />
+              <Td>
+                <Badge tone={pendingStatusTone(item.status)} dot
+                  >{pendingStatusLabel(item.status)}</Badge
                 >
-              </label>
-            {/if}
-            <div class="card-source">
-              <span class="system-label"
-                >{truncateSystem(item.sourceSystem)}</span
-              >
-              <span class="code-value">{item.sourceCode}</span>
-              {#if item.sourceDisplay}
-                <span class="display-value">{item.sourceDisplay}</span>
-              {/if}
-            </div>
-            <div class="card-arrow">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path d="M14 5l7 7m0 0l-7 7m7-7H3" />
-              </svg>
-            </div>
-            <div class="card-target">
-              <span class="system-label"
-                >{truncateSystem(item.targetSystem)}</span
-              >
-              <span class="code-value suggested">{item.suggestedCode}</span>
-              {#if item.suggestedDisplay}
-                <span class="display-value">{item.suggestedDisplay}</span>
-              {/if}
-            </div>
-          </div>
+              </Td>
+              <Td mono muted value={formatTimestamp(item.createdAt)} />
+            </Tr>
+          {/each}
+        </Table>
 
-          <div class="card-meta">
+        {#if totalCount > pageSize || offset > 0}
+          <div class="pagination">
+            <span class="pagination-info text-mono">
+              {offset + 1}–{Math.min(offset + pending.length, totalCount)} of {totalCount}
+            </span>
+            <Button
+              variant="ghost"
+              icon={ChevronLeft}
+              onclick={prevPage}
+              disabled={offset === 0}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="ghost"
+              onclick={nextPage}
+              disabled={offset + pageSize >= totalCount}
+            >
+              Next
+              <Icon icon={ChevronRight} />
+            </Button>
+          </div>
+        {/if}
+      </div>
+
+      <aside class="details" aria-label="Selected suggestion">
+        {#if active}
+          <div class="details-head">
             <span
-              class="confidence-badge {getConfidenceClass(item.confidence)}"
+              class="details-title text-mono"
+              title="{active.sourceCode} → {active.suggestedCode}"
+              >{active.sourceCode} → {active.suggestedCode}</span
             >
-              {formatConfidence(item.confidence)}
-            </span>
-            {#if item.equivalence}
-              <span class="equiv-badge equiv-{item.equivalence.toLowerCase()}">
-                {formatEquivalence(item.equivalence)}
-              </span>
-            {/if}
-            <span class="status-badge status-{item.status.toLowerCase()}">
-              {formatStatus(item.status)}
-            </span>
-            <span class="date-label">{formatDate(item.createdAt)}</span>
-            <button
-              type="button"
-              class="expand-btn"
-              on:click={() => toggleExpand(item.id)}
-              title={isExpanded ? "Collapse details" : "Expand details"}
-              aria-label={isExpanded
-                ? "Collapse suggestion details"
-                : "Expand suggestion details"}
-              aria-expanded={isExpanded}
-              aria-controls={`pending-details-${item.id}`}
+            <Badge tone={pendingStatusTone(active.status)} dot
+              >{pendingStatusLabel(active.status)}</Badge
             >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                class:rotated={isExpanded}
-              >
-                <path d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
+            <Badge tone={confidenceTone(active.confidence)} mono
+              >{formatPercent(active.confidence, 1)}</Badge
+            >
           </div>
 
-          {#if item.reasoning}
-            <div class="card-reasoning">
-              <strong>Reasoning:</strong>
-              {item.reasoning}
-            </div>
-          {/if}
-
-          {#if isExpanded}
-            <div class="card-details" id={`pending-details-${item.id}`}>
-              {#if item.alternates && item.alternates.length > 0}
-                <div class="alternates">
-                  <div class="detail-heading">Alternatives Considered</div>
-                  {#each item.alternates as alt (alt.code)}
-                    <div class="alternate-row">
-                      <span class="alt-code">{alt.code}</span>
-                      {#if alt.display}
-                        <span class="alt-display">{alt.display}</span>
-                      {/if}
-                      <span class="alt-conf"
-                        >{formatConfidence(alt.confidence)}</span
-                      >
-                    </div>
-                  {/each}
-                </div>
-              {/if}
-
-              {#if item.decisionTrace}
-                <div class="trace">
-                  <div class="detail-heading">
-                    Decision Trace ({item.decisionTrace.totalDurationMs}ms)
-                  </div>
-                  {#each item.decisionTrace.steps as step, idx (idx)}
-                    <div class="trace-step">
-                      <span class="step-name">{step.step}</span>
-                      <span class="step-result">{step.result}</span>
-                      <span class="step-duration">{step.durationMs}ms</span>
-                    </div>
-                  {/each}
-                </div>
-              {/if}
-            </div>
-          {/if}
-
-          {#if item.status === "PENDING"}
-            <div class="card-actions">
+          {#if active.status === "PENDING"}
+            {@const target = active}
+            {@const activeProcessing = processingIds.has(target.id)}
+            <div class="details-actions">
               <Button
-                variant="secondary"
-                size="sm"
-                disabled={isProcessing || bulkApprovingSelected}
-                on:click={() => confirmReject(item.id)}
+                variant="primary"
+                icon={Check}
+                loading={activeProcessing}
+                disabled={bulkApprovingSelected}
+                onclick={() => handleApprove(target)}
+              >
+                Approve
+              </Button>
+              <Button
+                icon={X}
+                disabled={activeProcessing || bulkApprovingSelected}
+                onclick={() => confirmReject(target.id)}
               >
                 Reject
               </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                disabled={isProcessing || bulkApprovingSelected}
-                on:click={() => handleApprove(item)}
-              >
-                {isProcessing ? "Processing..." : "Approve"}
-              </Button>
-            </div>
-          {:else if item.status === "REJECTED" && item.rejectionReason}
-            <div class="rejection-reason">
-              <strong>Reason:</strong>
-              {item.rejectionReason}
             </div>
           {/if}
-        </div>
-      {/each}
-    </div>
 
-    <!-- Pagination -->
-    <div class="pagination">
-      <div class="pagination-info">
-        Showing {offset + 1}–{Math.min(offset + pending.length, totalCount)} of {totalCount}
-      </div>
-      <div class="pagination-controls">
-        <button
-          type="button"
-          class="page-btn"
-          on:click={prevPage}
-          disabled={offset === 0}
-        >
-          Previous
-        </button>
-        <button
-          type="button"
-          class="page-btn"
-          on:click={nextPage}
-          disabled={offset + pageSize >= totalCount}
-        >
-          Next
-        </button>
-      </div>
+          {#if active.reasoning}
+            <section class="details-section" aria-label="Reasoning">
+              <h3 class="text-label">Reasoning</h3>
+              <p class="details-text">{active.reasoning}</p>
+            </section>
+          {/if}
+
+          <KeyValue items={activeItems} />
+
+          {#if active.alternates && active.alternates.length > 0}
+            <section class="details-section" aria-label="Alternatives considered">
+              <h3 class="text-label">Alternatives considered</h3>
+              <Table label="Alternatives considered" layout="fixed">
+                {#snippet head()}
+                  <tr>
+                    <Th width="88px">Code</Th>
+                    <Th>Display</Th>
+                    <Th width="72px" numeric>Conf.</Th>
+                  </tr>
+                {/snippet}
+                {#each active.alternates as alt (alt.code)}
+                  <Tr>
+                    <Td mono truncate value={alt.code} />
+                    <Td truncate value={alt.display || "—"} />
+                    <Td numeric value={formatPercent(alt.confidence, 1)} />
+                  </Tr>
+                {/each}
+              </Table>
+            </section>
+          {/if}
+
+          {#if active.decisionTrace}
+            <section class="details-section" aria-label="Decision trace">
+              <h3 class="text-label">
+                Decision trace
+                <span class="text-mono section-meta"
+                  >{active.decisionTrace.totalDurationMs} ms</span
+                >
+              </h3>
+              <Table label="Decision trace" layout="fixed">
+                {#snippet head()}
+                  <tr>
+                    <Th width="136px">Step</Th>
+                    <Th>Result</Th>
+                    <Th width="64px" numeric>ms</Th>
+                  </tr>
+                {/snippet}
+                {#each active.decisionTrace.steps as step, idx (idx)}
+                  <Tr>
+                    <Td mono truncate value={step.step} />
+                    <Td truncate value={step.result} />
+                    <Td numeric value={step.durationMs} />
+                  </Tr>
+                {/each}
+              </Table>
+            </section>
+          {/if}
+        {:else}
+          <EmptyState message="Select a suggestion to see its details." />
+        {/if}
+      </aside>
     </div>
   {/if}
 </div>
@@ -746,672 +719,242 @@
 <!-- Reject Modal -->
 <ConfirmModal
   bind:open={showRejectModal}
-  title="Reject Suggestion"
-  message="Please provide a reason for rejecting this mapping suggestion."
+  title="Reject suggestion"
+  message="Give a reason for rejecting this mapping suggestion."
   confirmText="Reject"
   variant="danger"
   on:confirm={handleRejectConfirm}
 >
-  <div class="reject-reason-input">
-    <textarea
-      bind:value={rejectReason}
-      placeholder="e.g., Incorrect mapping - codes are not semantically equivalent"
-      rows="3"
-    ></textarea>
+  <div class="modal-field">
+    <Field label="Reason">
+      <Textarea
+        bind:value={rejectReason}
+        placeholder="e.g., Incorrect mapping - codes are not semantically equivalent"
+        rows={3}
+      />
+    </Field>
   </div>
 </ConfirmModal>
 
 <!-- Bulk Approve Modal -->
 <ConfirmModal
   bind:open={showBulkApproveModal}
-  title="Bulk Approve High-Confidence Suggestions"
+  title="Bulk approve high-confidence suggestions"
   message="Approve all pending suggestions above the confidence threshold."
-  confirmText="Approve All"
+  confirmText="Approve all"
   variant="primary"
   on:confirm={handleBulkApprove}
 >
-  <div class="bulk-config">
-    <label>
-      <span class="bulk-label">Minimum Confidence</span>
-      <input
-        type="range"
-        min="0.7"
-        max="0.99"
-        step="0.01"
-        bind:value={bulkMinConfidence}
-      />
-      <span class="bulk-value">{formatConfidence(bulkMinConfidence)}</span>
-    </label>
-    <p class="bulk-hint">
-      Only suggestions with confidence ≥ {formatConfidence(bulkMinConfidence)} will
-      be approved.
-    </p>
+  <div class="modal-field">
+    <Field
+      label="Minimum confidence"
+      id="bulk-min-confidence"
+      hint="Only suggestions with confidence ≥ {formatPercent(bulkMinConfidence, 1)} will be approved."
+    >
+      <div class="range-row">
+        <input
+          id="bulk-min-confidence"
+          class="range"
+          type="range"
+          min="0.7"
+          max="0.99"
+          step="0.01"
+          bind:value={bulkMinConfidence}
+        />
+        <span class="range-value text-mono"
+          >{formatPercent(bulkMinConfidence, 1)}</span
+        >
+      </div>
+    </Field>
   </div>
 </ConfirmModal>
 
 <style>
-  .review-list {
+  .review {
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
-  /* Stats Banner */
-  .stats-banner {
+  .filters,
+  .bulk-bar {
     display: flex;
-    gap: var(--space-6);
-    padding: var(--space-4) var(--space-5);
-    border-radius: var(--radius-lg);
-    background: var(--color-bg-elevated);
-    border: 1px solid var(--color-border-subtle);
-    align-items: center;
     flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .filter-status {
+    width: 132px;
+  }
+
+  .filter-confidence {
+    width: 128px;
+  }
+
+  .filter-text {
+    width: 160px;
+  }
+
+  .filters-end {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-left: auto;
+  }
+
+  .stats {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    margin: 0;
+    font-size: var(--text-xs);
   }
 
   .stat {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .stat-value {
-    font-size: var(--text-2xl);
-    font-weight: var(--font-semibold);
-    color: var(--color-text-primary);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .stat-value.pending {
-    color: var(--color-warning);
-  }
-  .stat-value.approved {
-    color: var(--color-success);
-  }
-  .stat-value.rejected {
-    color: var(--color-danger);
-  }
-  .stat-value.expired {
-    color: var(--color-text-muted);
-  }
-
-  .stat-label {
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-    text-transform: uppercase;
-    letter-spacing: var(--tracking-wide);
-  }
-
-  .stat-action {
-    margin-left: auto;
-  }
-
-  /* Filters */
-  .filters {
-    padding: var(--space-3) var(--space-4);
-    border-radius: var(--radius-lg);
-    background: var(--color-bg-elevated);
-    border: 1px solid var(--color-border-subtle);
-  }
-
-  .filter-row {
-    display: flex;
-    gap: var(--space-3);
-    align-items: flex-end;
-    flex-wrap: wrap;
-  }
-
-  .filter-field {
-    flex: 1;
-    min-width: 140px;
-    display: flex;
-    flex-direction: column;
+    align-items: baseline;
     gap: var(--space-1);
   }
 
-  .filter-field.filter-sm {
-    flex: 0.6;
-    min-width: 100px;
-  }
-
-  .filter-label {
-    font-size: var(--text-xs);
-    font-weight: var(--font-semibold);
+  .stat dt {
     color: var(--color-text-tertiary);
-    text-transform: uppercase;
-    letter-spacing: var(--tracking-wide);
   }
 
-  .filter-input,
-  .filter-select {
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-input);
+  .stat dd {
+    margin: 0;
     color: var(--color-text-primary);
-    font-size: var(--text-sm);
-    outline: none;
-    transition: var(--transition-all);
-  }
-
-  .filter-input:focus,
-  .filter-select:focus {
-    border-color: var(--color-border-focus);
-    box-shadow: var(--shadow-focus);
-  }
-
-  .filter-actions {
-    display: flex;
-    gap: var(--space-2);
-  }
-
-  /* Cards */
-  .cards {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-  }
-
-  .bulk-toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-    flex-wrap: wrap;
-    padding: var(--space-3) var(--space-4);
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--color-border-subtle);
-    background: var(--color-bg-elevated);
-  }
-
-  .bulk-toolbar-left {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    flex-wrap: wrap;
-  }
-
-  .bulk-toolbar-actions {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    flex-wrap: wrap;
-    justify-content: flex-end;
-  }
-
-  .bulk-select {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    font-size: var(--text-sm);
-    color: var(--color-text-secondary);
-  }
-
-  .bulk-select input {
-    width: 16px;
-    height: 16px;
-    accent-color: var(--color-primary);
   }
 
   .bulk-count {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-  }
-
-  .card {
-    padding: var(--space-4);
-    border-radius: var(--radius-lg);
-    background: var(--color-bg-elevated);
-    border: 1px solid var(--color-border-subtle);
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-    box-shadow: var(--shadow-sm);
-    transition: var(--transition-all);
-    animation: fade-in-up 0.4s ease-out both;
-  }
-
-  @keyframes fade-in-up {
-    from {
-      opacity: 0;
-      transform: translateY(10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  .card:hover {
-    background: var(--color-bg-hover);
-    border-color: var(--color-border-strong);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
-  }
-
-  .card.expanded {
-    border-color: var(--color-primary-border);
-    box-shadow: 0 0 0 1px var(--color-primary-border);
-  }
-
-  .card-header {
-    display: flex;
-    align-items: center;
-    gap: var(--space-4);
-  }
-
-  .card-select {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    color: var(--color-text-tertiary);
     margin-right: var(--space-1);
   }
 
-  .card-select input {
-    width: 16px;
-    height: 16px;
+  .row-check {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    vertical-align: middle;
     accent-color: var(--color-primary);
   }
 
-  .card-source,
-  .card-target {
-    flex: 1;
+  .split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .list {
     display: flex;
     flex-direction: column;
-    gap: 2px;
     min-width: 0;
+    min-height: 0;
   }
 
-  .card-arrow {
-    width: 24px;
-    height: 24px;
-    color: var(--color-text-muted);
-    flex-shrink: 0;
+  .list :global(.review-table) {
+    flex: 1 1 auto;
   }
 
-  .card-arrow svg {
-    width: 100%;
-    height: 100%;
+  /* Fixed layout gives the unsized columns only what is left; keep a floor
+     so they never collapse, and let the wrapper scroll sideways instead. */
+  .list :global(.review-table > table) {
+    min-width: 920px;
   }
 
-  .system-label {
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-  }
-
-  .code-value {
-    font-family: var(--font-mono);
-    font-size: var(--text-base);
-    color: var(--color-text-primary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .code-value.suggested {
-    color: var(--color-primary);
-  }
-
-  .display-value {
-    font-size: var(--text-xs);
-    color: var(--color-text-tertiary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .card-meta {
-    display: flex;
-    gap: var(--space-2);
-    align-items: center;
-    margin-top: var(--space-3);
-    flex-wrap: wrap;
-  }
-
-  .confidence-badge {
-    padding: 2px var(--space-2);
-    border-radius: var(--radius-sm);
-    font-size: var(--text-xs);
-    font-weight: var(--font-semibold);
-  }
-
-  .conf-high {
-    color: var(--confidence-high);
-    background: var(--confidence-high-bg);
-  }
-  .conf-med {
-    color: var(--confidence-medium);
-    background: var(--confidence-medium-bg);
-  }
-  .conf-low {
-    color: var(--confidence-low);
-    background: var(--confidence-low-bg);
-  }
-  .conf-none {
-    color: var(--confidence-very-low);
-    background: var(--confidence-very-low-bg);
-  }
-
-  .equiv-badge {
-    padding: 2px var(--space-2);
-    border-radius: var(--radius-sm);
-    font-size: var(--text-xs);
-    font-weight: var(--font-medium);
-  }
-
-  .equiv-equivalent {
-    color: var(--color-success-text);
-    background: var(--color-success-bg);
-  }
-  .equiv-wider {
-    color: var(--color-info-text);
-    background: var(--color-info-bg);
-  }
-  .equiv-narrower {
-    color: var(--color-warning-text);
-    background: var(--color-warning-bg);
-  }
-  .equiv-inexact {
-    color: var(--color-text-tertiary);
-    background: var(--color-bg-surface);
-  }
-
-  .status-badge {
-    padding: 2px var(--space-2);
-    border-radius: var(--radius-sm);
-    font-size: var(--text-xs);
-    font-weight: var(--font-medium);
-  }
-
-  .status-pending {
-    color: var(--color-warning-text);
-    background: var(--color-warning-bg);
-  }
-  .status-approved {
-    color: var(--color-success-text);
-    background: var(--color-success-bg);
-  }
-  .status-rejected {
-    color: var(--color-danger-text);
-    background: var(--color-danger-bg);
-  }
-  .status-expired {
-    color: var(--color-text-muted);
-    background: var(--color-bg-surface);
-  }
-
-  .date-label {
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-    margin-left: auto;
-  }
-
-  .expand-btn {
-    width: 28px;
-    height: 28px;
+  .pagination {
     display: flex;
     align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-md);
-    border: none;
-    background: transparent;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    transition: var(--transition-all);
-  }
-
-  .expand-btn svg {
-    width: 16px;
-    height: 16px;
-    transition: transform var(--duration-normal) var(--ease-out);
-  }
-
-  .expand-btn svg.rotated {
-    transform: rotate(180deg);
-  }
-
-  .expand-btn:hover {
-    color: var(--color-text-primary);
-    background: var(--color-bg-hover);
-  }
-
-  .expand-btn:focus-visible {
-    outline: none;
-    box-shadow: var(--shadow-focus);
-  }
-
-  .card-reasoning {
-    margin-top: var(--space-3);
-    padding: var(--space-3);
-    border-radius: var(--radius-md);
-    background: var(--color-bg-surface);
-    font-size: var(--text-xs);
-    color: var(--color-text-secondary);
-    line-height: var(--leading-relaxed);
-  }
-
-  .card-reasoning strong {
-    color: var(--color-text-muted);
-    font-weight: var(--font-semibold);
-  }
-
-  .card-details {
-    margin-top: var(--space-3);
-    padding: var(--space-3);
-    border-radius: var(--radius-md);
-    background: rgba(0, 0, 0, 0.2);
-    animation: slideInUp var(--duration-fast) var(--ease-out);
-  }
-
-  .detail-heading {
-    font-size: var(--text-xs);
-    font-weight: var(--font-semibold);
-    color: var(--color-text-tertiary);
-    text-transform: uppercase;
-    letter-spacing: var(--tracking-wide);
-    margin-bottom: var(--space-2);
-  }
-
-  .alternates,
-  .trace {
-    margin-bottom: var(--space-3);
-  }
-
-  .alternate-row {
-    display: flex;
-    gap: var(--space-3);
-    align-items: baseline;
-    padding: var(--space-1) 0;
-    border-bottom: 1px solid var(--color-border-subtle);
-  }
-
-  .alt-code {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--color-text-secondary);
-  }
-
-  .alt-display {
-    flex: 1;
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-  }
-
-  .alt-conf {
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-  }
-
-  .trace-step {
-    display: flex;
-    gap: var(--space-3);
-    padding: var(--space-1) 0;
-    font-size: var(--text-xs);
-  }
-
-  .step-name {
-    color: var(--color-text-secondary);
-    font-weight: var(--font-medium);
-    min-width: 120px;
-  }
-
-  .step-result {
-    flex: 1;
-    color: var(--color-text-tertiary);
-  }
-
-  .step-duration {
-    color: var(--color-text-muted);
-    font-family: var(--font-mono);
-  }
-
-  .card-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-2);
-    margin-top: var(--space-4);
-    padding-top: var(--space-3);
+    gap: var(--space-1);
+    flex: 0 0 auto;
+    padding: var(--space-1) var(--space-3);
     border-top: 1px solid var(--color-border-subtle);
   }
 
-  .rejection-reason {
-    margin-top: var(--space-3);
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-md);
-    background: var(--color-danger-bg);
-    font-size: var(--text-xs);
-    color: var(--color-danger-text);
-  }
-
-  .rejection-reason strong {
-    font-weight: var(--font-semibold);
-  }
-
-  /* Pagination */
-  .pagination {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--space-2) 0;
-  }
-
   .pagination-info {
-    font-size: var(--text-xs);
+    margin-right: auto;
     color: var(--color-text-tertiary);
   }
 
-  .pagination-controls {
+  .details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-height: 0;
+    overflow: auto;
+    padding: var(--space-3);
+    border-left: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-elevated);
+  }
+
+  .details-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+
+  .details-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-ui);
+    font-weight: var(--font-semibold);
+  }
+
+  .details-actions {
     display: flex;
     gap: var(--space-2);
   }
 
-  .page-btn {
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--color-border-default);
-    background: transparent;
-    color: var(--color-text-secondary);
-    font-size: var(--text-xs);
-    cursor: pointer;
-    transition: var(--transition-all);
-  }
-
-  .page-btn:hover:not(:disabled) {
-    background: var(--color-bg-hover);
-  }
-
-  .page-btn:focus-visible {
-    outline: none;
-    box-shadow: var(--shadow-focus);
-  }
-
-  .page-btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-
-  /* States */
-  .loading {
-    padding: var(--space-12);
-    text-align: center;
-    color: var(--color-text-tertiary);
-  }
-
-  .error-state {
+  .details-section {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-12);
+    gap: var(--space-2);
   }
 
-  .error-message {
-    color: var(--color-danger-text);
-    font-size: var(--text-sm);
+  .details-section h3 {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    margin: 0;
   }
 
-  /* Modal Content */
-  .reject-reason-input textarea {
-    width: 100%;
-    padding: var(--space-3);
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-input);
-    color: var(--color-text-primary);
-    font-size: var(--text-sm);
-    font-family: inherit;
-    resize: vertical;
-    outline: none;
-    margin-top: var(--space-3);
-    transition: var(--transition-all);
+  .section-meta {
+    text-transform: none;
+    letter-spacing: normal;
   }
 
-  .reject-reason-input textarea:focus {
-    border-color: var(--color-border-focus);
-    box-shadow: var(--shadow-focus);
+  .details-text {
+    margin: 0;
+    font-size: var(--text-xs);
+    line-height: var(--leading-ui);
+    color: var(--color-text-secondary);
   }
 
-  .bulk-config {
+  .modal-field {
     margin-top: var(--space-3);
   }
 
-  .bulk-config label {
+  .range-row {
     display: flex;
     align-items: center;
     gap: var(--space-3);
   }
 
-  .bulk-label {
-    font-size: var(--text-xs);
-    color: var(--color-text-secondary);
-    min-width: 120px;
-  }
-
-  .bulk-config input[type="range"] {
+  .range {
     flex: 1;
     accent-color: var(--color-primary);
   }
 
-  .bulk-value {
-    font-family: var(--font-mono);
-    font-size: var(--text-sm);
-    color: var(--color-text-primary);
-    min-width: 50px;
+  .range-value {
+    min-width: 48px;
     text-align: right;
-  }
-
-  .bulk-hint {
-    margin-top: var(--space-2);
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-  }
-
-  @keyframes slideInUp {
-    from {
-      opacity: 0;
-      transform: translateY(-4px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+    color: var(--color-text-primary);
   }
 </style>

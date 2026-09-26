@@ -1,18 +1,16 @@
 <script lang="ts">
-  import Tabs from '$lib/ui/Tabs.svelte';
-  import type { TabItem } from '$lib/ui/types';
-  import PageHeader from '$lib/ui/PageHeader.svelte';
-  import Panel from '$lib/ui/Panel.svelte';
-  import AuthoringFlowRail from '$lib/features/shared/AuthoringFlowRail.svelte';
-  import type { FlowStep } from '$lib/features/shared/authoringFlow';
+  import { Tabs, Toolbar } from '$lib/ui/primitives';
+  import type { TabItem } from '$lib/ui/primitives';
   import WorkflowList from './components/WorkflowList.svelte';
   import WorkflowBuilder from './components/WorkflowBuilder.svelte';
   import WorkflowMonitor from './components/WorkflowMonitor.svelte';
 
-  const tabs: readonly TabItem[] = [
-    { key: 'list', label: 'Inventory' },
-    { key: 'builder', label: 'Design' },
-    { key: 'monitor', label: 'Verification' }
+  const VIEW_PANEL_ID = 'workflows-view';
+
+  const tabItems: readonly TabItem[] = [
+    { id: 'list', label: 'Inventory', controls: VIEW_PANEL_ID },
+    { id: 'builder', label: 'Design', controls: VIEW_PANEL_ID },
+    { id: 'monitor', label: 'Verification', controls: VIEW_PANEL_ID }
   ];
 
   let activeTab = 'builder';
@@ -27,6 +25,8 @@
     | null = null;
   let monitorWorkflowSelection: string | null = null;
 
+  $: activeLabel = tabItems.find((item) => item.id === activeTab)?.label ?? 'Workflows';
+
   function handleOpenBuilder(
     event: CustomEvent<{
       workflowId: string;
@@ -40,35 +40,6 @@
     activeTab = 'builder';
   }
 
-  const flowSteps: FlowStep[] = [
-    {
-      eyebrow: 'Source mapping',
-      title: 'Map the source feed',
-      description: 'Normalize HL7, flatfile, or EDI inputs before they reach the destination workflow.',
-      actions: [
-        { label: 'HL7 preview', variant: 'primary', href: '/hl7' },
-        { label: 'Profiles', variant: 'secondary', href: '/profiles' }
-      ]
-    },
-    {
-      eyebrow: 'Shape destination',
-      title: 'Design routes and transforms',
-      description: 'Inventory keeps the catalog, Design edits routes and transforms.',
-      actions: [
-        { label: 'Inventory', variant: 'secondary', onClick: () => { activeTab = 'list'; } },
-        { label: 'Design', variant: 'secondary', onClick: () => { activeTab = 'builder'; } }
-      ]
-    },
-    {
-      eyebrow: 'Verify handoff',
-      title: 'Confirm runtime output',
-      description: 'Watch runtime output and downstream events to confirm what actually executed.',
-      actions: [
-        { label: 'Verification', variant: 'primary', onClick: () => { activeTab = 'monitor'; } }
-      ]
-    }
-  ];
-
   function handleOpenMonitor(event: CustomEvent<{ workflowName: string }>) {
     monitorWorkflowSelection = event.detail.workflowName;
     activeTab = 'monitor';
@@ -76,49 +47,56 @@
 </script>
 
 <section class="page">
-  <PageHeader title="Workflows" subtitle="Design destinations and verify the handoff." />
+  <Toolbar title="Workflows">
+    {#snippet tabs()}
+      <Tabs
+        label="Workflow views"
+        items={tabItems}
+        value={activeTab}
+        onchange={(id) => (activeTab = id)}
+      />
+    {/snippet}
+  </Toolbar>
 
-  <div class="flow-shell">
-    <AuthoringFlowRail
-      compact
-      title="Source to destination handoff"
-      steps={flowSteps}
-    />
+  <div
+    id={VIEW_PANEL_ID}
+    class="view"
+    class:is-fill={activeTab === 'list'}
+    role="tabpanel"
+    aria-label={activeLabel}
+  >
+    {#if activeTab === 'list'}
+      <WorkflowList on:openBuilder={handleOpenBuilder} on:openMonitor={handleOpenMonitor} />
+    {:else if activeTab === 'builder'}
+      <WorkflowBuilder managedSelection={builderSelection} />
+    {:else if activeTab === 'monitor'}
+      <WorkflowMonitor initialWorkflowName={monitorWorkflowSelection} />
+    {/if}
   </div>
-
-  <Panel padding="lg">
-    <div class="workspace-frame">
-      <Tabs {tabs} active={activeTab} onChange={(key) => (activeTab = key)} />
-
-      <div class="workspace">
-        {#if activeTab === 'list'}
-          <WorkflowList on:openBuilder={handleOpenBuilder} on:openMonitor={handleOpenMonitor} />
-        {:else if activeTab === 'builder'}
-          <WorkflowBuilder managedSelection={builderSelection} />
-        {:else if activeTab === 'monitor'}
-          <WorkflowMonitor initialWorkflowName={monitorWorkflowSelection} />
-        {/if}
-      </div>
-    </div>
-  </Panel>
 </section>
 
 <style>
   .page {
-    display: grid;
-    gap: 16px;
-  }
-
-  .flow-shell {
-    margin-bottom: 2px;
-  }
-
-  .workspace-frame {
-    display: grid;
-    gap: 16px;
-  }
-
-  .workspace {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
     min-width: 0;
+  }
+
+  .view {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    overflow: auto;
+    padding: var(--space-3);
+  }
+
+  /* Inventory owns its edges: the table and the details pane scroll on their own. */
+  .view.is-fill {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0;
   }
 </style>

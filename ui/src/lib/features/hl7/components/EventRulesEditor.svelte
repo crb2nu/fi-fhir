@@ -1,6 +1,24 @@
 <script lang="ts">
+  import ArrowDown from '@lucide/svelte/icons/arrow-down';
+  import ArrowRight from '@lucide/svelte/icons/arrow-right';
+  import ArrowUp from '@lucide/svelte/icons/arrow-up';
+  import Pencil from '@lucide/svelte/icons/pencil';
+  import Plus from '@lucide/svelte/icons/plus';
+  import Trash2 from '@lucide/svelte/icons/trash-2';
+  import {
+    Button,
+    EmptyState,
+    Field,
+    Icon,
+    IconButton,
+    Input,
+    Panel,
+    Table,
+    Td,
+    Th,
+    Tr
+  } from '$lib/ui/primitives';
   import { profileStore, selectedProfile } from '$lib/features/hl7/profile/profileStore';
-  import Button from '$lib/ui/Button.svelte';
   import { afterUpdate, tick } from 'svelte';
   import { createDialogFocusController } from '$lib/domain/a11yDialog';
 
@@ -195,69 +213,72 @@
       }
     });
   }
+
+  $: messageSuggestions = commonMessageTypes.filter(
+    (t) => t.toLowerCase().includes(ruleMessageType.toLowerCase()) && t !== ruleMessageType
+  );
+  $: eventSuggestions = commonEventTypes.filter(
+    (t) => t.toLowerCase().includes(ruleEventType.toLowerCase()) && t !== ruleEventType
+  );
 </script>
 
 <svelte:window on:keydown={handleWindowKeydown} />
 
-<div class="editor">
-  <div class="header">
-    <div>
-      <h4 class="title">Event Classification Rules</h4>
-      <p class="desc">
-        Map HL7 message types to semantic event types. Rules are evaluated in priority order;
-        first matching rule wins.
-      </p>
-    </div>
-    <Button variant="secondary" on:click={() => openModal()}>+ Add Rule</Button>
-  </div>
+<div class="rules">
+  <Panel title="Event classification rules" titleTag="h3" flush>
+    {#snippet actions()}
+      <Button variant="ghost" icon={Plus} onclick={() => openModal()}>Add rule</Button>
+    {/snippet}
 
-  {#if eventClassifications.length === 0}
-    <div class="empty">
-      <p>No event classification rules configured.</p>
-      <p class="empty-hint">
-        Add rules to map HL7 message types (like ADT^A01) to semantic event types (like
-        inpatient_admit).
-      </p>
-    </div>
-  {:else}
-    <div class="rules-list">
-      {#each eventClassifications as rule, index (index)}
-        <div class="rule-item">
-          <div class="rule-order">
-            <button
-              class="order-btn"
-              on:click={() => moveRule(index, 'up')}
-              disabled={index === 0}
-              title="Move up"
-            >
-              Up
-            </button>
-            <span class="priority">#{rule.priority}</span>
-            <button
-              class="order-btn"
-              on:click={() => moveRule(index, 'down')}
-              disabled={index === eventClassifications.length - 1}
-              title="Move down"
-            >
-              Dn
-            </button>
-          </div>
-          <div class="rule-content">
-            <span class="rule-msg mono">{rule.messageType}</span>
-            {#if rule.condition}
-              <span class="rule-cond">+ {rule.condition}</span>
-            {/if}
-            <span class="rule-arrow">-></span>
-            <span class="rule-event">{rule.eventType}</span>
-          </div>
-          <div class="rule-actions">
-            <button class="action-btn" on:click={() => openModal(index)}>Edit</button>
-            <button class="action-btn danger" on:click={() => deleteRule(index)}>Delete</button>
-          </div>
-        </div>
-      {/each}
-    </div>
-  {/if}
+    {#if eventClassifications.length === 0}
+      <EmptyState
+        align="start"
+        message="No event classification rules. Add one to map an HL7 message type such as ADT^A01 to a semantic event type."
+      />
+    {:else}
+      <Table label="Event classification rules" layout="fixed">
+        {#snippet head()}
+          <tr>
+            <Th width="76px" numeric>Priority</Th>
+            <Th width="120px">Message type</Th>
+            <Th>Condition</Th>
+            <Th width="30%">Event type</Th>
+            <Th width="128px"><span class="sr-only">Actions</span></Th>
+          </tr>
+        {/snippet}
+        {#each eventClassifications as rule, index (index)}
+          <Tr>
+            <Td numeric value={rule.priority} />
+            <Td mono truncate value={rule.messageType} />
+            <Td mono truncate muted value={rule.condition || '—'} />
+            <Td mono truncate>
+              <span class="event-type">
+                <Icon icon={ArrowRight} size={12} class="event-arrow" />
+                {rule.eventType}
+              </span>
+            </Td>
+            <Td class="row-actions">
+              <IconButton
+                icon={ArrowUp}
+                label="Move up"
+                onclick={() => moveRule(index, 'up')}
+                disabled={index === 0}
+              />
+              <IconButton
+                icon={ArrowDown}
+                label="Move down"
+                onclick={() => moveRule(index, 'down')}
+                disabled={index === eventClassifications.length - 1}
+              />
+              <IconButton icon={Pencil} label="Edit rule" onclick={() => openModal(index)} />
+              <IconButton icon={Trash2} label="Delete rule" onclick={() => deleteRule(index)} />
+            </Td>
+          </Tr>
+        {/each}
+      </Table>
+      <p class="foot">Evaluated in priority order; the first matching rule wins.</p>
+    {/if}
+  </Panel>
 </div>
 
 <!-- Rule Editor Modal -->
@@ -279,80 +300,53 @@
       tabindex="-1"
     >
       <h3 id="rule-editor-modal-title" class="modal-title">
-        {editingIndex !== null ? 'Edit Rule' : 'Add Rule'}
+        {editingIndex !== null ? 'Edit rule' : 'Add rule'}
       </h3>
       <div class="modal-body">
-        <label class="label">
-          Message Type
-          <div class="input-with-suggestions">
-            <input
-              class="input mono"
-              type="text"
-              bind:value={ruleMessageType}
-              placeholder="e.g., ADT^A01"
-            />
-            <div class="suggestions">
-              {#each commonMessageTypes.filter( (t) => t.toLowerCase().includes(ruleMessageType.toLowerCase()) && t !== ruleMessageType ) as suggestion (suggestion)}
-                <button
-                  class="suggestion"
-                  on:click={() => (ruleMessageType = suggestion)}
-                >
-                  {suggestion}
-                </button>
-              {/each}
-            </div>
+        <Field label="Message type" hint="HL7 message type and trigger event, e.g. ADT^A01.">
+          <Input mono bind:value={ruleMessageType} placeholder="e.g. ADT^A01" />
+        </Field>
+        {#if messageSuggestions.length > 0}
+          <div class="suggestions" role="group" aria-label="Message type suggestions">
+            {#each messageSuggestions as suggestion (suggestion)}
+              <button type="button" class="suggestion" on:click={() => (ruleMessageType = suggestion)}>
+                {suggestion}
+              </button>
+            {/each}
           </div>
-          <span class="hint">HL7 message type and trigger event (e.g., ADT^A01)</span>
-        </label>
+        {/if}
 
-        <label class="label">
-          Condition (optional)
-          <input
-            class="input mono"
-            type="text"
-            bind:value={ruleCondition}
-            placeholder="e.g., PV1.2 == 'I'"
-          />
-          <span class="hint">Additional condition using HL7 path expressions</span>
-        </label>
+        <Field label="Condition (optional)" hint="Additional condition as an HL7 path expression.">
+          <Input mono bind:value={ruleCondition} placeholder="e.g. PV1.2 == 'I'" />
+        </Field>
 
-        <label class="label">
-          Event Type
-          <div class="input-with-suggestions">
-            <input
-              class="input"
-              type="text"
-              bind:value={ruleEventType}
-              placeholder="e.g., inpatient_admit"
-            />
-            <div class="suggestions">
-              {#each commonEventTypes.filter( (t) => t.toLowerCase().includes(ruleEventType.toLowerCase()) && t !== ruleEventType ) as suggestion (suggestion)}
-                <button
-                  class="suggestion"
-                  on:click={() => (ruleEventType = suggestion)}
-                >
-                  {suggestion}
-                </button>
-              {/each}
-            </div>
+        <Field label="Event type" hint="Semantic event type assigned when this rule matches.">
+          <Input mono bind:value={ruleEventType} placeholder="e.g. inpatient_admit" />
+        </Field>
+        {#if eventSuggestions.length > 0}
+          <div class="suggestions" role="group" aria-label="Event type suggestions">
+            {#each eventSuggestions as suggestion (suggestion)}
+              <button type="button" class="suggestion" on:click={() => (ruleEventType = suggestion)}>
+                {suggestion}
+              </button>
+            {/each}
           </div>
-          <span class="hint">Semantic event type to assign when this rule matches</span>
-        </label>
+        {/if}
 
-        <label class="label">
-          Priority
-          <input
-            class="input"
-            type="number"
-            bind:value={rulePriority}
-            min="0"
-          />
-          <span class="hint">Lower numbers are evaluated first</span>
-        </label>
+        <div class="priority">
+          <Field label="Priority" hint="Lower numbers are evaluated first.">
+            <Input type="number" mono bind:value={rulePriority} min="0" />
+          </Field>
+        </div>
       </div>
       <div class="modal-actions">
-        <Button variant="secondary" on:click={() => (showModal = false)}>Cancel</Button>
-        <Button on:click={saveRule} disabled={!ruleMessageType.trim() || !ruleEventType.trim()}>
+        <Button size="md" onclick={() => (showModal = false)}>Cancel</Button>
+        <Button
+          variant="primary"
+          size="md"
+          onclick={saveRule}
+          disabled={!ruleMessageType.trim() || !ruleEventType.trim()}
+        >
           {editingIndex !== null ? 'Update' : 'Add'}
         </Button>
       </div>
@@ -361,162 +355,60 @@
 {/if}
 
 <style>
-  .editor {
-    display: grid;
-    gap: 16px;
+  .event-type {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
   }
 
-  .header {
+  .event-type :global(.event-arrow) {
+    color: var(--color-text-muted);
+  }
+
+  .rules :global(.row-actions) {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .foot {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+
+  .suggestions {
     display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 16px;
     flex-wrap: wrap;
+    gap: var(--space-1);
+    margin-top: calc(-1 * var(--space-2));
   }
 
-	  .title {
-    margin: 0 0 4px;
-    font-size: 0.95rem;
-    font-weight: 800;
-	    color: var(--color-text-primary);
-	  }
-
-	  .desc {
-    margin: 0;
-    font-size: 0.85rem;
-	    color: var(--color-text-tertiary);
-	    line-height: 1.4;
-	    max-width: 480px;
-	  }
-
-	  .empty {
-    padding: 24px;
-    text-align: center;
-    border-radius: 12px;
-	    border: 1px dashed var(--color-border-strong);
-	    color: var(--color-text-tertiary);
-	  }
-
-  .empty p {
-    margin: 0;
-  }
-
-	  .empty-hint {
-    margin-top: 8px !important;
-    font-size: 0.85rem;
-	    color: var(--color-text-muted);
-	  }
-
-  .rules-list {
-    display: grid;
-    gap: 8px;
-  }
-
-	  .rule-item {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    gap: 12px;
-    align-items: center;
-    padding: 12px 14px;
-    border-radius: 12px;
-	    border: 1px solid var(--color-border-default);
-	    background: var(--color-bg-elevated);
-	  }
-
-  @media (max-width: 600px) {
-    .rule-item {
-      grid-template-columns: 1fr;
-      gap: 10px;
-    }
-  }
-
-  .rule-order {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-  }
-
-	  .order-btn {
-    padding: 2px 6px;
-    border: none;
+  .suggestion {
+    height: 22px;
+    padding: 0 6px;
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-sm);
     background: transparent;
-	    color: var(--color-text-muted);
-	    font-size: 0.75rem;
-	    cursor: pointer;
-	  }
-
-	  .order-btn:hover:not(:disabled) {
-	    color: var(--color-text-secondary);
-	  }
-
-  .order-btn:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
+    color: var(--color-text-secondary);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    cursor: pointer;
+    transition: var(--transition-colors);
   }
 
-	  .priority {
-	    font-size: 0.75rem;
-	    color: var(--color-text-muted);
-	  }
-
-  .rule-content {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
+  .suggestion:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
   }
 
-  .rule-msg {
-    font-weight: 700;
-    color: rgba(59, 130, 246, 0.95);
+  .suggestion:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 1px;
   }
 
-	  .mono {
-	    font-family: var(--font-mono);
-	  }
-
-  .rule-cond {
-    font-size: 0.85rem;
-    color: rgba(245, 158, 11, 0.85);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
-      'Courier New', monospace;
-  }
-
-	  .rule-arrow {
-	    color: var(--color-text-muted);
-	  }
-
-  .rule-event {
-    font-weight: 600;
-    color: rgba(34, 197, 94, 0.9);
-  }
-
-  .rule-actions {
-    display: flex;
-    gap: 6px;
-  }
-
-	  .action-btn {
-    padding: 4px 10px;
-    border-radius: 6px;
-	    border: 1px solid var(--color-border-strong);
-	    background: transparent;
-	    color: var(--color-text-tertiary);
-	    font-size: 0.8rem;
-	    cursor: pointer;
-	  }
-
-	  .action-btn:hover {
-	    background: var(--color-bg-hover);
-	  }
-
-  .action-btn.danger {
-    color: rgba(239, 68, 68, 0.8);
-  }
-
-  .action-btn.danger:hover {
-    background: rgba(239, 68, 68, 0.1);
+  .priority {
+    width: 50%;
   }
 
   .modal-overlay {
@@ -525,99 +417,50 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    padding: var(--space-4);
+    z-index: var(--z-modal);
   }
 
-	  .modal-backdrop {
+  .modal-backdrop {
     position: absolute;
     inset: 0;
     border: 0;
     padding: 0;
-	    background: var(--modal-backdrop);
-	    cursor: default;
-	  }
+    background: var(--modal-backdrop);
+    cursor: default;
+  }
 
-	  .modal {
+  .modal {
     position: relative;
     z-index: 1;
-	    background: var(--color-bg-base);
-	    border: 1px solid var(--color-border-default);
-	    border-radius: var(--modal-radius);
-	    padding: 24px;
-	    min-width: 400px;
-	    max-width: 520px;
-	  }
+    width: 100%;
+    max-width: var(--modal-width-md);
+    background: var(--color-bg-overlay);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--modal-radius);
+    box-shadow: var(--shadow-xl);
+    outline: none;
+  }
 
-	  .modal-title {
-    margin: 0 0 16px;
-    font-size: 1.1rem;
-    font-weight: 800;
-	    color: var(--color-text-primary);
-	  }
+  .modal-title {
+    margin: 0;
+    padding: var(--space-4) var(--space-4) 0;
+    font-size: var(--text-title);
+    font-weight: var(--font-semibold);
+    color: var(--color-text-primary);
+  }
 
   .modal-body {
     display: grid;
-    gap: 14px;
-    margin-bottom: 20px;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4) var(--space-4);
   }
 
   .modal-actions {
     display: flex;
-    gap: 10px;
+    gap: var(--space-2);
     justify-content: flex-end;
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--color-border-subtle);
   }
-
-	  .label {
-	    display: grid;
-	    gap: 6px;
-	    color: var(--color-text-secondary);
-	    font-size: 0.9rem;
-	  }
-
-  .input-with-suggestions {
-    position: relative;
-  }
-
-	  .input {
-    width: 100%;
-    padding: 10px 12px;
-	    border-radius: var(--radius-xl);
-	    border: 1px solid var(--color-border-default);
-	    background: var(--color-bg-input);
-	    color: var(--color-text-primary);
-	    outline: none;
-	    box-sizing: border-box;
-	  }
-
-	  .input:focus {
-	    border-color: var(--color-border-focus);
-	    box-shadow: var(--shadow-focus);
-	  }
-
-  .suggestions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin-top: 6px;
-  }
-
-	  .suggestion {
-    padding: 4px 8px;
-    border-radius: 6px;
-	    border: 1px solid var(--color-border-strong);
-	    background: var(--color-bg-elevated);
-	    color: var(--color-text-tertiary);
-	    font-size: 0.8rem;
-	    cursor: pointer;
-	  }
-
-	  .suggestion:hover {
-	    background: var(--color-bg-hover);
-	    color: var(--color-text-primary);
-	  }
-
-	  .hint {
-	    font-size: 0.8rem;
-	    color: var(--color-text-muted);
-	  }
 </style>

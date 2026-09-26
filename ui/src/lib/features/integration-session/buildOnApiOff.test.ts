@@ -168,7 +168,7 @@ async function signInFromTrustedNetwork(): Promise<void> {
   await screen.findByText('Trusted network access active');
 }
 
-/** The authoring-flow rail and the editor toolbar both offer Preview; both call run(). */
+/** HL7 intake's toolbar Preview (the first button named Preview on the page). */
 async function pressPreview(): Promise<void> {
   await fireEvent.click(screen.getAllByRole('button', { name: 'Preview' })[0]!);
 }
@@ -213,7 +213,8 @@ describe('UI built with the session engine on, API with sessions off', { timeout
     expect(notice).toHaveTextContent('stateless path');
 
     await pressPreview();
-    await screen.findByText('events: 1', undefined, { timeout: 5_000 });
+    // The Results "Events" tab carries the extracted-event count.
+    await screen.findByRole('tab', { name: 'Events 1' }, { timeout: 5_000 });
 
     // (a) Exactly the stateless mutation after the gate's health probe: no
     // session mutation, no SSE subscription.

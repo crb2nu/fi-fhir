@@ -23,6 +23,6 @@
     root="integrationSessionEvents"
     subject="Integration Session runs"
     reason={unavailable.reason}
-    alternative="Preview runs on the stateless path instead; results appear below when you press Preview."
+    alternative="Preview runs on the stateless path instead."
   />
 {/if}

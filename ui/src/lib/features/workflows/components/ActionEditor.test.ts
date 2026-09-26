@@ -58,7 +58,7 @@ describe('ActionEditor', () => {
     const { container } = render(ActionEditor, {
       props: { action }
     });
-    const required = container.querySelectorAll('.required');
+    const required = container.querySelectorAll('.ui-field-required');
     // webhook has at least one required field (url)
     expect(required.length).toBeGreaterThan(0);
   });

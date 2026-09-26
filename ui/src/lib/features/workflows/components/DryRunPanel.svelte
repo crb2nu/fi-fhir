@@ -1,9 +1,24 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
-  import Panel from '$lib/ui/Panel.svelte';
+  import CircleAlert from '@lucide/svelte/icons/circle-alert';
+  import Play from '@lucide/svelte/icons/play';
+  import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
+  import {
+    Badge,
+    Button,
+    Field,
+    Icon,
+    KeyValue,
+    Panel,
+    Select,
+    Table,
+    Tabs,
+    Td,
+    Th,
+    Tr
+  } from '$lib/ui/primitives';
+  import type { TabItem } from '$lib/ui/primitives';
   import CodeEditor from '$lib/ui/editor/CodeEditor.svelte';
-  import Button from '$lib/ui/Button.svelte';
-  import Badge from '$lib/ui/Badge.svelte';
   import { workflowDraft } from '../workflowStore';
   import { draftToYaml } from '../workflowYaml';
   import {
@@ -77,6 +92,7 @@
   $: sourceOptions = sessionEngineEnabled
     ? [{ value: 'session' as EventSource, label: 'Session' }, ...legacySourceOptions]
     : legacySourceOptions;
+  $: sourceTabs = sourceOptions.map((opt): TabItem => ({ id: opt.value, label: opt.label }));
   $: if (!sessionEngineEnabled && eventSource === 'session') eventSource = 'presets';
   $: if (mounted && sessionEngineEnabled && !sessionsRequested) {
     sessionsRequested = true;
@@ -116,6 +132,11 @@
     } finally {
       sessionLoading = false;
     }
+  }
+
+  function selectSource(id: string) {
+    const option = sourceOptions.find((opt) => opt.value === id);
+    if (option) eventSource = option.value;
   }
 
   function togglePreset(index: number) {
@@ -222,32 +243,17 @@
   }
 </script>
 
-<Panel title="Dry Run Simulation">
-  <div class="dry-run">
-    <div class="event-selector">
-      <div class="selector-header">
-        <span class="label">Event Source</span>
-        <div class="source-tabs" role="tablist">
-          {#each sourceOptions as opt (opt.value)}
-            <button
-              type="button"
-              class="source-tab"
-              class:active={eventSource === opt.value}
-              role="tab"
-              aria-selected={eventSource === opt.value}
-              on:click={() => { eventSource = opt.value; }}
-            >
-              {opt.label}
-            </button>
-          {/each}
-        </div>
-      </div>
+<Panel title="Dry run" flush>
+  <div class="source-bar">
+    <span class="source-label">Event source</span>
+    <Tabs label="Event source" items={sourceTabs} value={eventSource} onchange={selectSource} />
+  </div>
 
-      {#if eventSource === 'session'}
-        <div class="session-source">
-          <label class="session-label" for="simulation-session">Integration session</label>
-          <select
-            id="simulation-session"
+  <div class="dry-run">
+    {#if eventSource === 'session'}
+      <div class="session-source">
+        <Field label="Integration session" id="simulation-session">
+          <Select
             bind:value={selectedSessionId}
             disabled={sessionLoading || simulationSessions.length === 0}
           >
@@ -257,87 +263,102 @@
             {#each simulationSessions as session (session.id)}
               <option value={session.id}>{session.name}</option>
             {/each}
-          </select>
-          <span class="source-detail">
-            Uses immutable events from completed server runs. Action configuration is never executed or retained.
-          </span>
-          {#if sessionLoadError}
-            <div class="custom-json-error" role="alert">{sessionLoadError}</div>
-          {/if}
-        </div>
-      {:else if eventSource === 'custom'}
+          </Select>
+        </Field>
+        <p class="muted-line">
+          Uses immutable events from completed server runs. Action configuration is never executed or
+          retained.
+        </p>
+        {#if sessionLoadError}
+          <p class="inline-error" role="alert">
+            <Icon icon={CircleAlert} />
+            <span>{sessionLoadError}</span>
+          </p>
+        {/if}
+      </div>
+    {:else if eventSource === 'custom'}
+      <div class="code-frame">
         <CodeEditor
           language="json"
           value={customEventJson}
-          on:change={(e) => { customEventJson = e.detail; }}
+          on:change={(e) => {
+            customEventJson = e.detail;
+          }}
           placeholder={customEventPlaceholder}
           height="150px"
         />
-        {#if customJsonError}
-          <div class="custom-json-error" role="alert">{customJsonError}</div>
-        {/if}
-      {:else if eventSource === 'presets'}
-        <div class="sample-list">
-          {#each presetEvents as sample, i (i)}
-            <label class="sample-item">
-              <input
-                type="checkbox"
-                checked={selectedPresets.includes(i)}
-                on:change={() => togglePreset(i)}
-              />
-              <span class="sample-label">{sample.label}</span>
-              <span class="sample-type mono">{sample.event.type}</span>
-            </label>
-          {/each}
-        </div>
-      {:else if eventSource === 'debug'}
-        <div class="source-info">
-          {#if $debugSession}
-            <span class="source-status active">Debug session active</span>
-            <span class="source-detail mono">{$debugSession.id}</span>
-          {:else}
-            <span class="source-status">No active debug session</span>
-          {/if}
-        </div>
-      {:else if eventSource === 'recent'}
-        <div class="source-info">
-          {#if $runtimeOutputState.entries.length > 0}
-            <span class="source-status active">{Math.min(5, $runtimeOutputState.entries.length)} recent entries</span>
-          {:else}
-            <span class="source-status">No recent output entries</span>
-          {/if}
-        </div>
-      {/if}
-
-      <div class="run-row">
-        <Button
-          on:click={handleRun}
-          loading={running}
-          disabled={selectedEventCount === 0}
-          title={runDisabledReason}
-        >
-          {running ? 'Running...' : 'Run Simulation'}
-        </Button>
-        <span class="event-count">{selectedEventCount} event{selectedEventCount === 1 ? '' : 's'}</span>
       </div>
+      {#if customJsonError}
+        <p class="inline-error" role="alert">
+          <Icon icon={CircleAlert} />
+          <span>{customJsonError}</span>
+        </p>
+      {/if}
+    {:else if eventSource === 'presets'}
+      <div class="sample-list">
+        {#each presetEvents as sample, i (i)}
+          <label class="sample-item">
+            <input
+              type="checkbox"
+              checked={selectedPresets.includes(i)}
+              on:change={() => togglePreset(i)}
+            />
+            <span class="sample-label">{sample.label}</span>
+            <span class="sample-type text-mono">{sample.event.type}</span>
+          </label>
+        {/each}
+      </div>
+    {:else if eventSource === 'debug'}
+      <p class="source-status">
+        {#if $debugSession}
+          <span class="status-dot is-active" aria-hidden="true"></span>
+          <span>Debug session active</span>
+          <span class="text-mono muted">{$debugSession.id}</span>
+        {:else}
+          <span class="status-dot" aria-hidden="true"></span>
+          <span>No active debug session</span>
+        {/if}
+      </p>
+    {:else if eventSource === 'recent'}
+      <p class="source-status">
+        {#if $runtimeOutputState.entries.length > 0}
+          <span class="status-dot is-active" aria-hidden="true"></span>
+          <span>{Math.min(5, $runtimeOutputState.entries.length)} recent entries</span>
+        {:else}
+          <span class="status-dot" aria-hidden="true"></span>
+          <span>No recent output entries</span>
+        {/if}
+      </p>
+    {/if}
+
+    <div class="run-row">
+      <Button
+        variant="primary"
+        icon={Play}
+        onclick={handleRun}
+        loading={running}
+        disabled={selectedEventCount === 0}
+        title={runDisabledReason}
+      >
+        {running ? 'Running...' : 'Run simulation'}
+      </Button>
+      <span class="event-count">{selectedEventCount} event{selectedEventCount === 1 ? '' : 's'}</span>
     </div>
 
     {#if sessionResult}
-      <div class="results session-results">
-        <div class="simulation-provenance">
-          <div>
-            <span class="provenance-label">Workflow revision</span>
-            <span class="mono">{sessionResult.workflowRevisionId}</span>
-          </div>
-          <div>
-            <span class="provenance-label">Digest</span>
-            <span class="mono">{sessionResult.workflowRevisionDigest}</span>
-          </div>
-          <div>
-            <span class="provenance-label">Source runs</span>
-            <span>{sessionResult.sourceRunIds.length}</span>
-          </div>
-        </div>
+      <div class="results">
+        <KeyValue
+          items={[
+            {
+              key: 'Workflow revision',
+              value: sessionResult.workflowRevisionId,
+              mono: true,
+              truncate: true
+            },
+            { key: 'Digest', value: sessionResult.workflowRevisionDigest, mono: true, truncate: true },
+            { key: 'Source runs', value: sessionResult.sourceRunIds.length, mono: true }
+          ]}
+        />
 
         <SessionPublicationPanel
           sessionId={sessionResult.sessionId}
@@ -346,94 +367,106 @@
         />
 
         {#if sessionResult.delta}
-          <div class="delta-summary" aria-label="Simulation delta">
+          <div class="result-block" role="group" aria-label="Simulation delta">
             <h4 class="results-title">Changes from previous simulation</h4>
             <div class="delta-counts">
-              <Badge variant="success" size="sm">
-                +{sessionResult.delta.addedMatchedRoutes.length} routes
-              </Badge>
-              <Badge variant="default" size="sm">
-                −{sessionResult.delta.removedMatchedRoutes.length} routes
-              </Badge>
-              <span>+{sessionResult.delta.addedTransforms.length}/−{sessionResult.delta.removedTransforms.length} transforms</span>
-              <span>+{sessionResult.delta.addedActions.length}/−{sessionResult.delta.removedActions.length} actions</span>
+              <Badge tone="success" mono>+{sessionResult.delta.addedMatchedRoutes.length} routes</Badge>
+              <Badge mono>−{sessionResult.delta.removedMatchedRoutes.length} routes</Badge>
+              <span class="text-mono"
+                >+{sessionResult.delta.addedTransforms.length}/−{sessionResult.delta.removedTransforms
+                  .length} transforms</span
+              >
+              <span class="text-mono"
+                >+{sessionResult.delta.addedActions.length}/−{sessionResult.delta.removedActions
+                  .length} actions</span
+              >
             </div>
           </div>
         {/if}
 
-        <h4 class="results-title">Server-owned event traces</h4>
-        <div class="trace-list">
-          {#each sessionResult.events as event (`${event.runId}:${event.eventId}`)}
-            <article class="event-trace">
-              <header class="trace-header">
-                <span class="mono">{event.eventType}</span>
-                <span class="muted">{event.eventId}</span>
-              </header>
-              {#each event.routes as route (route.name)}
-                <div class="route-trace">
-                  <div class="route-heading">
-                    <span class="mono">{route.name}</span>
-                    <Badge variant={route.matched ? 'success' : 'default'} size="sm">
+        <div class="result-block">
+          <h4 class="results-title">Server-owned event traces</h4>
+          <div class="trace-list">
+            {#each sessionResult.events as event (`${event.runId}:${event.eventId}`)}
+              <div class="trace">
+                <div class="trace-head">
+                  <span class="text-mono">{event.eventType}</span>
+                  <span class="text-mono muted trace-id" title={event.eventId}>{event.eventId}</span>
+                </div>
+                {#each event.routes as route (route.name)}
+                  <div class="trace-route">
+                    <span class="text-mono trace-route-name">{route.name}</span>
+                    <Badge tone={route.matched ? 'success' : 'neutral'} dot={route.matched}>
                       {route.matched ? 'Matched' : 'Skipped'}
                     </Badge>
                     {#if route.skipReason}<span class="muted">{route.skipReason}</span>{/if}
+                    {#if route.transforms.length > 0 || route.actions.length > 0}
+                      <span class="steps">
+                        {#each route.transforms as transform (transform.index)}
+                          <Badge mono>Transform {transform.index + 1}: {transform.type}</Badge>
+                        {/each}
+                        {#each route.actions as action (action.id)}
+                          <Badge mono>Action: {action.type}</Badge>
+                        {/each}
+                      </span>
+                    {/if}
                   </div>
-                  {#if route.transforms.length > 0 || route.actions.length > 0}
-                    <div class="planned-steps">
-                      {#each route.transforms as transform (transform.index)}
-                        <span class="step-chip">Transform {transform.index + 1}: {transform.type}</span>
-                      {/each}
-                      {#each route.actions as action (action.id)}
-                        <span class="step-chip">Action: {action.type}</span>
-                      {/each}
-                    </div>
-                  {/if}
-                </div>
-              {/each}
-            </article>
-          {/each}
+                {/each}
+              </div>
+            {/each}
+          </div>
         </div>
       </div>
     {:else if result}
       <div class="results">
         {#if result.validationErrors.length > 0}
-          <div class="errors" role="alert">
-            <h4 class="results-title">Validation Errors</h4>
-            {#each result.validationErrors as err (err)}
-              <div class="error-item">{err}</div>
-            {/each}
+          <div class="message-block is-error" role="alert">
+            <h4 class="results-title">Validation errors</h4>
+            <ul class="message-list">
+              {#each result.validationErrors as err (err)}
+                <li><Icon icon={CircleAlert} /><span>{err}</span></li>
+              {/each}
+            </ul>
           </div>
         {/if}
 
         {#if result.warnings.length > 0}
-          <div class="warnings" role="alert">
+          <div class="message-block is-warning" role="alert">
             <h4 class="results-title">Warnings</h4>
-            {#each result.warnings as warn (warn)}
-              <div class="warning-item">{warn}</div>
-            {/each}
+            <ul class="message-list">
+              {#each result.warnings as warn (warn)}
+                <li><Icon icon={TriangleAlert} /><span>{warn}</span></li>
+              {/each}
+            </ul>
           </div>
         {/if}
 
-        <h4 class="results-title">Route Results</h4>
-        <div class="results-table">
-          <div class="table-header">
-            <span>Route</span>
-            <span>Matched</span>
-            <span>Actions</span>
-            <span>Skip Reason</span>
+        <div class="result-block">
+          <h4 class="results-title">Route results</h4>
+          <div class="table-frame">
+            <Table label="Route results" layout="fixed">
+              {#snippet head()}
+                <tr>
+                  <Th>Route</Th>
+                  <Th width="96px">Matched</Th>
+                  <Th width="80px" numeric>Actions</Th>
+                  <Th>Skip reason</Th>
+                </tr>
+              {/snippet}
+              {#each result.routeResults as rr (rr.routeName)}
+                <Tr>
+                  <Td mono truncate value={rr.routeName} />
+                  <Td>
+                    <Badge tone={rr.matched ? 'success' : 'neutral'} dot={rr.matched}>
+                      {rr.matched ? 'Yes' : 'No'}
+                    </Badge>
+                  </Td>
+                  <Td numeric value={rr.actionsWouldRun} />
+                  <Td muted truncate value={rr.skipReason || '—'} />
+                </Tr>
+              {/each}
+            </Table>
           </div>
-          {#each result.routeResults as rr (rr.routeName)}
-            <div class="table-row">
-              <span class="mono">{rr.routeName}</span>
-              <span>
-                <Badge variant={rr.matched ? 'success' : 'default'} size="sm">
-                  {rr.matched ? 'Yes' : 'No'}
-                </Badge>
-              </span>
-              <span>{rr.actionsWouldRun}</span>
-              <span class="muted">{rr.skipReason || '—'}</span>
-            </div>
-          {/each}
         </div>
       </div>
     {/if}
@@ -441,322 +474,251 @@
 </Panel>
 
 <style>
+  .source-bar {
+    display: flex;
+    align-items: stretch;
+    gap: var(--space-3);
+    height: var(--toolbar-height);
+    padding: 0 var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .source-label {
+    align-self: center;
+    font-size: var(--text-label);
+    font-weight: var(--font-medium);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--color-text-tertiary);
+    white-space: nowrap;
+  }
+
   .dry-run {
-    display: grid;
-    gap: 16px;
-  }
-
-  .event-selector {
-    display: grid;
-    gap: 10px;
-  }
-
-  .selector-header {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .label {
-    color: var(--color-text-tertiary);
-    font-weight: 700;
-    font-size: 0.9rem;
-  }
-
-  .mono {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  }
-
-  .source-tabs {
-    display: flex;
-    gap: 2px;
-    background: var(--color-bg-surface);
-    border: 1px solid var(--color-border-subtle);
-    border-radius: 8px;
-    padding: 2px;
-  }
-
-  .source-tab {
-    padding: 4px 10px;
-    border: none;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--color-text-tertiary);
-    font-size: 0.8rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: var(--transition-all);
-  }
-
-  .source-tab:hover {
-    color: var(--color-text-secondary);
-    background: var(--color-bg-hover);
-  }
-
-  .source-tab:focus-visible {
-    outline: none;
-    box-shadow: var(--shadow-focus);
-    border-radius: var(--radius-sm);
-  }
-
-  .source-tab.active {
-    color: var(--color-text-primary);
-    background: var(--color-bg-elevated);
-    box-shadow: var(--shadow-sm);
-  }
-
-  .source-info {
-    display: grid;
-    gap: 4px;
-    padding: 8px 0;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--panel-padding);
   }
 
   .session-source {
-    display: grid;
-    gap: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    max-width: 480px;
   }
 
-  .session-label,
-  .provenance-label {
-    color: var(--color-text-muted);
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-
-  .session-source select {
-    width: 100%;
-    padding: 8px 10px;
-    border: 1px solid var(--color-border-subtle);
-    border-radius: 6px;
-    background: var(--color-bg-surface);
-    color: var(--color-text-primary);
+  .muted-line,
+  .source-status {
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
   }
 
   .source-status {
-    font-size: 0.85rem;
-    color: var(--color-text-muted);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-text-secondary);
   }
 
-  .source-status.active {
-    color: var(--color-success-text, var(--color-success));
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-full);
+    background: var(--color-text-muted);
   }
 
-  .source-detail {
-    font-size: 0.8rem;
+  .status-dot.is-active {
+    background: var(--color-success);
+  }
+
+  .muted {
+    color: var(--color-text-tertiary);
+  }
+
+  .code-frame {
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+
+  .inline-error {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--color-danger-text);
+  }
+
+  .sample-list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sample-item {
+    display: grid;
+    grid-template-columns: 16px 200px minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-2);
+    height: 28px;
+    cursor: pointer;
+  }
+
+  .sample-item input {
+    margin: 0;
+    accent-color: var(--color-primary);
+  }
+
+  .sample-label {
+    font-size: var(--text-ui);
+    color: var(--color-text-primary);
+  }
+
+  .sample-type {
     color: var(--color-text-tertiary);
   }
 
   .run-row {
     display: flex;
     align-items: center;
-    gap: 10px;
-  }
-
-  .event-count {
-    font-size: 0.8rem;
-    color: var(--color-text-muted);
-  }
-
-  .sample-list {
-    display: grid;
-    gap: 4px;
-  }
-
-  .sample-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    padding: 4px 0;
-  }
-
-  .sample-item input {
-    accent-color: rgba(59, 130, 246, 0.85);
-  }
-
-  .sample-label {
-    color: var(--color-text-secondary);
-    font-size: 0.9rem;
-  }
-
-  .sample-type {
-    color: var(--color-text-muted);
-    font-size: 0.8rem;
-  }
-
-  .results {
-    display: grid;
-    gap: 12px;
-  }
-
-  .simulation-provenance {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
-    gap: 12px;
-    padding: 10px;
-    border: 1px solid var(--color-border-subtle);
-    border-radius: 8px;
-    background: var(--color-bg-surface);
-  }
-
-  .simulation-provenance > div {
-    display: grid;
-    min-width: 0;
-    gap: 3px;
-  }
-
-  .simulation-provenance .mono {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--color-text-secondary);
-    font-size: 0.8rem;
-  }
-
-  .delta-summary,
-  .trace-list {
-    display: grid;
-    gap: 8px;
-  }
-
-  .delta-counts,
-  .planned-steps,
-  .route-heading,
-  .trace-header {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .delta-counts {
-    color: var(--color-text-muted);
-    font-size: 0.8rem;
-  }
-
-  .event-trace {
-    display: grid;
-    gap: 8px;
-    padding: 10px;
-    border: 1px solid var(--color-border-subtle);
-    border-radius: 8px;
-    background: var(--color-bg-surface);
-  }
-
-  .trace-header {
-    justify-content: space-between;
-  }
-
-  .route-trace {
-    display: grid;
-    gap: 6px;
-    padding-top: 8px;
+    gap: var(--space-3);
+    padding-top: var(--space-3);
     border-top: 1px solid var(--color-border-subtle);
   }
 
-  .step-chip {
-    padding: 3px 7px;
-    border-radius: 999px;
-    background: var(--color-bg-elevated);
+  .event-count {
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
     color: var(--color-text-tertiary);
-    font-size: 0.75rem;
+  }
+
+  .results {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  .result-block {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
   }
 
   .results-title {
-    color: var(--color-text-tertiary);
-    font-size: 0.85rem;
-    font-weight: 700;
     margin: 0;
-  }
-
-  .custom-json-error {
-    margin-top: 6px;
-    padding: 6px 10px;
-    border-radius: 6px;
-    background: var(--color-danger-bg);
-    border: 1px solid var(--color-danger-border);
-    color: var(--color-danger-text);
-    font-size: 0.85rem;
-  }
-
-  .errors {
-    display: grid;
-    gap: 4px;
-  }
-
-  .error-item {
-    padding: 6px 10px;
-    border-radius: 6px;
-    background: var(--color-danger-bg);
-    border: 1px solid var(--color-danger-border);
-    color: var(--color-text-primary);
-    font-size: 0.85rem;
-  }
-
-  .warnings {
-    display: grid;
-    gap: 4px;
-  }
-
-  .warning-item {
-    padding: 6px 10px;
-    border-radius: 6px;
-    background: var(--color-warning-bg);
-    border: 1px solid var(--color-warning-border);
-    color: var(--color-text-primary);
-    font-size: 0.85rem;
-  }
-
-  .results-table {
-    display: grid;
-    gap: 4px;
-  }
-
-  .table-header {
-    display: grid;
-    grid-template-columns: 1fr 80px 80px 1fr;
-    gap: 12px;
-    padding: 6px 10px;
-    color: var(--color-text-muted);
-    font-size: 0.75rem;
-    font-weight: 700;
+    font-size: var(--text-label);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-label);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    color: var(--color-text-tertiary);
   }
 
-  .table-row {
-    display: grid;
-    grid-template-columns: 1fr 80px 80px 1fr;
-    gap: 12px;
-    padding: 8px 10px;
-    border-radius: 6px;
-    border: 1px solid var(--color-border-subtle);
-    background: var(--color-bg-surface);
+  .delta-counts {
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    font-size: 0.9rem;
-    color: var(--color-text-secondary);
+    gap: var(--space-2);
+    color: var(--color-text-tertiary);
   }
 
-  .muted {
-    color: var(--color-text-muted);
-    font-size: 0.85rem;
+  .trace-list {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
   }
 
-  @media (max-width: 640px) {
-    .simulation-provenance {
-      grid-template-columns: 1fr;
-    }
+  .trace + .trace {
+    border-top: 1px solid var(--color-border-subtle);
+  }
 
-    .table-header,
-    .table-row {
-      grid-template-columns: 1fr 1fr;
-    }
+  .trace-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    height: 30px;
+    padding: 0 var(--space-3);
+    background: var(--color-bg-surface);
+  }
 
-    .table-header span:nth-child(4),
-    .table-row span:nth-child(4) {
-      display: none;
-    }
+  .trace-id {
+    min-width: 0;
+    margin-left: auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .trace-route {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 30px;
+    padding: var(--space-1) var(--space-3) var(--space-1) var(--space-6);
+    border-top: 1px solid var(--color-border-subtle);
+    font-size: var(--text-xs);
+  }
+
+  .trace-route-name {
+    color: var(--color-text-primary);
+  }
+
+  .steps {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    margin-left: auto;
+  }
+
+  .message-block {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
+  }
+
+  .message-block.is-error {
+    border-color: var(--color-danger-border);
+    background: var(--color-danger-bg);
+  }
+
+  .message-block.is-warning {
+    border-color: var(--color-warning-border);
+    background: var(--color-warning-bg);
+  }
+
+  .message-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--text-xs);
+    color: var(--color-text-primary);
+  }
+
+  .message-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+
+  .message-block.is-error :global(.ui-icon) {
+    color: var(--color-danger-text);
+  }
+
+  .message-block.is-warning :global(.ui-icon) {
+    color: var(--color-warning-text);
+  }
+
+  .table-frame {
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
   }
 </style>

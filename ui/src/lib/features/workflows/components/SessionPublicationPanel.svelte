@@ -1,6 +1,6 @@
 <script lang="ts">
-  import Button from '$lib/ui/Button.svelte';
-  import Badge from '$lib/ui/Badge.svelte';
+  import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
+  import { Badge, Button, Field, Icon, Input, KeyValue, Panel, Textarea } from '$lib/ui/primitives';
   import { isErrorToasted } from '$lib/graphql/client';
   import { toasts } from '$lib/ui/toastStore';
   import {
@@ -96,112 +96,167 @@
   }
 </script>
 
-<section class="publication-panel" aria-labelledby="publication-heading">
-  <header>
-    <div>
-      <h4 id="publication-heading">Publish tested integration</h4>
-      <p>Bind this exact simulation and profile revision to an already validated production definition.</p>
-    </div>
+<Panel title="Publish tested integration" titleTag="h3">
+  {#snippet actions()}
     {#if deployment}
-      <Badge variant={deployment.state === 'deployed' ? 'success' : 'info'} size="sm">{deployment.state}</Badge>
+      <Badge tone={deployment.state === 'deployed' ? 'success' : 'info'} dot>{deployment.state}</Badge>
     {/if}
-  </header>
+  {/snippet}
 
-  {#if !profileRevisionId}
-    <div class="warning" role="alert">Selected runs do not share one immutable profile revision.</div>
-  {/if}
+  <div class="publication">
+    <p class="note">
+      Binds this simulation and profile revision to an already validated production definition.
+    </p>
 
-  <div class="fields">
-    <label>
-      <span>Definition ID</span>
-      <input bind:value={definitionId} placeholder="adt-http" disabled={Boolean(publication)} />
-    </label>
-    <label>
-      <span>Definition revision</span>
-      <input bind:value={definitionRevisionId} placeholder="definition-7" disabled={Boolean(publication)} />
-    </label>
-    <label class="wide">
-      <span>Promotion reason</span>
-      <textarea bind:value={reason} maxlength="1024" placeholder="Explain why this tested revision is ready"></textarea>
-    </label>
-  </div>
+    {#if !profileRevisionId}
+      <p class="note is-warning" role="alert">
+        <Icon icon={TriangleAlert} />
+        <span>Selected runs do not share one immutable profile revision.</span>
+      </p>
+    {/if}
 
-  {#if publication}
-    <div class="evidence">
-      <div><span>Manifest</span><code>{publication.manifestDigest}</code></div>
-      <div><span>Signature</span><code>{publication.signatureAlgorithm} / {publication.signingKeyId}</code></div>
-      <div><span>Production profile</span><code>{publication.productionProfile.artifactId}/{publication.productionProfile.revisionId}</code></div>
-      <div><span>Production workflow</span><code>{publication.productionWorkflow.artifactId}/{publication.productionWorkflow.revisionId}</code></div>
+    <div class="form-grid">
+      <Field label="Definition id">
+        <Input mono bind:value={definitionId} placeholder="adt-http" disabled={Boolean(publication)} />
+      </Field>
+      <Field label="Definition revision">
+        <Input
+          mono
+          bind:value={definitionRevisionId}
+          placeholder="definition-7"
+          disabled={Boolean(publication)}
+        />
+      </Field>
+      <Field label="Promotion reason" class="span-2">
+        <Textarea
+          bind:value={reason}
+          maxlength={1024}
+          rows={3}
+          placeholder="Why this tested revision is ready"
+        />
+      </Field>
     </div>
-  {/if}
 
-  <div class="actions">
-    <Button on:click={publish} loading={working === 'publish'} disabled={!publishReady || Boolean(publication)}>
-      Sign &amp; Publish
-    </Button>
     {#if publication}
-      <label class="version-field">
-        <span>Expected lifecycle version</span>
-        <input type="number" min="1" bind:value={expectedVersion} />
-      </label>
-      <Button variant="secondary" on:click={approve} loading={working === 'approve'} disabled={working !== null || deployment !== null}>
-        Approve
-      </Button>
-      <Button on:click={deploy} loading={working === 'deploy'} disabled={working !== null || (deployment?.state !== 'approved' && deployment?.state !== 'published')}>
-        Deploy
-      </Button>
+      <KeyValue
+        items={[
+          { key: 'Manifest', value: publication.manifestDigest, mono: true, truncate: true },
+          {
+            key: 'Signature',
+            value: `${publication.signatureAlgorithm} / ${publication.signingKeyId}`,
+            mono: true,
+            truncate: true
+          },
+          {
+            key: 'Production profile',
+            value: `${publication.productionProfile.artifactId}/${publication.productionProfile.revisionId}`,
+            mono: true,
+            truncate: true
+          },
+          {
+            key: 'Production workflow',
+            value: `${publication.productionWorkflow.artifactId}/${publication.productionWorkflow.revisionId}`,
+            mono: true,
+            truncate: true
+          }
+        ]}
+      />
     {/if}
+
+    <div class="button-row">
+      <Button
+        onclick={publish}
+        loading={working === 'publish'}
+        disabled={!publishReady || Boolean(publication)}
+      >
+        Sign and publish
+      </Button>
+      {#if publication}
+        <Button
+          onclick={approve}
+          loading={working === 'approve'}
+          disabled={working !== null || deployment !== null}
+        >
+          Approve
+        </Button>
+        <Button
+          onclick={deploy}
+          loading={working === 'deploy'}
+          disabled={working !== null ||
+            (deployment?.state !== 'approved' && deployment?.state !== 'published')}
+        >
+          Deploy
+        </Button>
+        <label class="version-field">
+          <span class="version-label">Expected lifecycle version</span>
+          <Input mono type="number" min="1" bind:value={expectedVersion} />
+        </label>
+      {/if}
+    </div>
   </div>
-</section>
+</Panel>
 
 <style>
-  .publication-panel {
-    display: grid;
-    gap: var(--space-4);
-    padding: var(--space-4);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-lg);
-    background: var(--color-bg-surface);
-  }
-
-  header, .actions {
+  .publication {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
     gap: var(--space-3);
-    flex-wrap: wrap;
   }
 
-  h4, p { margin: 0; }
-  p { color: var(--color-text-secondary); font-size: var(--text-sm); }
+  .note {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
 
-  .fields {
+  .note.is-warning {
+    color: var(--color-warning-text);
+  }
+
+  .form-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-3);
   }
 
-  label { display: grid; gap: var(--space-1); font-size: var(--text-sm); }
-  .wide { grid-column: 1 / -1; }
-  textarea { min-height: 72px; resize: vertical; }
-
-  .evidence {
-    display: grid;
-    gap: var(--space-2);
-    font-size: var(--text-xs);
+  .form-grid :global(.span-2) {
+    grid-column: 1 / -1;
   }
 
-  .evidence div { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: var(--space-2); }
-  .evidence span { color: var(--color-text-secondary); }
-  code { overflow-wrap: anywhere; }
+  .button-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+  }
 
-  .version-field { margin-left: auto; }
-  .version-field input { width: 110px; }
-  .warning { color: var(--color-warning); font-size: var(--text-sm); }
+  .version-field {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-left: auto;
+  }
+
+  .version-field :global(.ui-input) {
+    width: 80px;
+  }
+
+  .version-label {
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+    white-space: nowrap;
+  }
 
   @media (max-width: 720px) {
-    .fields { grid-template-columns: 1fr; }
-    .wide { grid-column: auto; }
-    .version-field { margin-left: 0; }
+    .form-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .version-field {
+      margin-left: 0;
+    }
   }
 </style>

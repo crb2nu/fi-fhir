@@ -1,11 +1,14 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import Button from '$lib/ui/Button.svelte';
+  import CircleAlert from '@lucide/svelte/icons/circle-alert';
+  import Upload from '@lucide/svelte/icons/upload';
+  import { Badge, Button, Icon, Panel, Table, Td, Th, Tr } from '$lib/ui/primitives';
   import { toasts } from '$lib/ui/toastStore';
   import { uploadMappingCSV } from './terminologyApi';
   import { validateCsvFile } from './csvFileValidation';
+  import { equivalenceLabel } from './terminologyFormat';
   import { isErrorToasted } from '$lib/graphql/client';
-  import type { UploadMappingCsvInput, MappingEquivalence } from '$lib/gen/graphql';
+  import type { UploadMappingCsvInput } from '$lib/gen/graphql';
 
   export let profileId: string | undefined = undefined;
   export let defaultSourceSystem = '';
@@ -150,19 +153,9 @@
     previewResult = null;
     fileError = null;
   }
-
-  function formatEquivalence(eq: MappingEquivalence): string {
-    switch (eq) {
-      case 'EQUIVALENT': return '=';
-      case 'WIDER': return '>';
-      case 'NARROWER': return '<';
-      case 'INEXACT': return '~';
-      default: return eq;
-    }
-  }
 </script>
 
-<div class="uploader" class:disabled class:dragging={isDragging}>
+<div class="uploader" class:disabled class:is-preview={showPreview}>
   <input
     bind:this={fileInputEl}
     type="file"
@@ -172,113 +165,135 @@
   />
 
   {#if !showPreview}
-    <!-- Drop Zone -->
-    <button
-      type="button"
-      class="drop-zone"
-      on:dragover={handleDragOver}
-      on:dragleave={handleDragLeave}
-      on:drop={handleDrop}
-      on:click={triggerFileSelect}
-      disabled={disabled || isUploading}
-    >
-      <div class="drop-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-          <polyline points="17,8 12,3 7,8" />
-          <line x1="12" y1="3" x2="12" y2="15" />
-        </svg>
-      </div>
-      <div class="drop-text">
-        <span class="drop-primary">Drop CSV file here</span>
-        <span class="drop-secondary">or click to browse</span>
-      </div>
-    </button>
+    <Panel title="Upload CSV">
+      <div class="upload-body">
+        <!-- Drop Zone -->
+        <button
+          type="button"
+          class="drop-zone"
+          class:dragging={isDragging}
+          on:dragover={handleDragOver}
+          on:dragleave={handleDragLeave}
+          on:drop={handleDrop}
+          on:click={triggerFileSelect}
+          disabled={disabled || isUploading}
+          aria-busy={isUploading ? 'true' : undefined}
+        >
+          <Icon icon={Upload} />
+          {#if isUploading}
+            <span>Validating <span class="text-mono">{filename}</span>…</span>
+          {:else}
+            <span>Drop a CSV file here or <span class="drop-link">browse</span></span>
+          {/if}
+        </button>
 
-    {#if fileError}
-      <p class="file-error" role="alert">{fileError}</p>
-    {/if}
+        {#if fileError}
+          <p class="file-error" role="alert">
+            <Icon icon={CircleAlert} />
+            <span>{fileError}</span>
+          </p>
+        {/if}
 
-    <!-- Format Help -->
-    <div class="format-help">
-      <div class="format-title">Supported CSV Formats:</div>
-      <div class="format-item">
-        <strong>Standard:</strong> source_system, source_code, target_system, target_code, equivalence
+        <dl class="formats" aria-label="Accepted CSV formats">
+          <dt>Standard</dt>
+          <dd class="text-mono">source_system, source_code, target_system, target_code, equivalence</dd>
+          <dt>Simple</dt>
+          <dd>
+            <span class="text-mono">source_code, target_code</span>
+            <span class="formats-note">requires default source and target systems</span>
+          </dd>
+        </dl>
       </div>
-      <div class="format-item">
-        <strong>Simple:</strong> source_code, target_code (requires default systems above)
-      </div>
-    </div>
+    </Panel>
   {:else if previewResult}
+    {@const validRows = previewResult.batch?.validRows ?? 0}
+    {@const errorRows = previewResult.batch?.errorRows ?? 0}
     <!-- Preview Results -->
-    <div class="preview">
-      <div class="preview-header">
-        <div class="preview-title">
-          Preview: {filename}
-        </div>
-        <div class="preview-stats">
-          <span class="stat valid">{previewResult.batch?.validRows ?? 0} valid</span>
-          <span class="stat error">{previewResult.batch?.errorRows ?? 0} errors</span>
-        </div>
-      </div>
+    <Panel flush aria-label="Preview of {filename}">
+      {#snippet header()}
+        <h2 class="preview-title text-label">Preview</h2>
+        <span class="preview-file text-mono" title={filename}>{filename}</span>
+      {/snippet}
+      {#snippet actions()}
+        <span class="preview-counts">
+          <Badge tone={validRows > 0 ? 'success' : 'neutral'} mono>{validRows} valid</Badge>
+          <Badge tone={errorRows > 0 ? 'danger' : 'neutral'} mono
+            >{errorRows} {errorRows === 1 ? 'error' : 'errors'}</Badge
+          >
+        </span>
+      {/snippet}
 
       {#if previewResult.batch?.validationErrors && previewResult.batch.validationErrors.length > 0}
-        <div class="errors-section">
-          <div class="errors-title">Validation Errors:</div>
-          <div class="errors-list">
+        <section class="preview-section" aria-label="Validation errors">
+          <h3 class="section-title text-label">Validation errors</h3>
+          <Table label="Validation errors" layout="fixed">
+            {#snippet head()}
+              <tr>
+                <Th width="72px" numeric>Row</Th>
+                <Th width="160px">Column</Th>
+                <Th>Message</Th>
+              </tr>
+            {/snippet}
             {#each previewResult.batch.validationErrors.slice(0, 5) as error, i (i)}
-              <div class="error-item">
-                Row {error.row}{error.column ? `, ${error.column}` : ''}: {error.message}
-              </div>
+              <Tr>
+                <Td numeric value={error.row} />
+                <Td mono truncate value={error.column || '—'} />
+                <Td truncate value={error.message} />
+              </Tr>
             {/each}
-            {#if previewResult.batch.validationErrors.length > 5}
-              <div class="error-more">
-                ...and {previewResult.batch.validationErrors.length - 5} more errors
-              </div>
-            {/if}
-          </div>
-        </div>
+          </Table>
+          {#if previewResult.batch.validationErrors.length > 5}
+            <p class="preview-more">
+              and {previewResult.batch.validationErrors.length - 5} more errors
+            </p>
+          {/if}
+        </section>
       {/if}
 
       {#if previewResult.preview && previewResult.preview.length > 0}
-        <div class="preview-table">
-          <div class="preview-row header">
-            <span>Source</span>
-            <span>Target</span>
-            <span>Eq</span>
-          </div>
-          {#each previewResult.preview.slice(0, 10) as mapping (mapping.id)}
-            <div class="preview-row">
-              <span class="mono">{mapping.sourceSystem}:{mapping.sourceCode}</span>
-              <span class="mono">{mapping.targetSystem.split('/').pop()}:{mapping.targetCode}</span>
-              <span class="equiv">{formatEquivalence(mapping.equivalence)}</span>
-            </div>
-          {/each}
+        <section class="preview-section" aria-label="Mappings to upload">
+          <h3 class="section-title text-label">Mappings</h3>
+          <Table label="Mappings to upload" layout="fixed">
+            {#snippet head()}
+              <tr>
+                <Th>Source system</Th>
+                <Th width="140px">Source code</Th>
+                <Th>Target system</Th>
+                <Th width="140px">Target code</Th>
+                <Th width="112px">Equivalence</Th>
+              </tr>
+            {/snippet}
+            {#each previewResult.preview.slice(0, 10) as mapping (mapping.id)}
+              <Tr>
+                <Td muted truncate value={mapping.sourceSystem} />
+                <Td mono truncate value={mapping.sourceCode} />
+                <Td muted truncate value={mapping.targetSystem} />
+                <Td mono truncate value={mapping.targetCode} />
+                <Td value={equivalenceLabel(mapping.equivalence)} />
+              </Tr>
+            {/each}
+          </Table>
           {#if previewResult.preview.length > 10}
-            <div class="preview-more">
-              ...and {previewResult.preview.length - 10} more mappings
-            </div>
+            <p class="preview-more">
+              and {previewResult.preview.length - 10} more mappings
+            </p>
           {/if}
-        </div>
+        </section>
       {/if}
 
       <div class="preview-actions">
-        <Button variant="secondary" on:click={cancelUpload} disabled={isUploading}>
-          Cancel
-        </Button>
+        <Button variant="ghost" onclick={cancelUpload} disabled={isUploading}>Cancel</Button>
         <Button
           variant="primary"
-          on:click={confirmUpload}
-          disabled={isUploading || (previewResult.batch?.validRows ?? 0) === 0}
+          icon={Upload}
+          onclick={confirmUpload}
+          loading={isUploading}
+          disabled={validRows === 0}
         >
-          {#if isUploading}
-            Uploading...
-          {:else}
-            Upload {previewResult.batch?.validRows ?? 0} Mappings
-          {/if}
+          Upload {validRows} {validRows === 1 ? 'mapping' : 'mappings'}
         </Button>
       </div>
-    </div>
+    </Panel>
   {/if}
 </div>
 
@@ -286,7 +301,13 @@
   .uploader {
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
+    gap: var(--space-3);
+    max-width: 720px;
+    padding: var(--space-3);
+  }
+
+  .uploader.is-preview {
+    max-width: none;
   }
 
   .uploader.disabled {
@@ -298,242 +319,131 @@
     display: none;
   }
 
-  .drop-zone {
+  .upload-body {
     display: flex;
     flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .drop-zone {
+    display: flex;
     align-items: center;
     justify-content: center;
-    gap: var(--space-3);
-    padding: var(--space-10) var(--space-6);
-    border: 2px dashed var(--color-border-default);
-    border-radius: var(--radius-xl);
-    background: var(--color-bg-surface);
-    cursor: pointer;
-    transition: var(--transition-all);
-    color: inherit;
+    gap: var(--space-2);
+    min-height: 96px;
+    padding: var(--space-4);
+    border: 1px dashed var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-input);
+    color: var(--color-text-secondary);
     font: inherit;
-    text-align: center;
+    font-size: var(--text-ui);
+    cursor: pointer;
+    transition: var(--transition-colors);
   }
 
-  .drop-zone:hover,
-  .uploader.dragging .drop-zone {
-    border-color: var(--color-primary);
-    background: var(--color-primary-subtle);
+  .drop-zone:hover:not(:disabled),
+  .drop-zone.dragging {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
   }
 
-  .drop-zone:focus-visible {
-    outline: none;
-    box-shadow: var(--shadow-focus);
+  .drop-zone.dragging {
+    border-style: solid;
     border-color: var(--color-border-focus);
   }
 
-  .uploader.dragging .drop-zone {
-    border-color: var(--color-primary);
+  .drop-zone:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 1px;
   }
 
-  .drop-icon {
-    width: 48px;
-    height: 48px;
-    color: var(--color-text-muted);
-    transition: var(--transition-all);
+  .drop-zone:disabled {
+    cursor: progress;
   }
 
-  .uploader.dragging .drop-icon,
-  .drop-zone:hover .drop-icon {
-    color: var(--color-primary);
-    transform: translateY(-2px);
-  }
-
-  .drop-icon svg {
-    width: 100%;
-    height: 100%;
-  }
-
-  .drop-text {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--space-1);
-  }
-
-  .drop-primary {
+  .drop-link {
     color: var(--color-text-primary);
-    font-size: var(--text-base);
-    font-weight: var(--font-medium);
-  }
-
-  .drop-secondary {
-    color: var(--color-text-muted);
-    font-size: var(--text-sm);
+    text-decoration: underline;
+    text-underline-offset: 2px;
   }
 
   .file-error {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
     margin: 0;
-    padding: var(--space-3) var(--space-4);
-    border-radius: var(--radius-lg);
-    background: var(--color-danger-subtle);
-    border: 1px solid var(--color-danger-muted);
-    color: var(--color-danger);
-    font-size: var(--text-sm);
-  }
-
-  .format-help {
-    padding: var(--space-3) var(--space-4);
-    border-radius: var(--radius-lg);
-    background: var(--color-bg-surface);
-    border: 1px solid var(--color-border-subtle);
-  }
-
-  .format-title {
     font-size: var(--text-xs);
-    font-weight: var(--font-semibold);
+    color: var(--color-danger-text);
+  }
+
+  .formats {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    column-gap: var(--space-4);
+    row-gap: 6px;
+    margin: 0;
+    align-items: baseline;
+  }
+
+  .formats dt {
+    font-size: var(--text-xs);
     color: var(--color-text-tertiary);
-    text-transform: uppercase;
-    letter-spacing: var(--tracking-wide);
-    margin-bottom: var(--space-2);
   }
 
-  .format-item {
-    font-size: var(--text-sm);
-    color: var(--color-text-secondary);
-    margin-bottom: var(--space-1);
-  }
-
-  .format-item strong {
+  .formats dd {
+    margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
     color: var(--color-text-primary);
   }
 
-  /* Preview Styles */
-  .preview {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
-    padding: var(--space-4);
-    border-radius: var(--radius-xl);
-    background: var(--color-bg-surface);
-    border: 1px solid var(--color-border-default);
-  }
-
-  .preview-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+  .formats-note {
+    margin-left: var(--space-2);
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
   }
 
   .preview-title {
-    font-weight: var(--font-semibold);
-    color: var(--color-text-primary);
+    margin: 0;
   }
 
-  .preview-stats {
-    display: flex;
-    gap: var(--space-3);
-  }
-
-  .stat {
-    font-size: var(--text-sm);
-    padding: var(--space-0) var(--space-2);
-    border-radius: var(--radius-sm);
-  }
-
-  .stat.valid {
-    color: var(--color-success);
-    background: var(--color-success-subtle);
-  }
-
-  .stat.error {
-    color: var(--color-danger);
-    background: var(--color-danger-subtle);
-  }
-
-  .errors-section {
-    padding: var(--space-3);
-    border-radius: var(--radius-lg);
-    background: var(--color-danger-subtle);
-    border: 1px solid var(--color-danger-muted);
-  }
-
-  .errors-title {
-    font-size: var(--text-sm);
-    font-weight: var(--font-semibold);
-    color: var(--color-danger);
-    margin-bottom: var(--space-2);
-  }
-
-  .errors-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-  }
-
-  .error-item {
-    font-size: var(--text-xs);
-    color: var(--color-text-secondary);
-    font-family: var(--font-mono);
-  }
-
-  .error-more {
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-    font-style: italic;
-  }
-
-  .preview-table {
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--color-border-subtle);
-    overflow: hidden;
-  }
-
-  .preview-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr 40px;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    font-size: var(--text-sm);
-    color: var(--color-text-primary);
-  }
-
-  .preview-row.header {
-    background: var(--color-bg-elevated);
-    font-weight: var(--font-semibold);
-    color: var(--color-text-tertiary);
-    text-transform: uppercase;
-    font-size: var(--text-xs);
-    letter-spacing: var(--tracking-wide);
-  }
-
-  .preview-row:not(.header) {
-    border-top: 1px solid var(--color-border-subtle);
-  }
-
-  .preview-row:not(.header):hover {
-    background: var(--color-bg-hover);
-  }
-
-  .mono {
-    font-family: var(--font-mono);
+  .preview-file {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    color: var(--color-text-secondary);
   }
 
-  .equiv {
-    text-align: center;
-    color: var(--color-primary);
-    font-weight: var(--font-semibold);
+  .preview-counts {
+    display: inline-flex;
+    gap: var(--space-1);
+    padding-right: var(--space-1);
+  }
+
+  .preview-section {
+    display: flex;
+    flex-direction: column;
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .section-title {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
   }
 
   .preview-more {
+    margin: 0;
     padding: var(--space-2) var(--space-3);
-    text-align: center;
     font-size: var(--text-xs);
-    color: var(--color-text-muted);
-    border-top: 1px solid var(--color-border-subtle);
+    color: var(--color-text-tertiary);
   }
 
   .preview-actions {
     display: flex;
-    gap: var(--space-3);
     justify-content: flex-end;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
   }
 </style>

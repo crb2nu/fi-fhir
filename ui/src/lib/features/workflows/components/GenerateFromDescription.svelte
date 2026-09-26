@@ -1,12 +1,15 @@
 <script lang="ts">
-  import Panel from '$lib/ui/Panel.svelte';
-  import Button from '$lib/ui/Button.svelte';
+  import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
+  import { Button, Icon, Panel, Textarea } from '$lib/ui/primitives';
   import { workflowDraft } from '../workflowStore';
   import { yamlToDraft } from '../workflowYaml';
   import { generateWorkflow } from '../workflowApi';
   import { ALL_EVENT_TYPES, ACTION_TYPES } from '../workflowTypes';
   import { toasts } from '$lib/ui/toastStore';
   import { isErrorToasted } from '$lib/graphql/client';
+
+  const DESCRIPTION_PLACEHOLDER =
+    'Describe what the workflow should do, e.g.\n\nRoute patient admit and discharge events to a FHIR server, and send critical lab results to a webhook.';
 
   let description = '';
   let generating = false;
@@ -47,159 +50,124 @@
   }
 </script>
 
-<Panel title="Generate from Description">
+<Panel title="Generate from description">
   <div class="generator">
-    <div class="input-section">
-      <textarea
-        class="textarea"
-        bind:value={description}
-        aria-label="Workflow description"
-        placeholder="Describe what you want the workflow to do, e.g.&#10;&#10;Route all patient admit and discharge events to a FHIR server, and log critical lab results to a webhook."
-        rows="4"
-      ></textarea>
-      <Button on:click={handleGenerate} loading={generating} disabled={!description.trim()}>
-        {generating ? 'Generating...' : 'Generate Workflow'}
+    <Textarea
+      bind:value={description}
+      aria-label="Workflow description"
+      placeholder={DESCRIPTION_PLACEHOLDER}
+      rows={4}
+    />
+    <div class="button-row">
+      <Button onclick={handleGenerate} loading={generating} disabled={!description.trim()}>
+        {generating ? 'Generating...' : 'Generate workflow'}
       </Button>
     </div>
 
     {#if generatedYaml}
-      <div class="result">
-        {#if generatedExplanation}
-          <div class="explanation">
-            <h4 class="explanation-title">Explanation</h4>
-            <div class="explanation-text">{generatedExplanation}</div>
-          </div>
-        {/if}
+      {#if generatedExplanation}
+        <section class="block" aria-labelledby="generated-explanation-title">
+          <h4 id="generated-explanation-title" class="block-title">Explanation</h4>
+          <div class="explanation-text">{generatedExplanation}</div>
+        </section>
+      {/if}
 
-        {#if generatedWarnings.length > 0}
-          <div class="warnings" role="alert">
-            {#each generatedWarnings as warn (warn)}
-              <div class="warning-item">{warn}</div>
-            {/each}
-          </div>
-        {/if}
+      {#if generatedWarnings.length > 0}
+        <ul class="warnings" role="alert">
+          {#each generatedWarnings as warn (warn)}
+            <li><Icon icon={TriangleAlert} /><span>{warn}</span></li>
+          {/each}
+        </ul>
+      {/if}
 
-        <div class="yaml-section">
-          <div class="yaml-header">
-            <h4 class="yaml-title">Generated YAML</h4>
-            <Button variant="secondary" on:click={loadIntoBuilder}>
-              Load into Builder
-            </Button>
-          </div>
-          <pre class="yaml-output">{generatedYaml}</pre>
+      <section class="block" aria-labelledby="generated-yaml-title">
+        <div class="block-head">
+          <h4 id="generated-yaml-title" class="block-title">Generated YAML</h4>
+          <Button variant="ghost" onclick={loadIntoBuilder}>Load into builder</Button>
         </div>
-      </div>
+        <pre class="yaml-output">{generatedYaml}</pre>
+      </section>
     {/if}
   </div>
 </Panel>
 
 <style>
   .generator {
-    display: grid;
-    gap: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
   }
 
-  .input-section {
-    display: grid;
-    gap: 10px;
+  .button-row {
+    display: flex;
+    gap: var(--space-2);
   }
 
-  .textarea {
-    padding: 10px 12px;
-    border-radius: 10px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-input);
-    color: var(--color-text-primary);
-    outline: none;
-    resize: vertical;
-    width: 100%;
-    box-sizing: border-box;
-    line-height: 1.5;
-    transition: var(--transition-all);
+  .block {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
   }
 
-  .textarea::placeholder {
-    color: var(--color-text-muted);
+  .block-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
   }
 
-  .textarea:hover:not(:disabled):not(:focus) {
-    border-color: var(--color-border-strong);
-  }
-
-  .textarea:focus {
-    border-color: var(--color-border-focus);
-    box-shadow: var(--shadow-focus);
-  }
-
-  .result {
-    display: grid;
-    gap: 12px;
-  }
-
-  .explanation {
-    padding: 12px 16px;
-    border-radius: 8px;
-    border: 1px solid var(--color-primary-border);
-    background: var(--color-primary-muted);
-  }
-
-  .explanation-title {
-    color: var(--color-primary);
-    font-size: 0.85rem;
-    font-weight: 700;
-    margin: 0 0 8px;
+  .block-title {
+    margin: 0;
+    font-size: var(--text-label);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--color-text-tertiary);
   }
 
   .explanation-text {
+    font-size: var(--text-ui);
+    line-height: var(--leading-ui);
     color: var(--color-text-secondary);
-    font-size: 0.9rem;
-    line-height: 1.55;
     white-space: pre-wrap;
   }
 
   .warnings {
-    display: grid;
-    gap: 4px;
-  }
-
-  .warning-item {
-    padding: 6px 10px;
-    border-radius: 6px;
-    background: var(--color-warning-bg);
-    border: 1px solid var(--color-warning-border);
-    color: var(--color-text-primary);
-    font-size: 0.85rem;
-  }
-
-  .yaml-section {
-    display: grid;
-    gap: 8px;
-  }
-
-  .yaml-header {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-warning-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-warning-bg);
+    list-style: none;
+    font-size: var(--text-xs);
+    color: var(--color-text-primary);
   }
 
-  .yaml-title {
-    color: var(--color-text-tertiary);
-    font-size: 0.85rem;
-    font-weight: 700;
-    margin: 0;
+  .warnings li {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+
+  .warnings :global(.ui-icon) {
+    color: var(--color-warning-text);
   }
 
   .yaml-output {
-    padding: 12px 16px;
-    border-radius: 8px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-surface);
-    color: var(--color-text-primary);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 0.85rem;
-    line-height: 1.5;
-    overflow-x: auto;
-    white-space: pre;
+    max-height: 320px;
     margin: 0;
+    padding: var(--space-3);
+    overflow: auto;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-input);
+    color: var(--color-text-primary);
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
+    line-height: var(--leading-snug);
+    white-space: pre;
   }
 </style>

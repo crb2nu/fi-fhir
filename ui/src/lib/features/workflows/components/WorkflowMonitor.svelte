@@ -3,11 +3,27 @@
   import { subscribe as wsSubscribe } from '$lib/graphql/subscriptions';
   import { noteStreamError, streamStatus } from '$lib/graphql/streamAvailability';
   import { WorkflowEventsDocument, type WorkflowEventsSubscription } from '$lib/gen/graphql';
-  import Panel from '$lib/ui/Panel.svelte';
+  import CircleAlert from '@lucide/svelte/icons/circle-alert';
+  import MousePointerClick from '@lucide/svelte/icons/mouse-pointer-click';
+  import Pause from '@lucide/svelte/icons/pause';
+  import Play from '@lucide/svelte/icons/play';
+  import RefreshCw from '@lucide/svelte/icons/refresh-cw';
   import StreamingUnavailable from '$lib/ui/StreamingUnavailable.svelte';
-  import Button from '$lib/ui/Button.svelte';
-  import Badge from '$lib/ui/Badge.svelte';
-  import StatusPill from '$lib/ui/StatusPill.svelte';
+  import {
+    Badge,
+    Button,
+    EmptyState,
+    Icon,
+    Input,
+    KeyValue,
+    Panel,
+    Select,
+    Table,
+    Td,
+    Th,
+    Tr
+  } from '$lib/ui/primitives';
+  import type { KeyValueItem, SelectOption } from '$lib/ui/primitives';
   import {
     approveWorkflowVersion,
     fetchWorkflowDefinitions,
@@ -56,6 +72,7 @@
   let filterTo = '';
 
   let selectedRun: GetWorkflowRunQuery['workflowRun'] | null = null;
+  let selectedRunId: string | null = null;
   let loadingSelectedRun = false;
   let appliedInitialWorkflowSelection = '';
 
@@ -190,6 +207,11 @@
     }
   }
 
+  function selectRun(runID: string) {
+    selectedRunId = runID;
+    void loadRunDetail(runID);
+  }
+
   async function loadRunDetail(runID: string) {
     loadingSelectedRun = true;
     runsError = null;
@@ -288,21 +310,49 @@
   }
 
   function formatDateTime(ts: string): string {
-    try {
-      return new Date(ts).toLocaleString();
-    } catch {
-      return ts;
-    }
+    const date = new Date(ts);
+    if (Number.isNaN(date.getTime())) return ts;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(
+      date.getHours()
+    )}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
   }
 
-  function shortValue(value: string | null | undefined, max = 16): string {
-    if (!value) return '-';
-    if (value.length <= max) return value;
-    return `${value.slice(0, max)}…`;
+  const ENVIRONMENT_OPTIONS: SelectOption[] = [
+    { value: '', label: 'All environments' },
+    { value: 'staging', label: 'staging' },
+    { value: 'production', label: 'production' }
+  ];
+  const RUN_STATUS_OPTIONS: SelectOption[] = [
+    { value: '', label: 'All statuses' },
+    { value: 'success', label: 'success' },
+    { value: 'failed', label: 'failed' }
+  ];
+  const APPROVAL_STATUS_OPTIONS: SelectOption[] = [
+    { value: '', label: 'All statuses' },
+    { value: 'pending', label: 'pending' },
+    { value: 'approved', label: 'approved' },
+    { value: 'rejected', label: 'rejected' }
+  ];
+
+  function runDetailItems(run: NonNullable<GetWorkflowRunQuery['workflowRun']>): KeyValueItem[] {
+    return [
+      { key: 'Run id', value: run.id, mono: true, truncate: true },
+      { key: 'Workflow', value: run.workflowName, mono: true },
+      { key: 'Environment', value: run.environment },
+      { key: 'Version id', value: run.versionId, mono: true, truncate: true },
+      { key: 'Event id', value: run.eventId, mono: true, truncate: true },
+      { key: 'Routes matched', value: run.routesMatched, mono: true },
+      { key: 'Actions executed', value: run.actionsExecuted, mono: true },
+      { key: 'Duration', value: `${run.durationMs} ms`, mono: true },
+      { key: 'Started', value: formatDateTime(run.startedAt), mono: true }
+    ];
   }
 
-  function workflowNameFromID(workflowID: string): string {
-    return definitions.find((def) => def.id === workflowID)?.name ?? workflowID;
+  // `defs` is passed from the template so the legacy-mode expression re-runs
+  // when the definitions arrive after the approval requests.
+  function workflowNameFromID(workflowID: string, defs = definitions): string {
+    return defs.find((def) => def.id === workflowID)?.name ?? workflowID;
   }
 
   type StatusVariant = 'neutral' | 'success' | 'warning' | 'danger' | 'info';
@@ -324,654 +374,498 @@
   });
 </script>
 
-<Panel title="Workflow Monitor">
-  <div class="monitor">
-    <div class="section-title">Live Stream</div>
+<div class="monitor">
+  <Panel title="Live Stream" flush>
     {#if liveUnavailable}
-      <StreamingUnavailable
-        root="workflowEvents"
-        subject="workflow events"
-        reason={liveUnavailable.reason}
-        alternative="Completed runs are listed under Run Diagnostics below."
-      />
-    {:else}
-    <div class="connect-bar">
-      <label class="field">
-        Workflow Name
-        <input
-          type="text"
-          class="input"
-          bind:value={workflowName}
-          placeholder="e.g. adt-routing"
-          on:keydown={(e) => e.key === 'Enter' && startSubscription()}
+      <div class="panel-inset">
+        <StreamingUnavailable
+          root="workflowEvents"
+          subject="workflow events"
+          reason={liveUnavailable.reason}
+          alternative="Completed runs are listed under Run Diagnostics below."
         />
-      </label>
-      <div class="actions">
-        <Button on:click={startSubscription} disabled={!workflowName.trim()}>
+      </div>
+    {:else}
+      <div class="filters">
+        <div class="filter-name">
+          <Input
+            mono
+            bind:value={workflowName}
+            placeholder="Workflow name, e.g. adt-routing"
+            aria-label="Workflow name"
+            onkeydown={(e) => e.key === 'Enter' && startSubscription()}
+          />
+        </div>
+        <Button variant="primary" onclick={startSubscription} disabled={!workflowName.trim()}>
           {connected ? 'Reconnect' : 'Connect'}
         </Button>
         {#if connected}
-          <Button variant="secondary" on:click={() => (paused = !paused)}>
+          <Button variant="ghost" icon={paused ? Play : Pause} onclick={() => (paused = !paused)}>
             {paused ? 'Resume' : 'Pause'}
           </Button>
-          <Button variant="secondary" on:click={clearEvents}>Clear</Button>
-          <Button variant="secondary" on:click={stopSubscription}>Disconnect</Button>
+          <Button variant="ghost" onclick={clearEvents}>Clear</Button>
+          <Button variant="ghost" onclick={stopSubscription}>Disconnect</Button>
         {/if}
+        <div class="status" role="status" aria-live="polite">
+          <span
+            class="status-dot"
+            class:is-connected={connected}
+            class:is-error={!!liveError}
+            aria-hidden="true"
+          ></span>
+          {#if liveError}
+            <span class="status-text is-error">{liveError}</span>
+          {:else if connected}
+            <span class="status-text">Connected to <span class="text-mono">{workflowName}</span></span>
+          {:else}
+            <span class="status-text">Not connected</span>
+          {/if}
+          {#if paused}
+            <Badge tone="warning">Paused</Badge>
+          {/if}
+        </div>
       </div>
-    </div>
 
-    <div class="status" role="status" aria-live="polite">
-      <span class="indicator" class:connected class:error={!!liveError}></span>
-      {#if liveError}
-        <span class="status-text error">{liveError}</span>
-      {:else if connected}
-        <span class="status-text">Connected to {workflowName}</span>
+      {#if events.length === 0}
+        <EmptyState
+          align="start"
+          message={connected
+            ? 'Waiting for workflow events.'
+            : 'Enter a workflow name and connect to monitor live events.'}
+        />
       {:else}
-        <span class="status-text">Not connected</span>
+        <Table label="Live workflow events" class="events-table" layout="fixed">
+          {#snippet head()}
+            <tr>
+              <Th width="104px">Time</Th>
+              <Th width="200px">Type</Th>
+              <Th>Routes</Th>
+              <Th width="88px" numeric>Actions</Th>
+              <Th width="96px" numeric>Duration</Th>
+            </tr>
+          {/snippet}
+          {#each events as ev, i (i)}
+            <Tr>
+              <Td mono muted value={formatTimestamp(ev.event.timestamp)} />
+              <Td><Badge mono>{ev.event.type}</Badge></Td>
+              <Td mono truncate value={ev.routesMatched.join(', ') || '—'} />
+              <Td numeric value={ev.actionsExecuted.length} />
+              <Td numeric value={`${ev.duration} ms`} />
+            </Tr>
+          {/each}
+        </Table>
+        <div class="panel-foot text-mono">{events.length} events</div>
       {/if}
-    </div>
-
-    {#if events.length === 0}
-      <div class="empty">
-        {#if connected}
-          Waiting for workflow events...
-        {:else}
-          Enter a workflow name and click Connect to monitor live events.
-        {/if}
-      </div>
-    {:else}
-      <div class="event-list">
-        {#each events as ev, i (i)}
-          <div class="event-row">
-            <span class="time mono">{formatTimestamp(ev.event.timestamp)}</span>
-            <Badge variant="info" size="sm" pill>{ev.event.type.replace(/_/g, ' ')}</Badge>
-            <span class="routes mono">{ev.routesMatched.join(', ')}</span>
-            <span class="actions-col">{ev.actionsExecuted.length} actions</span>
-            <span class="duration muted">{ev.duration}ms</span>
-          </div>
-        {/each}
-      </div>
-      <div class="footer muted">
-        {events.length} events
-        {#if paused}<Badge variant="warning" size="sm">PAUSED</Badge>{/if}
-      </div>
     {/if}
-    {/if}
+  </Panel>
 
-    <div class="section-title">Run Diagnostics</div>
+  <Panel title="Run Diagnostics" flush>
     <div class="filters">
-      <label class="field">
-        Workflow
-        <select class="input" bind:value={filterWorkflowName} disabled={loadingDefinitions}>
+      <div class="filter-select">
+        <Select
+          aria-label="Workflow"
+          bind:value={filterWorkflowName}
+          disabled={loadingDefinitions}
+        >
           <option value="">All workflows</option>
           {#each definitions as def (def.id)}
             <option value={def.name}>{def.name}</option>
           {/each}
-        </select>
+        </Select>
+      </div>
+      <div class="filter-select">
+        <Select aria-label="Environment" options={ENVIRONMENT_OPTIONS} bind:value={filterEnvironment} />
+      </div>
+      <div class="filter-select">
+        <Select aria-label="Status" options={RUN_STATUS_OPTIONS} bind:value={filterStatus} />
+      </div>
+      <label class="filter-date">
+        <span class="filter-date-label">From</span>
+        <Input type="date" bind:value={filterFrom} />
       </label>
-
-      <label class="field">
-        Environment
-        <select class="input" bind:value={filterEnvironment}>
-          <option value="">All environments</option>
-          <option value="staging">staging</option>
-          <option value="production">production</option>
-        </select>
+      <label class="filter-date">
+        <span class="filter-date-label">To</span>
+        <Input type="date" bind:value={filterTo} />
       </label>
-
-      <label class="field">
-        Status
-        <select class="input" bind:value={filterStatus}>
-          <option value="">All statuses</option>
-          <option value="success">success</option>
-          <option value="failed">failed</option>
-        </select>
-      </label>
-
-      <label class="field">
-        From
-        <input class="input" type="date" bind:value={filterFrom} />
-      </label>
-
-      <label class="field">
-        To
-        <input class="input" type="date" bind:value={filterTo} />
-      </label>
-    </div>
-
-    <div class="actions">
-      <Button on:click={loadRuns} loading={loadingRuns}>{loadingRuns ? 'Loading...' : 'Apply Filters'}</Button>
+      <Button onclick={loadRuns} loading={loadingRuns}>{loadingRuns ? 'Loading...' : 'Apply'}</Button>
       <Button
-        variant="secondary"
-        on:click={() => {
+        variant="ghost"
+        onclick={() => {
           clearRunFilters();
           void loadRuns();
         }}
       >
-        Clear Filters
+        Clear
       </Button>
+      <span class="filter-count text-mono">{runs.length} runs</span>
     </div>
 
     {#if runsError}
-      <div class="error-box" role="alert">{runsError}</div>
+      <p class="inline-error" role="alert">
+        <Icon icon={CircleAlert} />
+        <span>{runsError}</span>
+      </p>
     {/if}
 
-    {#if runs.length === 0}
-      <div class="empty">No workflow runs found for the current filter.</div>
+    {#if runs.length === 0 && !selectedRun}
+      <EmptyState align="start" message="No workflow runs match the current filter." />
     {:else}
-      <div class="run-table">
-        <div class="run-header">
-          <span>Started</span>
-          <span>Workflow</span>
-          <span>Env</span>
-          <span>Status</span>
-          <span>Routes</span>
-          <span>Actions</span>
-          <span>Duration</span>
-          <span>Version</span>
-          <span></span>
-        </div>
-        {#each runs as run (run.id)}
-          <div class="run-row">
-            <span class="mono">{formatDateTime(run.startedAt)}</span>
-            <span class="mono">{run.workflowName}</span>
-            <span>{run.environment}</span>
-            <span>
-              <StatusPill variant={runStatusVariant(run.status)} size="sm">{run.status}</StatusPill>
-            </span>
-            <span>{run.routesMatched}</span>
-            <span>{run.actionsExecuted}</span>
-            <span>{run.durationMs}ms</span>
-            <span class="mono">{shortValue(run.versionId)}</span>
-            <span>
-              <Button
-                variant="secondary"
-                size="sm"
-                on:click={() => loadRunDetail(run.id)}
-                loading={loadingSelectedRun && selectedRun?.id === run.id}
-              >
-                Details
-              </Button>
-            </span>
-          </div>
-        {/each}
-      </div>
-    {/if}
-
-    {#if selectedRun}
-      <div class="detail">
-        <div class="detail-title">Run Detail</div>
-        <div class="detail-grid">
-          <div class="detail-item"><span class="muted">Run ID</span><span class="mono">{selectedRun.id}</span></div>
-          <div class="detail-item"><span class="muted">Workflow</span><span class="mono">{selectedRun.workflowName}</span></div>
-          <div class="detail-item"><span class="muted">Environment</span><span>{selectedRun.environment}</span></div>
-          <div class="detail-item"><span class="muted">Status</span><span>{selectedRun.status}</span></div>
-          <div class="detail-item"><span class="muted">Version ID</span><span class="mono">{selectedRun.versionId ?? '-'}</span></div>
-          <div class="detail-item"><span class="muted">Event ID</span><span class="mono">{selectedRun.eventId ?? '-'}</span></div>
-          <div class="detail-item"><span class="muted">Routes Matched</span><span>{selectedRun.routesMatched}</span></div>
-          <div class="detail-item"><span class="muted">Actions Executed</span><span>{selectedRun.actionsExecuted}</span></div>
-          <div class="detail-item"><span class="muted">Duration</span><span>{selectedRun.durationMs}ms</span></div>
-          <div class="detail-item"><span class="muted">Started At</span><span>{formatDateTime(selectedRun.startedAt)}</span></div>
-        </div>
-        {#if selectedRun.errors.length > 0}
-          <div class="error-list">
-            {#each selectedRun.errors as err, idx (idx)}
-              <div class="error-item">{err}</div>
+      <div class="split">
+        {#if runs.length === 0}
+          <EmptyState align="start" message="No workflow runs match the current filter." />
+        {:else}
+          <Table label="Workflow runs" class="runs-table" layout="fixed">
+            {#snippet head()}
+              <tr>
+                <Th width="152px">Started</Th>
+                <Th>Workflow</Th>
+                <Th width="96px">Env</Th>
+                <Th width="96px">Status</Th>
+                <Th width="72px" numeric>Routes</Th>
+                <Th width="72px" numeric>Actions</Th>
+                <Th width="88px" numeric>Duration</Th>
+                <Th width="132px">Version</Th>
+              </tr>
+            {/snippet}
+            {#each runs as run (run.id)}
+              <Tr selectable selected={selectedRunId === run.id} onselect={() => selectRun(run.id)}>
+                <Td mono muted value={formatDateTime(run.startedAt)} />
+                <Td mono truncate value={run.workflowName} />
+                <Td value={run.environment} />
+                <Td>
+                  <Badge tone={runStatusVariant(run.status)} dot>{run.status}</Badge>
+                </Td>
+                <Td numeric value={run.routesMatched} />
+                <Td numeric value={run.actionsExecuted} />
+                <Td numeric value={`${run.durationMs} ms`} />
+                <Td mono truncate muted value={run.versionId ?? '—'} />
+              </Tr>
             {/each}
-          </div>
+          </Table>
         {/if}
+
+        <aside class="details" aria-label="Run detail" aria-busy={loadingSelectedRun}>
+          {#if selectedRun}
+            <div class="details-head">
+              <span class="details-title text-mono" title={selectedRun.workflowName}
+                >{selectedRun.workflowName}</span
+              >
+              <Badge tone={runStatusVariant(selectedRun.status)} dot>{selectedRun.status}</Badge>
+            </div>
+            <KeyValue items={runDetailItems(selectedRun)} />
+            {#if selectedRun.errors.length > 0}
+              <ul class="error-list">
+                {#each selectedRun.errors as err, idx (idx)}
+                  <li>{err}</li>
+                {/each}
+              </ul>
+            {/if}
+          {:else if loadingSelectedRun}
+            <p class="details-note">Loading run...</p>
+          {:else}
+            <EmptyState icon={MousePointerClick} align="start" message="Select a run to see its detail." />
+          {/if}
+        </aside>
       </div>
     {/if}
+  </Panel>
 
-    <div class="section-title">Approval Queue</div>
+  <Panel title="Approval Queue" flush>
     <div class="filters">
-      <label class="field">
-        Workflow
-        <select class="input" bind:value={approvalFilterWorkflowId} disabled={loadingDefinitions}>
+      <div class="filter-select">
+        <Select
+          aria-label="Approval workflow"
+          bind:value={approvalFilterWorkflowId}
+          disabled={loadingDefinitions}
+        >
           <option value="">All workflows</option>
           {#each definitions as def (def.id)}
             <option value={def.id}>{def.name}</option>
           {/each}
-        </select>
-      </label>
-
-      <label class="field">
-        Environment
-        <select class="input" bind:value={approvalFilterEnvironment}>
-          <option value="">All environments</option>
-          <option value="staging">staging</option>
-          <option value="production">production</option>
-        </select>
-      </label>
-
-      <label class="field">
-        Status
-        <select class="input" bind:value={approvalFilterStatus}>
-          <option value="">all</option>
-          <option value="pending">pending</option>
-          <option value="approved">approved</option>
-          <option value="rejected">rejected</option>
-        </select>
-      </label>
-    </div>
-
-    <div class="actions">
-      <Button on:click={loadApprovals} loading={loadingApprovals}>
-        {loadingApprovals ? 'Loading...' : 'Refresh Queue'}
+        </Select>
+      </div>
+      <div class="filter-select">
+        <Select
+          aria-label="Approval environment"
+          options={ENVIRONMENT_OPTIONS}
+          bind:value={approvalFilterEnvironment}
+        />
+      </div>
+      <div class="filter-select">
+        <Select
+          aria-label="Approval status"
+          options={APPROVAL_STATUS_OPTIONS}
+          bind:value={approvalFilterStatus}
+        />
+      </div>
+      <Button icon={RefreshCw} onclick={loadApprovals} loading={loadingApprovals}>
+        {loadingApprovals ? 'Loading...' : 'Refresh queue'}
       </Button>
       <Button
-        variant="secondary"
-        on:click={() => {
+        variant="ghost"
+        onclick={() => {
           clearApprovalFilters();
           void loadApprovals();
         }}
       >
-        Clear Filters
+        Clear
       </Button>
+      <span class="filter-count text-mono">{approvalRequests.length} requests</span>
     </div>
 
     {#if approvalsError}
-      <div class="error-box" role="alert">{approvalsError}</div>
+      <p class="inline-error" role="alert">
+        <Icon icon={CircleAlert} />
+        <span>{approvalsError}</span>
+      </p>
     {/if}
 
     {#if approvalRequests.length === 0}
-      <div class="empty">No approval requests found for the current filter.</div>
+      <EmptyState align="start" message="No approval requests match the current filter." />
     {:else}
-      <div class="approval-table">
-        <div class="approval-header">
-          <span>Workflow</span>
-          <span>Environment</span>
-          <span>Status</span>
-          <span>Version</span>
-          <span>Requested By</span>
-          <span>Reviewed By</span>
-          <span>Comment</span>
-          <span>Actions</span>
-        </div>
+      <Table label="Approval requests" class="approvals-table" layout="fixed">
+        {#snippet head()}
+          <tr>
+            <Th width="160px">Workflow</Th>
+            <Th width="96px">Env</Th>
+            <Th width="96px">Status</Th>
+            <Th width="132px">Version</Th>
+            <Th width="120px">Requested by</Th>
+            <Th width="120px">Reviewed by</Th>
+            <Th>Comment</Th>
+            <Th width="168px"><span class="sr-only">Actions</span></Th>
+          </tr>
+        {/snippet}
         {#each approvalRequests as req (req.id)}
           {@const inFlight = !!approvalActionInFlightById[req.id]}
-          <div class="approval-row">
-            <span class="mono">{workflowNameFromID(req.workflowId)}</span>
-            <span>{req.environment}</span>
-            <span>
-              <StatusPill variant={approvalStatusVariant(req.status)} size="sm">{req.status}</StatusPill>
-            </span>
-            <span class="mono">{shortValue(req.targetVersionId, 14)}</span>
-            <span class="mono">{req.requestedBy}</span>
-            <span class="mono">{req.reviewedBy ?? '-'}</span>
-            <span>
-              <input
-                class="input comment-input"
-                type="text"
+          <Tr>
+            <Td mono truncate value={workflowNameFromID(req.workflowId, definitions)} />
+            <Td value={req.environment} />
+            <Td>
+              <Badge tone={approvalStatusVariant(req.status)} dot>{req.status}</Badge>
+            </Td>
+            <Td mono truncate muted value={req.targetVersionId} />
+            <Td truncate value={req.requestedBy} />
+            <Td truncate muted value={req.reviewedBy ?? '—'} />
+            <Td>
+              <Input
                 value={approvalCommentById[req.id] ?? req.comment ?? ''}
                 disabled={req.status !== 'pending'}
-                on:input={(e) => {
+                aria-label={`Review comment for ${workflowNameFromID(req.workflowId, definitions)}`}
+                oninput={(e) => {
                   approvalCommentById = {
                     ...approvalCommentById,
-                    [req.id]: (e.target as HTMLInputElement).value
+                    [req.id]: e.currentTarget.value
                   };
                 }}
                 placeholder="Optional review comment"
               />
-            </span>
-            <span class="approval-actions">
-              <Button
-                size="sm"
-                variant="secondary"
-                on:click={() => runApprovalAction(req.id, 'approve')}
-                disabled={req.status !== 'pending'}
-                loading={inFlight}
-              >
-                Approve
-              </Button>
-              <Button
-                size="sm"
-                variant="danger"
-                on:click={() => runApprovalAction(req.id, 'reject')}
-                disabled={req.status !== 'pending'}
-                loading={inFlight}
-              >
-                Reject
-              </Button>
-            </span>
-          </div>
+            </Td>
+            <Td>
+              <span class="row-actions">
+                <Button
+                  onclick={() => runApprovalAction(req.id, 'approve')}
+                  disabled={req.status !== 'pending'}
+                  loading={inFlight}
+                >
+                  Approve
+                </Button>
+                <Button
+                  variant="danger"
+                  onclick={() => runApprovalAction(req.id, 'reject')}
+                  disabled={req.status !== 'pending'}
+                  loading={inFlight}
+                >
+                  Reject
+                </Button>
+              </span>
+            </Td>
+          </Tr>
         {/each}
-      </div>
+      </Table>
     {/if}
-  </div>
-</Panel>
+  </Panel>
+</div>
 
 <style>
   .monitor {
-    display: grid;
-    gap: 12px;
-  }
-
-  .section-title {
-    color: var(--color-text-tertiary);
-    font-size: 0.8rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-top: 6px;
-  }
-
-  .connect-bar {
     display: flex;
-    gap: 12px;
-    align-items: flex-end;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+
+  .panel-inset {
+    padding: var(--panel-padding);
   }
 
   .filters {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(140px, 1fr));
-    gap: 10px;
-  }
-
-  .field {
-    display: grid;
-    gap: 6px;
-    color: var(--color-text-tertiary);
-    font-size: 0.85rem;
-    font-weight: 700;
-    min-width: 180px;
-  }
-
-  .input {
-    padding: 8px 12px;
-    border-radius: 10px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-input);
-    color: var(--color-text-primary);
-    outline: none;
-    transition: var(--transition-all);
-    width: 100%;
-    box-sizing: border-box;
-  }
-
-  .input::placeholder {
-    color: var(--color-text-muted);
-  }
-
-  .input:hover:not(:disabled):not(:focus) {
-    border-color: var(--color-border-strong);
-  }
-
-  .input:focus {
-    border-color: var(--color-border-focus);
-    box-shadow: var(--shadow-focus);
-  }
-
-  .actions {
     display: flex;
-    gap: 8px;
     flex-wrap: wrap;
     align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .filter-name {
+    width: 280px;
+  }
+
+  .filter-select {
+    width: 160px;
+  }
+
+  .filter-date {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 180px;
+  }
+
+  .filter-date-label {
+    flex: 0 0 auto;
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+
+  .filter-count {
+    margin-left: auto;
+    color: var(--color-text-tertiary);
   }
 
   .status {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-2);
+    margin-left: auto;
+    min-width: 0;
+    font-size: var(--text-xs);
   }
 
-  .indicator {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: rgba(156, 163, 175, 0.5);
-    transition: background 0.2s ease;
+  .status-dot {
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-full);
+    background: var(--color-text-muted);
   }
 
-  .indicator.connected {
-    background: rgba(16, 185, 129, 0.85);
-    box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+  .status-dot.is-connected {
+    background: var(--color-success);
   }
 
-  .indicator.error {
-    background: rgba(239, 68, 68, 0.85);
-    box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+  .status-dot.is-error {
+    background: var(--color-danger);
   }
 
   .status-text {
-    font-weight: 700;
     color: var(--color-text-secondary);
-  }
-
-  .status-text.error {
-    color: rgba(254, 202, 202, 0.9);
-  }
-
-  .empty {
-    color: var(--color-text-tertiary);
-    padding: 20px;
-    text-align: center;
-    border: 1px dashed var(--color-border-subtle);
-    border-radius: 12px;
-  }
-
-  .event-list {
-    display: grid;
-    gap: 6px;
-    max-height: 300px;
-    overflow-y: auto;
-  }
-
-  .event-row {
-    display: grid;
-    grid-template-columns: 80px auto 1fr auto auto;
-    gap: 12px;
-    align-items: center;
-    padding: 8px 12px;
-    border-radius: 8px;
-    border: 1px solid var(--color-border-subtle);
-    background: var(--color-bg-surface);
-  }
-
-  .event-row:hover {
-    background: var(--color-bg-hover);
-  }
-
-  .time {
-    color: var(--color-text-tertiary);
-    font-size: 0.85rem;
-  }
-
-  .routes {
-    color: var(--color-text-secondary);
-    font-size: 0.85rem;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .actions-col {
+  .status-text.is-error {
+    color: var(--color-danger-text);
+  }
+
+  .monitor :global(.events-table) {
+    max-height: 300px;
+  }
+
+  .panel-foot {
+    padding: var(--space-2) var(--space-3);
+    border-top: 1px solid var(--color-border-subtle);
     color: var(--color-text-tertiary);
-    font-size: 0.85rem;
-    white-space: nowrap;
   }
 
-  .duration {
-    font-size: 0.85rem;
-    white-space: nowrap;
-  }
-
-  .footer {
+  .inline-error {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.85rem;
-    padding-top: 8px;
-    border-top: 1px solid var(--color-border-subtle);
-  }
-
-  .run-table {
-    display: grid;
-    border: 1px solid var(--color-border-subtle);
-    border-radius: 10px;
-    overflow: hidden;
-  }
-
-  .run-header,
-  .run-row {
-    display: grid;
-    grid-template-columns: 180px 150px 90px 90px 70px 70px 90px 120px 100px;
-    gap: 8px;
-    align-items: center;
-    padding: 8px 10px;
-  }
-
-  .run-header {
-    font-size: 0.78rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--color-text-tertiary);
-    background: var(--color-bg-elevated);
+    align-items: flex-start;
+    gap: var(--space-2);
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
     border-bottom: 1px solid var(--color-border-subtle);
-    font-weight: 700;
+    font-size: var(--text-xs);
+    color: var(--color-danger-text);
+    overflow-wrap: anywhere;
   }
 
-  .run-row {
-    background: var(--color-bg-surface);
-    border-top: 1px solid var(--color-border-subtle);
-    font-size: 0.85rem;
-  }
-
-  .run-row:hover {
-    background: var(--color-bg-hover);
-  }
-
-  .detail {
+  .split {
     display: grid;
-    gap: 8px;
-    padding: 10px;
-    border-radius: 10px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-surface);
+    grid-template-columns: minmax(0, 1fr) 320px;
+    min-height: 0;
   }
 
-  .detail-title {
-    color: var(--color-text-primary);
-    font-weight: 700;
+  .split :global(.runs-table) {
+    max-height: 320px;
   }
 
-  .detail-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(220px, 1fr));
-    gap: 8px 12px;
+  .details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+    max-height: 320px;
+    overflow: auto;
+    padding: var(--space-3);
+    border-left: 1px solid var(--color-border-subtle);
   }
 
-  .detail-item {
-    display: grid;
-    gap: 2px;
-    font-size: 0.85rem;
+  .details-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
   }
 
-  .error-box,
+  .details-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-ui);
+    font-weight: var(--font-semibold);
+  }
+
+  .details-note {
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+
   .error-list {
-    padding: 8px 10px;
-    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 0;
+    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-5);
     border: 1px solid var(--color-danger-border);
+    border-radius: var(--radius-sm);
     background: var(--color-danger-bg);
     color: var(--color-danger-text);
-    font-size: 0.85rem;
+    font-size: var(--text-xs);
   }
 
-  .error-list {
-    display: grid;
-    gap: 4px;
+  .monitor :global(.approvals-table) {
+    max-height: 360px;
   }
 
-  .approval-table {
-    display: grid;
-    border: 1px solid var(--color-border-subtle);
-    border-radius: 10px;
-    overflow: hidden;
+  .row-actions {
+    display: inline-flex;
+    gap: var(--space-1);
   }
 
-  .approval-header,
-  .approval-row {
-    display: grid;
-    grid-template-columns: 150px 90px 90px 120px 120px 120px 1fr 170px;
-    gap: 8px;
-    align-items: center;
-    padding: 8px 10px;
-  }
-
-  .approval-header {
-    font-size: 0.78rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--color-text-tertiary);
-    background: var(--color-bg-elevated);
-    border-bottom: 1px solid var(--color-border-subtle);
-    font-weight: 700;
-  }
-
-  .approval-row {
-    background: var(--color-bg-surface);
-    border-top: 1px solid var(--color-border-subtle);
-    font-size: 0.85rem;
-  }
-
-  .approval-row:hover {
-    background: var(--color-bg-hover);
-  }
-
-  .comment-input {
-    min-width: 200px;
-    padding: 6px 8px;
-    border-radius: 8px;
-    font-size: 0.8rem;
-  }
-
-  .approval-actions {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-  }
-
-  .mono {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  }
-
-  .muted {
-    color: var(--color-text-muted);
-  }
-
-  @media (max-width: 1200px) {
-    .filters {
-      grid-template-columns: repeat(3, minmax(160px, 1fr));
-    }
-  }
-
-  @media (max-width: 900px) {
-    .filters {
-      grid-template-columns: 1fr;
+  @media (max-width: 1100px) {
+    .split {
+      grid-template-columns: minmax(0, 1fr);
     }
 
-    .run-table {
-      overflow-x: auto;
-    }
-
-    .run-header,
-    .run-row {
-      min-width: 980px;
-    }
-
-    .approval-table {
-      overflow-x: auto;
-    }
-
-    .approval-header,
-    .approval-row {
-      min-width: 1160px;
-    }
-
-    .detail-grid {
-      grid-template-columns: 1fr;
+    .details {
+      max-height: none;
+      border-left: 0;
+      border-top: 1px solid var(--color-border-subtle);
     }
   }
 </style>

@@ -1,8 +1,9 @@
 <script lang="ts">
-  import Panel from '$lib/ui/Panel.svelte';
-  import Button from '$lib/ui/Button.svelte';
-  import Tabs from '$lib/ui/Tabs.svelte';
-  import type { TabItem } from '$lib/ui/types';
+  import { Badge, Button, EmptyState, Panel, Table, Tabs, Td, Th, Tr } from '$lib/ui/primitives';
+  import type { TabItem } from '$lib/ui/primitives';
+  import Download from '@lucide/svelte/icons/download';
+  import Save from '@lucide/svelte/icons/save';
+  import SlidersHorizontal from '@lucide/svelte/icons/sliders-horizontal';
   import ProfileSelector from './ProfileSelector.svelte';
   import ToleranceEditor from './ToleranceEditor.svelte';
   import EventRulesEditor from './EventRulesEditor.svelte';
@@ -20,10 +21,10 @@
 
   // Tab configuration
   const tabs: TabItem[] = [
-    { key: 'tolerance', label: 'Tolerance' },
-    { key: 'events', label: 'Events' },
-    { key: 'identifiers', label: 'Identifiers' },
-    { key: 'terminology', label: 'Terminology' }
+    { id: 'tolerance', label: 'Tolerance', controls: 'profile-draft-editor' },
+    { id: 'events', label: 'Events', controls: 'profile-draft-editor' },
+    { id: 'identifiers', label: 'Identifiers', controls: 'profile-draft-editor' },
+    { id: 'terminology', label: 'Terminology', controls: 'profile-draft-editor' }
   ];
 
   let activeTab = 'tolerance';
@@ -74,78 +75,71 @@
 </script>
 
 <div class="stack">
-  <!-- Profile Selector -->
-  <Panel title="Source Profile">
+  <Panel title="Source profile" titleTag="h3">
     <ProfileSelector onProfileChange={handleProfileChange} />
 
     {#if $profileError}
-      <div class="error-banner">
-        {$profileError}
-      </div>
+      <p class="error" role="alert">{$profileError}</p>
     {/if}
   </Panel>
 
-  <!-- Suggested Fixes (if available) -->
   {#if fixes.length > 0}
-    <Panel title="Suggested Fixes ({fixes.length})">
+    <Panel title="Suggested fixes" titleTag="h3" flush>
+      {#snippet actions()}
+        <Badge mono>{fixes.length}</Badge>
+      {/snippet}
       {#if !$selectedProfile}
-        <div class="fix-hint">
-          Select a profile above to apply these fixes.
-        </div>
+        <p class="fix-hint">Select a profile to apply these fixes.</p>
       {/if}
-      <div class="fixes">
+      <Table label="Suggested fixes" layout="fixed">
+        {#snippet head()}
+          <tr>
+            <Th width="34%">Fix</Th>
+            <Th>Change</Th>
+            <Th width="84px"><span class="sr-only">Action</span></Th>
+          </tr>
+        {/snippet}
         {#each fixes as fix (fix.id)}
-          <div class="fix">
-            <div class="fix-text">
-              <div class="fix-title">{fix.title}</div>
-              <div class="fix-desc">{fix.description}</div>
-            </div>
-            <div class="fix-action">
-              <Button
-                variant="secondary"
-                disabled={!$selectedProfile || !onApplyFix}
-                on:click={() => onApplyFix?.(fix)}
-              >
+          <Tr>
+            <Td truncate value={fix.title} />
+            <Td muted truncate value={fix.description} />
+            <Td class="action-cell">
+              <Button disabled={!$selectedProfile || !onApplyFix} onclick={() => onApplyFix?.(fix)}>
                 Apply
               </Button>
-            </div>
-          </div>
+            </Td>
+          </Tr>
         {/each}
-      </div>
+      </Table>
     </Panel>
   {/if}
 
-  <!-- Profile Configuration (only shown when a profile is selected) -->
   {#if $selectedProfile}
-    <Panel title="Profile Configuration">
-      <div class="profile-header">
-        <div class="profile-info">
-          <span class="profile-name">{$selectedProfile.name}</span>
-          <span class="profile-version">v{$selectedProfile.version}</span>
-          <span class="profile-id mono">{$selectedProfile.id}</span>
-        </div>
-        <div class="profile-actions">
-          {#if $isDirty}
-            <span class="unsaved-badge">Unsaved changes</span>
-          {/if}
-          <Button variant="secondary" on:click={saveYamlToApi} disabled={yamlSaving}>
-            {yamlSaving ? 'Saving YAML…' : 'Save YAML'}
-          </Button>
-          <Button variant="secondary" on:click={exportYaml}>Export YAML</Button>
-        </div>
-      </div>
+    <Panel flush aria-label="Profile configuration">
+      {#snippet header()}
+        <h3 class="profile-name" title={$selectedProfile?.name}>{$selectedProfile?.name}</h3>
+        <Badge mono>v{$selectedProfile?.version}</Badge>
+        <span class="profile-id" title={$selectedProfile?.id}>{$selectedProfile?.id}</span>
+        {#if $isDirty}
+          <Badge tone="warning" dot>Unsaved changes</Badge>
+        {/if}
+      {/snippet}
+      {#snippet actions()}
+        <Button variant="ghost" icon={Save} onclick={saveYamlToApi} loading={yamlSaving}>
+          {yamlSaving ? 'Saving YAML…' : 'Save YAML'}
+        </Button>
+        <Button variant="ghost" icon={Download} onclick={exportYaml}>Export YAML</Button>
+      {/snippet}
 
       {#if yamlError}
-        <div class="error-banner">
-          {yamlError}
-        </div>
+        <p class="error error--bar" role="alert">{yamlError}</p>
       {/if}
 
-      <div class="tabs-container">
-        <Tabs {tabs} active={activeTab} onChange={handleTabChange} />
+      <div class="config-tabs">
+        <Tabs label="Profile sections" items={tabs} value={activeTab} onchange={handleTabChange} />
       </div>
 
-      <div class="tab-content">
+      <div class="config-body" id="profile-draft-editor" role="tabpanel">
         {#if activeTab === 'tolerance'}
           <ToleranceEditor />
         {:else if activeTab === 'events'}
@@ -158,157 +152,83 @@
       </div>
     </Panel>
   {:else}
-    <Panel title="Profile Configuration">
-      <div class="no-profile">
-        <p>Select a profile above to configure parsing options.</p>
-        <p class="hint">
-          Profiles control how HL7 messages are parsed, including tolerance for missing segments,
-          event classification rules, identifier validation, and terminology mapping.
-        </p>
-      </div>
+    <Panel title="Profile configuration" titleTag="h3" flush>
+      <EmptyState
+        align="start"
+        icon={SlidersHorizontal}
+        message="Select a profile to configure tolerance, event rules, identifiers and terminology."
+      />
     </Panel>
   {/if}
 </div>
 
 <style>
   .stack {
-    display: grid;
-    gap: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
   }
 
-  .error-banner {
-    margin-top: 12px;
-    padding: 10px 14px;
-    border-radius: 10px;
-    background: rgba(239, 68, 68, 0.12);
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    color: rgba(239, 68, 68, 0.95);
-    font-size: 0.9rem;
+  .error {
+    margin: var(--space-2) 0 0;
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--color-danger-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-danger-bg);
+    color: var(--color-danger-text);
+    font-size: var(--text-xs);
+  }
+
+  .error--bar {
+    margin: 0;
+    border-width: 0 0 1px;
+    border-radius: 0;
+    padding: var(--space-2) var(--space-3);
   }
 
   .fix-hint {
-    margin-bottom: 12px;
-    padding: 10px 14px;
-    border-radius: 10px;
-    background: rgba(59, 130, 246, 0.08);
-    border: 1px solid rgba(59, 130, 246, 0.2);
-    color: rgba(147, 197, 253, 0.9);
-    font-size: 0.9rem;
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
   }
 
-  .fixes {
-    display: grid;
-    gap: 10px;
+  .stack :global(.action-cell) {
+    padding-right: var(--space-1);
+    text-align: right;
   }
 
-	  .fix {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 12px;
-    align-items: start;
-    padding: 10px;
-    border-radius: 12px;
-	    border: 1px solid var(--color-border-default);
-	    background: var(--color-bg-elevated);
-	  }
+  .profile-name {
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-ui);
+    font-weight: var(--font-semibold);
+    color: var(--color-text-primary);
+  }
 
-	  .fix-title {
-	    font-weight: 800;
-	    color: var(--color-text-primary);
-	  }
+  .profile-id {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
+    color: var(--color-text-tertiary);
+  }
 
-	  .fix-desc {
-	    margin-top: 4px;
-	    color: var(--color-text-secondary);
-	    line-height: 1.4;
-	    font-size: 0.9rem;
-	  }
-
-  .profile-header {
+  .config-tabs {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-    flex-wrap: wrap;
-    gap: 10px;
+    height: 32px;
+    padding: 0 var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
   }
 
-  .profile-info {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-
-	  .profile-name {
-	    font-weight: 800;
-	    color: var(--color-text-primary);
-	    font-size: 1.05rem;
-	  }
-
-  .profile-version {
-    padding: 3px 8px;
-    border-radius: 6px;
-    background: rgba(59, 130, 246, 0.15);
-    border: 1px solid rgba(59, 130, 246, 0.25);
-    color: rgba(59, 130, 246, 0.95);
-    font-size: 0.8rem;
-    font-weight: 600;
-  }
-
-	  .profile-id {
-	    color: var(--color-text-muted);
-	    font-size: 0.85rem;
-	  }
-
-	  .mono {
-	    font-family: var(--font-mono);
-	  }
-
-  .profile-actions {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-
-  .unsaved-badge {
-    padding: 4px 10px;
-    border-radius: 6px;
-    background: rgba(245, 158, 11, 0.15);
-    border: 1px solid rgba(245, 158, 11, 0.3);
-    color: rgba(245, 158, 11, 0.9);
-    font-size: 0.8rem;
-    font-weight: 600;
-  }
-
-  .tabs-container {
-    margin-bottom: 16px;
-  }
-
-  .tab-content {
+  .config-body {
     min-height: 200px;
+    padding: var(--space-3);
   }
-
-	  .no-profile {
-    padding: 24px;
-    text-align: center;
-    border-radius: 12px;
-	    border: 1px dashed var(--color-border-strong);
-	  }
-
-	  .no-profile p {
-	    margin: 0;
-	    color: var(--color-text-tertiary);
-	  }
-
-	  .no-profile .hint {
-    margin-top: 10px;
-    font-size: 0.85rem;
-	    color: var(--color-text-muted);
-	    max-width: 400px;
-	    margin-left: auto;
-	    margin-right: auto;
-	    line-height: 1.5;
-	  }
 </style>
