@@ -26,7 +26,8 @@ describe('Sidebar', () => {
     expect(screen.getByRole('heading', { name: 'View' })).toBeInTheDocument();
     expect(screen.getByText('Operator', { selector: '.context-title' })).toBeInTheDocument();
     // The route toolbar owns the "Operator" heading; the sidebar must not repeat it.
-    expect(screen.queryByRole('heading', { name: 'Operator', exact: true })).not.toBeInTheDocument();
+    // (A string name matches the whole accessible name in Testing Library.)
+    expect(screen.queryByRole('heading', { name: 'Operator' })).not.toBeInTheDocument();
     expect(screen.queryByTitle(/^Stage \d of 5$/)).not.toBeInTheDocument();
   });
 
