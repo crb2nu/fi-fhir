@@ -153,6 +153,13 @@ func isIntegrationSessionStream(ctx context.Context) bool {
 	return enabled
 }
 
+// integrationSessionStreamRoots is the complete set of subscription root
+// fields the SSE transport accepts. Every other subscription (eventStream,
+// workflowEvents, debugStepEvent, ...) is refused on the stream even when
+// streaming is on. /api/auth/status reports this list, filtered by the
+// caller's roles, so it is the one place the allowlist is spelled.
+var integrationSessionStreamRoots = []string{"integrationSessionEvents", "sessionRunEvents"}
+
 func integrationSessionStreamOperationAllowed(operationContext *gqlgengraphql.OperationContext) bool {
 	if operationContext == nil || operationContext.Doc == nil {
 		return false
@@ -166,7 +173,7 @@ func integrationSessionStreamOperationAllowed(operationContext *gqlgengraphql.Op
 		return false
 	}
 	for _, field := range fields {
-		if field != "integrationSessionEvents" && field != "sessionRunEvents" && field != "__typename" {
+		if field != "__typename" && !hasOperationRole(integrationSessionStreamRoots, field) {
 			return false
 		}
 	}
