@@ -42,6 +42,7 @@
   import { SvelteSet } from 'svelte/reactivity';
   import { integrationSessionEngineEnabled } from '$lib/features/integration-session';
   import SessionRunProgress from '$lib/features/integration-session/SessionRunProgress.svelte';
+  import SessionStreamNotice from '$lib/features/integration-session/SessionStreamNotice.svelte';
   import {
     problemNavigation,
     setSessionDiagnostics
@@ -1103,6 +1104,8 @@
   <Panel title="Results" tone={$state.error ? 'error' : 'default'}>
     {#if sessionEngineEnabled && $state.session}
       <SessionRunProgress session={$state.session} />
+    {:else}
+      <SessionStreamNotice />
     {/if}
     {#if !$state.result}
       {#if !$state.data.trim()}

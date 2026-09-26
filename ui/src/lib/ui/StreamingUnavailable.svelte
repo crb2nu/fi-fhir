@@ -44,6 +44,9 @@
       {#if reason === 'streaming-off'}
         The API has Integration Session streaming turned off
         (<code>FI_FHIR_INTEGRATION_SESSION_ENABLED</code>), so no live subscription can be opened.
+      {:else if SESSION_ROOTS.has(root)}
+        Streaming is on, but this identity's roles do not admit the
+        <code>{root}</code> subscription.
       {:else}
         This deployment streams Integration Session runs only
         (<code>integrationSessionEvents</code>, <code>sessionRunEvents</code>);
