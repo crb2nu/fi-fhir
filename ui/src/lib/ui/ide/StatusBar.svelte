@@ -209,4 +209,11 @@
     font-size: var(--text-label);
     font-variant-numeric: tabular-nums;
   }
+
+  @media (max-width: 640px) {
+    .build,
+    .next-key {
+      display: none;
+    }
+  }
 </style>

@@ -398,7 +398,7 @@
         title="API health (/health, checked every 30 s)"
       >
         <span class="connection-dot" aria-hidden="true"></span>
-        {connectionLabel(connectionState)}
+        <span class="connection-text">{connectionLabel(connectionState)}</span>
       </span>
 
       <ThemeToggle />
@@ -789,6 +789,32 @@
   @media (max-width: 768px) {
     .ide-document {
       padding: var(--space-2);
+    }
+  }
+
+  /* Phones: the header keeps the stage control; the chip keeps its dot. */
+  @media (max-width: 640px) {
+    .ide-header {
+      gap: var(--space-2);
+      padding: 0 var(--space-1) 0 var(--space-2);
+    }
+
+    .ide-header-right {
+      gap: var(--space-1);
+    }
+
+    .connection-chip {
+      padding: 0 var(--space-2);
+      border-color: transparent;
+    }
+
+    .connection-text {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
     }
   }
 </style>
