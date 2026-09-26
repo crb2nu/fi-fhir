@@ -1,7 +1,7 @@
 <!--
   Icon — renders a Lucide icon at the system defaults (16px, 1.75 stroke).
   Decorative by default (aria-hidden); pass `label` when the icon alone carries
-  meaning. No emoji, no "✦": every glyph in the UI comes through here.
+  meaning. No emoji, no sparkle glyphs: every icon in the UI comes through here.
 -->
 <script lang="ts">
   import type { ClassValue } from 'svelte/elements';
