@@ -166,7 +166,7 @@
     <section class="section" aria-labelledby="pattern-title">
       <h2 id="pattern-title" class="section-title">Page pattern · toolbar + filters + table + details</h2>
       <div class="frame">
-        <Toolbar title="Events">
+        <Toolbar title="Events" titleTag="h2">
           {#snippet tabs()}
             <Tabs
               label="Event views"
