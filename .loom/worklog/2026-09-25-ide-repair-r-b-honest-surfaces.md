@@ -27,6 +27,9 @@
     only when the build flag, `capabilities.integrationSessions` and the
     session stream agree; otherwise the stateless `previewIntegrationMessage`
     path, and the dry-run panel neither offers Session nor loads sessions.
+    HL7 intake shows a compact `streaming-unavailable`
+    (`data-stream="integrationSessionEvents"`) when the UI build opted into
+    sessions but the API cannot stream them.
   - **Copilot on the backend LLM.** The platform gate is gone;
     `llmCapability` is probed on panel open and `copilot-llm-state` shows
     ready / not responding / not configured (+ checking / unknown).
@@ -49,7 +52,7 @@
   - Copilot kill-test: configured-and-healthy `llmCapability` with
     `PLATFORM_CONFIG.enabled=false` → usable, no "Platform connection
     required" (`CopilotPanel.test.ts`).
-  - `npx vitest run`: 774 passed / 3 skipped (baseline on main 703 / 3);
+  - `npx vitest run`: 779 passed / 3 skipped (baseline on main 703 / 3);
     `npm run check` 0 errors (9 pre-existing warnings in untouched files);
     `npm run lint` and `npm run lint:css` clean; `npm run build` succeeds.
   - No GraphQL operations added, so no codegen.
