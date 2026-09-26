@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
   import { HealthDocument } from '$lib/gen/graphql';
+  import { resetAccessCapabilities, setAccessStatus } from './accessCapabilities';
   import { graphqlFetch } from './client';
   import {
     setGraphQLCredentialProvider,
@@ -28,6 +29,11 @@
   // token: from the deployment's trusted network, or through the Cloudflare
   // Access session the edge verified. Either way the requests go out without an
   // Authorization header and the gate steps aside.
+  //
+  // The same response carries the identity's capabilities (roles held, operator
+  // planes reachable, streaming on/off); it feeds the accessCapabilities store
+  // before the IDE renders, so surfaces can pre-flight instead of failing. An
+  // older server's two-key answer leaves the store "unknown".
   async function activateHeaderlessAccess(): Promise<void> {
     try {
       const response = await fetch('/api/auth/status', {
@@ -46,10 +52,12 @@
       setGraphQLCredentialProvider(null);
       setGraphQLTrustedNetworkAccess(true);
       await graphqlFetch(HealthDocument, {}, { showErrorToast: false });
+      setAccessStatus(status);
       headerlessVia = status.authVia;
       principal = status.principal ?? '';
       authenticated = true;
     } catch {
+      resetAccessCapabilities();
       setGraphQLTrustedNetworkAccess(false);
     }
   }
@@ -63,6 +71,9 @@
 
     busy = true;
     error = null;
+    // The status probe ran before a token existed, so a bearer session's
+    // capabilities are unknown and every surface keeps its try-then-explain path.
+    resetAccessCapabilities();
     try {
       await disposeClient();
       setGraphQLTrustedNetworkAccess(false);
@@ -88,6 +99,7 @@
     headerlessVia = null;
     principal = '';
     error = null;
+    resetAccessCapabilities();
     setGraphQLCredentialProvider(null);
     setGraphQLTrustedNetworkAccess(false);
     try {
@@ -103,6 +115,7 @@
 
   onDestroy(() => {
     memoryToken = '';
+    resetAccessCapabilities();
     setGraphQLCredentialProvider(null);
     setGraphQLTrustedNetworkAccess(false);
     void disposeClient();

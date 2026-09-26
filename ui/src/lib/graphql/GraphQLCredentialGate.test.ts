@@ -21,9 +21,12 @@ vi.mock('./client', () => ({
   graphqlFetch: mocks.graphqlFetch
 }));
 
+import { get } from 'svelte/store';
 import GraphQLCredentialGate from './GraphQLCredentialGate.svelte';
+import { accessCapabilities, resetAccessCapabilities } from './accessCapabilities';
 
 beforeEach(() => {
+  resetAccessCapabilities();
   mocks.setProvider.mockReset();
   mocks.setTrustedNetworkAccess.mockReset();
   mocks.disposeClient.mockReset();
@@ -69,6 +72,54 @@ describe('GraphQLCredentialGate', () => {
     expect(screen.queryByRole('button', { name: 'Clear access' })).not.toBeInTheDocument();
     expect(mocks.setTrustedNetworkAccess).toHaveBeenCalledWith(true);
     expect(mocks.graphqlFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves capabilities unknown for the old two-key status', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ authenticated: true, authVia: 'network' })
+    } as Response);
+
+    render(GraphQLCredentialGate);
+
+    await screen.findByText('Trusted network access active');
+    expect(get(accessCapabilities)).toEqual({ state: 'unknown' });
+    // Still exactly one status fetch: the store rides on the gate's probe.
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('records the capabilities from the same status fetch before unlocking', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        authenticated: true,
+        authVia: 'network',
+        principal: 'fi-fhir-ide-operator',
+        roles: ['graphql:operator'],
+        capabilities: {
+          operatorRead: false,
+          operatorDelivery: false,
+          operatorDeployment: false,
+          clinicalRead: true,
+          integrationSessions: false,
+          streaming: false,
+          subscriptions: [],
+          llm: { configured: false }
+        },
+        missingRoles: { operatorRead: ['integration.operator'] }
+      })
+    } as Response);
+
+    render(GraphQLCredentialGate);
+
+    await screen.findByText('Trusted network access active');
+    const state = get(accessCapabilities);
+    expect(state.state).toBe('known');
+    expect(state.state === 'known' && state.capabilities.operatorRead).toBe(false);
+    expect(state.state === 'known' && state.missingRoles.operatorRead).toEqual([
+      'integration.operator'
+    ]);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the gate closed for an unknown headerless mode', async () => {
