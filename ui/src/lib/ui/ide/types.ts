@@ -5,10 +5,15 @@
 export type IDEView = 'hl7' | 'workflows' | 'events' | 'profiles' | 'terminology' | 'operator' | 'system';
 export type IDEAppRoute = '/' | '/hl7' | '/workflows' | '/events' | '/profiles' | '/terminology' | '/operator';
 
-/** Artifact types that can live in a workspace document tab. */
-export type DocumentType = 'route' | 'workflow-draft' | 'debug-session' | 'trace' | 'event' | 'profile';
+/**
+ * What a workspace tab holds. Only routes: the editor-less artifact types
+ * (trace, workflow draft, debug session, event, profile) were removed with
+ * their placeholder surface; a layout persisted before that drops them on
+ * restore.
+ */
+export type DocumentType = 'route';
 
-/** A workspace document represents any artifact open in a tab. */
+/** A workspace document: one open route tab. */
 export interface WorkspaceDocument {
   id: string;
   /** Document type. Defaults to 'route' when omitted (backward compat). */

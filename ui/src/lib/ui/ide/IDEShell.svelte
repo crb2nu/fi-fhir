@@ -11,7 +11,6 @@
   import BottomPanel from './BottomPanel.svelte';
   import StatusBar from './StatusBar.svelte';
   import StageControl from './StageControl.svelte';
-  import DocumentHost from './DocumentHost.svelte';
   import ThemeToggle from '$lib/theme/ThemeToggle.svelte';
   import CommandPalette from '$lib/ui/CommandPalette.svelte';
   import type { PaletteCommand } from '$lib/ui/CommandPalette.svelte';
@@ -22,21 +21,18 @@
     toggleSidebar,
     setActiveView,
     openTab as openTabAction,
-    openDocument,
     closeTab as closeTabAction,
     setActiveTab,
     toggleBottomPanel,
     toggleWorkspaceSplit,
     openPanelTab,
-    setSecondaryDocument,
     createWorkspaceTab,
-    createDocument,
     resolveNextWorkspaceTabId,
   } from './ideStore';
   import { initKeyboardShortcuts } from './keyboardShortcuts';
   import { getJourneyStage } from './journey';
-  import { connectionLabel, type ConnectionState } from './connection';
-  import type { IDEView, PanelTab, IDEAppRoute, DocumentType } from './types';
+  import type { ConnectionState } from './connection';
+  import type { IDEView, PanelTab, IDEAppRoute } from './types';
   import DebugPanel from '$lib/features/debug/DebugPanel.svelte';
   import TraceTimeline from '$lib/features/debug/TraceTimeline.svelte';
   import { traceSpans } from '$lib/features/debug/debugStore';
@@ -52,9 +48,10 @@
 
   /**
    * IDE shell composition root: a 40 px header (wordmark, stage control,
-   * breadcrumb, command palette, connection), the activity bar, editor tabs,
-   * the document region, the bottom panel, the contextual sidebar and a 24 px
-   * status bar (connection, access chip, Next: stage, build).
+   * breadcrumb, command palette, theme), the activity bar, editor tabs, the
+   * document region, the bottom panel, the contextual sidebar and a 24 px
+   * status bar — the one place for connection and access state (plus
+   * Next: stage and the build).
    */
 
   export let connectionState: ConnectionState = 'disconnected';
@@ -118,56 +115,10 @@
     { id: 'nav:operator', label: 'Go to Operations', hint: '/operator', category: 'Navigation', keywords: ['navigate', 'operator', 'operations', 'replay', 'dead letter', 'deployments'], run: () => goto(resolve('/operator')) },
     { id: 'cmd:toggle-sidebar', label: 'Toggle sidebar', shortcut: shortcut('B'), category: 'Workspace', keywords: ['sidebar', 'context'], run: () => toggleSidebar() },
     { id: 'cmd:toggle-panel', label: 'Toggle bottom panel', shortcut: shortcut('J'), category: 'Workspace', keywords: ['panel', 'output', 'problems', 'copilot'], run: () => toggleBottomPanel() },
-    { id: 'cmd:split', label: 'Toggle split workspace', shortcut: shortcut('\\'), category: 'Workspace', keywords: ['split', 'side by side'], run: () => toggleWorkspaceSplit() },
     { id: 'cmd:close-tab', label: 'Close editor tab', shortcut: shortcut('W'), category: 'Workspace', keywords: ['close', 'tab'], run: () => closeActiveTab() },
     { id: 'cmd:debug-panel', label: 'Open debug panel', shortcut: shortcut('D', true), category: 'Workspace', keywords: ['debug', 'breakpoint', 'step'], run: () => openPanelTab('debug') },
     { id: 'cmd:trace-panel', label: 'Open trace timeline', category: 'Workspace', keywords: ['trace', 'timeline', 'spans'], run: () => openPanelTab('trace') },
     { id: 'cmd:copilot', label: 'Open Copilot', category: 'Workspace', keywords: ['copilot', 'llm', 'assistant'], run: () => openPanelTab('copilot') },
-    // Document artifact commands
-    {
-      id: 'doc:open-trace',
-      label: 'Open active trace',
-      hint: 'Trace document',
-      category: 'Documents',
-      keywords: ['trace', 'timeline', 'debug'],
-      run: () => {
-        const doc = createDocument('trace', 'Active Trace', { subtitle: 'Current run' });
-        openDocument(doc);
-      },
-    },
-    {
-      id: 'doc:open-recent-workflow',
-      label: 'Reopen recent workflow',
-      hint: 'Workflow draft',
-      category: 'Documents',
-      keywords: ['workflow', 'draft', 'recent'],
-      run: () => {
-        const doc = createDocument('workflow-draft', 'Recent Workflow', { subtitle: 'Draft' });
-        openDocument(doc);
-      },
-    },
-    {
-      id: 'doc:compare-events',
-      label: 'Compare events',
-      hint: 'Event document',
-      category: 'Documents',
-      keywords: ['compare', 'diff', 'events'],
-      run: () => {
-        const doc = createDocument('event', 'Event Comparison', { subtitle: 'Side-by-side diff' });
-        openDocument(doc);
-      },
-    },
-    {
-      id: 'doc:open-profile',
-      label: 'Open profile revision',
-      hint: 'Source profile document',
-      category: 'Documents',
-      keywords: ['profile', 'revision', 'source'],
-      run: () => {
-        const doc = createDocument('profile', 'Profile Revision', { subtitle: 'Source' });
-        openDocument(doc);
-      },
-    },
   ];
 
   function detectViewFromPath(pathname: string): IDEView {
@@ -208,10 +159,7 @@
     const doc = $ideState.documents.find((entry) => entry.id === e.detail);
     if (!doc) return;
     setActiveTab(doc.id);
-    // Only navigate for route-type documents
-    if (doc.type === 'route' || !doc.type) {
-      navigateTo(doc.path ?? doc.route ?? getWorkspaceTabRoute(doc.view ?? 'system'));
-    }
+    navigateTo(doc.path ?? doc.route ?? getWorkspaceTabRoute(doc.view ?? 'system'));
   }
 
   function closeTabById(closingTabId: string): void {
@@ -224,9 +172,7 @@
     if (!closingWasActive) return;
 
     if (nextDoc) {
-      if (nextDoc.type === 'route' || !nextDoc.type) {
-        navigateTo(nextDoc.path ?? nextDoc.route ?? getWorkspaceTabRoute(nextDoc.view ?? 'system'));
-      }
+      navigateTo(nextDoc.path ?? nextDoc.route ?? getWorkspaceTabRoute(nextDoc.view ?? 'system'));
       return;
     }
 
@@ -235,21 +181,6 @@
 
   function onTabClose(e: CustomEvent<string>): void {
     closeTabById(e.detail);
-  }
-
-  function onTabAdd(e: CustomEvent<DocumentType>): void {
-    const type = e.detail;
-    const titles: Record<Exclude<DocumentType, 'route'>, string> = {
-      'workflow-draft': 'New Workflow',
-      'debug-session': 'Debug Session',
-      trace: 'Trace View',
-      event: 'Event Payload',
-      profile: 'Source Profile',
-    };
-    if (type !== 'route') {
-      const doc = createDocument(type, titles[type]);
-      openDocument(doc);
-    }
   }
 
   function onPanelTabChange(e: CustomEvent<PanelTab>): void {
@@ -287,23 +218,11 @@
     paletteOpen = true;
   }
 
-  /** Determine which document to show in the active (primary) pane. */
+  /** The active editor tab (a route document). */
   $: activeDocument = $ideState.documents.find((d) => d.id === $ideState.activeDocumentId) ?? null;
 
-  /** Determine the secondary pane document. */
-  $: secondaryDocument = $ideState.secondaryDocumentId
-    ? $ideState.documents.find((d) => d.id === $ideState.secondaryDocumentId) ?? null
-    : null;
-
-  /** Whether the active document is a non-route artifact. */
-  $: isArtifactActive = activeDocument != null && activeDocument.type !== 'route' && !!activeDocument.type;
-
-  /** Whether the secondary document is a non-route artifact. */
-  $: isArtifactSecondary = secondaryDocument != null && secondaryDocument.type !== 'route' && !!secondaryDocument.type;
-
-  // Breadcrumb: Stage ▸ Document (stage omitted off the stage routes and for
-  // artifact documents, which do not belong to a route).
-  $: breadcrumbStage = isArtifactActive ? null : getJourneyStage(currentPath);
+  // Breadcrumb: Stage ▸ Document (stage omitted off the stage routes).
+  $: breadcrumbStage = getJourneyStage(currentPath);
   $: breadcrumbDocument = activeDocument?.title ?? currentWorkspaceTab.title;
 
   onMount(() => {
@@ -391,16 +310,6 @@
         <kbd class="command-kbd">{shortcut('K')}</kbd>
       </Button>
 
-      <span
-        class="connection-chip"
-        data-state={connectionState}
-        data-testid="connection-chip"
-        title="API health (/health, checked every 30 s)"
-      >
-        <span class="connection-dot" aria-hidden="true"></span>
-        <span class="connection-text">{connectionLabel(connectionState)}</span>
-      </span>
-
       <ThemeToggle />
     </div>
   </header>
@@ -416,7 +325,6 @@
           activeTabId={$ideState.activeDocumentId}
           on:select={onTabSelect}
           on:close={onTabClose}
-          on:add={onTabAdd}
         />
       {/if}
 
@@ -430,54 +338,22 @@
         >
           <!-- Primary pane -->
           <div class="workspace-pane ide-document">
-            {#if isArtifactActive && activeDocument}
-              <DocumentHost document={activeDocument} />
-            {:else}
-              <slot />
-            {/if}
+            <slot />
           </div>
 
           <!-- Secondary pane -->
           <div slot="secondary" class="workspace-secondary">
-            {#if isArtifactSecondary && secondaryDocument}
-              <DocumentHost document={secondaryDocument} />
-            {:else}
-              <Panel title="Split workspace" titleTag="h2">
-                {#snippet actions()}
-                  <Button variant="ghost" onclick={toggleWorkspaceSplit}>Close split workspace</Button>
-                {/snippet}
-                <p class="split-copy">Choose a document to show beside the active one.</p>
-              </Panel>
-
-              <Panel title="Open documents" titleTag="h2" flush>
-                <ul class="workspace-docs">
-                  {#each $ideState.documents as doc (doc.id)}
-                    <li>
-                      <button
-                        type="button"
-                        class="workspace-doc"
-                        class:active={doc.id === $ideState.secondaryDocumentId}
-                        on:click={() => {
-                          setSecondaryDocument(doc.id);
-                        }}
-                      >
-                        <span class="workspace-doc-title">{doc.title}</span>
-                        <span class="workspace-doc-path">{doc.type === 'route' ? (doc.path ?? doc.route ?? '/') : doc.type}</span>
-                      </button>
-                    </li>
-                  {/each}
-                </ul>
-              </Panel>
-            {/if}
+            <Panel title="Split workspace" titleTag="h2">
+              {#snippet actions()}
+                <Button variant="ghost" onclick={toggleWorkspaceSplit}>Close split workspace</Button>
+              {/snippet}
+              <p class="split-copy">The second pane cannot show another route yet.</p>
+            </Panel>
           </div>
         </SplitPane>
       {:else}
         <div class="ide-content ide-document">
-          {#if isArtifactActive && activeDocument}
-            <DocumentHost document={activeDocument} />
-          {:else}
-            <slot />
-          {/if}
+          <slot />
         </div>
       {/if}
 
@@ -627,38 +503,6 @@
     line-height: 1;
   }
 
-  .connection-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    height: 24px;
-    padding: 0 var(--space-2);
-    border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-sm);
-    color: var(--color-text-secondary);
-    font-size: var(--text-xs);
-    white-space: nowrap;
-  }
-
-  .connection-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: var(--radius-full);
-    background: var(--color-text-muted);
-  }
-
-  .connection-chip[data-state='connected'] .connection-dot {
-    background: var(--color-success);
-  }
-
-  .connection-chip[data-state='connecting'] .connection-dot {
-    background: var(--color-warning);
-  }
-
-  .connection-chip[data-state='disconnected'] .connection-dot {
-    background: var(--color-danger);
-  }
-
   /* ── Body (activity bar + main + sidebar) ── */
   .ide-body {
     display: flex;
@@ -721,59 +565,6 @@
     font-size: var(--text-xs);
   }
 
-  .workspace-docs {
-    display: grid;
-    margin: 0;
-    padding: var(--space-1) 0;
-    list-style: none;
-  }
-
-  .workspace-doc {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    width: 100%;
-    height: 28px;
-    padding: 0 var(--space-3);
-    border: none;
-    background: transparent;
-    color: var(--color-text-secondary);
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-    transition: var(--transition-colors);
-  }
-
-  .workspace-doc:hover {
-    background: var(--color-bg-hover);
-    color: var(--color-text-primary);
-  }
-
-  .workspace-doc.active {
-    background: var(--color-primary-muted);
-    color: var(--color-text-primary);
-    box-shadow: inset 2px 0 0 var(--color-primary);
-  }
-
-  .workspace-doc:focus-visible {
-    outline: 2px solid var(--color-focus-ring);
-    outline-offset: -2px;
-  }
-
-  .workspace-doc-title {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .workspace-doc-path {
-    margin-left: auto;
-    color: var(--color-text-muted);
-    font-family: var(--font-mono);
-    font-size: var(--text-label);
-  }
-
   /* ── Narrow windows: collapse the header's secondary text ── */
   @media (max-width: 960px) {
     .breadcrumb {
@@ -792,7 +583,7 @@
     }
   }
 
-  /* Phones: the header keeps the stage control; the chip keeps its dot. */
+  /* Phones: tighter header gaps keep the stage control on one line. */
   @media (max-width: 640px) {
     .ide-header {
       gap: var(--space-2);
@@ -801,20 +592,6 @@
 
     .ide-header-right {
       gap: var(--space-1);
-    }
-
-    .connection-chip {
-      padding: 0 var(--space-2);
-      border-color: transparent;
-    }
-
-    .connection-text {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
     }
   }
 </style>

@@ -1,16 +1,14 @@
 /**
  * IDE state store with localStorage persistence for layout dimensions and full layout state.
  *
- * M2: Introduces WorkspaceDocument model. Route-type documents behave
- * identically to the former EditorTab. Non-route documents (workflow-draft,
- * debug-session, trace, event, profile) open as artifact tabs.
+ * Tabs are route documents (WorkspaceDocument). The editor-less artifact
+ * document types were removed; `loadLayout` drops any a stored layout holds.
  */
 import { writable, derived, get } from 'svelte/store';
 import type {
   IDEState,
   IDEView,
   WorkspaceDocument,
-  DocumentType,
   PanelTab,
   IDEAppRoute,
 } from './types';
@@ -51,9 +49,18 @@ function loadLayout(): PersistedLayout | null {
     if (typeof obj['activePanelTab'] !== 'string' || !VALID_PANEL_TABS.has(obj['activePanelTab'] as PanelTab)) return null;
     if (typeof obj['activeView'] !== 'string' || !VALID_VIEWS.has(obj['activeView'] as IDEView)) return null;
 
+    // Only route tabs survive; artifact tabs from older layouts have no surface.
+    const openTabs = (obj['openTabs'] as WorkspaceDocument[]).filter(
+      (doc) => doc && typeof doc === 'object' && (doc.type === undefined || doc.type === 'route')
+    );
+    const storedActive = obj['activeTabId'] as string | null;
+    const activeTabId = openTabs.some((doc) => doc.id === storedActive)
+      ? storedActive
+      : (openTabs[0]?.id ?? null);
+
     return {
-      openTabs: obj['openTabs'] as WorkspaceDocument[],
-      activeTabId: obj['activeTabId'] as string | null,
+      openTabs,
+      activeTabId,
       workspaceSplit: obj['workspaceSplit'] as boolean,
       bottomPanelOpen: obj['bottomPanelOpen'] as boolean,
       activePanelTab: obj['activePanelTab'] as PanelTab,
@@ -144,23 +151,6 @@ export function createWorkspaceTab(pathname: string, view?: IDEView): WorkspaceD
     view: workspaceView,
     path: workspaceRoute,
     route: workspaceRoute,
-  };
-}
-
-/** Create an artifact-backed workspace document. */
-export function createDocument(
-  type: DocumentType,
-  title: string,
-  opts?: { subtitle?: string; artifactId?: string; id?: string }
-): WorkspaceDocument {
-  const id = opts?.id ?? `${type}:${opts?.artifactId ?? crypto.randomUUID().slice(0, 8)}`;
-  return {
-    id,
-    type,
-    title,
-    subtitle: opts?.subtitle,
-    artifactId: opts?.artifactId,
-    dirty: false,
   };
 }
 

@@ -180,6 +180,12 @@ Content below the toolbar is a filters row (28 px controls, 8 px gaps) and a
 table with a details pane on the right (`KeyValue`), or an editor with a
 results pane in a split. Panels sit 12–16 px apart and pad 8–12 px.
 
+The shell's document region (`IDEShell`, `.ide-document`) has a definite
+height, so a route root with `height: 100%` fills it. It pads 12 px unless
+the route renders a `Toolbar` (`.ide-document:has(.ui-toolbar)` → 0): a
+route on the page pattern owns its edges, including the content padding
+under its toolbar.
+
 ## Copy register
 
 - System voice: say what is true and what to do. "No deliveries in the last
@@ -342,6 +348,7 @@ Map legacy patterns to primitives; delete the legacy CSS as you go.
 | Legacy pattern | Replace with |
 |---|---|
 | Pill tabs, `$lib/ui/Tabs.svelte` (7 imports) | `Tabs` (underline) in the route's `Toolbar` |
+| Bottom-panel tab strip (`ui/ide/BottomPanel.svelte`) | **The one exception to `Tabs`**: its own underline tablist with the primitive's metrics and keyboard model, because the Problems tab carries `problems-badge` (a mono `Badge` with its test id, "N problems" label and state tone) and `TabItem.count` cannot. Follow-up: a `TabItem.badge` snippet on the `Tabs` primitive, then switch. |
 | Numbered stepper pill rows ("01 RAW SOURCE ▸ 02 …") | Remove; the bottom panel and results pane already carry that state |
 | Hero `<h1>` + subtitle, `$lib/ui/PageHeader.svelte` (6 imports), `DocumentHost` title block | `Toolbar title="…"` |
 | Explainer / "recommended move" / "next up" cards | A `?` `IconButton` + `Popover`, or nothing |
@@ -351,7 +358,7 @@ Map legacy patterns to primitives; delete the legacy CSS as you go.
 | `$lib/ui/Button.svelte` (35), `IconButton`, `Input`, `Select`, `TextArea` | The primitive of the same name (`on:click` becomes `onclick`) |
 | `$lib/ui/Badge.svelte` (26), `StatusPill` (2), green/purple pill badges | `Badge` with a state `tone` (or neutral) |
 | `✦` on the Copilot tab (`BottomPanel.svelte`), emoji, hand-drawn SVG icons | `Icon` with a Lucide glyph, or no glyph |
-| Categorical colour maps (`DocumentHost` doc types, `EditorTabs`, `routes/+page.svelte` stages) using status colours and `--palette-violet-600` | Neutral text plus an icon; drop `--palette-violet-600` when the last use goes |
+| Categorical colour maps (`EditorTabs` doc types — done in U-1, which removed the editor-less document types and `DocumentHost`; `routes/+page.svelte` stages) using status colours and `--palette-violet-600` | Neutral text plus an icon; drop `--palette-violet-600` when the last use goes |
 | Full-width labelled form fields at 40 px | `Field` + control at 28 px, on a 2-column grid where it fits |
 | Access strip above the shell (`GraphQLCredentialGate`) | Status-bar chip with a `Popover` holding today's text and "Clear access" (U-1) |
 | Journey band (`JourneyProgress.svelte`) | Header segmented control + `Next: …` in the status bar (U-1) |

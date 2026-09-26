@@ -109,6 +109,19 @@ describe('IDEShell workspace', () => {
     const panel = screen.getByRole('option', { name: /Toggle bottom panel/ });
     expect(sidebar.querySelector('kbd')?.textContent).toMatch(/B$/);
     expect(panel.querySelector('kbd')?.textContent).toMatch(/J$/);
+    // No document types without an editor behind them.
+    expect(palette).not.toHaveTextContent('Documents');
+    expect(screen.queryByRole('option', { name: /Open active trace|Compare events/ })).not.toBeInTheDocument();
+  });
+
+  it('keeps connection state in the status bar only and offers no editor-less documents', async () => {
+    render(IDEShell, { props: { connectionState: 'connected' } });
+    await tick();
+
+    const header = screen.getByRole('banner');
+    expect(header).not.toHaveTextContent('Connected');
+    expect(screen.getByRole('status')).toHaveTextContent('Connected');
+    expect(screen.queryByRole('button', { name: 'Open new document' })).not.toBeInTheDocument();
   });
 
   it('toggles the sidebar with Cmd/Ctrl+B and the bottom panel with Cmd/Ctrl+J', async () => {

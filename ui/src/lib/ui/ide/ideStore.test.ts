@@ -339,6 +339,27 @@ describe('ideStore', () => {
       expect(get(ideState).activeView).toBe('operator');
       expect(get(ideState).activeTabId).toBe('/operator');
     });
+
+    it('drops editor-less artifact tabs from an older stored layout', () => {
+      localStorage.setItem(
+        'fi-fhir-ide-layout',
+        JSON.stringify({
+          openTabs: [
+            createWorkspaceTab('/hl7'),
+            { id: 'trace:1a2b3c4d', type: 'trace', title: 'Active Trace', dirty: false },
+          ],
+          activeTabId: 'trace:1a2b3c4d',
+          workspaceSplit: false,
+          bottomPanelOpen: false,
+          activePanelTab: 'output',
+          activeView: 'hl7',
+        })
+      );
+
+      expect(restoreLayout()).toBe(true);
+      expect(get(ideState).openTabs.map((tab) => tab.id)).toEqual(['/hl7']);
+      expect(get(ideState).activeTabId).toBe('/hl7');
+    });
   });
 
   describe('getIDEState', () => {
