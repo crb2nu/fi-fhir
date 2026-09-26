@@ -279,3 +279,62 @@ Copilot's honesty rests on `llmCapability` already answering truthfully, which
 3. **Streaming is enabled in production** (env flip after R-C), because the
    IDE's verification stage is designed around it and the DB it needs is
    already there; signed publication stays off.
+
+---
+
+## Corrections (2026-09-26, from Lane R-C's kill-test — supersede anything above that conflicts)
+
+Lane R-C read the code before flipping the flag and stopped, correctly. Three
+facts change the program:
+
+1. **The UI session flag has no fallback.** `VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED`
+   drives one function, `isIntegrationSessionEngineEnabled()`
+   (`ui/src/lib/features/integration-session/api.ts:48-50`). With it on, HL7
+   intake preview abandons the stateless `previewIntegrationMessage` path (the
+   "sole supported IDE preview path", `hl7Preview.ts:19`) for the session
+   engine, and `DryRunPanel` offers a "Session" source and loads
+   `integrationSessions` on open. If the API has sessions off, every one of
+   those calls fails with "legacy integration execution is unavailable"
+   (`schema.resolvers.go:991,2366`), toasted. **Flipping the default with
+   today's UI would break HL7 intake in production.** → R-B now owns:
+   session engine only when the build flag is on **and**
+   `capabilities.integrationSessions` is true; stateless preview otherwise;
+   dry-run offers the Session source only then. R-C's Dockerfile flip waits
+   for R-B.
+2. **Streaming is per subscription, and most panels can never stream.** The
+   transport allowlist admits only `integrationSessionEvents` and
+   `sessionRunEvents` (`internal/api/graphql/operation_authorization.go:156-173`,
+   pinned by `server_security_test.go:466-477`, which shows `eventStream`
+   answered `FORBIDDEN` with streaming on). Events → Live Stream
+   (`eventStream`), Workflow Monitor (`workflowEvents`), Debug
+   (`debugStepEvent`) and Runtime Output subscribe to roots the durable API
+   will never serve. **Decision: the allowlist is not widened** — it is the
+   durable path's PHI-minimal stream surface by design. Instead:
+   - R-A adds `capabilities.subscriptions: [<allowlisted roots for this caller>]`
+     derived from the transport's own constant (empty when streaming is off).
+   - R-B keys every streaming surface on membership: the four legacy panels
+     render the honest state ("Live streaming for … is not available on this
+     deployment; the Events browser and, when enabled, the Integration
+     Session stream are") and never subscribe; session panels are available
+     only when their roots are listed. `data-testid="streaming-unavailable"`
+     plus `data-stream="<root>"`.
+   - R-D's check 3 becomes: with streaming on, an Integration Session stream
+     opens (SSE 200 `text/event-stream` on `integrationSessionEvents`), **and**
+     the Live Stream tab shows the honest state. R-D's negative control gains
+     a second case: streaming off → `capabilities.subscriptions == []` and the
+     session panels show the honest state.
+3. **Spec errata.** The flag lives in `ui/Dockerfile:26` (there is no
+   `Dockerfile.ui`); `build:docker-ui` (`.gitlab-ci.yml:1902-1912`) passes no
+   build arg, so the Dockerfile default is what production gets and no CI
+   change is needed for R-C.
+
+**Lane environment note.** The coordinator launched the lanes while its shell
+was in `platform/gitops`, so the harness created their worktrees there. R-A
+cloned fi-fhir inside its worktree and works from the clone; R-B was told to
+do the same; R-C stopped before needing one. Relaunches (R-C, R-D) must be
+issued from the fi-fhir worktree. The stray gitops worktrees are removed at
+close.
+
+**Revised order:** R-0 (gitops, armed) → R-A → R-B (now including the two
+items above) → R-C (Dockerfile flip + production docs; relaunch after R-B
+merges) → coordinator gitops env flip → R-D (relaunch after A+B+C).
