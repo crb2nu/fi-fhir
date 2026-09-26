@@ -70,6 +70,31 @@ describe('StatusBar', () => {
     });
   });
 
+  describe('platform chrome', () => {
+    it('renders no Platform indicator when no platform is configured', () => {
+      render(StatusBar, { props: { connectionState: 'connected', platformEnabled: false } });
+
+      expect(screen.queryByTestId('platform-indicator')).not.toBeInTheDocument();
+      expect(screen.queryByText('Platform')).not.toBeInTheDocument();
+    });
+
+    it('hides the indicator by default (PLATFORM_CONFIG unset)', () => {
+      render(StatusBar, { props: { connectionState: 'connected' } });
+
+      expect(screen.queryByTestId('platform-indicator')).not.toBeInTheDocument();
+    });
+
+    it('renders the Platform indicator when a platform endpoint is configured', () => {
+      render(StatusBar, {
+        props: { connectionState: 'connected', platformEnabled: true, platformConnected: false }
+      });
+
+      const indicator = screen.getByTestId('platform-indicator');
+      expect(indicator).toHaveTextContent('Platform');
+      expect(indicator).toHaveAttribute('title', 'Platform disconnected');
+    });
+  });
+
   describe('all fields populated', () => {
     it('should render all fields together', () => {
       render(StatusBar, {

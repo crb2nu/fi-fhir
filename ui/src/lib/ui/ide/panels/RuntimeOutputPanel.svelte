@@ -1,9 +1,15 @@
 <script lang="ts">
   import { onDestroy, onMount, createEventDispatcher } from 'svelte';
   import { subscribe as wsSubscribe } from '$lib/graphql/subscriptions';
+  import {
+    noteStreamError,
+    streamStatus,
+    type StreamRoot
+  } from '$lib/graphql/streamAvailability';
   import { EventStreamDocument, WorkflowEventsDocument } from '$lib/gen/graphql';
   import Badge from '$lib/ui/Badge.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import StreamingUnavailable from '$lib/ui/StreamingUnavailable.svelte';
   import { workflowDraft } from '$lib/features/workflows/workflowStore';
   import { debugSession } from '$lib/features/debug/debugStore';
   import {
@@ -32,6 +38,28 @@
   let feedLabel = 'Event stream';
   let stateMessage = 'Live output will appear here as workflow or event stream messages arrive.';
 
+  // The feed rides `workflowEvents` (a named draft) or `eventStream`; when the
+  // deployment cannot stream that root the panel says so and never subscribes.
+  const workflowFeedStatus = streamStatus('workflowEvents');
+  const eventFeedStatus = streamStatus('eventStream');
+  $: feedRoot = (workflowName ? 'workflowEvents' : 'eventStream') as StreamRoot;
+  $: feedStatus = feedRoot === 'workflowEvents' ? $workflowFeedStatus : $eventFeedStatus;
+  $: feedUnavailable = feedStatus.availability === 'unavailable' ? feedStatus : null;
+  $: if (feedUnavailable && unsubscribe) stopSubscription();
+
+  function currentFeedUnavailable(): boolean {
+    const status = workflowName ? $workflowFeedStatus : $eventFeedStatus;
+    return status.availability === 'unavailable';
+  }
+
+  function handleStreamError(root: StreamRoot, err: Error): void {
+    if (noteStreamError(root, err)) {
+      markRuntimeOutputIdle();
+      return;
+    }
+    markRuntimeOutputError(err.message);
+  }
+
   function stopSubscription(): void {
     if (unsubscribe) {
       unsubscribe();
@@ -50,6 +78,7 @@
     }
 
     stopSubscription();
+    if (currentFeedUnavailable()) return;
     if ($runtimeOutputState.feedKey && $runtimeOutputState.feedKey !== feedKey) {
       clearRuntimeOutputEntries();
     }
@@ -66,9 +95,7 @@
             appendRuntimeOutputEntry(describeWorkflowOutput(data.workflowEvents));
             markRuntimeOutputConnected();
           },
-          onError: (err) => {
-            markRuntimeOutputError(err.message);
-          },
+          onError: (err) => handleStreamError('workflowEvents', err),
           onComplete: () => {
             markRuntimeOutputIdle();
           }
@@ -86,9 +113,7 @@
           appendRuntimeOutputEntry(describeEventStreamOutput(data.eventStream));
           markRuntimeOutputConnected();
         },
-        onError: (err) => {
-          markRuntimeOutputError(err.message);
-        },
+        onError: (err) => handleStreamError('eventStream', err),
         onComplete: () => {
           markRuntimeOutputIdle();
         }
@@ -154,6 +179,14 @@
 </script>
 
 <div class="panel">
+  {#if feedUnavailable}
+    <StreamingUnavailable
+      root={feedRoot}
+      subject={feedRoot === 'workflowEvents' ? `workflow ${workflowName} output` : 'runtime output'}
+      reason={feedUnavailable.reason}
+      alternative="Dry runs in the workflow builder and Run Diagnostics in the Workflows monitor show recorded results."
+    />
+  {:else}
   <div class="header">
     <div class="header-copy">
       <p class="eyebrow">Operational console</p>
@@ -247,6 +280,7 @@
         </article>
       {/each}
     </div>
+  {/if}
   {/if}
 </div>
 

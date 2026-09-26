@@ -1,4 +1,15 @@
+import { derived, get, type Readable } from 'svelte/store';
+import {
+  accessCapabilities,
+  capabilityOf,
+  type AccessCapabilityState
+} from '$lib/graphql/accessCapabilities';
 import { graphqlFetch } from '$lib/graphql/client';
+import {
+  noteStreamError,
+  streamStatus,
+  type StreamStatus
+} from '$lib/graphql/streamAvailability';
 import { subscribe } from '$lib/graphql/subscriptions';
 import {
   AddStreamingSessionSampleDocument,
@@ -45,9 +56,48 @@ export type AuthenticatedIntegrationPreviewInput = {
   onSessionUpdate?: (session: IntegrationSessionPreviewMeta) => void;
 };
 
-export function isIntegrationSessionEngineEnabled(): boolean {
+/** The UI build opted into the Integration Session engine. */
+export function isIntegrationSessionBuildEnabled(): boolean {
   return import.meta.env.VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED === 'true';
 }
+
+/**
+ * The session engine runs only when all three agree: the UI build opted in,
+ * the API reports `capabilities.integrationSessions` for this identity, and
+ * the `integrationSessionEvents` stream has not answered "unavailable". The
+ * build flag alone is not enough — with it on and the API's sessions off, HL7
+ * Run and the dry-run Session source failed. Anything else (including unknown
+ * capabilities from an older API) uses the stateless previewIntegrationMessage
+ * path, today's sole supported path.
+ */
+export function resolveIntegrationSessionEngine(
+  buildEnabled: boolean,
+  state: AccessCapabilityState,
+  stream: StreamStatus
+): boolean {
+  return (
+    buildEnabled &&
+    capabilityOf(state, 'integrationSessions') === true &&
+    stream.availability !== 'unavailable'
+  );
+}
+
+const sessionStreamStatus = streamStatus('integrationSessionEvents');
+
+export function isIntegrationSessionEngineEnabled(): boolean {
+  return resolveIntegrationSessionEngine(
+    isIntegrationSessionBuildEnabled(),
+    get(accessCapabilities),
+    get(sessionStreamStatus)
+  );
+}
+
+/** Reactive form of {@link isIntegrationSessionEngineEnabled} for components. */
+export const integrationSessionEngineEnabled: Readable<boolean> = derived(
+  [accessCapabilities, sessionStreamStatus],
+  ([$state, $stream]) =>
+    resolveIntegrationSessionEngine(isIntegrationSessionBuildEnabled(), $state, $stream)
+);
 
 export async function runAuthenticatedIntegrationPreview(
   input: AuthenticatedIntegrationPreviewInput
@@ -134,6 +184,9 @@ async function runStreamingSessionPreview(
       },
       onError: (error) => {
         streamError = error.message;
+        // A 404 means the API's streaming is off after all (the status can be
+        // stale after a redeploy): later runs take the stateless path.
+        noteStreamError('integrationSessionEvents', error);
         if (!opened) rejectOpen(error);
       },
       onComplete: () => {

@@ -2,12 +2,19 @@
   /**
    * 24px status bar at the bottom of the IDE shell.
    * Displays connection state, active profile, parser status, alerts, and branding.
+   *
+   * The loom-platform indicator and its AlertBadge are optional chrome: they
+   * render only when the build configured a platform endpoint
+   * (`platformEnabled`, from PLATFORM_CONFIG.enabled). Otherwise there is no
+   * platform to be connected to, and a permanently grey dot would only
+   * suggest something is broken.
    */
   import AlertBadge from '$lib/features/observability/AlertBadge.svelte';
 
   export let connectionState: 'connected' | 'disconnected' | 'connecting' = 'disconnected';
   export let activeProfile: string = '';
   export let parserStatus: string = '';
+  export let platformEnabled: boolean = false;
   export let platformConnected: boolean = false;
 
   function connectionLabel(state: typeof connectionState): string {
@@ -40,19 +47,22 @@
       <span class="parser" title="Parser status">{parserStatus}</span>
     {/if}
 
-    <span class="separator" aria-hidden="true"></span>
-    <span
-      class="platform"
-      class:platform-connected={platformConnected}
-      title={platformConnected ? 'Platform connected' : 'Platform disconnected'}
-    >
-      <span class="platform-dot" aria-hidden="true"></span>
-      <span>Platform</span>
-    </span>
-
-    {#if platformConnected}
+    {#if platformEnabled}
       <span class="separator" aria-hidden="true"></span>
-      <AlertBadge />
+      <span
+        class="platform"
+        class:platform-connected={platformConnected}
+        data-testid="platform-indicator"
+        title={platformConnected ? 'Platform connected' : 'Platform disconnected'}
+      >
+        <span class="platform-dot" aria-hidden="true"></span>
+        <span>Platform</span>
+      </span>
+
+      {#if platformConnected}
+        <span class="separator" aria-hidden="true"></span>
+        <AlertBadge />
+      {/if}
     {/if}
   </div>
 

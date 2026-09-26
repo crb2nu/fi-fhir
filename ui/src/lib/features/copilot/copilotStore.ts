@@ -4,12 +4,13 @@
  * Uses Svelte 4 writable/derived stores for consistency with the codebase.
  * Each action dispatches a real, codegen'd GraphQL LLM operation via
  * `copilotDispatch` (Wave 2, `.loom/23` Slice 2a) — there is no simulator.
+ * Availability comes from the API's `llmCapability`, never from the optional
+ * loom platform connection (`.loom/36` R-B).
  * The "streaming" shell (placeholder message + spinner + cancel) is preserved
  * to signal the in-flight network call; the real formatted response replaces
  * the placeholder when it lands.
  */
 import { writable, derived, get } from 'svelte/store';
-import { platformState } from '$lib/platform';
 import { isErrorToasted } from '$lib/graphql/client';
 import { dispatchCopilotAction } from './copilotDispatch';
 import { llmCapabilityState, actionBlockReason } from './llmCapabilityStore';
@@ -58,7 +59,7 @@ const initialState: CopilotState = {
     {
       id: 'system-welcome',
       role: 'system',
-      content: 'Copilot ready. Pick an action and describe what you need.',
+      content: "Pick an action and describe what you need. The Copilot uses this deployment's LLM.",
       timestamp: Date.now()
     }
   ],
@@ -74,8 +75,15 @@ const initialState: CopilotState = {
 
 export const copilotState = writable<CopilotState>(initialState);
 
-/** True when the platform connection is active and copilot can be used. */
-export const isAvailable = derived(platformState, ($ps) => $ps.connected);
+/**
+ * False only when the API has definitively said its LLM cannot serve
+ * (disabled or unavailable). The Copilot runs on the backend LLM, so the loom
+ * platform connection has no say here; an unprobed state fails open.
+ */
+export const isAvailable = derived(
+  llmCapabilityState,
+  ($llm) => $llm.status !== 'disabled' && $llm.status !== 'unavailable'
+);
 
 // ---------------------------------------------------------------------------
 // Abort controller for cancellation
@@ -199,15 +207,6 @@ export async function sendAction(
   input: string,
   context?: CopilotContext
 ): Promise<void> {
-  const ps = get(platformState);
-  if (!ps.connected) {
-    copilotState.update((s) => ({
-      ...s,
-      error: 'Connect to the platform to use the Copilot'
-    }));
-    return;
-  }
-
   // Honest LLM-state gate: never dispatch an action the backend has said it
   // cannot serve (disabled/unavailable, or this action's feature row off).
   const blockReason = actionBlockReason(get(llmCapabilityState), action);

@@ -1,8 +1,10 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
   import { subscribe as wsSubscribe } from '$lib/graphql/subscriptions';
+  import { noteStreamError, streamStatus } from '$lib/graphql/streamAvailability';
   import { WorkflowEventsDocument, type WorkflowEventsSubscription } from '$lib/gen/graphql';
   import Panel from '$lib/ui/Panel.svelte';
+  import StreamingUnavailable from '$lib/ui/StreamingUnavailable.svelte';
   import Button from '$lib/ui/Button.svelte';
   import Badge from '$lib/ui/Badge.svelte';
   import StatusPill from '$lib/ui/StatusPill.svelte';
@@ -66,6 +68,14 @@
   let approvalCommentById: Record<string, string> = {};
   let approvalActionInFlightById: Record<string, boolean> = {};
 
+  // The live section needs the `workflowEvents` subscription; when this
+  // deployment cannot stream it, the section says so and never connects.
+  // Run diagnostics and approvals below are plain queries and stay.
+  const workflowEventsStatus = streamStatus('workflowEvents');
+  $: liveUnavailable =
+    $workflowEventsStatus.availability === 'unavailable' ? $workflowEventsStatus : null;
+  $: if (liveUnavailable && unsubscribe) stopSubscription();
+
   $: if (initialWorkflowName && initialWorkflowName !== appliedInitialWorkflowSelection) {
     appliedInitialWorkflowSelection = initialWorkflowName;
     filterWorkflowName = initialWorkflowName;
@@ -82,6 +92,7 @@
   function startSubscription() {
     if (!workflowName.trim()) return;
     stopSubscription();
+    if ($workflowEventsStatus.availability === 'unavailable') return;
     liveError = null;
     connected = false;
 
@@ -96,8 +107,12 @@
           }
         },
         onError: (err) => {
-          liveError = err.message;
           connected = false;
+          if (noteStreamError('workflowEvents', err)) {
+            liveError = null;
+            return;
+          }
+          liveError = err.message;
         },
         onComplete: () => {
           connected = false;
@@ -312,6 +327,14 @@
 <Panel title="Workflow Monitor">
   <div class="monitor">
     <div class="section-title">Live Stream</div>
+    {#if liveUnavailable}
+      <StreamingUnavailable
+        root="workflowEvents"
+        subject="workflow events"
+        reason={liveUnavailable.reason}
+        alternative="Completed runs are listed under Run Diagnostics below."
+      />
+    {:else}
     <div class="connect-bar">
       <label class="field">
         Workflow Name
@@ -372,6 +395,7 @@
         {events.length} events
         {#if paused}<Badge variant="warning" size="sm">PAUSED</Badge>{/if}
       </div>
+    {/if}
     {/if}
 
     <div class="section-title">Run Diagnostics</div>

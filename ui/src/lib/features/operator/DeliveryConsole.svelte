@@ -34,6 +34,7 @@
     type OperatorDestinationDelivery
   } from './operatorApi';
   import { describeOperatorFailure } from './operatorErrors';
+  import { deliveryControlBlock } from './operatorAccess';
 
   const dispatch = createEventDispatcher<{
     control: { action: DeliveryAction; attemptId: string };
@@ -86,8 +87,8 @@
             }
       };
     } catch (err) {
-      // The global GraphQL net already toasted this; the row is the durable
-      // home for the message (toast-budget B4).
+      // Operator reads opt out of the global toast; the row is the only home
+      // for the message (toast-budget B4).
       details = {
         ...details,
         [attemptId]: { loading: false, error: describeOperatorFailure(err).message, deliveries: [] }
@@ -125,9 +126,14 @@
   /**
    * A DLQ row carries the durable dead-letter state directly, so the same
    * precondition helper the trace view uses applies here with a synthetic
-   * attempt shape.
+   * attempt shape. An identity without the delivery role is blocked first.
    */
-  function blockedReason(entry: OperatorDeadLetter, action: DeliveryAction): string | null {
+  function blockedReason(
+    entry: OperatorDeadLetter,
+    action: DeliveryAction,
+    capabilityBlock: string | null
+  ): string | null {
+    if (capabilityBlock) return capabilityBlock;
     return deliveryActionBlockedReason(
       {
         status: 'failed',
@@ -225,7 +231,7 @@
               <td>
                 <div class="row-actions">
                   {#each actions as action (action)}
-                    {@const blocked = blockedReason(entry, action)}
+                    {@const blocked = blockedReason(entry, action, $deliveryControlBlock)}
                     <Button
                       size="sm"
                       variant={action === 'discard' ? 'danger' : 'secondary'}

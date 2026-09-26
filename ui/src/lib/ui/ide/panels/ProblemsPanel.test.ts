@@ -1,11 +1,25 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import ProblemsPanel from './ProblemsPanel.svelte';
-import { workflowDraft } from '$lib/features/workflows/workflowStore';
+import {
+  resetWorkflowBuilderOpened,
+  workflowDraft
+} from '$lib/features/workflows/workflowStore';
 
 describe('ProblemsPanel', () => {
   beforeEach(() => {
     workflowDraft.reset();
+    resetWorkflowBuilderOpened();
+  });
+
+  it('explains where problems come from on a fresh session instead of listing the empty draft', () => {
+    render(ProblemsPanel);
+
+    const empty = screen.getByTestId('problems-empty');
+    expect(empty).toHaveTextContent('No problems');
+    expect(empty).toHaveTextContent(/workflow draft you edit in the\s+Workflows builder/);
+    expect(empty).toHaveTextContent('Integration Session runs');
+    expect(screen.queryByText('Workflow draft needs attention')).not.toBeInTheDocument();
   });
 
   it('renders structured diagnostics when the workflow draft is invalid', () => {

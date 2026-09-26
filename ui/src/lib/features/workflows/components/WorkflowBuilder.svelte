@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { get } from 'svelte/store';
   import { slide } from 'svelte/transition';
   import Panel from '$lib/ui/Panel.svelte';
@@ -9,7 +10,12 @@
   import DryRunPanel from './DryRunPanel.svelte';
   import GenerateFromDescription from './GenerateFromDescription.svelte';
   import WorkflowDraftLibrary from './WorkflowDraftLibrary.svelte';
-  import { workflowDraft, workflowSavedDrafts, isWorkflowValid } from '../workflowStore';
+  import {
+    workflowDraft,
+    workflowSavedDrafts,
+    isWorkflowValid,
+    markWorkflowBuilderOpened
+  } from '../workflowStore';
   import { draftToYaml, yamlToDraft } from '../workflowYaml';
   import {
     createWorkflowDefinition,
@@ -24,6 +30,12 @@
   import type { GetWorkflowVersionsQuery, ListWorkflowApprovalRequestsQuery, DryRunResult } from '$lib/gen/graphql';
   import { toasts } from '$lib/ui/toastStore';
   import { isErrorToasted } from '$lib/graphql/client';
+
+  // Opening the builder makes the draft "live": from now on its validation
+  // belongs in the Problems badge, even while it is still empty.
+  onMount(() => {
+    markWorkflowBuilderOpened();
+  });
 
   type ManagedSelection = {
     workflowId: string;

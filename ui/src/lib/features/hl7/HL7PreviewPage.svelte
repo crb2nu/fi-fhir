@@ -40,15 +40,18 @@
   import { resolveMapping } from '$lib/features/terminology/terminologyApi';
   import { toasts } from '$lib/ui/toastStore';
   import { SvelteSet } from 'svelte/reactivity';
-  import { isIntegrationSessionEngineEnabled } from '$lib/features/integration-session';
+  import { integrationSessionEngineEnabled } from '$lib/features/integration-session';
   import SessionRunProgress from '$lib/features/integration-session/SessionRunProgress.svelte';
+  import SessionStreamNotice from '$lib/features/integration-session/SessionStreamNotice.svelte';
   import {
     problemNavigation,
     setSessionDiagnostics
   } from '$lib/ui/ide/panels/workflowProblemsStore';
 
   const store = createHL7PreviewStore();
-  const sessionEngineEnabled = isIntegrationSessionEngineEnabled();
+  // Build flag AND the API's integrationSessions capability (see
+  // resolveIntegrationSessionEngine); otherwise Run uses the stateless preview.
+  $: sessionEngineEnabled = $integrationSessionEngineEnabled;
 
   let fileInputEl: HTMLInputElement | null = null;
   let dragDepth = 0;
@@ -1101,6 +1104,8 @@
   <Panel title="Results" tone={$state.error ? 'error' : 'default'}>
     {#if sessionEngineEnabled && $state.session}
       <SessionRunProgress session={$state.session} />
+    {:else}
+      <SessionStreamNotice />
     {/if}
     {#if !$state.result}
       {#if !$state.data.trim()}

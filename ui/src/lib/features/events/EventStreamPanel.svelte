@@ -1,9 +1,11 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { subscribe as wsSubscribe } from '$lib/graphql/subscriptions';
+  import { noteStreamError, streamStatus } from '$lib/graphql/streamAvailability';
   import { EventStreamDocument, type EventStreamSubscription, type EventFilter, type EventType } from '$lib/gen/graphql';
   import Button from '$lib/ui/Button.svelte';
   import Badge from '$lib/ui/Badge.svelte';
+  import StreamingUnavailable from '$lib/ui/StreamingUnavailable.svelte';
 
   /** Maximum number of events to display in the list */
   export let maxEvents: number = 100;
@@ -11,8 +13,16 @@
   export let initialSource: string = '';
   /** Optional initial correlationId filter value */
   export let initialCorrelationId: string = '';
+  /** What to point at when the deployment cannot stream events. */
+  export let unavailableAlternative = 'Recorded events are in the Events browser.';
 
   type StreamEvent = EventStreamSubscription['eventStream'];
+
+  // When the deployment cannot stream `eventStream`, render the honest state
+  // and never open the subscription.
+  const eventStreamStatus = streamStatus('eventStream');
+  $: unavailable = $eventStreamStatus.availability === 'unavailable' ? $eventStreamStatus : null;
+  $: if (unavailable && unsubscribe) stopSubscription();
 
   // Connection state
   let connected = false;
@@ -49,7 +59,9 @@
   function startSubscription() {
     if (unsubscribe) {
       unsubscribe();
+      unsubscribe = null;
     }
+    if ($eventStreamStatus.availability === 'unavailable') return;
 
     error = null;
     connected = false;
@@ -80,8 +92,14 @@
           }
         },
         onError: (err) => {
-          error = err.message;
           connected = false;
+          // A 404 or a refused root means this deployment cannot stream
+          // events at all: flip to the honest state instead of an error.
+          if (noteStreamError('eventStream', err)) {
+            error = null;
+            return;
+          }
+          error = err.message;
         },
         onComplete: () => {
           connected = false;
@@ -164,6 +182,14 @@
 </script>
 
 <div class="panel">
+  {#if unavailable}
+    <StreamingUnavailable
+      root="eventStream"
+      subject="the event stream"
+      reason={unavailable.reason}
+      alternative={unavailableAlternative}
+    />
+  {:else}
   <div class="controls">
     <div class="status">
       <span class="indicator" class:connected class:error={!!error}></span>
@@ -254,6 +280,7 @@
         <Badge variant="warning" size="sm">PAUSED</Badge>
       {/if}
     </div>
+  {/if}
   {/if}
 </div>
 

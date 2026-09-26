@@ -1,10 +1,12 @@
 /**
  * Tests for the DebugPanel component.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
-import { render } from '@testing-library/svelte';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { render, screen } from '@testing-library/svelte';
 import DebugPanel from './DebugPanel.svelte';
 import { endSession } from './debugStore';
+import { resetAccessCapabilities, setAccessStatus } from '$lib/graphql/accessCapabilities';
+import { resetObservedStreams } from '$lib/graphql/streamAvailability';
 
 describe('DebugPanel', () => {
   beforeEach(() => {
@@ -41,6 +43,38 @@ describe('DebugPanel', () => {
       const historyTitle = container.querySelector('.history-title');
       expect(historyTitle).not.toBeNull();
       expect(historyTitle!.textContent).toBe('Step History');
+    });
+  });
+
+  describe('streaming honesty', () => {
+    afterEach(() => {
+      resetAccessCapabilities();
+      resetObservedStreams();
+    });
+
+    it('says live debug steps are unavailable when the deployment cannot stream them', () => {
+      setAccessStatus({
+        authenticated: true,
+        authVia: 'network',
+        capabilities: {
+          operatorRead: true,
+          streaming: true,
+          subscriptions: ['integrationSessionEvents', 'sessionRunEvents']
+        }
+      });
+      render(DebugPanel);
+
+      const note = screen.getByTestId('streaming-unavailable');
+      expect(note).toHaveAttribute('data-stream', 'debugStepEvent');
+      expect(note).toHaveAttribute('data-reason', 'not-allowlisted');
+      expect(note).toHaveTextContent('Live streaming for debug steps is not available');
+      // The session itself stays usable.
+      expect(screen.getByRole('toolbar')).toBeInTheDocument();
+    });
+
+    it('shows no streaming note while capabilities are unknown', () => {
+      render(DebugPanel);
+      expect(screen.queryByTestId('streaming-unavailable')).not.toBeInTheDocument();
     });
   });
 

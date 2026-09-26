@@ -84,6 +84,24 @@ that cannot be wired in the current runtime.
 for GraphQL LLM resolvers. If `FI_FHIR_LLM_ENABLED` is unset, serve preserves the
 legacy behavior of attempting LLM setup from the configured endpoint/model values.
 
+### The IDE Copilot
+
+The **Copilot** tab in the IDE's bottom panel runs on this deployment's own LLM
+through the same GraphQL operations (`explainWorkflow`, `suggestMappings`,
+`generateWorkflow`, `analyzeQuality`). It needs no loom platform connection
+(`PUBLIC_LOOM_ENDPOINT` only adds the optional HUD status-bar indicator).
+
+Each time the tab opens it asks `llmCapability` and shows one of:
+
+| State | Shown as | What to do |
+|-------|----------|------------|
+| Ready | "Backend LLM ready · *model*" (plus an "LLM degraded" chip when some features are down) | Use it; an action whose feature is down is disabled with the reason |
+| Not responding | "The deployment's LLM is not responding" and the capability warnings | The provider is configured but did not come up — check the API log and `FI_FHIR_LLM_*` values |
+| Not configured | "No LLM is configured for this deployment" and the capability warnings | Configure the provider (see [Configuration](#configuration)) and set `FI_FHIR_LLM_ENABLED=true` |
+
+If the capability check itself does not answer, the panel says the status is
+unknown and still lets you send; each action reports its own error.
+
 ---
 
 ## Warning Explanations

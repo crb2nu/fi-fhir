@@ -4,12 +4,15 @@
    *
    * Docked in the IDE bottom panel. Supports Explain, Suggest, Generate,
    * and Review actions with streaming responses and context awareness.
+   *
+   * Runs on the API's own LLM: availability comes from `llmCapability`,
+   * probed each time the panel opens. The optional loom platform connection
+   * plays no part (`.loom/36` R-B).
    */
-  import { afterUpdate } from 'svelte';
+  import { afterUpdate, onMount } from 'svelte';
   import Badge from '$lib/ui/Badge.svelte';
   import {
     copilotState,
-    isAvailable,
     sendAction,
     cancelStream,
     clearMessages,
@@ -18,9 +21,11 @@
   } from './copilotStore';
   import {
     llmCapabilityState,
+    llmCapabilityChecking,
     refreshLlmCapability,
     actionBlockReason,
-    type LlmStatus,
+    copilotLlmState,
+    type CopilotLlmState,
   } from './llmCapabilityStore';
 
   let selectedAction: CopilotAction = 'explain';
@@ -32,29 +37,27 @@
   $: streaming = $copilotState.isStreaming;
   $: messages = $copilotState.messages;
   $: context = $copilotState.context;
-  $: available = $isAvailable;
 
   // ── LLM capability (honest availability state) ──
-  // Probe once each time the platform connection comes up.
-  let wasConnected = false;
-  $: {
-    if (available && !wasConnected) {
-      refreshLlmCapability();
-    }
-    wasConnected = available;
-  }
+  onMount(() => {
+    void refreshLlmCapability();
+  });
 
-  $: llmStatus = $llmCapabilityState.status;
+  $: llmState = copilotLlmState($llmCapabilityState, $llmCapabilityChecking);
   $: llmWarnings = $llmCapabilityState.capability?.warnings ?? [];
+  $: llmModel = $llmCapabilityState.capability?.defaultModel ?? null;
+  $: degraded = llmState === 'ready' && $llmCapabilityState.status === 'degraded';
+  $: inputLocked = llmState === 'not-configured' || llmState === 'unreachable';
   $: blockReason = actionBlockReason($llmCapabilityState, selectedAction);
-  $: canSend = inputText.trim().length > 0 && !streaming && !blockReason;
+  $: canSend = inputText.trim().length > 0 && !streaming && !blockReason && !inputLocked;
 
-  const llmStatusLabels: Partial<Record<LlmStatus, string>> = {
-    degraded: 'LLM degraded',
-    disabled: 'LLM off',
-    unavailable: 'LLM unavailable',
+  const llmStateTitles: Record<CopilotLlmState, string> = {
+    ready: 'Backend LLM ready',
+    unreachable: "The deployment's LLM is not responding",
+    'not-configured': 'No LLM is configured for this deployment',
+    checking: "Checking the deployment's LLM…",
+    unknown: 'LLM status unknown',
   };
-  $: llmStatusLabel = llmStatusLabels[llmStatus];
 
   // ── Action definitions ──
   const actions: { key: CopilotAction; label: string; colorClass: string }[] = [
@@ -219,7 +222,7 @@
   }
 </script>
 
-<div class="copilot-panel" class:disconnected={!available}>
+<div class="copilot-panel">
   <!-- Header bar -->
   <div class="copilot-header">
     <div class="context-chips">
@@ -238,13 +241,13 @@
       {/if}
     </div>
     <div class="header-actions">
-      {#if llmStatusLabel}
+      {#if degraded}
         <span
-          class="llm-status-chip llm-{llmStatus}"
+          class="llm-status-chip llm-degraded"
           role="status"
-          title={llmWarnings.join('; ') || llmStatusLabel}
+          title={llmWarnings.join('; ') || 'LLM degraded'}
         >
-          {llmStatusLabel}
+          LLM degraded
         </span>
       {/if}
       <button
@@ -257,6 +260,30 @@
         Clear
       </button>
     </div>
+  </div>
+
+  <!-- The backend LLM's honest state (source of truth: llmCapability) -->
+  <div
+    class="llm-state llm-state-{llmState}"
+    data-testid="copilot-llm-state"
+    data-state={llmState}
+    role={llmState === 'ready' ? undefined : 'status'}
+  >
+    <span class="llm-state-title">
+      {llmStateTitles[llmState]}{#if llmState === 'ready' && llmModel}&nbsp;· {llmModel}{/if}
+    </span>
+    {#if llmState === 'unknown'}
+      <span class="llm-state-detail">
+        The capability check did not answer; actions still run and report their own errors.
+      </span>
+    {/if}
+    {#if inputLocked && llmWarnings.length > 0}
+      <ul class="llm-state-warnings">
+        {#each llmWarnings as warning (warning)}
+          <li>{warning}</li>
+        {/each}
+      </ul>
+    {/if}
   </div>
 
   <!-- Message area -->
@@ -329,7 +356,7 @@
       {/each}
     </div>
 
-    {#if blockReason}
+    {#if blockReason && !inputLocked}
       <p class="llm-block-note" role="status">{blockReason}</p>
     {/if}
 
@@ -340,7 +367,7 @@
         class="copilot-textarea"
         placeholder={placeholders[selectedAction]}
         rows="1"
-        disabled={!available}
+        disabled={inputLocked}
         on:keydown={handleKeydown}
       ></textarea>
 
@@ -371,22 +398,6 @@
       {/if}
     </div>
   </div>
-
-  <!-- Disconnected overlay -->
-  {#if !available}
-    <div class="disconnected-overlay">
-      <div class="disconnected-card">
-        <div class="disconnected-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-            <path d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01M1 1l22 22" />
-            <path d="M2.05 12.05a12 12 0 011.06-1.49M5.636 8.364A9.97 9.97 0 0112 6c2.21 0 4.255.716 5.916 1.928" />
-          </svg>
-        </div>
-        <h3 class="disconnected-title">Platform connection required</h3>
-        <p class="disconnected-text">Connect to the platform to use the Copilot.</p>
-      </div>
-    </div>
-  {/if}
 </div>
 
 <style>
@@ -470,17 +481,6 @@
     color: var(--color-warning);
     border-color: var(--color-warning-border);
     background: var(--color-warning-bg);
-  }
-
-  .llm-status-chip.llm-unavailable {
-    color: var(--color-danger-text);
-    border-color: var(--color-danger-border);
-    background: var(--color-danger-bg);
-  }
-
-  .llm-status-chip.llm-disabled {
-    color: var(--color-text-tertiary);
-    background: var(--color-bg-elevated);
   }
 
   .header-btn {
@@ -885,65 +885,52 @@
   }
 
   /* ======================================================================
-   * DISCONNECTED OVERLAY
+   * LLM STATE STRIP
    * ====================================================================== */
 
-  .disconnected-overlay {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    z-index: 10;
-    animation: fadeIn var(--duration-slow) var(--ease-out);
+  .llm-state {
+    display: grid;
+    gap: 2px;
+    padding: var(--space-1) var(--space-2);
+    border-bottom: 1px solid var(--color-border-subtle);
+    font-size: var(--text-2xs);
+    color: var(--color-text-tertiary);
+    flex-shrink: 0;
   }
 
-  .disconnected-card {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-6);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-xl);
-    background: var(--color-bg-overlay);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    box-shadow: var(--shadow-lg);
-    text-align: center;
-    max-width: 320px;
+  .llm-state-title {
+    font-weight: var(--font-medium);
   }
 
-  .disconnected-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 48px;
-    height: 48px;
-    border-radius: var(--radius-full);
+  .llm-state-detail {
+    color: var(--color-text-secondary);
+  }
+
+  .llm-state-not-configured,
+  .llm-state-unreachable {
+    padding: var(--space-2) var(--space-3);
+    color: var(--color-text-secondary);
+  }
+
+  .llm-state-not-configured {
+    background: var(--color-bg-elevated);
+  }
+
+  .llm-state-unreachable {
     background: var(--color-warning-bg);
-    color: var(--color-warning);
+    border-bottom-color: var(--color-warning-border);
   }
 
-  .disconnected-icon svg {
-    width: 24px;
-    height: 24px;
-  }
-
-  .disconnected-title {
-    margin: 0;
-    font-size: var(--text-sm);
+  .llm-state-not-configured .llm-state-title,
+  .llm-state-unreachable .llm-state-title {
+    font-size: var(--text-xs);
     font-weight: var(--font-semibold);
     color: var(--color-text-primary);
   }
 
-  .disconnected-text {
+  .llm-state-warnings {
     margin: 0;
-    font-size: var(--text-xs);
-    color: var(--color-text-secondary);
+    padding-left: var(--space-4);
     line-height: var(--leading-relaxed);
   }
 
@@ -953,8 +940,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     .context-chip,
-    .msg,
-    .disconnected-overlay {
+    .msg {
       animation: none !important;
     }
 

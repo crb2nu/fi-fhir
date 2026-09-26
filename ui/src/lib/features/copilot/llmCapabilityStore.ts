@@ -1,6 +1,10 @@
 /**
  * LLM capability store — honest availability state for the Copilot.
  *
+ * This is the Copilot's source of truth: it runs on the API's own LLM
+ * (explainWorkflow / suggestMappings / generateWorkflow / analyzeQuality),
+ * not on the loom platform. The panel probes on open.
+ *
  * Probes the backend's read-only `llmCapability` query (`.loom/23` Slice 3f)
  * so the panel can show a real disabled/unavailable/degraded state instead of
  * inferring health from operation failures. The probe is silent and fails
@@ -43,11 +47,15 @@ export const ACTION_FEATURES: Record<CopilotAction, string> = {
   review: 'analyzeQuality'
 };
 
+/** True while a probe is in flight (the panel says "checking" instead of guessing). */
+export const llmCapabilityChecking = writable<boolean>(false);
+
 /**
  * Probes `llmCapability`. No toast on failure — a background probe blip must
  * not spend toast budget; the state just resets to 'unknown' (fail-open).
  */
 export async function refreshLlmCapability(): Promise<void> {
+  llmCapabilityChecking.set(true);
   try {
     const res = await graphqlFetch(LlmCapabilityDocument, undefined, { showErrorToast: false });
     const capability = res.llmCapability;
@@ -57,12 +65,35 @@ export async function refreshLlmCapability(): Promise<void> {
     llmCapabilityState.set({ status, capability });
   } catch {
     llmCapabilityState.set({ status: 'unknown', capability: null });
+  } finally {
+    llmCapabilityChecking.set(false);
   }
 }
 
-/** Resets to the unprobed state (used on disconnect and in tests). */
+/**
+ * The Copilot's honest state, from the backend's own answer (`.loom/36` R-B):
+ * - `ready`          — configured and serving (available, or degraded with
+ *                      some actions still up; per-action gating still applies);
+ * - `unreachable`    — configured, but the API could not bring the provider up;
+ * - `not-configured` — LLM features are off or have no valid provider config;
+ * - `checking`       — the probe is in flight;
+ * - `unknown`        — the probe did not answer; actions fail open and report
+ *                      their own errors.
+ */
+export type CopilotLlmState = 'ready' | 'unreachable' | 'not-configured' | 'checking' | 'unknown';
+
+export function copilotLlmState(state: LlmCapabilityState, checking: boolean): CopilotLlmState {
+  const cap = state.capability;
+  if (!cap) return checking ? 'checking' : 'unknown';
+  if (!cap.enabled || !cap.configured) return 'not-configured';
+  if (state.status === 'unavailable' || state.status === 'disabled') return 'unreachable';
+  return 'ready';
+}
+
+/** Resets to the unprobed state (used in tests). */
 export function resetLlmCapability(): void {
   llmCapabilityState.set(initialState);
+  llmCapabilityChecking.set(false);
 }
 
 /**
