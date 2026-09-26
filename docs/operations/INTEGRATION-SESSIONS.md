@@ -28,11 +28,23 @@ export FI_FHIR_DATABASE_PASSWORD='use-a-secret-provider'
 export FI_FHIR_DATABASE_SSL_MODE=verify-full
 ```
 
-Build or start the UI with its separate public feature gate:
+The UI has its own public build flag, `VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED`.
+The UI image (`ui/Dockerfile`) is built with it on; a dev server needs it
+explicitly:
 
 ```bash
 VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED=true npm --prefix ui run dev
 ```
+
+The build flag only permits the session engine. The UI uses it when the API's
+`GET /api/auth/status` also reports `capabilities.integrationSessions: true`
+(`resolveIntegrationSessionEngine` in
+`ui/src/lib/features/integration-session/api.ts`). Against an API with the
+workspace off, HL7 intake keeps the stateless `previewIntegrationMessage` path,
+Dry Run does not offer the **Session** source, and the session surfaces show
+"Live streaming for Integration Session runs is not available on this
+deployment" instead of an error. The API environment is the switch; a UI built
+with `=false` never offers the engine.
 
 Startup opens PostgreSQL, takes a migration advisory lock, applies the session
 schema once, and wires the GraphQL session routes to the durable store. Startup
@@ -54,7 +66,96 @@ root field. See [`docs/planning/GRAPHQL-API.md`](../planning/GRAPHQL-API.md) for
 the roles that now gate the operator control plane, and for the follow-up that
 will give the session workspace its own grant.
 
-Production GitOps does not enable either feature gate in Slice 3.3.
+### Production
+
+`fi-fhir.flexinfer.ai` runs the UI image with the build flag on, so the
+workspace is turned on by one API environment entry. In
+`platform/gitops/k3s/fi-fhir/fi-fhir-api.yaml`, add it beside the other
+`FI_FHIR_*` feature switches (after `FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED`):
+
+```yaml
+            - name: FI_FHIR_INTEGRATION_SESSION_ENABLED
+              value: "true"
+```
+
+Nothing else changes: no new secret, database, or UI rebuild.
+
+**Database.** The session store uses the durable connection that
+`openSubmissionDatabaseFromEnv` (`cmd/fi-fhir/preview_runtime.go`) already opens
+for the operator control plane. It is built from `FI_FHIR_DATABASE_HOST`,
+`_PORT`, `_NAME`, `_USER` (or `_USERNAME`), `_PASSWORD` and `_SSL_MODE`, which
+in production point at `postgres.fi-fhir.svc` and the `fi-fhir-postgres`
+secret. It does not read `FI_FHIR_DATABASE_URL`, which is the terminology
+store's connection string (the same server in production). This connection
+defaults to `sslmode=require`, unlike the legacy profile, event and workflow
+stores, which fall back to `disable` when `FI_FHIR_DATABASE_SSL_MODE` is unset.
+The in-cluster PostgreSQL (`k3s/fi-fhir/postgres.yaml`) is not configured for
+TLS, so the Deployment must keep
+`FI_FHIR_DATABASE_SSL_MODE=disable`. Production already sets it. A deployment
+that enables sessions as its first durable feature must set it too, or startup
+fails at the database ping.
+
+**Migrations.** On the first start with the flag on,
+`integrationsession.PostgresStore.Migrate` takes a transaction-scoped advisory
+lock and applies the session ledger (`integration_session_schema_migrations`,
+versions 1–7, from `internal/integration/session/migrations/`):
+`0001_session_workspace`, `0002_workflow_simulations`, `0003_publications`,
+`0004_export_attribution`, `0005_session_stream_events`,
+`0006_retention_expiry`, `0007_export_attribution_defaults`. They create and
+alter only `integration_session_*` tables. The submission, lifecycle and
+destination migrations already ran for the operator control plane, and
+sessions do not add to them. With no signing keys set, publish, approve and
+deploy stay unavailable. With no retention key set, samples are stored redacted
+and explicit raw retention is refused.
+
+**Roles.** Session operations and both session subscriptions pass the
+transport gate through `graphql:operator`. Every production identity (the
+static bearer, the trusted network, both Access principals) already holds it.
+
+**Verify** after Flux rolls the Deployment (from the LAN, where the trusted
+network authenticates `curl` without a token):
+
+```bash
+kubectl -n fi-fhir rollout status deployment/fi-fhir-api
+#   a stalled rollout leaves the old pod serving; the new pod's log names the
+#   failure ("configure durable integration database" or
+#   "migrate Integration Session store")
+
+curl -s https://fi-fhir.flexinfer.ai/api/auth/status | python3 -m json.tool
+#   "integrationSessions": true,
+#   "streaming": true,
+#   "subscriptions": ["integrationSessionEvents", "sessionRunEvents"]
+
+curl -sS -N --max-time 5 -o /dev/null \
+  -w 'http=%{http_code} type=%{content_type}\n' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: text/event-stream' \
+  -H 'Origin: https://fi-fhir.flexinfer.ai' \
+  --data '{"query":"subscription Probe { integrationSessionEvents(sessionId: \"probe\") { id type } }"}' \
+  https://fi-fhir.flexinfer.ai/graphql
+#   http=200 type=text/event-stream   (before the flip: http=404)
+```
+
+The SSE probe names a session that does not exist. It passes the transport and
+the allowlist, the resolver's read-only lookup answers not-found as an event,
+and the stream completes without creating anything. In the IDE, reload the page. HL7
+intake's **Preview** now shows the Integration Session run progress in place of
+the "not available" note, and Workflow Builder's Dry Run offers the **Session**
+source. Events → Live Stream, Workflow Monitor, Debug and Runtime Output still
+show the honest unavailable state, because their subscriptions are not on the
+SSE allowlist (see [RUNBOOK](RUNBOOK.md#live-streaming-is-unavailable)).
+
+**Roll back** by removing the `FI_FHIR_INTEGRATION_SESSION_ENABLED` entry and
+letting Flux roll the Deployment
+(see [Rollback](#rollback) for the tables). `/api/auth/status` then reports
+`integrationSessions: false`, `streaming: false` and `subscriptions: []`. The
+same UI image falls back to the stateless preview path because the capability
+went false. HL7 intake previews through `previewIntegrationMessage`, the Dry
+Run **Session** source disappears, and the session surfaces show the honest
+state. No UI rebuild or image change is needed. Reload any IDE tab that was
+open during the rollback. A tab reads its capabilities once, when it loads.
+Until it reloads, it keeps choosing the session engine, and its **Preview**
+fails with `legacy integration execution is unavailable`.
 
 Signed publication is separately disabled unless all three key settings are
 present:

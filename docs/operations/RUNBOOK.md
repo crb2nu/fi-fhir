@@ -411,6 +411,89 @@ deliberate (decision 2026-09-25, "Grant the operator bundle rather than alias
 the transport grant"). The contract is in
 [GRAPHQL-API.md](../planning/GRAPHQL-API.md#the-apiauthstatus-contract).
 
+### Live streaming is unavailable
+
+**Symptoms**: an IDE panel shows "Live streaming for … is not available on this
+deployment" (`data-testid="streaming-unavailable"`, with `data-stream` naming
+the subscription and `data-reason` giving the cause) instead of a live feed. No
+toast accompanies it. A direct SSE request (`POST /graphql` with
+`Accept: text/event-stream`) fails in one of two ways:
+
+| Answer | `data-reason` | Meaning |
+|---|---|---|
+| HTTP 404, body `Integration Session streaming is unavailable` | `streaming-off` | The API has the session workspace off (`FI_FHIR_INTEGRATION_SESSION_ENABLED` unset), so no subscription can open. `/api/auth/status` reports `streaming: false` and `subscriptions: []` |
+| HTTP 200 `text/event-stream` whose event is `GraphQL stream operation forbidden` (`"code":"FORBIDDEN"`) | `not-allowlisted` | Streaming is on, but the subscription is not on the SSE allowlist, or the caller's roles do not clear the transport gate for it |
+
+**Which panels can stream.** The SSE transport admits exactly two subscription
+roots, `integrationSessionEvents` and `sessionRunEvents`
+(`integrationSessionStreamRoots` in
+`internal/api/graphql/operation_authorization.go`). They carry redacted
+Integration Session run stages, diagnostics and lineage. Every other
+subscription is refused on the stream, even for `graphql:operator`:
+
+| Panel | Subscription | On this deployment |
+|---|---|---|
+| HL7 intake: Integration Session run progress | `integrationSessionEvents` | Streams when the session workspace is on |
+| Events → Live Stream | `eventStream` | Never streams |
+| Workflows → Monitor | `workflowEvents` | Never streams |
+| Debug | `debugStepEvent` | Never streams |
+| Runtime Output (bottom panel) | `workflowEvents` or `eventStream` | Never streams |
+
+The four panels that never stream are working as designed. The allowlist is
+the durable API's PHI-minimal stream surface by design (IDE repair program,
+`.loom/36` corrections). The session roots carry redacted run stages,
+diagnostics and lineage. The legacy roots carry event payloads and runtime
+state from the pre-durable engine. Do not widen the allowlist to make a panel
+light up. Each honest state names the alternative on that surface: recorded
+events in the Events browser, completed runs under Run Diagnostics in the
+Workflows monitor, Dry Run in the workflow builder, and step-on-request in
+Debug.
+
+**How the UI decides.** The credential gate reads `/api/auth/status` once per
+page load. Each panel resolves its own subscription root from `streaming` and
+`subscriptions` (`ui/src/lib/graphql/streamAvailability.ts`), renders the
+honest state, and never opens a stream it cannot get. If capabilities are
+unknown (an API older than the status contract), a panel tries once. An HTTP
+404 or a "stream operation forbidden" answer then marks that root unavailable
+for the rest of the page session, so a status that went stale after a redeploy
+corrects itself the first time a panel tries. HL7 intake is different. It
+shows the note only when the UI build enabled the session engine
+(`VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED=true`, the image default). Its
+**Preview** keeps working on the stateless path. A build with `=false` shows no
+note because it never offers session runs.
+
+**Check**:
+```bash
+# What the server says for this caller (from the LAN, the trusted network).
+curl -s https://<ui-host>/api/auth/status | python3 -m json.tool
+#   capabilities.streaming, capabilities.integrationSessions, capabilities.subscriptions
+
+# Probe the one stream that should open (does not create a session).
+curl -sS -N --max-time 5 -o /dev/null -w 'http=%{http_code}\n' \
+  -H 'Content-Type: application/json' -H 'Accept: text/event-stream' \
+  -H 'Origin: https://<ui-host>' \
+  --data '{"query":"subscription Probe { integrationSessionEvents(sessionId: \"probe\") { id } }"}' \
+  https://<ui-host>/graphql
+#   http=404 → session workspace off; http=200 → on
+```
+
+**Resolution**:
+- `streaming-off` on the HL7 session note: enable the session workspace. See
+  [INTEGRATION-SESSIONS.md, Production](INTEGRATION-SESSIONS.md#production) for
+  the exact environment entry, the database it migrates, and rollback.
+- `not-allowlisted` on `integrationSessionEvents` / `sessionRunEvents`: the
+  identity lacks `graphql:operator`, which the session roots require at the
+  transport gate. Grant it where that identity's roles come from (see
+  [Operator page says the role is missing](#operator-page-says-the-role-is-missing)
+  for the three places).
+- Any reason on Live Stream, Workflow Monitor, Debug or Runtime Output: no
+  action. The state is correct for this deployment.
+
+**Verify**: `/api/auth/status` lists both session roots in `subscriptions`,
+the probe answers `http=200`, and after a page reload HL7 intake's **Preview**
+shows Integration Session run progress. Tabs opened before a change keep the
+capabilities they loaded with. Reload them.
+
 ### Pod Not Starting
 
 **Symptoms**: Pod in `CrashLoopBackOff` or `Error` state
