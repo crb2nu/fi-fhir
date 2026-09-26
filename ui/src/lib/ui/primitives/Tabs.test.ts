@@ -11,6 +11,17 @@ const items: TabItem[] = [
 ];
 
 describe('Tabs', () => {
+  it('renders without Svelte dev warnings (tab refs live in reactive state)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      render(Tabs, { props: { items, value: 'browse' } });
+      const svelteWarnings = warn.mock.calls.filter((call) => String(call[0]).includes('[svelte]'));
+      expect(svelteWarnings).toEqual([]);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it('renders a labelled tablist with aria-selected on the active tab', () => {
     render(Tabs, { props: { items, value: 'live', label: 'Event views', 'data-testid': 'views' } });
     expect(screen.getByRole('tablist', { name: 'Event views' })).toHaveAttribute('data-testid', 'views');
