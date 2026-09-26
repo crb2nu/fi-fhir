@@ -1,4 +1,13 @@
 <script lang="ts">
+  /**
+   * HL7 intake's status line for a server-owned Integration Session run: a
+   * state Badge and the server stages inline (12px), on one line. When the
+   * pane is narrow, stage names ellipsize; each stage's title keeps the full
+   * name, status and duration. The run id is shown by the page's context row.
+   * `state-{streamState}` on the region and the status wording are what the
+   * browser smoke gate reads (check 3: `state-complete`, "Preview complete").
+   */
+  import { Badge, type BadgeTone } from '$lib/ui/primitives';
   import type { IntegrationSessionPreviewMeta } from './types';
 
   export let session: IntegrationSessionPreviewMeta;
@@ -6,6 +15,13 @@
   function label(value: string): string {
     return value.replaceAll('_', ' ');
   }
+
+  const TONE: Record<IntegrationSessionPreviewMeta['streamState'], BadgeTone> = {
+    connecting: 'neutral',
+    running: 'info',
+    complete: 'success',
+    error: 'danger'
+  };
 
   $: statusLabel =
     session.streamState === 'connecting'
@@ -18,22 +34,17 @@
 </script>
 
 <section class="run-progress state-{session.streamState}" aria-label="Server preview progression">
-  <div class="run-head">
-    <div>
-      <div class="eyebrow">Server-owned run</div>
-      <div class="run-status" aria-live="polite">{statusLabel}</div>
-    </div>
-    {#if session.runId}
-      <span class="run-id" title={session.runId}>{session.runId}</span>
-    {/if}
-  </div>
+  <Badge tone={TONE[session.streamState]} dot aria-live="polite">{statusLabel}</Badge>
 
   {#if session.stages.length > 0}
     <ol class="stage-list">
       {#each session.stages as stage (stage.id)}
-        <li class="stage stage-{stage.status}">
+        <li
+          class="stage stage-{stage.status}"
+          title="{label(stage.name)}: {stage.status}{stage.durationMs != null ? ` (${stage.durationMs} ms)` : ''}"
+        >
           <span class="stage-mark" aria-hidden="true"></span>
-          <span>{label(stage.name)}</span>
+          <span class="stage-name">{label(stage.name)}</span>
           <span class="sr-only">{stage.status}</span>
           {#if stage.completedAt && stage.durationMs != null}
             <span class="duration">{stage.durationMs} ms</span>
@@ -42,72 +53,32 @@
       {/each}
     </ol>
   {:else}
-    <div class="waiting">The stream is ready; waiting for the first server stage.</div>
+    <span class="waiting">The stream is ready; waiting for the first server stage.</span>
   {/if}
 
   {#if session.error}
-    <div class="stream-error" role="status">{session.error}</div>
+    <span class="stream-error" role="status">{session.error}</span>
   {/if}
 </section>
 
 <style>
   .run-progress {
-    display: grid;
-    gap: var(--space-2);
-    margin-bottom: var(--space-3);
-    padding: var(--space-3);
-    border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-lg);
-    background: var(--color-bg-elevated);
-  }
-
-  .run-progress.state-running {
-    border-color: var(--color-info-border);
-  }
-
-  .run-progress.state-complete {
-    border-color: var(--color-success-border);
-  }
-
-  .run-progress.state-error {
-    border-color: var(--color-danger-border);
-  }
-
-  .run-head {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-  }
-
-  .eyebrow {
-    color: var(--color-text-muted);
-    font-size: var(--text-2xs);
-    font-weight: var(--font-bold);
-    letter-spacing: var(--tracking-wider);
-    text-transform: uppercase;
-  }
-
-  .run-status {
-    color: var(--color-text-primary);
-    font-size: var(--text-sm);
-    font-weight: var(--font-semibold);
-  }
-
-  .run-id {
-    max-width: 240px;
-    overflow: hidden;
-    color: var(--color-text-muted);
-    font-family: var(--font-mono);
-    font-size: var(--text-2xs);
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    gap: var(--space-1) var(--space-3);
+    min-width: 0;
+    font-size: var(--text-xs);
+    color: var(--color-text-secondary);
   }
 
   .stage-list {
     display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
+    flex: 1 1 0;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+    overflow: hidden;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -115,25 +86,29 @@
 
   .stage {
     display: inline-flex;
+    flex: 0 1 auto;
     align-items: center;
-    gap: var(--space-1);
-    padding: 4px 8px;
-    border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-full);
-    color: var(--color-text-secondary);
-    font-size: var(--text-xs);
+    gap: 5px;
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  .stage-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .stage-mark {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
+    flex: 0 0 auto;
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-full);
     background: var(--color-text-muted);
   }
 
   .stage-running .stage-mark {
     background: var(--color-info);
-    box-shadow: 0 0 0 3px var(--color-info-bg);
   }
 
   .stage-succeeded .stage-mark {
@@ -145,41 +120,19 @@
   }
 
   .duration {
-    color: var(--color-text-muted);
+    flex: 0 0 auto;
     font-family: var(--font-mono);
-    font-size: var(--text-2xs);
-  }
-
-  .waiting,
-  .stream-error {
+    font-size: var(--text-label);
     color: var(--color-text-tertiary);
-    font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .waiting {
+    color: var(--color-text-tertiary);
   }
 
   .stream-error {
+    flex-basis: 100%;
     color: var(--color-danger-text);
-  }
-
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-  }
-
-  @media (max-width: 640px) {
-    .run-head {
-      align-items: flex-start;
-      flex-direction: column;
-    }
-
-    .run-id {
-      max-width: 100%;
-    }
   }
 </style>
