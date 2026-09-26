@@ -329,11 +329,11 @@
         {#snippet head()}
           <tr>
             <Th>Name</Th>
-            <Th width="144px">Id</Th>
+            <Th width="136px">Id</Th>
             <Th width="64px">Version</Th>
-            <Th width="80px">Status</Th>
+            <Th width="72px">Status</Th>
             {#if hasUpdated}
-              <Th width="96px">Updated</Th>
+              <Th width="88px">Updated</Th>
             {/if}
           </tr>
         {/snippet}

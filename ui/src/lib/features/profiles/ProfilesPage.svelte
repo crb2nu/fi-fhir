@@ -570,7 +570,7 @@
     flex: 1 1 auto;
     min-height: 0;
     display: grid;
-    grid-template-columns: minmax(400px, 36%) minmax(0, 1fr);
+    grid-template-columns: minmax(440px, 38%) minmax(0, 1fr);
   }
 
   .list {
