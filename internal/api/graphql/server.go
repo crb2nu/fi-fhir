@@ -28,9 +28,10 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
 
-// AuthStatusPath is the unauthenticated browser probe for optional trusted-
-// network access. It never grants access by itself; GraphQL re-evaluates the
-// request address on every operation.
+// AuthStatusPath is the unauthenticated browser probe for who the caller is
+// and what that identity can reach: authVia, principal, roles, derived
+// capabilities, and missing roles (capabilities.go). It never grants access by
+// itself; GraphQL re-authenticates and re-authorizes every operation.
 const AuthStatusPath = "/api/auth/status"
 
 // ServerConfig configures the GraphQL server.
@@ -64,6 +65,15 @@ type ServerConfig struct {
 	// IntegrationSessionStreaming enables the authenticated, session-only
 	// GraphQL SSE transport on the existing bounded POST endpoint.
 	IntegrationSessionStreaming bool
+	// IntegrationSessionsConfigured reports that the durable Integration
+	// Session store is wired, so the session workspace has a backend. It
+	// changes nothing the server serves; /api/auth/status reports it.
+	IntegrationSessionsConfigured bool
+	// LLMConfigured reports that serve built an LLM client at startup (the
+	// feature is enabled and its configuration validated). Reachability is
+	// the llmCapability query's question, not this flag's. It changes nothing
+	// the server serves; /api/auth/status reports it.
+	LLMConfigured bool
 	// Authenticator establishes the deployment-owned tenant/principal context.
 	Authenticator requestsecurity.Authenticator
 	// TrustedNetworkAuthenticator optionally establishes the same deployment-
@@ -227,28 +237,18 @@ func (s *Server) Handler() http.Handler {
 			http.Error(w, "auth status requires GET", http.StatusMethodNotAllowed)
 			return
 		}
-		_, trusted := s.config.TrustedNetworkAuthenticator.AuthenticateRequest(r)
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Content-Type", "application/json")
-		if trusted {
-			_ = json.NewEncoder(w).Encode(map[string]any{"authenticated": true, "authVia": "network"})
+		// Resolve the caller exactly as the GraphQL route does, so the status
+		// describes the identity the transport gate will authorize — a LAN or
+		// Access browser that holds no token, or a bearer judged on its own —
+		// and then say what that identity can reach (capabilities.go).
+		security, err := authenticateRequest(r, s.config.Authenticator, s.config.TrustedNetworkAuthenticator, s.config.CloudflareAccessAuthenticator)
+		if err != nil {
+			_ = json.NewEncoder(w).Encode(map[string]any{"authenticated": false})
 			return
 		}
-		// The browser holds an Access session, not a token, so it cannot tell
-		// on its own whether it is signed in as far as this origin is concerned.
-		// Report the verified identity so the credential gate can step aside
-		// and say who is signed in.
-		if assertion, ok := s.config.CloudflareAccessAuthenticator.Assertion(r); ok {
-			if security, err := s.config.CloudflareAccessAuthenticator.Authenticate(r.Context(), assertion); err == nil {
-				_ = json.NewEncoder(w).Encode(map[string]any{
-					"authenticated": true,
-					"authVia":       "cloudflare-access",
-					"principal":     security.Principal.ID,
-				})
-				return
-			}
-		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"authenticated": false})
+		_ = json.NewEncoder(w).Encode(deriveAuthStatus(security, s.config))
 	})
 	mux.Handle(CapabilityStatementPath, capabilityStatementHandler(s.startedAt, s.config.SoftwareVersion))
 
@@ -698,29 +698,7 @@ func isJSONObject(raw json.RawMessage, nullable bool) bool {
 
 func authenticatedMiddleware(next http.Handler, authenticator requestsecurity.Authenticator, trusted *requestsecurity.TrustedNetworkAuthenticator, access *requestsecurity.CloudflareAccessAuthenticator) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authorizations := r.Header.Values("Authorization")
-		if len(authorizations) == 0 {
-			if security, ok := trusted.AuthenticateRequest(r); ok {
-				next.ServeHTTP(w, r.WithContext(requestsecurity.WithSecurityContext(r.Context(), security)))
-				return
-			}
-		}
-		// An explicit bearer is judged alone, including on trusted networks.
-		// Otherwise a service credential could inherit the broad IDE identity.
-		// Empty or repeated headers also fail instead of falling back to trust.
-		var (
-			security integration.SecurityContext
-			err      error
-		)
-		if len(authorizations) > 1 {
-			err = requestsecurity.ErrInvalidCredentials
-		} else if len(authorizations) == 1 {
-			security, err = authenticator.Authenticate(r.Context(), authorizations[0])
-		} else if assertion, ok := access.Assertion(r); ok {
-			security, err = access.Authenticate(r.Context(), assertion)
-		} else {
-			security, err = authenticator.Authenticate(r.Context(), "")
-		}
+		security, err := authenticateRequest(r, authenticator, trusted, access)
 		if err != nil {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="fi-fhir"`)
 			http.Error(w, "authentication required", http.StatusUnauthorized)
@@ -728,4 +706,29 @@ func authenticatedMiddleware(next http.Handler, authenticator requestsecurity.Au
 		}
 		next.ServeHTTP(w, r.WithContext(requestsecurity.WithSecurityContext(r.Context(), security)))
 	})
+}
+
+// authenticateRequest is the one caller-resolution order, shared by the
+// GraphQL route and the /api/auth/status probe so the probe can never describe
+// an identity the route would not use.
+func authenticateRequest(r *http.Request, authenticator requestsecurity.Authenticator, trusted *requestsecurity.TrustedNetworkAuthenticator, access *requestsecurity.CloudflareAccessAuthenticator) (integration.SecurityContext, error) {
+	authorizations := r.Header.Values("Authorization")
+	if len(authorizations) == 0 {
+		if security, ok := trusted.AuthenticateRequest(r); ok {
+			return security, nil
+		}
+	}
+	// An explicit bearer is judged alone, including on trusted networks.
+	// Otherwise a service credential could inherit the broad IDE identity.
+	// Empty or repeated headers also fail instead of falling back to trust.
+	switch {
+	case len(authorizations) > 1:
+		return integration.SecurityContext{}, requestsecurity.ErrInvalidCredentials
+	case len(authorizations) == 1:
+		return authenticator.Authenticate(r.Context(), authorizations[0])
+	}
+	if assertion, ok := access.Assertion(r); ok {
+		return access.Authenticate(r.Context(), assertion)
+	}
+	return authenticator.Authenticate(r.Context(), "")
 }

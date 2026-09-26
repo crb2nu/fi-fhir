@@ -719,10 +719,11 @@ LAN trust and the Access assertion are considered only when that header is
 absent. Invalid, empty, or repeated bearer headers return 401 even on the LAN;
 this prevents a narrow service credential from inheriting the broader network
 identity. Headerless LAN/Access sessions and valid IDE credentials are unchanged.
-`/api/auth/status` reports
-`{"authenticated":true,"authVia":"cloudflare-access","principal":"<email>"}`
-for a verified Access session, and the IDE's credential gate steps aside on it
-the way it does for LAN trust.
+`/api/auth/status` reports `"authVia":"cloudflare-access"` with the verified
+email as `principal` for a verified Access session, plus the roles and derived
+capabilities described in
+[the status contract](../planning/GRAPHQL-API.md#the-apiauthstatus-contract),
+and the IDE's credential gate steps aside on it the way it does for LAN trust.
 
 Do not expose the origin in a way that bypasses Cloudflare while relying on this
 layer for *reachability*: it authenticates the token, which only Cloudflare can
@@ -790,6 +791,25 @@ Do not replace an existing operator token's `graphql:operator` with the
 fine-grained roles: it would keep the control plane and lose the entire IDE.
 `serve` prints the mapping's shape at startup so a deployment relying on the
 compatibility grant is visible in its own log.
+
+The converse matters as much: `graphql:operator` does **not** imply the
+control-plane roles. `operator.Service` re-checks `integration.operator` (and
+the delivery or deployment role for controls) after the transport gate, so an
+identity that holds only the grant reaches every operator field and is refused
+by every one — production's state from 2026-09-05 to 2026-09-25. An operator
+identity therefore carries the documented bundle, in `FI_FHIR_GRAPHQL_ROLES`
+(which the trusted network inherits) and in its
+`FI_FHIR_GRAPHQL_ACCESS_PRINCIPALS` entry:
+
+```text
+integration:preview,graphql:operator,clinical:read,integration.operator,integration.delivery.operator,integration.deployment.operator
+```
+
+`serve` warns at startup for each configured identity holding the grant without
+`integration.operator`, and `/api/auth/status` reports `missingRoles` per
+capability. See
+[What an operator's token must carry](../planning/GRAPHQL-API.md#what-an-operators-token-must-carry)
+and the [runbook entry](RUNBOOK.md#operator-page-says-the-role-is-missing).
 
 GraphQL HTTP accepts only bounded JSON POST requests and browser requests
 require an exact allowed origin. GraphQL WebSocket transport is unmounted; the

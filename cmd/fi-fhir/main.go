@@ -4558,6 +4558,7 @@ func runServe(args []string) error {
 		Format:   runtimeConfig.Observability.LogFormat,
 		TenantID: securePreviewRuntime.tenantID,
 	})
+	warnTransportGrantWithoutControlPlaneRole(serveLog, securePreviewRuntime.configuredGraphQLPrincipals())
 
 	// Enforce terminology version pins (if configured)
 	dbURL, pins, policy := loadTerminologyPinConfigFromEnv()
@@ -4856,6 +4857,7 @@ func runServe(args []string) error {
 	// Initialize LLM-powered features (optional - gracefully disabled if unavailable)
 	llmCfg := llmConfigFromRuntime(runtimeConfig.LLM)
 	llmStatus := "disabled"
+	llmConfigured := false
 	llmWarnings := []string{"LLM features disabled; set FI_FHIR_LLM_ENABLED=true to enable"}
 	if runtimeConfig.LLM.Enabled {
 		llmWarnings = []string{}
@@ -4880,6 +4882,7 @@ func runServe(args []string) error {
 			observability.F(observability.FieldError, observability.Errf(err)))
 	} else {
 		llmStatus = "available"
+		llmConfigured = true
 		// Clinical entity extraction
 		if extractor, err := extract.NewExtractor(extract.Config{
 			Client:      llmClient,
@@ -5110,6 +5113,8 @@ func runServe(args []string) error {
 		AllowedOrigins:                securePreviewRuntime.allowedOrigins,
 		MaxRequestBodyBytes:           graphqlRequestBodyLimit,
 		IntegrationSessionStreaming:   securePreviewRuntime.sessionStore != nil,
+		IntegrationSessionsConfigured: securePreviewRuntime.sessionStore != nil,
+		LLMConfigured:                 llmConfigured,
 		Authenticator:                 securePreviewRuntime.authenticator,
 		TrustedNetworkAuthenticator:   securePreviewRuntime.trustedNetwork,
 		CloudflareAccessAuthenticator: securePreviewRuntime.accessIdentity,

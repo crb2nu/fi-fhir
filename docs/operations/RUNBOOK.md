@@ -359,6 +359,58 @@ helm rollback fi-fhir 1
 
 ## Troubleshooting
 
+### Operator page says the role is missing
+
+**Symptoms**: the IDE's Operator page says the account does not hold the
+operator role, or operator queries answer `operator control-plane action
+forbidden` — from the LAN, through Cloudflare Access, and with the static
+bearer alike.
+
+**Cause**: the identity holds `graphql:operator`, the transport gate's
+compatibility grant, but not `integration.operator`, the operator control
+plane's own role. The gate admits the request and `operator.Service` refuses
+it. This was the production outage from 2026-09-05 to 2026-09-25: the API
+Deployment granted `integration:preview,graphql:operator,clinical:read` to the
+bearer, the trusted network, and both Access principals, so nobody could reach
+the operator plane. The trusted network was never the problem — it inherits
+the same roles as everything else.
+
+**Check**:
+```bash
+# What the server thinks this browser/LAN client is, and what it lacks.
+curl -s https://<ui-host>/api/auth/status
+#   capabilities.operatorRead=false, missingRoles.operatorRead=["integration.operator"]
+
+# serve names every misconfigured identity once at startup.
+kubectl -n fi-fhir logs deployment/fi-fhir | \
+  grep 'transport grant without control-plane role'
+```
+
+**Resolution**: grant the operator bundle where that identity's roles come
+from. There are three places, and a deployment usually needs all of them:
+
+1. `FI_FHIR_GRAPHQL_ROLES` — the static bearer's roles.
+2. The trusted network (`FI_FHIR_GRAPHQL_TRUSTED_CIDRS`) — it has no roles of
+   its own and **inherits `FI_FHIR_GRAPHQL_ROLES`**, so fixing (1) fixes it.
+3. `FI_FHIR_GRAPHQL_ACCESS_PRINCIPALS` — each operator's `email=roles` entry.
+
+```text
+integration:preview,graphql:operator,clinical:read,integration.operator,integration.delivery.operator,integration.deployment.operator
+```
+
+In OIDC mode the same list belongs in the identity provider's roles claim. The
+service bearer's roles are fixed (`integration.operator,integration:preview`)
+and are not the IDE's. Change the Deployment's environment through GitOps and
+let the rollout restart the pods; roles are read at startup.
+
+**Verify**: `/api/auth/status` reports `operatorRead: true` with an empty
+`missingRoles.operatorRead`, the startup warning is gone, and
+`{ operatorCircuits { state } }` returns data. Do not "fix" this by making
+`graphql:operator` imply the service roles in code; the two vocabularies are
+deliberate (decision 2026-09-25, "Grant the operator bundle rather than alias
+the transport grant"). The contract is in
+[GRAPHQL-API.md](../planning/GRAPHQL-API.md#the-apiauthstatus-contract).
+
 ### Pod Not Starting
 
 **Symptoms**: Pod in `CrashLoopBackOff` or `Error` state

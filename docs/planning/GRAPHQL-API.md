@@ -145,10 +145,10 @@ trusted network. This intentionally replaces the former stale-token LAN
 fallback, preventing a narrow service credential from inheriting IDE roles.
 Headerless LAN/Access sessions and valid IDE tokens keep their existing access.
 The IDE sends headerless requests after its authenticated status probe.
-`/api/auth/status`
-reports `{"authenticated":true,"authVia":"cloudflare-access","principal":"<email>"}`
-for a verified session. Implementation:
-`internal/api/requestsecurity/cloudflare_access.go`.
+`/api/auth/status` reports `"authVia":"cloudflare-access"` and the verified
+email as `principal` for a verified session, with the roles the map grants it
+and what they unlock (see [the status contract](#the-apiauthstatus-contract)).
+Implementation: `internal/api/requestsecurity/cloudflare_access.go`.
 
 ## Authorization
 
@@ -210,6 +210,96 @@ Implementation: `internal/api/graphql/operation_authorization.go` and
 `internal/api/graphql/operation_authorization_roles.go`. The narrowing is
 defence in depth: every request that clears the gate is authorized again by the
 service that answers it.
+
+### What an operator's token must carry
+
+`graphql:operator` gets a request **past the transport gate** to every root
+field, including the operator control plane's. It does not get it **past the
+control plane**: `operator.Service` re-checks its own roles and answers
+`operator control-plane action forbidden` to a caller that holds only the
+grant. The two vocabularies are deliberate — the service roles are the control
+plane's defence in depth — so an operator identity is granted both:
+
+```text
+integration:preview,graphql:operator,clinical:read,integration.operator,integration.delivery.operator,integration.deployment.operator
+```
+
+Put that list wherever the identity's roles come from:
+`FI_FHIR_GRAPHQL_ROLES` (the static bearer, and the trusted network, which
+inherits it) and each operator's entry in `FI_FHIR_GRAPHQL_ACCESS_PRINCIPALS`.
+OIDC tokens carry it in their roles claim. Drop `integration.delivery.operator`
+or `integration.deployment.operator` for an operator who should read the
+control plane without recovering deliveries or changing deployments.
+
+`serve` logs one warning per configured identity that holds `graphql:operator`
+without `integration.operator` — `transport grant without control-plane role:
+operator surfaces will be forbidden` — naming the identity (`principal_id`,
+`mode`) and the missing roles (`reason`). It is never fatal. From 2026-09-05 to
+2026-09-25 production ran in exactly that state and nothing said so.
+
+## The `/api/auth/status` contract
+
+`GET /api/auth/status` needs no credential and grants nothing; GraphQL
+re-authenticates and re-authorizes every operation. It resolves the caller the
+way `/graphql` does — an `Authorization` header is judged alone, then the
+trusted network, then the Cloudflare Access assertion — and reports that
+identity and what it can reach. With production's 2026-09 grant, from the
+trusted network:
+
+<!-- auth-status-example -->
+```json
+{
+  "authenticated": true,
+  "authVia": "network",
+  "principal": "fi-fhir-ide-operator",
+  "roles": ["integration:preview", "graphql:operator", "clinical:read"],
+  "capabilities": {
+    "operatorRead": false,
+    "operatorDelivery": false,
+    "operatorDeployment": false,
+    "clinicalRead": true,
+    "integrationSessions": false,
+    "streaming": false,
+    "subscriptions": [],
+    "llm": {"configured": true}
+  },
+  "missingRoles": {
+    "operatorRead": ["integration.operator"],
+    "operatorDelivery": ["integration.operator", "integration.delivery.operator"],
+    "operatorDeployment": ["integration.operator", "integration.deployment.operator"],
+    "clinicalRead": []
+  }
+}
+```
+<!-- /auth-status-example -->
+
+`TestAuthStatusDocumentedExampleMatches` fails if this example drifts from what
+the handler serves.
+
+| Key | Meaning |
+|---|---|
+| `authVia` | The identity's authentication method: `network`, `bearer`, `service-bearer`, `cloudflare-access`, `oidc`, or `oauth2-client-credentials` |
+| `principal` | The principal ID — `FI_FHIR_GRAPHQL_PRINCIPAL_ID`, the service principal, the OIDC subject, or the Access email |
+| `roles` | The roles the transport gate authorizes this caller with |
+| `capabilities.operatorRead` / `operatorDelivery` / `operatorDeployment` / `clinicalRead` | The caller clears both the transport gate and the service behind it for that surface |
+| `missingRoles.<capability>` | Exactly the roles that would make that capability true; empty when it already is |
+| `capabilities.integrationSessions` | The deployment has the durable Integration Session store |
+| `capabilities.streaming` | The deployment serves the session SSE transport (`FI_FHIR_INTEGRATION_SESSION_ENABLED`) |
+| `capabilities.subscriptions` | The subscription roots the stream will accept for this caller; `[]` when streaming is off |
+| `capabilities.llm.configured` | `serve` built an LLM client at startup; whether it answers is `llmCapability`'s question |
+
+The stream accepts only `integrationSessionEvents` and `sessionRunEvents`, so
+`eventStream`, `workflowEvents`, `patientEvents`, `liveParseStream`, and
+`debugStepEvent` never appear in `subscriptions`: the SSE transport refuses them
+even with streaming on, because re-enabling them needs the separate bounded
+transport design described under [WebSocket](#websocket).
+
+An unauthenticated caller — including a stale, empty, or repeated bearer —
+gets exactly `{"authenticated":false}`. The body never carries a token, the
+tenant, a hostname, or any message-derived value. Role names and principal IDs
+are deployment configuration, shown only to a caller already authenticated as
+that identity, and they grant nothing by being known. Implementation:
+`internal/api/graphql/capabilities.go`.
 
 ## Transport policy
 
