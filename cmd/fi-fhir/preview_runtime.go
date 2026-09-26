@@ -9,12 +9,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity"
 	integrationbatch "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/batch"
 	integrationdelivery "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/delivery"
@@ -26,7 +28,9 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/registry"
 	integrationsession "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/session"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/observability"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/config"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
 
 const (
@@ -1044,4 +1048,47 @@ func containsExact(values []string, wanted string) bool {
 		}
 	}
 	return false
+}
+
+// transportGrantWarning is the startup line for an identity that holds the
+// graphql:operator transport grant but not integration.operator. Production
+// ran in exactly that state from 2026-09-05 to 2026-09-25: the transport gate
+// admitted every operator query and operator.Service refused every one.
+const transportGrantWarning = "transport grant without control-plane role: operator surfaces will be forbidden"
+
+type configuredPrincipalLister interface {
+	ConfiguredPrincipals() []integration.Principal
+}
+
+// configuredGraphQLPrincipals lists every deployment-owned GraphQL identity:
+// the static bearer and the optional service bearer, the trusted network
+// (which inherits the static roles), and each Cloudflare Access principal.
+// OIDC identities are issued per token, so there is nothing to list for them.
+func (r *previewRuntime) configuredGraphQLPrincipals() []integration.Principal {
+	var principals []integration.Principal
+	if lister, ok := r.authenticator.(configuredPrincipalLister); ok {
+		principals = append(principals, lister.ConfiguredPrincipals()...)
+	}
+	principals = append(principals, r.trustedNetwork.ConfiguredPrincipals()...)
+	return append(principals, r.accessIdentity.ConfiguredPrincipals()...)
+}
+
+// warnTransportGrantWithoutControlPlaneRole logs one WARN per configured
+// identity whose roles carry the transport grant without the control plane's
+// read role, naming the identity and the operator roles it lacks. It is never
+// fatal: least-privilege deployments that grant no operator plane at all are
+// legitimate, and the warning only fires when the grant says otherwise.
+func warnTransportGrantWithoutControlPlaneRole(logger *slog.Logger, principals []integration.Principal) {
+	for _, principal := range principals {
+		missing, misconfigured := graphql.TransportGrantWithoutControlPlaneRole(principal.Roles)
+		if !misconfigured {
+			continue
+		}
+		logger.Warn(transportGrantWarning,
+			observability.F(observability.FieldComponent, "transport-gate"),
+			observability.F(observability.FieldMode, principal.AuthMethod),
+			observability.F(observability.FieldPrincipalID, principal.ID),
+			observability.F(observability.FieldGrant, graphql.GraphQLOperatorRole),
+			observability.F(observability.FieldReason, "missing roles: "+strings.Join(missing, ",")))
+	}
 }
