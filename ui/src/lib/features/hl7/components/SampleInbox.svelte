@@ -1,13 +1,32 @@
 <script lang="ts">
-  import Panel from '$lib/ui/Panel.svelte';
-  import Button from '$lib/ui/Button.svelte';
   import ConfirmModal from '$lib/ui/ConfirmModal.svelte';
-  import Badge from '$lib/ui/Badge.svelte';
+  import {
+    Badge,
+    Button,
+    EmptyState,
+    Field,
+    Icon,
+    IconButton,
+    Input,
+    KeyValue,
+    Panel,
+    Select,
+    Table,
+    Td,
+    Th,
+    Tr
+  } from '$lib/ui/primitives';
+  import type { SelectOption } from '$lib/ui/primitives';
+  import Eraser from '@lucide/svelte/icons/eraser';
+  import Files from '@lucide/svelte/icons/files';
+  import InboxIcon from '@lucide/svelte/icons/inbox';
+  import Save from '@lucide/svelte/icons/save';
+  import Search from '@lucide/svelte/icons/search';
+  import Trash2 from '@lucide/svelte/icons/trash-2';
+  import Upload from '@lucide/svelte/icons/upload';
   import type { HL7Sample } from '$lib/features/hl7/samples/types';
   import type { HL7RedactionMode } from '$lib/domain/hl7Redact';
-  import { afterUpdate, createEventDispatcher, tick } from 'svelte';
-  import { createDialogFocusController } from '$lib/domain/a11yDialog';
-  import { SvelteSet } from 'svelte/reactivity';
+  import { createEventDispatcher } from 'svelte';
 
   export let samples: readonly HL7Sample[];
   export let activeId: string | null;
@@ -34,6 +53,13 @@
     loadExamples: Record<string, never>;
   }>();
 
+  const redactionOptions: SelectOption[] = [
+    { value: 'none', label: 'None' },
+    { value: 'mask_basic', label: 'Mask basic (PID/NK1/PV1)' },
+    { value: 'segment_sanitize', label: 'Sanitize segments (PID/NK1/IN*)' }
+  ];
+
+  // Metadata applied by "Save current", "Import files" and dropped files.
   let name = '';
   let feed = '';
   let tags = '';
@@ -43,37 +69,49 @@
   let fileInputEl: HTMLInputElement | null = null;
   let isDragging = false;
 
-  let showEditModal = false;
-  let editSampleId: string | null = null;
+  // Details pane: edits to the active sample's metadata.
+  let editKey = '';
   let editName = '';
   let editSource = '';
   let editFeed = '';
   let editTags = '';
-  let editModalEl: HTMLDivElement | null = null;
-  let wasEditModalOpen = false;
-  let editFocusCtl: ReturnType<typeof createDialogFocusController> | null = null;
 
-  let selectionMode = false;
-  let selectedIds = new SvelteSet<string>();
+  // Bulk selection. This is a legacy-mode component: the markup only updates
+  // when a top-level variable is reassigned, so the set is replaced on every
+  // change, never mutated in place.
+  let selectedIds: ReadonlySet<string> = new Set<string>();
   let bulkDeleteOpen = false;
 
-  function toggleSelectionMode(): void {
-    selectionMode = !selectionMode;
-    if (!selectionMode) selectedIds.clear();
-  }
-
   function toggleSelected(id: string): void {
-    if (selectedIds.has(id)) selectedIds.delete(id);
-    else selectedIds.add(id);
+    selectedIds = selectedIds.has(id)
+      ? new Set(Array.from(selectedIds).filter((x) => x !== id))
+      : new Set([...selectedIds, id]);
   }
 
   function clearSelected(): void {
-    selectedIds.clear();
+    selectedIds = new Set<string>();
   }
 
   function selectAllFiltered(): void {
-    selectedIds.clear();
-    for (const s of filtered) selectedIds.add(s.id);
+    selectedIds = new Set(filtered.map((s) => s.id));
+  }
+
+  function countSelected(list: readonly HL7Sample[], ids: ReadonlySet<string>): number {
+    return list.filter((s) => ids.has(s.id)).length;
+  }
+
+  function allSelected(list: readonly HL7Sample[], ids: ReadonlySet<string>): boolean {
+    return list.length > 0 && countSelected(list, ids) === list.length;
+  }
+
+  function someSelected(list: readonly HL7Sample[], ids: ReadonlySet<string>): boolean {
+    const n = countSelected(list, ids);
+    return n > 0 && n < list.length;
+  }
+
+  function toggleAllFiltered(): void {
+    if (allSelected(filtered, selectedIds)) clearSelected();
+    else selectAllFiltered();
   }
 
   function requestBulkDelete(): void {
@@ -85,7 +123,7 @@
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
     dispatch('bulkRemove', { ids });
-    selectedIds.clear();
+    clearSelected();
     bulkDeleteOpen = false;
   }
 
@@ -188,61 +226,70 @@
     return uniq;
   }
 
-  function openEdit(sample: HL7Sample): void {
-    editSampleId = sample.id;
-    editName = sample.name;
-    editSource = sample.source;
-    editFeed = sample.feed ?? '';
-    editTags = (sample.tags ?? []).join(', ');
-    showEditModal = true;
+  function metaKey(sample: HL7Sample | null): string {
+    if (!sample) return '';
+    return [sample.id, sample.name, sample.source, sample.feed ?? '', (sample.tags ?? []).join(',')].join('\u0000');
   }
 
-  function closeEdit(): void {
-    showEditModal = false;
-    editSampleId = null;
+  function resetEdit(sample: HL7Sample | null): void {
+    editName = sample?.name ?? '';
+    editSource = sample?.source ?? '';
+    editFeed = sample?.feed ?? '';
+    editTags = (sample?.tags ?? []).join(', ');
   }
 
   function saveEdit(): void {
-    if (!editSampleId) return;
+    if (!activeSample) return;
     const name = editName.trim();
     const source = editSource.trim();
     if (!name || !source) return;
     const feed = editFeed.trim();
     const tags = parseTags(editTags);
     dispatch('updateMeta', {
-      id: editSampleId,
+      id: activeSample.id,
       name,
       source,
       feed,
       tags
     });
-    closeEdit();
   }
 
-  afterUpdate(() => {
-    if (showEditModal && !wasEditModalOpen) {
-      tick().then(() => {
-        if (!editModalEl) return;
-        editFocusCtl = createDialogFocusController(editModalEl);
-        editFocusCtl.focusInitial();
-      });
-    }
-    if (!showEditModal && wasEditModalOpen) {
-      editFocusCtl?.restoreFocus();
-      editFocusCtl = null;
-    }
-    wasEditModalOpen = showEditModal;
-  });
+  function openSample(id: string): void {
+    if (disabled) return;
+    dispatch('select', { id });
+  }
 
-  function handleWindowKeydown(e: KeyboardEvent) {
-    if (!showEditModal) return;
-    if (e.key === 'Escape') {
-      closeEdit();
-      return;
-    }
-    if (e.key === 'Tab') {
-      editFocusCtl?.onKeydown(e);
-    }
+  function removeSample(event: MouseEvent, id: string): void {
+    // The row opens the sample on click; removing must not also open it.
+    event.preventDefault();
+    dispatch('remove', { id });
+  }
+
+  function keepRowClosed(event: MouseEvent): void {
+    // Toggling the bulk checkbox must not open the row's sample.
+    event.stopPropagation();
+  }
+
+  function segmentCount(raw: string): number {
+    return raw.split(/\r\n|\r|\n/).filter((line) => line.trim().length > 0).length;
+  }
+
+  function formatSize(raw: string): string {
+    const bytes = new TextEncoder().encode(raw).length;
+    return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
+  }
+
+  function redactionLabel(mode: HL7RedactionMode | undefined): string {
+    return redactionOptions.find((o) => o.value === mode)?.label ?? mode ?? 'None';
+  }
+
+  function indeterminate(node: HTMLInputElement, value: boolean) {
+    node.indeterminate = value;
+    return {
+      update(next: boolean) {
+        node.indeterminate = next;
+      }
+    };
   }
 
   $: filtered = filter.trim()
@@ -262,598 +309,388 @@
       })
     : samples;
 
-  $: if (!selectionMode && selectedIds.size) selectedIds.clear();
-
+  // Drop selections whose sample was removed.
   $: {
     const valid = new Set(samples.map((s) => s.id));
-    for (const id of selectedIds) {
-      if (!valid.has(id)) selectedIds.delete(id);
+    const kept = Array.from(selectedIds).filter((id) => valid.has(id));
+    if (kept.length !== selectedIds.size) selectedIds = new Set(kept);
+  }
+
+  $: activeSample = samples.find((s) => s.id === activeId) ?? null;
+  $: {
+    const key = metaKey(activeSample);
+    if (key !== editKey) {
+      editKey = key;
+      resetEdit(activeSample);
     }
   }
+  $: editDirty =
+    activeSample !== null &&
+    (editName !== activeSample.name ||
+      editSource !== activeSample.source ||
+      editFeed !== (activeSample.feed ?? '') ||
+      parseTags(editTags).join(',') !== (activeSample.tags ?? []).join(','));
+  $: editValid = editName.trim().length > 0 && editSource.trim().length > 0;
 </script>
 
-<svelte:window on:keydown={handleWindowKeydown} />
+<div
+  class="inbox"
+  class:dragging={isDragging}
+  on:dragover={onDragOver}
+  on:dragleave={onDragLeave}
+  on:drop={onDrop}
+  role="region"
+  aria-label="Samples inbox. Drag and drop HL7 files to import."
+>
+  <div class="action-row">
+    <Button icon={Upload} onclick={triggerImport} {disabled}>Import files</Button>
+    <Button icon={Save} onclick={save} disabled={disabled || !currentRaw.trim()}>Save current</Button>
+    <Button variant="ghost" icon={Files} onclick={() => dispatch('loadExamples', {})} {disabled}>
+      Load examples
+    </Button>
+    <Button
+      variant="ghost"
+      icon={Eraser}
+      onclick={() => dispatch('clear', {})}
+      disabled={disabled || samples.length === 0}
+    >
+      Clear
+    </Button>
+    <input
+      class="file-input"
+      type="file"
+      multiple
+      accept=".hl7,.txt,.msg,.dat,text/plain"
+      bind:this={fileInputEl}
+      on:change={onFileChange}
+      {disabled}
+    />
+  </div>
 
-<Panel title="Samples (this tab)">
-  <div
-    class="dropzone"
-    class:dragging={isDragging}
-    on:dragover={onDragOver}
-    on:dragleave={onDragLeave}
-    on:drop={onDrop}
-    role="region"
-    aria-label="Samples inbox. Drag and drop HL7 files to import."
-  >
   <p class="note">
-    Held only in this tab’s memory and cleared on reload. Don’t paste PHI unless you’re on an approved machine/profile.
+    Samples stay in this tab's memory and clear on reload. Paste PHI only on an approved machine and profile.
   </p>
 
-  <div class="controls">
-    <label class="label">
-      Feed (optional)
-      <input class="input" type="text" bind:value={feed} placeholder="e.g., epic_adt_icu" disabled={disabled} />
-    </label>
-    <label class="label">
-      Tags (comma-separated)
-      <input class="input" type="text" bind:value={tags} placeholder="e.g., icu, admit, demo" disabled={disabled} />
-    </label>
-    <label class="label">
-      Source override (optional)
-      <input class="input" type="text" bind:value={sourceOverride} placeholder="defaults to current source / file name" disabled={disabled} />
-    </label>
-    <label class="label">
-      Redaction
-      <select class="select" bind:value={redactionMode} disabled={disabled}>
-        <option value="none">None</option>
-        <option value="mask_basic">Mask basic (PID/NK1/PV1)</option>
-        <option value="segment_sanitize">Sanitize segments (PID/NK1/IN*)</option>
-      </select>
-      <span class="hint">Best-effort; free-text fields may still contain PHI.</span>
-    </label>
-  </div>
-
-  <div class="save">
-    <label class="label">
-      Sample name (optional)
-      <input class="input" type="text" bind:value={name} placeholder="ADT A01 - ICU admit" disabled={disabled} />
-    </label>
-    <div class="save-actions">
-      <Button on:click={save} disabled={disabled || !currentRaw.trim()}>Save current</Button>
-      <input
-        class="file-input"
-        type="file"
-        multiple
-        accept=".hl7,.txt,.msg,.dat,text/plain"
-        bind:this={fileInputEl}
-        on:change={onFileChange}
-        disabled={disabled}
-      />
-      <Button variant="secondary" on:click={triggerImport} disabled={disabled}>
-        Import files
-      </Button>
-      <Button variant="secondary" on:click={() => dispatch('loadExamples', {})} disabled={disabled}>
-        Load Examples
-      </Button>
-      <Button variant="secondary" on:click={() => dispatch('clear', {})} disabled={disabled || samples.length === 0}>
-        Clear
-      </Button>
-    </div>
-  </div>
-
-  {#if samples.length === 0}
-    <div class="empty-state">
-      <p class="empty">No saved samples yet.</p>
-      <Button variant="secondary" on:click={() => dispatch('loadExamples', {})} disabled={disabled}>
-        Load Example Messages
-      </Button>
-    </div>
-  {:else}
-	    <div class="filter">
-	      <input
-	        class="input"
-	        type="text"
-	        bind:value={filter}
-	        placeholder="Filter by name, source, feed, message type, tag…"
-	        disabled={disabled}
-	      />
-	      {#if filter.trim()}
-	        <Button variant="secondary" on:click={() => (filter = '')} disabled={disabled}>Clear</Button>
-	      {/if}
-	      <span class="count mono">{filtered.length}/{samples.length}</span>
-	      <Button variant="secondary" on:click={toggleSelectionMode} disabled={disabled}>
-	        {selectionMode ? 'Done' : 'Select'}
-	      </Button>
-	    </div>
-
-		    {#if selectionMode}
-		      <div class="bulk-bar" role="toolbar" aria-label="Bulk actions">
-		        <div class="bulk-left">
-		          <span class="mono">{selectedIds.size} selected</span>
-		        </div>
-		        <div class="bulk-actions">
-	          <Button variant="secondary" size="sm" on:click={selectAllFiltered} disabled={disabled || filtered.length === 0}>
-	            Select all
-	          </Button>
-	          <Button variant="secondary" size="sm" on:click={clearSelected} disabled={disabled || selectedIds.size === 0}>
-	            Clear selected
-	          </Button>
-	          <Button variant="danger" size="sm" on:click={requestBulkDelete} disabled={disabled || selectedIds.size === 0}>
-	            Delete selected
-	          </Button>
-		        </div>
-		      </div>
-
-		      <div class="bulk-bar" role="toolbar" aria-label="Bulk apply metadata">
-		        <div class="bulk-left">
-		          <span class="muted">Apply to selected</span>
-		        </div>
-		        <div class="bulk-actions">
-	          <Button
-	            variant="secondary"
-	            size="sm"
-	            on:click={applyTagsToSelected}
-	            disabled={disabled || selectedIds.size === 0 || parseTags(tags).length === 0}
-	            title="Uses Tags field above"
-	          >
-	            Apply tags
-	          </Button>
-	          <Button
-	            variant="secondary"
-	            size="sm"
-	            on:click={clearTagsOnSelected}
-	            disabled={disabled || selectedIds.size === 0}
-	          >
-	            Clear tags
-	          </Button>
-	          <Button
-	            variant="secondary"
-	            size="sm"
-	            on:click={() => applyRedactionToSelected(redactionMode)}
-	            disabled={disabled || selectedIds.size === 0}
-	            title="Uses Redaction selector above"
-	          >
-	            Set redaction
-	          </Button>
-	          <Button
-	            variant="secondary"
-	            size="sm"
-	            on:click={() => applyRedactionToSelected('none')}
-	            disabled={disabled || selectedIds.size === 0}
-	          >
-	            Clear redaction
-	          </Button>
-	        </div>
-	      </div>
-	    {/if}
-
-	    <ul class="list" class:selection={selectionMode}>
-	      {#each filtered as s (s.id)}
-	        <li class="li">
-	          {#if selectionMode}
-	            <label class="check">
-	              <input
-	                type="checkbox"
-	                checked={selectedIds.has(s.id)}
-	                on:change={() => toggleSelected(s.id)}
-	                disabled={disabled}
-	              />
-	              <span class="sr-only">Select {s.name}</span>
-	            </label>
-	          {/if}
-	          <button
-	            type="button"
-	            class="item"
-	            class:active={activeId === s.id}
-	            on:click={() => (selectionMode ? toggleSelected(s.id) : dispatch('select', { id: s.id }))}
-	            disabled={disabled}
-	          >
-	            <div class="top">
-	              <div class="title">{s.name}</div>
-              <div class="meta">
-                {#if s.messageType}<Badge mono>{s.messageType}</Badge>{/if}
-                {#if s.version}<Badge mono>{s.version}</Badge>{/if}
-                {#if s.feed}<Badge mono>feed:{s.feed}</Badge>{/if}
-                {#if s.tags?.length}
-                  {#each s.tags as t (t)}
-                    <Badge variant="info">{t}</Badge>
-                  {/each}
-                {/if}
-                {#if s.redactionMode && s.redactionMode !== 'none'}
-                  <Badge variant="warning">redacted</Badge>
-                {/if}
-              </div>
-            </div>
-            <div class="sub">
-              <span class="mono">{s.source}</span>
-              <span class="dot">•</span>
-              <span class="mono">{new Date(s.createdAt).toLocaleString()}</span>
-              {#if s.controlId}
-                <span class="dot">•</span>
-                <span class="mono">MSH-10={s.controlId}</span>
-              {/if}
-            </div>
-	          </button>
-	          <div class="item-actions">
-	            {#if selectionMode}
-	              <Button variant="secondary" on:click={() => dispatch('select', { id: s.id })} disabled={disabled}>
-	                Open
-	              </Button>
-	            {/if}
-	            <Button variant="secondary" on:click={() => openEdit(s)} disabled={disabled}>Edit</Button>
-	            <button
-	              type="button"
-	              class="trash"
-	              title="Remove"
-              on:click={() => dispatch('remove', { id: s.id })}
-              disabled={disabled}
-            >
-              Remove
-            </button>
-          </div>
-        </li>
-      {/each}
-	    </ul>
-	  {/if}
-
-	  <ConfirmModal
-	    bind:open={bulkDeleteOpen}
-	    title="Delete selected samples?"
-	    message={`This will remove ${selectedIds.size} sample(s) from this tab.`}
-	    confirmText="Delete"
-	    cancelText="Cancel"
-	    variant="danger"
-	    on:confirm={confirmBulkDelete}
-	    on:cancel={() => (bulkDeleteOpen = false)}
-	  />
-
-	  {#if showEditModal}
-	    <div class="modal-overlay">
-	      <button
-	        type="button"
-        class="modal-backdrop"
-        tabindex="-1"
-        aria-label="Close dialog"
-        on:click={closeEdit}
-      ></button>
-      <div
-        class="modal"
-        bind:this={editModalEl}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="edit-sample-modal-title"
-        tabindex="-1"
-      >
-        <h3 id="edit-sample-modal-title" class="modal-title">Edit Sample</h3>
-        <div class="modal-body">
-          <label class="label">
-            Name
-            <input class="input" type="text" bind:value={editName} disabled={disabled} />
-          </label>
-          <label class="label">
-            Source
-            <input class="input" type="text" bind:value={editSource} disabled={disabled} />
-          </label>
-          <label class="label">
-            Feed (optional)
-            <input class="input" type="text" bind:value={editFeed} disabled={disabled} />
-          </label>
-          <label class="label">
-            Tags (comma-separated)
-            <input class="input" type="text" bind:value={editTags} disabled={disabled} />
-          </label>
+  <Panel title="Samples" titleTag="h3" flush>
+    {#snippet actions()}
+      {#if samples.length > 0}
+        <div class="filter-search">
+          <Icon icon={Search} size={14} class="filter-search-icon" />
+          <Input
+            bind:value={filter}
+            placeholder="Filter by name, source, feed, type, tag"
+            aria-label="Filter samples"
+            {disabled}
+          />
         </div>
-        <div class="modal-actions">
-          <Button variant="secondary" on:click={closeEdit}>Cancel</Button>
-          <Button on:click={saveEdit} disabled={!editName.trim() || !editSource.trim()}>
-            Save
+        <span class="count text-mono">{filtered.length}/{samples.length}</span>
+      {/if}
+    {/snippet}
+
+    {#if samples.length === 0}
+      <EmptyState
+        align="start"
+        icon={InboxIcon}
+        message="No saved samples. Import files, save the current message or load the examples."
+      />
+    {:else}
+      {#if selectedIds.size > 0}
+        <div class="bulk-bar" role="toolbar" aria-label="Bulk actions">
+          <span class="bulk-count text-mono">{selectedIds.size} selected</span>
+          <Button
+            variant="ghost"
+            onclick={applyTagsToSelected}
+            disabled={disabled || parseTags(tags).length === 0}
+            title="Applies the Tags option below"
+          >
+            Apply tags
           </Button>
+          <Button variant="ghost" onclick={clearTagsOnSelected} {disabled}>Clear tags</Button>
+          <Button
+            variant="ghost"
+            onclick={() => applyRedactionToSelected(redactionMode)}
+            {disabled}
+            title="Applies the Redaction option below"
+          >
+            Set redaction
+          </Button>
+          <Button variant="ghost" onclick={() => applyRedactionToSelected('none')} {disabled}>
+            Clear redaction
+          </Button>
+          <span class="bulk-end">
+            <Button variant="ghost" onclick={clearSelected} {disabled}>Clear selection</Button>
+            <Button variant="danger" icon={Trash2} onclick={requestBulkDelete} {disabled}>Delete</Button>
+          </span>
+        </div>
+      {/if}
+
+      {#if filtered.length === 0}
+        <EmptyState align="start" icon={Search} message="No samples match the filter." />
+      {:else}
+        <Table label="Saved samples" layout="fixed" class="samples-table">
+          {#snippet head()}
+            <tr>
+              <Th width="36px">
+                <input
+                  class="check"
+                  type="checkbox"
+                  checked={allSelected(filtered, selectedIds)}
+                  use:indeterminate={someSelected(filtered, selectedIds)}
+                  on:change={toggleAllFiltered}
+                  {disabled}
+                  aria-label="Select all shown samples"
+                />
+              </Th>
+              <Th>Name</Th>
+              <Th width="112px">Source</Th>
+              <Th width="96px">Feed</Th>
+              <Th width="112px">Tags</Th>
+              <Th width="92px">Redaction</Th>
+              <Th width="52px" numeric>Segs</Th>
+              <Th width="40px"><span class="sr-only">Actions</span></Th>
+            </tr>
+          {/snippet}
+          {#each filtered as s (s.id)}
+            <Tr selectable selected={activeId === s.id} onselect={() => openSample(s.id)}>
+              <Td>
+                <input
+                  class="check"
+                  type="checkbox"
+                  checked={selectedIds.has(s.id)}
+                  on:click={keepRowClosed}
+                  on:change={() => toggleSelected(s.id)}
+                  {disabled}
+                  aria-label={`Select ${s.name}`}
+                />
+              </Td>
+              <Td truncate value={s.name} />
+              <Td mono truncate value={s.source} />
+              <Td mono muted truncate value={s.feed ?? ''} />
+              <Td truncate title={(s.tags ?? []).join(', ')}>
+                {#each s.tags ?? [] as t (t)}
+                  <Badge class="tag">{t}</Badge>
+                {/each}
+              </Td>
+              <Td>
+                {#if s.redactionMode && s.redactionMode !== 'none'}
+                  <Badge tone="warning" title={redactionLabel(s.redactionMode)}>Redacted</Badge>
+                {/if}
+              </Td>
+              <Td numeric value={segmentCount(s.raw)} />
+              <Td>
+                <IconButton
+                  icon={Trash2}
+                  label={`Remove ${s.name}`}
+                  onclick={(e) => removeSample(e, s.id)}
+                  {disabled}
+                />
+              </Td>
+            </Tr>
+          {/each}
+        </Table>
+      {/if}
+    {/if}
+  </Panel>
+
+  {#if activeSample}
+    <Panel aria-label="Selected sample">
+      {#snippet header()}
+        <h3 class="details-title" title={activeSample?.name}>{activeSample?.name}</h3>
+        {#if activeSample?.messageType}
+          <Badge mono>{activeSample.messageType}</Badge>
+        {/if}
+        {#if activeSample?.version}
+          <Badge mono>{activeSample.version}</Badge>
+        {/if}
+      {/snippet}
+      {#snippet actions()}
+        <Button variant="ghost" onclick={() => resetEdit(activeSample)} disabled={disabled || !editDirty}>
+          Revert
+        </Button>
+        <Button onclick={saveEdit} disabled={disabled || !editDirty || !editValid}>Save changes</Button>
+      {/snippet}
+
+      <div class="details">
+        <KeyValue
+          columns={2}
+          items={[
+            { key: 'Control id', value: activeSample.controlId, mono: true, truncate: true },
+            { key: 'Saved', value: new Date(activeSample.createdAt).toLocaleString(), mono: true },
+            { key: 'Segments', value: segmentCount(activeSample.raw), mono: true },
+            { key: 'Size', value: formatSize(activeSample.raw), mono: true },
+            { key: 'Redaction', value: redactionLabel(activeSample.redactionMode) }
+          ]}
+        />
+        <div class="form-grid" role="group" aria-label="Edit sample metadata">
+          <Field label="Name" required>
+            <Input bind:value={editName} {disabled} />
+          </Field>
+          <Field label="Source" required>
+            <Input mono bind:value={editSource} {disabled} />
+          </Field>
+          <Field label="Feed">
+            <Input mono bind:value={editFeed} {disabled} />
+          </Field>
+          <Field label="Tags">
+            <Input bind:value={editTags} placeholder="Comma-separated" {disabled} />
+          </Field>
         </div>
       </div>
-    </div>
+    </Panel>
   {/if}
-  </div>
-</Panel>
+
+  <Panel title="Save and import options" titleTag="h3">
+    <div class="form-grid" role="group" aria-label="Metadata for saved and imported samples">
+      <Field label="Sample name">
+        <Input bind:value={name} placeholder="ADT A01 - ICU admit" {disabled} />
+      </Field>
+      <Field label="Source override">
+        <Input mono bind:value={sourceOverride} placeholder="Current source or file name" {disabled} />
+      </Field>
+      <Field label="Feed">
+        <Input mono bind:value={feed} placeholder="epic_adt_icu" {disabled} />
+      </Field>
+      <Field label="Tags">
+        <Input bind:value={tags} placeholder="Comma-separated: icu, admit" {disabled} />
+      </Field>
+      <Field label="Redaction" hint="Best-effort; free-text fields may still contain PHI.">
+        <Select bind:value={redactionMode} options={redactionOptions} {disabled} />
+      </Field>
+    </div>
+  </Panel>
+
+  <ConfirmModal
+    bind:open={bulkDeleteOpen}
+    title="Delete selected samples?"
+    message={`This will remove ${selectedIds.size} sample(s) from this tab.`}
+    confirmText="Delete"
+    cancelText="Cancel"
+    variant="danger"
+    on:confirm={confirmBulkDelete}
+    on:cancel={() => (bulkDeleteOpen = false)}
+  />
+</div>
 
 <style>
-  .mono {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  .inbox {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+
+  .inbox.dragging {
+    outline: 1px dashed var(--color-border-focus);
+    outline-offset: var(--space-1);
+    border-radius: var(--radius-sm);
+  }
+
+  .action-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
   }
 
   .file-input {
     display: none;
   }
 
-  .controls {
-    display: grid;
-    gap: 10px;
-    grid-template-columns: 1fr;
-    margin-bottom: 14px;
-  }
-
-  @media (min-width: 980px) {
-    .controls {
-      grid-template-columns: 1fr 1fr;
-    }
-  }
-
-	  .hint {
-	    font-size: 0.8rem;
-	    color: var(--color-text-muted);
-	  }
-
-	  .select {
-	    padding: 10px 12px;
-	    border-radius: var(--radius-xl);
-	    border: 1px solid var(--color-border-default);
-	    background: var(--color-bg-input);
-	    color: var(--color-text-primary);
-	    outline: none;
-	  }
-
-	  .select:focus {
-	    border-color: var(--color-border-focus);
-	    box-shadow: var(--shadow-focus);
-	  }
-
-  .dropzone.dragging {
-    outline: 2px dashed rgba(59, 130, 246, 0.7);
-    outline-offset: 8px;
-    border-radius: 12px;
-  }
-
-	  .note {
-	    margin: 0 0 12px;
-	    color: var(--color-text-secondary);
-	    line-height: 1.45;
-	  }
-
-  .save {
-    display: grid;
-    gap: 10px;
-    margin-bottom: 14px;
-  }
-
-	  .label {
-	    display: grid;
-	    gap: 6px;
-	    color: var(--color-text-secondary);
-	    font-size: 0.9rem;
-	  }
-
-	  .input {
-	    padding: 10px 12px;
-	    border-radius: var(--radius-xl);
-	    border: 1px solid var(--color-border-default);
-	    background: var(--color-bg-input);
-	    color: var(--color-text-primary);
-	    outline: none;
-	  }
-
-	  .input:focus {
-	    border-color: var(--color-border-focus);
-	    box-shadow: var(--shadow-focus);
-	  }
-
-  .save-actions {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-
-	  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-    padding: 20px;
-    border-radius: 12px;
-	    border: 1px dashed var(--color-border-default);
-	    background: var(--color-bg-elevated);
-	  }
-
-	  .empty {
-	    color: var(--color-text-tertiary);
-	    margin: 0;
-	  }
-
-  .filter {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-bottom: 12px;
-  }
-
-	  .bulk-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    flex-wrap: wrap;
-    padding: 10px 12px;
-    margin-bottom: 12px;
-    border-radius: 12px;
-	    border: 1px solid var(--color-border-default);
-	    background: var(--color-bg-elevated);
-	  }
-
-  .bulk-left {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .bulk-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-  }
-
-	  .muted {
-	    color: var(--color-text-tertiary);
-	    font-size: 0.9rem;
-	    font-weight: 650;
-	  }
-
-	  .count {
-	    color: var(--color-text-muted);
-	    font-size: 0.85rem;
-	    font-weight: 700;
-	  }
-
-  .list {
-    padding: 0;
+  .note {
     margin: 0;
-    display: grid;
-    gap: 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
   }
 
-  .li {
-    list-style: none;
+  .form-grid {
     display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 10px;
-    align-items: start;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
   }
 
-  .list.selection .li {
-    grid-template-columns: auto 1fr auto;
+  .filter-search {
+    position: relative;
+    width: 240px;
+  }
+
+  .filter-search :global(.filter-search-icon) {
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--color-text-tertiary);
+    pointer-events: none;
+  }
+
+  .filter-search :global(.ui-input) {
+    padding-left: 26px;
+  }
+
+  .count {
+    padding: 0 var(--space-2) 0 var(--space-1);
+    color: var(--color-text-tertiary);
+  }
+
+  .bulk-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-surface);
+  }
+
+  .bulk-count {
+    margin-right: var(--space-2);
+    color: var(--color-text-primary);
+  }
+
+  .bulk-end {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin-left: auto;
+  }
+
+  .inbox :global(.samples-table) {
+    max-height: 320px;
   }
 
   .check {
-    display: flex;
-    align-items: start;
-    padding-top: 12px;
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    vertical-align: middle;
+    accent-color: var(--color-primary);
+    cursor: pointer;
   }
 
-  .check input {
-    width: 16px;
-    height: 16px;
-    accent-color: rgba(59, 130, 246, 0.85);
+  .check:disabled {
+    cursor: not-allowed;
   }
 
-  .item-actions {
+  .inbox :global(.tag + .tag) {
+    margin-left: var(--space-1);
+  }
+
+  .details-title {
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-ui);
+    font-weight: var(--font-semibold);
+    color: var(--color-text-primary);
+  }
+
+  .details {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    align-items: stretch;
-  }
-
-	  .item {
-    width: 100%;
-    text-align: left;
-	    border-radius: var(--radius-xl);
-	    border: 1px solid var(--color-border-default);
-	    background: var(--color-bg-elevated);
-	    padding: 12px;
-	    cursor: pointer;
-	    color: var(--color-text-primary);
-	  }
-
-	  .item:hover:enabled {
-	    background: var(--color-bg-hover);
-	  }
-
-  .item.active {
-    border-color: rgba(59, 130, 246, 0.45);
-    background: rgba(59, 130, 246, 0.12);
-  }
-
-  .top {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 10px;
-  }
-
-	  .title {
-	    font-weight: 800;
-	    color: var(--color-text-primary);
-	  }
-
-	  .sub {
-	    margin-top: 8px;
-	    color: var(--color-text-tertiary);
-	    font-size: 0.9rem;
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-	  .dot {
-	    color: var(--color-text-muted);
-	  }
-
-  .meta {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-  }
-
-  .trash {
-    padding: 10px 12px;
-    border-radius: 10px;
-    border: 1px solid rgba(239, 68, 68, 0.35);
-    background: rgba(239, 68, 68, 0.08);
-    color: rgba(254, 226, 226, 0.9);
-    cursor: pointer;
-    font-weight: 700;
-  }
-
-  .trash:hover:enabled {
-    background: rgba(239, 68, 68, 0.14);
-  }
-
-  .modal-overlay {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  }
-
-	  .modal-backdrop {
-    position: absolute;
-    inset: 0;
-    border: 0;
-    padding: 0;
-	    background: var(--modal-backdrop);
-	    cursor: default;
-	  }
-	
-	  .modal {
-	    position: relative;
-	    z-index: 1;
-	    background: var(--color-bg-base);
-	    border: 1px solid var(--color-border-default);
-	    border-radius: var(--modal-radius);
-	    padding: 24px;
-	    min-width: 360px;
-	    max-width: 520px;
-	    width: calc(100vw - 32px);
-	  }
-
-	  .modal-title {
-    margin: 0 0 16px;
-    font-size: 1.1rem;
-    font-weight: 800;
-	    color: var(--color-text-primary);
-	  }
-
-  .modal-body {
-    display: grid;
-    gap: 14px;
-    margin-bottom: 20px;
-  }
-
-  .modal-actions {
-    display: flex;
-    gap: 10px;
-    justify-content: flex-end;
+    gap: var(--space-3);
   }
 </style>

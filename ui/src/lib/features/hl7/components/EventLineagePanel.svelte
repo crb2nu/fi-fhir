@@ -4,7 +4,7 @@
   import { getHL7Value } from '$lib/domain/hl7Access';
   import type { ParsePreviewQuery } from '$lib/gen/graphql';
   import { createEventDispatcher } from 'svelte';
-  import Badge from '$lib/ui/Badge.svelte';
+  import { Badge, Button, EmptyState, Panel, Select, Table, Td, Th, Tr } from '$lib/ui/primitives';
   import type { IntegrationSessionLineage } from '$lib/features/integration-session';
 
   export let events: ParsePreviewQuery['parsePreview']['events'];
@@ -13,16 +13,42 @@
 
   const dispatch = createEventDispatcher<{ inspectPath: { path: string } }>();
 
+  type PointerRow = { path: string; value: string; meaning: string };
+
+  const adtPointers: ReadonlyArray<{ path: string; meaning: string }> = [
+    { path: 'PID-3[0].1', meaning: 'MRN (first repetition)' },
+    { path: 'PID-5.1', meaning: 'Family name' },
+    { path: 'PID-5.2', meaning: 'Given name' },
+    { path: 'PID-7', meaning: 'Date of birth' },
+    { path: 'PID-8', meaning: 'Sex' },
+    { path: 'PV1-2', meaning: 'Patient class' },
+    { path: 'PV1-3', meaning: 'Assigned location' }
+  ];
+
+  // The page answers by opening the Inspector on that path.
+  function inspect(path: string): void {
+    dispatch('inspectPath', { path });
+  }
+
+  function inspectFromButton(event: MouseEvent, path: string): void {
+    // The row inspects on click too; dispatch once.
+    event.preventDefault();
+    inspect(path);
+  }
+
   function hl7(path: string): string | null {
     return getHL7Value(message, parseHL7Path(path));
   }
 
   function compact(s: string | null, max = 56): string {
     const v = (s ?? '').trim();
-    if (!v) return '∅';
+    if (!v) return '—';
     if (v.length <= max) return v;
     return v.slice(0, max - 1) + '…';
   }
+
+  // Drop the Description column when the server sent none.
+  $: hasDescriptions = lineage.some((link) => Boolean(link.description));
 
   $: obxSegments = message.segments.filter((s) => s.id === 'OBX');
   $: obrSegments = message.segments.filter((s) => s.id === 'OBR');
@@ -31,18 +57,6 @@
 
   $: if (obxSegments.length && obxOccurrence >= obxSegments.length) obxOccurrence = 0;
   $: if (obrSegments.length && obrOccurrence >= obrSegments.length) obrOccurrence = 0;
-
-  function obxPath(field: number, component?: number): string {
-    return component
-      ? `OBX[${obxOccurrence}]-${field}.${component}`
-      : `OBX[${obxOccurrence}]-${field}`;
-  }
-
-  function obrPath(field: number, component?: number): string {
-    return component
-      ? `OBR[${obrOccurrence}]-${field}.${component}`
-      : `OBR[${obrOccurrence}]-${field}`;
-  }
 
   function obxLabel(idx: number): string {
     const key = `OBX[${idx}]-3`;
@@ -55,359 +69,209 @@
     const key = `OBR[${idx}]-4`;
     return `#${idx} ${compact(hl7(key), 56)}`;
   }
+
+  function row(msg: HL7Message, path: string, meaning: string): PointerRow {
+    return { path, value: (getHL7Value(msg, parseHL7Path(path)) ?? '').trim(), meaning };
+  }
+
+  function adtRows(msg: HL7Message): PointerRow[] {
+    return adtPointers.map((p) => row(msg, p.path, p.meaning));
+  }
+
+  // Everything the rows depend on is an argument, so the markup re-runs this
+  // when the message or either picker changes.
+  function oruRows(msg: HL7Message, obx: number, obr: number, hasObr: boolean, hasObx: boolean): PointerRow[] {
+    const rows: PointerRow[] = [row(msg, 'PID-3[0].1', 'MRN')];
+    if (hasObr) rows.push(row(msg, `OBR[${obr}]-4`, 'Order / test'));
+    if (hasObx) {
+      rows.push(
+        row(msg, `OBX[${obx}]`, 'Segment'),
+        row(msg, `OBX[${obx}]-2`, 'Value type'),
+        row(msg, `OBX[${obx}]-3`, 'Observation id'),
+        row(msg, `OBX[${obx}]-5`, 'Value'),
+        row(msg, `OBX[${obx}]-6`, 'Units'),
+        row(msg, `OBX[${obx}]-11`, 'Status'),
+        row(msg, `OBX[${obx}]-14`, 'Observation time')
+      );
+    }
+    return rows;
+  }
 </script>
 
 {#if events.length === 0}
-  <div class="empty">No semantic events extracted.</div>
+  <EmptyState align="start" message="No semantic events extracted." />
 {:else}
   <div class="stack">
     {#if lineage.length > 0}
-      <section class="server-lineage" aria-label="Server lineage">
-        <div class="server-lineage-head">
-          <div>
-            <div class="section-title">Server lineage</div>
-            <div class="note">Select a mapping to inspect the exact source field used by this run.</div>
-          </div>
-          <Badge variant="info">{lineage.length} links</Badge>
-        </div>
-        <div class="grid">
-          {#each lineage as link (`${link.sourcePath}:${link.targetPath ?? ''}`)}
-            <button
-              class="row server-row"
-              type="button"
-              on:click={() => dispatch('inspectPath', { path: link.sourcePath })}
-            >
-              <span class="k mono">{link.sourcePath}</span>
-              <span class="v">{link.targetPath ?? 'canonical event'}</span>
-              <span class="hint">{link.description ?? 'inspect'}</span>
-            </button>
-          {/each}
-        </div>
-      </section>
-    {/if}
-    {#each events as ev (ev.id)}
-      <div class="card">
-        <div class="head">
-          <div class="title">{ev.__typename}</div>
-          <div class="meta">
-            <Badge mono>{String(ev.type)}</Badge>
-            <Badge mono>{new Date(String(ev.timestamp)).toLocaleString()}</Badge>
-          </div>
-        </div>
-
-        <div class="body">
-          {#if ev.__typename === 'PatientAdmitEvent' || ev.__typename === 'PatientDischargeEvent'}
-            <div class="section">
-              <div class="section-title">Common HL7 pointers (ADT)</div>
-              <div class="grid">
-                <button class="row" type="button" on:click={() => dispatch('inspectPath', { path: 'PID-3[0].1' })}>
-                  <span class="k mono">PID-3[0].1</span>
-                  <span class="v">{hl7('PID-3[0].1') ?? '∅'}</span>
-                  <span class="hint">MRN (first repetition)</span>
-                </button>
-
-                <button class="row" type="button" on:click={() => dispatch('inspectPath', { path: 'PID-5.1' })}>
-                  <span class="k mono">PID-5.1</span>
-                  <span class="v">{hl7('PID-5.1') ?? '∅'}</span>
-                  <span class="hint">family name</span>
-                </button>
-
-                <button class="row" type="button" on:click={() => dispatch('inspectPath', { path: 'PID-5.2' })}>
-                  <span class="k mono">PID-5.2</span>
-                  <span class="v">{hl7('PID-5.2') ?? '∅'}</span>
-                  <span class="hint">given name</span>
-                </button>
-
-                <button class="row" type="button" on:click={() => dispatch('inspectPath', { path: 'PID-7' })}>
-                  <span class="k mono">PID-7</span>
-                  <span class="v">{hl7('PID-7') ?? '∅'}</span>
-                  <span class="hint">DOB</span>
-                </button>
-
-                <button class="row" type="button" on:click={() => dispatch('inspectPath', { path: 'PID-8' })}>
-                  <span class="k mono">PID-8</span>
-                  <span class="v">{hl7('PID-8') ?? '∅'}</span>
-                  <span class="hint">sex</span>
-                </button>
-
-                <button class="row" type="button" on:click={() => dispatch('inspectPath', { path: 'PV1-2' })}>
-                  <span class="k mono">PV1-2</span>
-                  <span class="v">{hl7('PV1-2') ?? '∅'}</span>
-                  <span class="hint">patient class</span>
-                </button>
-
-                <button class="row" type="button" on:click={() => dispatch('inspectPath', { path: 'PV1-3' })}>
-                  <span class="k mono">PV1-3</span>
-                  <span class="v">{hl7('PV1-3') ?? '∅'}</span>
-                  <span class="hint">assigned location</span>
-                </button>
-              </div>
-            </div>
-          {:else if ev.__typename === 'LabResultEvent'}
-            <div class="section">
-              <div class="section-title">Common HL7 pointers (ORU)</div>
-              {#if obxSegments.length > 0}
-                <div class="pickers">
-                  <label class="picker">
-                    OBR
-                    <select class="select" bind:value={obrOccurrence}>
-                      {#if obrSegments.length === 0}
-                        <option value={0}>no OBR</option>
-                      {:else}
-                        {#each obrSegments as s (s.index)}
-                          <option value={s.occurrence}>{obrLabel(s.occurrence)}</option>
-                        {/each}
-                      {/if}
-                    </select>
-                  </label>
-
-                  <label class="picker">
-                    OBX
-                    <select class="select" bind:value={obxOccurrence}>
-                      {#each obxSegments as s (s.index)}
-                        <option value={s.occurrence}>{obxLabel(s.occurrence)}</option>
-                      {/each}
-                    </select>
-                  </label>
-                </div>
-              {:else}
-                <div class="note">No <span class="mono">OBX</span> segments found in this message.</div>
+      <Panel title="Server lineage" titleTag="h3" flush>
+        {#snippet actions()}
+          <Badge mono>{lineage.length} links</Badge>
+        {/snippet}
+        <Table label="Server lineage" layout="fixed">
+          {#snippet head()}
+            <tr>
+              <Th width="132px">Source path</Th>
+              <Th>Target</Th>
+              {#if hasDescriptions}
+                <Th>Description</Th>
               {/if}
+              <Th width="80px"><span class="sr-only">Action</span></Th>
+            </tr>
+          {/snippet}
+          {#each lineage as link (`${link.sourcePath}:${link.targetPath ?? ''}`)}
+            <Tr selectable onselect={() => inspect(link.sourcePath)}>
+              <Td mono truncate value={link.sourcePath} />
+              <Td mono truncate value={link.targetPath ?? 'canonical event'} />
+              {#if hasDescriptions}
+                <Td muted truncate value={link.description ?? ''} />
+              {/if}
+              <Td class="action-cell">
+                <Button
+                  variant="ghost"
+                  tabindex={-1}
+                  onclick={(e) => inspectFromButton(e, link.sourcePath)}
+                >
+                  Inspect
+                </Button>
+              </Td>
+            </Tr>
+          {/each}
+        </Table>
+      </Panel>
+    {/if}
 
-              <div class="grid">
-                <button class="row" type="button" on:click={() => dispatch('inspectPath', { path: 'PID-3[0].1' })}>
-                  <span class="k mono">PID-3[0].1</span>
-                  <span class="v">{hl7('PID-3[0].1') ?? '∅'}</span>
-                  <span class="hint">MRN</span>
-                </button>
+    {#each events as ev (ev.id)}
+      <Panel flush aria-label={`${ev.__typename} HL7 pointers`}>
+        {#snippet header()}
+          <h3 class="event-title">{ev.__typename}</h3>
+          <Badge mono>{String(ev.type)}</Badge>
+          <span class="event-time">{new Date(String(ev.timestamp)).toLocaleString()}</span>
+        {/snippet}
 
-                {#if obrSegments.length > 0}
-                  <button class="row" type="button" on:click={() => dispatch('inspectPath', { path: obrPath(4) })}>
-                    <span class="k mono">{obrPath(4)}</span>
-                    <span class="v">{compact(hl7(obrPath(4)))}</span>
-                    <span class="hint">order / test</span>
-                  </button>
-                {/if}
-
-                {#if obxSegments.length > 0}
-                  <button class="row" type="button" on:click={() => dispatch('inspectPath', { path: `OBX[${obxOccurrence}]` })}>
-                    <span class="k mono">OBX[{obxOccurrence}]</span>
-                    <span class="v">{compact(hl7(`OBX[${obxOccurrence}]`), 72)}</span>
-                    <span class="hint">segment</span>
-                  </button>
-
-                  <button class="row" type="button" on:click={() => dispatch('inspectPath', { path: obxPath(2) })}>
-                    <span class="k mono">{obxPath(2)}</span>
-                    <span class="v">{compact(hl7(obxPath(2)))}</span>
-                    <span class="hint">value type</span>
-                  </button>
-
-                  <button class="row" type="button" on:click={() => dispatch('inspectPath', { path: obxPath(3) })}>
-                    <span class="k mono">{obxPath(3)}</span>
-                    <span class="v">{compact(hl7(obxPath(3)))}</span>
-                    <span class="hint">obs id</span>
-                  </button>
-
-                  <button class="row" type="button" on:click={() => dispatch('inspectPath', { path: obxPath(5) })}>
-                    <span class="k mono">{obxPath(5)}</span>
-                    <span class="v">{compact(hl7(obxPath(5)))}</span>
-                    <span class="hint">value</span>
-                  </button>
-
-                  <button class="row" type="button" on:click={() => dispatch('inspectPath', { path: obxPath(6) })}>
-                    <span class="k mono">{obxPath(6)}</span>
-                    <span class="v">{compact(hl7(obxPath(6)))}</span>
-                    <span class="hint">units</span>
-                  </button>
-
-                  <button class="row" type="button" on:click={() => dispatch('inspectPath', { path: obxPath(11) })}>
-                    <span class="k mono">{obxPath(11)}</span>
-                    <span class="v">{compact(hl7(obxPath(11)))}</span>
-                    <span class="hint">status</span>
-                  </button>
-
-                  <button class="row" type="button" on:click={() => dispatch('inspectPath', { path: obxPath(14) })}>
-                    <span class="k mono">{obxPath(14)}</span>
-                    <span class="v">{compact(hl7(obxPath(14)))}</span>
-                    <span class="hint">obs time</span>
-                  </button>
-                {/if}
-              </div>
+        {#if ev.__typename === 'PatientAdmitEvent' || ev.__typename === 'PatientDischargeEvent'}
+          {@render pointers(adtRows(message), 'Common HL7 pointers (ADT)')}
+        {:else if ev.__typename === 'LabResultEvent'}
+          {#if obxSegments.length > 0}
+            <div class="pickers">
+              <label class="picker">
+                <span class="picker-label">OBR</span>
+                <Select bind:value={obrOccurrence} mono>
+                  {#if obrSegments.length === 0}
+                    <option value={0}>no OBR</option>
+                  {:else}
+                    {#each obrSegments as s (s.index)}
+                      <option value={s.occurrence}>{obrLabel(s.occurrence)}</option>
+                    {/each}
+                  {/if}
+                </Select>
+              </label>
+              <label class="picker">
+                <span class="picker-label">OBX</span>
+                <Select bind:value={obxOccurrence} mono>
+                  {#each obxSegments as s (s.index)}
+                    <option value={s.occurrence}>{obxLabel(s.occurrence)}</option>
+                  {/each}
+                </Select>
+              </label>
             </div>
           {:else}
-            <div class="note">No lineage view for {ev.__typename} yet.</div>
+            <p class="note">No <span class="text-mono">OBX</span> segments in this message.</p>
           {/if}
-        </div>
-      </div>
+          {@render pointers(
+            oruRows(message, obxOccurrence, obrOccurrence, obrSegments.length > 0, obxSegments.length > 0),
+            'Common HL7 pointers (ORU)'
+          )}
+        {:else}
+          <p class="note">No lineage view for {ev.__typename} yet.</p>
+        {/if}
+      </Panel>
     {/each}
   </div>
 {/if}
 
+{#snippet pointers(rows: PointerRow[], label: string)}
+  <Table {label} layout="fixed">
+    {#snippet head()}
+      <tr>
+        <Th width="132px">Path</Th>
+        <Th>Value</Th>
+        <Th width="168px">Field</Th>
+        <Th width="80px"><span class="sr-only">Action</span></Th>
+      </tr>
+    {/snippet}
+    {#each rows as r (r.path)}
+      <Tr selectable onselect={() => inspect(r.path)}>
+        <Td mono truncate value={r.path} />
+        <Td mono truncate muted={!r.value} value={r.value || '—'} />
+        <Td muted truncate value={r.meaning} />
+        <Td class="action-cell">
+          <Button variant="ghost" tabindex={-1} onclick={(e) => inspectFromButton(e, r.path)}>
+            Inspect
+          </Button>
+        </Td>
+      </Tr>
+    {/each}
+  </Table>
+{/snippet}
+
 <style>
-	  .empty {
-	    color: var(--color-text-tertiary);
-	  }
-
   .stack {
-    display: grid;
-    gap: 12px;
-  }
-
-  .server-lineage {
-    display: grid;
-    gap: 10px;
-    padding: 12px;
-    border: 1px solid var(--color-info-border);
-    border-radius: 12px;
-    background: var(--color-info-bg);
-  }
-
-  .server-lineage-head {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
+    flex-direction: column;
+    gap: var(--space-3);
   }
 
-  .server-lineage .note {
-    margin-bottom: 0;
+  .event-title {
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-ui);
+    font-weight: var(--font-semibold);
+    color: var(--color-text-primary);
   }
 
-	  .card {
-	    border-radius: 12px;
-	    border: 1px solid var(--color-border-default);
-	    background: var(--color-bg-elevated);
-	    padding: 10px 12px;
-	  }
-
-  .head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 8px;
-  }
-
-	  .title {
-	    color: var(--color-text-primary);
-	    font-weight: 850;
-	  }
-
-  .meta {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-  }
-
-	  .mono {
-	    font-family: var(--font-mono);
-	  }
-
-  .section {
-    margin-top: 10px;
-  }
-
-	  .section-title {
-	    color: var(--color-text-primary);
-	    font-weight: 800;
-	    margin-bottom: 10px;
-	  }
-
-  .grid {
-    display: grid;
-    gap: 8px;
+  .event-time {
+    margin-left: auto;
+    padding-right: var(--space-2);
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
+    color: var(--color-text-tertiary);
+    white-space: nowrap;
   }
 
   .pickers {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .picker {
     display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-bottom: 10px;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
   }
 
-	  .picker {
-    display: grid;
-    gap: 6px;
-	    color: var(--color-text-secondary);
-	    font-size: 0.9rem;
-	    font-weight: 750;
-	    min-width: 260px;
-	  }
-
-	  .select {
-	    padding: 10px 12px;
-	    border-radius: var(--radius-xl);
-	    border: 1px solid var(--color-border-default);
-	    background: var(--color-bg-input);
-	    color: var(--color-text-primary);
-	    outline: none;
-	  }
-
-	  .select:focus {
-	    border-color: var(--color-border-focus);
-	    box-shadow: var(--shadow-focus);
-	  }
-
-	  .row {
-    width: 100%;
-    text-align: left;
-    border-radius: 10px;
-	    border: 1px solid var(--color-border-default);
-	    background: var(--color-bg-elevated);
-	    padding: 10px;
-	    cursor: pointer;
-    display: grid;
-    grid-template-columns: 120px 1fr auto;
-    gap: 10px;
-    align-items: baseline;
+  .picker-label {
+    flex: 0 0 auto;
+    font-size: var(--text-label);
+    font-weight: var(--font-medium);
+    letter-spacing: var(--tracking-label);
+    color: var(--color-text-tertiary);
   }
 
-  .row:hover {
-	    background: var(--color-bg-hover);
+  .note {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
   }
 
-  .row:focus-visible {
-    outline: none;
-    box-shadow: var(--shadow-focus);
+  .stack :global(.action-cell) {
+    padding-right: var(--space-1);
+    text-align: right;
   }
-
-  @media (max-width: 640px) {
-    .server-lineage-head {
-      flex-direction: column;
-    }
-
-    .row {
-      grid-template-columns: 1fr;
-    }
-
-    .v {
-      white-space: normal;
-    }
-  }
-
-	  .k {
-	    color: var(--color-text-primary);
-	    font-weight: 850;
-	  }
-
-	  .v {
-	    color: var(--color-text-secondary);
-	    overflow: hidden;
-	    text-overflow: ellipsis;
-	    white-space: nowrap;
-	  }
-
-	  .hint {
-	    color: var(--color-text-muted);
-	    font-size: 0.85rem;
-	    font-weight: 700;
-	    white-space: nowrap;
-	  }
-
-	  .note {
-	    color: var(--color-text-tertiary);
-	    line-height: 1.45;
-	    margin-bottom: 10px;
-	  }
 </style>

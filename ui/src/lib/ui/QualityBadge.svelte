@@ -6,7 +6,10 @@
   } from '$lib/gen/graphql';
   import { graphqlFetch } from '$lib/graphql/client';
   import { AnalyzeQualityDocument } from '$lib/gen/graphql';
-  import Panel from './Panel.svelte';
+  import { Badge, Button, IconButton, KeyValue, Panel, Table, Td, Th, Tr } from '$lib/ui/primitives';
+  import type { BadgeTone } from '$lib/ui/primitives';
+  import Gauge from '@lucide/svelte/icons/gauge';
+  import X from '@lucide/svelte/icons/x';
   import { createEventDispatcher } from 'svelte';
 
   export let event: Record<string, unknown> | null = null;
@@ -17,9 +20,12 @@
     analyzed: AnalyzeQualityQuery['analyzeQuality'];
   }>();
 
+  type QualityResult = AnalyzeQualityQuery['analyzeQuality'];
+  type ScoreTone = Extract<BadgeTone, 'success' | 'warning' | 'danger'>;
+
   let isLoading = false;
   let error: string | null = null;
-  let result: AnalyzeQualityQuery['analyzeQuality'] | null = null;
+  let result: QualityResult | null = null;
   let expanded = false;
 
   async function analyzeQuality() {
@@ -49,729 +55,445 @@
     }
   }
 
-  function scoreClass(score: number): string {
-    if (score >= 0.8) return 'good';
+  function scoreTone(score: number): ScoreTone {
+    if (score >= 0.8) return 'success';
     if (score >= 0.5) return 'warning';
-    return 'poor';
+    return 'danger';
+  }
+
+  function scoreLabel(score: number): string {
+    if (score >= 0.8) return 'Good';
+    if (score >= 0.5) return 'Fair';
+    return 'Poor';
   }
 
   function formatScore(score: number): string {
     return `${Math.round(score * 100)}`;
   }
 
-  function severityClass(severity: string): string {
+  function severityTone(severity: string): BadgeTone {
     switch (severity.toLowerCase()) {
       case 'critical':
       case 'high':
-        return 'high';
+        return 'danger';
       case 'medium':
-        return 'medium';
+        return 'warning';
       default:
-        return 'low';
+        return 'info';
     }
+  }
+
+  function issueValues(issue: QualityResult['issues'][number]): string {
+    return [
+      issue.actualValue ? `actual ${issue.actualValue}` : '',
+      issue.expectedValue ? `expected ${issue.expectedValue}` : ''
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  }
+
+  function dimensionRows(dimensions: QualityResult['dimensions']): { name: string; score: number }[] {
+    return [
+      { name: 'Completeness', score: dimensions.completeness },
+      { name: 'Accuracy', score: dimensions.accuracy },
+      { name: 'Consistency', score: dimensions.consistency },
+      { name: 'Conformance', score: dimensions.conformance },
+      { name: 'Timeliness', score: dimensions.timeliness }
+    ];
   }
 
   $: hasIssues = (result?.issues?.length ?? 0) > 0;
   $: hasRecommendations = (result?.recommendations?.length ?? 0) > 0;
+  $: sortedRecommendations = result ? [...result.recommendations].sort((a, b) => a.priority - b.priority) : [];
 </script>
 
 {#if compact}
   <!-- Compact badge view -->
-  <div class="quality-badge-compact">
+  <div class="quality-compact">
     {#if result}
       <button
-        class="score-badge {scoreClass(result.overallScore)}"
-        onclick={() => expanded = !expanded}
-        title="Data Quality Score (click for details)"
+        type="button"
+        class="score-chip tone-{scoreTone(result.overallScore)}"
+        onclick={() => (expanded = !expanded)}
+        title="Data quality score (click for details)"
+        aria-expanded={expanded}
       >
-        <span class="score-value">{formatScore(result.overallScore)}</span>
-        <span class="score-label">%</span>
+        {formatScore(result.overallScore)}%
       </button>
     {:else}
-      <button
-        class="analyze-btn-compact"
+      <IconButton
+        icon={Gauge}
+        label="Analyze data quality"
+        variant="secondary"
         onclick={analyzeQuality}
-        disabled={isLoading || !event || !eventType}
-        title="Analyze data quality"
-      >
-        {#if isLoading}
-          <span class="spinner-small"></span>
-        {:else}
-          Q
-        {/if}
-      </button>
+        loading={isLoading}
+        disabled={!event || !eventType}
+      />
     {/if}
 
     {#if expanded && result}
-      <div class="expanded-popup">
-        <div class="popup-header">
-          <span>Data Quality Details</span>
-          <button class="close-btn" onclick={() => expanded = false}>X</button>
+      <div class="popup" role="dialog" aria-label="Data quality details">
+        <div class="popup-head">
+          <span class="popup-title">Data quality</span>
+          <IconButton icon={X} label="Close" onclick={() => (expanded = false)} />
         </div>
-        <div class="dimensions-grid">
-          {#if result.dimensions}
-            <div class="dimension">
-              <span class="dim-label">Completeness</span>
-              <span class="dim-value {scoreClass(result.dimensions.completeness)}">
-                {formatScore(result.dimensions.completeness)}%
-              </span>
-            </div>
-            <div class="dimension">
-              <span class="dim-label">Accuracy</span>
-              <span class="dim-value {scoreClass(result.dimensions.accuracy)}">
-                {formatScore(result.dimensions.accuracy)}%
-              </span>
-            </div>
-            <div class="dimension">
-              <span class="dim-label">Consistency</span>
-              <span class="dim-value {scoreClass(result.dimensions.consistency)}">
-                {formatScore(result.dimensions.consistency)}%
-              </span>
-            </div>
-            <div class="dimension">
-              <span class="dim-label">Conformance</span>
-              <span class="dim-value {scoreClass(result.dimensions.conformance)}">
-                {formatScore(result.dimensions.conformance)}%
-              </span>
-            </div>
-            <div class="dimension">
-              <span class="dim-label">Timeliness</span>
-              <span class="dim-value {scoreClass(result.dimensions.timeliness)}">
-                {formatScore(result.dimensions.timeliness)}%
-              </span>
-            </div>
-          {/if}
-        </div>
+        {#if result.dimensions}
+          <KeyValue
+            columns={2}
+            items={dimensionRows(result.dimensions).map((d) => ({
+              key: d.name,
+              value: `${formatScore(d.score)}%`,
+              mono: true
+            }))}
+          />
+        {/if}
         {#if hasIssues}
-          <div class="issues-summary">
+          <p class="popup-foot">
             {result.issues.length} issue{result.issues.length !== 1 ? 's' : ''} found
-          </div>
+          </p>
         {/if}
       </div>
     {/if}
   </div>
 {:else}
   <!-- Full panel view -->
-  <Panel title="Data Quality Analysis">
-    <div class="quality-panel">
-      <div class="controls">
-        <button
-          class="analyze-btn"
-          onclick={analyzeQuality}
-          disabled={isLoading || !event || !eventType}
-        >
-          {#if isLoading}
-            <span class="spinner"></span>
-            Analyzing...
-          {:else}
-            Analyze Quality
-          {/if}
-        </button>
+  <Panel title="Data quality" titleTag="h3" flush>
+    {#snippet actions()}
+      <Button
+        variant="ghost"
+        icon={Gauge}
+        onclick={analyzeQuality}
+        loading={isLoading}
+        disabled={!event || !eventType}
+      >
+        {isLoading ? 'Analyzing' : 'Analyze quality'}
+      </Button>
+    {/snippet}
 
-        {#if result}
-          <span class="stats">
-            Analyzed in {result.processingTimeMs ?? 0}ms
-          </span>
-        {/if}
+    {#if error}
+      <p class="error" role="alert">{error}</p>
+    {/if}
+
+    {#if result}
+      <div class="overall">
+        <span class="overall-label">Overall</span>
+        <span class="overall-score">{formatScore(result.overallScore)}%</span>
+        <Badge tone={scoreTone(result.overallScore)} dot>{scoreLabel(result.overallScore)}</Badge>
+        <span class="overall-time">{result.processingTimeMs ?? 0} ms</span>
       </div>
 
-      {#if error}
-        <div class="error">{error}</div>
+      {#if result.dimensions}
+        <Table label="Quality dimensions" layout="fixed">
+          {#snippet head()}
+            <tr>
+              <Th width="136px">Dimension</Th>
+              <Th width="64px" numeric>Score</Th>
+              <Th><span class="sr-only">Score bar</span></Th>
+            </tr>
+          {/snippet}
+          {#each dimensionRows(result.dimensions) as d (d.name)}
+            <Tr>
+              <Td value={d.name} />
+              <Td numeric value={`${formatScore(d.score)}%`} />
+              <Td>
+                <span class="bar" aria-hidden="true">
+                  <span
+                    class="bar-fill tone-{scoreTone(d.score)}"
+                    style:width="{Math.max(0, Math.min(1, d.score)) * 100}%"
+                  ></span>
+                </span>
+              </Td>
+            </Tr>
+          {/each}
+        </Table>
       {/if}
 
-      {#if result}
-        <div class="results">
-          <!-- Overall Score Circle -->
-          <div class="score-section">
-            <div class="score-circle {scoreClass(result.overallScore)}">
-              <span class="score-number">{formatScore(result.overallScore)}</span>
-              <span class="score-percent">%</span>
-            </div>
-            <span class="score-title">Overall Quality</span>
-          </div>
+      {#if hasIssues}
+        <h4 class="section-label">Issues <Badge mono>{result.issues.length}</Badge></h4>
+        <Table label="Quality issues" layout="fixed" class="quality-issues">
+          {#snippet head()}
+            <tr>
+              <Th width="88px">Severity</Th>
+              <Th width="112px">Dimension</Th>
+              <Th width="120px">Field</Th>
+              <Th>Description</Th>
+            </tr>
+          {/snippet}
+          {#each result.issues as issue, idx (issue.description + idx)}
+            <Tr>
+              <Td><Badge tone={severityTone(issue.severity)}>{issue.severity}</Badge></Td>
+              <Td muted truncate value={issue.dimension} />
+              <Td mono truncate value={issue.field ?? ''} />
+              <Td
+                truncate
+                title={issueValues(issue) ? `${issue.description} (${issueValues(issue)})` : issue.description}
+              >
+                {issue.description}
+                {#if issueValues(issue)}
+                  <span class="issue-values">{issueValues(issue)}</span>
+                {/if}
+              </Td>
+            </Tr>
+          {/each}
+        </Table>
+      {/if}
 
-          <!-- Dimensions -->
-          {#if result.dimensions}
-            <div class="dimensions">
-              <h4>Quality Dimensions</h4>
-              <div class="dimension-bars">
-                <div class="dimension-bar">
-                  <span class="dim-name">Completeness</span>
-                  <div class="bar-track">
-                    <div
-                      class="bar-fill {scoreClass(result.dimensions.completeness)}"
-                      style="width: {result.dimensions.completeness * 100}%"
-                    ></div>
-                  </div>
-                  <span class="dim-score">{formatScore(result.dimensions.completeness)}%</span>
-                </div>
-                <div class="dimension-bar">
-                  <span class="dim-name">Accuracy</span>
-                  <div class="bar-track">
-                    <div
-                      class="bar-fill {scoreClass(result.dimensions.accuracy)}"
-                      style="width: {result.dimensions.accuracy * 100}%"
-                    ></div>
-                  </div>
-                  <span class="dim-score">{formatScore(result.dimensions.accuracy)}%</span>
-                </div>
-                <div class="dimension-bar">
-                  <span class="dim-name">Consistency</span>
-                  <div class="bar-track">
-                    <div
-                      class="bar-fill {scoreClass(result.dimensions.consistency)}"
-                      style="width: {result.dimensions.consistency * 100}%"
-                    ></div>
-                  </div>
-                  <span class="dim-score">{formatScore(result.dimensions.consistency)}%</span>
-                </div>
-                <div class="dimension-bar">
-                  <span class="dim-name">Conformance</span>
-                  <div class="bar-track">
-                    <div
-                      class="bar-fill {scoreClass(result.dimensions.conformance)}"
-                      style="width: {result.dimensions.conformance * 100}%"
-                    ></div>
-                  </div>
-                  <span class="dim-score">{formatScore(result.dimensions.conformance)}%</span>
-                </div>
-                <div class="dimension-bar">
-                  <span class="dim-name">Timeliness</span>
-                  <div class="bar-track">
-                    <div
-                      class="bar-fill {scoreClass(result.dimensions.timeliness)}"
-                      style="width: {result.dimensions.timeliness * 100}%"
-                    ></div>
-                  </div>
-                  <span class="dim-score">{formatScore(result.dimensions.timeliness)}%</span>
-                </div>
+      {#if hasRecommendations}
+        <h4 class="section-label">Recommendations</h4>
+        <ul class="recs">
+          {#each sortedRecommendations as rec, idx (rec.title + idx)}
+            <li class="rec">
+              <div class="rec-head">
+                <Badge mono>P{rec.priority}</Badge>
+                <span class="rec-title">{rec.title}</span>
+                {#if rec.category}
+                  <span class="rec-category">{rec.category}</span>
+                {/if}
               </div>
-            </div>
-          {/if}
-
-          <!-- Issues -->
-          {#if hasIssues}
-            <div class="issues">
-              <h4>Issues ({result.issues.length})</h4>
-              <ul class="issue-list">
-                {#each result.issues as issue, idx (issue.description + idx)}
-                  <li class="issue {severityClass(issue.severity)}">
-                    <div class="issue-header">
-                      <span class="issue-severity">{issue.severity}</span>
-                      <span class="issue-dimension">{issue.dimension}</span>
-                      {#if issue.field}
-                        <span class="issue-field">{issue.field}</span>
-                      {/if}
-                    </div>
-                    <div class="issue-description">{issue.description}</div>
-                    {#if issue.actualValue || issue.expectedValue}
-                      <div class="issue-values">
-                        {#if issue.actualValue}
-                          <span>Actual: <code>{issue.actualValue}</code></span>
-                        {/if}
-                        {#if issue.expectedValue}
-                          <span>Expected: <code>{issue.expectedValue}</code></span>
-                        {/if}
-                      </div>
-                    {/if}
-                  </li>
-                {/each}
-              </ul>
-            </div>
-          {/if}
-
-          <!-- Recommendations -->
-          {#if hasRecommendations}
-            <div class="recommendations">
-              <h4>Recommendations</h4>
-              <ul class="rec-list">
-                {#each result.recommendations.sort((a, b) => a.priority - b.priority) as rec, idx (rec.title + idx)}
-                  <li class="rec">
-                    <div class="rec-header">
-                      <span class="rec-priority">P{rec.priority}</span>
-                      {#if rec.category}
-                        <span class="rec-category">{rec.category}</span>
-                      {/if}
-                      <span class="rec-title">{rec.title}</span>
-                    </div>
-                    <div class="rec-description">{rec.description}</div>
-                    {#if rec.impact}
-                      <div class="rec-impact">Impact: {rec.impact}</div>
-                    {/if}
-                  </li>
-                {/each}
-              </ul>
-            </div>
-          {/if}
-        </div>
+              <p class="rec-text">
+                {rec.description}
+                {#if rec.impact}
+                  <span class="rec-impact">Impact: {rec.impact}</span>
+                {/if}
+              </p>
+            </li>
+          {/each}
+        </ul>
       {/if}
-    </div>
+    {:else if !error}
+      <p class="idle">
+        Scores completeness, accuracy, consistency, conformance and timeliness for the first event.
+      </p>
+    {/if}
   </Panel>
 {/if}
 
 <style>
-  .quality-badge-compact {
+  /* Compact view */
+  .quality-compact {
     position: relative;
     display: inline-block;
   }
 
-  .score-badge {
-    display: flex;
-    align-items: baseline;
-    gap: 1px;
-    padding: 4px 8px;
-    border-radius: 12px;
-    border: none;
-    cursor: pointer;
-    font-weight: 600;
-    transition: transform 0.2s;
-  }
-
-  .score-badge:hover {
-    transform: scale(1.05);
-  }
-
-  .score-badge:focus-visible {
-    outline: none;
-    box-shadow: var(--shadow-focus);
-  }
-
-  .score-badge.good {
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(16, 185, 129, 0.2));
-    color: var(--color-success-soft);
-  }
-
-  .score-badge.warning {
-    background: linear-gradient(135deg, rgba(234, 179, 8, 0.3), rgba(234, 179, 8, 0.2));
-    color: var(--color-warning-soft);
-  }
-
-  .score-badge.poor {
-    background: linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(239, 68, 68, 0.2));
-    color: var(--color-danger-soft);
-  }
-
-  .score-value {
-    font-size: 1rem;
-  }
-
-  .score-label {
-    font-size: 0.7rem;
-  }
-
-  .analyze-btn-compact {
-    width: 28px;
-    height: 28px;
-    display: flex;
+  .score-chip {
+    display: inline-flex;
     align-items: center;
-    justify-content: center;
-    background: rgba(59, 130, 246, 0.2);
-    border: 1px solid rgba(59, 130, 246, 0.3);
-    border-radius: 6px;
-    color: var(--color-info-soft);
-    font-weight: 600;
+    height: var(--size-control-sm);
+    padding: 0 var(--space-2);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
+    font-variant-numeric: tabular-nums;
     cursor: pointer;
-    transition: all 0.2s;
   }
 
-  .analyze-btn-compact:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+  .score-chip:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 1px;
   }
 
-  .analyze-btn-compact:hover:not(:disabled) {
-    background: rgba(59, 130, 246, 0.3);
+  .score-chip.tone-success {
+    background: var(--color-success-bg);
+    color: var(--color-success-text);
   }
 
-  .analyze-btn-compact:focus-visible {
-    outline: none;
-    box-shadow: var(--shadow-focus);
+  .score-chip.tone-warning {
+    background: var(--color-warning-bg);
+    color: var(--color-warning-text);
   }
 
-  .spinner-small {
-    width: 12px;
-    height: 12px;
-    border: 2px solid rgba(147, 197, 253, 0.3);
-    border-top-color: var(--color-info-soft);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
+  .score-chip.tone-danger {
+    background: var(--color-danger-bg);
+    color: var(--color-danger-text);
   }
 
-  .expanded-popup {
+  .popup {
     position: absolute;
     top: 100%;
     right: 0;
-    margin-top: 8px;
-    width: 260px;
-    background: var(--color-bg-base);
+    z-index: var(--z-popover);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    width: 280px;
+    margin-top: var(--space-1);
+    padding: var(--space-2) var(--space-3) var(--space-3);
+    background: var(--color-bg-elevated);
     border: 1px solid var(--color-border-default);
-    border-radius: 8px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
-    z-index: 100;
-    padding: 12px;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
   }
 
-  .popup-header {
+  .popup-head {
     display: flex;
+    align-items: center;
     justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-    font-weight: 600;
-    color: var(--color-text-primary);
   }
 
-  .close-btn {
-    background: none;
-    border: none;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    font-size: 0.8rem;
-  }
-
-  .close-btn:hover {
-    color: var(--color-text-primary);
-  }
-
-  .close-btn:focus-visible {
-    outline: none;
-    box-shadow: var(--shadow-focus);
-    border-radius: var(--radius-sm);
-    color: var(--color-text-primary);
-  }
-
-  .dimensions-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-
-  .dimension {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.8rem;
-  }
-
-  .dim-label {
-    color: var(--color-text-muted);
-  }
-
-  .dim-value {
-    font-weight: 600;
-  }
-
-  .dim-value.good { color: var(--color-success-soft); }
-  .dim-value.warning { color: var(--color-warning-soft); }
-  .dim-value.poor { color: var(--color-danger-soft); }
-
-  .issues-summary {
-    margin-top: 12px;
-    padding-top: 8px;
-    border-top: 1px solid var(--color-border-default);
-    font-size: 0.8rem;
-    color: var(--color-text-muted);
-  }
-
-  /* Full panel styles */
-  .quality-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-
-  .controls {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .analyze-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    background: var(--color-primary);
-    color: var(--palette-white);
-    border: none;
-    border-radius: 6px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: opacity 0.2s;
-  }
-
-  .analyze-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .analyze-btn:hover:not(:disabled) {
-    opacity: 0.9;
-  }
-
-  .analyze-btn:focus-visible {
-    outline: none;
-    box-shadow: var(--shadow-focus);
-  }
-
-  .spinner {
-    width: 14px;
-    height: 14px;
-    border: 2px solid rgba(59, 130, 246, 0.25);
-    border-top-color: white;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-
-  .stats {
-    font-size: 0.85rem;
-    color: var(--color-text-muted);
-  }
-
-  .error {
-    padding: 8px 12px;
-    background: rgba(239, 68, 68, 0.15);
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    border-radius: 6px;
-    color: var(--color-danger-soft);
-    font-size: 0.85rem;
-  }
-
-  .results {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-  }
-
-  .score-section {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .score-circle {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    display: flex;
-    align-items: baseline;
-    justify-content: center;
-    gap: 2px;
-  }
-
-  .score-circle.good {
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(16, 185, 129, 0.15));
-    border: 3px solid rgba(16, 185, 129, 0.5);
-    color: var(--color-success-soft);
-  }
-
-  .score-circle.warning {
-    background: linear-gradient(135deg, rgba(234, 179, 8, 0.3), rgba(234, 179, 8, 0.15));
-    border: 3px solid rgba(234, 179, 8, 0.5);
-    color: var(--color-warning-soft);
-  }
-
-  .score-circle.poor {
-    background: linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(239, 68, 68, 0.15));
-    border: 3px solid rgba(239, 68, 68, 0.5);
-    color: var(--color-danger-soft);
-  }
-
-  .score-number {
-    font-size: 1.75rem;
-    font-weight: 700;
-  }
-
-  .score-percent {
-    font-size: 0.9rem;
-    font-weight: 500;
-  }
-
-  .score-title {
-    font-size: 0.9rem;
-    color: var(--color-text-muted);
-  }
-
-  .dimensions h4,
-  .issues h4,
-  .recommendations h4 {
-    margin: 0 0 12px 0;
-    font-size: 0.9rem;
-    color: var(--color-text-primary);
-  }
-
-  .dimension-bars {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .dimension-bar {
-    display: grid;
-    grid-template-columns: 100px 1fr 50px;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .dim-name {
-    font-size: 0.8rem;
+  .popup-title {
+    font-size: var(--text-label);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
     color: var(--color-text-tertiary);
   }
 
-  .bar-track {
-    height: 6px;
+  .popup-foot {
+    margin: 0;
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--color-border-subtle);
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+
+  /* Full panel view */
+  .error {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-danger-border);
+    background: var(--color-danger-bg);
+    color: var(--color-danger-text);
+    font-size: var(--text-xs);
+  }
+
+  .idle {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+
+  .overall {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    height: 40px;
+    padding: 0 var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .overall-label {
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+
+  .overall-score {
+    font-family: var(--font-mono);
+    font-size: var(--text-title);
+    font-weight: var(--font-semibold);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-primary);
+  }
+
+  .overall-time {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
+    color: var(--color-text-tertiary);
+  }
+
+  .bar {
+    display: block;
+    height: 4px;
     background: var(--color-bg-active);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     overflow: hidden;
   }
 
   .bar-fill {
+    display: block;
     height: 100%;
-    border-radius: 3px;
-    transition: width 0.5s ease;
   }
 
-  .bar-fill.good { background: var(--color-success); }
-  .bar-fill.warning { background: var(--palette-yellow-500); }
-  .bar-fill.poor { background: var(--color-danger); }
-
-  .dim-score {
-    font-size: 0.8rem;
-    font-weight: 600;
-    text-align: right;
-    color: var(--color-text-secondary);
+  .bar-fill.tone-success {
+    background: var(--color-success);
   }
 
-  .issue-list,
-  .rec-list {
-    list-style: none;
+  .bar-fill.tone-warning {
+    background: var(--color-warning);
+  }
+
+  .bar-fill.tone-danger {
+    background: var(--color-danger);
+  }
+
+  .section-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    height: 32px;
     margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    max-height: 300px;
-    overflow-y: auto;
-  }
-
-  .issue {
-    padding: 10px 12px;
-    border-radius: 6px;
-    border-left: 3px solid;
-  }
-
-  .issue.high {
-    background: rgba(239, 68, 68, 0.1);
-    border-left-color: var(--color-danger);
-  }
-
-  .issue.medium {
-    background: rgba(234, 179, 8, 0.1);
-    border-left-color: var(--palette-yellow-500);
-  }
-
-  .issue.low {
-    background: rgba(59, 130, 246, 0.1);
-    border-left-color: var(--palette-blue-500);
-  }
-
-  .issue-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 6px;
-  }
-
-  .issue-severity {
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 0.7rem;
-    font-weight: 600;
+    padding: 0 var(--space-3);
+    border-top: 1px solid var(--color-border-subtle);
+    font-size: var(--text-label);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-label);
     text-transform: uppercase;
-  }
-
-  .issue.high .issue-severity { background: rgba(239, 68, 68, 0.3); color: var(--color-danger-soft); }
-  .issue.medium .issue-severity { background: rgba(234, 179, 8, 0.3); color: var(--color-warning-soft); }
-  .issue.low .issue-severity { background: rgba(59, 130, 246, 0.3); color: var(--color-info-soft); }
-
-  .issue-dimension {
-    font-size: 0.8rem;
-    color: var(--color-text-muted);
-  }
-
-  .issue-field {
-    padding: 2px 6px;
-    background: var(--color-bg-surface);
-    border-radius: 4px;
-    font-size: 0.75rem;
-    font-family: monospace;
-    color: var(--color-text-secondary);
-  }
-
-  .issue-description {
-    font-size: 0.85rem;
-    color: var(--color-text-secondary);
-  }
-
-  .issue-values {
-    margin-top: 6px;
-    display: flex;
-    gap: 12px;
-    font-size: 0.8rem;
-    color: var(--color-text-muted);
-  }
-
-  .issue-values code {
-    background: rgba(0, 0, 0, 0.3);
-    padding: 2px 6px;
-    border-radius: 4px;
-  }
-
-  .rec {
-    padding: 10px 12px;
-    background: var(--color-bg-elevated);
-    border: 1px solid var(--color-border-default);
-    border-radius: 6px;
-  }
-
-  .rec-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 6px;
-  }
-
-  .rec-priority {
-    padding: 2px 6px;
-    background: rgba(168, 85, 247, 0.2);
-    border-radius: 4px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: var(--color-accent-soft);
-  }
-
-  .rec-category {
-    font-size: 0.8rem;
-    color: var(--color-text-muted);
-  }
-
-  .rec-title {
-    font-weight: 500;
-    color: var(--color-text-primary);
-  }
-
-  .rec-description {
-    font-size: 0.85rem;
     color: var(--color-text-tertiary);
   }
 
+  /* The Table renders the wrapper, so this class is not scoped to us. */
+  :global(.ui-table-wrap.quality-issues) {
+    max-height: 300px;
+  }
+
+  .issue-values {
+    margin-left: var(--space-2);
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
+    color: var(--color-text-tertiary);
+  }
+
+  .recs {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--color-border-default);
+  }
+
+  .rec {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px var(--space-3);
+  }
+
+  .rec + .rec {
+    border-top: 1px solid var(--color-border-subtle);
+  }
+
+  .rec-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+
+  .rec-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-text-primary);
+  }
+
+  .rec-category {
+    margin-left: auto;
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+    white-space: nowrap;
+  }
+
+  .rec-text {
+    margin: 0;
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+    color: var(--color-text-secondary);
+  }
+
   .rec-impact {
-    margin-top: 6px;
-    font-size: 0.8rem;
-    color: var(--color-text-muted);
-    font-style: italic;
+    margin-left: var(--space-1);
+    color: var(--color-text-tertiary);
   }
 </style>
