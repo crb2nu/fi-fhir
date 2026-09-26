@@ -1,7 +1,24 @@
 <script lang="ts">
-  import { profileStore, selectedProfile } from '$lib/features/hl7/profile/profileStore';
-  import Button from '$lib/ui/Button.svelte';
+  import ArrowRight from '@lucide/svelte/icons/arrow-right';
+  import Pencil from '@lucide/svelte/icons/pencil';
+  import Plus from '@lucide/svelte/icons/plus';
+  import Trash2 from '@lucide/svelte/icons/trash-2';
+  import {
+    Badge,
+    Button,
+    EmptyState,
+    Field,
+    Icon,
+    IconButton,
+    Input,
+    Panel,
+    Table,
+    Td,
+    Th,
+    Tr
+  } from '$lib/ui/primitives';
   import ConfirmModal from '$lib/ui/ConfirmModal.svelte';
+  import { profileStore, selectedProfile } from '$lib/features/hl7/profile/profileStore';
   import { afterUpdate, tick } from 'svelte';
   import { createDialogFocusController } from '$lib/domain/a11yDialog';
 
@@ -274,78 +291,81 @@
 <svelte:window on:keydown={handleWindowKeydown} />
 
 <div class="editor">
-  <div class="header">
-    <div>
-      <h4 class="title">Terminology Mappings</h4>
-      <p class="desc">
-        Define code mappings between local systems and standard terminologies (LOINC, SNOMED, etc.)
-      </p>
-    </div>
-    <Button variant="secondary" on:click={() => openMappingModal()}>+ Add Mapping Table</Button>
+  <div class="bar">
+    <h3 class="bar-title">Mapping tables</h3>
+    <Badge mono>{mappings.length}</Badge>
+    <span class="bar-actions">
+      <Button icon={Plus} onclick={() => openMappingModal()}>Add mapping table</Button>
+    </span>
   </div>
 
   {#if mappings.length === 0}
-    <div class="empty">
-      <p>No terminology mappings configured.</p>
-      <p class="empty-hint">
-        Add mapping tables to translate local codes to standard terminologies.
-      </p>
-    </div>
+    <EmptyState
+      align="start"
+      message="No terminology mappings. Add a mapping table to translate local codes to a standard terminology such as LOINC or SNOMED CT."
+    />
   {:else}
-    <div class="mappings-list">
-      {#each mappings as mapping, idx (mapping.id)}
-        <div class="mapping-card">
-          <div class="mapping-header">
-            <div class="mapping-info">
-              <span class="mapping-id mono">{mapping.id}</span>
-              <span class="mapping-source mono">{mapping.sourceSystem}</span>
-              <span class="mapping-arrow">-></span>
-              <span class="mapping-target mono">{mapping.targetSystem}</span>
-            </div>
-            <div class="mapping-meta">
-              <span class="entry-count">{mapping.entries.length} entries</span>
-            </div>
-          </div>
+    {#each mappings as mapping, idx (mapping.id)}
+      <Panel flush>
+        {#snippet header()}
+          <h4 class="mapping-head">
+            <span class="mapping-id text-mono" title={mapping.id}>{mapping.id}</span>
+            <span class="mapping-systems text-mono" title="{mapping.sourceSystem} to {mapping.targetSystem}">
+              <span class="mapping-system">{mapping.sourceSystem}</span>
+              <Icon icon={ArrowRight} size={12} class="mapping-arrow" />
+              <span class="mapping-system">{mapping.targetSystem}</span>
+            </span>
+          </h4>
+        {/snippet}
+        {#snippet actions()}
+          <Badge mono>{mapping.entries.length} {mapping.entries.length === 1 ? 'entry' : 'entries'}</Badge>
+          <Button variant="ghost" icon={Plus} onclick={() => openEntryModal(idx)}>Add entry</Button>
+          <IconButton icon={Pencil} label="Edit mapping table" onclick={() => openMappingModal(idx)} />
+          <IconButton
+            icon={Trash2}
+            label="Delete mapping table"
+            onclick={() => confirmDeleteMapping(idx)}
+          />
+        {/snippet}
 
-          <div class="mapping-actions">
-            <Button variant="secondary" on:click={() => openEntryModal(idx)}>+ Add Entry</Button>
-            <button class="action-btn" on:click={() => openMappingModal(idx)}>Edit</button>
-            <button class="action-btn danger" on:click={() => confirmDeleteMapping(idx)}>Delete</button>
-          </div>
-
-          {#if mapping.entries.length > 0}
-            <div class="entries-table">
-              <div class="entries-header">
-                <div class="col-source">Source Code</div>
-                <div class="col-target">Target Code</div>
-                <div class="col-display">Display</div>
-                <div class="col-actions">Actions</div>
-              </div>
-              {#each mapping.entries.slice(0, 10) as entry, entryIdx (entryIdx)}
-                <div class="entries-row">
-                  <div class="col-source mono">{entry.sourceCode}</div>
-                  <div class="col-target mono">{entry.targetCode}</div>
-                  <div class="col-display">{entry.display || '-'}</div>
-                  <div class="col-actions">
-                    <button class="icon-btn" on:click={() => openEntryModal(idx, entryIdx)}>
-                      Edit
-                    </button>
-                    <button class="icon-btn danger" on:click={() => deleteEntry(idx, entryIdx)}>
-                      Del
-                    </button>
-                  </div>
-                </div>
-              {/each}
-              {#if mapping.entries.length > 10}
-                <div class="entries-more">
-                  + {mapping.entries.length - 10} more entries
-                </div>
-              {/if}
-            </div>
+        {#if mapping.entries.length > 0}
+          <Table label="Entries in {mapping.id}" layout="fixed">
+            {#snippet head()}
+              <tr>
+                <Th width="22%">Source code</Th>
+                <Th width="22%">Target code</Th>
+                <Th>Display</Th>
+                <Th width="72px"><span class="sr-only">Actions</span></Th>
+              </tr>
+            {/snippet}
+            {#each mapping.entries.slice(0, 10) as entry, entryIdx (entryIdx)}
+              <Tr>
+                <Td mono truncate value={entry.sourceCode} />
+                <Td mono truncate value={entry.targetCode} />
+                <Td truncate muted value={entry.display || '—'} />
+                <Td class="row-actions">
+                  <IconButton
+                    icon={Pencil}
+                    label="Edit entry"
+                    onclick={() => openEntryModal(idx, entryIdx)}
+                  />
+                  <IconButton
+                    icon={Trash2}
+                    label="Delete entry"
+                    onclick={() => deleteEntry(idx, entryIdx)}
+                  />
+                </Td>
+              </Tr>
+            {/each}
+          </Table>
+          {#if mapping.entries.length > 10}
+            <p class="more text-mono">+{mapping.entries.length - 10} more entries</p>
           {/if}
-        </div>
-      {/each}
-    </div>
+        {:else}
+          <p class="more">No entries yet.</p>
+        {/if}
+      </Panel>
+    {/each}
   {/if}
 </div>
 
@@ -369,57 +389,42 @@
       tabindex="-1"
     >
       <h3 id="mapping-table-modal-title" class="modal-title">
-        {editingMappingIndex !== null ? 'Edit Mapping Table' : 'Add Mapping Table'}
+        {editingMappingIndex !== null ? 'Edit mapping table' : 'Add mapping table'}
       </h3>
       <div class="modal-body">
-        <label class="label">
-          Source System
-          <input
-            class="input mono"
-            type="text"
-            bind:value={mappingSourceSystem}
-            placeholder="e.g., LOCAL_LAB"
-          />
-          <span class="hint">Your local code system identifier</span>
-        </label>
+        <Field label="Source system" hint="Your local code system identifier.">
+          <Input mono bind:value={mappingSourceSystem} placeholder="e.g. LOCAL_LAB" />
+        </Field>
 
-        <label class="label">
-          Target System
-          <input
-            class="input mono"
-            type="text"
-            bind:value={mappingTargetSystem}
-            placeholder="e.g., http://loinc.org"
-          />
-          <div class="quick-systems">
-            {#each commonSystems as sys (sys.id)}
-              <button
-                type="button"
-                class="system-chip"
-                class:active={mappingTargetSystem === sys.uri}
-                on:click={() => (mappingTargetSystem = sys.uri)}
-              >
-                {sys.name}
-              </button>
-            {/each}
-          </div>
-        </label>
+        <Field label="Target system">
+          <Input mono bind:value={mappingTargetSystem} placeholder="e.g. http://loinc.org" />
+        </Field>
+        <div class="quick-systems" role="group" aria-label="Common target systems">
+          {#each commonSystems as sys (sys.id)}
+            <button
+              type="button"
+              class="system-option"
+              aria-pressed={mappingTargetSystem === sys.uri}
+              on:click={() => (mappingTargetSystem = sys.uri)}
+            >
+              {sys.name}
+            </button>
+          {/each}
+        </div>
 
-        <label class="label">
-          Mapping ID
-          <input
-            class="input mono"
-            type="text"
-            bind:value={mappingId}
-            placeholder="e.g., local_lab_to_loinc"
-          />
-          <span class="hint">Unique identifier for this mapping table (auto-generated from source)</span>
-        </label>
+        <Field
+          label="Mapping id"
+          hint="Unique id for this mapping table; generated from the source system."
+        >
+          <Input mono bind:value={mappingId} placeholder="e.g. local_lab_to_loinc" />
+        </Field>
       </div>
       <div class="modal-actions">
-        <Button variant="secondary" on:click={() => (showMappingModal = false)}>Cancel</Button>
+        <Button size="md" onclick={() => (showMappingModal = false)}>Cancel</Button>
         <Button
-          on:click={saveMapping}
+          variant="primary"
+          size="md"
+          onclick={saveMapping}
           disabled={!mappingId.trim() || !mappingSourceSystem.trim() || !mappingTargetSystem.trim()}
         >
           {editingMappingIndex !== null ? 'Update' : 'Create'}
@@ -449,49 +454,34 @@
       tabindex="-1"
     >
       <h3 id="mapping-entry-modal-title" class="modal-title">
-        {editingEntryIndex !== null ? 'Edit Entry' : 'Add Entry'}
+        {editingEntryIndex !== null ? 'Edit entry' : 'Add entry'}
       </h3>
       <div class="modal-body">
-        <div class="mapping-context">
-          <span class="mono">{selectedMapping.sourceSystem}</span>
-          <span>-></span>
-          <span class="mono">{selectedMapping.targetSystem}</span>
+        <p class="mapping-context text-mono">
+          <span class="mapping-system">{selectedMapping.sourceSystem}</span>
+          <Icon icon={ArrowRight} size={12} class="mapping-arrow" />
+          <span class="mapping-system">{selectedMapping.targetSystem}</span>
+        </p>
+
+        <div class="form-grid">
+          <Field label="Source code">
+            <Input mono bind:value={entrySourceCode} placeholder="e.g. GLU" />
+          </Field>
+          <Field label="Target code">
+            <Input mono bind:value={entryTargetCode} placeholder="e.g. 2345-7" />
+          </Field>
         </div>
 
-        <label class="label">
-          Source Code
-          <input
-            class="input mono"
-            type="text"
-            bind:value={entrySourceCode}
-            placeholder="e.g., GLU"
-          />
-        </label>
-
-        <label class="label">
-          Target Code
-          <input
-            class="input mono"
-            type="text"
-            bind:value={entryTargetCode}
-            placeholder="e.g., 2345-7"
-          />
-        </label>
-
-        <label class="label">
-          Display Name (optional)
-          <input
-            class="input"
-            type="text"
-            bind:value={entryDisplay}
-            placeholder="e.g., Glucose [Mass/volume] in Serum"
-          />
-        </label>
+        <Field label="Display name (optional)">
+          <Input bind:value={entryDisplay} placeholder="e.g. Glucose [Mass/volume] in Serum" />
+        </Field>
       </div>
       <div class="modal-actions">
-        <Button variant="secondary" on:click={() => (showEntryModal = false)}>Cancel</Button>
+        <Button size="md" onclick={() => (showEntryModal = false)}>Cancel</Button>
         <Button
-          on:click={saveEntry}
+          variant="primary"
+          size="md"
+          onclick={saveEntry}
           disabled={!entrySourceCode.trim() || !entryTargetCode.trim()}
         >
           {editingEntryIndex !== null ? 'Update' : 'Add'}
@@ -504,7 +494,7 @@
 <!-- Delete Mapping Confirmation Modal -->
 <ConfirmModal
   bind:open={showDeleteMappingConfirm}
-  title="Delete Mapping Table?"
+  title="Delete mapping table?"
   message="Delete this mapping table and all its entries? This cannot be undone."
   confirmText="Delete"
   variant="danger"
@@ -514,213 +504,127 @@
 <style>
   .editor {
     display: grid;
-    gap: 16px;
+    gap: var(--space-3);
   }
 
-  .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 16px;
-    flex-wrap: wrap;
+  .editor :global(.row-actions) {
+    text-align: right;
   }
 
-	  .title {
-    margin: 0 0 4px;
-    font-size: 0.95rem;
-    font-weight: 800;
-	    color: var(--color-text-primary);
-	  }
-
-	  .desc {
-    margin: 0;
-    font-size: 0.85rem;
-	    color: var(--color-text-tertiary);
-	    line-height: 1.4;
-	    max-width: 480px;
-	  }
-
-	  .empty {
-    padding: 24px;
-    text-align: center;
-    border-radius: 12px;
-	    border: 1px dashed var(--color-border-strong);
-	    color: var(--color-text-tertiary);
-	  }
-
-  .empty p {
-    margin: 0;
-  }
-
-	  .empty-hint {
-    margin-top: 8px !important;
-    font-size: 0.85rem;
-	    color: var(--color-text-muted);
-	  }
-
-  .mappings-list {
-    display: grid;
-    gap: 12px;
-  }
-
-	  .mapping-card {
-    padding: 14px;
-    border-radius: 12px;
-	    border: 1px solid var(--color-border-default);
-	    background: var(--color-bg-elevated);
-	  }
-
-  .mapping-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-    margin-bottom: 12px;
-  }
-
-  .mapping-info {
+  .bar {
     display: flex;
     align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
+    gap: var(--space-2);
   }
 
-	  .mapping-id {
-    padding: 2px 8px;
-    border-radius: 6px;
-	    background: var(--color-bg-surface);
-	    border: 1px solid var(--color-border-strong);
-	    color: var(--color-text-muted);
-	    font-size: 0.8rem;
-	    margin-right: 8px;
-	  }
-
-  .mapping-source,
-  .mapping-target {
-    font-weight: 700;
-    color: rgba(59, 130, 246, 0.95);
-  }
-
-	  .mapping-arrow {
-	    color: var(--color-text-muted);
-	  }
-
-	  .mono {
-	    font-family: var(--font-mono);
-	  }
-
-  .mapping-meta {
-    display: flex;
-    gap: 8px;
-  }
-
-	  .entry-count {
-	    font-size: 0.85rem;
-	    color: var(--color-text-muted);
-	  }
-
-  .mapping-actions {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 12px;
-  }
-
-	  .action-btn {
-    padding: 4px 10px;
-    border-radius: 6px;
-	    border: 1px solid var(--color-border-strong);
-	    background: transparent;
-	    color: var(--color-text-tertiary);
-	    font-size: 0.8rem;
-	    cursor: pointer;
-	  }
-
-	  .action-btn:hover {
-	    background: var(--color-bg-hover);
-	  }
-
-  .action-btn.danger {
-    color: rgba(239, 68, 68, 0.8);
-  }
-
-  .action-btn.danger:hover {
-    background: rgba(239, 68, 68, 0.1);
-  }
-
-	  .entries-table {
-	    border-radius: 8px;
-	    border: 1px solid var(--color-border-default);
-	    overflow: hidden;
-	  }
-
-	  .entries-header {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1.5fr auto;
-    gap: 8px;
-    padding: 8px 12px;
-	    background: var(--color-bg-elevated);
-    font-size: 0.8rem;
-    font-weight: 600;
-	    color: var(--color-text-muted);
+  .bar-title {
+    margin: 0;
+    font-size: var(--text-label);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-label);
     text-transform: uppercase;
-    letter-spacing: 0.02em;
+    color: var(--color-text-tertiary);
   }
 
-	  .entries-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1.5fr auto;
-    gap: 8px;
-    padding: 8px 12px;
-	    border-top: 1px solid var(--color-border-subtle);
-	    font-size: 0.9rem;
-	    color: var(--color-text-secondary);
-	  }
+  .bar-actions {
+    margin-left: auto;
+  }
 
-	  .entries-row:hover {
-	    background: var(--color-bg-hover);
-	  }
+  .mapping-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+    margin: 0;
+    font-weight: var(--font-normal);
+  }
 
-	  .col-display {
-	    color: var(--color-text-muted);
-	    font-size: 0.85rem;
+  .mapping-id {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-text-primary);
+    font-weight: var(--font-medium);
+  }
+
+  .mapping-systems,
+  .mapping-context {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-width: 0;
+    color: var(--color-text-tertiary);
+  }
+
+  .mapping-system {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .col-actions {
+  .editor :global(.mapping-arrow),
+  .mapping-context :global(.mapping-arrow) {
+    color: var(--color-text-muted);
+  }
+
+  .more {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+
+  .mapping-context {
+    margin: 0;
+    padding: var(--space-2);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-surface);
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+
+  .quick-systems {
     display: flex;
-    gap: 4px;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    margin-top: calc(-1 * var(--space-2));
   }
 
-	  .icon-btn {
-    padding: 2px 6px;
-    border-radius: 4px;
-    border: none;
+  .system-option {
+    height: 22px;
+    padding: 0 6px;
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-sm);
     background: transparent;
-	    color: var(--color-text-muted);
-	    font-size: 0.75rem;
-	    cursor: pointer;
-	  }
-
-	  .icon-btn:hover {
-	    color: var(--color-text-secondary);
-	    background: var(--color-bg-surface);
-	  }
-
-  .icon-btn.danger:hover {
-    color: rgba(239, 68, 68, 0.9);
-    background: rgba(239, 68, 68, 0.1);
+    color: var(--color-text-secondary);
+    font-size: var(--text-xs);
+    cursor: pointer;
+    transition: var(--transition-colors);
   }
 
-	  .entries-more {
-    padding: 8px 12px;
-    text-align: center;
-    font-size: 0.85rem;
-	    color: var(--color-text-muted);
-	    border-top: 1px solid var(--color-border-subtle);
-	  }
+  .system-option:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+
+  .system-option[aria-pressed='true'] {
+    border-color: var(--color-border-strong);
+    background: var(--color-bg-active);
+    color: var(--color-text-primary);
+  }
+
+  .system-option:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 1px;
+  }
 
   .modal-overlay {
     position: fixed;
@@ -728,111 +632,50 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    padding: var(--space-4);
+    z-index: var(--z-modal);
   }
 
-	  .modal-backdrop {
+  .modal-backdrop {
     position: absolute;
     inset: 0;
     border: 0;
     padding: 0;
-	    background: var(--modal-backdrop);
-	    cursor: default;
-	  }
+    background: var(--modal-backdrop);
+    cursor: default;
+  }
 
-	  .modal {
+  .modal {
     position: relative;
     z-index: 1;
-	    background: var(--color-bg-base);
-	    border: 1px solid var(--color-border-default);
-	    border-radius: var(--modal-radius);
-	    padding: 24px;
-	    min-width: 400px;
-	    max-width: 520px;
-	  }
+    width: 100%;
+    max-width: var(--modal-width-md);
+    background: var(--color-bg-overlay);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--modal-radius);
+    box-shadow: var(--shadow-xl);
+    outline: none;
+  }
 
-	  .modal-title {
-    margin: 0 0 16px;
-    font-size: 1.1rem;
-    font-weight: 800;
-	    color: var(--color-text-primary);
-	  }
+  .modal-title {
+    margin: 0;
+    padding: var(--space-4) var(--space-4) 0;
+    font-size: var(--text-title);
+    font-weight: var(--font-semibold);
+    color: var(--color-text-primary);
+  }
 
   .modal-body {
     display: grid;
-    gap: 14px;
-    margin-bottom: 20px;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4) var(--space-4);
   }
 
   .modal-actions {
     display: flex;
-    gap: 10px;
+    gap: var(--space-2);
     justify-content: flex-end;
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--color-border-subtle);
   }
-
-	  .label {
-	    display: grid;
-	    gap: 6px;
-	    color: var(--color-text-secondary);
-	    font-size: 0.9rem;
-	  }
-
-	  .input {
-    width: 100%;
-    padding: 10px 12px;
-	    border-radius: var(--radius-xl);
-	    border: 1px solid var(--color-border-default);
-	    background: var(--color-bg-input);
-	    color: var(--color-text-primary);
-	    outline: none;
-	    box-sizing: border-box;
-	  }
-
-	  .input:focus {
-	    border-color: var(--color-border-focus);
-	    box-shadow: var(--shadow-focus);
-	  }
-
-	  .hint {
-	    font-size: 0.8rem;
-	    color: var(--color-text-muted);
-	  }
-
-  .quick-systems {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 8px;
-  }
-
-	  .system-chip {
-    padding: 4px 10px;
-    border-radius: 6px;
-	    border: 1px solid var(--color-border-strong);
-	    background: var(--color-bg-elevated);
-	    color: var(--color-text-tertiary);
-	    font-size: 0.8rem;
-	    cursor: pointer;
-	  }
-
-	  .system-chip:hover {
-	    background: var(--color-bg-hover);
-	  }
-
-  .system-chip.active {
-    background: rgba(59, 130, 246, 0.15);
-    border-color: rgba(59, 130, 246, 0.3);
-    color: rgba(59, 130, 246, 0.95);
-  }
-
-	  .mapping-context {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 12px;
-    border-radius: 8px;
-	    background: var(--color-bg-elevated);
-	    font-size: 0.85rem;
-	    color: var(--color-text-tertiary);
-	  }
 </style>

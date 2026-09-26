@@ -25,6 +25,8 @@ export type ProfileSummary = {
   name: string;
   version: string;
   isActive: boolean;
+  updatedAt?: string | null;
+  createdBy?: string | null;
 };
 
 export type ProfileState = {
@@ -73,7 +75,9 @@ function createProfileStore() {
             id: p.id,
             name: p.name,
             version: p.version,
-            isActive: p.isActive
+            isActive: p.isActive,
+            updatedAt: p.updatedAt ?? null,
+            createdBy: p.createdBy ?? null
           })),
           loading: false
         }));

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Plus from '@lucide/svelte/icons/plus';
+  import { Badge, Button, Field, Input, Panel, Select, type SelectOption } from '$lib/ui/primitives';
   import { profileStore, selectedProfile } from '$lib/features/hl7/profile/profileStore';
 
   // Common missing segment options
@@ -17,6 +19,34 @@
   // HL7 version options
   const hl7Versions = ['2.3', '2.3.1', '2.4', '2.5', '2.5.1', '2.6', '2.7', '2.7.1', '2.8'];
 
+  const versionOptions: SelectOption[] = hl7Versions.map((v) => ({ value: v, label: v }));
+  const timezoneOptions: SelectOption[] = timezones.map((tz) => ({ value: tz, label: tz }));
+
+  type ParsingOptionKey = 'nteAnywhere' | 'extraComponents' | 'unknownSegments' | 'nonStandardDelimiters';
+
+  const parsingOptions: { key: ParsingOptionKey; label: string; desc: string }[] = [
+    {
+      key: 'nteAnywhere',
+      label: 'Allow NTE anywhere',
+      desc: 'NTE segments can appear after any segment, not just the standard positions.'
+    },
+    {
+      key: 'extraComponents',
+      label: 'Allow extra components',
+      desc: 'Fields can have more components than the spec defines.'
+    },
+    {
+      key: 'unknownSegments',
+      label: 'Allow unknown segments',
+      desc: 'Pass through segments the HL7 standard does not define, such as Z-segments.'
+    },
+    {
+      key: 'nonStandardDelimiters',
+      label: 'Allow non-standard delimiters',
+      desc: 'Accept messages with different field or component separators.'
+    }
+  ];
+
   $: hl7v2 = $selectedProfile?.hl7v2;
   $: tolerance = hl7v2?.tolerance || {
     missingSegments: [],
@@ -25,6 +55,13 @@
     unknownSegments: false,
     nonStandardDelimiters: false
   };
+
+  // Common segments first, then any custom segments already tolerated, so
+  // every selected segment has a checkbox that removes it.
+  $: segmentOptions = [
+    ...commonSegments,
+    ...tolerance.missingSegments.filter((s) => !commonSegments.includes(s))
+  ];
 
   // Update default version
   function updateDefaultVersion(version: string) {
@@ -99,343 +136,188 @@
 </script>
 
 <div class="editor">
-  <div class="section">
-    <h4 class="section-title">HL7 Settings</h4>
-    <div class="form-row">
-      <label class="label">
-        Default Version
-        <select
-          class="select"
+  <Panel title="HL7 settings" titleTag="h3">
+    <div class="form-grid">
+      <Field label="Default version">
+        <Select
+          mono
           value={hl7v2?.defaultVersion || '2.5.1'}
-          on:change={(e) => updateDefaultVersion((e.target as HTMLSelectElement).value)}
-        >
-          {#each hl7Versions as version (version)}
-            <option value={version}>{version}</option>
-          {/each}
-        </select>
-      </label>
-      <label class="label">
-        Timezone
-        <select
-          class="select"
+          options={versionOptions}
+          onchange={(e) => updateDefaultVersion(e.currentTarget.value)}
+        />
+      </Field>
+      <Field label="Timezone">
+        <Select
           value={hl7v2?.timezone || 'UTC'}
-          on:change={(e) => updateTimezone((e.target as HTMLSelectElement).value)}
-        >
-          {#each timezones as tz (tz)}
-            <option value={tz}>{tz}</option>
-          {/each}
-        </select>
-      </label>
+          options={timezoneOptions}
+          onchange={(e) => updateTimezone(e.currentTarget.value)}
+        />
+      </Field>
     </div>
-  </div>
+  </Panel>
 
-  <div class="section">
-    <h4 class="section-title">Tolerate Missing Segments</h4>
-    <p class="section-desc">
-      Select segments that can be missing from messages without generating warnings.
-    </p>
+  <Panel title="Parsing options" titleTag="h3" flush class="span-rows">
+    <ul class="options">
+      {#each parsingOptions as option (option.key)}
+        <li>
+          <label class="option">
+            <input
+              type="checkbox"
+              checked={tolerance[option.key]}
+              on:change={() => toggleOption(option.key)}
+            />
+            <span class="option-text">
+              <span class="option-label">{option.label}</span>
+              <span class="option-desc">{option.desc}</span>
+            </span>
+          </label>
+        </li>
+      {/each}
+    </ul>
+  </Panel>
+
+  <Panel title="Tolerated missing segments" titleTag="h3">
+    {#snippet actions()}
+      <Badge mono>{tolerance.missingSegments.length} selected</Badge>
+    {/snippet}
+    <p class="hint">Segments that can be missing from a message without a warning.</p>
     <div class="segment-grid">
-      {#each commonSegments as segment (segment)}
-        <label class="segment-toggle">
+      {#each segmentOptions as segment (segment)}
+        <label class="check">
           <input
             type="checkbox"
             checked={tolerance.missingSegments.includes(segment)}
             on:change={() => toggleMissingSegment(segment)}
           />
-          <span class="mono">{segment}</span>
+          <span class="text-mono">{segment}</span>
         </label>
       {/each}
     </div>
 
-    {#if tolerance.missingSegments.length > 0}
-      <div class="selected-segments">
-        <span class="selected-label">Selected:</span>
-        {#each tolerance.missingSegments as segment (segment)}
-          <button class="segment-chip" on:click={() => toggleMissingSegment(segment)}>
-            {segment} <span class="remove">x</span>
-          </button>
-        {/each}
+    <div class="add-row">
+      <div class="add-input">
+        <Input
+          mono
+          bind:value={customSegment}
+          aria-label="Custom segment"
+          placeholder="Custom segment, e.g. ZPD"
+          maxlength={4}
+          onkeydown={(e) => e.key === 'Enter' && addCustomSegment()}
+        />
       </div>
-    {/if}
-
-    <div class="custom-segment-row">
-      <input
-        class="input mono"
-        type="text"
-        bind:value={customSegment}
-        placeholder="Add custom segment (e.g., ZPD)"
-        maxlength="4"
-        on:keydown={(e) => e.key === 'Enter' && addCustomSegment()}
-      />
-      <button class="add-btn" on:click={addCustomSegment} disabled={!customSegment.trim()}>
-        Add
-      </button>
+      <Button icon={Plus} onclick={addCustomSegment} disabled={!customSegment.trim()}>Add</Button>
     </div>
-  </div>
-
-  <div class="section">
-    <h4 class="section-title">Parsing Options</h4>
-    <p class="section-desc">
-      Configure how the parser handles non-standard HL7 messages.
-    </p>
-    <div class="option-list">
-      <label class="option-toggle">
-        <input
-          type="checkbox"
-          checked={tolerance.nteAnywhere}
-          on:change={() => toggleOption('nteAnywhere')}
-        />
-        <div class="option-content">
-          <span class="option-label">Allow NTE anywhere</span>
-          <span class="option-desc">NTE segments can appear after any segment, not just the standard positions</span>
-        </div>
-      </label>
-
-      <label class="option-toggle">
-        <input
-          type="checkbox"
-          checked={tolerance.extraComponents}
-          on:change={() => toggleOption('extraComponents')}
-        />
-        <div class="option-content">
-          <span class="option-label">Allow extra components</span>
-          <span class="option-desc">Fields can have more components than defined in the spec</span>
-        </div>
-      </label>
-
-      <label class="option-toggle">
-        <input
-          type="checkbox"
-          checked={tolerance.unknownSegments}
-          on:change={() => toggleOption('unknownSegments')}
-        />
-        <div class="option-content">
-          <span class="option-label">Allow unknown segments</span>
-          <span class="option-desc">Pass through segments not defined in HL7 standard (like Z-segments)</span>
-        </div>
-      </label>
-
-      <label class="option-toggle">
-        <input
-          type="checkbox"
-          checked={tolerance.nonStandardDelimiters}
-          on:change={() => toggleOption('nonStandardDelimiters')}
-        />
-        <div class="option-content">
-          <span class="option-label">Allow non-standard delimiters</span>
-          <span class="option-desc">Accept messages with different field/component separators</span>
-        </div>
-      </label>
-    </div>
-  </div>
+  </Panel>
 </div>
 
 <style>
   .editor {
     display: grid;
-    gap: 20px;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: var(--space-3);
+    align-items: start;
   }
 
-	  .section {
-	    padding: 16px;
-	    border-radius: 12px;
-	    border: 1px solid var(--color-border-default);
-	    background: var(--color-bg-elevated);
-	  }
+  /* Two columns: settings and segments on the left, parsing options beside
+     them; one column when the pane is narrow. */
+  .editor :global(.span-rows) {
+    grid-row: span 2;
+  }
 
-	  .section-title {
-    margin: 0 0 8px;
-    font-size: 0.95rem;
-    font-weight: 800;
-	    color: var(--color-text-primary);
-	  }
-
-	  .section-desc {
-    margin: 0 0 14px;
-    font-size: 0.85rem;
-	    color: var(--color-text-tertiary);
-	    line-height: 1.4;
-	  }
-
-  .form-row {
+  .form-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
   }
 
-  @media (max-width: 600px) {
-    .form-row {
-      grid-template-columns: 1fr;
-    }
+  .hint {
+    margin: 0 0 var(--space-3);
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
   }
 
-	  .label {
-	    display: grid;
-	    gap: 6px;
-	    color: var(--color-text-secondary);
-	    font-size: 0.9rem;
-	  }
-
-	  .select {
-	    padding: 10px 12px;
-	    border-radius: 12px;
-	    border: 1px solid var(--color-border-default);
-	    background: var(--color-bg-input);
-	    color: var(--color-text-primary);
-	    outline: none;
-	  }
-
-	  .select:focus {
-	    border-color: var(--color-border-focus);
-	    box-shadow: var(--shadow-focus);
-	  }
-
-  .segment-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-    gap: 8px;
+  .options {
+    margin: 0;
+    padding: 0;
+    list-style: none;
   }
 
-	  .segment-toggle {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
-    border-radius: 8px;
-	    border: 1px solid var(--color-border-strong);
-	    background: var(--color-bg-elevated);
-	    cursor: pointer;
-	  }
-
-	  .segment-toggle:hover {
-	    background: var(--color-bg-hover);
-	  }
-
-  .segment-toggle input:checked + span {
-    color: rgba(59, 130, 246, 0.95);
+  .options li + li {
+    border-top: 1px solid var(--color-border-subtle);
   }
 
-	  .mono {
-	    font-family: var(--font-mono);
-	    color: var(--color-text-secondary);
-	    font-weight: 600;
-	  }
-
-  .selected-segments {
-    margin-top: 12px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
-  }
-
-	  .selected-label {
-	    font-size: 0.85rem;
-	    color: var(--color-text-muted);
-	  }
-
-	  .segment-chip {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 10px;
-    border-radius: 6px;
-    background: rgba(59, 130, 246, 0.15);
-    border: 1px solid rgba(59, 130, 246, 0.3);
-    color: rgba(59, 130, 246, 0.95);
-    font-size: 0.85rem;
-    font-weight: 600;
-	    font-family: var(--font-mono);
-	    cursor: pointer;
-	  }
-
-  .segment-chip:hover {
-    background: rgba(59, 130, 246, 0.25);
-  }
-
-  .segment-chip .remove {
-    opacity: 0.7;
-  }
-
-  .custom-segment-row {
-    margin-top: 12px;
-    display: flex;
-    gap: 8px;
-  }
-
-	  .input {
-    flex: 1;
-    max-width: 240px;
-    padding: 8px 12px;
-    border-radius: 10px;
-	    border: 1px solid var(--color-border-default);
-	    background: var(--color-bg-input);
-	    color: var(--color-text-primary);
-	    outline: none;
-	    text-transform: uppercase;
-	  }
-
-	  .input:focus {
-	    border-color: var(--color-border-focus);
-	    box-shadow: var(--shadow-focus);
-	  }
-
-	  .add-btn {
-    padding: 8px 14px;
-    border-radius: 10px;
-	    border: 1px solid var(--color-border-strong);
-	    background: var(--color-bg-surface);
-	    color: var(--color-text-primary);
-	    font-weight: 600;
-	    cursor: pointer;
-	  }
-
-	  .add-btn:hover:not(:disabled) {
-	    background: var(--color-bg-hover);
-	  }
-
-  .add-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .option-list {
-    display: grid;
-    gap: 10px;
-  }
-
-	  .option-toggle {
+  .option {
     display: flex;
     align-items: flex-start;
-    gap: 12px;
-    padding: 12px 14px;
-    border-radius: 10px;
-	    border: 1px solid var(--color-border-default);
-	    background: var(--color-bg-elevated);
-	    cursor: pointer;
-	  }
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    cursor: pointer;
+  }
 
-	  .option-toggle:hover {
-	    background: var(--color-bg-hover);
-	  }
+  .option:hover {
+    background: var(--color-bg-hover);
+  }
 
-  .option-toggle input {
+  .option input,
+  .check input {
+    margin: 0;
+    accent-color: var(--color-primary);
+  }
+
+  .option input {
     margin-top: 2px;
   }
 
-  .option-content {
+  .option-text {
     display: grid;
     gap: 2px;
+    min-width: 0;
   }
 
-	  .option-label {
-	    color: var(--color-text-primary);
-	    font-weight: 650;
-	  }
+  .option-label {
+    font-size: var(--text-ui);
+    color: var(--color-text-primary);
+  }
 
-	  .option-desc {
-	    font-size: 0.85rem;
-	    color: var(--color-text-muted);
-	    line-height: 1.35;
-	  }
+  .option-desc {
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+    color: var(--color-text-tertiary);
+  }
+
+  .segment-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .check {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    height: 24px;
+    font-size: var(--text-ui);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .add-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+  }
+
+  .add-input {
+    width: 220px;
+  }
+
+  .add-input :global(.ui-input) {
+    text-transform: uppercase;
+  }
+
+  .add-input :global(.ui-input::placeholder) {
+    text-transform: none;
+  }
 </style>

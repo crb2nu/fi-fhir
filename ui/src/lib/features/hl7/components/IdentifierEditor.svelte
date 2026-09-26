@@ -1,6 +1,22 @@
 <script lang="ts">
+  import Pencil from '@lucide/svelte/icons/pencil';
+  import Plus from '@lucide/svelte/icons/plus';
+  import Trash2 from '@lucide/svelte/icons/trash-2';
+  import {
+    Button,
+    EmptyState,
+    Field,
+    IconButton,
+    Input,
+    Panel,
+    Select,
+    Table,
+    Td,
+    Th,
+    Tr,
+    type SelectOption
+  } from '$lib/ui/primitives';
   import { profileStore, selectedProfile } from '$lib/features/hl7/profile/profileStore';
-  import Button from '$lib/ui/Button.svelte';
   import { afterUpdate, tick } from 'svelte';
   import { createDialogFocusController } from '$lib/domain/a11yDialog';
 
@@ -201,180 +217,135 @@
       }
     });
   }
+
+  const validationTypes: { key: 'npi' | 'mbi' | 'ssn'; label: string }[] = [
+    { key: 'npi', label: 'NPI' },
+    { key: 'mbi', label: 'MBI' },
+    { key: 'ssn', label: 'SSN' }
+  ];
+
+  const onInvalidOptions: SelectOption[] = [
+    { value: 'pass', label: 'Pass' },
+    { value: 'warn', label: 'Warn' },
+    { value: 'error', label: 'Error' }
+  ];
 </script>
 
 <svelte:window on:keydown={handleWindowKeydown} />
 
 <div class="editor">
-  <div class="section">
-    <h4 class="section-title">Identifier Validation</h4>
-    <p class="section-desc">
-      Configure validation rules for common healthcare identifiers.
-    </p>
+  <Panel title="Identifier validation" titleTag="h3" flush>
+    <Table label="Identifier validation" layout="fixed">
+      {#snippet head()}
+        <tr>
+          <Th width="96px">Identifier</Th>
+          <Th width="120px">Validate</Th>
+          <Th>On invalid</Th>
+        </tr>
+      {/snippet}
+      {#each validationTypes as type (type.key)}
+        <Tr>
+          <Td mono value={type.label} />
+          <Td>
+            <label class="check">
+              <input
+                type="checkbox"
+                checked={validation[type.key].enabled}
+                on:change={(e) =>
+                  updateValidation(type.key, 'enabled', (e.target as HTMLInputElement).checked)}
+              />
+              Enabled
+            </label>
+          </Td>
+          <Td>
+            <div class="on-invalid">
+              <Select
+                aria-label="{type.label} on invalid"
+                value={validation[type.key].onInvalid}
+                options={onInvalidOptions}
+                onchange={(e) => updateValidation(type.key, 'onInvalid', e.currentTarget.value)}
+              />
+            </div>
+          </Td>
+        </Tr>
+      {/each}
+    </Table>
+  </Panel>
 
-    <div class="validation-grid">
-      <div class="validation-row">
-        <div class="id-type mono">NPI</div>
-        <label class="toggle">
-          <input
-            type="checkbox"
-            checked={validation.npi.enabled}
-            on:change={(e) =>
-              updateValidation('npi', 'enabled', (e.target as HTMLInputElement).checked)}
-          />
-          <span>Enabled</span>
-        </label>
-        <label class="select-label">
-          On invalid:
-          <select
-            class="select-small"
-            value={validation.npi.onInvalid}
-            on:change={(e) =>
-              updateValidation('npi', 'onInvalid', (e.target as HTMLSelectElement).value)}
-          >
-            <option value="pass">Pass</option>
-            <option value="warn">Warn</option>
-            <option value="error">Error</option>
-          </select>
-        </label>
-      </div>
-
-      <div class="validation-row">
-        <div class="id-type mono">MBI</div>
-        <label class="toggle">
-          <input
-            type="checkbox"
-            checked={validation.mbi.enabled}
-            on:change={(e) =>
-              updateValidation('mbi', 'enabled', (e.target as HTMLInputElement).checked)}
-          />
-          <span>Enabled</span>
-        </label>
-        <label class="select-label">
-          On invalid:
-          <select
-            class="select-small"
-            value={validation.mbi.onInvalid}
-            on:change={(e) =>
-              updateValidation('mbi', 'onInvalid', (e.target as HTMLSelectElement).value)}
-          >
-            <option value="pass">Pass</option>
-            <option value="warn">Warn</option>
-            <option value="error">Error</option>
-          </select>
-        </label>
-      </div>
-
-      <div class="validation-row">
-        <div class="id-type mono">SSN</div>
-        <label class="toggle">
-          <input
-            type="checkbox"
-            checked={validation.ssn.enabled}
-            on:change={(e) =>
-              updateValidation('ssn', 'enabled', (e.target as HTMLInputElement).checked)}
-          />
-          <span>Enabled</span>
-        </label>
-        <label class="select-label">
-          On invalid:
-          <select
-            class="select-small"
-            value={validation.ssn.onInvalid}
-            on:change={(e) =>
-              updateValidation('ssn', 'onInvalid', (e.target as HTMLSelectElement).value)}
-          >
-            <option value="pass">Pass</option>
-            <option value="warn">Warn</option>
-            <option value="error">Error</option>
-          </select>
-        </label>
-      </div>
-    </div>
-  </div>
-
-  <div class="section">
-    <h4 class="section-title">Normalization</h4>
-    <p class="section-desc">
-      Configure how identifiers are cleaned and normalized.
-    </p>
-
+  <Panel title="Normalization" titleTag="h3">
     <div class="norm-options">
-      <label class="option-toggle">
+      <label class="option">
         <input
           type="checkbox"
           checked={normalization.ssnStripDashes}
           on:change={(e) =>
             updateNormalization('ssnStripDashes', (e.target as HTMLInputElement).checked)}
         />
-        <div class="option-content">
+        <span class="option-text">
           <span class="option-label">Strip dashes from SSN</span>
-          <span class="option-desc">Convert "123-45-6789" to "123456789"</span>
-        </div>
+          <span class="option-desc">Convert <span class="text-mono">123-45-6789</span> to <span class="text-mono">123456789</span>.</span>
+        </span>
       </label>
 
-      <label class="option-toggle">
+      <label class="option">
         <input
           type="checkbox"
           checked={normalization.phoneNormalize}
           on:change={(e) =>
             updateNormalization('phoneNormalize', (e.target as HTMLInputElement).checked)}
         />
-        <div class="option-content">
+        <span class="option-text">
           <span class="option-label">Normalize phone numbers</span>
-          <span class="option-desc">Strip formatting characters from phone numbers</span>
-        </div>
+          <span class="option-desc">Strip formatting characters from phone numbers.</span>
+        </span>
       </label>
     </div>
 
-    <label class="label">
-      SSN reject patterns (comma-separated)
-      <input
-        class="input mono"
-        type="text"
+    <Field label="SSN reject patterns" hint="Comma-separated. SSNs matching these patterns are rejected.">
+      <Input
+        mono
         value={ssnRejectText}
-        on:input={(e) => updateSSNRejectPatterns((e.target as HTMLInputElement).value)}
-        placeholder="e.g., 000*, *0000, 123456789"
+        oninput={(e) => updateSSNRejectPatterns(e.currentTarget.value)}
+        placeholder="e.g. 000*, *0000, 123456789"
       />
-      <span class="hint">SSNs matching these patterns will be rejected</span>
-    </label>
-  </div>
+    </Field>
+  </Panel>
 
   {#if showAdvanced}
-    <div class="section">
-      <div class="section-header">
-        <h4 class="section-title">Assigning Authorities</h4>
-        <Button variant="secondary" on:click={() => openAAModal()}>+ Add</Button>
-      </div>
-      <p class="section-desc">
-        Map local assigning authority codes to standard OID systems.
-      </p>
+    <Panel title="Assigning authorities" titleTag="h3" flush class="span-all">
+      {#snippet actions()}
+        <Button variant="ghost" icon={Plus} onclick={() => openAAModal()}>Add</Button>
+      {/snippet}
 
       {#if assigningAuthorities.length === 0}
-        <div class="empty">No assigning authorities configured.</div>
+        <EmptyState
+          align="start"
+          message="No assigning authorities. Add one to map a local authority code to an OID or URI."
+        />
       {:else}
-        <div class="aa-list">
+        <Table label="Assigning authorities" layout="fixed">
+          {#snippet head()}
+            <tr>
+              <Th width="120px">Code</Th>
+              <Th>System</Th>
+              <Th width="28%">Name</Th>
+              <Th width="72px"><span class="sr-only">Actions</span></Th>
+            </tr>
+          {/snippet}
           {#each assigningAuthorities as aa (aa.code)}
-            <div class="aa-item">
-              <div class="aa-code mono">{aa.code}</div>
-              <div class="aa-arrow">-></div>
-              <div class="aa-system">{aa.system}</div>
-              {#if aa.name}
-                <div class="aa-name">({aa.name})</div>
-              {/if}
-              <div class="aa-actions">
-                <button class="icon-btn" on:click={() => openAAModal(aa)} title="Edit">
-                  Edit
-                </button>
-                <button class="icon-btn danger" on:click={() => deleteAA(aa.code)} title="Delete">
-                  Delete
-                </button>
-              </div>
-            </div>
+            <Tr>
+              <Td mono truncate value={aa.code} />
+              <Td mono truncate value={aa.system} />
+              <Td truncate muted={!aa.name} value={aa.name || '—'} />
+              <Td class="row-actions">
+                <IconButton icon={Pencil} label="Edit" onclick={() => openAAModal(aa)} />
+                <IconButton icon={Trash2} label="Delete" onclick={() => deleteAA(aa.code)} />
+              </Td>
+            </Tr>
           {/each}
-        </div>
+        </Table>
       {/if}
-    </div>
+    </Panel>
   {/if}
 </div>
 
@@ -397,38 +368,27 @@
       tabindex="-1"
     >
       <h3 id="assigning-authority-modal-title" class="modal-title">
-        {editingAA ? 'Edit Assigning Authority' : 'Add Assigning Authority'}
+        {editingAA ? 'Edit assigning authority' : 'Add assigning authority'}
       </h3>
       <div class="modal-body">
-        <label class="label">
-          Code
-          <input
-            class="input mono"
-            type="text"
-            bind:value={aaCode}
-            placeholder="e.g., EPIC"
-            disabled={!!editingAA}
-          />
-          <span class="hint">The local identifier for this authority</span>
-        </label>
-        <label class="label">
-          System (OID/URI)
-          <input
-            class="input mono"
-            type="text"
-            bind:value={aaSystem}
-            placeholder="e.g., urn:oid:1.2.840.114350.1.13..."
-          />
-          <span class="hint">The standard system identifier</span>
-        </label>
-        <label class="label">
-          Display Name (optional)
-          <input class="input" type="text" bind:value={aaName} placeholder="e.g., Epic Systems" />
-        </label>
+        <Field label="Code" hint="The local identifier for this authority.">
+          <Input mono bind:value={aaCode} placeholder="e.g. EPIC" disabled={!!editingAA} />
+        </Field>
+        <Field label="System (OID or URI)" hint="The standard system identifier.">
+          <Input mono bind:value={aaSystem} placeholder="e.g. urn:oid:1.2.840.114350.1.13" />
+        </Field>
+        <Field label="Display name (optional)">
+          <Input bind:value={aaName} placeholder="e.g. Epic Systems" />
+        </Field>
       </div>
       <div class="modal-actions">
-        <Button variant="secondary" on:click={() => (showAAModal = false)}>Cancel</Button>
-        <Button on:click={saveAA} disabled={!aaCode.trim() || !aaSystem.trim()}>
+        <Button size="md" onclick={() => (showAAModal = false)}>Cancel</Button>
+        <Button
+          variant="primary"
+          size="md"
+          onclick={saveAA}
+          disabled={!aaCode.trim() || !aaSystem.trim()}
+        >
           {editingAA ? 'Update' : 'Add'}
         </Button>
       </div>
@@ -439,244 +399,71 @@
 <style>
   .editor {
     display: grid;
-    gap: 20px;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: var(--space-3);
+    align-items: start;
   }
 
-	  .section {
-	    padding: 16px;
-	    border-radius: 12px;
-	    border: 1px solid var(--color-border-default);
-	    background: var(--color-bg-elevated);
-	  }
+  .editor :global(.span-all) {
+    grid-column: 1 / -1;
+  }
 
-  .section-header {
-    display: flex;
-    justify-content: space-between;
+  .editor :global(.row-actions) {
+    text-align: right;
+  }
+
+  .check {
+    display: inline-flex;
     align-items: center;
-    margin-bottom: 8px;
+    gap: var(--space-2);
+    font-size: var(--text-ui);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    user-select: none;
   }
 
-	  .section-title {
-    margin: 0 0 8px;
-    font-size: 0.95rem;
-    font-weight: 800;
-	    color: var(--color-text-primary);
-	  }
-
-  .section-header .section-title {
+  .check input,
+  .option input {
     margin: 0;
+    accent-color: var(--color-primary);
   }
 
-	  .section-desc {
-    margin: 0 0 14px;
-    font-size: 0.85rem;
-	    color: var(--color-text-tertiary);
-	    line-height: 1.4;
-	  }
-
-  .validation-grid {
-    display: grid;
-    gap: 10px;
+  .on-invalid {
+    max-width: 160px;
   }
-
-	  .validation-row {
-    display: grid;
-    grid-template-columns: 60px 1fr 1fr;
-    gap: 14px;
-    align-items: center;
-    padding: 12px 14px;
-    border-radius: 10px;
-	    border: 1px solid var(--color-border-default);
-	    background: var(--color-bg-elevated);
-	  }
-
-  @media (max-width: 500px) {
-    .validation-row {
-      grid-template-columns: 1fr;
-      gap: 10px;
-    }
-  }
-
-	  .id-type {
-	    font-weight: 800;
-	    color: var(--color-text-secondary);
-	  }
-
-	  .mono {
-	    font-family: var(--font-mono);
-	  }
-
-	  .toggle {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-	    color: var(--color-text-secondary);
-	    font-weight: 600;
-	    cursor: pointer;
-	  }
-
-	  .select-label {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-	    color: var(--color-text-tertiary);
-	    font-size: 0.9rem;
-	  }
-
-	  .select-small {
-	    padding: 6px 10px;
-	    border-radius: 8px;
-	    border: 1px solid var(--color-border-default);
-	    background: var(--color-bg-input);
-	    color: var(--color-text-primary);
-	    outline: none;
-	    font-size: 0.9rem;
-	  }
-
-	  .select-small:focus {
-	    border-color: var(--color-border-focus);
-	  }
 
   .norm-options {
     display: grid;
-    gap: 10px;
-    margin-bottom: 14px;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
   }
 
-	  .option-toggle {
+  .option {
     display: flex;
     align-items: flex-start;
-    gap: 12px;
-    padding: 12px 14px;
-    border-radius: 10px;
-	    border: 1px solid var(--color-border-default);
-	    background: var(--color-bg-elevated);
-	    cursor: pointer;
-	  }
+    gap: var(--space-2);
+    cursor: pointer;
+  }
 
-	  .option-toggle:hover {
-	    background: var(--color-bg-hover);
-	  }
-
-  .option-toggle input {
+  .option input {
     margin-top: 2px;
   }
 
-  .option-content {
+  .option-text {
     display: grid;
     gap: 2px;
+    min-width: 0;
   }
 
-	  .option-label {
-	    color: var(--color-text-primary);
-	    font-weight: 650;
-	  }
-
-	  .option-desc {
-	    font-size: 0.85rem;
-	    color: var(--color-text-muted);
-	    line-height: 1.35;
-	  }
-
-	  .label {
-	    display: grid;
-	    gap: 6px;
-	    color: var(--color-text-secondary);
-	    font-size: 0.9rem;
-	  }
-
-	  .input {
-	    padding: 10px 12px;
-	    border-radius: var(--radius-xl);
-	    border: 1px solid var(--color-border-default);
-	    background: var(--color-bg-input);
-	    color: var(--color-text-primary);
-	    outline: none;
-	  }
-
-	  .input:focus {
-	    border-color: var(--color-border-focus);
-	    box-shadow: var(--shadow-focus);
-	  }
-
-  .input:disabled {
-    opacity: 0.6;
+  .option-label {
+    font-size: var(--text-ui);
+    color: var(--color-text-primary);
   }
 
-	  .hint {
-	    font-size: 0.8rem;
-	    color: var(--color-text-muted);
-	  }
-
-	  .empty {
-	    padding: 16px;
-	    text-align: center;
-	    color: var(--color-text-muted);
-	    font-style: italic;
-	  }
-
-  .aa-list {
-    display: grid;
-    gap: 8px;
-  }
-
-	  .aa-item {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    padding: 10px 14px;
-    border-radius: 10px;
-	    border: 1px solid var(--color-border-default);
-	    background: var(--color-bg-elevated);
-	    flex-wrap: wrap;
-	  }
-
-  .aa-code {
-    font-weight: 700;
-    color: rgba(59, 130, 246, 0.95);
-  }
-
-	  .aa-arrow {
-	    color: var(--color-text-muted);
-	  }
-
-	  .aa-system {
-    flex: 1;
-    font-size: 0.9rem;
-	    color: var(--color-text-secondary);
-	    word-break: break-all;
-	  }
-
-	  .aa-name {
-	    font-size: 0.85rem;
-	    color: var(--color-text-muted);
-	  }
-
-  .aa-actions {
-    display: flex;
-    gap: 6px;
-  }
-
-	  .icon-btn {
-	    padding: 4px 10px;
-	    border-radius: 6px;
-	    border: 1px solid var(--color-border-strong);
-	    background: transparent;
-	    color: var(--color-text-tertiary);
-	    font-size: 0.8rem;
-	    cursor: pointer;
-	  }
-
-	  .icon-btn:hover {
-	    background: var(--color-bg-hover);
-	  }
-
-  .icon-btn.danger {
-    color: rgba(239, 68, 68, 0.8);
-  }
-
-  .icon-btn.danger:hover {
-    background: rgba(239, 68, 68, 0.1);
+  .option-desc {
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+    color: var(--color-text-tertiary);
   }
 
   .modal-overlay {
@@ -685,45 +472,50 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    padding: var(--space-4);
+    z-index: var(--z-modal);
   }
 
-	  .modal-backdrop {
+  .modal-backdrop {
     position: absolute;
     inset: 0;
     border: 0;
     padding: 0;
-	    background: var(--modal-backdrop);
-	    cursor: default;
-	  }
+    background: var(--modal-backdrop);
+    cursor: default;
+  }
 
-	  .modal {
+  .modal {
     position: relative;
     z-index: 1;
-	    background: var(--color-bg-base);
-	    border: 1px solid var(--color-border-default);
-	    border-radius: var(--modal-radius);
-	    padding: 24px;
-	    min-width: 360px;
-	    max-width: 520px;
-	  }
+    width: 100%;
+    max-width: var(--modal-width-md);
+    background: var(--color-bg-overlay);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--modal-radius);
+    box-shadow: var(--shadow-xl);
+    outline: none;
+  }
 
-	  .modal-title {
-    margin: 0 0 16px;
-    font-size: 1.1rem;
-    font-weight: 800;
-	    color: var(--color-text-primary);
-	  }
+  .modal-title {
+    margin: 0;
+    padding: var(--space-4) var(--space-4) 0;
+    font-size: var(--text-title);
+    font-weight: var(--font-semibold);
+    color: var(--color-text-primary);
+  }
 
   .modal-body {
     display: grid;
-    gap: 14px;
-    margin-bottom: 20px;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4) var(--space-4);
   }
 
   .modal-actions {
     display: flex;
-    gap: 10px;
+    gap: var(--space-2);
     justify-content: flex-end;
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--color-border-subtle);
   }
 </style>

@@ -1,7 +1,13 @@
+<!--
+  ProfileDiffModal — the YAML line diff between the published profile and the
+  local draft, shown inside the publish dialog. Compact mono list: additions
+  on a success tint, removals on a danger tint, context lines muted. Long
+  unchanged runs fold into one "N unchanged lines" row.
+-->
 <script lang="ts">
   import { toSourceProfileYAML } from '../hl7/profile/yaml';
   import type { SourceProfile } from '$lib/gen/graphql';
-  import { lineDiff } from './profileDiff';
+  import { collapseUnchanged, lineDiff } from './profileDiff';
 
   export let original: SourceProfile;
   export let draft: SourceProfile;
@@ -10,83 +16,135 @@
   $: draftYaml = toSourceProfileYAML(draft);
 
   $: diff = lineDiff(originalYaml, draftYaml);
+  $: rows = collapseUnchanged(diff);
+  $: added = diff.filter((line) => line.type === 'added').length;
+  $: removed = diff.filter((line) => line.type === 'removed').length;
 </script>
 
-<div class="diff-container">
-  <div class="diff-header">
-    <h3>Review Profile Changes</h3>
-    <p>Comparing live version (v{original.version}) with your local draft.</p>
+<section class="diff" aria-labelledby="profile-diff-title">
+  <div class="diff-head">
+    <h4 id="profile-diff-title" class="diff-title">Changes against v{original.version}</h4>
+    <span class="diff-counts text-mono">
+      <span class="count-added">+{added}</span>
+      <span class="count-removed">−{removed}</span>
+    </span>
   </div>
 
-  <div class="diff-body mono">
-    {#each diff as line, i (i)}
-      <div class="line {line.type}">
-        <span class="prefix">
-          {#if line.type === 'added'}+{:else if line.type === 'removed'}-{:else}&nbsp;{/if}
-        </span>
-        <span class="content">{line.text || ''}</span>
-      </div>
+  <div class="diff-body" role="list">
+    {#each rows as line, i (i)}
+      {#if line.type === 'skip'}
+        <div class="line line--skip" role="listitem">
+          <span class="prefix" aria-hidden="true">&nbsp;</span>
+          <span class="content">{line.count} unchanged lines</span>
+        </div>
+      {:else}
+        <div class="line line--{line.type}" role="listitem">
+          <span class="prefix" aria-hidden="true">
+            {#if line.type === 'added'}+{:else if line.type === 'removed'}-{:else}&nbsp;{/if}
+          </span>
+          <span class="sr-only">
+            {#if line.type === 'added'}Added:{:else if line.type === 'removed'}Removed:{/if}
+          </span>
+          <span class="content">{line.text || ''}</span>
+        </div>
+      {/if}
     {/each}
   </div>
-
-</div>
+</section>
 
 <style>
-  .diff-container {
+  .diff {
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
-    max-height: 80vh;
+    gap: var(--space-2);
+    min-width: 0;
   }
 
-  .diff-header h3 {
-    margin: 0 0 4px;
-    color: var(--color-text-primary);
+  .diff-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
   }
 
-  .diff-header p {
+  .diff-title {
     margin: 0;
-    font-size: var(--text-sm);
-    color: var(--color-text-secondary);
+    font-size: var(--text-label);
+    font-weight: var(--font-medium);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--color-text-tertiary);
+  }
+
+  .diff-counts {
+    display: inline-flex;
+    gap: var(--space-2);
+    margin-left: auto;
+  }
+
+  .count-added {
+    color: var(--color-success-text);
+  }
+
+  .count-removed {
+    color: var(--color-danger-text);
   }
 
   .diff-body {
-    background: var(--color-bg-surface);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-lg);
-    padding: var(--space-2) 0;
-    overflow-y: auto;
-    font-size: var(--text-xs);
-    line-height: 1.4;
+    max-height: 280px;
+    overflow: auto;
+    padding: var(--space-1) 0;
+    background: var(--color-bg-input);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
+    line-height: 1.5;
   }
 
   .line {
     display: flex;
-    padding: 0 var(--space-3);
+    padding: 0 var(--space-2);
     white-space: pre-wrap;
     word-break: break-all;
   }
 
-  .line.added {
-    background: rgba(16, 185, 129, 0.1);
-    color: var(--palette-emerald-400);
+  .line--added {
+    background: var(--color-success-bg);
+    color: var(--color-success-text);
   }
 
-  .line.removed {
-    background: rgba(239, 68, 68, 0.1);
-    color: var(--color-danger-soft);
-    text-decoration: line-through;
+  .line--removed {
+    background: var(--color-danger-bg);
+    color: var(--color-danger-text);
   }
 
-  .line.same {
+  .line--same {
     color: var(--color-text-tertiary);
   }
 
-  .prefix {
-    width: 20px;
-    user-select: none;
-    opacity: 0.5;
+  .line--skip {
+    color: var(--color-text-muted);
+    font-family: var(--font-ui);
+    font-size: var(--text-xs);
+    border-block: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-surface);
   }
 
-  .mono { font-family: var(--font-mono); }
+  .line--skip:first-child {
+    border-top: 0;
+  }
+
+  .line--skip:last-child {
+    border-bottom: 0;
+  }
+
+  .prefix {
+    flex: 0 0 16px;
+    user-select: none;
+    opacity: 0.7;
+  }
+
+  .content {
+    min-width: 0;
+  }
 </style>

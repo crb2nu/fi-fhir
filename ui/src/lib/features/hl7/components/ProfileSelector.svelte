@@ -1,20 +1,57 @@
+<!--
+  ProfileSelector — picks the source profile the builder edits and owns the
+  profile lifecycle dialogs (new, duplicate, delete, save revision, discard
+  guard).
+
+  layout="select" (default): a compact row — Select, Active only, actions.
+    Used by the HL7 intake profile draft panel.
+  layout="table": a filters row and a profiles Table for /profiles. New,
+    Duplicate and Delete are driven by the page toolbar through the exported
+    openNew/openDuplicate/openDelete; publishing is the page's job.
+
+  Every selection goes through requestSelect, which asks to discard unsaved
+  builder or YAML changes (`externalDirty`) before switching.
+-->
 <script lang="ts">
-  import Button from '$lib/ui/Button.svelte';
+  import Plus from '@lucide/svelte/icons/plus';
+  import RefreshCw from '@lucide/svelte/icons/refresh-cw';
+  import CircleAlert from '@lucide/svelte/icons/circle-alert';
   import ConfirmModal from '$lib/ui/ConfirmModal.svelte';
+  import {
+    Badge,
+    Button,
+    EmptyState,
+    Field,
+    Icon,
+    Input,
+    Select,
+    Table,
+    Td,
+    Textarea,
+    Th,
+    Tr
+  } from '$lib/ui/primitives';
   import {
     profileStore,
     profileList,
     selectedProfile,
     isLoading,
     isSaving,
-    isDirty
+    isDirty,
+    profileError,
+    type ProfileSummary
   } from '$lib/features/hl7/profile/profileStore';
   import { afterUpdate, onMount, tick } from 'svelte';
   import { createDialogFocusController } from '$lib/domain/a11yDialog';
+  import { formatProfileTimestamp } from '$lib/features/profiles/profileFormat';
 
   // Props
   export let onProfileChange: ((profileId: string | null) => void) | undefined = undefined;
   export let externalDirty: boolean = false;
+  export let layout: 'select' | 'table' = 'select';
+
+  // The list query returns timestamps; the store keeps them only when it maps them.
+  type ProfileRow = ProfileSummary & { updatedAt?: string | null };
 
   // Local state
   let activeOnly = true;
@@ -30,6 +67,7 @@
   let duplicateId = '';
   let duplicateName = '';
   let hasUnsavedChanges = false;
+  let selectValue = '';
 
   let newModalEl: HTMLDivElement | null = null;
   let duplicateModalEl: HTMLDivElement | null = null;
@@ -46,22 +84,43 @@
     profileStore.loadProfiles(activeOnly);
   });
 
-  // Handle selection change
-  async function handleSelect(event: Event) {
-    const target = event.target as HTMLSelectElement;
-    const value = target.value;
+  function refresh() {
+    profileStore.loadProfiles(activeOnly);
+  }
+
+  // Keep the compact select in step with the store.
+  $: selectValue = $selectedProfile?.id ?? '';
+
+  $: rows = $profileList as ProfileRow[];
+  $: hasUpdated = rows.some((row) => Boolean(row.updatedAt));
+
+  /**
+   * Switch to another profile, asking first when the builder or YAML has
+   * unsaved changes. The one path every selection control goes through.
+   */
+  async function requestSelect(profileId: string | null) {
+    if (profileId === ($selectedProfile?.id ?? null)) return;
 
     if ($isDirty || externalDirty) {
       // Store the pending selection and show confirm modal
-      pendingProfileId = value || null;
-      // Reset the select to the current value while modal is shown
-      target.value = $selectedProfile?.id || '';
+      pendingProfileId = profileId;
       showDiscardConfirm = true;
       return;
     }
 
-    await profileStore.selectProfile(value || null);
-    onProfileChange?.(value || null);
+    await profileStore.selectProfile(profileId);
+    onProfileChange?.(profileId);
+  }
+
+  // Handle selection change from the compact select
+  async function handleSelect(event: Event) {
+    const value = (event.currentTarget as HTMLSelectElement).value;
+    if ($isDirty || externalDirty) {
+      // Put the select back on the current profile while the modal is shown.
+      await tick();
+      selectValue = $selectedProfile?.id ?? '';
+    }
+    await requestSelect(value || null);
   }
 
   // Handle confirmed discard of changes
@@ -70,6 +129,26 @@
     await profileStore.selectProfile(pendingProfileId);
     onProfileChange?.(pendingProfileId);
     pendingProfileId = null;
+  }
+
+  /** Open the New profile dialog (page toolbar entry point). */
+  export function openNew() {
+    if ($isLoading || hasUnsavedChanges) return;
+    showNewModal = true;
+  }
+
+  /** Open the Duplicate dialog for the selected profile. */
+  export function openDuplicate() {
+    if (!$selectedProfile || $isLoading || hasUnsavedChanges) return;
+    duplicateId = '';
+    duplicateName = $selectedProfile.name + ' (Copy)';
+    showDuplicateModal = true;
+  }
+
+  /** Open the Delete confirmation for the selected profile. */
+  export function openDelete() {
+    if (!$selectedProfile || $isLoading || hasUnsavedChanges) return;
+    showDeleteConfirm = true;
   }
 
   // Create new profile
@@ -205,87 +284,152 @@
 
 <svelte:window on:keydown={handleWindowKeydown} />
 
-<div class="selector-row">
-  <div class="select-wrapper">
-    <select
-      class="select"
-      value={$selectedProfile?.id || ''}
-      on:change={handleSelect}
-      disabled={$isLoading}
-    >
-      <option value="">Select a profile...</option>
-      {#each $profileList as profile (profile.id)}
-        <option value={profile.id}>{profile.name} (v{profile.version})</option>
-      {/each}
-    </select>
-    {#if $isLoading}
-      <span class="loading-indicator">Loading...</span>
+{#if layout === 'table'}
+  <div class="profile-table">
+    <div class="filters">
+      <label class="check">
+        <input
+          type="checkbox"
+          bind:checked={activeOnly}
+          on:change={refresh}
+          disabled={$isLoading}
+        />
+        Active only
+      </label>
+      <Button variant="ghost" icon={RefreshCw} onclick={refresh} disabled={$isLoading}>
+        Refresh
+      </Button>
+      <span class="count text-mono">
+        {#if $isLoading && rows.length === 0}
+          Loading
+        {:else}
+          {rows.length} {rows.length === 1 ? 'profile' : 'profiles'}
+        {/if}
+      </span>
+    </div>
+
+    {#if $profileError}
+      <p class="note note--danger" role="alert">
+        <Icon icon={CircleAlert} class="note-icon" />
+        <span>{$profileError}</span>
+      </p>
+    {/if}
+
+    {#if rows.length === 0}
+      {#if !$isLoading}
+        <EmptyState
+          align="start"
+          message={activeOnly
+            ? 'No active profiles. Clear Active only to list inactive ones.'
+            : 'No source profiles yet.'}
+        />
+      {/if}
+    {:else}
+      <Table label="Source profiles" layout="fixed" class="profile-table-grid">
+        {#snippet head()}
+          <tr>
+            <Th>Name</Th>
+            <Th width="144px">Id</Th>
+            <Th width="64px">Version</Th>
+            <Th width="80px">Status</Th>
+            {#if hasUpdated}
+              <Th width="96px">Updated</Th>
+            {/if}
+          </tr>
+        {/snippet}
+        {#each rows as profile (profile.id)}
+          <Tr
+            selectable
+            selected={profile.id === $selectedProfile?.id}
+            onselect={() => requestSelect(profile.id)}
+          >
+            <Td truncate value={profile.name} />
+            <Td mono truncate value={profile.id} />
+            <Td mono truncate value={profile.version} />
+            <Td>
+              {#if profile.isActive}
+                <Badge tone="success" dot>Active</Badge>
+              {:else}
+                <Badge dot>Inactive</Badge>
+              {/if}
+            </Td>
+            {#if hasUpdated}
+              <Td
+                mono
+                muted
+                title={formatProfileTimestamp(profile.updatedAt)}
+                value={formatProfileTimestamp(profile.updatedAt).slice(0, 10)}
+              />
+            {/if}
+          </Tr>
+        {/each}
+      </Table>
     {/if}
   </div>
-
-  <label class="filter">
-    <input
-      type="checkbox"
-      bind:checked={activeOnly}
-      on:change={() => profileStore.loadProfiles(activeOnly)}
-      disabled={$isLoading}
-    />
-    Active only
-  </label>
-
-  <div class="actions">
-    <Button variant="secondary" on:click={() => profileStore.loadProfiles(activeOnly)} disabled={$isLoading}>
-      Refresh
-    </Button>
-
-    <Button
-      variant="secondary"
-      on:click={() => (showNewModal = true)}
-      disabled={$isLoading || hasUnsavedChanges}
-    >
-      + New
-    </Button>
-
-    {#if $selectedProfile}
-      <Button
-        variant="secondary"
-        on:click={() => {
-          duplicateId = '';
-          duplicateName = $selectedProfile?.name + ' (Copy)';
-          showDuplicateModal = true;
-        }}
-        disabled={$isLoading || hasUnsavedChanges}
+{:else}
+  <div class="selector-row">
+    <div class="select-wrapper">
+      <Select
+        aria-label="Source profile"
+        bind:value={selectValue}
+        onchange={handleSelect}
+        disabled={$isLoading}
       >
-        Duplicate
+        <option value="">Select a profile</option>
+        {#each $profileList as profile (profile.id)}
+          <option value={profile.id}>{profile.name} (v{profile.version})</option>
+        {/each}
+      </Select>
+    </div>
+
+    <label class="check">
+      <input
+        type="checkbox"
+        bind:checked={activeOnly}
+        on:change={refresh}
+        disabled={$isLoading}
+      />
+      Active only
+    </label>
+
+    <div class="actions">
+      <Button variant="ghost" icon={RefreshCw} onclick={refresh} disabled={$isLoading}>
+        Refresh
       </Button>
 
-      <Button
-        on:click={handleSave}
-        disabled={$isLoading || $isSaving || !$isDirty}
-      >
-        {$isSaving ? 'Saving...' : 'Save'}
+      <Button icon={Plus} onclick={openNew} disabled={$isLoading || hasUnsavedChanges}>
+        New
       </Button>
 
-      {#if $isDirty}
-        <Button variant="secondary" on:click={handleDiscard} disabled={$isLoading || $isSaving}>
-          Discard
+      {#if $selectedProfile}
+        <Button onclick={openDuplicate} disabled={$isLoading || hasUnsavedChanges}>
+          Duplicate
+        </Button>
+
+        <Button onclick={handleSave} disabled={$isLoading || $isSaving || !$isDirty}>
+          {$isSaving ? 'Saving' : 'Save'}
+        </Button>
+
+        {#if $isDirty}
+          <Button variant="ghost" onclick={handleDiscard} disabled={$isLoading || $isSaving}>
+            Discard
+          </Button>
+        {/if}
+
+        <Button variant="danger" onclick={openDelete} disabled={$isLoading || hasUnsavedChanges}>
+          Delete
         </Button>
       {/if}
+    </div>
 
-      <Button
-        variant="danger"
-        on:click={() => (showDeleteConfirm = true)}
-        disabled={$isLoading || hasUnsavedChanges}
-      >
-        Delete
-      </Button>
+    {#if $isLoading}
+      <span class="status">Loading</span>
+    {/if}
+    {#if $isDirty}
+      <Badge tone="warning">Unsaved changes</Badge>
     {/if}
   </div>
-
-  {#if $isDirty}
-    <div class="dirty-indicator">Unsaved changes</div>
-  {/if}
-</div>
+{/if}
 
 <!-- New Profile Modal -->
 {#if showNewModal}
@@ -305,31 +449,23 @@
       aria-labelledby="new-profile-modal-title"
       tabindex="-1"
     >
-      <h3 id="new-profile-modal-title" class="modal-title">Create New Profile</h3>
+      <h3 id="new-profile-modal-title" class="modal-title">New profile</h3>
       <div class="modal-body">
-        <label class="label">
-          Profile Name
-          <input
-            class="input"
-            type="text"
-            bind:value={newProfileName}
-            placeholder="e.g., Epic ADT"
-          />
-        </label>
-        <label class="label">
-          Profile ID
-          <input
-            class="input mono"
-            type="text"
-            bind:value={newProfileId}
-            placeholder="e.g., epic_adt"
-          />
-          <span class="hint">Used to reference this profile in API calls</span>
-        </label>
+        <Field label="Profile name">
+          <Input bind:value={newProfileName} placeholder="e.g. Epic ADT" />
+        </Field>
+        <Field label="Profile id" hint="Used to reference this profile in API calls.">
+          <Input mono bind:value={newProfileId} placeholder="e.g. epic_adt" />
+        </Field>
       </div>
       <div class="modal-actions">
-        <Button variant="secondary" on:click={() => (showNewModal = false)}>Cancel</Button>
-        <Button on:click={handleCreateNew} disabled={!newProfileId.trim() || !newProfileName.trim()}>
+        <Button size="md" onclick={() => (showNewModal = false)}>Cancel</Button>
+        <Button
+          variant="primary"
+          size="md"
+          onclick={handleCreateNew}
+          disabled={!newProfileId.trim() || !newProfileName.trim()}
+        >
           Create
         </Button>
       </div>
@@ -355,25 +491,23 @@
       aria-labelledby="duplicate-profile-modal-title"
       tabindex="-1"
     >
-      <h3 id="duplicate-profile-modal-title" class="modal-title">Duplicate Profile</h3>
+      <h3 id="duplicate-profile-modal-title" class="modal-title">Duplicate profile</h3>
       <div class="modal-body">
-        <label class="label">
-          New Profile Name
-          <input
-            class="input"
-            type="text"
-            bind:value={duplicateName}
-            placeholder="e.g., Epic ADT v2"
-          />
-        </label>
-        <label class="label">
-          New Profile ID
-          <input class="input mono" type="text" bind:value={duplicateId} placeholder="e.g., epic_adt_v2" />
-        </label>
+        <Field label="New profile name">
+          <Input bind:value={duplicateName} placeholder="e.g. Epic ADT v2" />
+        </Field>
+        <Field label="New profile id">
+          <Input mono bind:value={duplicateId} placeholder="e.g. epic_adt_v2" />
+        </Field>
       </div>
       <div class="modal-actions">
-        <Button variant="secondary" on:click={() => (showDuplicateModal = false)}>Cancel</Button>
-        <Button on:click={handleDuplicate} disabled={!duplicateId.trim() || !duplicateName.trim()}>
+        <Button size="md" onclick={() => (showDuplicateModal = false)}>Cancel</Button>
+        <Button
+          variant="primary"
+          size="md"
+          onclick={handleDuplicate}
+          disabled={!duplicateId.trim() || !duplicateName.trim()}
+        >
           Duplicate
         </Button>
       </div>
@@ -399,25 +533,25 @@
       aria-labelledby="delete-profile-modal-title"
       tabindex="-1"
     >
-      <h3 id="delete-profile-modal-title" class="modal-title">Delete Profile</h3>
+      <h3 id="delete-profile-modal-title" class="modal-title">Delete profile</h3>
       <div class="modal-body">
-        <p>
-          Are you sure you want to delete <strong>{$selectedProfile?.name}</strong>? This action
-          cannot be undone.
+        <p class="modal-text">
+          Delete <strong>{$selectedProfile?.name}</strong>
+          (<span class="text-mono">{$selectedProfile?.id}</span>)? This cannot be undone.
         </p>
       </div>
       <div class="modal-actions">
-        <Button variant="secondary" on:click={() => (showDeleteConfirm = false)}>Cancel</Button>
-        <Button variant="danger" on:click={handleDelete}>Delete</Button>
+        <Button size="md" onclick={() => (showDeleteConfirm = false)}>Cancel</Button>
+        <Button variant="danger" size="md" onclick={handleDelete}>Delete</Button>
       </div>
     </div>
   </div>
 {/if}
 
-<!-- Discard Changes Confirmation Modal -->
+<!-- Save Revision Modal -->
 <ConfirmModal
   bind:open={showSaveConfirm}
-  title="Save Profile Revision"
+  title="Save profile revision"
   message="Summarize this revision for reviewers and the audit trail."
   confirmText="Save"
   loading={$isSaving}
@@ -426,19 +560,23 @@
   on:confirm={handleSaveConfirm}
   on:cancel={() => (saveChangeSummary = '')}
 >
-  <textarea
-    class="change-summary"
-    bind:value={saveChangeSummary}
-    maxlength="1024"
-    aria-label="Profile change summary"
-    placeholder="Describe the parsing or mapping change"
-  ></textarea>
+  <div class="change-summary">
+    <Field label="Change summary">
+      <Textarea
+        bind:value={saveChangeSummary}
+        maxlength={1024}
+        rows={4}
+        aria-label="Profile change summary"
+        placeholder="Describe the parsing or mapping change"
+      />
+    </Field>
+  </div>
 </ConfirmModal>
 
 <!-- Discard Changes Confirmation Modal -->
 <ConfirmModal
   bind:open={showDiscardConfirm}
-  title="Discard Changes?"
+  title="Discard changes?"
   message="You have unsaved changes. Discard them and switch profiles?"
   confirmText="Discard"
   variant="danger"
@@ -446,161 +584,164 @@
 />
 
 <style>
-  .change-summary {
-    width: 100%;
-    min-height: 88px;
-    margin-top: var(--space-3);
+  /* ── Table layout (/profiles) ─────────────────────────────────────────── */
+  .profile-table {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
   }
 
+  .filters {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex: 0 0 auto;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .count {
+    margin-left: auto;
+    color: var(--color-text-tertiary);
+  }
+
+  .profile-table :global(.profile-table-grid) {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .note {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    margin: var(--space-2) var(--space-3) 0;
+    padding: var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+    color: var(--color-text-primary);
+  }
+
+  .note--danger {
+    border: 1px solid var(--color-danger-border);
+    background: var(--color-danger-bg);
+  }
+
+  .note--danger :global(.note-icon) {
+    color: var(--color-danger-text);
+  }
+
+  /* ── Shared controls ──────────────────────────────────────────────────── */
+  .check {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-ui);
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+    user-select: none;
+    cursor: pointer;
+  }
+
+  .check input {
+    margin: 0;
+    accent-color: var(--color-primary);
+  }
+
+  /* ── Compact select layout (HL7 intake) ───────────────────────────────── */
   .selector-row {
     display: flex;
-    gap: 10px;
+    gap: var(--space-2) var(--space-3);
     align-items: center;
     flex-wrap: wrap;
   }
 
   .select-wrapper {
-    position: relative;
-    flex: 1;
+    flex: 1 1 220px;
     min-width: 200px;
-    max-width: 400px;
+    max-width: 360px;
   }
-
-	  .filter {
-	    display: inline-flex;
-	    align-items: center;
-	    gap: 8px;
-	    color: var(--color-text-secondary);
-	    font-weight: 700;
-	    font-size: 0.9rem;
-	    user-select: none;
-	  }
-
-	  .select {
-	    width: 100%;
-	    padding: 10px 12px;
-	    border-radius: var(--radius-xl);
-	    border: 1px solid var(--color-border-default);
-	    background: var(--color-bg-input);
-	    color: var(--color-text-primary);
-	    outline: none;
-	    font-size: 0.95rem;
-	  }
-
-	  .select:focus {
-	    border-color: var(--color-border-focus);
-	    box-shadow: var(--shadow-focus);
-	  }
-
-  .select:disabled {
-    opacity: 0.6;
-  }
-
-	  .loading-indicator {
-    position: absolute;
-    right: 40px;
-    top: 50%;
-	    transform: translateY(-50%);
-	    font-size: 0.8rem;
-	    color: var(--color-text-muted);
-	  }
 
   .actions {
     display: flex;
-    gap: 8px;
+    gap: var(--space-1);
     flex-wrap: wrap;
   }
 
-  .dirty-indicator {
-    padding: 6px 10px;
-    border-radius: 8px;
-    background: rgba(245, 158, 11, 0.15);
-    border: 1px solid rgba(245, 158, 11, 0.3);
-    color: rgba(245, 158, 11, 0.9);
-    font-size: 0.85rem;
-    font-weight: 600;
+  .status {
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
   }
 
+  /* ── Dialogs ──────────────────────────────────────────────────────────── */
   .modal-overlay {
     position: fixed;
     inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    padding: var(--space-4);
+    z-index: var(--z-modal);
   }
 
-	  .modal-backdrop {
+  .modal-backdrop {
     position: absolute;
     inset: 0;
     border: 0;
     padding: 0;
-	    background: var(--modal-backdrop);
-	    cursor: default;
-	  }
+    background: var(--modal-backdrop);
+    cursor: default;
+  }
 
-	  .modal {
-	    position: relative;
-	    z-index: 1;
-	    background: var(--color-bg-base);
-	    border: 1px solid var(--color-border-default);
-	    border-radius: var(--modal-radius);
-	    padding: 24px;
-	    min-width: 360px;
-	    max-width: 480px;
-	  }
+  .modal {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: var(--modal-width-sm);
+    background: var(--color-bg-overlay);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--modal-radius);
+    box-shadow: var(--shadow-xl);
+    outline: none;
+  }
 
-	  .modal-title {
-    margin: 0 0 16px;
-    font-size: 1.1rem;
-    font-weight: 800;
-	    color: var(--color-text-primary);
-	  }
+  .modal-title {
+    margin: 0;
+    padding: var(--space-4) var(--space-4) 0;
+    font-size: var(--text-title);
+    font-weight: var(--font-semibold);
+    color: var(--color-text-primary);
+  }
 
   .modal-body {
     display: grid;
-    gap: 14px;
-    margin-bottom: 20px;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4) var(--space-4);
   }
 
-	  .modal-body p {
-	    color: var(--color-text-secondary);
-	    line-height: 1.5;
-	  }
+  .modal-text {
+    margin: 0;
+    font-size: var(--text-ui);
+    line-height: var(--leading-ui);
+    color: var(--color-text-secondary);
+  }
+
+  .modal-text strong {
+    color: var(--color-text-primary);
+    font-weight: var(--font-semibold);
+  }
 
   .modal-actions {
     display: flex;
-    gap: 10px;
+    gap: var(--space-2);
     justify-content: flex-end;
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--color-border-subtle);
   }
 
-	  .label {
-	    display: grid;
-	    gap: 6px;
-	    color: var(--color-text-secondary);
-	    font-size: 0.9rem;
-	  }
-
-	  .input {
-	    padding: 10px 12px;
-	    border-radius: var(--radius-xl);
-	    border: 1px solid var(--color-border-default);
-	    background: var(--color-bg-input);
-	    color: var(--color-text-primary);
-	    outline: none;
-	  }
-
-	  .input:focus {
-	    border-color: var(--color-border-focus);
-	    box-shadow: var(--shadow-focus);
-	  }
-
-	  .mono {
-	    font-family: var(--font-mono);
-	  }
-
-	  .hint {
-	    font-size: 0.8rem;
-	    color: var(--color-text-muted);
-	  }
+  .change-summary {
+    margin-top: var(--space-3);
+  }
 </style>

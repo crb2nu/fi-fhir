@@ -1,46 +1,82 @@
+<!--
+  /profiles — toolbar (Builder · YAML · Revisions, lifecycle actions, the one
+  primary "Review & publish") over a split: the profiles table on the left,
+  the selected profile's workspace on the right.
+-->
 <script lang="ts">
-  import { resolve } from '$app/paths';
   import { onMount } from 'svelte';
-  import Tabs from '$lib/ui/Tabs.svelte';
-  import type { TabItem } from '$lib/ui/types';
-  import Panel from '$lib/ui/Panel.svelte';
-  import PageHeader from '$lib/ui/PageHeader.svelte';
-  import Button from '$lib/ui/Button.svelte';
-  import Badge from '$lib/ui/Badge.svelte';
+  import CircleAlert from '@lucide/svelte/icons/circle-alert';
+  import CircleHelp from '@lucide/svelte/icons/circle-help';
+  import Copy from '@lucide/svelte/icons/copy';
+  import CopyPlus from '@lucide/svelte/icons/copy-plus';
+  import Download from '@lucide/svelte/icons/download';
+  import FileSliders from '@lucide/svelte/icons/file-sliders';
+  import Plus from '@lucide/svelte/icons/plus';
+  import RefreshCw from '@lucide/svelte/icons/refresh-cw';
+  import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
+  import Trash2 from '@lucide/svelte/icons/trash-2';
+  import {
+    Badge,
+    Button,
+    EmptyState,
+    Field,
+    Icon,
+    IconButton,
+    Popover,
+    Table,
+    Tabs,
+    Td,
+    Textarea,
+    Th,
+    Toolbar,
+    Tr,
+    type TabItem
+  } from '$lib/ui/primitives';
   import CodeEditor from '$lib/ui/editor/CodeEditor.svelte';
-  import AuthoringFlowRail from '$lib/features/shared/AuthoringFlowRail.svelte';
-  import type { FlowStep } from '$lib/features/shared/authoringFlow';
+  import ConfirmModal from '$lib/ui/ConfirmModal.svelte';
 
   import ProfileSelector from '$lib/features/hl7/components/ProfileSelector.svelte';
   import ToleranceEditor from '$lib/features/hl7/components/ToleranceEditor.svelte';
   import EventRulesEditor from '$lib/features/hl7/components/EventRulesEditor.svelte';
   import IdentifierEditor from '$lib/features/hl7/components/IdentifierEditor.svelte';
   import TerminologyEditor from '$lib/features/hl7/components/TerminologyEditor.svelte';
-  import ConfirmModal from '$lib/ui/ConfirmModal.svelte';
   import ProfileDiffModal from './ProfileDiffModal.svelte';
+  import { formatProfileTimestamp } from './profileFormat';
 
-  import { selectedProfile, originalProfile, isDirty as isProfileDirty, isSaving as isProfileSaving, profileStore } from '$lib/features/hl7/profile/profileStore';
+  import {
+    selectedProfile,
+    originalProfile,
+    isDirty as isProfileDirty,
+    isLoading as isProfileLoading,
+    isSaving as isProfileSaving,
+    profileStore
+  } from '$lib/features/hl7/profile/profileStore';
   import { fetchProfileYaml, saveProfileYaml } from '$lib/features/hl7/profile/profileYamlApi';
   import { getProfileRevisions } from '$lib/features/hl7/profile/profileApi';
   import { toSourceProfileYAML } from '$lib/features/hl7/profile/yaml';
   import type { ProfileRevision } from '$lib/gen/graphql';
 
-  const tabs: readonly TabItem[] = [
-    { key: 'builder', label: 'Builder' },
-    { key: 'yaml', label: 'YAML' },
-    { key: 'revisions', label: 'Revisions' }
+  type View = 'builder' | 'yaml' | 'revisions';
+  type BuilderView = 'tolerance' | 'events' | 'identifiers' | 'terminology';
+
+  const views: readonly TabItem[] = [
+    { id: 'builder', label: 'Builder' },
+    { id: 'yaml', label: 'YAML' },
+    { id: 'revisions', label: 'Revisions' }
   ];
 
-  let activeTab: 'builder' | 'yaml' | 'revisions' = 'builder';
+  let activeTab: View = 'builder';
 
   const builderTabs: readonly TabItem[] = [
-    { key: 'tolerance', label: 'Tolerance' },
-    { key: 'events', label: 'Events' },
-    { key: 'identifiers', label: 'Identifiers' },
-    { key: 'terminology', label: 'Terminology' }
+    { id: 'tolerance', label: 'Tolerance', controls: 'profile-builder' },
+    { id: 'events', label: 'Events', controls: 'profile-builder' },
+    { id: 'identifiers', label: 'Identifiers', controls: 'profile-builder' },
+    { id: 'terminology', label: 'Terminology', controls: 'profile-builder' }
   ];
 
-  let builderTab: 'tolerance' | 'events' | 'identifiers' | 'terminology' = 'tolerance';
+  let builderTab: BuilderView = 'tolerance';
+
+  let selector: ProfileSelector | undefined;
 
   let yamlState: 'idle' | 'loading' | 'ready' | 'saving' = 'idle';
   let yamlValue = '';
@@ -49,6 +85,7 @@
   let yamlError: string | null = null;
   let copied = false;
   let showPublishModal = false;
+  let showResetConfirm = false;
   let changeSummary = '';
 
   async function handlePublish() {
@@ -68,11 +105,13 @@
     }
   }
 
-  async function handleDiscard() {
-    if (confirm('Are you sure you want to discard all local changes?')) {
-      showPublishModal = false;
-      await profileStore.discardChanges();
-    }
+  function handleDiscard() {
+    showResetConfirm = true;
+  }
+
+  async function handleDiscardConfirm() {
+    showPublishModal = false;
+    await profileStore.discardChanges();
   }
 
   type RevisionsState = {
@@ -85,46 +124,7 @@
   let revisions: RevisionsState = { state: 'idle', loadedAt: '', revisions: [], error: null };
 
   $: yamlDirty = (yamlState === 'ready' || yamlState === 'saving') && yamlValue !== yamlOriginal;
-  $: flowSteps = [
-    {
-      eyebrow: 'Normalize source feeds',
-      title: 'Choose the profile that controls HL7 parsing',
-      description: $selectedProfile
-        ? `${$selectedProfile.name} v${$selectedProfile.version} defines tolerance, event rules, identifier validation, and terminology mapping before the message becomes a semantic event.`
-        : 'Pick a Source Profile to see how it shapes raw HL7 normalization, warnings, and downstream event mapping.',
-      metric: $selectedProfile ? $selectedProfile.id : 'No profile selected',
-      status: $isProfileDirty ? 'builder unsaved' : 'ready',
-      actions: [
-        { label: 'Open HL7 preview', variant: 'primary', href: '/hl7' },
-        { label: 'Review terminology', variant: 'secondary', href: '/terminology' }
-      ]
-    },
-    {
-      eyebrow: 'Tune the workspace',
-      title: 'Edit builder rules or the source YAML',
-      description:
-        'Use the builder for tolerance, event, identifier, and terminology changes, then cross-check the raw YAML and revision history so the profile stays explainable.',
-      metric: yamlDirty ? 'yaml unsaved' : 'yaml ready',
-      status: yamlState === 'saving' ? 'saving' : 'loaded',
-      actions: [
-        { label: 'Builder', variant: 'secondary', onClick: () => { activeTab = 'builder'; } },
-        { label: 'YAML', variant: 'secondary', onClick: () => { activeTab = 'yaml'; } },
-        { label: 'Revisions', variant: 'ghost', onClick: () => { activeTab = 'revisions'; } }
-      ]
-    },
-    {
-      eyebrow: 'Downstream mapping',
-      title: 'Validate what changes for semantic events and workflows',
-      description:
-        'Once the profile looks right, check terminology mapping and workflow usage so the same normalization rules keep producing the semantic shape that downstream tools expect.',
-      metric: revisions.revisions.length ? `${revisions.revisions.length} revisions` : 'No revisions loaded',
-      status: revisions.error ? 'revision error' : 'workflow ready',
-      actions: [
-        { label: 'Terminology mapping', variant: 'primary', href: '/terminology' },
-        { label: 'Workflow builder', variant: 'secondary', href: '/workflows' }
-      ]
-    }
-  ] satisfies FlowStep[];
+  $: lifecycleBlocked = $isProfileLoading || $isProfileDirty || yamlDirty;
 
   async function loadYaml(profileId: string): Promise<void> {
     yamlState = 'loading';
@@ -260,6 +260,10 @@
     yamlValue = yamlOriginal;
   }
 
+  function formatLoaded(value: string): string {
+    return formatProfileTimestamp(value, { seconds: true });
+  }
+
   onMount(() => {
     const handler = (e: BeforeUnloadEvent) => {
       if (!($isProfileDirty || yamlDirty)) return;
@@ -271,196 +275,257 @@
   });
 </script>
 
-<PageHeader title="Profiles" subtitle="Shape how HL7 gets normalized into semantic events." />
+<div class="profiles-page">
+  <Toolbar title="Profiles">
+    {#snippet tabs()}
+      <Tabs
+        label="Profile views"
+        items={views}
+        value={activeTab}
+        onchange={(id) => (activeTab = id as View)}
+      />
+    {/snippet}
+    {#snippet actions()}
+      <Popover label="About profiles" placement="bottom-end">
+        {#snippet trigger(props)}
+          <IconButton {...props} icon={CircleHelp} label="About profiles" />
+        {/snippet}
+        A source profile controls how HL7 is parsed: tolerance, event classification, identifier
+        validation and terminology mapping. Builder edits stay local until Review &amp; publish
+        records a revision; Save YAML writes the YAML directly.
+      </Popover>
+      <Button
+        variant="ghost"
+        icon={Plus}
+        onclick={() => selector?.openNew()}
+        disabled={lifecycleBlocked}
+      >
+        New
+      </Button>
+      <Button
+        variant="ghost"
+        icon={CopyPlus}
+        onclick={() => selector?.openDuplicate()}
+        disabled={!$selectedProfile || lifecycleBlocked}
+      >
+        Duplicate
+      </Button>
+      <Button
+        variant="danger"
+        icon={Trash2}
+        onclick={() => selector?.openDelete()}
+        disabled={!$selectedProfile || lifecycleBlocked}
+      >
+        Delete
+      </Button>
+      <Button variant="primary" onclick={handlePublish} disabled={!$isProfileDirty}>
+        Review &amp; publish
+      </Button>
+    {/snippet}
+  </Toolbar>
 
-<div class="flow-shell">
-  <AuthoringFlowRail
-    compact
-    title="From profile edits to downstream mapping"
-    steps={flowSteps}
-  />
-</div>
+  <div class="split">
+    <section class="list" aria-label="Source profiles">
+      <ProfileSelector
+        bind:this={selector}
+        layout="table"
+        onProfileChange={handleProfileChange}
+        externalDirty={yamlDirty}
+      />
+    </section>
 
-<div class="grid">
-  <Panel title="Selected Source Profile">
-    <ProfileSelector onProfileChange={handleProfileChange} externalDirty={yamlDirty} />
-
-    {#if $selectedProfile}
-      <div class="meta">
-        <Badge variant="default" size="sm" pill>{$selectedProfile.id}</Badge>
-        <Badge variant="default" size="sm" pill>v{$selectedProfile.version}</Badge>
-        {#if $isProfileDirty}
-          <Badge variant="warning" size="sm" pill>DRAFT</Badge>
-        {/if}
-        {#if $isProfileDirty}
-          <Badge variant="warning" size="sm" pill>builder unsaved</Badge>
-        {/if}
-        {#if yamlDirty}
-          <Badge variant="warning" size="sm" pill>yaml unsaved</Badge>
-        {/if}
-        {#if copied}
-          <Badge variant="success" size="sm" pill>copied</Badge>
-        {/if}
-      </div>
-
-      <div class="context-links">
-        <a class="context-link" href={resolve('/hl7')}>Open HL7 preview</a>
-        <a class="context-link" href={resolve('/terminology')}>Open terminology mappings</a>
-        <a class="context-link" href={resolve('/workflows')}>Check workflows</a>
-      </div>
-
-    {/if}
-  </Panel>
-
-  <Panel title="Normalization workspace">
-    <div class="tabs">
-      <Tabs {tabs} active={activeTab} onChange={(k) => (activeTab = k as typeof activeTab)} />
-    </div>
-
-    {#if activeTab === 'builder'}
+    <section class="details" aria-label="Selected profile">
       {#if !$selectedProfile}
-        <div class="empty">Select a profile to edit.</div>
+        <EmptyState icon={FileSliders} message="Select a profile to edit it." />
       {:else}
-        <div class="toolbar">
-          <div class="left">
-            <Button variant="secondary" on:click={exportYamlFromBuilder}>Export YAML</Button>
-            <Button variant="secondary" on:click={handleDiscard} disabled={!$isProfileDirty}>Reset</Button>
-          </div>
-          <div class="right">
-            <Button on:click={handlePublish} disabled={!$isProfileDirty}>Review & Publish</Button>
-          </div>
+        <div class="details-head">
+          <span class="details-title" title={$selectedProfile.name}>{$selectedProfile.name}</span>
+          <span class="details-id text-mono" title={$selectedProfile.id}>{$selectedProfile.id}</span>
+          <Badge mono>v{$selectedProfile.version}</Badge>
+          {#if $isProfileDirty}
+            <Badge tone="warning">Draft</Badge>
+            <Badge tone="warning">Builder unsaved</Badge>
+          {/if}
+          {#if yamlDirty}
+            <Badge tone="warning">YAML unsaved</Badge>
+          {/if}
+          {#if copied}
+            <Badge tone="success">Copied</Badge>
+          {/if}
+          <span class="details-meta text-mono">
+            Updated {formatProfileTimestamp($selectedProfile.updatedAt)}
+            {#if $selectedProfile.createdBy}· {$selectedProfile.createdBy}{/if}
+          </span>
         </div>
 
-        <div class="tabs">
-          <Tabs
-            tabs={builderTabs}
-            active={builderTab}
-            onChange={(k) => (builderTab = k as typeof builderTab)}
-          />
-        </div>
+        <div class="view">
+          {#if activeTab === 'builder'}
+            <div class="view-bar">
+              <Tabs
+                label="Builder sections"
+                items={builderTabs}
+                value={builderTab}
+                onchange={(id) => (builderTab = id as BuilderView)}
+              />
+              <span class="view-actions">
+                <Button variant="ghost" icon={Download} onclick={exportYamlFromBuilder}>
+                  Export YAML
+                </Button>
+                <Button
+                  variant="ghost"
+                  icon={RotateCcw}
+                  onclick={handleDiscard}
+                  disabled={!$isProfileDirty}
+                >
+                  Reset
+                </Button>
+              </span>
+            </div>
 
-        <div class="builder">
-          {#if builderTab === 'tolerance'}
-            <ToleranceEditor />
-          {:else if builderTab === 'events'}
-            <EventRulesEditor />
-          {:else if builderTab === 'identifiers'}
-            <IdentifierEditor showAdvanced={true} />
-          {:else if builderTab === 'terminology'}
-            <TerminologyEditor />
+            <div id="profile-builder" class="view-body" role="tabpanel" aria-label="{builderTab} rules">
+              {#if builderTab === 'tolerance'}
+                <ToleranceEditor />
+              {:else if builderTab === 'events'}
+                <EventRulesEditor />
+              {:else if builderTab === 'identifiers'}
+                <IdentifierEditor showAdvanced={true} />
+              {:else if builderTab === 'terminology'}
+                <TerminologyEditor />
+              {/if}
+            </div>
+          {:else if activeTab === 'yaml'}
+            {#if yamlState === 'loading' || yamlState === 'idle'}
+              <p class="view-status">Loading YAML</p>
+            {:else}
+              <div class="view-bar">
+                <span class="view-actions view-actions--start">
+                  <Button
+                    variant="ghost"
+                    icon={RefreshCw}
+                    onclick={() => loadYaml($selectedProfile!.id)}
+                    disabled={yamlState === 'saving'}
+                  >
+                    Reload
+                  </Button>
+                  <Button variant="ghost" icon={Copy} onclick={copyYaml} disabled={yamlState === 'saving'}>
+                    Copy
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    icon={Download}
+                    onclick={downloadYaml}
+                    disabled={yamlState === 'saving'}
+                  >
+                    Download
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    icon={RotateCcw}
+                    onclick={resetToLoaded}
+                    disabled={!yamlDirty || yamlState === 'saving'}
+                  >
+                    Reset
+                  </Button>
+                </span>
+                <span class="view-actions">
+                  <Button
+                    onclick={saveYaml}
+                    loading={yamlState === 'saving'}
+                    disabled={!yamlDirty || yamlState === 'saving'}
+                  >
+                    {yamlState === 'saving' ? 'Saving' : 'Save YAML'}
+                  </Button>
+                </span>
+              </div>
+
+              {#if yamlError}
+                <p class="note" role="alert">
+                  <Icon icon={CircleAlert} class="note-icon" />
+                  <span>{yamlError}</span>
+                </p>
+              {/if}
+
+              <div class="yaml-editor">
+                <CodeEditor
+                  language="yaml"
+                  value={yamlValue}
+                  on:change={(e) => {
+                    yamlValue = e.detail;
+                  }}
+                  readOnly={yamlState === 'saving'}
+                  height="100%"
+                />
+              </div>
+
+              <p class="view-foot text-mono">Loaded {formatLoaded(yamlLoadedAt)}</p>
+            {/if}
+          {:else if activeTab === 'revisions'}
+            {#if revisions.state === 'loading' || revisions.state === 'idle'}
+              <p class="view-status">Loading revisions</p>
+            {:else}
+              <div class="view-bar">
+                <span class="view-actions view-actions--start">
+                  <Button
+                    variant="ghost"
+                    icon={RefreshCw}
+                    onclick={() => loadRevisions($selectedProfile!.id)}
+                  >
+                    Reload
+                  </Button>
+                </span>
+                <span class="view-meta text-mono">
+                  {revisions.revisions.length}
+                  {revisions.revisions.length === 1 ? 'revision' : 'revisions'} · loaded {formatLoaded(
+                    revisions.loadedAt
+                  )}
+                </span>
+              </div>
+
+              {#if revisions.error}
+                <p class="note" role="alert">
+                  <Icon icon={CircleAlert} class="note-icon" />
+                  <span>{revisions.error}</span>
+                </p>
+              {/if}
+
+              {#if revisions.revisions.length === 0}
+                {#if !revisions.error}
+                  <EmptyState align="start" message="No revisions recorded for this profile." />
+                {/if}
+              {:else}
+                <Table label="Profile revisions" layout="fixed" class="revisions-table">
+                  {#snippet head()}
+                    <tr>
+                      <Th width="96px">Version</Th>
+                      <Th width="148px">Created</Th>
+                      <Th width="160px">By</Th>
+                      <Th>Summary</Th>
+                    </tr>
+                  {/snippet}
+                  {#each revisions.revisions as r (r.version)}
+                    <Tr>
+                      <Td mono truncate value={r.version} />
+                      <Td mono muted value={formatProfileTimestamp(r.createdAt)} />
+                      <Td truncate muted={!r.createdBy} value={r.createdBy ?? '—'} />
+                      <Td truncate muted={!r.changeSummary} value={r.changeSummary ?? '—'} />
+                    </Tr>
+                  {/each}
+                </Table>
+              {/if}
+            {/if}
           {/if}
         </div>
       {/if}
-    {:else if activeTab === 'yaml'}
-      {#if !$selectedProfile}
-        <div class="empty">Select a profile to inspect its YAML and revision trail.</div>
-      {:else if yamlState === 'loading' || yamlState === 'idle'}
-        <div class="empty">Loading…</div>
-      {:else}
-        {#if yamlError}
-          <div class="error">{yamlError}</div>
-        {/if}
-
-        <div class="toolbar">
-          <div class="left">
-            <Button
-              variant="secondary"
-              on:click={() => loadYaml($selectedProfile!.id)}
-              disabled={yamlState === 'saving'}
-            >
-              Reload
-            </Button>
-            <Button variant="secondary" on:click={copyYaml} disabled={yamlState === 'saving'}>
-              Copy
-            </Button>
-            <Button variant="secondary" on:click={downloadYaml} disabled={yamlState === 'saving'}>
-              Download
-            </Button>
-            <Button
-              variant="secondary"
-              on:click={resetToLoaded}
-              disabled={!yamlDirty || yamlState === 'saving'}
-            >
-              Reset
-            </Button>
-          </div>
-          <div class="right">
-            <Button on:click={saveYaml} disabled={!yamlDirty || yamlState === 'saving'}>
-              {yamlState === 'saving' ? 'Saving…' : 'Save YAML'}
-            </Button>
-          </div>
-        </div>
-
-        <CodeEditor
-          language="yaml"
-          value={yamlValue}
-          on:change={(e) => { yamlValue = e.detail; }}
-          readOnly={yamlState === 'saving'}
-          height="480px"
-        />
-
-        <div class="footer">
-          <span class="muted">
-            Loaded {yamlLoadedAt ? new Date(yamlLoadedAt).toLocaleString() : '-'}
-          </span>
-        </div>
-      {/if}
-    {:else if activeTab === 'revisions'}
-      {#if !$selectedProfile}
-        <div class="empty">Select a profile to review how edits changed the normalization contract.</div>
-      {:else if revisions.state === 'loading' || revisions.state === 'idle'}
-        <div class="empty">Loading…</div>
-      {:else}
-        {#if revisions.error}
-          <div class="error">{revisions.error}</div>
-        {/if}
-
-        <div class="toolbar">
-          <div class="left">
-            <Button
-              variant="secondary"
-              on:click={() => loadRevisions($selectedProfile!.id)}
-            >
-              Reload
-            </Button>
-          </div>
-          <div class="right">
-            <span class="muted">
-              Loaded {revisions.loadedAt ? new Date(revisions.loadedAt).toLocaleString() : '-'}
-            </span>
-          </div>
-        </div>
-
-        {#if revisions.revisions.length === 0}
-          <div class="empty">No revisions found.</div>
-        {:else}
-          <div class="rev-table">
-            <div class="rev-head">
-              <div>Version</div>
-              <div>Created</div>
-              <div>By</div>
-              <div>Summary</div>
-            </div>
-            {#each revisions.revisions as r (r.version)}
-              <div class="rev-row">
-                <div class="mono">{r.version}</div>
-                <div class="muted">{new Date(r.createdAt).toLocaleString()}</div>
-                <div class="muted">{r.createdBy ?? '-'}</div>
-                <div class="muted">{r.changeSummary ?? '-'}</div>
-              </div>
-            {/each}
-          </div>
-        {/if}
-      {/if}
-    {/if}
-  </Panel>
+    </section>
+  </div>
 </div>
 
 <ConfirmModal
   bind:open={showPublishModal}
-  title="Publish Changes"
+  title="Publish changes"
+  message="Publish the draft as a new revision. The summary is recorded in the revision history."
   confirmText="Publish"
-  cancelText="Back to Editing"
+  cancelText="Back to editing"
   on:confirm={handleConfirmPublish}
   on:cancel={() => (changeSummary = '')}
   loading={$isProfileSaving}
@@ -468,195 +533,194 @@
   closeOnConfirm={false}
 >
   <div class="publish-dialog">
-    <p class="publish-hint">Provide a summary of what changed in this version.</p>
-    <textarea
-      class="summary-input"
-      bind:value={changeSummary}
-      maxlength="1024"
-      aria-label="Profile change summary"
-      placeholder="e.g., Added tolerance for missing MSH-15..."
-    ></textarea>
-    
-    {#if $originalProfile && $selectedProfile}
-      <ProfileDiffModal 
-        original={$originalProfile}
-        draft={$selectedProfile}
+    <Field label="Change summary">
+      <Textarea
+        bind:value={changeSummary}
+        maxlength={1024}
+        rows={3}
+        aria-label="Profile change summary"
+        placeholder="e.g. Tolerate a missing MSH-15"
       />
+    </Field>
+
+    {#if $originalProfile && $selectedProfile}
+      <ProfileDiffModal original={$originalProfile} draft={$selectedProfile} />
     {/if}
   </div>
 </ConfirmModal>
 
+<ConfirmModal
+  bind:open={showResetConfirm}
+  title="Discard builder changes?"
+  message="Discard all local builder changes and reload the published profile?"
+  confirmText="Discard"
+  variant="danger"
+  on:confirm={handleDiscardConfirm}
+/>
+
 <style>
-  .flow-shell {
-    margin-bottom: 14px;
-  }
-
-  .mono {
-    font-family: var(--font-mono);
-    color: var(--color-text-primary);
-  }
-
-  .grid {
-    display: grid;
-    gap: 14px;
-    grid-template-columns: 1fr;
-  }
-
-  @media (min-width: 980px) {
-    .grid {
-      grid-template-columns: 0.6fr 1.4fr;
-      align-items: start;
-    }
-  }
-
-  .tabs {
-    margin-bottom: 12px;
-  }
-
-  .context-links {
+  .profiles-page {
     display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-top: 12px;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
   }
 
-  .context-link {
-    display: inline-flex;
-    align-items: center;
-    min-height: 32px;
-    padding: 0 10px;
-    border-radius: 999px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-surface);
-    color: var(--color-text-secondary);
-    text-decoration: none;
-    font-size: 0.84rem;
-    font-weight: 800;
+  .split {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(400px, 36%) minmax(0, 1fr);
   }
 
-  .context-link:hover {
-    background: var(--color-bg-hover);
-    color: var(--color-text-primary);
+  .list {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
   }
 
-  .toolbar {
+  .details {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+    border-left: 1px solid var(--color-border-subtle);
+  }
+
+  .details-head {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-bottom: 12px;
-  }
-
-  .left,
-  .right {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    align-items: center;
-  }
-
-  .builder {
-    min-height: 200px;
-  }
-
-  .hint {
-    color: var(--color-text-muted);
-    font-size: 0.85rem;
-    font-weight: 700;
-  }
-
-  .meta {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-top: 12px;
-  }
-
-  .empty {
-    color: var(--color-text-tertiary);
-    line-height: 1.5;
-    padding: 6px 0;
-  }
-
-  .error {
-    padding: 10px 12px;
-    border-radius: 12px;
-    border: 1px solid rgba(239, 68, 68, 0.35);
-    background: rgba(239, 68, 68, 0.12);
-    color: rgba(254, 202, 202, 0.95);
-    font-weight: 700;
-    margin-bottom: 10px;
-  }
-
-  .footer {
-    margin-top: 10px;
-    display: flex;
-    justify-content: flex-end;
-  }
-
-  .muted {
-    color: var(--color-text-muted);
-    font-size: 0.85rem;
-  }
-
-  .rev-table {
-    display: grid;
-    gap: 8px;
-  }
-
-  .rev-head,
-  .rev-row {
-    display: grid;
-    grid-template-columns: 140px 200px 140px 1fr;
-    gap: 10px;
-    align-items: baseline;
-  }
-
-  .rev-head {
-    color: var(--color-text-tertiary);
-    font-weight: 800;
-    font-size: 0.9rem;
-    padding-bottom: 6px;
-    border-bottom: 1px solid var(--color-border-default);
-  }
-
-  .rev-row {
-    padding: 8px 10px;
-    border-radius: 12px;
-    border: 1px solid var(--color-border-default);
+    gap: var(--space-2);
+    flex: 0 0 auto;
+    min-width: 0;
+    height: 40px;
+    padding: 0 var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
     background: var(--color-bg-elevated);
   }
 
-  @media (max-width: 720px) {
-    .rev-head,
-    .rev-row {
-      grid-template-columns: 1fr;
-    }
+  .details-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-ui);
+    font-weight: var(--font-semibold);
+    color: var(--color-text-primary);
+  }
+
+  .details-id {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-text-tertiary);
+  }
+
+  .details-meta {
+    margin-left: auto;
+    flex: 0 0 auto;
+    white-space: nowrap;
+    color: var(--color-text-tertiary);
+  }
+
+  .view {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .view-bar {
+    display: flex;
+    align-items: stretch;
+    gap: var(--space-3);
+    flex: 0 0 auto;
+    min-height: var(--toolbar-height);
+    padding: 0 var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .view-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin-left: auto;
+  }
+
+  .view-actions--start {
+    margin-left: 0;
+  }
+
+  .view-meta {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+    color: var(--color-text-tertiary);
+  }
+
+  .view-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding: var(--space-3);
+  }
+
+  .view-status {
+    margin: 0;
+    padding: var(--space-3);
+    font-size: var(--text-ui);
+    color: var(--color-text-tertiary);
+  }
+
+  .yaml-editor {
+    flex: 1 1 auto;
+    min-height: 240px;
+    position: relative;
+  }
+
+  .yaml-editor > :global(*) {
+    position: absolute;
+    inset: 0;
+  }
+
+  .view-foot {
+    flex: 0 0 auto;
+    margin: 0;
+    padding: var(--space-1) var(--space-3);
+    border-top: 1px solid var(--color-border-subtle);
+    color: var(--color-text-tertiary);
+  }
+
+  .details :global(.revisions-table) {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .note {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    flex: 0 0 auto;
+    margin: var(--space-2) var(--space-3) 0;
+    padding: var(--space-2);
+    border: 1px solid var(--color-danger-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-danger-bg);
+    color: var(--color-text-primary);
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+  }
+
+  .note :global(.note-icon) {
+    color: var(--color-danger-text);
   }
 
   .publish-dialog {
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
-    margin-bottom: var(--space-4);
-  }
-
-  .summary-input {
-    width: 100%;
-    min-height: 80px;
-    padding: var(--space-2);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-input);
-    color: var(--color-text-primary);
-    font-family: var(--font-sans);
-    resize: vertical;
-  }
-
-  .publish-hint {
-    font-size: var(--text-sm);
-    color: var(--color-text-secondary);
-    margin: 0;
+    margin-top: var(--space-3);
   }
 </style>

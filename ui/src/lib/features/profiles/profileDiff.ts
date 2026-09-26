@@ -49,3 +49,37 @@ export function lineDiff(original: string, draft: string): ProfileDiffLine[] {
   }
   return result;
 }
+
+export type ProfileDiffRow = ProfileDiffLine | { type: 'skip'; count: number };
+
+// collapseUnchanged keeps every changed line plus `context` unchanged lines
+// around it and folds longer unchanged runs into one `skip` row, so a
+// reviewer sees the edits without scrolling the whole profile. A run of a
+// single unchanged line is kept as-is (a fold row would be no shorter).
+export function collapseUnchanged(lines: ProfileDiffLine[], context = 3): ProfileDiffRow[] {
+  const keep = lines.map(() => false);
+  lines.forEach((line, index) => {
+    if (line.type === 'same') return;
+    const from = Math.max(0, index - context);
+    const to = Math.min(lines.length - 1, index + context);
+    for (let i = from; i <= to; i += 1) keep[i] = true;
+  });
+
+  const rows: ProfileDiffRow[] = [];
+  let run: ProfileDiffLine[] = [];
+  const flush = () => {
+    if (run.length === 1) rows.push(run[0]!);
+    else if (run.length > 1) rows.push({ type: 'skip', count: run.length });
+    run = [];
+  };
+  lines.forEach((line, index) => {
+    if (keep[index]) {
+      flush();
+      rows.push(line);
+    } else {
+      run.push(line);
+    }
+  });
+  flush();
+  return rows;
+}
