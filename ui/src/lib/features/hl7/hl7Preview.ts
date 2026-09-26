@@ -1,4 +1,5 @@
 import type { ParsePreviewQuery } from '$lib/gen/graphql';
+import { normalizeHL7Newlines } from '$lib/domain/hl7Access';
 import {
   runAuthenticatedIntegrationPreview,
   type AuthenticatedIntegrationPreviewInput,
@@ -17,8 +18,13 @@ export type HL7PreviewResult = AuthenticatedIntegrationPreviewResult & {
 
 /**
  * Runs the sole supported IDE preview path: the authenticated, stateless
- * integration preview mutation backed by the deterministic processor kernel.
+ * integration preview mutation backed by the deterministic processor kernel,
+ * or the Integration Session run when that engine is on.
+ *
+ * Segments are sent CR-terminated on either path. The editor joins lines with
+ * LF and pasted files carry LF or CRLF, while the preview kernel's strict
+ * validation accepts only CR; the editor text itself is left as typed.
  */
 export async function parseHL7Preview(input: HL7PreviewInput): Promise<HL7PreviewResult> {
-  return runAuthenticatedIntegrationPreview(input);
+  return runAuthenticatedIntegrationPreview({ ...input, data: normalizeHL7Newlines(input.data) });
 }
