@@ -23,7 +23,14 @@ ARG VITE_BUILD_SHA
 ARG VITE_BUILD_TAG
 ARG VITE_BUILD_TIME
 ARG VITE_FI_FHIR_PREVIEW_INTEGRATION_ID=adt-east
-ARG VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED=false
+# The UI ships able to use the Integration Session engine; the API decides at
+# runtime. With the API's FI_FHIR_INTEGRATION_SESSION_ENABLED unset,
+# /api/auth/status reports capabilities.integrationSessions=false and
+# streaming=false, so resolveIntegrationSessionEngine() keeps HL7 intake on the
+# stateless previewIntegrationMessage path and the session surfaces render the
+# honest "streaming unavailable" state. Pass =false to build a UI that never
+# offers the session engine, whatever the API reports.
+ARG VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED=true
 ENV VITE_BUILD_SHA=$VITE_BUILD_SHA
 ENV VITE_BUILD_TAG=$VITE_BUILD_TAG
 ENV VITE_BUILD_TIME=$VITE_BUILD_TIME
