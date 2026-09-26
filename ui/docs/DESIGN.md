@@ -52,7 +52,7 @@ define it once on `:root`. Never hard-code a hex value in a component
 | `--color-bg-elevated` | `#1b1d21` | `#ffffff` | Chrome and panels: header, sidebar, bars, Panel, sticky table header |
 | `--color-bg-surface` | white 3.5 % | black 3.5 % | Raised inside a panel (secondary button fill) |
 | `--color-bg-input` | `#111215` | `#ffffff` | Inset controls: Input, Select, Textarea |
-| `--color-bg-overlay` | `#1f2126` @ 97 % | white @ 98 % | Popovers, menus, dialogs |
+| `--color-bg-overlay` | `#202227` | `#ffffff` | Popovers, menus, dialogs (opaque; backdrops use `--modal-backdrop`) |
 | `--color-bg-hover` / `--color-bg-active` | white 5 % / 8 % | black 5 % / 8 % | Row and control hover; pressed or selected neutral |
 
 ### Text

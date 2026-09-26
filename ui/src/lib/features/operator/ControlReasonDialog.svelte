@@ -182,7 +182,7 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: var(--color-bg-overlay);
+    background: var(--modal-backdrop);
     display: flex;
     align-items: center;
     justify-content: center;
