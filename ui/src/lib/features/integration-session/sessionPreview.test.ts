@@ -1,6 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DefinitionNode, DocumentNode } from 'graphql';
+import { get } from 'svelte/store';
 import { graphqlFetch } from '$lib/graphql/client';
+import { resetAccessCapabilities, setAccessStatus } from '$lib/graphql/accessCapabilities';
+import { noteStreamError, resetObservedStreams } from '$lib/graphql/streamAvailability';
 import {
   PreviewIntegrationMessageDocument,
   type RunStreamingSessionPreviewMutation,
@@ -8,7 +11,11 @@ import {
 } from '$lib/gen/graphql';
 import { subscribe } from '$lib/graphql/subscriptions';
 import { parseHL7Preview } from '$lib/features/hl7/hl7Preview';
-import { runAuthenticatedIntegrationPreview } from './api';
+import {
+  integrationSessionEngineEnabled,
+  isIntegrationSessionEngineEnabled,
+  runAuthenticatedIntegrationPreview
+} from './api';
 
 vi.mock('$lib/graphql/client', () => ({
   graphqlFetch: vi.fn()
@@ -122,9 +129,79 @@ function operationName(document: unknown): string {
   return operation && 'name' in operation && operation.name ? operation.name.value : '';
 }
 
+/** R-A's status contract with the session workspace on (or off). */
+function sessionCapableStatus(integrationSessions: boolean) {
+  return {
+    authenticated: true,
+    authVia: 'network',
+    capabilities: {
+      operatorRead: false,
+      integrationSessions,
+      streaming: integrationSessions,
+      subscriptions: integrationSessions ? ['integrationSessionEvents', 'sessionRunEvents'] : []
+    }
+  };
+}
+
 beforeEach(() => {
   mockFetch.mockReset();
   mockSubscribe.mockReset();
+  resetAccessCapabilities();
+  resetObservedStreams();
+});
+
+describe('session engine gate', () => {
+  const env = import.meta.env as Record<string, string | undefined>;
+  let previous: string | undefined;
+
+  beforeEach(() => {
+    previous = env.VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED;
+    env.VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED = 'true';
+  });
+
+  afterEach(() => {
+    env.VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED = previous;
+  });
+
+  it('is off with the build flag on but capabilities unknown (older API)', () => {
+    expect(isIntegrationSessionEngineEnabled()).toBe(false);
+    expect(get(integrationSessionEngineEnabled)).toBe(false);
+  });
+
+  it('is off with the build flag on and the API reporting no session workspace', () => {
+    setAccessStatus(sessionCapableStatus(false));
+    expect(isIntegrationSessionEngineEnabled()).toBe(false);
+  });
+
+  it('is on only when the build flag and integrationSessions agree', () => {
+    setAccessStatus(sessionCapableStatus(true));
+    expect(isIntegrationSessionEngineEnabled()).toBe(true);
+    expect(get(integrationSessionEngineEnabled)).toBe(true);
+
+    env.VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED = 'false';
+    expect(isIntegrationSessionEngineEnabled()).toBe(false);
+  });
+
+  it('turns off after the session stream answers 404, even with a stale capability', () => {
+    setAccessStatus(sessionCapableStatus(true));
+    noteStreamError('integrationSessionEvents', new Error('GraphQL stream HTTP 404'));
+    expect(isIntegrationSessionEngineEnabled()).toBe(false);
+  });
+
+  it('routes HL7 preview through the stateless mutation when the API has sessions off', async () => {
+    setAccessStatus(sessionCapableStatus(false));
+    mockFetch.mockResolvedValue({ previewIntegrationMessage: enginePreview });
+
+    await runAuthenticatedIntegrationPreview({
+      data: rawMessage,
+      integrationId: 'adt-east',
+      correlationId: 'correlation-123'
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls[0]?.[0]).toBe(PreviewIntegrationMessageDocument);
+    expect(mockSubscribe).not.toHaveBeenCalled();
+  });
 });
 
 describe('authenticated integration preview routing', () => {
@@ -132,6 +209,7 @@ describe('authenticated integration preview routing', () => {
     const env = import.meta.env as Record<string, string | undefined>;
     const previous = env.VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED;
     env.VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED = 'true';
+    setAccessStatus(sessionCapableStatus(true));
     const operations: string[] = [];
     const run = {
       __typename: 'SessionRun' as const,

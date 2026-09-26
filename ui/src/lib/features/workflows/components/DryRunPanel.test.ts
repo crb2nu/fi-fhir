@@ -16,9 +16,18 @@ vi.mock('../workflowApi', () => ({
   simulateSessionWorkflow: vi.fn()
 }));
 
-vi.mock('$lib/features/integration-session', () => ({
-  isIntegrationSessionEngineEnabled: () => true
+const { engineEnabled } = vi.hoisted(() => ({
+  engineEnabled: { value: true }
 }));
+
+vi.mock('$lib/features/integration-session', async () => {
+  const { readable } = await import('svelte/store');
+  return {
+    get integrationSessionEngineEnabled() {
+      return readable(engineEnabled.value);
+    }
+  };
+});
 
 vi.mock('$lib/graphql/client', () => ({
   isErrorToasted: vi.fn(() => false)
@@ -119,7 +128,20 @@ describe('DryRunPanel session simulation', () => {
     });
   });
 
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    engineEnabled.value = true;
+  });
+
+  it('neither offers the Session source nor loads sessions when the session engine is off', async () => {
+    engineEnabled.value = false;
+    render(DryRunPanel);
+
+    expect(screen.queryByRole('tab', { name: 'Session' })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Presets' })).toBeInTheDocument();
+    await Promise.resolve();
+    expect(fetchWorkflowSimulationSessions).not.toHaveBeenCalled();
+  });
 
   it('saves an exact draft revision and simulates only server-owned run IDs', async () => {
     render(DryRunPanel);

@@ -1,5 +1,8 @@
 export {
+  integrationSessionEngineEnabled,
+  isIntegrationSessionBuildEnabled,
   isIntegrationSessionEngineEnabled,
+  resolveIntegrationSessionEngine,
   runAuthenticatedIntegrationPreview
 } from './api';
 export type { AuthenticatedIntegrationPreviewInput } from './api';

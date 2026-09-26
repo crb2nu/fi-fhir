@@ -17,7 +17,7 @@
   import { isErrorToasted } from '$lib/graphql/client';
   import { debugSession } from '$lib/features/debug/debugStore';
   import { runtimeOutputState } from '$lib/ui/ide/panels/runtimeOutputStore';
-  import { isIntegrationSessionEngineEnabled } from '$lib/features/integration-session';
+  import { integrationSessionEngineEnabled } from '$lib/features/integration-session';
   import SessionPublicationPanel from './SessionPublicationPanel.svelte';
   import type {
     DryRunWorkflowMutation,
@@ -62,16 +62,26 @@
   const customEventPlaceholder = '[{ "type": "PATIENT_ADMIT", "source": "epic" }]';
   let running = false;
   let result: DryRunResult | null = null;
-  const sessionEngineEnabled = isIntegrationSessionEngineEnabled();
   let simulationSessions: SimulationSession[] = [];
   let selectedSessionId = '';
   let sessionLoading = false;
   let sessionLoadError = '';
   let sessionResult: SessionSimulation | null = null;
+  let mounted = false;
+  let sessionsRequested = false;
 
-  const sourceOptions = sessionEngineEnabled
+  // The Session source exists only when the session engine is really there
+  // (build flag AND the API's integrationSessions capability); otherwise the
+  // panel neither offers it nor loads integrationSessions on open.
+  $: sessionEngineEnabled = $integrationSessionEngineEnabled;
+  $: sourceOptions = sessionEngineEnabled
     ? [{ value: 'session' as EventSource, label: 'Session' }, ...legacySourceOptions]
     : legacySourceOptions;
+  $: if (!sessionEngineEnabled && eventSource === 'session') eventSource = 'presets';
+  $: if (mounted && sessionEngineEnabled && !sessionsRequested) {
+    sessionsRequested = true;
+    void loadSimulationSessions();
+  }
   $: selectedSession = simulationSessions.find((session) => session.id === selectedSessionId);
   $: selectedSessionRunIds = selectedSession?.runs
     .filter((run) => run.status === 'completed' && run.events.length > 0)
@@ -88,7 +98,7 @@
   $: selectedProfileRevisionId = selectedProfileRevisionIds.length === 1 ? selectedProfileRevisionIds[0]! : '';
 
   onMount(() => {
-    if (sessionEngineEnabled) void loadSimulationSessions();
+    mounted = true;
   });
 
   async function loadSimulationSessions() {
