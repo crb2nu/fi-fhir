@@ -150,6 +150,9 @@ variables:
   - .env.example
   - api/openapi.yaml
   - .gitlab-ci.yml
+  # test:ui-e2e needs test:binary; a change to the gate's own definition must
+  # run both (ci/test-ui-e2e.yml lists the same path in its own rules).
+  - ci/test-ui-e2e.yml
   - .golangci.yml
   - .golangci.yaml
   - .golangci.toml

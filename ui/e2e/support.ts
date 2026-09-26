@@ -120,10 +120,10 @@ export const SYNTHETIC_ADT_A01 = [
 
 /**
  * Replaces HL7 intake's editor content with `message` the way a user pastes
- * one, then presses "Normalize newlines": the editor joins lines with LF,
- * Preview sends the editor text as-is, and the API parses CR-separated
- * segments only. (The page's built-in default sample does not preview either:
- * its separators are the literal characters `\r`.)
+ * one, then presses "Normalize newlines". Since Lane R-E every send path
+ * normalizes line endings itself and the built-in sample is executable, so
+ * the click is no longer required; it stays so the gate also exercises the
+ * explicit action and does not depend on the send-boundary fix.
  */
 export async function enterHL7Message(page: Page, message: string): Promise<void> {
   await page.getByTestId('code-editor').locator('.cm-content').click();

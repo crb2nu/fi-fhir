@@ -102,6 +102,9 @@ test:ui-e2e:
         - api/openapi.yaml
         - testdata/**/*
         - .gitlab-ci.yml
+        # This file is also in .gitlab-ci.yml's runtime-verification anchor, so
+        # test:binary (needed above) runs whenever the gate's definition changes.
+        - ci/test-ui-e2e.yml
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes:
         - ui/**/*
@@ -111,6 +114,7 @@ test:ui-e2e:
         - api/openapi.yaml
         - testdata/**/*
         - .gitlab-ci.yml
+        - ci/test-ui-e2e.yml
     - when: never
   after_script:
     - |
