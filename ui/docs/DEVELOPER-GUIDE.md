@@ -124,19 +124,21 @@ Vitest proves components against mocked stores. `test:ui-e2e`
 against the **built** UI, served by `nginx/default.conf.template`, in front of
 real `fi-fhir serve` processes on PostgreSQL 16, reached from the trusted
 network (`127.0.0.1/32` — the address nginx forwards). It runs three stacks,
-one Playwright project each:
+one Playwright project each, and a fourth project on the first stack:
 
 | Project | API differs by | Proves |
 |---|---|---|
 | `operator-bundle` | — (full operator bundle, sessions on) | `/api/auth/status` capabilities; operator Messages list with no pre-flight or "forbidden"; an `integrationSessionEvents` SSE stream answers 200 `text/event-stream` and the HL7 run panel listens within 10 s, while Events → Live Stream shows `streaming-unavailable` for `eventStream`; Copilot "not configured"; no phantom Problems badge or Platform indicator |
 | `missing-operator-role` | no `integration.operator` | `operator-preflight` names `integration.operator` and no operator query is sent |
 | `sessions-off` | `FI_FHIR_INTEGRATION_SESSION_ENABLED` unset | `subscriptions == []`, `streaming: false`, HL7 intake shows `streaming-unavailable` for `integrationSessionEvents` and still previews on the stateless path |
+| `visual` | — (reuses the `operator-bundle` stack, runs last) | a settled 1440×900 PNG of every route, the Problems panel and the command palette in `e2e-results/visual/`, and none of `FORBIDDEN_COPY` (`e2e/support.ts`) rendered; `DESIGN.md` "How to review a UI MR" |
 
 Run it locally with Docker (no local nginx or Chromium needed):
 
 ```bash
 make ui-e2e                                        # the CI job, on docker context 7900xtx
 make ui-e2e UI_E2E_ARGS="--project sessions-off"   # one project
+make ui-e2e UI_E2E_ARGS="--project visual"         # only the review screenshots
 UI_E2E_KEEP=1 make ui-e2e                          # keep the containers for docker exec
 ```
 
@@ -153,8 +155,8 @@ The specs live in `ui/e2e/` (outside vitest's `src/**` include) and use the
 `data-testid`s the honest surfaces carry: `operator-preflight`
 (`data-missing-roles`), `streaming-unavailable` (`data-stream`,
 `data-reason`), `copilot-llm-state` (`data-state`), `problems-badge`,
-`platform-indicator`. `ui/e2e/check-report.mjs` fails the job if any check or
-either negative control did not run.
+`platform-indicator`. `ui/e2e/check-report.mjs` fails the job if any check,
+either negative control or any visual capture did not run.
 
 ## Build metadata
 

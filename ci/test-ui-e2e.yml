@@ -27,6 +27,13 @@
 #                          [data-stream=integrationSessionEvents] on HL7 intake,
 #                          and Preview still works on the stateless path
 #
+# Plus project `visual` (.loom/37 U-4) on the operator-bundle stack, run last:
+# 1440x900 PNGs of every route, the bottom panel on Problems and the command
+# palette, written to ui/e2e-results/visual/ as review evidence (no pixel
+# diffing, no golden files), and the copy register (FORBIDDEN_COPY in
+# ui/e2e/support.ts) asserted on each. ui/docs/DESIGN.md "How to review a UI
+# MR" reads the artifact.
+#
 # Trusted network: the browser reaches nginx on 127.0.0.1, the template
 # forwards X-Forwarded-For = $proxy_add_x_forwarded_for ("127.0.0.1") and no
 # X-Real-IP, and the API trusts the first forwarded hop — so the stacks set
@@ -88,6 +95,9 @@ test:ui-e2e:
     expire_in: 2 weeks
     paths:
       - ui/e2e-results/
+      # Named on its own so the review evidence stays in the artifact if the
+      # line above is ever narrowed (the runner de-duplicates the overlap).
+      - ui/e2e-results/visual/
     reports:
       junit: ui/e2e-results/junit.xml
   allow_failure: false
@@ -123,10 +133,11 @@ test:ui-e2e:
         echo "${CI_JOB_NAME} FAILED — the IDE, served as production serves it, no longer"
         echo "shows the state its API reports: operator access, Integration Session"
         echo "streaming, the Copilot's LLM state, or the chrome that must stay hidden;"
-        echo "or a negative control stopped failing for the reason it exists."
-        echo "Artifacts: ui/e2e-results/{html/index.html,artifacts/*/{test-failed-*.png,trace.zip},logs/}"
+        echo "or a negative control stopped failing for the reason it exists;"
+        echo "or a visual capture never settled or rendered a banned phrase (FORBIDDEN_COPY)."
+        echo "Artifacts: ui/e2e-results/{html/index.html,artifacts/*/{test-failed-*.png,trace.zip},logs/,visual/}"
         echo "Trace: npx playwright show-trace ui/e2e-results/artifacts/<test>/trace.zip"
         echo "Local: make ui-e2e   (docker context 7900xtx; UI_E2E_ARGS=\"--project <name>\")"
-        echo "Docs: ui/docs/DEVELOPER-GUIDE.md \"Browser smoke gate\""
+        echo "Docs: ui/docs/DEVELOPER-GUIDE.md \"Browser smoke gate\"; ui/docs/DESIGN.md \"How to review a UI MR\""
         echo "Owner: Platform/UI — escalate in #ci-support"
       fi

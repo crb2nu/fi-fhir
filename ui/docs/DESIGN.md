@@ -13,6 +13,8 @@ consistent, chrome is thin and data lives in tables.
 | Primitives | `src/lib/ui/primitives/` (`import { Button, … } from '$lib/ui/primitives'`) |
 | Theme switch | `src/lib/theme/theme.ts` + the early script in `src/app.html` |
 | Live gallery (dev only) | `npm run dev`, then open `/design` (`?theme=light` to preview light) |
+| Screenshots of every route (CI) | `test:ui-e2e` artifacts, `ui/e2e-results/visual/` — see "How to review a UI MR" |
+| Banned phrases (enforced) | `FORBIDDEN_COPY` in `e2e/support.ts` |
 
 ## Rules at a glance
 
@@ -194,7 +196,9 @@ under its toolbar.
   headlines. Stage names (Source Intake, Normalization, Translation,
   Delivery, Verification) are navigation labels only.
 - Do not ship these phrases: "Mission control", "Build the interface",
-  "Recommended move", "Demo data", "Continue to", "NEXT UP".
+  "Recommended move", "Demo data", "Continue to", "NEXT UP". `test:ui-e2e`
+  fails when one renders on any route; the list is `FORBIDDEN_COPY` in
+  `e2e/support.ts`, the one place to extend it.
 - Sentence case for titles and buttons ("Load file", not "Load File").
   Uppercase only through the label register.
 - Never show simulated data on a production surface, labelled or not. The
@@ -385,6 +389,44 @@ Keep every honest `data-testid` from `.loom/36` (`operator-preflight`,
 `streaming-unavailable`, `copilot-llm-state`, `problems-badge`,
 `platform-indicator`) with its meaning; move it onto the primitive that
 renders the state.
+
+## How to review a UI MR
+
+Look at the pictures before the diff. Every pipeline that runs `test:ui-e2e`
+(any MR touching `ui/**`) captures the IDE at 1440×900, dark theme, against
+the operator-bundle stack (`e2e/visual.spec.ts`, Playwright project `visual`):
+
+1. Open the MR's pipeline → job `test:ui-e2e` → **Browse** →
+   `ui/e2e-results/visual/`
+   (`/-/jobs/<job id>/artifacts/browse/ui/e2e-results/visual/`). Artifacts
+   are kept for 2 weeks.
+2. Open the same folder from the latest `main` pipeline that ran
+   `test:ui-e2e`, and compare file by file. The names are
+   `<route>-<state>.png`:
+
+   | File | State |
+   |---|---|
+   | `home-default.png` | `/` after Health and Integrations answered |
+   | `hl7-idle.png` | `/hl7`, the built-in sample in the editor, nothing run |
+   | `hl7-preview.png` | `/hl7` after Preview completed on the session engine |
+   | `workflows-inventory.png`, `workflows-design.png` | `/workflows`, Inventory and Design tabs |
+   | `profiles-default.png` | `/profiles` |
+   | `terminology-browse.png` | `/terminology`, Browse |
+   | `events-browse.png` | `/events`, Browse |
+   | `operator-messages.png` | `/operator`, Messages |
+   | `home-panel-problems.png` | `/` with the bottom panel open on Problems |
+   | `home-command-palette.png` | `/` with the command palette open |
+
+3. Judge them against the rules in this file. Nothing diffs pixels and no
+   golden image is kept in git, so a surface that looks wrong is a review
+   finding, not a red job. The job does fail when a capture never settles
+   (its anchor never appears, something stays busy, a request never ends) or
+   when a phrase from `FORBIDDEN_COPY` (`e2e/support.ts`) renders.
+
+`make ui-e2e UI_E2E_ARGS="--project visual"` writes the same files to
+`ui/e2e-results/visual/` locally. A new route or state belongs in
+`CAPTURES` in `e2e/visual.spec.ts`, with its id added to
+`e2e/check-report.mjs`.
 
 ## Reviewing a UI change
 

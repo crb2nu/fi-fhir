@@ -11,6 +11,9 @@
 #   missing-operator-role  :3001  :18082  the bundle minus integration.operator
 #   sessions-off           :3002  :18083  FI_FHIR_INTEGRATION_SESSION_ENABLED unset
 #
+# The fourth project, `visual`, reuses the operator-bundle stack and writes its
+# review PNGs to $E2E_RESULTS_DIR/visual/.
+#
 # Each stack gets its own database, so the operator Messages list is empty by
 # construction and no stack sees another's migrations.
 #
@@ -234,9 +237,10 @@ E2E_SESSIONS_OFF_URL=http://127.0.0.1:3002 \
 playwright_status=$?
 set -e
 
-# Existence guard, as the Go proof jobs do with `go test -list`: every check
-# and both negative controls must have run and passed. A renamed spec or a
-# project that matched no file would otherwise make this job greener.
+# Existence guard, as the Go proof jobs do with `go test -list`: every check,
+# both negative controls and every visual capture must have run and passed. A
+# renamed spec or a project that matched no file would otherwise make this job
+# greener.
 if [ "$#" -eq 0 ]; then
   node "$UI_DIR/e2e/check-report.mjs" "$E2E_RESULTS_DIR/report.json" || playwright_status=1
 fi

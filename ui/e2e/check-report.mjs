@@ -1,14 +1,16 @@
-// Existence guard for the browser smoke gate: every check and both negative
-// controls must have RUN and PASSED in their own project. Playwright alone
-// would pass a run in which a project matched no spec file, or a renamed test
-// silently stopped existing — exactly how a gate gets greener as it gets
-// weaker. Titles are matched by their leading check number.
+// Existence guard for the browser smoke gate: every check, both negative
+// controls and every visual capture must have RUN and PASSED in their own
+// project. Playwright alone would pass a run in which a project matched no
+// spec file, or a renamed test silently stopped existing — exactly how a gate
+// gets greener as it gets weaker. Titles are matched by their leading check
+// number; visual.spec.ts numbers its captures V1..V11.
 import { readFileSync } from 'node:fs';
 
 const required = {
   'operator-bundle': ['1.', '2.', '3.', '4.', '5.'],
   'missing-operator-role': ['6a.'],
-  'sessions-off': ['6b.']
+  'sessions-off': ['6b.'],
+  visual: ['V1.', 'V2.', 'V3.', 'V4.', 'V5.', 'V6.', 'V7.', 'V8.', 'V9.', 'V10.', 'V11.']
 };
 
 const [reportPath] = process.argv.slice(2);
