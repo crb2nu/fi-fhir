@@ -1,6 +1,6 @@
 # fi-fhir Roadmap
 
-> Last Updated: 2026-09-25
+> Last Updated: 2026-09-26
 > Tier: 1 (see workspace AGENTS.md "Portfolio Tiers")
 > Tracking issue: https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/19
 > Completion spec: `.loom/20-product-spec-integration-engine-ide-completion.md`
@@ -25,11 +25,20 @@ Delivered FHIR Bundles are validated offline by the HL7 official validator in
 CI against pinned R4 4.0.1 and US Core 9.0.0 packages; the findings ledger is
 checked in and held by exact equality.
 
-This update records repository state through merge `7ae14604c` on 2026-09-25.
-[Pipeline 28874](https://gitlab.flexinfer.ai/libs/fi-fhir/-/pipelines/28874)
-passed 56 automatic jobs, including the offline official validator, live HAPI
-FHIR read-back, Kafka/Redis, PostgreSQL/MinIO, and two-replica tests. These are
-internal GitLab records.
+The Mapping Studio reports what its API grants it: `/api/auth/status` carries
+the caller's roles, derived capabilities and missing roles, and every operator,
+streaming and Copilot surface renders the honest state from that contract
+instead of failing. The deployed shape is proven in CI by a blocking Playwright
+smoke gate against the built UI, the production nginx template and real API
+processes, with negative controls. The production deployment grants every IDE
+identity the operator bundle and runs the Integration Session workspace with
+SSE streaming on (2026-09-26).
+
+This update records repository state through merge `3c0a19171` on 2026-09-26.
+[Pipeline 29194](https://gitlab.flexinfer.ai/libs/fi-fhir/-/pipelines/29194)
+is the `main` pipeline for that merge, including the browser smoke gate, the
+offline official validator, live HAPI FHIR read-back, Kafka/Redis,
+PostgreSQL/MinIO, and two-replica tests. These are internal GitLab records.
 Production activation and release certification remain separate decisions;
 this documentation update does not assert a new clinical-runtime deployment.
 
@@ -116,8 +125,73 @@ Spec: `.loom/35-sprint7-execution-specs.md`
   request in place, with no model restart. See
   [SUPPORTED-1.0](docs/operations/SUPPORTED-1.0.md) rows 1–3.
 
+## Delivered — IDE repair program (2026-09-25 → 2026-09-26)
+
+Spec: `.loom/36-ide-repair-execution-specs.md`
+([MR !223](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/223),
+corrections in
+[MR !224](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/224)).
+Every symptom was measured against the live deployment from the LAN before a
+lane was launched; none was in the trusted-network path itself.
+
+- [x] **R-0 the operator bundle (platform/gitops MR 805)** — the deployment
+  granted only the transport grant `graphql:operator`, so the gate admitted
+  every operator query and the service refused every one. Every IDE identity
+  (static bearer, trusted network, both Access principals) now holds
+  `integration.operator`, `integration.delivery.operator` and
+  `integration.deployment.operator` as well. No code change; decision
+  "Grant the operator bundle rather than alias the transport grant".
+- [x] **R-A the auth capabilities contract** — `/api/auth/status` reports
+  `principal`, `roles`, derived `capabilities` (operator read/delivery/
+  deployment, clinical read, integration sessions, streaming, the allowlisted
+  `subscriptions`, `llm.configured`) and `missingRoles`, checked in tests
+  against the real operator service; `serve` warns once per identity holding
+  the grant without the bundle. Merged in
+  [MR !225](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/225).
+- [x] **R-B honest surfaces** — the operator page pre-flights on
+  `capabilities.operatorRead` and names the missing roles; streaming surfaces
+  are keyed per subscription root and the four legacy panels never subscribe
+  (the SSE allowlist admits only the two session roots by design); the session
+  engine runs only when the build flag is on and the API reports
+  `integrationSessions`; the Copilot runs on the backend LLM capability, the
+  loom platform chrome hides unless `PUBLIC_LOOM_ENDPOINT` is set; the Problems
+  badge counts only a live draft. Merged in
+  [MR !226](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/226).
+- [x] **R-C streaming on, repo side** — `ui/Dockerfile` ships the session
+  engine on; production and runbook sections in `docs/operations`; the SSE
+  client keeps the `FORBIDDEN` code the server's catalog-safe presenter leaves
+  in place of the stream-specific message; an end-to-end "flag on, API off"
+  test through the real gate, store and pages. Merged in
+  [MR !228](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/228).
+- [x] **Production streaming (platform/gitops MR 811)** — one env entry,
+  `FI_FHIR_INTEGRATION_SESSION_ENABLED=true`; the store migrated itself into
+  the durable PostgreSQL; no retention key (raw retention stays refused),
+  signed publication off. Verified from the LAN: `integrationSessionEvents`
+  answers `200 text/event-stream`. Decision "Streaming flips before the UI
+  image; the stream allowlist stays narrow".
+- [x] **R-D the browser smoke gate** — blocking `test:ui-e2e`: Playwright
+  against the built UI served by the production nginx template in front of
+  three real `fi-fhir serve` stacks on PostgreSQL (the bundle with sessions
+  on; the bundle minus `integration.operator`; sessions off), with an
+  existence guard so a renamed check cannot make the gate greener;
+  `make ui-e2e` mirrors it. First CI run 7/7 in 249 s. Merged in
+  [MR !227](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/227).
+- [x] **Close-out (`docs/ide-repair-close-out`)** — this roadmap, one
+  CHANGELOG block, the decision entry, and `ci/test-ui-e2e.yml` running when
+  its own definition changes.
+
 ## Now
 
+- [ ] **Stale capabilities in an open tab** — a tab reads `/api/auth/status`
+  once at load; after a rollback of the streaming flip, or after a bearer is
+  entered, it keeps the capabilities it loaded with. Re-probe the status when
+  a session mutation is refused with "legacy integration execution is
+  unavailable" and after credential entry; until then, reload the tab
+  (documented in `INTEGRATION-SESSIONS.md`).
+- [ ] **Operator-plane availability as a capability** — the IDE cannot yet
+  tell "the control plane is not configured"
+  (`FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED` unset) from "this identity is
+  forbidden"; both read as a refusal. Add it to the contract.
 - [ ] **Budgets 2 and 3** — budget 2 needs a one-hour, two-replica run at the
   declared 250 msg/s (the single-process harness cannot certify it); budget 3
   needs a 1-GiB batch-import workload reading cgroup RSS on runner 8. The
