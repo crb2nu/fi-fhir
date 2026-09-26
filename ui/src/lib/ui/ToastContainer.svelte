@@ -2,7 +2,8 @@
   /**
    * ToastContainer Component
    *
-   * Container for toast notifications with responsive positioning.
+   * Notifications stack in the bottom-right corner above the status bar,
+   * the workbench convention (VS Code, Grafana).
    */
 
   import { toastList, toasts } from './toastStore';
@@ -30,12 +31,13 @@
 <style>
   .toast-container {
     position: fixed;
-    top: var(--space-4);
-    right: var(--space-4);
+    right: var(--space-3);
+    bottom: calc(var(--statusbar-height, 24px) + var(--space-2));
     z-index: var(--z-toast);
     display: flex;
     flex-direction: column;
-    gap: var(--space-3);
+    align-items: flex-end;
+    gap: var(--space-2);
     pointer-events: none;
     max-width: 400px;
   }
@@ -46,8 +48,8 @@
 
   @media (max-width: 480px) {
     .toast-container {
-      left: var(--space-4);
-      right: var(--space-4);
+      left: var(--space-3);
+      right: var(--space-3);
       max-width: none;
     }
   }

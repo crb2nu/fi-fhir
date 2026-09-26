@@ -1,6 +1,19 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import CircleAlert from '@lucide/svelte/icons/circle-alert';
+  import CircleCheck from '@lucide/svelte/icons/circle-check';
+  import Info from '@lucide/svelte/icons/info';
+  import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
+  import X from '@lucide/svelte/icons/x';
+  import Icon from '$lib/ui/primitives/Icon.svelte';
   import type { ToastVariant } from './toastStore';
+
+  /**
+   * One notification: a state icon, one line of text, a dismiss button. The
+   * variant colours the icon and a 2 px left edge only; the surface stays
+   * neutral. `.toast.<variant>` class names are part of the e2e contract
+   * (the browser gate records every `.toast.error`).
+   */
 
   export let id: string;
   export let message: string;
@@ -9,39 +22,26 @@
 
   const dispatch = createEventDispatcher<{ dismiss: { id: string } }>();
 
+  const icons = {
+    success: CircleCheck,
+    error: CircleAlert,
+    warning: TriangleAlert,
+    info: Info
+  } as const;
+
   function handleDismiss() {
     dispatch('dismiss', { id });
   }
 </script>
 
 <div class="toast {variant}" role="alert" aria-live="polite">
-  <div class="icon">
-    {#if variant === 'success'}
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon-svg">
-        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
-      </svg>
-    {:else if variant === 'error'}
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon-svg">
-        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd" />
-      </svg>
-    {:else if variant === 'warning'}
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon-svg">
-        <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
-      </svg>
-    {:else}
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon-svg">
-        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd" />
-      </svg>
-    {/if}
-  </div>
+  <Icon icon={icons[variant] ?? Info} class="toast-icon" />
 
   <span class="message">{message}</span>
 
   {#if dismissible}
     <button class="dismiss" type="button" on:click={handleDismiss} aria-label="Dismiss notification">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="dismiss-icon">
-        <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-      </svg>
+      <Icon icon={X} size={14} />
     </button>
   {/if}
 </div>
@@ -50,104 +50,81 @@
   .toast {
     display: flex;
     align-items: flex-start;
-    gap: 10px;
-    padding: 12px 14px;
-    border-radius: 12px;
-    background: rgba(30, 41, 59, 0.95);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
-    backdrop-filter: blur(8px);
-    animation: slideIn 0.25s ease-out;
-    max-width: 360px;
+    gap: var(--space-2);
     min-width: 280px;
-  }
-
-  @keyframes slideIn {
-    from {
-      opacity: 0;
-      transform: translateY(-10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+    max-width: 380px;
+    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border-default);
+    border-left: 2px solid var(--toast-edge, var(--color-border-strong));
+    border-radius: var(--radius-md);
+    background: var(--color-bg-overlay);
+    box-shadow: var(--shadow-lg);
+    color: var(--color-text-primary);
+    font-size: var(--text-ui);
+    line-height: var(--leading-ui);
+    animation: fadeIn var(--duration-normal) var(--ease-out);
   }
 
   .toast.success {
-    border-color: rgba(16, 185, 129, 0.35);
+    --toast-edge: var(--color-success);
+    --toast-icon: var(--color-success-text);
   }
 
   .toast.error {
-    border-color: rgba(239, 68, 68, 0.45);
+    --toast-edge: var(--color-danger);
+    --toast-icon: var(--color-danger-text);
   }
 
   .toast.warning {
-    border-color: rgba(245, 158, 11, 0.4);
+    --toast-edge: var(--color-warning);
+    --toast-icon: var(--color-warning-text);
   }
 
   .toast.info {
-    border-color: rgba(59, 130, 246, 0.35);
+    --toast-edge: var(--color-info);
+    --toast-icon: var(--color-info-text);
   }
 
-  .icon {
-    flex-shrink: 0;
-    width: 20px;
-    height: 20px;
-  }
-
-  .icon-svg {
-    width: 100%;
-    height: 100%;
-  }
-
-  .toast.success .icon {
-    color: rgba(16, 185, 129, 0.9);
-  }
-
-  .toast.error .icon {
-    color: rgba(239, 68, 68, 0.9);
-  }
-
-  .toast.warning .icon {
-    color: rgba(245, 158, 11, 0.9);
-  }
-
-  .toast.info .icon {
-    color: rgba(59, 130, 246, 0.9);
+  .toast :global(.toast-icon) {
+    margin-top: 2px;
+    color: var(--toast-icon, var(--color-text-tertiary));
   }
 
   .message {
     flex: 1;
-    color: rgba(243, 244, 246, 0.95);
-    font-size: 0.9rem;
-    line-height: 1.4;
+    min-width: 0;
+    word-break: break-word;
   }
 
   .dismiss {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     flex-shrink: 0;
     width: 20px;
     height: 20px;
     padding: 0;
     border: none;
+    border-radius: var(--radius-sm);
     background: transparent;
+    color: var(--color-text-tertiary);
     cursor: pointer;
-    color: rgba(156, 163, 175, 0.7);
-    transition: color 0.15s ease;
+    transition: var(--transition-colors);
   }
 
   .dismiss:hover {
-    color: rgba(243, 244, 246, 0.95);
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
   }
 
   .dismiss:focus-visible {
-    outline: none;
-    box-shadow: var(--shadow-focus);
-    border-radius: var(--radius-sm);
-    color: rgba(243, 244, 246, 0.95);
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 1px;
   }
 
-  .dismiss-icon {
-    width: 100%;
-    height: 100%;
+  @media (prefers-reduced-motion: reduce) {
+    .toast {
+      animation: none;
+    }
   }
 </style>

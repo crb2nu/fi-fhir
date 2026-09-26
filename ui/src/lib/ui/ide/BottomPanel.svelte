@@ -1,13 +1,23 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import ChevronDown from '@lucide/svelte/icons/chevron-down';
+  import ChevronUp from '@lucide/svelte/icons/chevron-up';
+  import { Badge, IconButton } from '$lib/ui/primitives';
   import type { PanelTab } from './types';
   import { workflowProblemCounts } from './panels/workflowProblemsStore';
   import { isAvailable } from '$lib/features/copilot';
   import { CopilotPanel } from '$lib/features/copilot';
 
   /**
-   * Collapsible bottom panel with tabbed content areas.
-   * Hosts Output, Problems, Debug, Trace, and Copilot views.
+   * Collapsible bottom panel: a 28 px underline tab strip (Output, Problems,
+   * Debug, Trace, Copilot) over a 12 px-padded body. Collapsed, only the strip
+   * shows; selecting a tab opens it.
+   *
+   * The strip follows the `Tabs` primitive's look and keyboard model (one tab
+   * stop, arrows/Home/End, activation on Enter/Space/click) but is rendered
+   * here because the Problems tab carries the honest `problems-badge`
+   * (a mono `Badge` with its own test id and "N problems" label), which the
+   * primitive's plain `count` cannot express.
    */
 
   export let open: boolean = false;
@@ -20,14 +30,14 @@
     navigate: { panel: string };
   }>();
 
-  type PanelTabEntry = { key: PanelTab; label: string; indicator?: string };
+  type PanelTabEntry = { key: PanelTab; label: string };
 
   const panelTabs: PanelTabEntry[] = [
     { key: 'output', label: 'Output' },
     { key: 'problems', label: 'Problems' },
     { key: 'debug', label: 'Debug' },
     { key: 'trace', label: 'Trace' },
-    { key: 'copilot', label: 'Copilot', indicator: '\u2726' },
+    { key: 'copilot', label: 'Copilot' },
   ];
 
   function onTabClick(key: PanelTab): void {
@@ -38,89 +48,73 @@
     dispatch('toggle');
   }
 
-  // Track previous count to trigger the pulse animation on increase.
-  let prevTotal = 0;
-  let pulsing = false;
-  let pulseTimer: ReturnType<typeof setTimeout> | undefined;
-
-  /* eslint-disable svelte/infinite-reactive-loop -- one-shot pulse, no feedback loop */
-  $: {
-    const total = $workflowProblemCounts.total;
-    if (total > prevTotal && prevTotal >= 0) {
-      pulsing = true;
-      clearTimeout(pulseTimer);
-      pulseTimer = setTimeout(() => {
-        pulsing = false;
-      }, 400);
+  function onTabKeydown(event: KeyboardEvent, index: number): void {
+    let next: number;
+    switch (event.key) {
+      case 'ArrowRight':
+        next = (index + 1) % panelTabs.length;
+        break;
+      case 'ArrowLeft':
+        next = (index - 1 + panelTabs.length) % panelTabs.length;
+        break;
+      case 'Home':
+        next = 0;
+        break;
+      case 'End':
+        next = panelTabs.length - 1;
+        break;
+      default:
+        return;
     }
-    prevTotal = total;
+    event.preventDefault();
+    const list = (event.currentTarget as HTMLElement).closest('[role="tablist"]');
+    list?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
   }
-  /* eslint-enable svelte/infinite-reactive-loop */
 
-  $: badgeVariant = $workflowProblemCounts.error > 0
+  $: badgeTone = ($workflowProblemCounts.error > 0
     ? 'danger'
     : $workflowProblemCounts.warning > 0
       ? 'warning'
-      : 'info';
+      : 'info') as 'danger' | 'warning' | 'info';
 </script>
 
-<div
-  class="bottom-panel"
-  class:open
-  style="--panel-h: {height}px"
->
+<div class="bottom-panel" class:open style="--panel-h: {height}px">
   <div class="panel-header">
     <div class="panel-tabs" role="tablist" aria-label="Panel tabs">
-      {#each panelTabs as tab (tab.key)}
+      {#each panelTabs as tab, index (tab.key)}
         <button
           type="button"
           class="panel-tab"
-          class:active={tab.key === activeTab}
+          class:active={open && tab.key === activeTab}
           class:dimmed={tab.key === 'copilot' && !$isAvailable}
           role="tab"
           aria-selected={tab.key === activeTab}
+          tabindex={tab.key === activeTab ? 0 : -1}
           on:click={() => onTabClick(tab.key)}
+          on:keydown={(event) => onTabKeydown(event, index)}
         >
-          {tab.label}
+          <span>{tab.label}</span>
           {#if tab.key === 'problems' && $workflowProblemCounts.total > 0}
-            <span
-              class="diag-badge {badgeVariant}"
-              class:pulse={pulsing}
+            <Badge
+              mono
+              tone={badgeTone}
+              class={badgeTone}
               data-testid="problems-badge"
               aria-label="{$workflowProblemCounts.total} problems"
             >
               {$workflowProblemCounts.total}
-            </span>
-          {/if}
-          {#if tab.indicator}
-            <span class="tab-indicator">{tab.indicator}</span>
+            </Badge>
           {/if}
         </button>
       {/each}
     </div>
 
-    <button
-      type="button"
+    <IconButton
+      icon={open ? ChevronDown : ChevronUp}
+      label={open ? 'Hide panel' : 'Show panel'}
       class="panel-toggle"
-      aria-label={open ? 'Hide panel' : 'Show panel'}
-      on:click={onToggle}
-    >
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        aria-hidden="true"
-      >
-        {#if open}
-          <!-- Open: chevron points down — click to collapse the panel downward. -->
-          <path d="M6 9l6 6 6-6" />
-        {:else}
-          <!-- Closed: chevron points up — click to expand the panel upward. -->
-          <path d="M6 15l6-6 6 6" />
-        {/if}
-      </svg>
-    </button>
+      onclick={onToggle}
+    />
   </div>
 
   {#if open}
@@ -138,12 +132,12 @@
 
 <style>
   .bottom-panel {
-    background: var(--ide-bottom-panel-bg, var(--color-bg-surface));
-    border-top: 1px solid var(--color-border-subtle);
     display: flex;
     flex-direction: column;
     min-height: 0;
     height: auto;
+    background: var(--ide-bottom-panel-bg, var(--color-bg-elevated));
+    border-top: 1px solid var(--color-border-subtle);
   }
 
   .bottom-panel.open {
@@ -155,36 +149,46 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 32px;
-    min-height: 32px;
-    padding: 0 var(--space-3);
+    gap: var(--space-2);
+    flex: 0 0 auto;
+    height: 28px;
+    padding: 0 var(--space-1) 0 var(--space-3);
+  }
+
+  .bottom-panel.open .panel-header {
     border-bottom: 1px solid var(--color-border-subtle);
   }
 
   .panel-tabs {
     display: flex;
-    gap: 0;
+    align-items: stretch;
+    gap: var(--space-4);
     height: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
 
   .panel-tab {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 0 var(--space-3);
-    height: 100%;
+    padding: 0 2px;
     border: none;
+    border-top: 2px solid transparent;
     border-bottom: 2px solid transparent;
-    background: transparent;
+    background: none;
     color: var(--color-text-tertiary);
+    font: inherit;
     font-size: var(--text-xs);
     font-weight: var(--font-medium);
+    white-space: nowrap;
     cursor: pointer;
     transition: var(--transition-colors);
   }
 
   .panel-tab:hover {
-    color: var(--color-text-secondary);
+    color: var(--color-text-primary);
   }
 
   .panel-tab.active {
@@ -192,116 +196,26 @@
     border-bottom-color: var(--color-primary);
   }
 
-  .panel-tab.dimmed {
-    opacity: 0.5;
-  }
-
-  .tab-indicator {
-    margin-left: 2px;
-    font-size: 9px;
-    color: var(--color-primary);
-    line-height: 1;
-  }
-
-  .panel-tab.active .tab-indicator {
-    color: var(--color-primary);
+  .panel-tab.dimmed:not(.active) {
+    color: var(--color-text-muted);
   }
 
   .panel-tab:focus-visible {
-    outline: none;
-    box-shadow: inset var(--shadow-focus);
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: -2px;
+    border-radius: var(--radius-sm);
   }
 
-  /* ── Diagnostic count badge ──────────────────────────────────────── */
-  .diag-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 16px;
-    height: 16px;
-    padding: 0 4px;
-    border-radius: var(--radius-full);
-    font-size: 9px;
-    font-weight: var(--font-bold);
-    line-height: 1;
-  }
-
-  .diag-badge.danger {
-    background: var(--color-danger-bg);
-    color: var(--color-danger-text);
-    border: 1px solid var(--color-danger-border);
-  }
-
-  .diag-badge.warning {
-    background: var(--color-warning-bg);
-    color: var(--color-warning-text);
-    border: 1px solid var(--color-warning-border);
-  }
-
-  .diag-badge.info {
-    background: var(--color-info-bg);
-    color: var(--color-info-text);
-    border: 1px solid var(--color-info-border);
-  }
-
-  .diag-badge.pulse {
-    animation: badgeBounce 400ms var(--ease-bounce);
-  }
-
-  @keyframes badgeBounce {
-    0%, 100% {
-      transform: translateY(0) scale(1);
-    }
-    40% {
-      transform: translateY(-3px) scale(1.15);
-    }
-    60% {
-      transform: translateY(-1px) scale(1.05);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .diag-badge.pulse {
-      animation: none;
-    }
-  }
-
-  /* ── Existing styles ─────────────────────────────────────────────── */
-  .panel-toggle {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  .panel-header :global(.panel-toggle) {
     width: 24px;
     height: 24px;
-    padding: 0;
-    border: none;
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--color-text-tertiary);
-    cursor: pointer;
-    transition: var(--transition-all);
-  }
-
-  .panel-toggle:hover {
-    background: var(--color-bg-hover);
-    color: var(--color-text-primary);
-  }
-
-  .panel-toggle:focus-visible {
-    outline: none;
-    box-shadow: var(--shadow-focus);
-  }
-
-  .panel-toggle svg {
-    width: 16px;
-    height: 16px;
   }
 
   .panel-content {
     flex: 1;
-    overflow: auto;
-    padding: var(--space-2) var(--space-3);
     min-height: 0;
+    overflow: auto;
+    padding: var(--space-3);
   }
 
   .panel-content-copilot {

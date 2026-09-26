@@ -22,8 +22,8 @@ describe('ActivityBar', () => {
       expect(screen.getByRole('button', { name: 'Events' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Profiles' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Terminology' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Operations' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Dashboard' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Operator' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Home' })).toBeInTheDocument();
     });
 
     it('should render activity bar navigation', () => {
@@ -82,7 +82,7 @@ describe('ActivityBar', () => {
         ['Events', 'events'],
         ['Profiles', 'profiles'],
         ['Terminology', 'terminology'],
-        ['Dashboard', 'system']
+        ['Home', 'system']
       ] as const;
 
       for (const [label] of views) {

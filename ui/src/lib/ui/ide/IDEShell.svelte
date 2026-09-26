@@ -3,34 +3,36 @@
   import { resolve } from '$app/paths';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
+  import ChevronRight from '@lucide/svelte/icons/chevron-right';
+  import Search from '@lucide/svelte/icons/search';
   import ActivityBar from './ActivityBar.svelte';
   import Sidebar from './Sidebar.svelte';
   import EditorTabs from './EditorTabs.svelte';
   import BottomPanel from './BottomPanel.svelte';
   import StatusBar from './StatusBar.svelte';
-  import JourneyProgress from './JourneyProgress.svelte';
-  import DocumentHost from './DocumentHost.svelte';
+  import StageControl from './StageControl.svelte';
   import ThemeToggle from '$lib/theme/ThemeToggle.svelte';
   import CommandPalette from '$lib/ui/CommandPalette.svelte';
   import type { PaletteCommand } from '$lib/ui/CommandPalette.svelte';
+  import type { AccessSession } from '$lib/graphql/GraphQLCredentialGate.svelte';
+  import { Button, Icon, Panel } from '$lib/ui/primitives';
   import {
     ideState,
     toggleSidebar,
     setActiveView,
     openTab as openTabAction,
-    openDocument,
     closeTab as closeTabAction,
     setActiveTab,
     toggleBottomPanel,
     toggleWorkspaceSplit,
     openPanelTab,
-    setSecondaryDocument,
     createWorkspaceTab,
-    createDocument,
     resolveNextWorkspaceTabId,
   } from './ideStore';
   import { initKeyboardShortcuts } from './keyboardShortcuts';
-  import type { IDEView, PanelTab, IDEAppRoute, DocumentType } from './types';
+  import { getJourneyStage } from './journey';
+  import type { ConnectionState } from './connection';
+  import type { IDEView, PanelTab, IDEAppRoute } from './types';
   import DebugPanel from '$lib/features/debug/DebugPanel.svelte';
   import TraceTimeline from '$lib/features/debug/TraceTimeline.svelte';
   import { traceSpans } from '$lib/features/debug/debugStore';
@@ -45,22 +47,35 @@
   } from '$lib/platform';
 
   /**
-   * IDE Shell composition root.
-   * Full VS Code-style layout with activity bar, sidebar, editor tabs,
-   * bottom panel, and status bar.
+   * IDE shell composition root: a 40 px header (wordmark, stage control,
+   * breadcrumb, command palette, theme), the activity bar, editor tabs, the
+   * document region, the bottom panel, the contextual sidebar and a 24 px
+   * status bar — the one place for connection and access state (plus
+   * Next: stage and the build).
    */
 
-  export let connectionState: 'connected' | 'disconnected' | 'connecting' = 'disconnected';
+  export let connectionState: ConnectionState = 'disconnected';
   export let activeProfile: string = '';
   export let parserStatus: string = '';
+  /** Credential state from GraphQLCredentialGate; rendered as the status-bar chip. */
+  export let access: AccessSession | null = null;
+  /** Ends a bearer session (GraphQLCredentialGate.clearCredential). */
+  export let onClearAccess: (() => void) | undefined = undefined;
 
   let paletteOpen = false;
-  let shortcutLabel = 'Ctrl+K';
   let cleanupShortcuts: (() => void) | null = null;
   type WorkspaceTab = ReturnType<typeof createWorkspaceTab>;
   let currentPath = '/';
   let currentView: IDEView = 'hl7';
   let currentWorkspaceTab: WorkspaceTab = createWorkspaceTab('/', 'system');
+
+  const isMac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform);
+
+  /** A shortcut in the platform's notation: ⌘B / ⇧⌘D on macOS, Ctrl+B elsewhere. */
+  function shortcut(key: string, shift = false): string {
+    if (isMac) return `${shift ? '⇧' : ''}⌘${key}`;
+    return `Ctrl+${shift ? 'Shift+' : ''}${key}`;
+  }
 
   const viewRoutes: Record<IDEView, IDEAppRoute> = {
     hl7: '/hl7',
@@ -91,62 +106,19 @@
   // ── Command palette commands ──
 
   const navCommands: PaletteCommand[] = [
+    { id: 'nav:system', label: 'Go to Home', hint: '/', category: 'Navigation', keywords: ['navigate', 'home', 'dashboard', 'health'], run: () => goto(resolve('/')) },
     { id: 'nav:hl7', label: 'Go to HL7 / Intake', hint: '/hl7', category: 'Navigation', keywords: ['navigate', 'hl7', 'source intake'], run: () => goto(resolve('/hl7')) },
-    { id: 'nav:workflows', label: 'Go to Workflows', hint: '/workflows', category: 'Navigation', keywords: ['navigate', 'workflows', 'delivery'], run: () => goto(resolve('/workflows')) },
-    { id: 'nav:events', label: 'Go to Events', hint: '/events', category: 'Navigation', keywords: ['navigate', 'events', 'verification'], run: () => goto(resolve('/events')) },
     { id: 'nav:profiles', label: 'Go to Profiles', hint: '/profiles', category: 'Navigation', keywords: ['navigate', 'profiles', 'normalization'], run: () => goto(resolve('/profiles')) },
     { id: 'nav:terminology', label: 'Go to Terminology', hint: '/terminology', category: 'Navigation', keywords: ['navigate', 'terminology', 'translation'], run: () => goto(resolve('/terminology')) },
-    { id: 'nav:operator', label: 'Go to Operations', hint: '/operator', category: 'Navigation', keywords: ['navigate', 'operator', 'operations', 'replay', 'dead letter', 'deployments'], run: () => goto(resolve('/operator')) },
-    { id: 'nav:system', label: 'Go to Dashboard', hint: '/', category: 'Navigation', keywords: ['navigate', 'mission control', 'home', 'dashboard'], run: () => goto(resolve('/')) },
-    { id: 'cmd:toggle-sidebar', label: 'Toggle Sidebar', category: 'Workspace', keywords: ['sidebar', 'panel'], run: () => toggleSidebar() },
-    { id: 'cmd:toggle-panel', label: 'Toggle Bottom Panel', category: 'Workspace', keywords: ['panel', 'output', 'problems'], run: () => toggleBottomPanel() },
-    { id: 'cmd:debug-panel', label: 'Open Debug Panel', hint: 'Cmd+Shift+D', category: 'Workspace', keywords: ['debug', 'breakpoint', 'step'], run: () => openPanelTab('debug') },
-    { id: 'cmd:trace-panel', label: 'Open Trace Timeline', category: 'Workspace', keywords: ['trace', 'timeline', 'spans'], run: () => openPanelTab('trace') },
-    // Document artifact commands
-    {
-      id: 'doc:open-trace',
-      label: 'Open Active Trace',
-      hint: 'View trace timeline',
-      category: 'Documents',
-      keywords: ['trace', 'timeline', 'debug'],
-      run: () => {
-        const doc = createDocument('trace', 'Active Trace', { subtitle: 'Current run' });
-        openDocument(doc);
-      },
-    },
-    {
-      id: 'doc:open-recent-workflow',
-      label: 'Reopen Recent Workflow',
-      hint: 'Resume workflow editing',
-      category: 'Documents',
-      keywords: ['workflow', 'draft', 'recent'],
-      run: () => {
-        const doc = createDocument('workflow-draft', 'Recent Workflow', { subtitle: 'Draft' });
-        openDocument(doc);
-      },
-    },
-    {
-      id: 'doc:compare-events',
-      label: 'Compare Events',
-      hint: 'Side-by-side event diff',
-      category: 'Documents',
-      keywords: ['compare', 'diff', 'events'],
-      run: () => {
-        const doc = createDocument('event', 'Event Comparison', { subtitle: 'Side-by-side diff' });
-        openDocument(doc);
-      },
-    },
-    {
-      id: 'doc:open-profile',
-      label: 'Open Profile Revision',
-      hint: 'View source profile',
-      category: 'Documents',
-      keywords: ['profile', 'revision', 'source'],
-      run: () => {
-        const doc = createDocument('profile', 'Profile Revision', { subtitle: 'Source' });
-        openDocument(doc);
-      },
-    },
+    { id: 'nav:workflows', label: 'Go to Workflows', hint: '/workflows', category: 'Navigation', keywords: ['navigate', 'workflows', 'delivery'], run: () => goto(resolve('/workflows')) },
+    { id: 'nav:events', label: 'Go to Events', hint: '/events', category: 'Navigation', keywords: ['navigate', 'events', 'verification'], run: () => goto(resolve('/events')) },
+    { id: 'nav:operator', label: 'Go to Operator', hint: '/operator', category: 'Navigation', keywords: ['navigate', 'operator', 'operations', 'replay', 'dead letter', 'deployments'], run: () => goto(resolve('/operator')) },
+    { id: 'cmd:toggle-sidebar', label: 'Toggle sidebar', shortcut: shortcut('B'), category: 'Workspace', keywords: ['sidebar', 'context'], run: () => toggleSidebar() },
+    { id: 'cmd:toggle-panel', label: 'Toggle bottom panel', shortcut: shortcut('J'), category: 'Workspace', keywords: ['panel', 'output', 'problems', 'copilot'], run: () => toggleBottomPanel() },
+    { id: 'cmd:close-tab', label: 'Close editor tab', shortcut: shortcut('W'), category: 'Workspace', keywords: ['close', 'tab'], run: () => closeActiveTab() },
+    { id: 'cmd:debug-panel', label: 'Open debug panel', shortcut: shortcut('D', true), category: 'Workspace', keywords: ['debug', 'breakpoint', 'step'], run: () => openPanelTab('debug') },
+    { id: 'cmd:trace-panel', label: 'Open trace timeline', category: 'Workspace', keywords: ['trace', 'timeline', 'spans'], run: () => openPanelTab('trace') },
+    { id: 'cmd:copilot', label: 'Open Copilot', category: 'Workspace', keywords: ['copilot', 'llm', 'assistant'], run: () => openPanelTab('copilot') },
   ];
 
   function detectViewFromPath(pathname: string): IDEView {
@@ -187,10 +159,7 @@
     const doc = $ideState.documents.find((entry) => entry.id === e.detail);
     if (!doc) return;
     setActiveTab(doc.id);
-    // Only navigate for route-type documents
-    if (doc.type === 'route' || !doc.type) {
-      navigateTo(doc.path ?? doc.route ?? getWorkspaceTabRoute(doc.view ?? 'system'));
-    }
+    navigateTo(doc.path ?? doc.route ?? getWorkspaceTabRoute(doc.view ?? 'system'));
   }
 
   function closeTabById(closingTabId: string): void {
@@ -203,9 +172,7 @@
     if (!closingWasActive) return;
 
     if (nextDoc) {
-      if (nextDoc.type === 'route' || !nextDoc.type) {
-        navigateTo(nextDoc.path ?? nextDoc.route ?? getWorkspaceTabRoute(nextDoc.view ?? 'system'));
-      }
+      navigateTo(nextDoc.path ?? nextDoc.route ?? getWorkspaceTabRoute(nextDoc.view ?? 'system'));
       return;
     }
 
@@ -214,21 +181,6 @@
 
   function onTabClose(e: CustomEvent<string>): void {
     closeTabById(e.detail);
-  }
-
-  function onTabAdd(e: CustomEvent<DocumentType>): void {
-    const type = e.detail;
-    const titles: Record<Exclude<DocumentType, 'route'>, string> = {
-      'workflow-draft': 'New Workflow',
-      'debug-session': 'Debug Session',
-      trace: 'Trace View',
-      event: 'Event Payload',
-      profile: 'Source Profile',
-    };
-    if (type !== 'route') {
-      const doc = createDocument(type, titles[type]);
-      openDocument(doc);
-    }
   }
 
   function onPanelTabChange(e: CustomEvent<PanelTab>): void {
@@ -256,29 +208,24 @@
   }
 
   function openPalette(): void {
-    if (isHL7Route($page.url.pathname)) return;
+    if (isHL7Route($page.url.pathname)) {
+      // HL7 intake binds Cmd/Ctrl+K to its own, richer palette (its editor
+      // commands). The header trigger hands the gesture to it instead of
+      // opening a second palette.
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: isMac, ctrlKey: !isMac }));
+      return;
+    }
     paletteOpen = true;
   }
 
-  /** Determine which document to show in the active (primary) pane. */
+  /** The active editor tab (a route document). */
   $: activeDocument = $ideState.documents.find((d) => d.id === $ideState.activeDocumentId) ?? null;
 
-  /** Determine the secondary pane document. */
-  $: secondaryDocument = $ideState.secondaryDocumentId
-    ? $ideState.documents.find((d) => d.id === $ideState.secondaryDocumentId) ?? null
-    : null;
-
-  /** Whether the active document is a non-route artifact. */
-  $: isArtifactActive = activeDocument != null && activeDocument.type !== 'route' && !!activeDocument.type;
-
-  /** Whether the secondary document is a non-route artifact. */
-  $: isArtifactSecondary = secondaryDocument != null && secondaryDocument.type !== 'route' && !!secondaryDocument.type;
+  // Breadcrumb: Stage ▸ Document (stage omitted off the stage routes).
+  $: breadcrumbStage = getJourneyStage(currentPath);
+  $: breadcrumbDocument = activeDocument?.title ?? currentWorkspaceTab.title;
 
   onMount(() => {
-    shortcutLabel = navigator.platform.toUpperCase().includes('MAC')
-      ? 'Cmd+K'
-      : 'Ctrl+K';
-
     cleanupShortcuts = initKeyboardShortcuts({
       toggleSidebar,
       toggleBottomPanel,
@@ -291,7 +238,7 @@
       },
     });
 
-    // Also register Cmd+K for command palette (outside HL7 pages)
+    // Cmd/Ctrl+K opens the shell palette (HL7 intake opens its own).
     const onCmdK = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
       if (paletteOpen) return;
@@ -333,55 +280,51 @@
 />
 
 <div class="ide-shell">
-  <!-- Compact header -->
   <header class="ide-header">
-    <a class="ide-brand" href={resolve('/')}>fi-fhir</a>
+    <a class="ide-brand" href={resolve('/')} aria-label="fi-fhir dashboard">fi-fhir</a>
 
-    <div class="ide-header-center">
-      {#if !isHL7Route($page.url.pathname)}
-        <button
-          type="button"
-          class="command-trigger"
-          aria-label="Open commands"
-          title="Open commands ({shortcutLabel})"
-          on:click={openPalette}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            aria-hidden="true"
-          >
-            <circle cx="11" cy="11" r="7" />
-            <path d="m20 20-3.4-3.4" />
-          </svg>
-          <span class="command-label">Commands</span>
-          <span class="command-shortcut">{shortcutLabel}</span>
-        </button>
-      {/if}
-    </div>
+    <StageControl pathname={currentPath} />
+
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol>
+        {#if breadcrumbStage}
+          <li class="crumb crumb-stage">{breadcrumbStage.label}</li>
+          <li class="crumb-sep" aria-hidden="true"><Icon icon={ChevronRight} size={12} /></li>
+        {/if}
+        <li class="crumb crumb-document" aria-current="page" title={breadcrumbDocument}>
+          {breadcrumbDocument}
+        </li>
+      </ol>
+    </nav>
 
     <div class="ide-header-right">
+      <Button
+        variant="ghost"
+        icon={Search}
+        class="command-trigger"
+        aria-label="Open commands"
+        title="Open commands ({shortcut('K')})"
+        onclick={openPalette}
+      >
+        <span class="command-label">Commands</span>
+        <kbd class="command-kbd">{shortcut('K')}</kbd>
+      </Button>
+
       <ThemeToggle />
     </div>
   </header>
-
-  <JourneyProgress pathname={$page.url.pathname} variant="compact" />
 
   <!-- Main body: activity bar + content + sidebar -->
   <div class="ide-body">
     <ActivityBar activeView={currentView} on:change={onViewChange} />
 
     <div class="ide-main">
-      <!-- Editor tabs (only visible when tabs exist) -->
       {#if $ideState.documents.length > 0}
         <EditorTabs
           tabs={$ideState.documents}
           activeTabId={$ideState.activeDocumentId}
           on:select={onTabSelect}
           on:close={onTabClose}
-          on:add={onTabAdd}
         />
       {/if}
 
@@ -394,62 +337,26 @@
           storageKey="fi-fhir-ide-workspace-split-width"
         >
           <!-- Primary pane -->
-          <div class="workspace-pane">
-            {#if isArtifactActive && activeDocument}
-              <DocumentHost document={activeDocument} />
-            {:else}
-              <slot />
-            {/if}
+          <div class="workspace-pane ide-document">
+            <slot />
           </div>
 
           <!-- Secondary pane -->
           <div slot="secondary" class="workspace-secondary">
-            {#if isArtifactSecondary && secondaryDocument}
-              <DocumentHost document={secondaryDocument} />
-            {:else}
-              <section class="workspace-card workspace-summary">
-                <div class="workspace-eyebrow">Split workspace</div>
-                <h2>{secondaryDocument?.title ?? currentWorkspaceTab.title}</h2>
-                <p>Open a second workspace pane side by side.</p>
-                <div class="workspace-path">{secondaryDocument?.route ?? currentWorkspaceTab.path}</div>
-                <button type="button" class="workspace-toggle" on:click={toggleWorkspaceSplit}>
-                  Close split workspace
-                </button>
-              </section>
-
-              <section class="workspace-card">
-                <div class="workspace-eyebrow">Open documents</div>
-                <div class="workspace-tabs">
-                  {#each $ideState.documents as doc (doc.id)}
-                    <button
-                      type="button"
-                      class="workspace-tab"
-                      class:active={doc.id === $ideState.activeDocumentId}
-                      on:click={() => {
-                        setSecondaryDocument(doc.id);
-                      }}
-                    >
-                      <span>{doc.title}</span>
-                      <small>{doc.type === 'route' ? (doc.path ?? doc.route ?? '/') : doc.type}</small>
-                    </button>
-                  {/each}
-                </div>
-              </section>
-            {/if}
+            <Panel title="Split workspace" titleTag="h2">
+              {#snippet actions()}
+                <Button variant="ghost" onclick={toggleWorkspaceSplit}>Close split workspace</Button>
+              {/snippet}
+              <p class="split-copy">The second pane cannot show another route yet.</p>
+            </Panel>
           </div>
         </SplitPane>
       {:else}
-        <!-- Single pane content -->
-        <div class="ide-content">
-          {#if isArtifactActive && activeDocument}
-            <DocumentHost document={activeDocument} />
-          {:else}
-            <slot />
-          {/if}
+        <div class="ide-content ide-document">
+          <slot />
         </div>
       {/if}
 
-      <!-- Bottom panel -->
       <BottomPanel
         open={$ideState.bottomPanelOpen}
         height={$ideState.bottomPanelHeight}
@@ -477,11 +384,13 @@
     />
   </div>
 
-  <!-- Status bar -->
   <StatusBar
     {connectionState}
     {activeProfile}
     {parserStatus}
+    {access}
+    {onClearAccess}
+    pathname={currentPath}
     platformEnabled={PLATFORM_CONFIG.enabled}
     platformConnected={$platformState.connected}
   />
@@ -494,37 +403,76 @@
     height: 100vh;
     width: 100vw;
     overflow: hidden;
-    font-family: var(--font-sans);
+    font-family: var(--font-ui);
+    font-size: var(--text-ui);
     color: var(--color-text-primary);
     background: var(--color-bg-base);
   }
 
-  /* ── Header ── */
+  /* ── Header (40 px) ── */
   .ide-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    height: var(--ide-header-height, 40px);
-    min-height: var(--ide-header-height, 40px);
-    padding: 0 var(--space-4);
+    gap: var(--space-4);
+    flex: 0 0 auto;
+    height: var(--header-height, 40px);
+    padding: 0 var(--space-2) 0 var(--space-3);
     background: var(--color-bg-elevated);
     border-bottom: 1px solid var(--color-border-subtle);
     z-index: var(--z-sticky);
   }
 
   .ide-brand {
+    flex: 0 0 auto;
+    color: var(--color-text-primary);
     font-family: var(--font-heading);
-    font-weight: 800;
     font-size: var(--text-lg);
+    font-weight: var(--font-bold);
     letter-spacing: var(--tracking-tight);
     text-decoration: none;
-    flex: 0 0 auto;
   }
 
-  .ide-header-center {
-    flex: 1;
+  .ide-brand:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  .breadcrumb {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .breadcrumb ol {
     display: flex;
-    justify-content: center;
+    align-items: center;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    min-width: 0;
+  }
+
+  .crumb {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .crumb-stage {
+    flex: 0 0 auto;
+    color: var(--color-text-tertiary);
+  }
+
+  .crumb-sep {
+    display: inline-flex;
+    color: var(--color-text-muted);
+  }
+
+  .crumb-document {
+    color: var(--color-text-primary);
+    font-weight: var(--font-medium);
   }
 
   .ide-header-right {
@@ -532,55 +480,27 @@
     align-items: center;
     gap: var(--space-2);
     flex: 0 0 auto;
+    margin-left: auto;
   }
 
-  .command-trigger {
-    display: inline-flex;
-    align-items: center;
+  .ide-header-right :global(.command-trigger) {
     gap: var(--space-2);
-    padding: var(--space-1) var(--space-3);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-lg);
-    background: var(--color-bg-surface);
-    color: var(--color-text-secondary);
-    font-size: var(--text-xs);
-    font-weight: var(--font-medium);
-    cursor: pointer;
-    transition: var(--transition-all);
-    min-width: 200px;
-    max-width: 400px;
-  }
-
-  .command-trigger:hover {
-    background: var(--color-bg-hover);
-    border-color: var(--color-border-strong);
-  }
-
-  .command-trigger:focus-visible {
-    outline: none;
-    box-shadow: var(--shadow-focus);
-    border-color: var(--color-border-focus);
-  }
-
-  .command-trigger svg {
-    width: 14px;
-    height: 14px;
-    flex: 0 0 auto;
+    padding: 0 6px 0 8px;
   }
 
   .command-label {
-    flex: 1;
-    text-align: left;
+    color: var(--color-text-secondary);
+    font-weight: var(--font-normal);
   }
 
-  .command-shortcut {
-    font-family: var(--font-mono);
-    font-size: var(--text-2xs);
-    color: var(--color-text-tertiary);
-    border: 1px solid var(--color-border-subtle);
+  .command-kbd {
+    padding: 2px 5px;
+    border: 1px solid var(--color-border-default);
     border-radius: var(--radius-sm);
-    padding: 1px 5px;
-    line-height: 1.2;
+    color: var(--color-text-tertiary);
+    font-family: var(--font-mono);
+    font-size: var(--text-label);
+    line-height: 1;
   }
 
   /* ── Body (activity bar + main + sidebar) ── */
@@ -591,7 +511,6 @@
     overflow: hidden;
   }
 
-  /* ── Main content area ── */
   .ide-main {
     display: flex;
     flex-direction: column;
@@ -601,148 +520,78 @@
     overflow: hidden;
   }
 
+  /*
+   * Document region. Routes that follow the page pattern open with a
+   * `Toolbar` and own their edges, so the region drops its padding for them;
+   * routes not yet on the pattern keep a 12 px inset.
+   */
   .ide-content {
     flex: 1;
-    overflow: auto;
     min-height: 0;
-    padding: var(--space-4);
+    overflow: auto;
+  }
+
+  .ide-document {
+    padding: var(--space-3);
+  }
+
+  .ide-document:has(:global(.ui-toolbar)) {
+    padding: 0;
   }
 
   .workspace-pane {
     height: 100%;
-    overflow: auto;
     min-width: 0;
     min-height: 0;
+    overflow: auto;
   }
 
   .workspace-secondary {
     display: grid;
-    gap: var(--space-4);
-    padding: var(--space-4);
+    align-content: start;
+    gap: var(--space-3);
     height: 100%;
-    overflow: auto;
     min-width: 0;
     min-height: 0;
-    background:
-      radial-gradient(circle at top, rgba(255, 255, 255, 0.04), transparent 42%),
-      var(--color-bg-surface);
+    padding: var(--space-3);
+    overflow: auto;
+    background: var(--color-bg-base);
     border-left: 1px solid var(--color-border-subtle);
   }
 
-  .workspace-card {
-    display: grid;
-    gap: var(--space-3);
-    padding: var(--space-4);
-    border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-xl);
-    background: var(--color-bg-base);
-    box-shadow: var(--shadow-sm);
-  }
-
-  .workspace-summary h2 {
-    margin: 0;
-    font-size: var(--text-xl);
-    font-weight: var(--font-semibold);
-    letter-spacing: var(--tracking-tight);
-  }
-
-  .workspace-eyebrow {
-    color: var(--color-text-muted);
-    font-size: var(--text-xs);
-    font-weight: var(--font-bold);
-    letter-spacing: var(--tracking-wider);
-    text-transform: uppercase;
-  }
-
-  .workspace-summary p {
+  .split-copy {
     margin: 0;
     color: var(--color-text-secondary);
-    line-height: var(--leading-relaxed);
-  }
-
-  .workspace-path {
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-md);
-    background: var(--color-bg-surface);
-    color: var(--color-text-muted);
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    overflow-x: auto;
-  }
-
-  .workspace-toggle {
-    justify-self: start;
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-lg);
-    background: var(--color-bg-surface);
-    color: var(--color-text-primary);
-    font-size: var(--text-sm);
-    cursor: pointer;
-    transition: var(--transition-all);
-  }
-
-  .workspace-toggle:hover {
-    background: var(--color-bg-hover);
-    border-color: var(--color-border-strong);
-  }
-
-  .workspace-tabs {
-    display: grid;
-    gap: var(--space-2);
-  }
-
-  .workspace-tab {
-    display: grid;
-    gap: 2px;
-    padding: var(--space-3);
-    border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-lg);
-    background: var(--color-bg-surface);
-    color: inherit;
-    text-align: left;
-    cursor: pointer;
-    transition: var(--transition-all);
-  }
-
-  .workspace-tab:hover {
-    border-color: var(--color-border-strong);
-    background: var(--color-bg-hover);
-  }
-
-  .workspace-tab.active {
-    border-color: var(--color-primary-border);
-    background: var(--color-primary-muted);
-    color: var(--color-primary);
-  }
-
-  .workspace-tab span {
-    font-size: var(--text-sm);
-    font-weight: var(--font-semibold);
-  }
-
-  .workspace-tab small {
-    color: var(--color-text-muted);
     font-size: var(--text-xs);
   }
 
-  /* ── Mobile responsive: collapse to single pane ── */
-  @media (max-width: 768px) {
-    .ide-header {
-      padding: 0 var(--space-3);
-    }
-
-    .command-trigger {
-      min-width: auto;
-    }
-
-    .command-label,
-    .command-shortcut {
+  /* ── Narrow windows: collapse the header's secondary text ── */
+  @media (max-width: 960px) {
+    .breadcrumb {
       display: none;
     }
 
-    .ide-content {
-      padding: var(--space-3);
+    .command-label,
+    .command-kbd {
+      display: none;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .ide-document {
+      padding: var(--space-2);
+    }
+  }
+
+  /* Phones: tighter header gaps keep the stage control on one line. */
+  @media (max-width: 640px) {
+    .ide-header {
+      gap: var(--space-2);
+      padding: 0 var(--space-1) 0 var(--space-2);
+    }
+
+    .ide-header-right {
+      gap: var(--space-1);
     }
   }
 </style>

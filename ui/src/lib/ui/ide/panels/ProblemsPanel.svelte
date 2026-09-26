@@ -1,4 +1,8 @@
 <script lang="ts">
+  import CircleAlert from '@lucide/svelte/icons/circle-alert';
+  import CircleCheck from '@lucide/svelte/icons/circle-check';
+  import Info from '@lucide/svelte/icons/info';
+  import { Badge, Icon } from '$lib/ui/primitives';
   import {
     navigateToProblem,
     problemsDiagnostics,
@@ -43,72 +47,57 @@
   function severityLabel(severity: WorkflowProblem['severity']): string {
     return SEVERITY_LABELS[severity];
   }
+
+  const SEVERITY_TONES: Record<WorkflowProblemSeverity, 'danger' | 'warning' | 'info'> = {
+    error: 'danger',
+    warning: 'warning',
+    info: 'info',
+  };
 </script>
 
 <div class="problems-panel">
   {#if nothingChecked}
-    <!-- Fresh session: explain where problems come from instead of inventing any -->
-    <div class="state-card state-empty" data-testid="problems-empty">
-      <div class="state-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10" />
-          <path d="M12 16v-4" />
-          <path d="M12 8h.01" />
-        </svg>
-      </div>
-      <div class="state-text">
-        <div class="state-title">No problems</div>
-        <div class="state-body">
+    <!-- Fresh session: say where problems come from instead of inventing any -->
+    <div class="summary" data-testid="problems-empty">
+      <Icon icon={Info} size={14} class="summary-icon" />
+      <p class="summary-text">
+        <span class="summary-title">No problems</span>
+        <span class="summary-body">
           Problems come from two places: validation of the workflow draft you edit in the
           Workflows builder, and diagnostics from Integration Session runs in HL7 intake.
           Nothing has been opened or run in this session yet.
-        </div>
-      </div>
+        </span>
+      </p>
     </div>
   {:else if isValid}
-    <!-- Valid draft: calm, affirmative state (no blocking problems) -->
-    <div class="state-card state-ok">
-      <div class="state-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M9 12l2 2 4-4" />
-          <circle cx="12" cy="12" r="10" />
-        </svg>
-      </div>
-      <div class="state-text">
-        <div class="state-title">Ready for runtime verification</div>
-        <div class="state-body">No blocking problems detected.</div>
-        <div class="state-meta">
-          <span class="meta-chip">{pluralize($problemsDiagnostics.routeCount, 'route')}</span>
-          <span class="meta-chip">{pluralize($problemsDiagnostics.actionCount, 'action')}</span>
-          {#if $problemsDiagnostics.transformCount > 0}
-            <span class="meta-chip">
-              {pluralize($problemsDiagnostics.transformCount, 'transform')}
-            </span>
-          {/if}
-        </div>
-      </div>
+    <div class="summary state-ok">
+      <Icon icon={CircleCheck} size={14} class="summary-icon" />
+      <p class="summary-text">
+        <span class="summary-title">Ready for runtime verification</span>
+        <span class="summary-body">No blocking problems detected.</span>
+      </p>
+      <span class="summary-meta">
+        <Badge mono>{pluralize($problemsDiagnostics.routeCount, 'route')}</Badge>
+        <Badge mono>{pluralize($problemsDiagnostics.actionCount, 'action')}</Badge>
+        {#if $problemsDiagnostics.transformCount > 0}
+          <Badge mono>{pluralize($problemsDiagnostics.transformCount, 'transform')}</Badge>
+        {/if}
+      </span>
     </div>
   {:else}
-    <!-- Invalid draft: structured diagnostics, persistent until fixed -->
-    <div class="state-card state-attention">
-      <div class="state-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 9v4" />
-          <path d="M12 17h.01" />
-          <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-        </svg>
-      </div>
-      <div class="state-text">
-        <div class="state-title">
+    <div class="summary state-attention">
+      <Icon icon={CircleAlert} size={14} class="summary-icon" />
+      <p class="summary-text">
+        <span class="summary-title">
           {$problemsDiagnostics.sessionCount > 0 ? 'Session diagnostics need attention' : 'Workflow draft needs attention'}
-        </div>
-        <div class="state-count">{countSummary()}</div>
-        <div class="state-body">
+        </span>
+        <span class="summary-count">{countSummary()}</span>
+        <span class="summary-body">
           {$problemsDiagnostics.sessionCount > 0
             ? 'Select a server diagnostic to inspect its exact HL7 source field.'
             : 'Fix the listed issues before you trust the destination behavior.'}
-        </div>
-      </div>
+        </span>
+      </p>
     </div>
 
     <ul class="issue-list" aria-label="Workflow and session problems">
@@ -121,9 +110,8 @@
             disabled={!issue.targetPath}
             onclick={() => navigateToProblem(issue)}
           >
-            <span class="issue-strip severity-{issue.severity}" aria-hidden="true"></span>
-            <span class="issue-severity severity-{issue.severity}">
-              {severityLabel(issue.severity)}
+            <span class="issue-severity">
+              <Badge tone={SEVERITY_TONES[issue.severity]}>{severityLabel(issue.severity)}</Badge>
             </span>
             <span class="issue-location">{issue.location}</span>
             <span class="issue-message">{issue.message}</span>
@@ -135,134 +123,90 @@
 </div>
 
 <style>
-  /* ── Panel container ──────────────────────────────────────────────── */
   .problems-panel {
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
-    height: 100%;
-    overflow-y: auto;
-    padding-top: var(--space-2);
-    font-family: var(--font-sans);
+    font-size: var(--text-ui);
   }
 
-  /* ── Summary state card ───────────────────────────────────────────── */
-  .state-card {
+  /* One summary line: icon, title, counts, one sentence. No card. */
+  .summary {
     display: flex;
     align-items: flex-start;
-    gap: var(--space-3);
-    padding: var(--space-3);
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--color-border-subtle);
-    flex-shrink: 0;
+    gap: var(--space-2);
+    color: var(--color-text-secondary);
   }
 
-  .state-card.state-ok {
-    background: var(--color-success-bg);
-    border-color: var(--color-success-border);
-  }
-
-  .state-card.state-attention {
-    background: var(--color-danger-bg);
-    border-color: var(--color-danger-border);
-  }
-
-  .state-card.state-empty {
-    background: var(--color-bg-elevated);
-  }
-
-  .state-empty .state-icon {
+  .summary :global(.summary-icon) {
+    margin-top: 3px;
     color: var(--color-text-tertiary);
   }
 
-  .state-icon {
-    width: 28px;
-    height: 28px;
-    flex-shrink: 0;
-  }
-
-  .state-icon svg {
-    width: 100%;
-    height: 100%;
-  }
-
-  .state-ok .state-icon {
+  .state-ok :global(.summary-icon) {
     color: var(--color-success-text);
   }
 
-  .state-attention .state-icon {
+  .state-attention :global(.summary-icon) {
     color: var(--color-danger-text);
   }
 
-  .state-text {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-  }
-
-  .state-title {
-    font-family: var(--font-ui);
-    font-size: var(--text-sm);
-    font-weight: var(--font-semibold);
-    color: var(--color-text-primary);
-  }
-
-  .state-count {
-    font-size: var(--text-xs);
-    font-weight: var(--font-bold);
-    color: var(--color-danger-text);
-  }
-
-  .state-body {
-    font-size: var(--text-xs);
-    color: var(--color-text-tertiary);
-    line-height: 1.5;
-  }
-
-  .state-meta {
+  .summary-text {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-1);
-    margin-top: var(--space-1);
+    align-items: baseline;
+    column-gap: var(--space-2);
+    row-gap: 2px;
+    min-width: 0;
+    margin: 0;
+    line-height: var(--leading-ui);
   }
 
-  .meta-chip {
-    padding: 1px 8px;
-    border-radius: var(--radius-full);
-    background: rgba(16, 185, 129, 0.14);
-    font-size: var(--text-2xs);
-    font-weight: var(--font-medium);
-    color: var(--color-success-text);
-    white-space: nowrap;
+  .summary-title {
+    color: var(--color-text-primary);
+    font-weight: var(--font-semibold);
   }
 
-  /* ── Issue list ───────────────────────────────────────────────────── */
-  .issue-list {
+  .summary-count {
+    color: var(--color-danger-text);
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
+  }
+
+  .summary-body {
+    color: var(--color-text-tertiary);
+    font-size: var(--text-xs);
+  }
+
+  .summary-meta {
     display: flex;
-    flex-direction: column;
-    gap: 1px;
+    gap: var(--space-1);
+    margin-left: auto;
+  }
+
+  /* Issues: dense rows — severity, location (mono), message. */
+  .issue-list {
+    display: grid;
     margin: 0;
     padding: 0;
     list-style: none;
+    border-top: 1px solid var(--color-border-subtle);
   }
 
   .issue-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: 72px minmax(96px, 200px) minmax(0, 1fr);
     align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-1) var(--space-2);
-    border-radius: var(--radius-md);
-    overflow: hidden;
+    gap: var(--space-3);
     width: 100%;
-    border: 0;
+    min-height: 28px;
+    padding: 2px var(--space-2);
+    border: none;
+    border-bottom: 1px solid var(--color-border-subtle);
     background: transparent;
+    color: var(--color-text-secondary);
+    font: inherit;
     text-align: left;
-    animation: slideInUp var(--duration-normal) var(--ease-out);
-  }
-
-  .issue-row:hover {
-    background: var(--color-bg-hover);
   }
 
   .issue-row:disabled {
@@ -274,87 +218,38 @@
     cursor: pointer;
   }
 
+  .issue-row.navigable:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+
   .issue-row.navigable:focus-visible {
-    outline: none;
-    box-shadow: var(--shadow-focus);
-  }
-
-  .issue-strip {
-    width: 3px;
-    align-self: stretch;
-    flex-shrink: 0;
-    border-radius: 2px;
-  }
-
-  .issue-strip.severity-error {
-    background: var(--color-danger);
-  }
-
-  .issue-strip.severity-warning {
-    background: var(--color-warning);
-  }
-
-  .issue-strip.severity-info {
-    background: var(--color-info);
-  }
-
-  /* Text severity tag — carries the signal without relying on color (WCAG 1.4.1) */
-  .issue-severity {
-    flex-shrink: 0;
-    padding: 1px 6px;
-    border-radius: var(--radius-sm);
-    font-size: 9px;
-    font-weight: var(--font-bold);
-    text-transform: uppercase;
-    letter-spacing: var(--tracking-wider);
-    line-height: 1.6;
-    white-space: nowrap;
-  }
-
-  .issue-severity.severity-error {
-    background: var(--color-danger-bg);
-    color: var(--color-danger-text);
-  }
-
-  .issue-severity.severity-warning {
-    background: var(--color-warning-bg);
-    color: var(--color-warning-text);
-  }
-
-  .issue-severity.severity-info {
-    background: var(--color-info-bg);
-    color: var(--color-info-text);
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: -2px;
   }
 
   .issue-location {
-    flex-shrink: 0;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--color-text-tertiary);
     font-family: var(--font-mono);
-    font-size: var(--text-2xs);
-    color: var(--color-text-muted);
+    font-size: var(--text-mono);
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .issue-message {
-    flex: 1;
     min-width: 0;
-    font-size: var(--text-xs);
-    color: var(--color-text-secondary);
+    color: var(--color-text-primary);
   }
 
-  /* ── Keyframes ────────────────────────────────────────────────────── */
-  @keyframes slideInUp {
-    from {
-      opacity: 0;
-      transform: translateY(6px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
+  @media (max-width: 640px) {
     .issue-row {
-      animation: none;
+      grid-template-columns: 72px minmax(0, 1fr);
+    }
+
+    .issue-message {
+      grid-column: 1 / -1;
     }
   }
 </style>

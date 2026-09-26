@@ -1,6 +1,11 @@
 <script lang="ts">
-  import IconButton from '$lib/ui/IconButton.svelte';
+  import Monitor from '@lucide/svelte/icons/monitor';
+  import Moon from '@lucide/svelte/icons/moon';
+  import Sun from '@lucide/svelte/icons/sun';
+  import { IconButton } from '$lib/ui/primitives';
   import { themePreference, setThemePreference, type ThemePreference } from './theme';
+
+  /** Header theme switch: cycles system → light → dark and persists the choice. */
 
   const order: ThemePreference[] = ['system', 'light', 'dark'];
 
@@ -15,50 +20,13 @@
     return 'Theme: dark';
   }
 
-  function iconFor(pref: ThemePreference): 'system' | 'light' | 'dark' {
-    if (pref === 'system') return 'system';
-    if (pref === 'light') return 'light';
-    return 'dark';
-  }
-
   function onToggle(): void {
     setThemePreference(nextPreference($themePreference));
   }
 </script>
 
 <IconButton
-  size="md"
-  variant="default"
+  icon={$themePreference === 'light' ? Sun : $themePreference === 'dark' ? Moon : Monitor}
   label={labelFor($themePreference)}
-  on:click={onToggle}
->
-  {#if iconFor($themePreference) === 'light'}
-    <!-- Sun -->
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-      <path d="M12 4V2" />
-      <path d="M12 22v-2" />
-      <path d="M4 12H2" />
-      <path d="M22 12h-2" />
-      <path d="M5 5l-1.5-1.5" />
-      <path d="M20.5 20.5L19 19" />
-      <path d="M5 19l-1.5 1.5" />
-      <path d="M20.5 3.5L19 5" />
-      <circle cx="12" cy="12" r="4" />
-    </svg>
-  {:else if iconFor($themePreference) === 'dark'}
-    <!-- Moon -->
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-      <path
-        d="M21 12.8A8.5 8.5 0 0 1 11.2 3 6.5 6.5 0 1 0 21 12.8Z"
-        stroke-linejoin="round"
-      />
-    </svg>
-  {:else}
-    <!-- System / monitor -->
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-      <rect x="3" y="4" width="18" height="12" rx="2" />
-      <path d="M8 20h8" />
-      <path d="M12 16v4" />
-    </svg>
-  {/if}
-</IconButton>
+  onclick={onToggle}
+/>

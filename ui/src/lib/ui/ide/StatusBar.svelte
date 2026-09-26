@@ -1,7 +1,9 @@
 <script lang="ts">
   /**
-   * 24px status bar at the bottom of the IDE shell.
-   * Displays connection state, active profile, parser status, alerts, and branding.
+   * 24 px status bar: a neutral strip where colour appears only as state dots.
+   * Left: API connection, access chip (credential state + popover), optional
+   * profile/parser, and the loom platform indicator. Right: `Next:` stage and
+   * the build.
    *
    * The loom-platform indicator and its AlertBadge are optional chrome: they
    * render only when the build configured a platform endpoint
@@ -9,65 +11,90 @@
    * platform to be connected to, and a permanently grey dot would only
    * suggest something is broken.
    */
+  import { resolve } from '$app/paths';
+  import ArrowRight from '@lucide/svelte/icons/arrow-right';
   import AlertBadge from '$lib/features/observability/AlertBadge.svelte';
+  import type { AccessSession } from '$lib/graphql/GraphQLCredentialGate.svelte';
+  import { Icon } from '$lib/ui/primitives';
+  import AccessChip from './AccessChip.svelte';
+  import { getJourneyState } from './journey';
+  import { connectionLabel, type ConnectionState } from './connection';
 
-  export let connectionState: 'connected' | 'disconnected' | 'connecting' = 'disconnected';
+  export let connectionState: ConnectionState = 'disconnected';
   export let activeProfile: string = '';
   export let parserStatus: string = '';
   export let platformEnabled: boolean = false;
   export let platformConnected: boolean = false;
+  export let access: AccessSession | null = null;
+  export let onClearAccess: (() => void) | undefined = undefined;
+  export let pathname: string = '/';
 
-  function connectionLabel(state: typeof connectionState): string {
-    if (state === 'connected') return 'Connected';
-    if (state === 'connecting') return 'Connecting';
-    return 'Disconnected';
-  }
+  const buildTag = (import.meta.env.VITE_BUILD_TAG as string | undefined) || '';
+  const buildSha = ((import.meta.env.VITE_BUILD_SHA as string | undefined) || '').slice(0, 8);
+  const buildLabel = buildTag || buildSha;
+
+  $: nextStage = getJourneyState(pathname).nextStage;
 </script>
 
 <footer class="status-bar" role="status">
   <div class="status-left">
     <span
-      class="connection"
-      class:connected={connectionState === 'connected'}
-      class:connecting={connectionState === 'connecting'}
-      class:disconnected={connectionState === 'disconnected'}
-      title={connectionLabel(connectionState)}
+      class="status-item connection"
+      data-state={connectionState}
+      title="API health (/health, checked every 30 s): {connectionLabel(connectionState)}"
     >
       <span class="dot" aria-hidden="true"></span>
       <span class="connection-text">{connectionLabel(connectionState)}</span>
     </span>
 
+    {#if access}
+      <AccessChip {access} onclear={onClearAccess} />
+    {/if}
+
     {#if activeProfile}
-      <span class="separator" aria-hidden="true"></span>
-      <span class="profile" title="Active profile">{activeProfile}</span>
+      <span class="status-item profile" title="Active profile">{activeProfile}</span>
     {/if}
 
     {#if parserStatus}
-      <span class="separator" aria-hidden="true"></span>
-      <span class="parser" title="Parser status">{parserStatus}</span>
+      <span class="status-item parser" title="Parser status">{parserStatus}</span>
     {/if}
 
     {#if platformEnabled}
-      <span class="separator" aria-hidden="true"></span>
       <span
-        class="platform"
+        class="status-item platform"
         class:platform-connected={platformConnected}
         data-testid="platform-indicator"
         title={platformConnected ? 'Platform connected' : 'Platform disconnected'}
       >
-        <span class="platform-dot" aria-hidden="true"></span>
+        <span class="dot" aria-hidden="true"></span>
         <span>Platform</span>
       </span>
 
       {#if platformConnected}
-        <span class="separator" aria-hidden="true"></span>
         <AlertBadge />
       {/if}
     {/if}
   </div>
 
   <div class="status-right">
-    <span class="branding">fi-fhir</span>
+    {#if nextStage}
+      <a
+        class="status-item status-next"
+        href={resolve(nextStage.route)}
+        data-testid="status-next"
+        title="Stage {nextStage.order} of 5: {nextStage.label}"
+      >
+        <span class="next-key">Next:</span>
+        <span>{nextStage.label}</span>
+        <Icon icon={ArrowRight} size={12} />
+      </a>
+    {/if}
+    <span class="status-item build" title={buildSha ? `Build ${buildSha}` : undefined}>
+      <span class="wordmark">fi-fhir</span>
+      {#if buildLabel}
+        <span class="build-version">{buildLabel}</span>
+      {/if}
+    </span>
   </div>
 </footer>
 
@@ -76,14 +103,15 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: var(--ide-status-bar-height, 24px);
-    min-height: var(--ide-status-bar-height, 24px);
-    padding: 0 var(--space-3);
+    gap: var(--space-4);
+    height: var(--statusbar-height, 24px);
+    min-height: var(--statusbar-height, 24px);
+    padding: 0 var(--space-1);
     background: var(--ide-status-bar-bg, var(--color-bg-elevated));
     color: var(--ide-status-bar-text, var(--color-text-secondary));
     border-top: 1px solid var(--color-border-subtle);
-    font-size: var(--text-2xs);
-    font-weight: var(--font-medium);
+    font-size: var(--text-xs);
+    line-height: 1;
     user-select: none;
     -webkit-user-select: none;
     overflow: hidden;
@@ -93,82 +121,99 @@
   .status-right {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: 2px;
     min-width: 0;
   }
 
-  .connection {
+  .status-item {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: var(--radius-sm);
     white-space: nowrap;
   }
 
   .dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    flex: 0 0 auto;
-  }
-
-  .connected .dot {
-    background: var(--palette-green-300);
-  }
-
-  .connecting .dot {
-    background: var(--palette-yellow-200);
-  }
-
-  .disconnected .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-full);
     background: var(--color-text-muted);
-  }
-
-  .connection-text {
-    white-space: nowrap;
-  }
-
-  .separator {
-    width: 1px;
-    height: 12px;
-    background: var(--color-border-strong);
     flex: 0 0 auto;
+  }
+
+  .connection[data-state='connected'] .dot {
+    background: var(--color-success);
+  }
+
+  .connection[data-state='connecting'] .dot {
+    background: var(--color-warning);
+  }
+
+  .connection[data-state='disconnected'] .dot {
+    background: var(--color-danger);
   }
 
   .profile,
   .parser {
-    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-width: 240px;
   }
 
   .platform {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    white-space: nowrap;
-    opacity: 0.5;
+    color: var(--color-text-muted);
   }
 
   .platform.platform-connected {
-    opacity: 1;
+    color: inherit;
   }
 
-  .platform-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--color-text-muted);
-    flex: 0 0 auto;
+  .platform.platform-connected .dot {
+    background: var(--color-success);
   }
 
-  .platform-connected .platform-dot {
-    background: var(--palette-green-300);
+  .status-next {
+    color: inherit;
+    text-decoration: none;
+    transition: var(--transition-colors);
   }
 
-  .branding {
+  .status-next:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+
+  .status-next:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: -2px;
+  }
+
+  .next-key {
+    color: var(--color-text-tertiary);
+  }
+
+  .build {
+    color: var(--color-text-tertiary);
+  }
+
+  .wordmark {
     font-family: var(--font-heading);
-    font-weight: var(--font-bold);
-    letter-spacing: var(--tracking-wide);
-    opacity: 0.8;
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-tight);
+  }
+
+  .build-version {
+    font-family: var(--font-mono);
+    font-size: var(--text-label);
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (max-width: 640px) {
+    .build,
+    .next-key {
+      display: none;
+    }
   }
 </style>

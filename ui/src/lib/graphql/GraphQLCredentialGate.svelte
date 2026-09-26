@@ -1,6 +1,49 @@
+<script module lang="ts">
+  /** How this browser reached the API: headerless (network, Cloudflare Access) or a bearer held in memory. */
+  export type AccessVia = 'network' | 'cloudflare-access' | 'bearer';
+
+  export interface AccessSession {
+    via: AccessVia;
+    /** The identity the server named (Cloudflare Access email); empty otherwise. */
+    principal: string;
+  }
+
+  export interface AccessDescription {
+    /** Status-bar chip text. */
+    chip: string;
+    /** One-line state, announced on sign-in and shown in the chip's popover. */
+    title: string;
+    detail: string;
+  }
+
+  /** The words for an access session, shared by the announcement and the status-bar chip. */
+  export function describeAccess(access: AccessSession): AccessDescription {
+    if (access.via === 'network') {
+      return {
+        chip: 'Trusted network',
+        title: 'Trusted network access active',
+        detail: 'Connected from the deployment trusted network.'
+      };
+    }
+    if (access.via === 'cloudflare-access') {
+      return {
+        chip: access.principal ? `Cloudflare Access · ${access.principal}` : 'Cloudflare Access',
+        title: 'Signed in through Cloudflare Access',
+        detail: `Signed in as ${access.principal}. Cloudflare Access supplies the credential; sign out there to end it.`
+      };
+    }
+    return {
+      chip: 'Bearer',
+      title: 'Preview access active',
+      detail: 'Held in memory only — cleared on reload.'
+    };
+  }
+</script>
+
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
   import { HealthDocument } from '$lib/gen/graphql';
+  import { Button, Field, Input } from '$lib/ui/primitives';
   import { resetAccessCapabilities, setAccessStatus } from './accessCapabilities';
   import { graphqlFetch } from './client';
   import {
@@ -11,15 +54,20 @@
 
   const MIN_TOKEN_LENGTH = 24;
 
+  /**
+   * When authenticated the gate renders no visible UI: the IDE shows the
+   * session as a status-bar chip (`AccessChip`) fed by `access`, and "Clear
+   * access" calls `clearCredential()`. Screen readers still hear the state
+   * change through a visually hidden status line.
+   */
   export let authenticated = false;
+  export let access: AccessSession | null = null;
 
   let accessToken = '';
   let memoryToken = '';
   let error: string | null = null;
   let busy = false;
-  type HeaderlessVia = 'network' | 'cloudflare-access';
-  let headerlessVia: HeaderlessVia | null = null;
-  let principal = '';
+  type HeaderlessVia = Exclude<AccessVia, 'bearer'>;
 
   function isHeaderlessVia(value: unknown): value is HeaderlessVia {
     return value === 'network' || value === 'cloudflare-access';
@@ -53,8 +101,7 @@
       setGraphQLTrustedNetworkAccess(true);
       await graphqlFetch(HealthDocument, {}, { showErrorToast: false });
       setAccessStatus(status);
-      headerlessVia = status.authVia;
-      principal = status.principal ?? '';
+      access = { via: status.authVia, principal: status.principal ?? '' };
       authenticated = true;
     } catch {
       resetAccessCapabilities();
@@ -81,6 +128,7 @@
       setGraphQLCredentialProvider(() => memoryToken || null);
       await graphqlFetch(HealthDocument, {}, { showErrorToast: false });
       accessToken = '';
+      access = { via: 'bearer', principal: '' };
       authenticated = true;
     } catch {
       accessToken = '';
@@ -92,12 +140,12 @@
     }
   }
 
-  async function clearCredential(): Promise<void> {
+  /** Ends a bearer session: drops the in-memory token and closes the socket. */
+  export async function clearCredential(): Promise<void> {
     authenticated = false;
+    access = null;
     accessToken = '';
     memoryToken = '';
-    headerlessVia = null;
-    principal = '';
     error = null;
     resetAccessCapabilities();
     setGraphQLCredentialProvider(null);
@@ -123,59 +171,51 @@
 </script>
 
 {#if authenticated}
-  <div class="access-strip" role="status" aria-live="polite">
-    <span class="status-dot" aria-hidden="true"></span>
-    <div class="access-copy">
-      <strong>
-        {headerlessVia === 'network'
-          ? 'Trusted network access active'
-          : headerlessVia === 'cloudflare-access'
-            ? 'Signed in through Cloudflare Access'
-            : 'Preview access active'}
-      </strong>
-      <span>
-        {headerlessVia === 'network'
-          ? 'Connected from the deployment trusted network.'
-          : headerlessVia === 'cloudflare-access'
-            ? `Signed in as ${principal}. Cloudflare Access supplies the credential; sign out there to end it.`
-            : 'Held in memory only — cleared on reload.'}
-      </span>
-    </div>
-    {#if !headerlessVia}
-      <button class="clear-button" type="button" on:click={clearCredential}>Clear access</button>
-    {/if}
-  </div>
+  {#if access}
+    <p class="sr-only" role="status" aria-live="polite" data-testid="access-announcement">
+      {describeAccess(access).title}
+    </p>
+  {/if}
 {:else}
   <main class="gate-shell" aria-labelledby="credential-gate-title">
-    <section class="gate-card">
-      <div class="eyebrow">Operator access</div>
+    <section class="gate-dialog">
+      <div class="gate-wordmark" aria-hidden="true">fi-fhir</div>
       <h1 id="credential-gate-title">Enter access token</h1>
       <p class="intro">Paste the deployment bearer token to continue.</p>
 
-      <div class="privacy-note" id="credential-storage-note">
-        Held in this tab's memory only — never stored. Reloading clears access.
-      </div>
-
       <form on:submit|preventDefault={installCredential} aria-label="Install preview credential">
-        <label for="graphql-access-token">Deployment bearer credential</label>
-        <input
+        <Field
+          label="Deployment bearer credential"
           id="graphql-access-token"
-          type="password"
-          bind:value={accessToken}
-          aria-describedby="credential-storage-note credential-error"
-          aria-invalid={error ? 'true' : 'false'}
-          autocomplete="off"
-          autocapitalize="none"
-          spellcheck="false"
-          placeholder="Paste bearer credential"
-          disabled={busy}
-        />
+          hint="Held in this tab's memory only — never stored. Reloading clears access."
+        >
+          <Input
+            type="password"
+            size="md"
+            mono
+            bind:value={accessToken}
+            invalid={Boolean(error)}
+            aria-describedby={error ? 'credential-error' : undefined}
+            autocomplete="off"
+            autocapitalize="none"
+            spellcheck="false"
+            placeholder="Paste bearer credential"
+            disabled={busy}
+          />
+        </Field>
         {#if error}
           <p class="error" id="credential-error" role="alert">{error}</p>
         {/if}
-        <button class="install-button" type="submit" disabled={busy || !accessToken.trim()}>
+        <Button
+          type="submit"
+          variant="primary"
+          size="md"
+          loading={busy}
+          disabled={!accessToken.trim()}
+          class="install-button"
+        >
           {busy ? 'Verifying…' : 'Continue'}
-        </button>
+        </Button>
       </form>
     </section>
   </main>
@@ -186,184 +226,58 @@
     min-height: 100vh;
     display: grid;
     place-items: center;
-    padding: var(--space-6);
+    padding: var(--space-6) var(--space-4);
     color: var(--color-text-primary);
-    background:
-      radial-gradient(circle at 20% 10%, var(--color-primary-muted), transparent 34rem),
-      var(--color-bg-base);
+    background: var(--color-bg-base);
   }
 
-  .gate-card {
-    width: min(100%, 560px);
-    padding: clamp(var(--space-6), 5vw, var(--space-10));
+  .gate-dialog {
+    width: min(100%, 400px);
+    padding: var(--space-6);
     border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-2xl);
+    border-radius: var(--radius-md);
     background: var(--color-bg-overlay);
     box-shadow: var(--shadow-xl);
   }
 
-  .eyebrow {
-    color: var(--color-primary);
-    font-size: var(--text-xs);
+  .gate-wordmark {
+    font-family: var(--font-heading);
+    font-size: var(--text-lg);
     font-weight: var(--font-bold);
-    letter-spacing: var(--tracking-wider);
-    text-transform: uppercase;
+    letter-spacing: var(--tracking-tight);
+    color: var(--color-text-primary);
   }
 
   h1 {
-    margin: var(--space-3) 0 0;
+    margin: var(--space-4) 0 0;
     font-family: var(--font-ui);
-    font-size: clamp(var(--text-2xl), 5vw, 2rem);
+    font-size: var(--text-title);
+    font-weight: var(--font-semibold);
     line-height: var(--leading-tight);
   }
 
   .intro {
-    margin: var(--space-4) 0 0;
+    margin: var(--space-1) 0 0;
     color: var(--color-text-secondary);
-    line-height: var(--leading-relaxed);
-  }
-
-  .privacy-note {
-    margin-top: var(--space-5);
-    padding: var(--space-3) var(--space-4);
-    border: 1px solid var(--color-info-border);
-    border-radius: var(--radius-lg);
-    color: var(--color-text-secondary);
-    background: var(--color-info-bg);
-    font-size: var(--text-sm);
-    line-height: var(--leading-relaxed);
+    font-size: var(--text-ui);
+    line-height: var(--leading-ui);
   }
 
   form {
     display: grid;
     gap: var(--space-3);
-    margin-top: var(--space-6);
-  }
-
-  label {
-    font-size: var(--text-sm);
-    font-weight: var(--font-semibold);
-  }
-
-  input {
-    width: 100%;
-    box-sizing: border-box;
-    height: var(--input-height-lg);
-    padding: 0 var(--space-4);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-lg);
-    color: var(--color-text-primary);
-    background: var(--color-bg-input);
-    font: inherit;
-    font-family: var(--font-mono);
-  }
-
-  input:focus-visible {
-    outline: none;
-    border-color: var(--color-border-focus);
-    box-shadow: var(--shadow-focus);
-  }
-
-  input[aria-invalid='true'] {
-    border-color: var(--color-danger-border);
+    margin-top: var(--space-5);
   }
 
   .error {
     margin: 0;
     color: var(--color-danger-text);
-    font-size: var(--text-sm);
-  }
-
-  .install-button,
-  .clear-button {
-    border-radius: var(--radius-lg);
-    cursor: pointer;
-    font: inherit;
-    font-weight: var(--font-semibold);
-    transition: var(--transition-all);
-  }
-
-  .install-button {
-    min-height: var(--btn-height-lg);
-    margin-top: var(--space-1);
-    border: 1px solid var(--color-primary-border);
-    color: var(--color-text-inverse);
-    background: var(--color-primary);
-  }
-
-  .install-button:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
-  }
-
-  .install-button:disabled {
-    cursor: not-allowed;
-    opacity: 0.55;
-  }
-
-  .install-button:focus-visible,
-  .clear-button:focus-visible {
-    outline: none;
-    box-shadow: var(--shadow-focus);
-  }
-
-  .access-strip {
-    min-height: 44px;
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-2) var(--space-4);
-    border-bottom: 1px solid var(--color-success-border);
-    color: var(--color-text-primary);
-    background: var(--color-success-bg);
-  }
-
-  .status-dot {
-    width: 9px;
-    height: 9px;
-    flex: 0 0 auto;
-    border-radius: var(--radius-full);
-    background: var(--color-success);
-  }
-
-  .access-copy {
-    min-width: 0;
-    display: flex;
-    flex: 1 1 auto;
-    align-items: baseline;
-    gap: var(--space-2);
     font-size: var(--text-xs);
+    line-height: var(--leading-snug);
   }
 
-  .access-copy span {
-    color: var(--color-text-secondary);
-  }
-
-  .clear-button {
-    min-height: var(--btn-height-sm);
-    padding: 0 var(--space-3);
-    border: 1px solid var(--color-border-default);
-    color: var(--color-text-secondary);
-    background: var(--color-bg-elevated);
-  }
-
-  .clear-button:hover {
-    color: var(--color-text-primary);
-    background: var(--color-bg-hover);
-  }
-
-  @media (max-width: 640px) {
-    .gate-shell {
-      padding: var(--space-3);
-    }
-
-    .gate-card {
-      padding: var(--space-6);
-    }
-
-    .access-copy {
-      display: grid;
-      gap: var(--space-1);
-    }
+  form :global(.install-button) {
+    width: 100%;
+    margin-top: var(--space-1);
   }
 </style>

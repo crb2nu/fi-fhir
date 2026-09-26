@@ -1,16 +1,14 @@
 /**
  * IDE state store with localStorage persistence for layout dimensions and full layout state.
  *
- * M2: Introduces WorkspaceDocument model. Route-type documents behave
- * identically to the former EditorTab. Non-route documents (workflow-draft,
- * debug-session, trace, event, profile) open as artifact tabs.
+ * Tabs are route documents (WorkspaceDocument). The editor-less artifact
+ * document types were removed; `loadLayout` drops any a stored layout holds.
  */
 import { writable, derived, get } from 'svelte/store';
 import type {
   IDEState,
   IDEView,
   WorkspaceDocument,
-  DocumentType,
   PanelTab,
   IDEAppRoute,
 } from './types';
@@ -32,7 +30,7 @@ interface PersistedLayout {
 }
 
 const VALID_PANEL_TABS = new Set<PanelTab>(['output', 'problems', 'debug', 'trace', 'copilot']);
-const VALID_VIEWS = new Set<IDEView>(['hl7', 'workflows', 'events', 'profiles', 'terminology', 'system']);
+const VALID_VIEWS = new Set<IDEView>(['hl7', 'workflows', 'events', 'profiles', 'terminology', 'operator', 'system']);
 
 function loadLayout(): PersistedLayout | null {
   if (typeof window === 'undefined') return null;
@@ -51,9 +49,22 @@ function loadLayout(): PersistedLayout | null {
     if (typeof obj['activePanelTab'] !== 'string' || !VALID_PANEL_TABS.has(obj['activePanelTab'] as PanelTab)) return null;
     if (typeof obj['activeView'] !== 'string' || !VALID_VIEWS.has(obj['activeView'] as IDEView)) return null;
 
+    // Only route tabs survive; artifact tabs from older layouts have no surface.
+    // Titles are re-derived from the route so renamed views restore renamed.
+    const openTabs = (obj['openTabs'] as WorkspaceDocument[])
+      .filter((doc) => doc && typeof doc === 'object' && (doc.type === undefined || doc.type === 'route'))
+      .map((doc) => ({
+        ...doc,
+        title: getWorkspaceTabTitle(doc.path ?? doc.route ?? doc.id, doc.view),
+      }));
+    const storedActive = obj['activeTabId'] as string | null;
+    const activeTabId = openTabs.some((doc) => doc.id === storedActive)
+      ? storedActive
+      : (openTabs[0]?.id ?? null);
+
     return {
-      openTabs: obj['openTabs'] as WorkspaceDocument[],
-      activeTabId: obj['activeTabId'] as string | null,
+      openTabs,
+      activeTabId,
       workspaceSplit: obj['workspaceSplit'] as boolean,
       bottomPanelOpen: obj['bottomPanelOpen'] as boolean,
       activePanelTab: obj['activePanelTab'] as PanelTab,
@@ -83,17 +94,17 @@ function saveLayout(state: IDEState): void {
 
 let _layoutRestored = false;
 
-// Domain-first editor tab titles (match the ActivityBar labels, Slice 3). The
-// journey metaphor (Source Intake / Delivery / …) lives in the journey panel and
-// the per-stage sidebar headings, not in the nav chrome.
+// Editor tab titles: the same words as the ActivityBar labels and the route
+// toolbars ("Home", "Operator"). Stage names (Source Intake, Delivery, …) live
+// in the header stage control, not in the tabs.
 const WORKSPACE_ROUTE_TITLES: Record<IDEView, string> = {
-  system: 'Dashboard',
+  system: 'Home',
   hl7: 'HL7 / Intake',
   workflows: 'Workflows',
   events: 'Events',
   profiles: 'Profiles',
   terminology: 'Terminology',
-  operator: 'Operations',
+  operator: 'Operator',
 };
 
 const WORKSPACE_VIEW_ROUTES: Record<IDEView, IDEAppRoute> = {
@@ -144,23 +155,6 @@ export function createWorkspaceTab(pathname: string, view?: IDEView): WorkspaceD
     view: workspaceView,
     path: workspaceRoute,
     route: workspaceRoute,
-  };
-}
-
-/** Create an artifact-backed workspace document. */
-export function createDocument(
-  type: DocumentType,
-  title: string,
-  opts?: { subtitle?: string; artifactId?: string; id?: string }
-): WorkspaceDocument {
-  const id = opts?.id ?? `${type}:${opts?.artifactId ?? crypto.randomUUID().slice(0, 8)}`;
-  return {
-    id,
-    type,
-    title,
-    subtitle: opts?.subtitle,
-    artifactId: opts?.artifactId,
-    dirty: false,
   };
 }
 

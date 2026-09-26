@@ -30,7 +30,9 @@
     ...rest
   }: Props = $props();
 
-  const buttons: Record<string, HTMLButtonElement | null> = {};
+  // Tab refs for arrow-key focus. Reactive state so `bind:this` into it is a
+  // tracked binding (a plain object triggers binding_property_non_reactive).
+  const buttons: Record<string, HTMLButtonElement | null> = $state({});
 
   // The tab stop is the selected tab, or the first enabled tab when the value
   // matches nothing enabled.

@@ -1,10 +1,14 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import { Icon } from '$lib/ui/primitives';
   import type { IDEView } from './types';
+  import { VIEW_ICONS } from './viewIcons';
 
   /**
-   * Left activity bar with 6 navigation icons.
-   * 48px wide, renders vertically stacked icon buttons.
+   * Left activity bar: one 16 px icon per view, 40 px wide. The label is the
+   * accessible name and the native tooltip; the active view gets a 2 px
+   * accent bar on its left edge. Order: Home, the five stages in stage
+   * order, then Operator. Labels match the route toolbars.
    */
 
   export let activeView: IDEView = 'hl7';
@@ -13,59 +17,20 @@
 
   type ViewEntry = {
     view: IDEView;
-    /** Domain-primary label; also the button's accessible name. */
+    /** Domain label; the button's accessible name and tooltip. */
     label: string;
-    /** Journey-metaphor name, surfaced only in the hover tooltip for continuity. */
-    subtitle?: string;
-    /** SVG path data for icon (24x24 viewBox) */
-    icon: string;
+    /** Stage name, added to the tooltip for the five stage views. */
+    stage?: string;
   };
 
-  // Domain term leads (the accessible name); the journey metaphor rides along as a
-  // tooltip subtitle where it adds meaning. Events stands alone — "Events" is already
-  // the precise domain noun, so it carries no metaphor subtitle (spec §5.4).
   const views: ViewEntry[] = [
-    {
-      view: 'hl7',
-      label: 'HL7 / Intake',
-      subtitle: 'Source Intake',
-      icon: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8',
-    },
-    {
-      view: 'workflows',
-      label: 'Workflows',
-      subtitle: 'Delivery',
-      icon: 'M6 3v12 M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M18 9a9 9 0 0 1-9 9',
-    },
-    {
-      view: 'events',
-      label: 'Events',
-      icon: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
-    },
-    {
-      view: 'profiles',
-      label: 'Profiles',
-      subtitle: 'Normalization',
-      icon: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8z',
-    },
-    {
-      view: 'terminology',
-      label: 'Terminology',
-      subtitle: 'Translation',
-      icon: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20 M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15z',
-    },
-    {
-      view: 'operator',
-      label: 'Operations',
-      subtitle: 'Run & Recover',
-      icon: 'M12 2v4 M12 18v4 M4.93 4.93l2.83 2.83 M16.24 16.24l2.83 2.83 M2 12h4 M18 12h4 M4.93 19.07l2.83-2.83 M16.24 7.76l2.83-2.83',
-    },
-    {
-      view: 'system',
-      label: 'Dashboard',
-      subtitle: 'Mission Control',
-      icon: 'M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z',
-    },
+    { view: 'system', label: 'Home' },
+    { view: 'hl7', label: 'HL7 / Intake', stage: 'Source Intake' },
+    { view: 'profiles', label: 'Profiles', stage: 'Normalization' },
+    { view: 'terminology', label: 'Terminology', stage: 'Translation' },
+    { view: 'workflows', label: 'Workflows', stage: 'Delivery' },
+    { view: 'events', label: 'Events', stage: 'Verification' },
+    { view: 'operator', label: 'Operator' },
   ];
 
   function onSelect(view: IDEView): void {
@@ -81,22 +46,10 @@
       class:active={entry.view === activeView}
       aria-label={entry.label}
       aria-current={entry.view === activeView ? 'true' : undefined}
-      title={entry.subtitle ? `${entry.label} — ${entry.subtitle}` : entry.label}
+      title={entry.stage ? `${entry.label} (${entry.stage})` : entry.label}
       on:click={() => onSelect(entry.view)}
     >
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        {#each entry.icon.split(' M') as segment, i (`${entry.view}-${i}`)}
-          <path d={i === 0 ? segment : `M${segment}`} />
-        {/each}
-      </svg>
+      <Icon icon={VIEW_ICONS[entry.view]} />
     </button>
   {/each}
 </nav>
@@ -105,60 +58,53 @@
   .activity-bar {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    width: var(--ide-activity-bar-width, 48px);
-    min-width: var(--ide-activity-bar-width, 48px);
+    align-items: stretch;
+    width: 40px;
+    min-width: 40px;
+    padding: var(--space-1) 0;
+    gap: 2px;
     background: var(--ide-activity-bar-bg, var(--color-bg-elevated));
     border-right: 1px solid var(--color-border-subtle);
-    padding: var(--space-2) 0;
-    gap: var(--space-1);
     overflow-y: auto;
+    scrollbar-width: none;
   }
 
   .activity-btn {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
+    width: 40px;
     height: 36px;
-    padding: 6px;
+    padding: 0;
     border: none;
-    border-radius: var(--radius-md);
     background: transparent;
     color: var(--color-text-tertiary);
     cursor: pointer;
-    transition: var(--transition-all);
-    position: relative;
+    transition: var(--transition-colors);
   }
 
   .activity-btn:hover {
     color: var(--color-text-primary);
-    background: var(--color-bg-hover);
   }
 
   .activity-btn.active {
-    color: var(--color-primary);
-    background: var(--color-primary-muted);
+    color: var(--color-text-primary);
   }
 
   .activity-btn.active::before {
     content: '';
     position: absolute;
-    left: -6px;
+    left: 0;
     top: 6px;
     bottom: 6px;
-    width: 3px;
-    border-radius: 0 2px 2px 0;
+    width: 2px;
     background: var(--color-primary);
   }
 
   .activity-btn:focus-visible {
-    outline: none;
-    box-shadow: var(--shadow-focus);
-  }
-
-  .activity-btn svg {
-    width: 20px;
-    height: 20px;
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: -4px;
+    border-radius: var(--radius-sm);
   }
 </style>

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 
 const mocks = vi.hoisted(() => ({
   setProvider: vi.fn(),
@@ -22,8 +22,16 @@ vi.mock('./client', () => ({
 }));
 
 import { get } from 'svelte/store';
-import GraphQLCredentialGate from './GraphQLCredentialGate.svelte';
+// The gate as the layout mounts it: signed in, it renders no strip — the state
+// is the status bar's access chip, whose popover carries the explanation and,
+// for bearer sessions only, "Clear access".
+import GraphQLCredentialGate from '$lib/ui/ide/__fixtures__/AccessHarness.svelte';
 import { accessCapabilities, resetAccessCapabilities } from './accessCapabilities';
+
+async function openAccessChip(): Promise<HTMLElement> {
+  await fireEvent.click(await screen.findByTestId('access-chip'));
+  return screen.getByRole('dialog', { name: 'Access' });
+}
 
 beforeEach(() => {
   resetAccessCapabilities();
@@ -46,12 +54,21 @@ describe('GraphQLCredentialGate', () => {
       json: async () => ({ authenticated: true, authVia: 'network' })
     } as Response);
 
-    render(GraphQLCredentialGate);
+    const { container } = render(GraphQLCredentialGate);
 
+    // Announced to assistive tech, shown as a chip, never as a strip.
     await screen.findByText('Trusted network access active');
+    expect(screen.getByTestId('access-announcement')).toHaveAttribute('role', 'status');
+    expect(screen.getByTestId('access-chip')).toHaveTextContent('Trusted network');
+    expect(container.querySelector('.access-strip')).toBeNull();
     expect(screen.queryByLabelText('Deployment bearer credential')).not.toBeInTheDocument();
     expect(mocks.setTrustedNetworkAccess).toHaveBeenCalledWith(true);
     expect(mocks.graphqlFetch).toHaveBeenCalledTimes(1);
+
+    const popover = await openAccessChip();
+    expect(within(popover).getByText('Trusted network access active')).toBeInTheDocument();
+    expect(within(popover).getByText('Connected from the deployment trusted network.')).toBeInTheDocument();
+    expect(within(popover).queryByRole('button', { name: 'Clear access' })).not.toBeInTheDocument();
   });
 
   it('steps aside for a Cloudflare Access sign-in and names the principal', async () => {
@@ -67,7 +84,9 @@ describe('GraphQLCredentialGate', () => {
     render(GraphQLCredentialGate);
 
     await screen.findByText('Signed in through Cloudflare Access');
-    expect(screen.getByText(/Signed in as cody@flexinfer\.ai/)).toBeInTheDocument();
+    expect(screen.getByTestId('access-chip')).toHaveTextContent('Cloudflare Access · cody@flexinfer.ai');
+    const popover = await openAccessChip();
+    expect(within(popover).getByText(/Signed in as cody@flexinfer\.ai/)).toBeInTheDocument();
     expect(screen.queryByLabelText('Deployment bearer credential')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Clear access' })).not.toBeInTheDocument();
     expect(mocks.setTrustedNetworkAccess).toHaveBeenCalledWith(true);
@@ -143,6 +162,7 @@ describe('GraphQLCredentialGate', () => {
     await fireEvent.submit(screen.getByRole('form', { name: 'Install preview credential' }));
 
     await screen.findByText('Preview access active');
+    expect(screen.getByTestId('access-chip')).toHaveTextContent('Bearer');
     expect(screen.queryByDisplayValue(token)).not.toBeInTheDocument();
     const provider = mocks.setProvider.mock.calls.find((call) => typeof call[0] === 'function')?.[0];
     expect(provider).toBeTypeOf('function');
@@ -157,7 +177,9 @@ describe('GraphQLCredentialGate', () => {
       target: { value: 'transitional-token-with-24-characters' }
     });
     await fireEvent.submit(screen.getByRole('form', { name: 'Install preview credential' }));
-    await fireEvent.click(await screen.findByRole('button', { name: 'Clear access' }));
+    const popover = await openAccessChip();
+    expect(within(popover).getByText('Held in memory only — cleared on reload.')).toBeInTheDocument();
+    await fireEvent.click(within(popover).getByRole('button', { name: 'Clear access' }));
 
     await waitFor(() => {
       expect(screen.getByLabelText('Deployment bearer credential')).toBeInTheDocument();

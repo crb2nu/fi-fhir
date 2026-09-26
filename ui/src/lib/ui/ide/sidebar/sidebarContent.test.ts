@@ -15,8 +15,16 @@ describe('sidebarContent', () => {
     expect(context.title).toBe('Delivery');
     expect(context.actions).toHaveLength(3);
     expect(context.journey.stage?.label).toBe('Delivery');
-    expect(context.journey.nextAction.label).toBe('Continue to Verification');
-    expect(context.recent[0]?.label).toBe('Workflow builder');
+    expect(context.journey.nextStage?.label).toBe('Verification');
+  });
+
+  it('keeps the copy register: no journey or marketing phrases', () => {
+    const banned = /mission control|continue to|recommended move|next up|journey/i;
+    for (const view of ['/', '/hl7', '/profiles', '/terminology', '/workflows', '/events', '/operator']) {
+      const context = getSidebarContext(view);
+      const copy = [context.title, context.description, ...context.actions.flatMap((a) => [a.label, a.hint])];
+      for (const text of copy) expect(text).not.toMatch(banned);
+    }
   });
 
   it('returns the top-level navigation entries in route order', () => {
