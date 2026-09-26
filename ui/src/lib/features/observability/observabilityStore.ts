@@ -1,7 +1,11 @@
 /**
  * Observability store — surfaces Prometheus metrics, Loki logs, and Alertmanager
- * alerts via MCP tool calls. Falls back to realistic simulated data when the
- * platform is unreachable.
+ * alerts via the loom platform's MCP tool calls.
+ *
+ * There is no simulated fallback. When the platform is not connected nothing is
+ * fetched and the stores stay empty; `alertSource` says why, so a surface can
+ * render the honest state ("No alert source configured") instead of invented
+ * signals (`.loom/37` decision 3: no simulated data on a production surface).
  */
 import { writable, derived } from 'svelte/store';
 import { platformState, getPlatformClient } from '$lib/platform';
@@ -43,6 +47,16 @@ export interface Alert {
 }
 
 /**
+ * Where the alert list came from.
+ *
+ * - `unconfigured`: no observability platform is connected, so there is no
+ *   alert source at all. Surfaces say so; they never show placeholder alerts.
+ * - `live`: the last fetch returned Alertmanager's list (possibly empty).
+ * - `unavailable`: the platform is connected but the last alert query failed.
+ */
+export type AlertSource = 'unconfigured' | 'live' | 'unavailable';
+
+/**
  * Human-readable severity label for an alert.
  *
  * Provides a non-color cue for alert severity (WCAG 1.4.1, Use of Color):
@@ -77,162 +91,6 @@ export interface ObservabilityState {
   error: string | null;
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const WORKFLOW_NAMES = ['ADT-to-FHIR', 'ORM-routing', 'Lab-result-pipeline', 'Pharmacy-feed'] as const;
-
-const LOG_MESSAGES: Record<string, Array<{ level: LogEntry['level']; msg: string; event?: string | undefined }>> = {
-  'ADT-to-FHIR': [
-    { level: 'info', msg: 'PID segment parsed successfully', event: 'ADT^A01' },
-    { level: 'info', msg: 'Patient resource created: Bundle/12849', event: 'ADT^A01' },
-    { level: 'debug', msg: 'NK1 next-of-kin segment mapped to RelatedPerson', event: 'ADT^A01' },
-    { level: 'warn', msg: 'PV1.3 ward code not in location registry, using fallback', event: 'ADT^A08' },
-    { level: 'info', msg: 'Encounter status updated to finished', event: 'ADT^A03' },
-    { level: 'error', msg: 'FHIR validation failed: Patient.identifier requires system', event: 'ADT^A04' },
-    { level: 'debug', msg: 'MSH-9 trigger event resolved to ADT workflow branch', event: 'ADT^A01' },
-    { level: 'info', msg: 'Insurance segment IN1 mapped to Coverage resource', event: 'ADT^A01' },
-  ],
-  'ORM-routing': [
-    { level: 'info', msg: 'Order routed to Lab subsystem via OBR-4 code', event: 'ORM^O01' },
-    { level: 'warn', msg: 'Route fallback: OBR-4 code not in routing table, using default', event: 'ORM^O01' },
-    { level: 'info', msg: 'ServiceRequest created from ORC segment', event: 'ORM^O01' },
-    { level: 'debug', msg: 'ORC-1 order control: NW (new order)', event: 'ORM^O01' },
-    { level: 'error', msg: 'Duplicate order detected: correlationId already processed', event: 'ORM^O01' },
-    { level: 'info', msg: 'Order priority escalated to STAT from OBR-27', event: 'ORM^O01' },
-  ],
-  'Lab-result-pipeline': [
-    { level: 'info', msg: 'OBX result parsed: Glucose 95 mg/dL (normal)', event: 'ORU^R01' },
-    { level: 'error', msg: 'FHIR validation: Observation.code requires LOINC system URI', event: 'ORU^R01' },
-    { level: 'warn', msg: 'OBX-5 value type CE not fully mapped, using CodeableConcept', event: 'ORU^R01' },
-    { level: 'info', msg: 'DiagnosticReport bundle created with 4 observations', event: 'ORU^R01' },
-    { level: 'debug', msg: 'Terminology lookup: LOINC 2345-7 resolved to Glucose [Mass/Vol]', event: 'ORU^R01' },
-    { level: 'info', msg: 'Critical result flagged: Potassium 6.2 mEq/L above range', event: 'ORU^R01' },
-    { level: 'warn', msg: 'OBR-22 result status changed from P to F mid-stream', event: 'ORU^R01' },
-  ],
-  'Pharmacy-feed': [
-    { level: 'info', msg: 'RXE dispense event mapped to MedicationDispense', event: 'RDE^O11' },
-    { level: 'debug', msg: 'Terminology lookup: NDC 00069-3150-83 resolved to RxNorm 153165', event: 'RDE^O11' },
-    { level: 'warn', msg: 'RXR route code not in SNOMED route valueset, using text fallback', event: 'RDE^O11' },
-    { level: 'info', msg: 'MedicationRequest created from ORC+RXE segments', event: 'RDE^O11' },
-    { level: 'error', msg: 'Pharmacy system timeout: retry 2/3 for dispense confirmation', event: 'RDE^O11' },
-    { level: 'debug', msg: 'SIG parsing: "1 TAB PO BID" mapped to Dosage with timing', event: 'RDE^O11' },
-  ],
-};
-
-// ─── Mock data generators ─────────────────────────────────────────────────────
-
-function generateSparkline(count: number, min: number, max: number, volatility: number): Array<{ timestamp: number; value: number }> {
-  const now = Date.now();
-  const intervalMs = (60 * 60 * 1000) / count;
-  const values: Array<{ timestamp: number; value: number }> = [];
-  let current = min + (max - min) * 0.5;
-
-  for (let i = 0; i < count; i++) {
-    const drift = (Math.random() - 0.5) * 2 * volatility * (max - min);
-    current = Math.max(min, Math.min(max, current + drift));
-    values.push({
-      timestamp: now - (count - 1 - i) * intervalMs,
-      value: Math.round(current * 100) / 100,
-    });
-  }
-  return values;
-}
-
-function generateMockMetrics(): MetricsSnapshot {
-  const throughput: MetricSeries[] = WORKFLOW_NAMES.map((name) => ({
-    name: 'workflow_events_per_minute',
-    labels: { workflow: name },
-    values: generateSparkline(20, 40, 220, 0.12),
-  }));
-
-  const latency: MetricSeries[] = [
-    { name: 'workflow_latency_p50', labels: { quantile: '0.5' }, values: generateSparkline(20, 5, 18, 0.08) },
-    { name: 'workflow_latency_p95', labels: { quantile: '0.95' }, values: generateSparkline(20, 20, 45, 0.1) },
-    { name: 'workflow_latency_p99', labels: { quantile: '0.99' }, values: generateSparkline(20, 35, 55, 0.1) },
-  ];
-
-  const errorRate: MetricSeries[] = WORKFLOW_NAMES.map((name) => ({
-    name: 'workflow_error_rate_pct',
-    labels: { workflow: name },
-    values: generateSparkline(20, 0.05, 2.5, 0.15),
-  }));
-
-  const dlqDepth: MetricSeries[] = [
-    {
-      name: 'dlq_depth',
-      labels: { queue: 'default' },
-      values: generateSparkline(20, 0, 8, 0.2),
-    },
-  ];
-
-  return { throughput, latency, errorRate, dlqDepth, lastUpdated: Date.now() };
-}
-
-function generateMockLogs(count: number): LogEntry[] {
-  const entries: LogEntry[] = [];
-  const now = Date.now();
-
-  for (let i = 0; i < count; i++) {
-    const workflow = WORKFLOW_NAMES[Math.floor(Math.random() * WORKFLOW_NAMES.length)]!;
-    const pool = LOG_MESSAGES[workflow]!;
-    const entry = pool[Math.floor(Math.random() * pool.length)]!;
-    entries.push({
-      timestamp: now - i * (2000 + Math.random() * 3000),
-      level: entry.level,
-      message: entry.msg,
-      labels: { workflow, source: 'fi-fhir-engine' },
-      workflowName: workflow,
-      eventType: entry.event,
-    });
-  }
-  return entries.sort((a, b) => b.timestamp - a.timestamp);
-}
-
-function generateMockAlerts(): Alert[] {
-  const now = Date.now();
-  return [
-    {
-      id: 'alert-001',
-      name: 'HighErrorRate',
-      severity: 'critical',
-      state: 'firing',
-      summary: 'ORM-routing error rate above 2% for 5 minutes',
-      description: 'The ORM-routing workflow error rate has exceeded the 2% threshold. Recent errors indicate duplicate order detection and routing table misses.',
-      startsAt: now - 8 * 60 * 1000,
-      labels: { workflow: 'ORM-routing', team: 'integration' },
-    },
-    {
-      id: 'alert-002',
-      name: 'DLQBacklog',
-      severity: 'warning',
-      state: 'firing',
-      summary: 'Dead-letter queue depth at 4 messages',
-      description: 'Messages accumulating in the dead-letter queue. Manual review recommended to prevent data loss.',
-      startsAt: now - 22 * 60 * 1000,
-      labels: { queue: 'default', team: 'platform' },
-    },
-    {
-      id: 'alert-003',
-      name: 'TerminologyServiceDegraded',
-      severity: 'warning',
-      state: 'pending',
-      summary: 'LOINC terminology lookups averaging 340ms (threshold: 200ms)',
-      description: 'Terminology service response times are elevated. Pharmacy-feed and Lab-result-pipeline latencies may be affected.',
-      startsAt: now - 4 * 60 * 1000,
-      labels: { service: 'terminology-svc', team: 'platform' },
-    },
-    {
-      id: 'alert-004',
-      name: 'PharmacyFeedRetries',
-      severity: 'info',
-      state: 'resolved',
-      summary: 'Pharmacy downstream retries returned to normal',
-      startsAt: now - 45 * 60 * 1000,
-      labels: { workflow: 'Pharmacy-feed', team: 'integration' },
-    },
-  ];
-}
-
 // ─── Store ────────────────────────────────────────────────────────────────────
 
 const initialState: ObservabilityState = {
@@ -253,13 +111,8 @@ export const activeAlertCount = derived(observabilityState, ($s) =>
 
 export const isAvailable = derived(platformState, ($p) => $p.connected);
 
-/**
- * True when the currently-displayed observability data is simulated (the
- * platform MCP was unreachable, so a mock fallback was rendered). Components
- * MUST surface this so operators never mistake demo data for live signals.
- * Set per-fetch: false on a real backend result, true on a fallback.
- */
-export const isSimulated = writable<boolean>(false);
+/** Source of the current alert list; see {@link AlertSource}. */
+export const alertSource = writable<AlertSource>('unconfigured');
 
 export const filteredLogs = derived(observabilityState, ($s) => {
   let logs = $s.logs;
@@ -278,113 +131,95 @@ export const filteredLogs = derived(observabilityState, ($s) => {
   return logs;
 });
 
+function connectedClient() {
+  const client = getPlatformClient();
+  return client?.isConnected() ? client : null;
+}
+
+function errorMessage(err: unknown, fallback: string): string {
+  return err instanceof Error ? err.message : fallback;
+}
+
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
 export async function fetchMetrics(): Promise<void> {
+  const client = connectedClient();
+  if (!client) {
+    observabilityState.update((s) => ({ ...s, metrics: null, isLoadingMetrics: false }));
+    return;
+  }
+
   observabilityState.update((s) => ({ ...s, isLoadingMetrics: true, error: null }));
-
   try {
-    const client = getPlatformClient();
-    if (client?.isConnected()) {
-      try {
-        const result = await client.callTool('mcp-prometheus', 'query_range', {
-          query: 'rate(workflow_events_total[5m])',
-          start: new Date(Date.now() - 3600000).toISOString(),
-          end: new Date().toISOString(),
-          step: '180s',
-        });
-        if (result) {
-          isSimulated.set(false);
-          observabilityState.update((s) => ({
-            ...s,
-            metrics: result as MetricsSnapshot,
-            isLoadingMetrics: false,
-          }));
-          return;
-        }
-      } catch {
-        // Fall through to simulated data
-      }
-    }
-
-    // Simulated data fallback
-    isSimulated.set(true);
-    const metrics = generateMockMetrics();
-    observabilityState.update((s) => ({ ...s, metrics, isLoadingMetrics: false }));
+    const result = await client.callTool('mcp-prometheus', 'query_range', {
+      query: 'rate(workflow_events_total[5m])',
+      start: new Date(Date.now() - 3600000).toISOString(),
+      end: new Date().toISOString(),
+      step: '180s',
+    });
+    observabilityState.update((s) => ({
+      ...s,
+      metrics: (result as MetricsSnapshot | null) ?? null,
+      isLoadingMetrics: false,
+    }));
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to fetch metrics';
-    observabilityState.update((s) => ({ ...s, isLoadingMetrics: false, error: message }));
+    const message = errorMessage(err, 'Failed to fetch metrics');
+    observabilityState.update((s) => ({ ...s, metrics: null, isLoadingMetrics: false, error: message }));
   }
 }
 
 export async function fetchLogs(filter?: LogFilter | undefined): Promise<void> {
-  observabilityState.update((s) => ({ ...s, isLoadingLogs: true, error: null }));
-
-  try {
-    const client = getPlatformClient();
-    if (client?.isConnected()) {
-      try {
-        const result = await client.callTool('mcp-loki', 'loki_query_range', {
-          query: '{app="fi-fhir-engine"}',
-          start: new Date(Date.now() - 3600000).toISOString(),
-          end: new Date().toISOString(),
-          limit: 50,
-        });
-        if (result) {
-          isSimulated.set(false);
-          observabilityState.update((s) => ({
-            ...s,
-            logs: result as LogEntry[],
-            isLoadingLogs: false,
-            logFilter: filter ?? s.logFilter,
-          }));
-          return;
-        }
-      } catch {
-        // Fall through to simulated data
-      }
-    }
-
-    // Simulated data fallback
-    isSimulated.set(true);
-    const logs = generateMockLogs(40);
+  const client = connectedClient();
+  if (!client) {
     observabilityState.update((s) => ({
       ...s,
-      logs,
+      logs: [],
+      isLoadingLogs: false,
+      logFilter: filter ?? s.logFilter,
+    }));
+    return;
+  }
+
+  observabilityState.update((s) => ({ ...s, isLoadingLogs: true, error: null }));
+  try {
+    const result = await client.callTool('mcp-loki', 'loki_query_range', {
+      query: '{app="fi-fhir-engine"}',
+      start: new Date(Date.now() - 3600000).toISOString(),
+      end: new Date().toISOString(),
+      limit: 50,
+    });
+    observabilityState.update((s) => ({
+      ...s,
+      logs: Array.isArray(result) ? (result as LogEntry[]) : [],
       isLoadingLogs: false,
       logFilter: filter ?? s.logFilter,
     }));
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to fetch logs';
-    observabilityState.update((s) => ({ ...s, isLoadingLogs: false, error: message }));
+    const message = errorMessage(err, 'Failed to fetch logs');
+    observabilityState.update((s) => ({ ...s, logs: [], isLoadingLogs: false, error: message }));
   }
 }
 
 export async function fetchAlerts(): Promise<void> {
-  try {
-    const client = getPlatformClient();
-    if (client?.isConnected()) {
-      try {
-        const result = await client.callTool('mcp-alertmanager', 'am_list_alerts', {});
-        if (result) {
-          isSimulated.set(false);
-          observabilityState.update((s) => ({
-            ...s,
-            alerts: result as Alert[],
-          }));
-          return;
-        }
-      } catch {
-        // Fall through to simulated data
-      }
-    }
+  const client = connectedClient();
+  if (!client) {
+    alertSource.set('unconfigured');
+    observabilityState.update((s) => ({ ...s, alerts: [] }));
+    return;
+  }
 
-    // Simulated data fallback
-    isSimulated.set(true);
-    const alerts = generateMockAlerts();
-    observabilityState.update((s) => ({ ...s, alerts }));
+  try {
+    const result = await client.callTool('mcp-alertmanager', 'am_list_alerts', {});
+    alertSource.set('live');
+    observabilityState.update((s) => ({
+      ...s,
+      alerts: Array.isArray(result) ? (result as Alert[]) : [],
+    }));
   } catch {
-    // Alerts fetch is best-effort
+    // Best-effort: an unreachable Alertmanager is reported as such, never
+    // papered over with placeholder alerts.
+    alertSource.set('unavailable');
+    observabilityState.update((s) => ({ ...s, alerts: [] }));
   }
 }
 

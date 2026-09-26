@@ -2,14 +2,18 @@
   /**
    * AlertBadge — Compact alert indicator for the StatusBar.
    * Shows firing alert count with severity-colored badge and dropdown popover.
+   * Rendered only while the loom platform is connected (StatusBar); it lists
+   * exactly what Alertmanager returned, never placeholder alerts.
    */
   import { onMount, onDestroy } from 'svelte';
+  import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
+  import { Icon } from '$lib/ui/primitives';
   import {
     observabilityState,
     activeAlertCount,
+    alertSource,
     fetchAlerts,
     severityLabel,
-    isSimulated,
   } from './observabilityStore';
 
   let showDropdown = false;
@@ -66,13 +70,11 @@
     class:warning={hasWarning && !hasCritical}
     on:click={toggleDropdown}
     bind:this={triggerEl}
-    title="{firingCount} firing alert{firingCount === 1 ? '' : 's'}{$isSimulated ? ' (demo data — platform not connected)' : ''}"
-    aria-label="Alerts: {firingCount} firing{$isSimulated ? ', showing demo data, platform not connected' : ''}"
+    title="{firingCount} firing alert{firingCount === 1 ? '' : 's'}"
+    aria-label="Alerts: {firingCount} firing"
     aria-expanded={showDropdown}
   >
-    <svg class="alert-icon" viewBox="0 0 16 16" fill="currentColor">
-      <path d="M8 1.5a.5.5 0 01.424.235l6.5 10.5A.5.5 0 0114.5 13h-13a.5.5 0 01-.424-.765l6.5-10.5A.5.5 0 018 1.5zM7.5 10v1h1v-1h-1zm0-4v3h1V6h-1z" />
-    </svg>
+    <Icon icon={TriangleAlert} size={12} />
     {#if firingCount > 0}
       <span class="badge-count" class:pulse={firingCount > 0}>{firingCount}</span>
     {/if}
@@ -82,9 +84,6 @@
     <div class="dropdown" role="dialog" aria-label="Alerts" style={dropdownStyle}>
       <div class="dropdown-header">
         <span class="dropdown-title">Alerts</span>
-        {#if $isSimulated}
-          <span class="sim-tag" title="Platform not connected — showing demo data.">Demo data</span>
-        {/if}
         <span class="dropdown-count">{alerts.length} total</span>
       </div>
 
@@ -106,7 +105,9 @@
       </div>
 
       {#if alerts.length === 0}
-        <div class="empty-alerts">No alerts</div>
+        <div class="empty-alerts">
+          {$alertSource === 'unavailable' ? 'Alert source unavailable' : 'No alerts'}
+        </div>
       {/if}
     </div>
   {/if}
@@ -128,7 +129,7 @@
     border: none;
     border-radius: var(--radius-sm);
     background: transparent;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--color-text-tertiary);
     cursor: pointer;
     transition: var(--transition-all);
     font-size: var(--text-2xs);
@@ -137,8 +138,8 @@
   }
 
   .badge-trigger:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.8);
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
   }
 
   .badge-trigger:focus-visible {
@@ -148,20 +149,15 @@
   }
 
   .badge-trigger.has-alerts {
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--color-text-primary);
   }
 
   .badge-trigger.critical {
-    color: var(--palette-red-300);
+    color: var(--color-danger-text);
   }
 
   .badge-trigger.warning {
-    color: var(--palette-yellow-200);
-  }
-
-  .alert-icon {
-    width: 12px;
-    height: 12px;
+    color: var(--color-warning-text);
   }
 
   .badge-count {
@@ -176,10 +172,8 @@
     width: 340px;
     max-height: 400px;
     background: var(--color-bg-overlay);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
     border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-md);
     box-shadow: var(--shadow-lg);
     overflow: hidden;
     z-index: var(--z-popover);
@@ -203,22 +197,6 @@
   .dropdown-count {
     font-size: var(--text-2xs);
     color: var(--color-text-muted);
-  }
-
-  .sim-tag {
-    margin-left: auto;
-    margin-right: var(--space-2);
-    padding: 1px var(--space-1);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--color-warning-border);
-    background: var(--color-warning-bg);
-    color: var(--color-warning-text);
-    font-size: var(--text-2xs, 10px);
-    font-weight: var(--font-semibold);
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-    line-height: 1.4;
-    cursor: help;
   }
 
   .alert-list {
