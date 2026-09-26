@@ -10,7 +10,7 @@ vi.mock('$lib/graphql/client', () => ({
 import { dispatchCopilotAction } from './copilotDispatch';
 import { isErrorToasted } from '$lib/graphql/client';
 import { platformState } from '$lib/platform';
-import { copilotState, sendAction, cancelStream, clearMessages } from './copilotStore';
+import { copilotState, sendAction, cancelStream, clearMessages, isAvailable } from './copilotStore';
 import { llmCapabilityState, resetLlmCapability } from './llmCapabilityStore';
 
 const mockDispatch = dispatchCopilotAction as unknown as ReturnType<typeof vi.fn>;
@@ -51,11 +51,15 @@ describe('sendAction', () => {
     expect(lastAssistant()?.model).toBeUndefined();
   });
 
-  it('does not dispatch when the platform is disconnected', async () => {
+  it('dispatches without any loom platform connection (it runs on the backend LLM)', async () => {
     platformState.update((s) => ({ ...s, connected: false }));
-    await sendAction('generate', 'x');
-    expect(mockDispatch).not.toHaveBeenCalled();
-    expect(get(copilotState).error).toMatch(/Connect to the platform/);
+    mockDispatch.mockResolvedValue({ content: 'explained', model: null });
+
+    await sendAction('explain', 'name: adt');
+
+    expect(mockDispatch).toHaveBeenCalledTimes(1);
+    expect(get(copilotState).error).toBeNull();
+    expect(get(isAvailable)).toBe(true);
   });
 
   it('does not dispatch when the backend reports LLM disabled', async () => {

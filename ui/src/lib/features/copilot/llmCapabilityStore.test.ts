@@ -10,6 +10,8 @@ import {
   refreshLlmCapability,
   resetLlmCapability,
   actionBlockReason,
+  copilotLlmState,
+  llmCapabilityChecking,
   ACTION_FEATURES,
   type LlmCapabilitySnapshot,
 } from './llmCapabilityStore';
@@ -133,5 +135,55 @@ describe('actionBlockReason', () => {
       }),
     };
     expect(actionBlockReason(state, 'review')).toBe('The review action is unavailable (unconfigured)');
+  });
+});
+
+describe('copilotLlmState', () => {
+  it('maps the backend answer onto the three Copilot states', () => {
+    expect(copilotLlmState({ status: 'available', capability: capability() }, false)).toBe('ready');
+    expect(
+      copilotLlmState({ status: 'degraded', capability: capability({ status: 'degraded' }) }, false)
+    ).toBe('ready');
+    expect(
+      copilotLlmState(
+        { status: 'unavailable', capability: capability({ status: 'unavailable' }) },
+        false
+      )
+    ).toBe('unreachable');
+    expect(
+      copilotLlmState(
+        {
+          status: 'disabled',
+          capability: capability({ enabled: false, configured: false, status: 'disabled' })
+        },
+        false
+      )
+    ).toBe('not-configured');
+    expect(
+      copilotLlmState(
+        {
+          status: 'unavailable',
+          capability: capability({ configured: false, status: 'unavailable' })
+        },
+        false
+      )
+    ).toBe('not-configured');
+  });
+
+  it('is checking while the probe is in flight and unknown when it did not answer', async () => {
+    expect(copilotLlmState({ status: 'unknown', capability: null }, true)).toBe('checking');
+    expect(copilotLlmState({ status: 'unknown', capability: null }, false)).toBe('unknown');
+
+    let resolveProbe: (value: unknown) => void = () => {};
+    mockFetch.mockReturnValue(
+      new Promise((resolve) => {
+        resolveProbe = resolve;
+      })
+    );
+    const probe = refreshLlmCapability();
+    expect(get(llmCapabilityChecking)).toBe(true);
+    resolveProbe({ llmCapability: capability() });
+    await probe;
+    expect(get(llmCapabilityChecking)).toBe(false);
   });
 });
