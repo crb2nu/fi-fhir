@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parse } from 'graphql';
 import type { TypedDocumentNode } from '@graphql-typed-document-node/core';
 import { setGraphQLCredentialProvider } from './credentials';
-import { disposeClient, subscribe } from './subscriptions';
+import { disposeClient, GraphQLStreamError, subscribe } from './subscriptions';
 
 const document = parse('subscription Test { event: integrationSessionEvents(sessionId: "session-1") { id } }') as unknown as TypedDocumentNode<
   { event: { id: string } },
@@ -77,6 +77,27 @@ describe('GraphQL SSE subscriptions', () => {
     await vi.waitFor(() => expect(onError).toHaveBeenCalledWith(expect.objectContaining({
       message: 'GraphQL stream response has an unexpected content type'
     })));
+  });
+
+  it('surfaces an in-stream GraphQL error with its extension codes', async () => {
+    setGraphQLCredentialProvider(() => 'test-token');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
+      'event: next\n' +
+        'data: {"errors":[{"message":"GraphQL operation forbidden","extensions":{"code":"FORBIDDEN"}}]}\n\n' +
+        'event: complete\n\n',
+      { status: 200, headers: { 'content-type': 'text/event-stream' } }
+    )));
+    const onError = vi.fn();
+    const onComplete = vi.fn();
+
+    subscribe(document, {}, { onData: vi.fn(), onError, onComplete });
+
+    await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce());
+    const error = onError.mock.calls[0]![0] as GraphQLStreamError;
+    expect(error).toBeInstanceOf(GraphQLStreamError);
+    expect(error.message).toBe('GraphQL operation forbidden');
+    expect(error.codes).toEqual(['FORBIDDEN']);
+    expect(onComplete).not.toHaveBeenCalled();
   });
 
   it('keeps credential-gate disposal safe', async () => {

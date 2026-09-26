@@ -11,10 +11,31 @@ export type SubscriptionCallbacks<TData> = {
   onComplete?: () => void;
 };
 
+type GraphQLStreamErrorEntry = { message?: string; extensions?: { code?: unknown } };
+
 type GraphQLStreamEnvelope<TData> = {
   data?: TData;
-  errors?: Array<{ message?: string }>;
+  errors?: GraphQLStreamErrorEntry[];
 };
+
+/**
+ * A GraphQL error delivered inside the stream (`event: next` with `errors`).
+ * The message is what the server sent, joined with "; ". `codes` keeps each
+ * error's `extensions.code`. The server's catalog-safe presenter rewrites the
+ * message of every FORBIDDEN-coded error to "GraphQL operation forbidden", so
+ * the code is the reliable signal.
+ */
+export class GraphQLStreamError extends Error {
+  readonly codes: readonly string[];
+
+  constructor(errors: readonly GraphQLStreamErrorEntry[]) {
+    super(errors.map((entry) => entry.message || 'Unknown error').join('; '));
+    this.name = 'GraphQLStreamError';
+    this.codes = errors.flatMap((entry) =>
+      typeof entry.extensions?.code === 'string' ? [entry.extensions.code] : []
+    );
+  }
+}
 
 /**
  * Opens one authenticated GraphQL SSE subscription over the same bounded POST
@@ -92,7 +113,7 @@ async function openStream<TData, TVariables>(
       if (event.type !== 'next' || !event.data) continue;
       const envelope = JSON.parse(event.data) as GraphQLStreamEnvelope<TData>;
       if (envelope.errors?.length) {
-        throw new Error(envelope.errors.map((entry) => entry.message || 'Unknown error').join('; '));
+        throw new GraphQLStreamError(envelope.errors);
       }
       if (envelope.data) callbacks.onData(envelope.data);
     }

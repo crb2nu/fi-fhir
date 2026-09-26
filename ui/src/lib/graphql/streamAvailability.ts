@@ -6,7 +6,12 @@
  * (`FI_FHIR_INTEGRATION_SESSION_ENABLED`; otherwise HTTP 404), and even then
  * only for the allowlisted roots `integrationSessionEvents` and
  * `sessionRunEvents` — `eventStream`, `workflowEvents` and `debugStepEvent`
- * are refused by design ("GraphQL stream operation forbidden").
+ * are refused by design. The refusal arrives as HTTP 200 `text/event-stream`
+ * whose `next` event carries
+ * `{"errors":[{"message":"GraphQL operation forbidden","extensions":{"code":"FORBIDDEN"}}]}`:
+ * the transport builds "GraphQL stream operation forbidden", but the server's
+ * catalog-safe error presenter rewrites every FORBIDDEN-coded message to the
+ * generic one before it is written, so the code is what identifies it.
  *
  * Availability of a root therefore comes from two places:
  *  1. the identity's capabilities (`streaming`, and `subscriptions` — the
@@ -50,8 +55,23 @@ const observed = writable<Partial<Record<StreamRoot, StreamUnavailableReason>>>(
 export function classifyStreamError(error: unknown): StreamUnavailableReason | null {
   const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
   if (/GraphQL stream HTTP 404\b/.test(message)) return 'streaming-off';
-  if (/stream operation forbidden/i.test(message)) return 'not-allowlisted';
+  if (streamErrorCodes(error).includes('FORBIDDEN')) return 'not-allowlisted';
+  // Without a code (a string, or an error from elsewhere): the sanitized
+  // "GraphQL operation forbidden" and the unsanitized
+  // "GraphQL stream operation forbidden" both match.
+  if (/operation forbidden/i.test(message)) return 'not-allowlisted';
   return null;
+}
+
+/**
+ * The `extensions.code` values a stream error carried (`GraphQLStreamError.codes`
+ * from `./subscriptions`). Read structurally so this module does not import the
+ * SSE client, which many surface tests replace with a mock.
+ */
+function streamErrorCodes(error: unknown): readonly string[] {
+  if (!(error instanceof Error) || !('codes' in error)) return [];
+  const codes = (error as { codes: unknown }).codes;
+  return Array.isArray(codes) ? codes.filter((code): code is string => typeof code === 'string') : [];
 }
 
 /** Records that `root` cannot stream on this deployment. */

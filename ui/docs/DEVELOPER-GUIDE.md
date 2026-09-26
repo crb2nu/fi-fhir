@@ -125,4 +125,8 @@ The production image bakes build metadata into the UI via build args:
 - `VITE_BUILD_TAG`
 - `VITE_BUILD_TIME`
 - `VITE_FI_FHIR_PREVIEW_INTEGRATION_ID` (a public registry alias, never a credential)
-- `VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED` (defaults to `false`)
+- `VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED` (image default `true`; `npm run dev`
+  leaves it unset, which is off). The build flag only permits the Integration
+  Session engine: the UI uses it when the API's `/api/auth/status` also reports
+  `capabilities.integrationSessions`, and otherwise stays on the stateless
+  preview path. Build with `=false` for a UI that never offers it.
