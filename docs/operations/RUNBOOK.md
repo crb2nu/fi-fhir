@@ -422,7 +422,14 @@ toast accompanies it. A direct SSE request (`POST /graphql` with
 | Answer | `data-reason` | Meaning |
 |---|---|---|
 | HTTP 404, body `Integration Session streaming is unavailable` | `streaming-off` | The API has the session workspace off (`FI_FHIR_INTEGRATION_SESSION_ENABLED` unset), so no subscription can open. `/api/auth/status` reports `streaming: false` and `subscriptions: []` |
-| HTTP 200 `text/event-stream` whose event is `GraphQL stream operation forbidden` (`"code":"FORBIDDEN"`) | `not-allowlisted` | Streaming is on, but the subscription is not on the SSE allowlist, or the caller's roles do not clear the transport gate for it |
+| HTTP 200 `text/event-stream` whose `next` event is `{"errors":[{"message":"GraphQL operation forbidden","extensions":{"code":"FORBIDDEN"}}]}` | `not-allowlisted` | Streaming is on, but the subscription is not on the SSE allowlist, or the caller's roles do not clear the transport gate for it |
+
+The transport builds the refusal as "GraphQL stream operation forbidden", but
+the server's catalog-safe error presenter rewrites every `FORBIDDEN`-coded
+message to "GraphQL operation forbidden" before writing it. The
+sanitization is deliberate: a catalog-safe error names the decision and never
+the detail. As a result the stream refusal and an ordinary operation refusal
+read the same, and the `FORBIDDEN` code is what the UI keys on.
 
 **Which panels can stream.** The SSE transport admits exactly two subscription
 roots, `integrationSessionEvents` and `sessionRunEvents`
@@ -454,7 +461,7 @@ page load. Each panel resolves its own subscription root from `streaming` and
 `subscriptions` (`ui/src/lib/graphql/streamAvailability.ts`), renders the
 honest state, and never opens a stream it cannot get. If capabilities are
 unknown (an API older than the status contract), a panel tries once. An HTTP
-404 or a "stream operation forbidden" answer then marks that root unavailable
+404 or a `FORBIDDEN` refusal then marks that root unavailable
 for the rest of the page session, so a status that went stale after a redeploy
 corrects itself the first time a panel tries. HL7 intake is different. It
 shows the note only when the UI build enabled the session engine

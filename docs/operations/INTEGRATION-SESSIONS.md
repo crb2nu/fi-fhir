@@ -68,8 +68,9 @@ will give the session workspace its own grant.
 
 ### Production
 
-`fi-fhir.flexinfer.ai` runs the UI image with the build flag on, so the
-workspace is turned on by one API environment entry. In
+`fi-fhir.flexinfer.ai` builds its UI image from `ui/Dockerfile` with no
+override (`build:docker-ui`), so the build flag is on and the workspace is
+turned on by one API environment entry. In
 `platform/gitops/k3s/fi-fhir/fi-fhir-api.yaml`, add it beside the other
 `FI_FHIR_*` feature switches (after `FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED`):
 
