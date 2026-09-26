@@ -26,23 +26,23 @@ export interface SidebarContext {
 
 // Domain-first navigation, same labels and order as the activity bar.
 const viewLinks: SidebarViewLink[] = [
-  { view: 'home', label: 'Dashboard', href: '/' },
+  { view: 'home', label: 'Home', href: '/' },
   { view: 'hl7', label: 'HL7 / Intake', href: '/hl7' },
   { view: 'profiles', label: 'Profiles', href: '/profiles' },
   { view: 'terminology', label: 'Terminology', href: '/terminology' },
   { view: 'workflows', label: 'Workflows', href: '/workflows' },
   { view: 'events', label: 'Events', href: '/events' },
-  { view: 'operator', label: 'Operations', href: '/operator' },
+  { view: 'operator', label: 'Operator', href: '/operator' },
 ];
 
 const contexts: Record<SidebarView, SidebarContext> = {
   home: {
     view: 'home',
-    title: 'Dashboard',
+    title: 'Home',
     description: 'Integration health and recent work across every stage.',
     actions: [
       { label: 'HL7 / Intake', href: '/hl7', hint: 'Load, parse and preview inbound messages.' },
-      { label: 'Operations', href: '/operator', hint: 'Trace receipts and recover failed deliveries.' },
+      { label: 'Operator', href: '/operator', hint: 'Trace receipts and recover failed deliveries.' },
       { label: 'Events', href: '/events', hint: 'Browse the semantic events that were delivered.' },
     ],
   },
@@ -93,17 +93,17 @@ const contexts: Record<SidebarView, SidebarContext> = {
     actions: [
       { label: 'Workflows', href: '/workflows', hint: 'The route that delivered an event.' },
       { label: 'Terminology', href: '/terminology', hint: 'The mapping behind a semantic term.' },
-      { label: 'Operations', href: '/operator', hint: 'Receipts, delivery attempts and dead letters.' },
+      { label: 'Operator', href: '/operator', hint: 'Receipts, delivery attempts and dead letters.' },
     ],
   },
   operator: {
     view: 'operator',
-    title: 'Operations',
+    title: 'Operator',
     description: 'What production did, and audited recovery with a recorded reason.',
     actions: [
       { label: 'Workflows', href: '/workflows', hint: 'The route and actions behind a delivery.' },
       { label: 'Events', href: '/events', hint: 'Events a receipt produced.' },
-      { label: 'Dashboard', href: '/', hint: 'Integration health across stages.' },
+      { label: 'Home', href: '/', hint: 'Integration health across stages.' },
     ],
   },
 };

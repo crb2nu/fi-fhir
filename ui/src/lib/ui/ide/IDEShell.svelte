@@ -106,13 +106,13 @@
   // ── Command palette commands ──
 
   const navCommands: PaletteCommand[] = [
-    { id: 'nav:system', label: 'Go to Dashboard', hint: '/', category: 'Navigation', keywords: ['navigate', 'home', 'dashboard', 'health'], run: () => goto(resolve('/')) },
+    { id: 'nav:system', label: 'Go to Home', hint: '/', category: 'Navigation', keywords: ['navigate', 'home', 'dashboard', 'health'], run: () => goto(resolve('/')) },
     { id: 'nav:hl7', label: 'Go to HL7 / Intake', hint: '/hl7', category: 'Navigation', keywords: ['navigate', 'hl7', 'source intake'], run: () => goto(resolve('/hl7')) },
     { id: 'nav:profiles', label: 'Go to Profiles', hint: '/profiles', category: 'Navigation', keywords: ['navigate', 'profiles', 'normalization'], run: () => goto(resolve('/profiles')) },
     { id: 'nav:terminology', label: 'Go to Terminology', hint: '/terminology', category: 'Navigation', keywords: ['navigate', 'terminology', 'translation'], run: () => goto(resolve('/terminology')) },
     { id: 'nav:workflows', label: 'Go to Workflows', hint: '/workflows', category: 'Navigation', keywords: ['navigate', 'workflows', 'delivery'], run: () => goto(resolve('/workflows')) },
     { id: 'nav:events', label: 'Go to Events', hint: '/events', category: 'Navigation', keywords: ['navigate', 'events', 'verification'], run: () => goto(resolve('/events')) },
-    { id: 'nav:operator', label: 'Go to Operations', hint: '/operator', category: 'Navigation', keywords: ['navigate', 'operator', 'operations', 'replay', 'dead letter', 'deployments'], run: () => goto(resolve('/operator')) },
+    { id: 'nav:operator', label: 'Go to Operator', hint: '/operator', category: 'Navigation', keywords: ['navigate', 'operator', 'operations', 'replay', 'dead letter', 'deployments'], run: () => goto(resolve('/operator')) },
     { id: 'cmd:toggle-sidebar', label: 'Toggle sidebar', shortcut: shortcut('B'), category: 'Workspace', keywords: ['sidebar', 'context'], run: () => toggleSidebar() },
     { id: 'cmd:toggle-panel', label: 'Toggle bottom panel', shortcut: shortcut('J'), category: 'Workspace', keywords: ['panel', 'output', 'problems', 'copilot'], run: () => toggleBottomPanel() },
     { id: 'cmd:close-tab', label: 'Close editor tab', shortcut: shortcut('W'), category: 'Workspace', keywords: ['close', 'tab'], run: () => closeActiveTab() },

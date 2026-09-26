@@ -3,7 +3,7 @@
   in the header (replaces the journey band). The current stage is filled with
   the accent, earlier stages carry a 12 px check, and every segment is a link.
   One tab stop: ArrowLeft/ArrowRight, Home and End move between segments;
-  Enter follows the focused one. Off the stage routes (Dashboard, Operations)
+  Enter follows the focused one. Off the stage routes (Home, Operator)
   no segment is current.
 -->
 <script lang="ts">

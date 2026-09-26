@@ -47,7 +47,7 @@
             </Badge>
           {/if}
         {/snippet}
-        <h3 class="context-title">{context.title}</h3>
+        <p class="context-title">{context.title}</p>
         <p class="context-description">{context.description}</p>
       </Panel>
 
@@ -113,6 +113,7 @@
 
   .context-title {
     margin: 0;
+    line-height: var(--leading-snug);
     color: var(--color-text-primary);
     font-size: var(--text-ui);
     font-weight: var(--font-semibold);

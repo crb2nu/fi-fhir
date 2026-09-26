@@ -4,7 +4,7 @@
  */
 import FileInput from '@lucide/svelte/icons/file-input';
 import Languages from '@lucide/svelte/icons/languages';
-import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
+import House from '@lucide/svelte/icons/house';
 import ServerCog from '@lucide/svelte/icons/server-cog';
 import SlidersHorizontal from '@lucide/svelte/icons/sliders-horizontal';
 import Workflow from '@lucide/svelte/icons/workflow';
@@ -13,7 +13,7 @@ import type { IconComponent } from '$lib/ui/primitives';
 import type { IDEView } from './types';
 
 export const VIEW_ICONS: Record<IDEView, IconComponent> = {
-  system: LayoutDashboard,
+  system: House,
   hl7: FileInput,
   profiles: SlidersHorizontal,
   terminology: Languages,

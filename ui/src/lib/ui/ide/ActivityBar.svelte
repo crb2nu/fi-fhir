@@ -7,8 +7,8 @@
   /**
    * Left activity bar: one 16 px icon per view, 40 px wide. The label is the
    * accessible name and the native tooltip; the active view gets a 2 px
-   * accent bar on its left edge. Order: Dashboard, the five stages in stage
-   * order, then Operations.
+   * accent bar on its left edge. Order: Home, the five stages in stage
+   * order, then Operator. Labels match the route toolbars.
    */
 
   export let activeView: IDEView = 'hl7';
@@ -24,13 +24,13 @@
   };
 
   const views: ViewEntry[] = [
-    { view: 'system', label: 'Dashboard' },
+    { view: 'system', label: 'Home' },
     { view: 'hl7', label: 'HL7 / Intake', stage: 'Source Intake' },
     { view: 'profiles', label: 'Profiles', stage: 'Normalization' },
     { view: 'terminology', label: 'Terminology', stage: 'Translation' },
     { view: 'workflows', label: 'Workflows', stage: 'Delivery' },
     { view: 'events', label: 'Events', stage: 'Verification' },
-    { view: 'operator', label: 'Operations' },
+    { view: 'operator', label: 'Operator' },
   ];
 
   function onSelect(view: IDEView): void {

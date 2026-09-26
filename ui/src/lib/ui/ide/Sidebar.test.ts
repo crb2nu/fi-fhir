@@ -8,7 +8,7 @@ describe('Sidebar', () => {
 
     expect(screen.getByRole('complementary', { name: 'Workbench sidebar' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Stage' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Source Intake' })).toBeInTheDocument();
+    expect(screen.getByText('Source Intake', { selector: '.context-title' })).toBeInTheDocument();
     expect(screen.getByTitle('Stage 1 of 5')).toHaveTextContent('1/5');
     expect(screen.getByText(/Load inbound messages/)).toBeInTheDocument();
   });
@@ -24,7 +24,9 @@ describe('Sidebar', () => {
     render(Sidebar, { props: { open: true, width: 320, pathname: '/operator' } });
 
     expect(screen.getByRole('heading', { name: 'View' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Operations' })).toBeInTheDocument();
+    expect(screen.getByText('Operator', { selector: '.context-title' })).toBeInTheDocument();
+    // The route toolbar owns the "Operator" heading; the sidebar must not repeat it.
+    expect(screen.queryByRole('heading', { name: 'Operator', exact: true })).not.toBeInTheDocument();
     expect(screen.queryByTitle(/^Stage \d of 5$/)).not.toBeInTheDocument();
   });
 
@@ -39,6 +41,6 @@ describe('Sidebar', () => {
   it('does not render content when closed', () => {
     render(Sidebar, { props: { open: false, width: 320, pathname: '/' } });
 
-    expect(screen.queryByText('Dashboard')).not.toBeInTheDocument();
+    expect(screen.queryByText('Home')).not.toBeInTheDocument();
   });
 });

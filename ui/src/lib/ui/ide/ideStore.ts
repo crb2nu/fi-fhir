@@ -50,9 +50,13 @@ function loadLayout(): PersistedLayout | null {
     if (typeof obj['activeView'] !== 'string' || !VALID_VIEWS.has(obj['activeView'] as IDEView)) return null;
 
     // Only route tabs survive; artifact tabs from older layouts have no surface.
-    const openTabs = (obj['openTabs'] as WorkspaceDocument[]).filter(
-      (doc) => doc && typeof doc === 'object' && (doc.type === undefined || doc.type === 'route')
-    );
+    // Titles are re-derived from the route so renamed views restore renamed.
+    const openTabs = (obj['openTabs'] as WorkspaceDocument[])
+      .filter((doc) => doc && typeof doc === 'object' && (doc.type === undefined || doc.type === 'route'))
+      .map((doc) => ({
+        ...doc,
+        title: getWorkspaceTabTitle(doc.path ?? doc.route ?? doc.id, doc.view),
+      }));
     const storedActive = obj['activeTabId'] as string | null;
     const activeTabId = openTabs.some((doc) => doc.id === storedActive)
       ? storedActive
@@ -90,17 +94,17 @@ function saveLayout(state: IDEState): void {
 
 let _layoutRestored = false;
 
-// Domain-first editor tab titles (match the ActivityBar labels, Slice 3). The
-// journey metaphor (Source Intake / Delivery / …) lives in the journey panel and
-// the per-stage sidebar headings, not in the nav chrome.
+// Editor tab titles: the same words as the ActivityBar labels and the route
+// toolbars ("Home", "Operator"). Stage names (Source Intake, Delivery, …) live
+// in the header stage control, not in the tabs.
 const WORKSPACE_ROUTE_TITLES: Record<IDEView, string> = {
-  system: 'Dashboard',
+  system: 'Home',
   hl7: 'HL7 / Intake',
   workflows: 'Workflows',
   events: 'Events',
   profiles: 'Profiles',
   terminology: 'Terminology',
-  operator: 'Operations',
+  operator: 'Operator',
 };
 
 const WORKSPACE_VIEW_ROUTES: Record<IDEView, IDEAppRoute> = {

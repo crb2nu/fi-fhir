@@ -322,7 +322,7 @@ describe('ideStore', () => {
       expect(get(ideState).sidebarWidth).toBe(280);
     });
 
-    it('restores a layout saved on the Operations view', () => {
+    it('restores a layout saved on the Operator view', () => {
       localStorage.setItem(
         'fi-fhir-ide-layout',
         JSON.stringify({
@@ -338,6 +338,26 @@ describe('ideStore', () => {
       expect(restoreLayout()).toBe(true);
       expect(get(ideState).activeView).toBe('operator');
       expect(get(ideState).activeTabId).toBe('/operator');
+    });
+
+    it('restores tab titles from the route, so renamed views come back renamed', () => {
+      localStorage.setItem(
+        'fi-fhir-ide-layout',
+        JSON.stringify({
+          openTabs: [
+            { ...createWorkspaceTab('/'), title: 'Dashboard' },
+            { ...createWorkspaceTab('/operator'), title: 'Operations' },
+          ],
+          activeTabId: '/operator',
+          workspaceSplit: false,
+          bottomPanelOpen: false,
+          activePanelTab: 'output',
+          activeView: 'operator',
+        })
+      );
+
+      expect(restoreLayout()).toBe(true);
+      expect(get(ideState).openTabs.map((tab) => tab.title)).toEqual(['Home', 'Operator']);
     });
 
     it('drops editor-less artifact tabs from an older stored layout', () => {
