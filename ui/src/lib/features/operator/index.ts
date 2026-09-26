@@ -12,6 +12,7 @@ export {
 
 export {
   attemptStatusVariant,
+  badgeTone,
   circuitStateVariant,
   deadLetterStateLabel,
   deliveryActionBlockedReason,

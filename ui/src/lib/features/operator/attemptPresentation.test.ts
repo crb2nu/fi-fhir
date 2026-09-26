@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   attemptStatusVariant,
+  badgeTone,
   circuitStateVariant,
   deadLetterStateLabel,
   deliveryActionBlockedReason,
@@ -37,6 +38,15 @@ describe('status variants', () => {
     expect(deploymentStateVariant('retired')).toBe('danger');
     expect(deploymentHealthVariant('degraded')).toBe('warning');
     expect(deploymentHealthVariant('unknown')).toBe('default');
+  });
+
+  it('maps variants onto Badge tones without spending the accent on state', () => {
+    expect(badgeTone('success')).toBe('success');
+    expect(badgeTone('warning')).toBe('warning');
+    expect(badgeTone('danger')).toBe('danger');
+    expect(badgeTone('info')).toBe('info');
+    expect(badgeTone('primary')).toBe('info');
+    expect(badgeTone('default')).toBe('neutral');
   });
 });
 

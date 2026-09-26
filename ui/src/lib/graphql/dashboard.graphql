@@ -1,0 +1,13 @@
+# Home → Recent: the tenant's integration sessions with their latest activity.
+# The API lists sessions by creation time; the home panel sorts by updatedAt.
+query HomeRecentSessions {
+  integrationSessions {
+    id
+    name
+    updatedAt
+    runs {
+      id
+      status
+    }
+  }
+}
