@@ -10,9 +10,10 @@
    */
 
   import { createEventDispatcher } from 'svelte';
-  import Button from '$lib/ui/Button.svelte';
-  import { createDialogFocusController } from '$lib/domain/a11yDialog';
   import { afterUpdate, tick } from 'svelte';
+  import X from '@lucide/svelte/icons/x';
+  import { Button, Field, IconButton, Input, Textarea } from '$lib/ui/primitives';
+  import { createDialogFocusController } from '$lib/domain/a11yDialog';
   import {
     MAX_REASON_LENGTH,
     controlDraftReady,
@@ -111,69 +112,62 @@
       role="dialog"
       aria-modal="true"
       aria-labelledby="control-dialog-title"
+      aria-describedby={description ? 'control-dialog-description' : undefined}
     >
-      <h2 id="control-dialog-title" class="title">{title}</h2>
-      {#if description}
-        <p class="description">{description}</p>
-      {/if}
+      <header class="dialog-head">
+        <h2 id="control-dialog-title" class="title">{title}</h2>
+        <IconButton icon={X} label="Close dialog" onclick={handleCancel} disabled={loading} tabindex={-1} />
+      </header>
 
-      <label class="field-label" for="control-reason">
-        Reason <span class="required" aria-hidden="true">*</span>
-      </label>
-      <p class="field-hint" id="control-reason-hint">
-        Recorded with your verified identity in the append-only audit trail.
-      </p>
-      <textarea
-        id="control-reason"
-        class="reason"
-        class:invalid={attempted && issues.reason}
-        rows="3"
-        maxlength={MAX_REASON_LENGTH}
-        aria-describedby="control-reason-hint"
-        aria-invalid={attempted && !!issues.reason}
-        bind:value={reason}
-        placeholder="Why is this action necessary?"
-      ></textarea>
-      {#if attempted && issues.reason}
-        <p class="field-error" role="alert">{issues.reason}</p>
-      {/if}
-
-      {#if requiresIdempotencyKey}
-        <label class="field-label" for="control-key">Idempotency key</label>
-        <p class="field-hint" id="control-key-hint">
-          Derived from this action and reason. Repeating the identical request is a no-op.
-        </p>
-        <input
-          id="control-key"
-          class="key"
-          class:invalid={!!issues.idempotencyKey}
-          type="text"
-          aria-describedby="control-key-hint"
-          aria-invalid={!!issues.idempotencyKey}
-          bind:value={idempotencyKey}
-          on:input={() => (keyTouched = true)}
-        />
-        {#if issues.idempotencyKey}
-          <p class="field-error" role="alert">{issues.idempotencyKey}</p>
+      <div class="dialog-body">
+        {#if description}
+          <p id="control-dialog-description" class="description">{description}</p>
         {/if}
-      {/if}
 
-      {#if submitError}
-        <p class="submit-error" role="alert">{submitError}</p>
-      {/if}
+        <Field
+          label="Reason"
+          id="control-reason"
+          required
+          hint="Recorded with your verified identity in the append-only audit trail."
+          error={attempted ? issues.reason : undefined}
+        >
+          <Textarea
+            rows={3}
+            maxlength={MAX_REASON_LENGTH}
+            bind:value={reason}
+            placeholder="Why is this action necessary?"
+          />
+        </Field>
 
-      <div class="actions">
-        <Button variant="secondary" on:click={handleCancel} disabled={loading}>Cancel</Button>
+        {#if requiresIdempotencyKey}
+          <Field
+            label="Idempotency key"
+            id="control-key"
+            hint="Derived from this action and reason. Repeating the identical request is a no-op."
+            error={issues.idempotencyKey}
+          >
+            <Input bind:value={idempotencyKey} mono oninput={() => (keyTouched = true)} />
+          </Field>
+        {/if}
+
+        {#if submitError}
+          <p class="submit-error" role="alert">{submitError}</p>
+        {/if}
+      </div>
+
+      <footer class="actions">
+        <Button variant="ghost" size="md" onclick={handleCancel} disabled={loading}>Cancel</Button>
         <Button
           {variant}
-          on:click={handleConfirm}
+          size="md"
+          onclick={handleConfirm}
           disabled={!ready || loading}
           {loading}
           title={confirmBlockedReason}
         >
           {confirmText}
         </Button>
-      </div>
+      </footer>
     </div>
   </div>
 {/if}
@@ -182,104 +176,74 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: var(--modal-backdrop);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: var(--z-sticky);
     padding: var(--space-4);
+    background: var(--modal-backdrop);
+    z-index: var(--z-modal);
   }
 
   .dialog {
-    background: var(--color-bg-elevated);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-lg);
-    padding: var(--space-6);
-    width: min(34rem, 100%);
+    display: flex;
+    flex-direction: column;
+    width: min(32rem, 100%);
     max-height: 90vh;
-    overflow-y: auto;
+    overflow: hidden;
+    background: var(--color-bg-overlay);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-xl);
+  }
+
+  .dialog-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    height: 40px;
+    padding: 0 var(--space-2) 0 var(--space-4);
+    border-bottom: 1px solid var(--color-border-subtle);
   }
 
   .title {
-    margin: 0 0 var(--space-2);
+    flex: 1 1 auto;
+    margin: 0;
     font-family: var(--font-ui);
     font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
     color: var(--color-text-primary);
+  }
+
+  .dialog-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    overflow-y: auto;
   }
 
   .description {
-    margin: 0 0 var(--space-4);
+    margin: 0;
+    font-size: var(--text-ui);
+    line-height: var(--leading-ui);
     color: var(--color-text-secondary);
-    font-size: var(--text-sm);
   }
 
-  .field-label {
-    display: block;
-    margin-top: var(--space-3);
-    font-size: var(--text-sm);
-    font-weight: 600;
-    color: var(--color-text-primary);
-  }
-
-  .required {
-    color: var(--color-danger-text);
-  }
-
-  .field-hint {
-    margin: var(--space-1) 0 var(--space-2);
-    font-size: var(--text-xs);
-    color: var(--color-text-tertiary);
-  }
-
-  .reason,
-  .key {
-    width: 100%;
-    background: var(--color-bg-input);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-md);
-    color: var(--color-text-primary);
-    font-family: inherit;
-    font-size: var(--text-sm);
+  .submit-error {
+    margin: 0;
     padding: var(--space-2) var(--space-3);
-  }
-
-  .key {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-  }
-
-  .reason:focus,
-  .key:focus {
-    outline: none;
-    border-color: var(--color-border-focus);
-    box-shadow: var(--shadow-focus);
-  }
-
-  .reason.invalid,
-  .key.invalid {
-    border-color: var(--color-danger-border);
-  }
-
-  .field-error,
-  .submit-error {
-    margin: var(--space-2) 0 0;
-    font-size: var(--text-xs);
-    color: var(--color-danger-text);
-  }
-
-  .submit-error {
-    background: var(--color-danger-bg);
     border: 1px solid var(--color-danger-border);
-    border-radius: var(--radius-md);
-    padding: var(--space-2) var(--space-3);
-    font-size: var(--text-sm);
+    border-radius: var(--radius-sm);
+    background: var(--color-danger-bg);
+    color: var(--color-danger-text);
+    font-size: var(--text-xs);
   }
 
   .actions {
     display: flex;
     justify-content: flex-end;
     gap: var(--space-2);
-    margin-top: var(--space-5);
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--color-border-subtle);
   }
 </style>

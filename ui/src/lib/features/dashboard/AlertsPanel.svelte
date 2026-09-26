@@ -1,125 +1,105 @@
+<!--
+  AlertsPanel — firing alerts from the shared observability store (the same
+  Alertmanager-backed list the StatusBar AlertBadge shows).
+
+  There is no demo fallback: with no observability platform connected there is
+  no alert source, and the panel says exactly that. It never renders a
+  placeholder alert, labelled or not (`.loom/37` decision 3).
+-->
 <script lang="ts">
-  /**
-   * AlertsPanel — firing alerts from the observability store.
-   *
-   * Previously rendered a hardcoded fictional alert list; now it shares the
-   * real alertmanager-backed store with the StatusBar AlertBadge. When the
-   * platform is disconnected the store falls back to demo data and sets
-   * `isSimulated` — surfaced here as an unmissable "Demo data" tag so
-   * operators never mistake demo alerts for live signals.
-   */
-  import { onMount } from 'svelte';
-  import Panel from '$lib/ui/Panel.svelte';
-  import Badge from '$lib/ui/Badge.svelte';
+  import BellOff from '@lucide/svelte/icons/bell-off';
+  import CircleCheck from '@lucide/svelte/icons/circle-check';
+  import CircleAlert from '@lucide/svelte/icons/circle-alert';
+  import RefreshCw from '@lucide/svelte/icons/refresh-cw';
   import {
-    observabilityState,
-    isSimulated,
+    Badge,
+    EmptyState,
+    IconButton,
+    Panel,
+    Table,
+    Td,
+    Th,
+    Tr,
+    type BadgeTone
+  } from '$lib/ui/primitives';
+  import { PLATFORM_CONFIG } from '$lib/platform';
+  import {
+    alertSource,
     fetchAlerts,
+    isAvailable,
+    observabilityState,
     severityLabel,
-    type Alert,
+    type Alert
   } from '$lib/features/observability/observabilityStore';
 
-  $: firing = $observabilityState.alerts.filter((a) => a.state === 'firing');
+  const firing = $derived($observabilityState.alerts.filter((a) => a.state === 'firing'));
 
-  const severityVariant: Record<Alert['severity'], 'danger' | 'warning' | 'info'> = {
+  const severityTone: Record<Alert['severity'], BadgeTone> = {
     critical: 'danger',
     warning: 'warning',
-    info: 'info',
+    info: 'info'
   };
 
-  onMount(() => {
+  // Fetch on mount and whenever the platform connects or drops.
+  $effect(() => {
+    void $isAvailable;
     void fetchAlerts();
   });
+
+  function since(ts: number): string {
+    const diff = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+    if (diff < 60) return `${diff}s`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+    return `${Math.floor(diff / 86400)}d`;
+  }
 </script>
 
-<Panel title="Active Alerts" padding="md">
-  <svelte:fragment slot="actions">
-    {#if $isSimulated}
-      <span class="sim-tag" title="Platform not connected — showing demo data.">Demo data</span>
+<Panel title="Alerts" flush data-testid="alerts-panel" data-source={$alertSource}>
+  {#snippet actions()}
+    {#if $alertSource !== 'unconfigured'}
+      <IconButton icon={RefreshCw} label="Refresh alerts" onclick={() => void fetchAlerts()} />
     {/if}
-  </svelte:fragment>
+  {/snippet}
 
-  {#if firing.length === 0}
-    <div class="empty">No active alerts.</div>
+  {#if $alertSource === 'unconfigured'}
+    <EmptyState
+      icon={BellOff}
+      align="start"
+      message={PLATFORM_CONFIG.enabled
+        ? 'The observability platform is not connected, so no alert source is available.'
+        : 'No alert source configured.'}
+    />
+  {:else if $alertSource === 'unavailable'}
+    <EmptyState
+      icon={CircleAlert}
+      align="start"
+      message="The alert source did not answer."
+      actionLabel="Retry"
+      onaction={() => void fetchAlerts()}
+    />
+  {:else if firing.length === 0}
+    <EmptyState icon={CircleCheck} align="start" message="No active alerts." />
   {:else}
-    <ul class="alerts-list">
+    <Table label="Firing alerts" layout="fixed">
+      {#snippet head()}
+        <tr>
+          <Th width="88px">Severity</Th>
+          <Th width="30%">Alert</Th>
+          <Th>Summary</Th>
+          <Th width="56px" numeric>Since</Th>
+        </tr>
+      {/snippet}
       {#each firing as alert (alert.id)}
-        <li class="alert-card" class:critical={alert.severity === 'critical'}>
-          <div class="alert-header">
-            <Badge variant={severityVariant[alert.severity]} size="sm">
-              {severityLabel(alert.severity)}
-            </Badge>
-            <h4 class="title">{alert.name}</h4>
-          </div>
-          <p class="description">{alert.summary}</p>
-        </li>
+        <Tr>
+          <Td>
+            <Badge tone={severityTone[alert.severity]} dot>{severityLabel(alert.severity)}</Badge>
+          </Td>
+          <Td truncate value={alert.name} />
+          <Td truncate muted value={alert.summary} />
+          <Td numeric muted value={since(alert.startsAt)} />
+        </Tr>
       {/each}
-    </ul>
+    </Table>
   {/if}
 </Panel>
-
-<style>
-  .sim-tag {
-    padding: 1px var(--space-1);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--color-warning-border);
-    background: var(--color-warning-bg);
-    color: var(--color-warning-text);
-    font-size: var(--text-2xs, 10px);
-    font-weight: var(--font-semibold);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    white-space: nowrap;
-  }
-
-  .empty {
-    color: var(--color-text-tertiary);
-    font-size: var(--text-sm);
-    padding: var(--space-4) 0;
-    text-align: center;
-  }
-
-  .alerts-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .alert-card {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    padding: var(--space-3);
-    background: var(--color-bg-surface);
-    border: 1px solid var(--color-border-default);
-    border-left: 3px solid var(--color-warning);
-    border-radius: var(--radius-md);
-  }
-
-  .alert-card.critical {
-    border-left-color: var(--color-danger);
-  }
-
-  .alert-header {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-  }
-
-  .title {
-    margin: 0;
-    font-size: var(--text-sm);
-    font-weight: var(--font-bold);
-    color: var(--color-text-primary);
-  }
-
-  .description {
-    margin: 0;
-    font-size: var(--text-sm);
-    color: var(--color-text-secondary);
-    line-height: var(--leading-snug);
-  }
-</style>

@@ -8,16 +8,14 @@
    * dialog, and every failure has an inline home.
    *
    * When the status endpoint reports that this identity cannot read the
-   * operator plane, the page renders a pre-flight explaining which role is
-   * missing and where it is granted, and mounts none of the tabs — so no
-   * query is issued that the control plane would refuse.
+   * operator plane, the page renders a pre-flight naming the missing role and
+   * where it is granted, and mounts none of the views — so no query is issued
+   * that the control plane would refuse.
    */
 
+  import ShieldAlert from '@lucide/svelte/icons/shield-alert';
   import { accessCapabilities } from '$lib/graphql/accessCapabilities';
-  import PageHeader from '$lib/ui/PageHeader.svelte';
-  import Panel from '$lib/ui/Panel.svelte';
-  import Tabs from '$lib/ui/Tabs.svelte';
-  import type { TabItem } from '$lib/ui/types';
+  import { EmptyState, Tabs, Toolbar, type TabItem } from '$lib/ui/primitives';
   import ControlReasonDialog from './ControlReasonDialog.svelte';
   import DeliveryConsole from './DeliveryConsole.svelte';
   import DeploymentControls from './DeploymentControls.svelte';
@@ -47,10 +45,15 @@
 
   $: preflight = operatorPreflight($accessCapabilities);
 
-  const tabs: TabItem[] = [
-    { key: 'messages', label: 'Messages' },
-    { key: 'delivery', label: 'Delivery' },
-    { key: 'deployments', label: 'Deployments' }
+  // Separators rendered between inline <code> items (a literal space at a
+  // block edge would be trimmed by the compiler).
+  const LIST_SEPARATOR = ', ';
+  const CLAUSE_SEPARATOR = '; ';
+
+  const views: TabItem[] = [
+    { id: 'messages', label: 'Messages', controls: 'operator-view' },
+    { id: 'delivery', label: 'Delivery', controls: 'operator-view' },
+    { id: 'deployments', label: 'Deployments', controls: 'operator-view' }
   ];
 
   let activeTab = 'messages';
@@ -59,6 +62,9 @@
   let trace: OperatorMessageTrace | null = null;
   let traceLoading = false;
   let traceError: string | null = null;
+  // Only the newest trace request may write the pane (rows can be opened in
+  // quick succession; a slow earlier answer must not replace a later one).
+  let traceRequest = 0;
 
   let deliveryConsole: DeliveryConsole;
   let deploymentControls: DeploymentControls;
@@ -77,18 +83,22 @@
   let dialogError: string | null = null;
 
   async function loadTrace(receiptId: string) {
+    const request = ++traceRequest;
     selectedReceiptId = receiptId;
     traceLoading = true;
     traceError = null;
     try {
-      trace = await fetchMessageTrace(receiptId);
+      const result = await fetchMessageTrace(receiptId);
+      if (request !== traceRequest) return;
+      trace = result;
     } catch (err) {
+      if (request !== traceRequest) return;
       // Operator reads opt out of the global toast; the panel is the only home
       // for the message (toast-budget B4).
       traceError = describeOperatorFailure(err).message;
       trace = null;
     } finally {
-      traceLoading = false;
+      if (request === traceRequest) traceLoading = false;
     }
   }
 
@@ -98,20 +108,23 @@
    * unknown ID yields an honest "not found" rather than an empty view.
    */
   async function loadTraceForAttempt(attemptId: string) {
+    const request = ++traceRequest;
     traceLoading = true;
     traceError = null;
     trace = null;
     selectedReceiptId = null;
     try {
       const attempt = await fetchAttempt(attemptId);
+      if (request !== traceRequest) return;
       if (!attempt) {
         traceError = `Delivery attempt ${attemptId} is not available in your tenant.`;
+        traceLoading = false;
         return;
       }
       await loadTrace(attempt.receiptId);
     } catch (err) {
+      if (request !== traceRequest) return;
       traceError = describeOperatorFailure(err).message;
-    } finally {
       traceLoading = false;
     }
   }
@@ -238,74 +251,97 @@
   }
 </script>
 
-<div class="operator">
-  <PageHeader
-    title="Operator control plane"
-    subtitle="Browse durable messages and delivery, recover failures, and control deployments — every action is reason-required and audited."
-  />
+<svelte:head>
+  <title>Operator | fi-fhir</title>
+</svelte:head>
 
+<div class="operator">
   {#if preflight}
-    <div
-      class="preflight"
-      data-testid="operator-preflight"
-      data-missing-roles={preflight.missingRoles.join(',')}
-    >
-      <Panel tone="warning" title="Operator access is not granted to this identity" padding="md">
-        <p>
-          This deployment's identity{preflight.principal ? ` (${preflight.principal})` : ''}
+    <Toolbar title="Operator" />
+    <div class="preflight-wrap">
+      <EmptyState
+        icon={ShieldAlert}
+        align="start"
+        class="preflight"
+        data-testid="operator-preflight"
+        data-missing-roles={preflight.missingRoles.join(',')}
+      >
+        <span class="line">
+          This identity{#if preflight.principal}&nbsp;(<code>{preflight.principal}</code>){/if}
           {#if preflight.holdsTransportGrant}
             holds <code>{TRANSPORT_OPERATOR_ROLE}</code> but not
           {:else}
             does not hold
           {/if}
-          {#each preflight.missingRoles as role, index (role)}{#if index > 0}, {/if}<code>{role}</code>{/each};
-          operator surfaces are unavailable, so nothing was queried.
-        </p>
-        <p>Roles are granted in the API's environment:</p>
-        <ul class="grant-locations">
-          {#each ROLE_GRANT_LOCATIONS as location (location.variable)}
-            <li><code>{location.variable}</code> — {location.scope}</li>
-          {/each}
-        </ul>
-        <p class="bundle">
-          The full operator bundle is <code>{OPERATOR_ROLE_BUNDLE.join(',')}</code>. Reload this page
-          once the API has picked up the change.
-        </p>
-      </Panel>
+          {#each preflight.missingRoles as role, index (role)}{#if index > 0}{LIST_SEPARATOR}{/if}<code>{role}</code>{/each},
+          so the operator plane was not queried.
+        </span>
+        <span class="line muted">
+          Roles are granted in the API's environment:
+          {#each ROLE_GRANT_LOCATIONS as location, index (location.variable)}{#if index > 0}{CLAUSE_SEPARATOR}{/if}<code
+              >{location.variable}</code
+            >&nbsp;— {location.scope}{/each}.
+        </span>
+        <span class="line muted">
+          The full operator bundle is <code>{OPERATOR_ROLE_BUNDLE.join(',')}</code>. Reload once the
+          API has picked up the change.
+        </span>
+      </EmptyState>
     </div>
   {:else}
-    <Tabs {tabs} active={activeTab} onChange={(key) => (activeTab = key)} />
+    <Toolbar title="Operator">
+      {#snippet tabs()}
+        <Tabs label="Operator views" items={views} bind:value={activeTab} />
+      {/snippet}
+    </Toolbar>
 
-    {#if activeTab === 'messages'}
-      <div class="split">
-        <MessageBrowser
-          {selectedReceiptId}
-          on:select={(event) => loadTrace(event.detail.receiptId)}
-        />
-        <MessageTrace
-          {trace}
-          loading={traceLoading}
-          error={traceError}
-          receiptId={selectedReceiptId}
-          on:retry={() => selectedReceiptId && loadTrace(selectedReceiptId)}
-          on:control={(event) => openDeliveryDialog(event.detail.action, event.detail.attemptId)}
-        />
-      </div>
-    {:else if activeTab === 'delivery'}
-      <DeliveryConsole
-        bind:this={deliveryConsole}
-        on:control={(event) => openDeliveryDialog(event.detail.action, event.detail.attemptId)}
-        on:inspect={(event) => {
-          activeTab = 'messages';
-          void loadTraceForAttempt(event.detail.attemptId);
-        }}
-      />
-    {:else}
-      <DeploymentControls
-        bind:this={deploymentControls}
-        on:command={(event) => openDeploymentDialog(event.detail.action, event.detail.deployment)}
-      />
-    {/if}
+    <div
+      class="view"
+      id="operator-view"
+      role="tabpanel"
+      aria-label={views.find((view) => view.id === activeTab)?.label}
+    >
+      {#if activeTab === 'messages'}
+        <div class="split">
+          <div class="split-main">
+            <MessageBrowser
+              {selectedReceiptId}
+              on:select={(event) => loadTrace(event.detail.receiptId)}
+            />
+          </div>
+          <div class="split-pane">
+            <MessageTrace
+              {trace}
+              loading={traceLoading}
+              error={traceError}
+              receiptId={selectedReceiptId}
+              on:retry={() => selectedReceiptId && loadTrace(selectedReceiptId)}
+              on:control={(event) =>
+                openDeliveryDialog(event.detail.action, event.detail.attemptId)}
+            />
+          </div>
+        </div>
+      {:else if activeTab === 'delivery'}
+        <div class="stack">
+          <DeliveryConsole
+            bind:this={deliveryConsole}
+            on:control={(event) => openDeliveryDialog(event.detail.action, event.detail.attemptId)}
+            on:inspect={(event) => {
+              activeTab = 'messages';
+              void loadTraceForAttempt(event.detail.attemptId);
+            }}
+          />
+        </div>
+      {:else}
+        <div class="stack">
+          <DeploymentControls
+            bind:this={deploymentControls}
+            on:command={(event) =>
+              openDeploymentDialog(event.detail.action, event.detail.deployment)}
+          />
+        </div>
+      {/if}
+    </div>
   {/if}
 
   <ControlReasonDialog
@@ -330,46 +366,90 @@
   .operator {
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
-    padding: var(--space-4);
+    height: 100%;
+    min-height: 0;
+  }
+
+  .preflight-wrap {
+    padding: var(--space-3);
+  }
+
+  .preflight-wrap :global(.preflight) {
+    padding: var(--space-3);
+    border: 1px solid var(--color-warning-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-elevated);
+  }
+
+  .preflight-wrap :global(.preflight .ui-empty-icon) {
+    color: var(--color-warning-text);
+  }
+
+  .line {
+    display: block;
+  }
+
+  .line + .line {
+    margin-top: var(--space-1);
+  }
+
+  .muted {
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
+    color: var(--color-text-primary);
+    overflow-wrap: anywhere;
+  }
+
+  .view {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
   .split {
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-4);
+    grid-template-columns: minmax(0, 1fr) minmax(380px, 42%);
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
-  .preflight p {
-    margin: 0 0 var(--space-3);
-    color: var(--color-text-secondary);
-    font-size: var(--text-sm);
-    line-height: var(--leading-relaxed);
+  .split-main,
+  .split-pane {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
   }
 
-  .preflight code {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--color-text-primary);
+  .split-pane {
+    border-left: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-elevated);
   }
 
-  .grant-locations {
-    margin: 0 0 var(--space-3);
-    padding-left: var(--space-5);
-    color: var(--color-text-secondary);
-    font-size: var(--text-sm);
-    line-height: var(--leading-relaxed);
+  .stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    min-height: 0;
+    overflow: auto;
   }
 
-  .preflight .bundle {
-    margin-bottom: 0;
-    overflow-wrap: anywhere;
-  }
-
-  @media (min-width: 1200px) {
+  @media (max-width: 1100px) {
     .split {
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      align-items: start;
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .split-pane {
+      border-left: 0;
+      border-top: 1px solid var(--color-border-subtle);
     }
   }
 </style>

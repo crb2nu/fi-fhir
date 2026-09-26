@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Deployment and channel controls.
+   * Deployment and channel controls: Operator › Deployments.
    *
    * Every command carries the snapshot version the operator was looking at.
    * When another operator moved first, the server rejects it with a version
@@ -9,12 +9,27 @@
    */
 
   import { createEventDispatcher, onMount } from 'svelte';
-  import Badge from '$lib/ui/Badge.svelte';
-  import Button from '$lib/ui/Button.svelte';
-  import EmptyState from '$lib/ui/EmptyState.svelte';
-  import Panel from '$lib/ui/Panel.svelte';
-  import Skeleton from '$lib/ui/Skeleton.svelte';
+  import Archive from '@lucide/svelte/icons/archive';
+  import CircleAlert from '@lucide/svelte/icons/circle-alert';
+  import Layers from '@lucide/svelte/icons/layers';
+  import Pause from '@lucide/svelte/icons/pause';
+  import Play from '@lucide/svelte/icons/play';
+  import RefreshCw from '@lucide/svelte/icons/refresh-cw';
+  import Rocket from '@lucide/svelte/icons/rocket';
   import {
+    Badge,
+    Button,
+    EmptyState,
+    IconButton,
+    Panel,
+    Table,
+    Td,
+    Th,
+    Tr,
+    type IconComponent
+  } from '$lib/ui/primitives';
+  import {
+    badgeTone,
     deploymentActionBlockedReason,
     deploymentHealthVariant,
     deploymentStateVariant,
@@ -34,7 +49,13 @@
   let loading = true;
   let error: string | null = null;
 
-  const actions: DeploymentAction[] = ['deploy', 'pause', 'resume', 'retire'];
+  const commandActions: DeploymentAction[] = ['deploy', 'pause', 'resume', 'retire'];
+  const actionIcons: Record<DeploymentAction, IconComponent> = {
+    deploy: Rocket,
+    pause: Pause,
+    resume: Play,
+    retire: Archive
+  };
 
   export async function reload() {
     loading = true;
@@ -53,153 +74,107 @@
     return action.charAt(0).toUpperCase() + action.slice(1);
   }
 
+  function lastChange(deployment: OperatorDeployment): string {
+    const who = deployment.updatedBy.id || 'unknown';
+    const why = deployment.updatedReason ? ` — “${deployment.updatedReason}”` : '';
+    return `${who}, ${formatTimestamp(deployment.updatedAt)}${why}`;
+  }
+
   onMount(() => {
     void reload();
   });
 </script>
 
-<Panel title="Deployments and channels" padding="md">
-  <svelte:fragment slot="actions">
-    <Button size="sm" variant="secondary" on:click={reload} disabled={loading}>Refresh</Button>
-  </svelte:fragment>
+<Panel title="Deployments and channels" flush>
+  {#snippet actions()}
+    <IconButton icon={RefreshCw} label="Refresh deployments" {loading} onclick={reload} />
+  {/snippet}
 
   {#if loading}
-    <div aria-busy="true" aria-live="polite">
-      <Skeleton lines={3} />
-      <span class="sr-only">Loading deployments</span>
-    </div>
+    <EmptyState align="start" message="Loading deployments" aria-busy="true" aria-live="polite" />
   {:else if error}
-    <div class="error-state" role="alert">
-      <p class="error-message">{error}</p>
-      <Button size="sm" variant="secondary" on:click={reload}>Retry</Button>
-    </div>
+    <EmptyState
+      icon={CircleAlert}
+      align="start"
+      role="alert"
+      message={error}
+      actionLabel="Retry"
+      onaction={reload}
+    />
   {:else if deployments.length === 0}
     <EmptyState
-      icon="folder"
-      title="No integration deployments"
-      description="Publish an integration revision from the workflow workspace to manage it here."
+      icon={Layers}
+      align="start"
+      message="No integration deployments. Publish an integration revision from Workflows to manage it here."
     />
   {:else}
-    <ul class="deployments">
+    <Table label="Integration deployments">
+      {#snippet head()}
+        <tr>
+          <Th>Integration</Th>
+          <Th>Revision</Th>
+          <Th width="56px" numeric>Ver</Th>
+          <Th width="104px">State</Th>
+          <Th width="96px">Health</Th>
+          <Th width="120px">Validation</Th>
+          <Th>Last change</Th>
+          <Th width="360px">Actions</Th>
+        </tr>
+      {/snippet}
       {#each deployments as deployment (deployment.definitionRevision.artifactId + deployment.definitionRevision.revisionId)}
-        <li class="deployment">
-          <header class="deployment-header">
-            <span class="identity mono" title={deployment.definitionRevision.digest}>
-              {deployment.definitionRevision.artifactId}@{deployment.definitionRevision.revisionId}
-              <span class="detail">{shortDigest(deployment.definitionRevision.digest)}</span>
-            </span>
-            <Badge variant={deploymentStateVariant(deployment.state)} size="sm">
+        <Tr>
+          <Td mono value={deployment.definitionRevision.artifactId} />
+          <Td
+            mono
+            muted
+            title={deployment.definitionRevision.digest}
+            value={`${deployment.definitionRevision.revisionId} · ${shortDigest(deployment.definitionRevision.digest)}`}
+          />
+          <Td numeric value={deployment.version} />
+          <Td>
+            <Badge tone={badgeTone(deploymentStateVariant(deployment.state))} dot>
               {deployment.state}
             </Badge>
-            <Badge variant={deploymentHealthVariant(deployment.health)} size="sm">
+          </Td>
+          <Td>
+            <Badge tone={badgeTone(deploymentHealthVariant(deployment.health))}>
               {deployment.health}
             </Badge>
-            <span class="detail">version {deployment.version}</span>
-            {#if !deployment.validationPassed}
-              <Badge variant="warning" size="sm">validation not current</Badge>
+          </Td>
+          <Td>
+            {#if deployment.validationPassed}
+              <Badge tone="success">current</Badge>
+            {:else}
+              <Badge tone="warning">not current</Badge>
             {/if}
-          </header>
-
-          <p class="detail last-change">
-            Last change by {deployment.updatedBy.id || 'unknown'} at
-            {formatTimestamp(deployment.updatedAt)}
-            {#if deployment.updatedReason}— “{deployment.updatedReason}”{/if}
-          </p>
-
-          <div class="row-actions">
-            {#each actions as action (action)}
-              {@const blocked =
-                $deploymentControlBlock ?? deploymentActionBlockedReason(deployment.state, action)}
-              <Button
-                size="sm"
-                variant={action === 'retire' ? 'danger' : 'secondary'}
-                disabled={blocked !== null}
-                title={blocked ?? undefined}
-                on:click={() => dispatch('command', { action, deployment })}
-              >
-                {actionLabel(action)}
-              </Button>
-            {/each}
-          </div>
-        </li>
+          </Td>
+          <Td truncate muted value={lastChange(deployment)} />
+          <Td>
+            <span class="row-actions">
+              {#each commandActions as action (action)}
+                {@const blocked =
+                  $deploymentControlBlock ?? deploymentActionBlockedReason(deployment.state, action)}
+                <Button
+                  variant={action === 'retire' ? 'danger' : 'secondary'}
+                  icon={actionIcons[action]}
+                  disabled={blocked !== null}
+                  title={blocked ?? undefined}
+                  onclick={() => dispatch('command', { action, deployment })}
+                >
+                  {actionLabel(action)}
+                </Button>
+              {/each}
+            </span>
+          </Td>
+        </Tr>
       {/each}
-    </ul>
+    </Table>
   {/if}
 </Panel>
 
 <style>
-  .error-state {
-    background: var(--color-danger-bg);
-    border: 1px solid var(--color-danger-border);
-    border-radius: var(--radius-md);
-    padding: var(--space-3);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-  }
-
-  .error-message {
-    margin: 0;
-    color: var(--color-danger-text);
-    font-size: var(--text-sm);
-  }
-
-  .deployments {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-
-  .deployment {
-    border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-md);
-    padding: var(--space-3);
-    margin-bottom: var(--space-3);
-  }
-
-  .deployment-header {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-2);
-    margin-bottom: var(--space-2);
-  }
-
-  .identity {
-    font-weight: 600;
-    color: var(--color-text-primary);
-  }
-
-  .last-change {
-    margin: 0 0 var(--space-3);
-  }
-
   .row-actions {
-    display: flex;
-    gap: var(--space-2);
-    flex-wrap: wrap;
-  }
-
-  .mono {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-  }
-
-  .detail {
-    color: var(--color-text-tertiary);
-    font-size: var(--text-xs);
-  }
-
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
+    display: inline-flex;
+    gap: var(--space-1);
   }
 </style>

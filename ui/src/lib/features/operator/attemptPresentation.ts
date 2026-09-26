@@ -9,6 +9,27 @@
 
 export type BadgeVariant = 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'info';
 
+/**
+ * Maps a presentation variant onto the design system's Badge tone. The accent
+ * is reserved for selection (`ui/docs/DESIGN.md`), so the old `primary`
+ * variant — used for states such as "published" — reads as `info`.
+ */
+export function badgeTone(
+  variant: BadgeVariant
+): 'neutral' | 'success' | 'warning' | 'danger' | 'info' {
+  switch (variant) {
+    case 'success':
+    case 'warning':
+    case 'danger':
+    case 'info':
+      return variant;
+    case 'primary':
+      return 'info';
+    default:
+      return 'neutral';
+  }
+}
+
 export interface AttemptLike {
   status: string;
   outboxStatus: string;

@@ -1,7 +1,8 @@
 <script lang="ts">
   /**
    * Receipt-to-delivery lineage for one durable message, plus the recovery
-   * actions the control plane exposes for its delivery attempts.
+   * actions the control plane exposes for its delivery attempts. Operator ›
+   * Messages, the pane beside the receipts table.
    *
    * The event payload is rendered semantically: field coordinates and JSON
    * kinds only. The server never returns a stored value, so there is nothing
@@ -11,14 +12,28 @@
    */
 
   import { createEventDispatcher } from 'svelte';
-  import Badge from '$lib/ui/Badge.svelte';
-  import Button from '$lib/ui/Button.svelte';
-  import EmptyState from '$lib/ui/EmptyState.svelte';
-  import Panel from '$lib/ui/Panel.svelte';
-  import Skeleton from '$lib/ui/Skeleton.svelte';
+  import CircleAlert from '@lucide/svelte/icons/circle-alert';
+  import FileQuestion from '@lucide/svelte/icons/file-question';
+  import MousePointerClick from '@lucide/svelte/icons/mouse-pointer-click';
+  import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
+  import Send from '@lucide/svelte/icons/send';
+  import Trash2 from '@lucide/svelte/icons/trash-2';
+  import {
+    Badge,
+    Button,
+    EmptyState,
+    KeyValue,
+    Panel,
+    Table,
+    Td,
+    Th,
+    Tr,
+    type IconComponent
+  } from '$lib/ui/primitives';
   import DestinationDeliveries from './DestinationDeliveries.svelte';
   import {
     attemptStatusVariant,
+    badgeTone,
     deadLetterStateLabel,
     deliveryActionBlockedReason,
     formatTimestamp,
@@ -39,70 +54,105 @@
     retry: void;
   }>();
 
-  const actions: DeliveryAction[] = ['replay', 'resubmit', 'discard'];
+  const recoveryActions: DeliveryAction[] = ['replay', 'resubmit', 'discard'];
+  const actionIcons: Record<DeliveryAction, IconComponent> = {
+    replay: RotateCcw,
+    resubmit: Send,
+    discard: Trash2
+  };
 
   function actionLabel(action: DeliveryAction): string {
     return action.charAt(0).toUpperCase() + action.slice(1);
   }
+
+  function revision(ref: { artifactId: string; revisionId: string; digest: string }): string {
+    return `${ref.artifactId}@${ref.revisionId} · ${shortDigest(ref.digest)}`;
+  }
 </script>
 
-<Panel title="Message trace" padding="md">
-  <svelte:fragment slot="actions">
+<Panel title="Message trace" class="trace-panel" flush>
+  {#snippet actions()}
     {#if receiptId}
-      <span class="receipt-id">{receiptId}</span>
+      <span class="receipt-id" title={receiptId}>{receiptId}</span>
     {/if}
-  </svelte:fragment>
+  {/snippet}
 
-  {#if !receiptId}
+  {#if !receiptId && !loading && !error}
     <EmptyState
-      icon="search"
-      title="No message selected"
-      description="Choose a receipt to inspect its events, lineage, delivery attempts, and audit trail."
+      icon={MousePointerClick}
+      align="start"
+      message="No message selected."
     />
   {:else if loading}
-    <div aria-busy="true" aria-live="polite">
-      <Skeleton lines={5} />
-      <span class="sr-only">Loading message trace</span>
-    </div>
+    <EmptyState align="start" message="Loading message trace" aria-busy="true" aria-live="polite" />
   {:else if error}
-    <div class="error-state" role="alert">
-      <p class="error-message">{error}</p>
-      <Button size="sm" variant="secondary" on:click={() => dispatch('retry')}>Retry</Button>
-    </div>
+    <EmptyState
+      icon={CircleAlert}
+      align="start"
+      role="alert"
+      message={error}
+      actionLabel="Retry"
+      onaction={() => dispatch('retry')}
+    />
   {:else if !trace}
     <EmptyState
-      icon="folder"
-      title="Message not found"
-      description="This receipt is not available in your tenant. It may have been recorded elsewhere."
+      icon={FileQuestion}
+      align="start"
+      message="This receipt is not available in your tenant."
     />
   {:else}
+    <section class="section" aria-labelledby="trace-receipt">
+      <h3 id="trace-receipt" class="section-title">Receipt</h3>
+      <KeyValue
+        columns={2}
+        items={[
+          { key: 'Status', value: trace.receipt.status },
+          { key: 'Recorded', value: formatTimestamp(trace.receipt.recordedAt), mono: true },
+          { key: 'Correlation', value: trace.receipt.correlationId, mono: true, truncate: true },
+          { key: 'Integration', value: revision(trace.receipt.integrationRevision), mono: true, truncate: true },
+          { key: 'Principal', value: trace.receipt.principal.id, mono: true },
+          { key: 'Retention', value: trace.receipt.rawRetentionMode },
+          { key: 'Reason', value: trace.receipt.reason },
+          {
+            key: 'Counts',
+            value: `${trace.receipt.eventCount} events · ${trace.receipt.attemptCount} attempts · ${trace.receipt.failedAttemptCount} failed · ${trace.receipt.deadLetterCount} DLQ`,
+            mono: true
+          }
+        ]}
+      />
+    </section>
+
     <section class="section" aria-labelledby="trace-events">
       <h3 id="trace-events" class="section-title">Canonical events</h3>
       {#if trace.events.length === 0}
         <p class="muted">This receipt produced no canonical events.</p>
       {:else}
         {#each trace.events as event (event.eventId)}
-          <article class="event">
-            <header class="event-header">
-              <Badge variant="primary" size="sm">{event.eventType}</Badge>
-              <span class="mono">MSH-10 {event.sourceMessageId}</span>
-              <span class="mono">{event.correlationId}</span>
-              <Badge variant="warning" size="sm">{event.classification}</Badge>
+          <article class="block">
+            <header class="block-head">
+              <span class="mono strong">{event.eventType}</span>
+              <Badge tone="warning">{event.classification}</Badge>
               <span class="mono muted">{formatTimestamp(event.recordedAt)}</span>
             </header>
-            <p class="payload-caption">
-              Payload structure only — field coordinates and JSON kinds. Stored values are never
-              returned by the control plane.
+            <KeyValue
+              items={[
+                { key: 'MSH-10', value: event.sourceMessageId, mono: true },
+                { key: 'Correlation', value: event.correlationId, mono: true, truncate: true },
+                { key: 'Event id', value: event.eventId, mono: true, truncate: true }
+              ]}
+            />
+            <p class="caption">
+              Payload structure only: field coordinates and JSON kinds. The control plane never
+              returns stored values.
             </p>
             {#if event.payloadFields.length === 0}
               <p class="muted">No payload structure recorded.</p>
             {:else}
-              <ul class="fields">
+              <ul class="fields" aria-label={`Payload fields of ${event.eventType}`}>
                 {#each event.payloadFields as field (field.path)}
                   <li>
                     <code>{field.path}</code>
-                    <span class="kind">{field.kind}</span>
-                    {#if field.repeated}<span class="repeated">repeated</span>{/if}
+                    <span class="kind">{field.kind}{field.repeated ? ' []' : ''}</span>
                   </li>
                 {/each}
               </ul>
@@ -121,71 +171,70 @@
         <p class="muted">No lineage was recorded for this receipt.</p>
       {:else}
         {#each trace.lineage as link (link.lineageId)}
-          <article class="lineage">
-            <header class="event-header">
-              <span class="mono">trace {link.traceId}</span>
-              <span class="mono muted">{formatTimestamp(link.recordedAt)}</span>
-            </header>
-            <dl class="revisions">
-              <div>
-                <dt>Source</dt>
-                <dd class="mono" title={link.artifactRevisions.source.digest}>
-                  {link.artifactRevisions.source.artifactId}@{link.artifactRevisions.source
-                    .revisionId}
-                  <span class="muted">{shortDigest(link.artifactRevisions.source.digest)}</span>
-                </dd>
-              </div>
-              <div>
-                <dt>Profile</dt>
-                <dd class="mono" title={link.artifactRevisions.profile.digest}>
-                  {link.artifactRevisions.profile.artifactId}@{link.artifactRevisions.profile
-                    .revisionId}
-                  <span class="muted">{shortDigest(link.artifactRevisions.profile.digest)}</span>
-                </dd>
-              </div>
-              <div>
-                <dt>Workflow</dt>
-                <dd class="mono" title={link.artifactRevisions.workflow.digest}>
-                  {link.artifactRevisions.workflow.artifactId}@{link.artifactRevisions.workflow
-                    .revisionId}
-                  <span class="muted">{shortDigest(link.artifactRevisions.workflow.digest)}</span>
-                </dd>
-              </div>
-            </dl>
+          <article class="block">
+            <KeyValue
+              items={[
+                { key: 'Trace', value: link.traceId, mono: true, truncate: true },
+                { key: 'Recorded', value: formatTimestamp(link.recordedAt), mono: true },
+                { key: 'Source', value: revision(link.artifactRevisions.source), mono: true, truncate: true },
+                { key: 'Profile', value: revision(link.artifactRevisions.profile), mono: true, truncate: true },
+                { key: 'Workflow', value: revision(link.artifactRevisions.workflow), mono: true, truncate: true }
+              ]}
+            />
             {#if link.routes.length > 0}
-              <ul class="routes">
+              <Table label={`Routes for trace ${link.traceId}`} class="inner-table">
+                {#snippet head()}
+                  <tr>
+                    <Th>Route</Th>
+                    <Th width="96px">Result</Th>
+                    <Th width="80px" numeric>Transforms</Th>
+                    <Th>Planned actions</Th>
+                  </tr>
+                {/snippet}
                 {#each link.routes as route (route.route)}
-                  <li>
-                    <Badge variant={route.matched ? 'success' : 'default'} size="sm">
-                      {route.route}
-                    </Badge>
-                    <span class="muted">{route.transformCount} transforms</span>
-                    {#if route.skipped}
-                      <span class="muted">skipped{route.skipReason ? `: ${route.skipReason}` : ''}</span>
-                    {/if}
-                    {#each route.plannedActions as planned (planned)}
-                      <span class="chip">{planned}</span>
-                    {/each}
-                  </li>
+                  <Tr>
+                    <Td mono value={route.route} />
+                    <Td>
+                      <Badge tone={route.matched ? 'success' : 'neutral'}>
+                        {route.matched ? 'matched' : route.skipped ? 'skipped' : 'no match'}
+                      </Badge>
+                    </Td>
+                    <Td numeric value={route.transformCount} />
+                    <Td
+                      mono
+                      truncate
+                      muted
+                      value={route.skipped && route.skipReason
+                        ? route.skipReason
+                        : route.plannedActions.join(', ') || '—'}
+                    />
+                  </Tr>
                 {/each}
-              </ul>
+              </Table>
             {/if}
             {#if link.diagnostics.length > 0}
-              <ul class="diagnostics">
-                {#each link.diagnostics as diagnostic (diagnostic.code + diagnostic.stage)}
-                  <li>
-                    <Badge
-                      variant={diagnostic.severity === 'error' ? 'danger' : 'warning'}
-                      size="sm"
-                    >
-                      {diagnostic.severity}
-                    </Badge>
-                    <code>{diagnostic.code}</code>
-                    <span class="muted">{diagnostic.stage}</span>
-                    {#if diagnostic.path}<span class="mono muted">{diagnostic.path}</span>{/if}
-                  </li>
+              <Table label={`Diagnostics for trace ${link.traceId}`} class="inner-table">
+                {#snippet head()}
+                  <tr>
+                    <Th width="88px">Severity</Th>
+                    <Th>Code</Th>
+                    <Th width="96px">Stage</Th>
+                    <Th>Path</Th>
+                  </tr>
+                {/snippet}
+                {#each link.diagnostics as diagnostic (diagnostic.code + diagnostic.stage + (diagnostic.path ?? ''))}
+                  <Tr>
+                    <Td>
+                      <Badge tone={diagnostic.severity === 'error' ? 'danger' : 'warning'} dot>
+                        {diagnostic.severity}
+                      </Badge>
+                    </Td>
+                    <Td mono value={diagnostic.code} />
+                    <Td muted value={diagnostic.stage} />
+                    <Td mono truncate muted value={diagnostic.path ?? '—'} />
+                  </Tr>
                 {/each}
-              </ul>
+              </Table>
             {/if}
           </article>
         {/each}
@@ -198,19 +247,23 @@
         <p class="muted">No delivery attempt was created for this receipt.</p>
       {:else}
         {#each trace.attempts as attempt (attempt.attemptId)}
-          <article class="attempt">
-            <header class="event-header">
-              <span class="mono">{attempt.attemptId}</span>
-              <Badge variant={attemptStatusVariant(attempt.status)} size="sm">
-                {attempt.status}
-              </Badge>
-              <Badge variant={outboxStatusVariant(attempt.outboxStatus)} size="sm">
+          <article class="block">
+            <header class="block-head">
+              <span class="mono strong" title={attempt.attemptId}>{attempt.attemptId}</span>
+              <Badge tone={badgeTone(attemptStatusVariant(attempt.status))} dot>{attempt.status}</Badge>
+              <Badge tone={badgeTone(outboxStatusVariant(attempt.outboxStatus))}>
                 outbox {attempt.outboxStatus}
               </Badge>
-              <span class="muted">attempt {attempt.attemptCount}</span>
-              <span class="muted">{attempt.route} → {attempt.action}</span>
             </header>
-            <p class="muted">{deadLetterStateLabel(attempt.deadLetter)}</p>
+            <KeyValue
+              items={[
+                { key: 'Route', value: `${attempt.route} → ${attempt.action}`, mono: true },
+                { key: 'Destination', value: revision(attempt.destination), mono: true, truncate: true },
+                { key: 'Attempts', value: attempt.attemptCount, mono: true },
+                { key: 'Dead letter', value: deadLetterStateLabel(attempt.deadLetter) },
+                { key: 'Recorded', value: formatTimestamp(attempt.recordedAt), mono: true }
+              ]}
+            />
             {#if attempt.lastErrorCode}
               <p class="failure">
                 <code>{attempt.lastErrorCode}</code>
@@ -225,15 +278,15 @@
               />
             </div>
             <div class="attempt-actions">
-              {#each actions as action (action)}
+              {#each recoveryActions as action (action)}
                 {@const blocked =
                   $deliveryControlBlock ?? deliveryActionBlockedReason(attempt, action)}
                 <Button
-                  size="sm"
                   variant={action === 'discard' ? 'danger' : 'secondary'}
+                  icon={actionIcons[action]}
                   disabled={blocked !== null}
                   title={blocked ?? undefined}
-                  on:click={() => dispatch('control', { action, attemptId: attempt.attemptId })}
+                  onclick={() => dispatch('control', { action, attemptId: attempt.attemptId })}
                 >
                   {actionLabel(action)}
                 </Button>
@@ -249,75 +302,98 @@
       {#if trace.audit.length === 0}
         <p class="muted">No delivery audit records yet.</p>
       {:else}
-        <div class="table-scroll">
-          <table class="records">
-            <caption class="sr-only">Append-only delivery audit records</caption>
-            <thead>
-              <tr>
-                <th scope="col">Event</th>
-                <th scope="col">Attempt</th>
-                <th scope="col">Actor</th>
-                <th scope="col">Reason</th>
-                <th scope="col">Recorded</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each trace.audit as record (record.auditId)}
-                <tr>
-                  <td><Badge size="sm">{record.eventKind}</Badge></td>
-                  <td class="mono">{record.attemptId}</td>
-                  <td class="mono">{record.principal.id || '—'}</td>
-                  <td>{record.reason || '—'}</td>
-                  <td class="mono">{formatTimestamp(record.recordedAt)}</td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
+        <Table label="Append-only delivery audit records" class="inner-table">
+          {#snippet head()}
+            <tr>
+              <Th width="104px">Event</Th>
+              <Th>Attempt</Th>
+              <Th>Actor</Th>
+              <Th>Reason</Th>
+              <Th width="164px">Recorded</Th>
+            </tr>
+          {/snippet}
+          {#each trace.audit as record (record.auditId)}
+            <Tr>
+              <Td><Badge>{record.eventKind}</Badge></Td>
+              <Td mono truncate value={record.attemptId} />
+              <Td mono truncate value={record.principal.id || '—'} />
+              <Td truncate value={record.reason || '—'} />
+              <Td mono muted value={formatTimestamp(record.recordedAt)} />
+            </Tr>
+          {/each}
+        </Table>
       {/if}
     </section>
   {/if}
 </Panel>
 
 <style>
+  :global(.trace-panel) {
+    flex: 1 1 auto;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
   .receipt-id {
+    max-width: 280px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding-right: var(--space-2);
     font-family: var(--font-mono);
-    font-size: var(--text-xs);
+    font-size: var(--text-mono);
     color: var(--color-text-tertiary);
   }
 
   .section {
-    margin-bottom: var(--space-6);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
   }
 
-  .section-title {
-    margin: 0 0 var(--space-3);
+  .section-title,
+  .block-title {
+    margin: 0;
     font-family: var(--font-ui);
-    font-size: var(--text-sm);
+    font-size: var(--text-label);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-label);
     text-transform: uppercase;
-    letter-spacing: 0.06em;
     color: var(--color-text-tertiary);
   }
 
-  .event,
-  .lineage,
-  .attempt {
+  .block {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
     border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-md);
-    padding: var(--space-3);
-    margin-bottom: var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-base);
   }
 
-  .event-header {
+  .block-head {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-2);
     align-items: center;
-    margin-bottom: var(--space-2);
+    gap: var(--space-2);
+    min-width: 0;
   }
 
-  .payload-caption {
-    margin: 0 0 var(--space-2);
+  .strong {
+    color: var(--color-text-primary);
+    font-weight: var(--font-semibold);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+
+  .caption {
+    margin: 0;
     font-size: var(--text-xs);
     color: var(--color-text-tertiary);
   }
@@ -327,165 +403,71 @@
     margin: 0;
     padding: 0;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
-    gap: var(--space-1) var(--space-3);
+    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+    gap: 2px var(--space-3);
   }
 
   .fields li {
     display: flex;
     gap: var(--space-2);
     align-items: baseline;
+    min-width: 0;
     font-size: var(--text-xs);
   }
 
   .fields code {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-family: var(--font-mono);
+    font-size: var(--text-mono);
     color: var(--color-text-primary);
   }
 
   .kind {
+    flex: 0 0 auto;
     color: var(--color-text-tertiary);
   }
 
-  .repeated {
-    color: var(--color-info-text);
-  }
-
-  .revisions {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-    gap: var(--space-2);
-    margin: 0 0 var(--space-2);
-  }
-
-  .revisions dt {
-    font-size: var(--text-2xs);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--color-text-tertiary);
-  }
-
-  .revisions dd {
-    margin: 0;
-  }
-
-  .routes,
-  .diagnostics {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-
-  .routes li,
-  .diagnostics li {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    align-items: center;
-    font-size: var(--text-xs);
-    padding: var(--space-1) 0;
-  }
-
-  .chip {
-    background: var(--color-bg-surface);
+  .block :global(.inner-table) {
     border: 1px solid var(--color-border-subtle);
     border-radius: var(--radius-sm);
-    padding: 0 var(--space-2);
-    font-family: var(--font-mono);
-    font-size: var(--text-2xs);
-    color: var(--color-text-secondary);
   }
 
   .failure {
-    margin: 0 0 var(--space-2);
-    font-size: var(--text-xs);
-    color: var(--color-danger-text);
     display: flex;
     gap: var(--space-2);
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--color-danger-text);
+  }
+
+  .failure code {
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
   }
 
   .delivery-block {
-    margin: 0 0 var(--space-3);
-  }
-
-  .block-title {
-    margin: 0 0 var(--space-2);
-    font-family: var(--font-ui);
-    font-size: var(--text-2xs);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--color-text-tertiary);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
   }
 
   .attempt-actions {
     display: flex;
-    gap: var(--space-2);
     flex-wrap: wrap;
+    gap: var(--space-2);
   }
 
   .muted {
+    margin: 0;
     color: var(--color-text-tertiary);
     font-size: var(--text-xs);
-    margin: 0 0 var(--space-2);
   }
 
   .mono {
     font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--color-text-secondary);
-  }
-
-  .error-state {
-    background: var(--color-danger-bg);
-    border: 1px solid var(--color-danger-border);
-    border-radius: var(--radius-md);
-    padding: var(--space-3);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-  }
-
-  .error-message {
-    margin: 0;
-    color: var(--color-danger-text);
-    font-size: var(--text-sm);
-  }
-
-  .table-scroll {
-    overflow-x: auto;
-  }
-
-  .records {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: var(--text-sm);
-  }
-
-  .records th,
-  .records td {
-    text-align: left;
-    padding: var(--space-2);
-    border-bottom: 1px solid var(--color-border-subtle);
-    white-space: nowrap;
-  }
-
-  .records thead th {
-    color: var(--color-text-tertiary);
-    font-size: var(--text-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
+    font-size: var(--text-mono);
   }
 </style>

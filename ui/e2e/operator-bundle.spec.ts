@@ -59,7 +59,7 @@ test('2. operator page lists the (empty) Messages, with no pre-flight and no "fo
   const body = (await response.json()) as { errors?: unknown[] };
   expect(body.errors ?? [], 'operatorReceipts answered without GraphQL errors').toEqual([]);
 
-  await expect(page.getByRole('heading', { name: 'Operator control plane' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Operator', exact: true })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Messages' })).toBeVisible();
   await expect(emptyList).toBeVisible();
   await expect(page.locator('body')).not.toContainText(/forbidden/i);

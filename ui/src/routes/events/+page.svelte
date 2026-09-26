@@ -1,92 +1,70 @@
+<!--
+  Events — the event store, four views under one toolbar. Browse is the
+  table + details pattern; Live Stream is honest about what this deployment
+  can stream; Patient Timeline and Statistics are plain panels.
+-->
 <script lang="ts">
-  import Panel from '$lib/ui/Panel.svelte';
-  import PageHeader from '$lib/ui/PageHeader.svelte';
-  import Tabs from '$lib/ui/Tabs.svelte';
-  import type { TabItem } from '$lib/ui/types';
+  import { Badge, Tabs, Toolbar, type TabItem } from '$lib/ui/primitives';
   import EventBrowser from '$lib/features/events/EventBrowser.svelte';
-  import EventDetail from '$lib/features/events/EventDetail.svelte';
   import EventStats from '$lib/features/events/EventStats.svelte';
   import EventStreamPanel from '$lib/features/events/EventStreamPanel.svelte';
   import PatientTimeline from '$lib/features/events/PatientTimeline.svelte';
-  import type { EventsQuery } from '$lib/gen/graphql';
 
-  type EventNode = EventsQuery['events']['edges'][number]['node'];
-
-  const tabs: readonly TabItem[] = [
-    { key: 'browse', label: 'Browse' },
-    { key: 'live', label: 'Live Stream' },
-    { key: 'timeline', label: 'Patient Timeline' },
-    { key: 'stats', label: 'Statistics' }
+  const views: TabItem[] = [
+    { id: 'browse', label: 'Browse', controls: 'events-view' },
+    { id: 'live', label: 'Live Stream', controls: 'events-view' },
+    { id: 'timeline', label: 'Patient Timeline', controls: 'events-view' },
+    { id: 'stats', label: 'Statistics', controls: 'events-view' }
   ];
 
-  let activeTab = 'browse';
-  let selectedEvent: EventNode | null = null;
-
-  function handleSelectEvent(e: CustomEvent<{ event: EventNode }>) {
-    selectedEvent = e.detail.event;
-  }
-
-  function closeDetail() {
-    selectedEvent = null;
-  }
+  let view = $state('browse');
+  let totalCount = $state(0);
+  let loading = $state(false);
 </script>
 
-<PageHeader title="Events" subtitle="Browse, stream, and analyze processed events." />
+<svelte:head>
+  <title>Events | fi-fhir</title>
+</svelte:head>
 
-<div class="tabs-wrapper">
-  <Tabs {tabs} active={activeTab} onChange={(key) => (activeTab = key)} />
+<div class="events-page">
+  <Toolbar title="Events">
+    {#snippet tabs()}
+      <Tabs label="Event views" items={views} bind:value={view} />
+    {/snippet}
+    {#snippet actions()}
+      {#if view === 'browse'}
+        <Badge mono data-testid="events-total" aria-busy={loading}>
+          {totalCount.toLocaleString()} events
+        </Badge>
+      {/if}
+    {/snippet}
+  </Toolbar>
+
+  <div class="events-view" id="events-view" role="tabpanel" aria-label={views.find((v) => v.id === view)?.label}>
+    {#if view === 'browse'}
+      <EventBrowser bind:totalCount bind:loading />
+    {:else if view === 'live'}
+      <EventStreamPanel />
+    {:else if view === 'timeline'}
+      <PatientTimeline />
+    {:else}
+      <EventStats />
+    {/if}
+  </div>
 </div>
 
-<Panel>
-  {#if activeTab === 'browse'}
-    <div class="tab-content">
-      <div class="browse-layout" class:has-detail={!!selectedEvent}>
-        <div class="browse-main">
-          <EventBrowser on:select={handleSelectEvent} />
-        </div>
-        {#if selectedEvent}
-          <div class="browse-detail">
-            <EventDetail event={selectedEvent} onClose={closeDetail} />
-          </div>
-        {/if}
-      </div>
-    </div>
-  {:else if activeTab === 'live'}
-    <div class="tab-content">
-      <EventStreamPanel />
-    </div>
-  {:else if activeTab === 'timeline'}
-    <div class="tab-content">
-      <PatientTimeline />
-    </div>
-  {:else if activeTab === 'stats'}
-    <div class="tab-content">
-      <EventStats />
-    </div>
-  {/if}
-</Panel>
-
 <style>
-  .tabs-wrapper {
-    margin-bottom: 16px;
+  .events-page {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
   }
 
-  .tab-content {
-    padding: 8px 0;
-  }
-
-  .browse-layout {
-    display: grid;
-    gap: 16px;
-  }
-
-  .browse-layout.has-detail {
-    grid-template-columns: 1fr 320px;
-  }
-
-  @media (max-width: 768px) {
-    .browse-layout.has-detail {
-      grid-template-columns: 1fr;
-    }
+  .events-view {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
   }
 </style>

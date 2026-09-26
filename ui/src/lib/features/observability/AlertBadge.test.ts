@@ -15,7 +15,7 @@ vi.mock('./observabilityStore', async (importActual) => {
 });
 
 import AlertBadge from './AlertBadge.svelte';
-import { observabilityState, isSimulated, type Alert } from './observabilityStore';
+import { alertSource, observabilityState, type Alert } from './observabilityStore';
 
 const alerts: Alert[] = [
   { id: 'a1', name: 'Disk almost full', severity: 'critical', state: 'firing', summary: 'Node-1 disk at 95%', startsAt: 1_700_000_000_000, labels: {} },
@@ -38,7 +38,7 @@ function seed(rows: Alert[] = alerts): void {
 afterEach(() => {
   cleanup();
   seed([]);
-  isSimulated.set(false);
+  alertSource.set('unconfigured');
 });
 
 describe('AlertBadge severity cue', () => {
@@ -74,34 +74,25 @@ describe('AlertBadge severity cue', () => {
   });
 });
 
-describe('AlertBadge simulated-data honesty', () => {
-  it('shows a "Demo data" tag in the dropdown when alerts are simulated', async () => {
+describe('AlertBadge honesty', () => {
+  it('never labels anything as demo data: the list is only what the source returned', async () => {
     seed();
-    isSimulated.set(true);
+    const { container, queryByText } = render(AlertBadge);
+
+    await fireEvent.click(container.querySelector('.badge-trigger') as HTMLElement);
+
+    expect(queryByText(/demo data/i)).toBeNull();
+    const trigger = container.querySelector('.badge-trigger') as HTMLElement;
+    expect(trigger.getAttribute('aria-label')).toBe('Alerts: 2 firing');
+  });
+
+  it('says the alert source is unavailable instead of listing nothing silently', async () => {
+    seed([]);
+    alertSource.set('unavailable');
     const { container, getByText } = render(AlertBadge);
 
     await fireEvent.click(container.querySelector('.badge-trigger') as HTMLElement);
 
-    expect(getByText('Demo data')).toBeInTheDocument();
-    expect(container.querySelector('.sim-tag')).not.toBeNull();
-  });
-
-  it('does not show the "Demo data" tag when alerts are real', async () => {
-    seed();
-    isSimulated.set(false);
-    const { container } = render(AlertBadge);
-
-    await fireEvent.click(container.querySelector('.badge-trigger') as HTMLElement);
-
-    expect(container.querySelector('.sim-tag')).toBeNull();
-  });
-
-  it('annotates the badge aria-label when showing demo data (perceivable without opening)', () => {
-    seed();
-    isSimulated.set(true);
-    const { container } = render(AlertBadge);
-
-    const trigger = container.querySelector('.badge-trigger') as HTMLElement;
-    expect(trigger.getAttribute('aria-label')).toContain('demo data');
+    expect(getByText('Alert source unavailable')).toBeInTheDocument();
   });
 });

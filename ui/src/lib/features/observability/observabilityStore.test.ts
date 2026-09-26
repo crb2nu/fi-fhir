@@ -1,5 +1,5 @@
 /**
- * Tests for observabilityStore presentation helpers.
+ * Tests for observabilityStore: presentation helpers and the honest alert source.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { get } from 'svelte/store';
@@ -21,7 +21,10 @@ vi.mock('$lib/platform', () => ({
 import {
   severityLabel,
   fetchAlerts,
-  isSimulated,
+  fetchMetrics,
+  fetchLogs,
+  alertSource,
+  observabilityState,
   type Alert,
 } from './observabilityStore';
 
@@ -47,38 +50,67 @@ describe('severityLabel', () => {
   });
 });
 
-describe('isSimulated flag', () => {
+const realAlert: Alert = {
+  id: 'real-1',
+  name: 'Real alert',
+  severity: 'info',
+  state: 'firing',
+  summary: 's',
+  startsAt: 0,
+  labels: {},
+};
+
+describe('alert source (no simulated fallback)', () => {
   beforeEach(() => {
-    isSimulated.set(false);
+    alertSource.set('unconfigured');
+    observabilityState.update((s) => ({ ...s, alerts: [], metrics: null, logs: [] }));
     mockClient.isConnected.mockReset();
     mockClient.callTool.mockReset();
   });
 
-  it('is true after a fetch falls back to mock data (platform disconnected)', async () => {
+  it('is unconfigured with no alerts when the platform is not connected, and calls nothing', async () => {
     mockClient.isConnected.mockReturnValue(false);
     await fetchAlerts();
-    expect(get(isSimulated)).toBe(true);
+    expect(get(alertSource)).toBe('unconfigured');
+    expect(get(observabilityState).alerts).toEqual([]);
+    expect(mockClient.callTool).not.toHaveBeenCalled();
   });
 
-  it('is false after a fetch returns real backend data', async () => {
+  it('is live and carries exactly the backend alerts when Alertmanager answers', async () => {
     mockClient.isConnected.mockReturnValue(true);
-    mockClient.callTool.mockResolvedValue([
-      { id: 'real-1', name: 'Real alert', severity: 'info', state: 'firing', summary: 's', startsAt: 0, labels: {} },
-    ] satisfies Alert[]);
+    mockClient.callTool.mockResolvedValue([realAlert] satisfies Alert[]);
     await fetchAlerts();
-    expect(get(isSimulated)).toBe(false);
+    expect(get(alertSource)).toBe('live');
+    expect(get(observabilityState).alerts).toEqual([realAlert]);
   });
 
-  it('flips back to true when a later fetch loses the backend connection', async () => {
+  it('is unavailable with no alerts when the connected platform fails the query', async () => {
     mockClient.isConnected.mockReturnValue(true);
-    mockClient.callTool.mockResolvedValue([
-      { id: 'real-1', name: 'Real alert', severity: 'info', state: 'firing', summary: 's', startsAt: 0, labels: {} },
-    ] satisfies Alert[]);
+    mockClient.callTool.mockRejectedValue(new Error('alertmanager unreachable'));
     await fetchAlerts();
-    expect(get(isSimulated)).toBe(false);
+    expect(get(alertSource)).toBe('unavailable');
+    expect(get(observabilityState).alerts).toEqual([]);
+  });
+
+  it('drops a previous live list when the platform disconnects', async () => {
+    mockClient.isConnected.mockReturnValue(true);
+    mockClient.callTool.mockResolvedValue([realAlert] satisfies Alert[]);
+    await fetchAlerts();
+    expect(get(observabilityState).alerts).toHaveLength(1);
 
     mockClient.isConnected.mockReturnValue(false);
     await fetchAlerts();
-    expect(get(isSimulated)).toBe(true);
+    expect(get(alertSource)).toBe('unconfigured');
+    expect(get(observabilityState).alerts).toEqual([]);
+  });
+
+  it('never invents metrics or logs without a platform', async () => {
+    mockClient.isConnected.mockReturnValue(false);
+    await fetchMetrics();
+    await fetchLogs();
+    const state = get(observabilityState);
+    expect(state.metrics).toBeNull();
+    expect(state.logs).toEqual([]);
+    expect(mockClient.callTool).not.toHaveBeenCalled();
   });
 });

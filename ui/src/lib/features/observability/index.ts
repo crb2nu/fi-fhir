@@ -1,6 +1,7 @@
 export {
   observabilityState,
   activeAlertCount,
+  alertSource,
   isAvailable,
   filteredLogs,
   fetchMetrics,
@@ -11,6 +12,7 @@ export {
   type MetricsSnapshot,
   type LogEntry,
   type Alert,
+  type AlertSource,
   type LogFilter,
   type ObservabilityState,
 } from './observabilityStore';
