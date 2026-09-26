@@ -176,6 +176,12 @@ lane was launched; none was in the trusted-network path itself.
   existence guard so a renamed check cannot make the gate greener;
   `make ui-e2e` mirrors it. First CI run 7/7 in 249 s. Merged in
   [MR !227](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/227).
+- [x] **R-E HL7 intake line endings** (R-D's finding) — intake sends
+  CR-terminated segments on every path whatever the editor holds, and the
+  built-in sample is an executable ADT^A01 for the first time (its separators
+  were the literal characters `\r`). The kernel's strict line-ending gate is
+  unchanged. Merged in
+  [MR !229](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/229).
 - [x] **Close-out (`docs/ide-repair-close-out`)** — this roadmap, one
   CHANGELOG block, the decision entry, and `ci/test-ui-e2e.yml` running when
   its own definition changes.

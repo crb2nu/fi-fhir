@@ -40,12 +40,14 @@
   - Lane R-C's first run stopped on its stop rule with the finding that
     changed the program (the UI flag had no fallback; the allowlist admits two
     roots); the corrections are in `.loom/36` and R-B absorbed them.
-  - Lane R-D found that HL7 intake sends LF-separated editor text the parser
-    rejects and that the default sample's separators are the literal
-    characters `\r`; Lane R-E (`fix/ide-repair-e-hl7-newlines`) owns it.
+  - Lane R-D found that HL7 intake sends LF-separated editor text the preview
+    kernel's strict validation rejects, and that the default sample's
+    separators are the literal characters `\r`. Lane R-E (MR !229) normalizes
+    at every send boundary, repairs the sample (three defects, not one), and
+    pins the parser's already-tolerant split; the strict gate is unchanged
+    because loosening it would invert an exact test that pins the claimed
+    line-ending mode.
 - What's next:
-  - R-E: normalize line endings at HL7 intake's send boundary and split
-    segments tolerantly in `internal/parser/hl7v2`.
   - Re-probe `/api/auth/status` when a session mutation is refused with
     "legacy integration execution is unavailable" and after a bearer is
     entered, so a tab does not keep stale capabilities.
