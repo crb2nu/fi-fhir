@@ -24,6 +24,7 @@
   } from './attemptPresentation';
   import { fetchDeployments, type OperatorDeployment } from './operatorApi';
   import { describeOperatorFailure } from './operatorErrors';
+  import { deploymentControlBlock } from './operatorAccess';
 
   const dispatch = createEventDispatcher<{
     command: { action: DeploymentAction; deployment: OperatorDeployment };
@@ -107,7 +108,8 @@
 
           <div class="row-actions">
             {#each actions as action (action)}
-              {@const blocked = deploymentActionBlockedReason(deployment.state, action)}
+              {@const blocked =
+                $deploymentControlBlock ?? deploymentActionBlockedReason(deployment.state, action)}
               <Button
                 size="sm"
                 variant={action === 'retire' ? 'danger' : 'secondary'}

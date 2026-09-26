@@ -6,9 +6,16 @@
    * dead-letter/circuit console, and the deployment controls over the Slice
    * 4.2a GraphQL API. Every mutating action routes through one reason-required
    * dialog, and every failure has an inline home.
+   *
+   * When the status endpoint reports that this identity cannot read the
+   * operator plane, the page renders a pre-flight explaining which role is
+   * missing and where it is granted, and mounts none of the tabs — so no
+   * query is issued that the control plane would refuse.
    */
 
+  import { accessCapabilities } from '$lib/graphql/accessCapabilities';
   import PageHeader from '$lib/ui/PageHeader.svelte';
+  import Panel from '$lib/ui/Panel.svelte';
   import Tabs from '$lib/ui/Tabs.svelte';
   import type { TabItem } from '$lib/ui/types';
   import ControlReasonDialog from './ControlReasonDialog.svelte';
@@ -31,6 +38,14 @@
     type OperatorMessageTrace
   } from './operatorApi';
   import { describeOperatorFailure } from './operatorErrors';
+  import {
+    OPERATOR_ROLE_BUNDLE,
+    ROLE_GRANT_LOCATIONS,
+    TRANSPORT_OPERATOR_ROLE,
+    operatorPreflight
+  } from './operatorAccess';
+
+  $: preflight = operatorPreflight($accessCapabilities);
 
   const tabs: TabItem[] = [
     { key: 'messages', label: 'Messages' },
@@ -68,8 +83,8 @@
     try {
       trace = await fetchMessageTrace(receiptId);
     } catch (err) {
-      // The global GraphQL net already toasted this; the panel is the durable
-      // home for the message (toast-budget B4).
+      // Operator reads opt out of the global toast; the panel is the only home
+      // for the message (toast-budget B4).
       traceError = describeOperatorFailure(err).message;
       trace = null;
     } finally {
@@ -229,37 +244,68 @@
     subtitle="Browse durable messages and delivery, recover failures, and control deployments — every action is reason-required and audited."
   />
 
-  <Tabs {tabs} active={activeTab} onChange={(key) => (activeTab = key)} />
-
-  {#if activeTab === 'messages'}
-    <div class="split">
-      <MessageBrowser
-        {selectedReceiptId}
-        on:select={(event) => loadTrace(event.detail.receiptId)}
-      />
-      <MessageTrace
-        {trace}
-        loading={traceLoading}
-        error={traceError}
-        receiptId={selectedReceiptId}
-        on:retry={() => selectedReceiptId && loadTrace(selectedReceiptId)}
-        on:control={(event) => openDeliveryDialog(event.detail.action, event.detail.attemptId)}
-      />
+  {#if preflight}
+    <div
+      class="preflight"
+      data-testid="operator-preflight"
+      data-missing-roles={preflight.missingRoles.join(',')}
+    >
+      <Panel tone="warning" title="Operator access is not granted to this identity" padding="md">
+        <p>
+          This deployment's identity{preflight.principal ? ` (${preflight.principal})` : ''}
+          {#if preflight.holdsTransportGrant}
+            holds <code>{TRANSPORT_OPERATOR_ROLE}</code> but not
+          {:else}
+            does not hold
+          {/if}
+          {#each preflight.missingRoles as role, index (role)}{#if index > 0}, {/if}<code>{role}</code>{/each};
+          operator surfaces are unavailable, so nothing was queried.
+        </p>
+        <p>Roles are granted in the API's environment:</p>
+        <ul class="grant-locations">
+          {#each ROLE_GRANT_LOCATIONS as location (location.variable)}
+            <li><code>{location.variable}</code> — {location.scope}</li>
+          {/each}
+        </ul>
+        <p class="bundle">
+          The full operator bundle is <code>{OPERATOR_ROLE_BUNDLE.join(',')}</code>. Reload this page
+          once the API has picked up the change.
+        </p>
+      </Panel>
     </div>
-  {:else if activeTab === 'delivery'}
-    <DeliveryConsole
-      bind:this={deliveryConsole}
-      on:control={(event) => openDeliveryDialog(event.detail.action, event.detail.attemptId)}
-      on:inspect={(event) => {
-        activeTab = 'messages';
-        void loadTraceForAttempt(event.detail.attemptId);
-      }}
-    />
   {:else}
-    <DeploymentControls
-      bind:this={deploymentControls}
-      on:command={(event) => openDeploymentDialog(event.detail.action, event.detail.deployment)}
-    />
+    <Tabs {tabs} active={activeTab} onChange={(key) => (activeTab = key)} />
+
+    {#if activeTab === 'messages'}
+      <div class="split">
+        <MessageBrowser
+          {selectedReceiptId}
+          on:select={(event) => loadTrace(event.detail.receiptId)}
+        />
+        <MessageTrace
+          {trace}
+          loading={traceLoading}
+          error={traceError}
+          receiptId={selectedReceiptId}
+          on:retry={() => selectedReceiptId && loadTrace(selectedReceiptId)}
+          on:control={(event) => openDeliveryDialog(event.detail.action, event.detail.attemptId)}
+        />
+      </div>
+    {:else if activeTab === 'delivery'}
+      <DeliveryConsole
+        bind:this={deliveryConsole}
+        on:control={(event) => openDeliveryDialog(event.detail.action, event.detail.attemptId)}
+        on:inspect={(event) => {
+          activeTab = 'messages';
+          void loadTraceForAttempt(event.detail.attemptId);
+        }}
+      />
+    {:else}
+      <DeploymentControls
+        bind:this={deploymentControls}
+        on:command={(event) => openDeploymentDialog(event.detail.action, event.detail.deployment)}
+      />
+    {/if}
   {/if}
 
   <ControlReasonDialog
@@ -292,6 +338,32 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-4);
+  }
+
+  .preflight p {
+    margin: 0 0 var(--space-3);
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    line-height: var(--leading-relaxed);
+  }
+
+  .preflight code {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--color-text-primary);
+  }
+
+  .grant-locations {
+    margin: 0 0 var(--space-3);
+    padding-left: var(--space-5);
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    line-height: var(--leading-relaxed);
+  }
+
+  .preflight .bundle {
+    margin-bottom: 0;
+    overflow-wrap: anywhere;
   }
 
   @media (min-width: 1200px) {

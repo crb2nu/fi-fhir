@@ -61,8 +61,8 @@
       hasNextPage = page.pageInfo.hasNextPage;
       cursor = page.pageInfo.endCursor ?? null;
     } catch (err) {
-      // The global graphqlFetch net already toasted this failure; the inline
-      // home below is the durable surface (toast-budget B4).
+      // Operator reads opt out of the global toast; the inline home below is
+      // the only surface for this failure (toast-budget B4).
       error = describeOperatorFailure(err).message;
       receipts = [];
       hasNextPage = false;

@@ -27,6 +27,7 @@
     type DeliveryAction
   } from './attemptPresentation';
   import type { OperatorMessageTrace } from './operatorApi';
+  import { deliveryControlBlock } from './operatorAccess';
 
   export let trace: OperatorMessageTrace | null = null;
   export let loading = false;
@@ -225,7 +226,8 @@
             </div>
             <div class="attempt-actions">
               {#each actions as action (action)}
-                {@const blocked = deliveryActionBlockedReason(attempt, action)}
+                {@const blocked =
+                  $deliveryControlBlock ?? deliveryActionBlockedReason(attempt, action)}
                 <Button
                   size="sm"
                   variant={action === 'discard' ? 'danger' : 'secondary'}

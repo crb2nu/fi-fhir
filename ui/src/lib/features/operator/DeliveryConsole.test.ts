@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import DeliveryConsole from './DeliveryConsole.svelte';
+import { resetAccessCapabilities, setAccessStatus } from '$lib/graphql/accessCapabilities';
 
 const { fetchDeadLettersMock, fetchCircuitsMock, fetchAttemptMock, toastsMock } = vi.hoisted(
   () => ({
@@ -146,6 +147,38 @@ describe('DeliveryConsole', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/not enabled on this deployment/i);
     expect(toastsMock.error).not.toHaveBeenCalled();
+  });
+
+  it('disables every recovery action with the missing delivery role when the identity lacks it', async () => {
+    setAccessStatus({
+      authenticated: true,
+      authVia: 'network',
+      roles: ['graphql:operator', 'integration.operator'],
+      capabilities: {
+        operatorRead: true,
+        operatorDelivery: false,
+        operatorDeployment: false,
+        clinicalRead: true,
+        integrationSessions: false,
+        streaming: false
+      },
+      missingRoles: { operatorDelivery: ['integration.delivery.operator'] }
+    });
+    fetchDeadLettersMock.mockResolvedValue(page([deadLetter()]));
+    render(DeliveryConsole);
+
+    try {
+      for (const name of ['Replay', 'Resubmit', 'Discard']) {
+        const button = await screen.findByRole('button', { name });
+        expect(button).toBeDisabled();
+        expect(button).toHaveAttribute(
+          'title',
+          expect.stringMatching(/integration\.delivery\.operator.*FI_FHIR_GRAPHQL_ROLES/)
+        );
+      }
+    } finally {
+      resetAccessCapabilities();
+    }
   });
 
   it('says so when the attempt behind a dead letter is not in the tenant', async () => {
