@@ -89,7 +89,10 @@ function pushEvent(event: HudEvent): void {
 // ─── SSE subscription ─────────────────────────────────────────────────────────
 
 export function subscribeHudEvents(): () => void {
-  if (!browser) return () => {};
+  // HUD ambient awareness belongs to the optional loom platform. Without a
+  // configured endpoint there is no HUD, and simulated events would pass for
+  // real ones.
+  if (!browser || !PLATFORM_CONFIG.enabled) return () => {};
 
   const endpoint = PLATFORM_CONFIG.endpoint.replace(/\/mcp$/, '');
   const sseUrl = `${endpoint}/api/events`;
@@ -146,7 +149,7 @@ export function subscribeHudEvents(): () => void {
 
   // Try real SSE first if platform is connected
   const state = get(platformState);
-  if (state.connected && PLATFORM_CONFIG.enabled) {
+  if (state.connected) {
     connectSSE();
   } else {
     startSimulation();

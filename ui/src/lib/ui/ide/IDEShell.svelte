@@ -37,7 +37,12 @@
   import SplitPane from './SplitPane.svelte';
   import RuntimeOutputPanel from './panels/RuntimeOutputPanel.svelte';
   import ProblemsPanel from './panels/ProblemsPanel.svelte';
-  import { platformState, initializePlatform, teardownPlatform } from '$lib/platform';
+  import {
+    PLATFORM_CONFIG,
+    platformState,
+    initializePlatform,
+    teardownPlatform
+  } from '$lib/platform';
 
   /**
    * IDE Shell composition root.
@@ -302,7 +307,11 @@
 
     window.addEventListener('keydown', onCmdK);
 
-    initializePlatform();
+    // The loom platform is an optional HUD integration (PUBLIC_LOOM_ENDPOINT).
+    // Without it there is nothing to connect to, so nothing is started.
+    if (PLATFORM_CONFIG.enabled) {
+      void initializePlatform();
+    }
 
     return () => {
       window.removeEventListener('keydown', onCmdK);
@@ -311,7 +320,9 @@
 
   onDestroy(() => {
     if (cleanupShortcuts) cleanupShortcuts();
-    teardownPlatform();
+    if (PLATFORM_CONFIG.enabled) {
+      void teardownPlatform();
+    }
   });
 </script>
 
@@ -471,6 +482,7 @@
     {connectionState}
     {activeProfile}
     {parserStatus}
+    platformEnabled={PLATFORM_CONFIG.enabled}
     platformConnected={$platformState.connected}
   />
 </div>
