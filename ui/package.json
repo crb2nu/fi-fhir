@@ -28,6 +28,7 @@
     "@graphql-codegen/typed-document-node": "^5.0.12",
     "@graphql-codegen/typescript": "^4.1.6",
     "@graphql-codegen/typescript-operations": "^4.4.1",
+    "@playwright/test": "1.63.0",
     "@sveltejs/adapter-static": "^3.0.8",
     "@sveltejs/kit": "^2.14.7",
     "@sveltejs/vite-plugin-svelte": "^6.2.4",

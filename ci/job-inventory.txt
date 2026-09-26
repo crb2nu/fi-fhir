@@ -67,4 +67,5 @@ test:smoke	test	false
 test:structured-logging	test	false
 test:transport-gate	test	false
 test:ui	test	false
+test:ui-e2e	test	false
 test:unit	test	false

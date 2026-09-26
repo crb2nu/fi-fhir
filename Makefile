@@ -36,6 +36,7 @@
 .PHONY: fhir-structural fhir-structural-negative-control               # 5.1b   — S6-D
 .PHONY: event-backends
 .PHONY: fhir-official fhir-official-negative-control              # 5.1c   — S7-B
+.PHONY: ui-e2e                                                         # IDE repair — R-D
 
 # Tool versions (update these when upgrading)
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -1189,3 +1190,17 @@ fhir-official-negative-control:
 event-backends:
 	@test -n "$(EVENTBUS_KAFKA_BROKERS)" -a -n "$(EVENTBUS_REDIS_URL)"
 	go test -tags=integration -race -count=1 -timeout=180s ./pkg/eventbus
+
+# IDE repair Lane R-D: the browser smoke gate (ci/test-ui-e2e.yml). Playwright
+# (Chromium) against the BUILT UI served by its nginx template and three real
+# `fi-fhir serve` stacks on PostgreSQL 16 — the operator bundle with streaming
+# on, and two negative controls (no integration.operator; sessions off). This
+# runs ui/e2e/ci.sh, the job's whole script, in the job's image on a docker
+# context with PostgreSQL sharing its network namespace, so nothing but docker
+# and go is needed here. Results land in ui/e2e-results/.
+#
+#   make ui-e2e                                      # all three projects
+#   make ui-e2e UI_E2E_ARGS="--project sessions-off" # one project, no existence guard
+#   UI_E2E_DOCKER_CONTEXT=other make ui-e2e          # another docker host
+ui-e2e:
+	NPM_VERSION=$(NPM_VERSION) bash ui/e2e/docker.sh $(UI_E2E_ARGS)

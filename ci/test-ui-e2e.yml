@@ -1,0 +1,128 @@
+# IDE repair Lane R-D (.loom/36 "R-D — The browser smoke gate", as corrected
+# 2026-09-26): Playwright (Chromium) against the BUILT UI, served by the
+# production nginx template, in front of real `fi-fhir serve` processes on
+# PostgreSQL 16. Blocking.
+#
+# One job, not two: the Node image carries everything the run needs (npm for
+# the build and Playwright, apt for nginx and Chromium's system libraries), and
+# the API is the test:binary artifact, so no browser image has to be separated
+# from a Go image. mcr.microsoft.com is not proxied, so the Playwright image is
+# not an option; `playwright install --with-deps chromium` is, and the browser
+# download is cached per Playwright version.
+#
+# Three stacks, one Playwright project each (ui/playwright.config.ts):
+#   operator-bundle        checks 1-5 — auth status (network, operatorRead,
+#                          streaming, integrationSessionEvents listed); the
+#                          operator Messages list with no pre-flight and no
+#                          "forbidden"; an Integration Session SSE stream
+#                          answering 200 text/event-stream and the run panel
+#                          listening within 10 s, while Events → Live Stream
+#                          shows streaming-unavailable[data-stream=eventStream];
+#                          Copilot "not configured"; no phantom Problems badge,
+#                          no Platform indicator
+#   missing-operator-role  negative control 6a — operator-preflight naming
+#                          integration.operator, and no operator query issued
+#   sessions-off           negative control 6b — subscriptions == [],
+#                          streaming false, streaming-unavailable
+#                          [data-stream=integrationSessionEvents] on HL7 intake,
+#                          and Preview still works on the stateless path
+#
+# Trusted network: the browser reaches nginx on 127.0.0.1, the template
+# forwards X-Forwarded-For = $proxy_add_x_forwarded_for ("127.0.0.1") and no
+# X-Real-IP, and the API trusts the first forwarded hop — so the stacks set
+# FI_FHIR_GRAPHQL_TRUSTED_CIDRS=127.0.0.1/32. ui/e2e/run.sh has the details;
+# logs/nginx-access.log in the artifacts records the forwarded value.
+#
+# Rules: a subset of test:binary's (runtime-verification-changes), which this
+# job needs. Anchors are file-scoped, so the list is spelled out here.
+
+variables:
+  # Keep equal to ui/package.json's exact @playwright/test pin; ui/e2e/ci.sh
+  # fails if they differ. It keys the browser cache below.
+  PLAYWRIGHT_VERSION: "1.63.0"
+
+test:ui-e2e:
+  stage: test
+  image: ${DOCKERHUB_CACHE_PREFIX}/library/node:${NODE_VERSION}-bookworm
+  needs:
+    - job: test:binary
+      artifacts: true
+  services:
+    - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
+      alias: postgres
+  variables:
+    POSTGRES_DB: fi_fhir_e2e
+    POSTGRES_USER: testuser
+    POSTGRES_PASSWORD: testpass
+    POSTGRES_HOST_AUTH_METHOD: trust
+    E2E_PG_HOST: postgres
+    PLAYWRIGHT_BROWSERS_PATH: ${CI_PROJECT_DIR}/.cache/ms-playwright
+    # The Vite build is lint:ui's memory profile (V8 peak ~1.2Gi, container
+    # ~1.7Gi); the run adds Chromium and three API processes.
+    KUBERNETES_CPU_REQUEST: "500m"
+    KUBERNETES_CPU_LIMIT: "2"
+    KUBERNETES_MEMORY_REQUEST: "2Gi"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
+    NODE_OPTIONS: "--max-old-space-size=3072"
+  cache:
+    - key: ${CI_COMMIT_REF_SLUG}-ui-npm
+      paths:
+        - ui/.npm/
+      policy: pull
+    - key: ui-e2e-playwright-${PLAYWRIGHT_VERSION}
+      paths:
+        - .cache/ms-playwright/
+  before_script:
+    - node --version
+    # Verdaccio can serve metadata while its tarball downloads hang (see
+    # .node-image in .gitlab-ci.yml, whose before_script this repeats).
+    - export npm_config_registry=https://registry.npmjs.org
+    - export NPM_CONFIG_REGISTRY=https://registry.npmjs.org
+    - npm i -g npm@${NPM_VERSION}
+    - npm config set cache "${CI_PROJECT_DIR}/ui/.npm" --global
+  script:
+    - test -x bin/fi-fhir
+    - bash ui/e2e/ci.sh
+  artifacts:
+    when: always
+    expire_in: 2 weeks
+    paths:
+      - ui/e2e-results/
+    reports:
+      junit: ui/e2e-results/junit.xml
+  allow_failure: false
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - ui/**/*
+        - cmd/**/*
+        - internal/**/*
+        - pkg/**/*
+        - api/openapi.yaml
+        - testdata/**/*
+        - .gitlab-ci.yml
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - ui/**/*
+        - cmd/**/*
+        - internal/**/*
+        - pkg/**/*
+        - api/openapi.yaml
+        - testdata/**/*
+        - .gitlab-ci.yml
+    - when: never
+  after_script:
+    - |
+      if [ "$CI_JOB_STATUS" = "failed" ]; then
+        echo ""
+        echo "${CI_JOB_NAME} FAILED — the IDE, served as production serves it, no longer"
+        echo "shows the state its API reports: operator access, Integration Session"
+        echo "streaming, the Copilot's LLM state, or the chrome that must stay hidden;"
+        echo "or a negative control stopped failing for the reason it exists."
+        echo "Artifacts: ui/e2e-results/{html/index.html,artifacts/*/{test-failed-*.png,trace.zip},logs/}"
+        echo "Trace: npx playwright show-trace ui/e2e-results/artifacts/<test>/trace.zip"
+        echo "Local: make ui-e2e   (docker context 7900xtx; UI_E2E_ARGS=\"--project <name>\")"
+        echo "Docs: ui/docs/DEVELOPER-GUIDE.md \"Browser smoke gate\""
+        echo "Owner: Platform/UI — escalate in #ci-support"
+      fi
