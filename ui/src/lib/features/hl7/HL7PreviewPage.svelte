@@ -647,6 +647,15 @@
           ? 'Parsed'
           : 'Parse failed';
 
+  // The context row under the status line; hidden when it would be empty.
+  $: hasContext =
+    processState.state !== 'idle' ||
+    lastProcessRedactionMode !== 'none' ||
+    (Boolean($state.result) &&
+      (Boolean(lastUsedProfileId) ||
+        lastRunRedactionMode !== 'none' ||
+        (sessionEngineEnabled && Boolean($state.session))));
+
   let processTone: BadgeTone = 'info';
   $: processTone =
     processState.state === 'done'
@@ -1191,13 +1200,15 @@
 
         <SessionStreamNotice />
 
-        {#if $state.result || processState.state !== 'idle'}
+        {#if hasContext}
           <div class="context-row">
             {#if $state.result}
-              <span class="ctx">
-                <span class="ctx-key">Profile</span>
-                <span class="mono">{lastUsedProfileId ?? 'none'}</span>
-              </span>
+              {#if lastUsedProfileId}
+                <span class="ctx" title="Source profile selected when this run started">
+                  <span class="ctx-key">Draft profile</span>
+                  <span class="mono">{lastUsedProfileId}</span>
+                </span>
+              {/if}
               {#if sessionEngineEnabled && $state.session}
                 {#if $state.session.mode === 'session'}
                   <span class="ctx">
@@ -1361,7 +1372,11 @@
           {:else if activeTab === 'extraction'}
             <ExtractionPanel text={$state.data} />
           {:else if activeTab === 'inspector'}
-            <HL7Inspector message={$hl7} selected={selectedLocation} />
+            <HL7Inspector
+              message={$hl7}
+              selected={selectedLocation}
+              on:selectPath={(e) => inspectPath(e.detail.path)}
+            />
           {:else if activeTab === 'profile'}
             <ProfileDraftPanel {fixes} onApplyFix={applyFix} />
           {:else if activeTab === 'process'}
