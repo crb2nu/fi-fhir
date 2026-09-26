@@ -135,7 +135,10 @@ if [ -f "$COMPOSE_FILE" ]; then
       exit 1
     fi
   "
-  check_required "Compose local IDE has preview and compatibility roles" bash -c '
+  # graphql:operator is only the transport grant. The operator control plane
+  # re-checks its own roles, so an IDE holding the grant without them gets a
+  # forbidden operator page (production, 2026-09-05..25). Require the bundle.
+  check_required "Compose local IDE has preview, compatibility, and operator roles" bash -c '
     file="'"$COMPOSE_FILE"'"
     roles=$(grep -E "^[[:space:]]*FI_FHIR_GRAPHQL_ROLES:" "$file" | head -1 | cut -d: -f2- | tr -d "\\\"[:space:]" )
     case ",$roles," in
@@ -146,13 +149,25 @@ if [ -f "$COMPOSE_FILE" ]; then
       *,graphql:operator,*) ;;
       *) echo "local IDE is missing graphql:operator"; exit 1 ;;
     esac
+    case ",$roles," in
+      *,integration.operator,*) ;;
+      *) echo "local IDE is missing integration.operator"; exit 1 ;;
+    esac
+    case ",$roles," in
+      *,integration.delivery.operator,*) ;;
+      *) echo "local IDE is missing integration.delivery.operator"; exit 1 ;;
+    esac
+    case ",$roles," in
+      *,integration.deployment.operator,*) ;;
+      *) echo "local IDE is missing integration.deployment.operator"; exit 1 ;;
+    esac
   '
 else
   echo "  [docker-compose.yaml] ... ⚠ file not found"
   ((warned++))
 fi
 
-check_required ".env.example local IDE has preview and compatibility roles" bash -c '
+check_required ".env.example local IDE has preview, compatibility, and operator roles" bash -c '
   file="'"$ENV_EXAMPLE"'"
   roles=$(grep -E "^[[:space:]]*FI_FHIR_GRAPHQL_ROLES=" "$file" | head -1 | cut -d= -f2- | tr -d "\\\"[:space:]" )
   case ",$roles," in
@@ -162,6 +177,18 @@ check_required ".env.example local IDE has preview and compatibility roles" bash
   case ",$roles," in
     *,graphql:operator,*) ;;
     *) echo ".env.example is missing graphql:operator"; exit 1 ;;
+  esac
+  case ",$roles," in
+    *,integration.operator,*) ;;
+    *) echo ".env.example is missing integration.operator"; exit 1 ;;
+  esac
+  case ",$roles," in
+    *,integration.delivery.operator,*) ;;
+    *) echo ".env.example is missing integration.delivery.operator"; exit 1 ;;
+  esac
+  case ",$roles," in
+    *,integration.deployment.operator,*) ;;
+    *) echo ".env.example is missing integration.deployment.operator"; exit 1 ;;
   esac
 '
 
