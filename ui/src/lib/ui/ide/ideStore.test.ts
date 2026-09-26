@@ -21,6 +21,7 @@ import {
   resolveNextWorkspaceTabId,
   resetIDEState,
   getIDEState,
+  restoreLayout,
 } from './ideStore';
 import type { EditorTab } from './types';
 
@@ -319,6 +320,24 @@ describe('ideStore', () => {
       localStorage.setItem('fi-fhir-ide-sidebar-width', 'not-a-number');
       resetIDEState();
       expect(get(ideState).sidebarWidth).toBe(280);
+    });
+
+    it('restores a layout saved on the Operations view', () => {
+      localStorage.setItem(
+        'fi-fhir-ide-layout',
+        JSON.stringify({
+          openTabs: [createWorkspaceTab('/operator')],
+          activeTabId: '/operator',
+          workspaceSplit: false,
+          bottomPanelOpen: false,
+          activePanelTab: 'output',
+          activeView: 'operator',
+        })
+      );
+
+      expect(restoreLayout()).toBe(true);
+      expect(get(ideState).activeView).toBe('operator');
+      expect(get(ideState).activeTabId).toBe('/operator');
     });
   });
 

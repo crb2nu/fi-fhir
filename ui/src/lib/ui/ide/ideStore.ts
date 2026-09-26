@@ -32,7 +32,7 @@ interface PersistedLayout {
 }
 
 const VALID_PANEL_TABS = new Set<PanelTab>(['output', 'problems', 'debug', 'trace', 'copilot']);
-const VALID_VIEWS = new Set<IDEView>(['hl7', 'workflows', 'events', 'profiles', 'terminology', 'system']);
+const VALID_VIEWS = new Set<IDEView>(['hl7', 'workflows', 'events', 'profiles', 'terminology', 'operator', 'system']);
 
 function loadLayout(): PersistedLayout | null {
   if (typeof window === 'undefined') return null;
