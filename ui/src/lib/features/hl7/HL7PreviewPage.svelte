@@ -347,7 +347,12 @@
   }
 
   async function run() {
-    state.update((s) => ({ ...s, loading: true, error: null, result: null }));
+    // A new run starts from no session state, so a run that fails before its
+    // first session update never leaves the previous run's "Preview complete"
+    // (or its diagnostics) on screen. The server session itself is reused.
+    const previousSessionId = $state.session?.mode === 'session' ? $state.session.id : null;
+    state.update((s) => ({ ...s, loading: true, error: null, result: null, session: null }));
+    setSessionDiagnostics(null);
     selectedPath = null;
     selectedLocation = null;
     const snapshot = getSnapshot();
@@ -364,7 +369,7 @@
         data,
         profileId,
         profile: $selectedProfile,
-        sessionId: $state.session?.mode === 'session' ? $state.session.id : null,
+        sessionId: previousSessionId,
         onSessionUpdate: (session) => {
           state.update((current) => ({ ...current, session }));
           setSessionDiagnostics(session);
@@ -1170,7 +1175,12 @@
       <div slot="secondary" class="results-pane" aria-label="Results" role="region">
         <div class="status-line">
           {#if sessionEngineEnabled && $state.session}
-            <SessionRunProgress session={$state.session} />
+            <div class="session-status">
+              <SessionRunProgress session={$state.session} />
+              {#if $state.error}
+                <p class="run-error" role="alert" title={$state.error}>{$state.error}</p>
+              {/if}
+            </div>
           {:else}
             <span class="run-state">
               <Badge tone={runTone} dot>{runLabel}</Badge>
@@ -1652,8 +1662,22 @@
     border-bottom: 1px solid var(--color-border-subtle);
   }
 
-  .status-line > :global(.run-progress) {
+  .session-status {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
     flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .run-error {
+    margin: 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-xs);
+    color: var(--color-danger-text);
   }
 
   .run-state {
