@@ -14,6 +14,23 @@ export const OPERATOR_BUNDLE = [
   'integration.deployment.operator'
 ];
 
+/**
+ * The copy register's banned phrases (`.loom/37` "Copy register", and
+ * `ui/docs/DESIGN.md` "Copy register"): the onboarding and marketing voice the
+ * design uplift removed. The `visual` project fails when any of them appears,
+ * case-sensitively as written, in `document.body.innerText` of a captured
+ * state. Extend this list — here, and only here — when a later lane retires
+ * another phrase.
+ */
+export const FORBIDDEN_COPY: readonly string[] = [
+  'Mission control',
+  'Build the interface',
+  'Recommended move',
+  'Demo data',
+  'Continue to',
+  'NEXT UP'
+];
+
 /** `GET /api/auth/status` for an authenticated caller (Lane R-A's contract). */
 export interface AuthStatus {
   authenticated: boolean;

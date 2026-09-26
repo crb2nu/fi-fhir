@@ -1197,10 +1197,13 @@ event-backends:
 # on, and two negative controls (no integration.operator; sessions off). This
 # runs ui/e2e/ci.sh, the job's whole script, in the job's image on a docker
 # context with PostgreSQL sharing its network namespace, so nothing but docker
-# and go is needed here. Results land in ui/e2e-results/.
+# and go is needed here. Results land in ui/e2e-results/. A fourth project,
+# `visual` (.loom/37 U-4), captures every route at 1440x900 into
+# ui/e2e-results/visual/ and asserts the copy register.
 #
-#   make ui-e2e                                      # all three projects
+#   make ui-e2e                                      # all four projects
 #   make ui-e2e UI_E2E_ARGS="--project sessions-off" # one project, no existence guard
+#   make ui-e2e UI_E2E_ARGS="--project visual"       # just the review screenshots
 #   UI_E2E_DOCKER_CONTEXT=other make ui-e2e          # another docker host
 ui-e2e:
 	NPM_VERSION=$(NPM_VERSION) bash ui/e2e/docker.sh $(UI_E2E_ARGS)

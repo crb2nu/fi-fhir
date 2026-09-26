@@ -11,6 +11,9 @@
 #   UI_E2E_NODE_IMAGE      job image (default: the CI image, through Harbor)
 #   UI_E2E_PG_IMAGE        service image (default: the CI image, through Harbor)
 #   UI_E2E_KEEP=1          leave the containers running for docker exec
+#   UI_E2E_NAME            container name (default fi-fhir-ui-e2e-$USER; the
+#                          PostgreSQL container is "$UI_E2E_NAME-pg"), so two
+#                          worktrees can run at once on one docker host
 #
 # Results (report, junit, screenshots, traces, API and nginx logs) are copied
 # back to ui/e2e-results/.
@@ -25,7 +28,7 @@ PG_IMAGE=${UI_E2E_PG_IMAGE:-registry.harbor.lan/dockerhub-cache/library/postgres
 NPM_VERSION=${NPM_VERSION:-10.9.3}
 # ci.sh checks the installed version against this; CI keys its browser cache on it.
 PLAYWRIGHT_VERSION=${PLAYWRIGHT_VERSION:-$(sed -n 's/.*"@playwright\/test": "\([^"]*\)".*/\1/p' "$UI_DIR/package.json")}
-NAME=fi-fhir-ui-e2e-$(id -un)
+NAME=${UI_E2E_NAME:-fi-fhir-ui-e2e-$(id -un)}
 WORKDIR=/builds/fi-fhir
 
 dk() { docker --context "$CONTEXT" "$@"; }
