@@ -203,7 +203,7 @@
 
   .title {
     margin: 0 0 var(--space-2);
-    font-family: var(--font-heading);
+    font-family: var(--font-ui);
     font-size: var(--text-lg);
     color: var(--color-text-primary);
   }

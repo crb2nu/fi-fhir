@@ -361,7 +361,7 @@
 
   .block-title {
     margin: 0 0 var(--space-2);
-    font-family: var(--font-heading);
+    font-family: var(--font-ui);
     font-size: var(--text-2xs);
     text-transform: uppercase;
     letter-spacing: 0.05em;

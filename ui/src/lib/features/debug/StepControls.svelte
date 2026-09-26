@@ -149,7 +149,6 @@
     background: var(--color-primary-muted);
     color: var(--color-primary);
     border-color: var(--color-primary-border);
-    box-shadow: 0 0 8px var(--color-primary-glow);
   }
 
   .control-btn:disabled {

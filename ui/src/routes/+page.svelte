@@ -353,7 +353,7 @@
 
   h1 {
     margin: 0;
-    font-family: var(--font-heading);
+    font-family: var(--font-ui);
     color: var(--color-text-primary);
     font-size: clamp(var(--text-xl), 2.4vw, 2rem);
     line-height: var(--leading-tight);
@@ -435,7 +435,7 @@
 
   .section-title {
     margin: 0 0 var(--space-3) 0;
-    font-family: var(--font-heading);
+    font-family: var(--font-ui);
     font-size: var(--text-base);
     font-weight: var(--font-semibold);
     color: var(--color-text-primary);

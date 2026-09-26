@@ -335,7 +335,7 @@
 <div class="ide-shell">
   <!-- Compact header -->
   <header class="ide-header">
-    <a class="ide-brand text-gradient" href={resolve('/')}>fi-fhir</a>
+    <a class="ide-brand" href={resolve('/')}>fi-fhir</a>
 
     <div class="ide-header-center">
       {#if !isHL7Route($page.url.pathname)}

@@ -212,7 +212,7 @@
 
   h1 {
     margin: var(--space-3) 0 0;
-    font-family: var(--font-heading);
+    font-family: var(--font-ui);
     font-size: clamp(var(--text-2xl), 5vw, 2rem);
     line-height: var(--leading-tight);
   }
@@ -288,11 +288,7 @@
     margin-top: var(--space-1);
     border: 1px solid var(--color-primary-border);
     color: var(--color-text-inverse);
-    background: linear-gradient(
-      120deg,
-      var(--color-brand-gradient-start),
-      var(--color-brand-gradient-end)
-    );
+    background: var(--color-primary);
   }
 
   .install-button:hover:not(:disabled) {

@@ -989,7 +989,7 @@
 
   .card.expanded {
     border-color: var(--color-primary-border);
-    box-shadow: 0 0 0 1px var(--color-primary-glow);
+    box-shadow: 0 0 0 1px var(--color-primary-border);
   }
 
   .card-header {

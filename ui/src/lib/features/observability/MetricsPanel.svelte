@@ -409,9 +409,6 @@
   .error-normal { color: var(--color-warning); }
   .dlq-color { color: var(--color-warning); }
 
-  .metric-card:hover .throughput-color {
-    text-shadow: 0 0 12px var(--color-primary-glow);
-  }
 
   /* Latency breakdown */
   .latency-breakdown {

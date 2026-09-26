@@ -1,14 +1,15 @@
 /**
- * Base Styles for fi-fhir UI
+ * Base styles for the fi-fhir IDE
  *
  * Global resets, default element styles, and utility classes.
- * Import after tokens.css in +layout.svelte.
+ * Import after tokens.css in +layout.svelte. Rules: ui/docs/DESIGN.md.
  */
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * SELF-HOSTED FONTS
- * Geist Sans (SIL OFL) — heading voice, self-hosted for air-gapped/locked-down
- * healthcare deployments (no CDN dependency). Body stays Inter (see app.html).
+ * Geist Sans (SIL OFL) — the wordmark only (`--font-heading`), self-hosted for
+ * air-gapped/locked-down healthcare deployments (no CDN dependency). Everything
+ * else, headings included, is Inter (`--font-ui`, loaded in app.html).
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 @font-face {
@@ -41,7 +42,11 @@ html {
 }
 
 body {
-  line-height: var(--leading-normal);
+  font-family: var(--font-ui);
+  font-size: var(--text-ui);
+  line-height: var(--leading-ui);
+  color: var(--color-text-primary);
+  background: var(--color-bg-base);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -74,31 +79,17 @@ h6 {
   overflow-wrap: break-word;
 }
 
+/* Headings are UI text: Inter, semibold, no hero sizes. Geist is reserved for
+   the wordmark (`--font-heading`). */
 h1,
 h2,
 h3,
 h4,
 h5,
 h6 {
-  font-family: var(--font-heading);
-  font-weight: var(--font-bold);
-  letter-spacing: var(--tracking-tight);
-}
-
-/* Glassmorphism utility */
-.bg-glass {
-  background: var(--color-bg-overlay);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--color-border-subtle);
-}
-
-/* Gradient Text utility */
-.text-gradient {
-  background: linear-gradient(135deg, var(--color-brand-gradient-start), var(--color-brand-gradient-end));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  font-family: var(--font-ui);
+  font-weight: var(--font-semibold);
+  letter-spacing: var(--tracking-normal);
 }
 
 /* Remove default button styles */
@@ -161,10 +152,10 @@ input[type='search']::-webkit-search-results-decoration {
   outline: none;
 }
 
-/* Custom focus ring for keyboard navigation */
+/* Keyboard focus ring: the accent, crisp, never a glow. */
 :focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
 }
 
 /* Focus ring utility class */
@@ -203,7 +194,26 @@ input[type='search']::-webkit-search-results-decoration {
 
 .uppercase {
   text-transform: uppercase;
-  letter-spacing: var(--tracking-wide);
+  letter-spacing: var(--tracking-label);
+}
+
+/* Label register: 11px uppercase, tracked — field labels, table headers. */
+.text-label {
+  font-size: var(--text-label);
+  font-weight: var(--font-medium);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+/* Monospace register: identifiers, code, numbers. */
+.text-mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-mono);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }
 
 .truncate {
@@ -332,15 +342,10 @@ input[type='search']::-webkit-search-results-decoration {
   animation: scaleIn var(--duration-normal) var(--ease-out);
 }
 
+/* Loading placeholder: a flat surface that pulses (no gradient sweep). */
 .animate-shimmer {
-  background: linear-gradient(
-    90deg,
-    var(--color-bg-elevated) 25%,
-    var(--color-bg-surface) 50%,
-    var(--color-bg-elevated) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+  background: var(--color-bg-active);
+  animation: pulse 1.5s var(--ease-in-out) infinite;
 }
 
 .animate-pulse {
@@ -421,46 +426,47 @@ input[type='search']::-webkit-search-results-decoration {
   white-space: normal;
 }
 
-/* Reduced motion */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
 /* ═══════════════════════════════════════════════════════════════════════════
  * SCROLLBAR STYLING
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Custom scrollbar for webkit browsers */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* Neutral, thin, trackless. Standard properties win in current Chromium and
+   Firefox; the ::-webkit-scrollbar rules cover older WebKit. */
+:root {
+  --scrollbar-thumb: rgba(255, 255, 255, 0.16);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.28);
 }
 
-::-webkit-scrollbar-track {
-  background: var(--color-bg-elevated);
-  border-radius: var(--radius-full);
+:root[data-theme="light"] {
+  --scrollbar-thumb: rgba(16, 18, 22, 0.2);
+  --scrollbar-thumb-hover: rgba(16, 18, 22, 0.34);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border-strong);
-  border-radius: var(--radius-full);
+  background: var(--scrollbar-thumb);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+  border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-muted);
-}
-
-/* Firefox scrollbar */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-border-strong) var(--color-bg-elevated);
+  background: var(--scrollbar-thumb-hover);
+  background-clip: padding-box;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

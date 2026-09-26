@@ -202,7 +202,7 @@
   }
 
   .state-title {
-    font-family: var(--font-heading);
+    font-family: var(--font-ui);
     font-size: var(--text-sm);
     font-weight: var(--font-semibold);
     color: var(--color-text-primary);
