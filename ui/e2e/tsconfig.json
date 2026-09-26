@@ -1,0 +1,18 @@
+{
+  // The Playwright specs and config sit outside the SvelteKit tsconfig (which
+  // covers src/ only) and outside vitest's include; this type-checks them.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM"],
+    "types": ["node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["./*.ts", "../playwright.config.ts"]
+}
