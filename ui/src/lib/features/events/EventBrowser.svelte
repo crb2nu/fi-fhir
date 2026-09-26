@@ -1,41 +1,65 @@
+<!--
+  EventBrowser — Events › Browse: a filters row, the event table (newest
+  first, server-paged), and a details pane for the selected row. Up/Down move
+  the selection; the pane follows it.
+
+  The table shows the Event interface the browse query selects: time, type,
+  source, format, event id and correlation id. There is no per-event status in
+  that contract, so the table does not invent one.
+-->
 <script lang="ts">
+  import { untrack } from 'svelte';
+  import CircleAlert from '@lucide/svelte/icons/circle-alert';
+  import Inbox from '@lucide/svelte/icons/inbox';
+  import MousePointerClick from '@lucide/svelte/icons/mouse-pointer-click';
+  import RefreshCw from '@lucide/svelte/icons/refresh-cw';
+  import type { EventOrderBy, EventsQuery, EventFilter, EventType } from '$lib/gen/graphql';
+  import { Button, EmptyState, Input, Select, Table, Td, Th, Tr } from '$lib/ui/primitives';
+  import EventDetail from './EventDetail.svelte';
+  import { EVENT_TYPES, formatEventTime } from './eventFormat';
   import { queryEvents } from './eventsApi';
-  import type { EventsQuery, EventFilter, EventType, EventOrderBy } from '$lib/gen/graphql';
-  import Button from '$lib/ui/Button.svelte';
-  import Badge from '$lib/ui/Badge.svelte';
-  import EmptyState from '$lib/ui/EmptyState.svelte';
-  import { createEventDispatcher } from 'svelte';
 
   type EventEdge = EventsQuery['events']['edges'][number];
   type EventNode = EventEdge['node'];
 
-  const dispatch = createEventDispatcher<{ select: { event: EventNode } }>();
+  interface Props {
+    /** Total matching events, for the route toolbar's count badge. */
+    totalCount?: number;
+    /** Whether a page is loading, for the route toolbar. */
+    loading?: boolean;
+  }
 
-  let edges: EventEdge[] = [];
-  let totalCount = 0;
-  let loading = false;
-  let error: string | null = null;
-  let endCursor: string | null = null;
-  let hasNextPage = false;
+  let { totalCount = $bindable(0), loading = $bindable(false) }: Props = $props();
 
-  // Filters
-  let filterType: EventType | 'ALL' = 'ALL';
-  let filterSource = '';
-  let pageSize = 50;
-  let filterSummary = 'All downstream events';
-  let windowSummary = 'Showing 50 events per page';
-  const pageSizes = [25, 50, 100] as const;
+  const ORDER: EventOrderBy = { field: 'TIMESTAMP', direction: 'DESC' };
 
-  const eventTypes: EventType[] = [
-    'PATIENT_ADMIT', 'PATIENT_DISCHARGE', 'PATIENT_TRANSFER', 'PATIENT_UPDATE',
-    'LAB_RESULT', 'LAB_ORDERED', 'APPOINTMENT_SCHEDULED', 'APPOINTMENT_CANCELLED',
-    'CLAIM_SUBMITTED', 'CLAIM_ADJUDICATED', 'VITAL_SIGN', 'CONDITION',
-    'PROCEDURE', 'IMMUNIZATION', 'DOCUMENT'
+  let edges = $state<EventEdge[]>([]);
+  let error = $state<string | null>(null);
+  let endCursor = $state<string | null>(null);
+  let hasNextPage = $state(false);
+  let loaded = $state(false);
+  let selectedId = $state<string | null>(null);
+
+  let filterType = $state('');
+  let filterSource = $state('');
+  let pageSize = $state('50');
+
+  const typeOptions = [
+    { value: '', label: 'All types' },
+    ...EVENT_TYPES.map((type) => ({ value: type, label: type }))
+  ];
+  const windowOptions = [
+    { value: '25', label: '25 events' },
+    { value: '50', label: '50 events' },
+    { value: '100', label: '100 events' }
   ];
 
+  const selected = $derived(edges.find((edge) => edge.node.id === selectedId)?.node ?? null);
+
   function buildFilter(): EventFilter | null {
-    const types = filterType !== 'ALL' ? [filterType] : null;
-    const sources = filterSource.trim() ? [filterSource.trim()] : null;
+    const types = filterType ? [filterType as EventType] : null;
+    const source = filterSource.trim();
+    const sources = source ? [source] : null;
     if (!types && !sources) return null;
     return {
       types,
@@ -47,400 +71,200 @@
     };
   }
 
-  function handlePageSizeChange(event: Event): void {
-    pageSize = Number((event.currentTarget as HTMLSelectElement).value);
-  }
-
-  async function loadEvents(append = false) {
+  async function loadEvents(append = false): Promise<void> {
     loading = true;
     error = null;
     try {
       const result = await queryEvents(
         buildFilter(),
-        pageSize,
+        Number(pageSize),
         append ? endCursor : null,
-        { field: 'TIMESTAMP', direction: 'DESC' } as EventOrderBy
+        ORDER
       );
-      if (append) {
-        edges = [...edges, ...result.edges];
-      } else {
-        edges = result.edges;
-      }
+      edges = append ? [...edges, ...result.edges] : result.edges;
       totalCount = result.totalCount;
       endCursor = result.pageInfo.endCursor ?? null;
       hasNextPage = result.pageInfo.hasNextPage;
+      if (selectedId && !edges.some((edge) => edge.node.id === selectedId)) selectedId = null;
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to load events';
     } finally {
       loading = false;
+      loaded = true;
     }
   }
 
-  function refresh() {
+  function refresh(): void {
     endCursor = null;
-    loadEvents();
+    void loadEvents();
   }
 
-  function loadMore() {
-    loadEvents(true);
-  }
+  // Type and window apply at once; the source filter applies on Enter or
+  // Refresh so typing does not fire a query per keystroke.
+  $effect(() => {
+    void filterType;
+    void pageSize;
+    untrack(refresh);
+  });
 
-  function formatTimestamp(ts: string): string {
-    try {
-      return new Date(ts).toLocaleString();
-    } catch {
-      return ts;
-    }
-  }
-
-  function formatEventType(type: string): string {
-    return type.replace(/_/g, ' ');
-  }
-
-  type BadgeVariant = 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'info';
-
-  function typeBadgeVariant(type: string): BadgeVariant {
-    if (type.startsWith('PATIENT_')) return 'info';
-    if (type.startsWith('LAB_')) return 'success';
-    if (type.startsWith('APPOINTMENT_')) return 'warning';
-    if (type.startsWith('CLAIM_') || type.startsWith('PRIOR_') || type.startsWith('ELIGIBILITY_')) return 'primary';
-    return 'default';
-  }
-
-  function formatFilterSummary(): string {
-    const parts: string[] = [];
-
-    if (filterType !== 'ALL') {
-      parts.push(formatEventType(filterType));
-    }
-    if (filterSource.trim()) {
-      parts.push(`source ${filterSource.trim()}`);
-    }
-
-    return parts.length > 0 ? `Filtered by ${parts.join(' · ')}` : 'All downstream events';
-  }
-
-  // Reload when filters change
-  let lastFilterKey = '';
-  $: {
-    filterSummary = formatFilterSummary();
-    windowSummary = `Showing ${pageSize} events per page`;
-
-    const key = `${filterType}|${filterSource}|${pageSize}`;
-    if (key !== lastFilterKey) {
-      lastFilterKey = key;
-      refresh();
-    }
+  function select(node: EventNode): void {
+    selectedId = node.id;
   }
 </script>
 
 <div class="browser">
-  <div class="hero">
-    <div class="hero-copy">
-      <p class="eyebrow">Downstream verification</p>
-      <h2>Event browser</h2>
-      <p class="hero-text">
-        Use this view to confirm what arrived after an integration run. Start broad, then narrow
-        by source or event type when something looks off.
-      </p>
+  <form
+    class="filters"
+    aria-label="Event filters"
+    onsubmit={(event) => {
+      event.preventDefault();
+      refresh();
+    }}
+  >
+    <div class="filter filter-type">
+      <Select aria-label="Type" bind:value={filterType} options={typeOptions} />
     </div>
-
-    <div class="hero-stats" aria-label="Event browser summary">
-      <div class="stat">
-        <span class="stat-label">Total</span>
-        <span class="stat-value">{totalCount}</span>
-      </div>
-      <div class="stat">
-        <span class="stat-label">Window</span>
-        <span class="stat-value">{windowSummary}</span>
-      </div>
-      <div class="stat">
-        <span class="stat-label">Scope</span>
-        <span class="stat-value">{filterSummary}</span>
-      </div>
+    <div class="filter filter-source">
+      <Input aria-label="Source" bind:value={filterSource} placeholder="Source" mono />
     </div>
-  </div>
+    <div class="filter filter-window">
+      <Select aria-label="Window" bind:value={pageSize} options={windowOptions} />
+    </div>
+    <Button type="submit" icon={RefreshCw} {loading}>Refresh</Button>
+  </form>
 
-  <div class="toolbar">
-    <div class="filters">
-      <label class="filter">
-        Type
-        <select class="select" bind:value={filterType}>
-          <option value="ALL">All types</option>
-          {#each eventTypes as type (type)}
-            <option value={type}>{formatEventType(type)}</option>
-          {/each}
-        </select>
-      </label>
-
-      <label class="filter">
-        Source
-        <input
-          aria-label="Filter by source"
-          type="text"
-          class="input"
-          bind:value={filterSource}
-          placeholder="Filter downstream source..."
+  <div class="split">
+    <div class="list">
+      {#if error}
+        <EmptyState
+          icon={CircleAlert}
+          message={`Events could not be loaded: ${error}`}
+          actionLabel="Retry"
+          onaction={refresh}
         />
-      </label>
-
-      <label class="filter compact">
-        Window
-        <select class="select" value={pageSize} on:change={handlePageSizeChange}>
-          {#each pageSizes as size (size)}
-            <option value={size}>{size} events</option>
+      {:else if loaded && edges.length === 0}
+        <EmptyState icon={Inbox} message="No events match these filters." />
+      {:else}
+        <Table label="Events" layout="fixed" class="events-table">
+          {#snippet head()}
+            <tr>
+              <Th width="156px">Time</Th>
+              <Th width="176px">Type</Th>
+              <Th width="120px">Source</Th>
+              <Th width="72px">Format</Th>
+              <Th>Event id</Th>
+              <Th>Correlation id</Th>
+            </tr>
+          {/snippet}
+          {#each edges as edge (edge.cursor)}
+            <Tr
+              selectable
+              selected={edge.node.id === selectedId}
+              onselect={() => select(edge.node)}
+              onfocus={() => select(edge.node)}
+            >
+              <Td mono muted value={formatEventTime(edge.node.timestamp)} />
+              <Td mono truncate value={edge.node.type} />
+              <Td mono truncate value={edge.node.source} />
+              <Td muted value={edge.node.sourceFormat ?? '—'} />
+              <Td mono truncate value={edge.node.id} />
+              <Td mono truncate muted value={edge.node.correlationId ?? '—'} />
+            </Tr>
           {/each}
-        </select>
-      </label>
-    </div>
-
-    <div class="actions">
-      <span class="count">{totalCount} events</span>
-      <Button variant="secondary" size="sm" on:click={refresh} {loading}>
-        Refresh
-      </Button>
-    </div>
-  </div>
-
-  {#if error}
-    <EmptyState icon="error" title="Failed to load events" description={error}>
-      <Button variant="secondary" on:click={refresh}>Retry</Button>
-    </EmptyState>
-  {:else if edges.length === 0 && !loading}
-    <EmptyState
-      icon="inbox"
-      title="No downstream events found"
-      description="Events will appear here once integrations emit processed records."
-    />
-  {:else}
-    <div class="event-list">
-      {#each edges as edge (edge.cursor)}
-        <button
-          class="event-row"
-          type="button"
-          aria-label={`${formatEventType(edge.node.type)} from ${edge.node.source} at ${formatTimestamp(edge.node.timestamp)}`}
-          on:click={() => dispatch('select', { event: edge.node })}
-        >
-          <div class="event-main">
-            <div class="event-topline">
-              <span class="time mono">{formatTimestamp(edge.node.timestamp)}</span>
-              <Badge variant={typeBadgeVariant(edge.node.type)} size="sm" pill>{formatEventType(edge.node.type)}</Badge>
-            </div>
-
-            <div class="event-bottomline">
-              <span class="source mono">{edge.node.source}</span>
-              <span class="id muted mono" title={edge.node.id}>ID {edge.node.id.slice(0, 10)}...</span>
-            </div>
+        </Table>
+        {#if hasNextPage}
+          <div class="more">
+            <Button variant="ghost" {loading} onclick={() => void loadEvents(true)}>Load more</Button>
           </div>
-        </button>
-      {/each}
+        {/if}
+      {/if}
     </div>
 
-    {#if hasNextPage}
-      <div class="load-more">
-        <Button variant="secondary" size="sm" on:click={loadMore} {loading}>
-          Load more
-        </Button>
-      </div>
-    {/if}
-  {/if}
+    <aside class="details" aria-label="Selected event">
+      {#if selected}
+        <EventDetail event={selected} onClose={() => (selectedId = null)} />
+      {:else}
+        <EmptyState
+          icon={MousePointerClick}
+          align="start"
+          message="Select an event to see its record."
+        />
+      {/if}
+    </aside>
+  </div>
 </div>
 
 <style>
   .browser {
-    display: grid;
-    gap: 16px;
-  }
-
-  .hero {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(240px, 0.8fr);
-    gap: 16px;
-    align-items: stretch;
-  }
-
-  .hero-copy,
-  .hero-stats {
-    padding: 16px;
-    border-radius: 18px;
-    border: 1px solid var(--color-border-subtle);
-    background: var(--color-bg-surface);
-  }
-
-  .eyebrow {
-    margin: 0 0 6px;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    font-size: 0.7rem;
-    font-weight: 700;
-    color: var(--color-text-tertiary);
-  }
-
-  h2 {
-    margin: 0 0 8px;
-    font-size: 1.4rem;
-    color: var(--color-text-primary);
-  }
-
-  .hero-text {
-    margin: 0;
-    color: var(--color-text-secondary);
-    line-height: 1.55;
-  }
-
-  .hero-stats {
-    display: grid;
-    gap: 10px;
-  }
-
-  .stat {
-    display: grid;
-    gap: 3px;
-  }
-
-  .stat-label {
-    color: var(--color-text-tertiary);
-    font-size: 0.72rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    font-weight: 700;
-  }
-
-  .stat-value {
-    color: var(--color-text-primary);
-    font-weight: 700;
-    line-height: 1.35;
-  }
-
-  .toolbar {
     display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    gap: 12px;
-    flex-wrap: wrap;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
   .filters {
     display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-    align-items: flex-end;
-  }
-
-  .filter {
-    display: grid;
-    gap: 6px;
-    color: var(--color-text-secondary);
-    font-size: 0.9rem;
-    font-weight: 700;
-    min-width: 160px;
-  }
-
-  .filter.compact {
-    min-width: 140px;
-  }
-
-  .select,
-  .input {
-    padding: 8px 12px;
-    border-radius: 10px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-input);
-    color: var(--color-text-primary);
-    outline: none;
-  }
-
-  .select:focus,
-  .input:focus {
-    border-color: var(--color-border-focus);
-    box-shadow: var(--shadow-focus);
-  }
-
-  .actions {
-    display: flex;
     align-items: center;
-    gap: 12px;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
   }
 
-  .count {
-    color: var(--color-text-tertiary);
-    font-size: 0.85rem;
-    font-weight: 700;
+  .filter-type {
+    width: 200px;
   }
 
-  .event-list {
+  .filter-source {
+    width: 200px;
+  }
+
+  .filter-window {
+    width: 128px;
+  }
+
+  .split {
     display: grid;
-    gap: 8px;
-    max-height: 600px;
-    overflow-y: auto;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
-  .event-row {
-    display: grid;
-    padding: 12px 14px;
-    border-radius: 12px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-elevated);
-    cursor: pointer;
-    text-align: left;
-    width: 100%;
-    color: inherit;
-    font: inherit;
-    transition: var(--transition-colors);
-  }
-
-  .event-row:focus-visible {
-    outline: none;
-    border-color: var(--color-border-focus);
-    box-shadow: var(--shadow-focus);
-  }
-
-  .event-row:hover {
-    background: var(--color-bg-hover);
-    border-color: var(--color-border-strong);
-  }
-
-  .event-main {
-    display: grid;
-    gap: 6px;
+  .list {
+    display: flex;
+    flex-direction: column;
     min-width: 0;
+    min-height: 0;
   }
 
-  .event-topline,
-  .event-bottomline {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
+  .list :global(.events-table) {
+    flex: 0 1 auto;
+    min-height: 0;
   }
 
-  .time {
-    color: var(--color-text-tertiary);
-    font-size: 0.85rem;
-  }
-
-  .source {
-    color: var(--color-text-secondary);
-    font-size: 0.85rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .mono { font-family: var(--font-mono); }
-  .muted { color: var(--color-text-muted); }
-
-  .id { font-size: 0.8rem; }
-
-  .load-more {
+  .more {
     display: flex;
     justify-content: center;
-    padding-top: 8px;
+    padding: var(--space-2);
+    border-top: 1px solid var(--color-border-subtle);
   }
 
-  @media (max-width: 880px) {
-    .hero {
-      grid-template-columns: 1fr;
+  .details {
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+    padding: var(--space-3);
+    border-left: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-elevated);
+  }
+
+  @media (max-width: 960px) {
+    .split {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .details {
+      border-left: 0;
+      border-top: 1px solid var(--color-border-subtle);
     }
   }
 </style>

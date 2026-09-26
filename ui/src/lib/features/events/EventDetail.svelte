@@ -1,118 +1,109 @@
+<!--
+  EventDetail — the details pane beside the Events table: the record's fields
+  as KeyValue, then the record exactly as the API returned it. The browse
+  query selects the Event interface only (no clinical payload), so the viewer
+  shows those fields and nothing more.
+-->
 <script lang="ts">
+  import Copy from '@lucide/svelte/icons/copy';
+  import X from '@lucide/svelte/icons/x';
   import type { EventsQuery } from '$lib/gen/graphql';
-  import Badge from '$lib/ui/Badge.svelte';
-  import Button from '$lib/ui/Button.svelte';
+  import { IconButton, KeyValue } from '$lib/ui/primitives';
+  import { formatEventTime } from './eventFormat';
 
   type EventNode = EventsQuery['events']['edges'][number]['node'];
 
-  export let event: EventNode | null = null;
-  export let onClose: () => void = () => {};
-
-  function formatTimestamp(ts: string): string {
-    try {
-      return new Date(ts).toLocaleString();
-    } catch {
-      return ts;
-    }
+  interface Props {
+    event: EventNode;
+    onClose?: (() => void) | undefined;
   }
 
-  function formatType(type: string): string {
-    return type.replace(/_/g, ' ');
+  let { event, onClose }: Props = $props();
+
+  const payload = $derived(JSON.stringify(event, null, 2));
+
+  function copyId(): void {
+    void navigator.clipboard?.writeText(event.id).catch(() => {});
   }
 </script>
 
-{#if event}
-  <div class="detail-panel">
-    <div class="detail-header">
-      <h3 class="detail-title">Event Detail</h3>
-      <Button variant="ghost" size="sm" on:click={onClose}>Close</Button>
-    </div>
-
-    <div class="field-grid">
-      <div class="field">
-        <span class="label">ID</span>
-        <span class="value mono">{event.id}</span>
-      </div>
-
-      <div class="field">
-        <span class="label">Type</span>
-        <span class="value"><Badge variant="info">{formatType(event.type)}</Badge></span>
-      </div>
-
-      <div class="field">
-        <span class="label">Timestamp</span>
-        <span class="value">{formatTimestamp(event.timestamp)}</span>
-      </div>
-
-      <div class="field">
-        <span class="label">Source</span>
-        <span class="value mono">{event.source}</span>
-      </div>
-
-      {#if event.sourceFormat}
-        <div class="field">
-          <span class="label">Format</span>
-          <span class="value"><Badge variant="default" size="sm">{event.sourceFormat}</Badge></span>
-        </div>
+<div class="detail" data-testid="event-detail">
+  <div class="detail-head">
+    <span class="detail-title">{event.type}</span>
+    <span class="detail-actions">
+      <IconButton icon={Copy} label="Copy event id" onclick={copyId} />
+      {#if onClose}
+        <IconButton icon={X} label="Close details" onclick={onClose} />
       {/if}
-
-      {#if event.correlationId}
-        <div class="field">
-          <span class="label">Correlation ID</span>
-          <span class="value mono">{event.correlationId}</span>
-        </div>
-      {/if}
-    </div>
+    </span>
   </div>
-{/if}
+
+  <KeyValue
+    items={[
+      { key: 'Event id', value: event.id, mono: true, truncate: true },
+      { key: 'Time', value: formatEventTime(event.timestamp), mono: true },
+      { key: 'Source', value: event.source, mono: true },
+      { key: 'Format', value: event.sourceFormat },
+      { key: 'Correlation id', value: event.correlationId, mono: true, truncate: true }
+    ]}
+  />
+
+  <div class="payload-block">
+    <span class="text-label">Record</span>
+    <pre class="payload" aria-label="Event record as returned by the API">{payload}</pre>
+  </div>
+</div>
 
 <style>
-  .detail-panel {
-    padding: 16px;
-    border: 1px solid var(--color-border-default);
-    border-radius: 12px;
-    background: var(--color-bg-elevated);
-    display: grid;
-    gap: 16px;
+  .detail {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
   }
 
-  .detail-header {
+  .detail-head {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
   }
 
   .detail-title {
-    margin: 0;
-    color: var(--color-text-primary);
-    font-size: 1rem;
-  }
-
-  .field-grid {
-    display: grid;
-    gap: 12px;
-  }
-
-  .field {
-    display: grid;
-    gap: 4px;
-  }
-
-  .label {
-    color: var(--color-text-tertiary);
-    font-size: 0.8rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .value {
-    color: var(--color-text-primary);
-    font-size: 0.9rem;
-    word-break: break-all;
-  }
-
-  .mono {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-family: var(--font-mono);
+    font-size: var(--text-ui);
+    font-weight: var(--font-semibold);
+    color: var(--color-text-primary);
+  }
+
+  .detail-actions {
+    display: flex;
+    margin-left: auto;
+  }
+
+  .payload-block {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-height: 0;
+  }
+
+  .payload {
+    margin: 0;
+    padding: var(--space-2);
+    max-height: 320px;
+    overflow: auto;
+    background: var(--color-bg-input);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
+    line-height: var(--leading-ui);
+    color: var(--color-text-secondary);
+    white-space: pre;
   }
 </style>

@@ -1,11 +1,34 @@
 <script lang="ts">
+  /**
+   * Events › Live Stream: a tail of the `eventStream` subscription.
+   *
+   * When the deployment cannot stream `eventStream` (streaming off, or the root
+   * is not allowlisted) the panel renders the honest StreamingUnavailable state
+   * and never opens the subscription.
+   */
   import { onMount, onDestroy } from 'svelte';
+  import Pause from '@lucide/svelte/icons/pause';
+  import Play from '@lucide/svelte/icons/play';
+  import RotateCw from '@lucide/svelte/icons/rotate-cw';
+  import Radio from '@lucide/svelte/icons/radio';
+  import Eraser from '@lucide/svelte/icons/eraser';
   import { subscribe as wsSubscribe } from '$lib/graphql/subscriptions';
   import { noteStreamError, streamStatus } from '$lib/graphql/streamAvailability';
   import { EventStreamDocument, type EventStreamSubscription, type EventFilter, type EventType } from '$lib/gen/graphql';
-  import Button from '$lib/ui/Button.svelte';
-  import Badge from '$lib/ui/Badge.svelte';
+  import {
+    Badge,
+    Button,
+    EmptyState,
+    Input,
+    Select,
+    Table,
+    Td,
+    Th,
+    Tr,
+    type BadgeTone
+  } from '$lib/ui/primitives';
   import StreamingUnavailable from '$lib/ui/StreamingUnavailable.svelte';
+  import { EVENT_TYPES, formatEventClock } from './eventFormat';
 
   /** Maximum number of events to display in the list */
   export let maxEvents: number = 100;
@@ -31,29 +54,14 @@
   let unsubscribe: (() => void) | null = null;
 
   // Filtering
-  let filterType: EventType | 'ALL' = 'ALL';
+  let filterType: EventType | '' = '';
   let filterSource: string = initialSource;
   let filterCorrelationId: string = initialCorrelationId;
   let paused = false;
 
-  // Available event types for filter dropdown
-  const eventTypes: EventType[] = [
-    'PATIENT_ADMIT',
-    'PATIENT_DISCHARGE',
-    'PATIENT_TRANSFER',
-    'PATIENT_UPDATE',
-    'LAB_RESULT',
-    'LAB_ORDERED',
-    'APPOINTMENT_SCHEDULED',
-    'APPOINTMENT_CANCELLED',
-    'APPOINTMENT_NOSHOW',
-    'CLAIM_SUBMITTED',
-    'CLAIM_ADJUDICATED',
-    'VITAL_SIGN',
-    'CONDITION',
-    'PROCEDURE',
-    'IMMUNIZATION',
-    'DOCUMENT'
+  const typeOptions = [
+    { value: '', label: 'All types' },
+    ...EVENT_TYPES.map((type) => ({ value: type, label: type }))
   ];
 
   function startSubscription() {
@@ -67,7 +75,7 @@
     connected = false;
 
     // Build filter based on current settings
-    const typeFilterValue = filterType !== 'ALL' ? filterType : null;
+    const typeFilterValue = filterType || null;
     const sourceFilterValue = filterSource.trim() || null;
     const correlationIdValue = filterCorrelationId.trim() || null;
     const filter: EventFilter | null = typeFilterValue || sourceFilterValue || correlationIdValue
@@ -124,42 +132,6 @@
     paused = !paused;
   }
 
-  function formatTimestamp(ts: string): string {
-    try {
-      return new Date(ts).toLocaleTimeString();
-    } catch {
-      return ts;
-    }
-  }
-
-  function formatEventType(type: EventType): string {
-    return type.replace(/_/g, ' ');
-  }
-
-  type BadgeVariant = 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'info';
-
-  function typeBadgeVariant(type: EventType): BadgeVariant {
-    switch (type) {
-      case 'PATIENT_ADMIT':
-      case 'PATIENT_DISCHARGE':
-      case 'PATIENT_TRANSFER':
-      case 'PATIENT_UPDATE':
-        return 'info';
-      case 'LAB_RESULT':
-      case 'LAB_ORDERED':
-        return 'success';
-      case 'APPOINTMENT_SCHEDULED':
-      case 'APPOINTMENT_CANCELLED':
-      case 'APPOINTMENT_NOSHOW':
-        return 'warning';
-      case 'CLAIM_SUBMITTED':
-      case 'CLAIM_ADJUDICATED':
-        return 'primary';
-      default:
-        return 'default';
-    }
-  }
-
   onMount(() => {
     // Prevent an immediate resubscribe after the initial connect.
     lastFilterKey = `${filterType}|${filterSource.trim()}|${filterCorrelationId.trim()}`;
@@ -179,262 +151,132 @@
       startSubscription();
     }
   }
+
+  let connectionTone: BadgeTone = 'neutral';
+  $: connectionTone = error ? 'danger' : connected ? 'success' : 'neutral';
+  $: connectionLabel = error ? 'Error' : connected ? 'Connected' : 'Connecting…';
 </script>
 
-<div class="panel">
+<div class="stream">
   {#if unavailable}
-    <StreamingUnavailable
-      root="eventStream"
-      subject="the event stream"
-      reason={unavailable.reason}
-      alternative={unavailableAlternative}
-    />
-  {:else}
-  <div class="controls">
-    <div class="status">
-      <span class="indicator" class:connected class:error={!!error}></span>
-      {#if error}
-        <span class="status-text error">{error}</span>
-      {:else if connected}
-        <span class="status-text">Connected</span>
-      {:else}
-        <span class="status-text">Connecting...</span>
-      {/if}
+    <div class="unavailable">
+      <StreamingUnavailable
+        root="eventStream"
+        subject="the event stream"
+        reason={unavailable.reason}
+        alternative={unavailableAlternative}
+      />
     </div>
-
-    <div class="actions">
-      <Button variant="secondary" on:click={togglePause}>
+  {:else}
+    <div class="filters" role="group" aria-label="Stream filters">
+      <Badge tone={connectionTone} dot data-testid="stream-state">{connectionLabel}</Badge>
+      <div class="filter filter-type">
+        <Select aria-label="Event type" bind:value={filterType} options={typeOptions} />
+      </div>
+      <div class="filter">
+        <Input aria-label="Filter by source" bind:value={filterSource} placeholder="Source" mono />
+      </div>
+      <div class="filter">
+        <Input
+          aria-label="Filter by correlation ID"
+          bind:value={filterCorrelationId}
+          placeholder="Correlation id"
+          mono
+        />
+      </div>
+      <span class="spacer"></span>
+      {#if paused}
+        <Badge tone="warning">Paused</Badge>
+      {/if}
+      <Badge mono>{events.length} / {maxEvents}</Badge>
+      <Button variant="ghost" icon={paused ? Play : Pause} onclick={togglePause}>
         {paused ? 'Resume' : 'Pause'}
       </Button>
-      <Button variant="secondary" on:click={clearEvents}>
-        Clear
-      </Button>
-      <Button variant="secondary" on:click={startSubscription}>
-        Reconnect
-      </Button>
+      <Button variant="ghost" icon={Eraser} onclick={clearEvents}>Clear</Button>
+      <Button variant="ghost" icon={RotateCw} onclick={startSubscription}>Reconnect</Button>
     </div>
-  </div>
 
-  <div class="filters">
-    <label class="filter">
-      Event Type
-      <select class="select" bind:value={filterType}>
-        <option value="ALL">All Types</option>
-        {#each eventTypes as type (type)}
-          <option value={type}>{formatEventType(type)}</option>
+    {#if error}
+      <p class="stream-error" role="alert">{error}</p>
+    {/if}
+
+    {#if events.length === 0}
+      <EmptyState
+        icon={Radio}
+        message={connected
+          ? 'Waiting for events. They appear here as they stream.'
+          : error
+            ? 'The event stream is not connected.'
+            : 'Connecting to the event stream.'}
+      />
+    {:else}
+      <Table label="Streamed events" layout="fixed" class="stream-table">
+        {#snippet head()}
+          <tr>
+            <Th width="88px">Time</Th>
+            <Th width="176px">Type</Th>
+            <Th width="140px">Source</Th>
+            <Th>Correlation id</Th>
+            <Th>Event id</Th>
+          </tr>
+        {/snippet}
+        {#each events as event (event.id)}
+          <Tr>
+            <Td mono muted value={formatEventClock(event.timestamp)} />
+            <Td mono truncate value={event.type} />
+            <Td mono truncate value={event.source} />
+            <Td mono truncate muted value={event.correlationId ?? '—'} />
+            <Td mono truncate muted value={event.id} />
+          </Tr>
         {/each}
-      </select>
-    </label>
-
-    <label class="filter">
-      Source
-      <input
-        aria-label="Filter by source"
-        type="text"
-        class="input"
-        bind:value={filterSource}
-        placeholder="Filter by source..."
-      />
-    </label>
-
-    <label class="filter">
-      Correlation ID
-      <input
-        aria-label="Filter by correlation ID"
-        type="text"
-        class="input"
-        bind:value={filterCorrelationId}
-        placeholder="Filter by correlationId..."
-      />
-    </label>
-  </div>
-
-  {#if events.length === 0}
-    <div class="empty">
-      {#if connected}
-        Waiting for events... Events will appear here as they stream in real-time.
-      {:else if error}
-        Unable to connect to event stream. Check that the backend is running.
-      {:else}
-        Connecting to event stream...
-      {/if}
-    </div>
-  {:else}
-    <div class="event-list">
-      {#each events as event (event.id)}
-        <div class="event-row">
-          <span class="time mono">{formatTimestamp(event.timestamp)}</span>
-          <Badge variant={typeBadgeVariant(event.type)} size="sm" pill>{formatEventType(event.type)}</Badge>
-          <span class="source mono">{event.source}</span>
-          <span class="corr muted mono" title={event.correlationId ?? ''}>
-            {event.correlationId ? `${event.correlationId.slice(0, 10)}…` : '-'}
-          </span>
-          <span class="id muted mono" title={event.id}>{event.id.slice(0, 8)}...</span>
-        </div>
-      {/each}
-    </div>
-
-    <div class="footer muted">
-      Showing {events.length} of {maxEvents} max events
-      {#if paused}
-        <Badge variant="warning" size="sm">PAUSED</Badge>
-      {/if}
-    </div>
-  {/if}
+      </Table>
+    {/if}
   {/if}
 </div>
 
 <style>
-  .panel {
-    display: grid;
-    gap: 12px;
-  }
-
-  .controls {
+  .stream {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
-  .status {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .indicator {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: rgba(156, 163, 175, 0.5);
-    transition: background 0.2s ease;
-  }
-
-  .indicator.connected {
-    background: rgba(16, 185, 129, 0.85);
-    box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
-  }
-
-  .indicator.error {
-    background: rgba(239, 68, 68, 0.85);
-    box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
-  }
-
-  .status-text {
-    font-weight: 700;
-    color: var(--color-text-secondary);
-  }
-
-  .status-text.error {
-    color: rgba(254, 202, 202, 0.9);
-  }
-
-  .actions {
-    display: flex;
-    gap: 8px;
+  .unavailable {
+    padding: var(--space-3);
   }
 
   .filters {
     display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
   }
 
   .filter {
-    display: grid;
-    gap: 6px;
-    color: var(--color-text-secondary);
-    font-size: 0.9rem;
-    font-weight: 700;
-    min-width: 180px;
+    width: 180px;
   }
 
-  .select,
-  .input {
-    padding: 8px 12px;
-    border-radius: 10px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-input);
-    color: var(--color-text-primary);
-    outline: none;
+  .filter-type {
+    width: 200px;
   }
 
-  .select:focus,
-  .input:focus {
-    border-color: var(--color-border-focus);
-    box-shadow: var(--shadow-focus);
+  .spacer {
+    flex: 1 1 auto;
   }
 
-  .empty {
-    color: var(--color-text-tertiary);
-    padding: 24px;
-    text-align: center;
-    border: 1px dashed var(--color-border-strong);
-    border-radius: 12px;
+  .stream-error {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-danger-border);
+    background: var(--color-danger-bg);
+    color: var(--color-danger-text);
+    font-size: var(--text-xs);
   }
 
-  .event-list {
-    display: grid;
-    gap: 6px;
-    max-height: 400px;
-    overflow-y: auto;
-  }
-
-  .event-row {
-    display: grid;
-    grid-template-columns: 80px auto 1fr 140px auto;
-    gap: 12px;
-    align-items: center;
-    padding: 8px 12px;
-    border-radius: 8px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-elevated);
-  }
-
-  .event-row:hover {
-    background: var(--color-bg-hover);
-  }
-
-  .time {
-    color: var(--color-text-tertiary);
-    font-size: 0.85rem;
-  }
-
-  .source {
-    color: var(--color-text-secondary);
-    font-size: 0.85rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .corr {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 0.85rem;
-  }
-
-  .id {
-    font-size: 0.8rem;
-  }
-
-  .mono {
-    font-family: var(--font-mono);
-  }
-
-  .muted {
-    color: var(--color-text-muted);
-  }
-
-  .footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.85rem;
-    padding-top: 8px;
-    border-top: 1px solid var(--color-border-default);
+  .stream :global(.stream-table) {
+    flex: 0 1 auto;
+    min-height: 0;
   }
 </style>

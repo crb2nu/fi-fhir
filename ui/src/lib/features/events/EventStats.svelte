@@ -1,18 +1,32 @@
+<!--
+  Events › Statistics: the event store's aggregate counts. Totals in one
+  KeyValue strip, then counts by type and by source as tables with
+  right-aligned numbers and a share column.
+-->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getEventStatistics } from './eventsApi';
+  import CircleAlert from '@lucide/svelte/icons/circle-alert';
+  import RefreshCw from '@lucide/svelte/icons/refresh-cw';
   import type { EventStatisticsQuery } from '$lib/gen/graphql';
-  import Panel from '$lib/ui/Panel.svelte';
-  import EmptyState from '$lib/ui/EmptyState.svelte';
-  import Button from '$lib/ui/Button.svelte';
+  import {
+    EmptyState,
+    IconButton,
+    KeyValue,
+    Panel,
+    Table,
+    Td,
+    Th,
+    Tr
+  } from '$lib/ui/primitives';
+  import { getEventStatistics } from './eventsApi';
 
   type Stats = EventStatisticsQuery['eventStatistics'];
 
-  let stats: Stats | null = null;
-  let loading = true;
-  let error: string | null = null;
+  let stats = $state<Stats | null>(null);
+  let loading = $state(true);
+  let error = $state<string | null>(null);
 
-  async function load() {
+  async function load(): Promise<void> {
     loading = true;
     error = null;
     try {
@@ -24,72 +38,84 @@
     }
   }
 
+  const byType = $derived(stats ? [...stats.byType].sort((a, b) => b.count - a.count) : []);
+  const bySource = $derived(stats ? [...stats.bySource].sort((a, b) => b.count - a.count) : []);
+
+  function share(count: number): string {
+    if (!stats || stats.totalEvents === 0) return '—';
+    return `${((count / stats.totalEvents) * 100).toFixed(1)}%`;
+  }
+
   onMount(load);
 </script>
 
-<div class="stats-page">
+<div class="stats">
   {#if error}
-    <EmptyState icon="error" title="Failed to load statistics" description={error}>
-      <Button variant="secondary" on:click={load}>Retry</Button>
-    </EmptyState>
-  {:else if loading}
-    <div class="loading">Loading statistics...</div>
-  {:else if stats}
-    <div class="stat-cards">
-      <div class="stat-card accent">
-        <span class="stat-value">{stats.totalEvents.toLocaleString()}</span>
-        <span class="stat-label">Total Events</span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-value">{stats.byType.length}</span>
-        <span class="stat-label">Event Types</span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-value">{stats.bySource.length}</span>
-        <span class="stat-label">Sources</span>
-      </div>
-    </div>
+    <EmptyState
+      icon={CircleAlert}
+      message={`Statistics could not be loaded: ${error}`}
+      actionLabel="Retry"
+      onaction={load}
+    />
+  {:else}
+    <Panel title="Totals">
+      {#snippet actions()}
+        <IconButton icon={RefreshCw} label="Refresh statistics" {loading} onclick={load} />
+      {/snippet}
+      <KeyValue
+        columns={2}
+        items={[
+          { key: 'Events', value: stats ? stats.totalEvents.toLocaleString() : null, mono: true },
+          { key: 'Event types', value: stats ? stats.byType.length : null, mono: true },
+          { key: 'Sources', value: stats ? stats.bySource.length : null, mono: true }
+        ]}
+      />
+    </Panel>
 
-    <div class="breakdown-grid">
-      <Panel title="By Event Type">
-        {#if stats.byType.length === 0}
-          <p class="muted">No events recorded yet.</p>
+    <div class="breakdowns">
+      <Panel title="By event type" flush>
+        {#if stats && byType.length === 0}
+          <EmptyState align="start" message="No events recorded." />
         {:else}
-          <div class="breakdown-list">
-            {#each stats.byType.sort((a, b) => b.count - a.count) as item (item.eventType)}
-              <div class="breakdown-row">
-                <span class="breakdown-label">{item.eventType.replace(/_/g, ' ')}</span>
-                <span class="breakdown-count mono">{item.count.toLocaleString()}</span>
-                <div class="breakdown-bar">
-                  <div
-                    class="breakdown-fill"
-                    style="width: {Math.max(2, (item.count / stats.totalEvents) * 100)}%"
-                  ></div>
-                </div>
-              </div>
+          <Table label="Events by type">
+            {#snippet head()}
+              <tr>
+                <Th>Type</Th>
+                <Th width="96px" numeric>Count</Th>
+                <Th width="80px" numeric>Share</Th>
+              </tr>
+            {/snippet}
+            {#each byType as item (item.eventType)}
+              <Tr>
+                <Td mono value={item.eventType} />
+                <Td numeric value={item.count.toLocaleString()} />
+                <Td numeric muted value={share(item.count)} />
+              </Tr>
             {/each}
-          </div>
+          </Table>
         {/if}
       </Panel>
 
-      <Panel title="By Source">
-        {#if stats.bySource.length === 0}
-          <p class="muted">No events recorded yet.</p>
+      <Panel title="By source" flush>
+        {#if stats && bySource.length === 0}
+          <EmptyState align="start" message="No events recorded." />
         {:else}
-          <div class="breakdown-list">
-            {#each stats.bySource.sort((a, b) => b.count - a.count) as item (item.source)}
-              <div class="breakdown-row">
-                <span class="breakdown-label mono">{item.source}</span>
-                <span class="breakdown-count mono">{item.count.toLocaleString()}</span>
-                <div class="breakdown-bar">
-                  <div
-                    class="breakdown-fill source"
-                    style="width: {Math.max(2, (item.count / stats.totalEvents) * 100)}%"
-                  ></div>
-                </div>
-              </div>
+          <Table label="Events by source">
+            {#snippet head()}
+              <tr>
+                <Th>Source</Th>
+                <Th width="96px" numeric>Count</Th>
+                <Th width="80px" numeric>Share</Th>
+              </tr>
+            {/snippet}
+            {#each bySource as item (item.source)}
+              <Tr>
+                <Td mono value={item.source} />
+                <Td numeric value={item.count.toLocaleString()} />
+                <Td numeric muted value={share(item.count)} />
+              </Tr>
             {/each}
-          </div>
+          </Table>
         {/if}
       </Panel>
     </div>
@@ -97,108 +123,23 @@
 </div>
 
 <style>
-  .stats-page {
+  .stats {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+
+  .breakdowns {
     display: grid;
-    gap: 16px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    align-items: start;
   }
 
-  .loading {
-    color: var(--color-text-tertiary);
-    text-align: center;
-    padding: 24px;
-  }
-
-  .stat-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 12px;
-  }
-
-  .stat-card {
-    padding: 16px;
-    border-radius: 12px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-elevated);
-    text-align: center;
-    display: grid;
-    gap: 4px;
-  }
-
-  .stat-card.accent {
-    border-color: rgba(59, 130, 246, 0.3);
-    background: rgba(59, 130, 246, 0.08);
-  }
-
-  .stat-value {
-    font-size: 1.8rem;
-    font-weight: 700;
-    color: var(--color-text-primary);
-    font-family: var(--font-mono);
-  }
-
-  .stat-label {
-    font-size: 0.85rem;
-    color: var(--color-text-tertiary);
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .breakdown-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-  }
-
-  @media (max-width: 768px) {
-    .breakdown-grid {
-      grid-template-columns: 1fr;
+  @media (max-width: 960px) {
+    .breakdowns {
+      grid-template-columns: minmax(0, 1fr);
     }
   }
-
-  .breakdown-list {
-    display: grid;
-    gap: 8px;
-  }
-
-  .breakdown-row {
-    display: grid;
-    grid-template-columns: 1fr auto auto;
-    gap: 8px;
-    align-items: center;
-  }
-
-  .breakdown-label {
-    font-size: 0.85rem;
-    color: var(--color-text-secondary);
-    text-transform: capitalize;
-  }
-
-  .breakdown-count {
-    font-size: 0.85rem;
-    color: var(--color-text-primary);
-    font-weight: 700;
-  }
-
-  .breakdown-bar {
-    width: 60px;
-    height: 6px;
-    border-radius: 3px;
-    background: var(--color-bg-surface);
-    overflow: hidden;
-  }
-
-  .breakdown-fill {
-    height: 100%;
-    border-radius: 3px;
-    background: rgba(59, 130, 246, 0.6);
-    transition: width 0.3s ease;
-  }
-
-  .breakdown-fill.source {
-    background: rgba(16, 185, 129, 0.6);
-  }
-
-  .mono { font-family: var(--font-mono); }
-  .muted { color: var(--color-text-muted); margin: 0; }
 </style>

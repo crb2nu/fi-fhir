@@ -1,211 +1,117 @@
+<!--
+  Events › Patient Timeline: one patient's events in order, looked up by MRN.
+  A filters row and a table; no timeline art.
+-->
 <script lang="ts">
-  import { getPatientTimeline } from './eventsApi';
+  import CircleAlert from '@lucide/svelte/icons/circle-alert';
+  import Inbox from '@lucide/svelte/icons/inbox';
+  import Search from '@lucide/svelte/icons/search';
   import type { PatientTimelineQuery } from '$lib/gen/graphql';
-  import Button from '$lib/ui/Button.svelte';
-  import EmptyState from '$lib/ui/EmptyState.svelte';
+  import { Badge, Button, EmptyState, Input, Table, Td, Th, Tr } from '$lib/ui/primitives';
+  import { formatEventTime } from './eventFormat';
+  import { getPatientTimeline } from './eventsApi';
 
   type Timeline = NonNullable<PatientTimelineQuery['patientTimeline']>;
 
-  let mrn = '';
-  let timeline: Timeline | null = null;
-  let loading = false;
-  let error: string | null = null;
+  let mrn = $state('');
+  let timeline = $state<Timeline | null>(null);
+  let searched = $state(false);
+  let loading = $state(false);
+  let error = $state<string | null>(null);
 
-  async function search() {
-    if (!mrn.trim()) return;
+  async function search(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    const value = mrn.trim();
+    if (!value) return;
     loading = true;
     error = null;
     try {
-      timeline = await getPatientTimeline(mrn.trim());
+      timeline = await getPatientTimeline(value);
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to load timeline';
       timeline = null;
     } finally {
       loading = false;
+      searched = true;
     }
-  }
-
-  function formatTimestamp(ts: string): string {
-    try {
-      return new Date(ts).toLocaleString();
-    } catch {
-      return ts;
-    }
-  }
-
-  function typeColor(eventType: string): string {
-    const t = eventType.toUpperCase();
-    if (t.includes('ADMIT') || t.includes('DISCHARGE') || t.includes('TRANSFER')) return 'adt';
-    if (t.includes('LAB')) return 'lab';
-    if (t.includes('APPOINTMENT')) return 'appt';
-    if (t.includes('CLAIM') || t.includes('ELIGIBILITY')) return 'claim';
-    return 'default';
   }
 </script>
 
-<div class="timeline-page">
-  <form class="search-bar" on:submit|preventDefault={search}>
-    <input
-      aria-label="Patient MRN"
-      type="text"
-      class="input"
-      bind:value={mrn}
-      placeholder="Enter patient MRN..."
-    />
-    <Button variant="primary" size="sm" type="submit" {loading}>
-      Load Timeline
+<div class="timeline">
+  <form class="filters" aria-label="Patient lookup" onsubmit={search}>
+    <div class="filter-mrn">
+      <Input aria-label="Patient MRN" bind:value={mrn} placeholder="Patient MRN" mono />
+    </div>
+    <Button type="submit" variant="primary" icon={Search} {loading} disabled={!mrn.trim()}>
+      Load timeline
     </Button>
+    {#if timeline}
+      <span class="spacer"></span>
+      <span class="mrn text-mono">{timeline.mrn}</span>
+      <Badge mono>{timeline.eventCount} events</Badge>
+    {/if}
   </form>
 
   {#if error}
-    <EmptyState icon="error" title="Timeline not found" description={error} />
+    <EmptyState icon={CircleAlert} message={`The timeline could not be loaded: ${error}`} />
+  {:else if timeline && timeline.events.length === 0}
+    <EmptyState icon={Inbox} message="No events are recorded for this patient." />
   {:else if timeline}
-    <div class="timeline-header">
-      <span class="mrn-label">MRN: <strong class="mono">{timeline.mrn}</strong></span>
-      <span class="event-count">{timeline.eventCount} events</span>
-    </div>
-
-    {#if timeline.events.length === 0}
-      <EmptyState icon="inbox" title="No events" description="No events found for this patient." />
-    {:else}
-      <div class="timeline">
-        {#each timeline.events as event, i (event.position)}
-          <div class="timeline-item">
-            <div class="timeline-dot {typeColor(event.eventType)}"></div>
-            {#if i < timeline.events.length - 1}
-              <div class="timeline-line"></div>
-            {/if}
-            <div class="timeline-content">
-              <div class="timeline-time mono">{formatTimestamp(event.timestamp)}</div>
-              <div class="timeline-type">{event.eventType.replace(/_/g, ' ')}</div>
-              <div class="timeline-summary">{event.summary}</div>
-              {#if event.source}
-                <div class="timeline-source mono">{event.source}</div>
-              {/if}
-            </div>
-          </div>
-        {/each}
-      </div>
-    {/if}
-  {:else if !loading}
-    <EmptyState
-      icon="search"
-      title="Search for a patient"
-      description="Enter a patient MRN to view their event timeline."
-    />
+    <Table label="Patient timeline" layout="fixed" class="timeline-table">
+      {#snippet head()}
+        <tr>
+          <Th width="56px" numeric>#</Th>
+          <Th width="156px">Time</Th>
+          <Th width="176px">Type</Th>
+          <Th>Summary</Th>
+          <Th width="140px">Source</Th>
+        </tr>
+      {/snippet}
+      {#each timeline.events as event (event.position)}
+        <Tr>
+          <Td numeric muted value={event.position} />
+          <Td mono muted value={formatEventTime(event.timestamp)} />
+          <Td mono truncate value={event.eventType} />
+          <Td truncate value={event.summary} />
+          <Td mono truncate muted value={event.source ?? '—'} />
+        </Tr>
+      {/each}
+    </Table>
+  {:else if !searched}
+    <EmptyState icon={Search} message="Enter a patient MRN to list that patient's events." />
   {/if}
 </div>
 
 <style>
-  .timeline-page {
-    display: grid;
-    gap: 16px;
-  }
-
-  .search-bar {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-  }
-
-  .input {
-    flex: 1;
-    max-width: 300px;
-    padding: 8px 12px;
-    border-radius: 10px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-input);
-    color: var(--color-text-primary);
-    outline: none;
-  }
-
-  .input:focus {
-    border-color: var(--color-border-focus);
-    box-shadow: var(--shadow-focus);
-  }
-
-  .timeline-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 0;
-    border-bottom: 1px solid var(--color-border-default);
-  }
-
-  .mrn-label {
-    color: var(--color-text-secondary);
-  }
-
-  .event-count {
-    color: var(--color-text-tertiary);
-    font-size: 0.85rem;
-    font-weight: 700;
-  }
-
   .timeline {
-    display: grid;
-    gap: 0;
-    padding-left: 20px;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
-  .timeline-item {
-    position: relative;
-    padding-left: 24px;
-    padding-bottom: 16px;
+  .filters {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
   }
 
-  .timeline-dot {
-    position: absolute;
-    left: -6px;
-    top: 4px;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: var(--color-bg-surface);
-    border: 2px solid var(--color-border-strong);
-    z-index: 1;
+  .filter-mrn {
+    width: 240px;
   }
 
-  .timeline-dot.adt { border-color: rgba(59, 130, 246, 0.7); background: rgba(59, 130, 246, 0.2); }
-  .timeline-dot.lab { border-color: rgba(16, 185, 129, 0.7); background: rgba(16, 185, 129, 0.2); }
-  .timeline-dot.appt { border-color: rgba(245, 158, 11, 0.7); background: rgba(245, 158, 11, 0.2); }
-  .timeline-dot.claim { border-color: rgba(168, 85, 247, 0.7); background: rgba(168, 85, 247, 0.2); }
-
-  .timeline-line {
-    position: absolute;
-    left: 0;
-    top: 16px;
-    bottom: 0;
-    width: 1px;
-    background: var(--color-border-default);
+  .spacer {
+    flex: 1 1 auto;
   }
 
-  .timeline-content {
-    display: grid;
-    gap: 2px;
-  }
-
-  .timeline-time {
-    font-size: 0.8rem;
-    color: var(--color-text-tertiary);
-  }
-
-  .timeline-type {
-    font-weight: 700;
-    color: var(--color-text-primary);
-    text-transform: capitalize;
-  }
-
-  .timeline-summary {
+  .mrn {
     color: var(--color-text-secondary);
-    font-size: 0.9rem;
-    line-height: 1.4;
   }
 
-  .timeline-source {
-    font-size: 0.8rem;
-    color: var(--color-text-muted);
+  .timeline :global(.timeline-table) {
+    flex: 0 1 auto;
+    min-height: 0;
   }
-
-  .mono { font-family: var(--font-mono); }
 </style>
